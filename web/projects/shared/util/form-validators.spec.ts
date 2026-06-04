@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
 import { FormValidators } from "./form-validators";
 
@@ -476,7 +477,6 @@ describe("FormValidators", () => {
          expect(FormValidators.assetNameMyReports(ctrl(""))).toBeNull();
       });
    });
-
 
    describe("isValidDataSourceFolderName", () => {
       it("returns null for valid folder names", () => {

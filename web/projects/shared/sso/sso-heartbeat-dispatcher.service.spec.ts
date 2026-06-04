@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { EMPTY, of, Subject } from "rxjs";
 import { SsoHeartbeatDispatcherService } from "./sso-heartbeat-dispatcher.service";
 
@@ -24,7 +25,7 @@ function makeHeartbeatService(subject: Subject<void>) {
 
 function makeHttp(heartbeatUrl: string | null = "https://sso.example.com/heartbeat") {
    return {
-      get: jest.fn().mockImplementation((url: string) => {
+      get: vi.fn().mockImplementation((url: string) => {
          if(url.includes("sso-heartbeat-model")) {
             return of({ url: heartbeatUrl });
          }

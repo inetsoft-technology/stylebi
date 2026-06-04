@@ -49,6 +49,7 @@ import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 
 import { EditorPanelComponent } from "../../../common/util/editor-panel/editor-panel.component";
+import { NgIf } from "@angular/common";
 
 const GET_DATA_CYCLE_DIALOG_MODEL_URI = "../api/em/schedule/cycle-dialog-model/";
 const EDIT_DATA_CYCLE_URI = "../api/em/schedule/edit-cycle";
@@ -62,7 +63,7 @@ const EDIT_DATA_CYCLE_URI = "../api/em/schedule/edit-cycle";
     templateUrl: "./schedule-cycle-editor-page.component.html",
     styleUrls: ["./schedule-cycle-editor-page.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [EditorPanelComponent, MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, MatError, MatTabGroup, MatTab, MatCard, MatCardContent, MatNavList, MatListItem, MatTooltip, MatCardActions, MatButton, TaskConditionPaneComponent, ScheduleCycleOptionsPaneComponent, ResourcePermissionComponent]
+    imports: [NgIf, EditorPanelComponent, MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, MatError, MatTabGroup, MatTab, MatCard, MatCardContent, MatNavList, MatListItem, MatTooltip, MatCardActions, MatButton, TaskConditionPaneComponent, ScheduleCycleOptionsPaneComponent, ResourcePermissionComponent]
 })
 export class ScheduleCycleEditorPageComponent implements OnInit, OnDestroy {
    @HostBinding("class") hostClass = "schedule-cycle-editor";

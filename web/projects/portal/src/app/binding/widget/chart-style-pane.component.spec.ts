@@ -27,10 +27,10 @@ describe("chart style pane component unit case", () => {
    let fixture: ComponentFixture<ChartStylePane>;
    let stylePane: ChartStylePane;
    let uiContextService: any;
-   let modelService: any = { getModel: jest.fn() };
+   let modelService: any = { getModel: vi.fn() };
 
    beforeEach(() => {
-      uiContextService = { isAdhoc: jest.fn() };
+      uiContextService = { isAdhoc: vi.fn() };
       TestBed.configureTestingModule({
          imports: [ReactiveFormsModule, FormsModule, NgbModule, ChartStylePane],
          

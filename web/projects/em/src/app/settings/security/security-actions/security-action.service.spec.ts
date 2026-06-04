@@ -40,6 +40,7 @@
  *     whether this is intentional is unclear — skipped, callers appear to guard against null
  */
 
+import { type Mock } from "vitest";
 import { HttpClientTestingModule, HttpTestingController } from "@angular/common/http/testing";
 import { TestBed } from "@angular/core/testing";
 import { MatDialog } from "@angular/material/dialog";
@@ -68,10 +69,10 @@ const emptyModel: ResourcePermissionModel = {
 describe("SecurityActionService — scene layer", () => {
    let service: SecurityActionService;
    let httpMock: HttpTestingController;
-   let dialogSpy: { open: jest.Mock };
+   let dialogSpy: { open: Mock };
 
    beforeEach(() => {
-      dialogSpy = { open: jest.fn() };
+      dialogSpy = { open: vi.fn() };
 
       TestBed.configureTestingModule({
          imports: [HttpClientTestingModule],

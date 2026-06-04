@@ -98,7 +98,7 @@ async function renderComp(opts: {
 } = {}) {
 
    const dialogMock = {
-      open: jest.fn().mockReturnValue({
+      open: vi.fn().mockReturnValue({
          afterClosed: () => of(opts.dialogClosesWith !== undefined ? opts.dialogClosesWith : null),
       }),
    };
@@ -147,7 +147,7 @@ describe("BatchActionEditorComponent — ngOnInit(): scheduled-tasks fetch", () 
    // Risk Point/Contract: when originalTaskName is absent, no HTTP request is made and
    // tasks remains undefined (no dropdown to populate).
    it("should leave tasks undefined when originalTaskName is not provided", async () => {
-      const fetchSpy = jest.fn();
+      const fetchSpy = vi.fn();
       server.use(http.get(SCHEDULED_TASKS_URL, () => { fetchSpy(); return HttpResponse.json({ tasks: [] }); }));
 
       const { comp } = await renderComp({ originalTaskName: "" });
@@ -343,7 +343,7 @@ describe("BatchActionEditorComponent — actionModel setter: conditional fetchPa
    // undefined → "TaskA"), triggering one initial fetch. We wait for that to settle,
    // then reassign with the same name and verify no additional fetch occurs.
    it("should not fetch parameters when actionModel is set with the same task name", async () => {
-      const fetchSpy = jest.fn();
+      const fetchSpy = vi.fn();
       server.use(http.get(PARAMETERS_URL, () => { fetchSpy(); return HttpResponse.json({ parameterNames: [] }); }));
 
       const { comp } = await renderComp({

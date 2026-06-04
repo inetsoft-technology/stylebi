@@ -568,7 +568,7 @@ public class VGraph extends BoundedContainer {
    private String createKey(ElementVO vo) {
       ElementGeometry g = (ElementGeometry) vo.getGeometry();
       DataSet data = coord.getDataSet();
-      return g.getOverlayId(vo, data);
+      return g.getOverlayId(vo, data, coord instanceof PolarCoord);
    }
 
    /**

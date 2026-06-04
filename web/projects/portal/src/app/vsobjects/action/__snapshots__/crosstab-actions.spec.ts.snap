@@ -1,6 +1,6 @@
-// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`CrosstabActions check status of menu actions and toolbar actions in binding 1`] = `
+exports[`CrosstabActions > check status of menu actions and toolbar actions in binding 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -346,7 +346,7 @@ exports[`CrosstabActions check status of menu actions and toolbar actions in bin
 ]
 `;
 
-exports[`CrosstabActions check status of menu actions and toolbar actions in binding 2`] = `
+exports[`CrosstabActions > check status of menu actions and toolbar actions in binding 2`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -450,7 +450,7 @@ exports[`CrosstabActions check status of menu actions and toolbar actions in bin
 ]
 `;
 
-exports[`CrosstabActions check status of menu actions and toolbar actions in binding when select multiple group header 1`] = `
+exports[`CrosstabActions > check status of menu actions and toolbar actions in binding when select multiple group header 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -796,7 +796,7 @@ exports[`CrosstabActions check status of menu actions and toolbar actions in bin
 ]
 `;
 
-exports[`CrosstabActions check status of menu actions and toolbar actions in binding when select multiple group header 2`] = `
+exports[`CrosstabActions > check status of menu actions and toolbar actions in binding when select multiple group header 2`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -900,7 +900,7 @@ exports[`CrosstabActions check status of menu actions and toolbar actions in bin
 ]
 `;
 
-exports[`CrosstabActions check status of menu actions and toolbar actions in composer 1`] = `
+exports[`CrosstabActions > check status of menu actions and toolbar actions in composer 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -1246,7 +1246,7 @@ exports[`CrosstabActions check status of menu actions and toolbar actions in com
 ]
 `;
 
-exports[`CrosstabActions check status of menu actions and toolbar actions in composer 2`] = `
+exports[`CrosstabActions > check status of menu actions and toolbar actions in composer 2`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -1350,7 +1350,7 @@ exports[`CrosstabActions check status of menu actions and toolbar actions in com
 ]
 `;
 
-exports[`CrosstabActions check status of menu actions and toolbar actions in composer when select header cell 1`] = `
+exports[`CrosstabActions > check status of menu actions and toolbar actions in composer when select header cell 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -1696,7 +1696,7 @@ exports[`CrosstabActions check status of menu actions and toolbar actions in com
 ]
 `;
 
-exports[`CrosstabActions check status of menu actions and toolbar actions in composer when select header cell 2`] = `
+exports[`CrosstabActions > check status of menu actions and toolbar actions in composer when select header cell 2`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -1800,7 +1800,7 @@ exports[`CrosstabActions check status of menu actions and toolbar actions in com
 ]
 `;
 
-exports[`CrosstabActions check status of menu actions and toolbar actions in viewer and preview 1`] = `
+exports[`CrosstabActions > check status of menu actions and toolbar actions in viewer and preview 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -2146,7 +2146,7 @@ exports[`CrosstabActions check status of menu actions and toolbar actions in vie
 ]
 `;
 
-exports[`CrosstabActions check status of menu actions and toolbar actions in viewer and preview 2`] = `
+exports[`CrosstabActions > check status of menu actions and toolbar actions in viewer and preview 2`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -2250,7 +2250,7 @@ exports[`CrosstabActions check status of menu actions and toolbar actions in vie
 ]
 `;
 
-exports[`CrosstabActions check status of menu actions and toolbar actions in viewer and preview 3`] = `
+exports[`CrosstabActions > check status of menu actions and toolbar actions in viewer and preview 3`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -2596,7 +2596,7 @@ exports[`CrosstabActions check status of menu actions and toolbar actions in vie
 ]
 `;
 
-exports[`CrosstabActions check status of menu actions and toolbar actions in viewer and preview 4`] = `
+exports[`CrosstabActions > check status of menu actions and toolbar actions in viewer and preview 4`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -2700,7 +2700,7 @@ exports[`CrosstabActions check status of menu actions and toolbar actions in vie
 ]
 `;
 
-exports[`CrosstabActions check status of menu actions and toolbar actions in viewer when select summary cell 1`] = `
+exports[`CrosstabActions > check status of menu actions and toolbar actions in viewer when select summary cell 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -3046,7 +3046,7 @@ exports[`CrosstabActions check status of menu actions and toolbar actions in vie
 ]
 `;
 
-exports[`CrosstabActions check status of menu actions and toolbar actions in viewer when select summary cell 2`] = `
+exports[`CrosstabActions > check status of menu actions and toolbar actions in viewer when select summary cell 2`] = `
 [
   AssemblyActionGroup {
     "actions": [

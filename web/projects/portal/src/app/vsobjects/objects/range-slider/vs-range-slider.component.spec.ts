@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
@@ -51,34 +52,34 @@ describe("VSRangeSlider Test", () => {
    let dropdownService: any;
    let globalSubmitService: any;
 
-   viewsheetClientService = { sendEvent: jest.fn() };
-   let modelService: any = { getModel: jest.fn() };
-   let modalService: any = { open: jest.fn() };
-   dataTipService = { isDataTip: jest.fn() };
+   viewsheetClientService = { sendEvent: vi.fn() };
+   let modelService: any = { getModel: vi.fn() };
+   let modalService: any = { open: vi.fn() };
+   dataTipService = { isDataTip: vi.fn() };
    const formDataService = {
-      checkFormData: jest.fn(),
-      removeObject: jest.fn(),
-      addObject: jest.fn(),
-      replaceObject: jest.fn()
+      checkFormData: vi.fn(),
+      removeObject: vi.fn(),
+      addObject: vi.fn(),
+      replaceObject: vi.fn()
    };
    const contextProvider = {};
-   dialogService = { open: jest.fn() };
+   dialogService = { open: vi.fn() };
    const timerService = {
-      defer: jest.fn((fn) => {
+      defer: vi.fn((fn) => {
          fn();
       })
    };
 
    beforeEach(waitForAsync(() => {
       adhocFilterService = {
-         adhocFilterShowing: jest.fn(),
-         showFilter: jest.fn()
+         adhocFilterShowing: vi.fn(),
+         showFilter: vi.fn()
       };
       globalSubmitService = {
          hasUnapplyData: false,
-         updateState: jest.fn(),
-         globalSubmit: jest.fn(() => NEVER),
-         submitGlobal: jest.fn()
+         updateState: vi.fn(),
+         globalSubmit: vi.fn(() => NEVER),
+         submitGlobal: vi.fn()
       };
 
       TestBed.configureTestingModule({
@@ -162,7 +163,7 @@ describe("VSRangeSlider Test", () => {
 
    //Bug #18115, should open range slider dialog on viewer page.
    it("should open range slider edit dialog on viewer page", () => {
-      let showDialog = jest.spyOn(ComponentTool, "showDialog");
+      let showDialog = vi.spyOn(ComponentTool, "showDialog");
       showDialog.mockImplementation(() => new RangeSliderEditDialog());
       let rangeSliderActions: RangeSliderActions = new RangeSliderActions(TestUtils.createMockVSRangeSliderModel("rs1"), ViewerContextProviderFactory(false));
       fixture.componentInstance.actions = rangeSliderActions;

@@ -51,9 +51,9 @@ describe("Arrange Dashboard Dialog Unit Test", () => {
    };
 
    let modelService = {
-      getModel: jest.fn(() => createModel()),
-      putModel: jest.fn(() => observableOf(new HttpResponse({body: null}))),
-      sendModel: jest.fn(() => observableOf(new HttpResponse({body: null})))
+      getModel: vi.fn(() => createModel()),
+      putModel: vi.fn(() => observableOf(new HttpResponse({body: null}))),
+      sendModel: vi.fn(() => observableOf(new HttpResponse({body: null})))
    };
 
    let fixture: ComponentFixture<ArrangeDashboardDialog>;

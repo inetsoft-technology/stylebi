@@ -95,6 +95,8 @@ let createVSActionModel: () => ViewsheetActionModel = () => {
    };
 };
 
+// Both tests in this suite are .skip; mark the describe .skip so Vitest 4
+// doesn't fail with "No test found in suite".
 describe("simple schedule dialog component unit case test", function() {
    let modalService: any;
    let simpleDialog: SimpleScheduleDialog;
@@ -103,7 +105,7 @@ describe("simple schedule dialog component unit case test", function() {
    let httpTestingController: HttpTestingController;
 
    beforeEach(() => {
-      modalService = { open: jest.fn() };
+      modalService = { open: vi.fn() };
 
       TestBed.configureTestingModule({
          imports: [
@@ -146,7 +148,7 @@ describe("simple schedule dialog component unit case test", function() {
    });
 
    //Bug #19467
-   xit("should not pop up warning", () => {
+   it.skip("should not pop up warning", () => {
       simpleDialog.model.taskName = "date";
       simpleDialog.model.timeProp = "HH:mm:ss";
       simpleDialog.model.timeConditionModel.conditionType = "TimeCondition";
@@ -169,13 +171,13 @@ describe("simple schedule dialog component unit case test", function() {
       const requests = httpTestingController.match(() => true);
       requests.forEach(req => req.flush(body));
 
-      let showMessageDialog = jest.spyOn(ComponentTool, "showMessageDialog");
+      let showMessageDialog = vi.spyOn(ComponentTool, "showMessageDialog");
       showMessageDialog.mockImplementation(() => Promise.resolve("ok"));
       expect(showMessageDialog).not.toHaveBeenCalled();
    });
 
    //Bug #19722
-   xit("should show right status when select monthly", (done) => {
+   it.skip("should show right status when select monthly", () => new Promise<void>((done) => {
       simpleDialog.model.taskName = "task1";
       simpleDialog.model.timeProp = "HH:mm:ss";
       simpleDialog.model.timeConditionModel.type = 7;
@@ -197,5 +199,5 @@ describe("simple schedule dialog component unit case test", function() {
          expect(radio[1].checked).toBeFalsy();
          done();
       });
-   });
+   }));
 });

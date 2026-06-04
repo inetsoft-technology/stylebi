@@ -62,7 +62,7 @@ describe("Aggregate Pane Unit Test", () => {
          aliasMap: {}
       };
    };
-   let dateLevelExamplesService = { loadDateLevelExamples: jest.fn(() => observableOf()) };
+   let dateLevelExamplesService = { loadDateLevelExamples: vi.fn(() => observableOf()) };
 
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({

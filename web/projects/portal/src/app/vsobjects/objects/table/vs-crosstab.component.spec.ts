@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { CommonModule } from "@angular/common";
-import { HttpClient, HttpClientModule } from "@angular/common/http";
+import { HttpClient } from "@angular/common/http";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA, Optional } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -80,19 +81,19 @@ describe("VSCrosstab", () => {
    let vsTabService: any;
 
    beforeEach(() => {
-      viewsheetClient = { sendEvent: jest.fn() };
-      dropdownService = { open: jest.fn() };
-      downloadService = { download: jest.fn() };
-      modalService = { open: jest.fn() };
+      viewsheetClient = { sendEvent: vi.fn() };
+      dropdownService = { open: vi.fn() };
+      downloadService = { download: vi.fn() };
+      modalService = { open: vi.fn() };
       dataTipService = {
-         showDataTip: jest.fn(),
-         isDataTip: jest.fn(),
-         isDataTipVisible: jest.fn(),
-         isDataTipSource: jest.fn(),
-         isCurrentDataTip: jest.fn(),
-         isFrozen: jest.fn(),
-         hideDataTip: jest.fn(),
-         getVSObjectId: jest.fn(),
+         showDataTip: vi.fn(),
+         isDataTip: vi.fn(),
+         isDataTipVisible: vi.fn(),
+         isDataTipSource: vi.fn(),
+         isCurrentDataTip: vi.fn(),
+         isFrozen: vi.fn(),
+         hideDataTip: vi.fn(),
+         getVSObjectId: vi.fn(),
          dataTipName: null,
          dataTipY: 0,
          dataTipX: 0,
@@ -102,15 +103,15 @@ describe("VSCrosstab", () => {
       viewDataService = {};
       dataTipService.isDataTip.mockImplementation(() => false);
       popComponentService = {
-         toggle: jest.fn(),
-         isPopComponent: jest.fn(),
-         getPopComponent: jest.fn(),
-         isCurrentPopComponent: jest.fn(),
-         registerPopComponentChild: jest.fn(),
-         clearPopViewerOffset: jest.fn(),
-         getTriggerPopInfo: jest.fn(),
-         getPopInfo: jest.fn(),
-         getPopLocation: jest.fn(),
+         toggle: vi.fn(),
+         isPopComponent: vi.fn(),
+         getPopComponent: vi.fn(),
+         isCurrentPopComponent: vi.fn(),
+         registerPopComponentChild: vi.fn(),
+         clearPopViewerOffset: vi.fn(),
+         getTriggerPopInfo: vi.fn(),
+         getPopInfo: vi.fn(),
+         getPopLocation: vi.fn(),
          popY: 0,
          popX: 0,
          popAlpha: 1,
@@ -118,28 +119,32 @@ describe("VSCrosstab", () => {
          componentRegistered: new Subject<{name: string, parent: string}>()
       };
       popComponentService.isPopComponent.mockImplementation(() => false);
-      modelService = { getModel: jest.fn() };
+      modelService = { getModel: vi.fn() };
       modelService.getModel.mockImplementation(() => observableOf([]));
-      debounceService = { debounce: jest.fn() };
+      debounceService = { debounce: vi.fn() };
       const formDataService: any = {
-         checkFormData: jest.fn(),
-         removeObject: jest.fn(),
-         addObject: jest.fn(),
-         replaceObject: jest.fn()
+         checkFormData: vi.fn(),
+         removeObject: vi.fn(),
+         addObject: vi.fn(),
+         replaceObject: vi.fn()
       };
-      dndService = { setDragStartStype: jest.fn() };
-      dialogService = { open: jest.fn() };
-      adhocFilterService = { showFilter: jest.fn(), adhocFilterShowing: false };
+      dndService = { setDragStartStype: vi.fn() };
+      dialogService = { open: vi.fn() };
+      adhocFilterService = { showFilter: vi.fn(), adhocFilterShowing: false };
       router = {
-         navigate: jest.fn(),
+         navigate: vi.fn(),
          events: new Subject<any>()
       };
       richTextService = {
-         showAnnotationDialog: jest.fn()
+         showAnnotationDialog: vi.fn()
       };
       pagingControlService = {
-         scrollTop: jest.fn(() => observableOf({})),
-         scrollLeft: jest.fn(() => observableOf({}))
+         scrollTop: vi.fn(() => observableOf({})),
+         scrollLeft: vi.fn(() => observableOf({})),
+         // base-table subscribes to scrollTop/scrollLeft and immediately invokes
+         // getCurrentAssembly() to filter events for its assembly; without this,
+         // the subscription throws after the test fixture is destroyed.
+         getCurrentAssembly: vi.fn(() => "")
       };
       vsTabService = { };
       vsTabService.tabDeselected = observableOf(null);
@@ -150,7 +155,11 @@ describe("VSCrosstab", () => {
             FormsModule,
             ReactiveFormsModule,
             NgbModule,
-            HttpClientModule,
+            // Replaces HttpClientModule so AppInfoService's startup
+            // loadCurrentOrgInfo() call doesn't make a real HTTP request that
+            // would fail with "Http failure response for ../api/org/info" after
+            // the test completes.
+            HttpClientTestingModule,
             VSCrosstab,
             VSTableCell,
          ],
@@ -182,7 +191,7 @@ describe("VSCrosstab", () => {
             { provide: RichTextService, useValue: richTextService },
             { provide: PagingControlService, useValue: pagingControlService },
             { provide: VSTabService, useValue: vsTabService },
-            { provide: InteractService, useValue: { addInteractable: jest.fn(), removeInteractable: jest.fn(), notify: jest.fn() } },
+            { provide: InteractService, useValue: { addInteractable: vi.fn(), removeInteractable: vi.fn(), notify: vi.fn() } },
             AppInfoService
          ]
       });
@@ -192,7 +201,7 @@ describe("VSCrosstab", () => {
    });
 
    // Bug #17211
-   it("should fire event when condition action is triggered", (done) => {
+   it("should fire event when condition action is triggered", () => new Promise<void>((done) => {
       const model = createModel();
       const actions = new CrosstabActions(model, ComposerContextProviderFactory(),
                                           false, null, dataTipService);
@@ -206,5 +215,5 @@ describe("VSCrosstab", () => {
       });
 
       actions.menuActions[3].actions[0].action(null);
-   });
+   }));
 });

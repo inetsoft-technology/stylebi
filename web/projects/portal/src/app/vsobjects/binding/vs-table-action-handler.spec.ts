@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { AssemblyActionEvent } from "../../common/action/assembly-action-event";
 import { TestUtils } from "../../common/test/test-utils";
 import { VSCrosstabModel } from "../model/vs-crosstab-model";
@@ -31,16 +32,16 @@ describe("VS Table Action Handler Unit Test", () => {
 
    beforeEach(() => {
       vsCrosstabModel = TestUtils.createMockVSCrosstabModel("Crosstab1");
-      modelService = { getModel: jest.fn() };
-      modalService = { open: jest.fn() };
-      injector = { get: jest.fn() };
-      viewsheetClientService = { sendEvent: jest.fn() };
+      modelService = { getModel: vi.fn() };
+      modalService = { open: vi.fn() };
+      injector = { get: vi.fn() };
+      viewsheetClientService = { sendEvent: vi.fn() };
    });
 
    //for Bug #17196, delete column(s) can not work
    it("should call removeTableColumns when delete column event is received", () => {
       const handler = new VSTableActionHandler(modelService, viewsheetClientService, modalService, injector, null);
-      handler["removeTableColumns"] = jest.fn();
+      handler["removeTableColumns"] = vi.fn();
       handler.handleEvent(new AssemblyActionEvent<VSTableModel>("table delete-columns", vsTableModel), []);
       expect(handler["removeTableColumns"]).toHaveBeenCalled();
    });
@@ -48,7 +49,7 @@ describe("VS Table Action Handler Unit Test", () => {
    //for Bug #17195, properties dialog can not open
    it("should open properties dialog wehn properties event is received", () => {
       const handler = new VSTableActionHandler(modelService, viewsheetClientService, modalService, injector, null);
-      handler["showTablePropertiesDialog"] = jest.fn();
+      handler["showTablePropertiesDialog"] = vi.fn();
       handler.handleEvent(new AssemblyActionEvent<VSTableModel>("table properties", vsTableModel), []);
       expect(handler["showTablePropertiesDialog"]).toHaveBeenCalled();
    });

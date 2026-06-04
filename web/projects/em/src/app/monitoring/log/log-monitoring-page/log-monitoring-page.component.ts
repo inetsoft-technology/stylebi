@@ -118,7 +118,7 @@ export class LogMonitoringPageComponent implements OnInit, OnDestroy {
       }
 
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    updateSubscription() {

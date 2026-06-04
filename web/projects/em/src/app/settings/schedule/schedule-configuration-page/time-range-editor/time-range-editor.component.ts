@@ -38,6 +38,7 @@ import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { MatCard, MatCardContent } from "@angular/material/card";
 import { MatTabGroup, MatTab } from "@angular/material/tabs";
 import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
+import { NgIf } from "@angular/common";
 
 export interface TimeRangeData {
    range: TimeRange;
@@ -49,7 +50,7 @@ export interface TimeRangeData {
     templateUrl: "./time-range-editor.component.html",
     styleUrls: ["./time-range-editor.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatTabGroup, MatTab, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatError, MatCheckbox, ResourcePermissionComponent, MatDialogActions, MatButton]
+    imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatTabGroup, MatTab, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatError, MatCheckbox, ResourcePermissionComponent, MatDialogActions, MatButton]
 })
 export class TimeRangeEditorComponent implements OnInit {
    form: UntypedFormGroup;

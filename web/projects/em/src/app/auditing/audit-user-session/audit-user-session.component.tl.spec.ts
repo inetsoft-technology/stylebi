@@ -35,6 +35,7 @@
  *   minDuration and maxDuration are only appended when the form value is truthy
  *   (non-zero). This means duration 0 is treated as "no filter" and omitted.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ReactiveFormsModule } from "@angular/forms";
 import { HttpClientModule, HttpParams } from "@angular/common/http";
@@ -72,7 +73,6 @@ const EMPTY_ADDITIONAL = {
    minDuration: 0,
    maxDuration: 0,
 };
-
 
 /** Renders the component with NO_ERRORS_SCHEMA so em-audit-table-view is stubbed. */
 async function renderComponent(errorService = makeErrorServiceMock()) {
@@ -196,7 +196,6 @@ describe("AuditUserSessionComponent — fetchData", () => {
    it("should call errorService.showSnackBar and return empty rows on data API error", async () => {
       const errorService = makeErrorServiceMock();
       const { fixture } = await renderComponent(errorService);
-
 
       server.use(
          http.get("*/api/em/monitoring/audit/userSessions", () =>

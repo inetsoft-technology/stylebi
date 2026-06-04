@@ -30,6 +30,7 @@ import { MatCard, MatCardContent } from "@angular/material/card";
 
 import { MatTabGroup, MatTab, MatTabContent } from "@angular/material/tabs";
 import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+import { NgIf } from "@angular/common";
 
 export interface RepositoryScriptEditorModel extends RepositoryEditorModel {
    scriptSettings: ScriptSettingsModel;
@@ -38,7 +39,7 @@ export interface RepositoryScriptEditorModel extends RepositoryEditorModel {
 @Component({
     selector: "em-repository-script-settings-page",
     templateUrl: "repository-script-settings-page.component.html",
-    imports: [EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, ResourcePermissionComponent]
+    imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, ResourcePermissionComponent]
 })
 export class RepositoryScriptSettingsPageComponent implements OnInit, OnChanges {
    @Input() selectedTab = 0;

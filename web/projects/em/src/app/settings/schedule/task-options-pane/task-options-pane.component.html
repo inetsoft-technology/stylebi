@@ -22,7 +22,7 @@
       _#(Enabled)
     </mat-slide-toggle>
   </div>
-  @if (model?.enabled) {
+  @if (showOptions) {
     @if (!internal) {
       <div class="flex-row margin-bottom">
         <mat-checkbox formControlName="deleteIfNotScheduledToRun"
@@ -93,11 +93,9 @@
                 <mat-option [value]="user.identityID.name">{{ user.identityID.name }}</mat-option>
               }
             </mat-autocomplete>
-            @if (optionsForm.controls['owner'].errors && optionsForm.controls['owner'].errors['invalid']) {
-              <mat-error>
-                _#(Invalid user)
-              </mat-error>
-            }
+            <mat-error *ngIf="optionsForm.controls['owner'].errors && optionsForm.controls['owner'].errors['invalid']">
+              _#(Invalid user)
+            </mat-error>
             @if (isAdminNameLoading) {
               <mat-spinner matSuffix mode="indeterminate" diameter="17"></mat-spinner>
             }

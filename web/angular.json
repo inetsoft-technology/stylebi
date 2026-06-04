@@ -29,8 +29,15 @@
             "index": "projects/portal/src/index.html",
             "allowedCommonJsDependencies": [
               "codemirror",
+              "color-convert",
+              "color-name",
+              "css-element-queries",
+              "interactjs",
+              "jsplumb",
               "lodash",
-              "dayjs"
+              "dayjs",
+              "sockjs-client",
+              "which-polygon"
             ],
             "polyfills": [
               "zone.js",
@@ -67,7 +74,7 @@
               "budgets": [
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning" : "6kb"
+                  "maximumWarning" : "7kb"
                 }
               ],
               "optimization": true,
@@ -103,22 +110,48 @@
           }
         },
         "test": {
-          "builder": "@angular-builders/jest:run",
+          "builder": "@angular/build:unit-test",
           "options": {
-            "ci": true,
-            "maxWorkers": 4,
-            "silent": true,
-            "zoneless": false,
-            "reporters": [
-              "default",
-              "jest-junit"
+            "buildTarget": "portal:build:development",
+            "runner": "vitest",
+            "runnerConfig": true,
+            "tsConfig": "projects/portal/tsconfig.spec.json",
+            "include": [
+              "**/*.spec.ts",
+              "../../shared/**/*.spec.ts"
+            ],
+            "exclude": [
+              "**/*.tl.spec.ts"
             ],
             "setupFiles": [
-              "jest-canvas-mock",
-              "<rootDir>/projects/portal/src/jest-setup.ts"
+              "vitest-bootstrap.ts",
+              "projects/portal/src/vitest-setup.ts"
             ],
-            "testPathIgnorePatterns": [
-              "\\.tl\\.spec\\.ts$"
+            "reporters": [
+              "default",
+              ["junit", { "outputFile": "junit.xml" }]
+            ]
+          }
+        },
+        "test-tl": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "buildTarget": "portal:build:development",
+            "runner": "vitest",
+            "runnerConfig": true,
+            "tsConfig": "projects/portal/tsconfig.spec.json",
+            "include": [
+              "**/*.tl.spec.ts",
+              "../../shared/**/*.tl.spec.ts"
+            ],
+            "setupFiles": [
+              "vitest-bootstrap.ts",
+              "projects/portal/src/vitest-setup.ts",
+              "projects/portal/src/vitest-setup-tl.ts"
+            ],
+            "reporters": [
+              "default",
+              ["junit", { "outputFile": "junit-tl.xml" }]
             ]
           }
         },
@@ -156,8 +189,11 @@
             "index": "projects/em/src/index.html",
             "allowedCommonJsDependencies": [
               "codemirror",
+              "color-convert",
+              "color-name",
               "lodash",
-              "dayjs"
+              "dayjs",
+              "sockjs-client"
             ],
             "polyfills": [
               "zone.js",
@@ -166,9 +202,14 @@
             ],
             "tsConfig": "projects/em/tsconfig.app.json",
             "inlineStyleLanguage": "scss",
+            "stylePreprocessorOptions": {
+              "sass": {
+                "silenceDeprecations": ["import"]
+              }
+            },
             "assets": [
               "projects/em/src/favicon.ico",
-              "projects/em/src/assets",
+              "projects/em/src/assets"
             ],
             "styles": [
               "projects/em/src/styles.scss"
@@ -193,7 +234,7 @@
               "budgets": [
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning" : "6kb"
+                  "maximumWarning" : "7kb"
                 }
               ],
               "optimization": true,
@@ -229,21 +270,24 @@
           }
         },
         "test": {
-          "builder": "@angular-builders/jest:run",
+          "builder": "@angular/build:unit-test",
           "options": {
-            "ci": true,
-            "maxWorkers": 4,
-            "silent": true,
-            "zoneless": false,
-            "reporters": [
-              "default",
-              "jest-junit"
+            "buildTarget": "em:build:development",
+            "runner": "vitest",
+            "runnerConfig": true,
+            "tsConfig": "projects/em/tsconfig.spec.json",
+            "include": [
+              "**/*.spec.ts"
+            ],
+            "exclude": [
+              "**/*.tl.spec.ts"
             ],
             "setupFiles": [
-              "jest-canvas-mock"
+              "vitest-bootstrap.ts"
             ],
-            "testPathIgnorePatterns": [
-              "\\.tl\\.spec\\.ts$"
+            "reporters": [
+              "default",
+              ["junit", { "outputFile": "junit.xml" }]
             ]
           }
         },
@@ -315,7 +359,7 @@
               "budgets": [
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning" : "6kb"
+                  "maximumWarning" : "7kb"
                 }
               ],
               "optimization": true,
@@ -409,7 +453,7 @@
               "budgets": [
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning" : "6kb"
+                  "maximumWarning" : "7kb"
                 }
               ],
               "optimization": true,

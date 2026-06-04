@@ -70,9 +70,8 @@ import { MatSnackBar } from "@angular/material/snack-bar";
 import { ActivatedRoute, Router } from "@angular/router";
 import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
-import { NEVER, of, throwError } from "rxjs";
 
-import { it } from "@jest/globals";
+import { NEVER, of, throwError } from "rxjs";
 import { server } from "../../../../../../../mocks/server";
 import { ScheduleTaskEditorPageComponent, TaskItem } from "./schedule-task-editor-page.component";
 import { ScheduleTaskEditorDataService } from "./schedule-task-editor-data.service";
@@ -119,9 +118,9 @@ async function renderComponent(opts: {
       http.get("*/api/em/schedule/edit", () => MswHttpResponse.json(model)),
    );
 
-   const dialogMock = { open: jest.fn().mockReturnValue({ afterClosed: () => of(false) }) };
-   const snackBarMock = { open: jest.fn() };
-   const routerMock = { navigate: jest.fn() };
+   const dialogMock = { open: vi.fn().mockReturnValue({ afterClosed: () => of(false) }) };
+   const snackBarMock = { open: vi.fn() };
+   const routerMock = { navigate: vi.fn() };
 
    const result = await render(ScheduleTaskEditorPageComponent, {
       imports: [ReactiveFormsModule],
@@ -140,9 +139,9 @@ async function renderComponent(opts: {
             useValue: { title: "", currentOrgId: opts.orgId !== undefined ? opts.orgId : "org1" }
          },
          { provide: TimeZoneService, useValue: {
-            updateTimeZoneOptions: jest.fn((tzOpts: any) => tzOpts)
+            updateTimeZoneOptions: vi.fn((tzOpts: any) => tzOpts)
          }},
-         { provide: ScheduleTaskNamesService, useValue: { loadScheduleTaskNames: jest.fn() } },
+         { provide: ScheduleTaskNamesService, useValue: { loadScheduleTaskNames: vi.fn() } },
          ScheduleTaskEditorDataService,
       ],
    });
@@ -181,7 +180,7 @@ describe("ScheduleTaskEditorPageComponent — save(): taskChanged timing", () =>
       const { comp } = await renderComponent();
 
       // NEVER: observable that neither emits nor errors — isolates the synchronous bug
-      jest.spyOn(comp["dataService"], "saveTask").mockReturnValue(NEVER);
+      vi.spyOn(comp["dataService"], "saveTask").mockReturnValue(NEVER);
 
       comp.taskChanged = true;
       comp.save();
@@ -383,7 +382,7 @@ describe("ScheduleTaskEditorPageComponent — scheduleSaveGuard: internalTask di
 describe("ScheduleTaskEditorPageComponent — appendCondition: timeZoneOptions empty crash", () => {
 
    // Boundary / low user impact: appendCondition() uses timeZoneOptions[0] without a guard → TypeError.
-   it.failing("should not throw when addCondition is called with an empty timeZoneOptions array", async () => {
+   it.fails("should not throw when addCondition is called with an empty timeZoneOptions array", async () => {
       const { comp } = await renderComponent();
       comp.model.timeZoneOptions = [];
 
@@ -391,7 +390,7 @@ describe("ScheduleTaskEditorPageComponent — appendCondition: timeZoneOptions e
    });
 
    // Boundary: same crash path when timeZoneOptions is null.
-   it.failing("should not throw when addCondition is called with null timeZoneOptions", async () => {
+   it.fails("should not throw when addCondition is called with null timeZoneOptions", async () => {
       const { comp } = await renderComponent();
       (comp.model as any).timeZoneOptions = null;
 
@@ -408,11 +407,11 @@ describe("ScheduleTaskEditorPageComponent — appendCondition: timeZoneOptions e
 
 describe("ScheduleTaskEditorPageComponent — model.timeZone: toLocaleDateString().slice(4)", () => {
 
-   afterEach(() => jest.restoreAllMocks());
+   afterEach(() => vi.restoreAllMocks());
 
    // Happy: standard 'DD, TimezoneName' format (en-US style) — slice(4) removes "DD, " correctly.
    it("should extract the timezone name by removing the first 4 chars for 'DD, TimezoneName' format", async () => {
-      jest.spyOn(Date.prototype, "toLocaleDateString").mockImplementation(
+      vi.spyOn(Date.prototype, "toLocaleDateString").mockImplementation(
          function(_locales: any, options: any) {
             return (options?.timeZoneName === "long") ? "09, Eastern Standard Time" : "01/01/2024";
          }
@@ -426,8 +425,8 @@ describe("ScheduleTaskEditorPageComponent — model.timeZone: toLocaleDateString
    // Boundary / low user impact: slice(4) assumes a fixed "DD, " prefix. A single-space separator
    // ("DD TimezoneName") drops the first character of the zone name. Mocked here; most real locales
    // still produce "DD, …", so this mismatch is rarely visible to end users.
-   it.failing("should extract the full timezone name when the day-to-timezone separator is only one char", async () => {
-      jest.spyOn(Date.prototype, "toLocaleDateString").mockImplementation(
+   it.fails("should extract the full timezone name when the day-to-timezone separator is only one char", async () => {
+      vi.spyOn(Date.prototype, "toLocaleDateString").mockImplementation(
          function(_locales: any, options: any) {
             // Single-space separator: "09 Central European Time"
             // slice(4) → "entral European Time" (missing leading "C")

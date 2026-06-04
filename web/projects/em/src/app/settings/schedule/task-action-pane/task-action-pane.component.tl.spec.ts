@@ -35,9 +35,8 @@
  */
 
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { render } from "@testing-library/angular";
 
-import { it } from "@jest/globals"; // must be import, or it.failing didn't work
+import { render } from "@testing-library/angular";
 import { TaskActionPaneComponent } from "./task-action-pane.component";
 import { GeneralActionModel } from "../../../../../../shared/schedule/model/general-action-model";
 import { BackupActionModel } from "../../../../../../shared/schedule/model/backup-action-model";

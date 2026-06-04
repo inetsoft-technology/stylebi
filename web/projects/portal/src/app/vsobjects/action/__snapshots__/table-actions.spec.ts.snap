@@ -1,6 +1,6 @@
-// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`TableActions check status of menu actions and toolbar actions of common table in binding 1`] = `
+exports[`TableActions > check status of menu actions and toolbar actions of common table in binding 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -302,7 +302,7 @@ exports[`TableActions check status of menu actions and toolbar actions of common
 ]
 `;
 
-exports[`TableActions check status of menu actions and toolbar actions of common table in binding 2`] = `
+exports[`TableActions > check status of menu actions and toolbar actions of common table in binding 2`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -426,7 +426,7 @@ exports[`TableActions check status of menu actions and toolbar actions of common
 ]
 `;
 
-exports[`TableActions check status of menu actions and toolbar actions of common table in binding when select table header 1`] = `
+exports[`TableActions > check status of menu actions and toolbar actions of common table in binding when select table header 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -728,7 +728,7 @@ exports[`TableActions check status of menu actions and toolbar actions of common
 ]
 `;
 
-exports[`TableActions check status of menu actions and toolbar actions of common table in binding when select table header 2`] = `
+exports[`TableActions > check status of menu actions and toolbar actions of common table in binding when select table header 2`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -852,7 +852,7 @@ exports[`TableActions check status of menu actions and toolbar actions of common
 ]
 `;
 
-exports[`TableActions check status of menu actions and toolbar actions of common table in composer 1`] = `
+exports[`TableActions > check status of menu actions and toolbar actions of common table in composer 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -1154,7 +1154,7 @@ exports[`TableActions check status of menu actions and toolbar actions of common
 ]
 `;
 
-exports[`TableActions check status of menu actions and toolbar actions of common table in composer 2`] = `
+exports[`TableActions > check status of menu actions and toolbar actions of common table in composer 2`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -1278,7 +1278,7 @@ exports[`TableActions check status of menu actions and toolbar actions of common
 ]
 `;
 
-exports[`TableActions check status of menu actions and toolbar actions of common table in preview when select detail cell 1`] = `
+exports[`TableActions > check status of menu actions and toolbar actions of common table in preview when select detail cell 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -1580,7 +1580,7 @@ exports[`TableActions check status of menu actions and toolbar actions of common
 ]
 `;
 
-exports[`TableActions check status of menu actions and toolbar actions of common table in preview when select detail cell 2`] = `
+exports[`TableActions > check status of menu actions and toolbar actions of common table in preview when select detail cell 2`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -1704,7 +1704,7 @@ exports[`TableActions check status of menu actions and toolbar actions of common
 ]
 `;
 
-exports[`TableActions check status of menu actions and toolbar actions of common table in viewer and preview 1`] = `
+exports[`TableActions > check status of menu actions and toolbar actions of common table in viewer and preview 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -2006,7 +2006,7 @@ exports[`TableActions check status of menu actions and toolbar actions of common
 ]
 `;
 
-exports[`TableActions check status of menu actions and toolbar actions of common table in viewer and preview 2`] = `
+exports[`TableActions > check status of menu actions and toolbar actions of common table in viewer and preview 2`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -2130,7 +2130,7 @@ exports[`TableActions check status of menu actions and toolbar actions of common
 ]
 `;
 
-exports[`TableActions check status of menu actions and toolbar actions of common table in viewer and preview 3`] = `
+exports[`TableActions > check status of menu actions and toolbar actions of common table in viewer and preview 3`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -2432,7 +2432,7 @@ exports[`TableActions check status of menu actions and toolbar actions of common
 ]
 `;
 
-exports[`TableActions check status of menu actions and toolbar actions of common table in viewer and preview 4`] = `
+exports[`TableActions > check status of menu actions and toolbar actions of common table in viewer and preview 4`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -2556,7 +2556,7 @@ exports[`TableActions check status of menu actions and toolbar actions of common
 ]
 `;
 
-exports[`TableActions check status of menu actions and toolbar actions of embedded table in composer when select table title 1`] = `
+exports[`TableActions > check status of menu actions and toolbar actions of embedded table in composer when select table title 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -2858,7 +2858,7 @@ exports[`TableActions check status of menu actions and toolbar actions of embedd
 ]
 `;
 
-exports[`TableActions check status of menu actions and toolbar actions of embedded table in composer when select table title 2`] = `
+exports[`TableActions > check status of menu actions and toolbar actions of embedded table in composer when select table title 2`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -2982,7 +2982,7 @@ exports[`TableActions check status of menu actions and toolbar actions of embedd
 ]
 `;
 
-exports[`TableActions check status of menu actions and toolbar actions of form table in composer when select table header 1`] = `
+exports[`TableActions > check status of menu actions and toolbar actions of form table in composer when select table header 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -3284,7 +3284,7 @@ exports[`TableActions check status of menu actions and toolbar actions of form t
 ]
 `;
 
-exports[`TableActions check status of menu actions and toolbar actions of form table in composer when select table header 2`] = `
+exports[`TableActions > check status of menu actions and toolbar actions of form table in composer when select table header 2`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -3408,7 +3408,7 @@ exports[`TableActions check status of menu actions and toolbar actions of form t
 ]
 `;
 
-exports[`TableActions check status of menu actions and toolbar actions of form table in viewer when select detail cell 1`] = `
+exports[`TableActions > check status of menu actions and toolbar actions of form table in viewer when select detail cell 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -3710,7 +3710,7 @@ exports[`TableActions check status of menu actions and toolbar actions of form t
 ]
 `;
 
-exports[`TableActions check status of menu actions and toolbar actions of form table in viewer when select detail cell 2`] = `
+exports[`TableActions > check status of menu actions and toolbar actions of form table in viewer when select detail cell 2`] = `
 [
   AssemblyActionGroup {
     "actions": [

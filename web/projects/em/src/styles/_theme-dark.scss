@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 @use '@angular/material' as mat;
+@use 'sass:map';
 @import 'variables';
 
 $em-primary-palette: mat.m2-define-palette($em-primary);
@@ -48,7 +49,7 @@ $em-theme: mat.m2-define-dark-theme((
   density: 0
 ));
 
-$em-font-foreground: map-get($em-theme, foreground);
+$em-font-foreground: map.get($em-theme, foreground);
 
 @mixin em-custom-theme($theme) {
 }

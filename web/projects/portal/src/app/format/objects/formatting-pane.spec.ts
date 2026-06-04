@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { FormattingPane } from "./formatting-pane.component";
 import { FormatInfoModel } from "../../common/data/format-info-model";
 

@@ -173,7 +173,7 @@ describe("Color Mapping Dialog Unit Test", () => {
    });
 
    //Bug #21331
-   it("should not commit duplicate option in color mapping dialog", (done) => {
+   it("should not commit duplicate option in color mapping dialog", () => new Promise<void>((done) => {
       fixture = TestBed.createComponent(ColorMappingDialog);
       colorMappingDialog = <ColorMappingDialog>fixture.componentInstance;
       colorMappingDialog.model = createModel();
@@ -193,5 +193,5 @@ describe("Color Mapping Dialog Unit Test", () => {
          done();
       });
       colorMappingDialog.ok();
-   });
+   }));
 });

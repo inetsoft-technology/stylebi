@@ -159,6 +159,11 @@ public class TreemapGeometry extends ElementGeometry {
       return super.getOverlayId(vo, data) + ":" + level;
    }
 
+   @Override
+   public String getOverlayId(ElementVO vo, DataSet data, boolean polar) {
+      return super.getOverlayId(vo, data, polar) + ":" + level;
+   }
+
    /**
     * Set the row indexes of a child nodes. The index is the index of SubDataSet (for facet)
     * or the base (of SortedDataSet created in createGeometry).

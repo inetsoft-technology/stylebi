@@ -46,13 +46,13 @@ describe("Dimension Editor Unit Test", () => {
       return dimRef;
    };
 
-   let bindingService = { getURLParams: jest.fn(() => new HttpParams()) };
+   let bindingService = { getURLParams: vi.fn(() => new HttpParams()) };
    let modelService = {
-      getModel: jest.fn(() => observableOf([])),
-      putModel: jest.fn(() => observableOf(new HttpResponse({body: null})))
+      getModel: vi.fn(() => observableOf([])),
+      putModel: vi.fn(() => observableOf(new HttpResponse({body: null})))
    };
-   let uiContextService = { isAdhoc: jest.fn() };
-   let examplesService = { loadDateLevelExamples: jest.fn(() => observableOf())};
+   let uiContextService = { isAdhoc: vi.fn() };
+   let examplesService = { loadDateLevelExamples: vi.fn(() => observableOf())};
 
    let fixture: ComponentFixture<DimensionEditor>;
    let dimensionEditor: DimensionEditor;

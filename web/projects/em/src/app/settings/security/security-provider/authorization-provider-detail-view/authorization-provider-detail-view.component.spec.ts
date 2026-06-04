@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
@@ -26,6 +27,7 @@ import { MatIconModule } from "@angular/material/icon";
 import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
+import { NEVER, of } from "rxjs";
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
 import { AuthorizationProviderDetailViewComponent } from "./authorization-provider-detail-view.component";
 
@@ -34,11 +36,11 @@ describe("AuthorizationProviderDetailViewComponent", () => {
    let fixture: ComponentFixture<AuthorizationProviderDetailViewComponent>;
 
    beforeEach(() => {
-      (window.document.body as any).createTextRange = jest.fn().mockImplementation(() => ({
-         setEnd: jest.fn(),
-         setStart: jest.fn(),
-         getBoundingClientRect: jest.fn(() => ({right: 0})),
-         getClientRects: jest.fn(() => ({length: 0, left: 0, right: 0}))
+      (window.document.body as any).createTextRange = vi.fn().mockImplementation(() => ({
+         setEnd: vi.fn(),
+         setStart: vi.fn(),
+         getBoundingClientRect: vi.fn(() => ({right: 0})),
+         getClientRects: vi.fn(() => ({length: 0, left: 0, right: 0}))
       }));
 
       TestBed.configureTestingModule({
@@ -56,7 +58,23 @@ describe("AuthorizationProviderDetailViewComponent", () => {
             HttpClientTestingModule,
             AuthorizationProviderDetailViewComponent],
          providers: [
-            AppInfoService
+            {
+               // The real AppInfoService is providedIn:"root" and its constructor
+               // fires loadCurrentOrgInfo() against a live HttpClient + completes
+               // its `currentOrgInfo` BehaviorSubject on destroy. Late HTTP
+               // responses (or other tests' subscriptions) then hit the closed
+               // Subject and surface as ObjectUnsubscribedError. Mock it.
+               provide: AppInfoService,
+               useValue: {
+                  isEnterprise: () => of(false),
+                  isLdapProviderUsed: () => NEVER,
+                  setLdapProviderUsed: () => {},
+                  loadCurrentOrgInfo: () => NEVER,
+                  getCurrentOrgInfo: () => NEVER,
+                  getAllOrgnanizations: () => NEVER,
+                  currentOrgInfo: { subscribe: () => ({ unsubscribe: () => {} }) }
+               }
+            }
          ],
          schemas: [
             NO_ERRORS_SCHEMA

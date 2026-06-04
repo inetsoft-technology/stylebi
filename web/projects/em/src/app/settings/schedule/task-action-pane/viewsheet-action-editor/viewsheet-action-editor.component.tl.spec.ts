@@ -73,9 +73,6 @@ class MatSelectStub implements ControlValueAccessor {
    registerOnChange() {}
    registerOnTouched() {}
 }
-/* eslint-enable @angular-eslint/component-selector */
-
-import { it } from "@jest/globals"; // must be import, or it.failing didn't work
 import { server } from "../../../../../../../../mocks/server";
 import { ViewsheetActionEditorComponent } from "./viewsheet-action-editor.component";
 import { ViewsheetActionService } from "../viewsheet-action.service";
@@ -200,7 +197,7 @@ async function renderEditor(
       ),
    );
 
-   const snackBarMock = { open: jest.fn() };
+   const snackBarMock = { open: vi.fn() };
 
    const result = await render(ViewsheetActionEditorComponent, {
       imports: [ReactiveFormsModule, HttpClientModule],
@@ -315,7 +312,7 @@ describe("ViewsheetActionEditorComponent — selectedViewsheet: same-value re-se
    // change event, so end users are unlikely to reproduce this directly from the screen.
    // Guard anyway: if the setter is invoked with the same viewsheet id, bookmarksDB is cleared
    // before the early return and the bookmark table disappears while selectedBookmarks stays set.
-   it.failing("should NOT clear bookmarksDB when the same viewsheet is re-selected", async () => {
+   it.fails("should NOT clear bookmarksDB when the same viewsheet is re-selected", async () => {
       setupViewsheetEndpoints(VS_ID_A);
       const action = makeActionModel({ sheet: VS_ID_A });
       const { comp, fixture } = await renderEditor(action);
@@ -346,7 +343,7 @@ describe("ViewsheetActionEditorComponent — addBookmark", () => {
    // Boundary / defensive only: current backend behavior pins "(Home)" to index 0, so
    // normal UI flows should not hit this. Keep the test as a contract guard in case
    // server-side ordering changes and the front end can no longer assume index 0 === Home.
-   it.failing("should add the home bookmark reference when home is not at index 0", async () => {
+   it.fails("should add the home bookmark reference when home is not at index 0", async () => {
       const { comp } = await renderEditor();
 
       // Arrange: home is at index 1, another bookmark is at index 0

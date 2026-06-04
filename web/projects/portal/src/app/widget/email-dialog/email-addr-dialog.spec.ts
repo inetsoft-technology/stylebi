@@ -64,10 +64,10 @@ describe("Email Addr Dialog Unit Test", () => {
    let fixture: ComponentFixture<EmailAddrDialog>;
    let emailAddrDialog: EmailAddrDialog;
 
-   let changeDetectorRef = { detectChanges: jest.fn() };
-   let modelService = { getModel: jest.fn() };
-   let currentUserService = { getPortalCurrentUser: jest.fn() };
-   let dragService = { reset: jest.fn(), put: jest.fn() };
+   let changeDetectorRef = { detectChanges: vi.fn() };
+   let modelService = { getModel: vi.fn() };
+   let currentUserService = { getPortalCurrentUser: vi.fn() };
+   let dragService = { reset: vi.fn(), put: vi.fn() };
    beforeEach(() => {
       modelService.getModel.mockImplementation(() => observableOf([]));
       currentUserService.getPortalCurrentUser.mockImplementation(() => observableOf(null));

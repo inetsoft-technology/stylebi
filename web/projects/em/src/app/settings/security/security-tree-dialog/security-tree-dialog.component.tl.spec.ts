@@ -127,7 +127,7 @@ interface RenderOpts {
 }
 
 async function renderComponent(opts: RenderOpts = {}) {
-   const dialogRefSpy = { close: jest.fn() };
+   const dialogRefSpy = { close: vi.fn() };
    const dialogData = opts.dialogData ?? {
       dialogTitle: "Add identity",
       usersEnabled: true,
@@ -314,7 +314,7 @@ describe("SecurityTreeDialogComponent - selection validity and close payloads", 
       const role = makeTreeNode("viewer", IdentityType.ROLE);
       const { comp, dialogRefSpy } = await renderComponent();
       const tree = {
-         sendSelection: jest.fn().mockReturnValue([userRoot, user1, role]),
+         sendSelection: vi.fn().mockReturnValue([userRoot, user1, role]),
       };
 
       comp.addPermission(tree as any);

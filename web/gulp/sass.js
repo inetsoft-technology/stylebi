@@ -20,10 +20,15 @@ const sass = require("gulp-dart-sass");
 const postcss = require("gulp-postcss");
 const cssnano = require("cssnano");
 
+const sassOptions = {
+   includePaths: ["node_modules"],
+   silenceDeprecations: ["legacy-js-api", "import", "global-builtin", "color-functions", "if-function"]
+};
+
 gulp.task("sass:app", function() {
    const plugins = [ cssnano({discardComments: {removeAll: true}}) ];
    return gulp.src("projects/portal/src/global.scss")
-      .pipe(sass({includePaths: ["node_modules"]}).on("error", sass.logError))
+      .pipe(sass(sassOptions).on("error", sass.logError))
       .pipe(postcss(plugins))
       .pipe(gulp.dest("target/generated-resources/gulp/inetsoft/web/resources/app"));
 });
@@ -31,7 +36,7 @@ gulp.task("sass:app", function() {
 gulp.task("sass:em", function() {
    const plugins = [ cssnano({discardComments: {removeAll: true}}) ];
    return gulp.src("projects/em/src/theme.scss")
-      .pipe(sass({includePaths: ["node_modules"]}).on("error", sass.logError))
+      .pipe(sass(sassOptions).on("error", sass.logError))
       .pipe(postcss(plugins))
       .pipe(gulp.dest("target/generated-resources/gulp/inetsoft/web/resources/em"));
 });
@@ -39,7 +44,7 @@ gulp.task("sass:em", function() {
 gulp.task("sass:em-dark", function() {
    const plugins = [ cssnano({discardComments: {removeAll: true}}) ];
    return gulp.src("projects/em/src/theme-dark.scss")
-      .pipe(sass({includePaths: ["node_modules"]}).on("error", sass.logError))
+      .pipe(sass(sassOptions).on("error", sass.logError))
       .pipe(postcss(plugins))
       .pipe(gulp.dest("target/generated-resources/gulp/inetsoft/web/resources/em"));
 });
@@ -47,7 +52,7 @@ gulp.task("sass:em-dark", function() {
 gulp.task("sass:codemirror-themes", function() {
    const plugins = [ cssnano({discardComments: {removeAll: true}}) ];
    return gulp.src("projects/shared/codemirror/*.scss")
-      .pipe(sass({includePaths: ["node_modules"]}).on("error", sass.logError))
+      .pipe(sass(sassOptions).on("error", sass.logError))
       .pipe(postcss(plugins))
       .pipe(gulp.dest("target/generated-resources/gulp/inetsoft/web/resources"));
 });

@@ -35,6 +35,7 @@ import { MatTabNav, MatTabLink, MatTabNavPanel } from "@angular/material/tabs";
 import { MatOption } from "@angular/material/core";
 import { MatSelect } from "@angular/material/select";
 import { MatHint, MatFormField, MatLabel } from "@angular/material/form-field";
+import { NgIf } from "@angular/common";
 
 
 @Secured({
@@ -45,7 +46,7 @@ import { MatHint, MatFormField, MatLabel } from "@angular/material/form-field";
     selector: "em-security-settings-page",
     templateUrl: "./security-settings-page.component.html",
     styleUrls: ["./security-settings-page.component.scss"],
-    imports: [MatSlideToggle, MatHint, MatFormField, MatLabel, MatSelect, MatOption, MatTabNav, MatTabLink, RouterLinkActive, RouterLink, MatTabNavPanel, RouterOutlet]
+    imports: [NgIf, MatSlideToggle, MatHint, MatFormField, MatLabel, MatSelect, MatOption, MatTabNav, MatTabLink, RouterLinkActive, RouterLink, MatTabNavPanel, RouterOutlet]
 })
 export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
    securityEnabled = false;
@@ -117,7 +118,7 @@ export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
 
    ngOnDestroy(): void {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    toggleSecurityEnabled(toggleChange: MatSlideToggleChange) {

@@ -46,12 +46,11 @@
  *   splitModelName: path with no "/" returns null (not an empty result).
  */
 
-import { provideHttpClient } from "@angular/common/http";
+import { type Mock } from "vitest";import { provideHttpClient } from "@angular/common/http";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ActivatedRoute, Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { render, waitFor } from "@testing-library/angular";
-import { it } from "@jest/globals";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 import { EMPTY, of } from "rxjs";
 import { StompClientService } from "../../../common/viewsheet-client";
@@ -100,11 +99,11 @@ const MINIMAL_ROOT: TreeNodeModel = {
 
 function makeMockTree() {
    return {
-      isSelectedNode: jest.fn(() => false),
+      isSelectedNode: vi.fn(() => false),
       selectedNodes: [] as TreeNodeModel[],
-      selectAndExpandToNode: jest.fn(),
-      expandToNode: jest.fn(),
-      exclusiveSelectNode: jest.fn()
+      selectAndExpandToNode: vi.fn(),
+      expandToNode: vi.fn(),
+      exclusiveSelectNode: vi.fn()
    };
 }
 
@@ -125,7 +124,7 @@ async function renderComponent(opts: { enterprise?: boolean; routerUrl?: string 
 
    const mockRouter = {
       url: routerUrl,
-      navigate: jest.fn().mockResolvedValue(true),
+      navigate: vi.fn().mockResolvedValue(true),
       events: EMPTY
    };
 
@@ -142,54 +141,54 @@ async function renderComponent(opts: { enterprise?: boolean; routerUrl?: string 
          {
             provide: StompClientService,
             useValue: {
-               connect: jest.fn(() => EMPTY),
-               whenDisconnected: jest.fn(() => EMPTY),
-               reconnectError: jest.fn(() => EMPTY)
+               connect: vi.fn(() => EMPTY),
+               whenDisconnected: vi.fn(() => EMPTY),
+               reconnectError: vi.fn(() => EMPTY)
             }
          },
          { provide: Router, useValue: mockRouter },
          { provide: ActivatedRoute, useValue: { queryParamMap: EMPTY, snapshot: { _routerState: null } } },
-         { provide: NgbModal, useValue: { open: jest.fn() } },
+         { provide: NgbModal, useValue: { open: vi.fn() } },
          { provide: DataBrowserService, useValue: {
             mvChanged: EMPTY,
             folderChanged: EMPTY,
-            openWorksheet: jest.fn(),
-            changeFolder: jest.fn()
+            openWorksheet: vi.fn(),
+            changeFolder: vi.fn()
          }},
          { provide: DatasourceBrowserService, useValue: {
             datasourceChanged: EMPTY,
             folderChanged: EMPTY,
             onCreateEvent: EMPTY,
-            createDataSourceInfos: jest.fn(() => []),
-            moveDataSourcesToFolder: jest.fn(),
-            refreshTree: jest.fn()
+            createDataSourceInfos: vi.fn(() => []),
+            moveDataSourcesToFolder: vi.fn(),
+            refreshTree: vi.fn()
          }},
          { provide: DataModelBrowserService, useValue: {
-            addVPM: jest.fn(), addPhysicalView: jest.fn(), addLogicalModel: jest.fn(),
-            addDataModelFolder: jest.fn(), renameDataModelFolder: jest.fn(),
-            deleteDataModelFolder: jest.fn(), moveModelsToTarget: jest.fn(), emitChanged: jest.fn()
+            addVPM: vi.fn(), addPhysicalView: vi.fn(), addLogicalModel: vi.fn(),
+            addDataModelFolder: vi.fn(), renameDataModelFolder: vi.fn(),
+            deleteDataModelFolder: vi.fn(), moveModelsToTarget: vi.fn(), emitChanged: vi.fn()
          }},
-         { provide: RepositoryClientService, useValue: { connect: jest.fn(), dataChanged: EMPTY } },
-         { provide: DebounceService, useValue: { debounce: jest.fn() } },
-         { provide: DragService, useValue: { getDragData: jest.fn(() => ({})) } },
+         { provide: RepositoryClientService, useValue: { connect: vi.fn(), dataChanged: EMPTY } },
+         { provide: DebounceService, useValue: { debounce: vi.fn() } },
+         { provide: DragService, useValue: { getDragData: vi.fn(() => ({})) } },
          { provide: FixedDropdownService, useValue: {
-            open: jest.fn(() => ({ componentInstance: { sourceEvent: null, actions: null } }))
+            open: vi.fn(() => ({ componentInstance: { sourceEvent: null, actions: null } }))
          }},
          { provide: DataModelNameChangeService, useValue: {} },
          { provide: OpenComposerService, useValue: { composerOpen: EMPTY } },
          { provide: DomService, useValue: {} },
          { provide: DataSourcesTreeActionsService, useValue: {
-            addDataSourceFolder: jest.fn(), addDataWorksheetFolder: jest.fn(),
-            addDataSource: jest.fn(), addDataWorksheet: jest.fn(),
-            deleteDataSourceFolder: jest.fn(), deleteWorksheetFolder: jest.fn(),
-            deleteDataSource: jest.fn(), renameDataSourceFolder: jest.fn(),
-            renameWorksheetFolder: jest.fn(), showWSFolderDetails: jest.fn()
+            addDataSourceFolder: vi.fn(), addDataWorksheetFolder: vi.fn(),
+            addDataSource: vi.fn(), addDataWorksheet: vi.fn(),
+            deleteDataSourceFolder: vi.fn(), deleteWorksheetFolder: vi.fn(),
+            deleteDataSource: vi.fn(), renameDataSourceFolder: vi.fn(),
+            renameWorksheetFolder: vi.fn(), showWSFolderDetails: vi.fn()
          }},
          { provide: GettingStartedService, useValue: {
-            isProcessing: jest.fn(() => false),
-            isEditWs: jest.fn(() => false)
+            isProcessing: vi.fn(() => false),
+            isEditWs: vi.fn(() => false)
          }},
-         { provide: AppInfoService, useValue: { isEnterprise: jest.fn(() => of(enterprise)) } },
+         { provide: AppInfoService, useValue: { isEnterprise: vi.fn(() => of(enterprise)) } },
       ],
       schemas: [NO_ERRORS_SCHEMA]
    });
@@ -207,7 +206,7 @@ async function renderComponent(opts: { enterprise?: boolean; routerUrl?: string 
 }
 
 afterEach(() => {
-   jest.restoreAllMocks();
+   vi.restoreAllMocks();
 });
 
 // ---------------------------------------------------------------------------
@@ -221,7 +220,7 @@ describe("DataSourcesTreeViewComponent — changeDataSourcesTree — ancestor ex
    // Bug confirmed: method ends with `return false` unconditionally — caller receives false regardless
    //   of whether a node was found, so `found = this.changeDataSourcesTree(...) || found`
    //   can never set found=true from recursion. Fix: change `return false` to `return found`.
-   it.failing("should expand all intermediate ancestors when a node is found at depth 3", async () => {
+   it.fails("should expand all intermediate ancestors when a node is found at depth 3", async () => {
       const { comp } = await renderComponent();
 
       // Build a 3-level hierarchy: rootNode → dataSourceRoot(path="/") → dbNode(path="mydb") → partition
@@ -312,8 +311,8 @@ describe("DataSourcesTreeViewComponent — selectNode — route dispatch [Group 
       const { comp, mockRouter, fixture } = await renderComponent();
       // Override the getting-started service mock on this instance
       const gs = fixture.debugElement.injector.get(GettingStartedService);
-      (gs.isProcessing as jest.Mock).mockReturnValue(true);
-      (gs.isEditWs as jest.Mock).mockReturnValue(true);
+      (gs.isProcessing as Mock).mockReturnValue(true);
+      (gs.isEditWs as Mock).mockReturnValue(true);
 
       const node = makeNode(PortalDataType.DATA_SOURCE_ROOT_FOLDER, "/", {
          data: { path: "/", scope: 0, type: PortalDataType.DATA_SOURCE_ROOT_FOLDER } as any
@@ -392,7 +391,7 @@ describe("DataSourcesTreeViewComponent — getDataNavigationTree — loading + r
       comp.selectedNodes = [oldChild];
       // Use identifier-based comparison: updateSelectedNodes operates on _oldRootNode = Tool.clone(rootNode),
       // so the children passed to isSelectedNode are deep clones — reference equality always fails on them.
-      (comp.tree as any).isSelectedNode = jest.fn((n: TreeNodeModel) =>
+      (comp.tree as any).isSelectedNode = vi.fn((n: TreeNodeModel) =>
          n?.data?.identifier === IDENTIFIER
       );
 

@@ -143,7 +143,7 @@ export class GeneralSettingsPageComponent implements OnInit, OnDestroy {
 
    ngOnDestroy(): void {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
       this.subscriptions.unsubscribe();
    }
 

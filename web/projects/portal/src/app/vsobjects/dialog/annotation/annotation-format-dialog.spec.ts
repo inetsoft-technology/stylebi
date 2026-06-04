@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { Component } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
@@ -51,7 +52,8 @@ import { DebounceService } from "../../../widget/services/debounce.service";
      <annotation-format-dialog
        [model]="dialogModel"
        (onCommit)="updateModel($event)"></annotation-format-dialog>`,
-   standalone: true
+   standalone: true,
+   imports: [AnnotationFormatDialog]
 })
 class TestApp {
    public dialogModel: AnnotationFormatDialogModel = {

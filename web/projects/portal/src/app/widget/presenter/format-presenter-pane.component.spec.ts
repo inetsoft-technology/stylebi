@@ -38,10 +38,10 @@ describe("format presenter pane componnet unit case", () => {
    let fixture: ComponentFixture<FormatPresenterPane>;
 
    beforeEach(() => {
-      modelService = { getModel: jest.fn() };
-      modalService = { open: jest.fn() };
+      modelService = { getModel: vi.fn() };
+      modalService = { open: vi.fn() };
       modelService.getModel.mockImplementation(() => observableOf([{}]));
-      treeService = { validateTreeNode: jest.fn() };
+      treeService = { validateTreeNode: vi.fn() };
 
       TestBed.configureTestingModule({
          imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule, FormatPresenterPane, FixedDropdownDirective, TreeComponent, TreeSearchPipe, TreeNodeComponent, TreeDropdownComponent],

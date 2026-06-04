@@ -67,7 +67,6 @@ import { OutputGeneralPane } from "./output-general-pane.component";
 import { RangePane } from "./range-pane.component";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 
-
 let createModel = () => {
    return <GaugePropertyDialogModel> {
       gaugeGeneralPaneModel: <GaugeGeneralPaneModel> {
@@ -134,16 +133,16 @@ describe("GaugePropertyDialog Integration Test", () => {
    let dialogService: any;
 
    beforeEach(waitForAsync(() => {
-      trapService = { checkTrap: jest.fn() };
-      fixedDropdownService = { open: jest.fn() };
+      trapService = { checkTrap: vi.fn() };
+      fixedDropdownService = { open: vi.fn() };
       contextService = {
-         isVS: jest.fn(),
-         isAdhoc: jest.fn(),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn(),
-         getObjectChange: jest.fn(() => observableOf({}))
+         isVS: vi.fn(),
+         isAdhoc: vi.fn(),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn(),
+         getObjectChange: vi.fn(() => observableOf({}))
       };
-      dialogService = { checkScript: jest.fn() };
+      dialogService = { checkScript: vi.fn() };
 
       TestBed.configureTestingModule({
          imports: [

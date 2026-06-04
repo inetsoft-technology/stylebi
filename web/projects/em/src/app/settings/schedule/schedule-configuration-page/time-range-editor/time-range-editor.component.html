@@ -26,26 +26,18 @@
             <mat-form-field>
               <mat-label>_#(Name)</mat-label>
               <input matInput formControlName="name" placeholder="_#(Name)" cdkFocusInitial/>
-              @if (form.controls.name?.errors?.required) {
-                <mat-error>_#(em.schedule.timeRange.nameRequired)</mat-error>
-              }
-              @if (form.controls.name?.errors?.duplicateName) {
-                <mat-error>_#(em.schedule.timeRange.duplicateName)</mat-error>
-              }
+              <mat-error *ngIf="form.controls.name?.errors?.required">_#(em.schedule.timeRange.nameRequired)</mat-error>
+              <mat-error *ngIf="form.controls.name?.errors?.duplicateName">_#(em.schedule.timeRange.duplicateName)</mat-error>
             </mat-form-field>
             <mat-form-field>
               <mat-label>_#(Start Time)</mat-label>
               <input matInput type="time" formControlName="startTime" placeholder="_#(Start Time)"/>
-              @if (form.controls.startTime?.errors?.required) {
-                <mat-error>_#(em.schedule.timeRange.startTimeRequired)</mat-error>
-              }
+              <mat-error *ngIf="form.controls.startTime?.errors?.required">_#(em.schedule.timeRange.startTimeRequired)</mat-error>
             </mat-form-field>
             <mat-form-field>
               <mat-label>_#(End Time)</mat-label>
               <input matInput type="time" formControlName="endTime" placeholder="_#(End Time)"/>
-              @if (form.controls.endTime?.errors?.required) {
-                <mat-error>_#(em.schedule.timeRange.endTimeRequired)</mat-error>
-              }
+              <mat-error *ngIf="form.controls.endTime?.errors?.required">_#(em.schedule.timeRange.endTimeRequired)</mat-error>
             </mat-form-field>
             <mat-checkbox formControlName="defaultRange">_#(Default)</mat-checkbox>
           </mat-card-content>

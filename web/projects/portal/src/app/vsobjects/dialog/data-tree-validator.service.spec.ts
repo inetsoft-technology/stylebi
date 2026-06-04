@@ -15,12 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { TestBed } from "@angular/core/testing";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
+import { DataTreeValidatorService } from "./data-tree-validator.service";
 
-// Mock ResizeObserver for components that use the resize-event shared library.
-// Jest/jsdom does not provide ResizeObserver.
-(global as any).ResizeObserver = class ResizeObserver {
-   observe() {}
-   unobserve() {}
-   disconnect() {}
-};
-
+describe("DataTreeValidatorService", () => {
+   it("should be injectable from root without explicit providers", () => {
+      TestBed.configureTestingModule({
+         imports: [HttpClientTestingModule]
+      });
+      expect(() => TestBed.inject(DataTreeValidatorService)).not.toThrow();
+   });
+});

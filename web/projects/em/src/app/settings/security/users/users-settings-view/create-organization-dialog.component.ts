@@ -34,12 +34,13 @@ import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/f
 import { MatIcon } from "@angular/material/icon";
 import { MatIconButton, MatButton } from "@angular/material/button";
 import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
+import { NgIf } from "@angular/common";
 
 @Component({
     selector: "em-create-organization-dialog",
     templateUrl: "./create-organization-dialog.component.html",
     styleUrls: ["./create-organization-dialog.component.scss"],
-    imports: [ModalHeaderComponent, MatIconButton, MatIcon, MatFormField, MatLabel, MatInput, FormsModule, MatAutocompleteTrigger, MatSuffix, MatAutocomplete, MatOption, MatSelect, ReactiveFormsModule, MatError, MatDialogActions, MatButton]
+    imports: [NgIf, ModalHeaderComponent, MatIconButton, MatIcon, MatFormField, MatLabel, MatInput, FormsModule, MatAutocompleteTrigger, MatSuffix, MatAutocomplete, MatOption, MatSelect, ReactiveFormsModule, MatError, MatDialogActions, MatButton]
 })
 export class CreateOrganizationDialogComponent implements OnInit, OnDestroy {
    existingOrganizations: string[] = [];

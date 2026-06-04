@@ -85,7 +85,7 @@ async function renderComponent(
    props: Partial<CompletionConditionEditorComponent> = {}
 ) {
    const scheduleTaskNamesServiceMock = {
-      getAllTasks: jest.fn(() => of(tasks)),
+      getAllTasks: vi.fn(() => of(tasks)),
       isLoading: false,
    };
 

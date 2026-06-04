@@ -46,10 +46,10 @@ describe("Title Format Dialog Unit Test", () => {
 
    beforeEach(waitForAsync(() => {
       uiContextService = {
-         isVS: jest.fn(),
-         isAdhoc: jest.fn(),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn()
+         isVS: vi.fn(),
+         isAdhoc: vi.fn(),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn()
       };
 
       TestBed.configureTestingModule({
@@ -72,7 +72,7 @@ describe("Title Format Dialog Unit Test", () => {
    }));
 
    //Bug #20473
-   it("should revert to default title if clear title text", (done) => {
+   it("should revert to default title if clear title text", () => new Promise<void>((done) => {
       uiContextService.isAdhoc.mockImplementation(() => "false");
       let model = createMockTitleFormatDialogModel("state");
       fixture = TestBed.createComponent(TitleFormatDialog);
@@ -92,5 +92,5 @@ describe("Title Format Dialog Unit Test", () => {
          done();
       });
       okBtn.click();
-   });
+   }));
 });

@@ -71,14 +71,14 @@ interface RenderOpts {
 
 async function renderComponent(opts: RenderOpts = {}) {
    const dialogSpy = {
-      open: jest.fn().mockReturnValue({
+      open: vi.fn().mockReturnValue({
          afterClosed: () => of(opts.dialogResult ?? true),
       }),
    };
    const breakpointSpy = {
-      isMatched: jest.fn().mockReturnValue(opts.isSmall ?? false),
+      isMatched: vi.fn().mockReturnValue(opts.isSmall ?? false),
    };
-   const scrollSpy = { scroll: jest.fn() };
+   const scrollSpy = { scroll: vi.fn() };
    const pageHeaderSpy = { title: "" };
 
    const result = await render(SecurityActionsPageComponent, {
@@ -93,7 +93,7 @@ async function renderComponent(opts: RenderOpts = {}) {
    });
 
    const comp = result.fixture.componentInstance as SecurityActionsPageComponent;
-   comp.tree = { selectNode: jest.fn() } as any;
+   comp.tree = { selectNode: vi.fn() } as any;
 
    return { ...result, comp, dialogSpy, breakpointSpy, scrollSpy, pageHeaderSpy };
 }

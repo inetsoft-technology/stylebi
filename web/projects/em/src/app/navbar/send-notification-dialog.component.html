@@ -21,9 +21,7 @@
   <mat-form-field appearance="outline" color="accent">
     <mat-label>_#(Message)</mat-label>
     <textarea matInput formControlName="message" placeholder="_#(Message)" rows="4"></textarea>
-    @if (form.controls.message?.errors?.required) {
-      <mat-error>_#(notification.message.required)</mat-error>
-    }
+    <mat-error *ngIf="form.controls.message?.errors?.required">_#(notification.message.required)</mat-error>
   </mat-form-field>
 </div>
 <div mat-dialog-actions>

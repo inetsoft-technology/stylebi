@@ -52,26 +52,26 @@ describe("vs check box component unit case", () => {
    let timerService: any;
 
    beforeEach(() => {
-      socket = {sendEvent: jest.fn()};
+      socket = {sendEvent: vi.fn()};
       interactService = {
-         addInteractable: jest.fn(),
-         notify: jest.fn(),
-         removeInteractable: jest.fn()
+         addInteractable: vi.fn(),
+         notify: vi.fn(),
+         removeInteractable: vi.fn()
       };
       const formDataService = {
-         checkFormData: jest.fn(),
-         removeObject: jest.fn(),
-         addObject: jest.fn(),
-         replaceObject: jest.fn()
+         checkFormData: vi.fn(),
+         removeObject: vi.fn(),
+         addObject: vi.fn(),
+         replaceObject: vi.fn()
       };
-      debounceService = {debounce: jest.fn((key, fn, delay, args) => fn(...args))};
-      dataTipService = {isDataTip: jest.fn()};
+      debounceService = {debounce: vi.fn((key, fn, delay, args) => fn(...args))};
+      dataTipService = {isDataTip: vi.fn()};
       const contextProvider = {};
-      dialogService = {open: jest.fn()};
-      modelService = {getModel: jest.fn()};
-      ssoHeartbeatService = {heartbeat: jest.fn()};
+      dialogService = {open: vi.fn()};
+      modelService = {getModel: vi.fn()};
+      ssoHeartbeatService = {heartbeat: vi.fn()};
       timerService = {
-         defer: jest.fn((fn) => {
+         defer: vi.fn((fn) => {
             fn();
          })
       };

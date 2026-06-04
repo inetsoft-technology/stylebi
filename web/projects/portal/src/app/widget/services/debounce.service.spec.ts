@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { fakeAsync, TestBed, tick } from "@angular/core/testing";
 import { DebounceService } from "./debounce.service";
 
@@ -29,14 +30,14 @@ describe("DebounceService", () => {
    });
 
    it("should call the function after the delay", fakeAsync(() => {
-      const fn = jest.fn();
+      const fn = vi.fn();
       service.debounce("key1", fn, 200, ["arg1"]);
       tick(200);
       expect(fn).toHaveBeenCalledWith("arg1");
    }));
 
    it("should not call the function before the delay", fakeAsync(() => {
-      const fn = jest.fn();
+      const fn = vi.fn();
       service.debounce("key1", fn, 200, []);
       tick(199);
       expect(fn).not.toHaveBeenCalled();
@@ -44,7 +45,7 @@ describe("DebounceService", () => {
    }));
 
    it("should only call the function once when debounced multiple times with the same key", fakeAsync(() => {
-      const fn = jest.fn();
+      const fn = vi.fn();
       service.debounce("key1", fn, 100, ["first"]);
       tick(50);
       service.debounce("key1", fn, 100, ["second"]);
@@ -54,8 +55,8 @@ describe("DebounceService", () => {
    }));
 
    it("should handle separate keys independently", fakeAsync(() => {
-      const fn1 = jest.fn();
-      const fn2 = jest.fn();
+      const fn1 = vi.fn();
+      const fn2 = vi.fn();
       service.debounce("key1", fn1, 100, []);
       service.debounce("key2", fn2, 100, []);
       tick(100);
@@ -64,7 +65,7 @@ describe("DebounceService", () => {
    }));
 
    it("should not call the function after cancel", fakeAsync(() => {
-      const fn = jest.fn();
+      const fn = vi.fn();
       service.debounce("key1", fn, 100, []);
       service.cancel("key1");
       tick(100);

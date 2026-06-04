@@ -47,8 +47,8 @@ describe("Binding Border Pane Test", () => {
 
    beforeEach(() => {
       let baseHrefService = <any> {
-         getBaseHref: jest.fn(),
-         getTokenBaseHref: jest.fn()
+         getBaseHref: vi.fn(),
+         getTokenBaseHref: vi.fn()
       };
       bindingBorderPane = new BindingBorderPane(baseHrefService);
       bindingBorderPane.formatModel = createModel();
@@ -56,7 +56,7 @@ describe("Binding Border Pane Test", () => {
 
    // Bug #10699 and Bug #17594 make sure when setting border style and color to default
    it("should set borders to null when default borders selected", () => {
-      jest.spyOn(bindingBorderPane, "drawBorders").mockImplementation(() => {});
+      vi.spyOn(bindingBorderPane, "drawBorders").mockImplementation(() => {});
       bindingBorderPane.setDefault();
       expect(bindingBorderPane.formatModel.borderBottomStyle).toBeNull();
       expect(bindingBorderPane.formatModel.borderTopStyle).toBeNull();

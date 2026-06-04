@@ -124,7 +124,7 @@ describe("Screens Pane Test", () => {
       fixture.detectChanges();
       let button = fixture.nativeElement.querySelector("button.delete");
 
-      let showConfirmDialog = jest.spyOn(ComponentTool, "showConfirmDialog");
+      let showConfirmDialog = vi.spyOn(ComponentTool, "showConfirmDialog");
       showConfirmDialog.mockImplementation(() => Promise.resolve("yes"));
       button.click();
       expect(showConfirmDialog).toHaveBeenCalled();

@@ -41,6 +41,7 @@ import { CalcGroupOption } from "./calc-group-option.component";
 @Component({
    standalone: true,
    selector: "test-app",
+   imports: [CalcGroupOption],
    template: `
      <calc-group-option [cellBinding]="cellBinding"
                         [aggregates]="aggregates" [field]="field"></calc-group-option>`
@@ -134,10 +135,10 @@ let createMockAggregateRef: (name: string) => AggregateRef = (name: string) => {
 describe("Calc Group Option Unit Test", () => {
    let calcTableLayout: CalcTableLayout = createMockCalcTableLayout();
    let editorService: any = {
-      getTableLayout: jest.fn(),
+      getTableLayout: vi.fn(),
       namedGroups: null
    };
-   let dateLevelExamplesService = {loadDateLevelExamples: jest.fn(() => observableOf())};
+   let dateLevelExamplesService = {loadDateLevelExamples: vi.fn(() => observableOf())};
    let fixture: ComponentFixture<CalcGroupOption>;
    let comp: CalcGroupOption;
 
@@ -289,7 +290,7 @@ describe("Calc Group Option Unit Test", () => {
       });
    });
 
-   xit("Test date level select combobox load", () => {
+   it.skip("Test date level select combobox load", () => {
       fixture = TestBed.createComponent(CalcGroupOption);
       comp = <CalcGroupOption>fixture.componentInstance;
       comp.cellBinding = <CellBindingInfo> {

@@ -74,7 +74,7 @@ describe("Parameter Table Unit Test", () => {
       fixture.detectChanges();
 
       let removeIcon = fixture.debugElement.query(By.css(".trash-icon")).nativeElement;
-      let showConfirmDialog = jest.spyOn(ComponentTool, "showConfirmDialog");
+      let showConfirmDialog = vi.spyOn(ComponentTool, "showConfirmDialog");
       showConfirmDialog.mockImplementation(() => Promise.resolve("ok"));
       removeIcon.click();
       expect(showConfirmDialog).toHaveBeenCalled();
@@ -92,7 +92,7 @@ describe("Parameter Table Unit Test", () => {
       fixture.detectChanges();
 
       const ngbService = TestBed.inject(NgbModal);
-      const openDialog = jest.spyOn(ngbService, "open");
+      const openDialog = vi.spyOn(ngbService, "open");
       openDialog.mockImplementation(() => (<any> { result: Promise.resolve([]) }));
 
       const editIcon = fixture.nativeElement.querySelectorAll(".edit-icon");

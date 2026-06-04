@@ -63,10 +63,10 @@ function clickEvent(overrides: Partial<MouseEvent> = {}): MouseEvent {
 }
 
 function makeDragEvent() {
-   const dataTransfer = { setData: jest.fn(), getData: jest.fn() };
+   const dataTransfer = { setData: vi.fn(), getData: vi.fn() };
    return {
       dataTransfer,
-      preventDefault: jest.fn(),
+      preventDefault: vi.fn(),
    } as unknown as DragEvent & { dataTransfer: typeof dataTransfer };
 }
 

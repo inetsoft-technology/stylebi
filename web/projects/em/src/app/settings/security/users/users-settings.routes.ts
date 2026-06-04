@@ -17,7 +17,6 @@
  */
 import { Routes } from "@angular/router";
 import { ErrorHandlerService } from "../../../common/util/error/error-handler.service";
-import { SecurityTreeService } from "./security-tree.service";
 import { UsersSettingsPageComponent } from "./users-settings-page/users-settings-page.component";
 import { usersSettingsSaveGuard } from "./users-settings-page/users-settings-save.guard";
 
@@ -26,6 +25,6 @@ export const USERS_SETTINGS_ROUTES: Routes = [
       path: "",
       component: UsersSettingsPageComponent,
       canDeactivate: [usersSettingsSaveGuard],
-      providers: [SecurityTreeService, ErrorHandlerService]
+      providers: [ErrorHandlerService]
    }
 ];

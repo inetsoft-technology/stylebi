@@ -28,6 +28,7 @@
  *   Group 4 — State preservation when secondary flag changes
  *   Group 5 — "Show Axis Labels" baseline (existing functionality, not regressed)
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";

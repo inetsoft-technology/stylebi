@@ -73,7 +73,6 @@ function setTargetTreeValues(dataOutputPaneModel, treeNodeModel): DataOutputPane
    return dataOutputPaneModel;
 }
 
-
 function setMockTreeValues(dataOutputPaneModel): DataOutputPaneModel {
    dataOutputPaneModel.table = "mockData";
    dataOutputPaneModel.targetTree = {
@@ -115,9 +114,9 @@ describe("Data Output Pane Test", () => {
    let el: HTMLElement;
 
    beforeEach(waitForAsync(() => {
-      httpService = { get: jest.fn() };
-      dragService = { reset: jest.fn(), put: jest.fn() };
-      treeService = { validateTreeNode: jest.fn() };
+      httpService = { get: vi.fn() };
+      dragService = { reset: vi.fn(), put: vi.fn() };
+      treeService = { validateTreeNode: vi.fn() };
 
       dataOutputPane = new DataOutputPane(httpService);
       dataOutputPane.model = dataOutputPaneModel;
@@ -260,7 +259,7 @@ describe("Data Output Pane Test", () => {
    });
 
    //Bug #20032, Bug #20035, Bug #20102, Bug #20101
-   xit("should return rightly status when change value type", () => {
+   it.skip("should return rightly status when change value type", () => {
       let dataOutputModel = createModel();
       dataOutputModel.aggregate = "Count";
       dataOutputModel.column = "${var1}";

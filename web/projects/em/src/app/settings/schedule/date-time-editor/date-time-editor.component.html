@@ -28,10 +28,8 @@
     <input class="time-input" matInput type="time" placeholder="_#(Time)" step="1"
       [(ngModel)]="time" (ngModelChange)="changeValue()"
       #timeControl="ngModel" name="time" required>
-    @if (timeControl.hasError('required')) {
-      <mat-error>
-        _#(em.schedule.condition.timeRequired)
-      </mat-error>
-    }
+    <mat-error *ngIf="timeControl.hasError('required')">
+      _#(em.schedule.condition.timeRequired)
+    </mat-error>
   </mat-form-field>
 }

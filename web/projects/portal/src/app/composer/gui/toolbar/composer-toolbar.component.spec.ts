@@ -133,25 +133,25 @@ describe("Composer toolbar", () => {
    let fullScreenService: any;
 
    beforeEach(() => {
-      modelService = { getModel: jest.fn(() => observableOf([])) };
+      modelService = { getModel: vi.fn(() => observableOf([])) };
       fileUploadService = {
-         getObserver: jest.fn(() => new Subject<number>()),
-         upload: jest.fn()
+         getObserver: vi.fn(() => new Subject<number>()),
+         upload: vi.fn()
       };
-      httpService = { get: jest.fn() };
+      httpService = { get: vi.fn() };
       scaleService = {
-         getScale: jest.fn(() => observableOf(1)),
-         setScale: jest.fn()
+         getScale: vi.fn(() => observableOf(1)),
+         setScale: vi.fn()
       };
-      socket = <any> { sendEvent: jest.fn() };
-      eventQueueService = { addResizeEvent: jest.fn() };
+      socket = <any> { sendEvent: vi.fn() };
+      eventQueueService = { addResizeEvent: vi.fn() };
       toolbarService = { jdbcExists: true };
-      httpClient = { get: jest.fn(() => new Subject()) };
+      httpClient = { get: vi.fn(() => new Subject()) };
       fullScreenService = {
          fullScreenChange: new EventEmitter<any>(),
          fullScreenMode: false,
-         enterFullScreen: jest.fn(),
-         exitFullScreen: jest.fn()
+         enterFullScreen: vi.fn(),
+         exitFullScreen: vi.fn()
       };
       TestBed.configureTestingModule({
          imports: [

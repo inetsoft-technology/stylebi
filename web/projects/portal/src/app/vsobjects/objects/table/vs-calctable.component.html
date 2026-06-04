@@ -104,7 +104,7 @@
             [style.left.px]="-getColumnWidthSum(0, model.headerColCount - 1) - (isFullHorizontalWrapper ? 0 : scrollX)">
             <table>
               <colgroup>
-              @for (colWidth of getColGroupColWidths(); track colWidth) {
+              @for (colWidth of getColGroupColWidths(); track $index) {
                 @if (colWidth > 0) {
                   <col [style.width.px]="colWidth">
                 }
@@ -207,7 +207,7 @@
           [style.left.px]="(isFullHorizontalWrapper ? 0 : -scrollX) - getColumnWidthSum(0, model.headerColCount - 1)">
           <table>
             <colgroup>
-            @for (colWidth of getColGroupColWidths(); track colWidth) {
+            @for (colWidth of getColGroupColWidths(); track $index) {
               @if (colWidth > 0) {
                 <col [style.width.px]="colWidth">
               }
@@ -267,7 +267,7 @@
                     }
                   }
                 }
-                @for (_emptyCell of emptyHeaderCells[i]; track _emptyCell; let j = $index) {
+                @for (_emptyCell of emptyHeaderCells[i]; track $index; let j = $index) {
                   @if (_emptyCell) {
                     <td class="empty-cell"></td>
                   }
@@ -409,7 +409,7 @@
                   </td>
                 }
               }
-              @for (_emptyCell of emptyHeaderCells[i]; track _emptyCell; let j = $index) {
+              @for (_emptyCell of emptyHeaderCells[i]; track $index; let j = $index) {
                 @if (_emptyCell) {
                   <td class="empty-cell"></td>
                 }

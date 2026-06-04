@@ -1,6 +1,6 @@
-// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`OvalActions check status of menu actions of oval in composer 1`] = `
+exports[`OvalActions > check status of menu actions of oval in composer 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -171,7 +171,7 @@ exports[`OvalActions check status of menu actions of oval in composer 1`] = `
 ]
 `;
 
-exports[`OvalActions check status of menu actions of oval in viewer and preview 1`] = `
+exports[`OvalActions > check status of menu actions of oval in viewer and preview 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -342,7 +342,7 @@ exports[`OvalActions check status of menu actions of oval in viewer and preview 
 ]
 `;
 
-exports[`OvalActions check status of menu actions of oval in viewer and preview 2`] = `
+exports[`OvalActions > check status of menu actions of oval in viewer and preview 2`] = `
 [
   AssemblyActionGroup {
     "actions": [

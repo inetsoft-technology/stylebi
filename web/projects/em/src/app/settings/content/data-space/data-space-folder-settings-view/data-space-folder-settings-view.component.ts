@@ -46,12 +46,13 @@ import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 @Component({
     selector: "em-data-space-folder-settings-view",
     templateUrl: "./data-space-folder-settings-view.component.html",
     styleUrls: ["./data-space-folder-settings-view.component.scss"],
-    imports: [EditorPanelComponent, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, MatError, MatButton]
+    imports: [NgIf, EditorPanelComponent, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, MatError, MatButton]
 })
 export class DataSpaceFolderSettingsViewComponent implements OnInit, OnChanges, OnDestroy {
    @Input() data: DataSpaceTreeNode;

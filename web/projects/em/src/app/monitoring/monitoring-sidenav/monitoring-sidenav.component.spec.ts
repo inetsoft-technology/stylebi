@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
@@ -31,14 +32,14 @@ describe("MonitoringSidenavComponent", () => {
 
    beforeEach(waitForAsync(() => {
       const authzService = {
-         getPermissions: jest.fn(() => observableOf({permissions: {}}))
+         getPermissions: vi.fn(() => observableOf({permissions: {}}))
       };
-      // window.matchMedia = jest.fn().mockImplementation(query => ({
+      // window.matchMedia = vi.fn().mockImplementation(query => ({
       //    matches: false,
       //    media: query,
       //    onchange: null,
-      //    addListener: jest.fn(),
-      //    removeListener: jest.fn()
+      //    addListener: vi.fn(),
+      //    removeListener: vi.fn()
       // }));
 
       TestBed.configureTestingModule({

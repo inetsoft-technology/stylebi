@@ -53,7 +53,6 @@ import { FormsModule } from "@angular/forms";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
-import { it } from "@jest/globals";
 import { render, waitFor } from "@testing-library/angular";
 import { of, Subject } from "rxjs";
 import { http, HttpResponse } from "msw";
@@ -99,8 +98,8 @@ const makePermission = (
 /** Minimal stub — mirrors only the methods called by ResourcePermissionComponent */
 const makeMockTable = (selected: ResourcePermissionTableModel[] = []) => ({
    selection: { selected },
-   receiveSelection: jest.fn(),
-   sendSelection: jest.fn(),
+   receiveSelection: vi.fn(),
+   sendSelection: vi.fn(),
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -121,26 +120,26 @@ interface RenderOpts {
 
 async function renderComponent(opts: RenderOpts = {}) {
    const dialogSpy = {
-      open: jest.fn().mockReturnValue({
+      open: vi.fn().mockReturnValue({
          afterClosed: () =>
             of(opts.dialogClosesWith !== undefined ? opts.dialogClosesWith : true),
       }),
    };
 
    const clipboardSpy = {
-      canPaste: jest.fn().mockReturnValue(opts.clipboardCanPaste ?? false),
-      copiedCount: jest.fn().mockReturnValue(opts.clipboardCount ?? 0),
-      copiedTotal: jest.fn().mockReturnValue(opts.clipboardTotal ?? 0),
-      copy: jest.fn(),
-      paste: jest.fn().mockReturnValue(opts.clipboardPasteResult ?? null),
+      canPaste: vi.fn().mockReturnValue(opts.clipboardCanPaste ?? false),
+      copiedCount: vi.fn().mockReturnValue(opts.clipboardCount ?? 0),
+      copiedTotal: vi.fn().mockReturnValue(opts.clipboardTotal ?? 0),
+      copy: vi.fn(),
+      paste: vi.fn().mockReturnValue(opts.clipboardPasteResult ?? null),
    };
 
-   const snackBarSpy = { open: jest.fn() };
+   const snackBarSpy = { open: vi.fn() };
 
    const orgDropdownSpy = {
       onRefresh: new Subject<any>(),
       onOrgChange: new Subject<void>().asObservable(),
-      getProvider: jest.fn().mockReturnValue("TestProvider"),
+      getProvider: vi.fn().mockReturnValue("TestProvider"),
    };
 
    const result = await render(ResourcePermissionComponent, {

@@ -34,6 +34,7 @@
  *   The form control is named "selectedActionTypes" but the HTTP query parameter appended
  *   to the request is "actions" (not "actionTypes"). Tests verify the server param name.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ReactiveFormsModule } from "@angular/forms";
 import { HttpClientModule, HttpParams } from "@angular/common/http";
@@ -72,7 +73,6 @@ const EMPTY_ADDITIONAL = {
    selectedDashboards:  [] as string[],
    selectedHosts:       [] as string[],
 };
-
 
 /** Renders the component with NO_ERRORS_SCHEMA so em-audit-table-view is stubbed. */
 async function renderComponent(errorService = makeErrorServiceMock()) {
@@ -152,7 +152,6 @@ describe("AuditBookmarkHistoryComponent — fetchData", () => {
    it("should call errorService.showSnackBar and return empty rows on data API error", async () => {
       const errorService = makeErrorServiceMock();
       const { fixture } = await renderComponent(errorService);
-
 
       server.use(
          http.get("*/api/em/monitoring/audit/bookmarkHistory", () =>

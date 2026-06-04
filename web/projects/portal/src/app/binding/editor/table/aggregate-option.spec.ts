@@ -41,7 +41,7 @@ describe("Aggregate Option Unit Test", () => {
    let bindingService: any;
 
    beforeEach(waitForAsync(() => {
-      uiContextService = { isAdhoc: jest.fn() };
+      uiContextService = { isAdhoc: vi.fn() };
       bindingService = { assemblyName: null };
       TestBed.configureTestingModule({
          imports: [

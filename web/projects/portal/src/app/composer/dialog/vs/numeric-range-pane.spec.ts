@@ -15,10 +15,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NgModule, NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { TestUtils } from "../../../common/test/test-utils";
 import { MessageDialog } from "../../../widget/dialog/message-dialog/message-dialog.component";
 import { NewAggrDialog } from "../../../widget/dialog/new-aggr-dialog/new-aggr-dialog.component";
@@ -36,7 +37,6 @@ import { TreeSearchPipe } from "../../../widget/tree/tree-search.pipe";
 import { TreeComponent } from "../../../widget/tree/tree.component";
 import { NumericRangePaneModel } from "../../data/vs/numeric-range-pane-model";
 import { NumericRangePane } from "./numeric-range-pane.component";
-
 
 // Default values taken from NumberRangePane when property dialog is opened on a new gauge with no data
 const createModel: () => NumericRangePaneModel = () => {
@@ -80,7 +80,25 @@ describe("Numeric Range Pane Tests", () => {
             DynamicComboBox,
          ],
          
-         providers: [FixedDropdownService, DropdownStackService],
+         providers: [
+            FixedDropdownService,
+            DropdownStackService,
+            {
+               provide: NgbModal,
+               // Return a stub modal so the dynamic-combo-box's setTimeout-based
+               // formula editor dialog doesn't try to open against a destroyed
+               // injector after the test fixture is torn down. The result promise
+               // is intentionally non-settling so onCommit/onCancel never fire.
+               useValue: {
+                  open: () => ({
+                     componentInstance: {},
+                     result: new Promise<any>(() => {}),
+                     close: () => {},
+                     dismiss: () => {}
+                  })
+               }
+            }
+         ],
          schemas: [ NO_ERRORS_SCHEMA ]
       });
 
@@ -111,6 +129,7 @@ describe("Numeric Range Pane Tests", () => {
    function changeValueType(valueIndex, num) {
       let typeToggles = element.querySelectorAll("button.type-toggle");
       typeToggles[num].click();
+      fixture.detectChanges();
 
       let fixs = document.getElementsByTagName("fixed-dropdown");
       let temp = fixs[0].querySelectorAll("a");
