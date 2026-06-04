@@ -753,7 +753,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
       }
 
       if(tz == this.timeZoneOptions[0]) {
-         this.localTimeZoneLabel = new Date().toTimeString().match(/\((.+)\)/)[1];
+         this.localTimeZoneLabel = new Date().toTimeString().match(/\((.+)\)/)?.[1] ?? "";
       }
       else {
          this.localTimeZoneLabel = tz.label;
@@ -1201,7 +1201,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
 
       if(!edit || !this.timeCondition?.timeZone || this.serverTimeZone) {
          this.timeZoneName = this.serverTimeZone ? this.timeZone :
-            new Date().toTimeString().match(/\((.+)\)/)[1];
+            new Date().toTimeString().match(/\((.+)\)/)?.[1] ?? "";
       }
    }
 
@@ -1246,6 +1246,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
       else {
          if(this.isTimeCondition(this.condition)) {
             this.timeCondition.timeZone = this.localTimeZoneId;
+            this.timeCondition.timeZoneLabel = this.localTimeZoneLabel ?? "";
          }
 
          this.form?.get("timeZone")?.enable();
@@ -1253,7 +1254,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
 
       this.timeZoneName = this.serverTimeZone ? this.timeZone :
          this.localTimeZoneLabel != null ? this.localTimeZoneLabel :
-            new Date().toTimeString().match(/\((.+)\)/)[1];
+            new Date().toTimeString().match(/\((.+)\)/)?.[1] ?? "";
       this.localTimeZoneOffset = this.timeZoneService.calculateTimezoneOffset(this.localTimeZoneId);
    }
 
