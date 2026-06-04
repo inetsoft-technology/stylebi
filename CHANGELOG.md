@@ -1,8 +1,13 @@
 # Changelog
 
-All notable changes to StyleBI are documented here, organized by category.
+All notable changes to StyleBI v1.1.0 are documented here, organized by category. For changes prior to v1.1.0, see the [GitHub Releases page](https://github.com/inetsoft-technology/stylebi/releases).
 
 ## [1.1.0] - 2026-06-02
+
+### Breaking Changes
+- Removed 3D Bar and 3D Pie chart types; existing 3D charts automatically display in their 2D equivalents
+- Changed default JDBC fetch size to 10,000 rows per batch to prevent full-table loads into memory
+
 
 ### Charts
 - Added rounded corner style option for bar charts, including bars produced by date-comparison calculations; option to round bottom corners only is available separately
@@ -11,8 +16,6 @@ All notable changes to StyleBI are documented here, organized by category.
 - Added SVG as a supported shape type in Add Shape
 - Added Legend Symbol Size property to control the size of legend marker icons
 - Added "On click only" tooltip mode for chart (`ChartTipOnClick`) and table (`TableTipOnClick`) components
-- Added `axis.labelOnSecondaryAxis` script property for placing axis labels on the secondary axis
-- Removed 3D Bar and 3D Pie chart types; existing 3D charts automatically display in their 2D equivalents
 - Fixed axis misalignment when toggling Labels on Opposite Side on Pareto and other charts
 - Fixed axis titles unintentionally following labels to the opposite side
 - Fixed rounded corner rendering on stacked bar segments near stack edges
@@ -71,7 +74,7 @@ All notable changes to StyleBI are documented here, organized by category.
 - Added collapse/expand control for the AI Assistant panel
 - Added branding/theming configuration: custom title, vendor name, logo URL, and portal color scheme integration
 - Added support for server storage paths in AI Assistant logo URL
-- AI Assistant context type now updates when switching sheet focus in the Composer
+- Changed AI Assistant to respond to context when switching sheet focus in the Composer
 - Fixed AI Assistant icon unresponsive in portal wizard pane
 - Fixed AI Assistant icon unresponsive in portal binding pane
 - Fixed AI Assistant icon appearing smaller in Composer toolbar than in portal navbar
@@ -86,12 +89,11 @@ All notable changes to StyleBI are documented here, organized by category.
 - Fixed NullPointerException when importing a schedule task with a null completion condition task name
 - Fixed navigation loop and distribution permission handling in schedule tasks
 - Enforced schedule option permissions server-side when saving schedule tasks
-- Hidden Schedule Tasks node in Enterprise Manager content tree for users without scheduler permission
+- Hide Schedule Tasks node in Enterprise Manager content tree for users without scheduler permission
 
 ### Data & Queries
 - Added Format Date Values Sent to Query setting for radio button, check box, and combo box components
 - Added Switch To Manual Input option for Group Data By Dimension in the worksheet
-- Set default JDBC fetch size to 10,000 rows per batch to prevent full-table loads into memory
 - Fixed column format metadata not preserved when re-importing dashboard snapshot files
 - Fixed form table import throwing a 500 error when the backup sheet is absent or the table name contains underscores
 - Fixed expression references in formula columns not scanned for asset dependency tracking
@@ -119,12 +121,11 @@ All notable changes to StyleBI are documented here, organized by category.
 - Fixed theme files not properly copied on organization clone
 - Fixed login page shown in portal when security is not enabled after server restart
 - Fixed duplicate dashboards displayed in Enterprise Manager Monitoring in a cluster environment
-
-### Scripting
-- Added 16 new script properties for axis and data label positioning
-- Added `axis.labelOnSecondaryAxis` script property
 - Added `script.cursor.top` server property
 - Added `em.home.link` server property
+
+### Scripting
+- Added `axis.labelOnSecondaryAxis` script property for placing axis labels on the secondary axis
 - Fixed slider `labelVisible` script property incorrectly targeting tick labels instead of the component label
 
 ### Input Components & Forms
