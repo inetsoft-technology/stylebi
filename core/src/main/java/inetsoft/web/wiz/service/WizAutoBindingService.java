@@ -372,6 +372,49 @@ public class WizAutoBindingService {
             }
          }
       }
+
+      // Common to dimensions and measures: a display title (axis/legend/series label) and a
+      // number/date display format. Applies to whichever ref kind matched above.
+      applyTitleAndFormat(ref, fc);
+   }
+
+   /**
+    * Applies the field's display title (as the ref caption) and number/date format (as the ref's
+    * text format) when set in the field config. The format type is inferred from the field's data
+    * type: date types use a DateFormat pattern, numeric types a DecimalFormat pattern; other types
+    * are left unformatted (a pattern there would be ambiguous).
+    */
+   private void applyTitleAndFormat(ChartRef ref, SimpleFieldInfo fc) {
+      String title = fc.getTitle();
+
+      if(title != null && !title.isEmpty()) {
+         if(ref instanceof VSDimensionRef dim) {
+            dim.setCaption(title);
+         }
+         else if(ref instanceof VSAggregateRef agg) {
+            agg.setCaption(title);
+         }
+      }
+
+      String format = fc.getFormat();
+
+      if(format != null && !format.isEmpty()) {
+         String dtype = fc.getType();
+         String fmtType = XSchema.isDateType(dtype) ? XConstants.DATE_FORMAT
+            : XSchema.isNumericType(dtype) ? XConstants.DECIMAL_FORMAT
+            : null;
+
+         if(fmtType != null) {
+            CompositeTextFormat tf = ref.getTextFormat();
+
+            if(tf != null) {
+               tf.setFormat(new XFormatInfo(fmtType, format));
+            }
+         }
+         else {
+            LOG.warn("Ignoring format '{}' for non-date/non-numeric field '{}'", format, fc.getField());
+         }
+      }
    }
 
    // ── Chart preference helpers ──────────────────────────────────────────────────
