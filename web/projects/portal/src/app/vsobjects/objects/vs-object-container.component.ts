@@ -546,8 +546,10 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    }
 
    zIndex(vsObject: VSObjectModel): number {
-      if(this.popService.isPopSource(vsObject.absoluteName) ||
-         this.dataTipService.isDataTipSource(vsObject.absoluteName))
+      const adhocFilter = (<any> vsObject).adhocFilter;
+
+      if(!adhocFilter && (this.popService.isPopSource(vsObject.absoluteName) ||
+         this.dataTipService.isDataTipSource(vsObject.absoluteName)))
       {
          return DateTipHelper.getPopUpSourceZIndex();
       }
@@ -572,6 +574,12 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       // Data annotations are rendered in the chart-annotation-overlay so they don't need this boost.
       if(vsObject.assemblyAnnotationModels?.length > 0) {
          zIndex += 5000;
+      }
+
+      // Adhoc filters are temporary VS objects, not VSPopComponent content, but they
+      // still need to paint above the source table/crosstab while preserving container order.
+      if(adhocFilter) {
+         zIndex += DateTipHelper.getPopUpContentBoostZIndex();
       }
 
       return zIndex;
