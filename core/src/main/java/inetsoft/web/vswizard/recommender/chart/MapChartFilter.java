@@ -281,7 +281,11 @@ public class MapChartFilter extends ChartTypeFilter {
 
    @Override
    protected int getScore(ChartInfo chart) {
-      return 1000;
+      // Geo data should clearly prefer a map, but not by a sentinel score that dwarfs every other
+      // type (which made map the top recommendation for any field set containing a geo field, and
+      // flattened the relative scores of all non-map candidates). A strong boost over PRIMARY_SCORE
+      // keeps map winning for genuine geo bindings while leaving the other candidates comparable.
+      return PRIMARY_SCORE + 10;
    }
 
    private int getLayer(ChartRef ref) {
