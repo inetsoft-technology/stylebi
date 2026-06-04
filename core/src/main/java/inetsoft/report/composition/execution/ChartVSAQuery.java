@@ -1420,6 +1420,51 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
          }
       }
 
+      // For relation charts, nodeColorField and nodeSizeField that are VSDimensionRefs are
+      // excluded from getAestheticRefs() to avoid GROUP BY row-splitting per target node
+      // (a dimension like MonthOfYear spanning two months produces multiple rows per node,
+      // causing node text/size measures to reflect only the first-encountered month).
+      // Add them back here as MAX aggregates so color/size frames still have the column
+      // available, using MAX as a consistent representative value per (Source, Target) group.
+      // Skipped for detail view: ainfo.clear() discards all aggregates in that path anyway.
+      if(!isDetail() && cinfo instanceof RelationVSChartInfo) {
+         RelationVSChartInfo rinfo = (RelationVSChartInfo) cinfo;
+         List<AestheticRef> nodeAestheticRefs = new ArrayList<>();
+         nodeAestheticRefs.add(rinfo.getNodeColorField());
+         nodeAestheticRefs.add(rinfo.getNodeSizeField());
+
+         for(AestheticRef nodeARef : nodeAestheticRefs) {
+            if(nodeARef == null || !(nodeARef.getDataRef() instanceof VSDimensionRef)) {
+               continue;
+            }
+
+            VSDimensionRef nodeDim = (VSDimensionRef) nodeARef.getDataRef();
+            GroupRef nodeGroup = nodeDim.createGroupRef(cols);
+
+            if(nodeGroup == null) {
+               continue;
+            }
+
+            ColumnRef nodeCol = (ColumnRef) nodeGroup.getDataRef();
+            int existingIdx = cols.indexOfAttribute(nodeCol);
+
+            if(existingIdx >= 0) {
+               nodeCol = (ColumnRef) cols.getAttribute(existingIdx);
+               cols.removeAttribute(existingIdx);
+            }
+
+            if(!colsSet.contains(nodeCol)) {
+               nodeCol.setVisible(true);
+               cols.addAttribute(counter++, nodeCol);
+               colsSet.add(nodeCol);
+            }
+
+            if(!ainfo.containsGroup(nodeCol) && !ainfo.containsAggregate(nodeCol)) {
+               ainfo.addAggregate(new AggregateRef(nodeCol, AggregateFormula.MAX));
+            }
+         }
+      }
+
       // @by billh, flag indicates whether to merge aggregate info to query
       // regardless of ranking condition. If ranking condition exists but it's
       // defined at the inner most dimension, it's also safe enough to merge
