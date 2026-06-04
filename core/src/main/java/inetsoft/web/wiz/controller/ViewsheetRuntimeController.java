@@ -19,11 +19,18 @@
 package inetsoft.web.wiz.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.Tool;
 import inetsoft.web.wiz.model.CloseViewsheetRequest;
+import inetsoft.web.wiz.model.OpenViewsheetResult;
 import inetsoft.web.wiz.service.WizVisualizationService;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -46,11 +53,11 @@ public class ViewsheetRuntimeController {
     *
     * @param identifier the asset entry identifier of the viewsheet
     * @param user       the current principal
-    * @return the runtime ID of the opened viewsheet
+    * @return the runtime id plus the primary chart assembly name of the opened viewsheet
     */
-   @PostMapping(value = "/viewsheet/open", produces = MediaType.TEXT_PLAIN_VALUE)
-   public String openViewsheet(@RequestParam("identifier") String identifier,
-                               Principal user) throws Exception
+   @PostMapping(value = "/viewsheet/open", produces = MediaType.APPLICATION_JSON_VALUE)
+   public OpenViewsheetResult openViewsheet(@RequestParam("identifier") String identifier,
+                                            Principal user) throws Exception
    {
       AssetEntry entry = AssetEntry.createAssetEntry(identifier);
 
@@ -65,7 +72,41 @@ public class ViewsheetRuntimeController {
             "Viewsheet is not in the managed visualizations folder: " + path);
       }
 
-      return viewsheetService.openViewsheet(entry, user, true);
+      String runtimeId = viewsheetService.openViewsheet(entry, user, true);
+
+      OpenViewsheetResult result = new OpenViewsheetResult();
+      result.setRuntimeId(runtimeId);
+      result.setAssemblyName(findChartAssemblyName(runtimeId, user));
+      return result;
+   }
+
+   /**
+    * Resolve the primary chart assembly name of an opened runtime so callers can drive
+    * filter/browse-data/embed without a separate lookup. Prefers a chart assembly; falls
+    * back to the first assembly. Returns null if it cannot be determined (non-fatal).
+    */
+   private String findChartAssemblyName(String runtimeId, Principal user) {
+      try {
+         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+         Viewsheet vs = rvs != null ? rvs.getViewsheet() : null;
+         Assembly[] assemblies = vs != null ? vs.getAssemblies() : null;
+
+         if(assemblies == null || assemblies.length == 0) {
+            return null;
+         }
+
+         for(Assembly a : assemblies) {
+            if(a instanceof ChartVSAssembly) {
+               return a.getName();
+            }
+         }
+
+         return assemblies[0].getName();
+      }
+      catch(Exception e) {
+         log.warn("Could not resolve primary chart assembly for runtime {}: {}", runtimeId, e.getMessage());
+         return null;
+      }
    }
 
    /**
@@ -86,4 +127,5 @@ public class ViewsheetRuntimeController {
    }
 
    private final ViewsheetService viewsheetService;
+   private static final Logger log = LoggerFactory.getLogger(ViewsheetRuntimeController.class);
 }
