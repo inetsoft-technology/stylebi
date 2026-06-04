@@ -350,7 +350,7 @@ export class VSCalendar extends NavigationComponent<VSCalendarModel>
             }
          }
       }
-      else if(!!this.calendar1) {
+      else if(!!this.calendar1 && typeof this.calendar1.getSelectionString === "function") {
          selectionString = this.calendar1.getSelectionString();
       }
 

@@ -82,7 +82,8 @@ describe("Label Input Field Test", () => {
       labelInputField.onTypeChange(ComboMode.VALUE);
       fixture.detectChanges();
 
-      let labelInput = fixture.debugElement.query(By.css("div.dynamic-combo-box-body .custom-select")).nativeElement;
+      let labelInput = fixture.debugElement.query(
+         By.css("div.dynamic-combo-box-body .custom-select-trigger")).nativeElement;
       expect(TestUtils.toString((labelInput.textContent).trim())).toEqual("_#(js:Target Value)");
    });
 });

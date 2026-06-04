@@ -101,14 +101,31 @@ const _origTick = (ApplicationRef.prototype as any).tick;
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Walk a class's component/directive dependencies and patch any undefined slots in place.
+function _isPendingComponentResourceError(e: any): boolean {
+   return typeof e?.message === "string" &&
+      e.message.includes("Did you run and wait for 'resolveComponentResources()'?");
+}
+
+function _readAngularDef(cls: any, prop: "ɵcmp" | "ɵmod"): any {
+   try {
+      return cls?.[prop];
+   } catch(e) {
+      if(_isPendingComponentResourceError(e)) {
+         return null;
+      }
+
+      throw e;
+   }
+}
+
 function _scrubDeps(cls: any, visited: Set<any>, fallback: any) {
    if (!cls || visited.has(cls)) {
       return;
    }
    visited.add(cls);
 
-   const cmpDef = (cls as any).ɵcmp;
-   const modDef = (cls as any).ɵmod;
+   const cmpDef = _readAngularDef(cls, "ɵcmp");
+   const modDef = _readAngularDef(cls, "ɵmod");
    if (!cmpDef && !modDef) {
       return;
    }
@@ -142,6 +159,26 @@ function _scrubDeps(cls: any, visited: Set<any>, fallback: any) {
    }
 }
 
+function _scrubTestingModuleDef(moduleDef: any) {
+   const _visited = new Set<any>();
+   const _scrubArray = (arr: any[] | undefined) => {
+      if (!Array.isArray(arr)) {
+         return;
+      }
+      for (const item of arr) {
+         if (Array.isArray(item)) {
+            _scrubArray(item);
+         } else if (item) {
+            _scrubDeps(item, _visited, _CircularDepPlaceholder);
+         }
+      }
+   };
+   _scrubArray(moduleDef?.imports);
+   _scrubArray(moduleDef?.declarations);
+}
+
+const _configuredModuleDefs: any[] = [];
+
 // Patch configureTestingModule to:
 //   1. Inject provideNgReflectAttributes() for legacy ng-reflect-* assertions
 //      (Angular 20 stopped emitting these by default).
@@ -159,23 +196,21 @@ TestBed.configureTestingModule = function(moduleDef: any) {
       { provide: ComponentFixtureAutoDetect, useValue: false },
       ...(moduleDef.providers ?? []),
    ];
-   const _visited = new Set<any>();
-   const _scrubArray = (arr: any[] | undefined) => {
-      if (!Array.isArray(arr)) {
-         return;
-      }
-      for (const item of arr) {
-         if (Array.isArray(item)) {
-            _scrubArray(item);
-         } else if (item) {
-            _scrubDeps(item, _visited, _CircularDepPlaceholder);
-         }
-      }
-   };
-   _scrubArray(moduleDef.imports);
-   _scrubArray(moduleDef.declarations);
+   _configuredModuleDefs.push(moduleDef);
+   _scrubTestingModuleDef(moduleDef);
    return _originalConfigureTestingModule(moduleDef);
 } as typeof TestBed.configureTestingModule;
+
+const _originalCompileComponents = TestBed.compileComponents.bind(TestBed);
+TestBed.compileComponents = function() {
+   return Promise.resolve(_originalCompileComponents()).then(() => {
+      _patchKnownCircularDeps();
+
+      while(_configuredModuleDefs.length > 0) {
+         _scrubTestingModuleDef(_configuredModuleDefs.shift());
+      }
+   });
+} as typeof TestBed.compileComponents;
 
 // Specific circular-import patches for component pairs where the template uses the missing
 // class directly. The generic placeholder is not sufficient here because templates reference
@@ -185,7 +220,7 @@ TestBed.configureTestingModule = function(moduleDef: any) {
 // reference in a closure for lazy resolution of directiveDefs/pipeDefs; reassigning
 // def.dependencies does not affect later component instantiation.
 function _patchCircularDeps(component: any, replacement: any) {
-   const def = component?.ɵcmp;
+   const def = _readAngularDef(component, "ɵcmp");
    if (!def) {
       return;
    }
@@ -204,8 +239,6 @@ function _patchCircularDeps(component: any, replacement: any) {
 // VSViewsheet ↔ VSObjectContainer: both components import each other.
 import { VSViewsheet } from "./app/vsobjects/objects/viewsheet/vs-viewsheet.component";
 import { VSObjectContainer } from "./app/vsobjects/objects/vs-object-container.component";
-_patchCircularDeps(VSObjectContainer, VSViewsheet);
-_patchCircularDeps(VSViewsheet, VSObjectContainer);
 
 // VSCalendar ↔ YearCalendar/MonthCalendar: YearCalendar and MonthCalendar import VSCalendar
 // for the SelectionRegions enum, leaving YearCalendar's slot undefined in VSCalendar's deps.
@@ -215,7 +248,7 @@ import { YearCalendar } from "./app/vsobjects/objects/calendar/year-calendar.com
 // VSCalendar's imports list contains both MonthCalendar and YearCalendar; either may be the
 // undefined slot depending on module load order. Iterate over both placements explicitly.
 function _patchVSCalendarDeps() {
-   const def = (VSCalendar as any)?.ɵcmp;
+   const def = _readAngularDef(VSCalendar, "ɵcmp");
    if (!def) return;
    const raw = typeof def.dependencies === "function" ? def.dependencies() : def.dependencies;
    if (!Array.isArray(raw)) return;
@@ -233,9 +266,16 @@ function _patchVSCalendarDeps() {
       }
    }
 }
-_patchVSCalendarDeps();
-_patchCircularDeps(MonthCalendar, VSCalendar);
-_patchCircularDeps(YearCalendar, VSCalendar);
+
+function _patchKnownCircularDeps() {
+   _patchCircularDeps(VSObjectContainer, VSViewsheet);
+   _patchCircularDeps(VSViewsheet, VSObjectContainer);
+   _patchVSCalendarDeps();
+   _patchCircularDeps(MonthCalendar, VSCalendar);
+   _patchCircularDeps(YearCalendar, VSCalendar);
+}
+
+_patchKnownCircularDeps();
 
 // NOTE: MSW is intentionally NOT started here for the main portal test suite.
 // Under the old Jest setup, setup-jest.ts (which had MSW) was only wired to
