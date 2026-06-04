@@ -1408,6 +1408,111 @@ public class WizAutoBindingService {
    }
 
    /**
+    * Applies chart-level FORMAT properties (axis titles, y-axis scale, legend placement) to an
+    * existing runtime chart and re-renders it. Only the non-null request fields are applied; the
+    * rest of the chart is left untouched. Returns the re-executed chart's sampled data (the format
+    * change affects the rendered chart, not the underlying rows).
+    */
+   public CreateViewsheetResult setChartFormat(ChartFormatRequest request, Principal user)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(request.getWizRuntimeId(), user);
+
+      if(rvs == null || rvs.getViewsheet() == null) {
+         throw new Exception("Chart runtime not found: " + request.getWizRuntimeId());
+      }
+
+      VSAssembly assembly = rvs.getViewsheet().getAssembly(request.getAssemblyName());
+
+      if(!(assembly instanceof ChartVSAssembly chart)) {
+         throw new Exception("Chart assembly not found: " + request.getAssemblyName());
+      }
+
+      var info = chart.getChartInfo();
+      ChartDescriptor desc = info.getChartDescriptor();
+      VSChartInfo vsChartInfo = info.getVSChartInfo();
+
+      // Axis titles
+      if(desc != null && desc.getTitlesDescriptor() != null) {
+         TitlesDescriptor titles = desc.getTitlesDescriptor();
+
+         if(request.getXAxisTitle() != null && titles.getXTitleDescriptor() != null) {
+            titles.getXTitleDescriptor().setTitleValue(request.getXAxisTitle());
+         }
+
+         if(request.getYAxisTitle() != null && titles.getYTitleDescriptor() != null) {
+            titles.getYTitleDescriptor().setTitleValue(request.getYAxisTitle());
+         }
+      }
+
+      // Y-axis scale — applied to each bound measure's axis descriptor.
+      boolean scaleChange = request.getYAxisMin() != null || request.getYAxisMax() != null ||
+         request.getYAxisIncrement() != null || request.getYAxisLogarithmic() != null;
+
+      if(scaleChange && vsChartInfo != null && vsChartInfo.getYFields() != null) {
+         for(ChartRef yref : vsChartInfo.getYFields()) {
+            if(yref == null || yref.getAxisDescriptor() == null) {
+               continue;
+            }
+
+            AxisDescriptor ax = yref.getAxisDescriptor();
+
+            if(request.getYAxisMin() != null) {
+               ax.setMinimum(request.getYAxisMin());
+            }
+
+            if(request.getYAxisMax() != null) {
+               ax.setMaximum(request.getYAxisMax());
+            }
+
+            if(request.getYAxisIncrement() != null) {
+               ax.setIncrement(request.getYAxisIncrement());
+            }
+
+            if(request.getYAxisLogarithmic() != null) {
+               ax.setLogarithmicScale(request.getYAxisLogarithmic());
+            }
+         }
+      }
+
+      // Legend placement
+      if(request.getLegendPosition() != null && desc != null && desc.getLegendsDescriptor() != null) {
+         desc.getLegendsDescriptor().setLayout(legendLayout(request.getLegendPosition()));
+      }
+
+      // Invalidate the cached runtime descriptor so the change regenerates on re-execute.
+      info.setRTChartDescriptor(null);
+
+      CreateViewsheetResult result =
+         wizVsService.fetchAssemblyData(request.getWizRuntimeId(), request.getAssemblyName(), user);
+
+      if(result == null) {
+         result = new CreateViewsheetResult();
+      }
+
+      result.setRuntimeId(request.getWizRuntimeId());
+      result.setAssemblyName(request.getAssemblyName());
+
+      if(request.getViewsheetIdentifier() != null) {
+         result.setViewsheetIdentifier(request.getViewsheetIdentifier());
+      }
+
+      return result;
+   }
+
+   /** Maps a legend-position string to a {@link LegendsDescriptor} layout constant (defaults to RIGHT). */
+   private static int legendLayout(String position) {
+      return switch(position.toLowerCase()) {
+         case "none" -> LegendsDescriptor.NO_LEGEND;
+         case "top" -> LegendsDescriptor.TOP;
+         case "bottom" -> LegendsDescriptor.BOTTOM;
+         case "left" -> LegendsDescriptor.LEFT;
+         case "in_place" -> LegendsDescriptor.IN_PLACE;
+         default -> LegendsDescriptor.RIGHT;
+      };
+   }
+
+   /**
     * Calls updatePrimaryAssembly on {@code rvs} to mirror the full wizard setup path
     * (calc field registration, format, legend, temp assembly cleanup), then returns the
     * resulting temp assembly. The caller must have already set {@code selectedIndex} on

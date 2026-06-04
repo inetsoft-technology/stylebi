@@ -64,6 +64,13 @@ public class WizViewsheetController {
       return wizAutoBindingService.changeType(request, user);
    }
 
+   @PostMapping(value = "/viewsheet/format", produces = MediaType.APPLICATION_JSON_VALUE)
+   public CreateViewsheetResult setChartFormat(@RequestBody ChartFormatRequest request,
+                                               Principal user) throws Exception
+   {
+      return wizAutoBindingService.setChartFormat(request, user);
+   }
+
    @DeleteMapping("/viewsheet")
    public void deleteViewsheet(@RequestParam("identifier") String identifier,
                                Principal user) throws Exception
