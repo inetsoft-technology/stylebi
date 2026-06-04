@@ -99,7 +99,7 @@ public class IdentityService {
                           ExternalStorageService externalStorageService,
                           XRepository xRepository,
                           RepletRegistryManager repletRegistryManager,
-                          IgniteSessionRepository sessionRepository)
+                          Optional<IgniteSessionRepository> sessionRepository)
    {
       this.securityEngine = securityEngine;
       this.securityProvider = securityProvider;
@@ -129,7 +129,7 @@ public class IdentityService {
       this.externalStorageService = externalStorageService;
       this.xRepository = xRepository;
       this.repletRegistryManager = repletRegistryManager;
-      this.sessionRepository = sessionRepository;
+      this.sessionRepository = sessionRepository.orElse(null);
    }
 
    private AuthenticationProvider getProvider(String providerName) {
@@ -1716,11 +1716,13 @@ public class IdentityService {
 
       syncIdentity(eprovider, user, oIdentity);
 
-      try {
-         sessionRepository.updatePrincipalRolesAndGroups(oIdentity, user.getRoles(), user.getGroups(), eprovider);
-      }
-      catch(Exception e) {
-         LOG.warn("Failed to update live session principals for user {}", oIdentity, e);
+      if(sessionRepository != null) {
+         try {
+            sessionRepository.updatePrincipalRolesAndGroups(oIdentity, user.getRoles(), user.getGroups(), eprovider);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to update live session principals for user {}", oIdentity, e);
+         }
       }
 
       return user;
