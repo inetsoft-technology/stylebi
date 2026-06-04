@@ -140,6 +140,80 @@ class ChartToolTipTest {
    }
 
    @Test
+   void groupedSoloCardWithHeaderEmphasizesStackTotal() {
+      // Single-measure stacked bar: PlotArea lifts the X-dim to the header and
+      // routes to the grouped solo card. The stack total must be emphasized.
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+      tip.setHeader(palette.put("Year(Order Date)"), palette.put("2022"));
+      tip.addTooltip(palette.put("Sum(Order Number)"), palette.put("398.8K"));
+      tip.addTooltip(palette.put("Total"), palette.put("1.8M"));
+      tip.addTooltip(palette.put("Employee"), palette.put("Sue"));
+      tip.setStackTotalName("Total");
+
+      String out = tip.getTooltip(palette);
+
+      assertTrue(out.contains("<div class=\"tt-tier-1\">Sum(Order Number):&nbsp;398.8K"),
+                 "Hovered measure stays at tier-1");
+      assertTrue(out.contains("<div class=\"tt-tier-1 tt-subtitle\">Year(Order Date):&nbsp;2022"),
+                 "X-dim renders as the tier-1 subtitle");
+      assertTrue(out.endsWith("<div class=\"tt-tier-1 tt-stack-total\">Total:&nbsp;1.8M</div>"),
+                 "Grouped solo card must emphasize the stack total at the end");
+      int totalCount = out.split("Total:&nbsp;1\\.8M", -1).length - 1;
+      assertEquals(1, totalCount, "Stack total must appear exactly once");
+   }
+
+   @Test
+   void groupedSoloCardEmphasizesStackTotalNotLastInList() {
+      // The stack total is added before aesthetics in PlotArea, so it is not the
+      // last pair. findStackTotalIndex matches by name, so it is still pulled out.
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+      tip.setGroupedTiers(true);
+      tip.setTier2GroupSize(1);
+      tip.addTooltip(palette.put("Sum(Order Number)"), palette.put("398.8K"));
+      tip.addTooltip(palette.put("Total"), palette.put("1.8M"));
+      tip.addTooltip(palette.put("Employee"), palette.put("Sue"));
+      tip.setStackTotalName("Total");
+
+      String out = tip.getTooltip(palette);
+
+      assertTrue(out.contains("<div class=\"tt-tier-1\">Sum(Order Number):&nbsp;398.8K"),
+                 "Hovered measure stays at tier-1");
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Employee:&nbsp;Sue"),
+                 "Aesthetic that followed the total in the list is not consumed by it");
+      assertTrue(out.endsWith("<div class=\"tt-tier-1 tt-stack-total\">Total:&nbsp;1.8M</div>"),
+                 "Total emphasized at the end even though it was not last in the list");
+      int totalCount = out.split("Total:&nbsp;1\\.8M", -1).length - 1;
+      assertEquals(1, totalCount, "Stack total must appear exactly once");
+   }
+
+   @Test
+   void uniformCardEmphasizesStackTotal() {
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+      tip.setUniformTier(true);
+      tip.addTooltip(palette.put("Sum(Order Number)"), palette.put("398.8K"));
+      tip.addTooltip(palette.put("Total"), palette.put("1.8M"));
+      tip.addTooltip(palette.put("Region"), palette.put("West"));
+      tip.setStackTotalName("Total");
+
+      String out = tip.getTooltip(palette);
+
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Sum(Order Number):&nbsp;398.8K"),
+                 "Uniform rows render at tier-2");
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Region:&nbsp;West"),
+                 "Row after the total stays at tier-2, not consumed by it");
+      assertTrue(out.endsWith("<div class=\"tt-tier-1 tt-stack-total\">Total:&nbsp;1.8M</div>"),
+                 "Uniform card must emphasize the stack total at the end even when not last");
+      int totalCount = out.split("Total:&nbsp;1\\.8M", -1).length - 1;
+      assertEquals(1, totalCount, "Stack total must appear exactly once");
+   }
+
+   @Test
    void setStyleNullDefaultsToLegacyStyle() {
       ChartToolTip tip = new ChartToolTip();
       tip.setStyle(null);

@@ -138,15 +138,7 @@ public class ChartToolTip implements DataSerializable {
          tier++;
       }
 
-      if(stackTotalIdx >= 0) {
-         String label = palette.get(tooltips.get(stackTotalIdx));
-         String value = (stackTotalIdx + 1) < tooltips.size()
-            ? palette.get(tooltips.get(stackTotalIdx + 1)) : "";
-         buffer.append("<div class=\"tt-tier-1 tt-stack-total\">")
-               .append(label).append(ChartToolTip.COLON).append(value)
-               .append("</div>");
-      }
-
+      appendStackTotal(buffer, palette, stackTotalIdx);
       return buffer.toString();
    }
 
@@ -154,6 +146,7 @@ public class ChartToolTip implements DataSerializable {
    // equal weight) when no identity dim leads — mirrors the flat default tooltip.
    private String renderUniformCard(IndexedSet<String> palette) {
       StringBuilder buffer = new StringBuilder();
+      int stackTotalIdx = findStackTotalIndex(palette);
 
       for(int i = 0; i < tooltips.size(); i += 2) {
          int keyIdx = tooltips.get(i);
@@ -162,11 +155,16 @@ public class ChartToolTip implements DataSerializable {
             continue;
          }
 
+         if(i == stackTotalIdx) {
+            continue;
+         }
+
          String label = palette.get(keyIdx);
          String value = (i + 1) < tooltips.size() ? palette.get(tooltips.get(i + 1)) : "";
          appendTier(buffer, 2, label + ChartToolTip.COLON + value);
       }
 
+      appendStackTotal(buffer, palette, stackTotalIdx);
       return buffer.toString();
    }
 
@@ -176,11 +174,17 @@ public class ChartToolTip implements DataSerializable {
    private String renderGroupedSoloCard(IndexedSet<String> palette) {
       StringBuilder buffer = new StringBuilder();
       int pairsRendered = 0;
+      int stackTotalIdx = findStackTotalIndex(palette);
 
       for(int i = 0; i < tooltips.size(); i += 2) {
          int keyIdx = tooltips.get(i);
 
          if(keyIdx == -1) {
+            continue;
+         }
+
+         // Skip here so the total doesn't take the tier-1 slot or shift tier-2 grouping.
+         if(i == stackTotalIdx) {
             continue;
          }
 
@@ -207,10 +211,25 @@ public class ChartToolTip implements DataSerializable {
          pairsRendered++;
       }
 
+      appendStackTotal(buffer, palette, stackTotalIdx);
       return buffer.toString();
    }
 
-   // Match by name rather than position so callers that skip moveTotalToBottom still work.
+   // Footer total, emphasized.
+   private void appendStackTotal(StringBuilder buffer, IndexedSet<String> palette, int stackTotalIdx) {
+      if(stackTotalIdx < 0) {
+         return;
+      }
+
+      String label = palette.get(tooltips.get(stackTotalIdx));
+      String value = (stackTotalIdx + 1) < tooltips.size()
+         ? palette.get(tooltips.get(stackTotalIdx + 1)) : "";
+      buffer.append("<div class=\"tt-tier-1 tt-stack-total\">")
+            .append(label).append(ChartToolTip.COLON).append(value)
+            .append("</div>");
+   }
+
+   // Match by name, not position — the total isn't always the last pair.
    private int findStackTotalIndex(IndexedSet<String> palette) {
       if(stackTotalName == null || stackTotalName.isEmpty()) {
          return -1;
