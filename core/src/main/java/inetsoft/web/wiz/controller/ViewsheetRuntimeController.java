@@ -102,6 +102,7 @@ public class ViewsheetRuntimeController {
          return assemblies[0].getName();
       }
       catch(Exception e) {
+         log.warn("Could not resolve primary chart assembly for runtime {}: {}", runtimeId, e.getMessage());
          return null;
       }
    }
@@ -124,4 +125,6 @@ public class ViewsheetRuntimeController {
    }
 
    private final ViewsheetService viewsheetService;
+   private static final org.slf4j.Logger log =
+      org.slf4j.LoggerFactory.getLogger(ViewsheetRuntimeController.class);
 }
