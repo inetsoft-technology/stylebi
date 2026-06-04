@@ -29,6 +29,7 @@ $em-typography-config: mat.m2-define-typography-config(
   $subtitle-1: mat.m2-define-typography-level(14px, 14px, 700, var(--inet-em-font-family)),
   $subtitle-2: mat.m2-define-typography-level(12px, 12px, 700, var(--inet-em-font-family)),
   $body-1: mat.m2-define-typography-level(12px, 20px, 400, var(--inet-em-font-family)),
+  $body-2: mat.m2-define-typography-level(12px, 20px, 400, var(--inet-em-font-family)),
   $button: mat.m2-define-typography-level(12px, 12px, 500, var(--inet-em-font-family))
 );
 
