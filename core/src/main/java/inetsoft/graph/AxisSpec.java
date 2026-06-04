@@ -31,7 +31,7 @@ import java.util.Objects;
  * @version 10.0
  * @author InetSoft Technology Corp
  */
-@TernClass(url = "#cshid=AreaElement")
+@TernClass(url = "#cshid=AxisSpec")
 public class AxisSpec implements Cloneable, Serializable {
    /**
     * No axis on this coord.
@@ -83,7 +83,7 @@ public class AxisSpec implements Cloneable, Serializable {
     * Set the axis style.
     * @param style one of the following, AXIS_NONE, AXIS_DOUBLE, AXIS_SINGLE.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setAxisStyle.htm")
    public void setAxisStyle(int style) {
       this.style = style;
    }
@@ -91,7 +91,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Get the axis style for this coord.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_getAxisStyle.htm")
    public int getAxisStyle() {
       return labelOnSecondaryAxis ? (style | AXIS_LABEL_OPPOSITE_SIDE) : style;
    }
@@ -99,7 +99,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Get the axis line color.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_getLineColor.htm")
    public Color getLineColor() {
       return lineColor;
    }
@@ -107,7 +107,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Set the axis line color property.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setLineColor.htm")
    public void setLineColor(Color lineColor) {
       this.lineColor = lineColor;
    }
@@ -115,7 +115,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Get the secondary axis line color.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_getLine2Color.htm")
    public Color getLine2Color() {
       return line2Color;
    }
@@ -123,7 +123,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Set the secondary axis line color.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setLine2Color.htm")
    public void setLine2Color(Color line2Color) {
       this.line2Color = line2Color;
    }
@@ -131,7 +131,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Get axis label text formatting attributes.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_getTextSpec.htm")
    public TextSpec getTextSpec() {
       return textSpec;
    }
@@ -139,7 +139,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Set axis label text formatting attributes.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setTextSpec.htm")
    public void setTextSpec(TextSpec textSpec) {
       this.textSpec = (textSpec == null) ? new TextSpec() : textSpec;
    }
@@ -147,7 +147,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Set a text frame to map scale values to axis labels.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setTextFrame.htm")
    public void setTextFrame(TextFrame textFrame) {
       this.textFrame = textFrame;
    }
@@ -155,7 +155,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Get a text frame for mapping scale values to axis label.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_getTextFrame.htm")
    public TextFrame getTextFrame() {
       return textFrame;
    }
@@ -163,7 +163,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Set a text frame to map scale values to label fonts.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setFontFrame.htm")
    public void setFontFrame(FontFrame fontFrame) {
       this.fontFrame = fontFrame;
    }
@@ -171,7 +171,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Get a font frame for mapping scale values to label fonts.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_getFontFrame.htm")
    public FontFrame getFontFrame() {
       return fontFrame;
    }
@@ -179,7 +179,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Set a text frame to map scale values to label colors.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setColorFrame.htm")
    public void setColorFrame(ColorFrame colorFrame) {
       this.colorFrame = colorFrame;
    }
@@ -187,7 +187,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Get a color frame for mapping scale values to label colors.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_getColorFrame.htm")
    public ColorFrame getColorFrame() {
       return colorFrame;
    }
@@ -195,7 +195,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Get the color for axis label.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_getColor.htm")
    public Color getColor(Object value) {
       Color color = null;
 
@@ -213,7 +213,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Get the font for axis label.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_getFont.htm")
    public Font getFont(Object value) {
       Font font = null;
 
@@ -231,7 +231,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Check whether label should be abbreviated.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_isAbbreviate.htm")
    public boolean isAbbreviate() {
       return abbreviate;
    }
@@ -241,7 +241,7 @@ public class AxisSpec implements Cloneable, Serializable {
     * date labels, or common prefix/suffix of numeric labels (e.g. %, $)
     * is dropped when appropriate.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setAbbreviate.htm")
    public void setAbbreviate(boolean abbr) {
       this.abbreviate = abbr;
    }
@@ -250,7 +250,7 @@ public class AxisSpec implements Cloneable, Serializable {
     * Set whether to include ticks whose labels are ignored
     * by abbreviation.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setAllTicks.htm")
    public void setAllTicks(boolean allTick) {
       this.allTick = allTick;
    }
@@ -259,7 +259,7 @@ public class AxisSpec implements Cloneable, Serializable {
     * Check whether to include ticks whose labels are ignored
     * by abbreviation.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_isAllTicks.htm")
    public boolean isAllTicks() {
       return allTick;
    }
@@ -267,7 +267,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Check whether label could be truncated with "..".
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_isTruncate.htm")
    public boolean isTruncate() {
       return truncate;
    }
@@ -276,7 +276,7 @@ public class AxisSpec implements Cloneable, Serializable {
     * Set whethert label could be truncated. If set to true, the label will be
     * truncated with ".." when there is no splace to dislay it.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setTruncate.htm")
    public void setTruncate(boolean truncated) {
       this.truncate = truncated;
    }
@@ -284,7 +284,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Get the axis label visibility.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_isLabelVisible.htm")
    public boolean isLabelVisible() {
       return labelVisible && isAxisVisible();
    }
@@ -292,7 +292,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Set the axis label visibility.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setLabelVisible.htm")
    public void setLabelVisible(boolean labelVisible) {
       this.labelVisible = labelVisible;
    }
@@ -300,7 +300,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Get the axis line visibility.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_isLineVisible.htm")
    public boolean isLineVisible() {
       return lineVisible && isAxisVisible();
    }
@@ -308,7 +308,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Set the axis line visibility.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setLineVisible.htm")
    public void setLineVisible(boolean lineVisible) {
       this.lineVisible = lineVisible;
    }
@@ -316,7 +316,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Get the axis ticks visibility.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_isTickVisible.htm")
    public boolean isTickVisible() {
       return tickVisible && isAxisVisible();
    }
@@ -324,7 +324,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Set the axis ticks visibility.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setTickVisible.htm")
    public void setTickVisible(boolean tickVisible) {
       this.tickVisible = tickVisible;
    }
@@ -333,7 +333,6 @@ public class AxisSpec implements Cloneable, Serializable {
     * Check if axis is visible, if axis style is none, it implies the axis is
     * invisible.
     */
-   @TernMethod
    private boolean isAxisVisible() {
       return getAxisStyle() != AXIS_NONE;
    }
@@ -341,7 +340,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Get the grid line color.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_getGridColor.htm")
    public Color getGridColor() {
       return gridColor;
    }
@@ -349,7 +348,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Set the grid line color.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setGridColor.htm")
    public void setGridColor(Color gridColor) {
       this.gridColor = gridColor;
    }
@@ -357,7 +356,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Get the grid line style.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_getGridStyle.htm")
    public int getGridStyle() {
       return gridStyle;
    }
@@ -365,7 +364,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Set the grid line style, e.g., GraphConstants.DOT_LINE.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setGridStyle.htm")
    public void setGridStyle(int gridStyle) {
       this.gridStyle = gridStyle;
    }
@@ -373,7 +372,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Check if grid lines are treated as shapes or positions.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_isGridAsShape.htm")
    public boolean isGridAsShape() {
       return gridAsShape;
    }
@@ -383,7 +382,7 @@ public class AxisSpec implements Cloneable, Serializable {
     * treated as shapes, they may be transformed into curves. Otherwise, they
     * remain as straight lines with only the end points transformed.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setGridAsShape.htm")
    public void setGridAsShape(boolean asShape) {
       this.gridAsShape = asShape;
    }
@@ -391,7 +390,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Check whether grid lines should be drawn on top of visual objects.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_isGridOnTop.htm")
    public boolean isGridOnTop() {
       return gridOnTop;
    }
@@ -399,7 +398,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Set whether grid lines should be drawn on top of visual objects.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setGridOnTop.htm")
    public void setGridOnTop(boolean top) {
        this.gridOnTop = top;
    }
@@ -407,7 +406,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Check if grid lines should be drawn between ticks.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_isGridBetween.htm")
    public boolean isGridBetween() {
       return gridBetween;
    }
@@ -415,7 +414,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Set if grid lines should be drawn between ticks.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setGridBetween.htm")
    public void setGridBetween(boolean between) {
       this.gridBetween = between;
    }
@@ -441,7 +440,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Check if the grid should extend across labels (as a facet table).
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_isFacetGrid.htm")
    public boolean isFacetGrid() {
       return facetGrid;
    }
@@ -449,7 +448,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Set if the grid should extend across labels (as a facet table).
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setFacetGrid.htm")
    public void setFacetGrid(boolean facetGrid) {
       this.facetGrid = facetGrid;
    }
@@ -458,7 +457,7 @@ public class AxisSpec implements Cloneable, Serializable {
     * Set whether space should be reserved for the max label so it doesn't
     * need to be moved to be fit inside the plot.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setInPlot.htm")
    public void setInPlot(boolean inside) {
       this.inPlot = inside;
    }
@@ -466,7 +465,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Check if space should be reserved for the max label.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_isInPlot.htm")
    public boolean isInPlot() {
       return inPlot;
    }
@@ -474,7 +473,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Check if to keep only one line or all lines in case of truncating multi-line text.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_isLastOrAll.htm")
    public boolean isLastOrAll() {
       return lastOrAll;
    }
@@ -483,7 +482,7 @@ public class AxisSpec implements Cloneable, Serializable {
     * Set in the case a line is truncated from a multi-line text, whether to keep only
     * the last line or as many as can fit.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setLastOrAll.htm")
    public void setLastOrAll(boolean lastOrAll) {
       this.lastOrAll = lastOrAll;
    }
@@ -492,7 +491,7 @@ public class AxisSpec implements Cloneable, Serializable {
     * Set the fixed size of the axis. It's the width and height for the
     * vertical and horizontal axis respectively.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setAxisSize.htm")
    public void setAxisSize(double size) {
       this.asize = size;
    }
@@ -502,7 +501,7 @@ public class AxisSpec implements Cloneable, Serializable {
     * @return the fixed width/height of the axis, or 0 to calculate
     * the size from axis content.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_getAxisSize.htm")
    public double getAxisSize() {
       return asize;
    }
@@ -510,7 +509,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Set the extra spacing between label and axis line.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setLabelGap.htm")
    public void setLabelGap(int gap) {
       this.labelGap = gap;
    }
@@ -518,7 +517,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Get the spacing between label and axis line.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_getLabelGap.htm")
    public int getLabelGap() {
       return labelGap;
    }
@@ -526,7 +525,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Get the padding space for the min label.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_getMinPadding.htm")
    public int getMinPadding() {
       return minPadding;
    }
@@ -534,7 +533,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Set the padding space for the min label.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setMinPadding.htm")
    public void setMinPadding(int minPadding) {
       this.minPadding = minPadding;
    }
@@ -542,7 +541,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Get the padding space for the max label.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_getMaxPadding.htm")
    public int getMaxPadding() {
       return maxPadding;
    }
@@ -550,7 +549,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Set the padding space for the max label.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setMaxPadding.htm")
    public void setMaxPadding(int maxPadding) {
       this.maxPadding = maxPadding;
    }
@@ -559,7 +558,7 @@ public class AxisSpec implements Cloneable, Serializable {
     * Get the space reserved between labels. Labels with less than the label spacing is
     * considered to be overlapped and may be dropped.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_getMaxLabelSpacing.htm")
    public int getMaxLabelSpacing() {
       return maxLabelSpacing;
    }
@@ -568,7 +567,7 @@ public class AxisSpec implements Cloneable, Serializable {
     * Set the space reserved between labels. This is used as the maximum spacing
     * when calculating the label spacing based on available space and label distribution.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setMaxLabelSpacing.htm")
    public void setMaxLabelSpacing(int maxLabelSpacing) {
       this.maxLabelSpacing = maxLabelSpacing;
    }
@@ -578,7 +577,7 @@ public class AxisSpec implements Cloneable, Serializable {
     * For rectangular coordinates: Y-axis labels move from left to right,
     * X-axis labels move from bottom to top.
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_isLabelOnSecondaryAxis.htm")
    public boolean isLabelOnSecondaryAxis() {
       return labelOnSecondaryAxis;
    }
@@ -586,7 +585,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Set whether labels should be displayed on the secondary axis (opposite side).
     */
-   @TernMethod
+   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setLabelOnSecondaryAxis.htm")
    public void setLabelOnSecondaryAxis(boolean labelOnSecondaryAxis) {
       this.labelOnSecondaryAxis = labelOnSecondaryAxis;
    }

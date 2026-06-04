@@ -64,3 +64,8 @@
 .pop-component-bg {
   position: absolute;
 }
+
+.max-mode-view-filter {
+  position: fixed;
+  z-index: 9910 !important;
+}

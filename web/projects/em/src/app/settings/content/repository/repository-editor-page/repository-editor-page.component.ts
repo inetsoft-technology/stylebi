@@ -147,6 +147,7 @@ export class RepositoryEditorPageComponent implements OnChanges, OnInit {
          type === RepositoryEntryType.CUBE ||
          type === RepositoryEntryType.DATA_SOURCE_FOLDER && path === "/" ||
          type === RepositoryEntryType.SCHEDULE_TASK_FOLDER && path === "/" ||
+         type === RepositoryEntryType.SCHEDULE_TASK ||
          this.repositoryService.isDataModelFolderEntry(type)) {
          return "permission";
       }

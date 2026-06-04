@@ -337,6 +337,12 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
       // name should start with V_, otherwise PreAssetQuery.getAggregateInfo
       // will return empty
       table.setProperty("Component_Binding_Table", "true");
+      // Register the bindable table (with chart's AggregateInfo) so that the slider
+      // mirror's update() finds this version rather than the original unmodified VS
+      // table from the WorksheetWrapper. (75263)
+      if(ws != null) {
+         ws.addAssembly(table);
+      }
       String mname = Assembly.TABLE_VS + slider.getName() + "_" + table.getName();
       MirrorTableAssembly mirror = new MirrorTableAssembly(ws, mname, table);
       ColumnSelection columns = mirror.getColumnSelection();
