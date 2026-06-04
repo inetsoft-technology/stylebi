@@ -273,6 +273,10 @@
   // which causes --mat-form-field-filled-label-display to be set to none. Override to keep
   // floating labels visible in filled-appearance form fields.
   --mat-form-field-filled-label-display: block;
+  // When the label is suppressed, Angular Material also reduces the padding-top to the
+  // no-label value (6px). Override to the correct density-5 value with label shown:
+  // 24px - (56px - 36px) / 2 = 14px.
+  --mat-form-field-filled-with-label-container-padding-top: 14px;
 
   &.mat-form-field-appearance-outline:not(.mat-mdc-paginator-page-size-select) {
     padding-bottom: .75em;
