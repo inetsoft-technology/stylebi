@@ -345,7 +345,7 @@ export class EmailListDialogComponent implements OnInit, OnDestroy {
    }
 
    private searchEmailTree(roots: EmailNode[], searchStr: string): EmailNode[] {
-      if(!searchStr) {
+      if(!searchStr || !roots) {
          return roots;
       }
 
