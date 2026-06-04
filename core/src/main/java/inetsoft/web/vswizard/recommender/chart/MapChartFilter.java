@@ -281,11 +281,14 @@ public class MapChartFilter extends ChartTypeFilter {
 
    @Override
    protected int getScore(ChartInfo chart) {
-      // Geo data should clearly prefer a map, but not by a sentinel score that dwarfs every other
-      // type (which made map the top recommendation for any field set containing a geo field, and
-      // flattened the relative scores of all non-map candidates). A strong boost over PRIMARY_SCORE
-      // keeps map winning for genuine geo bindings while leaving the other candidates comparable.
-      return PRIMARY_SCORE + 10;
+      // A geo binding is a STRONG, deliberate signal: geographic columns are never auto-detected here
+      // — they exist only because the user explicitly marked the column geographic (getGeoColumns is
+      // populated by the setGeographic action). So map should win comfortably whenever a geo field is
+      // bound. We use a strong multiple of PRIMARY_SCORE rather than the old sentinel 1000: high
+      // enough to clearly beat bar (~23) and a time-series line (~30), but low enough that the other
+      // candidates keep meaningful relative scores in the candidate menu (vs. the sentinel, which
+      // flattened every non-map candidate to ~0).
+      return PRIMARY_SCORE * 2;
    }
 
    private int getLayer(ChartRef ref) {
