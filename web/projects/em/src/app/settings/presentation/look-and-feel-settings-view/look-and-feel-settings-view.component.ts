@@ -40,6 +40,7 @@ import { MatCheckbox } from "@angular/material/checkbox";
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 
 @Searchable({
@@ -59,7 +60,7 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     templateUrl: "./look-and-feel-settings-view.component.html",
     styleUrls: ["./look-and-feel-settings-view.component.scss"],
     providers: [DataSpaceTreeDataSource],
-    imports: [FormsModule, ReactiveFormsModule, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, MatCheckbox, FileChooserComponent, MatIcon, MatSuffix, MatError, MatButton]
+    imports: [NgIf, FormsModule, ReactiveFormsModule, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, MatCheckbox, FileChooserComponent, MatIcon, MatSuffix, MatError, MatButton]
 })
 export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
    @Input() securityEnabled: boolean = false;
@@ -182,7 +183,7 @@ export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
 
    ngOnDestroy(): void {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    editUserFonts() {

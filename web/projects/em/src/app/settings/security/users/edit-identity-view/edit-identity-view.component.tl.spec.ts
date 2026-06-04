@@ -51,7 +51,6 @@ import {
    UntypedFormGroup,
    ReactiveFormsModule,
 } from "@angular/forms";
-import { it } from "@jest/globals"; // must import to enable it.failing
 import { MatCheckboxModule } from "@angular/material/checkbox";
 import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
@@ -167,8 +166,8 @@ async function renderComponent(props: {
    const orgBusySpy = {
       orgLoading$: new BehaviorSubject(false).asObservable(),
       orgLoading: false,
-      beginOrgSave: jest.fn(),
-      endOrgSave: jest.fn(),
+      beginOrgSave: vi.fn(),
+      endOrgSave: vi.fn(),
    };
 
    const result = await render(EditIdentityViewComponent, {
@@ -722,7 +721,7 @@ describe("EditIdentityViewComponent — updateModel(): form-to-model sync", () =
    // model. For USER/ORG types the guard works correctly (see test above); for ROLE/GROUP it does
    // not — clearing the name field writes "" into model.name, corrupting in-memory state even
    // though the form is invalid and Apply is blocked.
-   it.failing.each([
+   it.fails.each([
       { name: "role", type: IdentityType.ROLE, model: makeRoleModel({ name: "keepme" }) },
       { name: "group", type: IdentityType.GROUP, model: makeGroupModel({ name: "keepme" }) },
    ] satisfies Array<{ name: string; type: IdentityType; model: EditIdentityPaneModel }>)(

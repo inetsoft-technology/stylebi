@@ -126,7 +126,7 @@ describe("Viewsheet Options Pane Unit Test", () => {
    });
 
    //#17037, Bug #18366 the design mode data size input check
-   xit("Design mode data size input value check", () => {
+   it.skip("Design mode data size input value check", () => {
       dataSize  = fixture.nativeElement.querySelector("input[ng-reflect-name=maxRows]");
       vsOptionPane.model.selectDataSourceDialogModel.dataSource = {
          type: AssetType.QUERY

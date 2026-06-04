@@ -51,9 +51,8 @@ import { MatTreeFlatDataSource, MatTreeFlattener } from "@angular/material/tree"
 import { MatDialog } from "@angular/material/dialog";
 import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
-import { EMPTY, of, Subject } from "rxjs";
 
-import { it } from "@jest/globals"; // must be import, or it.failing didn't work
+import { EMPTY, of, Subject } from "rxjs";
 import { server } from "../../../../../../../mocks/server";
 import { ScheduleFolderTreeComponent } from "./schedule-folder-tree.component";
 import { EmScheduleChangeService } from "../schedule-task-list/em-schedule-change.service";
@@ -110,9 +109,9 @@ async function renderComponent() {
    );
    const treeSource = new MatTreeFlatDataSource(treeControl, treeFlattener);
 
-   const dialogMock = { open: jest.fn().mockReturnValue({ afterClosed: () => of(false) }) };
+   const dialogMock = { open: vi.fn().mockReturnValue({ afterClosed: () => of(false) }) };
    const changeService = { onChange: new Subject(), onFolderChange: new Subject() };
-   const dragService  = { get: jest.fn(() => null), reset: jest.fn(), put: jest.fn() };
+   const dragService  = { get: vi.fn(() => null), reset: vi.fn(), put: vi.fn() };
 
    const result = await render(ScheduleFolderTreeComponent, {
       imports: [HttpClientModule],
@@ -149,7 +148,7 @@ describe("ScheduleFolderTreeComponent — isDescendant: startsWith false positiv
    // A naive startsWith("folder1") returns true for "folder10/sub", which is NOT a real descendant.
    // This can cause moveTaskFolder to incorrectly skip a valid move operation. Not always
    // user-visible in normal UI flows; keep as an implementation-level guard.
-   it.failing("should return false when searchNode path shares only a string prefix, not a real ancestor relationship", async () => {
+   it.fails("should return false when searchNode path shares only a string prefix, not a real ancestor relationship", async () => {
       const { comp } = await renderComponent();
 
       const parent     = makeTreeNode("folder1", "folder1");
@@ -197,7 +196,7 @@ describe("ScheduleFolderTreeComponent — editTaskFolder: rename path computatio
    // 🔁 Regression-sensitive: renaming a top-level folder must produce the new folder name.
    it("should navigate to the renamed folder name for a top-level rename", async () => {
       const { comp } = await renderComponent();
-      const safeRefreshSpy = jest.spyOn(comp as any, "safeRefreshTree").mockImplementation(() => {});
+      const safeRefreshSpy = vi.spyOn(comp as any, "safeRefreshTree").mockImplementation(() => {});
 
       server.use(
          http.post("*/api/em/schedule/folder/editModel", () =>
@@ -208,7 +207,7 @@ describe("ScheduleFolderTreeComponent — editTaskFolder: rename path computatio
          ),
       );
       // Dialog returns new folder name "renamed"
-      comp.dialog.open = jest.fn().mockReturnValue({
+      comp.dialog.open = vi.fn().mockReturnValue({
          afterClosed: () => of({ oldPath: "reports", folderName: "renamed" }),
       });
 
@@ -221,7 +220,7 @@ describe("ScheduleFolderTreeComponent — editTaskFolder: rename path computatio
    // 🔁 Regression-sensitive: renaming a first-level folder should produce "parent/renamed".
    it("should navigate to parent/renamed for a first-level rename", async () => {
       const { comp } = await renderComponent();
-      const safeRefreshSpy = jest.spyOn(comp as any, "safeRefreshTree").mockImplementation(() => {});
+      const safeRefreshSpy = vi.spyOn(comp as any, "safeRefreshTree").mockImplementation(() => {});
 
       server.use(
          http.post("*/api/em/schedule/folder/editModel", () =>
@@ -231,7 +230,7 @@ describe("ScheduleFolderTreeComponent — editTaskFolder: rename path computatio
             MswHttpResponse.json({})
          ),
       );
-      comp.dialog.open = jest.fn().mockReturnValue({
+      comp.dialog.open = vi.fn().mockReturnValue({
          afterClosed: () => of({ oldPath: "parent/child", folderName: "renamed" }),
       });
 
@@ -251,7 +250,7 @@ describe("ScheduleFolderTreeComponent — editTaskFolder: rename path computatio
    //   Issue #74505
    it("should navigate to a/b/renamed when renaming a folder three levels deep", async () => {
       const { comp } = await renderComponent();
-      const safeRefreshSpy = jest.spyOn(comp as any, "safeRefreshTree").mockImplementation(() => {});
+      const safeRefreshSpy = vi.spyOn(comp as any, "safeRefreshTree").mockImplementation(() => {});
       let renameCalled = false;
 
       server.use(
@@ -263,7 +262,7 @@ describe("ScheduleFolderTreeComponent — editTaskFolder: rename path computatio
             return MswHttpResponse.json({});
          }),
       );
-      comp.dialog.open = jest.fn().mockReturnValue({
+      comp.dialog.open = vi.fn().mockReturnValue({
          afterClosed: () => of({ oldPath: "a/b/c", folderName: "renamed" }),
       });
 
@@ -313,9 +312,9 @@ describe("ScheduleFolderTreeComponent — editFolderEnabled: selection guard", (
    // content (`em.schedule.delete.confirm`) is misleading when deleting a folder that contains
    // child folders (even if they are empty). Keep as failing until folder-aware copy is used.
    // Bug #74506
-   it.failing("should use folder-aware warning content instead of generic delete.confirm when deleting a folder with child folders", async () => {
+   it.fails("should use folder-aware warning content instead of generic delete.confirm when deleting a folder with child folders", async () => {
       const { comp } = await renderComponent();
-      const dialogOpenSpy = jest.spyOn(comp.dialog, "open").mockReturnValue({
+      const dialogOpenSpy = vi.spyOn(comp.dialog, "open").mockReturnValue({
          afterClosed: () => of(false),
       } as any);
 

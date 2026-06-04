@@ -21,50 +21,28 @@
   <mat-form-field appearance="outline" color="accent">
     <mat-label>_#(Name)</mat-label>
     <input matInput formControlName="name" placeholder="_#(Name)"/>
-    @if (form.controls.name?.errors?.required) {
-      <mat-error>_#(em.laf.font.nameRequired)</mat-error>
-    }
-    @if (form.controls.name?.errors?.containsSpecialCharsForName) {
-      <mat-error>_#(designer.property.anyCharErrorPrefix)</mat-error>
-    }
-    @if (form.controls.name?.errors?.duplicateName) {
-      <mat-error>_#(em.laf.font.duplicateName)</mat-error>
-    }
-    @if (form.controls.name?.errors && !form.controls.name.errors.required &&
-      !form.controls.name.errors.containsSpecialCharsForName &&
-      !form.controls.name?.errors?.duplicateName) {
-      <mat-error>
-        _#(em.laf.font.nameNotStartWithDigit)
-      </mat-error>
-    }
+    <mat-error *ngIf="form.controls.name?.errors?.required">_#(em.laf.font.nameRequired)</mat-error>
+    <mat-error *ngIf="form.controls.name?.errors?.containsSpecialCharsForName">_#(designer.property.anyCharErrorPrefix)</mat-error>
+    <mat-error *ngIf="form.controls.name?.errors?.duplicateName">_#(em.laf.font.duplicateName)</mat-error>
+    <mat-error *ngIf="form.controls.name?.errors && !form.controls.name.errors.required && !form.controls.name.errors.containsSpecialCharsForName && !form.controls.name?.errors?.duplicateName">
+      _#(em.laf.font.nameNotStartWithDigit)
+    </mat-error>
   </mat-form-field>
   <mat-form-field appearance="outline" color="accent">
     <mat-label>_#(Font Face Identifier)</mat-label>
     <input matInput formControlName="identifier" placeholder="_#(Identifier)"/>
-    @if (form.controls.identifier?.errors?.required) {
-      <mat-error>_#(em.laf.fontFace.identifierRequired)</mat-error>
-    }
-    @if (form.controls.identifier?.errors?.containsSpecialCharsForName) {
-      <mat-error>_#(designer.property.anyCharErrorPrefix)</mat-error>
-    }
-    @if (form.controls.identifier?.errors?.duplicateName) {
-      <mat-error>_#(em.laf.fontFace.duplicateIdentifier)</mat-error>
-    }
-    @if (form.controls.identifier?.errors && !form.controls.identifier.errors.required &&
-      !form.controls.identifier.errors.containsSpecialCharsForName &&
-      !form.controls.identifier?.errors?.duplicateName) {
-      <mat-error>
-        _#(em.laf.font.nameNotStartWithDigit)
-      </mat-error>
-    }
+    <mat-error *ngIf="form.controls.identifier?.errors?.required">_#(em.laf.fontFace.identifierRequired)</mat-error>
+    <mat-error *ngIf="form.controls.identifier?.errors?.containsSpecialCharsForName">_#(designer.property.anyCharErrorPrefix)</mat-error>
+    <mat-error *ngIf="form.controls.identifier?.errors?.duplicateName">_#(em.laf.fontFace.duplicateIdentifier)</mat-error>
+    <mat-error *ngIf="form.controls.identifier?.errors && !form.controls.identifier.errors.required && !form.controls.identifier.errors.containsSpecialCharsForName && !form.controls.identifier?.errors?.duplicateName">
+      _#(em.laf.font.nameNotStartWithDigit)
+    </mat-error>
   </mat-form-field>
   <mat-form-field appearance="outline" color="accent">
     <mat-label>_#(TTF File)</mat-label>
     <em-file-chooser formControlName="ttf" placeholder="_#(TTF File)" accept=".ttf"></em-file-chooser>
     <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
-    @if (form.controls.ttf?.errors?.required) {
-      <mat-error>_#(em.laf.font.ttfRequired)</mat-error>
-    }
+    <mat-error *ngIf="form.controls.ttf?.errors?.required">_#(em.laf.font.ttfRequired)</mat-error>
   </mat-form-field>
   <mat-form-field appearance="outline" color="accent">
     <mat-label>_#(EOT File)</mat-label>

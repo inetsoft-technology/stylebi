@@ -46,6 +46,10 @@ describe("Tree Unit Case", () => {
    //Bug #17221 search field can not input string
    it("Search field can be input string", () => {
       treeComponent.searchEnabled = true;
+      // search() schedules a setTimeout that calls expandAll(this.root); without
+      // a root node, the timer throws "Cannot read properties of undefined
+      // (reading 'expanded')" after the fixture is destroyed.
+      treeComponent.root = { label: "root", children: [], expanded: true };
       fixture.detectChanges();
 
       input = fixture.debugElement.query(By.css("div.search-box input")).nativeElement;

@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { Observable, of as observableOf } from "rxjs";
 import { AssetType } from "../../../../../shared/data/asset-type";
 import { TreeNodeModel } from "../tree/tree-node-model";
@@ -128,12 +129,12 @@ describe("Asset Tree Component Unit Test", () => {
    let httpClient: any;
 
    beforeEach(() => {
-      assetTreeService = { getAssetTreeNode: jest.fn() };
-      changeDetector = { markForCheck: jest.fn() };
-      assetClientService = { connect: jest.fn() };
-      modalService = { open: jest.fn() };
-      debounceService = { debounce: jest.fn() };
-      zone = { run: jest.fn() };
+      assetTreeService = { getAssetTreeNode: vi.fn() };
+      changeDetector = { markForCheck: vi.fn() };
+      assetClientService = { connect: vi.fn() };
+      modalService = { open: vi.fn() };
+      debounceService = { debounce: vi.fn() };
+      zone = { run: vi.fn() };
       httpClient = {};
 
       assetTreeComponent = new AssetTreeComponent(assetTreeService, changeDetector,

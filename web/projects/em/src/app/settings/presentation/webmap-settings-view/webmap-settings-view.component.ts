@@ -33,6 +33,7 @@ import { MatCheckbox } from "@angular/material/checkbox";
 import { MatButtonToggleGroup, MatButtonToggle } from "@angular/material/button-toggle";
 
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 @Searchable({
    route: "/settings/presentation/settings#webmap",
@@ -50,7 +51,7 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     selector: "em-webmap-settings-view",
     templateUrl: "./webmap-settings-view.component.html",
     styleUrls: ["./webmap-settings-view.component.scss"],
-    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatButtonToggleGroup, MatButtonToggle, MatCheckbox, MatFormField, MatLabel, MatInput, MatError, MatSelect, MatOption]
+    imports: [NgIf, MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatButtonToggleGroup, MatButtonToggle, MatCheckbox, MatFormField, MatLabel, MatInput, MatError, MatSelect, MatOption]
 })
 export class WebMapSettingsViewComponent {
    @Output() modelChanged = new EventEmitter<PresentationSettingsChanges>();

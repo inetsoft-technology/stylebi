@@ -354,7 +354,7 @@ public abstract class AbstractDataSet implements DataSet {
     */
    @Override
    @TernMethod
-   public final int getColCount() {
+   public int getColCount() {
       int cached = cachedColCount;
 
       if(cached >= 0) {

@@ -67,40 +67,40 @@ describe("EditableObjectContainer", () => {
    let composerVsSearchService: any;
 
    beforeEach(waitForAsync(() => {
-      selectionContainerChildrenService = { pushModel: jest.fn() };
+      selectionContainerChildrenService = { pushModel: vi.fn() };
       composerObjectService = {
-         getNewObject: jest.fn(),
-         getObjectType: jest.fn(),
-         addKeyEventAdapter: jest.fn(),
-         removeKeyEventAdapter: jest.fn(),
-         addNewObject: jest.fn()
+         getNewObject: vi.fn(),
+         getObjectType: vi.fn(),
+         addKeyEventAdapter: vi.fn(),
+         removeKeyEventAdapter: vi.fn(),
+         addNewObject: vi.fn()
       };
       interactService = {
-         notify: jest.fn(),
-         addInteractable: jest.fn(),
-         removeInteractable: jest.fn()
+         notify: vi.fn(),
+         addInteractable: vi.fn(),
+         removeInteractable: vi.fn()
       };
-      dropdownService = { open: jest.fn() };
-      dragService = { reset: jest.fn(), put: jest.fn() };
+      dropdownService = { open: vi.fn() };
+      dragService = { reset: vi.fn(), put: vi.fn() };
       dataTipService = {};
       adhocFilterService = {};
-      dialogService = { hasSlideout: jest.fn(), showSlideoutFor: jest.fn() };
-      lineAnchorService = { addEditorName: jest.fn(), removeEditorName: jest.fn() };
-      scaleService = { getScale: jest.fn(), getCurrentScale: jest.fn(), setScale: jest.fn() };
-      miniToolbarService = { hasMiniToolbar: jest.fn(), isMiniToolbarVisible: jest.fn() };
+      dialogService = { hasSlideout: vi.fn(), showSlideoutFor: vi.fn() };
+      lineAnchorService = { addEditorName: vi.fn(), removeEditorName: vi.fn() };
+      scaleService = { getScale: vi.fn(), getCurrentScale: vi.fn(), setScale: vi.fn() };
+      miniToolbarService = { hasMiniToolbar: vi.fn(), isMiniToolbarVisible: vi.fn() };
       composerVsSearchService = {
-         isVisible: jest.fn(),
-         isSearchMode: jest.fn(),
-         changeSearchMode: jest.fn(),
-         assemblyVisible: jest.fn(),
-         nextFocus: jest.fn(),
-         previousFocus: jest.fn(),
-         focusAssembly: jest.fn(),
-         isFocusAssembly: jest.fn(),
-         focusChange: jest.fn()
+         isVisible: vi.fn(),
+         isSearchMode: vi.fn(),
+         changeSearchMode: vi.fn(),
+         assemblyVisible: vi.fn(),
+         nextFocus: vi.fn(),
+         previousFocus: vi.fn(),
+         focusAssembly: vi.fn(),
+         isFocusAssembly: vi.fn(),
+         focusChange: vi.fn()
       };
 
-      actionFactory = { createActions: jest.fn(), createCurrentSelectionActions: jest.fn() };
+      actionFactory = { createActions: vi.fn(), createCurrentSelectionActions: vi.fn() };
       actionFactory.createActions.mockImplementation(() => ({
          onAssemblyActionEvent: new EventEmitter<AssemblyActionEvent<VSObjectModel>>(),
          toolbarActions: [],
@@ -120,7 +120,7 @@ describe("EditableObjectContainer", () => {
       viewsheet.localId = 1;
       viewsheet.label = "";
       viewsheet.id = "Viewsheet1";
-      viewsheet.socketConnection = <any> { sendEvent: jest.fn() };
+      viewsheet.socketConnection = <any> { sendEvent: vi.fn() };
 
       model = Object.assign({
          text: "hello",
@@ -191,10 +191,10 @@ describe("EditableObjectContainer", () => {
       fixture.detectChanges();
 
       let mockEvent = {
-         preventDefault: jest.fn(),
-         stopPropagation: jest.fn(),
+         preventDefault: vi.fn(),
+         stopPropagation: vi.fn(),
          dataTransfer: {
-            getData: jest.fn(() => JSON.stringify({
+            getData: vi.fn(() => JSON.stringify({
                dragName: ["draggauge"]
             }))
          }
@@ -204,7 +204,7 @@ describe("EditableObjectContainer", () => {
 
       let modalService = TestBed.inject(NgbModal);
       const oldOpen = modalService.open;
-      modalService.open = <any> jest.fn(() => ({
+      modalService.open = <any> vi.fn(() => ({
          result: Promise.resolve(fixture.componentInstance.layoutOptionDialogModel)
       }));
 
@@ -228,10 +228,10 @@ describe("EditableObjectContainer", () => {
       fixture.detectChanges();
 
       let mockEvent = {
-         preventDefault: jest.fn(),
-         stopPropagation: jest.fn(),
+         preventDefault: vi.fn(),
+         stopPropagation: vi.fn(),
          dataTransfer: {
-            getData: jest.fn(() => JSON.stringify({
+            getData: vi.fn(() => JSON.stringify({
                dragName: ["column"]
             }))
          }
@@ -240,7 +240,7 @@ describe("EditableObjectContainer", () => {
       composerObjectService.getObjectType.mockImplementation(() => 1);
       let modalService = TestBed.inject(NgbModal);
       const oldOpen = modalService.open;
-      modalService.open = <any> jest.fn(() => ({
+      modalService.open = <any> vi.fn(() => ({
          result: Promise.resolve(fixture.componentInstance.layoutOptionDialogModel)
       }));
 

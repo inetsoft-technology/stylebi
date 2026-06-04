@@ -28,6 +28,7 @@ import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { MatCard, MatCardContent } from "@angular/material/card";
 import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
+import { NgIf } from "@angular/common";
 
 export interface ServerLocationData {
    location: ServerLocation;
@@ -39,7 +40,7 @@ export interface ServerLocationData {
     selector: "em-server-location-editor",
     templateUrl: "./server-location-editor.component.html",
     styleUrls: ["./server-location-editor.component.scss"],
-    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatError, MatCheckbox, MatDialogActions, MatButton]
+    imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatError, MatCheckbox, MatDialogActions, MatButton]
 })
 export class ServerLocationEditorComponent implements OnInit {
    form: UntypedFormGroup;

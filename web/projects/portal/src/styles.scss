@@ -20,17 +20,17 @@
   To have the option to override, please use global.scss and its imports
 */
 
+// These are global imports which are meant for internal use and not to be overridden
+@use "scss/internal/moving-resize";
+@use 'scss/internal/dialog';
+@use 'scss/internal/html-override';
+@use 'scss/internal/mixins';
+@use 'scss/internal/directives';
+@use 'scss/internal/layout';
+@use 'scss/internal/ckeditor';
+
 @import 'codemirror/lib/codemirror.css';
 @import 'codemirror/addon/hint/show-hint.css';
 @import 'codemirror/addon/dialog/dialog.css';
 @import 'codemirror/addon/tern/tern.css';
 @import 'codemirror/addon/fold/foldgutter.css';
-
-// These are global imports which are meant for internal use and not to be overridden
-@import "scss/internal/moving-resize";
-@import 'scss/internal/dialog';
-@import 'scss/internal/html-override';
-@import 'scss/internal/mixins';
-@import 'scss/internal/directives';
-@import 'scss/internal/layout';
-@import 'scss/internal/ckeditor';

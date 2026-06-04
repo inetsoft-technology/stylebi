@@ -56,11 +56,10 @@
  *   Bulk delete payload must separate folders from data sources.
  */
 
-import { provideHttpClient } from "@angular/common/http";
+import { type Mock } from "vitest";import { provideHttpClient } from "@angular/common/http";
 import { Component, NO_ERRORS_SCHEMA } from "@angular/core";
 import { ActivatedRoute, convertToParamMap, ParamMap, Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { it } from "@jest/globals";
 import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse } from "msw";
 import { BehaviorSubject, EMPTY, of, Subject } from "rxjs";
@@ -81,9 +80,9 @@ import { DatasourceBrowserService } from "./datasource-browser.service";
 import { server } from "../../../../../../../mocks/server";
 
 interface NotificationMock {
-   success: jest.Mock;
-   danger: jest.Mock;
-   info: jest.Mock;
+   success: Mock;
+   danger: Mock;
+   info: Mock;
 }
 
 let currentNotifications: NotificationMock;
@@ -106,9 +105,9 @@ interface RenderOptions {
 
 function makeNotifications(): NotificationMock {
    return {
-      success: jest.fn(),
-      danger: jest.fn(),
-      info: jest.fn()
+      success: vi.fn(),
+      danger: vi.fn(),
+      info: vi.fn()
    };
 }
 
@@ -177,7 +176,7 @@ async function renderComponent(options: RenderOptions = {}) {
    currentNotifications = makeNotifications();
 
    const mockRouter = {
-      navigate: jest.fn().mockResolvedValue(true),
+      navigate: vi.fn().mockResolvedValue(true),
       events: routerEvents.asObservable(),
       url: "/portal/tab/data/datasources"
    };
@@ -187,25 +186,25 @@ async function renderComponent(options: RenderOptions = {}) {
       snapshot: {}
    };
    const datasourceService = {
-      changeFolder: jest.fn(),
-      refreshTree: jest.fn(),
-      getPhysicalTablePermission: jest.fn(() => of(true)),
-      renameDataSourceFolder: jest.fn(),
-      moveDataSource: jest.fn(),
-      moveSelected: jest.fn((_items: DataSourceInfo[], _path: string, callback?: Function) => {
+      changeFolder: vi.fn(),
+      refreshTree: vi.fn(),
+      getPhysicalTablePermission: vi.fn(() => of(true)),
+      renameDataSourceFolder: vi.fn(),
+      moveDataSource: vi.fn(),
+      moveSelected: vi.fn((_items: DataSourceInfo[], _path: string, callback?: Function) => {
          if(callback) {
             callback();
          }
       }),
-      moveDataSourcesToFolder: jest.fn(),
-      deleteDataSourceFolder: jest.fn(),
-      deleteDataSourceByInfo: jest.fn(),
-      createDataSourceInfos: jest.fn(() => []),
+      moveDataSourcesToFolder: vi.fn(),
+      deleteDataSourceFolder: vi.fn(),
+      deleteDataSourceByInfo: vi.fn(),
+      createDataSourceInfos: vi.fn(() => []),
       onCreateEvent
    };
    const dragService = {
-      put: jest.fn(),
-      getDragData: jest.fn(() => ({}))
+      put: vi.fn(),
+      getDragData: vi.fn(() => ({}))
    };
 
    server.use(
@@ -226,16 +225,16 @@ async function renderComponent(options: RenderOptions = {}) {
          {
             provide: StompClientService,
             useValue: {
-               connect: jest.fn(() => EMPTY),
-               whenDisconnected: jest.fn(() => EMPTY),
-               reconnectError: jest.fn(() => EMPTY)
+               connect: vi.fn(() => EMPTY),
+               whenDisconnected: vi.fn(() => EMPTY),
+               reconnectError: vi.fn(() => EMPTY)
             }
          },
          { provide: ActivatedRoute, useValue: mockRoute },
          { provide: Router, useValue: mockRouter },
-         { provide: NgbModal, useValue: { open: jest.fn() } },
+         { provide: NgbModal, useValue: { open: vi.fn() } },
          { provide: RepositoryClientService, useValue: {
-            connect: jest.fn(),
+            connect: vi.fn(),
             dataChanged: repositoryDataChanged.asObservable()
          }},
          { provide: DatasourceBrowserService, useValue: datasourceService },
@@ -267,7 +266,7 @@ async function renderComponent(options: RenderOptions = {}) {
 }
 
 afterEach(() => {
-   jest.restoreAllMocks();
+   vi.restoreAllMocks();
 });
 
 // ---------------------------------------------------------------------------
@@ -372,7 +371,7 @@ describe("DataDatasourceBrowserComponent - status refresh [Group 2, Risk 3]", ()
    });
 
    // Bug A: error callback sets row status but never resets updatingStatus.
-   it.failing("should reset updatingStatus after a status refresh request errors", async () => {
+   it.fails("should reset updatingStatus after a status refresh request errors", async () => {
       const ds = makeDataSource("Broken", "Broken", PortalDataType.DATABASE);
       const { comp } = await renderComponent();
 
@@ -441,7 +440,7 @@ describe("DataDatasourceBrowserComponent - deleteSelected [Group 4, Risk 3]", ()
       const ds = makeDataSource("DS", "root/DS", PortalDataType.DATABASE);
       let dependencyRequest: any = null;
       let deleteRequest: any = null;
-      const confirmSpy = jest.spyOn(ComponentTool, "showConfirmDialog")
+      const confirmSpy = vi.spyOn(ComponentTool, "showConfirmDialog")
          .mockResolvedValue("ok");
 
       server.use(
@@ -481,17 +480,17 @@ describe("DataDatasourceBrowserComponent - deleteSelected [Group 4, Risk 3]", ()
 
 describe("DataDatasourceBrowserComponent - drag/drop [Group 5, Risk 3]", () => {
    // Bug B: template passes null for pane drops, but implementation dereferences datasource.path.
-   it.failing("should move dragged data sources to the current folder when dropped on the empty pane", async () => {
+   it.fails("should move dragged data sources to the current folder when dropped on the empty pane", async () => {
       const source = makeDataSource("Source", "source/Source", PortalDataType.DATABASE);
-      const confirmSpy = jest.spyOn(ComponentTool, "showConfirmDialog")
+      const confirmSpy = vi.spyOn(ComponentTool, "showConfirmDialog")
          .mockResolvedValue("ok");
       const { comp, dragService, datasourceService } = await renderComponent();
       comp.currentFolderPathString = "target";
-      (dragService.getDragData as jest.Mock).mockReturnValue({
+      (dragService.getDragData as Mock).mockReturnValue({
          dragDataSources: JSON.stringify([source])
       });
 
-      const event = { stopPropagation: jest.fn() } as any as DragEvent;
+      const event = { stopPropagation: vi.fn() } as any as DragEvent;
 
       expect(() => comp.dropAssets(event, null)).not.toThrow();
       await waitFor(() => expect(confirmSpy).toHaveBeenCalled());
@@ -500,10 +499,10 @@ describe("DataDatasourceBrowserComponent - drag/drop [Group 5, Risk 3]", () => {
    });
 
    // Bug C: row-level non-folder drop must stop propagation so the parent pane does not process it.
-   it.failing("should stop propagation when dropping on a non-folder data source row", async () => {
+   it.fails("should stop propagation when dropping on a non-folder data source row", async () => {
       const target = makeDataSource("Target", "target/Target", PortalDataType.DATABASE);
       const { comp, dragService } = await renderComponent();
-      const event = { stopPropagation: jest.fn() } as any as DragEvent;
+      const event = { stopPropagation: vi.fn() } as any as DragEvent;
 
       comp.dropAssets(event, target);
 
@@ -521,9 +520,9 @@ describe("DataDatasourceBrowserComponent - drag/drop [Group 5, Risk 3]", () => {
       const targetFolder = makeDataSource("Child", "target/child",
          PortalDataType.DATA_SOURCE_FOLDER);
 
-      jest.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
+      vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
       const { comp, datasourceService } = await renderComponent();
-      (datasourceService.createDataSourceInfos as jest.Mock).mockReturnValue([validInfo]);
+      (datasourceService.createDataSourceInfos as Mock).mockReturnValue([validInfo]);
 
       comp.dataTreeDragToPane(targetFolder, {
          external: JSON.stringify([validAsset, sameTargetAsset, ancestorAsset, unsupportedAsset])
@@ -582,7 +581,7 @@ describe("DataDatasourceBrowserComponent - action guards [Group 6, Risk 2]", () 
 
 describe("DataDatasourceBrowserComponent - search result location [Group 7, Risk 3]", () => {
    // Bug D: nested search-result links need the full parent folder path, not only the last segment.
-   it.failing("should preserve the full parent path in router params for nested search results", async () => {
+   it.fails("should preserve the full parent path in router params for nested search results", async () => {
       const { comp } = await renderComponent();
 
       expect(comp.getParentRouterLinkParams("root/folder/DS")).toEqual({

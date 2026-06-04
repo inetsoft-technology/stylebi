@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { CommonModule } from "@angular/common";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
@@ -32,10 +33,10 @@ describe("ClusterSelectorComponent", () => {
 
    beforeEach(waitForAsync(() => {
       const monitoringDataService = {
-         refresh: jest.fn()
+         refresh: vi.fn()
       };
       const clusterNodesService = {
-         getClusterNodes: jest.fn(() => observableOf([]))
+         getClusterNodes: vi.fn(() => observableOf([]))
       };
 
       TestBed.configureTestingModule({

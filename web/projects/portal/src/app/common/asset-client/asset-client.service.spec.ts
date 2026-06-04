@@ -15,35 +15,36 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { type Mocked } from "vitest";
 import { NgZone } from "@angular/core";
 import { Subject } from "rxjs";
 import { StompClientConnection } from "../../../../../shared/stomp/stomp-client-connection";
 import { StompClientService } from "../viewsheet-client";
 import { AssetClientService } from "./asset-client.service";
 
-function makeConnection(): jest.Mocked<Pick<StompClientConnection, "subscribe" | "disconnect">> {
+function makeConnection(): Mocked<Pick<StompClientConnection, "subscribe" | "disconnect">> {
    return {
-      subscribe: jest.fn().mockImplementation((topic: string, cb: any) => {
+      subscribe: vi.fn().mockImplementation((topic: string, cb: any) => {
          // expose the callback so tests can trigger it
          (makeConnection as any)._handlers = (makeConnection as any)._handlers || {};
          (makeConnection as any)._handlers[topic] = cb;
-         return { unsubscribe: jest.fn() };
+         return { unsubscribe: vi.fn() };
       }),
-      disconnect: jest.fn()
+      disconnect: vi.fn()
    } as any;
 }
 
 function makeStompClientService(conn: any) {
    const connSubject = new Subject<any>();
    return {
-      connect: jest.fn().mockReturnValue(connSubject.asObservable()),
+      connect: vi.fn().mockReturnValue(connSubject.asObservable()),
       _connSubject: connSubject
    } as any;
 }
 
 function makeZone(): NgZone {
    return {
-      run: jest.fn((fn: () => any) => fn())
+      run: vi.fn((fn: () => any) => fn())
    } as any;
 }
 

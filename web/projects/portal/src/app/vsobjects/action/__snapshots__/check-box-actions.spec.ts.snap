@@ -1,6 +1,6 @@
-// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`CheckBoxActions check status of menu actions of checkbox in composer 1`] = `
+exports[`CheckBoxActions > check status of menu actions of checkbox in composer 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -111,7 +111,7 @@ exports[`CheckBoxActions check status of menu actions of checkbox in composer 1`
 ]
 `;
 
-exports[`CheckBoxActions check status of menu actions of checkbox in viewer and preview 1`] = `
+exports[`CheckBoxActions > check status of menu actions of checkbox in viewer and preview 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -222,7 +222,7 @@ exports[`CheckBoxActions check status of menu actions of checkbox in viewer and 
 ]
 `;
 
-exports[`CheckBoxActions check status of menu actions of checkbox in viewer and preview 2`] = `
+exports[`CheckBoxActions > check status of menu actions of checkbox in viewer and preview 2`] = `
 [
   AssemblyActionGroup {
     "actions": [

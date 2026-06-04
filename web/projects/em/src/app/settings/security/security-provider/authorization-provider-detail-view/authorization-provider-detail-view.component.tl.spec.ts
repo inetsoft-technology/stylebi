@@ -72,7 +72,7 @@ interface RenderOpts {
 
 async function renderComponent(opts: RenderOpts = {}) {
    const appInfoSpy = {
-      isEnterprise: jest.fn().mockReturnValue(of(opts.isEnterprise ?? true)),
+      isEnterprise: vi.fn().mockReturnValue(of(opts.isEnterprise ?? true)),
    };
 
    const result = await render(AuthorizationProviderDetailViewComponent, {

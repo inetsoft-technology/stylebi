@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { of as observableOf } from "rxjs";
 import { SelectionListEditorModel } from "../model/selection-list-editor-model";
 import { SelectionListEditor } from "./selection-list-editor.component";
@@ -37,7 +38,7 @@ describe("Selection List Editor Test", () => {
    let httpService: any;
 
    beforeEach(() => {
-      httpService = { get: jest.fn() };
+      httpService = { get: vi.fn() };
 
       selectionListEditor = new SelectionListEditor(httpService);
       selectionListEditor.model = createModel();

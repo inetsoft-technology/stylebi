@@ -34,23 +34,17 @@
               <mat-form-field appearance="outline" color="accent">
                 <mat-label>_#(User)</mat-label>
                 <input matInput formControlName="mapboxUser" placeholder="_#(User)">
-                @if (form.controls['mapboxUser']?.errors?.required) {
-                  <mat-error>_#(em.settings.webmap.userEmpty)</mat-error>
-                }
+                <mat-error *ngIf="form.controls['mapboxUser']?.errors?.required">_#(em.settings.webmap.userEmpty)</mat-error>
               </mat-form-field>
             }
             @if (isMapbox()) {
               <mat-form-field appearance="outline" color="accent">
                 <mat-label>_#(Token)</mat-label>
                 <input matInput formControlName="mapboxToken" placeholder="_#(Access Token)">
-                @if (form.controls['mapboxToken']?.errors?.required) {
-                  <mat-error>_#(em.settings.webmap.tokenEmpty)</mat-error>
-                }
+                <mat-error *ngIf="form.controls['mapboxToken']?.errors?.required">_#(em.settings.webmap.tokenEmpty)</mat-error>
               </mat-form-field>
             }
-            @if (stylesError) {
-              <mat-error>{{stylesError}}</mat-error>
-            }
+            <mat-error *ngIf="stylesError">{{stylesError}}</mat-error>
             @if (isMapbox()) {
               <mat-form-field>
                 <mat-label>_#(Mapbox Style)</mat-label>
@@ -60,18 +54,14 @@
                     [title]="style.name">{{style.name}}</mat-option>
                   }
                 </mat-select>
-                @if (form.controls['mapboxStyle']?.errors?.required) {
-                  <mat-error>_#(em.settings.webmap.styleEmpty)</mat-error>
-                }
+                <mat-error *ngIf="form.controls['mapboxStyle']?.errors?.required">_#(em.settings.webmap.styleEmpty)</mat-error>
               </mat-form-field>
             }
             @if (isGoogleMaps()) {
               <mat-form-field appearance="outline" color="accent">
                 <mat-label>_#(API Key)</mat-label>
                 <input matInput formControlName="googleKey" placeholder="_#(API Key)">
-                @if (form.controls['googleKey']?.errors?.required) {
-                  <mat-error>_#(em.settings.webmap.keyEmpty)</mat-error>
-                }
+                <mat-error *ngIf="form.controls['googleKey']?.errors?.required">_#(em.settings.webmap.keyEmpty)</mat-error>
               </mat-form-field>
             }
           </div>

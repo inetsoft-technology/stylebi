@@ -168,6 +168,10 @@ public abstract class ElementGeometry extends Geometry {
    }
 
    public String getOverlayId(ElementVO vo, DataSet data) {
+      return getOverlayId(vo, data, false);
+   }
+
+   public String getOverlayId(ElementVO vo, DataSet data, boolean polar) {
       int ridx = vo.getSubRowIndex();
       ElementGeometry g = (ElementGeometry) vo.getGeometry();
       GraphElement elem = g.getElement();
@@ -237,7 +241,9 @@ public abstract class ElementGeometry extends Geometry {
       // Return empty string so VGraph.getOverlayVO() can skip it.
       // Guard processedAnyDim to avoid a false positive when the dataset has no dimension
       // columns at all (allDimsNull would stay true but no synthetic row is implied).
-      if(hasOverlay && processedAnyDim && allDimsNull) {
+      // Only apply this guard for polar (pie/donut) charts — non-polar treemap/circle-packing
+      // charts can have genuine null dimension values that must be matched normally.
+      if(hasOverlay && processedAnyDim && allDimsNull && polar) {
          return "";
       }
       return sb.toString();

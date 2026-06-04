@@ -76,7 +76,7 @@ describe("Localization Pane Unit Test", () => {
    let dragService: any;
 
    beforeEach(waitForAsync(() => {
-      dragService = { reset: jest.fn(), put: jest.fn() };
+      dragService = { reset: vi.fn(), put: vi.fn() };
 
       TestBed.configureTestingModule({
          imports: [

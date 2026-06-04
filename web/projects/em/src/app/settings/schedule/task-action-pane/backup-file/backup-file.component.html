@@ -27,9 +27,7 @@
       <mat-card-content [formGroup]="backupForm" class="mat-card-content-padding">
         <mat-form-field floatLabel="never" appearance="outline" color="accent">
           <input type="text" matInput formControlName="path" placeholder="_#(Path)" />
-          @if (backupForm.controls['path']?.errors?.required) {
-            <mat-error>_#(em.schedule.action.pathRequired)</mat-error>
-          }
+          <mat-error *ngIf="backupForm.controls['path']?.errors?.required">_#(em.schedule.action.pathRequired)</mat-error>
         </mat-form-field>
         <mat-checkbox formControlName="ftp" (change)="toggleFTP()">_#(FTP/SFTP)</mat-checkbox>
         @if (cloudSecrets) {

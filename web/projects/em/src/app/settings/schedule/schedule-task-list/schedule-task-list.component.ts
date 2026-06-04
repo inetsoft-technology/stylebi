@@ -299,7 +299,7 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
 
    ngOnDestroy(): void {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    loadTasks(refreshTaskAndFolder?: boolean): void {

@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FontInfo } from "../../common/data/format-info-model";
@@ -38,8 +39,8 @@ describe("Font Pane Unit Test", () => {
    let fontPane: FontPane;
 
    beforeEach(() => {
-      const fontService = { getAllFonts: jest.fn() };
-      const debounceService = { debounce: jest.fn(), cancel: jest.fn() };
+      const fontService = { getAllFonts: vi.fn() };
+      const debounceService = { debounce: vi.fn(), cancel: vi.fn() };
       debounceService.debounce.mockImplementation((key, fn, delay, args) => {
          fn.apply(args);
       });

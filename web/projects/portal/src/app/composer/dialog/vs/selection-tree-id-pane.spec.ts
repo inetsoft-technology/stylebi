@@ -107,8 +107,8 @@ describe("Selection Tree Id Pane Test", () => {
    let idPane: SelectionTreeIdPane;
 
    beforeEach(waitForAsync(() => {
-      changeDetectorRef = { detectChanges: jest.fn() };
-      dragService = { reset: jest.fn(), put: jest.fn() };
+      changeDetectorRef = { detectChanges: vi.fn() };
+      dragService = { reset: vi.fn(), put: vi.fn() };
 
       TestBed.configureTestingModule({
          imports: [
@@ -157,7 +157,7 @@ describe("Selection Tree Id Pane Test", () => {
 
    //Bug #19081 should keep the selected variable
    //Bug #19702 and Bug #19932
-   xit("should keep selected variable on parent/child id", () => {
+   it.skip("should keep selected variable on parent/child id", () => {
       fixture.componentInstance.model.parentId = "${var1}";
       fixture.componentInstance.model.id = "${var2}";
       fixture.componentInstance.model.label = "${var3}";

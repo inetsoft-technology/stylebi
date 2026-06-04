@@ -61,7 +61,7 @@ const targetTree: TreeNodeModel = {
 };
 
 describe("Calendar Data Pane Unit Test", () => {
-   let changeRef = { detectChanges: jest.fn() };
+   let changeRef = { detectChanges: vi.fn() };
    let fixture: ComponentFixture<CalendarDataPane>;
    let calendarDataPane: CalendarDataPane;
    let dragService: any;

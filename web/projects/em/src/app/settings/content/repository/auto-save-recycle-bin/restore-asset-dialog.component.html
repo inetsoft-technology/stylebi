@@ -24,15 +24,9 @@
       <mat-form-field appearance="outline" color="accent">
         <mat-label>_#(Name)</mat-label>
         <input matInput formControlName="fileName" placeholder="_#(Restore Name)"/>
-        @if (form.controls.fileName?.errors?.required) {
-          <mat-error>_#(viewer.nameValid)</mat-error>
-        }
-        @if (form.controls.fileName?.errors?.assetEntryBannedCharacters) {
-          <mat-error>_#(composer.sheet.checkSpeChar)</mat-error>
-        }
-        @if (form.controls.fileName?.errors?.assetNameStartWithCharDigit) {
-          <mat-error>_#(asset.tree.checkStart)</mat-error>
-        }
+        <mat-error *ngIf="form.controls.fileName?.errors?.required">_#(viewer.nameValid)</mat-error>
+        <mat-error *ngIf="form.controls.fileName?.errors?.assetEntryBannedCharacters">_#(composer.sheet.checkSpeChar)</mat-error>
+        <mat-error *ngIf="form.controls.fileName?.errors?.assetNameStartWithCharDigit">_#(asset.tree.checkStart)</mat-error>
       </mat-form-field>
       <mat-checkbox formControlName="overwrite">_#(Overwrite Existing Files)</mat-checkbox>
     </mat-card-content>

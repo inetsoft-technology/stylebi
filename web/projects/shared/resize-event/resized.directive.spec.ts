@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { type Mock } from "vitest";
 import { Component } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { ResizedDirective } from "./resized.directive";
@@ -22,8 +23,8 @@ import { ResizedEvent } from "./resized.event";
 
 // Capture the ResizeObserver callback so we can invoke it manually in tests.
 let capturedCallback: ResizeObserverCallback | null = null;
-let mockObserve: jest.Mock;
-let mockDisconnect: jest.Mock;
+let mockObserve: Mock;
+let mockDisconnect: Mock;
 
 class MockResizeObserver {
    constructor(callback: ResizeObserverCallback) {
@@ -31,7 +32,7 @@ class MockResizeObserver {
    }
    observe = mockObserve;
    disconnect = mockDisconnect;
-   unobserve = jest.fn();
+   unobserve = vi.fn();
 }
 
 @Component({
@@ -49,8 +50,8 @@ describe("ResizedDirective", () => {
    let host: TestHostComponent;
 
    beforeEach(() => {
-      mockObserve = jest.fn();
-      mockDisconnect = jest.fn();
+      mockObserve = vi.fn();
+      mockDisconnect = vi.fn();
       capturedCallback = null;
 
       // Replace browser ResizeObserver with our mock

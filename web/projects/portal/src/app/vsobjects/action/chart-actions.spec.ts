@@ -33,7 +33,7 @@ describe("ChartActions", () => {
       return TestUtils.createMockVSChartModel("Chart1");
    };
 
-   const popService: any = { getPopComponent: jest.fn() };
+   const popService: any = { getPopComponent: vi.fn() };
    const composerContext = ComposerContextProviderFactory();
    const bindingContext = BindingContextProviderFactory(false);
    const viewerContext = ViewerContextProviderFactory(false);
@@ -1571,7 +1571,7 @@ describe("ChartActions", () => {
          ]
       ];
 
-      const dataTipService: any = { isDataTip: jest.fn() };
+      const dataTipService: any = { isDataTip: vi.fn() };
       dataTipService.isDataTip.mockImplementation(() => true);
       const model = createModel();
       selectMeasureBar(model);
@@ -1588,7 +1588,7 @@ describe("ChartActions", () => {
    //Bug #20611 should not display Reset Size for pie chart
    //Bug #20271
    it("check Reset Size menu action", () => {
-      const dataTipService: any = { isDataTip: jest.fn() };
+      const dataTipService: any = { isDataTip: vi.fn() };
       dataTipService.isDataTip.mockImplementation(() => false);
       const model: VSChartModel = Object.assign({
          notAuto: false,

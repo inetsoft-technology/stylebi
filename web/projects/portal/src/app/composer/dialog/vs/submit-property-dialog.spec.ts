@@ -102,13 +102,13 @@ describe("SubmitPropertyDialog Integration Test", () => {
 
    beforeEach(waitForAsync(() => {
       contextService = {
-         isVS: jest.fn(),
-         isAdhoc: jest.fn(),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn(),
-         getObjectChange: jest.fn(() => observableOf({}))
+         isVS: vi.fn(),
+         isAdhoc: vi.fn(),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn(),
+         getObjectChange: vi.fn(() => observableOf({}))
       };
-      dialogService = { checkScript: jest.fn() };
+      dialogService = { checkScript: vi.fn() };
 
       TestBed.configureTestingModule({
          imports: [

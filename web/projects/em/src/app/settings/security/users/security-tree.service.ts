@@ -19,7 +19,7 @@ import { Injectable } from "@angular/core";
 import { SecurityTreeNode } from "../security-tree-view/security-tree-node";
 import { SecurityTreeNodeModel } from "./users-settings-view/security-tree-node-model";
 
-@Injectable()
+@Injectable({ providedIn: "root" })
 export class SecurityTreeService {
    createSecurityTreeNode(node: SecurityTreeNodeModel): SecurityTreeNode {
       let children = null;

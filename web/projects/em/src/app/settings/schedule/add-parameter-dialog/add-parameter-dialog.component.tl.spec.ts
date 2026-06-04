@@ -67,7 +67,6 @@ import { MatCheckboxModule } from "@angular/material/checkbox";
 import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
 import { MatFormFieldModule } from "@angular/material/form-field";
-import { it } from "@jest/globals"; // must import to enable it.failing
 import { render, waitFor } from "@testing-library/angular";
 import { of } from "rxjs";
 import { http, HttpResponse } from "msw";
@@ -109,9 +108,9 @@ interface RenderOpts {
 }
 
 async function renderComp(opts: RenderOpts = {}) {
-   const dialogRefSpy = { close: jest.fn() };
+   const dialogRefSpy = { close: vi.fn() };
    const matDialogSpy = {
-      open: jest.fn().mockReturnValue({
+      open: vi.fn().mockReturnValue({
          afterClosed: () =>
             of(opts.dialogClosesWith !== undefined ? opts.dialogClosesWith : true),
       }),
@@ -189,7 +188,7 @@ describe("AddParameterDialogComponent — fixTimeValue(): time value formatting"
    // Risk Point/Contract: "2024-01-15T10:30" → must become "2024-01-15 10:30:00" (not "2024-01-15 10:30").
    // Why High Value: Silent data corruption — submitted timestamp is rejected by the backend
    // or silently stored with wrong seconds.
-   it.failing("should produce 'YYYY-MM-DD HH:mm:00' for TIME_INSTANT missing seconds (Bug A — stale val)", async () => {
+   it.fails("should produce 'YYYY-MM-DD HH:mm:00' for TIME_INSTANT missing seconds (Bug A — stale val)", async () => {
       const { comp } = await renderComp({ index: -1, parameters: [] });
       comp.model.value.type = ValueTypes.VALUE;
       comp.model.type = XSchema.TIME_INSTANT;
@@ -447,7 +446,7 @@ describe("AddParameterDialogComponent — array toggle: value split and click ti
    // calls fixTimeValue(), which can mask the missed conversion from convertToArray().
    // Risk Point/Contract: disabling array for TIME type must call fixTimeValue() to append ":00".
    // Why High Value: submitted TIME "10:30" (missing seconds) may fail backend parsing silently.
-   it.failing("should call fixTimeValue() when disabling array for TIME type (Bug B — inverted click timing)", async () => {
+   it.fails("should call fixTimeValue() when disabling array for TIME type (Bug B — inverted click timing)", async () => {
       const { comp } = await renderComp({ index: -1, parameters: [] });
 
       comp.model.type = XSchema.TIME;

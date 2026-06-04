@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import {
    Component,
@@ -83,19 +84,19 @@ describe("task options pane componnet unit case: ", () => {
    let modalService: any;
    let http: any;
    let scheduleUsersService = {
-      init: jest.fn(),
-      getOwners: jest.fn(() => new BehaviorSubject([]) ),
-      getGroups: jest.fn(() => new BehaviorSubject([]) ),
-      getRoles: jest.fn(() => new BehaviorSubject([]) ),
-      getEmailUsers: jest.fn(() => new BehaviorSubject([]) ),
-      getEmailGroups: jest.fn(() => new BehaviorSubject([]) ),
-      getAdminName: jest.fn(() => new BehaviorSubject("admin") ),
-      getGroupBaseNames: jest.fn(() => new BehaviorSubject([]) ),
+      init: vi.fn(),
+      getOwners: vi.fn(() => new BehaviorSubject([]) ),
+      getGroups: vi.fn(() => new BehaviorSubject([]) ),
+      getRoles: vi.fn(() => new BehaviorSubject([]) ),
+      getEmailUsers: vi.fn(() => new BehaviorSubject([]) ),
+      getEmailGroups: vi.fn(() => new BehaviorSubject([]) ),
+      getAdminName: vi.fn(() => new BehaviorSubject("admin") ),
+      getGroupBaseNames: vi.fn(() => new BehaviorSubject([]) ),
    };
 
    beforeEach(() => {
-      modalService = { get: jest.fn() };
-      http = { open: jest.fn() };
+      modalService = { get: vi.fn() };
+      http = { open: vi.fn() };
 
       TestBed.configureTestingModule({
          imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, TestApp, TaskOptionsPane, ExecuteAsDialog],

@@ -40,6 +40,7 @@
  *     component integration tests
  */
 
+import { type Mock } from "vitest";
 import { HttpClientTestingModule, HttpTestingController } from "@angular/common/http/testing";
 import { TestBed } from "@angular/core/testing";
 import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
@@ -77,16 +78,16 @@ function makeFileAuthnForm(name = "MyProvider", oldName = ""): UntypedFormGroup 
 describe("SecurityProviderService — scene layer", () => {
    let service: SecurityProviderService;
    let httpMock: HttpTestingController;
-   let routerSpy: { navigate: jest.Mock };
-   let dialogSpy: { open: jest.Mock };
-   let bottomSheetSpy: { open: jest.Mock };
-   let errorServiceSpy: { showSnackBar: jest.Mock };
+   let routerSpy: { navigate: Mock };
+   let dialogSpy: { open: Mock };
+   let bottomSheetSpy: { open: Mock };
+   let errorServiceSpy: { showSnackBar: Mock };
 
    beforeEach(() => {
-      routerSpy = { navigate: jest.fn() };
-      dialogSpy = { open: jest.fn() };
-      bottomSheetSpy = { open: jest.fn() };
-      errorServiceSpy = { showSnackBar: jest.fn() };
+      routerSpy = { navigate: vi.fn() };
+      dialogSpy = { open: vi.fn() };
+      bottomSheetSpy = { open: vi.fn() };
+      errorServiceSpy = { showSnackBar: vi.fn() };
 
       TestBed.configureTestingModule({
          imports: [HttpClientTestingModule],

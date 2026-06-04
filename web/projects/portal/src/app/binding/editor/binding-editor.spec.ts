@@ -54,10 +54,10 @@ describe("Binding Editor Component Unit Test", () => {
       return bindingModel;
    };
    let uiContextService = {
-      isVS: jest.fn(),
-      isAdhoc: jest.fn()
+      isVS: vi.fn(),
+      isAdhoc: vi.fn()
    };
-   let modelService = { getModel: jest.fn(() => observableOf([])) };
+   let modelService = { getModel: vi.fn(() => observableOf([])) };
 
    let fixture: ComponentFixture<BindingEditor>;
    let bindingEditor: BindingEditor;
@@ -90,30 +90,30 @@ describe("Binding Editor Component Unit Test", () => {
                provide: BindingTreeService,
                useValue: {
                   root: null,
-                  treeChanged: { subscribe: jest.fn() },
-                  treeLoading: jest.fn(() => false),
-                  bindingTreeChanged: jest.fn(() => ({ subscribe: jest.fn() })),
+                  treeChanged: { subscribe: vi.fn() },
+                  treeLoading: vi.fn(() => false),
+                  bindingTreeChanged: vi.fn(() => ({ subscribe: vi.fn() })),
                   bindingTreeModel: null,
                   needUseVirtualScroll: false,
                   virtualScrollDataSource: null,
                   isSearching: false,
-                  getSelection: jest.fn(),
-                  setSelection: jest.fn(),
-                  getNode: jest.fn(),
-                  getSourceInfo: jest.fn(),
-                  loadFullTree: jest.fn(() => Promise.resolve(true)),
-                  changeSearchState: jest.fn(),
-                  expandNode: jest.fn(),
-                  collapseNode: jest.fn(),
-                  expandNodesCollapseOthersByRecord: jest.fn(),
-                  getBindingTreeActions: jest.fn(() => []),
-                  changeLoadingState: jest.fn(),
-                  isCalculatedFieldEnabled: jest.fn(() => false)
+                  getSelection: vi.fn(),
+                  setSelection: vi.fn(),
+                  getNode: vi.fn(),
+                  getSourceInfo: vi.fn(),
+                  loadFullTree: vi.fn(() => Promise.resolve(true)),
+                  changeSearchState: vi.fn(),
+                  expandNode: vi.fn(),
+                  collapseNode: vi.fn(),
+                  expandNodesCollapseOthersByRecord: vi.fn(),
+                  getBindingTreeActions: vi.fn(() => []),
+                  changeLoadingState: vi.fn(),
+                  isCalculatedFieldEnabled: vi.fn(() => false)
                }
             },
             {
                provide: DndService,
-               useValue: { processOnDrop: jest.fn(), setDragOverStyle: jest.fn() }
+               useValue: { processOnDrop: vi.fn(), setDragOverStyle: vi.fn() }
             },
             {
                provide: SsoHeartbeatService,
@@ -163,7 +163,7 @@ describe("Binding Editor Component Unit Test", () => {
    });
 
    //for Bug #20163
-   it("current format status should be right", (done) => {
+   it("current format status should be right", () => new Promise<void>((done) => {
       uiContextService.isVS.mockImplementation(() => true);
       fixture = TestBed.createComponent(BindingEditor);
       bindingEditor = <BindingEditor>fixture.componentInstance;
@@ -179,5 +179,5 @@ describe("Binding Editor Component Unit Test", () => {
       });
       bindingEditor.updateData("getCurrentFormat");
       expect(bindingEditor.hideFormatPane).toBeFalsy();
-   });
+   }));
 });

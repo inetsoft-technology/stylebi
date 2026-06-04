@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { type Mock, type Mocked } from "vitest";
 import { NgZone } from "@angular/core";
 import { of, Subscription } from "rxjs";
 import { ScheduleTaskChange } from "../../../../../../shared/schedule/model/schedule-task-change";
@@ -47,7 +48,7 @@ import { EmScheduleChangeService } from "./em-schedule-change.service";
  */
 function makeZone(): NgZone {
    return {
-      run: jest.fn((fn: () => any) => fn())
+      run: vi.fn((fn: () => any) => fn())
    } as any;
 }
 
@@ -55,23 +56,23 @@ function makeConnection() {
    const topicHandlers = new Map<string, (message: any) => void>();
    const subscriptionA = new Subscription();
    const subscriptionB = new Subscription();
-   jest.spyOn(subscriptionA, "unsubscribe");
-   jest.spyOn(subscriptionB, "unsubscribe");
+   vi.spyOn(subscriptionA, "unsubscribe");
+   vi.spyOn(subscriptionB, "unsubscribe");
 
    const connection = {
-      subscribe: jest.fn((topic: string, handler: (message: any) => void) => {
+      subscribe: vi.fn((topic: string, handler: (message: any) => void) => {
          topicHandlers.set(topic, handler);
          return topicHandlers.size === 1 ? subscriptionA : subscriptionB;
       }),
-      disconnect: jest.fn()
-   } as unknown as jest.Mocked<StompClientConnection>;
+      disconnect: vi.fn()
+   } as unknown as Mocked<StompClientConnection>;
 
    return { connection, topicHandlers, subscriptionA, subscriptionB };
 }
 
 describe("EmScheduleChangeService", () => {
    let zone: NgZone;
-   let stompClient: jest.Mocked<StompClientService>;
+   let stompClient: Mocked<StompClientService>;
    let connectionSetup: ReturnType<typeof makeConnection>;
    let service: EmScheduleChangeService;
 
@@ -79,7 +80,7 @@ describe("EmScheduleChangeService", () => {
       zone = makeZone();
       connectionSetup = makeConnection();
       stompClient = {
-         connect: jest.fn().mockReturnValue(of(connectionSetup.connection))
+         connect: vi.fn().mockReturnValue(of(connectionSetup.connection))
       } as any;
 
       service = new EmScheduleChangeService(stompClient, zone);
@@ -91,7 +92,7 @@ describe("EmScheduleChangeService", () => {
    describe("constructor", () => {
       it("[Risk 3] should ignore invalid schedule-change payloads without throwing or emitting", () => {
          // Regression-sensitive: malformed server events should be dropped instead of breaking all subsequent callbacks.
-         const emitSpy = jest.spyOn(service.onChange, "emit");
+         const emitSpy = vi.spyOn(service.onChange, "emit");
          const handler = connectionSetup.topicHandlers.get("/user/em-schedule-changed");
 
          expect(() => handler({
@@ -101,7 +102,7 @@ describe("EmScheduleChangeService", () => {
          })).not.toThrow();
 
          // (a)
-         expect((zone.run as jest.Mock)).toHaveBeenCalledTimes(1);
+         expect((zone.run as Mock)).toHaveBeenCalledTimes(1);
          // (b)
          expect(emitSpy).not.toHaveBeenCalled();
       });
@@ -128,7 +129,7 @@ describe("EmScheduleChangeService", () => {
    describe("schedule change event", () => {
       it("[Risk 2] should parse the payload inside NgZone and emit onChange", () => {
          const change: ScheduleTaskChange = { name: "task-1", type: "modified" } as any;
-         const emitSpy = jest.spyOn(service.onChange, "emit");
+         const emitSpy = vi.spyOn(service.onChange, "emit");
          const handler = connectionSetup.topicHandlers.get("/user/em-schedule-changed");
 
          handler({
@@ -138,7 +139,7 @@ describe("EmScheduleChangeService", () => {
          });
 
          // (a)
-         expect((zone.run as jest.Mock)).toHaveBeenCalledTimes(1);
+         expect((zone.run as Mock)).toHaveBeenCalledTimes(1);
          // (b)
          expect(emitSpy).toHaveBeenCalledWith(change);
       });
@@ -149,7 +150,7 @@ describe("EmScheduleChangeService", () => {
    // ---------------------------------------------------------------------------
    describe("folder change event", () => {
       it("[Risk 2] should emit onFolderChange inside NgZone when the folder topic fires", () => {
-         const emitSpy = jest.spyOn(service.onFolderChange, "emit");
+         const emitSpy = vi.spyOn(service.onFolderChange, "emit");
          const handler = connectionSetup.topicHandlers.get("/user/em-schedule-folder-changed");
 
          handler({
@@ -159,7 +160,7 @@ describe("EmScheduleChangeService", () => {
          });
 
          // (a)
-         expect((zone.run as jest.Mock)).toHaveBeenCalledTimes(1);
+         expect((zone.run as Mock)).toHaveBeenCalledTimes(1);
          // (b)
          expect(emitSpy).toHaveBeenCalledTimes(1);
       });

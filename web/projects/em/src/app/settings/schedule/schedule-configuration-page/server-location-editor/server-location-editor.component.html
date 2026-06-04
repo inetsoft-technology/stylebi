@@ -24,22 +24,14 @@
         <mat-form-field>
           <mat-label>_#(Label)</mat-label>
           <input matInput formControlName="label" placeholder="_#(Label)"/>
-          @if (form.controls.label?.errors?.required) {
-            <mat-error>_#(em.schedule.serverLocation.labelRequired)</mat-error>
-          }
-          @if (form.controls.label?.errors?.duplicateName) {
-            <mat-error>_#(em.schedule.serverLocation.duplicateLabel)</mat-error>
-          }
+          <mat-error *ngIf="form.controls.label?.errors?.required">_#(em.schedule.serverLocation.labelRequired)</mat-error>
+          <mat-error *ngIf="form.controls.label?.errors?.duplicateName">_#(em.schedule.serverLocation.duplicateLabel)</mat-error>
         </mat-form-field>
         <mat-form-field>
           <mat-label>_#(Path)</mat-label>
           <input matInput formControlName="path" placeholder="_#(Path)"/>
-          @if (form.controls.path?.errors?.required) {
-            <mat-error>_#(em.schedule.serverLocation.pathRequired)</mat-error>
-          }
-          @if (form.controls.path?.errors?.duplicatePath) {
-            <mat-error>_#(em.schedule.serverLocation.duplicatePath)</mat-error>
-          }
+          <mat-error *ngIf="form.controls.path?.errors?.required">_#(em.schedule.serverLocation.pathRequired)</mat-error>
+          <mat-error *ngIf="form.controls.path?.errors?.duplicatePath">_#(em.schedule.serverLocation.duplicatePath)</mat-error>
         </mat-form-field>
         <div>
           <mat-checkbox formControlName="ftp" (change)="toggleFtp($event)">_#(FTP/SFTP)</mat-checkbox>

@@ -383,8 +383,31 @@ public class DateComparisonUtil {
     *
     * @return <tt>true</tt> if contains, <tt>false</tt> otherwise.
     */
-   private static boolean containsAggregate(DataRef[] fields) {
+   public static boolean containsAggregate(DataRef[] fields) {
       return Arrays.stream(fields).anyMatch(VSAggregateRef.class::isInstance);
+   }
+
+   /**
+    * Derive the date dimension ref used for DC from a chart's X/Y fields using the same
+    * axis-aggregate logic as ChartDcProcessor.getComparisonDateRef(): X date only when Y
+    * has an aggregate, Y date only when X has an aggregate.
+    *
+    * @param xFields X-axis fields (design or runtime).
+    * @param yFields Y-axis fields (design or runtime).
+    * @return the date DataRef, or null if none found.
+    */
+   public static DataRef findDcDateRef(DataRef[] xFields, DataRef[] yFields) {
+      DataRef found = null;
+
+      if(containsAggregate(yFields)) {
+         found = findDateDimension(xFields);
+      }
+
+      if(found == null && containsAggregate(xFields)) {
+         found = findDateDimension(yFields);
+      }
+
+      return found;
    }
 
    public static void checkGraphValidity(ChartVSAssemblyInfo info, VGraph vgraph) {
@@ -617,12 +640,20 @@ public class DateComparisonUtil {
          Date startDate = dcInfo.getStartDate();
          DateSelector selector = new DateSelector(periodCol, startDate, null);
 
+         // Compute which part cells have data from the most recent (current) year.
+         // Orphaned cells — those with only comparison-year data — should be excluded
+         // from the x-axis scale so they don't produce spurious labels.
+         final Set<Object> validParts = computeValidParts(data, periodCol, partCol, startDate);
+
          for(Scale scale : egraph.getCoordinate().getScales()) {
             String[] fields = scale.getFields();
 
             if(fields.length > 0 && Tool.equals(partCol, fields[0])) {
                Format fmt = scale.getAxisSpec().getTextSpec().getFormat();
-               applyGraphDataSelector(data, scale, new DateSelector(periodCol, startDate, fmt));
+               DateSelector basePartSel = new DateSelector(periodCol, startDate, fmt);
+               GraphtDataSelector partSelector = validParts.isEmpty() ? basePartSel
+                  : new ValidPartsSelector(validParts, partCol, basePartSel);
+               applyGraphDataSelector(data, scale, partSelector);
             }
             else if(scale instanceof LinearScale ||
                fields.length > 0 && Tool.equals(getBaseName(periodCol), (getBaseName(fields[0]))))
@@ -645,7 +676,9 @@ public class DateComparisonUtil {
 
             if(spec.getTextSpec().getFormat() instanceof DateComparisonFormat) {
                DateComparisonFormat fmt = (DateComparisonFormat) spec.getTextSpec().getFormat();
-               fmt.setGraphDataSelector(selector);
+               GraphtDataSelector fmtSelector = validParts.isEmpty() ? selector
+                  : new ValidPartsSelector(validParts, partCol, selector);
+               fmt.setGraphDataSelector(fmtSelector);
             }
          }
 
@@ -658,6 +691,81 @@ public class DateComparisonUtil {
             }
          }
       }
+   }
+
+   /**
+    * Find which part cells (x-axis positions) have data from the most recent year.
+    * Cells without current-year data are orphaned and should be excluded from the axis.
+    * Returns the set of valid part cells (those with current-year data), or an empty set
+    * when the data is not in year-bucket layout (per-part real dates, or no repeated period
+    * value). An empty return means "no orphan filtering should be applied."
+    *
+    * This method is also used by DateComparisonFormat.initPartDate() to drive the same
+    * heuristic at the pre-aggregated partDates level — both callers rely on this single
+    * implementation so the logic stays in sync.
+    */
+   static Set<Object> computeValidParts(DataSet data, String periodCol,
+                                        String partCol, Date startDate)
+   {
+      if(periodCol == null || partCol == null) {
+         return Collections.emptySet();
+      }
+
+      // Single pass: find max year date AND detect year-bucket layout (any date repeating
+      // across more than one row indicates period-bucket data rather than per-part real dates).
+      Date maxYearDate = null;
+      Set<Date> seenDates = new HashSet<>();
+      boolean isYearBucketCase = false;
+
+      for(int i = 0; i < data.getRowCount(); i++) {
+         Date date = toPeriodDate(data.getData(periodCol, i));
+
+         if(date != null && (startDate == null || !date.before(startDate))) {
+            if(maxYearDate == null || date.after(maxYearDate)) {
+               maxYearDate = date;
+            }
+
+            if(!seenDates.add(date)) {
+               isYearBucketCase = true;
+            }
+         }
+      }
+
+      // Return empty when there is no data or when all period dates are unique per row
+      // (per-part real-date charts) — orphan filtering must not apply in that case.
+      if(maxYearDate == null || !isYearBucketCase) {
+         return Collections.emptySet();
+      }
+
+      Set<Object> validParts = new HashSet<>();
+      final Date max = maxYearDate;
+
+      for(int i = 0; i < data.getRowCount(); i++) {
+         Date date = toPeriodDate(data.getData(periodCol, i));
+
+         if(max.equals(date)) {
+            validParts.add(data.getData(partCol, i));
+         }
+      }
+
+      return validParts;
+   }
+
+   /** Extract a comparable Date from a period column value (raw Date or MergePartCell). */
+   private static Date toPeriodDate(Object val) {
+      if(val instanceof Date) {
+         return (Date) val;
+      }
+
+      if(val instanceof MergePartCell) {
+         // Use getDateGroupValue() to match DateSelector's MergePartCell handling.
+         // getOriginalRawDate() is only set for isIgnoreDcTemp refs; it is null in
+         // most DC configurations and would cause computeValidParts to return empty.
+         Object dateGroupValue = ((MergePartCell) val).getDateGroupValue();
+         return dateGroupValue instanceof Date ? (Date) dateGroupValue : null;
+      }
+
+      return null;
    }
 
    private static void applyGraphDataSelector(DataSet data, Scale scale,
@@ -1988,5 +2096,23 @@ public class DateComparisonUtil {
       calendar.setMinimalDaysInFirstWeek(7);
 
       return calendar;
+   }
+
+   /** Selector that filters out orphaned part cells not present in the current-year set. */
+   private static final class ValidPartsSelector implements GraphtDataSelector {
+      private final Set<Object> validParts;
+      private final String partCol;
+      private final GraphtDataSelector base;
+
+      ValidPartsSelector(Set<Object> validParts, String partCol, GraphtDataSelector base) {
+         this.validParts = validParts;
+         this.partCol = partCol;
+         this.base = base;
+      }
+
+      @Override
+      public boolean accept(DataSet dataset, int row, String[] fields) {
+         return validParts.contains(dataset.getData(partCol, row)) && base.accept(dataset, row, fields);
+      }
    }
 }

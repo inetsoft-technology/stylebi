@@ -34,13 +34,14 @@ import { CdkTextareaAutosize } from "@angular/cdk/text-field";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatHint } from "@angular/material/form-field";
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 
 @Component({
     selector: "em-text-file-content-view",
     templateUrl: "./text-file-content-view.component.html",
     styleUrls: ["./text-file-content-view.component.scss"],
-    imports: [MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, CdkTextareaAutosize, FormsModule, MatHint, LoadingSpinnerComponent]
+    imports: [NgIf, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, CdkTextareaAutosize, FormsModule, MatHint, LoadingSpinnerComponent]
 })
 export class TextFileContentViewComponent implements OnInit, OnChanges {
    @Output() contentChanged = new EventEmitter<DataSpaceFileContentModel>();

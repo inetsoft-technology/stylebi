@@ -24,7 +24,7 @@ import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
-import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { DropDownTestModule } from "../../../common/test/test-module";
 import { TestUtils } from "../../../common/test/test-utils";
 import { DataTreeValidatorService } from "../../../vsobjects/dialog/data-tree-validator.service";
@@ -98,12 +98,26 @@ describe("Data Input Pane Test", () => {
    let treeService: any;
 
    beforeEach(() => {
-      treeService = { validateTreeNode: jest.fn() };
+      treeService = { validateTreeNode: vi.fn() };
       TestBed.configureTestingModule({
          imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, DataInputPane, DynamicComboBox, TreeComponent, TreeNodeComponent, TreeDropdownComponent, FixedDropdownDirective, TreeSearchPipe, TooltipDirective, EnterClickDirective],
          
          providers: [
-            {provide: DataTreeValidatorService, useValue: treeService}
+            {provide: DataTreeValidatorService, useValue: treeService},
+            {
+               // Stub NgbModal so the dynamic-combo-box's setTimeout-based formula
+               // editor dialog (fired when EXPRESSION mode is selected) doesn't try
+               // to open against a destroyed injector after the fixture is torn down.
+               provide: NgbModal,
+               useValue: {
+                  open: () => ({
+                     componentInstance: {},
+                     result: new Promise<any>(() => {}),
+                     close: () => {},
+                     dismiss: () => {}
+                  })
+               }
+            }
          ],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
@@ -152,7 +166,7 @@ describe("Data Input Pane Test", () => {
    });
 
    //Bug #19833
-   it("should input page number on popup table page", (done) => {
+   it("should input page number on popup table page", async () => {
       dataInputPane = <DataInputPane>fixture.componentInstance;
       dataInputPane.model = createModel();
       dataInputPane.model.rowValue = "1";
@@ -177,23 +191,32 @@ describe("Data Input Pane Test", () => {
       fixture.debugElement.query(By.css("span.edit-icon")).nativeElement.click();
       fixture.detectChanges();
 
-      fixture.whenStable().then(() => {
-         let fixedDropdown = document.getElementsByTagName("fixed-dropdown")[0];
-         let pageInput = fixedDropdown.getElementsByTagName("input")[0];
-         let beforeBtns = fixedDropdown.getElementsByTagName("button");
-         expect(beforeBtns[0].disabled).toBeTruthy();
-         expect(beforeBtns[1].disabled).toBeTruthy();
+      // Wait for zone stability: Angular's NgZone triggers applicationRef.tick() when
+      // the zone is stable. The tick renders the dynamically-created FixedDropdownComponent
+      // and the @if(popupTable) content in the ng-template #dropdownMenu embedded view.
+      // Real setTimeout(0) timers (listenerTick from ngOnInit, onOpen from ngAfterViewInit)
+      // fire in registration order; after both settle the zone stabilises and resolves here.
+      await fixture.whenStable();
 
-         pageInput.value = "2";
-         fixture.componentInstance.updatePopupTablePage(new KeyboardEvent("keydown", {key: "enter"}), 2);
-         fixture.detectChanges();
-         expect(pageInput.getAttribute("ng-reflect-model")).toBe("2");
-         expect(beforeBtns[0].disabled).toBeFalsy();
-         expect(beforeBtns[1].disabled).toBeFalsy();
-         let id = fixedDropdown.getElementsByTagName("td")[4].textContent;
-         expect(id.trim()).toBe("11");
-         done();
-      });
+      let fixedDropdown = document.getElementsByTagName("fixed-dropdown")[0];
+      let pageInput = fixedDropdown.getElementsByTagName("input")[0];
+      let beforeBtns = fixedDropdown.getElementsByTagName("button");
+      expect(beforeBtns[0].disabled).toBeTruthy();
+      expect(beforeBtns[1].disabled).toBeTruthy();
+
+      pageInput.value = "2";
+      fixture.componentInstance.updatePopupTablePage(new KeyboardEvent("keydown", {key: "enter"}), 2);
+      fixture.detectChanges();
+
+      // Wait for zone stability again so applicationRef.tick() propagates the page change
+      // into the embedded view (updating [ngModel] and [disabled] bindings).
+      await fixture.whenStable();
+
+      expect(pageInput.getAttribute("ng-reflect-model")).toBe("2");
+      expect(beforeBtns[0].disabled).toBeFalsy();
+      expect(beforeBtns[1].disabled).toBeFalsy();
+      let id = fixedDropdown.getElementsByTagName("td")[4].textContent;
+      expect(id.trim()).toBe("11");
    });
 
    it("row should update when change to expression", () => {
@@ -209,6 +232,7 @@ describe("Data Input Pane Test", () => {
 
       let typeToggles = fixture.nativeElement.querySelectorAll("button.type-toggle");
       typeToggles[1].click();
+      fixture.detectChanges();
       TestUtils.changeDynamicComboValueType(2);
       fixture.detectChanges();
       let rowInput = fixture.debugElement.query(By.css(".row_id .dynamic-combo-box-body input")).nativeElement;

@@ -152,18 +152,18 @@ describe("hyperlink dialog componnet unit case", () => {
    };
 
    beforeEach(() => {
-      trapService = { checkTrap: jest.fn() };
-      modalService = { open: jest.fn() };
+      trapService = { checkTrap: vi.fn() };
+      modalService = { open: vi.fn() };
       repositoryTreeService = {
-         getRootFolder: jest.fn(),
-         getFolder: jest.fn(),
-         getAliasedPath: jest.fn(),
-         getCSSIcon: jest.fn()
+         getRootFolder: vi.fn(),
+         getFolder: vi.fn(),
+         getAliasedPath: vi.fn(),
+         getCSSIcon: vi.fn()
       };
-      modelService = { getModel: jest.fn() };
+      modelService = { getModel: vi.fn() };
       modelService.getModel.mockImplementation(() => observableOf(treeNode));
-      dragService = { getDragData: jest.fn() };
-      stompClient = { connect: jest.fn() };
+      dragService = { getDragData: vi.fn() };
+      stompClient = { connect: vi.fn() };
 
       stompClient.connect.mockImplementation(() => observableOf(null));
 

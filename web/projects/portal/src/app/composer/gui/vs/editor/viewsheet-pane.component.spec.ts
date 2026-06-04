@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { EventEmitter } from "@angular/core";
 import { BehaviorSubject, of as observableOf, Subject } from "rxjs";
 import { Point } from "../../../../common/data/point";
@@ -126,71 +127,71 @@ describe("Viewsheet Pane Test", () => {
    beforeEach(() => {
       elementRef = {};
       composerObjectService = {
-         updateLayerMovement: jest.fn(),
-         getNewObject: jest.fn(),
-         removeObjectFromList: jest.fn()
+         updateLayerMovement: vi.fn(),
+         getNewObject: vi.fn(),
+         removeObjectFromList: vi.fn()
       };
-      stompClient = { connect: jest.fn(), subscribe: jest.fn() };
-      treeService = { resetTreeModel: jest.fn() };
-      bindingService = { setClientService: jest.fn() };
-      changeDetectorRef = { detectChanges: jest.fn() };
-      modelService = { sendModel: jest.fn() };
-      modalService = { open: jest.fn() };
-      debounceService = { debounce: jest.fn((key, fn, delay, args) => fn(...args)) };
+      stompClient = { connect: vi.fn(), subscribe: vi.fn() };
+      treeService = { resetTreeModel: vi.fn() };
+      bindingService = { setClientService: vi.fn() };
+      changeDetectorRef = { detectChanges: vi.fn() };
+      modelService = { sendModel: vi.fn() };
+      modalService = { open: vi.fn() };
+      debounceService = { debounce: vi.fn((key, fn, delay, args) => fn(...args)) };
 
       responseObservable = new BehaviorSubject(new Subject());
-      zone = { run: jest.fn() };
+      zone = { run: vi.fn() };
       viewsheetClientService = new ViewsheetClientService(stompClient, zone);
 
-      downloadService = { download: jest.fn() };
-      scaleService = { getScale: jest.fn(), setScale: jest.fn() };
+      downloadService = { download: vi.fn() };
+      scaleService = { getScale: vi.fn(), setScale: vi.fn() };
       scaleService.getScale.mockImplementation(() => observableOf(1));
-      actionFactory = { createActions: jest.fn() };
+      actionFactory = { createActions: vi.fn() };
       actionFactory.createActions.mockImplementation(() => ({
          onAssemblyActionEvent: new EventEmitter<any>()
       }));
 
       dialogService = {
-         open: jest.fn(),
-         assemblyDelete: jest.fn(),
-         objectDelete: jest.fn()
+         open: vi.fn(),
+         assemblyDelete: vi.fn(),
+         objectDelete: vi.fn()
       };
-      dataTipService = { clearDataTips: jest.fn() };
-      dragService = { reset: jest.fn(), put: jest.fn() };
+      dataTipService = { clearDataTips: vi.fn() };
+      dragService = { reset: vi.fn(), put: vi.fn() };
       uiContextService = {
-         isVS: jest.fn(),
-         isAdhoc: jest.fn(),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn()
+         isVS: vi.fn(),
+         isAdhoc: vi.fn(),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn()
       };
       resizeHandlerService = {
          anyResizeSubject: new BehaviorSubject(new Subject())
       };
-      let domService: any = { requestRead: jest.fn(), requestWrite: jest.fn() };
-      let renderer: any = { listen: jest.fn() };
+      let domService: any = { requestRead: vi.fn(), requestWrite: vi.fn() };
+      let renderer: any = { listen: vi.fn() };
       composerVsSearchService = {
-         isVisible: jest.fn(),
-         isSearchMode: jest.fn(),
-         changeSearchMode: jest.fn(),
-         assemblyVisible: jest.fn(),
-         nextFocus: jest.fn(),
-         previousFocus: jest.fn(),
-         focusAssembly: jest.fn(),
-         isFocusAssembly: jest.fn(),
-         focusChange: jest.fn()
+         isVisible: vi.fn(),
+         isSearchMode: vi.fn(),
+         changeSearchMode: vi.fn(),
+         assemblyVisible: vi.fn(),
+         nextFocus: vi.fn(),
+         previousFocus: vi.fn(),
+         focusAssembly: vi.fn(),
+         isFocusAssembly: vi.fn(),
+         focusChange: vi.fn()
       };
       renderer.listen.mockImplementation(() => () => {});
       appInfoService = {
-         getCurrentOrgInfo: jest.fn(() => observableOf({})),
+         getCurrentOrgInfo: vi.fn(() => observableOf({})),
       };
 
       fontService = {
          defaultFont: "Roboto"
       };
 
-      aiAssistantService = { loadCurrentUser: jest.fn() };
-      aiAssistantDialogService = { setViewsheetScriptContext: jest.fn() };
-      wizService = { wizComposer: false, wizVizIds: [], onRefreshFilters: jest.fn() };
+      aiAssistantService = { loadCurrentUser: vi.fn() };
+      aiAssistantDialogService = { setViewsheetScriptContext: vi.fn() };
+      wizService = { wizComposer: false, wizVizIds: [], onRefreshFilters: vi.fn() };
 
       viewsheetPane = new VSPane(
          aiAssistantService, aiAssistantDialogService,
@@ -254,17 +255,17 @@ describe("Viewsheet Pane Test", () => {
          }]
       };
       const dataTransfer: any = {
-         getData: jest.fn(() => JSON.stringify(dataTransferData))
+         getData: vi.fn(() => JSON.stringify(dataTransferData))
       };
       const clientRect: any = { left: 0, top: 0 };
-      const element: any = { getBoundingClientRect: jest.fn(() => clientRect) };
-      const interactContainer: any = { snap: jest.fn(() => new Point(0, 0)) };
+      const element: any = { getBoundingClientRect: vi.fn(() => clientRect) };
+      const interactContainer: any = { snap: vi.fn(() => new Point(0, 0)) };
       const event: any = {
-         preventDefault: jest.fn(),
+         preventDefault: vi.fn(),
          dataTransfer: dataTransfer
       };
 
-      const showMessageDialog = jest.spyOn(ComponentTool, "showMessageDialog");
+      const showMessageDialog = vi.spyOn(ComponentTool, "showMessageDialog");
       showMessageDialog.mockImplementation(() => Promise.resolve("ok"));
       elementRef["nativeElement"] = element;
       viewsheetPane.vs = vs;

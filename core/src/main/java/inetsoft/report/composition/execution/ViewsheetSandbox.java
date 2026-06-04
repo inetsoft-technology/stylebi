@@ -1103,11 +1103,47 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       DateCompareAbleAssemblyInfo info = (DateCompareAbleAssemblyInfo) vsAssemblyInfo;
       DateComparisonInfo dateComparisonInfo = DateComparisonUtil.getDateComparison(info, vs);
 
+      // getDateComparison() may return null if DC hasn't been applied to the runtime chart
+      // state yet (the initial worksheet-table setup call happens before ChartDcProcessor
+      // runs). Fall back to the assembly's raw DC info only when DC is genuinely enabled
+      // and the share-from assembly reference is valid — preserving all other null semantics.
+      if(dateComparisonInfo == null) {
+         boolean dcEnabled = !(info instanceof DataVSAssemblyInfo) ||
+            ((DataVSAssemblyInfo) info).isDateComparisonEnabled();
+         VSAssembly shareAssembly = (vs != null && !Tool.isEmptyString(info.getComparisonShareFrom()))
+            ? vs.getAssembly(info.getComparisonShareFrom()) : null;
+         boolean validShare = Tool.isEmptyString(info.getComparisonShareFrom()) ||
+            (shareAssembly != null &&
+               shareAssembly.getVSAssemblyInfo() instanceof DateCompareAbleAssemblyInfo);
+
+         if(dcEnabled && validShare) {
+            dateComparisonInfo = info.getDateComparisonInfo();
+         }
+      }
+
       if(dateComparisonInfo == null) {
          return null;
       }
 
-      return dateComparisonInfo.getDateComparisonConditions(info.getDateComparisonRef());
+      VSDataRef dcRef = info.getDateComparisonRef();
+
+      // dateComparisonRef is only set by ChartDcProcessor.process() during chart execution.
+      // For the early worksheet-table setup call, derive the date ref from the chart's
+      // design fields, using the same axis-aggregate logic as ChartDcProcessor.
+      if(dcRef == null && vsAssemblyInfo instanceof ChartVSAssemblyInfo) {
+         VSChartInfo cinfo = ((ChartVSAssemblyInfo) vsAssemblyInfo).getVSChartInfo();
+
+         if(cinfo != null) {
+            // Use the shared utility to match ChartDcProcessor.getComparisonDateRef() logic.
+            DataRef found = DateComparisonUtil.findDcDateRef(cinfo.getXFields(), cinfo.getYFields());
+
+            if(found instanceof VSDataRef) {
+               dcRef = (VSDataRef) found;
+            }
+         }
+      }
+
+      return dateComparisonInfo.getDateComparisonConditions(dcRef);
    }
 
    /**

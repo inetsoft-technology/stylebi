@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
@@ -43,11 +44,11 @@ describe("AuthenticationProviderDetailViewComponent", () => {
 
    beforeEach(waitForAsync(() => {
       const providerService = {};
-      (window.document.body as any).createTextRange = jest.fn().mockImplementation(() => ({
-         setEnd: jest.fn(),
-         setStart: jest.fn(),
-         getBoundingClientRect: jest.fn(() => ({right: 0})),
-         getClientRects: jest.fn(() => ({length: 0, left: 0, right: 0}))
+      (window.document.body as any).createTextRange = vi.fn().mockImplementation(() => ({
+         setEnd: vi.fn(),
+         setStart: vi.fn(),
+         getBoundingClientRect: vi.fn(() => ({right: 0})),
+         getClientRects: vi.fn(() => ({length: 0, left: 0, right: 0}))
       }));
 
       TestBed.configureTestingModule({

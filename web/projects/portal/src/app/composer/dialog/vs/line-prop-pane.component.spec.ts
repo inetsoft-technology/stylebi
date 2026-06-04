@@ -18,7 +18,7 @@
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { DropDownTestModule } from "../../../common/test/test-module";
 import { TestUtils } from "../../../common/test/test-utils";
 import { ColorEditor } from "../../../widget/color-picker/color-editor.component";
@@ -52,7 +52,22 @@ describe("line prop pane component unit case", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule, LinePropPane, ColorEditor, StyleDropdown, ColorPicker, ColorPane, DynamicComboBox, TargetComboBox, TreeComponent, TreeNodeComponent, TreeDropdownComponent, FixedDropdownDirective, TreeSearchPipe, TooltipDirective],
-         
+         providers: [
+            {
+               // Stub NgbModal so the dynamic-combo-box's setTimeout-based formula
+               // editor dialog (fired when EXPRESSION mode is selected) doesn't try
+               // to open against a destroyed injector after the fixture is torn down.
+               provide: NgbModal,
+               useValue: {
+                  open: () => ({
+                     componentInstance: {},
+                     result: new Promise<any>(() => {}),
+                     close: () => {},
+                     dismiss: () => {}
+                  })
+               }
+            }
+         ],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
 
@@ -78,6 +93,7 @@ describe("line prop pane component unit case", () => {
 
       let typeToggle = fixture.nativeElement.querySelector("button.type-toggle");
       typeToggle.click();
+      fixture.detectChanges();
       TestUtils.changeDynamicComboValueType(1);
       fixture.detectChanges();
       colorInput = fixture.nativeElement.querySelector("dynamic-combo-box select");
@@ -85,6 +101,7 @@ describe("line prop pane component unit case", () => {
       expect(colorEditor.getAttribute("class")).toContain("disable-actions-fade");
 
       typeToggle.click();
+      fixture.detectChanges();
       TestUtils.changeDynamicComboValueType(2);
       fixture.detectChanges();
       colorInput = fixture.nativeElement.querySelector("dynamic-combo-box input");

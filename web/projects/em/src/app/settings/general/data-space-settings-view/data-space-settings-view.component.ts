@@ -44,6 +44,7 @@ import { MatIcon } from "@angular/material/icon";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatSuffix, MatError, MatHint } from "@angular/material/form-field";
 import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-header.component";
+import { NgIf } from "@angular/common";
 
 export interface BackupData {
    dataspace: string;
@@ -173,7 +174,7 @@ export class DataSpaceSettingsViewComponent {
 @Component({
     selector: "em-backup-dialog",
     templateUrl: "backup-dialog.html",
-    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatIcon, MatSuffix, MatError, MatDialogActions, MatButton]
+    imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatIcon, MatSuffix, MatError, MatDialogActions, MatButton]
 })
 export class BackupDialog implements OnInit {
    form: UntypedFormGroup;

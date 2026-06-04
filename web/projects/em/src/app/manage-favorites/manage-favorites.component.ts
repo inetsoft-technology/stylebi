@@ -66,7 +66,7 @@ export class ManageFavoritesComponent implements OnInit, OnDestroy {
 
    ngOnDestroy(): void {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    removeFavorite(favorite: Favorite): void {

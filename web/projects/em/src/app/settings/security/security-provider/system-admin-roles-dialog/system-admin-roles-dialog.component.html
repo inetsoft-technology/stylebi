@@ -29,11 +29,9 @@
         (click)="addRole()" [disabled]="addRoleDisabled">
         <mat-icon fontSet="ineticons" fontIcon="add-icon"></mat-icon>
       </button>
-      @if (adminRoleControl.errors && !(adminRoleControl.value == '')) {
-        <mat-error>
-          _#(em.security.identity.nameSpecialChars)
-        </mat-error>
-      }
+      <mat-error *ngIf="adminRoleControl.errors && !(adminRoleControl.value == '')">
+        _#(em.security.identity.nameSpecialChars)
+      </mat-error>
       <mat-autocomplete #auto="matAutocomplete">
         @for (role of autocompleteRoles | async; track role) {
           <mat-option [value]="role">

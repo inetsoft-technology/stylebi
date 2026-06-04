@@ -28,11 +28,9 @@
       ></em-time-picker>
       <mat-hint class="mat-form-field-wrapper time-content-item">HH:mm {{ timeZoneLabel }}</mat-hint>
     </div>
-    @if (form.controls.startTime?.errors) {
-      <mat-error>
-        _#(viewer.schedule.condition.startTimeValid)
-      </mat-error>
-    }
+    <mat-error *ngIf="form.controls.startTime?.errors">
+      _#(viewer.schedule.condition.startTimeValid)
+    </mat-error>
     <em-time-zone-select formControlName="timeZone"
       [timeZoneOptions]="timeZoneOptions"
       (changed)="fireModelChanged()">

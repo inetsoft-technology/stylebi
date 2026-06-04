@@ -19,24 +19,16 @@
   <mat-form-field [class.mobile]="mobile">
     <mat-label>{{placeholder}}</mat-label>
     <input type="text" [title]="emails" matInput [formControl]="emailsControl" [attr.autocomplete]="browserAutocomplete" (blur)="onTouched()"/>
-    @if (isEmailBrowserEnabled) {
-      <button matSuffix mat-icon-button aria-label="_#(Select Emails)"
-        title="_#(Select Emails)" [disabled]="!editable" (click)="openEmailDialog()">
-        <mat-icon fontSet="ineticons" fontIcon="edit-icon"></mat-icon>
-      </button>
-    }
+    <button *ngIf="isEmailBrowserEnabled" matSuffix mat-icon-button aria-label="_#(Select Emails)"
+      title="_#(Select Emails)" [disabled]="!editable" (click)="openEmailDialog()">
+      <mat-icon fontSet="ineticons" fontIcon="edit-icon"></mat-icon>
+    </button>
     <button matSuffix mat-icon-button aria-label="_#(Clear Emails)" title="_#(Clear Emails)" [disabled]="!editable || !emailsControl.value" (click)="clearEmails()">
       <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
     </button>
-    @if (emailRequiredError) {
-      <mat-error>_#(em.schedule.action.emailRequired)</mat-error>
-    }
-    @if (emailInvalid) {
-      <mat-error>_#(em.schedule.action.invalidEmail)</mat-error>
-    }
-    @if (duplicateEmail) {
-      <mat-error>_#(em.schedule.action.duplicateEmail)</mat-error>
-    }
+    <mat-error *ngIf="emailRequiredError">_#(em.schedule.action.emailRequired)</mat-error>
+    <mat-error *ngIf="emailInvalid">_#(em.schedule.action.invalidEmail)</mat-error>
+    <mat-error *ngIf="duplicateEmail">_#(em.schedule.action.duplicateEmail)</mat-error>
   </mat-form-field>
   <button mat-button aria-label="_#(Test Mail)"
     [disabled]="emailsControl?.invalid || !editable || !emails || isVariableEmail()"

@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { CommonModule } from "@angular/common";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
@@ -32,23 +33,16 @@ import { TimerService } from "../data-tip/timer.service";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSSlider } from "./vs-slider.component";
 
-global.ResizeObserver = jest.fn().mockImplementation(() => ({
-   observe: jest.fn(),
-   unobserve: jest.fn(),
-   disconnect: jest.fn()
-}));
+// ResizeObserver is mocked globally in vitest-setup.ts. Avoid replacing it here with a
+// vi.fn() factory because that breaks `new ResizeObserver()` constructor semantics for any
+// other spec running in the same worker (e.g. viewer-app).
 
 describe("VSSlider Unit Tests", () => {
    beforeAll(() => {
-      jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
          font: "",
          measureText: (_text: string) => ({ width: 0 })
       } as any);
-      (global as any).ResizeObserver = jest.fn().mockImplementation(() => ({
-         observe: jest.fn(),
-         unobserve: jest.fn(),
-         disconnect: jest.fn()
-      }));
    });
 
    let stompClient: any;
@@ -58,16 +52,16 @@ describe("VSSlider Unit Tests", () => {
 
    beforeEach(waitForAsync(() => {
       stompClient = TestUtils.createMockStompClientService();
-      dataTipService = {isDataTip: jest.fn()};
+      dataTipService = {isDataTip: vi.fn()};
       const contextProvider = {};
       const formDataService = {
-         checkFormData: jest.fn(),
-         removeObject: jest.fn(),
-         addObject: jest.fn(),
-         replaceObject: jest.fn()
+         checkFormData: vi.fn(),
+         removeObject: vi.fn(),
+         addObject: vi.fn(),
+         replaceObject: vi.fn()
       };
       timerService = {
-         defer: jest.fn((fn) => {
+         defer: vi.fn((fn) => {
             fn();
          })
       };

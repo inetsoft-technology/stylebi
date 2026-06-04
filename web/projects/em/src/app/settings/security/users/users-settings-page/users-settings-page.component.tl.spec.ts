@@ -122,28 +122,28 @@ async function renderComponent(opts: RenderOpts = {}) {
       onRefresh: onRefreshSubject,
       // Return "" so changeProvider early-returns and skips the constructor HTTP call.
       // Tests that need a loaded tree set comp.selectedProvider + comp.model directly.
-      getProvider: jest.fn().mockReturnValue(opts.initialProvider ?? ""),
+      getProvider: vi.fn().mockReturnValue(opts.initialProvider ?? ""),
       authenticationProviders: ["TestProvider"],
       loginUserOrgName: opts.loginUserOrgName ?? "CurrentUser",
       loginUserOrgID: opts.loginUserOrgID ?? "CurrentOrgID",
-      isSystemAdmin: jest.fn().mockReturnValue(opts.isSysAdmin ?? false),
-      refresh: jest.fn().mockImplementation((provider: string, providerChanged: boolean) => {
+      isSystemAdmin: vi.fn().mockReturnValue(opts.isSysAdmin ?? false),
+      refresh: vi.fn().mockImplementation((provider: string, providerChanged: boolean) => {
          onRefreshSubject.next({ provider, providerChanged });
       }),
-      refreshProviders: jest.fn(),
+      refreshProviders: vi.fn(),
    };
 
    const dialogSpy = {
-      open: jest.fn().mockReturnValue({
+      open: vi.fn().mockReturnValue({
          afterClosed: () =>
             of(opts.dialogClosesWith !== undefined ? opts.dialogClosesWith : true),
       }),
    };
 
-   const snackBarSpy = { open: jest.fn() };
-   const usersServiceSpy = { loadScheduleUsers: jest.fn() };
-   const orgBusySpy = { beginOrgSave: jest.fn(), endOrgSave: jest.fn() };
-   const errorServiceSpy = { showSnackBar: jest.fn() };
+   const snackBarSpy = { open: vi.fn() };
+   const usersServiceSpy = { loadScheduleUsers: vi.fn() };
+   const orgBusySpy = { beginOrgSave: vi.fn(), endOrgSave: vi.fn() };
+   const errorServiceSpy = { showSnackBar: vi.fn() };
    const pageHeaderSpy = { title: "" };
 
    // Default MSW: tree refresh after ngOnInit and refreshTree / deleteIdentities
@@ -229,7 +229,7 @@ describe("UsersSettingsPageComponent — clearIncompleteNewUser(): state consist
 
    // No identity present → must return immediately without any HTTP call.
    it("should return of(undefined) without an HTTP call when no pending identity exists", async () => {
-      const postSpy = jest.fn();
+      const postSpy = vi.fn();
       server.use(
          http.post("*/api/em/security/user/delete-identities/*", () => {
             postSpy();
@@ -453,7 +453,7 @@ describe("UsersSettingsPageComponent — changeProvider(): clears pending new us
          ),
       );
 
-      const deleteSpy = jest.fn();
+      const deleteSpy = vi.fn();
       server.use(
          http.post("*/api/em/security/user/delete-identities/*", () => {
             deleteSpy();
@@ -693,7 +693,7 @@ describe("UsersSettingsPageComponent — deleteIdentities(): auto-select and nam
 
       comp.selectedNodes = [makeUserNode("deleted-user")];
 
-      const refreshTreeSpy = jest.spyOn(comp as any, "refreshTree");
+      const refreshTreeSpy = vi.spyOn(comp as any, "refreshTree");
 
       comp.deleteIdentities();
 

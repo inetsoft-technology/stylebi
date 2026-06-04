@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { ChangeDetectorRef, NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { TestUtils } from "../../../common/test/test-utils";
@@ -35,10 +36,10 @@ describe("VSViewsheet Unit Tests", () => {
    let component: VSViewsheet;
 
    beforeEach(waitForAsync(() => {
-      const viewsheetClientService = { sendEvent: jest.fn() };
+      const viewsheetClientService = { sendEvent: vi.fn() };
       const dataTipService = {
-         isDataTip: jest.fn(),
-         hasDataTipShowing: jest.fn(() => false)
+         isDataTip: vi.fn(),
+         hasDataTipShowing: vi.fn(() => false)
       };
       const contextProvider = { viewer: true, preview: false, composer: false, binding: false };
 
@@ -50,9 +51,9 @@ describe("VSViewsheet Unit Tests", () => {
             { provide: FixedDropdownService, useValue: {} },
             { provide: ContextProvider, useValue: contextProvider },
             { provide: DataTipService, useValue: dataTipService },
-            { provide: PopComponentService, useValue: { isCurrentPopComponent: jest.fn(() => false), hasPopUpComponentShowing: jest.fn(() => false) } },
+            { provide: PopComponentService, useValue: { isCurrentPopComponent: vi.fn(() => false), hasPopUpComponentShowing: vi.fn(() => false) } },
             { provide: SelectionMobileService, useValue: {} },
-            { provide: ChangeDetectorRef, useValue: { detectChanges: jest.fn() } }
+            { provide: ChangeDetectorRef, useValue: { detectChanges: vi.fn() } }
          ],
          schemas: [NO_ERRORS_SCHEMA]
       });

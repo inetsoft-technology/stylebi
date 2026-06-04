@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { Component, NO_ERRORS_SCHEMA, Optional } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
@@ -50,7 +51,7 @@ describe("VSTitle", () => {
                useFactory: ViewerContextProviderFactory,
                deps: [[new Optional(), ComposerToken], [new Optional(), EmbedToken]]
             },
-            { provide: InteractService, useValue: { addInteractable: jest.fn(), removeInteractable: jest.fn(), notify: jest.fn() } }
+            { provide: InteractService, useValue: { addInteractable: vi.fn(), removeInteractable: vi.fn(), notify: vi.fn() } }
          ],
          schemas: [NO_ERRORS_SCHEMA]
       });

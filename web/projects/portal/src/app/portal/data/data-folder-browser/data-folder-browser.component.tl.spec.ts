@@ -55,11 +55,10 @@
  *   Direct method calls must enforce the same permission guards advertised by the toolbar.
  */
 
-import { provideHttpClient } from "@angular/common/http";
+import { type Mock } from "vitest";import { provideHttpClient } from "@angular/common/http";
 import { Component, NO_ERRORS_SCHEMA } from "@angular/core";
 import { ActivatedRoute, convertToParamMap, ParamMap, Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { it } from "@jest/globals";
 import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse } from "msw";
 import { BehaviorSubject, EMPTY, Subject } from "rxjs";
@@ -79,9 +78,9 @@ import { PortalDataBrowserModel } from "./portal-data-browser-model";
 import { server } from "../../../../../../../mocks/server";
 
 interface NotificationMock {
-   success: jest.Mock;
-   danger: jest.Mock;
-   info: jest.Mock;
+   success: Mock;
+   danger: Mock;
+   info: Mock;
 }
 
 let currentNotifications: NotificationMock;
@@ -103,9 +102,9 @@ interface RenderOptions {
 
 function makeNotifications(): NotificationMock {
    return {
-      success: jest.fn(),
-      danger: jest.fn(),
-      info: jest.fn()
+      success: vi.fn(),
+      danger: vi.fn(),
+      info: vi.fn()
    };
 }
 
@@ -178,7 +177,7 @@ async function renderComponent(options: RenderOptions = {}) {
    currentNotifications = makeNotifications();
 
    const mockRouter = {
-      navigate: jest.fn().mockResolvedValue(true),
+      navigate: vi.fn().mockResolvedValue(true),
       events: EMPTY,
       url: "/portal/tab/data/folder"
    };
@@ -188,16 +187,16 @@ async function renderComponent(options: RenderOptions = {}) {
       snapshot: {}
    };
    const dataBrowserService = {
-      newWorksheet: jest.fn(),
-      openWorksheet: jest.fn(),
-      renameAsset: jest.fn(),
-      deleteAsset: jest.fn(),
-      changeFolder: jest.fn(),
-      changeMV: jest.fn()
+      newWorksheet: vi.fn(),
+      openWorksheet: vi.fn(),
+      renameAsset: vi.fn(),
+      deleteAsset: vi.fn(),
+      changeFolder: vi.fn(),
+      changeMV: vi.fn()
    };
    const dragService = {
-      put: jest.fn(),
-      getDragData: jest.fn(() => ({}))
+      put: vi.fn(),
+      getDragData: vi.fn(() => ({}))
    };
 
    const browserHandler = ({ request }) => {
@@ -221,23 +220,23 @@ async function renderComponent(options: RenderOptions = {}) {
          {
             provide: StompClientService,
             useValue: {
-               connect: jest.fn(() => EMPTY),
-               whenDisconnected: jest.fn(() => EMPTY),
-               reconnectError: jest.fn(() => EMPTY)
+               connect: vi.fn(() => EMPTY),
+               whenDisconnected: vi.fn(() => EMPTY),
+               reconnectError: vi.fn(() => EMPTY)
             }
          },
          { provide: ActivatedRoute, useValue: mockRoute },
          { provide: Router, useValue: mockRouter },
-         { provide: NgbModal, useValue: { open: jest.fn() } },
+         { provide: NgbModal, useValue: { open: vi.fn() } },
          { provide: RepositoryClientService, useValue: {
-            connect: jest.fn(),
+            connect: vi.fn(),
             dataChanged: repositoryDataChanged.asObservable()
          }},
          { provide: DataBrowserService, useValue: dataBrowserService },
          { provide: DragService, useValue: dragService },
          { provide: DomService, useValue: {} },
          { provide: DataSourcesTreeActionsService, useValue: {
-            showWSFolderDetailsSubject: jest.fn(() => worksheetDetailsSubject.asObservable())
+            showWSFolderDetailsSubject: vi.fn(() => worksheetDetailsSubject.asObservable())
          }}
       ],
       schemas: [NO_ERRORS_SCHEMA]
@@ -263,7 +262,7 @@ async function renderComponent(options: RenderOptions = {}) {
 }
 
 afterEach(() => {
-   jest.restoreAllMocks();
+   vi.restoreAllMocks();
 });
 
 // ---------------------------------------------------------------------------
@@ -331,17 +330,17 @@ describe("DataFolderBrowserComponent - browser refresh/search lifecycle [Group 1
    });
 
    // Bug A: repositoryClient.dataChanged subscription is never unsubscribed in ngOnDestroy.
-   it.failing("should not refresh browser content after the component is destroyed", async () => {
+   it.fails("should not refresh browser content after the component is destroyed", async () => {
       const { fixture, repositoryDataChanged, browserRequests } = await renderComponent();
       const initialRequestCount = browserRequests.length;
 
-      jest.useFakeTimers();
+      vi.useFakeTimers();
       try {
          fixture.destroy();
          repositoryDataChanged.next();
-         jest.runAllTimers();
+         vi.runAllTimers();
       } finally {
-         jest.useRealTimers();
+         vi.useRealTimers();
       }
       // setImmediate fires after all pending microtasks (including MSW Promise chains)
       await new Promise(resolve => setImmediate(resolve));
@@ -363,7 +362,7 @@ describe("DataFolderBrowserComponent - deleteSelected [Group 2, Risk 3]", () => 
       let deleteRequest: any = null;
       let refreshCount = 0;
 
-      jest.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
+      vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
 
       const { comp, notifications } = await renderComponent();
       server.use(
@@ -412,7 +411,7 @@ describe("DataFolderBrowserComponent - deleteSelected [Group 2, Risk 3]", () => 
       });
       let removableStatusRequests = 0;
 
-      const confirmSpy = jest.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("cancel");
+      const confirmSpy = vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("cancel");
 
       const { comp } = await renderComponent();
       server.use(
@@ -433,11 +432,11 @@ describe("DataFolderBrowserComponent - deleteSelected [Group 2, Risk 3]", () => 
    });
 
    // Bug C: refresh lives in complete(), so partial server failures leave stale rows visible.
-   it.failing("should refresh the browser even when the bulk delete request errors", async () => {
+   it.fails("should refresh the browser even when the bulk delete request errors", async () => {
       const worksheet = makeWorksheet("Maybe Deleted", "Maybe Deleted");
       let refreshCount = 0;
 
-      jest.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
+      vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
 
       const { comp, notifications } = await renderComponent();
       server.use(
@@ -526,8 +525,8 @@ describe("DataFolderBrowserComponent - move/drag [Group 3, Risk 3]", () => {
       const { comp, dataBrowserService } = await renderComponent({
          queryParams: { path: "current", scope: "1" }
       });
-      const confirmSpy = jest.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
-      const moveAssetsSpy = jest.spyOn(comp, "moveAssets").mockImplementation(jest.fn());
+      const confirmSpy = vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
+      const moveAssetsSpy = vi.spyOn(comp, "moveAssets").mockImplementation(vi.fn());
 
       comp.dataTreeDragToPane(target, {
          external: JSON.stringify([validWorksheet, sameTarget, ancestorFolder, unsupported])
@@ -549,12 +548,12 @@ describe("DataFolderBrowserComponent - move/drag [Group 3, Risk 3]", () => {
    });
 
    // Bug D: moveSelected bypasses moveDisable and opens the move dialog for locked assets.
-   it.failing("should not open the move dialog when selected items are not editable and deletable", async () => {
+   it.fails("should not open the move dialog when selected items are not editable and deletable", async () => {
       const locked = makeWorksheet("Locked", "Locked", AssetType.WORKSHEET, {
          editable: true,
          deletable: false
       });
-      const showDialogSpy = jest.spyOn(ComponentTool, "showDialog").mockReturnValue({} as any);
+      const showDialogSpy = vi.spyOn(ComponentTool, "showDialog").mockReturnValue({} as any);
       const { comp } = await renderComponent();
 
       comp.selectedItems = [locked];
@@ -566,7 +565,7 @@ describe("DataFolderBrowserComponent - move/drag [Group 3, Risk 3]", () => {
    });
 
    // Bug E: each scope bucket should move only its own assets, not the full drag list.
-   it.failing("should pass only the current scope bucket to moveAssets for cross-scope drag moves", async () => {
+   it.fails("should pass only the current scope bucket to moveAssets for cross-scope drag moves", async () => {
       const scope1Worksheet = makeWorksheet("Global Sheet", "Global Sheet", AssetType.WORKSHEET, {
          scope: 1
       });
@@ -575,12 +574,12 @@ describe("DataFolderBrowserComponent - move/drag [Group 3, Risk 3]", () => {
       });
       const target = makeWorksheet("Target", "Target", AssetType.FOLDER, { scope: 1 });
 
-      jest.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
+      vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
       const { comp, dragService } = await renderComponent();
-      (dragService.getDragData as jest.Mock).mockReturnValue({
+      (dragService.getDragData as Mock).mockReturnValue({
          dragWorksheets: JSON.stringify([scope1Worksheet, scope4Worksheet])
       });
-      const moveAssetsSpy = jest.spyOn(comp, "moveAssets").mockImplementation(jest.fn());
+      const moveAssetsSpy = vi.spyOn(comp, "moveAssets").mockImplementation(vi.fn());
 
       comp.assetsDroped(target);
 

@@ -106,7 +106,7 @@ const makeOrganizationModel = (): EditOrganizationPaneModel => ({
 });
 
 async function renderComponent() {
-   const dialogSpy = { open: jest.fn() };
+   const dialogSpy = { open: vi.fn() };
    const busySpy = { orgLoading$: new Subject<boolean>() };
 
    const result = await render(EditIdentityPaneComponent, {

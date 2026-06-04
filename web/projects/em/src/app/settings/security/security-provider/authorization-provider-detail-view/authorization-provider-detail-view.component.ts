@@ -39,12 +39,13 @@ import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { MatCard, MatCardContent } from "@angular/material/card";
 import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+import { NgIf } from "@angular/common";
 
 @Component({
     selector: "em-authorization-provider-detail-view",
     templateUrl: "./authorization-provider-detail-view.component.html",
     styleUrls: ["./authorization-provider-detail-view.component.scss"],
-    imports: [EditorPanelComponent, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatError, MatSelect, MatOption, CustomProviderViewComponent]
+    imports: [NgIf, EditorPanelComponent, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatError, MatSelect, MatOption, CustomProviderViewComponent]
 })
 export class AuthorizationProviderDetailViewComponent implements OnInit, OnDestroy {
    @Output() onSubmit = new EventEmitter<UntypedFormGroup>();

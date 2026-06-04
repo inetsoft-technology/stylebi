@@ -76,9 +76,9 @@ describe("Range Slider Data Pane Test", () => {
    let el: HTMLElement;
 
    beforeEach(waitForAsync(() => {
-      changeDetectorRef = { detectChanges: jest.fn() };
-      dragService = { reset: jest.fn(), put: jest.fn() };
-      dataTreeValidatorService = { validateTreeNode: jest.fn() };
+      changeDetectorRef = { detectChanges: vi.fn() };
+      dragService = { reset: vi.fn(), put: vi.fn() };
+      dataTreeValidatorService = { validateTreeNode: vi.fn() };
 
       TestBed.configureTestingModule({
          imports: [
@@ -107,9 +107,8 @@ describe("Range Slider Data Pane Test", () => {
    it("add button should enable", () => {
       fixture.componentInstance.rangeSliderDataPane.compositeNodes = [];
       fixture.componentInstance.rangeSliderDataPane.selectedTreeCompositeNodes = [ { type: "columnNode" } ];
-      jest.spyOn(fixture.componentInstance.rangeSliderDataPane, "getParentFolderLabel").mockImplementation(() => "Query1");
+      vi.spyOn(fixture.componentInstance.rangeSliderDataPane, "getParentFolderLabel").mockImplementation(() => "Query1");
       fixture.detectChanges();
-
 
       fixture.whenStable().then(() => {
          de = fixture.debugElement.query(By.css("button.btn.btn-default.add-btn"));

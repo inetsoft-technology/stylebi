@@ -43,13 +43,14 @@ import { FileChooserComponent } from "../../../../../common/util/file-chooser/fi
 import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
 
 import { ModalHeaderComponent } from "../../../../../common/util/modal-header/modal-header.component";
+import { NgIf } from "@angular/common";
 
 @Component({
     selector: "em-import-asset-dialog",
     templateUrl: "./import-asset-dialog.component.html",
     styleUrls: ["./import-asset-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, FileChooserComponent, MatIcon, MatSuffix, MatError, MatInput, MatIconButton, MatCheckbox, SelectedAssetListComponent, RequiredAssetListComponent, MatProgressBar, MatDialogActions, MatButton]
+    imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, FileChooserComponent, MatIcon, MatSuffix, MatError, MatInput, MatIconButton, MatCheckbox, SelectedAssetListComponent, RequiredAssetListComponent, MatProgressBar, MatDialogActions, MatButton]
 })
 export class ImportAssetDialogComponent implements OnDestroy {
    @HostBinding("class") hostClass = "import-asset-dialog";

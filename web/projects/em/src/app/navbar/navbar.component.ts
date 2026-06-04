@@ -205,7 +205,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
    ngOnDestroy(): void {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    onScrollUpDownStart(event: AnimationEvent): void {

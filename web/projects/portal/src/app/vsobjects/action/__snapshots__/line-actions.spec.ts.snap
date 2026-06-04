@@ -1,6 +1,6 @@
-// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`LineActions check status of menu actions of line in composer 1`] = `
+exports[`LineActions > check status of menu actions of line in composer 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -171,7 +171,7 @@ exports[`LineActions check status of menu actions of line in composer 1`] = `
 ]
 `;
 
-exports[`LineActions check status of menu actions of line in viewer and preview 1`] = `
+exports[`LineActions > check status of menu actions of line in viewer and preview 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -342,7 +342,7 @@ exports[`LineActions check status of menu actions of line in viewer and preview 
 ]
 `;
 
-exports[`LineActions check status of menu actions of line in viewer and preview 2`] = `
+exports[`LineActions > check status of menu actions of line in viewer and preview 2`] = `
 [
   AssemblyActionGroup {
     "actions": [

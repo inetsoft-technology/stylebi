@@ -19,7 +19,7 @@ import { Component } from "@angular/core";
 import { waitForAsync, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
 import { HttpClient } from "@angular/common/http";
-import { BehaviorSubject, Subject } from "rxjs";
+import { NEVER } from "rxjs";
 import { Rectangle } from "../../common/data/rectangle";
 import { ContextProvider } from "../../vsobjects/context-provider.service";
 import { SelectionBoxDirective } from "../../widget/directive/selection-box.directive";
@@ -307,11 +307,15 @@ class TestApp {
 
 describe("ChartPlotArea Integration Tests", () => {
    let modelService: any;
-   let httpService = { get: jest.fn(), post: jest.fn() };
-   let responseObservable = new BehaviorSubject(new Subject());
+   let httpService = { get: vi.fn(), post: vi.fn() };
    const contextProvider = {};
-   httpService.get.mockImplementation(() => responseObservable);
-   httpService.post.mockImplementation(() => responseObservable);
+   // chart-image.directive subscribes to the chart image GET and calls
+   // URL.createObjectURL(response.body). The previous BehaviorSubject<Subject>
+   // emitted a Subject (with no `.body`) which threw an "obj argument must be an
+   // instance of Blob" error after the test fixture was destroyed. Use NEVER so
+   // the subscriber callback is never invoked.
+   httpService.get.mockImplementation(() => NEVER);
+   httpService.post.mockImplementation(() => NEVER);
 
    beforeEach(waitForAsync(() => {
       modelService = {};
@@ -347,12 +351,12 @@ describe("ChartPlotArea Integration Tests", () => {
       TestBed.compileComponents();
    }));
 
-   it("should have valid regions", (done) => {
+   it("should have valid regions", () => new Promise<void>((done, fail) => {
       let fixture = TestBed.createComponent(TestApp);
       let testComponent = fixture.componentInstance;
       let chartObjectDebugElement = fixture.debugElement.query(By.css("chart-plot-area"));
       let chartObjectComponent: ChartPlotArea = chartObjectDebugElement.componentInstance;
-      jest.spyOn(chartObjectComponent, "getSrc").mockImplementation((width, height) => "http://placehold.it/" + width + "x" + height);
+      vi.spyOn(chartObjectComponent, "getSrc").mockImplementation((width, height) => "http://placehold.it/" + width + "x" + height);
       fixture.detectChanges();
 
       try {
@@ -383,21 +387,22 @@ describe("ChartPlotArea Integration Tests", () => {
          expect(testRegions).toEqual(chartObjectRegions);
       }
       catch(e) {
-         done.fail(e);
+         fail(e);
+         return;
       }
 
       done();
-   });
+   }));
 
-   xit("should be able to select regions", () => {
+   it.skip("should be able to select regions", () => {
       let fixture = TestBed.createComponent(TestApp);
       let testComponent = fixture.componentInstance;
       let chartObjectDebugElement = fixture.debugElement.query(By.directive(ChartPlotArea));
       let chartObjectComponent: ChartPlotArea = chartObjectDebugElement.componentInstance;
-      const selectRegionSpy = jest.spyOn(testComponent, "selectRegion");
+      const selectRegionSpy = vi.spyOn(testComponent, "selectRegion");
       selectRegionSpy.mockImplementation(() => {});
-      jest.spyOn(chartObjectComponent, "getSrc").mockImplementation((width, height) => "http://placehold.it/" + width + "x" + height);
-      const selectRegionOutput = jest.spyOn(chartObjectComponent.selectRegion, "emit");
+      vi.spyOn(chartObjectComponent, "getSrc").mockImplementation((width, height) => "http://placehold.it/" + width + "x" + height);
+      const selectRegionOutput = vi.spyOn(chartObjectComponent.selectRegion, "emit");
       fixture.detectChanges();
 
       // Mock mouseup event,

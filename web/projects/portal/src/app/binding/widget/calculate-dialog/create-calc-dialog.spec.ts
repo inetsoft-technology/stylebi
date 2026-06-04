@@ -15,11 +15,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { ComponentTool } from "../../../common/util/component-tool";
 import { FormulaEditorDialogModel } from "../../../widget/formula-editor/formula-editor-dialog-model";
 
 import { CreateCalcDialog } from "./create-calc-dialog.component";
-
 
 describe("create calc dialog unit case", () => {
    let createCalcDialog: CreateCalcDialog;
@@ -37,11 +37,11 @@ describe("create calc dialog unit case", () => {
    };
 
    beforeEach(() => {
-      modalService = { open: jest.fn() };
+      modalService = { open: vi.fn() };
       editorService = {
-         getColumNTreeNode: jest.fn(),
-         getFunctionTreeNode: jest.fn(),
-         getOperationTreeNode: jest.fn()
+         getColumNTreeNode: vi.fn(),
+         getFunctionTreeNode: vi.fn(),
+         getOperationTreeNode: vi.fn()
       };
       createCalcDialog = new CreateCalcDialog(modalService);
    });
@@ -61,7 +61,7 @@ describe("create calc dialog unit case", () => {
       createCalcDialog.calcFieldsGroup = ["calc1"];
       createCalcDialog.name = "calc1";
 
-      let showMessageDialog = jest.spyOn(ComponentTool, "showMessageDialog");
+      let showMessageDialog = vi.spyOn(ComponentTool, "showMessageDialog");
       showMessageDialog.mockImplementation(() => Promise.resolve("ok"));
 
       createCalcDialog.showCreateMeasureDialog();
