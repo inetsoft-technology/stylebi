@@ -117,6 +117,14 @@ public class CreateViewsheetResult {
       this.autoBindingRuntimeId = autoBindingRuntimeId;
    }
 
+   public String getNote() {
+      return note;
+   }
+
+   public void setNote(String note) {
+      this.note = note;
+   }
+
    private List<String> headers;
    private List<Map<String, Object>> rows;
    private FlatBinding binding;
@@ -127,6 +135,7 @@ public class CreateViewsheetResult {
    private Boolean hasData;
    /** Echoed back so the client can reuse the recommendation RVS on the next changeType call. */
    private String autoBindingRuntimeId;
+   private String note;
 
    // -------------------------------------------------------------------------
    // Nested model

@@ -25,6 +25,9 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.graph.aesthetic.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.ColorPalettes;
+import java.awt.Color;
 import inetsoft.util.Tool;
 import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
 import inetsoft.web.vswizard.model.VSWizardData;
@@ -1510,6 +1513,209 @@ public class WizAutoBindingService {
          case "in_place" -> LegendsDescriptor.IN_PLACE;
          default -> LegendsDescriptor.RIGHT;
       };
+   }
+
+   /**
+    * Sets chart COLORS in place on an existing runtime chart and re-renders. The mode is chosen from
+    * the chart's color binding:
+    *   - no field on color  -> static: staticColor applies to each measure ref.
+    *   - dimension on color -> categorical: paletteName / colorList / categoryColors apply.
+    *   - measure on color   -> gradient: paletteName resolves to a named gradient frame.
+    * Returns a {@code note} on the result when a requested color could not be applied to the current
+    * binding (in-place only — the caller should recreate with the right field on color).
+    */
+   public CreateViewsheetResult setChartColors(ChartColorsRequest request, Principal user)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(request.getWizRuntimeId(), user);
+
+      if(rvs == null || rvs.getViewsheet() == null) {
+         throw new Exception("Chart runtime not found: " + request.getWizRuntimeId());
+      }
+
+      VSAssembly assembly = rvs.getViewsheet().getAssembly(request.getAssemblyName());
+
+      if(!(assembly instanceof ChartVSAssembly chart)) {
+         throw new Exception("Chart assembly not found: " + request.getAssemblyName());
+      }
+
+      var info = chart.getChartInfo();
+      VSChartInfo vsChartInfo = info.getVSChartInfo();
+      AestheticRef colorField = vsChartInfo == null ? null : vsChartInfo.getColorField();
+      String note = null;
+
+      if(colorField == null || colorField.getDataRef() == null) {
+         if(request.getStaticColor() != null) {
+            applyStaticColor(vsChartInfo, parseColor(request.getStaticColor()));
+         }
+
+         if(request.getPaletteName() != null || request.getColorList() != null ||
+            request.getCategoryColors() != null)
+         {
+            note = "This chart has no color dimension, so a palette/per-category colors can't apply. " +
+               "Recreate with a dimension on the color aesthetic (fieldConfigs/explicitBindings), or use staticColor.";
+         }
+      }
+      else if(colorField.getDataRef() instanceof VSChartAggregateRef) {
+         note = applyGradient(colorField, request);
+      }
+      else {
+         note = applyCategoricalColors(colorField, request);
+      }
+
+      info.setRTChartDescriptor(null);
+
+      CreateViewsheetResult result =
+         wizVsService.fetchAssemblyData(request.getWizRuntimeId(), request.getAssemblyName(), user);
+
+      if(result == null) {
+         result = new CreateViewsheetResult();
+      }
+
+      result.setRuntimeId(request.getWizRuntimeId());
+      result.setAssemblyName(request.getAssemblyName());
+
+      if(request.getViewsheetIdentifier() != null) {
+         result.setViewsheetIdentifier(request.getViewsheetIdentifier());
+      }
+
+      if(note != null) {
+         result.setNote(note);
+      }
+
+      return result;
+   }
+
+   /** Applies a single static color to every bound measure (aggregate) ref. */
+   private void applyStaticColor(VSChartInfo vsChartInfo, Color color) {
+      if(vsChartInfo == null) {
+         return;
+      }
+
+      java.util.List<ChartRef> refs = new java.util.ArrayList<>();
+
+      if(vsChartInfo.getYFields() != null) {
+         refs.addAll(java.util.Arrays.asList(vsChartInfo.getYFields()));
+      }
+
+      if(vsChartInfo.getXFields() != null) {
+         refs.addAll(java.util.Arrays.asList(vsChartInfo.getXFields()));
+      }
+
+      for(ChartRef ref : refs) {
+         if(ref instanceof VSChartAggregateRef agg) {
+            agg.setColorFrame(new StaticColorFrame(color));
+         }
+      }
+   }
+
+   /**
+    * Applies categorical colors to a dimension that is bound to the color aesthetic. Returns a note
+    * if none of the categorical fields were provided.
+    */
+   private String applyCategoricalColors(AestheticRef colorField, ChartColorsRequest request) {
+      if(request.getPaletteName() != null) {
+         CategoricalColorFrame palette = ColorPalettes.getPalette(request.getPaletteName());
+
+         if(palette == null) {
+            throw new IllegalArgumentException("Unknown palette '" + request.getPaletteName() +
+               "'. Valid palettes: " + String.join(", ", ColorPalettes.getPaletteNames()));
+         }
+
+         colorField.setVisualFrame(palette);
+      }
+
+      if(request.getColorList() != null && !request.getColorList().isEmpty()) {
+         CategoricalColorFrame frame = asCategoricalFrame(colorField);
+         Color[] colors = request.getColorList().stream()
+            .map(WizAutoBindingService::parseColor)
+            .toArray(Color[]::new);
+         frame.setDefaultColors(colors);
+         colorField.setVisualFrame(frame);
+      }
+
+      if(request.getCategoryColors() != null && !request.getCategoryColors().isEmpty()) {
+         CategoricalColorFrame frame = asCategoricalFrame(colorField);
+
+         for(Map.Entry<String, String> e : request.getCategoryColors().entrySet()) {
+            frame.setColor(e.getKey(), parseColor(e.getValue()));
+         }
+
+         colorField.setVisualFrame(frame);
+      }
+
+      if(request.getStaticColor() != null) {
+         return "staticColor was ignored: this chart has a color dimension. Use paletteName, " +
+            "colorList, or categoryColors to color the categories.";
+      }
+
+      if(request.getPaletteName() == null && request.getColorList() == null &&
+         request.getCategoryColors() == null)
+      {
+         return "No categorical color provided. Pass paletteName, colorList, or categoryColors.";
+      }
+
+      return null;
+   }
+
+   /** Returns the color field's current CategoricalColorFrame, or a fresh one if it isn't categorical. */
+   private CategoricalColorFrame asCategoricalFrame(AestheticRef colorField) {
+      VisualFrame frame = colorField.getVisualFrame();
+      return frame instanceof CategoricalColorFrame cat ? cat : new CategoricalColorFrame();
+   }
+
+   /**
+    * Applies a named gradient when a measure is on the color aesthetic. Only paletteName is meaningful
+    * for a continuous color scale; colorList/categoryColors return a note.
+    */
+   private String applyGradient(AestheticRef colorField, ChartColorsRequest request) {
+      if(request.getColorList() != null || request.getCategoryColors() != null) {
+         return "This chart has a measure on color (a continuous scale), so colorList/categoryColors " +
+            "don't apply. Use paletteName with a gradient name (e.g. Blues, Reds, Greens, RdYlBu, RdYlGn, Heat).";
+      }
+
+      if(request.getStaticColor() != null) {
+         return "staticColor was ignored: this chart uses a measure-driven color scale. Use paletteName " +
+            "with a gradient name.";
+      }
+
+      if(request.getPaletteName() == null) {
+         return "No gradient provided. Pass paletteName with a gradient name " +
+            "(Blues, Reds, Greens, RdYlBu, RdYlGn, Heat).";
+      }
+
+      ColorFrame gradient = gradientFrameForName(request.getPaletteName());
+
+      if(gradient == null) {
+         return "Unknown gradient '" + request.getPaletteName() +
+            "'. Valid gradients: Blues, Reds, Greens, RdYlBu, RdYlGn, Heat.";
+      }
+
+      colorField.setVisualFrame(gradient);
+      return null;
+   }
+
+   /** Maps a gradient name to its concrete frame (case-insensitive); null when unknown. */
+   private static ColorFrame gradientFrameForName(String name) {
+      return switch(name.trim().toLowerCase()) {
+         case "blues" -> new BluesColorFrame();
+         case "reds" -> new RedsColorFrame();
+         case "greens" -> new GreensColorFrame();
+         case "rdylbu" -> new RdYlBuColorFrame();
+         case "rdylgn" -> new RdYlGnColorFrame();
+         case "heat" -> new HeatColorFrame();
+         default -> null;
+      };
+   }
+
+   /** Parses a #RRGGBB hex string into a Color; throws on a malformed value. */
+   private static Color parseColor(String hex) {
+      try {
+         return Color.decode(hex.trim());
+      }
+      catch(NumberFormatException e) {
+         throw new IllegalArgumentException("Invalid hex color '" + hex + "' (expected #RRGGBB)");
+      }
    }
 
    /**
