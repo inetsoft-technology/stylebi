@@ -198,14 +198,17 @@ class ChartToolTipTest {
       tip.setUniformTier(true);
       tip.addTooltip(palette.put("Sum(Order Number)"), palette.put("398.8K"));
       tip.addTooltip(palette.put("Total"), palette.put("1.8M"));
+      tip.addTooltip(palette.put("Region"), palette.put("West"));
       tip.setStackTotalName("Total");
 
       String out = tip.getTooltip(palette);
 
       assertTrue(out.contains("<div class=\"tt-tier-2\">Sum(Order Number):&nbsp;398.8K"),
                  "Uniform rows render at tier-2");
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Region:&nbsp;West"),
+                 "Row after the total stays at tier-2, not consumed by it");
       assertTrue(out.endsWith("<div class=\"tt-tier-1 tt-stack-total\">Total:&nbsp;1.8M</div>"),
-                 "Uniform card must emphasize the stack total at the end");
+                 "Uniform card must emphasize the stack total at the end even when not last");
       int totalCount = out.split("Total:&nbsp;1\\.8M", -1).length - 1;
       assertEquals(1, totalCount, "Stack total must appear exactly once");
    }

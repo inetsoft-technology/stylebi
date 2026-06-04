@@ -174,7 +174,6 @@ public class ChartToolTip implements DataSerializable {
    private String renderGroupedSoloCard(IndexedSet<String> palette) {
       StringBuilder buffer = new StringBuilder();
       int pairsRendered = 0;
-      // Emphasize the stack total as a footer total, matching the combined-card path.
       int stackTotalIdx = findStackTotalIndex(palette);
 
       for(int i = 0; i < tooltips.size(); i += 2) {
