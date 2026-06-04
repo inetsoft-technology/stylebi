@@ -126,6 +126,6 @@ public class ViewsheetRuntimeController {
       viewsheetService.closeViewsheet(request.getRuntimeId(), user);
    }
 
-   private final ViewsheetService viewsheetService;
    private static final Logger log = LoggerFactory.getLogger(ViewsheetRuntimeController.class);
+   private final ViewsheetService viewsheetService;
 }
