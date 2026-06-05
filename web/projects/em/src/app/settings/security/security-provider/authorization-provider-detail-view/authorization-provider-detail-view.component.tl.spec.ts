@@ -46,6 +46,9 @@ import { MatOption } from "@angular/material/core";
 import { of } from "rxjs";
 
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
+import { AuthorizationProviderModel } from "../security-provider-model/authorization-provider-model";
+import { SecurityProviderType } from "../security-provider-model/security-provider-type.enum";
+import { AuthorizationProviderDetailViewComponent } from "./authorization-provider-detail-view.component";
 
 // EditorPanelComponent.ngAfterContentChecked() does DOM layout queries every cycle, causing
 // NG0100 (ExpressionChangedAfterItHasBeenCheckedError) on MatFormField/MatOption host bindings.
@@ -66,9 +69,6 @@ class StubEditorPanelComponent {
    @Output() resetClicked = new EventEmitter<any>();
    @Output() unsavedChanges = new EventEmitter<boolean>();
 }
-import { AuthorizationProviderModel } from "../security-provider-model/authorization-provider-model";
-import { SecurityProviderType } from "../security-provider-model/security-provider-type.enum";
-import { AuthorizationProviderDetailViewComponent } from "./authorization-provider-detail-view.component";
 
 // ---------------------------------------------------------------------------
 // Fixtures

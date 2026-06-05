@@ -56,7 +56,8 @@
  *   Bulk delete payload must separate folders from data sources.
  */
 
-import { type Mock } from "vitest";import { NgClass } from "@angular/common";
+import { type Mock } from "vitest";
+import { NgClass } from "@angular/common";
 import { provideHttpClient } from "@angular/common/http";
 import { Component, Directive, Input, NO_ERRORS_SCHEMA } from "@angular/core";
 import { FormsModule } from "@angular/forms";

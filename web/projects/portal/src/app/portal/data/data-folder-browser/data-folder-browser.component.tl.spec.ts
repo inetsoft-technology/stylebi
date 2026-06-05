@@ -55,7 +55,8 @@
  *   Direct method calls must enforce the same permission guards advertised by the toolbar.
  */
 
-import { type Mock } from "vitest";import { NgClass } from "@angular/common";
+import { type Mock } from "vitest";
+import { NgClass } from "@angular/common";
 import { provideHttpClient } from "@angular/common/http";
 import { Component, Directive, EventEmitter, Input, NO_ERRORS_SCHEMA, Output } from "@angular/core";
 import { FormsModule } from "@angular/forms";
