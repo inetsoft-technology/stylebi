@@ -189,6 +189,123 @@ public class ChartTypeFilter {
       return WizardRecommenderUtil.getChartRefFieldName(ref);
    }
 
+   // ── Strict explicit pins ──────────────────────────────────────────────────────
+   // Slot-name → field names the user pinned there. When set, (a) readability guards
+   // in getAestheticScore are relaxed for pinned placements (warn, don't veto), and
+   // (b) filterWithConstraints() keeps only candidates satisfying EVERY pin.
+   private Map<String, Set<String>> pinnedSlots = Collections.emptyMap();
+
+   public void setPinnedSlots(Map<String, Set<String>> pinnedSlots) {
+      this.pinnedSlots = pinnedSlots == null ? Collections.emptyMap() : pinnedSlots;
+   }
+
+   private boolean isPinnedTo(String slot, DataRef ref) {
+      Set<String> fields = pinnedSlots.get(slot);
+      return fields != null && ref != null && fields.contains(getRefFieldName(ref));
+   }
+
+   /**
+    * True iff every pinned (slot, field) pair is realized by this candidate.
+    * Per-pin set containment (NOT a bonus-count equality: a field bound twice in one
+    * slot would make a count exceed the pin total and wrongly drop a satisfying candidate).
+    */
+   protected boolean satisfiesPins(VSChartInfo info, Map<String, Set<String>> slotFields) {
+      for(Map.Entry<String, Set<String>> e : slotFields.entrySet()) {
+         Set<String> bound = boundFieldNames(info, e.getKey());
+
+         if(!bound.containsAll(e.getValue())) {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /** Field names currently bound to the given slot of this candidate. */
+   private Set<String> boundFieldNames(VSChartInfo info, String slot) {
+      Set<String> names = new HashSet<>();
+
+      switch(slot) {
+      case "x" -> addRefNames(names, info.getXFields());
+      case "y" -> addRefNames(names, info.getYFields());
+      case "group" -> addRefNames(names, info.getGroupFields());
+      case "color" -> addAestheticName(names, info.getColorField());
+      case "shape" -> addAestheticName(names, info.getShapeField());
+      case "size" -> addAestheticName(names, info.getSizeField());
+      case "text" -> addAestheticName(names, info.getTextField());
+      default -> { }
+      }
+
+      return names;
+   }
+
+   private void addRefNames(Set<String> names, ChartRef[] refs) {
+      if(refs != null) {
+         for(ChartRef ref : refs) {
+            if(ref != null) {
+               names.add(getRefFieldName(ref));
+            }
+         }
+      }
+   }
+
+   private void addAestheticName(Set<String> names, AestheticRef aref) {
+      if(aref != null && aref.getDataRef() != null) {
+         names.add(getRefFieldName(aref.getDataRef()));
+      }
+   }
+
+   /**
+    * Like {@link #filterWithPreference} but pins are CONSTRAINTS: the prefRanked list
+    * contains only candidates satisfying every pin, sorted by base score.
+    */
+   protected FilterResult filterWithConstraints(ChartPreference pref) {
+      List<ChartInfo> defaultList = filter();
+
+      if(pref == null || pref.isEmpty() || infos.isEmpty()) {
+         return new FilterResult(defaultList, Collections.emptyList());
+      }
+
+      Map<String, Set<String>> slotFields = pref.getSlotFields();
+      List<ChartCombinationUtil.ScoredInfo> satisfying = new ArrayList<>();
+
+      for(ChartInfo info : infos) {
+         if(info instanceof VSChartInfo vsci && satisfiesPins(vsci, slotFields)) {
+            satisfying.add(new ChartCombinationUtil.ScoredInfo(
+               info, scores.getOrDefault(info.hashCode(), 0)));
+         }
+      }
+
+      satisfying.sort(Comparator.comparingInt(ChartCombinationUtil.ScoredInfo::getScore).reversed());
+      return new FilterResult(defaultList, satisfying);
+   }
+
+   /**
+    * Aesthetic cardinality caps for the given chart, in slot order {color, shape, size}.
+    * Mirrors the (previously inline) thresholds in getAestheticScore — shape is 5 for
+    * line / 16 for point, size is 200 for word cloud — and is shared with the
+    * post-selection warning in WizAutoBindingService so notes never claim a cap the
+    * scorer didn't apply.
+    */
+   public static int[] aestheticCaps(VSChartInfo info) {
+      int maxShapes = 8;
+      int maxSize = 10;
+
+      if(GraphTypes.isLine(info.getChartType())) {
+         maxShapes = 5;
+      }
+      else if(GraphTypes.isPoint(info.getChartType())) {
+         maxShapes = 16;
+
+         // word cloud
+         if(info.getTextField() != null) {
+            maxSize = 200;
+         }
+      }
+
+      return new int[] { 40, maxShapes, maxSize };
+   }
+
    /**
     * Get the scores from chart info (hash) to it's score.
     */
@@ -552,23 +669,10 @@ public class ChartTypeFilter {
       // high-cardinality dimension to color/shape/size is infeasible (unreadable legend) whether or
       // not auto-ordering is on. Only the graduated ordering *preference* depends on autoOrder.
       int score = 0;
-      int maxShapes = 8;
-      int maxSize = 10;
-
-      if(GraphTypes.isLine(info.getChartType())) {
-         maxShapes = 5;
-      }
-      else if(GraphTypes.isPoint(info.getChartType())) {
-         maxShapes = 16;
-
-         // word cloud
-         if(info.getTextField() != null) {
-            maxSize = 200;
-         }
-      }
 
       AestheticRef[] arefs = { info.getColorField(), info.getShapeField(), info.getSizeField() };
-      int[] maxN = { 40, maxShapes, maxSize };
+      int[] maxN = aestheticCaps(info);
+      String[] slotNames = { "color", "shape", "size" };
 
       for(int i = 0; i < arefs.length; i++) {
          AestheticRef aref = arefs[i];
@@ -577,6 +681,11 @@ public class ChartTypeFilter {
             ChartRef ref = (ChartRef) aref.getDataRef();
 
             if(ref instanceof VSChartDimensionRef) {
+               // user pinned this dimension here: readability is a warning upstream, not a veto
+               if(isPinnedTo(slotNames[i], ref)) {
+                  continue;
+               }
+
                int n = getCardinality(ref);
                double max = autoOrder ? maxN[i] : (maxN[i] * 1.5);
 
