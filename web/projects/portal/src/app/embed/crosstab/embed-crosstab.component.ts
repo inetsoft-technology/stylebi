@@ -587,7 +587,8 @@ export class EmbedCrosstabComponent extends CommandProcessor implements OnInit, 
          if(this.inputRuntimeId) {
             const refreshEvent: RefreshVsAssemblyEvent = {
                vsRuntimeId: this.runtimeId,
-               assemblyName: this.assemblyName
+               assemblyName: this.assemblyName,
+               assemblySize: this.assemblySize
             };
             this.viewsheetClient.sendEvent("/events/vs/refresh/assembly", refreshEvent);
          }

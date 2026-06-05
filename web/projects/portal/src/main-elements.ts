@@ -35,14 +35,12 @@ import { VSDndService } from "./app/common/dnd/vs-dnd.service";
 import { FullScreenService } from "./app/common/services/full-screen.service";
 import { UIContextService } from "./app/common/services/ui-context.service";
 import { ViewsheetClientService } from "./app/common/viewsheet-client";
-import { ChartService } from "./app/graph/services/chart.service";
 import {
    ComposerToken,
    ContextProvider,
    EmbedAssemblyContextProviderFactory
 } from "./app/vsobjects/context-provider.service";
 import { RichTextService } from "./app/vsobjects/dialog/rich-text-dialog/rich-text.service";
-import { VSChartService } from "./app/vsobjects/objects/chart/services/vs-chart.service";
 import { DataTipService } from "./app/vsobjects/objects/data-tip/data-tip.service";
 import { PopComponentService } from "./app/vsobjects/objects/data-tip/pop-component.service";
 import { MiniToolbarService } from "./app/vsobjects/objects/mini-toolbar/mini-toolbar.service";
@@ -62,6 +60,11 @@ import "./main-base-element";
 createApplication({
    providers: [
       ...embedElementConfig.providers,
+      // Empty router: these elements are used exclusively as standalone custom elements
+      // via the `url` attribute. Route-based navigation (/embed/chart/...) is not supported
+      // in this build — the elements bundle is embedded in third-party pages, not served as
+      // a navigable Angular app. Do not add embedXxxRoutes here without also reinstating
+      // the full route-navigation flow.
       provideRouter([]),
 
       // Shared providers for all embed elements — kept at app level so they are available
@@ -95,13 +98,6 @@ createApplication({
          provide: ContextProvider,
          useFactory: EmbedAssemblyContextProviderFactory,
          deps: [[new Optional(), ComposerToken]]
-      },
-
-      // Chart-specific providers
-      VSChartService,
-      {
-         provide: ChartService,
-         useExisting: VSChartService
       },
    ]
 }).then(app => {
