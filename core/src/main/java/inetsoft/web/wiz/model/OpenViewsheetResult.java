@@ -40,6 +40,15 @@ public class OpenViewsheetResult {
       this.assemblyName = assemblyName;
    }
 
+   public CreateViewsheetResult.FlatBinding getBinding() {
+      return binding;
+   }
+
+   public void setBinding(CreateViewsheetResult.FlatBinding binding) {
+      this.binding = binding;
+   }
+
    private String runtimeId;
    private String assemblyName;
+   private CreateViewsheetResult.FlatBinding binding;
 }

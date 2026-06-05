@@ -549,6 +549,11 @@ public class WizVsService {
       }
 
       CreateViewsheetResult result = executeAndExtract(rvs, assembly);
+
+      if(result != null) {
+         result.setBinding(collectFlatBinding(assembly));
+      }
+
       boolean metadataMode = vs.getViewsheetInfo().isMetadata();
       result.setHasData(computeHasData(metadataMode, result));
       return result;
@@ -872,7 +877,7 @@ public class WizVsService {
     * Builds a {@link CreateViewsheetResult.FlatBinding} from the assembly's current binding.
     * Returns null for assembly types that carry no aggregate binding (e.g. Table, Image).
     */
-   private CreateViewsheetResult.FlatBinding collectFlatBinding(VSAssembly assembly) {
+   public CreateViewsheetResult.FlatBinding collectFlatBinding(VSAssembly assembly) {
       if(assembly instanceof ChartVSAssembly chart) {
          return collectChartFlatBinding(chart.getVSChartInfo());
       }
@@ -955,7 +960,54 @@ public class WizVsService {
          return null;
       }
 
-      return new CreateViewsheetResult.FlatBinding(dimensions, measures);
+      return new CreateViewsheetResult.FlatBinding(dimensions, measures, collectChartSlots(info));
+   }
+
+   /**
+    * Resolved slot placement for a chart: which slot each bound field landed in.
+    * Reads the RUNTIME refs when present (the renderer reads getRT*Fields(); design and
+    * runtime can diverge — mekko trims X at runtime, drill visibility, period-calendar
+    * injects a runtime dim), falling back to design refs before execution.
+    * Measure refs are reported as their full aggregate name ("Sum(amount)") to match
+    * the rankingCol convention; dimensions by field name.
+    */
+   static Map<String, Object> collectChartSlots(VSChartInfo info) {
+      Map<String, Object> slots = new LinkedHashMap<>();
+      slots.put("x", slotNames(rtOrDesign(info.getRTXFields(), info.getXFields())));
+      slots.put("y", slotNames(rtOrDesign(info.getRTYFields(), info.getYFields())));
+      slots.put("group", slotNames(rtOrDesign(info.getRTGroupFields(), info.getGroupFields())));
+      slots.put("color", aestheticSlotName(info.getColorField()));
+      slots.put("shape", aestheticSlotName(info.getShapeField()));
+      slots.put("size", aestheticSlotName(info.getSizeField()));
+      slots.put("text", aestheticSlotName(info.getTextField()));
+      return slots;
+   }
+
+   private static ChartRef[] rtOrDesign(ChartRef[] rt, ChartRef[] design) {
+      return rt != null && rt.length > 0 ? rt : design;
+   }
+
+   private static List<String> slotNames(ChartRef[] refs) {
+      List<String> names = new ArrayList<>();
+
+      if(refs != null) {
+         for(ChartRef ref : refs) {
+            if(ref != null) {
+               names.add(slotName(ref));
+            }
+         }
+      }
+
+      return names;
+   }
+
+   private static String slotName(DataRef ref) {
+      return ref instanceof VSChartAggregateRef agg ? agg.getFullName()
+         : WizardRecommenderUtil.getChartRefFieldName(ref);
+   }
+
+   private static String aestheticSlotName(AestheticRef aref) {
+      return aref == null || aref.getDataRef() == null ? null : slotName(aref.getDataRef());
    }
 
    /**
@@ -1074,7 +1126,31 @@ public class WizVsService {
          return null;
       }
 
-      return new CreateViewsheetResult.FlatBinding(dimensions, measures);
+      Map<String, Object> slots = new LinkedHashMap<>();
+      slots.put("rows", refSlotNames(cinfo.getDesignRowHeaders()));
+      slots.put("cols", refSlotNames(cinfo.getDesignColHeaders()));
+      slots.put("aggregates", refSlotNames(cinfo.getDesignAggregates()));
+
+      return new CreateViewsheetResult.FlatBinding(dimensions, measures, slots);
+   }
+
+   /**
+    * Collects slot names from an arbitrary {@link DataRef} array, applying the same
+    * field-name convention as {@link #slotName(DataRef)} (measures by full aggregate
+    * name, dimensions by field name). Used for crosstab row/col/aggregate slots.
+    */
+   private static List<String> refSlotNames(DataRef[] refs) {
+      List<String> names = new ArrayList<>();
+
+      if(refs != null) {
+         for(DataRef ref : refs) {
+            if(ref != null) {
+               names.add(slotName(ref));
+            }
+         }
+      }
+
+      return names;
    }
 
    /**
@@ -1129,7 +1205,10 @@ public class WizVsService {
          info.setNOrP(ref.getN());
       }
 
-      return new CreateViewsheetResult.FlatBinding(List.of(), List.of(info));
+      Map<String, Object> slots = new LinkedHashMap<>();
+      slots.put("value", ref.getFullName());
+
+      return new CreateViewsheetResult.FlatBinding(List.of(), List.of(info), slots);
    }
 
    /**

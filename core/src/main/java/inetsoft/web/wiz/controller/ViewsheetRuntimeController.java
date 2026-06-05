@@ -23,11 +23,13 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.Tool;
 import inetsoft.web.wiz.model.CloseViewsheetRequest;
 import inetsoft.web.wiz.model.OpenViewsheetResult;
 import inetsoft.web.wiz.service.WizVisualizationService;
+import inetsoft.web.wiz.service.WizVsService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,8 +44,11 @@ import java.security.Principal;
 @RequestMapping("/api/wiz")
 public class ViewsheetRuntimeController {
 
-   public ViewsheetRuntimeController(ViewsheetService viewsheetService) {
+   public ViewsheetRuntimeController(ViewsheetService viewsheetService,
+                                     WizVsService wizVsService)
+   {
       this.viewsheetService = viewsheetService;
+      this.wizVsService = wizVsService;
    }
 
    /**
@@ -79,16 +84,24 @@ public class ViewsheetRuntimeController {
 
       OpenViewsheetResult result = new OpenViewsheetResult();
       result.setRuntimeId(runtimeId);
-      result.setAssemblyName(findChartAssemblyName(runtimeId, user));
+
+      VSAssembly assembly = findChartAssembly(runtimeId, user);
+
+      if(assembly != null) {
+         result.setAssemblyName(assembly.getName());
+         result.setBinding(wizVsService.collectFlatBinding(assembly));
+      }
+
       return result;
    }
 
    /**
-    * Resolve the primary chart assembly name of an opened runtime so callers can drive
-    * filter/browse-data/embed without a separate lookup. Prefers a chart assembly; falls
-    * back to the first assembly. Returns null if it cannot be determined (non-fatal).
+    * Resolve the primary chart assembly of an opened runtime so callers can drive
+    * filter/browse-data/embed (and echo its binding) without a separate lookup. Prefers a
+    * chart assembly; falls back to the first assembly. Returns null if it cannot be
+    * determined (non-fatal).
     */
-   private String findChartAssemblyName(String runtimeId, Principal user) {
+   private VSAssembly findChartAssembly(String runtimeId, Principal user) {
       try {
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
          Viewsheet vs = rvs != null ? rvs.getViewsheet() : null;
@@ -99,12 +112,12 @@ public class ViewsheetRuntimeController {
          }
 
          for(Assembly a : assemblies) {
-            if(a instanceof ChartVSAssembly) {
-               return a.getName();
+            if(a instanceof ChartVSAssembly chart) {
+               return chart;
             }
          }
 
-         return assemblies[0].getName();
+         return assemblies[0] instanceof VSAssembly vsa ? vsa : null;
       }
       catch(Exception e) {
          log.warn("Could not resolve primary chart assembly for runtime {}: {}", runtimeId, e.getMessage());
@@ -130,5 +143,6 @@ public class ViewsheetRuntimeController {
    }
 
    private final ViewsheetService viewsheetService;
+   private final WizVsService wizVsService;
    private static final Logger log = LoggerFactory.getLogger(ViewsheetRuntimeController.class);
 }
