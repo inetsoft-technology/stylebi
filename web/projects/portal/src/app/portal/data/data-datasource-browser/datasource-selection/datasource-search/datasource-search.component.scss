@@ -20,21 +20,26 @@
 }
 
 .datasource-search-field {
-  position: relative;
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--inet-space-2);
 }
 
-.datasource-search-field__icon {
-  position: absolute;
-  top: 50%;
-  left: var(--inet-space-3);
-  transform: translateY(-50%);
-  color: var(--inet-text-muted-color);
-  pointer-events: none;
+.datasource-search-field__button {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--inet-control-height-md);
+  height: var(--inet-control-height-md);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
 }
 
 .search-input {
+  flex: 1 1 auto;
   min-width: 185px;
-  padding-left: calc(var(--inet-space-6) + var(--inet-space-2));
   border-radius: var(--inet-radius-md);
 }

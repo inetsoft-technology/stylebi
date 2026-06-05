@@ -16,18 +16,30 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <div class="data-model-edit-pane">
-  <div class="d-flex data-model-toolbar">
-    <div class="data-model-title">
-      <i class="partition-icon"></i>
-      <span class="data-model-name" [attr.title]="displayTitle">
-        {{displayTitle}}
-      </span>
+  <div class="data-model-toolbar">
+    <div class="data-model-toolbar__main">
+      <div class="data-model-title">
+        <div class="data-model-title__text">
+          <div class="data-model-title__eyebrow">_#(Physical View)</div>
+          <span class="data-model-name" [attr.title]="displayTitle">
+            {{headerTitle}}
+          </span>
+        </div>
+      </div>
+      <div class="data-model-title__subtitle">
+        {{headerSubtitle}}
+      </div>
     </div>
     @if (!joinEditing) {
       <div class="data-model-toolbar__actions">
-        <button type="button" class="btn btn-light-no-bg" [attr.title]="'_#(Save)'"
-          [disabled]="!isModified" (click)="save()">
-          <i class="save-icon"></i>
+        <button type="button" class="btn btn-primary"
+          [disabled]="!isModified"
+          (click)="save()">
+          _#(Save)
+        </button>
+        <button type="button" class="btn btn-secondary"
+          (click)="close()">
+          _#(Close)
         </button>
       </div>
     }
@@ -45,19 +57,38 @@
           <div class="data-model-left-top-pane">
             <div class="data-model-header-pane">
               <span class="data-model-header-pane__title">_#(Tables)</span>
-              <div class="join-tree-toolbar">
-                <auto-collapse-toolbar [actions]="actions" [minEmpty]="50"
-                ></auto-collapse-toolbar>
+              <div class="join-tree-toolbar toolbar-ghost-actions" role="toolbar" aria-label="_#(Tables)">
+                @for (action of actions; track action) {
+                  @if (action.visible()) {
+                    <button type="button"
+                            class="btn btn-light-no-bg btn-sm"
+                            [title]="!!action.tooltip ? action.tooltip() : ''"
+                            [disabled]="!action.enabled()"
+                            (click)="action.action()">
+                      <i [class]="action.iconClass"></i>
+                    </button>
+                  }
+                }
               </div>
             </div>
             <div class="table-search-input">
-              <input type="text" class="form-control search-input" name="_#(Data source name filter)"
-                placeholder="_#(Search)" [(ngModel)]="filterTablesString"
-                (keyup.enter)="search()" [disabled]="joinEditing">
-              @if (filterTablesString) {
-                <i class="close-icon icon-size-medium icon-color-default"
-                aria-hidden="true" (click)="resetSearchMode()" [class.disabled]=joinEditing></i>
-              }
+              <div class="table-search-input__field">
+                <input type="text" class="form-control search-input" name="_#(Data source name filter)"
+                  placeholder="_#(Search)" [(ngModel)]="filterTablesString"
+                  (keyup.enter)="search()" [disabled]="joinEditing">
+                @if (filterTablesString) {
+                  <i class="close-icon icon-size-medium icon-color-default"
+                  aria-hidden="true" (click)="resetSearchMode()" [class.disabled]=joinEditing></i>
+                }
+              </div>
+              <button type="button"
+                      class="btn btn-light-no-bg table-search-input__button"
+                      title="_#(Search)"
+                      aria-label="_#(Search)"
+                      [disabled]="joinEditing"
+                      (click)="search()">
+                <i class="search-icon icon-size-medium icon-color-default" aria-hidden="true"></i>
+              </button>
             </div>
             <div class="data-model-left-pane physical-left-top-pane data-model-left-pane-scrollbar">
               <physical-model-table-tree #tableTree

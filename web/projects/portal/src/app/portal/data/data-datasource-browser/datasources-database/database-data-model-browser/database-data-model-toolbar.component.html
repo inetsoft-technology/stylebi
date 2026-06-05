@@ -17,21 +17,6 @@
 -->
 <div class="btn-toolbar toolbar-ghost-actions model-toolbar flex-grow-0 flex-shrink-0" role="toolbar">
   <div class="btn-group model-btn-group" role="group">
-    @if (searchVisible) {
-      <div class="search-input">
-        <input type="text" #searchInput
-          [(ngModel)]="searchQuery"
-          [ngbTypeahead]="searchFunc"
-          [focusFirst]="false"
-          (keyup.enter)="search()"
-          (selectItem)="search($event.item)"
-          [placeholder]="'_#(data.datasets.searchWithinFolder)'"/>
-      </div>
-    }
-    <i role="button" class="btn py-1 search-icon"
-      title="_#(data.datasets.searchWithinFolder)"
-      (click)="toggleSearch($event)">
-    </i>
     @if (!selectionOn && !isvpm) {
       <i class="btn py-1 new-partition-icon" placement="left"
         [class.disabled]="!editable" title="_#(data.datasources.newPhysicalView)"
@@ -57,6 +42,8 @@
         (click)="addVPMModel()">
       </i>
     }
+  </div>
+  <div class="btn-group model-btn-group" role="group">
     @if (selectionOn && !isvpm) {
       <i role="button" class="btn py-1 folder-move-icon"
         [class.disabled]="moveDisable"
@@ -71,11 +58,5 @@
         title="_#(data.datasets.deleteSelected)">
       </i>
     }
-    <i role="button" class="btn py-1"
-      [class.selected-icon]="selectionOn"
-      [class.select-empty-icon]="!selectionOn"
-      [title]="toggleSelectTooltip"
-      (click)="toggleSelectionState()">
-    </i>
   </div>
 </div>

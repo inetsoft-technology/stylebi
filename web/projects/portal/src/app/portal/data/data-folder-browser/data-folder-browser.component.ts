@@ -25,9 +25,9 @@ import {
    Renderer2,
    ViewChild
 } from "@angular/core";
-import { Validators, FormsModule } from "@angular/forms";
+import { Validators } from "@angular/forms";
 import { ActivatedRoute, ParamMap, Router } from "@angular/router";
-import { NgbModal, NgbTypeahead, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
 import { from, Observable, of, Subscription, throwError } from "rxjs";
 import {
    catchError,
@@ -82,9 +82,7 @@ import {
    DataSourcesTreeActionsService
 } from "../data-navigation-tree/data-sources-tree-actions.service";
 import { AssetConstants } from "../../../common/data/asset-constants";
-import { AssetDescriptionComponent } from "../data-datasource-browser/asset-description/asset-description.component";
 import { DataFolderListViewComponent } from "./data-folder-list-view/data-folder-list-view.component";
-import { NgClass } from "@angular/common";
 import { DataDetailsPaneService, WorksheetSelectionRequest } from "../services/data-details-pane.service";
 
 const FOLDER_URI: string = "../api/data/folders";
@@ -155,7 +153,7 @@ interface WorksheetDependentAssetInfo {
     templateUrl: "data-folder-browser.component.html",
     styleUrls: ["data-folder-browser.component.scss"],
     providers: [ViewsheetClientService],
-    imports: [NgClass, FormsModule, NgbTypeahead, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, DataFolderListViewComponent, AssetDescriptionComponent, DataNotificationsComponent]
+    imports: [NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, DataFolderListViewComponent, DataNotificationsComponent]
 })
 export class DataFolderBrowserComponent extends CommandProcessor implements OnInit, OnDestroy {
    datasets: WorksheetBrowserInfo[] = [];

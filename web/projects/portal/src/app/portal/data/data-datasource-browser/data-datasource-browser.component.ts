@@ -92,6 +92,9 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    newVpmEnabled = false;
    currentFolderPathString: string = "";
    currentFolderScope: string = "";
+   currentFolderChain: DataSourceInfo[] = [];
+   currentFolderDetails: DataSourceInfo = null;
+   currentFolderIsRoot: boolean = true;
    currentSearchQuery: string = "";
    folders: DataSourceInfo[] = [];
    physicalTablePermission: boolean;
@@ -177,6 +180,27 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    get moveDisable(): boolean {
       return !this.selectedItems || this.selectedItems.length === 0 || this.isdisableAction
          || !this.isSelectionDeletable() || !this.isSelectionEditable();
+   }
+
+   get currentFolderInfo(): DataSourceInfo {
+      return this.currentFolderDetails || (this.currentFolderChain?.length ?
+         this.currentFolderChain[this.currentFolderChain.length - 1] : null);
+   }
+
+   get currentFolderActionsVisible(): boolean {
+      return !this.currentFolderIsRoot && (!!this.currentFolderPathString || !!this.currentFolderChain?.length);
+   }
+
+   get currentFolderRenameDisabled(): boolean {
+      return !this.currentFolderInfo || !(this.currentFolderInfo.editable && this.currentFolderInfo.deletable);
+   }
+
+   get currentFolderMoveDisabled(): boolean {
+      return this.currentFolderRenameDisabled;
+   }
+
+   get currentFolderDeleteDisabled(): boolean {
+      return !this.currentFolderInfo?.deletable;
    }
 
    ngOnInit(): void {
@@ -269,13 +293,17 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
          params: !!path ? new HttpParams().set("path", path) : null
       })
          .subscribe(model => {
+            const normalizedPath = this.normalizeFolderPath(path);
             this.newDatasourceEnabled = model.newDatasourceEnabled;
             this.newVpmEnabled = model.newVpmEnabled;
+            this.currentFolderChain = model.currentFolder || [];
+            this.currentFolderIsRoot = !!model.root;
             this.datasources = this.sortDataSources(model.dataSourceList, this.sortOptions);
             this.multiObjectSelectList.setObjectsKeepSelection(this.datasources);
             this.updateSelectedItems(this.datasources);
             this.fetchDataSourceStatuses(this.datasources, false);
-            this.currentFolderPathString = path;
+            this.currentFolderPathString = normalizedPath;
+            this.loadCurrentFolderDetails();
          });
    }
 
@@ -383,6 +411,47 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
       const idx = path.lastIndexOf("/");
       const parentPath = idx < 0 ? "/" : path.substring(0, idx);
       return {path: parentPath, scope: 0};
+   }
+
+   private normalizeFolderPath(path: string): string {
+      return !path || path === "/" ? "" : path;
+   }
+
+   private loadCurrentFolderDetails(): void {
+      if(this.currentFolderIsRoot || !this.currentFolderPathString) {
+         this.currentFolderDetails = null;
+         return;
+      }
+
+      this.httpClient.get<DataSourceInfo>(
+         DATASOURCE_FOLDER_URI + "/" + Tool.encodeURIComponentExceptSlash(this.currentFolderPathString)
+      ).subscribe(
+         (folder) => this.currentFolderDetails = folder,
+         () => this.currentFolderDetails = null
+      );
+   }
+
+   private withCurrentFolderDetails(action: (folder: DataSourceInfo) => void): void {
+      const fallbackFolder = this.currentFolderInfo;
+
+      if(this.currentFolderPathString) {
+         this.httpClient.get<DataSourceInfo>(
+            DATASOURCE_FOLDER_URI + "/" + Tool.encodeURIComponentExceptSlash(this.currentFolderPathString)
+         ).subscribe(
+            (folder) => {
+               this.currentFolderDetails = folder;
+               action(folder);
+            },
+            () => {
+               if(!!fallbackFolder) {
+                  action(fallbackFolder);
+               }
+            }
+         );
+      }
+      else if(!!fallbackFolder) {
+         action(fallbackFolder);
+      }
    }
 
    /**
@@ -594,6 +663,14 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
          });
    }
 
+   renameCurrentFolder(): void {
+      if(this.currentFolderRenameDisabled) {
+         return;
+      }
+
+      this.withCurrentFolderDetails((folder) => this.renameFolder(folder));
+   }
+
    moveDataSource(datasource: DataSourceInfo): void {
       if(!(datasource.editable && datasource.deletable)) {
          return;
@@ -607,6 +684,14 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
          (error) => {
             this.dataNotifications.notifications.danger(error.error.message);
          });
+   }
+
+   moveCurrentFolder(): void {
+      if(this.currentFolderMoveDisabled) {
+         return;
+      }
+
+      this.withCurrentFolderDetails((folder) => this.moveDataSource(folder));
    }
 
    moveSelected(): void {
@@ -699,6 +784,16 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
          this.datasourceService.deleteDataSourceByInfo(datasource,
              (type: string, message: string) => this.handleResponseDatasource(type, message, index));
       }
+   }
+
+   deleteCurrentFolder(): void {
+      if(this.currentFolderDeleteDisabled) {
+         return;
+      }
+
+      this.withCurrentFolderDetails((folder) =>
+         this.datasourceService.deleteDataSourceFolder(folder,
+            (type: string, message: string) => this.handleResponse(type, message)));
    }
 
    handleResponse(type: string, message: string): void {

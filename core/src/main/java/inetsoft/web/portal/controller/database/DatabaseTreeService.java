@@ -144,6 +144,10 @@ public class DatabaseTreeService {
                node.setType(DatabaseTreeNodeType.FOLDER);
                node.setCatalog(entry.getProperty(XSourceInfo.CATALOG));
                node.setSchema(entry.getProperty(XSourceInfo.SCHEMA));
+
+               if(!loadColumns && node.getSchema() != null && !node.getSchema().isEmpty()) {
+                  node.setTableCount(getPhysicalTableChildCount(entry, principal));
+               }
             }
             else if(entry.isColumn()) {
                node.setType(DatabaseTreeNodeType.COLUMN);
@@ -206,11 +210,16 @@ public class DatabaseTreeService {
          boolean isLeaf = loadColumns ? "column".equals(child.getType()) : !Folder.TYPE.equals(child.getType());
 
          TreeNodeModel.Builder  builder = TreeNodeModel.builder()
-            .label(child.getName())
+            .label(getNodeLabel(child))
             .data(child)
             .leaf(isLeaf)
             .type(child.getType())
             .cssClass("action-color");
+         String tooltip = getNodeTooltip(child);
+
+         if(tooltip != null) {
+            builder.tooltip(tooltip);
+         }
 
          boolean loadTimeOut = System.currentTimeMillis() >= startTime + META_LOAD_TIME_OUT;
 
@@ -231,6 +240,44 @@ public class DatabaseTreeService {
       }
 
       return results;
+   }
+
+   public String getNodeLabel(DatabaseTreeNode node) {
+      Integer tableCount = node.getTableCount();
+
+      if(tableCount != null && tableCount > 0) {
+         return node.getName() + " (" + tableCount + ")";
+      }
+
+      return node.getName();
+   }
+
+   public String getNodeTooltip(DatabaseTreeNode node) {
+      Integer tableCount = node.getTableCount();
+
+      if(tableCount != null && tableCount > 0) {
+         return tableCount + " table" + (tableCount == 1 ? "" : "s");
+      }
+
+      return null;
+   }
+
+   private int getPhysicalTableChildCount(AssetEntry folderEntry, Principal principal)
+      throws Exception
+   {
+      AssetEntry.Selector selector =
+         new AssetEntry.Selector(AssetEntry.Type.DATA, AssetEntry.Type.PHYSICAL);
+      AssetEntry[] entries = assetRepository.getEntries(folderEntry, principal, ResourceAction.READ,
+         selector);
+      int count = 0;
+
+      for(AssetEntry entry : entries) {
+         if(entry.isPhysicalTable()) {
+            count++;
+         }
+      }
+
+      return count;
    }
 
    public TreeNodeModel getAllAlias(String basePath, Principal principal) throws Exception {

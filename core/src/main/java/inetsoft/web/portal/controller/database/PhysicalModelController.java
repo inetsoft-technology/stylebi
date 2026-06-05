@@ -185,7 +185,8 @@ public class PhysicalModelController {
 
       return nodes.stream()
          .map((node) ->TreeNodeModel.builder()
-            .label(node.getName())
+            .label(databaseTreeService.getNodeLabel(node))
+            .tooltip(databaseTreeService.getNodeTooltip(node))
             .data(node)
             .leaf(!node.getType().equals(DatabaseTreeNodeType.FOLDER))
             .type(node.getType())

@@ -18,8 +18,22 @@
 <div class="datasource-browser-container">
   <div class="d-flex flex-column align-items-stretch flex-grow-1 flex-shrink-1 overflow-hidden col-12 g-0 p-0">
     <div class="d-flex flex-column align-items-stretch flex-grow-1 flex-shrink-1 overflow-hidden h-100">
-      <div class="btn-toolbar datasource-workspace-actions toolbar-ghost-actions" role="toolbar">
-        <div class="btn-group datasource-btn-group" role="group">
+      <div class="datasource-workspace-header">
+        <div class="datasource-workspace-heading">
+          <div class="datasource-workspace-eyebrow">_#(Data Sources Folder)</div>
+          <div class="datasource-workspace-title">
+            {{currentFolderPathString || '_#(Data Sources)'}}
+          </div>
+          <div class="datasource-workspace-subtitle">
+            @if (searchView) {
+              _#(data.datasets.searchResults): {{currentSearchQuery}}
+            } @else {
+              _#(Browse and manage data sources in the selected folder.)
+            }
+          </div>
+        </div>
+        <div class="btn-toolbar datasource-workspace-actions toolbar-ghost-actions" role="toolbar">
+          <div class="btn-group datasource-btn-group" role="group">
           <!--
           end user-managed drivers is dangerous, disabling for now until we figure
           out a safe way to do this
@@ -29,63 +43,47 @@
           <!--aria-label="_#(data.datasources.manageDrivers)"-->
           <!--(click)="manageDrivers()">-->
         <!--</i>-->
-        @if (searchVisible) {
-          <div class="search-input">
-            <input type="text" #searchInput
-              [(ngModel)]="searchQuery"
-              [ngbTypeahead]="searchFunc"
-              [focusFirst]="false"
-              (keyup.enter)="search()"
-              (selectItem)="search($event.item)"
-              [placeholder]="'_#(data.datasets.searchWithinFolder)'"/>
-          </div>
-        }
-        <i role="button" class="btn py-1 search-icon"
-          title="_#(data.datasets.searchWithinFolder)"
-          (click)="toggleSearch($event)">
-        </i>
-        <i role="button" class="btn py-1 refresh-icon"
-          title="_#(data.datasources.refreshStatus)"
-          [class.disabled]="(selectionOn && selectedItems.length == 0) || updatingStatus"
-          (click)="loadDataSourceStatus()">
-        </i>
-        @if (newDatasourceEnabled && !selectionOn) {
-          <i class="btn database-plus-icon py-1 no-caret"
-            title="_#(data.datasources.newDataSource)"
-            aria-label="_#(data.datasources.newDataSource)"
-            (click)="showListings()">
+          <i role="button" class="btn py-1 refresh-icon"
+             title="_#(data.datasources.refreshStatus)"
+             [class.disabled]="updatingStatus"
+             (click)="loadDataSourceStatus()">
           </i>
-        }
-        @if (!selectionOn) {
+          @if (newDatasourceEnabled) {
+            <i class="btn database-plus-icon py-1 no-caret"
+               title="_#(data.datasources.newDataSource)"
+               aria-label="_#(data.datasources.newDataSource)"
+               (click)="showListings()">
+            </i>
+          }
           <i role="button" class="btn py-1 folder-plus-icon"
-            title="_#(New Folder)"
-            [class.disabled]="!newDatasourceEnabled"
-            (click)="addFolder()">
+             title="_#(New Folder)"
+             [class.disabled]="!newDatasourceEnabled"
+             (click)="addFolder()">
           </i>
-        }
-        @if (selectionOn) {
-          <i role="button" class="btn py-1 folder-move-icon"
-            [class.disabled]="moveDisable"
-            (click)="moveSelected()"
-            title="_#(data.datasets.moveSelected)">
-          </i>
-        }
-        @if (selectionOn) {
-          <i role="button" class="btn py-1 trash-icon"
-            [class.disabled]="selectedItems.length === 0 || !isSelectionDeletable()"
-            (click)="deleteSelected()"
-            title="_#(data.datasets.deleteSelected)">
-          </i>
-        }
-        <i role="button" class="btn py-1"
-          [class.selected-icon]="selectionOn"
-          [class.select-empty-icon]="!selectionOn"
-          [title]="toggleSelectTooltip"
-          (click)="toggleSelectionState()">
-        </i>
+          </div>
+          @if (currentFolderActionsVisible) {
+            <div class="datasource-workspace-actions__divider"></div>
+            <div class="btn-group datasource-btn-group" role="group">
+              <i role="button" class="btn py-1 view-detail-meta-icon"
+                 title="_#(Rename)"
+                 [class.disabled]="currentFolderRenameDisabled"
+                 (click)="renameCurrentFolder()">
+              </i>
+              <i role="button" class="btn py-1 folder-move-icon"
+                 title="_#(Move)"
+                 [class.disabled]="currentFolderMoveDisabled"
+                 (click)="moveCurrentFolder()">
+              </i>
+              <i role="button" class="btn py-1 trash-icon"
+                 title="_#(Delete)"
+                 [class.disabled]="currentFolderDeleteDisabled"
+                 (click)="deleteCurrentFolder()">
+              </i>
+            </div>
+          }
+        </div>
       </div>
-    </div>
-    <div class="d-flex flex-column align-items-stretch flex-grow-1 flex-shrink-1 overflow-hidden">
+      <div class="d-flex flex-column align-items-stretch flex-grow-1 flex-shrink-1 overflow-hidden">
       @if (searchView) {
         <div class="datasource-search-banner">
           <i class="close-circle-icon icon-size-small action-style me-1" (click)="clearSearch()"></i>
@@ -106,83 +104,59 @@
                                              'col-xl-3 col-sm-3 col-3': !searchView && selectionOn,
                                              'col-sm-2 col-2': searchView && !selectionOn,
                                              'col-xl-3 col-sm-2': searchView && selectionOn}">
-          <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions('path')">
+          <div class="d-flex align-items-center font-weight-bold action-style sort-header"
+            [class.is-active]="sortOptions.keys.includes('path')"
+            [class.is-desc]="sortOptions.keys.includes('path') && sortOptions.type === SortTypes.DESCENDING"
+            (click)="updateSortOptions('path')">
             <span class="pe-1">_#(Name)</span>
-            @if (!sortOptions.keys.includes('path')) {
-              <i class="action-color blank-icon"></i>
-            }
-            @if (sortOptions.keys.includes('path')) {
-              <i class="action-color icon-size-small"
-                [class.sort-descending-icon]="sortOptions.type === SortTypes.DESCENDING"
-              [class.sort-ascending-icon]="sortOptions.type === SortTypes.ASCENDING"></i>
-            }
+            <span class="sort-indicator" aria-hidden="true"></span>
           </div>
         </div>
         @if (searchView) {
           <div class="table-cell-padding-sm col-2">
-            <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions('parentPath')">
+            <div class="d-flex align-items-center font-weight-bold action-style sort-header"
+              [class.is-active]="sortOptions.keys.includes('parentPath')"
+              [class.is-desc]="sortOptions.keys.includes('parentPath') && sortOptions.type === SortTypes.DESCENDING"
+              (click)="updateSortOptions('parentPath')">
               <span class="pe-1">_#(Location)</span>
-              @if (sortOptions.keys.includes('parentPath')) {
-                <i class="action-color blank-icon"></i>
-              }
-              @if (sortOptions.keys.includes('parentPath')) {
-                <i class="action-color icon-size-small"
-                  [class.sort-descending-icon]="sortOptions.type === SortTypes.DESCENDING"
-                [class.sort-ascending-icon]="sortOptions.type === SortTypes.ASCENDING"></i>
-              }
+              <span class="sort-indicator" aria-hidden="true"></span>
             </div>
           </div>
         }
         <div class="table-cell-padding-sm col-2">
-          <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions('type.name')">
+          <div class="d-flex align-items-center font-weight-bold action-style sort-header"
+            [class.is-active]="sortOptions.keys.includes('type.name')"
+            [class.is-desc]="sortOptions.keys.includes('type.name') && sortOptions.type === SortTypes.DESCENDING"
+            (click)="updateSortOptions('type.name')">
             <span class="pe-1">_#(data.datasources.type)</span>
-            @if (!sortOptions.keys.includes('type.name')) {
-              <i class="action-color blank-icon"></i>
-            }
-            @if (sortOptions.keys.includes('type.name')) {
-              <i class="action-color icon-size-small"
-                [class.sort-descending-icon]="sortOptions.type === SortTypes.DESCENDING"
-              [class.sort-ascending-icon]="sortOptions.type === SortTypes.ASCENDING"></i>
-            }
+            <span class="sort-indicator" aria-hidden="true"></span>
           </div>
         </div>
         <div class="table-cell-padding-sm" [ngClass]="{'col-2': !selectionOn || !searchView,'col-1': selectionOn && searchView }">
-          <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions('statusMessage')">
+          <div class="d-flex align-items-center font-weight-bold action-style sort-header"
+            [class.is-active]="sortOptions.keys.includes('statusMessage')"
+            [class.is-desc]="sortOptions.keys.includes('statusMessage') && sortOptions.type === SortTypes.DESCENDING"
+            (click)="updateSortOptions('statusMessage')">
             <span class="pe-1">_#(Status)</span>
-            @if (!sortOptions.keys.includes('statusMessage')) {
-              <i class="action-color blank-icon"></i>
-            }
-            @if (sortOptions.keys.includes('statusMessage')) {
-              <i class="action-color icon-size-small"
-                [class.sort-descending-icon]="sortOptions.type === SortTypes.DESCENDING"
-              [class.sort-ascending-icon]="sortOptions.type === SortTypes.ASCENDING"></i>
-            }
+            <span class="sort-indicator" aria-hidden="true"></span>
           </div>
         </div>
         <div class="table-cell-padding-sm col-xl-2 col-lg-2 col-md-2">
-          <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions('createdBy')">
+          <div class="d-flex align-items-center font-weight-bold action-style sort-header"
+            [class.is-active]="sortOptions.keys.includes('createdBy')"
+            [class.is-desc]="sortOptions.keys.includes('createdBy') && sortOptions.type === SortTypes.DESCENDING"
+            (click)="updateSortOptions('createdBy')">
             <span class="pe-1">_#(data.datasources.createdBy)</span>
-            @if (!sortOptions.keys.includes('createdBy')) {
-              <i class="action-color blank-icon"></i>
-            }
-            @if (sortOptions.keys.includes('createdBy')) {
-              <i class="action-color icon-size-small"
-                [class.sort-descending-icon]="sortOptions.type === SortTypes.DESCENDING"
-              [class.sort-ascending-icon]="sortOptions.type === SortTypes.ASCENDING"></i>
-            }
+            <span class="sort-indicator" aria-hidden="true"></span>
           </div>
         </div>
         <div class="table-cell-padding-sm col-xl-2 col-lg-2 col-md-2">
-          <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions('createdDate')">
+          <div class="d-flex align-items-center font-weight-bold action-style sort-header"
+            [class.is-active]="sortOptions.keys.includes('createdDate')"
+            [class.is-desc]="sortOptions.keys.includes('createdDate') && sortOptions.type === SortTypes.DESCENDING"
+            (click)="updateSortOptions('createdDate')">
             <span class="pe-1">_#(data.datasources.creationDate)</span>
-            @if (!sortOptions.keys.includes('createdDate')) {
-              <i class="action-color blank-icon"></i>
-            }
-            @if (sortOptions.keys.includes('createdDate')) {
-              <i class="action-color icon-size-small"
-                [class.sort-descending-icon]="sortOptions.type === SortTypes.DESCENDING"
-              [class.sort-ascending-icon]="sortOptions.type === SortTypes.ASCENDING"></i>
-            }
+            <span class="sort-indicator" aria-hidden="true"></span>
           </div>
         </div>
       </div>
@@ -197,7 +171,7 @@
         @for (datasource of datasources; track datasource.path; let isLast = $last; let i = $index) {
           <div
             class="datasource-list-item d-flex align-items-center"
-            [class.td-cell-border]="!isLast"
+            [class.datasource-list-item--with-divider]="!isLast"
             [class.bg-selected]="isSelectedItem(datasource)"
             [draggable]="true"
             (dragstart)="dragAsset($event, datasource)"
@@ -225,61 +199,6 @@
                   <i class="{{getDatasourceIcon(datasource)}}"></i>
                   <span class="content-ellipse px-1">{{datasource.name}}</span>
                 </span>
-                <div class="d-flex align-items-center action-style" ngbDropdown>
-                  <i class="menu-vertical-icon action-color no-caret" title="_#(More Options)"
-                  ngbDropdownToggle></i>
-                  <div class="dropdown-menu unhighlightable" ngbDropdownMenu>
-                    @if (!isDataSourceFolder(datasource)) {
-                      <button class="dropdown-item" [disabled]="!datasource.editable"
-                        (click)="editDataSource(datasource)">
-                        _#(Edit)
-                      </button>
-                    }
-                    @if (isDataSourceFolder(datasource)) {
-                      <button class="dropdown-item"
-                        [disabled]="!(datasource.editable && datasource.deletable)"
-                        (click)="renameFolder(datasource)">
-                        _#(Rename)
-                      </button>
-                    }
-                    <button class="dropdown-item"
-                      [disabled]="!(datasource.editable && datasource.deletable)"
-                      (click)="moveDataSource(datasource)">
-                      _#(Move)
-                    </button>
-                    @if (!isDataSourceFolder(datasource)) {
-                      <button class="dropdown-item"
-                        (click)="refreshDataSource(datasource)">
-                        _#(Refresh)
-                      </button>
-                    }
-                    <button class="dropdown-item" [disabled]="!datasource.deletable"
-                      (click)="deleteItem(datasource, i)">
-                      _#(Delete)
-                    </button>
-                    @if (datasource.type?.name =='DATABASE' || datasource.type?.name == 'DATA_SOURCE') {
-                      <button class="dropdown-item"
-                        [disabled]="!datasource.queryCreatable"
-                        (click)="createQuery(datasource)">
-                        _#(New Query)
-                      </button>
-                    }
-                    @if (datasource?.type?.name =='DATABASE') {
-                      <button class="dropdown-item"
-                        [disabled]="isDataSourceFolder(datasource) || !datasource.editable"
-                        (click)="createPhysicalView(datasource)">
-                        _#(Add Physical View)
-                      </button>
-                    }
-                    @if (newVpmEnabled && datasource.type?.name =='DATABASE') {
-                      <button class="dropdown-item"
-                        [disabled]="isDataSourceFolder(datasource) || !datasource.editable"
-                        (click)="createVPM(datasource)">
-                        _#(Add Virtual Private Model)
-                      </button>
-                    }
-                  </div>
-                </div>
               </div>
             </div>
             @if (searchView) {
@@ -308,10 +227,68 @@
             <div class="table-cell-padding-sm col-xl-2 col-lg-2 col-md-2">
               <span class="content-ellipse">{{getDateLabel(datasource.createdDate, datasource.dateFormat)}}</span>
             </div>
+            <div class="table-cell-padding-sm datasource-row-actions-cell">
+              <div class="d-flex align-items-center action-style datasource-row-actions" ngbDropdown>
+                <i class="menu-vertical-icon action-color no-caret" title="_#(More Options)"
+                   ngbDropdownToggle></i>
+                <div class="dropdown-menu unhighlightable" ngbDropdownMenu>
+                  @if (!isDataSourceFolder(datasource)) {
+                    <button class="dropdown-item" [disabled]="!datasource.editable"
+                      (click)="editDataSource(datasource)">
+                      _#(Edit)
+                    </button>
+                  }
+                  @if (isDataSourceFolder(datasource)) {
+                    <button class="dropdown-item"
+                      [disabled]="!(datasource.editable && datasource.deletable)"
+                      (click)="renameFolder(datasource)">
+                      _#(Rename)
+                    </button>
+                  }
+                  <button class="dropdown-item"
+                    [disabled]="!(datasource.editable && datasource.deletable)"
+                    (click)="moveDataSource(datasource)">
+                    _#(Move)
+                  </button>
+                  @if (!isDataSourceFolder(datasource)) {
+                    <button class="dropdown-item"
+                      (click)="refreshDataSource(datasource)">
+                      _#(Refresh)
+                    </button>
+                  }
+                  <button class="dropdown-item" [disabled]="!datasource.deletable"
+                    (click)="deleteItem(datasource, i)">
+                    _#(Delete)
+                  </button>
+                  @if (datasource.type?.name =='DATABASE' || datasource.type?.name == 'DATA_SOURCE') {
+                    <button class="dropdown-item"
+                      [disabled]="!datasource.queryCreatable"
+                      (click)="createQuery(datasource)">
+                      _#(New Query)
+                    </button>
+                  }
+                  @if (datasource?.type?.name =='DATABASE') {
+                    <button class="dropdown-item"
+                      [disabled]="isDataSourceFolder(datasource) || !datasource.editable"
+                      (click)="createPhysicalView(datasource)">
+                      _#(Add Physical View)
+                    </button>
+                  }
+                  @if (newVpmEnabled && datasource.type?.name =='DATABASE') {
+                    <button class="dropdown-item"
+                      [disabled]="isDataSourceFolder(datasource) || !datasource.editable"
+                      (click)="createVPM(datasource)">
+                      _#(Add Virtual Private Model)
+                    </button>
+                  }
+                </div>
+              </div>
+            </div>
           </div>
         }
       </div>
     </div>
   </div>
+</div>
 </div>
 <data-notifications #dataNotifications></data-notifications>

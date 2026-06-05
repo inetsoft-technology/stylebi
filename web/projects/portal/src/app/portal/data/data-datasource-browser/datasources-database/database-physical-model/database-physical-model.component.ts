@@ -67,7 +67,6 @@ import { PhysicalStatusBarComponent } from "./physical-status-bar.component";
 import { PhysicalGraphPane } from "./physical-graph-pane/physical-graph-pane.component";
 import { PhysicalModelEditTableComponent } from "./physical-model-edit-table/physical-model-edit-table.component";
 import { LoadingIndicatorPaneComponent } from "../common-components/loading-indicator-pane/loading-indicator-pane.component";
-import { AutoCollapseToolbarComponent } from "../../../../../widget/toolbar/auto-collapse-toolbar/auto-collapse-toolbar.component";
 
 
 const PHYSICAL_MODELS_INLINE_VIEW_URI: string = "../api/data/physicalmodel/inlineView/";
@@ -86,7 +85,7 @@ const HEARTBEAT_MODEL_URI: string = "../api/data/physicalmodel/heartbeat";
     selector: "database-physical-model",
     templateUrl: "database-physical-model.component.html",
     styleUrls: ["database-model-pane.scss", "database-physical-model.component.scss"],
-    imports: [SplitPane, AutoCollapseToolbarComponent, FormsModule, PhysicalModelTableTreeComponent, LoadingIndicatorPaneComponent, PhysicalModelEditTableComponent, PhysicalGraphPane, PhysicalStatusBarComponent, InputNameDialog, InlineViewDialog, AutoJoinTablesDialog, NotificationsComponent]
+    imports: [SplitPane, FormsModule, PhysicalModelTableTreeComponent, LoadingIndicatorPaneComponent, PhysicalModelEditTableComponent, PhysicalGraphPane, PhysicalStatusBarComponent, InputNameDialog, InlineViewDialog, AutoJoinTablesDialog, NotificationsComponent]
 })
 export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestroy, CanComponentDeactivate {
    @ViewChild("splitPane") splitPane: SplitPane;
@@ -1263,7 +1262,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
     */
    search(): void {
       if(!this.filterTablesString) {
-         this.searchMode = false;
+         this.resetSearchMode();
 
          return;
       }

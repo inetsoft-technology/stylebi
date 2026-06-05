@@ -483,6 +483,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
          if(children[i].data.path === path && children[i].data.scope == scope) {
             this.selectedNodes = [children[i]];
             children[i].expanded = true;
+            this.loadSelectedDataModelChildren(children[i]);
             found = true;
          }
          else if(children[i].type == PortalDataType.PRIVATE_WORKSHEETS_FOLDER
@@ -505,6 +506,24 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
       }
 
       return false;
+   }
+
+   private loadSelectedDataModelChildren(node: TreeNodeModel): void {
+      if(!this.isLazyDataModelFolder(node)) {
+         return;
+      }
+
+      this.openDataModelTreeFolder(node).subscribe((data) => {
+         data?.forEach((child) => this.normalizeDataModelTreeNodes(child));
+         node.children = data || [];
+         node.expanded = node.children.length > 0;
+      });
+   }
+
+   private isLazyDataModelFolder(node: TreeNodeModel): boolean {
+      return !!node &&
+         (node.type === PortalDataType.DATA_MODEL || node.type === PortalDataType.DATA_MODEL_FOLDER) &&
+         (!node.children || node.children.length === 0);
    }
 
    getPrivateWorksheetNodeParent(): TreeNodeModel {

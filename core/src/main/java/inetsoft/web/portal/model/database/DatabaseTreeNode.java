@@ -124,6 +124,15 @@ public class DatabaseTreeNode {
       this.supportCatalog = supportCatalog;
    }
 
+   public Integer getTableCount() {
+      return tableCount;
+   }
+
+   @Nullable
+   public void setTableCount(Integer tableCount) {
+      this.tableCount = tableCount;
+   }
+
    @Override
    public String toString() {
       return "DatabaseTreeNode{" +
@@ -139,6 +148,7 @@ public class DatabaseTreeNode {
          ", database='" + database + '\'' +
          ", physicalView='" + physicalView + '\'' +
          ", supportCatalog=" + supportCatalog +
+         ", tableCount=" + tableCount +
          '}';
    }
 
@@ -154,4 +164,5 @@ public class DatabaseTreeNode {
    private String database;
    private String physicalView;
    private boolean supportCatalog;
+   private Integer tableCount;
 }

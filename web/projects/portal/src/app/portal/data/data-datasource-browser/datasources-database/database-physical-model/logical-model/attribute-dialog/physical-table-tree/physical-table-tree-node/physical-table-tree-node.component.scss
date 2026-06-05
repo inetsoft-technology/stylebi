@@ -42,7 +42,13 @@
 
 .physical-table-tree-node__checkbox {
   flex: 0 0 auto;
-  margin: 0;
+  background-color: var(--inet-shell-surface-default);
+  border-color: var(--inet-input-text-color);
+}
+
+.physical-table-tree-node__checkbox:checked {
+  background-color: var(--inet-primary-color);
+  border-color: var(--inet-primary-color);
 }
 
 .physical-table-tree-node__label {

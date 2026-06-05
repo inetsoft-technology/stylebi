@@ -21,9 +21,9 @@
 </modal-header>
 <div class="modal-body">
   <div class="container-fluid auto-alias-containner">
-    <div class="shell-form-group form-check">
+    <div class="shell-form-group form-check form-switch auto-alias-toggle">
       <label class="form-check-label">
-        <input class="form-check-input enableAutoAlias_check_id" type="checkbox"
+        <input class="form-check-input enableAutoAlias_check_id" type="checkbox" role="switch"
           [disabled]="table.autoAliases.length == 0"
           [ngModel]="table.autoAliasesEnabled"
           (ngModelChange)="enableAutoAlias($event)">
@@ -34,9 +34,9 @@
       <div>
         @for (autoAlias of table.autoAliases; track autoAlias.foreignTable) {
           <div>
-            <div class="shell-form-group form-check offset-1">
+            <div class="shell-form-group form-check form-switch offset-1 auto-alias-toggle">
               <label class="form-check-label">
-                <input class="form-check-input foreignTable_check_id" type="checkbox"
+                <input class="form-check-input foreignTable_check_id" type="checkbox" role="switch"
                   [checked]="isTableSelected(autoAlias.foreignTable)"
                   (change)="updateSelection(autoAlias, $event.target.checked)">
                 {{autoAlias.foreignTable}}
@@ -69,9 +69,9 @@
                   }
                 </div>
               </div>
-              <div class="shell-form-group form-check">
+              <div class="shell-form-group form-check form-switch auto-alias-toggle">
                 <label class="form-check-label">
-                  <input class="form-check-input keepOutGoing_check_id" type="checkbox"
+                  <input class="form-check-input keepOutGoing_check_id" type="checkbox" role="switch"
                     [disabled]="!isTableSelected(autoAlias.foreignTable)"
                     [(ngModel)]="autoAlias.keepOutgoing"/>
                   _#(data.physicalmodel.keepOutgoingLinks)

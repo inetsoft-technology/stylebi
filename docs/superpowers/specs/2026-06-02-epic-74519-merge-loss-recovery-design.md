@@ -157,3 +157,61 @@ Phase 3: build → lint → test
 - SCSS files: none were in the conflict zone.
 - Refactoring beyond what is needed to re-apply the lost content.
 - Changes introduced after the merge (commits `d6b018bcc` and `63d596a4a`) are not affected.
+
+---
+
+## Post-Mortem: Why the First Task 9 Audit Missed ~45 Files
+
+A follow-up audit run after the initial recovery found approximately 45 additional files with
+dropped design work that Task 9's workflow had not reported. Four root causes:
+
+### 1. Exclusion rule applied too broadly
+
+The audit prompt said:
+> *Do NOT report: `*ngIf`/`*ngFor` replaced by `@if`/`@for` (Angular 21 control flow migration)*
+
+Files with heavy Angular syntax migration changes alongside dropped design work (e.g.,
+`calculate-pane-dialog.component.html` with 32 dropped `custom-select` references,
+`datasources-database.component.html` with 22 dropped `shell-form-group` instances) were
+classified as "Angular migration only." Agents stopped looking once they saw enough
+`*ngIf` → `@if` diffs to explain the file's change count.
+
+**Fix:** Reframe the exclusion as a filter on individual diff hunks, not on files. An agent
+should strip out pure-syntax diffs and then check what remains. If anything remains, report it.
+
+### 2. Batch size too large for complex files
+
+20 files per audit agent, each requiring 3 git-show calls and a multi-version diff analysis,
+was too much context for files with large templates. Agents prioritized the obvious losses
+(matching the known list from Tasks 1–8) and gave shallow treatment to the remaining files in
+the batch.
+
+**Fix:** Reduce batch size to 5–10 files for HTML/TS files. For files over ~200 lines, run a
+dedicated single-file agent.
+
+### 3. Conflict zone definition excluded single-side changes
+
+The plan used `comm -12` (intersection of EPIC-changed and MAIN-changed files). Files that the
+user modified on the EPIC side but MAIN did not touch were excluded from the 634-file set.
+However, the merge resolver may still have reverted those files (e.g., bulk "accept theirs" on
+certain directories).
+
+**Fix:** Audit the full EPIC diff (`git diff --name-only BASE..EPIC`), not just the intersection.
+Files not in the MAIN diff are lower priority but should still be spot-checked.
+
+### 4. Audit stance was too passive
+
+Agents were asked to find losses by diffing. They tended toward false negatives — reporting
+"clean" when uncertain. The right stance is adversarial: assume a loss exists and require the
+agent to prove absence before marking a file clean.
+
+**Fix:** Rewrite the audit prompt to be pattern-driven and adversarial:
+- Grep HEAD for the design class names (`shell-form-group`, `shell-form-row`, `custom-select`,
+  `number-stepper`, `landing-card`, etc.) and count occurrences.
+- Grep EPIC for the same patterns and count.
+- If HEAD count < EPIC count for any pattern, report the delta as a loss.
+- Only mark a file clean if counts match AND a spot-check of 3 random instances confirms
+  correct placement.
+
+This approach finds losses even when they are buried in heavily-migrated files, because it
+counts pattern occurrences rather than reading narrative diffs.

@@ -172,11 +172,18 @@
 .table-search-input {
    display: flex;
    flex-wrap: nowrap;
+   align-items: center;
+   gap: 8px;
    width: calc(100% - 12px);
-   position: relative;
    margin-top: 8px;
    margin-bottom: 6px;
    margin-left: 6px;
+
+   .table-search-input__field {
+      flex: 1 1 auto;
+      min-width: 0;
+      position: relative;
+   }
 
    .search-input::-ms-clear {
       display: none;
@@ -186,6 +193,17 @@
       position: absolute;
       top: 6px;
       right: 6px;
+   }
+
+   .table-search-input__button {
+      flex: 0 0 var(--inet-control-height-md);
+      width: var(--inet-control-height-md);
+      min-width: var(--inet-control-height-md);
+      height: var(--inet-control-height-md);
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
    }
 }
 

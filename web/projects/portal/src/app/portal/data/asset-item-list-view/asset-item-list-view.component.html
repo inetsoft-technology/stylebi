@@ -28,16 +28,12 @@
       @for (item of columns; track $index) {
         @if (item.visible) {
           <div class="table-cell-padding-sm" [style.width]="item.widthPercentage + '%'">
-            <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions(item.sortKey)">
+            <div class="d-flex align-items-center font-weight-bold action-style sort-header"
+              [class.is-active]="sortOptions.keys.includes(item.sortKey)"
+              [class.is-desc]="sortOptions.keys.includes(item.sortKey) && sortOptions.type === SortTypes.DESCENDING"
+              (click)="updateSortOptions(item.sortKey)">
               <span class="pe-1">{{ item.label }}</span>
-              @if (sortOptions.keys.includes(item.sortKey)) {
-                <i class="action-color blank-icon"></i>
-              }
-              @if (sortOptions.keys.includes(item.sortKey)) {
-                <i class="action-color icon-size-small"
-                  [class.sort-descending-icon]="sortOptions.type === SortTypes.DESCENDING"
-                [class.sort-ascending-icon]="sortOptions.type === SortTypes.ASCENDING"></i>
-              }
+              <span class="sort-indicator" aria-hidden="true"></span>
             </div>
           </div>
         }
@@ -91,12 +87,6 @@
                       }
                       <span class="content-ellipse px-1">{{column.value(asset)}}</span>
                     </span>
-                    @if (isFirst) {
-                      <div class="d-flex align-items-center action-style truncate-addon">
-                        <i class="menu-vertical-icon action-color no-caret" title="_#(More Options)"
-                        (click)="onContextmenu.emit([asset, $event])"></i>
-                      </div>
-                    }
                   </div>
                 </div>
               }
@@ -116,6 +106,12 @@
                 </a>
               }
             }
+          </div>
+          <div class="table-cell-padding-sm asset-row-actions-cell">
+            <div class="d-flex align-items-center action-style asset-row-actions">
+              <i class="menu-vertical-icon action-color no-caret" title="_#(More Options)"
+                 (click)="onContextmenu.emit([asset, $event])"></i>
+            </div>
           </div>
           @if (isToggled(asset)) {
             @for (child of getChildren(asset); track child.path; let i = $index) {
@@ -144,16 +140,16 @@
                             }
                             <span class="content-ellipse px-1">{{column.value(child)}}</span>
                           </span>
-                          @if (isFirst) {
-                            <div class="d-flex align-items-center action-style truncate-addon" ngbDropdown>
-                              <i class="menu-vertical-icon action-color no-caret" title="_#(More Options)"
-                              ngbDropdownToggle (click)="onContextmenu.emit([child, $event])"></i>
-                            </div>
-                          }
                         </div>
                       </div>
                     }
                   }
+                </div>
+                <div class="table-cell-padding-sm asset-row-actions-cell">
+                  <div class="d-flex align-items-center action-style asset-row-actions">
+                    <i class="menu-vertical-icon action-color no-caret" title="_#(More Options)"
+                       (click)="onContextmenu.emit([child, $event])"></i>
+                  </div>
                 </div>
               </div>
             }

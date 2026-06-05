@@ -27,4 +27,5 @@ export interface DatabaseTreeNodeModel {
    database?: string;
    physicalView?: string;
    parr?: string;
+   tableCount?: number;
 }
