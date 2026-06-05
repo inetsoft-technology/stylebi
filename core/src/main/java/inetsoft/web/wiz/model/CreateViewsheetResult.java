@@ -145,12 +145,22 @@ public class CreateViewsheetResult {
     * Flat representation of an assembly's data binding.
     * All dimension refs are collected into {@code dimensions} regardless of which
     * axis/role they occupy in the original binding; likewise for {@code measures}.
+    * {@code slots} reports the RESOLVED placement (which slot each field landed in);
+    * {@code notes} carries structured decisions (e.g. a readability guard overridden
+    * because the user pinned the field).
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public static class FlatBinding {
       public FlatBinding(List<DimensionFieldInfo> dimensions, List<MeasureFieldInfo> measures) {
+         this(dimensions, measures, null);
+      }
+
+      public FlatBinding(List<DimensionFieldInfo> dimensions, List<MeasureFieldInfo> measures,
+                         Map<String, Object> slots)
+      {
          this.dimensions = dimensions;
          this.measures = measures;
+         this.slots = slots;
       }
 
       public List<DimensionFieldInfo> getDimensions() {
@@ -161,7 +171,46 @@ public class CreateViewsheetResult {
          return measures;
       }
 
+      /** Resolved slot placement: list-valued for x/y/group, string-or-null for aesthetics. */
+      public Map<String, Object> getSlots() {
+         return slots;
+      }
+
+      public List<BindingNote> getNotes() {
+         return notes;
+      }
+
+      public void setNotes(List<BindingNote> notes) {
+         this.notes = notes;
+      }
+
       private final List<DimensionFieldInfo> dimensions;
       private final List<MeasureFieldInfo> measures;
+      private final Map<String, Object> slots;
+      private List<BindingNote> notes;
+   }
+
+   /** A structured binding decision surfaced to the caller. */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   public static class BindingNote {
+      public BindingNote(String field, String role, boolean honored, String severity, String reason) {
+         this.field = field;
+         this.role = role;
+         this.honored = honored;
+         this.severity = severity;
+         this.reason = reason;
+      }
+
+      public String getField() { return field; }
+      public String getRole() { return role; }
+      public boolean isHonored() { return honored; }
+      public String getSeverity() { return severity; }
+      public String getReason() { return reason; }
+
+      private final String field;
+      private final String role;
+      private final boolean honored;
+      private final String severity;
+      private final String reason;
    }
 }
