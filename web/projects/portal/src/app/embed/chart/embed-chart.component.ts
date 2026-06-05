@@ -149,7 +149,6 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
                private cdRef: ChangeDetectorRef)
    {
       super(viewsheetClient, zone, true);
-      console.log("==================chart: ");
       shadowDomService.addShadowRootHost(injector, viewContainerRef.element?.nativeElement);
       showHyperlinkService.inEmbed = true;
    }
@@ -256,7 +255,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
    processSetRuntimeIdCommand(command: SetRuntimeIdCommand): void {
       this.viewsheetClient.runtimeId = command.runtimeId;
       this.runtimeId = command.runtimeId;
-      console.log("============processSetRuntimeIdCommand", command);
+
       // A newly opened embedded assembly may need an explicit refresh to apply the
       // requested assembly size after the runtime is established.
       if(this.assemblyName && !this.inputRuntimeId) {
