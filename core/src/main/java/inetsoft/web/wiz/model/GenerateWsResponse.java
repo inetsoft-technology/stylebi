@@ -18,6 +18,8 @@
 
 package inetsoft.web.wiz.model;
 
+import java.util.List;
+
 public class GenerateWsResponse {
    public String getWsId() {
       return wsId;
@@ -35,6 +37,16 @@ public class GenerateWsResponse {
       this.errorMessage = errorMessage;
    }
 
+   public List<WorksheetColumnInfo> getPrimaryTableFields() {
+      return primaryTableFields;
+   }
+
+   public void setPrimaryTableFields(List<WorksheetColumnInfo> primaryTableFields) {
+      this.primaryTableFields = primaryTableFields;
+   }
+
    private String wsId;
    private String errorMessage;
+   /** All columns available in the primary worksheet table assembly. */
+   private List<WorksheetColumnInfo> primaryTableFields;
 }
