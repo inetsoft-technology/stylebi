@@ -15,90 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Routes, UrlMatchResult, UrlSegment } from "@angular/router";
+import { Routes, UrlSegment } from "@angular/router";
 import { canDeactivateGuard } from "../../common/services/can-deactivate-guard.service";
+import { createEmbedUrlMatcher } from "../embed-url-matcher";
 import { EmbedTableComponent } from "./embed-table.component";
 
-export function EMBED_TABLE_URL_MATCHER(url: UrlSegment[]): UrlMatchResult {
-   let result: UrlMatchResult = null;
-
-   if(url && url.length > 0) {
-      const params: { [name: string]: UrlSegment } = {};
-      result = {
-         consumed: url,
-         posParams: params
-      };
-
-      if(url.length > 0) {
-         if(url[0].path === "runtime" && url.length === 3) {
-            params.runtimeId = new UrlSegment(url[1].path, {});
-            params.assemblyName = new UrlSegment(url[url.length - 1].path, {});
-            return result;
-         }
-
-         let assetScope: UrlSegment = null;
-         let assetOwner: UrlSegment = null;
-         let assetPath: string = null;
-         let assetId: string = null;
-
-         if(url[0].path === "global") {
-            assetScope = url[0];
-
-            if(url.length > 1) {
-               assetPath = url.slice(1, url.length - 1).map((s) => s.path).join("/");
-               assetId = `1^128^__NULL__^${assetPath}`;
-            }
-         }
-         else if(url[0].path === "user") {
-            assetScope = url[0];
-
-            if(url.length > 1) {
-               assetOwner = url[1];
-
-               if(url.length > 2) {
-                  assetPath = url.slice(2, url.length - 1).map((s) => s.path).join("/");
-                  assetId = `4^128^${assetOwner.path}^${assetPath}`;
-               }
-            }
-         }
-         else {
-            assetId = url.slice(0, url.length - 1).map((s) => s.path).join("/");
-            const match = /^([14])+\^128\^([^^]+)\^(.+)$/.exec(assetId);
-
-            if(match) {
-               if(match[1] == "1") {
-                  assetScope = new UrlSegment("global", {});
-               }
-               else {
-                  assetScope = new UrlSegment("user", {});
-                  assetOwner = new UrlSegment(match[2], {});
-               }
-
-               assetPath = match[3];
-            }
-         }
-
-         if(assetScope) {
-            params.assetScope = assetScope;
-         }
-
-         if(assetOwner) {
-            params.assetOwner = assetOwner;
-         }
-
-         if(assetPath) {
-            params.assetPath = new UrlSegment(assetPath, {});
-         }
-
-         if(assetId) {
-            params.assetId = new UrlSegment(assetId, {});
-         }
-
-         params.assemblyName = new UrlSegment(url[url.length - 1].path, {});
-      }
-   }
-
-   return result;
+export function EMBED_TABLE_URL_MATCHER(url: UrlSegment[]) {
+   return createEmbedUrlMatcher(url);
 }
 
 export const embedTableRoutes: Routes = [

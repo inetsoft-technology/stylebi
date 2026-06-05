@@ -180,26 +180,28 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
             }
          });
 
-         (window.inetsoftConnected as BehaviorSubject<boolean>).subscribe((connected) => {
-            if(!this.connected && connected) {
-               this.connected = true;
+         this.subscriptions.add(
+            (window.inetsoftConnected as BehaviorSubject<boolean>).subscribe((connected) => {
+               if(!this.connected && connected) {
+                  this.connected = true;
 
-               if(!!this.errorTimeout) {
-                  clearTimeout(this.errorTimeout);
+                  if(!!this.errorTimeout) {
+                     clearTimeout(this.errorTimeout);
+                  }
+
+                  this.showError = false;
+                  this.cdRef.detectChanges();
                }
 
-               this.showError = false;
-               this.cdRef.detectChanges();
-            }
-
-            if(!this.connected && !connected) {
-               this.errorTimeout = setTimeout(() => {
-                  this.showError = true;
-                  console.error("InetSoft client not connected. Please make sure to login first.");
-                  this.cdRef.detectChanges();
-               }, 2000);
-            }
-         });
+               if(!this.connected && !connected) {
+                  this.errorTimeout = setTimeout(() => {
+                     this.showError = true;
+                     console.error("InetSoft client not connected. Please make sure to login first.");
+                     this.cdRef.detectChanges();
+                  }, 2000);
+               }
+            })
+         );
       }
 
       this.createOverlayContainer();

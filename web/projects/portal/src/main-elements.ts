@@ -57,8 +57,6 @@ import {
    ViewerDialogServiceFactory
 } from "./app/widget/slide-out/dialog-service.service";
 import { SlideOutService } from "./app/widget/slide-out/slide-out.service";
-import { AdhocFilterService } from "./app/vsobjects/objects/data-tip/adhoc-filter.service";
-
 import "./main-base-element";
 
 createApplication({
@@ -78,7 +76,6 @@ createApplication({
       VSTabService,
       RichTextService,
       FullScreenService,
-      AdhocFilterService,
       NgbModal,
       {
          provide: DialogService,
