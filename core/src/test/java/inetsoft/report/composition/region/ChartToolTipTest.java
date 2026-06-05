@@ -459,6 +459,60 @@ class ChartToolTipTest {
    }
 
    @Test
+   void boxSoloCardRespectsIQRTier2Boundary() {
+      // Boxplot card as PlotArea builds it: Median headline, X-dim subtitle, the
+      // IQR (Q1/Q3) grouped at tier-2, and Min/Max + the color aesthetic at tier-3.
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+      tip.setHeader(palette.put("Category"), palette.put("Business"));
+      tip.addTooltip(palette.put("Median"), palette.put("15,000"));
+      tip.addTooltip(palette.put("Q1"), palette.put("2,000"));
+      tip.addTooltip(palette.put("Q3"), palette.put("33,750"));
+      tip.addTooltip(palette.put("Min"), palette.put("125"));
+      tip.addTooltip(palette.put("Max"), palette.put("60,000"));
+      tip.addTooltip(palette.put("Region"), palette.put("USA East"));
+      tip.setTier2GroupSize(2);
+
+      String out = tip.getTooltip(palette);
+
+      assertTrue(out.contains("<div class=\"tt-tier-1\">Median:&nbsp;15,000"));
+      assertTrue(out.contains("<div class=\"tt-tier-1 tt-subtitle\">Category:&nbsp;Business"));
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Q1:&nbsp;2,000"));
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Q3:&nbsp;33,750"));
+      assertTrue(out.contains("<div class=\"tt-tier-3\">Min:&nbsp;125"));
+      assertTrue(out.contains("<div class=\"tt-tier-3\">Max:&nbsp;60,000"));
+      assertTrue(out.contains("<div class=\"tt-tier-3\">Region:&nbsp;USA East"),
+                 "color aesthetic drops to tier-3");
+      assertFalse(out.contains("tt-tier-4"));
+   }
+
+   @Test
+   void boxNoXDimGroupsIQRWithoutSubtitle() {
+      // A single box with no X dim: the IQR still groups at tier-2, but there is
+      // no X-dim to lift, so no subtitle.
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+      tip.setGroupedTiers(true);
+      tip.setTier2GroupSize(2);
+      tip.addTooltip(palette.put("Median"), palette.put("15,000"));
+      tip.addTooltip(palette.put("Q1"), palette.put("2,000"));
+      tip.addTooltip(palette.put("Q3"), palette.put("33,750"));
+      tip.addTooltip(palette.put("Min"), palette.put("125"));
+      tip.addTooltip(palette.put("Max"), palette.put("60,000"));
+
+      String out = tip.getTooltip(palette);
+
+      assertTrue(out.contains("<div class=\"tt-tier-1\">Median:&nbsp;15,000"));
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Q1:&nbsp;2,000"));
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Q3:&nbsp;33,750"));
+      assertTrue(out.contains("<div class=\"tt-tier-3\">Min:&nbsp;125"));
+      assertTrue(out.contains("<div class=\"tt-tier-3\">Max:&nbsp;60,000"));
+      assertFalse(out.contains("tt-subtitle"));
+   }
+
+   @Test
    void soloCardWithoutHeaderKeepsLegacyTierCap() {
       // No header → legacy path: 1, 2, 3, 3, 3...
       IndexedSet<String> palette = new IndexedSet<>();
