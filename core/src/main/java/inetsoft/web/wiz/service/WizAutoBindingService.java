@@ -91,8 +91,11 @@ public class WizAutoBindingService {
 
       if(Tool.isEmptyString(autoBindingRuntimeId)) {
          Viewsheet.WizInfo wizInfo = new Viewsheet.WizInfo(true, null, null);
+         // worksheetPath is the worksheet's full asset IDENTIFIER (e.g. "1^2^__NULL__^path^org"),
+         // not a bare path — parse it with createAssetEntry, else getSheet finds nothing and the
+         // recommender gets an empty worksheet (zero recommendations).
          AssetEntry wsEntry = !Tool.isEmptyString(worksheetPath)
-            ? new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, worksheetPath, null)
+            ? AssetEntry.createAssetEntry(worksheetPath)
             : null;
          autoBindingRuntimeId = viewsheetService.openTemporaryViewsheet(null, wsEntry, user, wizInfo);
          createdAutoBindingRvs = true;
@@ -110,8 +113,7 @@ public class WizAutoBindingService {
          List<ColumnRef> worksheetColumns = new ArrayList<>();
 
          if(!Tool.isEmptyString(worksheetPath)) {
-            AssetEntry wsEntry = new AssetEntry(
-               AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, worksheetPath, null);
+            AssetEntry wsEntry = AssetEntry.createAssetEntry(worksheetPath);
 
             try {
                AbstractSheet sheet = engine.getSheet(wsEntry, user, true, AssetContent.ALL);

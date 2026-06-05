@@ -476,8 +476,9 @@ public class WizVsService {
       String title = config.getTitle() != null && !config.getTitle().isEmpty()
          ? config.getTitle()
          : "vs_" + System.currentTimeMillis();
-      AssetEntry sourceWs = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
-         config.getData().getSource(), null);
+      // config.getData().getSource() is the worksheet's full asset IDENTIFIER, not a bare path —
+      // parse it with createAssetEntry, else getSheet returns null ("Cannot find worksheet").
+      AssetEntry sourceWs = AssetEntry.createAssetEntry(config.getData().getSource());
       AbstractSheet sheet = engine.getSheet(sourceWs, user, true, AssetContent.ALL);
 
       if(!(sheet instanceof Worksheet worksheet)) {
