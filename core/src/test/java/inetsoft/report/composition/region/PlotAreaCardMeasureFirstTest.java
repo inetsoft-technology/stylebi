@@ -337,6 +337,10 @@ class PlotAreaCardMeasureFirstTest {
       // Two measures → two bases → multi-measure boxplot falls through.
       assertEquals(2, PlotArea.boxBaseMeasureCount(new String[] {
          BoxDataSet.MEDIUM_PREFIX + "Total", BoxDataSet.MEDIUM_PREFIX + "Paid" }));
+
+      // A null entry is skipped, not counted.
+      assertEquals(1, PlotArea.boxBaseMeasureCount(new String[] {
+         BoxDataSet.MEDIUM_PREFIX + "Total", null }));
    }
 
    @Test

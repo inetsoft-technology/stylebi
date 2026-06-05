@@ -1917,10 +1917,9 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
       return dims[0];
    }
 
-   // Set X-dim as header (solo-card-with-header renders it as tier-1 subtitle); group OHL at tier-2.
-   private void applyCandleCardHeader(ChartToolTip tooltip, String xDim,
-                                      String[] tipMeasures)
-   {
+   // Lift the dim to the header (rendered as the tier-1 subtitle). Returns true if
+   // the dim was present in the tooltip and lifted, false if it never rendered.
+   private boolean liftDimToHeader(ChartToolTip tooltip, String xDim) {
       String dimName = tips.get(xDim);
 
       if(dimName == null) {
@@ -1933,7 +1932,17 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
       if(xVal >= 0) {
          tooltip.setHeader(xKey, xVal);
          tooltip.removeTooltip(xKey);
+         return true;
       }
+
+      return false;
+   }
+
+   // Set X-dim as header (solo-card-with-header renders it as tier-1 subtitle); group OHL at tier-2.
+   private void applyCandleCardHeader(ChartToolTip tooltip, String xDim,
+                                      String[] tipMeasures)
+   {
+      liftDimToHeader(tooltip, xDim);
 
       // Count only entries that actually landed in the tooltip — skips OHLC names
       // dropped by the allfields filter so aesthetics don't get promoted to tier-2.
@@ -2009,19 +2018,11 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
 
    // Lift the X-dim to the header (rendered as the tier-1 subtitle under the
    // Median headline) and group the IQR at tier-2 so Min/Max drop to tier-3.
+   // If the X-dim never rendered, still group the IQR with no subtitle so the
+   // hierarchy survives, matching the no-X-dim branch.
    private void applyBoxCardHeader(ChartToolTip tooltip, String xDim, int tier2Count) {
-      String dimName = tips.get(xDim);
-
-      if(dimName == null) {
-         dimName = xDim;
-      }
-
-      int xKey = palette.put(dimName);
-      int xVal = tooltip.getTooltipValue(xKey);
-
-      if(xVal >= 0) {
-         tooltip.setHeader(xKey, xVal);
-         tooltip.removeTooltip(xKey);
+      if(!liftDimToHeader(tooltip, xDim) && tier2Count > 0) {
+         tooltip.setGroupedTiers(true);
       }
 
       tooltip.setTier2GroupSize(tier2Count);
