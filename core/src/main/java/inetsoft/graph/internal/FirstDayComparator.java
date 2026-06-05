@@ -99,7 +99,16 @@ public class FirstDayComparator extends DefaultComparer
       }
 
       if(v1 instanceof MergePartCell && v2 instanceof MergePartCell) {
-         return ((MergePartCell) v1).compareTo(v2);
+         int result = ((MergePartCell) v1).compareTo(v2);
+
+         if(comp != null) {
+            return comp.isDesc() ? -result : result;
+         }
+         else if(comp2 instanceof DefaultComparer) {
+            return ((DefaultComparer) comp2).isNegate() ? -result : result;
+         }
+
+         return result;
       }
 
       return 0;
