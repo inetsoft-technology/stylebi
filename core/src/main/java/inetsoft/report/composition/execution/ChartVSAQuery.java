@@ -612,15 +612,30 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
          assemblyInfo.getChartDescriptor() : assemblyInfo.getRTChartDescriptor();
 
       desc.setSortOthersLast(cinfo);
+      Worksheet ws = table != null ? table.getWorksheet() : null;
 
       if(table == null || isDetail()) {
          mergeZoomConds(table, null);
+
+         if(table != null) {
+            ws.removeAssembly(table.getName());
+            ws.addAssembly(table);
+         }
+
          return table;
       }
 
       if(groups.size() <= 1) {
          subcols = null;
          mergeZoomConds(table, null);
+
+         // Register the clone in the worksheet before applyDiscreteAggregates. The join table
+         // built inside that method stores child names in tnames[] and resolves them via
+         // ws.getAssembly() at execution time. Without this the local WorksheetWrapper still
+         // holds the original bound table under the same name, so the join would execute
+         // against the unmodified table instead of the clone with chart aggregate/column info.
+         ws.removeAssembly(table.getName());
+         ws.addAssembly(table);
 
          table = applyDiscreteAggregates(table, cinfo);
 
@@ -639,7 +654,6 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
       subcols = new SubColumns[subs.length];
       String ozoomTable = zoomTable;
       TableAssemblyOperator[] ops = new TableAssemblyOperator[subs.length - 1];
-      Worksheet ws = table.getWorksheet();
       int idx = 0;
 
       for(Set group : groups.keySet()) {
