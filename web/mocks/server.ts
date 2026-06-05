@@ -17,10 +17,10 @@
  */
 
 /**
- * MSW server entry point for Jest (Node.js environment).
+ * MSW server entry point for the test environment.
  *
  * Aggregates all domain handlers and exports a single `server` instance.
- * This server is started in setup-jest.ts and shared across all test files.
+ * This server is started in the test setup and shared across all test files.
  *
  * Per-test overrides:
  *   import { server } from '<path-to>/mocks/server';
@@ -37,7 +37,14 @@ import { composerHandlers } from "./handlers/composer.handlers";
 import { emHandlers } from "./handlers/em.handlers";
 import { portalHandlers } from "./handlers/portal.handlers";
 
-export const server = setupServer(
+type MswServer = ReturnType<typeof setupServer>;
+type GlobalWithMswServer = typeof globalThis & {
+   __stylebiMswServer?: MswServer;
+};
+
+const globalWithMswServer = globalThis as GlobalWithMswServer;
+
+export const server = globalWithMswServer.__stylebiMswServer ??= setupServer(
    ...modelHandlers,
    ...composerHandlers,
    ...emHandlers,

@@ -151,11 +151,11 @@ export class AuditRequiredAssetsComponent implements OnInit, OnDestroy {
 
       if(selectedDependentAssets.length > 0) {
          dependentAssetIds = selectedDependentAssets.filter(
-            assetId => !!this.dependentAssets
+            assetId => !!(this.dependentAssets ?? [])
                .find(asset => asset.assetId == assetId));
       }
       else {
-         dependentAssetIds = this.dependentAssets.map(a => a.assetId);
+         dependentAssetIds = (this.dependentAssets ?? []).map(a => a.assetId);
       }
 
       const request: RequiredAssetEvent = {

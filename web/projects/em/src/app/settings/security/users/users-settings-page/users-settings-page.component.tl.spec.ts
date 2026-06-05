@@ -49,16 +49,16 @@
  *     onRefresh event fired synchronously during that window sees selfRefreshing == true.
  */
 
+import { AsyncPipe } from "@angular/common";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { HttpClientModule } from "@angular/common/http";
-import { NoopAnimationsModule } from "@angular/platform-browser/animations";
+import { render } from "@testing-library/angular";
+import { provideHttpClient } from "@angular/common/http";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
-import { render, waitFor } from "@testing-library/angular";
 import { of, Subject } from "rxjs";
 import { http, HttpResponse } from "msw";
 
-import { server } from "../../../../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 import { UsersSettingsPageComponent } from "./users-settings-page.component";
 import { SecurityTreeRootModel } from "../users-settings-view/security-tree-root-model";
 import { SecurityTreeNodeModel } from "../users-settings-view/security-tree-node-model";
@@ -155,9 +155,10 @@ async function renderComponent(opts: RenderOpts = {}) {
    );
 
    const result = await render(UsersSettingsPageComponent, {
-      imports: [HttpClientModule, NoopAnimationsModule],
+      componentImports: [AsyncPipe],
       schemas: [NO_ERRORS_SCHEMA],
       providers: [
+         provideHttpClient(),
          SecurityTreeService,
          { provide: MatDialog, useValue: dialogSpy },
          { provide: MatSnackBar, useValue: snackBarSpy },
@@ -167,17 +168,14 @@ async function renderComponent(opts: RenderOpts = {}) {
          { provide: ErrorHandlerService, useValue: errorServiceSpy },
          { provide: PageHeaderService, useValue: pageHeaderSpy },
       ],
+      componentProperties: {
+         model: { ...DEFAULT_TREE_ROOT },
+         selectedProvider: "TestProvider",
+      },
    });
 
-   const comp = result.fixture.componentInstance as UsersSettingsPageComponent;
-   // Provide a baseline model so methods that read this.model don't throw.
-   comp.model = { ...DEFAULT_TREE_ROOT };
-   comp.selectedProvider = "TestProvider";
-
-   result.fixture.detectChanges();
-   await result.fixture.whenStable();
-
-   return { ...result, comp, dialogSpy, snackBarSpy, orgDropdownSpy, usersServiceSpy, errorServiceSpy, onRefreshSubject };
+   const comp = result.fixture.componentInstance;
+   return { fixture: result.fixture, comp, dialogSpy, snackBarSpy, orgDropdownSpy, usersServiceSpy, errorServiceSpy, onRefreshSubject };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -202,7 +200,7 @@ describe("UsersSettingsPageComponent — clearIncompleteNewUser(): state consist
       // Swallow errors the same way callers in the component do
       comp.clearIncompleteNewUser(false).subscribe({ error: () => {} });
 
-      await waitFor(() => {
+      await vi.waitFor(() => {
          expect(comp.hasIncompleteNewUser).toBe(true);
       });
    });
@@ -221,7 +219,7 @@ describe("UsersSettingsPageComponent — clearIncompleteNewUser(): state consist
       let completed = false;
       comp.clearIncompleteNewUser(false).subscribe({ complete: () => (completed = true) });
 
-      await waitFor(() => {
+      await vi.waitFor(() => {
          expect(completed).toBe(true);
          expect(comp.hasIncompleteNewUser).toBe(false);
       });
@@ -243,7 +241,7 @@ describe("UsersSettingsPageComponent — clearIncompleteNewUser(): state consist
       let completed = false;
       comp.clearIncompleteNewUser(false).subscribe({ complete: () => (completed = true) });
 
-      await waitFor(() => expect(completed).toBe(true));
+      await vi.waitFor(() => expect(completed).toBe(true));
       expect(postSpy).not.toHaveBeenCalled();
    });
 });
@@ -278,7 +276,7 @@ describe("UsersSettingsPageComponent — selectionChanged(): incomplete new user
 
       expect(dialogSpy.open).toHaveBeenCalledTimes(1);
 
-      await waitFor(() => {
+      await vi.waitFor(() => {
          expect(comp.newUserIdentity).toBeNull();
          expect(comp.selectedNodes).toEqual([nextNode]);
          expect(comp.pageChanged).toBe(false);
@@ -303,7 +301,7 @@ describe("UsersSettingsPageComponent — selectionChanged(): incomplete new user
       // Dialog opens but user cancels
       expect(dialogSpy.open).toHaveBeenCalledTimes(1);
 
-      await waitFor(() => {
+      await vi.waitFor(() => {
          expect(comp.newUserIdentity).toBe(pendingId); // not cleared
          // selectedNodes is reassigned via splice(0) — still contains the original node
          expect(comp.selectedNodes.length).toBe(1);
@@ -366,7 +364,7 @@ describe("UsersSettingsPageComponent — selectionChanged(): pageChanged guard",
 
       expect(dialogSpy.open).toHaveBeenCalledTimes(1);
 
-      await waitFor(() => {
+      await vi.waitFor(() => {
          expect(comp.pageChanged).toBe(false);
          expect(comp.selectedNodes).toEqual([nextNode]);
       });
@@ -385,7 +383,7 @@ describe("UsersSettingsPageComponent — selectionChanged(): pageChanged guard",
 
       expect(dialogSpy.open).toHaveBeenCalledTimes(1);
 
-      await waitFor(() => {
+      await vi.waitFor(() => {
          expect(comp.pageChanged).toBe(true);
          expect(comp.selectedNodes[0]).toBe(currentNode);
       });
@@ -431,7 +429,7 @@ describe("UsersSettingsPageComponent — changeProvider(): clears pending new us
       comp.changeProvider("AnotherProvider", true, false);
 
       // After provider change, pending user must be cleared
-      await waitFor(() => expect(comp.newUserIdentity).toBeNull());
+      await vi.waitFor(() => expect(comp.newUserIdentity).toBeNull());
    });
 
    // Empty/falsy provider → guard returns early, pending user is NOT cleared.
@@ -501,7 +499,7 @@ describe("UsersSettingsPageComponent — deleteIdentities(): newUserIdentity syn
 
       comp.deleteIdentities();
 
-      await waitFor(() => expect(comp.newUserIdentity).toBeNull());
+      await vi.waitFor(() => expect(comp.newUserIdentity).toBeNull());
    });
 
    // Deleting a DIFFERENT user must not touch newUserIdentity.
@@ -525,7 +523,7 @@ describe("UsersSettingsPageComponent — deleteIdentities(): newUserIdentity syn
 
       comp.deleteIdentities();
 
-      await waitFor(() => expect(comp.selectedNodes.length).toBe(0)); // post-delete clear
+      await vi.waitFor(() => expect(comp.selectedNodes.length).toBe(0)); // post-delete clear
       expect(comp.newUserIdentity).toBe(pendingId); // still set
    });
 });
@@ -662,7 +660,7 @@ describe("UsersSettingsPageComponent — selfRefreshing guard: ignores self-trig
 
       onRefreshSubject.next({ provider: "NewProvider", providerChanged: false });
 
-      await waitFor(() => expect(comp.selectedProvider).toBe("NewProvider"));
+      await vi.waitFor(() => expect(comp.selectedProvider).toBe("NewProvider"));
    });
 });
 
@@ -697,7 +695,7 @@ describe("UsersSettingsPageComponent — deleteIdentities(): auto-select and nam
 
       comp.deleteIdentities();
 
-      await waitFor(() => expect(refreshTreeSpy).toHaveBeenCalled());
+      await vi.waitFor(() => expect(refreshTreeSpy).toHaveBeenCalled());
 
       const lastCall = refreshTreeSpy.mock.calls[refreshTreeSpy.mock.calls.length - 1];
       expect(lastCall[0]).toEqual(nextUserModel.identityID);
@@ -725,7 +723,7 @@ describe("UsersSettingsPageComponent — deleteIdentities(): auto-select and nam
       comp.deleteIdentities();
 
       // Wait for the HTTP response to be processed (selectedNodes cleared is the observable side-effect)
-      await waitFor(() => expect(comp.selectedNodes.length).toBe(0));
+      await vi.waitFor(() => expect(comp.selectedNodes.length).toBe(0));
 
       expect(snackBarSpy.open).toHaveBeenCalled();
    });
@@ -744,7 +742,7 @@ describe("UsersSettingsPageComponent — deleteIdentities(): auto-select and nam
 
       comp.deleteIdentities();
 
-      await waitFor(() => expect(errorServiceSpy.showSnackBar).toHaveBeenCalled());
+      await vi.waitFor(() => expect(errorServiceSpy.showSnackBar).toHaveBeenCalled());
       expect(comp.selectedNodes).toEqual([node]);
    });
 });

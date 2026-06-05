@@ -38,10 +38,7 @@
  */
 
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { MatCheckboxModule } from "@angular/material/checkbox";
-import { MatRadioModule } from "@angular/material/radio";
-import { NoopAnimationsModule } from "@angular/platform-browser/animations";
+import { provideNoopAnimations } from "@angular/platform-browser/animations";
 import { render } from "@testing-library/angular";
 
 import { ServerSaveComponent, ServerSave, ServerSaveFile } from "./server-save.component";
@@ -74,9 +71,13 @@ function makePathModel(overrides: Partial<ServerPathInfoModel> = {}): ServerPath
 // ---------------------------------------------------------------------------
 
 async function renderComponent(props: Partial<ServerSaveComponent> = {}) {
+   // Do NOT use componentImports here — that option overrides the standalone component's own
+   // imports, stripping MatCheckbox/MatRadioGroup/etc. and causing NG01203 when those elements
+   // render with [(ngModel)] but no ControlValueAccessor. ServerSaveComponent already declares
+   // all required Material imports in its @Component decorator.
    const result = await render(ServerSaveComponent, {
-      imports: [FormsModule, ReactiveFormsModule, MatCheckboxModule, MatRadioModule, NoopAnimationsModule],
       schemas: [NO_ERRORS_SCHEMA],
+      providers: [provideNoopAnimations()],
       componentProperties: {
          formats: [makeFormat("0", "Excel"), makeFormat("3", "CSV"), makeFormat("1", "PDF")],
          ...props,
@@ -139,10 +140,11 @@ describe("ServerSaveComponent — isValid: valid output contract", () => {
 
    // 🔁 Regression-sensitive: exact duplicate (same format + same path) must produce valid=false.
    it("should emit valid=false when two files have the same format and same path", async () => {
-      const { comp } = await renderComponent({ enabled: true });
+      const { comp } = await renderComponent();
 
       addFileEntry(comp, "0", "/reports/output.xlsx");
       addFileEntry(comp, "0", "/reports/output.xlsx");
+      comp.enabled = true;
 
       const emitted: ServerSave[] = [];
       comp.serverSaveChanged.subscribe(e => emitted.push(e));
@@ -158,10 +160,11 @@ describe("ServerSaveComponent — isValid: valid output contract", () => {
    // 🔁 Regression-sensitive: same format but different paths should hit the duplicate-format warning
    // (findDuplicateFormat) rather than the exact-duplicate warning (findDuplicate).
    it("should trigger duplicate-format warning when two files share the same format but different paths", async () => {
-      const { comp } = await renderComponent({ enabled: true });
+      const { comp } = await renderComponent();
 
       addFileEntry(comp, "0", "/reports/output-A.xlsx");
       addFileEntry(comp, "0", "/reports/output-B.xlsx");
+      comp.enabled = true;
 
       const emitted: ServerSave[] = [];
       comp.serverSaveChanged.subscribe(e => emitted.push(e));
@@ -175,9 +178,10 @@ describe("ServerSaveComponent — isValid: valid output contract", () => {
 
    // Happy: single file with a valid path → valid=true.
    it("should emit valid=true when enabled=true and one file with a non-empty path is set", async () => {
-      const { comp } = await renderComponent({ enabled: true });
+      const { comp } = await renderComponent();
 
       addFileEntry(comp, "0", "/reports/output.xlsx");
+      comp.enabled = true;
 
       const emitted: ServerSave[] = [];
       comp.serverSaveChanged.subscribe(e => emitted.push(e));
@@ -247,7 +251,7 @@ describe("ServerSaveComponent — findDuplicate / findDuplicateFormat: duplicate
 
    // 🔁 Regression-sensitive: same format + same path must be detected by findDuplicate.
    it("should detect exact duplicates (same format and same path) via findDuplicate", async () => {
-      const { comp } = await renderComponent({ enabled: true });
+      const { comp } = await renderComponent();
 
       addFileEntry(comp, "0", "/out/report.xlsx");
       addFileEntry(comp, "0", "/out/report.xlsx");
@@ -258,7 +262,7 @@ describe("ServerSaveComponent — findDuplicate / findDuplicateFormat: duplicate
    // 🔁 Regression-sensitive: same format + different path must be detected by findDuplicateFormat
    // (two outputs in the same format to different locations — likely unintentional).
    it("should detect format-only duplicates (same format, different path) via findDuplicateFormat", async () => {
-      const { comp } = await renderComponent({ enabled: true });
+      const { comp } = await renderComponent();
 
       addFileEntry(comp, "0", "/out/report-a.xlsx");
       addFileEntry(comp, "0", "/out/report-b.xlsx");
@@ -269,7 +273,7 @@ describe("ServerSaveComponent — findDuplicate / findDuplicateFormat: duplicate
    // Boundary: different format + same path is NOT a duplicate — valid to export the same
    // path in multiple formats (e.g., PDF and Excel side by side).
    it("should return undefined for different formats at the same path (not a duplicate)", async () => {
-      const { comp } = await renderComponent({ enabled: true });
+      const { comp } = await renderComponent();
 
       addFileEntry(comp, "0", "/out/report.xlsx");
       addFileEntry(comp, "1", "/out/report.xlsx");
@@ -280,7 +284,7 @@ describe("ServerSaveComponent — findDuplicate / findDuplicateFormat: duplicate
 
    // Boundary: single file — no duplicate possible.
    it("should return undefined for both checks when only one file is configured", async () => {
-      const { comp } = await renderComponent({ enabled: true });
+      const { comp } = await renderComponent();
 
       addFileEntry(comp, "0", "/out/report.xlsx");
 
@@ -325,7 +329,7 @@ describe("ServerSaveComponent — removeFile: removes by reference and fires cha
    // 🔁 Regression-sensitive: removeFile uses `findIndex(f => f === file)` (reference equality).
    // Passing the same object reference from files[] must remove it; the files array must shrink.
    it("should remove the matching file and emit serverSaveChanged", async () => {
-      const { comp } = await renderComponent({ enabled: true });
+      const { comp } = await renderComponent();
 
       addFileEntry(comp, "0", "/out/report.xlsx");
       const file = comp.files[0]; // same reference
@@ -341,7 +345,7 @@ describe("ServerSaveComponent — removeFile: removes by reference and fires cha
 
    // Boundary: removing a file that is not in the list (different reference) must be a no-op.
    it("should not emit serverSaveChanged when the file reference is not found", async () => {
-      const { comp } = await renderComponent({ enabled: true });
+      const { comp } = await renderComponent();
 
       addFileEntry(comp, "0", "/out/report.xlsx");
 

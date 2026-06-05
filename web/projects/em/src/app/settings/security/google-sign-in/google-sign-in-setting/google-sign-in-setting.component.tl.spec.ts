@@ -43,7 +43,7 @@ import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse } from "msw";
 import { Observable, of, Subject } from "rxjs";
 
-import { server } from "../../../../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 import { PageHeaderService } from "../../../../page-header/page-header.service";
 import { OpenIdAttributesModel } from "../../sso/sso-settings-model";
 import { GoogleSignInModel } from "./google-sign-in-model";

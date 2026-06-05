@@ -58,20 +58,16 @@
  */
 
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { HttpClientModule } from "@angular/common/http";
-import { ReactiveFormsModule } from "@angular/forms";
-import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from "@angular/material/dialog";
-import { MatAutocompleteModule } from "@angular/material/autocomplete";
-import { MatCheckboxModule } from "@angular/material/checkbox";
-import { MatInputModule } from "@angular/material/input";
-import { MatSelectModule } from "@angular/material/select";
-import { MatFormFieldModule } from "@angular/material/form-field";
-import { render, waitFor } from "@testing-library/angular";
+import { NgIf } from "@angular/common";
+import { provideHttpClient } from "@angular/common/http";
+import { MatAutocomplete } from "@angular/material/autocomplete";
 import { of } from "rxjs";
 import { http, HttpResponse } from "msw";
+import { render } from "@testing-library/angular";
+import { provideNoopAnimations } from "@angular/platform-browser/animations";
 
-import { server } from "../../../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 import { AddParameterDialogComponent } from "./add-parameter-dialog.component";
 import { AddParameterDialogModel } from "../../../../../../shared/schedule/model/add-parameter-dialog-model";
 import { ValueTypes } from "../../../../../../portal/src/app/vsobjects/model/dynamic-value-model";
@@ -117,13 +113,11 @@ async function renderComp(opts: RenderOpts = {}) {
    };
 
    const result = await render(AddParameterDialogComponent, {
-      imports: [
-         HttpClientModule, ReactiveFormsModule, NoopAnimationsModule,
-         MatAutocompleteModule, MatCheckboxModule, MatInputModule,
-         MatSelectModule, MatFormFieldModule,
-      ],
+      componentImports: [NgIf, MatAutocomplete],
       schemas: [NO_ERRORS_SCHEMA],
       providers: [
+         provideHttpClient(),
+         provideNoopAnimations(),
          { provide: MatDialogRef, useValue: dialogRefSpy },
          { provide: MatDialog, useValue: matDialogSpy },
          {
@@ -138,13 +132,9 @@ async function renderComp(opts: RenderOpts = {}) {
          },
       ],
    });
+   const comp = result.fixture.componentInstance;
 
-   result.fixture.detectChanges();
-   await result.fixture.whenStable();
-
-   const comp = result.fixture.componentInstance as AddParameterDialogComponent;
-
-   return { ...result, comp, dialogRefSpy, matDialogSpy };
+   return { fixture: result.fixture, comp, dialogRefSpy, matDialogSpy };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -422,7 +412,7 @@ describe("AddParameterDialogComponent — array toggle: value split and click ti
       comp.form.controls["array"].setValue(false);
       // Wait for the component's internal setTimeout(0) callback to flush.
       // Use a short timeout so hangs fail fast while still allowing CI scheduling jitter.
-      await waitFor(() => expect(comp.model.value.value).toBe("1"), { timeout: 500 });
+      await vi.waitFor(() => expect(comp.model.value.value).toBe("1"), { timeout: 500 });
    });
 
    // Risk Point/Contract: For STRING type the split is skipped entirely (dataType === STRING).
@@ -436,7 +426,7 @@ describe("AddParameterDialogComponent — array toggle: value split and click ti
 
       comp.form.controls["array"].setValue(false);
       // Same reason as above: this assertion depends on async setTimeout(0) inside valueChanges.
-      await waitFor(() => expect(comp.model.value.value).toBe("a,b,c"), { timeout: 500 });
+      await vi.waitFor(() => expect(comp.model.value.value).toBe("a,b,c"), { timeout: 500 });
    });
 
    // guard case: convertToArray() uses (click) which fires BEFORE

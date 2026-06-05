@@ -58,7 +58,7 @@ import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse } from "msw";
 import { of } from "rxjs";
 
-import { server } from "../../../../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 import { ImportTaskDialogComponent } from "./import-task-dialog.component";
 import { ImportTaskDialogModel } from "../../model/import-task-dialog-model";
 import { TaskDependencyModel } from "../../model/task-dependency-model";

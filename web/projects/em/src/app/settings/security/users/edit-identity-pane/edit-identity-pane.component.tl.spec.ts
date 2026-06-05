@@ -41,7 +41,7 @@ import { render } from "@testing-library/angular";
 import { http, HttpResponse } from "msw";
 import { firstValueFrom, Subject } from "rxjs";
 
-import { server } from "../../../../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 import { IdentityType } from "../../../../../../../shared/data/identity-type";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { MessageDialogType } from "../../../../common/util/message-dialog";

@@ -41,6 +41,10 @@ export default defineConfig({
       // `process.stderr.fd` is `undefined`.
       conditions: ["browser", "es2020", "es2015", "module", "default"],
       alias: [
+         {
+            find: "@test-mocks",
+            replacement: path.resolve(__dirname, "mocks"),
+         },
          // ckeditor5 is ESM-only. While Vitest handles ESM natively, the package
          // pulls in browser-only dependencies (canvas, etc.) that fail under jsdom.
          // Stub the import out for the test environment.

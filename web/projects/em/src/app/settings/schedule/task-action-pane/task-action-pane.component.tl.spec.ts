@@ -37,11 +37,13 @@
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 
 import { render } from "@testing-library/angular";
+import { EMPTY } from "rxjs";
 import { TaskActionPaneComponent } from "./task-action-pane.component";
 import { GeneralActionModel } from "../../../../../../shared/schedule/model/general-action-model";
 import { BackupActionModel } from "../../../../../../shared/schedule/model/backup-action-model";
 import { BatchActionModel } from "../../../../../../shared/schedule/model/batch-action-model";
 import { VSBookmarkInfoModel } from "../../../../../../portal/src/app/vsobjects/model/vs-bookmark-info-model";
+import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -70,6 +72,18 @@ async function renderComponent(action = makeGeneralAction()) {
    const result = await render(TaskActionPaneComponent, {
       schemas: [NO_ERRORS_SCHEMA],
       componentProperties: { action },
+      providers: [
+         {
+            provide: ScheduleUsersService,
+            useValue: {
+               getOwners: () => EMPTY,
+               getAdminName: () => EMPTY,
+               getSSOEnable: () => EMPTY,
+               getEmailUsers: () => EMPTY,
+               getEmailGroups: () => EMPTY,
+            }
+         },
+      ],
    });
    return { ...result, comp: result.fixture.componentInstance };
 }

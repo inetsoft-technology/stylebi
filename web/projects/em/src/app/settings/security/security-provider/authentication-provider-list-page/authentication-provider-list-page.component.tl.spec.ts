@@ -41,7 +41,7 @@ import { render, waitFor } from "@testing-library/angular";
 import { Subject, of } from "rxjs";
 import { http, HttpResponse } from "msw";
 
-import { server } from "../../../../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
 import { OrganizationDropdownService } from "../../../../navbar/organization-dropdown.service";
 import { SecurityProviderStatus } from "../security-provider-model/security-provider-status-list";
@@ -442,11 +442,11 @@ describe("AuthenticationProviderViewComponent — polling lifecycle", () => {
       await waitForProviderNames(comp, ["A"]);
 
       const destroy$ = comp["destroy$"];
-      expect(destroy$.closed).toBe(false);
+      expect(destroy$.isStopped).toBe(false);
 
       // Let fixture.destroy trigger ngOnDestroy once; avoid double destroy after spy.next throwing ObjectUnsubscribedError
       fixture.destroy();
 
-      expect(destroy$.closed).toBe(true);
+      expect(destroy$.isStopped).toBe(true);
    });
 });

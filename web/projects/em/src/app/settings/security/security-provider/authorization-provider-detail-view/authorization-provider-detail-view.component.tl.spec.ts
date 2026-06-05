@@ -17,7 +17,7 @@
  */
 
 /**
- * AuthorizationProviderDetailViewComponent - Testing Library style
+ * AuthorizationProviderDetailViewComponent
  *
  * Coverage:
  *   Group 1 [Risk 3] - model binding: existing provider input must populate the form and
@@ -33,15 +33,11 @@
  *   - changed setter emits onChanged before storing the local flag.
  */
 
+import { render } from "@testing-library/angular";
+import { NgIf } from "@angular/common";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { provideNoopAnimations } from "@angular/platform-browser/animations";
 import { ReactiveFormsModule, UntypedFormControl, Validators } from "@angular/forms";
-import { MatCardModule } from "@angular/material/card";
-import { MatFormFieldModule } from "@angular/material/form-field";
-import { MatInputModule } from "@angular/material/input";
-import { MatOptionModule } from "@angular/material/core";
-import { MatSelectModule } from "@angular/material/select";
-import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { render, waitFor } from "@testing-library/angular";
 import { of } from "rxjs";
 
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
@@ -62,45 +58,32 @@ function makeModel(overrides: Partial<AuthorizationProviderModel> = {}): Authori
 }
 
 // ---------------------------------------------------------------------------
-// Render helper
+// Setup helper
 // ---------------------------------------------------------------------------
 
-interface RenderOpts {
+interface SetupOpts {
    model?: AuthorizationProviderModel;
    isEnterprise?: boolean;
 }
 
-async function renderComponent(opts: RenderOpts = {}) {
+async function createFixture(opts: SetupOpts = {}) {
    const appInfoSpy = {
       isEnterprise: vi.fn().mockReturnValue(of(opts.isEnterprise ?? true)),
    };
 
    const result = await render(AuthorizationProviderDetailViewComponent, {
-      imports: [
-         ReactiveFormsModule,
-         NoopAnimationsModule,
-         MatCardModule,
-         MatFormFieldModule,
-         MatInputModule,
-         MatOptionModule,
-         MatSelectModule,
-      ],
+      componentImports: [NgIf],
       schemas: [NO_ERRORS_SCHEMA],
       providers: [
+         provideNoopAnimations(),
          { provide: AppInfoService, useValue: appInfoSpy },
       ],
       componentProperties: {
-         model: opts.model,
+         ...(opts.model !== undefined ? { model: opts.model } : {}),
       },
    });
 
-   result.fixture.detectChanges();
-
-   return {
-      ...result,
-      comp: result.fixture.componentInstance as AuthorizationProviderDetailViewComponent,
-      appInfoSpy,
-   };
+   return { fixture: result.fixture, comp: result.fixture.componentInstance, appInfoSpy };
 }
 
 // ---------------------------------------------------------------------------
@@ -117,7 +100,7 @@ describe("AuthorizationProviderDetailViewComponent - model binding and enterpris
          providerType: SecurityProviderType.CUSTOM,
       });
 
-      const { comp } = await renderComponent({ model });
+      const { comp } = await createFixture({ model });
 
       expect(comp.form.controls["providerName"].value).toBe("ExistingAuthz");
       expect(comp.form.controls["providerType"].value).toBe(SecurityProviderType.CUSTOM);
@@ -126,7 +109,7 @@ describe("AuthorizationProviderDetailViewComponent - model binding and enterpris
    // Regression-sensitive baseline: after form creation, assigning model must write both
    // top-level controls used by isValid and reset.
    it("should populate the form when model is assigned after init", async () => {
-      const { comp } = await renderComponent({ model: makeModel() });
+      const { comp } = await createFixture({ model: makeModel() });
 
       comp.model = makeModel({
          providerName: "AssignedLater",
@@ -139,9 +122,9 @@ describe("AuthorizationProviderDetailViewComponent - model binding and enterpris
 
    // Regression-sensitive: CUSTOM authorization is enterprise-gated in the template.
    it("should load the enterprise flag from AppInfoService", async () => {
-      const { comp } = await renderComponent({ isEnterprise: false });
+      const { comp } = await createFixture({ isEnterprise: false });
 
-      await waitFor(() => expect(comp.isEnterprise).toBe(false));
+      expect(comp.isEnterprise).toBe(false);
    });
 });
 
@@ -153,7 +136,7 @@ describe("AuthorizationProviderDetailViewComponent - change tracking and reset",
 
    // Regression-sensitive: parent apply buttons and unsaved-change guards depend on onChanged.
    it("should emit changed=true when providerName differs from the original model", async () => {
-      const { comp } = await renderComponent({ model: makeModel() });
+      const { comp } = await createFixture({ model: makeModel() });
       comp.model = makeModel({ providerName: "ProviderA" });
       const emitted: boolean[] = [];
       comp.onChanged.subscribe(value => emitted.push(value));
@@ -166,7 +149,7 @@ describe("AuthorizationProviderDetailViewComponent - change tracking and reset",
 
    // Regression-sensitive: reset must restore the form and clear dirty state in one operation.
    it("should restore form values and emit changed=false on reset", async () => {
-      const { comp } = await renderComponent({ model: makeModel() });
+      const { comp } = await createFixture({ model: makeModel() });
       comp.model = makeModel({
          providerName: "ProviderA",
          providerType: SecurityProviderType.FILE,
@@ -194,7 +177,7 @@ describe("AuthorizationProviderDetailViewComponent - isValid guards", () => {
    // Regression-sensitive: unchanged FILE provider data must not enable Apply; changed valid
    // values must enable it so provider renames can be saved.
    it("should require changed, different top-level values for FILE providers", async () => {
-      const { comp } = await renderComponent({ model: makeModel() });
+      const { comp } = await createFixture({ model: makeModel() });
       comp.model = makeModel({
          providerName: "ProviderA",
          providerType: SecurityProviderType.FILE,
@@ -212,7 +195,7 @@ describe("AuthorizationProviderDetailViewComponent - isValid guards", () => {
    // Regression-sensitive: CUSTOM validity is delegated to the nested customForm. If the parent
    // ignores it, an invalid custom provider can be submitted.
    it("should require customForm.valid for CUSTOM providers", async () => {
-      const { comp } = await renderComponent({ model: makeModel() });
+      const { comp } = await createFixture({ model: makeModel() });
       comp.model = makeModel({ providerType: SecurityProviderType.FILE });
       comp.form.controls["providerName"].setValue("ProviderB");
       comp.changed = true;
@@ -228,7 +211,7 @@ describe("AuthorizationProviderDetailViewComponent - isValid guards", () => {
    // Regression-sensitive: empty names must be invalid for the name control specifically, not
    // hidden by the provider-type branch.
    it("should be invalid for an empty providerName and report the required error", async () => {
-      const { comp } = await renderComponent({ model: makeModel() });
+      const { comp } = await createFixture({ model: makeModel() });
       comp.model = makeModel();
       comp.form.controls["providerName"].setValue("");
       comp.form.controls["providerType"].setValue(SecurityProviderType.FILE);
@@ -248,7 +231,7 @@ describe("AuthorizationProviderDetailViewComponent - lifecycle cleanup", () => {
    // Regression-sensitive: value-change subscriptions must stop on destroy or a closed detail
    // view can keep toggling parent dirty state.
    it("should stop emitting changed events after destroy", async () => {
-      const { comp, fixture } = await renderComponent({ model: makeModel() });
+      const { comp, fixture } = await createFixture({ model: makeModel() });
       comp.model = makeModel({ providerName: "ProviderA" });
       const emitted: boolean[] = [];
       comp.onChanged.subscribe(value => emitted.push(value));

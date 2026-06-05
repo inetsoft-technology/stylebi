@@ -56,8 +56,10 @@
  *   Bulk delete payload must separate folders from data sources.
  */
 
-import { type Mock } from "vitest";import { provideHttpClient } from "@angular/common/http";
-import { Component, NO_ERRORS_SCHEMA } from "@angular/core";
+import { type Mock } from "vitest";import { NgClass } from "@angular/common";
+import { provideHttpClient } from "@angular/common/http";
+import { Component, Directive, Input, NO_ERRORS_SCHEMA } from "@angular/core";
+import { FormsModule } from "@angular/forms";
 import { ActivatedRoute, convertToParamMap, ParamMap, Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { render, waitFor } from "@testing-library/angular";
@@ -77,7 +79,7 @@ import { DragService } from "../../../widget/services/drag.service";
 import { DataDatasourceBrowserComponent } from "./data-datasource-browser.component";
 import { DataSourceBrowserModel } from "./data-source-browser-model";
 import { DatasourceBrowserService } from "./datasource-browser.service";
-import { server } from "../../../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 
 interface NotificationMock {
    success: Mock;
@@ -94,6 +96,45 @@ let currentNotifications: NotificationMock;
 })
 class DataNotificationsStubComponent {
    notifications = currentNotifications;
+}
+
+@Directive({
+   selector: "[ngbTypeahead]",
+   standalone: true
+})
+class StubNgbTypeaheadDirective {
+   @Input() ngbTypeahead: unknown;
+   @Input() focusFirst: unknown;
+}
+
+@Directive({
+   selector: "[ngbDropdown]",
+   standalone: true
+})
+class StubNgbDropdownDirective {
+}
+
+@Directive({
+   selector: "[ngbDropdownToggle]",
+   standalone: true
+})
+class StubNgbDropdownToggleDirective {
+}
+
+@Directive({
+   selector: "[ngbDropdownMenu]",
+   standalone: true
+})
+class StubNgbDropdownMenuDirective {
+}
+
+@Directive({
+   selector: "[routerLink]",
+   standalone: true
+})
+class StubRouterLinkDirective {
+   @Input() routerLink: unknown;
+   @Input() queryParams: unknown;
 }
 
 interface RenderOptions {
@@ -219,7 +260,16 @@ async function renderComponent(options: RenderOptions = {}) {
    );
 
    const { fixture } = await render(DataDatasourceBrowserComponent, {
-      declarations: [DataNotificationsStubComponent],
+      componentImports: [
+         FormsModule,
+         NgClass,
+         StubNgbTypeaheadDirective,
+         StubNgbDropdownDirective,
+         StubNgbDropdownToggleDirective,
+         StubNgbDropdownMenuDirective,
+         StubRouterLinkDirective,
+         DataNotificationsStubComponent
+      ],
       providers: [
          provideHttpClient(),
          {

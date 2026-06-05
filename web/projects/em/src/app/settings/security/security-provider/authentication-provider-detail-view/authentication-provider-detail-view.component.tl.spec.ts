@@ -17,7 +17,7 @@
  */
 
 /**
- * AuthenticationProviderDetailViewComponent - Testing Library style
+ * AuthenticationProviderDetailViewComponent
  *
  * Risk-first coverage:
  *   Group 1 [Risk 3] - model binding: existing provider input must populate the form; new
@@ -42,22 +42,19 @@
  *   - New-provider defaults: DB and custom follow enterprise; LDAP is disabled in multi-tenant.
  */
 
-import { provideHttpClient } from "@angular/common/http";
+import { render } from "@testing-library/angular";
+import { NgIf } from "@angular/common";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { provideHttpClient } from "@angular/common/http";
+import { provideNoopAnimations } from "@angular/platform-browser/animations";
 import { ReactiveFormsModule, UntypedFormControl, Validators } from "@angular/forms";
-import { MatCardModule } from "@angular/material/card";
-import { MatFormFieldModule } from "@angular/material/form-field";
-import { MatInputModule } from "@angular/material/input";
-import { MatOptionModule } from "@angular/material/core";
-import { MatSelectModule } from "@angular/material/select";
-import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { render, waitFor } from "@testing-library/angular";
-import { of } from "rxjs";
+import { of, EMPTY } from "rxjs";
 
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
 import { AuthenticationProviderModel } from "../security-provider-model/authentication-provider-model";
 import { SecurityProviderType } from "../security-provider-model/security-provider-type.enum";
 import { AuthenticationProviderDetailViewComponent } from "./authentication-provider-detail-view.component";
+import { SecurityProviderService } from "../security-provider.service";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -76,49 +73,61 @@ function makeModel(overrides: Partial<AuthenticationProviderModel> = {}): Authen
 }
 
 // ---------------------------------------------------------------------------
-// Render helper
+// Setup helper
 // ---------------------------------------------------------------------------
 
-interface RenderOpts {
+interface SetupOpts {
    model?: AuthenticationProviderModel;
    isEnterprise?: boolean;
    isMultiTenant?: boolean;
 }
 
-async function renderComponent(opts: RenderOpts = {}) {
+const SECURITY_PROVIDER_STUB = {
+   testDatabaseConnection: () => EMPTY,
+   testConnection: () => EMPTY,
+   getUsers: () => EMPTY,
+   getGroups: () => EMPTY,
+   getRoles: () => EMPTY,
+   getOrganizations: () => EMPTY,
+   getDefaultOrganization: () => EMPTY,
+   getAdminRoles: () => EMPTY,
+   updateAuthenticationProvider: () => EMPTY,
+   routeToListView: vi.fn(),
+   triggerUserListQuery: vi.fn(),
+   triggerGroupListQuery: vi.fn(),
+   triggerRoleListQuery: vi.fn(),
+   triggerOrganizationListQuery: vi.fn(),
+   triggerUsersQuery: vi.fn(),
+   triggerUserRolesQuery: vi.fn(),
+   triggerUserRoleListQuery: vi.fn(),
+   triggerUserEmailsQuery: vi.fn(),
+   triggerGroupUsersQuery: vi.fn(),
+   triggerOrganizationMembersQuery: vi.fn(),
+   triggerOrganizationNameQuery: vi.fn(),
+};
+
+async function createFixture(opts: SetupOpts = {}) {
    const appInfoSpy = {
       isEnterprise: vi.fn().mockReturnValue(of(opts.isEnterprise ?? true)),
    };
 
    const result = await render(AuthenticationProviderDetailViewComponent, {
-      imports: [
-         ReactiveFormsModule,
-         NoopAnimationsModule,
-         MatCardModule,
-         MatFormFieldModule,
-         MatInputModule,
-         MatOptionModule,
-         MatSelectModule,
-      ],
+      componentImports: [NgIf],
       schemas: [NO_ERRORS_SCHEMA],
       providers: [
          provideHttpClient(),
+         provideNoopAnimations(),
          { provide: AppInfoService, useValue: appInfoSpy },
+         { provide: SecurityProviderService, useValue: SECURITY_PROVIDER_STUB },
       ],
       componentProperties: {
-         model: opts.model,
-         isMultiTenant: opts.isMultiTenant ?? false,
          isCloudSecrets: false,
+         ...(opts.model !== undefined ? { model: opts.model as any } : {}),
+         ...(opts.isMultiTenant !== undefined ? { isMultiTenant: opts.isMultiTenant } : {}),
       },
    });
 
-   result.fixture.detectChanges();
-
-   return {
-      ...result,
-      comp: result.fixture.componentInstance as AuthenticationProviderDetailViewComponent,
-      appInfoSpy,
-   };
+   return { fixture: result.fixture, comp: result.fixture.componentInstance, appInfoSpy };
 }
 
 // ---------------------------------------------------------------------------
@@ -136,7 +145,7 @@ describe("AuthenticationProviderDetailViewComponent - model binding and new-prov
          providerType: SecurityProviderType.DATABASE,
       });
 
-      const { comp } = await renderComponent({ model });
+      const { comp } = await createFixture({ model });
 
       expect(comp.providerName).toBe("Existing");
       expect(comp.oldName).toBe("Original");
@@ -146,13 +155,13 @@ describe("AuthenticationProviderDetailViewComponent - model binding and new-prov
    // Regression-sensitive baseline: once the form exists, assigning model must populate every
    // top-level control used by save/reset.
    it("should populate the form when model is assigned after init", async () => {
-      const { comp } = await renderComponent({ model: makeModel() });
+      const { comp } = await createFixture({ model: makeModel() });
 
       comp.model = makeModel({
          providerName: "AssignedLater",
          oldName: "OldAssigned",
          providerType: SecurityProviderType.LDAP,
-      });
+      }) as any;
 
       expect(comp.providerName).toBe("AssignedLater");
       expect(comp.oldName).toBe("OldAssigned");
@@ -162,13 +171,14 @@ describe("AuthenticationProviderDetailViewComponent - model binding and new-prov
    // Regression-sensitive: available provider types are security product-surface flags.
    // Enterprise controls DB/custom; multi-tenant suppresses LDAP.
    it("should create new-provider defaults from enterprise and multi-tenant flags", async () => {
-      const { comp } = await renderComponent({
-         model: null,
+      const { comp } = await createFixture({
+         model: null as any,
          isEnterprise: true,
          isMultiTenant: true,
       });
 
-      await waitFor(() => expect(comp.model).toBeTruthy());
+      // initNewProvider() uses setTimeout(0) to set the default model
+      await vi.waitFor(() => expect(comp.model).toBeTruthy(), { timeout: 1000 });
       expect(comp.model.dbProviderEnabled).toBe(true);
       expect(comp.model.customProviderEnabled).toBe(true);
       expect(comp.model.ldapProviderEnabled).toBe(false);
@@ -183,8 +193,8 @@ describe("AuthenticationProviderDetailViewComponent - change tracking and reset"
 
    // Regression-sensitive: parent apply buttons and unsaved-change guards depend on onChanged.
    it("should emit changed=true when providerName differs from the original model", async () => {
-      const { comp } = await renderComponent({ model: makeModel() });
-      comp.model = makeModel({ providerName: "ProviderA" });
+      const { comp } = await createFixture({ model: makeModel() });
+      comp.model = makeModel({ providerName: "ProviderA" }) as any;
       const emitted: boolean[] = [];
       comp.onChanged.subscribe(value => emitted.push(value));
 
@@ -197,11 +207,11 @@ describe("AuthenticationProviderDetailViewComponent - change tracking and reset"
    // Regression-sensitive: reset must put the top-level form controls back to the model and clear
    // dirty state; otherwise Apply remains enabled after the visible fields are restored.
    it("should restore top-level fields and emit changed=false on reset", async () => {
-      const { comp } = await renderComponent({ model: makeModel() });
+      const { comp } = await createFixture({ model: makeModel() });
       comp.model = makeModel({
          providerName: "ProviderA",
          providerType: SecurityProviderType.FILE,
-      });
+      }) as any;
       const emitted: boolean[] = [];
       comp.onChanged.subscribe(value => emitted.push(value));
       comp.providerName = "Edited";
@@ -225,11 +235,11 @@ describe("AuthenticationProviderDetailViewComponent - isValid guards", () => {
    // Regression-sensitive: unchanged file providers must not enable Apply; changed valid values
    // must enable it so users can save provider renames/type changes.
    it("should require a changed, valid top-level model for FILE providers", async () => {
-      const { comp } = await renderComponent({ model: makeModel() });
+      const { comp } = await createFixture({ model: makeModel() });
       comp.model = makeModel({
          providerName: "ProviderA",
          providerType: SecurityProviderType.FILE,
-      });
+      }) as any;
       comp.changed = false;
 
       expect(comp.isValid).toBe(false);
@@ -243,8 +253,8 @@ describe("AuthenticationProviderDetailViewComponent - isValid guards", () => {
    // Regression-sensitive: nested provider panels own type-specific validators. The parent must
    // block Apply until the active nested form exists and is valid.
    it("should require a valid nested form for DATABASE providers", async () => {
-      const { comp } = await renderComponent({ model: makeModel() });
-      comp.model = makeModel({ providerType: SecurityProviderType.DATABASE });
+      const { comp } = await createFixture({ model: makeModel() });
+      comp.model = makeModel({ providerType: SecurityProviderType.DATABASE }) as any;
       comp.providerType = SecurityProviderType.DATABASE;
       comp.providerName = "ProviderB";
       comp.changed = true;
@@ -261,8 +271,8 @@ describe("AuthenticationProviderDetailViewComponent - isValid guards", () => {
    // Regression-sensitive: invalid provider names must be attributed to the name control, not to
    // a missing nested form, so the UI shows the correct error reason.
    it("should be invalid for an empty providerName without activating nested-form errors", async () => {
-      const { comp } = await renderComponent({ model: makeModel() });
-      comp.model = makeModel();
+      const { comp } = await createFixture({ model: makeModel() });
+      comp.model = makeModel() as any;
       comp.providerName = "";
       comp.providerType = SecurityProviderType.FILE;
       comp.changed = true;
@@ -282,8 +292,8 @@ describe("AuthenticationProviderDetailViewComponent - lifecycle cleanup", () => 
    // Regression-sensitive: value-change subscriptions must stop on destroy or a closed detail
    // view can keep toggling parent dirty state.
    it("should stop emitting changed events after destroy", async () => {
-      const { comp, fixture } = await renderComponent({ model: makeModel() });
-      comp.model = makeModel({ providerName: "ProviderA" });
+      const { comp, fixture } = await createFixture({ model: makeModel() });
+      comp.model = makeModel({ providerName: "ProviderA" }) as any;
       const emitted: boolean[] = [];
       comp.onChanged.subscribe(value => emitted.push(value));
 

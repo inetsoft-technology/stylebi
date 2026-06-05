@@ -34,12 +34,12 @@
  */
 
 import { TestBed } from "@angular/core/testing";
-import { HttpClientModule } from "@angular/common/http";
+import { provideHttpClient } from "@angular/common/http";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 import { firstValueFrom, forkJoin, of } from "rxjs";
 import { catchError } from "rxjs/operators";
 
-import { server } from "../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 import { AuthorizationService } from "./authorization.service";
 import { ComponentPermissions } from "./component-permissions";
 
@@ -66,7 +66,7 @@ const FRESH_PERMISSIONS: ComponentPermissions = {
 let service: AuthorizationService;
 
 beforeEach(() => {
-   TestBed.configureTestingModule({ imports: [HttpClientModule] });
+   TestBed.configureTestingModule({ providers: [provideHttpClient()] });
    service = TestBed.inject(AuthorizationService);
 });
 

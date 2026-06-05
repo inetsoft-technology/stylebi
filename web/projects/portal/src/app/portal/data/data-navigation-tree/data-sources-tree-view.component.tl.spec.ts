@@ -73,7 +73,7 @@ import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { DatasourceTreeAction } from "../model/datasources/database/datasource-tree-action";
 import { DataSourcesTreeViewComponent } from "./data-sources-tree-view.component";
 import { PortalDataType } from "./portal-data-type";
-import { server } from "../../../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 
 // ---------------------------------------------------------------------------
 // Shared helpers

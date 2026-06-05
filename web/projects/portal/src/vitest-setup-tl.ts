@@ -20,7 +20,7 @@
 // server lifecycle. Under the old Jest setup, setup-jest.ts (which had MSW)
 // was only wired to jest.tl.config.js, not to the main portal test suite.
 import { afterAll, afterEach, beforeAll } from "vitest";
-import { server } from "../../../mocks/server";
+import { server } from "@test-mocks/server";
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());

@@ -55,8 +55,10 @@
  *   Direct method calls must enforce the same permission guards advertised by the toolbar.
  */
 
-import { type Mock } from "vitest";import { provideHttpClient } from "@angular/common/http";
-import { Component, NO_ERRORS_SCHEMA } from "@angular/core";
+import { type Mock } from "vitest";import { NgClass } from "@angular/common";
+import { provideHttpClient } from "@angular/common/http";
+import { Component, Directive, EventEmitter, Input, NO_ERRORS_SCHEMA, Output } from "@angular/core";
+import { FormsModule } from "@angular/forms";
 import { ActivatedRoute, convertToParamMap, ParamMap, Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { render, waitFor } from "@testing-library/angular";
@@ -75,7 +77,7 @@ import { WorksheetBrowserInfo } from "../model/worksheet-browser-info";
 import { DataBrowserService } from "./data-browser.service";
 import { DataFolderBrowserComponent } from "./data-folder-browser.component";
 import { PortalDataBrowserModel } from "./portal-data-browser-model";
-import { server } from "../../../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 
 interface NotificationMock {
    success: Mock;
@@ -92,6 +94,77 @@ let currentNotifications: NotificationMock;
 })
 class DataNotificationsStubComponent {
    notifications = currentNotifications;
+}
+
+@Directive({
+   selector: "[ngbTypeahead]",
+   standalone: true
+})
+class StubNgbTypeaheadDirective {
+   @Input() ngbTypeahead: unknown;
+   @Input() focusFirst: unknown;
+}
+
+@Directive({
+   selector: "[ngbDropdown]",
+   standalone: true
+})
+class StubNgbDropdownDirective {
+   @Input() placement: unknown;
+}
+
+@Directive({
+   selector: "[ngbDropdownToggle]",
+   standalone: true
+})
+class StubNgbDropdownToggleDirective {
+}
+
+@Directive({
+   selector: "[ngbDropdownMenu]",
+   standalone: true
+})
+class StubNgbDropdownMenuDirective {
+}
+
+@Component({
+   selector: "data-folder-list-view",
+   template: "",
+   standalone: true
+})
+class StubDataFolderListViewComponent {
+   @Input() assets: WorksheetBrowserInfo[];
+   @Input() searchView: boolean;
+   @Input() selectedItems: WorksheetBrowserInfo[];
+   @Input() selectionOn: boolean;
+   @Input() selectAllChecked: boolean;
+   @Input() sortOptions: unknown;
+   @Input() selectedFile: WorksheetBrowserInfo;
+   @Input() folderPathLength: number;
+   @Input() foldersInView: number;
+   @Output() sortChanged = new EventEmitter<void>();
+   @Output() openAsset = new EventEmitter<WorksheetBrowserInfo>();
+   @Output() renameAsset = new EventEmitter<WorksheetBrowserInfo>();
+   @Output() moveAsset = new EventEmitter<WorksheetBrowserInfo>();
+   @Output() deleteAsset = new EventEmitter<WorksheetBrowserInfo>();
+   @Output() editWorksheet = new EventEmitter<WorksheetBrowserInfo>();
+   @Output() showDetails = new EventEmitter<WorksheetBrowserInfo>();
+   @Output() materializeAsset = new EventEmitter<WorksheetBrowserInfo>();
+   @Output() selectAllChanged = new EventEmitter<boolean>();
+   @Output() selectChanged = new EventEmitter<unknown>();
+   @Output() dragAssets = new EventEmitter<{event: unknown, data: WorksheetBrowserInfo[]}>();
+   @Output() assetsDroped = new EventEmitter<WorksheetBrowserInfo>();
+}
+
+@Component({
+   selector: "asset-description",
+   template: "",
+   standalone: true
+})
+class StubAssetDescriptionComponent {
+   @Input() selectedFile: unknown;
+   @Input() isWorksheet: boolean;
+   @Output() onClose = new EventEmitter<void>();
 }
 
 interface RenderOptions {
@@ -214,7 +287,17 @@ async function renderComponent(options: RenderOptions = {}) {
    );
 
    const { fixture } = await render(DataFolderBrowserComponent, {
-      declarations: [DataNotificationsStubComponent],
+      componentImports: [
+         FormsModule,
+         NgClass,
+         StubNgbTypeaheadDirective,
+         StubNgbDropdownDirective,
+         StubNgbDropdownToggleDirective,
+         StubNgbDropdownMenuDirective,
+         StubDataFolderListViewComponent,
+         StubAssetDescriptionComponent,
+         DataNotificationsStubComponent
+      ],
       providers: [
          provideHttpClient(),
          {
@@ -239,11 +322,13 @@ async function renderComponent(options: RenderOptions = {}) {
             showWSFolderDetailsSubject: vi.fn(() => worksheetDetailsSubject.asObservable())
          }}
       ],
-      schemas: [NO_ERRORS_SCHEMA]
+      schemas: [NO_ERRORS_SCHEMA],
+      autoDetectChanges: false,
+      detectChangesOnRender: false
    });
 
+   fixture.detectChanges();
    await waitFor(() => expect(browserRequests.length).toBeGreaterThan(0));
-   await fixture.whenStable();
 
    return {
       comp: fixture.componentInstance,
@@ -262,7 +347,13 @@ async function renderComponent(options: RenderOptions = {}) {
 }
 
 afterEach(() => {
+   console.log(`folder-after:start:${expect.getState().currentTestName}`);
    vi.restoreAllMocks();
+   console.log(`folder-after:end:${expect.getState().currentTestName}`);
+});
+
+beforeEach(() => {
+   console.log(`folder-test:${expect.getState().currentTestName}`);
 });
 
 // ---------------------------------------------------------------------------
@@ -282,10 +373,12 @@ describe("DataFolderBrowserComponent - browser refresh/search lifecycle [Group 1
          queryParams: { path: "root", scope: "4" },
          browserModel: makeBrowserModel([folderZ, folderA], [beta, alpha])
       });
+      console.log("first:rendered");
 
       await waitFor(() =>
          expect(comp.viewAssets.map(asset => asset.name))
             .toEqual(["Alpha Folder", "Zulu Folder", "Alpha", "Beta"]));
+      console.log("first:initial-wait");
       expect(browserRequests[0].pathname).toContain("/api/portal/data/browser/root");
       expect(browserRequests[0].searchParams.get("scope")).toBe("4");
 
@@ -300,8 +393,10 @@ describe("DataFolderBrowserComponent - browser refresh/search lifecycle [Group 1
       );
 
       queryParamSubject.next(convertToParamMap({ path: "root", scope: "4" }));
+      console.log("first:next");
 
       await waitFor(() => expect(comp.datasets[0].name).toBe("Alpha Fresh"));
+      console.log("first:fresh-wait");
       expect(comp.selectedItems).toHaveLength(1);
       expect(comp.selectedItems[0]).not.toBe(selectedBeforeRefresh);
       expect(comp.selectedItems[0].path).toBe("root/Alpha");
