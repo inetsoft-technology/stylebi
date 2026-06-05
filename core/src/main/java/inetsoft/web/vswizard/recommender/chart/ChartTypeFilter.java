@@ -548,10 +548,9 @@ public class ChartTypeFilter {
    // If auto order, we will put col with less cardinality to color, but is not auto order,
    // ignore it.
    protected int getAestheticScore(VSChartInfo info) {
-      if(!autoOrder) {
-         return 0;
-      }
-
+      // Note: the hard over-cap guard below applies regardless of autoOrder — binding a
+      // high-cardinality dimension to color/shape/size is infeasible (unreadable legend) whether or
+      // not auto-ordering is on. Only the graduated ordering *preference* depends on autoOrder.
       int score = 0;
       int maxShapes = 8;
       int maxSize = 10;
@@ -584,7 +583,7 @@ public class ChartTypeFilter {
                if(n > max) {
                   return -1000;
                }
-               else {
+               else if(autoOrder) {
                   score -= n * 4 / max;
                }
             }

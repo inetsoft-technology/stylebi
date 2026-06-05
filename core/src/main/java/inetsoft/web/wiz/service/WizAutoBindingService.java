@@ -25,6 +25,9 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.graph.aesthetic.*;
+import inetsoft.uql.viewsheet.graph.aesthetic.ColorPalettes;
+import java.awt.Color;
 import inetsoft.util.Tool;
 import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
 import inetsoft.web.vswizard.model.VSWizardData;
@@ -41,7 +44,9 @@ import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.BindingInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.awt.*;
 import java.security.Principal;
@@ -238,6 +243,16 @@ public class WizAutoBindingService {
          resp.setPrimary(primary);
          resp.setAutoBindingRuntimeId(autoBindingRuntimeId);
          resp.setVisualizationResult(visualizationResult);
+         resp.setCandidates(buildChartTypeCandidates(recommendations));
+         resp.setFieldCardinalities(buildFieldCardinalities(entries));
+
+         // Tell the caller when a requested type could not be honored, so it can explain the
+         // substitution to the user instead of the swap happening silently.
+         if(vizType != null && primary != null && !requestedTypeAvailable(vizType, model)) {
+            resp.setSelectionNote(
+               "Requested chart type '" + vizType + "' is not feasible for this data; used '" +
+               primary.getVisualizationType() + "' instead.");
+         }
 
          succeeded = true;
          return resp;
@@ -368,6 +383,52 @@ public class WizAutoBindingService {
                   agg.setCalculator(calc);
                }
             }
+         }
+      }
+
+      // Common to dimensions and measures: a display title (axis/legend/series label) and a
+      // number/date display format. Applies to whichever ref kind matched above.
+      applyTitleAndFormat(ref, fc);
+   }
+
+   /**
+    * Applies the field's display title (as the ref caption) and number/date format (as the ref's
+    * text format) when set in the field config. The format type is inferred from the field's data
+    * type: date types use a DateFormat pattern, numeric types a DecimalFormat pattern; other types
+    * are left unformatted (a pattern there would be ambiguous).
+    */
+   private void applyTitleAndFormat(ChartRef ref, SimpleFieldInfo fc) {
+      String title = fc.getTitle();
+
+      if(title != null && !title.isEmpty()) {
+         if(ref instanceof VSDimensionRef dim) {
+            dim.setCaption(title);
+         }
+         else if(ref instanceof VSAggregateRef agg) {
+            agg.setCaption(title);
+         }
+      }
+
+      String format = fc.getFormat();
+
+      if(format != null && !format.isEmpty()) {
+         String dtype = fc.getType();
+         String fmtType = XSchema.isDateType(dtype) ? XConstants.DATE_FORMAT
+            : XSchema.isNumericType(dtype) ? XConstants.DECIMAL_FORMAT
+            : null;
+
+         if(fmtType != null) {
+            CompositeTextFormat tf = ref.getTextFormat();
+
+            if(tf != null) {
+               tf.setFormat(new XFormatInfo(fmtType, format));
+            }
+            else {
+               LOG.warn("Field '{}' has no text format; format '{}' not applied", fc.getField(), format);
+            }
+         }
+         else {
+            LOG.warn("Ignoring format '{}' for non-date/non-numeric field '{}'", format, fc.getField());
          }
       }
    }
@@ -968,6 +1029,146 @@ public class WizAutoBindingService {
       return vizType != null && !NON_CHART_VIZ_TYPES.contains(vizType);
    }
 
+   /**
+    * Flattens the recommendation list into a feasibility-filtered, named chart-type menu (highest
+    * fit first). Chart candidates and their scores come from each {@link VSChartRecommendation}'s
+    * prefInfos; table/crosstab/gauge/text appear once each when feasible. Scores are normalized to
+    * [0,1] for ordering only. Every entry is a type the recommender found feasible for the fields.
+    */
+   private List<ChartTypeCandidate> buildChartTypeCandidates(List<VSObjectRecommendation> recommendations) {
+      if(recommendations == null || recommendations.isEmpty()) {
+         return Collections.emptyList();
+      }
+
+      // type name -> best raw score seen for that type (preserve first-seen order for ties)
+      Map<String, Integer> best = new LinkedHashMap<>();
+
+      for(VSObjectRecommendation rec : recommendations) {
+         if(rec instanceof VSChartRecommendation vcr) {
+            List<ChartCombinationUtil.ScoredInfo> prefInfos = vcr.getPrefInfos();
+
+            if(prefInfos != null) {
+               for(ChartCombinationUtil.ScoredInfo si : prefInfos) {
+                  String type = getChartTypeString(si.getInfo().getChartType());
+
+                  if(type != null) {
+                     best.merge(type, si.getScore(), Math::max);
+                  }
+               }
+            }
+         }
+         else if(rec instanceof VSCrosstabRecommendation cr && cr.getCrosstabInfo() != null) {
+            best.putIfAbsent("crosstab", 0);
+         }
+         else if(rec instanceof VSTableRecommendation) {
+            best.putIfAbsent("table", 0);
+         }
+         else if(rec instanceof VSGaugeRecommendation gr && gr.getDataRef() != null) {
+            best.putIfAbsent("gauge", 0);
+         }
+         else if(rec instanceof VSTextRecommendation tr && tr.getDataRef() != null) {
+            best.putIfAbsent("text", 0);
+         }
+      }
+
+      if(best.isEmpty()) {
+         return Collections.emptyList();
+      }
+
+      int max = best.values().stream().mapToInt(Integer::intValue).max().orElse(0);
+      double denom = max > 0 ? max : 1.0;
+
+      return best.entrySet().stream()
+         .map(e -> new ChartTypeCandidate(e.getKey(), Math.round((e.getValue() / denom) * 100.0) / 100.0))
+         .sorted(Comparator.comparingDouble(ChartTypeCandidate::getScore).reversed())
+         .collect(Collectors.toList());
+   }
+
+   /**
+    * Collects the distinct-value counts the recommender sampled onto the selected dimension entries
+    * (set by {@code WizardRecommenderUtil.refreshCardinalityAndHierarchy} during recommend()), keyed
+    * by the same field name the client binds with. Skips entries without a cardinality property
+    * (date dimensions, measures, or field sets too large for the recommender to sample).
+    */
+   private Map<String, Integer> buildFieldCardinalities(AssetEntry[] entries) {
+      Map<String, Integer> out = new LinkedHashMap<>();
+
+      if(entries == null) {
+         return out;
+      }
+
+      for(AssetEntry entry : entries) {
+         String card = entry.getProperty("cardinality");
+
+         if(card != null) {
+            try {
+               out.put(WizardRecommenderUtil.getFieldName(entry), Integer.parseInt(card));
+            }
+            catch(NumberFormatException ignore) {
+               // non-numeric cardinality property; skip
+            }
+         }
+      }
+
+      return out;
+   }
+
+   /**
+    * Side-effect-free check of whether {@code vizType} is satisfiable by some recommendation.
+    * Mirrors {@link #findRecByType} (including the donut/area aliasing in {@link #chartTypeMatches})
+    * but, unlike findRecByType, does not mutate any {@code selectedIndex}. Used only to decide
+    * whether a requested type was honored, so a substitution can be reported.
+    */
+   private boolean requestedTypeAvailable(String vizType, VSRecommendationModel model) {
+      if(vizType == null || model == null) {
+         return false;
+      }
+
+      for(VSObjectRecommendation rec : model.getRecommendationList()) {
+         if(isChartVizType(vizType) && rec instanceof VSChartRecommendation cr) {
+            List<ChartCombinationUtil.ScoredInfo> prefInfos = cr.getPrefInfos();
+
+            if(prefInfos != null) {
+               for(ChartCombinationUtil.ScoredInfo si : prefInfos) {
+                  if(chartTypeMatches(vizType, si.getInfo())) {
+                     return true;
+                  }
+               }
+            }
+
+            List<ChartInfo> chartInfos = cr.getChartInfos();
+
+            if(chartInfos != null) {
+               for(ChartInfo ci : chartInfos) {
+                  if(chartTypeMatches(vizType, ci)) {
+                     return true;
+                  }
+               }
+            }
+         }
+         else if("crosstab".equals(vizType) && rec instanceof VSCrosstabRecommendation cr) {
+            if(cr.getCrosstabInfo() != null) {
+               return true;
+            }
+         }
+         else if("table".equals(vizType) && rec instanceof VSTableRecommendation) {
+            return true;
+         }
+         else if("gauge".equals(vizType) && rec instanceof VSGaugeRecommendation gr) {
+            if(gr.getDataRef() != null) {
+               return true;
+            }
+         }
+         else if("text".equals(vizType) && rec instanceof VSTextRecommendation tr) {
+            if(tr.getDataRef() != null) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
    // ── Chart type string mapping (inverse of WizVsService.getChartType) ─────────
 
    private static String getChartTypeString(int chartType) {
@@ -1220,6 +1421,338 @@ public class WizAutoBindingService {
       }
 
       return result;
+   }
+
+   /**
+    * Applies chart-level FORMAT properties (axis titles, y-axis scale, legend placement) to an
+    * existing runtime chart and re-renders it. Only the non-null request fields are applied; the
+    * rest of the chart is left untouched. Returns the re-executed chart's sampled data (the format
+    * change affects the rendered chart, not the underlying rows).
+    */
+   public CreateViewsheetResult setChartFormat(ChartFormatRequest request, Principal user)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(request.getWizRuntimeId(), user);
+
+      if(rvs == null || rvs.getViewsheet() == null) {
+         throw new Exception("Chart runtime not found: " + request.getWizRuntimeId());
+      }
+
+      VSAssembly assembly = rvs.getViewsheet().getAssembly(request.getAssemblyName());
+
+      if(!(assembly instanceof ChartVSAssembly chart)) {
+         throw new Exception("Chart assembly not found: " + request.getAssemblyName());
+      }
+
+      var info = chart.getChartInfo();
+      ChartDescriptor desc = info.getChartDescriptor();
+      VSChartInfo vsChartInfo = info.getVSChartInfo();
+
+      // Axis titles
+      if(desc != null && desc.getTitlesDescriptor() != null) {
+         TitlesDescriptor titles = desc.getTitlesDescriptor();
+
+         if(request.getXAxisTitle() != null && titles.getXTitleDescriptor() != null) {
+            titles.getXTitleDescriptor().setTitleValue(request.getXAxisTitle());
+         }
+
+         if(request.getYAxisTitle() != null && titles.getYTitleDescriptor() != null) {
+            titles.getYTitleDescriptor().setTitleValue(request.getYAxisTitle());
+         }
+      }
+
+      // Y-axis scale — applied to each bound measure's axis descriptor.
+      boolean scaleChange = request.getYAxisMin() != null || request.getYAxisMax() != null ||
+         request.getYAxisIncrement() != null || request.getYAxisLogarithmic() != null;
+
+      if(scaleChange && vsChartInfo != null && vsChartInfo.getYFields() != null) {
+         for(ChartRef yref : vsChartInfo.getYFields()) {
+            if(yref == null || yref.getAxisDescriptor() == null) {
+               continue;
+            }
+
+            AxisDescriptor ax = yref.getAxisDescriptor();
+
+            if(request.getYAxisMin() != null) {
+               ax.setMinimum(request.getYAxisMin());
+            }
+
+            if(request.getYAxisMax() != null) {
+               ax.setMaximum(request.getYAxisMax());
+            }
+
+            if(request.getYAxisIncrement() != null) {
+               ax.setIncrement(request.getYAxisIncrement());
+            }
+
+            if(request.getYAxisLogarithmic() != null) {
+               ax.setLogarithmicScale(request.getYAxisLogarithmic());
+            }
+         }
+      }
+
+      // Legend placement
+      String note = null;
+
+      if(request.getLegendPosition() != null && desc != null && desc.getLegendsDescriptor() != null) {
+         int layout = legendLayout(request.getLegendPosition());
+
+         if(layout < 0) {
+            note = "Unknown legendPosition '" + request.getLegendPosition() +
+               "'; valid: none, top, right, bottom, left, in_place. Legend left unchanged.";
+         }
+         else {
+            desc.getLegendsDescriptor().setLayout(layout);
+         }
+      }
+
+      // Invalidate the cached runtime descriptor so the change regenerates on re-execute.
+      info.setRTChartDescriptor(null);
+
+      CreateViewsheetResult result =
+         wizVsService.fetchAssemblyData(request.getWizRuntimeId(), request.getAssemblyName(), user);
+
+      if(result == null) {
+         result = new CreateViewsheetResult();
+      }
+
+      result.setRuntimeId(request.getWizRuntimeId());
+      result.setAssemblyName(request.getAssemblyName());
+
+      if(request.getViewsheetIdentifier() != null) {
+         result.setViewsheetIdentifier(request.getViewsheetIdentifier());
+      }
+
+      if(note != null) {
+         result.setNote(note);
+      }
+
+      return result;
+   }
+
+   /** Maps a legend-position string to a {@link LegendsDescriptor} layout constant; -1 if unknown. */
+   private static int legendLayout(String position) {
+      return switch(position.toLowerCase()) {
+         case "none" -> LegendsDescriptor.NO_LEGEND;
+         case "top" -> LegendsDescriptor.TOP;
+         case "right" -> LegendsDescriptor.RIGHT;
+         case "bottom" -> LegendsDescriptor.BOTTOM;
+         case "left" -> LegendsDescriptor.LEFT;
+         case "in_place" -> LegendsDescriptor.IN_PLACE;
+         default -> -1;
+      };
+   }
+
+   /**
+    * Sets chart COLORS in place on an existing runtime chart and re-renders. The mode is chosen from
+    * the chart's color binding:
+    *   - no field on color  -> static: staticColor applies to each measure ref.
+    *   - dimension on color -> categorical: paletteName / colorList / categoryColors apply.
+    *   - measure on color   -> gradient: paletteName resolves to a named gradient frame.
+    * Returns a {@code note} on the result when a requested color could not be applied to the current
+    * binding (in-place only — the caller should recreate with the right field on color).
+    */
+   public CreateViewsheetResult setChartColors(ChartColorsRequest request, Principal user)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(request.getWizRuntimeId(), user);
+
+      if(rvs == null || rvs.getViewsheet() == null) {
+         throw new Exception("Chart runtime not found: " + request.getWizRuntimeId());
+      }
+
+      VSAssembly assembly = rvs.getViewsheet().getAssembly(request.getAssemblyName());
+
+      if(!(assembly instanceof ChartVSAssembly chart)) {
+         throw new Exception("Chart assembly not found: " + request.getAssemblyName());
+      }
+
+      var info = chart.getChartInfo();
+      VSChartInfo vsChartInfo = info.getVSChartInfo();
+      AestheticRef colorField = vsChartInfo == null ? null : vsChartInfo.getColorField();
+      String note = null;
+
+      if(colorField == null || colorField.getDataRef() == null) {
+         if(request.getStaticColor() != null) {
+            if(vsChartInfo == null) {
+               note = "Chart has no binding info; static color could not be applied.";
+            }
+            else {
+               applyStaticColor(vsChartInfo, parseColor(request.getStaticColor()));
+            }
+         }
+
+         if(request.getPaletteName() != null || request.getColorList() != null ||
+            request.getCategoryColors() != null)
+         {
+            note = "This chart has no color dimension, so a palette/per-category colors can't apply. " +
+               "Recreate with a dimension on the color aesthetic (fieldConfigs/explicitBindings), or use staticColor.";
+         }
+      }
+      else if(colorField.getDataRef() instanceof VSChartAggregateRef) {
+         note = applyGradient(colorField, request);
+      }
+      else {
+         note = applyCategoricalColors(colorField, request);
+      }
+
+      info.setRTChartDescriptor(null);
+
+      CreateViewsheetResult result =
+         wizVsService.fetchAssemblyData(request.getWizRuntimeId(), request.getAssemblyName(), user);
+
+      if(result == null) {
+         result = new CreateViewsheetResult();
+      }
+
+      result.setRuntimeId(request.getWizRuntimeId());
+      result.setAssemblyName(request.getAssemblyName());
+
+      if(request.getViewsheetIdentifier() != null) {
+         result.setViewsheetIdentifier(request.getViewsheetIdentifier());
+      }
+
+      if(note != null) {
+         result.setNote(note);
+      }
+
+      return result;
+   }
+
+   /** Applies a single static color to every bound measure (aggregate) ref. */
+   private void applyStaticColor(VSChartInfo vsChartInfo, Color color) {
+      if(vsChartInfo == null) {
+         return;
+      }
+
+      List<ChartRef> refs = new ArrayList<>();
+
+      if(vsChartInfo.getYFields() != null) {
+         refs.addAll(Arrays.asList(vsChartInfo.getYFields()));
+      }
+
+      if(vsChartInfo.getXFields() != null) {
+         refs.addAll(Arrays.asList(vsChartInfo.getXFields()));
+      }
+
+      for(ChartRef ref : refs) {
+         if(ref instanceof VSChartAggregateRef agg) {
+            agg.setColorFrame(new StaticColorFrame(color));
+         }
+      }
+   }
+
+   /**
+    * Applies categorical colors to a dimension that is bound to the color aesthetic. Returns a note
+    * if none of the categorical fields were provided.
+    */
+   private String applyCategoricalColors(AestheticRef colorField, ChartColorsRequest request) {
+      if(request.getPaletteName() != null) {
+         CategoricalColorFrame palette = ColorPalettes.getPalette(request.getPaletteName());
+
+         if(palette == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown palette '" +
+               request.getPaletteName() + "'. Valid palettes: " +
+               String.join(", ", ColorPalettes.getPaletteNames()));
+         }
+
+         // Clone: getPalette() returns the shared singleton frame; never set/mutate it directly.
+         colorField.setVisualFrame((CategoricalColorFrame) palette.clone());
+      }
+
+      if(request.getColorList() != null && !request.getColorList().isEmpty()) {
+         CategoricalColorFrame frame = asCategoricalFrame(colorField);
+         Color[] colors = request.getColorList().stream()
+            .map(WizAutoBindingService::parseColor)
+            .toArray(Color[]::new);
+         frame.setDefaultColors(colors);
+         colorField.setVisualFrame(frame);
+      }
+
+      if(request.getCategoryColors() != null && !request.getCategoryColors().isEmpty()) {
+         CategoricalColorFrame frame = asCategoricalFrame(colorField);
+
+         for(Map.Entry<String, String> e : request.getCategoryColors().entrySet()) {
+            frame.setColor(e.getKey(), parseColor(e.getValue()));
+         }
+
+         colorField.setVisualFrame(frame);
+      }
+
+      if(request.getStaticColor() != null) {
+         return "staticColor was ignored: this chart has a color dimension. Use paletteName, " +
+            "colorList, or categoryColors to color the categories.";
+      }
+
+      if(request.getPaletteName() == null && request.getColorList() == null &&
+         request.getCategoryColors() == null)
+      {
+         return "No categorical color provided. Pass paletteName, colorList, or categoryColors.";
+      }
+
+      return null;
+   }
+
+   /** Returns the color field's current CategoricalColorFrame, or a fresh one if it isn't categorical. */
+   private CategoricalColorFrame asCategoricalFrame(AestheticRef colorField) {
+      VisualFrame frame = colorField.getVisualFrame();
+      return frame instanceof CategoricalColorFrame cat ? cat : new CategoricalColorFrame();
+   }
+
+   /**
+    * Applies a named gradient when a measure is on the color aesthetic. Only paletteName is meaningful
+    * for a continuous color scale; colorList/categoryColors return a note.
+    */
+   private String applyGradient(AestheticRef colorField, ChartColorsRequest request) {
+      if(request.getColorList() != null || request.getCategoryColors() != null) {
+         return "This chart has a measure on color (a continuous scale), so colorList/categoryColors " +
+            "don't apply. Use paletteName with a gradient name (e.g. " + VALID_GRADIENTS + ").";
+      }
+
+      if(request.getStaticColor() != null) {
+         return "staticColor was ignored: this chart uses a measure-driven color scale. Use paletteName " +
+            "with a gradient name.";
+      }
+
+      if(request.getPaletteName() == null) {
+         return "No gradient provided. Pass paletteName with a gradient name (" + VALID_GRADIENTS + ").";
+      }
+
+      ColorFrame gradient = gradientFrameForName(request.getPaletteName());
+
+      if(gradient == null) {
+         return "Unknown gradient '" + request.getPaletteName() + "'. Valid gradients: " + VALID_GRADIENTS + ".";
+      }
+
+      colorField.setVisualFrame(gradient);
+      return null;
+   }
+
+   /** The named gradients accepted by {@link #gradientFrameForName} (kept in sync with that switch). */
+   private static final String VALID_GRADIENTS = "Blues, Reds, Greens, RdYlBu, RdYlGn, Heat";
+
+   /** Maps a gradient name to its concrete frame (case-insensitive); null when unknown. */
+   private static ColorFrame gradientFrameForName(String name) {
+      return switch(name.trim().toLowerCase()) {
+         case "blues" -> new BluesColorFrame();
+         case "reds" -> new RedsColorFrame();
+         case "greens" -> new GreensColorFrame();
+         case "rdylbu" -> new RdYlBuColorFrame();
+         case "rdylgn" -> new RdYlGnColorFrame();
+         case "heat" -> new HeatColorFrame();
+         default -> null;
+      };
+   }
+
+   /** Parses a #RRGGBB hex string into a Color; throws on a malformed value. */
+   private static Color parseColor(String hex) {
+      try {
+         return Color.decode(hex.trim());
+      }
+      catch(NumberFormatException e) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+            "Invalid hex color '" + hex + "' (expected #RRGGBB)");
+      }
    }
 
    /**

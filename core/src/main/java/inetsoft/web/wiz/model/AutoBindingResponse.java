@@ -20,6 +20,7 @@ package inetsoft.web.wiz.model;
 import inetsoft.web.vswizard.model.recommender.VSObjectRecommendation;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Response body for {@code POST /api/wiz/viewsheet/autoBinding}.
@@ -57,6 +58,30 @@ public class AutoBindingResponse {
       this.visualizationResult = visualizationResult;
    }
 
+   public List<ChartTypeCandidate> getCandidates() {
+      return candidates;
+   }
+
+   public void setCandidates(List<ChartTypeCandidate> candidates) {
+      this.candidates = candidates;
+   }
+
+   public String getSelectionNote() {
+      return selectionNote;
+   }
+
+   public void setSelectionNote(String selectionNote) {
+      this.selectionNote = selectionNote;
+   }
+
+   public Map<String, Integer> getFieldCardinalities() {
+      return fieldCardinalities;
+   }
+
+   public void setFieldCardinalities(Map<String, Integer> fieldCardinalities) {
+      this.fieldCardinalities = fieldCardinalities;
+   }
+
    /**
     * All candidate visualizations: charts ordered by vsWizard score, then table (always),
     * crosstab (only when both dimensions and measures are present),
@@ -84,4 +109,26 @@ public class AutoBindingResponse {
     * calls so the primary assembly is updated in place. Null when primary is null.
     */
    private CreateViewsheetResult visualizationResult;
+
+   /**
+    * Feasibility-filtered chart-type menu, flattened from {@link #recommendations} into named,
+    * scored entries (highest score first). The caller picks the final type from this menu; only
+    * types the recommender found feasible for the current fields appear here.
+    */
+   private List<ChartTypeCandidate> candidates;
+
+   /**
+    * Set only when a requested {@code visualizationType} could not be honored and a different type
+    * was substituted (e.g. "requested 'pie' is not feasible for this data; used 'bar'"). Null when
+    * the requested type was honored or none was requested.
+    */
+   private String selectionNote;
+
+   /**
+    * Distinct-value counts (cardinality) for the selected non-date dimension fields, keyed by field
+    * name. Lets the caller spot high-cardinality dimensions (e.g. 600 cities) and switch to top-N
+    * ranking or a roll-up instead of an unreadable chart. Empty when cardinality was not computed
+    * (the recommender only samples it for field sets of 9 or fewer) or no such dimension was bound.
+    */
+   private Map<String, Integer> fieldCardinalities;
 }

@@ -281,7 +281,14 @@ public class MapChartFilter extends ChartTypeFilter {
 
    @Override
    protected int getScore(ChartInfo chart) {
-      return 1000;
+      // A geo binding is a STRONG, deliberate signal: geographic columns are never auto-detected here
+      // — they exist only because the user explicitly marked the column geographic (getGeoColumns is
+      // populated by the setGeographic action). So map should win comfortably whenever a geo field is
+      // bound. We use a strong multiple of PRIMARY_SCORE rather than the old sentinel 1000: high
+      // enough to clearly beat bar (~23) and a time-series line (~30), but low enough that the other
+      // candidates keep meaningful relative scores in the candidate menu (vs. the sentinel, which
+      // flattened every non-map candidate to ~0).
+      return PRIMARY_SCORE * 2;
    }
 
    private int getLayer(ChartRef ref) {
