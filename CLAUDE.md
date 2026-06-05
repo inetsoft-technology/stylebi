@@ -53,6 +53,8 @@ npm run build:watch    # Watch mode (portal + em only)
 npm run test           # Vitest tests (portal + em + em:tl — three suites)
 npm run test:portal    # Vitest tests (portal project only)
 npm run test:em        # Vitest tests (em project only)
+npm run test:portal:tl  # Portal testing-library tests (not yet wired to CI)
+npm run test:em:tl      # EM testing-library tests
 npm run lint           # ESLint
 npm run verify         # Lint + tests
 ```
