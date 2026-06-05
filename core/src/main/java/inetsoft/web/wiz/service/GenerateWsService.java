@@ -838,7 +838,7 @@ public class GenerateWsService {
          dataRef = ref;
       }
       else {
-         ExpressionRef expressionRef = new ExpressionRef(null, field.getFieldName());
+         ExpressionRef expressionRef = new ExpressionRef(null, resolveExpressionName(field));
          expressionRef.setExpression(field.getExpression());
          dataRef = expressionRef;
       }
@@ -854,6 +854,23 @@ public class GenerateWsService {
       }
 
       return columnRef;
+   }
+
+   /**
+    * Resolve the name for an expression column: fieldName, falling back to alias.
+    * An expression column with neither is unnamed ("Column [0]") and can never be
+    * matched by fieldConfigs, so reject it at validation time instead.
+    */
+   static String resolveExpressionName(WorksheetConstructionModel.QueryField field) {
+      String name = !Tool.isEmptyString(field.getFieldName())
+         ? field.getFieldName() : field.getAlias();
+
+      if(Tool.isEmptyString(name)) {
+         throw new IllegalArgumentException(
+            "Expression field requires a fieldName or alias: " + field.getExpression());
+      }
+
+      return name;
    }
 
    private void applySourceInfo(AbstractTableAssembly table,
