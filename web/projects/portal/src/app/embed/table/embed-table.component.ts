@@ -408,13 +408,19 @@ export class EmbedTableComponent extends CommandProcessor implements OnInit, OnD
 
    private refreshEmbedAssembly(): void {
       this.setAppSize();
+
+      if(this.assemblySize == null || this.assemblySize.width == 0 || this.assemblySize.height == 0) {
+         return;
+      }
+
       // queryParams are intentionally not forwarded: the caller-owned viewsheet was
       // already opened with its parameters applied; re-sending them on refresh would
       // override any runtime state the caller has set since opening.
       const refreshEvent: RefreshVsAssemblyEvent = {
          vsRuntimeId: this.runtimeId,
          assemblyName: this.assemblyName,
-         embed: true
+         embed: true,
+         assemblySize: this.assemblySize
       };
       this.viewsheetClient.sendEvent("/events/vs/refresh/assembly", refreshEvent);
    }
@@ -427,6 +433,7 @@ export class EmbedTableComponent extends CommandProcessor implements OnInit, OnD
       let event: OpenViewsheetEvent = new OpenViewsheetEvent(
          this.assetId, this.appSize.width, this.appSize.height, this.mobileDevice,
          window.navigator.userAgent);
+      event.embed = true;
       event.embedAssemblyName = this.assemblyName;
       event.embedAssemblySize = this.assemblySize;
       event.disableParameterSheet = true;
