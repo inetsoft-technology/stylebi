@@ -256,6 +256,13 @@ export class EmbedTableComponent extends CommandProcessor implements OnInit, OnD
       this.viewsheetClient.runtimeId = command.runtimeId;
       this.runtimeId = command.runtimeId;
 
+      // A newly opened embedded assembly may need an explicit refresh to apply the
+      // requested assembly size after the runtime is established.
+      if(this.assemblyName && !this.inputRuntimeId) {
+         this.refreshEmbedAssembly();
+         return;
+      }
+
       // call onResize in case the element was resized while the server was processing
       // open viewsheet event
       this.onResize();

@@ -240,6 +240,14 @@ export class EmbedTextComponent extends CommandProcessor implements OnInit, OnDe
    processSetRuntimeIdCommand(command: SetRuntimeIdCommand): void {
       this.viewsheetClient.runtimeId = command.runtimeId;
       this.runtimeId = command.runtimeId;
+
+      // A newly opened embedded assembly may need an explicit refresh to apply the
+      // requested assembly size after the runtime is established.
+      if(this.assemblyName && !this.inputRuntimeId) {
+         this.refreshEmbedAssembly();
+         return;
+      }
+
       this.onResize();
    }
 
