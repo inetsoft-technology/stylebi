@@ -19,6 +19,7 @@
 package inetsoft.web.wiz.controller;
 
 import inetsoft.web.wiz.model.*;
+import inetsoft.web.wiz.service.UnsatisfiableBindingException;
 import inetsoft.web.wiz.service.WizAutoBindingService;
 import inetsoft.web.wiz.service.WizVsService;
 import org.slf4j.Logger;
@@ -93,6 +94,13 @@ public class WizViewsheetController {
    private ResponseEntity<?> run(String action, ControllerAction body) {
       try {
          return ResponseEntity.ok(body.run());
+      }
+      // Must precede the IllegalArgumentException catch below (it is a subclass), else it is shadowed.
+      catch(UnsatisfiableBindingException e) {
+         return ResponseEntity.badRequest().body(Map.of(
+            "error", "unsatisfiable explicit binding",
+            "pin", Map.of("role", String.valueOf(e.getRole()), "field", String.valueOf(e.getField())),
+            "reason", String.valueOf(e.getReason())));
       }
       catch(IllegalArgumentException e) {
          return ResponseEntity.badRequest().body(Map.of("error", String.valueOf(e.getMessage())));
