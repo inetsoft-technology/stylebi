@@ -168,7 +168,7 @@
             "inlineStyleLanguage": "scss",
             "assets": [
               "projects/em/src/favicon.ico",
-              "projects/em/src/assets",
+              "projects/em/src/assets"
             ],
             "styles": [
               "projects/em/src/styles.scss"
