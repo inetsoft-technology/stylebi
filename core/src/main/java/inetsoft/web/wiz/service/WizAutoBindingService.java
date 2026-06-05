@@ -147,21 +147,8 @@ public class WizAutoBindingService {
             .collect(Collectors.toMap(SimpleFieldInfo::getField, f -> f, (a, b) -> a));
 
          final String tableNameFinal = tableName;
-         List<WorksheetColumnInfo> vizFields = request.getVisualizationUsedFields();
-         List<ColumnRef> bindColumns;
-
-         if(vizFields != null && !vizFields.isEmpty()) {
-            Set<String> vizFieldNames = vizFields.stream()
-               .map(col -> col.getAlias() != null && !col.getAlias().isEmpty()
-                  ? col.getAlias() : col.getName())
-               .collect(Collectors.toSet());
-            bindColumns = worksheetColumns.stream()
-               .filter(c -> vizFieldNames.contains(c.getAttribute()))
-               .collect(Collectors.toList());
-         }
-         else {
-            bindColumns = worksheetColumns;
-         }
+         List<ColumnRef> bindColumns =
+            selectBindColumns(worksheetColumns, request.getVisualizationUsedFields(), configMap);
 
          AssetEntry[] entries = bindColumns.stream()
             .map(col -> buildEntryFromColumn(col, worksheetPath, tableNameFinal))
@@ -433,6 +420,51 @@ public class WizAutoBindingService {
             LOG.warn("Ignoring format '{}' for non-date/non-numeric field '{}'", format, fc.getField());
          }
       }
+   }
+
+   // ── Bind-column selection ────────────────────────────────────────────────────
+
+   /**
+    * Decide which worksheet columns autoBinding may bind.
+    * Precedence: explicit visualizationUsedFields (chat-app path) > fieldConfigs
+    * (plugin path) > all visible columns. A fieldConfig naming a column that does
+    * not exist is an error: silently binding everything produced junk measures.
+    */
+   static List<ColumnRef> selectBindColumns(List<ColumnRef> worksheetColumns,
+                                            List<WorksheetColumnInfo> vizFields,
+                                            Map<String, SimpleFieldInfo> configMap)
+   {
+      if(vizFields != null && !vizFields.isEmpty()) {
+         Set<String> vizFieldNames = vizFields.stream()
+            .map(col -> col.getAlias() != null && !col.getAlias().isEmpty()
+               ? col.getAlias() : col.getName())
+            .collect(Collectors.toSet());
+         return worksheetColumns.stream()
+            .filter(c -> vizFieldNames.contains(c.getAttribute()))
+            .collect(Collectors.toList());
+      }
+
+      if(!configMap.isEmpty()) {
+         Set<String> available = worksheetColumns.stream()
+            .map(ColumnRef::getAttribute)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+         List<String> missing = configMap.keySet().stream()
+            .filter(k -> !available.contains(k))
+            .sorted()
+            .collect(Collectors.toList());
+
+         if(!missing.isEmpty()) {
+            throw new IllegalArgumentException(
+               "Unknown field(s) in fieldConfigs: " + missing +
+               ". Available worksheet columns: " + available);
+         }
+
+         return worksheetColumns.stream()
+            .filter(c -> configMap.containsKey(c.getAttribute()))
+            .collect(Collectors.toList());
+      }
+
+      return worksheetColumns;
    }
 
    // ── Chart preference helpers ──────────────────────────────────────────────────
