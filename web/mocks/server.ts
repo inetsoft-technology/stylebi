@@ -29,7 +29,7 @@
  *   server.use(http.get('*\/api/some/endpoint', () => HttpResponse.json({ ... })));
  *
  * The override is automatically reset after each test (server.resetHandlers()
- * is called in afterEach inside setup-jest.ts).
+ * is called in afterEach inside vitest-setup-tl.ts).
  */
 import { setupServer } from "msw/node";
 import { modelHandlers } from "./handlers/model.handlers";

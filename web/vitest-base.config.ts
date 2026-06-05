@@ -50,7 +50,7 @@ export default defineConfig({
          // Stub the import out for the test environment.
          {
             find: /^ckeditor5(\/.*)?$/,
-            replacement: path.resolve(__dirname, "__mocks__/ckeditor5.js"),
+            replacement: path.resolve(__dirname, "mocks/ckeditor5.js"),
          },
          // @ckeditor/ckeditor5-angular wraps the real CKEditor5 initialisation (DOM
          // mutations, canvas, ResizeObserver, etc.) which breaks under jsdom. Replace
@@ -58,7 +58,7 @@ export default defineConfig({
          // CkeditorWrapperComponent template without starting the editor.
          {
             find: "@ckeditor/ckeditor5-angular",
-            replacement: path.resolve(__dirname, "__mocks__/ckeditor5-angular.ts"),
+            replacement: path.resolve(__dirname, "mocks/ckeditor5-angular.ts"),
          },
       ],
    },
