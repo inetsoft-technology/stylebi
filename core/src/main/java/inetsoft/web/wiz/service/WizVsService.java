@@ -1002,7 +1002,7 @@ public class WizVsService {
    }
 
    private static String slotName(DataRef ref) {
-      return ref instanceof VSChartAggregateRef agg ? agg.getFullName()
+      return ref instanceof VSAggregateRef agg ? agg.getFullName()
          : WizardRecommenderUtil.getChartRefFieldName(ref);
    }
 
@@ -1126,12 +1126,21 @@ public class WizVsService {
          return null;
       }
 
+      return new CreateViewsheetResult.FlatBinding(dimensions, measures, collectCrosstabSlots(cinfo));
+   }
+
+   /**
+    * Resolved slot placement for a crosstab: row/col header dimensions and aggregate
+    * measures. Measure refs are reported as their full aggregate name ("Sum(amount)")
+    * to match the chart {@code measures} list and the rankingCol convention; dimensions
+    * by field name.
+    */
+   static Map<String, Object> collectCrosstabSlots(VSCrosstabInfo cinfo) {
       Map<String, Object> slots = new LinkedHashMap<>();
       slots.put("rows", refSlotNames(cinfo.getDesignRowHeaders()));
       slots.put("cols", refSlotNames(cinfo.getDesignColHeaders()));
       slots.put("aggregates", refSlotNames(cinfo.getDesignAggregates()));
-
-      return new CreateViewsheetResult.FlatBinding(dimensions, measures, slots);
+      return slots;
    }
 
    /**

@@ -20,6 +20,11 @@ package inetsoft.web.wiz.service;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.viewsheet.VSAggregateRef;
+import inetsoft.uql.viewsheet.VSCrosstabInfo;
+import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.VSAestheticRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
@@ -82,6 +87,43 @@ class BindingSlotsTest {
 
       assertEquals(List.of("rt_field"), slots.get("x"),
          "runtime refs (what the renderer reads) win over design refs");
+   }
+
+   @Test
+   void crosstabAggregateSlotUsesFullAggregateName() {
+      VSCrosstabInfo cinfo = new VSCrosstabInfo();
+      cinfo.setDesignRowHeaders(new DataRef[]{ crosstabDimension("actor_name") });
+      cinfo.setDesignColHeaders(new DataRef[]{ crosstabDimension("country") });
+      cinfo.setDesignAggregates(new DataRef[]{ crosstabAggregate("amount", "Sum") });
+
+      Map<String, Object> slots = WizVsService.collectCrosstabSlots(cinfo);
+
+      assertEquals(List.of("actor_name"), slots.get("rows"),
+         "row header dimension reported by field name");
+      assertEquals(List.of("country"), slots.get("cols"),
+         "col header dimension reported by field name");
+      // The fix: crosstab design aggregates are plain VSAggregateRef (not
+      // VSChartAggregateRef); the aggregates slot must still report the full
+      // aggregate name to line up with the measures list / rankingCol convention.
+      assertEquals(List.of("Sum(amount)"), slots.get("aggregates"),
+         "crosstab aggregate reported as full aggregate name, not the bare column");
+   }
+
+   private static VSDimensionRef crosstabDimension(String field) {
+      VSDimensionRef dim = new VSDimensionRef();
+      dim.setGroupColumnValue(field);
+      // crosstab dimensions are plain VSDimensionRef, so the slot name resolves via
+      // getAttribute() (not the VSChartDimensionRef branch); back it with the column.
+      dim.setDataRef(new AttributeRef(field));
+      return dim;
+   }
+
+   private static VSAggregateRef crosstabAggregate(String column, String formula) {
+      VSAggregateRef agg = new VSAggregateRef();
+      agg.setColumnValue(column);
+      agg.setFormulaValue(formula);
+      agg.setAggregated(true);
+      return agg;
    }
 
    private static VSChartDimensionRef dimension(String field) {
