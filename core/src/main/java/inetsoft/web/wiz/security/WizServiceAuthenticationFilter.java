@@ -106,41 +106,49 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
 
       String token = authHeader.substring(BEARER_PREFIX.length()).trim();
 
+      // Validate the token in its own try/catch. IMPORTANT: chain.doFilter() must run OUTSIDE this
+      // block — otherwise any exception thrown by a downstream controller bubbles up here and gets
+      // mislabeled as an "Authentication error" (HTTP 401), masking the real failure. Only true
+      // authentication failures should produce a 401.
+      SRPrincipal principal;
+
       try {
-         SRPrincipal principal = validateTokenAndCreatePrincipal(token, httpRequest);
-
-         if(principal != null) {
-            // Store principal in session for compatibility with SUtil.getPrincipal()
-            httpRequest.getSession(true).setAttribute(
-               RepletRepository.PRINCIPAL_COOKIE, principal);
-
-            // Set up the authenticated request
-            HttpServletRequest authenticatedRequest = new AuthenticatedRequest(httpRequest, principal);
-            ThreadContext.setContextPrincipal(principal);
-
-            if(principal.getLocale() != null) {
-               ThreadContext.setLocale(principal.getLocale());
-            }
-
-            try {
-               chain.doFilter(authenticatedRequest, response);
-            }
-            finally {
-               ThreadContext.setContextPrincipal(null);
-               ThreadContext.setLocale(null);
-            }
-         }
-         else {
-            sendUnauthorized(httpResponse, "Invalid token");
-         }
+         principal = validateTokenAndCreatePrincipal(token, httpRequest);
       }
       catch(WizAuthenticationException e) {
          LOG.warn("WIZ service authentication failed: {}", e.getMessage());
          sendUnauthorized(httpResponse, "Unauthorized");
+         return;
       }
       catch(Exception e) {
          LOG.error("Error during WIZ service authentication", e);
          sendUnauthorized(httpResponse, "Authentication error");
+         return;
+      }
+
+      if(principal == null) {
+         sendUnauthorized(httpResponse, "Invalid token");
+         return;
+      }
+
+      // Store principal in session for compatibility with SUtil.getPrincipal()
+      httpRequest.getSession(true).setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+
+      // Set up the authenticated request and run the rest of the chain. Exceptions from downstream
+      // controllers propagate normally (Spring maps them to their real status, e.g. 500/400).
+      HttpServletRequest authenticatedRequest = new AuthenticatedRequest(httpRequest, principal);
+      ThreadContext.setContextPrincipal(principal);
+
+      if(principal.getLocale() != null) {
+         ThreadContext.setLocale(principal.getLocale());
+      }
+
+      try {
+         chain.doFilter(authenticatedRequest, response);
+      }
+      finally {
+         ThreadContext.setContextPrincipal(null);
+         ThreadContext.setLocale(null);
       }
    }
 
