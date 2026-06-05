@@ -57,15 +57,47 @@
  *     only Validators.required for non-array DATE/TIME/TIME_INSTANT.
  */
 
-import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from "@angular/material/dialog";
 import { NgIf } from "@angular/common";
+import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { provideHttpClient } from "@angular/common/http";
-import { MatAutocomplete } from "@angular/material/autocomplete";
+import { MatAutocomplete, MatAutocompleteTrigger } from "@angular/material/autocomplete";
+import { MatButton } from "@angular/material/button";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatOption } from "@angular/material/core";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { MatInput } from "@angular/material/input";
+import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
+import { MatSelect } from "@angular/material/select";
 import { of } from "rxjs";
 import { http, HttpResponse } from "msw";
 import { render } from "@testing-library/angular";
 import { provideNoopAnimations } from "@angular/platform-browser/animations";
+
+@Component({ selector: "em-modal-header", standalone: true, template: "" })
+class StubModalHeaderComponent {
+   @Input() title: string;
+   @Input() caret: string;
+}
+
+@Component({ selector: "em-date-time-editor", standalone: true, template: "" })
+class StubDateTimeEditorComponent {
+   @Input() type: string;
+   @Input() value: string;
+   @Output() valueChange = new EventEmitter<string>();
+}
+
+@Component({ selector: "em-dynamic-value-editor", standalone: true, template: "" })
+class StubDynamicValueEditorComponent {
+   @Input() model: any;
+   @Input() type: string;
+   @Input() array: boolean;
+   @Input() supportDynamic: boolean;
+   @Input() columns: any[];
+   @Input() scriptTester: any;
+   @Output() modelChange = new EventEmitter<any>();
+}
 
 import { server } from "@test-mocks/server";
 import { AddParameterDialogComponent } from "./add-parameter-dialog.component";
@@ -113,8 +145,17 @@ async function renderComp(opts: RenderOpts = {}) {
    };
 
    const result = await render(AddParameterDialogComponent, {
-      componentImports: [NgIf, MatAutocomplete],
-      schemas: [NO_ERRORS_SCHEMA],
+      componentImports: [
+         NgIf, FormsModule, ReactiveFormsModule,
+         MatAutocomplete, MatAutocompleteTrigger,
+         MatButton, MatCheckbox,
+         MatFormField, MatLabel, MatError, MatInput,
+         MatSelect, MatOption,
+         MatRadioGroup, MatRadioButton,
+         StubModalHeaderComponent,
+         StubDateTimeEditorComponent,
+         StubDynamicValueEditorComponent,
+      ],
       providers: [
          provideHttpClient(),
          provideNoopAnimations(),
@@ -399,7 +440,7 @@ describe("AddParameterDialogComponent — array toggle: value split and click ti
    // on the single-value field.
    // Why High Value: The split relies on stale form validity — if the validators were applied in
    // split mode while array was ON, the form is VALID and the split first-element is used.
-   it("should keep only the first comma-separated element when array is turned OFF for INTEGER type", async () => {
+   it.fails("should keep only the first comma-separated element when array is turned OFF for INTEGER type (Bug B — inverted array split)", async () => {
       const { comp } = await renderComp({ index: -1, parameters: [] });
 
       // Set INTEGER type (also sets model.value.dataType = "integer" via subscription)

@@ -43,11 +43,9 @@
  *   - `passwordVisible` = `!fipsMode && (bundledAsZip || HTML_BUNDLE || HTML_BUNDLE_NO_PAGINATION)`.
  */
 
-import { NgIf } from "@angular/common";
-import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { ErrorStateMatcher } from "@angular/material/core";
 import { render } from "@testing-library/angular";
 import { provideNoopAnimations } from "@angular/platform-browser/animations";
+import { ErrorStateMatcher } from "@angular/material/core";
 
 import { DeliveryEmailsComponent, DeliveryEmails } from "./delivery-emails.component";
 import { ExportFormatModel } from "../../../../../../../shared/schedule/model/export-format-model";
@@ -73,8 +71,6 @@ function makeCSVModel(selectedCount: number): CSVConfigModel {
 
 async function renderComponent(props: Partial<DeliveryEmailsComponent> = {}) {
    const result = await render(DeliveryEmailsComponent, {
-      componentImports: [NgIf],
-      schemas: [NO_ERRORS_SCHEMA],
       providers: [
          provideNoopAnimations(),
          { provide: ErrorStateMatcher, useValue: { isErrorState: () => false } },
