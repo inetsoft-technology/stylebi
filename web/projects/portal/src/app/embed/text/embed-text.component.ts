@@ -163,6 +163,13 @@ export class EmbedTextComponent extends CommandProcessor implements OnInit, OnDe
          const tree = this.router.parseUrl(this.url);
          const segments = tree.root?.children?.primary?.segments ?? tree.root?.segments;
          const result = EMBED_TEXT_URL_MATCHER(segments);
+
+         if(!result) {
+            this.showError = true;
+            console.error("Invalid embed URL: " + this.url);
+            return;
+         }
+
          this.assetId = result.posParams?.assetId?.path;
          this.assemblyName = result.posParams?.assemblyName?.path;
          this.inputRuntimeId = result.posParams?.runtimeId?.path;

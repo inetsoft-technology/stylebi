@@ -60,6 +60,9 @@ import {
 } from "../../widget/fixed-dropdown/actions-contextmenu.component";
 import { FixedDropdownService } from "../../widget/fixed-dropdown/fixed-dropdown.service";
 import { EMBED_CROSSTAB_URL_MATCHER } from "./embed-crosstab.routes";
+import { DndService } from "../../common/dnd/dnd.service";
+import { VSDndService } from "../../common/dnd/vs-dnd.service";
+import { ModelService } from "../../widget/services/model.service";
 import { DownloadService } from "../../../../../shared/download/download.service";
 import { DownloadTargetComponent } from "../../../../../shared/download/download-target.component";
 import { ResizedDirective } from "../../../../../shared/resize-event/resized.directive";
@@ -99,7 +102,8 @@ declare const window: any;
       FixedDropdownService,
       InteractService,
       DebounceService,
-      AdhocFilterService
+      AdhocFilterService,
+      { provide: DndService, useClass: VSDndService, deps: [ModelService, NgbModal, ViewsheetClientService] }
    ]
 })
 export class EmbedCrosstabComponent extends CommandProcessor implements OnInit, OnDestroy, AfterViewInit {
@@ -170,6 +174,13 @@ export class EmbedCrosstabComponent extends CommandProcessor implements OnInit, 
          const tree = this.router.parseUrl(this.url);
          const segments = tree.root?.children?.primary?.segments ?? tree.root?.segments;
          const result = EMBED_CROSSTAB_URL_MATCHER(segments);
+
+         if(!result) {
+            this.showError = true;
+            console.error("Invalid embed URL: " + this.url);
+            return;
+         }
+
          this.assetId = result.posParams?.assetId?.path;
          this.assemblyName = result.posParams?.assemblyName?.path;
          this.inputRuntimeId = result.posParams?.runtimeId?.path;

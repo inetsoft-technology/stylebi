@@ -17,9 +17,8 @@
  */
 import { createApplication } from "@angular/platform-browser";
 import { createCustomElement } from "@angular/elements";
-import { Injector, Optional } from "@angular/core";
+import { Optional } from "@angular/core";
 import { provideRouter } from "@angular/router";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 
 import { embedElementConfig } from "./app/embed/embed-element.config";
 
@@ -30,11 +29,8 @@ import { EmbedGaugeComponent } from "./app/embed/gauge/embed-gauge.component";
 import { EmbedTextComponent } from "./app/embed/text/embed-text.component";
 import { EmbedImageComponent } from "./app/embed/image/embed-image.component";
 
-import { DndService } from "./app/common/dnd/dnd.service";
-import { VSDndService } from "./app/common/dnd/vs-dnd.service";
 import { FullScreenService } from "./app/common/services/full-screen.service";
 import { UIContextService } from "./app/common/services/ui-context.service";
-import { ViewsheetClientService } from "./app/common/viewsheet-client";
 import {
    ComposerToken,
    ContextProvider,
@@ -47,13 +43,8 @@ import { MiniToolbarService } from "./app/vsobjects/objects/mini-toolbar/mini-to
 import { ShowHyperlinkService } from "./app/vsobjects/show-hyperlink.service";
 import { CheckFormDataService } from "./app/vsobjects/util/check-form-data.service";
 import { VSTabService } from "./app/vsobjects/util/vs-tab.service";
-import { ModelService } from "./app/widget/services/model.service";
 import { ScaleService } from "./app/widget/services/scale/scale-service";
 import { VSScaleService } from "./app/widget/services/scale/vs-scale.service";
-import {
-   DialogService,
-   ViewerDialogServiceFactory
-} from "./app/widget/slide-out/dialog-service.service";
 import { SlideOutService } from "./app/widget/slide-out/slide-out.service";
 import "./main-base-element";
 
@@ -79,17 +70,6 @@ createApplication({
       VSTabService,
       RichTextService,
       FullScreenService,
-      NgbModal,
-      {
-         provide: DialogService,
-         useFactory: ViewerDialogServiceFactory,
-         deps: [NgbModal, SlideOutService, Injector, UIContextService]
-      },
-      {
-         provide: DndService,
-         useClass: VSDndService,
-         deps: [ModelService, NgbModal, ViewsheetClientService]
-      },
       {
          provide: ScaleService,
          useClass: VSScaleService

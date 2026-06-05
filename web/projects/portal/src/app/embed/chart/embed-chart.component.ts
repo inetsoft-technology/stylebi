@@ -63,6 +63,9 @@ import { FixedDropdownService } from "../../widget/fixed-dropdown/fixed-dropdown
 import { EMBED_CHART_URL_MATCHER } from "./embed-chart.routes";
 import { VSChartService } from "../../vsobjects/objects/chart/services/vs-chart.service";
 import { ChartService } from "../../graph/services/chart.service";
+import { DndService } from "../../common/dnd/dnd.service";
+import { VSDndService } from "../../common/dnd/vs-dnd.service";
+import { ModelService } from "../../widget/services/model.service";
 import { DownloadService } from "../../../../../shared/download/download.service";
 import { TooltipService } from "../../widget/tooltip/tooltip.service";
 import { ShadowDomService } from "../shadow-dom.service";
@@ -104,7 +107,8 @@ declare const window: any;
         DebounceService,
         AdhocFilterService,
         VSChartService,
-        { provide: ChartService, useExisting: VSChartService }
+        { provide: ChartService, useExisting: VSChartService },
+        { provide: DndService, useClass: VSDndService, deps: [ModelService, NgbModal, ViewsheetClientService] }
     ]
 })
 export class EmbedChartComponent extends CommandProcessor implements OnInit, OnDestroy, AfterViewInit {
@@ -175,6 +179,13 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
          const tree = this.router.parseUrl(this.url);
          const segments = tree.root?.children?.primary?.segments ?? tree.root?.segments;
          const result = EMBED_CHART_URL_MATCHER(segments);
+
+         if(!result) {
+            this.showError = true;
+            console.error("Invalid embed URL: " + this.url);
+            return;
+         }
+
          this.assetId = result.posParams?.assetId?.path;
          this.assemblyName = result.posParams?.assemblyName?.path;
          this.inputRuntimeId = result.posParams?.runtimeId?.path;
