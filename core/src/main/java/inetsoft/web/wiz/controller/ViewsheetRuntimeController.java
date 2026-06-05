@@ -67,7 +67,10 @@ public class ViewsheetRuntimeController {
 
       String path = entry.getPath();
 
-      if(path == null || !path.startsWith(WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/")) {
+      // Saved wiz visualizations live under VISUALIZATION_COMPONENTS_FOLDER_PATH (where save/list/tree
+      // persist them) — not the ROOT folder. The guard was checking the wrong constant, rejecting
+      // every saved chart.
+      if(path == null || !path.startsWith(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/")) {
          throw new IllegalArgumentException(
             "Viewsheet is not in the managed visualizations folder: " + path);
       }
