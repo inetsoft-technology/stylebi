@@ -17,7 +17,8 @@
 -->
 @for (vsObject of vsInfo.vsObjects; track trackByName(i, vsObject); let i = $index) {
   @if (isObjectRendered(vsObject)) {
-    <div [style.display]="isMaxModeHidden(vsObject) ? 'none' : 'block'">
+    <div [style.display]="isMaxModeHidden(vsObject) ? 'none' : 'block'"
+         [class.max-mode-view-filter]="isFilterInMaxModeView(vsObject)">
       <div class="focus-assembly {{getAssemblyAsClass(vsObject)}}"
         [id]="getAssemblyDivId(vsObject)"
         VSDataTip [dataTipName]="vsObject.absoluteName"

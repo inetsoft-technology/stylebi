@@ -585,9 +585,16 @@ public class ResourcePermissionService {
          type = ResourceType.CUBE;
          resourcePath = getCubeResourceName(path);
          break;
-      case RepositoryEntry.SCHEDULE_TASK:
+      case RepositoryEntry.SCHEDULE_TASK: {
          type = ResourceType.SCHEDULE_TASK;
+         int slashIdx = resourcePath.lastIndexOf('/');
+
+         if(slashIdx >= 0) {
+            resourcePath = resourcePath.substring(slashIdx + 1);
+         }
+
          break;
+      }
       case RepositoryEntry.SCHEDULE_TASK | RepositoryEntry.FOLDER:
          type = ResourceType.SCHEDULE_TASK_FOLDER;
          break;

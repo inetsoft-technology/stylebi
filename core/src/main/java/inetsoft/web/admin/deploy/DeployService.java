@@ -428,7 +428,9 @@ public class DeployService {
             // if auto save has administrator, support import auto save assets.
             // if no security, only can login em by admin.
          }
-         else if(!noUsers && !securityEngine.isSecurityEnabled()) {
+         else if(!noUsers && !securityEngine.isSecurityEnabled() &&
+                 !"true".equals(System.getProperty("inetsoftStorageInitializing")))
+         {
             throw new Exception(
                Catalog.getCatalog().getString("em.import.userNoSecurity"));
          }
