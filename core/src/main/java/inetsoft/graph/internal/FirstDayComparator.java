@@ -102,7 +102,7 @@ public class FirstDayComparator extends DefaultComparer
          return ((MergePartCell) v1).compareTo(v2);
       }
 
-      return super.compare(v1, v2);
+      return 0;
    }
 
    private SortOrder comp;
