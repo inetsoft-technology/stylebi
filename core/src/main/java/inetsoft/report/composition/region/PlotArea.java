@@ -1666,15 +1666,13 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
             applyCandleCardHeader(tooltip, candleHeaderDim(chartInfo.getRTXFields(), dims),
                                   tipMeasures);
          }
+         // A solo card carries no subtitle: a single series has no shared X-dim
+         // to scope, so the X-dim stays a regular row. Multiple measures still
+         // group at tier-2 when a derived measure leads.
          else if(cardMeasureFirst && dims.length > 0) {
             if(groupMeasuresAtTier2(measures, full2NoCalcNames.keySet(), measurePairs)) {
                tooltip.setGroupedTiers(true);
                tooltip.setTier2GroupSize(measurePairs - 1);
-            }
-            // Single measure: lift the X-dim to the tier-1 subtitle (matches combined card).
-            else {
-               captureCombinedCardHeader(
-                  tooltip, new int[]{ palette.put(dims[0]) }, chartInfo.getTooltipStyle());
             }
          }
       }

@@ -144,8 +144,9 @@ class ChartToolTipTest {
 
    @Test
    void groupedSoloCardWithHeaderEmphasizesStackTotal() {
-      // Single-measure stacked bar: PlotArea lifts the X-dim to the header and
-      // routes to the grouped solo card. The stack total must be emphasized.
+      // A grouped card with a header set (e.g. candle, whose X-date heads the
+      // card) renders the header as the tier-1 subtitle and emphasizes the
+      // stack total. Plain solo cards set no header, so they carry no subtitle.
       IndexedSet<String> palette = new IndexedSet<>();
       ChartToolTip tip = new ChartToolTip();
       tip.setStyle(ChartInfo.TooltipStyle.CARD);
