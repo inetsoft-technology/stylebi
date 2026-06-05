@@ -1543,6 +1543,12 @@ public class WizAutoBindingService {
       // Invalidate the cached runtime descriptor so the change regenerates on re-execute.
       info.setRTChartDescriptor(null);
 
+      // The cached VGraphPair holds a reference to this same VSChartInfo, so the sandbox's
+      // staleness check (equalsContent against itself) can never detect the in-place mutation
+      // above. Clear the cached graph explicitly — mirroring VSChartDataHandler — or every
+      // subsequent render (including brand-new embed connections) serves the stale graph.
+      rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(request.getAssemblyName()));
+
       CreateViewsheetResult result =
          wizVsService.fetchAssemblyData(request.getWizRuntimeId(), request.getAssemblyName(), user);
 
@@ -1632,6 +1638,12 @@ public class WizAutoBindingService {
 
       info.setRTChartDescriptor(null);
 
+      // The cached VGraphPair holds a reference to this same VSChartInfo, so the sandbox's
+      // staleness check (equalsContent against itself) can never detect the in-place mutation
+      // above. Clear the cached graph explicitly — mirroring VSChartDataHandler — or every
+      // subsequent render (including brand-new embed connections) serves the stale graph.
+      rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(request.getAssemblyName()));
+
       CreateViewsheetResult result =
          wizVsService.fetchAssemblyData(request.getWizRuntimeId(), request.getAssemblyName(), user);
 
@@ -1653,7 +1665,12 @@ public class WizAutoBindingService {
       return result;
    }
 
-   /** Applies a single static color to every bound measure (aggregate) ref. */
+   /**
+    * Applies a single static color to every bound measure (aggregate) ref — both the design
+    * refs (so the change persists across runtime regeneration and save) and the runtime refs
+    * (the renderer reads getRTYFields()/getRTXFields(), clones made at execution time, so
+    * painting only the design refs would leave the next render on the old color).
+    */
    private void applyStaticColor(VSChartInfo vsChartInfo, Color color) {
       if(vsChartInfo == null) {
          return;
@@ -1667,6 +1684,14 @@ public class WizAutoBindingService {
 
       if(vsChartInfo.getXFields() != null) {
          refs.addAll(Arrays.asList(vsChartInfo.getXFields()));
+      }
+
+      if(vsChartInfo.getRTYFields() != null) {
+         refs.addAll(Arrays.asList(vsChartInfo.getRTYFields()));
+      }
+
+      if(vsChartInfo.getRTXFields() != null) {
+         refs.addAll(Arrays.asList(vsChartInfo.getRTXFields()));
       }
 
       for(ChartRef ref : refs) {
