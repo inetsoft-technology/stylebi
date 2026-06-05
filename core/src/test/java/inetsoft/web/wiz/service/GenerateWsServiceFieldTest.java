@@ -21,6 +21,9 @@ import inetsoft.web.wiz.model.WorksheetConstructionModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -54,5 +57,45 @@ class GenerateWsServiceFieldTest {
       IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
          () -> GenerateWsService.resolveExpressionName(field));
       assertEquals(true, e.getMessage().contains("fieldName or alias"));
+   }
+
+   @Test
+   void synthesizedJoinKeyIsInvisible() {
+      WorksheetConstructionModel.SourceInfo source = new WorksheetConstructionModel.SourceInfo();
+      source.setType("DATABASE");
+      source.setPath("postgres");
+      source.setSchema("public");
+      WorksheetConstructionModel.TableInfo table = new WorksheetConstructionModel.TableInfo();
+      table.setName("rental");
+      table.setSource(source);
+
+      List<WorksheetConstructionModel.QueryField> fields = new ArrayList<>();
+      GenerateWsService.addJoinKeyField(fields, table, "rental_id");
+
+      assertEquals(1, fields.size());
+      assertEquals("rental_id", fields.get(0).getFieldName());
+      assertEquals(Boolean.FALSE, fields.get(0).getVisible());
+   }
+
+   @Test
+   void declaredJoinKeyKeepsItsVisibility() {
+      WorksheetConstructionModel.SourceInfo source = new WorksheetConstructionModel.SourceInfo();
+      source.setType("DATABASE");
+      source.setPath("postgres");
+      source.setSchema("public");
+      WorksheetConstructionModel.TableInfo table = new WorksheetConstructionModel.TableInfo();
+      table.setName("rental");
+      table.setSource(source);
+
+      WorksheetConstructionModel.QueryField declared =
+         new WorksheetConstructionModel.QueryField(table, "rental_id");
+      declared.setVisible(true);
+      List<WorksheetConstructionModel.QueryField> fields =
+         new ArrayList<>(List.of(declared));
+
+      GenerateWsService.addJoinKeyField(fields, table, "rental_id");
+
+      assertEquals(1, fields.size());            // not re-added
+      assertEquals(Boolean.TRUE, fields.get(0).getVisible());  // untouched
    }
 }
