@@ -34,12 +34,14 @@ const cssFiles = [
    "target/generated-resources/ng/inetsoft/web/resources/elements/styles-*.css"
 ];
 
-// Wrap each file's content in an IIFE to prevent variable name collisions
+// Wrap each file's content in an IIFE to prevent variable name collisions.
+// Use .call(window) so that UMD libraries (e.g. tern) that rely on `this`
+// pointing to the global object still work in strict-mode Angular bundles.
 const wrapInIIFE = function() {
    return through.obj(function(file, encoding, callback) {
       if(file.isBuffer()) {
          const content = file.contents.toString(encoding);
-         file.contents = Buffer.from(`(function(){${content}})();\n`, encoding);
+         file.contents = Buffer.from(`(function(){${content}}).call(window);\n`, encoding);
       }
       callback(null, file);
    });
