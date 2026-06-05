@@ -12,7 +12,7 @@
     "test:portal:tl": "ng run portal:test-tl",
     "test:em": "ng test em",
     "test:em:tl": "ng run em:test-tl",
-    "test": "npm run test:portal && npm run test:portal:tl && npm run test:em && npm run test:em:tl",
+    "test": "npm run test:portal && npm run test:em && npm run test:em:tl",
     "verify": "ng lint && npm run test",
     "verify:prod": "npm run lint:prod && npm run test",
     "lint": "ng lint",

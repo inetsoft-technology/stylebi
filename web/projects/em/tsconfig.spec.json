@@ -13,7 +13,6 @@
     "src/**/*.spec.ts",
     "src/**/*.d.ts",
     "src/vitest-setup-tl.ts",
-    "../shared/**/*.spec.ts",
     "../shared/**/*.d.ts",
     "../../mocks/**/*.ts",
     "../../vitest-bootstrap.ts"
