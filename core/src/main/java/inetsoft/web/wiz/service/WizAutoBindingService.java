@@ -44,7 +44,9 @@ import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.BindingInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.awt.*;
 import java.security.Principal;
@@ -412,6 +414,9 @@ public class WizAutoBindingService {
 
             if(tf != null) {
                tf.setFormat(new XFormatInfo(fmtType, format));
+            }
+            else {
+               LOG.warn("Field '{}' has no text format; format '{}' not applied", fc.getField(), format);
             }
          }
          else {
@@ -1479,8 +1484,18 @@ public class WizAutoBindingService {
       }
 
       // Legend placement
+      String note = null;
+
       if(request.getLegendPosition() != null && desc != null && desc.getLegendsDescriptor() != null) {
-         desc.getLegendsDescriptor().setLayout(legendLayout(request.getLegendPosition()));
+         int layout = legendLayout(request.getLegendPosition());
+
+         if(layout < 0) {
+            note = "Unknown legendPosition '" + request.getLegendPosition() +
+               "'; valid: none, top, right, bottom, left, in_place. Legend left unchanged.";
+         }
+         else {
+            desc.getLegendsDescriptor().setLayout(layout);
+         }
       }
 
       // Invalidate the cached runtime descriptor so the change regenerates on re-execute.
@@ -1500,18 +1515,23 @@ public class WizAutoBindingService {
          result.setViewsheetIdentifier(request.getViewsheetIdentifier());
       }
 
+      if(note != null) {
+         result.setNote(note);
+      }
+
       return result;
    }
 
-   /** Maps a legend-position string to a {@link LegendsDescriptor} layout constant (defaults to RIGHT). */
+   /** Maps a legend-position string to a {@link LegendsDescriptor} layout constant; -1 if unknown. */
    private static int legendLayout(String position) {
       return switch(position.toLowerCase()) {
          case "none" -> LegendsDescriptor.NO_LEGEND;
          case "top" -> LegendsDescriptor.TOP;
+         case "right" -> LegendsDescriptor.RIGHT;
          case "bottom" -> LegendsDescriptor.BOTTOM;
          case "left" -> LegendsDescriptor.LEFT;
          case "in_place" -> LegendsDescriptor.IN_PLACE;
-         default -> LegendsDescriptor.RIGHT;
+         default -> -1;
       };
    }
 
@@ -1546,7 +1566,12 @@ public class WizAutoBindingService {
 
       if(colorField == null || colorField.getDataRef() == null) {
          if(request.getStaticColor() != null) {
-            applyStaticColor(vsChartInfo, parseColor(request.getStaticColor()));
+            if(vsChartInfo == null) {
+               note = "Chart has no binding info; static color could not be applied.";
+            }
+            else {
+               applyStaticColor(vsChartInfo, parseColor(request.getStaticColor()));
+            }
          }
 
          if(request.getPaletteName() != null || request.getColorList() != null ||
@@ -1592,14 +1617,14 @@ public class WizAutoBindingService {
          return;
       }
 
-      java.util.List<ChartRef> refs = new java.util.ArrayList<>();
+      List<ChartRef> refs = new ArrayList<>();
 
       if(vsChartInfo.getYFields() != null) {
-         refs.addAll(java.util.Arrays.asList(vsChartInfo.getYFields()));
+         refs.addAll(Arrays.asList(vsChartInfo.getYFields()));
       }
 
       if(vsChartInfo.getXFields() != null) {
-         refs.addAll(java.util.Arrays.asList(vsChartInfo.getXFields()));
+         refs.addAll(Arrays.asList(vsChartInfo.getXFields()));
       }
 
       for(ChartRef ref : refs) {
@@ -1618,11 +1643,13 @@ public class WizAutoBindingService {
          CategoricalColorFrame palette = ColorPalettes.getPalette(request.getPaletteName());
 
          if(palette == null) {
-            throw new IllegalArgumentException("Unknown palette '" + request.getPaletteName() +
-               "'. Valid palettes: " + String.join(", ", ColorPalettes.getPaletteNames()));
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown palette '" +
+               request.getPaletteName() + "'. Valid palettes: " +
+               String.join(", ", ColorPalettes.getPaletteNames()));
          }
 
-         colorField.setVisualFrame(palette);
+         // Clone: getPalette() returns the shared singleton frame; never set/mutate it directly.
+         colorField.setVisualFrame((CategoricalColorFrame) palette.clone());
       }
 
       if(request.getColorList() != null && !request.getColorList().isEmpty()) {
@@ -1671,7 +1698,7 @@ public class WizAutoBindingService {
    private String applyGradient(AestheticRef colorField, ChartColorsRequest request) {
       if(request.getColorList() != null || request.getCategoryColors() != null) {
          return "This chart has a measure on color (a continuous scale), so colorList/categoryColors " +
-            "don't apply. Use paletteName with a gradient name (e.g. Blues, Reds, Greens, RdYlBu, RdYlGn, Heat).";
+            "don't apply. Use paletteName with a gradient name (e.g. " + VALID_GRADIENTS + ").";
       }
 
       if(request.getStaticColor() != null) {
@@ -1680,20 +1707,21 @@ public class WizAutoBindingService {
       }
 
       if(request.getPaletteName() == null) {
-         return "No gradient provided. Pass paletteName with a gradient name " +
-            "(Blues, Reds, Greens, RdYlBu, RdYlGn, Heat).";
+         return "No gradient provided. Pass paletteName with a gradient name (" + VALID_GRADIENTS + ").";
       }
 
       ColorFrame gradient = gradientFrameForName(request.getPaletteName());
 
       if(gradient == null) {
-         return "Unknown gradient '" + request.getPaletteName() +
-            "'. Valid gradients: Blues, Reds, Greens, RdYlBu, RdYlGn, Heat.";
+         return "Unknown gradient '" + request.getPaletteName() + "'. Valid gradients: " + VALID_GRADIENTS + ".";
       }
 
       colorField.setVisualFrame(gradient);
       return null;
    }
+
+   /** The named gradients accepted by {@link #gradientFrameForName} (kept in sync with that switch). */
+   private static final String VALID_GRADIENTS = "Blues, Reds, Greens, RdYlBu, RdYlGn, Heat";
 
    /** Maps a gradient name to its concrete frame (case-insensitive); null when unknown. */
    private static ColorFrame gradientFrameForName(String name) {
@@ -1714,7 +1742,8 @@ public class WizAutoBindingService {
          return Color.decode(hex.trim());
       }
       catch(NumberFormatException e) {
-         throw new IllegalArgumentException("Invalid hex color '" + hex + "' (expected #RRGGBB)");
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+            "Invalid hex color '" + hex + "' (expected #RRGGBB)");
       }
    }
 
