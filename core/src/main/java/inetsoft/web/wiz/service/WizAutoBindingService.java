@@ -78,7 +78,7 @@ public class WizAutoBindingService {
    {
       List<SimpleFieldInfo> fieldConfigs = request.getFieldConfigs() != null
          ? request.getFieldConfigs() : Collections.emptyList();
-       String worksheetPath = request.getWorksheetPath();
+      String worksheetPath = request.getWorksheetPath();
 
       // Phase 1: resolve or create the recommendation RVS.
       String autoBindingRuntimeId = request.getAutoBindingRuntimeId();

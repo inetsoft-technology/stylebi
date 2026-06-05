@@ -271,10 +271,10 @@ public class GenerateWsService {
 
       String tableName = table != null ? table.getName() : null;
       return fields.stream().anyMatch(f ->
-                                         Objects.equals(f.getTable(), table) &&
-                                            (Objects.equals(f.getAlias(), key) ||
-                                               Objects.equals(f.getFieldName(), key) ||
-                                               Objects.equals(Tool.buildString(tableName, ".", f.getFieldName()), key))
+         Objects.equals(f.getTable(), table) &&
+         (Objects.equals(f.getAlias(), key) ||
+          Objects.equals(f.getFieldName(), key) ||
+          Objects.equals(Tool.buildString(tableName, ".", f.getFieldName()), key))
       );
    }
 
@@ -303,19 +303,19 @@ public class GenerateWsService {
 
    /**
     * Remove duplicate fields that map to the same underlying DB column in the same table.
-    * <p>
+    *
     * When the same DB column appears with multiple aliases (e.g. "customer_id" and
     * "c.customer_id" both for CUSTOMERS.CUSTOMER_ID), ColumnSelection.addAttribute
     * deduplicates by the base attribute name and silently drops every field after the first.
     * fixJoinPathKey resolves the join key to a specific alias; this method ensures only that
     * alias survives so that applyColumnSelection registers the correct column name and
     * getAttribute(joinKey) can subsequently find it.
-    * <p>
+    *
     * Strategy per (tableName, unqualifiedFieldName) group:
-    * - One field  → keep as-is.
-    * - Multiple fields → keep the one whose alias is a resolved join key.
-    * If none match, keep the last entry ("last writer wins", consistent with
-    * buildKeyToAliasMap's map.put behaviour).
+    *  - One field  → keep as-is.
+    *  - Multiple fields → keep the one whose alias is a resolved join key.
+    *    If none match, keep the last entry ("last writer wins", consistent with
+    *    buildKeyToAliasMap's map.put behaviour).
     */
    private List<WorksheetConstructionModel.QueryField> deduplicateByJoinKeys(
       List<WorksheetConstructionModel.QueryField> fields,
@@ -869,9 +869,9 @@ public class GenerateWsService {
 
       if(tableMetaData == null) {
          throw new IllegalArgumentException("Table does not exist: " + selectTable.getName() +
-                                               " (source: " + source.getPath() +
-                                               ", catalog: " + source.getCatalog() +
-                                               ", schema: " + source.getSchema() + ")");
+            " (source: " + source.getPath() +
+            ", catalog: " + source.getCatalog() +
+            ", schema: " + source.getSchema() + ")");
       }
 
       String qname = SQLTypes.getSQLTypes(jdbcDatasource).
@@ -1220,18 +1220,18 @@ public class GenerateWsService {
       }
 
       switch(operator) {
-      case GT -> ops.add(XCondition.GREATER_THAN);
-      case LT -> ops.add(XCondition.LESS_THAN);
-      case GE -> {
-         ops.add(XCondition.EQUAL_TO);
-         ops.add(XCondition.GREATER_THAN);
-      }
-      case LE -> {
-         ops.add(XCondition.EQUAL_TO);
-         ops.add(XCondition.LESS_THAN);
-      }
-      case NE -> ops.add(XCondition.EQUAL_TO);
-      case EQ -> ops.add(XCondition.EQUAL_TO);
+         case GT -> ops.add(XCondition.GREATER_THAN);
+         case LT -> ops.add(XCondition.LESS_THAN);
+         case GE -> {
+            ops.add(XCondition.EQUAL_TO);
+            ops.add(XCondition.GREATER_THAN);
+         }
+         case LE -> {
+            ops.add(XCondition.EQUAL_TO);
+            ops.add(XCondition.LESS_THAN);
+         }
+         case NE -> ops.add(XCondition.EQUAL_TO);
+         case EQ -> ops.add(XCondition.EQUAL_TO);
       }
 
       return ops;

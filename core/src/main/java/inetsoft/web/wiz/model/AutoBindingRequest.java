@@ -20,7 +20,6 @@ package inetsoft.web.wiz.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.util.List;
-import inetsoft.web.wiz.model.WorksheetColumnInfo;
 
 /**
  * Request body for {@code POST /api/wiz/viewsheet/autoBinding}.
