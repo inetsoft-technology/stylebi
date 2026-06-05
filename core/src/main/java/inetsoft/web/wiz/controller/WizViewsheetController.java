@@ -21,10 +21,14 @@ package inetsoft.web.wiz.controller;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.service.WizAutoBindingService;
 import inetsoft.web.wiz.service.WizVsService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/wiz")
@@ -37,10 +41,10 @@ public class WizViewsheetController {
    }
 
    @PostMapping(value = "/viewsheet/create", produces = MediaType.APPLICATION_JSON_VALUE)
-   public CreateViewsheetResult createViewsheet(@RequestBody CreateVisualizationModel model,
-                                                Principal user) throws Exception
+   public ResponseEntity<?> createViewsheet(@RequestBody CreateVisualizationModel model,
+                                            Principal user)
    {
-      return wizVsService.createViewsheet(model, user);
+      return run("create viewsheet", () -> wizVsService.createViewsheet(model, user));
    }
 
    @PostMapping("/viewsheet/validateBinding")
@@ -51,17 +55,13 @@ public class WizViewsheetController {
    }
 
    @PostMapping(value = "/viewsheet/autoBinding", produces = MediaType.APPLICATION_JSON_VALUE)
-   public AutoBindingResponse autoBinding(@RequestBody AutoBindingRequest request,
-                                          Principal user) throws Exception
-   {
-      return wizAutoBindingService.autoBinding(request, user);
+   public ResponseEntity<?> autoBinding(@RequestBody AutoBindingRequest request, Principal user) {
+      return run("run autoBinding", () -> wizAutoBindingService.autoBinding(request, user));
    }
 
    @PostMapping(value = "/viewsheet/changeType", produces = MediaType.APPLICATION_JSON_VALUE)
-   public CreateViewsheetResult changeType(@RequestBody ChangeTypeRequest request,
-                                           Principal user) throws Exception
-   {
-      return wizAutoBindingService.changeType(request, user);
+   public ResponseEntity<?> changeType(@RequestBody ChangeTypeRequest request, Principal user) {
+      return run("change chart type", () -> wizAutoBindingService.changeType(request, user));
    }
 
    @PostMapping(value = "/viewsheet/format", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -85,6 +85,26 @@ public class WizViewsheetController {
       wizVsService.deleteViewsheet(identifier, user);
    }
 
+   @FunctionalInterface
+   private interface ControllerAction {
+      Object run() throws Exception;
+   }
+
+   private ResponseEntity<?> run(String action, ControllerAction body) {
+      try {
+         return ResponseEntity.ok(body.run());
+      }
+      catch(IllegalArgumentException e) {
+         return ResponseEntity.badRequest().body(Map.of("error", String.valueOf(e.getMessage())));
+      }
+      catch(Exception e) {
+         LOG.error("Failed to {}", action, e);
+         return ResponseEntity.internalServerError()
+            .body(Map.of("error", "An unexpected error occurred. Please try again."));
+      }
+   }
+
    private final WizVsService wizVsService;
    private final WizAutoBindingService wizAutoBindingService;
+   private static final Logger LOG = LoggerFactory.getLogger(WizViewsheetController.class);
 }

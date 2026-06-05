@@ -23,6 +23,10 @@ import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.graph.data.*;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.TableLens;
+import inetsoft.report.internal.Util;
+import inetsoft.report.internal.XNodeMetaTable;
+import inetsoft.report.lens.AbstractTableLens;
+import inetsoft.uql.XTable;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.VGraphPair;
@@ -578,6 +582,37 @@ public class WizVsService {
    }
 
    /**
+    * Throws if the lens chain contains failed-query fallback data. When a live query fails
+    * (e.g. a computed-column expression that is invalid SQL for the data source), AssetQuery
+    * substitutes design-time sample data instead of erroring, and the chart path replaces
+    * that meta table with generated sample rows (name1/999.99). The wiz path must surface
+    * the failure instead of returning fabricated rows as if they were real query results.
+    */
+   private static void checkFailedQuery(XTable lens) {
+      if(lens == null) {
+         return;
+      }
+
+      List<XTable> allTables = new ArrayList<>();
+      Util.listNestedTable(lens, XTable.class, allTables);
+
+      for(XTable t : allTables) {
+         // Two signals, depending on the path: the worksheet/table path surfaces the raw
+         // design meta table (isFailedQueryDefault); the chart path replaces it with
+         // generated sample data carrying FAILED_QUERY_PROPERTY (see ChartVSAQuery).
+         boolean failed = t instanceof XNodeMetaTable meta && meta.isFailedQueryDefault()
+            || t instanceof AbstractTableLens atl
+               && atl.getProperty(XNodeMetaTable.FAILED_QUERY_PROPERTY) != null;
+
+         if(failed) {
+            throw new IllegalArgumentException(
+               "Worksheet query failed — a computed-column expression or filter is invalid " +
+               "for the data source. Check the worksheet's expression columns.");
+         }
+      }
+   }
+
+   /**
     * Extracts aggregated chart data from the viewsheet sandbox after the assembly is created.
     * Returns a result with null headers/rows if data is unavailable (best-effort).
     */
@@ -620,6 +655,10 @@ public class WizVsService {
             }
          }
 
+         if(dset instanceof VSDataSet vds) {
+            checkFailedQuery(vds.getTable());
+         }
+
          int colCount = dset.getColCount();
          int rowCount = dset.getRowCount();
          int limit = Math.min(rowCount, MAX_ROWS);
@@ -651,6 +690,14 @@ public class WizVsService {
          }
 
          return result;
+      }
+      catch(IllegalArgumentException e) {
+         // Failed-query fallback detected: propagate instead of returning fabricated data.
+         if(box != null) {
+            box.clearGraph(assemblyName);
+         }
+
+         throw e;
       }
       catch(Exception e) {
          LOG.warn("Failed to extract chart data after viewsheet creation for assembly '{}': {}",
@@ -722,6 +769,8 @@ public class WizVsService {
             return new CreateViewsheetResult();
          }
 
+         checkFailedQuery(table);
+
          int colCount = table.getColCount();
          int headerRows = table.getHeaderRowCount();
 
@@ -755,6 +804,10 @@ public class WizVsService {
          }
 
          return result;
+      }
+      catch(IllegalArgumentException e) {
+         // Failed-query fallback detected: propagate instead of returning fabricated data.
+         throw e;
       }
       catch(Exception e) {
          LOG.warn("Failed to extract table data after viewsheet creation for assembly '{}': {}",

@@ -288,6 +288,14 @@ public class XNodeMetaTable extends AbstractTableLens {
    }
 
    /**
+    * Table property used to preserve the failed-query marker when this meta table is
+    * replaced by generated sample data (e.g. ChartMetaTableGenerator), so callers that
+    * must not serve fabricated data can still detect the failed query downstream.
+    */
+   public static final String FAILED_QUERY_PROPERTY =
+      XNodeMetaTable.class.getName() + ".failedQueryDefault";
+
+   /**
     * Table data descriptor.
     */
    public final class TableDataDescriptor2 extends DefaultTableDataDescriptor {

@@ -800,7 +800,7 @@ public abstract class AssetQuery extends PreAssetQuery {
                      expressionException = exc;
                   }
 
-                  base = getDesignTableLens(vars);
+                  base = getDesignTableLens(vars, true);
                }
                else {
                   throw ex;
@@ -836,7 +836,7 @@ public abstract class AssetQuery extends PreAssetQuery {
                   }
 
                   LOG.warn("Failed to get table data: " + ex.getMessage(), ex);
-                  base = getDesignTableLens(vars);
+                  base = getDesignTableLens(vars, true);
                }
                else {
                   throw ex;

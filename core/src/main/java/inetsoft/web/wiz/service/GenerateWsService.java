@@ -262,8 +262,8 @@ public class GenerateWsService {
       return new WorksheetBuildResult(worksheet, table);
    }
 
-   private boolean isJoinKeyRepresented(Collection<WorksheetConstructionModel.QueryField> fields,
-                                        WorksheetConstructionModel.TableInfo table, String key)
+   private static boolean isJoinKeyRepresented(Collection<WorksheetConstructionModel.QueryField> fields,
+                                               WorksheetConstructionModel.TableInfo table, String key)
    {
       if(Tool.isEmptyString(key)) {
          return true;
@@ -278,11 +278,17 @@ public class GenerateWsService {
       );
    }
 
-   private void addJoinKeyField(Collection<WorksheetConstructionModel.QueryField> fields,
-                                WorksheetConstructionModel.TableInfo table, String key)
+   static void addJoinKeyField(Collection<WorksheetConstructionModel.QueryField> fields,
+                               WorksheetConstructionModel.TableInfo table, String key)
    {
       if(!isJoinKeyRepresented(fields, table, key)) {
-         fields.add(new WorksheetConstructionModel.QueryField(table, key));
+         WorksheetConstructionModel.QueryField keyField =
+            new WorksheetConstructionModel.QueryField(table, key);
+         // A synthesized key exists only to satisfy the join; hide it so the
+         // worksheet output (and autoBinding, which binds every visible column)
+         // never sees it as a bindable field.
+         keyField.setVisible(false);
+         fields.add(keyField);
       }
    }
 
@@ -592,7 +598,7 @@ public class GenerateWsService {
 
       for(WorksheetConstructionModel.QueryField field : modelFields) {
          if(Boolean.FALSE.equals(field.getVisible())) {
-            String fieldName = field.getAlias() != null ? field.getAlias() : field.getFieldName();
+            String fieldName = field.getAlias() != null ? field.getAlias() : field.getUnqualifiedFieldName();
             WorksheetConstructionModel.TableInfo table = field.getTable();
             fieldName = table != null ? table.getName() + "." + fieldName : fieldName;
             DataRef ref = columnSelection.getAttribute(fieldName);
@@ -838,7 +844,7 @@ public class GenerateWsService {
          dataRef = ref;
       }
       else {
-         ExpressionRef expressionRef = new ExpressionRef(null, field.getFieldName());
+         ExpressionRef expressionRef = new ExpressionRef(null, resolveExpressionName(field));
          expressionRef.setExpression(field.getExpression());
          dataRef = expressionRef;
       }
@@ -854,6 +860,23 @@ public class GenerateWsService {
       }
 
       return columnRef;
+   }
+
+   /**
+    * Resolve the name for an expression column: fieldName, falling back to alias.
+    * An expression column with neither is unnamed ("Column [0]") and can never be
+    * matched by fieldConfigs, so reject it at validation time instead.
+    */
+   static String resolveExpressionName(WorksheetConstructionModel.QueryField field) {
+      String name = !Tool.isEmptyString(field.getFieldName())
+         ? field.getFieldName() : field.getAlias();
+
+      if(Tool.isEmptyString(name)) {
+         throw new IllegalArgumentException(
+            "Expression field requires a fieldName or alias: " + field.getExpression());
+      }
+
+      return name;
    }
 
    private void applySourceInfo(AbstractTableAssembly table,
