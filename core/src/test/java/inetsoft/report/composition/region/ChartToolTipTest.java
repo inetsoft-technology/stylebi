@@ -43,6 +43,32 @@ class ChartToolTipTest {
    }
 
    @Test
+   void cardMapKeepsGeoDimAtTier1WithNoSubtitle() {
+      // Card-style map (G=geo dim, Color=aesthetic) as getToolTip now emits it:
+      // the geo dim row leads at tier-1 and the color aesthetic follows at
+      // tier-2, with no subtitle. The earlier solo-card lift pulled the geo dim
+      // into the header, which promoted the color aesthetic to the headline and
+      // pushed the geo dim down to a subtitle (Region before State). A header
+      // set here would reproduce that regression, so assert none is lifted.
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+      tip.addTooltip(palette.put("State"), palette.put("FL"));   // geo dim (cols loop)
+      tip.addTooltip(palette.put("Region"), palette.put("USA East")); // color (appendInfo)
+
+      String out = tip.getTooltip(palette);
+
+      assertFalse(tip.hasHeader(), "geo dim must not be lifted to a header");
+      assertFalse(out.contains("tt-subtitle"), "card map carries no subtitle");
+      assertTrue(out.contains("<div class=\"tt-tier-1\">State:&nbsp;FL"),
+                 "geo dim leads at tier-1");
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Region:&nbsp;USA East"),
+                 "color aesthetic follows at tier-2");
+      assertTrue(out.indexOf("State:&nbsp;FL") < out.indexOf("Region:&nbsp;USA East"),
+                 "State renders before Region");
+   }
+
+   @Test
    void cardStyleEmitsTierDivsCappedAtThree() {
       IndexedSet<String> palette = new IndexedSet<>();
       ChartToolTip tip = new ChartToolTip();

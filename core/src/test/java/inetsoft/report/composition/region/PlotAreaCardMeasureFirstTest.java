@@ -181,8 +181,8 @@ class PlotAreaCardMeasureFirstTest {
    }
 
    @Test
-   void soloCardHeaderLiftSkippedForDefaultStyle() {
-      // Default style is the flat tooltip, so no header lift.
+   void combinedCardHeaderLiftSkippedForDefaultStyle() {
+      // Default style is the flat tooltip, so no header lift even for combined cards.
       IndexedSet<String> palette = new IndexedSet<>();
       ChartToolTip tip = new ChartToolTip();
       int xKey = palette.put("Year");
