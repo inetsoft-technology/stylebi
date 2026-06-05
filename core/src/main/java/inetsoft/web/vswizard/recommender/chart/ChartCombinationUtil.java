@@ -197,6 +197,12 @@ public class ChartCombinationUtil {
    private static ChartInfosResult getChartInfosWithScores(int n, List<ChartTypeFilter> filters,
                                                             ChartPreference pref)
    {
+      // Pins must be visible during scoring: getClassyInfo prunes score<0 candidates at
+      // generation time, so the aesthetic-guard relaxation has to fire inside getScore.
+      if(pref != null && !pref.isEmpty()) {
+         filters.forEach(f -> f.setPinnedSlots(pref.getSlotFields()));
+      }
+
       getChartCombination(n, filters);
 
       List<ChartInfo> allDefaultInfos = new ArrayList<>();
@@ -205,7 +211,7 @@ public class ChartCombinationUtil {
 
       filters.forEach(f -> {
          if(pref != null) {
-            ChartTypeFilter.FilterResult result = f.filterWithPreference(pref);
+            ChartTypeFilter.FilterResult result = f.filterWithConstraints(pref);
             baseScores.putAll(f.getScores());
 
             result.defaultRanked.stream()
