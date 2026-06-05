@@ -233,6 +233,9 @@ public class ChartTypeFilter {
       case "shape" -> addAestheticName(names, info.getShapeField());
       case "size" -> addAestheticName(names, info.getSizeField());
       case "text" -> addAestheticName(names, info.getTextField());
+      // Non-chart slots (crosstab rows/cols/aggregates/details) are intentionally a no-op:
+      // a chart VSChartInfo has no such slots, so there is nothing to bind here. Those pins
+      // are enforced on the crosstab path, not in this chart filter.
       default -> { }
       }
 
@@ -283,11 +286,15 @@ public class ChartTypeFilter {
    /**
     * Aesthetic cardinality caps for the given chart, in slot order {color, shape, size}.
     * Mirrors the (previously inline) thresholds in getAestheticScore — shape is 5 for
-    * line / 16 for point, size is 200 for word cloud — and is shared with the
-    * post-selection warning in WizAutoBindingService so notes never claim a cap the
-    * scorer didn't apply.
+    * line / 16 for point, size is 200 for word cloud. It is intended to be the single
+    * source of truth for these caps, so a future post-selection warning can report the
+    * same threshold the scorer applied.
     */
    public static int[] aestheticCaps(VSChartInfo info) {
+      if(info == null) {
+         return new int[] { 40, 8, 10 };
+      }
+
       int maxShapes = 8;
       int maxSize = 10;
 
