@@ -17,10 +17,16 @@
  */
 package inetsoft.web.wiz.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 /**
  * Request body for {@code POST /api/wiz/viewsheet/format} — applies chart-level FORMAT properties
  * (axis titles, y-axis scale, legend placement) to an existing runtime chart and re-renders it.
  * All format fields are optional; only the non-null ones are applied (a no-op field is left as-is).
+ * The axis getters need explicit {@code @JsonProperty} names: Jackson's bean-naming rule lowercases
+ * the leading consecutive capitals of {@code getXAxisTitle} to property {@code xaxisTitle}, which
+ * silently rejects the camelCase {@code xAxisTitle} the wiz-services client sends
+ * (FAIL_ON_UNKNOWN_PROPERTIES → HttpMessageNotReadableException → 400).
  */
 public class ChartFormatRequest {
    public String getWizRuntimeId() { return wizRuntimeId; }
@@ -32,21 +38,27 @@ public class ChartFormatRequest {
    public String getViewsheetIdentifier() { return viewsheetIdentifier; }
    public void setViewsheetIdentifier(String viewsheetIdentifier) { this.viewsheetIdentifier = viewsheetIdentifier; }
 
+   @JsonProperty("xAxisTitle")
    public String getXAxisTitle() { return xAxisTitle; }
    public void setXAxisTitle(String xAxisTitle) { this.xAxisTitle = xAxisTitle; }
 
+   @JsonProperty("yAxisTitle")
    public String getYAxisTitle() { return yAxisTitle; }
    public void setYAxisTitle(String yAxisTitle) { this.yAxisTitle = yAxisTitle; }
 
+   @JsonProperty("yAxisMin")
    public Double getYAxisMin() { return yAxisMin; }
    public void setYAxisMin(Double yAxisMin) { this.yAxisMin = yAxisMin; }
 
+   @JsonProperty("yAxisMax")
    public Double getYAxisMax() { return yAxisMax; }
    public void setYAxisMax(Double yAxisMax) { this.yAxisMax = yAxisMax; }
 
+   @JsonProperty("yAxisIncrement")
    public Double getYAxisIncrement() { return yAxisIncrement; }
    public void setYAxisIncrement(Double yAxisIncrement) { this.yAxisIncrement = yAxisIncrement; }
 
+   @JsonProperty("yAxisLogarithmic")
    public Boolean getYAxisLogarithmic() { return yAxisLogarithmic; }
    public void setYAxisLogarithmic(Boolean yAxisLogarithmic) { this.yAxisLogarithmic = yAxisLogarithmic; }
 
