@@ -96,9 +96,7 @@
             <mat-error *ngIf="optionsForm.controls['owner'].errors && optionsForm.controls['owner'].errors['invalid']">
               _#(Invalid user)
             </mat-error>
-            @if (isAdminNameLoading) {
-              <mat-spinner matSuffix mode="indeterminate" diameter="17"></mat-spinner>
-            }
+            <mat-spinner matSuffix *ngIf="isAdminNameLoading" mode="indeterminate" diameter="17"></mat-spinner>
           </mat-form-field>
           <mat-form-field appearance="outline" color="accent">
             <mat-label>_#(Execute As)</mat-label>
