@@ -3015,9 +3015,19 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          boolean postConditionHasCubeMeasure =
             "true".equals(table.getProperty("Post_Condition_HasCubeMeasure"));
 
+         // An adhoc filter on a chart aggregate (VS_ASSEMBLY source) places the aggregate
+         // filter (e.g. Sum(customer_id) >= N) in the post-runtime (HAVING) slot of the
+         // wrapping mirror table. The mirror itself is not aggregated (its aggregation is in
+         // the inner table) and the composer preview runs in live mode, so without this check
+         // the guard below would discard that HAVING and the chart would not be filtered.
+         // (Bug #75326, follow-on to #75263)
+         ConditionListWrapper postRtWrapper = table.getPostRuntimeConditionList();
+         boolean hasPostRuntimeCondition = postRtWrapper != null &&
+            postRtWrapper.getConditionList() != null && !postRtWrapper.getConditionList().isEmpty();
+
          if(!postConditionHasCubeMeasure && !table.isAggregate()
             && !AssetQuerySandbox.isEmbeddedMode(mode) && !isSubQuery() && ginfo.isEmpty()
-            && !AssetQuerySandbox.isRuntimeMode(mode))
+            && !AssetQuerySandbox.isRuntimeMode(mode) && !hasPostRuntimeCondition)
          {
             postconds = new ConditionList();
          }
