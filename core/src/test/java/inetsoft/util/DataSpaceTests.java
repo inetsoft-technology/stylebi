@@ -87,7 +87,14 @@ class DataSpaceTests {
          Arguments.of("file.txt", "", "file.txt"),
          Arguments.of("file.txt", "/", "file.txt"),
          Arguments.of(home, "file.txt", "file.txt"),
-         Arguments.of(null, home + "/templates//report.srt", "templates/report.srt")
+         Arguments.of(null, home + "/templates//report.srt", "templates/report.srt"),
+         // Bug #75321: the unresolved "$(sree.home)" placeholder (from fs.files /
+         // fs.bs.files defaults) must be normalized like the resolved home so it
+         // doesn't create a literal "$(sree.home)" node in the data space.
+         Arguments.of(null, "$(sree.home)/fs.xml", "fs.xml"),
+         Arguments.of(null, "$(sree.home)/organization0/fs.xml", "organization0/fs.xml"),
+         Arguments.of("$(sree.home)", "bs.xml", "bs.xml"),
+         Arguments.of("$(sree.home)/organization0", "bs.xml", "organization0/bs.xml")
       );
    }
 }
