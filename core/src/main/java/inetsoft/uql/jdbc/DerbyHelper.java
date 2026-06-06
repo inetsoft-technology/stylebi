@@ -135,6 +135,26 @@ public class DerbyHelper extends SQLHelper {
       return super.supportsOperation(op);
    }
 
+   /**
+    * Check if supports an operation.
+    * @param op the specified operation.
+    * @param info the advanced information.
+    * @return <tt>true</tt> if supports, <tt>false</tt> otherwise.
+    */
+   @Override
+   public boolean supportsOperation(String op, String info) {
+      // the maxrows clause wraps the query in 'select * from (...) fetch first
+      // n rows only' (see generateMaxRowsClause), and derby only allows
+      // 'select *' in EXISTS and NOT EXISTS subqueries (error 42X38), so the
+      // maxrows clause must not be applied to a where subquery (e.g. IN /
+      // NOT IN). (Bug #75322)
+      if(MAXROWS.equals(op) && WHERE_SUBQUERY.equals(info)) {
+         return false;
+      }
+
+      return super.supportsOperation(op, info);
+   }
+
    @Override
    public String generateOrderByClause() {
       // derby throws exception with 'order by' in sub query
