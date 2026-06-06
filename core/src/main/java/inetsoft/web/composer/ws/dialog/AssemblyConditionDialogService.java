@@ -113,13 +113,19 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
 
          if(assembly instanceof TableAssembly) {
             SubqueryTableModel subqueryTableModel = new SubqueryTableModel();
+            boolean currentTable = assembly.equals(tableAssembly);
             subqueryTableModel.setName(assembly.getName());
             subqueryTableModel.setDescription(
                ((TableAssembly) assembly).getDescription());
+            // only the output (public) columns of a subquery table can be used
+            // in a subquery condition (e.g. the aggregate columns of an
+            // aggregated table); the current table's columns are only used as
+            // the main attribute of a correlated subquery, so it keeps the
+            // full (private) column selection. (Bug #75323)
             subqueryTableModel.setColumns(ConditionUtil.getDataRefModelsFromColumnSelection(
-               ((TableAssembly) assembly).getColumnSelection(),
+               ((TableAssembly) assembly).getColumnSelection(!currentTable),
                this.dataRefModelFactoryService, 0));
-            subqueryTableModel.setCurrentTable(assembly.equals(tableAssembly));
+            subqueryTableModel.setCurrentTable(currentTable);
             subqueryTableModels.add(subqueryTableModel);
          }
       }
