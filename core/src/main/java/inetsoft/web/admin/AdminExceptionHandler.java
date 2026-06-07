@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin;
 
+import inetsoft.sree.security.SRSecurityException;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
@@ -129,6 +130,24 @@ public class AdminExceptionHandler {
 
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
          .body(handleGenericException(e));
+   }
+
+   /**
+    * Error handler for security/configuration errors such as an LDAP provider
+    * with incomplete connection settings. Returns the error message to the
+    * client without logging it as an unexpected server error.
+    */
+   @ExceptionHandler(SRSecurityException.class)
+   @ResponseBody
+   @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+   @ApiResponses({
+      @ApiResponse(
+         responseCode = "500",
+         description = "A security configuration error occurred.")
+   })
+   public GenericError handleSecurityConfigError(SRSecurityException e) {
+      LOG.debug("Security configuration error", e);
+      return new GenericError(e);
    }
 
    /**
