@@ -208,7 +208,7 @@
         }
         @if (distributionChart) {
           <map name="distributionChartMap">
-            @for (value of distributionChart.values; track value) {
+            @for (value of distributionChart.values; track $index) {
               <area
                 shape="rect"
                 [coords]="getDistributionValueCoords(value)"
