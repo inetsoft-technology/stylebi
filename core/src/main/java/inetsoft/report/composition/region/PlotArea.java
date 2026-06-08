@@ -1454,12 +1454,20 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          boolean cardMeasureFirst = cardPutsMeasureFirst(chartInfo, element);
          String[] tipMeasures = measures;
          boolean candleCardLayout = isCandleOrStock && cardMeasureFirst;
+         // Single-measure boxplot only; multiple measures would promote several medians.
+         boolean boxCardLayout = GraphTypes.isBoxplot(chartInfo.getChartType()) &&
+            cardMeasureFirst && boxBaseMeasureCount(measures) == 1;
 
          // Candle/Stock card: Close is the canonical headline price; promote it
          // ahead of OHL so it becomes the tier-1 row.
          if(candleCardLayout) {
             tipMeasures = reorderCandleMeasuresCloseFirst(
                measures, (CandleChartInfo) chartInfo);
+         }
+         // Boxplot card: Median is the canonical center; promote it ahead of the
+         // IQR and whiskers so it becomes the tier-1 row.
+         else if(boxCardLayout) {
+            tipMeasures = reorderBoxMeasuresMedianFirst(measures);
          }
 
          String[][] cols;
@@ -1665,6 +1673,21 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          if(candleCardLayout && dims.length > 0) {
             applyCandleCardHeader(tooltip, candleHeaderDim(chartInfo.getRTXFields(), dims),
                                   tipMeasures);
+         }
+         // Boxplot card: Median headlines, X-dim subtitles, Q1/Q3 group at tier-2.
+         // Count IQR from added (rendered rows) — prefixed stat names aren't in tips.
+         else if(boxCardLayout) {
+            int q1q3 = boxIqrCount(added);
+
+            if(dims.length > 0) {
+               applyBoxCardHeader(
+                  tooltip, candleHeaderDim(chartInfo.getRTXFields(), dims), q1q3);
+            }
+            // No X dim (a single box): group the IQR with no subtitle.
+            else if(q1q3 > 0) {
+               tooltip.setGroupedTiers(true);
+               tooltip.setTier2GroupSize(q1q3);
+            }
          }
          else if(cardMeasureFirst && dims.length > 0) {
             if(groupMeasuresAtTier2(measures, full2NoCalcNames.keySet(), measurePairs)) {
@@ -1894,10 +1917,9 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
       return dims[0];
    }
 
-   // Set X-dim as header (solo-card-with-header renders it as tier-1 subtitle); group OHL at tier-2.
-   private void applyCandleCardHeader(ChartToolTip tooltip, String xDim,
-                                      String[] tipMeasures)
-   {
+   // Lift the dim to the header (rendered as the tier-1 subtitle). Returns true if
+   // the dim was present in the tooltip and lifted, false if it never rendered.
+   private boolean liftDimToHeader(ChartToolTip tooltip, String xDim) {
       String dimName = tips.get(xDim);
 
       if(dimName == null) {
@@ -1910,7 +1932,17 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
       if(xVal >= 0) {
          tooltip.setHeader(xKey, xVal);
          tooltip.removeTooltip(xKey);
+         return true;
       }
+
+      return false;
+   }
+
+   // Set X-dim as header (solo-card-with-header renders it as tier-1 subtitle); group OHL at tier-2.
+   private void applyCandleCardHeader(ChartToolTip tooltip, String xDim,
+                                      String[] tipMeasures)
+   {
+      liftDimToHeader(tooltip, xDim);
 
       // Count only entries that actually landed in the tooltip — skips OHLC names
       // dropped by the allfields filter so aesthetics don't get promoted to tier-2.
@@ -1925,6 +1957,75 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
       }
 
       tooltip.setTier2GroupSize(auxCount);
+   }
+
+   // Boxplot card: order the stat columns Median, Q1, Q3, Min, Max so Median
+   // leads at tier-1, the IQR groups at tier-2 and the whiskers fall to tier-3.
+   // egeom.getVars() returns them Max-first; unrecognized names keep their order
+   // at the end. Stat is encoded in the column-name prefix (BoxDataSet.*_PREFIX).
+   static String[] reorderBoxMeasuresMedianFirst(String[] measures) {
+      String[] order = { BoxDataSet.MEDIUM_PREFIX, BoxDataSet.Q25_PREFIX,
+         BoxDataSet.Q75_PREFIX, BoxDataSet.MIN_PREFIX, BoxDataSet.MAX_PREFIX };
+      List<String> remaining = new ArrayList<>();
+
+      for(String m : measures) {
+         if(m != null) {
+            remaining.add(m);
+         }
+      }
+
+      List<String> reordered = new ArrayList<>();
+
+      for(String prefix : order) {
+         for(Iterator<String> it = remaining.iterator(); it.hasNext(); ) {
+            String m = it.next();
+
+            if(m.startsWith(prefix)) {
+               reordered.add(m);
+               it.remove();
+            }
+         }
+      }
+
+      reordered.addAll(remaining);
+      return reordered.toArray(new String[0]);
+   }
+
+   // Distinct base measures behind the box stat columns. >1 means a multi-measure
+   // boxplot, which the dedicated card layout does not handle (it would promote
+   // several medians), so those fall through to the generic measure-first path.
+   static int boxBaseMeasureCount(String[] measures) {
+      Set<String> bases = new HashSet<>();
+
+      for(String m : measures) {
+         if(m != null) {
+            bases.add(BoxDataSet.getBaseName(m));
+         }
+      }
+
+      return bases.size();
+   }
+
+   // Number of IQR (Q1/Q3) stat rows that actually rendered. Counted from the
+   // added set (raw prefixed names) rather than the tips map, which only holds
+   // the base measure name for a boxplot.
+   static int boxIqrCount(Set<String> added) {
+      return (int) added.stream()
+         .filter(n -> n != null &&
+            (n.startsWith(BoxDataSet.Q25_PREFIX) || n.startsWith(BoxDataSet.Q75_PREFIX)))
+         .count();
+   }
+
+   // Lift the X-dim to the header (rendered as the tier-1 subtitle under the
+   // Median headline) and group the IQR at tier-2 so Min/Max drop to tier-3.
+   // If the X-dim never rendered, still group the IQR with no subtitle so the
+   // hierarchy survives, matching the no-X-dim branch.
+   private void applyBoxCardHeader(ChartToolTip tooltip, String xDim, int tier2Count) {
+      if(!liftDimToHeader(tooltip, xDim) && tier2Count > 0) {
+         tooltip.setGroupedTiers(true);
+      }
+
+      tooltip.setTier2GroupSize(tier2Count);
    }
 
    // check if point corresponding to null value should show tooltip.

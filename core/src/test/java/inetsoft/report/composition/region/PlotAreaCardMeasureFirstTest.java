@@ -18,6 +18,7 @@
 package inetsoft.report.composition.region;
 
 import inetsoft.graph.aesthetic.*;
+import inetsoft.graph.data.BoxDataSet;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.element.GraphElement;
 import inetsoft.graph.element.PointElement;
@@ -27,6 +28,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.*;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -285,6 +287,73 @@ class PlotAreaCardMeasureFirstTest {
       // Single plain measure: guard fires on measurePairs <= 1 → no grouping.
       assertFalse(PlotArea.groupMeasuresAtTier2(
          new String[]{ "Sum(A)" }, new HashSet<>(), 1));
+   }
+
+   @Test
+   void reorderBoxMeasuresMedianFirstPutsMedianFirst() {
+      // egeom.getVars() yields the stats Max-first; reorder to Median, Q1, Q3,
+      // Min, Max so Median headlines, the IQR groups, and the whiskers trail.
+      String[] in = { BoxDataSet.MAX_PREFIX + "Total", BoxDataSet.Q75_PREFIX + "Total",
+         BoxDataSet.MEDIUM_PREFIX + "Total", BoxDataSet.Q25_PREFIX + "Total",
+         BoxDataSet.MIN_PREFIX + "Total" };
+
+      assertArrayEquals(new String[] {
+         BoxDataSet.MEDIUM_PREFIX + "Total", BoxDataSet.Q25_PREFIX + "Total",
+         BoxDataSet.Q75_PREFIX + "Total", BoxDataSet.MIN_PREFIX + "Total",
+         BoxDataSet.MAX_PREFIX + "Total" },
+         PlotArea.reorderBoxMeasuresMedianFirst(in));
+   }
+
+   @Test
+   void reorderBoxMeasuresHandlesMissingStatsAndNulls() {
+      // A partial stat set (no Min) and a null entry: survivors stay in priority
+      // order, the null is dropped, no NPE.
+      String[] in = { BoxDataSet.MAX_PREFIX + "T", null, BoxDataSet.MEDIUM_PREFIX + "T",
+         BoxDataSet.Q25_PREFIX + "T" };
+
+      assertArrayEquals(new String[] {
+         BoxDataSet.MEDIUM_PREFIX + "T", BoxDataSet.Q25_PREFIX + "T", BoxDataSet.MAX_PREFIX + "T" },
+         PlotArea.reorderBoxMeasuresMedianFirst(in));
+   }
+
+   @Test
+   void reorderBoxMeasuresPassesThroughNonBoxNames() {
+      // Unrecognized names keep their order after the ranked stats.
+      String[] in = { BoxDataSet.MAX_PREFIX + "T", "Foo", BoxDataSet.MEDIUM_PREFIX + "T" };
+
+      assertArrayEquals(new String[] {
+         BoxDataSet.MEDIUM_PREFIX + "T", BoxDataSet.MAX_PREFIX + "T", "Foo" },
+         PlotArea.reorderBoxMeasuresMedianFirst(in));
+   }
+
+   @Test
+   void boxBaseMeasureCountCountsDistinctBases() {
+      // One measure's five stats → one base; the dedicated layout only applies here.
+      assertEquals(1, PlotArea.boxBaseMeasureCount(new String[] {
+         BoxDataSet.MAX_PREFIX + "Total", BoxDataSet.Q75_PREFIX + "Total",
+         BoxDataSet.MEDIUM_PREFIX + "Total", BoxDataSet.Q25_PREFIX + "Total",
+         BoxDataSet.MIN_PREFIX + "Total" }));
+
+      // Two measures → two bases → multi-measure boxplot falls through.
+      assertEquals(2, PlotArea.boxBaseMeasureCount(new String[] {
+         BoxDataSet.MEDIUM_PREFIX + "Total", BoxDataSet.MEDIUM_PREFIX + "Paid" }));
+
+      // A null entry is skipped, not counted.
+      assertEquals(1, PlotArea.boxBaseMeasureCount(new String[] {
+         BoxDataSet.MEDIUM_PREFIX + "Total", null }));
+   }
+
+   @Test
+   void boxIqrCountCountsQ1Q3FromAdded() {
+      // Counts only the rendered IQR rows; Median/Min/Max and dims don't count.
+      Set<String> added = new HashSet<>(Arrays.asList(
+         BoxDataSet.MEDIUM_PREFIX + "Total", BoxDataSet.Q25_PREFIX + "Total",
+         BoxDataSet.Q75_PREFIX + "Total", BoxDataSet.MIN_PREFIX + "Total",
+         BoxDataSet.MAX_PREFIX + "Total", "Category"));
+      assertEquals(2, PlotArea.boxIqrCount(added));
+
+      assertEquals(0, PlotArea.boxIqrCount(new HashSet<>(Arrays.asList(
+         BoxDataSet.MEDIUM_PREFIX + "Total", "Category"))));
    }
 
    private static ChartInfo chartInfo(ChartInfo.TooltipStyle style, int chartType) {
