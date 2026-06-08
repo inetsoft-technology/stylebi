@@ -37,6 +37,11 @@ EL_HOST = {
 CF = ('if', 'else if', 'else', 'for', 'switch', 'case', 'default')
 # block opener: @kw ( ... ) {  /  @else {  /  @default { — built from CF so the
 # keyword vocabulary lives in one place. 'else if' precedes 'else' for longest-match.
+# [^\{<]* excludes '<' so a following HTML tag can't be mistaken for part of the
+# condition. Trade-off: a condition containing a bare '<' comparison (e.g.
+# "@if (a < b) {") won't match and the block is missed — a false negative. Angular
+# template conditions almost never use a bare '<' (they call methods or bind
+# pre-computed booleans), so this is acceptable for the known codebase.
 CF_OPEN_RE = r'@(' + '|'.join(CF) + r')\b[^\{<]*\{'
 
 VOID = {'input', 'img', 'br', 'hr', 'mat-icon'}  # mat-icon: projection targets never nest inside it
@@ -113,7 +118,11 @@ def classify(path):
             stack.append(('el', tag, line))
         elif kind == 'close':
             _, tag, line = tok
-            # pop to matching element tag
+            # pop to matching element tag. del stack[idx:] (not just del stack[idx])
+            # also discards any 'block' entries opened after this element but not yet
+            # closed. For well-formed Angular templates (ng build enforces structural
+            # validity) that can't happen; this is defensive recovery for malformed
+            # input so the stack stays consistent rather than leaking stale blocks.
             for idx in range(len(stack) - 1, -1, -1):
                 if stack[idx][0] == 'el' and stack[idx][1] == tag:
                     del stack[idx:]
