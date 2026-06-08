@@ -244,7 +244,7 @@
               (click)="selectLegendBackground($event)">
             </div>
           }
-          @for (legend of model.legends; track legendTrackByFn($index, legend)) {
+          @for (legend of model.legends; track $index) {
             <chart-legend-container
               class="chart-legend-container"
               [chartContainer]="chartContainer"
