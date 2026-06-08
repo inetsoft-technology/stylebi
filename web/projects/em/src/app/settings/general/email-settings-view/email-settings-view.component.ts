@@ -376,7 +376,16 @@ export class EmailSettingsViewComponent implements OnDestroy {
                   error: () => this.showAuthorizeError()
                });
             },
-            error: () => this.showAuthorizeError()
+            // The oauth-params POST can fail for reasons unrelated to OAuth
+            // configuration (server 500, network error). Surface the server's
+            // own message when present rather than the misleading "verify your
+            // OAuth settings" text; fall back to it only when there is none.
+            error: (err) => {
+               const message = err?.error?.message;
+               message ? this.snackBar.open(message, "_#(js:Close)",
+                                            {duration: Tool.SNACKBAR_DURATION})
+                       : this.showAuthorizeError();
+            }
          });
    }
 

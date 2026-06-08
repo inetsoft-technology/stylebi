@@ -53,6 +53,13 @@ export class InvalidSessionInterceptor implements HttpInterceptor {
     * session and must not trigger a logout.
     */
    private isSameOrigin(url: string): boolean {
+      // A non-http(s) scheme (e.g. data:, blob:, mailto:) is never one of the
+      // application's own session-bearing responses; treat it as cross-origin so
+      // it cannot trigger a logout.
+      if(/^[a-z][a-z0-9+.-]*:/i.test(url) && !/^https?:/i.test(url)) {
+         return false;
+      }
+
       // relative path (e.g. "../api/...") is always same-origin
       if(!/^(https?:)?\/\//i.test(url)) {
          return true;
@@ -64,6 +71,7 @@ export class InvalidSessionInterceptor implements HttpInterceptor {
          return new URL(absolute).origin === window.location.origin;
       }
       catch(e) {
+         // Malformed URL — treat as cross-origin to avoid spurious logouts.
          return false;
       }
    }
