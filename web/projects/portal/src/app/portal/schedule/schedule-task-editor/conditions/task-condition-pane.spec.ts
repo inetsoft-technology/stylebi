@@ -34,7 +34,6 @@ import {
    TimeConditionModel,
    TimeConditionType
 } from "../../../../../../../shared/schedule/model/time-condition-model";
-import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-zone-model";
 import { ScheduleTaskNamesService } from "../../../../../../../shared/schedule/schedule-task-names.service";
 import { TestUtils } from "../../../../common/test/test-utils";
 import { ComponentTool } from "../../../../common/util/component-tool";
@@ -505,6 +504,15 @@ describe("Task Condition Pane Unit Test", () => {
       expect(cond1.hour).toBe(6);
       expect(cond1.minute).toBe(30);
       expect(cond2.hour).toBe(6);
+      expect(cond2.minute).toBe(30);
+
+      // toggling back to local must run the reverse path (convertOtherConditions(false))
+      // and restore every condition to its original 02:30 EDT
+      taskConditionPane.changeServerTimeZone(false);
+
+      expect(cond1.hour).toBe(2);
+      expect(cond1.minute).toBe(30);
+      expect(cond2.hour).toBe(2);
       expect(cond2.minute).toBe(30);
    });
 
