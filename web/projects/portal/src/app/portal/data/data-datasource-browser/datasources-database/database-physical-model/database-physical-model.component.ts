@@ -834,7 +834,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
                               callback();
                            }
 
-                           this.warning == data;
+                           this.warning = data;
                         });
                   }
                   else {
@@ -1130,7 +1130,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
             let duplicate: boolean = table.qualifiedName == name || table.alias == name;
 
             if(!duplicate) {
-               duplicate = table.autoAliases.some(alias => alias.selected && alias.alias == name);
+               duplicate = table.autoAliases?.some(alias => alias.selected && alias.alias == name) ?? false;
             }
 
             return duplicate;
@@ -1511,7 +1511,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
 
    @HostListener("keydown", ["$event"])
    onKeyDown(event: KeyboardEvent): void {
-      if(event.ctrlKey && event.key == "s") {
+      if(event.ctrlKey && event.key?.toLowerCase() == "s" && this.isModified && !this.joinEditing) {
          event.stopPropagation();
          event.preventDefault();
          this.save();
@@ -1545,7 +1545,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
 
       let contextmenu: ActionsContextmenuComponent =
          this.dropdownService.open(ActionsContextmenuComponent, options).componentInstance;
-      contextmenu.sourceEvent = event[0];
+      contextmenu.sourceEvent = event.event;
       contextmenu.actions = this.createTableActions(event.node);
    }
 

@@ -107,8 +107,18 @@ function _scrubDeps(cls: any, visited: Set<any>, fallback: any) {
    }
    visited.add(cls);
 
-   const cmpDef = (cls as any).ɵcmp;
-   const modDef = (cls as any).ɵmod;
+   // In the TL test project (test-tl), components that are not reachable from any TL spec
+   // file may not be AOT-compiled. Accessing ɵcmp on such a component throws
+   // "Component 'X' is not resolved" in JIT mode. Skip silently — the patching is a
+   // best-effort circular-dep fix and a graceful skip is safe here.
+   let cmpDef: any;
+   let modDef: any;
+   try {
+      cmpDef = (cls as any).ɵcmp;
+      modDef = (cls as any).ɵmod;
+   } catch {
+      return;
+   }
    if (!cmpDef && !modDef) {
       return;
    }
@@ -185,7 +195,14 @@ TestBed.configureTestingModule = function(moduleDef: any) {
 // reference in a closure for lazy resolution of directiveDefs/pipeDefs; reassigning
 // def.dependencies does not affect later component instantiation.
 function _patchCircularDeps(component: any, replacement: any) {
-   const def = component?.ɵcmp;
+   // Guard against JIT-mode "not resolved" errors (templateUrl/styleUrls not yet inlined)
+   // that occur when a component isn't in the AOT compilation scope of the current test project.
+   let def: any;
+   try {
+      def = component?.ɵcmp;
+   } catch {
+      return;
+   }
    if (!def) {
       return;
    }
@@ -215,7 +232,12 @@ import { YearCalendar } from "./app/vsobjects/objects/calendar/year-calendar.com
 // VSCalendar's imports list contains both MonthCalendar and YearCalendar; either may be the
 // undefined slot depending on module load order. Iterate over both placements explicitly.
 function _patchVSCalendarDeps() {
-   const def = (VSCalendar as any)?.ɵcmp;
+   let def: any;
+   try {
+      def = (VSCalendar as any)?.ɵcmp;
+   } catch {
+      return;
+   }
    if (!def) return;
    const raw = typeof def.dependencies === "function" ? def.dependencies() : def.dependencies;
    if (!Array.isArray(raw)) return;

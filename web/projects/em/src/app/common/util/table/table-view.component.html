@@ -62,11 +62,9 @@
 @if (matTableDataSource && collapsible && tableInfo) {
   <mat-expansion-panel class="table-container"
     [expanded]="expanded">
-    @if (tableInfo.title) {
-      <mat-expansion-panel-header class="light-gray-bg table-cell-padding-sm m-0">
-        <mat-panel-title>{{tableInfo.title}}</mat-panel-title>
-      </mat-expansion-panel-header>
-    }
+    <mat-expansion-panel-header *ngIf="tableInfo.title" class="light-gray-bg table-cell-padding-sm m-0">
+      <mat-panel-title>{{tableInfo.title}}</mat-panel-title>
+    </mat-expansion-panel-header>
     <mat-card appearance="outlined" class="mat-elevation-z0">
       <mat-card-content>
         @if (expandableRow) {

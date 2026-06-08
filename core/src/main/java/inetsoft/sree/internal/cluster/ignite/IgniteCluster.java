@@ -1728,16 +1728,9 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private static IgniteCompute getIgniteCompute(Ignite igniteInstance, ClusterGroup clusterGroup, int level) {
       int poolLevel = level % IGNITE_EXECUTE_POOL_COUNT;
 
-      if(poolLevel == 0) {
-         return clusterGroup != null ? igniteInstance.compute(clusterGroup) : igniteInstance.compute();
-      }
-      else {
-         poolLevel -= 1;
-
-         return clusterGroup != null ?
-            igniteInstance.compute(clusterGroup).withExecutor(getIgniteExecutePoolName(poolLevel)) :
-            igniteInstance.compute().withExecutor(getIgniteExecutePoolName(poolLevel));
-      }
+      return clusterGroup != null ?
+         igniteInstance.compute(clusterGroup).withExecutor(getIgniteExecutePoolName(poolLevel)) :
+         igniteInstance.compute().withExecutor(getIgniteExecutePoolName(poolLevel));
    }
 
    @Override

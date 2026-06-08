@@ -35,17 +35,31 @@
  */
 
 import { BreakpointObserver } from "@angular/cdk/layout";
-import { CommonModule } from "@angular/common";
-import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { Component } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
+import { provideNoopAnimations } from "@angular/platform-browser/animations";
 import { render } from "@testing-library/angular";
-import { of } from "rxjs";
+import { of, Subject } from "rxjs";
 
 import { MessageDialog, MessageDialogType } from "../../../../common/util/message-dialog";
 import { PageHeaderService } from "../../../../page-header/page-header.service";
 import { TopScrollService } from "../../../../top-scroll/top-scroll.service";
 import { ActionTreeNode } from "../action-tree-node";
+import { SecurityActionsPermissionsComponent } from "../security-actions-permissions/security-actions-permissions.component";
+import { SecurityActionsTreeComponent } from "../security-actions-tree/security-actions-tree.component";
 import { SecurityActionsPageComponent } from "./security-actions-page.component";
+
+// ---------------------------------------------------------------------------
+// Stubs — replace child components that inject services / run async ngOnInit.
+// importOverrides swaps them inside the component's own imports array so the
+// real classes are never instantiated and their DI tokens are never needed.
+// ---------------------------------------------------------------------------
+
+@Component({ selector: "em-security-actions-tree", template: "", standalone: true })
+class MockSecurityActionsTreeComponent {}
+
+@Component({ selector: "em-security-actions-permissions", template: "", standalone: true })
+class MockSecurityActionsPermissionsComponent {}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -78,18 +92,21 @@ async function renderComponent(opts: RenderOpts = {}) {
    const breakpointSpy = {
       isMatched: vi.fn().mockReturnValue(opts.isSmall ?? false),
    };
-   const scrollSpy = { scroll: vi.fn() };
+   const scrollSpy = { scroll: vi.fn(), visibilityChanged: new Subject<boolean>() };
    const pageHeaderSpy = { title: "" };
 
    const result = await render(SecurityActionsPageComponent, {
-      imports: [CommonModule],
+      importOverrides: [
+         { replace: SecurityActionsTreeComponent, with: MockSecurityActionsTreeComponent },
+         { replace: SecurityActionsPermissionsComponent, with: MockSecurityActionsPermissionsComponent },
+      ],
       providers: [
+         provideNoopAnimations(),
          { provide: MatDialog, useValue: dialogSpy },
          { provide: BreakpointObserver, useValue: breakpointSpy },
          { provide: TopScrollService, useValue: scrollSpy },
          { provide: PageHeaderService, useValue: pageHeaderSpy },
       ],
-      schemas: [NO_ERRORS_SCHEMA],
    });
 
    const comp = result.fixture.componentInstance as SecurityActionsPageComponent;

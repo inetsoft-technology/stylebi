@@ -40,7 +40,7 @@ import { firstValueFrom } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
 
 import { MatSelectStub, makeErrorServiceMock } from "../testing/audit-test-utils";
-import { server } from "../../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 import { AuditRequiredAssetsComponent } from "./audit-required-assets.component";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
@@ -101,9 +101,20 @@ describe("AuditRequiredAssetsComponent — fetchData", () => {
    // Unlike all other audit components, this one POSTs a RequiredAssetEvent body.
    // Verifies the HTTP method is POST and the request body contains pagination fields.
    it("should send a POST request with dependentAssets, targetTypes, and pagination fields", async () => {
+      // Default handler for AuditTableViewComponent's init-time fetchData call
+      server.use(
+         http.post("*/api/em/monitoring/audit/requiredAssets", () =>
+            MswHttpResponse.json({ totalRowCount: 0, rows: [] })
+         )
+      );
+
+      const { fixture } = await renderComponent();
+      const comp = fixture.componentInstance;
+      await fixture.whenStable();
+
+      // Capturing handler registered after render so only the explicit call is measured
       let capturedBody: any = null;
       let capturedMethod = "";
-
       server.use(
          http.post("*/api/em/monitoring/audit/requiredAssets", async ({ request }) => {
             capturedMethod = request.method;
@@ -111,9 +122,6 @@ describe("AuditRequiredAssetsComponent — fetchData", () => {
             return MswHttpResponse.json({ totalRowCount: 0, rows: [] });
          })
       );
-
-      const { fixture } = await renderComponent();
-      const comp = fixture.componentInstance;
 
       const baseParams = new HttpParams()
          .set("sortColumn", "name")
