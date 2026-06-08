@@ -811,7 +811,12 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
             })
             .forEach(a -> {
                AggregateRef aref = (AggregateRef) a;
-               DataRef ref2 = cols2.getAttribute(aref.getDataRef().getName());
+               // Match by attribute (alias/attribute, as createAggregateRef does) rather
+               // than by raw qualified name, so the aggregated column is re-qualified to the
+               // discrete mirror table's own column. Otherwise it keeps the base table's
+               // inner alias and ends up out of scope in the generated sub-query (e.g. a
+               // discrete measure with no preceding same-axis dimension). (Bug #75328)
+               DataRef ref2 = AssetUtil.getColumnRefFromAttribute(cols2, aref.getDataRef());
 
                if(ref2 == null) {
                   cols2.addAttribute(aref.getDataRef());
