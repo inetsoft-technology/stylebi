@@ -510,7 +510,9 @@ public abstract class LdapAuthenticationProvider
       // guard against an empty host so we fail with a clear message instead of
       // letting createContext() build a malformed URL (e.g. "://:0") that throws
       // an unhandled IllegalArgumentException (Bug #75337)
-      if(getHost() == null || getHost().trim().isEmpty()) {
+      String host = getHost();
+
+      if(host == null || host.trim().isEmpty()) {
          throw new SRSecurityException("LDAP host is required");
       }
 

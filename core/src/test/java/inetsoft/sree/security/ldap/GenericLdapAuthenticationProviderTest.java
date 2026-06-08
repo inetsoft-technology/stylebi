@@ -485,6 +485,7 @@ class GenericLdapAuthenticationProviderTest {
    // letting createContext() build a malformed URL ("://:0") that throws an
    // unhandled IllegalArgumentException.
    @Test
+   @Order(17)
    void testCheckParametersRequiresHost() {
       provider.setHost("");
       SRSecurityException ex = assertThrows(
