@@ -24,12 +24,12 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ChangeTypeRequest {
-   public String getWorksheetPath() {
-      return worksheetPath;
+   public String getWorksheetId() {
+      return worksheetId;
    }
 
-   public void setWorksheetPath(String worksheetPath) {
-      this.worksheetPath = worksheetPath;
+   public void setWorksheetId(String worksheetId) {
+      this.worksheetId = worksheetId;
    }
 
    public String getVisualizationType() {
@@ -64,7 +64,7 @@ public class ChangeTypeRequest {
       this.viewsheetIdentifier = viewsheetIdentifier;
    }
 
-   private String worksheetPath;
+   private String worksheetId;
    private String visualizationType;
    /**
     * Recommendation-computation RVS ID returned by a prior {@code autoBinding} call.
