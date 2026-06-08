@@ -463,6 +463,59 @@ describe("Task Condition Pane Unit Test", () => {
       expect(taskConditionPane.model.conditions.length).toBe(2);
    });
 
+   // Bug #75325: toggling "Show Server Time Zone" while editing one condition must also
+   // convert the other conditions of the task so their times display in the server zone
+   // when later edited; otherwise a sibling shows its raw local time labeled as the server
+   // zone.
+   it("should convert all conditions when switching to server time zone (bug #75325)", () => {
+      // deterministic offset-shift stub (the default harness stubs convertTime to identity,
+      // which would hide the conversion). value shifts by (newTz - oldTz).
+      taskConditionPane.convertTime = vi.fn().mockImplementation((value, oldTz, newTz) => {
+         const shifted = value.hour + (newTz - oldTz) / (60 * 60 * 1000);
+         return { hour: ((shifted % 24) + 24) % 24, minute: value.minute, second: value.second };
+      });
+
+      const utcOffset = 0;
+      const easternOffset = -4 * 60 * 60 * 1000; // EDT = UTC-4
+      // both conditions stored at 02:30 in Eastern; server zone is UTC
+      const cond1 = {
+         conditionType: "TimeCondition", type: TimeConditionType.EVERY_DAY,
+         label: "Condition 1", timeZone: "America/New_York",
+         hour: 2, minute: 30, second: 0
+      } as TimeConditionModel;
+      const cond2 = {
+         conditionType: "TimeCondition", type: TimeConditionType.EVERY_DAY,
+         label: "Condition 2", timeZone: "America/New_York",
+         hour: 2, minute: 30, second: 0
+      } as TimeConditionModel;
+
+      taskConditionPane.model.conditions = [cond1, cond2];
+      (taskConditionPane as any).conditionIndex = 0;
+      taskConditionPane.serverTimeZone = false;
+      (taskConditionPane as any).serverTimeZoneOffset = utcOffset;
+      (taskConditionPane as any).localTimeZoneOffset = easternOffset;
+
+      // calculateTimezoneOffset is environment dependent; force Eastern for the siblings
+      taskConditionPane["timeZoneService"].calculateTimezoneOffset = vi.fn(() => easternOffset);
+
+      taskConditionPane.changeServerTimeZone(true);
+
+      // both the edited condition and the sibling must convert 02:30 EDT -> 06:30 UTC
+      expect(cond1.hour).toBe(6);
+      expect(cond1.minute).toBe(30);
+      expect(cond2.hour).toBe(6);
+      expect(cond2.minute).toBe(30);
+
+      // toggling back to local must run the reverse path (convertOtherConditions(false))
+      // and restore every condition to its original 02:30 EDT
+      taskConditionPane.changeServerTimeZone(false);
+
+      expect(cond1.hour).toBe(2);
+      expect(cond1.minute).toBe(30);
+      expect(cond2.hour).toBe(2);
+      expect(cond2.minute).toBe(30);
+   });
+
    //Bug #19860 should keep last condition
    it.skip("should keep last condition", () => {
       taskConditionPane.changeConditionType(0);
