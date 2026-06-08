@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,8 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-// TL (testing-library) test setup for the portal project. Starts the MSW server
-// lifecycle so all *.tl.spec.ts files in portal can intercept HTTP requests.
+// TL (testing-library) test setup for the em project. Starts the MSW server
+// lifecycle so all *.tl.spec.ts files in em can intercept HTTP requests.
 import { afterAll, afterEach, beforeAll } from "vitest";
 import { server } from "@test-mocks/server";
 

@@ -71,13 +71,14 @@ import { ActivatedRoute, Router } from "@angular/router";
 import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 
-import { NEVER, of, throwError } from "rxjs";
-import { server } from "../../../../../../../mocks/server";
+import { EMPTY, NEVER, of, throwError } from "rxjs";
+import { server } from "@test-mocks/server";
 import { ScheduleTaskEditorPageComponent, TaskItem } from "./schedule-task-editor-page.component";
 import { ScheduleTaskEditorDataService } from "./schedule-task-editor-data.service";
 import { PageHeaderService } from "../../../page-header/page-header.service";
 import { TimeZoneService } from "../../../../../../shared/schedule/time-zone.service";
 import { ScheduleTaskNamesService } from "../../../../../../shared/schedule/schedule-task-names.service";
+import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
 import { ScheduleTaskDialogModel } from "../../../../../../shared/schedule/model/schedule-task-dialog-model";
 import { TimeConditionModel } from "../../../../../../shared/schedule/model/time-condition-model";
 
@@ -120,7 +121,7 @@ async function renderComponent(opts: {
 
    const dialogMock = { open: vi.fn().mockReturnValue({ afterClosed: () => of(false) }) };
    const snackBarMock = { open: vi.fn() };
-   const routerMock = { navigate: vi.fn() };
+   const routerMock = { navigate: vi.fn(), events: NEVER };
 
    const result = await render(ScheduleTaskEditorPageComponent, {
       imports: [ReactiveFormsModule],
@@ -142,6 +143,16 @@ async function renderComponent(opts: {
             updateTimeZoneOptions: vi.fn((tzOpts: any) => tzOpts)
          }},
          { provide: ScheduleTaskNamesService, useValue: { loadScheduleTaskNames: vi.fn() } },
+         {
+            provide: ScheduleUsersService,
+            useValue: {
+               getOwners: () => of([]),
+               getAdminName: () => EMPTY,
+               getSSOEnable: () => EMPTY,
+               getEmailUsers: () => EMPTY,
+               getEmailGroups: () => EMPTY,
+            }
+         },
          ScheduleTaskEditorDataService,
       ],
    });
@@ -163,9 +174,8 @@ describe("ScheduleTaskEditorPageComponent — save(): taskChanged timing", () =>
    it("should set taskChanged=false after a successful save", async () => {
       const { comp } = await renderComponent();
 
-      server.use(
-         http.post("*/api/em/schedule/task/save", () => MswHttpResponse.json(makeDialogModel()))
-      );
+      // Use synchronous observable to avoid async CD race that triggers NG0100
+      vi.spyOn(comp["dataService"], "saveTask").mockReturnValue(of(makeDialogModel()));
       comp.taskChanged = true;
       comp.save();
       await waitFor(() => expect(comp.taskChanged).toBe(false));
@@ -475,39 +485,27 @@ describe("ScheduleTaskEditorPageComponent — save(): orgId in request payload",
    // 🔁 Regression-sensitive: orgId must flow from PageHeaderService into the save payload
    //   so the server stores the task under the correct organization in multi-tenant mode.
    it("should include PageHeaderService.currentOrgId in the save request body", async () => {
-      let capturedBody: any = null;
-      server.use(
-         http.post("*/api/em/schedule/task/save", async ({ request }) => {
-            capturedBody = await request.json();
-            return MswHttpResponse.json(makeDialogModel());
-         })
-      );
-
       const { comp } = await renderComponent();
+      const saveTaskSpy = vi.spyOn(comp["dataService"], "saveTask").mockReturnValue(of(makeDialogModel()));
+
       comp.taskChanged = true;
       comp.save();
-      await waitFor(() => expect(capturedBody).not.toBeNull());
+      await waitFor(() => expect(saveTaskSpy).toHaveBeenCalled());
 
-      expect(capturedBody.orgId).toBe("org1");
+      expect(saveTaskSpy.mock.calls[0][0].orgId).toBe("org1");
    });
 
    // Boundary: null orgId (non-multi-tenant / global context) must be serialized as null, not omitted.
    // Risk Point: if null is silently dropped, the server may assign the wrong org context.
    it("should pass null orgId in the save payload when PageHeaderService.currentOrgId is null", async () => {
-      let capturedBody: any = null;
-      server.use(
-         http.post("*/api/em/schedule/task/save", async ({ request }) => {
-            capturedBody = await request.json();
-            return MswHttpResponse.json(makeDialogModel());
-         })
-      );
-
       const { comp } = await renderComponent({ orgId: null });
+      const saveTaskSpy = vi.spyOn(comp["dataService"], "saveTask").mockReturnValue(of(makeDialogModel()));
+
       comp.taskChanged = true;
       comp.save();
-      await waitFor(() => expect(capturedBody).not.toBeNull());
+      await waitFor(() => expect(saveTaskSpy).toHaveBeenCalled());
 
-      expect(capturedBody.orgId).toBeNull();
+      expect(saveTaskSpy.mock.calls[0][0].orgId).toBeNull();
    });
 
 });
@@ -526,21 +524,19 @@ describe("ScheduleTaskEditorPageComponent — save(): selectedConditionIndex aft
       comp.addCondition();
       comp.selectedConditionIndex = 1;
 
-      server.use(
-         http.post("*/api/em/schedule/task/save", () => MswHttpResponse.json(makeDialogModel({
-            taskConditionPaneModel: {
-               conditions: [
-                  { label: "Cond 1", conditionType: "TimeCondition" } as any,
-                  { label: "New Condition", conditionType: "TimeCondition" } as any,
-               ],
-               timeZoneOffset: 0
-            } as any
-         })))
-      );
+      const saveResponse = makeDialogModel({
+         taskConditionPaneModel: {
+            conditions: [
+               { label: "Cond 1", conditionType: "TimeCondition" } as any,
+               { label: "New Condition", conditionType: "TimeCondition" } as any,
+            ],
+            timeZoneOffset: 0
+         } as any
+      });
+      vi.spyOn(comp["dataService"], "saveTask").mockReturnValue(of(saveResponse));
 
       comp.taskChanged = true;
       comp.save();
-      // Wait for the server response to rebuild conditionItems (server returns 2 conditions)
       await waitFor(() => expect(comp.conditionItems.length).toBe(2));
 
       expect(comp.selectedConditionIndex).toBe(1);
@@ -560,14 +556,11 @@ describe("ScheduleTaskEditorPageComponent — save(): selectedConditionIndex aft
       comp.addCondition();
       comp.selectedConditionIndex = 2;
 
-      // Server returns only the original 1 condition
-      server.use(
-         http.post("*/api/em/schedule/task/save", () => MswHttpResponse.json(makeDialogModel()))
-      );
+      vi.spyOn(comp["dataService"], "saveTask").mockReturnValue(of(makeDialogModel()));
 
       comp.taskChanged = true;
       comp.save();
-      // Wait for the server response to rebuild conditionItems (server returns 1 condition)
+      // Wait for the response to rebuild conditionItems (response returns 1 condition)
       await waitFor(() => expect(comp.conditionItems.length).toBe(1));
 
       // Bug: selectedConditionIndex stays at 2; conditionItems.length is now 1

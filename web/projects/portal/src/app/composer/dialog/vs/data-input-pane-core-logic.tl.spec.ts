@@ -47,7 +47,7 @@ import { http, HttpResponse as MswHttpResponse } from "msw";
 import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { DataInputPaneModel } from "../../data/vs/data-input-pane-model";
 import { DataInputPane, PopupEmbeddedTable } from "./data-input-pane.component";
-import { server } from "../../../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 
 // ---------------------------------------------------------------------------
 // Shared helpers

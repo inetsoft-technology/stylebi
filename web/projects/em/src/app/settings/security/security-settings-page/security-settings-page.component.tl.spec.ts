@@ -41,7 +41,7 @@ import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 import { Subject, of } from "rxjs";
 
-import { server } from "../../../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 import { AppInfoService } from "../../../../../../shared/util/app-info.service";
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
 import { AuthorizationService } from "../../../authorization/authorization.service";

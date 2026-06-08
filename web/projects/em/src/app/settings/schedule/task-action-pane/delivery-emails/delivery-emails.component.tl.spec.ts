@@ -43,49 +43,13 @@
  *   - `passwordVisible` = `!fipsMode && (bundledAsZip || HTML_BUNDLE || HTML_BUNDLE_NO_PAGINATION)`.
  */
 
-import { Component, forwardRef, NO_ERRORS_SCHEMA } from "@angular/core";
-import { ControlValueAccessor, FormsModule, NG_VALUE_ACCESSOR, ReactiveFormsModule } from "@angular/forms";
-import { ErrorStateMatcher } from "@angular/material/core";
-import { MatCheckboxModule } from "@angular/material/checkbox";
-import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-
 import { render } from "@testing-library/angular";
+import { provideNoopAnimations } from "@angular/platform-browser/animations";
+import { ErrorStateMatcher } from "@angular/material/core";
+
 import { DeliveryEmailsComponent, DeliveryEmails } from "./delivery-emails.component";
 import { ExportFormatModel } from "../../../../../../../shared/schedule/model/export-format-model";
 import { CSVConfigModel } from "../../../../../../../shared/schedule/model/csv-config-model";
-
-// ---------------------------------------------------------------------------
-// Stubs
-// ---------------------------------------------------------------------------
-
-@Component({
-   selector: "em-email-picker",
-   template: "",
-   providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => EmailPickerStub), multi: true }]
-})
-class EmailPickerStub implements ControlValueAccessor {
-   writeValue() {} registerOnChange() {} registerOnTouched() {}
-}
-
-/* eslint-disable @angular-eslint/component-selector */
-@Component({
-   selector: "mat-select",
-   template: "",
-   providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => MatSelectStub), multi: true }]
-})
-class MatSelectStub implements ControlValueAccessor {
-   writeValue() {} registerOnChange() {} registerOnTouched() {}
-}
-/* eslint-enable @angular-eslint/component-selector */
-
-@Component({
-   selector: "em-mat-ckeditor",
-   template: "",
-   providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => CkEditorStub), multi: true }]
-})
-class CkEditorStub implements ControlValueAccessor {
-   writeValue() {} registerOnChange() {} registerOnTouched() {}
-}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -107,10 +71,8 @@ function makeCSVModel(selectedCount: number): CSVConfigModel {
 
 async function renderComponent(props: Partial<DeliveryEmailsComponent> = {}) {
    const result = await render(DeliveryEmailsComponent, {
-      imports: [FormsModule, ReactiveFormsModule, MatCheckboxModule, NoopAnimationsModule],
-      declarations: [EmailPickerStub, MatSelectStub, CkEditorStub],
-      schemas: [NO_ERRORS_SCHEMA],
       providers: [
+         provideNoopAnimations(),
          { provide: ErrorStateMatcher, useValue: { isErrorState: () => false } },
       ],
       componentProperties: {
@@ -118,9 +80,8 @@ async function renderComponent(props: Partial<DeliveryEmailsComponent> = {}) {
          ...props,
       },
    });
-
    await result.fixture.whenStable();
-   return { ...result, comp: result.fixture.componentInstance };
+   return { fixture: result.fixture, comp: result.fixture.componentInstance };
 }
 
 // ---------------------------------------------------------------------------

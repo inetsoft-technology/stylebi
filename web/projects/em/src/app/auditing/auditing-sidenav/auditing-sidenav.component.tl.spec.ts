@@ -27,16 +27,23 @@
  *   Group 2 — isScreenSmall: breakpoint at 720px determines sidenav behavior
  */
 
-import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { Component } from "@angular/core";
 import { render } from "@testing-library/angular";
-import { of } from "rxjs";
-import { RouterTestingModule } from "@angular/router/testing";
+import { of, EMPTY } from "rxjs";
+import { provideHttpClient } from "@angular/common/http";
+import { provideRouter } from "@angular/router";
+import { provideNoopAnimations } from "@angular/platform-browser/animations";
 import { BreakpointObserver } from "@angular/cdk/layout";
-import { HttpClientModule } from "@angular/common/http";
 
 import { AuditingSidenavComponent } from "./auditing-sidenav.component";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { AuthorizationService } from "../../authorization/authorization.service";
+import { PageHeaderComponent } from "../../page-header/page-header.component";
+import { SsoHeartbeatService } from "../../../../../shared/sso/sso-heartbeat.service";
+import { StompClientService } from "../../../../../shared/stomp/stomp-client.service";
+
+@Component({ selector: "em-page-header", template: "", standalone: true })
+class MockPageHeaderComponent {}
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -104,12 +111,18 @@ async function renderComponent(
    const breakpointStub = makeBreakpointObserverStub(breakpointMatched);
 
    const renderResult = await render(AuditingSidenavComponent, {
-      imports: [HttpClientModule, RouterTestingModule],
-      schemas: [NO_ERRORS_SCHEMA],
+      importOverrides: [
+         { replace: PageHeaderComponent, with: MockPageHeaderComponent },
+      ],
       providers: [
+         provideHttpClient(),
+         provideRouter([]),
+         provideNoopAnimations(),
          { provide: PageHeaderService, useValue: { title: "" } },
          { provide: AuthorizationService, useValue: authzMock },
          { provide: BreakpointObserver, useValue: breakpointStub },
+         { provide: SsoHeartbeatService, useValue: {} },
+         { provide: StompClientService, useValue: { connect: () => EMPTY } },
       ],
    });
 

@@ -42,7 +42,7 @@ import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse } from "msw";
 import { of } from "rxjs";
 
-import { server } from "../../../../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 import { BatchActionEditorComponent } from "./batch-action-editor.component";
 import { BatchActionModel } from "../../../../../../../shared/schedule/model/batch-action-model";
 import { TaskActionPaneModel } from "../../../../../../../shared/schedule/model/task-action-pane-model";

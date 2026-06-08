@@ -45,7 +45,7 @@ import { render } from "@testing-library/angular";
 import { firstValueFrom } from "rxjs";
 import { http, HttpResponse } from "msw";
 
-import { server } from "../../../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 import { IdentityType } from "../../../../../../shared/data/identity-type";
 import { SecurityTreeNode } from "../security-tree-view/security-tree-node";
 import { SecurityTreeService } from "../users/security-tree.service";

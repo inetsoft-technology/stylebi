@@ -178,6 +178,6 @@ class CustomSSOFilter extends AbstractSecurityFilter {
 
    setInlineGroovyClass(value: string) {
       this.codemirrorInstance.setValue(value);
-      setTimeout(() => this.codemirrorInstance.refresh(), 0);
+      setTimeout(() => this.codemirrorInstance?.refresh(), 0);
    }
 }
