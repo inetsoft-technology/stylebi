@@ -133,12 +133,19 @@ export class LogicalModelAttributeEditor implements OnInit, OnDestroy {
    _existNames: string[];
    private inited: boolean = false;
    private subscription: Subscription;
+   private resetPending: any;
 
    @Input() set existNames(existNames: string[]) {
       this._existNames = existNames;
 
       if(this.inited) {
-         this.resetFormControl();
+         // Defer the reset so the shared form is not mutated during change
+         // detection, which would change form.invalid after the parent's
+         // Save button [disabled] binding was checked (NG0100). Coalesce rapid
+         // successive changes and cancel on destroy so a stale timer never
+         // mutates the shared parent form after this editor is gone.
+         clearTimeout(this.resetPending);
+         this.resetPending = setTimeout(() => this.resetFormControl(), 0);
       }
    }
 
@@ -180,6 +187,7 @@ export class LogicalModelAttributeEditor implements OnInit, OnDestroy {
    }
 
    ngOnDestroy(): void {
+      clearTimeout(this.resetPending);
       this.unsubscribeForm();
    }
 

@@ -22,7 +22,7 @@ import {
    Input,
    OnChanges,
    OnDestroy,
-   Output, ViewChild
+   Output, SimpleChanges, ViewChild
 } from "@angular/core";
 import { UntypedFormGroup, Validators, UntypedFormControl, AbstractControl, ValidatorFn, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { EntityModel } from "../../../../../model/datasources/database/physical-model/logical-model/entity-model";
@@ -46,12 +46,13 @@ export class LogicalModelEntityPane implements AfterViewInit, OnChanges, OnDestr
    private inited: boolean = false;
    private editable: boolean = true;
    private subscription: Subscription;
+   private resetPending: any;
 
    @Input() set form(value: UntypedFormGroup) {
       this._form = value;
 
       if(this.inited) {
-         setTimeout(() => this.resetFormControl(), 0);
+         this.scheduleReset();
       }
    }
 
@@ -108,12 +109,33 @@ export class LogicalModelEntityPane implements AfterViewInit, OnChanges, OnDestr
       }
    }
 
-   ngOnChanges(): void {
-      this.inited = true;
-      this.resetFormControl();
+   ngOnChanges(changes: SimpleChanges): void {
+      if(!this.inited) {
+         this.inited = true;
+         this.resetFormControl();
+      }
+      else if(changes["existNames"] && !changes["entity"]) {
+         // A reorder updates only existNames (the edited entity reference is
+         // unchanged). Defer the reset so the shared form is not mutated during
+         // change detection, which would change form.invalid after the parent's
+         // Save button [disabled] binding was checked (NG0100).
+         this.scheduleReset();
+      }
+      else {
+         this.resetFormControl();
+      }
+   }
+
+   // Coalesce rapid successive deferred resets and cancel any pending one on
+   // destroy, so a stale timer never mutates the shared parent form after this
+   // editor is gone.
+   private scheduleReset(): void {
+      clearTimeout(this.resetPending);
+      this.resetPending = setTimeout(() => this.resetFormControl(), 0);
    }
 
    ngOnDestroy(): void {
+      clearTimeout(this.resetPending);
       this.unsubscribeForm();
    }
 
