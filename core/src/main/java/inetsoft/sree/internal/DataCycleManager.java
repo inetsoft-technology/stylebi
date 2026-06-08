@@ -142,6 +142,12 @@ public class DataCycleManager
       String orgId = Util.getOrgIdFromEventSource(evt.getSource());
 
       if(MVManager.MV_CHANGE_EVENT.equals(name) || RepletRegistry.CHANGE_EVENT.equals(name)) {
+         // cloud-runner nodes are short-lived task executors; their Ignite client
+         // may be shutting down when MVChangedMessage fires after task completion
+         if(System.getProperty("ScheduleTaskRunner") != null) {
+            return;
+         }
+
          generateTasks(null, orgId != null ? new Organization(new IdentityID(orgId, orgId)) : null,
                        true, false);
       }
@@ -265,13 +271,6 @@ public class DataCycleManager
          if(Scheduler.getSchedulerCount() != 1 &&
             "true".equals(System.getProperty("ScheduleServer")))
          {
-            return;
-         }
-
-         // cloud-runner nodes are short-lived task executors; they don't maintain
-         // pregenerated tasks and their Ignite client may be shutting down when this
-         // is triggered by an MVChangedMessage after task completion
-         if(System.getProperty("ScheduleTaskRunner") != null) {
             return;
          }
 
