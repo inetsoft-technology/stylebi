@@ -117,13 +117,8 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
             subqueryTableModel.setName(assembly.getName());
             subqueryTableModel.setDescription(
                ((TableAssembly) assembly).getDescription());
-            // only the output (public) columns of a subquery table can be used
-            // in a subquery condition (e.g. the aggregate columns of an
-            // aggregated table); the current table's columns are only used as
-            // the main attribute of a correlated subquery, so it keeps the
-            // full (private) column selection. (Bug #75323)
             subqueryTableModel.setColumns(ConditionUtil.getDataRefModelsFromColumnSelection(
-               ((TableAssembly) assembly).getColumnSelection(!currentTable),
+               getSubqueryColumns((TableAssembly) assembly, currentTable),
                this.dataRefModelFactoryService, 0));
             subqueryTableModel.setCurrentTable(currentTable);
             subqueryTableModels.add(subqueryTableModel);
@@ -390,6 +385,22 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
    private ConditionList getConditionList(ConditionListWrapper wrapper) {
       return wrapper == null ? null :
          (ConditionList) wrapper.getConditionList().clone();
+   }
+
+   /**
+    * Resolve which columns of a candidate table to offer in the subquery condition dialog.
+    *
+    * <p>A candidate table exposes its PUBLIC (output) columns — e.g. the aggregate columns
+    * of an aggregated table — because only output columns can be referenced inside a
+    * subquery. The current table keeps its FULL (private) selection because its columns are
+    * used as the main attribute of a correlated subquery, not as subquery output. (Bug #75323)
+    *
+    * <p>Crosstab tables don't eagerly generate a public column selection, but
+    * {@code TableAssemblyInfo.getPublicColumnSelection()} lazily falls back to the visible
+    * private columns, so a crosstab candidate still lists its columns rather than nothing.
+    */
+   static ColumnSelection getSubqueryColumns(TableAssembly assembly, boolean currentTable) {
+      return assembly.getColumnSelection(!currentTable);
    }
 
    /**
