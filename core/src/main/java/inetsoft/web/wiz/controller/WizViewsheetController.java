@@ -29,7 +29,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/wiz")
@@ -95,10 +97,22 @@ public class WizViewsheetController {
       catch(UnsatisfiableBindingException e) {
          // Map.of rejects null values, and String.valueOf(null) would emit the literal
          // string "null"; coerce absent fields to "" so the JSON body stays meaningful.
-         return ResponseEntity.badRequest().body(Map.of(
-            "error", "unsatisfiable explicit binding",
-            "pin", Map.of("role", nullToEmpty(e.getRole()), "field", nullToEmpty(e.getField())),
-            "reason", nullToEmpty(e.getReason())));
+         Map<String, Object> errorBody = new LinkedHashMap<>();
+         errorBody.put("error", "unsatisfiable explicit binding");
+
+         // A set-conflict failure carries every pin (no single culprit); report them all
+         // as "pins". A single-pin failure carries just role/field; report it as "pin".
+         if(!e.getPins().isEmpty()) {
+            errorBody.put("pins", e.getPins().stream()
+               .map(p -> Map.of("role", nullToEmpty(p.role()), "field", nullToEmpty(p.field())))
+               .collect(Collectors.toList()));
+         }
+         else {
+            errorBody.put("pin", Map.of("role", nullToEmpty(e.getRole()), "field", nullToEmpty(e.getField())));
+         }
+
+         errorBody.put("reason", nullToEmpty(e.getReason()));
+         return ResponseEntity.badRequest().body(errorBody);
       }
       catch(IllegalArgumentException e) {
          return ResponseEntity.badRequest().body(Map.of("error", nullToEmpty(e.getMessage())));

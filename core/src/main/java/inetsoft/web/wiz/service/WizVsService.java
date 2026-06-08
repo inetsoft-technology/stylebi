@@ -551,6 +551,8 @@ public class WizVsService {
       CreateViewsheetResult result = executeAndExtract(rvs, assembly);
 
       if(result != null) {
+         // Order matters: executeAndExtract runs executeView above, which populates the
+         // chart's RT refs. collectFlatBinding prefers RT refs, so it must come after.
          result.setBinding(collectFlatBinding(assembly));
       }
 
@@ -876,6 +878,11 @@ public class WizVsService {
    /**
     * Builds a {@link CreateViewsheetResult.FlatBinding} from the assembly's current binding.
     * Returns null for assembly types that carry no aggregate binding (e.g. Table, Image).
+    *
+    * <p>For charts, slot collection prefers RT refs, which are only populated after the
+    * viewsheet has executed (executeView). Callers using a cold RVS get design refs via
+    * fallback — accurate enough for the echo, but the slots are not RT-resolved. Call
+    * after execution when RT-accurate slots are required.
     */
    public CreateViewsheetResult.FlatBinding collectFlatBinding(VSAssembly assembly) {
       if(assembly instanceof ChartVSAssembly chart) {

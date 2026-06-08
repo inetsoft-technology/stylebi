@@ -261,6 +261,11 @@ public class ChartTypeFilter {
    /**
     * Like {@link #filterWithPreference} but pins are CONSTRAINTS: the prefRanked list
     * contains only candidates satisfying every pin, sorted by base score.
+    *
+    * <p>defaultRanked intentionally remains the FULL candidate universe (same as
+    * {@link #filter()}), NOT the pin-satisfying subset. Pins only constrain the primary
+    * selection (driven by prefRanked); the recommendation list shown to the user lists
+    * every feasible chart type so they can still switch to a type the pins don't fit.
     */
    protected FilterResult filterWithConstraints(ChartPreference pref) {
       List<ChartInfo> defaultList = filter();

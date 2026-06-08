@@ -117,6 +117,8 @@ public class ViewsheetRuntimeController {
             }
          }
 
+         // No chart found: fall back to the first assembly if it's a VSAssembly. A non-VSAssembly
+         // first assembly yields null (the response omits the binding) rather than a name we can't use.
          return assemblies[0] instanceof VSAssembly vsa ? vsa : null;
       }
       catch(Exception e) {

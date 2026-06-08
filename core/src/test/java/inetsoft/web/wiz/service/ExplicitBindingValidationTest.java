@@ -131,4 +131,41 @@ class ExplicitBindingValidationTest {
       assertDoesNotThrow(() -> WizAutoBindingService.validateExplicitBindings(
          null, null, null));
    }
+
+   @Test
+   void setConflictExceptionReportsAllPins() {
+      // The set-conflict constructor carries every pin so the 400 body can list them all,
+      // rather than blaming the first pin (which may be individually valid).
+      List<UnsatisfiableBindingException.Pin> pins = List.of(
+         new UnsatisfiableBindingException.Pin("color", "country"),
+         new UnsatisfiableBindingException.Pin("size", "amount"));
+      UnsatisfiableBindingException e = new UnsatisfiableBindingException(pins, "no combination");
+
+      assertEquals(pins, e.getPins());
+      assertNull(e.getRole());
+      assertNull(e.getField());
+      assertEquals("no combination", e.getReason());
+   }
+
+   @Test
+   void singlePinExceptionHasEmptyPinList() {
+      // The single-pin constructor leaves getPins() empty so the controller emits "pin"
+      // (role/field) rather than the "pins" array.
+      UnsatisfiableBindingException e =
+         new UnsatisfiableBindingException("shape", "amount", "dimension-only");
+
+      assertTrue(e.getPins().isEmpty());
+      assertEquals("shape", e.getRole());
+      assertEquals("amount", e.getField());
+   }
+
+   @Test
+   void nullRoleRendersAsPlaceholderInMessage() {
+      // A null role/field must not surface as the literal "null" in the log message.
+      UnsatisfiableBindingException e =
+         new UnsatisfiableBindingException(null, "amount", "missing slot/role");
+
+      assertFalse(e.getMessage().contains("null"));
+      assertTrue(e.getMessage().contains("<missing>=amount"));
+   }
 }

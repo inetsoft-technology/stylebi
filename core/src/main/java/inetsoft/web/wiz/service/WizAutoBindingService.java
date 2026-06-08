@@ -193,8 +193,12 @@ public class WizAutoBindingService {
                && selectedRec instanceof VSChartRecommendation vcr
                && (vcr.getPrefInfos() == null || vcr.getPrefInfos().isEmpty()))
             {
-               ExplicitBinding firstPin = explicitBindings.get(0);
-               throw new UnsatisfiableBindingException(firstPin.getRole(), firstPin.getField(),
+               // The conflict is between the pins AS A SET — any single pin may be valid on
+               // its own — so report all of them rather than blaming the first.
+               List<UnsatisfiableBindingException.Pin> pins = explicitBindings.stream()
+                  .map(b -> new UnsatisfiableBindingException.Pin(b.getRole(), b.getField()))
+                  .collect(Collectors.toList());
+               throw new UnsatisfiableBindingException(pins,
                   "no chart combination supports this placement for the bound fields");
             }
 

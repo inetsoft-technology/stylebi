@@ -151,10 +151,6 @@ public class CreateViewsheetResult {
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public static class FlatBinding {
-      public FlatBinding(List<DimensionFieldInfo> dimensions, List<MeasureFieldInfo> measures) {
-         this(dimensions, measures, null);
-      }
-
       public FlatBinding(List<DimensionFieldInfo> dimensions, List<MeasureFieldInfo> measures,
                          Map<String, Object> slots)
       {
