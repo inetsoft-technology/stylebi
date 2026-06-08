@@ -110,6 +110,8 @@ export class WizardPreviewContainer extends AbstractActionComponent implements A
 
    ngOnDestroy(): void {
       this.destroyed = true;
+      // AbstractActionComponent does not currently implement ngOnDestroy. If it
+      // gains one (e.g. to clean up its `subscription`), call super.ngOnDestroy() here.
    }
 
    @Input()
