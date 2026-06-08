@@ -834,11 +834,9 @@ public class VSDataSet extends AbstractDataSet implements AttributeDataSet {
       if(obj instanceof DCMergeDatesCell) {
          obj = ((DCMergeDatesCell) obj).getOriginalData();
       }
-      // For a WeekOfYear date-comparison part cell, the displayed part value (e.g.
-      // "January week 5") may resolve to a different actual week in the comparison
-      // period's year. Use the equivalence cell so the drill-to-detail condition
-      // targets the same week the axis label/data represent, matching the crosstab
-      // path (CrossTabFilterUtil.getEquivalenceNewTuple).
+      // A WeekOfYear part value can map to a different actual week across years;
+      // use the equivalence cell so the drill condition matches the displayed week
+      // (mirrors the crosstab path, CrossTabFilterUtil.getEquivalenceNewTuple).
       else if(obj instanceof DCMergeDatePartFilter.MergePartCell) {
          DCMergeDatePartFilter.MergePartCell equivalenceCell =
             ((DCMergeDatePartFilter.MergePartCell) obj).getEquivalenceCell();
