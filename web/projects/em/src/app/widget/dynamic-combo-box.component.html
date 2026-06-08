@@ -22,22 +22,18 @@
         <mat-label>_#(Value)</mat-label>
         <input matInput type="text" [placeholder]="getPromptString()" formControlName="value"
           [matAutocomplete]="auto">
-        @if (!array) {
-          <button matSuffix mat-icon-button aria-label="_#(Value Type)"
-            title="_#(Value Type)" [matMenuTriggerFor]="typeMenu" (click)="closeAutoComplete($event)">
-            <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="function-and-variable-icon"></mat-icon>
-          </button>
-        }
-        @if (!array && isDate) {
-          <button matSuffix mat-icon-button aria-label="_#(Select a Date)"
-            title="_#(Select a Date)"
-            #menuTrigger="matMenuTrigger"
-            [matMenuTriggerFor]="dateMenu"
-            (menuOpened)="onDateMenuOpened()"
-            >
-            <mat-icon fontSet="ineticons" fontIcon="calendar-icon"></mat-icon>
-          </button>
-        }
+        <button matSuffix mat-icon-button *ngIf="!array" aria-label="_#(Value Type)"
+          title="_#(Value Type)" [matMenuTriggerFor]="typeMenu" (click)="closeAutoComplete($event)">
+          <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="function-and-variable-icon"></mat-icon>
+        </button>
+        <button matSuffix mat-icon-button *ngIf="!array && isDate" aria-label="_#(Select a Date)"
+          title="_#(Select a Date)"
+          #menuTrigger="matMenuTrigger"
+          [matMenuTriggerFor]="dateMenu"
+          (menuOpened)="onDateMenuOpened()"
+          >
+          <mat-icon fontSet="ineticons" fontIcon="calendar-icon"></mat-icon>
+        </button>
         <mat-error *ngIf="hasError">
           {{getErrorMessage()}}
         </mat-error>
@@ -48,12 +44,10 @@
         <mat-label>_#(Value)</mat-label>
         <input matInput type="number" placeholder="_#(Value)" formControlName="value"
           [matAutocomplete]="auto">
-        @if (!array) {
-          <button matSuffix mat-icon-button aria-label="_#(Value Type)"
-            title="_#(Value Type)" [matMenuTriggerFor]="typeMenu" (click)="closeAutoComplete($event)">
-            <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="function-and-variable-icon"></mat-icon>
-          </button>
-        }
+        <button matSuffix mat-icon-button *ngIf="!array" aria-label="_#(Value Type)"
+          title="_#(Value Type)" [matMenuTriggerFor]="typeMenu" (click)="closeAutoComplete($event)">
+          <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="function-and-variable-icon"></mat-icon>
+        </button>
         <mat-error *ngIf="hasError">
           {{getErrorMessage()}}
         </mat-error>
@@ -63,18 +57,14 @@
       <mat-form-field appearance="outline" color="accent">
         <mat-label>_#(Value)</mat-label>
         <input matInput type="text" placeholder="_#(Value)" formControlName="value">
-        @if (type == ComboMode.EXPRESSION && !array) {
-          <button matSuffix mat-icon-button
-            (click)="showFormulaEditor()">
-            <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="formula-edit-icon"></mat-icon>
-          </button>
-        }
-        @if (!array) {
-          <button matSuffix mat-icon-button aria-label="_#(Value Type)"
-            title="_#(Value Type)" [matMenuTriggerFor]="typeMenu" (click)="closeAutoComplete($event)">
-            <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="function-and-variable-icon"></mat-icon>
-          </button>
-        }
+        <button matSuffix mat-icon-button *ngIf="type == ComboMode.EXPRESSION && !array"
+          (click)="showFormulaEditor()">
+          <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="formula-edit-icon"></mat-icon>
+        </button>
+        <button matSuffix mat-icon-button *ngIf="!array" aria-label="_#(Value Type)"
+          title="_#(Value Type)" [matMenuTriggerFor]="typeMenu" (click)="closeAutoComplete($event)">
+          <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="function-and-variable-icon"></mat-icon>
+        </button>
       </mat-form-field>
     }
     <mat-autocomplete #auto="matAutocomplete">
