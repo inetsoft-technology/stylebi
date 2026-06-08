@@ -165,11 +165,9 @@
             <label class="editor-help-label">_#(data.databases.driverAdminInstall)</label>
           }
           @if (uploadEnabled) {
-            @if (uploadEnabled) {
-              <label class="editor-help-label"
-                     [innerHTML]="'_#(data.databases.driverAdminUpload)'">
-              </label>
-            }
+            <label class="editor-help-label"
+                   [innerHTML]="'_#(data.databases.driverAdminUpload)'">
+            </label>
             <div class="editor-driver-actions">
               <button type="button" class="btn btn-secondary buttonSize" (click)="createDriver()">
                 _#(em.data.databases.createDriver)

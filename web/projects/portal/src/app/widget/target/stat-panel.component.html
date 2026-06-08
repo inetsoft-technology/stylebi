@@ -79,11 +79,12 @@
     <legend>_#(Fill)</legend>
     <div class="row shell-form-row--field">
       <div class="col-3">
-        <b-categorical-color-pane *ngIf="model.bandFill"
-                                  [(colorModel)]="model.bandFill"
-                                  [assetId]="assetId"
-                                  label="_#(Fill Band)">
-        </b-categorical-color-pane>
+        @if (model.bandFill) {
+          <b-categorical-color-pane [(colorModel)]="model.bandFill"
+                                    [assetId]="assetId"
+                                    label="_#(Fill Band)">
+          </b-categorical-color-pane>
+        }
       </div>
       <div class="col-3">
         <color-editor class="col fill-above" [(color)]="model.fillAboveColor.color"
