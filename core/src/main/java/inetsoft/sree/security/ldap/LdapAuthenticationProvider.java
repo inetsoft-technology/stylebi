@@ -512,7 +512,7 @@ public abstract class LdapAuthenticationProvider
       // an unhandled IllegalArgumentException (Bug #75337)
       String host = getHost();
 
-      if(host == null || host.trim().isEmpty()) {
+      if(host == null || host.isBlank()) {
          throw new SRSecurityException("LDAP host is required");
       }
 
