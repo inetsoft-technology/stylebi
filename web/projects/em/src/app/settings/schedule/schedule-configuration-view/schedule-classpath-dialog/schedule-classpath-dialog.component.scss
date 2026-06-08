@@ -81,12 +81,15 @@
 
       .right-button-pane{
         height: 100%;
+        width: 100%;
         display: flex;
         flex-shrink: 1;
         flex-grow: 1;
         flex-direction: column;
 
         .right-button-group {
+          // Material 21 no longer implicitly stretches flex children; set width explicitly. (Bug #75336)
+          width: 100%;
           margin-bottom: 2.5em;
 
           .mat-mdc-button {

@@ -42,13 +42,15 @@ import { HttpErrorResponse } from "@angular/common/http";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { render } from "@testing-library/angular";
-import { Observable, of } from "rxjs";
+import { EMPTY, Observable, of } from "rxjs";
 
 import { Tool } from "../../../../../../../shared/util/tool";
 import { ResourcePermissionModel } from "../../resource-permission/resource-permission-model";
 import { ActionTreeNode } from "../action-tree-node";
 import { SecurityActionService } from "../security-action.service";
 import { SecurityActionsPermissionsComponent } from "./security-actions-permissions.component";
+import { SsoHeartbeatService } from "../../../../../../../shared/sso/sso-heartbeat.service";
+import { StompClientService } from "../../../../../../../shared/stomp/stomp-client.service";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -111,6 +113,8 @@ async function renderComponent(opts: RenderOpts = {}) {
       providers: [
          { provide: SecurityActionService, useValue: actionServiceSpy },
          { provide: MatSnackBar, useValue: snackBarSpy },
+         { provide: SsoHeartbeatService, useValue: {} },
+         { provide: StompClientService, useValue: { connect: () => EMPTY } },
       ],
       schemas: [NO_ERRORS_SCHEMA],
    });

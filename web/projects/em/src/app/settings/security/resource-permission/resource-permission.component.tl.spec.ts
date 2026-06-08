@@ -54,10 +54,10 @@ import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { render, waitFor } from "@testing-library/angular";
-import { of, Subject } from "rxjs";
+import { of, Subject, throwError } from "rxjs";
 import { http, HttpResponse } from "msw";
 
-import { server } from "../../../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 import { ResourcePermissionComponent } from "./resource-permission.component";
 import { ResourcePermissionModel } from "./resource-permission-model";
 import { ResourcePermissionTableModel } from "./resource-permission-table-model";
@@ -283,8 +283,10 @@ describe("ResourcePermissionComponent — pastePermissions(): validate-then-conf
          dialogClosesWith: true,
       });
 
+      // Mock http.post to return synchronously so the entire pastePermissions() chain
+      // completes in one tick — avoids zone.js race that triggers NG0100.
+      vi.spyOn(comp["http"], "post").mockReturnValue(of([user2]) as any);
       comp.pastePermissions();
-      await waitFor(() => expect(comp.model.permissions).toHaveLength(2));
 
       expect(comp.model.permissions.map(p => p.identityID.name)).not.toContain("user2");
       expect(comp.model.permissions.map(p => p.identityID.name)).toContain("user1");
@@ -364,9 +366,6 @@ describe("ResourcePermissionComponent — pastePermissions(): validate-then-conf
    // silently blocks every paste in that session.
    it("should fall back to simple confirm (no filtering) and apply all permissions when validate API errors", async () => {
       const pastedPerms = [makePermission("user1"), makePermission("user2")];
-      server.use(
-         http.post(VALIDATE_MSW, () => HttpResponse.error()),
-      );
 
       const { comp, dialogSpy } = await renderComponent({
          model: makeModel({ permissions: [] }),
@@ -377,8 +376,19 @@ describe("ResourcePermissionComponent — pastePermissions(): validate-then-conf
          dialogClosesWith: true,
       });
 
+      // Spy on http.post to return a synchronous error — same pattern used in "should filter
+      // only the missing identities" above. Using MSW HttpResponse.error() here would cause two
+      // problems: (1) MSW's network-fail leaks as an uncaught V8 exception ({ code: -100 }), and
+      // (2) the async error fires outside Angular's CD zone, mutating model.permissions mid-cycle
+      // and triggering NG0100. A synchronous throwError keeps everything in the same zone tick.
+      vi.spyOn(comp["http"], "post").mockReturnValue(
+         throwError(() => new Error("network error")) as any,
+      );
+
       comp.pastePermissions();
-      await waitFor(() => expect(dialogSpy.open).toHaveBeenCalledTimes(1));
+
+      // dialog was opened via the error fallback path (openPasteConfirmDialog)
+      expect(dialogSpy.open).toHaveBeenCalledTimes(1);
       // all permissions applied — no filtering in error path
       expect(comp.model.permissions).toHaveLength(2);
    });

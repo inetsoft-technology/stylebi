@@ -35,7 +35,7 @@
           </mat-checkbox>
         </td>
       </ng-container>
-      @for (col of columns; track col; let i = $index) {
+      @for (col of columns; track col.field; let i = $index) {
         <ng-container [matColumnDef]="col.field">
           <ng-container class="detail-cell">
             <th mat-header-cell class="table-header-col table-col" *matHeaderCellDef mat-sort-header [title]="col.header"> {{col.header}}</th>

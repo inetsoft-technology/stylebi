@@ -173,7 +173,7 @@
                     showDetails($event.sortInfo, $event.format, $event.column, $event.str, $event.detailStyle, $event.dndInfo, $event.newColName, $event.toggleHide)">
     </vs-preview-table>
     @if (enableAnnotation) {
-      @for (annotationModel of model.assemblyAnnotationModels; track annotationModel) {
+      @for (annotationModel of model.assemblyAnnotationModels; track $index) {
         <vs-annotation
           [model]="annotationModel"
           [actions]="actions"

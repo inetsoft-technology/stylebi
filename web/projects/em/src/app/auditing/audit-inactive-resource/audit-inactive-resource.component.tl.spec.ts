@@ -41,7 +41,7 @@ import { firstValueFrom } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
 import { MatSelectStub, makeErrorServiceMock } from "../testing/audit-test-utils";
 
-import { server } from "../../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 import { AuditInactiveResourceComponent } from "./audit-inactive-resource.component";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { ErrorHandlerService } from "../../common/util/error/error-handler.service";

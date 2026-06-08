@@ -207,7 +207,7 @@ export class PresentationThemesViewComponent implements OnInit {
    saveTheme(current: CustomThemeModel): void {
       if(!!current) {
          const uri = `../api/em/settings/presentation/themes/${Tool.byteEncode(current.id)}`;
-         this.http.put(uri, current).subscribe(() => {
+         this.http.put<CustomThemeModel>(uri, current).subscribe(model => {
             const newThemes = this.themes.slice();
             const index = newThemes.findIndex(t => t.id === current.id);
 
@@ -215,6 +215,13 @@ export class PresentationThemesViewComponent implements OnInit {
                this.clearSelection();
             }
             else {
+               // renaming a theme may change its id on the server (the id follows the
+               // name when they were initialized equal), so adopt the effective id from
+               // the response or subsequent delete/download/save would target a stale id
+               if(!!model?.id) {
+                  current.id = model.id;
+               }
+
                newThemes[index] = Tool.clone(current);
 
                // if current theme is the new default theme then reset the defaultTheme property of

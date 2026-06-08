@@ -50,6 +50,8 @@ import {
    TimeConditionType
 } from "../../../../../../shared/schedule/model/time-condition-model";
 import { TimeZoneModel } from "../../../../../../shared/schedule/model/time-zone-model";
+import { ScheduleTaskNamesService } from "../../../../../../shared/schedule/schedule-task-names.service";
+import { EMPTY } from "rxjs";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -86,6 +88,12 @@ async function renderComponent(props: Partial<TaskConditionPaneComponent> = {}) 
          timeZoneOptions: makeTimeZoneOptions(),
          ...props,
       },
+      providers: [
+         {
+            provide: ScheduleTaskNamesService,
+            useValue: { loadScheduleTaskNames: vi.fn(), getAllTasks: () => EMPTY, isLoading: false }
+         },
+      ],
    });
 
    await result.fixture.whenStable();

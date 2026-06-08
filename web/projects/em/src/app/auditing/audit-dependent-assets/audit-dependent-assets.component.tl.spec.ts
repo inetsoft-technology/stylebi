@@ -34,7 +34,7 @@ import { firstValueFrom } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
 
 import { MatSelectStub, makeErrorServiceMock } from "../testing/audit-test-utils";
-import { server } from "../../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 import { AuditDependentAssetsComponent } from "./audit-dependent-assets.component";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
@@ -203,8 +203,15 @@ describe("AuditDependentAssetsComponent — fetchData", () => {
    // When selectedTargetAssets is empty, fetchData must append all this.targetAssets
    // as individual targetAssets params to cover the full scope.
    it("should send all targetAssets as params when selectedTargetAssets is empty", async () => {
-      const receivedAssets: string[] = [];
+      const { fixture } = await renderComponent();
+      const comp = fixture.componentInstance;
 
+      // Populate comp.targetAssets via fetchParameters
+      setupParamsEndpoint();
+      await firstValueFrom(comp.fetchParameters());
+
+      // Register handler AFTER all init activity so only the explicit fetchData call is captured
+      const receivedAssets: string[] = [];
       server.use(
          http.get("*/api/em/monitoring/audit/dependentAssets", ({ request }) => {
             new URL(request.url).searchParams.forEach((value, key) => {
@@ -213,13 +220,6 @@ describe("AuditDependentAssetsComponent — fetchData", () => {
             return MswHttpResponse.json({ totalRowCount: 0, rows: [] });
          })
       );
-
-      const { fixture } = await renderComponent();
-      const comp = fixture.componentInstance;
-
-      // Populate comp.targetAssets via fetchParameters
-      setupParamsEndpoint();
-      await firstValueFrom(comp.fetchParameters());
 
       await firstValueFrom(comp.fetchData(new HttpParams(), EMPTY_ADDITIONAL));
 
@@ -229,8 +229,11 @@ describe("AuditDependentAssetsComponent — fetchData", () => {
    // P1 / Happy — explicit selection overrides the fallback
    // When selectedTargetAssets is non-empty, only those assets should be sent.
    it("should send only selectedTargetAssets when they are explicitly provided", async () => {
-      const receivedAssets: string[] = [];
+      const { fixture } = await renderComponent();
+      const comp = fixture.componentInstance;
+      await fixture.whenStable();
 
+      const receivedAssets: string[] = [];
       server.use(
          http.get("*/api/em/monitoring/audit/dependentAssets", ({ request }) => {
             new URL(request.url).searchParams.forEach((value, key) => {
@@ -239,9 +242,6 @@ describe("AuditDependentAssetsComponent — fetchData", () => {
             return MswHttpResponse.json({ totalRowCount: 0, rows: [] });
          })
       );
-
-      const { fixture } = await renderComponent();
-      const comp = fixture.componentInstance;
 
       await firstValueFrom(comp.fetchData(new HttpParams(), {
          ...EMPTY_ADDITIONAL,
@@ -317,9 +317,10 @@ describe("AuditDependentAssetsComponent — fetchParameters", () => {
       const errorService = makeErrorServiceMock();
       const { fixture } = await renderComponent(errorService);
       const comp = fixture.componentInstance;
+      await fixture.whenStable();
+      // Allow any out-of-zone MSW responses still in flight to settle
+      await new Promise(resolve => setTimeout(resolve, 0));
 
-      // Register the 500 handler AFTER renderComponent so it takes precedence over
-      // the success handler that setupParamsEndpoint() registered inside renderComponent.
       server.use(
          http.get("*/api/em/monitoring/audit/dependentAssetParameters", () =>
             new MswHttpResponse(null, { status: 500 })

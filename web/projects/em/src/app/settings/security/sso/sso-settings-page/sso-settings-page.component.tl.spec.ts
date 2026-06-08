@@ -49,9 +49,9 @@ import { MatSelectModule } from "@angular/material/select";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse } from "msw";
-import { of } from "rxjs";
+import { of, Subject } from "rxjs";
 
-import { server } from "../../../../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 import { PageHeaderService } from "../../../../page-header/page-header.service";
 import { TopScrollService } from "../../../../top-scroll/top-scroll.service";
 import {
@@ -135,9 +135,13 @@ interface RenderOpts {
 }
 
 async function renderComponent(opts: RenderOpts = {}) {
-   const routeModel = opts.routeModel ?? makeSettingsModel();
-   const resetModel = opts.resetModel ?? routeModel;
-   const scrollSpy = { scroll: vi.fn() };
+   // routeModel and resetModel must differ so the waitFor below correctly gates on the async
+   // reset() GET completing — if they share the same activeFilterType the waitFor passes
+   // immediately from the synchronous route-data subscription, before the HTTP round-trip
+   // finishes, and the pending request races against afterEach's server.resetHandlers().
+   const routeModel = opts.routeModel ?? makeSettingsModel({ activeFilterType: SSOType.NONE });
+   const resetModel = opts.resetModel ?? makeSettingsModel();
+   const scrollSpy = { scroll: vi.fn(), visibilityChanged: new Subject<boolean>() };
    const pageHeaderSpy = { title: "" };
 
    server.use(

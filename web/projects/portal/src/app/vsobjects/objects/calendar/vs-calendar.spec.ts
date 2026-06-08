@@ -127,13 +127,14 @@ describe("VSCalendar Unit Tests", () => {
 
    // Bug #16080 update the calendars selection string if the calendar is updated
    it("should change calendar title string after title is updated", () => {
+      fixture.componentInstance.calendar1 = {
+         getSelectionString: vi.fn(() => "")
+      } as any;
       fixture.componentInstance.model.title = "Calendar02";
       fixture.componentInstance.updateTitle();
       fixture.detectChanges();
 
-      fixture.whenStable().then(() => {
-         expect(fixture.componentInstance.selectionTitle).toContain("Calendar02");
-      });
+      expect(fixture.componentInstance.selectionTitle).toContain("Calendar02");
    });
 
    it("should set objectHeight to titleFormat height for dropdown calendar", () => {

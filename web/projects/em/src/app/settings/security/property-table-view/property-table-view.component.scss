@@ -19,6 +19,13 @@ table {
   width: 100%;
 }
 
+// The label is raw text in mat-card-header, which Material assigns no typography
+// token to, so it inherits the ambient size. Restore the 14px title size lost in
+// the Angular/Material typography migration.
+.mat-mdc-card-header {
+  font-size: 14px;
+}
+
 .table-container {
   flex: 1 1 auto;
   overflow-y: auto;
