@@ -94,7 +94,11 @@ class DataSpaceTests {
          Arguments.of(null, "$(sree.home)/fs.xml", "fs.xml"),
          Arguments.of(null, "$(sree.home)/organization0/fs.xml", "organization0/fs.xml"),
          Arguments.of("$(sree.home)", "bs.xml", "bs.xml"),
-         Arguments.of("$(sree.home)/organization0", "bs.xml", "organization0/bs.xml")
+         Arguments.of("$(sree.home)/organization0", "bs.xml", "organization0/bs.xml"),
+         // placeholder-only directory with no file strips to an empty path
+         Arguments.of("$(sree.home)", null, ""),
+         // placeholder immediately followed by the file name (no separator slash)
+         Arguments.of(null, "$(sree.home)fs.xml", "fs.xml")
       );
    }
 }
