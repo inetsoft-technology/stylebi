@@ -89,6 +89,21 @@ class ExplicitBindingValidationTest {
    }
 
    @Test
+   void dimensionOnMeasureOnlySlotThrows() {
+      // aggregates is measure-only (in MEASURE_SLOTS but not DIMENSION_SLOTS); a
+      // dimension pinned there must be rejected, symmetric with the group case.
+      Map<String, SimpleFieldInfo> configs = Map.of("category", dimension("category"));
+
+      UnsatisfiableBindingException e = assertThrows(UnsatisfiableBindingException.class,
+         () -> WizAutoBindingService.validateExplicitBindings(
+            List.of(pin("aggregates", "category")), configs, null));
+
+      assertEquals("aggregates", e.getRole());
+      assertEquals("category", e.getField());
+      assertTrue(e.getReason().contains("measure-only"));
+   }
+
+   @Test
    void unknownFieldThrows() {
       Map<String, SimpleFieldInfo> configs = Map.of("amount", measure("amount"));
 
