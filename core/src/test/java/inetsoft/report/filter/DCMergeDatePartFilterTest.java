@@ -148,6 +148,7 @@ public class DCMergeDatePartFilterTest {
          }
       }
 
+      Assertions.assertNotNull(actual, "field value for the WeekOfYear column should be present");
       Assertions.assertEquals(expected, actual,
                               "drill field value should use the equivalence week, not the displayed part value");
    }
