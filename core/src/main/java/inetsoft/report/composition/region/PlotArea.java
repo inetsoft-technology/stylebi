@@ -1689,15 +1689,11 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
                tooltip.setTier2GroupSize(q1q3);
             }
          }
+         // Solo card: no shared X-dim across series to scope, so no subtitle lift.
          else if(cardMeasureFirst && dims.length > 0) {
             if(groupMeasuresAtTier2(measures, full2NoCalcNames.keySet(), measurePairs)) {
                tooltip.setGroupedTiers(true);
                tooltip.setTier2GroupSize(measurePairs - 1);
-            }
-            // Single measure: lift the X-dim to the tier-1 subtitle (matches combined card).
-            else {
-               captureCombinedCardHeader(
-                  tooltip, new int[]{ palette.put(dims[0]) }, chartInfo.getTooltipStyle());
             }
          }
       }

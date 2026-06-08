@@ -147,9 +147,9 @@ class PlotAreaCardMeasureFirstTest {
    }
 
    @Test
-   void soloCardLiftsXDimToHeader() {
-      // Solo measure-first card: the X-dim is lifted out of the value rows onto
-      // the header so it renders as the tier-1 subtitle under the measure.
+   void combinedCardLiftsSharedXDimToHeader() {
+      // Combined card: the shared X-dim is lifted out of the value rows onto the
+      // header so it renders as the subtitle. Solo cards do not lift (no subtitle).
       IndexedSet<String> palette = new IndexedSet<>();
       ChartToolTip tip = new ChartToolTip();
       tip.addTooltip(palette.put("Sales"), palette.put("100"));
@@ -158,13 +158,33 @@ class PlotAreaCardMeasureFirstTest {
 
       PlotArea.captureCombinedCardHeader(tip, new int[]{ xKey }, ChartInfo.TooltipStyle.CARD);
 
-      assertEquals(xKey, tip.getHeaderKey(), "X-dim lifts to the subtitle header");
+      assertEquals(xKey, tip.getHeaderKey(), "shared X-dim lifts to the subtitle header");
       assertFalse(tip.containsTooltip(xKey), "lifted X-dim is removed from the value rows");
    }
 
    @Test
-   void soloCardHeaderLiftSkippedForDefaultStyle() {
-      // Default style is the flat tooltip, so no header lift.
+   void soloCardKeepsXDimAsRowWithNoSubtitle() {
+      // Single-measure solo card as PlotArea now builds it: measure-first, no
+      // header lifted. The X-dim must stay a tier-2 row, not become a subtitle.
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+      tip.addTooltip(palette.put("Sum(Sales)"), palette.put("100"));
+      tip.addTooltip(palette.put("Year"), palette.put("2024"));
+
+      String out = tip.getTooltip(palette);
+
+      assertFalse(tip.hasHeader(), "solo card lifts no header");
+      assertTrue(out.contains("<div class=\"tt-tier-1\">Sum(Sales):&nbsp;100"),
+                 "measure leads at tier-1");
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Year:&nbsp;2024"),
+                 "X-dim stays a tier-2 row");
+      assertFalse(out.contains("tt-subtitle"), "solo card carries no subtitle");
+   }
+
+   @Test
+   void combinedCardHeaderLiftSkippedForDefaultStyle() {
+      // Default style is the flat tooltip, so no header lift even for combined cards.
       IndexedSet<String> palette = new IndexedSet<>();
       ChartToolTip tip = new ChartToolTip();
       int xKey = palette.put("Year");
@@ -280,7 +300,7 @@ class PlotAreaCardMeasureFirstTest {
       // A single measure pair has no non-headline measure to rank → no grouping.
       assertFalse(PlotArea.groupMeasuresAtTier2(measures, derived, 1));
 
-      // No derived measure (plain multi-measure card) → keep the X-dim subtitle lift.
+      // No derived measure (plain multi-measure card) → no tier-2 grouping.
       assertFalse(PlotArea.groupMeasuresAtTier2(
          new String[]{ "Sum(A)", "Avg(B)" }, new HashSet<>(), 2));
 
