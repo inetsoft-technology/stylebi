@@ -35,8 +35,11 @@ EL_HOST = {
     'mat-select-trigger': {'mat-select'},
 }
 CF = ('if', 'else if', 'else', 'for', 'switch', 'case', 'default')
+# block opener: @kw ( ... ) {  /  @else {  /  @default { — built from CF so the
+# keyword vocabulary lives in one place. 'else if' precedes 'else' for longest-match.
+CF_OPEN_RE = r'@(' + '|'.join(CF) + r')\b[^\{<]*\{'
 
-VOID = {'input', 'img', 'br', 'hr', 'mat-icon'}  # mat-icon often self-acts; handled by self-close anyway
+VOID = {'input', 'img', 'br', 'hr', 'mat-icon'}  # mat-icon: projection targets never nest inside it
 
 def tokenize(txt):
     """Yield ('open', tag, attrs, line), ('close', tag, line),
@@ -66,7 +69,7 @@ def tokenize(txt):
                 line += line_inc; i += m.end(); continue
             i += 1; continue
         # control-flow block opening:  @kw ( ... ) {   or  @else {   or @default {
-        m = re.match(r'@(if|else if|else|for|switch|case|default)\b[^\{<]*\{', txt[i:])
+        m = re.match(CF_OPEN_RE, txt[i:])
         if m:
             yield ('block', m.group(1), line)
             line += txt[i:i+m.end()].count('\n'); i += m.end(); continue
