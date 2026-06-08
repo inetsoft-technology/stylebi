@@ -481,6 +481,19 @@ class GenericLdapAuthenticationProviderTest {
       }
    }
 
+   // Bug #75337: an empty host must fail fast with a clear error instead of
+   // letting createContext() build a malformed URL ("://:0") that throws an
+   // unhandled IllegalArgumentException.
+   @Test
+   @Order(17)
+   void testCheckParametersRequiresHost() {
+      provider.setHost("");
+      SRSecurityException ex = assertThrows(
+         SRSecurityException.class, () -> provider.checkParameters());
+      assertTrue(ex.getMessage().toLowerCase().contains("host"),
+                 "expected a host-required message but got: " + ex.getMessage());
+   }
+
    private void waitForCache() {
       Awaitility.await()
          .atMost(Duration.ofMinutes(1L))
