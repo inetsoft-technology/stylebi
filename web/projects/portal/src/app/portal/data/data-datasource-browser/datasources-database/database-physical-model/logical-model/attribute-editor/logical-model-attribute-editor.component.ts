@@ -138,7 +138,10 @@ export class LogicalModelAttributeEditor implements OnInit, OnDestroy {
       this._existNames = existNames;
 
       if(this.inited) {
-         this.resetFormControl();
+         // Defer the reset so the shared form is not mutated during change
+         // detection, which would change form.invalid after the parent's
+         // Save button [disabled] binding was checked (NG0100).
+         setTimeout(() => this.resetFormControl(), 0);
       }
    }
 
