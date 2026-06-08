@@ -554,7 +554,15 @@ public class DataSpace implements AutoCloseable {
 
       String sanitized = path.trim().replace('\\', '/').replace("//", "/");
 
-      if(sanitized.startsWith(homePath)) {
+      // Treat the unresolved sree.home placeholder the same as the resolved home
+      // directory so FS index paths (fs.files / fs.bs.files default to
+      // "$(sree.home)/fs.xml") map to home-relative keys instead of creating a
+      // literal "$(sree.home)" node (e.g. in the cloud runner where the home
+      // directory differs and the placeholder is left unresolved).
+      if(sanitized.startsWith(HOME_PLACEHOLDER)) {
+         sanitized = sanitized.substring(HOME_PLACEHOLDER.length());
+      }
+      else if(sanitized.startsWith(homePath)) {
          sanitized = sanitized.substring(homePath.length());
       }
 
@@ -586,6 +594,7 @@ public class DataSpace implements AutoCloseable {
    private final String homePath;
    private final ListenerTree listeners;
 
+   private static final String HOME_PLACEHOLDER = "$(sree.home)";
    private static final Logger LOG = LoggerFactory.getLogger(DataSpace.class);
 
    public static final class Metadata implements Serializable {
