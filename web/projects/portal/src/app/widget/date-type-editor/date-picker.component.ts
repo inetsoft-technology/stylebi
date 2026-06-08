@@ -67,7 +67,7 @@ export class DatePickerComponent implements OnInit, OnChanges {
    }
 
    ngOnChanges(changes: SimpleChanges): void {
-      if(changes["dateTime"] && this.dateTime) {
+      if(changes["dateTime"] && !changes["dateTime"].isFirstChange() && this.dateTime) {
          this.updateCalendar();
       }
    }

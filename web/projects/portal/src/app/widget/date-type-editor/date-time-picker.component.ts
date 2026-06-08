@@ -19,6 +19,7 @@ import {
    Component,
    EventEmitter,
    Input,
+   OnDestroy,
    OnInit,
    Output,
 } from "@angular/core";
@@ -38,7 +39,7 @@ import { DatePickerComponent } from "./date-picker.component";
     TimeValueEditorComponent
 ]
 })
-export class DateTimePickerComponent implements OnInit {
+export class DateTimePickerComponent implements OnInit, OnDestroy {
    @Input() promptTime: boolean;
    @Input() promptDate: boolean = true;
    @Input() date: string = "";
@@ -49,6 +50,7 @@ export class DateTimePickerComponent implements OnInit {
    timeFormat: string = DateTypeFormatter.ISO_8601_TIME_FORMAT;
    selectTime: string;
    dateTime: TimeInstant;
+   private destroyed = false;
 
    ngOnInit(): void {
       let autoSetCurrent = false;
@@ -66,8 +68,16 @@ export class DateTimePickerComponent implements OnInit {
          // fixed dropdown whose view is attached to applicationRef outside the normal
          // component tree — synchronous emission during ngOnInit triggers a second CD
          // pass on the already-checked parent, causing ExpressionChangedAfterItHasBeenCheckedError.
-         Promise.resolve().then(() => this.dateTimeValueChange(DateTimeChangeType.AUTO));
+         Promise.resolve().then(() => {
+            if(!this.destroyed) {
+               this.dateTimeValueChange(DateTimeChangeType.AUTO);
+            }
+         });
       }
+   }
+
+   ngOnDestroy(): void {
+      this.destroyed = true;
    }
 
    initTime(dateTime: TimeInstant): void {
