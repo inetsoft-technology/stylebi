@@ -1,0 +1,38 @@
+# /viewer route candidates — 2026-06-08
+# Generated from viewer.routes.ts → viewer-root / viewer-view / viewer-edit + 1-2 layer expansion
+
+# ── Top-level route components ─────────────────────────────────────────────────
+projects/portal/src/app/viewer/viewer-root.component.ts
+projects/portal/src/app/viewer/viewer-view/viewer-view.component.ts
+projects/portal/src/app/viewer/viewer-edit/viewer-edit.component.ts
+
+# ── Layer 1: direct imports ────────────────────────────────────────────────────
+projects/shared/ai-assistant/ai-assistant-panel.component.ts
+projects/shared/download/download-target.component.ts
+projects/portal/src/app/viewer/viewer-view/page-tab.component.ts
+projects/portal/src/app/vsobjects/viewer-app.component.ts
+projects/portal/src/app/vsview/edit/vs-binding-pane.component.ts
+projects/portal/src/app/vs-wizard/gui/vs-wizard.component.ts
+
+# ── Layer 2: sub-imports from ViewerAppComponent ───────────────────────────────
+projects/portal/src/app/widget/scroll/paging-control.component.ts
+projects/portal/src/app/vsobjects/objects/viewer-mobile-toolbar/viewer-mobile-toolbar.component.ts
+projects/portal/src/app/vsobjects/bookmark/vs-bookmark-pane.component.ts
+projects/portal/src/app/vsobjects/dialog/export-dialog.component.ts
+projects/portal/src/app/vsobjects/dialog/email/email-dialog.component.ts
+projects/portal/src/app/vsobjects/dialog/schedule-dialog.component.ts
+projects/portal/src/app/vsobjects/dialog/bookmark-property-dialog.component.ts
+projects/portal/src/app/vsobjects/dialog/profiling-dialog.component.ts
+projects/portal/src/app/vsobjects/dialog/remove-bookmarks-dialog.component.ts
+projects/portal/src/app/vsobjects/format/vs-formats-pane.component.ts
+projects/portal/src/app/widget/share/share-email-dialog.component.ts
+projects/portal/src/app/widget/share/share-google-chat-dialog.component.ts
+projects/portal/src/app/widget/share/share-slack-dialog.component.ts
+projects/portal/src/app/widget/notifications/notifications.component.ts
+
+# ── Layer 2: sub-imports from VSBindingPane / VsWizardComponent ────────────────
+projects/portal/src/app/vs-wizard/gui/wizard-pane/vs-wizard-pane.component.ts
+projects/portal/src/app/vs-wizard/gui/object-wizard/object-wizard-pane.component.ts
+projects/portal/src/app/widget/fixed-dropdown/actions-contextmenu.component.ts
+projects/portal/src/app/widget/dialog/variable-input-dialog/variable-input-dialog.component.ts
+projects/portal/src/app/binding/widget/binding-tree/edit-geographic-dialog.component.ts
