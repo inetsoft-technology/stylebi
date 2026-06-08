@@ -66,17 +66,13 @@ public class WizViewsheetController {
    }
 
    @PostMapping(value = "/viewsheet/format", produces = MediaType.APPLICATION_JSON_VALUE)
-   public CreateViewsheetResult setChartFormat(@RequestBody ChartFormatRequest request,
-                                               Principal user) throws Exception
-   {
-      return wizAutoBindingService.setChartFormat(request, user);
+   public ResponseEntity<?> setChartFormat(@RequestBody ChartFormatRequest request, Principal user) {
+      return run("set chart format", () -> wizAutoBindingService.setChartFormat(request, user));
    }
 
    @PostMapping(value = "/viewsheet/colors", produces = MediaType.APPLICATION_JSON_VALUE)
-   public CreateViewsheetResult setChartColors(@RequestBody ChartColorsRequest request,
-                                               Principal user) throws Exception
-   {
-      return wizAutoBindingService.setChartColors(request, user);
+   public ResponseEntity<?> setChartColors(@RequestBody ChartColorsRequest request, Principal user) {
+      return run("set chart colors", () -> wizAutoBindingService.setChartColors(request, user));
    }
 
    @DeleteMapping("/viewsheet")
@@ -97,19 +93,25 @@ public class WizViewsheetController {
       }
       // Must precede the IllegalArgumentException catch below (it is a subclass), else it is shadowed.
       catch(UnsatisfiableBindingException e) {
+         // Map.of rejects null values, and String.valueOf(null) would emit the literal
+         // string "null"; coerce absent fields to "" so the JSON body stays meaningful.
          return ResponseEntity.badRequest().body(Map.of(
             "error", "unsatisfiable explicit binding",
-            "pin", Map.of("role", String.valueOf(e.getRole()), "field", String.valueOf(e.getField())),
-            "reason", String.valueOf(e.getReason())));
+            "pin", Map.of("role", nullToEmpty(e.getRole()), "field", nullToEmpty(e.getField())),
+            "reason", nullToEmpty(e.getReason())));
       }
       catch(IllegalArgumentException e) {
-         return ResponseEntity.badRequest().body(Map.of("error", String.valueOf(e.getMessage())));
+         return ResponseEntity.badRequest().body(Map.of("error", nullToEmpty(e.getMessage())));
       }
       catch(Exception e) {
          LOG.error("Failed to {}", action, e);
          return ResponseEntity.internalServerError()
             .body(Map.of("error", "An unexpected error occurred. Please try again."));
       }
+   }
+
+   private static String nullToEmpty(String value) {
+      return value == null ? "" : value;
    }
 
    private final WizVsService wizVsService;

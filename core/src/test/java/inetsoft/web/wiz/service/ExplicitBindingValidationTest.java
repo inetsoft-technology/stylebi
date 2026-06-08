@@ -74,6 +74,21 @@ class ExplicitBindingValidationTest {
    }
 
    @Test
+   void measureOnGroupSlotThrows() {
+      // group is dimension-only (in DIMENSION_SLOTS but not MEASURE_SLOTS); a measure
+      // pinned there must be rejected just like shape.
+      Map<String, SimpleFieldInfo> configs = Map.of("amount", measure("amount"));
+
+      UnsatisfiableBindingException e = assertThrows(UnsatisfiableBindingException.class,
+         () -> WizAutoBindingService.validateExplicitBindings(
+            List.of(pin("group", "amount")), configs, null));
+
+      assertEquals("group", e.getRole());
+      assertEquals("amount", e.getField());
+      assertTrue(e.getReason().contains("dimension-only"));
+   }
+
+   @Test
    void unknownFieldThrows() {
       Map<String, SimpleFieldInfo> configs = Map.of("amount", measure("amount"));
 
