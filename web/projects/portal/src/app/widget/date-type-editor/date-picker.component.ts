@@ -15,7 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, HostListener, Input, Output } from "@angular/core";
+import { Component, EventEmitter, HostListener, Input, OnChanges, OnInit,
+         Output, SimpleChanges } from "@angular/core";
 import { NgbDatepickerConfig } from "@ng-bootstrap/ng-bootstrap";
 import { DateTypeFormatter } from "../../../../../shared/util/date-type-formatter";
 import { TimeInstant } from "../../common/data/time-instant";
@@ -30,13 +31,14 @@ import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
     styleUrls: ["./date-picker.component.scss"],
     imports: [BlockMouseDirective, FormsModule]
 })
-export class DatePickerComponent {
+export class DatePickerComponent implements OnInit, OnChanges {
    @Input() promptTime: boolean = false;
    @Input() dateTime: TimeInstant;
    @Output() onCommit = new EventEmitter<string>();
    @Output() valueChanged = new EventEmitter<{value: string, changeType: DateTimeChangeType}>();
    format: string = DateTypeFormatter.ISO_8601_DATE_FORMAT;
    years: any[] = this.getOptionYears();
+   calendarCells: number[][] = [];
    months: any[] = [
       {value: 0, label: "_#(js:January)"},
       {value: 1, label: "_#(js:February)"},
@@ -58,6 +60,18 @@ export class DatePickerComponent {
    constructor(private ngbDatepickerConfig: NgbDatepickerConfig) {
    }
 
+   ngOnInit(): void {
+      if(this.dateTime) {
+         this.updateCalendar();
+      }
+   }
+
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["dateTime"] && this.dateTime) {
+         this.updateCalendar();
+      }
+   }
+
    get dateHeaders(): string[] {
       const firstDoW = this.ngbDatepickerConfig.firstDayOfWeek;
       return [0, 1, 2, 3, 4, 5, 6].map(n => this._dateHeaders[(n + firstDoW) % 7]);
@@ -77,7 +91,11 @@ export class DatePickerComponent {
       return years;
    }
 
-   loadCalender(month, year): any {
+   private updateCalendar(): void {
+      this.calendarCells = this.buildCalendarCells(this.dateTime.months, this.dateTime.years);
+   }
+
+   private buildCalendarCells(month: number, year: number): number[][] {
       month = +month;
       year = +year;
       const cells: number[][] = [];
@@ -126,16 +144,19 @@ export class DatePickerComponent {
 
    selectYear(year: number) {
       this.dateTime.years = year;
+      this.updateCalendar();
       this.dateValueChanged(DateTimeChangeType.YEAR);
    }
 
    selectMonth(month: number) {
       this.dateTime.months = month;
+      this.updateCalendar();
       this.dateValueChanged(DateTimeChangeType.MONTH);
    }
 
    private dateValueChanged(changeType: DateTimeChangeType) {
-      this.onCommit.emit(this.formatTimeString(this.dateTime));
-      this.valueChanged.emit({value: this.formatTimeString(this.dateTime), changeType: changeType});
+      const formatted = this.formatTimeString(this.dateTime);
+      this.onCommit.emit(formatted);
+      this.valueChanged.emit({value: formatted, changeType: changeType});
    }
 }
