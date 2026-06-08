@@ -33,7 +33,8 @@
     [style.width.px]="legend.bounds.width"
     [style.height.px]="legend.bounds.height"
     [style.background]="background"
-    [style.border]="legend.border">
+    [style.border]="legend.border"
+    [style.border-radius]="legend.roundCorners ? '10px' : null">
     <ng-content></ng-content>
     @if (isMoving && !isResizing) {
       <div
