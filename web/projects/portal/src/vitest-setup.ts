@@ -19,7 +19,6 @@
 import "@testing-library/jest-dom/vitest";
 import { ApplicationRef, Directive, provideNgReflectAttributes } from "@angular/core";
 import { ComponentFixture, ComponentFixtureAutoDetect, TestBed } from "@angular/core/testing";
-import { afterEach } from "vitest";
 
 // A no-op standalone directive used as a placeholder for undefined dep slots caused by
 // circular ESM imports. Angular's TestBed will accept this without crashing.
@@ -102,47 +101,26 @@ const _origTick = (ApplicationRef.prototype as any).tick;
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Walk a class's component/directive dependencies and patch any undefined slots in place.
-function _isPendingComponentResourceError(e: any): boolean {
-   return typeof e?.message === "string" &&
-      e.message.includes("Did you run and wait for 'resolveComponentResources()'?");
-}
-
-function _readAngularDef(cls: any, prop: "ɵcmp" | "ɵmod"): any {
-   try {
-      return cls?.[prop];
-   } catch(e) {
-      if(_isPendingComponentResourceError(e)) {
-         return null;
-      }
-
-      throw e;
-   }
-}
-
-function _hasPendingComponentResource(cls: any): boolean {
-   try {
-      void cls?.ɵcmp;
-      return false;
-   } catch(e) {
-      if(_isPendingComponentResourceError(e)) {
-         return true;
-      }
-
-      throw e;
-   }
-}
-
-function _scrubDeps(cls: any, visited: Set<any>, fallback: any): boolean {
+function _scrubDeps(cls: any, visited: Set<any>, fallback: any) {
    if (!cls || visited.has(cls)) {
-      return false;
+      return;
    }
    visited.add(cls);
 
-   let needsPostCompileScrub = _hasPendingComponentResource(cls);
-   const cmpDef = _readAngularDef(cls, "ɵcmp");
-   const modDef = _readAngularDef(cls, "ɵmod");
+   // In the TL test project (test-tl), components that are not reachable from any TL spec
+   // file may not be AOT-compiled. Accessing ɵcmp on such a component throws
+   // "Component 'X' is not resolved" in JIT mode. Skip silently — the patching is a
+   // best-effort circular-dep fix and a graceful skip is safe here.
+   let cmpDef: any;
+   let modDef: any;
+   try {
+      cmpDef = (cls as any).ɵcmp;
+      modDef = (cls as any).ɵmod;
+   } catch {
+      return;
+   }
    if (!cmpDef && !modDef) {
-      return needsPostCompileScrub;
+      return;
    }
    if (cmpDef) {
       const raw = typeof cmpDef.dependencies === "function"
@@ -153,8 +131,7 @@ function _scrubDeps(cls: any, visited: Set<any>, fallback: any): boolean {
             if (raw[i] === undefined || raw[i] === null) {
                raw[i] = fallback;
             } else {
-               needsPostCompileScrub = _scrubDeps(raw[i], visited, fallback) ||
-                  needsPostCompileScrub;
+               _scrubDeps(raw[i], visited, fallback);
             }
          }
       }
@@ -167,42 +144,12 @@ function _scrubDeps(cls: any, visited: Set<any>, fallback: any): boolean {
                if (raw[i] === undefined || raw[i] === null) {
                   raw[i] = fallback;
                } else {
-                  needsPostCompileScrub = _scrubDeps(raw[i], visited, fallback) ||
-                     needsPostCompileScrub;
+                  _scrubDeps(raw[i], visited, fallback);
                }
             }
          }
       }
    }
-
-   return needsPostCompileScrub;
-}
-
-function _scrubTestingModuleDef(moduleDef: any): boolean {
-   const _visited = new Set<any>();
-   let needsPostCompileScrub = false;
-   const _scrubArray = (arr: any[] | undefined) => {
-      if (!Array.isArray(arr)) {
-         return;
-      }
-      for (const item of arr) {
-         if (Array.isArray(item)) {
-            _scrubArray(item);
-         } else if (item) {
-            needsPostCompileScrub = _scrubDeps(item, _visited, _CircularDepPlaceholder) ||
-               needsPostCompileScrub;
-         }
-      }
-   };
-   _scrubArray(moduleDef?.imports);
-   _scrubArray(moduleDef?.declarations);
-   return needsPostCompileScrub;
-}
-
-const _configuredModuleDefs: any[] = [];
-
-function _clearConfiguredModuleDefs() {
-   _configuredModuleDefs.length = 0;
 }
 
 // Patch configureTestingModule to:
@@ -222,34 +169,23 @@ TestBed.configureTestingModule = function(moduleDef: any) {
       { provide: ComponentFixtureAutoDetect, useValue: false },
       ...(moduleDef.providers ?? []),
    ];
-   if(_scrubTestingModuleDef(moduleDef)) {
-      _configuredModuleDefs.push(moduleDef);
-   }
+   const _visited = new Set<any>();
+   const _scrubArray = (arr: any[] | undefined) => {
+      if (!Array.isArray(arr)) {
+         return;
+      }
+      for (const item of arr) {
+         if (Array.isArray(item)) {
+            _scrubArray(item);
+         } else if (item) {
+            _scrubDeps(item, _visited, _CircularDepPlaceholder);
+         }
+      }
+   };
+   _scrubArray(moduleDef.imports);
+   _scrubArray(moduleDef.declarations);
    return _originalConfigureTestingModule(moduleDef);
 } as typeof TestBed.configureTestingModule;
-
-const _originalCompileComponents = TestBed.compileComponents.bind(TestBed);
-TestBed.compileComponents = function() {
-   return Promise.resolve(_originalCompileComponents()).then(() => {
-      if(_configuredModuleDefs.length > 0) {
-         _patchKnownCircularDeps();
-      }
-
-      while(_configuredModuleDefs.length > 0) {
-         _scrubTestingModuleDef(_configuredModuleDefs.shift());
-      }
-   });
-} as typeof TestBed.compileComponents;
-
-const _originalResetTestingModule = TestBed.resetTestingModule.bind(TestBed);
-TestBed.resetTestingModule = function() {
-   _clearConfiguredModuleDefs();
-   return _originalResetTestingModule();
-} as typeof TestBed.resetTestingModule;
-
-afterEach(() => {
-   _clearConfiguredModuleDefs();
-});
 
 // Specific circular-import patches for component pairs where the template uses the missing
 // class directly. The generic placeholder is not sufficient here because templates reference
@@ -259,7 +195,14 @@ afterEach(() => {
 // reference in a closure for lazy resolution of directiveDefs/pipeDefs; reassigning
 // def.dependencies does not affect later component instantiation.
 function _patchCircularDeps(component: any, replacement: any) {
-   const def = _readAngularDef(component, "ɵcmp");
+   // Guard against JIT-mode "not resolved" errors (templateUrl/styleUrls not yet inlined)
+   // that occur when a component isn't in the AOT compilation scope of the current test project.
+   let def: any;
+   try {
+      def = component?.ɵcmp;
+   } catch {
+      return;
+   }
    if (!def) {
       return;
    }
@@ -278,6 +221,8 @@ function _patchCircularDeps(component: any, replacement: any) {
 // VSViewsheet ↔ VSObjectContainer: both components import each other.
 import { VSViewsheet } from "./app/vsobjects/objects/viewsheet/vs-viewsheet.component";
 import { VSObjectContainer } from "./app/vsobjects/objects/vs-object-container.component";
+_patchCircularDeps(VSObjectContainer, VSViewsheet);
+_patchCircularDeps(VSViewsheet, VSObjectContainer);
 
 // VSCalendar ↔ YearCalendar/MonthCalendar: YearCalendar and MonthCalendar import VSCalendar
 // for the SelectionRegions enum, leaving YearCalendar's slot undefined in VSCalendar's deps.
@@ -287,7 +232,12 @@ import { YearCalendar } from "./app/vsobjects/objects/calendar/year-calendar.com
 // VSCalendar's imports list contains both MonthCalendar and YearCalendar; either may be the
 // undefined slot depending on module load order. Iterate over both placements explicitly.
 function _patchVSCalendarDeps() {
-   const def = _readAngularDef(VSCalendar, "ɵcmp");
+   let def: any;
+   try {
+      def = (VSCalendar as any)?.ɵcmp;
+   } catch {
+      return;
+   }
    if (!def) return;
    const raw = typeof def.dependencies === "function" ? def.dependencies() : def.dependencies;
    if (!Array.isArray(raw)) return;
@@ -305,14 +255,9 @@ function _patchVSCalendarDeps() {
       }
    }
 }
-
-function _patchKnownCircularDeps() {
-   _patchCircularDeps(VSObjectContainer, VSViewsheet);
-   _patchCircularDeps(VSViewsheet, VSObjectContainer);
-   _patchVSCalendarDeps();
-   _patchCircularDeps(MonthCalendar, VSCalendar);
-   _patchCircularDeps(YearCalendar, VSCalendar);
-}
+_patchVSCalendarDeps();
+_patchCircularDeps(MonthCalendar, VSCalendar);
+_patchCircularDeps(YearCalendar, VSCalendar);
 
 // NOTE: MSW is intentionally NOT started here for the main portal test suite.
 // Under the old Jest setup, setup-jest.ts (which had MSW) was only wired to
