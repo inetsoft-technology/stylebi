@@ -91,6 +91,11 @@ describe("PresentationThemesViewComponent", () => {
       expect(component.themes[0].id).toBe("theme2");
       expect(component.selectedTheme.id).toBe("theme2");
 
+      // download must target the new id (checked before delete, which clears the selection)
+      const downloadService = TestBed.inject(DownloadService) as any;
+      component.downloadTheme(component.selectedTheme.id);
+      expect(downloadService.download).toHaveBeenCalledWith(expect.stringContaining("theme2"));
+
       // delete must target the new id, not the stale one
       component.deleteTheme(component.selectedTheme.id);
       const deleteReq = http.expectOne("../api/em/settings/presentation/themes/theme2");
