@@ -88,9 +88,7 @@
         flex-direction: column;
 
         .right-button-group {
-          // explicitly fill the pane width so every button shares the same
-          // width; the Material 21 upgrade changed the surrounding flex
-          // structural styles so the group divs no longer stretch implicitly. (Bug #75336)
+          // Material 21 no longer implicitly stretches flex children; set width explicitly. (Bug #75336)
           width: 100%;
           margin-bottom: 2.5em;
 
