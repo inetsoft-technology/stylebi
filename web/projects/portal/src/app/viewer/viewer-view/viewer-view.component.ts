@@ -102,15 +102,17 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
    }
 
    public ngOnInit(): void {
+      // Capture whether we're returning from the binding editor before the async subscribe,
+      // while getCurrentNavigation() is still valid (component activates during navigation).
+      const returnFromEditor = !!this.router.getCurrentNavigation()?.extras.state?.["returnFromEditor"];
+
       this.subscriptions.add(this.route.data.subscribe((data: {
          viewData: ViewData
          principalCommand: SetPrincipalCommand
       }) => {
-         // If a tab for this asset already exists (e.g. returning from binding editor for a
-         // linked/drilled VS), preserve the existing tabs instead of clearing them.
          const existingTab = this.pageTabService.tabs.find(tab => tab.id === data.viewData.assetId);
 
-         if(!existingTab) {
+         if(!existingTab || !returnFromEditor) {
             this.pageTabService.clearTabs();
             const tab: TabInfoModel = {
                id: data.viewData.assetId,
