@@ -62,6 +62,7 @@ import { Worksheet } from "../../data/ws/worksheet";
 import { VSLayoutModel } from "../../data/vs/vs-layout-model";
 import { VSLayoutObjectModel } from "../../data/vs/vs-layout-object-model";
 import { ComposerTabModel } from "../composer-tab-model";
+import { ComposerToolbarComponent } from "./composer-toolbar.component";
 import { TestUtils } from "../../../common/test/test-utils";
 import { makeMocks, renderComponent } from "./composer-toolbar.spec-helpers";
 

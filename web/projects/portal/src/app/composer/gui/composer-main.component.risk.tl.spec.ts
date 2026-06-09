@@ -287,6 +287,11 @@ describe("ComposerMainComponent — openAutoSaveFiles: auto-save sheet creation"
 // ---------------------------------------------------------------------------
 
 describe("ComposerMainComponent — recycleAutoSaveFiles", () => {
+   // NOTE: the autoSaveFiles argument is intentionally not asserted here.
+   // The current implementation (composer-main.component.ts:589-591) ignores it entirely:
+   // it calls getModel with no file list, so ["file1"] is never forwarded to the server.
+   // This test accurately reflects that behaviour. If the server needs the list to know
+   // which files to delete, that is a separate implementation bug to fix.
    it("should call modelService.getModel with the recycle auto-save URL", async () => {
       const { comp, mocks } = await renderComponent();
       mocks.modelService.getModel.mockClear();
