@@ -133,7 +133,7 @@ describe("AiAssistantPanelComponent — ngOnInit: serverState", () => {
       const aiService = makeAiService();
       const health$ = new Subject<boolean>();
       aiService.checkHealth.mockReturnValue(health$);
-      const { fixture, comp } = await renderComponent(aiService);
+      const { comp } = await renderComponent(aiService);
 
       aiService.panelOpen$.next(true);
       health$.next(true);
@@ -146,7 +146,7 @@ describe("AiAssistantPanelComponent — ngOnInit: serverState", () => {
       aiService.loadWebComponentScript.mockRejectedValue(new Error("load failed"));
       const health$ = new Subject<boolean>();
       aiService.checkHealth.mockReturnValue(health$);
-      const { fixture, comp } = await renderComponent(aiService);
+      const { comp } = await renderComponent(aiService);
 
       aiService.panelOpen$.next(true);
       health$.next(true);

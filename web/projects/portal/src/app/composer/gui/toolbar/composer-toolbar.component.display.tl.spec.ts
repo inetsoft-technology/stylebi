@@ -46,20 +46,6 @@
  */
 
 import "@angular/compiler";
-import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { provideHttpClient } from "@angular/common/http";
-import { render } from "@testing-library/angular";
-import { NgbModal, NgbTooltipConfig } from "@ng-bootstrap/ng-bootstrap";
-import { of, Subject } from "rxjs";
-
-import { ModelService } from "../../../widget/services/model.service";
-import { ScaleService } from "../../../widget/services/scale/scale-service";
-import { FullScreenService } from "../../../common/services/full-screen.service";
-import { ComposerToolbarService } from "../composer-toolbar.service";
-import { EventQueueService } from "../vs/event-queue.service";
-import { DropdownObserver } from "../../../widget/services/dropdown-observer.service";
-import { ChatService } from "../../../common/chat/chat.service";
-import { AiAssistantDialogService } from "../../../common/services/ai-assistant-dialog.service";
 import { GuideBounds } from "../../../vsobjects/model/layout/guide-bounds";
 import { PrintLayoutSection } from "../../../vsobjects/model/layout/print-layout-section";
 import { ZoomOptions } from "../../../vsobjects/model/layout/zoom-options";
@@ -68,7 +54,7 @@ import { TabularDataSourceTypeModel } from "../../../../../../shared/util/model/
 import { Viewsheet } from "../../data/vs/viewsheet";
 import { Worksheet } from "../../data/ws/worksheet";
 import { ComposerTabModel } from "../composer-tab-model";
-import { ComposerToolbarComponent } from "./composer-toolbar.component";
+import { makeMocks, renderComponent } from "./composer-toolbar.spec-helpers";
 
 // ---------------------------------------------------------------------------
 // Global setup
@@ -81,84 +67,6 @@ beforeAll(() => {
       addEventListener() {} removeEventListener() {}
    };
 });
-
-function makeMocks() {
-   return {
-      modelService: {
-         getModel: vi.fn(() => of([])),
-         sendModel: vi.fn(() => of({ body: null })),
-         errorHandler: null as any,
-      },
-      modalService: {
-         open: vi.fn().mockReturnValue({
-            result: new Promise<never>((_, reject) => reject("cancel")),
-            componentInstance: {
-               onCommit: { subscribe: vi.fn(() => ({ unsubscribe: vi.fn() })) },
-               onCancel: { subscribe: vi.fn(() => ({ unsubscribe: vi.fn() })) },
-            },
-         }),
-      },
-      fullScreenService: {
-         fullScreenChange: new Subject<void>(),
-         fullScreenMode: false,
-         enterFullScreen: vi.fn(),
-         exitFullScreen: vi.fn(),
-      },
-      composerToolbarService: {
-         jdbcExists: true,
-         sqlEnabled: true,
-         crossJoinEnabled: false,
-      },
-      eventQueueService: { addResizeEvent: vi.fn() },
-      scaleService: {
-         getScale: vi.fn(() => of(1)),
-         setScale: vi.fn(),
-      },
-      chatService: {
-         isChatOngoing: vi.fn(() => false),
-         openSession: vi.fn(),
-      },
-      dropdownObserver: {
-         onDropdownOpened: vi.fn(),
-         onDropdownClosed: vi.fn(),
-      },
-   };
-}
-
-async function renderComponent(
-   componentProperties: Record<string, any> = {},
-   mocks = makeMocks()
-) {
-   const defaultVs = new Viewsheet();
-   defaultVs.localId = 1;
-
-   const result = await render(ComposerToolbarComponent, {
-      componentProperties: {
-         focusedTab: new ComposerTabModel("viewsheet", defaultVs),
-         ...componentProperties,
-      },
-      componentImports: [],
-      componentProviders: [
-         { provide: FullScreenService, useValue: mocks.fullScreenService },
-         { provide: NgbTooltipConfig, useValue: {} },
-      ],
-      providers: [
-         { provide: ModelService, useValue: mocks.modelService },
-         { provide: NgbModal, useValue: mocks.modalService },
-         { provide: EventQueueService, useValue: mocks.eventQueueService },
-         { provide: ComposerToolbarService, useValue: mocks.composerToolbarService },
-         { provide: ScaleService, useValue: mocks.scaleService },
-         { provide: ChatService, useValue: mocks.chatService },
-         { provide: DropdownObserver, useValue: mocks.dropdownObserver },
-         { provide: AiAssistantDialogService, useValue: {} },
-         provideHttpClient(),
-      ],
-      schemas: [NO_ERRORS_SCHEMA],
-   });
-
-   const comp = result.fixture.componentInstance as ComposerToolbarComponent;
-   return { fixture: result.fixture, comp, mocks };
-}
 
 afterEach(() => {
    vi.restoreAllMocks();
