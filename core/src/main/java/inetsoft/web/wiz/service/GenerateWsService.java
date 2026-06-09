@@ -135,7 +135,7 @@ public class GenerateWsService {
          // Callers (e.g. WizVsService) bind to the primary assembly name returned in
          // the response, so downstream VS bindings remain consistent with the last request.
          dashWS.setPrimaryAssembly(finalTableName);
-         layoutGraph(dashWS);
+         WsServiceHelper.layoutGraph(layoutGraphService, dashWS);
          viewsheetService.getAssetRepository().setSheet(existingEntry, dashWS, user, true);
          generateWsResponse.setWsId(existingEntry.toIdentifier());
          generateWsResponse.setPrimaryTableFields(extractPrimaryTableFields(dashWS, table, model));
@@ -143,8 +143,8 @@ public class GenerateWsService {
       else {
          // New worksheet path
          worksheet.setPrimaryAssembly(table.getName());
-         layoutGraph(worksheet);
-         AssetEntry assetEntry = persistWorksheet(worksheet, user);
+         WsServiceHelper.layoutGraph(layoutGraphService, worksheet);
+         AssetEntry assetEntry = WsServiceHelper.persistWorksheet(viewsheetService, worksheet, user);
          generateWsResponse.setWsId(assetEntry.toIdentifier());
          generateWsResponse.setPrimaryTableFields(extractPrimaryTableFields(worksheet, table, model));
       }
@@ -217,7 +217,7 @@ public class GenerateWsService {
             worksheet.addAssembly(joinTable);
 
             innerJoinService.editExistingJoinTable(worksheet, joinTable, noperator, true);
-            initCompositeTableAssemblyColumnSelection(joinTable);
+            WsServiceHelper.initCompositeColumnSelection(joinTable);
             applyFieldVisibility(joinTable, fields);
             table = joinTable;
          }
@@ -441,49 +441,6 @@ public class GenerateWsService {
       return alias != null ? alias : key;
    }
 
-   private AssetEntry persistWorksheet(Worksheet worksheet, Principal user) throws Exception {
-      AssetRepository repo = viewsheetService.getAssetRepository();
-      AssetEntry folder = new AssetEntry(
-         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.FOLDER, WORKSHEET_ROOT_FOLDER_PATH, null);
-
-      if(!repo.containsEntry(folder)) {
-         try {
-            repo.addFolder(folder, user);
-         }
-         catch(Exception e) {
-            if(!repo.containsEntry(folder)) {
-               throw e;
-            }
-         }
-      }
-
-      IdentityID pId = IdentityID.getIdentityIDFromKey(user.getName());
-      String path = WORKSHEET_ROOT_FOLDER_PATH + "/" + UUID.randomUUID();
-      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, path, pId);
-      viewsheetService.setWorksheet(worksheet, entry, user, true, true);
-      return entry;
-   }
-
-   private void layoutGraph(Worksheet worksheet) throws Exception {
-      WSLayoutGraphEvent.Builder builder = new WSLayoutGraphEvent.Builder();
-      Assembly[] assemblies = worksheet.getAssemblies();
-      int[] heights = new int[assemblies.length];
-      int[] widths = new int[assemblies.length];
-      String[] tables = new String[assemblies.length];
-
-      for(int i = 0; i < assemblies.length; i++) {
-         Assembly assembly = assemblies[i];
-         heights[i] = 62;
-         widths[i] = 150;
-         tables[i] = assembly.getName();
-      }
-
-      builder.heights(heights);
-      builder.widths(widths);
-      builder.names(tables);
-      layoutGraphService.layoutGraph(worksheet, builder.build());
-   }
-
    private TableAssemblyOperator.Operator createJoinOperator(Worksheet worksheet, WorksheetConstructionModel.JoinPath joinPath,
                                                              List<WorksheetConstructionModel.QueryField> allFields) throws Exception
    {
@@ -522,7 +479,7 @@ public class GenerateWsService {
       tableMapping.put(getTableInfoKey(tableSetOperation.getRightTable()), tableName);
       ConcatenatedTableAssembly table = new ConcatenatedTableAssembly(worksheet, tableName,
                                                                       new TableAssembly[]{ leftTable, rightTable }, new TableAssemblyOperator[]{ tableAssemblyOperator });
-      initCompositeTableAssemblyColumnSelection(table);
+      WsServiceHelper.initCompositeColumnSelection(table);
 
       return table;
 
@@ -547,35 +504,9 @@ public class GenerateWsService {
       tableMapping.put(getTableInfoKey(joinPath.getLeftTable()), tableName);
       tableMapping.put(getTableInfoKey(joinPath.getRightTable()), tableName);
       RelationalJoinTableAssembly table = new RelationalJoinTableAssembly(worksheet, tableName, new TableAssembly[]{ leftTable, rightTable }, operators);
-      initCompositeTableAssemblyColumnSelection(table);
+      WsServiceHelper.initCompositeColumnSelection(table);
 
       return table;
-   }
-
-   private void initCompositeTableAssemblyColumnSelection(CompositeTableAssembly compositeTableAssembly) {
-      if(compositeTableAssembly == null) {
-         return;
-      }
-
-      ColumnSelection columnSelection = new ColumnSelection();
-      TableAssembly[] tableAssemblies = compositeTableAssembly.getTableAssemblies();
-
-      for(TableAssembly tableAssembly : tableAssemblies) {
-         ColumnSelection baseColumnSelection = tableAssembly.getColumnSelection(true);
-
-         for(int i = 0; i < baseColumnSelection.getAttributeCount(); i++) {
-            DataRef attribute = baseColumnSelection.getAttribute(i);
-            String alias = attribute instanceof ColumnRef colRef ? colRef.getAlias() : null;
-            String colName = alias != null ? alias : attribute.getAttribute();
-            AttributeRef attributeRef = new AttributeRef(tableAssembly.getName(), colName);
-            attributeRef.setDataType(attribute.getDataType());
-            ColumnRef col = new ColumnRef(attributeRef);
-            col.setVisible(needAddColumn(compositeTableAssembly, columnSelection, tableAssembly.getName(), colName));
-            columnSelection.addAttribute(col);
-         }
-      }
-
-      compositeTableAssembly.setColumnSelection(columnSelection, false);
    }
 
    /**
@@ -610,35 +541,6 @@ public class GenerateWsService {
       }
 
       compositeTable.setColumnSelection(columnSelection, false);
-   }
-
-   private boolean needAddColumn(CompositeTableAssembly compositeTableAssembly, ColumnSelection columnSelection, String tableName, String column) {
-      if(compositeTableAssembly instanceof RelationalJoinTableAssembly joinTableAssembly) {
-         if(columnSelection.getAttribute(column) == null) {
-            return true;
-         }
-
-         Enumeration<TableAssemblyOperator> operators = joinTableAssembly.getOperators();
-
-         while(operators.hasMoreElements()) {
-            TableAssemblyOperator tableOperator = operators.nextElement();
-
-            for(TableAssemblyOperator.Operator operator : tableOperator.getOperators()) {
-               if(Tool.equals(operator.getLeftAttribute(), operator.getRightAttribute()) &&
-                  (Tool.equals(tableName, operator.getLeftTable()) || Tool.equals(tableName, operator.getRightTable())) &&
-                  (operator.getOperation() == TableAssemblyOperator.INNER_JOIN ||
-                     operator.getOperation() == TableAssemblyOperator.RIGHT_JOIN ||
-                     operator.getOperation() == TableAssemblyOperator.LEFT_JOIN ||
-                     operator.getOperation() == TableAssemblyOperator.FULL_JOIN))
-               {
-                  return false;
-               }
-            }
-
-         }
-      }
-
-      return true;
    }
 
    private String getTableInfoKey(WorksheetConstructionModel.TableInfo tableInfo) {
@@ -823,7 +725,7 @@ public class GenerateWsService {
 
                if(osiField.isPresent()) {
                   fieldName = osiField.get().getName();
-                  colType = extractFieldType(osiField.get());
+                  colType = WsServiceHelper.extractFieldType(objectMapper, osiField.get());
                }
             }
          }
@@ -1275,32 +1177,6 @@ public class GenerateWsService {
    }
 
    /**
-    * Extracts the column type string from an OsiField's custom extension JSON.
-    * Returns null if the type cannot be determined.
-    */
-   private String extractFieldType(OsiField osiField) {
-      if(osiField.getCustomExtensions() == null) {
-         return null;
-      }
-
-      for(OsiCustomExtension ext : osiField.getCustomExtensions()) {
-         if("COMMON".equals(ext.getVendorName()) && ext.getData() != null) {
-            try {
-               @SuppressWarnings("unchecked")
-               Map<String, Object> data = objectMapper.readValue(ext.getData(), Map.class);
-               Object type = data.get("type");
-               return type != null ? type.toString() : null;
-            }
-            catch(Exception e) {
-               // ignore parse errors
-            }
-         }
-      }
-
-      return null;
-   }
-
-   /**
     * Extract all columns from the primary table assembly into a flat list.
     * <p>
     * {@link WorksheetColumnInfo} semantics:
@@ -1393,8 +1269,8 @@ public class GenerateWsService {
                catalog = si != null && si.getProperty(SourceInfo.CATALOG) != null ? si.getProperty(SourceInfo.CATALOG) : "";
 
                // Resolve worksheetColName back to the underlying DB column name.
-               // In initCompositeTableAssemblyColumnSelection the join column attribute was set to
-               // the base column's alias (if any) or its attribute. Reverse-map that here.
+               // In WsServiceHelper.initCompositeColumnSelection the join column attribute was set
+               // to the base column's alias (if any) or its attribute. Reverse-map that here.
                ColumnSelection subCS = subPhys.getColumnSelection(true);
 
                for(int j = 0; j < subCS.getAttributeCount(); j++) {
