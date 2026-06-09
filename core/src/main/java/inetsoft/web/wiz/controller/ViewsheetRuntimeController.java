@@ -67,10 +67,12 @@ public class ViewsheetRuntimeController {
 
       String path = entry.getPath();
 
-      // Saved wiz visualizations live under VISUALIZATION_COMPONENTS_FOLDER_PATH (where save/list/tree
-      // persist them) — not the ROOT folder. The guard was checking the wrong constant, rejecting
-      // every saved chart.
-      if(path == null || !path.startsWith(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/")) {
+      // VISUALIZATION_ROOT_FOLDER_PATH holds the viewsheets used by wiz session messages.
+      // VISUALIZATION_COMPONENTS_FOLDER_PATH holds standalone saved visualizations that are
+      // visible in the Wiz Portal Visualizations tab and can be combined into a Dashboard.
+      // This endpoint opens session viewsheets, so the guard must check
+      // VISUALIZATION_ROOT_FOLDER_PATH, not VISUALIZATION_COMPONENTS_FOLDER_PATH.
+      if(path == null || !path.startsWith(WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/")) {
          throw new IllegalArgumentException(
             "Viewsheet is not in the managed visualizations folder: " + path);
       }
