@@ -277,7 +277,7 @@
 ### RadiusDropdown
 
 **Pass 1** (`RadiusDropdown.interaction.tl.spec.ts`)
-- Methods: radius, disabled, max, initForm, updateRadiusStatus
+- Methods: radius, disabled, max, updateRadiusStatus
 - Reason: 回归主体：navigation / HTTP loading / lifecycle / user flows
 
 **Pass 2** (`RadiusDropdown.risk.tl.spec.ts`)

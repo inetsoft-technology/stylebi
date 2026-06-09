@@ -8,7 +8,7 @@
 
 **Tech Stack:** Angular Testing Library (`@testing-library/angular`), MSW (`msw`), Vitest, Angular 21 standalone components, TypeScript
 
-**Working directory for all commands:** `community/web/`
+**Working directory for all commands:** `web/`
 
 ---
 
@@ -216,7 +216,7 @@ return { report, results: valid }
 - Angular Material 组件（`mat-*`）
 - `logic_lines < 50 AND async_zones = 0 AND dispatch_points = 0` 的纯展示组件
 
-将每个候选组件的**相对于 `community/web/` 的路径**写入文件，每行一个：
+将每个候选组件的**相对于 `web/` 的路径**写入文件，每行一个：
 
 ```
 # /composer route candidates — YYYY-MM-DD
