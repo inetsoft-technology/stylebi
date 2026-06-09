@@ -21,6 +21,7 @@ package inetsoft.web.wiz.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.*;
 import inetsoft.util.Tool;
