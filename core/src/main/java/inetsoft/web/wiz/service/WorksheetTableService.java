@@ -661,7 +661,15 @@ public class WorksheetTableService {
       List<Integer> ops = mapOperation(item.getOperation(), item.getEqual());
       String dataType = ref.getDataType() != null ? ref.getDataType() : XSchema.STRING;
 
+      boolean firstOp = true;
+
       for(int op : ops) {
+         if(!firstOp) {
+            // LESS_THAN/GREATER_THAN with equal=true expand to two ops joined by OR (e.g. < OR =).
+            list.append(new JunctionOperator(JunctionOperator.OR, item.getConditionLevel()));
+         }
+
+         firstOp = false;
          AssetCondition ac = new AssetCondition();
          ac.setOperation(op);
          ac.setType(dataType);
@@ -731,11 +739,9 @@ public class WorksheetTableService {
          }
 
          case "FIELD" -> {
-            // Comparing against another column in the same table.
-            // Represented as a JavaScript expression: field['columnName']
             ExpressionValue ev = new ExpressionValue();
-            String fieldName = v.getValue() != null ? v.getValue().toString() : "";
-            ev.setExpression("field['" + fieldName + "']");
+            String expressoin = v.getValue() != null ? v.getValue().toString() : "";
+            ev.setExpression(expressoin);
             ev.setType(ExpressionValue.JAVASCRIPT);
             condition.addValue(ev);
          }
