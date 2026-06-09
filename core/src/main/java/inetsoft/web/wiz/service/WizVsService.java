@@ -112,8 +112,10 @@ public class WizVsService {
 
          final Viewsheet targetVs;
          final VSAssembly assembly;
-         // Tracks the assembly displaced from primary in modificationOnly; restored on rollback.
+         // Tracks the assembly displaced from primary in the standard path; restored on rollback.
          VSAssembly previousPrimaryAssembly = null;
+         // In modificationOnly (in-place filter), the assembly's prior condition, restored on rollback.
+         ConditionList previousCondition = null;
          // Only relevant for the incremental standard path (non-null when base entry may be mutated).
          AssetEntry previousBaseEntry = null;
          boolean modificationOnly = model.getConfig() == null && model.getPrimaryAssembly() == null
@@ -133,14 +135,16 @@ public class WizVsService {
             if(sourceAssembly instanceof DataVSAssembly dataAsm) {
                SourceInfo srcInfo = dataAsm.getSourceInfo();
                wsTableName = srcInfo != null ? srcInfo.getSource() : null;
+               // Snapshot the existing condition so a failure can roll back the in-place change.
+               previousCondition = dataAsm.getPreConditionList() != null
+                  ? dataAsm.getPreConditionList().clone() : null;
             }
 
-            String newName = uniqueAssemblyName(targetVs, sourceAssembly.getName());
-            assembly = sourceAssembly.copyAssembly(newName);
-            previousPrimaryAssembly = sourceAssembly;
-            sourceAssembly.setPrimary(false);
-            targetVs.addAssembly(assembly);
-            assembly.setPrimary(true);
+            // Apply the filter to the EXISTING primary assembly in place — keep its name and
+            // identity. Copying to a unique "<name>_1" assembly (the old behavior) broke
+            // save_viewsheet: save loads the persisted viewsheet and looks the assembly up by name,
+            // so it never found the renamed copy, and every filter call churned a new assembly.
+            assembly = sourceAssembly;
          }
          else {
             SourceContext ctx = resolveSourceContext(model, user);
@@ -320,20 +324,27 @@ public class WizVsService {
             }
 
             if(!createdRuntimeId) {
-               // In incremental mode targetVs == previousVs; remove the new assembly and
-               // restore any displaced primary to leave the viewsheet in its pre-call state.
-               previousVs.removeAssembly(assembly.getName());
-
-               if(previousPrimaryAssembly != null) {
-                  previousPrimaryAssembly.setPrimary(true);
-
-                  // Re-add the old primary if it was removed by the skipExecution path.
-                  if(removedPreviousPrimary) {
-                     previousVs.addAssembly(previousPrimaryAssembly);
+               if(modificationOnly) {
+                  // In-place filter: restore the assembly's prior condition rather than removing
+                  // the (existing) assembly, which was mutated, not added, this call.
+                  if(assembly instanceof DataVSAssembly dataAsm) {
+                     dataAsm.setPreConditionList(previousCondition);
                   }
                }
+               else {
+                  // In incremental mode targetVs == previousVs; remove the new assembly and
+                  // restore any displaced primary to leave the viewsheet in its pre-call state.
+                  previousVs.removeAssembly(assembly.getName());
 
-               if(!modificationOnly) {
+                  if(previousPrimaryAssembly != null) {
+                     previousPrimaryAssembly.setPrimary(true);
+
+                     // Re-add the old primary if it was removed by the skipExecution path.
+                     if(removedPreviousPrimary) {
+                        previousVs.addAssembly(previousPrimaryAssembly);
+                     }
+                  }
+
                   previousVs.setBaseEntry(previousBaseEntry);
                }
             }
