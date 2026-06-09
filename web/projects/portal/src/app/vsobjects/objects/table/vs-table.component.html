@@ -180,20 +180,22 @@
                       outOfZone (onDragover)="dragOverTable($event, j)"
                       (drop)="dropOnTable($event)"
                       [draggable]="isDraggable(true)" (dragstart)="dragStart($event, j)">
-                      @if (isHeaderSortEnabled() && !vsWizard) {
-                        <i sortButton
-                          [class.col-sorted]="isHeaderSortVisible(_cell)"
-                          [class.sort-ascending-icon]="isSorted(_cell.col, 'asc')"
-                          [class.sort-descending-icon]="isSorted(_cell.col, 'desc')"
-                          [class.sort-icon]="isSorted(_cell.col, 'none')"
-                          class="sort-button vs-header-cell-button-sort hover-bg-secondary" aria-hidden="true"
-                          title="_#(viewer.viewsheet.table.sortColumn)"
-                          (click)="sortColumn($event, _cell)">
-                          @if (displaySortNumber(_cell) > 0) {
-                            <label class="sort-number">{{displaySortNumber(_cell)}}</label>
-                          }
-                        </i>
-                      }
+                      <ng-container ngProjectAs="[sortButton]">
+                        @if (isHeaderSortEnabled() && !vsWizard) {
+                          <i sortButton
+                            [class.col-sorted]="isHeaderSortVisible(_cell)"
+                            [class.sort-ascending-icon]="isSorted(_cell.col, 'asc')"
+                            [class.sort-descending-icon]="isSorted(_cell.col, 'desc')"
+                            [class.sort-icon]="isSorted(_cell.col, 'none')"
+                            class="sort-button vs-header-cell-button-sort hover-bg-secondary" aria-hidden="true"
+                            title="_#(viewer.viewsheet.table.sortColumn)"
+                            (click)="sortColumn($event, _cell)">
+                            @if (displaySortNumber(_cell) > 0) {
+                              <label class="sort-number">{{displaySortNumber(_cell)}}</label>
+                            }
+                          </i>
+                        }
+                      </ng-container>
                       <div class="chip" title="_#(Chip)"></div>
                     </td>
                   }
