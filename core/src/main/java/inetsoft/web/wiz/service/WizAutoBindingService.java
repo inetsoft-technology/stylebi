@@ -24,6 +24,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.graph.aesthetic.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.ColorPalettes;
@@ -167,6 +168,17 @@ public class WizAutoBindingService {
 
          VSChartInfo tempChartInfo = tempInfo.getTempChart().getVSChartInfo();
          applyFieldConfigs(tempChartInfo, configMap);
+
+         // Tag geographic columns (country/state/city) on the temp chart BEFORE recommending, so the
+         // recommender's MapChartFilter can see them and offer a map. The interactive wizard does
+         // this (VSWizardBindingService.setDefaultGeoColumns) and addChartVSAssembly sets it on the
+         // final assembly, but the recommendation here ran without it — so 'map' was always filtered
+         // out as infeasible for the plugin path.
+         SourceInfo geoSource = tempInfo.getTempChart().getSourceInfo();
+
+         if(geoSource != null) {
+            VSUtil.setDefaultGeoColumns(tempChartInfo, rvs, geoSource.getSource());
+         }
 
          String vizType = request.getVisualizationType();
          List<ExplicitBinding> explicitBindings = request.getExplicitBindings();
