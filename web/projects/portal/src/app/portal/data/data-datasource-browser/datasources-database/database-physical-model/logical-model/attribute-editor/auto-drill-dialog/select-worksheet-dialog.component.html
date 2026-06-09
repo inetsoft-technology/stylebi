@@ -18,7 +18,7 @@
 <modal-header [title]="'_#(Query Selection)'" [cshid]="'AutoDrill'" (onCancel)="cancel()">
 </modal-header>
 <div class="modal-body select-worksheet-dialog" enterSubmit (onEnter)="ok()" (onEsc)="cancel()">
-  <fieldset>
+  <fieldset class="select-worksheet-dialog__section">
     <legend>
       <div class="select-worksheet-legend">
         _#(Select a Worksheet)
@@ -42,13 +42,19 @@
       </legend>
       <div class="parameter-content select-worksheet-dialog__parameter-content">
         @for (param of queryParams; track param; let i = $index) {
-          <div #dropdownBody class="field-combo" [class.form-group]="i != queryParams.length - 1">
+          <div #dropdownBody class="field-combo" [class.shell-form-group]="i != queryParams.length - 1">
             <div #dropDownToggle class="field-combo-toggle custom-select-trigger form-floating form-control no-caret"
+              [class.field-combo-toggle--open]="dropdownOpenState[param]"
               [fixedDropdown]="dropdownMenu" [autoClose]="closeMenu"
-              dropdownPlacement="bottom">
+              dropdownPlacement="bottom"
+              (openChange)="setDropdownOpenState(param, $event)">
               <div class="field-combo-text custom-select-trigger__text select-worksheet-dialog__field-text">
                 {{getSelectedParamVal(param)}}&nbsp;
               </div>
+              <i class="field-combo-caret custom-select-trigger__icon dropdown-caret icon-color-default"
+                 [class.chevron-down-icon]="!dropdownOpenState[param]"
+                 [class.chevron-up-icon]="dropdownOpenState[param]"
+                 aria-hidden="true"></i>
               <label class="base-font-size"><span>{{param}}</span></label>
             </div>
           </div>

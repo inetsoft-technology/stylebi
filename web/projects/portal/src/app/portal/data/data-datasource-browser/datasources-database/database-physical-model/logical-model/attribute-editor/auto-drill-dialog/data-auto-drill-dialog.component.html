@@ -83,7 +83,7 @@
                   [ngModelOptions]="{standalone: true}">
                 <label><span>_#(Tooltip)</span></label>
               </div>
-              <div class="form-group">
+              <div class="shell-form-group">
                 <div class="form-check form-check-inline">
                   <input class="form-check-input" type="radio" id="assetLink"
                     [ngModel]="editDrill.linkType"
@@ -116,7 +116,7 @@
                 </div>
               }
               @if (editDrill.linkType !== LinkType.WEB_LINK) {
-                <div class="form-group">
+                <div class="shell-form-group">
                   <div #dropdown="ngbDropdown" ngbDropdown [autoClose]="'outside'">
                     <div class="form-floating">
                       <input ngbDropdownToggle type="text" readonly
@@ -158,7 +158,7 @@
                 </div>
                 <label><span>_#(Target Frame)</span></label>
               </div>
-              <div class="form-group">
+              <div class="shell-form-group">
                 <div class="input-group">
                   <div class="form-floating">
                     <input type="text" class="form-control" [ngModel]="getDrillWorksheet()"
@@ -171,7 +171,7 @@
                   </button>
                 </div>
               </div>
-              <div class="form-group">
+              <div class="shell-form-group">
                 <div class="form-check">
                   <input type="checkbox" class="form-check-input"
                     [(ngModel)]="editDrill.passParams"
@@ -181,7 +181,7 @@
                   </label>
                 </div>
               </div>
-              <div class="form-group">
+              <div class="shell-form-group">
                 <div class="form-check">
                   <input type="checkbox" class="form-check-input"
                     [(ngModel)]="editDrill.disablePrompting"
@@ -191,7 +191,7 @@
                   </label>
                 </div>
               </div>
-              <div class="form-group">
+              <div class="shell-form-group">
                 <div class="card parameter-list">
                   <div class="card-header d-flex justify-content-between align-items-center">
                     <span>_#(Parameters)</span>

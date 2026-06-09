@@ -32,7 +32,7 @@ import { DataSourcesTreeViewComponent } from "./data-navigation-tree/data-source
     selector: "p-data-tab",
     templateUrl: "./data-tab.component.html",
     styleUrls: ["./data-tab.component.scss"],
-    providers: [RepositoryClientService],
+    providers: [RepositoryClientService, DataDetailsPaneService],
     imports: [SplitPane, DataSourcesTreeViewComponent, RouterOutlet]
 })
 export class DataTabComponent implements AfterViewInit, OnInit, OnDestroy {

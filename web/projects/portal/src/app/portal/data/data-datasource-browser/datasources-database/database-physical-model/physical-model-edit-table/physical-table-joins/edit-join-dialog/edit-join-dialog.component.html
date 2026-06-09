@@ -43,7 +43,7 @@
             <label>_#(Join Type)</label>
           </div>
           @if (dataType == 'physical') {
-            <div class="form-group">
+            <div class="shell-form-group">
               <div class="form-floating">
                 <number-stepper #orderPriorityCtrl="ngModel"
                               name="orderPriority"
@@ -89,7 +89,7 @@
                 </label>
               </div>
             </div>
-            <div class="form-group">
+            <div class="shell-form-group">
               <div class="font-weight-bold">_#(Cardinality):</div>
               <div class="join-properties__choice-row">
                 <label class="join-properties__choice-label">
@@ -143,7 +143,7 @@
 </div>
 <div class="modal-footer">
   @if (removeEnabled) {
-    <button type="button" class="btn btn-primary" (click)="remove()">_#(Remove)</button>
+    <button type="button" class="btn btn-secondary join-dialog__remove-btn" (click)="remove()">_#(Remove)</button>
   }
   <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="okDisabled">_#(OK)</button>
   <button type="button" class="btn btn-secondary" (click)="cancel()">_#(Cancel)</button>

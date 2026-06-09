@@ -21,13 +21,14 @@ import { ActivatedRoute, Router } from "@angular/router";
 import { map, withLatestFrom } from "rxjs/operators";
 import { Subscription } from "rxjs";
 import { ExpandStringDirective } from "../../../widget/expand-string/expand-string.directive";
+import { EnterClickDirective } from "../../../widget/directive/enter-click.directive";
 
 
 @Component({
     selector: "welcome-page",
     templateUrl: "./welcome-page.component.html",
     styleUrls: ["./welcome-page.component.scss"],
-    imports: [ExpandStringDirective]
+    imports: [ExpandStringDirective, EnterClickDirective]
 })
 export class WelcomePageComponent implements OnInit, OnDestroy {
    @Input() welcomePageUri: string;

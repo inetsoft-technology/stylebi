@@ -20,54 +20,64 @@
   (onCancel)="cancel()">
 </modal-header>
 <div class="modal-body">
-  <form #joinForm="ngForm">
-    <div class="form-group form-floating">
-      <custom-select #selectFocus #columnCtrl="ngModel"
-                         name="column"
-                         [invalid]="columnCtrl.invalid"
-                         [options]="columnSelectOptions"
-                         [(ngModel)]="join.column"
-                         (selectionChange)="joinSelectionChanged()"
-                         required>
-          </custom-select>
-      <label>_#(Column)</label>
-      @if (columnCtrl.invalid) {
-        <span class="invalid-feedback">_#(data.physicalmodel.columnRequired)
-        </span>
-      }
+  <div class="join-dialog__intro">
+    _#(Choose the source and target columns to define a relationship between these tables.)
+  </div>
+  <div class="join-properties">
+    <div class="join-properties__header">
+      <div class="join-properties__title">
+        _#(Join) _#(Properties)
+      </div>
     </div>
-    <div class="form-group form-floating">
-      <custom-select #foreignTableCtrl="ngModel"
-                         name="foreignTable"
-                         [invalid]="foreignTableCtrl.invalid"
-                         [options]="foreignTableSelectOptions"
-                         [(ngModel)]="join.foreignTable"
-                         (selectionChange)="joinSelectionChanged(true)"
-                         required>
-          </custom-select>
-      <label>_#(data.physicalmodel.foreignTable)</label>
-      @if (foreignTableCtrl.invalid) {
-        <span class="invalid-feedback">
-          _#(data.physicalmodel.foreignTableRequired)
-        </span>
-      }
-    </div>
-    <div class="form-group form-floating">
-      <custom-select #foreignColumnCtrl="ngModel"
-                         name="foreignColumn"
-                         [invalid]="foreignColumnCtrl.invalid"
-                         [options]="foreignColumnSelectOptions"
-                         [(ngModel)]="join.foreignColumn"
-                         required>
-          </custom-select>
-      <label>_#(data.physicalmodel.foreignColumn)</label>
-      @if (foreignColumnCtrl.invalid) {
-        <span class="invalid-feedback">
-          _#(data.physicalmodel.foreignColumnRequired)
-        </span>
-      }
-    </div>
-  </form>
+    <form #joinForm="ngForm" class="join-dialog__form">
+      <div class="shell-form-group form-floating">
+        <custom-select #selectFocus #columnCtrl="ngModel"
+                           name="column"
+                           [invalid]="columnCtrl.invalid"
+                           [options]="columnSelectOptions"
+                           [(ngModel)]="join.column"
+                           (selectionChange)="joinSelectionChanged()"
+                           required>
+            </custom-select>
+        <label>_#(Column)</label>
+        @if (columnCtrl.invalid) {
+          <span class="invalid-feedback">_#(data.physicalmodel.columnRequired)
+          </span>
+        }
+      </div>
+      <div class="shell-form-group form-floating">
+        <custom-select #foreignTableCtrl="ngModel"
+                           name="foreignTable"
+                           [invalid]="foreignTableCtrl.invalid"
+                           [options]="foreignTableSelectOptions"
+                           [(ngModel)]="join.foreignTable"
+                           (selectionChange)="joinSelectionChanged(true)"
+                           required>
+            </custom-select>
+        <label>_#(data.physicalmodel.foreignTable)</label>
+        @if (foreignTableCtrl.invalid) {
+          <span class="invalid-feedback">
+            _#(data.physicalmodel.foreignTableRequired)
+          </span>
+        }
+      </div>
+      <div class="shell-form-group form-floating">
+        <custom-select #foreignColumnCtrl="ngModel"
+                           name="foreignColumn"
+                           [invalid]="foreignColumnCtrl.invalid"
+                           [options]="foreignColumnSelectOptions"
+                           [(ngModel)]="join.foreignColumn"
+                           required>
+            </custom-select>
+        <label>_#(data.physicalmodel.foreignColumn)</label>
+        @if (foreignColumnCtrl.invalid) {
+          <span class="invalid-feedback">
+            _#(data.physicalmodel.foreignColumnRequired)
+          </span>
+        }
+      </div>
+    </form>
+  </div>
 </div>
 <div class="modal-footer">
   <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="joinForm.invalid">_#(OK)

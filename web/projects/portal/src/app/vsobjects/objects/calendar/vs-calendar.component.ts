@@ -86,6 +86,15 @@ export enum SelectionRegions {
 const FORMATE_SELECTED_STRING = "../api/calendar/formatdates";
 const FORMATE_CALENDAR_TITLE = "../api/calendar/formatTitle";
 
+interface CalendarSelectionSource {
+   getSelectionString(minimum?: boolean, previousSelection?: string): string;
+}
+
+function isCalendarSelectionSource(calendar: unknown): calendar is CalendarSelectionSource {
+   return !!calendar &&
+      typeof (calendar as CalendarSelectionSource).getSelectionString === "function";
+}
+
 @Component({
     selector: "vs-calendar",
     templateUrl: "vs-calendar.component.html",
@@ -324,7 +333,9 @@ export class VSCalendar extends NavigationComponent<VSCalendarModel>
       let selection1: string;
       let selection2: string;
 
-      if(this._model.doubleCalendar && this.calendar2) {
+      if(this._model.doubleCalendar && isCalendarSelectionSource(this.calendar1) &&
+         isCalendarSelectionSource(this.calendar2))
+      {
          if(this._model.period) {
             selection1 = this.calendar1.getSelectionString();
             selection2 = this.calendar2.getSelectionString();
@@ -350,7 +361,7 @@ export class VSCalendar extends NavigationComponent<VSCalendarModel>
             }
          }
       }
-      else if(!!this.calendar1) {
+      else if(isCalendarSelectionSource(this.calendar1)) {
          selectionString = this.calendar1.getSelectionString();
       }
 

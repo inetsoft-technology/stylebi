@@ -35,6 +35,7 @@ import { MatMiniFabButton, MatIconButton } from "@angular/material/button";
 import { FormsModule } from "@angular/forms";
 import { MatCheckbox } from "@angular/material/checkbox";
 import { MatCard, MatCardTitle, MatCardContent, MatCardSubtitle } from "@angular/material/card";
+import { PortalTabs } from "../../../../../../portal/src/app/portal/portal-tab";
 
 
 @Searchable({
@@ -63,13 +64,27 @@ export class PortalIntegrationViewComponent {
    constructor(private dialog: MatDialog) {
    }
 
+   get leftNavTabs(): Array<{tab: PortalTabModel, modelIndex: number}> {
+      return (this.model?.tabs || [])
+         .map((tab, i) => ({tab, modelIndex: i}))
+         .filter(({tab}) => !this.isDataTab(tab));
+   }
+
+   get dataTab(): {tab: PortalTabModel, modelIndex: number} | null {
+      const i = (this.model?.tabs || []).findIndex(t => this.isDataTab(t));
+      return i >= 0 ? {tab: this.model.tabs[i], modelIndex: i} : null;
+   }
+
    moveUpDisabled(index: number): boolean {
-      return index == 0 || this.model.tabs[index].editable && !this.model.tabs[index - 1].editable;
+      const previousTab = this.model.tabs[index - 1];
+      return index == 0 ||
+         this.model.tabs[index].editable && !previousTab.editable && !this.isDataTab(previousTab);
    }
 
    moveDownDisabled(index: number): boolean {
       return index == this.model.tabs.length - 1 ||
-         !this.model.tabs[index].editable && this.model.tabs[index + 1].editable;
+         !this.model.tabs[index].editable && this.model.tabs[index + 1].editable ||
+         this.isDataTab(this.model.tabs[index + 1]);
    }
 
    moveUp(index: number) {
@@ -126,5 +141,9 @@ export class PortalIntegrationViewComponent {
          modelType: PresentationSettingsType.PORTAL_INTEGRATION_SETTINGS_MODEL,
          valid: true
       });
+   }
+
+   private isDataTab(tab?: PortalTabModel): boolean {
+      return tab?.name === PortalTabs.DATA;
    }
 }
