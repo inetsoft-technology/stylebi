@@ -22,6 +22,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.WizUtil;
@@ -453,9 +454,58 @@ public class WizVisualizationService {
                }
             }
          }
+
+         // Push any tables referenced by subquery conditions (e.g. CustomerCatAgg's
+         // pre-condition uses AllCatCount in a subquery, which is not captured by getTableNames()).
+         if(a instanceof TableAssembly tableAssembly) {
+            pushSubqueryTables(tableAssembly, stack);
+         }
       }
 
       return required;
+   }
+
+   /**
+    * Scans all condition lists on the given table assembly and pushes any worksheet table
+    * names referenced by {@link SubQueryValue} conditions onto the traversal stack.
+    */
+   private static void pushSubqueryTables(TableAssembly tableAssembly, Deque<String> stack) {
+      ConditionListWrapper[] wrappers = {
+         tableAssembly.getPreConditionList(),
+         tableAssembly.getPostConditionList(),
+         tableAssembly.getRankingConditionList()
+      };
+
+      for(ConditionListWrapper wrapper : wrappers) {
+         if(wrapper == null || wrapper.isEmpty()) {
+            continue;
+         }
+
+         for(int i = 0; i < wrapper.getConditionSize(); i++) {
+            if(!wrapper.isConditionItem(i)) {
+               continue;
+            }
+
+            ConditionItem item = wrapper.getConditionItem(i);
+            XCondition xCond = item.getXCondition();
+
+            if(!(xCond instanceof AssetCondition assetCond)) {
+               continue;
+            }
+
+            for(int j = 0; j < assetCond.getValueCount(); j++) {
+               Object value = assetCond.getValue(j);
+
+               if(value instanceof SubQueryValue subQuery) {
+                  String subTable = subQuery.getQuery();
+
+                  if(!Tool.isEmptyString(subTable)) {
+                     stack.push(subTable);
+                  }
+               }
+            }
+         }
+      }
    }
 
    /**

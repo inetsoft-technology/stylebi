@@ -133,6 +133,14 @@ public class AutoBindingRequest {
       this.visualizationUsedFields = visualizationUsedFields;
    }
 
+   public String getWsTableName() {
+      return wsTableName;
+   }
+
+   public void setWsTableName(String wsTableName) {
+      this.wsTableName = wsTableName;
+   }
+
    /**
     * Recommendation-computation RVS ID. Null on first call; returned by the server
     * and passed back on subsequent calls to reuse the same RVS.
@@ -152,4 +160,10 @@ public class AutoBindingRequest {
     * overwrites the existing entry rather than creating a new one.
     */
    private String viewsheetIdentifier;
+
+   /**
+    * Worksheet table name.
+    * Specifies which table within the worksheet to bind.
+    */
+   private String wsTableName;
 }
