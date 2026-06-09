@@ -20,6 +20,7 @@ package inetsoft.web.wiz.controller;
 
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.service.WizAutoBindingService;
+import inetsoft.web.wiz.service.WizGeoService;
 import inetsoft.web.wiz.service.WizVsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,10 +35,12 @@ import java.util.Map;
 @RequestMapping("/api/wiz")
 public class WizViewsheetController {
    public WizViewsheetController(WizVsService wizVsService,
-                                  WizAutoBindingService wizAutoBindingService)
+                                  WizAutoBindingService wizAutoBindingService,
+                                  WizGeoService wizGeoService)
    {
       this.wizVsService = wizVsService;
       this.wizAutoBindingService = wizAutoBindingService;
+      this.wizGeoService = wizGeoService;
    }
 
    @PostMapping(value = "/viewsheet/create", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -78,6 +81,16 @@ public class WizViewsheetController {
       return wizAutoBindingService.setChartColors(request, user);
    }
 
+   @PostMapping(value = "/viewsheet/geo/detect", produces = MediaType.APPLICATION_JSON_VALUE)
+   public ResponseEntity<?> geoDetect(@RequestBody GeoDetectRequest request, Principal user) {
+      return run("geo detect", () -> wizGeoService.detect(request, user));
+   }
+
+   @PostMapping(value = "/viewsheet/geo/apply", produces = MediaType.APPLICATION_JSON_VALUE)
+   public ResponseEntity<?> geoApply(@RequestBody GeoApplyRequest request, Principal user) {
+      return run("geo apply", () -> wizGeoService.apply(request, user));
+   }
+
    @DeleteMapping("/viewsheet")
    public void deleteViewsheet(@RequestParam("identifier") String identifier,
                                Principal user) throws Exception
@@ -106,5 +119,6 @@ public class WizViewsheetController {
 
    private final WizVsService wizVsService;
    private final WizAutoBindingService wizAutoBindingService;
+   private final WizGeoService wizGeoService;
    private static final Logger LOG = LoggerFactory.getLogger(WizViewsheetController.class);
 }
