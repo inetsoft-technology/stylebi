@@ -17,10 +17,10 @@
 
 | 状态 | 组件 | logic_lines | dispatch | async_zones | 分类 | 建议 | 旧 spec | 旧 spec 备注 | Pass 计划 |
 |------|------|-------------|----------|-------------|------|------|---------|-------------|-----------|
-| 待审核 | ComposerAppComponent | 93 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | AiAssistantPanelComponent | 177 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核 | DownloadTargetComponent | 84 | 1 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核 | ComposerMainComponent | 2512 | 8 | 34 | **multi-pass** | ✅ 推进 | ⚠️ composer-main.spec.ts | Bug #16301 set embeddedId set if opening an embedded vs; Bug #18803 should disable format pane when select device layout; Bug #18805 should enable for | P1: ComposerMainComponent.interaction.tl.spec.ts<br>P2: ComposerMainComponent.risk.tl.spec.ts<br>P3: ComposerMainComponent.display.tl.spec.ts |
+| ✅已测试 | ComposerAppComponent | 93 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅已测试 | AiAssistantPanelComponent | 177 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
+| ✅已测试 | DownloadTargetComponent | 84 | 1 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
+| ✅已测试 P1P2P3 | ComposerMainComponent | 2512 | 8 | 34 | **multi-pass** | ✅ 推进 | ⚠️ composer-main.spec.ts | Bug #16301 set embeddedId set if opening an embedded vs; Bug #18803 should disable format pane when select device layout; Bug #18805 should enable for | P1: composer-main.component.interaction.tl.spec.ts ✅<br>P2: composer-main.component.risk.tl.spec.ts ✅<br>P3: composer-main.component.display.tl.spec.ts ✅ |
 | 待审核 | ComposerToolbarComponent | 1746 | 8 | 11 | **multi-pass** | ✅ 推进 | ⚠️ composer-toolbar.component.spec.ts | BUg #21103 should not show preview button on worksheet; Bug #17208 enable layout align when select multi object on layouts; Bug #16940 disbale move mo | P1: ComposerToolbarComponent.interaction.tl.spec.ts<br>P2: ComposerToolbarComponent.risk.tl.spec.ts<br>P3: ComposerToolbarComponent.display.tl.spec.ts |
 | 待审核 | SplitPane | 120 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | AssetTreePane | 843 | 1 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: AssetTreePane.interaction.tl.spec.ts<br>P2: AssetTreePane.risk.tl.spec.ts |
@@ -102,15 +102,15 @@
 
 ### ComposerMainComponent
 
-**Pass 1** (`ComposerMainComponent.interaction.tl.spec.ts`)
+**Pass 1** (`composer-main.component.interaction.tl.spec.ts`)
 - Methods: handleMessageEvent, ngAfterViewInit, focusedSheet, fixAutoSaveFiles, focusedViewsheet, focusedSheetPreview, onFocusedSheetChanged, getUpdatedLayoutPreviewSheet, onFocusedLibraryAssetChanged, onSheetUpdated, updateSidebar, updatelibrarySidebar, onSplitDragEnd, onTabClick, isActive, isActiveSheet, isSameTab, isSameSheet, isPrintLayout, trackByFn, closePreview, copySheet, cutSheet, checkRenamedAssembly, onTabSelected, onSheetSelected, onTabClosed, onLibClosed, onSheetClosed, onLibraryClosed, onToggleSnapToGrid, onToggleSnapToObjects, openViewsheetOptionDialog, getScriptPane, showCloseSheetConfirmMessage, dependencyChange, saveOnly, saveAndClose, saveAndCloseLib, closeLibTab, closeSheet, onSheetReload, onSaveViewsheet, onTransformFinished, onSaveWorksheet, setGrayedOutFields, copyAssembly, cutAssembly, pasteObjects, pasteWithCutFinish, forEach, bringAssemblyToFront, bringAssemblyForward, sendAssemblyToBack, sendAssemblyBackward, onLayoutObjectChange, openNewWorksheet, onNewTableStyle, getCustomPatternsTree, updateTableStyle, updateTableStylePreview, openNewScriptAsset, openNewWsWithWizard, createQueryOrUploadTable, openNewQuery, newUploadTable, openNewViewsheet, openWorksheet, openViewsheet, openSheet, openLibraryAsset, saveWorksheet, saveWorksheet0, then, saveTableStyle, saveTableStyleAs, onOpenCustomEdit, saveScript, saveScriptAs, saveViewsheet, saveViewsheet0, saveWorksheetAs, subscribe, saveWorksheetAs0, resolve, processSaveWorksheet, finishSave, closeTestDriveWorksheet, toggleImportDialog, saveViewsheetAs, saveViewsheetAs0, previewViewsheet, processNotification, updateSheet, worksheetCompositionChanged, editJoin, getIndexOfSheet, getIndexOfTab, navigateToExisting, navigateToExistingSheet, navigateToExistingTab, closeSheetOnServer, defaultSaveToFolder, createAssetEntry, focusedSheetAsWorksheet, layout, layoutName, layoutGuide, map, refreshChangedAssembly, changeBindingAssemblyName, openEditPane, refreshSelectViewsheet, refreshAssembly, isModalOpen, setKeydownListener, onKeydown, layoutRuntimeId, undoEnabled, redoEnabled, confirmSaveWorksheetWithoutPrimaryAssembly, checkCycle, beforeunloadHandler, toggleSplitPane, initComposerClient, listenGettingStartedEvent, add, gettingStartedCreateDashboard, closeComposer, createWorksheetIdentifier, getParentSocketConnection, newViewsheet, closeWizardPane, goToFullEditor, goToEditor, goToWizardPane, switchBindingToWizard, fullViewVisible, processPreviewMessageCommand, openScript, isIframe, asViewsheet, asWorksheet, asScript, asTableStyle, openVSOnPortal, onSaveWorksheetFinish
 - Reason: 回归主体：navigation / HTTP loading / lifecycle / user flows
 
-**Pass 2** (`ComposerMainComponent.risk.tl.spec.ts`)
+**Pass 2** (`composer-main.component.risk.tl.spec.ts`)
 - Methods: focusedTab, updateFocusedSheet, openAutoSaveFiles, recycleAutoSaveFiles, updateFocusedTab, checkRemovedAssembly, openScriptOptions, getScriptTreePane, removeAssembly, openAutoSaveAsset, getParent, worksheetCancel, sendEvent, clearFocusedObjects, isSheet, removeKeydownListener, refreshAiAssistantContext
 - Reason: async≥3：竞态 / destructive / state inconsistency
 
-**Pass 3** (`ComposerMainComponent.display.tl.spec.ts`)
+**Pass 3** (`composer-main.component.display.tl.spec.ts`)
 - Methods: showPaste, showLinkVSInTab, getLinkVSLabel, updateFormat, layoutFormatObjects, layoutShowing, openFormatPane
 - Reason: dispatch≥3：label/icon/conditional display / boundary inputs
 
@@ -277,7 +277,7 @@
 ### RadiusDropdown
 
 **Pass 1** (`RadiusDropdown.interaction.tl.spec.ts`)
-- Methods: radius, disabled, max, updateRadiusStatus
+- Methods: radius, disabled, max, initForm, updateRadiusStatus
 - Reason: 回归主体：navigation / HTTP loading / lifecycle / user flows
 
 **Pass 2** (`RadiusDropdown.risk.tl.spec.ts`)

@@ -158,6 +158,7 @@ pre-scan 阶段读取旧 `.spec.ts`，识别其中**不容易从源码推断的 
 ### 最小骨架
 
 ```ts
+import { it } from "@jest/globals";
 import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse } from "msw";
 import { server } from "../../../../../../mocks/server";

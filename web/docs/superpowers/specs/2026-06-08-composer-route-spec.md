@@ -76,7 +76,7 @@ docs/superpowers/specs/test-prescan/composer-prescan-YYYY-MM-DD.md
 **4b. 调用 risk-driven prompt 生成测试**
 
 ```
-Follow the instructions in .claude/component-risk-driven-generation-prompt.md
+Follow the instructions in docs/superpowers/prompts/risk-driven-test-generation.md
 
 Scope: <COMPONENT_PATH>
 Reference test file: projects/em/src/app/auditing/audit-bookmark-history/audit-bookmark-history.component.tl.spec.ts
@@ -105,7 +105,7 @@ Old spec notes: [报告「旧 spec 备注」列内容，若有]
 **4d. 运行 vitest 验证**
 
 ```bash
-npx vitest run projects/portal/src/app/composer/path/to/ComponentName.tl.spec.ts
+npm run test:portal:tl -- --include="projects/portal/src/app/composer/path/to/ComponentName.tl.spec.ts"
 ```
 
 预期：所有测试 PASS，无编译错误，无 `Unhandled request` MSW 警告。
@@ -115,8 +115,10 @@ npx vitest run projects/portal/src/app/composer/path/to/ComponentName.tl.spec.ts
 | 错误 | 修复方法 |
 |------|---------|
 | `Cannot find module '...mocks/server'` | 检查 import 路径层数与文件深度是否匹配 |
+| shared 项目组件（`projects/shared/`）找不到 | `--include` 路径改为 `../../shared/path/to/Component.tl.spec.ts`（相对于 `projects/portal/src/`） |
 | `Unhandled request: GET */api/...` | 在 `composer.handlers.ts` 补充对应 Layer 1 handler |
 | `NullInjectorError: No provider for XxxService` | 在 `renderComponent()` 的 `providers` 中添加 `{ provide: XxxService, useValue: { method: vi.fn() } }` |
+| child component DI 链报错（如 `No provider for _XxxService`）| 在 `render()` 选项中加 `componentImports: []`，阻止 Angular 实例化子组件及其传递依赖 |
 
 **4e. 删除旧 spec**（验证全 PASS 后）
 
@@ -141,7 +143,7 @@ rm projects/portal/src/app/composer/path/to/ComponentName.spec.ts
 | 资源 | 路径 |
 |------|------|
 | 整体设计文档 | `docs/superpowers/specs/2026-06-08-portal-unit-test-strategy-design.md` |
-| Risk-driven 生成 prompt | `.claude/component-risk-driven-generation-prompt.md` |
+| Risk-driven 生成 prompt | `docs/superpowers/prompts/risk-driven-test-generation.md` |
 | Pre-scan workflow | `.claude/workflows/portal-prescan.js` |
 | Layer 1 handler | `mocks/handlers/composer.handlers.ts` |
 | MSW server 入口 | `mocks/server.ts` |
