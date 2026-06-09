@@ -17,8 +17,6 @@
  */
 import { Routes, UrlMatchResult, UrlSegment } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { CodemirrorService } from "../../../../shared/util/codemirror/codemirror.service";
-import { DefaultCodemirrorService } from "../../../../shared/util/codemirror/default-codemirror.service";
 import { canComponentDeactivate } from "../../../../shared/util/guard/can-component-deactivate.service";
 import { globalParameterGuard } from "../../../../shared/util/guard/global-parameter-guard.service";
 import { UIContextService } from "../common/services/ui-context.service";
@@ -131,7 +129,6 @@ export const viewerRoutes: Routes = [
          UIContextService,
          HideNavService,
          NgbModal,
-         { provide: CodemirrorService, useClass: DefaultCodemirrorService }
       ],
       children: [
          {
