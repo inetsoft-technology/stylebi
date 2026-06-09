@@ -79,7 +79,7 @@ import { makeMocks, renderComponent } from "./composer-main.spec-helpers";
 // ---------------------------------------------------------------------------
 
 beforeAll(() => {
-   (window as any).BroadcastChannel = class {
+   (window as any).BroadcastChannel = (window as any).BroadcastChannel ?? class {
       onmessage: any = null;
       postMessage() {}
       close() {}
@@ -178,10 +178,10 @@ describe("ComposerMainComponent — ngOnInit: setPrincipalCommand", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Group 2: openSheet — embeddedId (Bug #16301) (Risk 3)
+// Group 2: openViewsheet — embeddedId (Bug #16301) (Risk 3)
 // ---------------------------------------------------------------------------
 
-describe("ComposerMainComponent — openSheet: embeddedId", () => {
+describe("ComposerMainComponent — openViewsheet: embeddedId (Bug #16301)", () => {
    // 🔁 Regression-sensitive: embeddedId is used by the server to wire the embedded vs to its
    // parent. Setting it to null for non-embedded opens, or to the wrong parent, breaks the
    // embedded vs feature without any visible client-side error.

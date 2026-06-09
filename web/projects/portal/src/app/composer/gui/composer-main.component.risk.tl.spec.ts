@@ -59,7 +59,7 @@ import { makeMocks, renderComponent } from "./composer-main.spec-helpers";
 // ---------------------------------------------------------------------------
 
 beforeAll(() => {
-   (window as any).BroadcastChannel = class {
+   (window as any).BroadcastChannel = (window as any).BroadcastChannel ?? class {
       onmessage: any = null;
       postMessage() {}
       close() {}
@@ -294,7 +294,7 @@ describe("ComposerMainComponent — recycleAutoSaveFiles", () => {
       comp.recycleAutoSaveFiles(["file1"]);
 
       expect(mocks.modelService.getModel).toHaveBeenCalledWith(
-         expect.stringContaining("recycleAutoSave")
+         "../api/composer/viewsheet/recycleAutoSave"
       );
    });
 });
@@ -413,7 +413,7 @@ describe("ComposerMainComponent — baseline delegation methods", () => {
       comp.worksheetCancel([ws, 0]);
 
       expect(sendEventSpy).toHaveBeenCalledWith(
-         expect.stringContaining("cancel-ws-join")
+         "/events/composer/ws/join/cancel-ws-join/"
       );
    });
 });

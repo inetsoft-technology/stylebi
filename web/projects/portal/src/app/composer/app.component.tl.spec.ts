@@ -236,7 +236,7 @@ describe("ComposerAppComponent — close", () => {
    it("should call window.close() when identifier is null", async () => {
       const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
       const { comp } = await renderComponent();
-      comp.close(null!);
+      comp.close(null as any);
       expect(closeSpy).toHaveBeenCalledTimes(1);
    });
 

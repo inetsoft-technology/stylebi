@@ -45,7 +45,7 @@ import { makeMocks, renderComponent } from "./composer-main.spec-helpers";
 // ---------------------------------------------------------------------------
 
 beforeAll(() => {
-   (window as any).BroadcastChannel = class {
+   (window as any).BroadcastChannel = (window as any).BroadcastChannel ?? class {
       onmessage: any = null;
       postMessage() {}
       close() {}
@@ -272,7 +272,7 @@ describe("ComposerMainComponent — baseline display flags", () => {
       (vs as any).currentLayout = { name: "DeviceLayout", printLayout: false };
       (comp as any)._focusedSheet = vs;
 
-      expect((comp as any).layoutShowing).toBe(true);
+      expect(comp.layoutShowing).toBe(true);
    });
 
    it("should report layoutShowing=false when the focused viewsheet has no currentLayout", async () => {
@@ -281,6 +281,6 @@ describe("ComposerMainComponent — baseline display flags", () => {
       vs.localId = 1;
       (comp as any)._focusedSheet = vs;
 
-      expect((comp as any).layoutShowing).toBe(false);
+      expect(comp.layoutShowing).toBe(false);
    });
 });
