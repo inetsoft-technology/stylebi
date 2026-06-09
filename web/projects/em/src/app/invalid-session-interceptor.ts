@@ -41,14 +41,44 @@ export class InvalidSessionInterceptor implements HttpInterceptor {
       return next.handle(req).pipe(
          tap(
             () => {},
-            error => this.handleInvalidSession(error)
+            error => this.handleInvalidSession(req, error)
          )
       );
    }
 
-   private handleInvalidSession(error: HttpErrorResponse): void {
-      if(error.status === 401 || error.status === 403) {
+   private handleInvalidSession(req: HttpRequest<any>, error: HttpErrorResponse): void {
+      if((error.status === 401 || error.status === 403) && this.isSameOrigin(req.url)) {
          this.logoutService.sessionExpired();
+      }
+   }
+
+   /**
+    * Only the application's own (same-origin) responses indicate an expired
+    * session. A 401/403 from an absolute URL pointing at an external service
+    * (e.g. the OAuth proxy at data.inetsoft.com) is unrelated to the StyleBI
+    * session and must not trigger a logout.
+    */
+   private isSameOrigin(url: string): boolean {
+      // A non-http(s) scheme (e.g. data:, blob:, mailto:) is never one of the
+      // application's own session-bearing responses; treat it as cross-origin so
+      // it cannot trigger a logout.
+      if(/^[a-z][a-z0-9+.-]*:/i.test(url) && !/^https?:/i.test(url)) {
+         return false;
+      }
+
+      // relative path (e.g. "../api/...") is always same-origin
+      if(!/^(https?:)?\/\//i.test(url)) {
+         return true;
+      }
+
+      try {
+         // normalize protocol-relative URLs ("//host/path") before comparing
+         const absolute = url.startsWith("//") ? `${window.location.protocol}${url}` : url;
+         return new URL(absolute).origin === window.location.origin;
+      }
+      catch(e) {
+         // Malformed URL — treat as cross-origin to avoid spurious logouts.
+         return false;
       }
    }
 }
