@@ -1076,7 +1076,10 @@ public class XTableStyle extends TableStyle {
 
       if(this instanceof CSSTableStyle) {
          CSSParameter sheetParam = ((CSSTableStyle) this).getSheetParam();
-         vsLens = sheetParam != null && sheetParam.getCSSType().equals(CSSConstants.VIEWSHEET);
+         // getCSSType() may be null (e.g. a viewsheet whose sheet CSS param has no type set);
+         // compare constant-first so a null type is a no-match instead of an NPE. A null type here
+         // aborted crosstab data loading ("Error loading data ... CSSParameter.getCSSType() is null").
+         vsLens = sheetParam != null && CSSConstants.VIEWSHEET.equals(sheetParam.getCSSType());
       }
 
       // only get the css height if there is no base height specified
