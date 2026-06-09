@@ -528,7 +528,10 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
          AggregateInfo aggregateInfo =
             getRealAggregateInfo() == null ? ginfo : getRealAggregateInfo();
 
-         // generate public column selection if not a crosstab
+         // Generate the public (output) column selection if not a crosstab. For a crosstab
+         // the output columns are dynamic (pivoted at runtime), so the public selection is
+         // left empty here; TableAssemblyInfo.getPublicColumnSelection() then lazily falls
+         // back to the visible private columns, so callers still get a non-empty list.
          if(!isCrosstab()) {
             ColumnSelection ocolumns = new ColumnSelection();
             // Snapshot the selection to avoid IndexOutOfBoundsException if another thread

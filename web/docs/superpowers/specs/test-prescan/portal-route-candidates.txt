@@ -1,0 +1,233 @@
+# Route candidates — 2026-06-08
+# Seeds: projects/portal/src/app/portal/app.component.ts, projects/portal/src/app/portal/dashboard/dashboard-tab.component.ts, projects/portal/src/app/portal/dashboard/landing/dashboard-landing.component.ts, projects/portal/src/app/portal/report/report-tab.component.ts, projects/portal/src/app/portal/report/welcome/welcome-page.component.ts, projects/portal/src/app/portal/report/report/portal-report.component.ts, projects/portal/src/app/portal/schedule/schedule-tab.component.ts, projects/portal/src/app/portal/schedule/schedule-task-list/schedule-task-list.component.ts, projects/portal/src/app/portal/schedule/schedule-task-editor/schedule-task-editor.component.ts, projects/portal/src/app/portal/data/data-tab.component.ts, projects/portal/src/app/portal/data/data-folder-browser/data-folder-browser.component.ts, projects/portal/src/app/portal/data/data-datasource-browser/data-datasource-browser.component.ts, projects/portal/src/app/portal/data/data-datasource-browser/datasources-datasource/datasources-datasource.component.ts, projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/datasources-database.component.ts, projects/portal/src/app/portal/data/data-datasource-browser/datasources-xmla/datasources-xmla.component.ts, projects/portal/src/app/portal/data/data-datasource-browser/datasource-selection/datasource-selection-view.component.ts, projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-physical-model/database-physical-model.component.ts, projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-physical-model/logical-model/logical-model.component.ts, projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-data-model-browser/database-vpm-browser/database-vpm-browser.component.ts, projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-vpm/database-vpm.component.ts, projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-data-model-browser/database-data-model-browser.component.ts, projects/portal/src/app/portal/custom/custom-tab.component.ts, projects/portal/src/app/portal/portal-redirect.component.ts
+
+# depth=0 logic_lines≈339
+projects/portal/src/app/portal/app.component.ts
+
+# depth=0 logic_lines≈34
+projects/portal/src/app/portal/custom/custom-tab.component.ts
+
+# depth=0 logic_lines≈215
+projects/portal/src/app/portal/dashboard/dashboard-tab.component.ts
+
+# depth=0 logic_lines≈50
+projects/portal/src/app/portal/dashboard/landing/dashboard-landing.component.ts
+
+# depth=1 logic_lines≈159
+projects/portal/src/app/portal/data/asset-item-list-view/asset-item-list-view.component.ts
+
+# depth=0 logic_lines≈756
+projects/portal/src/app/portal/data/data-datasource-browser/data-datasource-browser.component.ts
+
+# depth=0 logic_lines≈127
+projects/portal/src/app/portal/data/data-datasource-browser/datasource-selection/datasource-selection-view.component.ts
+
+# depth=0 logic_lines≈723
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-data-model-browser/database-data-model-browser.component.ts
+
+# depth=1 logic_lines≈126
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-data-model-browser/database-data-model-toolbar.component.ts
+
+# depth=0 logic_lines≈338
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-data-model-browser/database-vpm-browser/database-vpm-browser.component.ts
+
+# depth=2 logic_lines≈247
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-physical-model/data-model-script-pane/data-model-script-pane.component.ts
+
+# depth=0 logic_lines≈1153
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-physical-model/database-physical-model.component.ts
+
+# depth=2 logic_lines≈107
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-physical-model/logical-model/attribute-dialog/logical-model-attribute-dialog.component.ts
+
+# depth=1 logic_lines≈531
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-physical-model/logical-model/attribute-editor/auto-drill-dialog/data-auto-drill-dialog.component.ts
+
+# depth=2 logic_lines≈242
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-physical-model/logical-model/attribute-editor/auto-drill-dialog/parameter-dialog/parameter-dialog.component.ts
+
+# depth=2 logic_lines≈131
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-physical-model/logical-model/attribute-editor/auto-drill-dialog/select-worksheet-dialog.component.ts
+
+# depth=1 logic_lines≈232
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-physical-model/logical-model/attribute-editor/format-dialog/attribute-formatting-pane.component.ts
+
+# depth=2 logic_lines≈59
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-physical-model/logical-model/entity-dialog/logical-model-entity-dialog.component.ts
+
+# depth=2 logic_lines≈230
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-physical-model/logical-model/expression-dialog/logical-model-expression-dialog.component.ts
+
+# depth=1 logic_lines≈591
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-physical-model/logical-model/logical-model-property-pane.component.ts
+
+# depth=0 logic_lines≈275
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-physical-model/logical-model/logical-model.component.ts
+
+# depth=1 logic_lines≈237
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-physical-model/physical-graph-pane/physical-graph-pane.component.ts
+
+# depth=2 logic_lines≈120
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-physical-model/physical-join-edit-pane/physical-join-edit-pane.component.ts
+
+# depth=2 logic_lines≈779
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-physical-model/physical-model-network-graph/physical-model-network-graph.component.ts
+
+# depth=0 logic_lines≈270
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-vpm/database-vpm.component.ts
+
+# depth=1 logic_lines≈259
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-vpm/vpm-conditions/vpm-conditions.component.ts
+
+# depth=1 logic_lines≈331
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-vpm/vpm-hidden-columns/vpm-hidden-columns.component.ts
+
+# depth=1 logic_lines≈63
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-vpm/vpm-test/vpm-test.component.ts
+
+# depth=0 logic_lines≈662
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/datasources-database.component.ts
+
+# depth=1 logic_lines≈275
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/driver-wizard/driver-wizard.component.ts
+
+# depth=1 logic_lines≈50
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/edit-property-dialog.component.ts
+
+# depth=1 logic_lines≈258
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-datasource/datasources-datasource-editor/datasources-datasource-editor.component.ts
+
+# depth=0 logic_lines≈346
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-datasource/datasources-datasource.component.ts
+
+# depth=0 logic_lines≈602
+projects/portal/src/app/portal/data/data-datasource-browser/datasources-xmla/datasources-xmla.component.ts
+
+# depth=0 logic_lines≈938
+projects/portal/src/app/portal/data/data-folder-browser/data-folder-browser.component.ts
+
+# depth=1 logic_lines≈151
+projects/portal/src/app/portal/data/data-folder-browser/data-folder-list-view/data-folder-list-view.component.ts
+
+# depth=2 logic_lines≈119
+projects/portal/src/app/portal/data/data-folder-browser/files-browser/files-browser.component.ts
+
+# depth=1 logic_lines≈1463
+projects/portal/src/app/portal/data/data-navigation-tree/data-sources-tree-view.component.ts
+
+# depth=0 logic_lines≈65
+projects/portal/src/app/portal/data/data-tab.component.ts
+
+# depth=1 logic_lines≈113
+projects/portal/src/app/portal/data/input-name-desc-dialog/input-name-desc-dialog.component.ts
+
+# depth=1 logic_lines≈121
+projects/portal/src/app/portal/data/move-asset-dialog/move-asset-dialog.component.ts
+
+# depth=1 logic_lines≈280
+projects/portal/src/app/portal/dialog/analyze-mv/analyze-mv-dialog.component.ts
+
+# depth=2 logic_lines≈58
+projects/portal/src/app/portal/dialog/analyze-mv/analyze-mv-view/analyze-mv-pane.component.ts
+
+# depth=2 logic_lines≈112
+projects/portal/src/app/portal/dialog/analyze-mv/create-mv-view/create-mv-pane.component.ts
+
+# depth=1 logic_lines≈94
+projects/portal/src/app/portal/dialog/arrange-dashboard-dialog.component.ts
+
+# depth=1 logic_lines≈144
+projects/portal/src/app/portal/dialog/auto-join-tables-dialog/auto-join-tables-dialog.component.ts
+
+# depth=2 logic_lines≈204
+projects/portal/src/app/portal/dialog/choose-table-dialog/choose-table-dialog.component.ts
+
+# depth=1 logic_lines≈179
+projects/portal/src/app/portal/dialog/edit-dashboard-dialog.component.ts
+
+# depth=1 logic_lines≈66
+projects/portal/src/app/portal/dialog/inline-view-dialog/inline-view-dialog.component.ts
+
+# depth=1 logic_lines≈101
+projects/portal/src/app/portal/dialog/physical-table-aliases-dialog/physical-table-aliases-dialog.component.ts
+
+# depth=1 logic_lines≈81
+projects/portal/src/app/portal/dialog/preferences-dialog.component.ts
+
+# depth=2 logic_lines≈62
+projects/portal/src/app/portal/dialog/vpm-condition-dialog/vpm-condition-dialog.component.ts
+
+# depth=0 logic_lines≈26
+projects/portal/src/app/portal/portal-redirect.component.ts
+
+# depth=1 logic_lines≈65
+projects/portal/src/app/portal/report/desktop/repository-desktop-view.component.ts
+
+# depth=0 logic_lines≈280
+projects/portal/src/app/portal/report/report-tab.component.ts
+
+# depth=0 logic_lines≈93
+projects/portal/src/app/portal/report/report/portal-report.component.ts
+
+# depth=0 logic_lines≈39
+projects/portal/src/app/portal/report/welcome/welcome-page.component.ts
+
+# depth=1 logic_lines≈464
+projects/portal/src/app/portal/schedule/schedule-task-editor/actions/task-action-pane.component.ts
+
+# depth=1 logic_lines≈1073
+projects/portal/src/app/portal/schedule/schedule-task-editor/conditions/task-condition-pane.component.ts
+
+# depth=2 logic_lines≈190
+projects/portal/src/app/portal/schedule/schedule-task-editor/execute-as-dialog/execute-as-dialog.component.ts
+
+# depth=1 logic_lines≈189
+projects/portal/src/app/portal/schedule/schedule-task-editor/options/task-options-pane.component.ts
+
+# depth=0 logic_lines≈192
+projects/portal/src/app/portal/schedule/schedule-task-editor/schedule-task-editor.component.ts
+
+# depth=2 logic_lines≈69
+projects/portal/src/app/portal/schedule/schedule-task-editor/select-dashboard-dialog/select-dashboard-dialog.component.ts
+
+# depth=1 logic_lines≈69
+projects/portal/src/app/portal/schedule/schedule-task-list/edit-task-folder-dialog/edit-task-folder-dialog.component.ts
+
+# depth=1 logic_lines≈97
+projects/portal/src/app/portal/schedule/schedule-task-list/move-task-dialog/move-task-dialog.component.ts
+
+# depth=0 logic_lines≈844
+projects/portal/src/app/portal/schedule/schedule-task-list/schedule-task-list.component.ts
+
+# depth=1 logic_lines≈112
+projects/portal/src/app/widget/dialog/input-name-dialog/input-name-dialog.component.ts
+
+# depth=1 logic_lines≈154
+projects/portal/src/app/widget/fixed-dropdown/actions-contextmenu.component.ts
+
+# depth=1 logic_lines≈65
+projects/portal/src/app/widget/notifications/notifications.component.ts
+
+# depth=2 logic_lines≈461
+projects/portal/src/app/widget/repository-tree/repository-tree.component.ts
+
+# depth=1 logic_lines≈80
+projects/portal/src/app/widget/responsive-tabs/responsive-tabs.component.ts
+
+# depth=1 logic_lines≈120
+projects/portal/src/app/widget/split-pane/split-pane.component.ts
+
+# depth=2 logic_lines≈59
+projects/portal/src/app/widget/tabular/tabular-view.component.ts
+
+# depth=2 logic_lines≈506
+projects/portal/src/app/widget/tree/tree-node.component.ts
+
+# depth=1 logic_lines≈754
+projects/portal/src/app/widget/tree/tree.component.ts
+
+# depth=2 logic_lines≈35
+projects/shared/ai-assistant/ai-assistant-dialog.component.ts
+
+# depth=1 logic_lines≈177
+projects/shared/ai-assistant/ai-assistant-panel.component.ts

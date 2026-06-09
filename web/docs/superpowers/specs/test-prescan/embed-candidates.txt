@@ -1,0 +1,11 @@
+# /embed route candidates — 2026-06-08
+# Generated from embed-chart.routes.ts → embed-chart.component.ts + Layer 1 imports
+
+# ── Top-level route component ──────────────────────────────────────────────────
+projects/portal/src/app/embed/chart/embed-chart.component.ts
+
+# ── Layer 1: direct imports of EmbedChartComponent ─────────────────────────────
+projects/portal/src/app/vsobjects/objects/chart/vs-chart.component.ts
+projects/portal/src/app/vsobjects/objects/mini-toolbar/mini-toolbar.component.ts
+projects/portal/src/app/widget/fixed-dropdown/actions-contextmenu.component.ts
+projects/shared/download/download-target.component.ts

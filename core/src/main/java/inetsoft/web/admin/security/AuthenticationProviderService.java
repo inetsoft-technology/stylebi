@@ -343,7 +343,7 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
       try {
          String msg = withProviderFromModel(model, provider ->
             provider.isPresent() ? null :
-            Catalog.getCatalog().getString("em.security.testlogin.note4"));
+            Catalog.getCatalog().getString("em.security.testlogin.note4"), true);
 
          if(msg != null) {
             return msg;
@@ -638,20 +638,22 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
       UserRoleListModel.Builder builder = UserRoleListModel.builder();
 
       if(model.providerType() == SecurityProviderType.DATABASE) {
-         AuthenticationProvider provider = getProviderFromModel(model).orElse(null);
-         if(provider instanceof DatabaseAuthenticationProvider) {
-            setIgnoreCache(provider, true);
-            Map<IdentityID, IdentityID[]> userRoles =
-               ((DatabaseAuthenticationProvider) provider).getAllUserRoles();
-            setIgnoreCache(provider, false);
+         return withProviderFromModel(model, optProvider -> {
+            if(optProvider.orElse(null) instanceof DatabaseAuthenticationProvider dbProvider) {
+               setIgnoreCache(dbProvider, true);
+               Map<IdentityID, IdentityID[]> userRoles = dbProvider.getAllUserRoles();
+               setIgnoreCache(dbProvider, false);
 
-            for(Map.Entry<IdentityID, IdentityID[]> e : userRoles.entrySet()) {
-               builder.addList(UserRolesModel.builder()
-                                  .user(e.getKey())
-                                  .addRoles(e.getValue())
-                                  .build());
+               for(Map.Entry<IdentityID, IdentityID[]> e : userRoles.entrySet()) {
+                  builder.addList(UserRolesModel.builder()
+                                     .user(e.getKey())
+                                     .addRoles(e.getValue())
+                                     .build());
+               }
             }
-         }
+
+            return builder.build();
+         });
       }
 
       return builder.build();
@@ -705,7 +707,23 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
    }
 
    private <T> T withProviderFromModel(AuthenticationProviderModel model, Function<Optional<AuthenticationProvider>, T> fn) throws Exception {
-      Optional<AuthenticationProvider> provider = getProviderFromModel(model);
+      return withProviderFromModel(model, fn, false);
+   }
+
+   private <T> T withProviderFromModel(AuthenticationProviderModel model, Function<Optional<AuthenticationProvider>, T> fn, boolean rethrowCreationException) throws Exception {
+      Optional<AuthenticationProvider> provider;
+
+      try {
+         provider = getProviderFromModel(model);
+      }
+      catch(Exception e) {
+         if(rethrowCreationException) {
+            throw e;
+         }
+
+         LOG.warn("Could not create authentication provider from model", e);
+         return fn.apply(Optional.empty());
+      }
 
       try {
          return fn.apply(provider);

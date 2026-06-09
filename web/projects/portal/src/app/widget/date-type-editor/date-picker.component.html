@@ -52,9 +52,9 @@
         </tr>
       </thead>
       <tbody>
-        @for (cell of loadCalender(dateTime.months, dateTime.years); track cell) {
+        @for (cell of calendarCells; track $index) {
           <tr>
-            @for (day of cell; track day) {
+            @for (day of cell; track $index) {
               <td>
                 @if (day > 0) {
                   <div (mousedown)="selectDay(day)" class="day-div hover-bg-neutral"

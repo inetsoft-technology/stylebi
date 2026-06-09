@@ -113,13 +113,14 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
 
          if(assembly instanceof TableAssembly) {
             SubqueryTableModel subqueryTableModel = new SubqueryTableModel();
+            boolean currentTable = assembly.equals(tableAssembly);
             subqueryTableModel.setName(assembly.getName());
             subqueryTableModel.setDescription(
                ((TableAssembly) assembly).getDescription());
             subqueryTableModel.setColumns(ConditionUtil.getDataRefModelsFromColumnSelection(
-               ((TableAssembly) assembly).getColumnSelection(),
+               getSubqueryColumns((TableAssembly) assembly, currentTable),
                this.dataRefModelFactoryService, 0));
-            subqueryTableModel.setCurrentTable(assembly.equals(tableAssembly));
+            subqueryTableModel.setCurrentTable(currentTable);
             subqueryTableModels.add(subqueryTableModel);
          }
       }
@@ -384,6 +385,22 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
    private ConditionList getConditionList(ConditionListWrapper wrapper) {
       return wrapper == null ? null :
          (ConditionList) wrapper.getConditionList().clone();
+   }
+
+   /**
+    * Resolve which columns of a candidate table to offer in the subquery condition dialog.
+    *
+    * <p>A candidate table exposes its PUBLIC (output) columns — e.g. the aggregate columns
+    * of an aggregated table — because only output columns can be referenced inside a
+    * subquery. The current table keeps its FULL (private) selection because its columns are
+    * used as the main attribute of a correlated subquery, not as subquery output. (Bug #75323)
+    *
+    * <p>Crosstab tables don't eagerly generate a public column selection, but
+    * {@code TableAssemblyInfo.getPublicColumnSelection()} lazily falls back to the visible
+    * private columns, so a crosstab candidate still lists its columns rather than nothing.
+    */
+   static ColumnSelection getSubqueryColumns(TableAssembly assembly, boolean currentTable) {
+      return assembly.getColumnSelection(!currentTable);
    }
 
    /**
