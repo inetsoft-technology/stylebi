@@ -57,6 +57,7 @@
  */
 
 import "@angular/compiler";
+import { of } from "rxjs";
 import { Viewsheet } from "../../data/vs/viewsheet";
 import { Worksheet } from "../../data/ws/worksheet";
 import { VSLayoutModel } from "../../data/vs/vs-layout-model";
