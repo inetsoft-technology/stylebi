@@ -833,7 +833,15 @@ public class VSWizardBindingHandler {
                                          SourceInfo source, CommandDispatcher dispatcher)
       throws Exception
    {
-      int idx = getSelectedSubTypeIdx(model);
+      // Chart recommendations select across the combined chartInfos ++ prefInfos space (resolved
+      // below). getSelectedSubTypeIdx clamps against subTypes, which span only chartInfos, so a
+      // preference-scored type stored in prefInfos was being reset to chartInfos[0] — silently
+      // turning a requested point (or any pref-only type) into the default bar. Resolve over the
+      // full space so the selected sub-type is honored.
+      int idx = WizChartInfoIndex.resolve(
+         model.getSelectedIndex(),
+         model.getChartInfos() != null ? model.getChartInfos().size() : 0,
+         model.getPrefInfos() != null ? model.getPrefInfos().size() : 0);
 
       if(idx == -1) {
          throw new MessageException("No valid subtype for chart!");
