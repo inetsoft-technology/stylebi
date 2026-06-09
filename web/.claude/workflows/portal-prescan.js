@@ -39,10 +39,9 @@ const COMPONENT_SCHEMA = {
 }
 
 phase('Scan')
-const results = []
-for (const filePath of args.candidates) {
-  log(`Scanning ${filePath.split(/[\\/]/).pop()}`)
-  const result = await agent(
+const results = await pipeline(
+  args.candidates,
+  async (filePath) => agent(
     `Pre-scan this Angular component file for test planning.
 
 File to read: ${filePath}
@@ -82,8 +81,7 @@ Return the complete structured result.`,
       schema: COMPONENT_SCHEMA,
     }
   )
-  results.push(result)
-}
+)
 
 phase('Report')
 const valid = results.filter(Boolean)
