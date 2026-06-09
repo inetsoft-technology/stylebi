@@ -814,8 +814,8 @@ public class GenerateWsService {
                                List<WorksheetConstructionModel.Condition> conditions)
    {
       ConditionList conditionList = new ConditionList();
-      table.setPreConditionList(conditionList);
       ColumnSelection columnSelection = table.getColumnSelection();
+      boolean appended = false;
 
       for(WorksheetConstructionModel.Condition filter : conditions) {
          DataRef attributeRef = columnSelection.getAttribute(filter.getField());
@@ -824,56 +824,31 @@ public class GenerateWsService {
             continue;
          }
 
-         WorksheetConstructionModel.FilterOperator filterOperator = filter.getOperator();
-         List<Integer> conditionOperator = getConditionOperator(filterOperator);
+         int level = filter.getConditionLevel();
 
-         for(Integer op : conditionOperator) {
-            AssetCondition assetCondition = new AssetCondition();
-            addConditionValue(assetCondition, filter.getValue());
-            assetCondition.setNegated(filter.isNegated());
-            assetCondition.setOperation(op);
-            assetCondition.setType(attributeRef.getDataType());
-            conditionList.append(new ConditionItem(attributeRef, assetCondition, filter.getConditionLevel()));
+         // A ConditionList must alternate ConditionItem / JunctionOperator entries. Insert the
+         // junction joining this condition to the previous one (AND/OR from the model) before the
+         // item — without it, StyleBI casts the next ConditionItem as a JunctionOperator and a
+         // multi-condition filter fails with a ClassCastException.
+         if(appended) {
+            int junction = filter.getConditionOperator() == WorksheetConstructionModel.ConditionOperator.OR
+               ? JunctionOperator.OR : JunctionOperator.AND;
+            conditionList.append(new JunctionOperator(junction, level));
          }
+
+         AssetCondition assetCondition = new AssetCondition();
+         // addConditionValue adds every element of a list value, so a multi-value IN (-> ONE_OF)
+         // carries all values rather than only the first (the old IN -> CONTAINS mapping bug).
+         addConditionValue(assetCondition, filter.getValue());
+         assetCondition.setNegated(filter.isNegated());
+         assetCondition.setOperation(WizFilterOperation.operation(filter.getOperator()));
+         assetCondition.setEqual(WizFilterOperation.isInclusiveBound(filter.getOperator()));
+         assetCondition.setType(attributeRef.getDataType());
+         conditionList.append(new ConditionItem(attributeRef, assetCondition, level));
+         appended = true;
       }
 
       table.setPreConditionList(conditionList);
-   }
-
-   private List<Integer> getConditionOperator(WorksheetConstructionModel.FilterOperator filterOperator) {
-      List<Integer> ops = new ArrayList<>();
-
-      if(Objects.requireNonNull(filterOperator) == WorksheetConstructionModel.FilterOperator.EQ) {
-         ops.add(XCondition.EQUAL_TO);
-      }
-      else if(filterOperator == WorksheetConstructionModel.FilterOperator.GT) {
-         ops.add(XCondition.GREATER_THAN);
-      }
-      else if(filterOperator == WorksheetConstructionModel.FilterOperator.GE) {
-         ops.add(XCondition.EQUAL_TO);
-         ops.add(XCondition.GREATER_THAN);
-      }
-      else if(filterOperator == WorksheetConstructionModel.FilterOperator.LT) {
-         ops.add(XCondition.LESS_THAN);
-      }
-      else if(filterOperator == WorksheetConstructionModel.FilterOperator.LE) {
-         ops.add(XCondition.EQUAL_TO);
-         ops.add(XCondition.LESS_THAN);
-      }
-      else if(filterOperator == WorksheetConstructionModel.FilterOperator.IN) {
-         ops.add(XCondition.CONTAINS);
-      }
-      else if(filterOperator == WorksheetConstructionModel.FilterOperator.BETWEEN) {
-         ops.add(XCondition.BETWEEN);
-      }
-      else if(filterOperator == WorksheetConstructionModel.FilterOperator.LIKE) {
-         ops.add(XCondition.LIKE);
-      }
-      else {
-         throw new IllegalArgumentException("Unknown filter operator: " + filterOperator);
-      }
-
-      return ops;
    }
 
    private void applyOrderBy(AbstractTableAssembly table,
