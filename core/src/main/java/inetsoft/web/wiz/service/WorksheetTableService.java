@@ -138,8 +138,7 @@ public class WorksheetTableService {
       }
 
       // 8. Extract column info for the response.
-      List<WorksheetTableResponse.ColumnData> columns =
-         extractColumns(table, request.getAggregateInfo());
+      List<WorksheetTableResponse.ColumnData> columns = extractColumnsFromSelection(table);
 
       WorksheetTableResponse response = new WorksheetTableResponse();
       response.setWsId(worksheetEntry.toIdentifier());
@@ -493,6 +492,7 @@ public class WorksheetTableService {
 
       AggregateInfo info = new AggregateInfo();
       ColumnSelection cs = table.getColumnSelection(true);
+      ColumnSelection privateCs = table.getColumnSelection(false);
 
       if(groups != null) {
          for(WorksheetTableRequest.GroupByFieldInfo grp : groups) {
@@ -508,8 +508,21 @@ public class WorksheetTableService {
                String name = DateRangeRef.getName(colName, dgroup);
                DateRangeRef rangeRef = new DateRangeRef(name, column.getDataRef(), dgroup);
                rangeRef.setOriginalType(column.getDataType());
-               column = new ColumnRef(rangeRef);
-               column.setDataType(rangeRef.getDataType());
+               ColumnRef dateColumn = new ColumnRef(rangeRef);
+               dateColumn.setDataType(rangeRef.getDataType());
+
+               // Insert the DateRangeRef column into the column selection before the base
+               // column so the aggregate engine can resolve it (mirrors processDateGrouping).
+               int baseIdx = privateCs.indexOfAttribute(column);
+
+               if(baseIdx >= 0) {
+                  privateCs.addAttribute(baseIdx, dateColumn);
+               }
+               else {
+                  privateCs.addAttribute(dateColumn);
+               }
+
+               column = dateColumn;
             }
 
             info.addGroup(new GroupRef(column));
@@ -544,21 +557,21 @@ public class WorksheetTableService {
 
             info.addAggregate(aggRef);
 
-            // AggregateRef has no setAlias(). Expose the alias by adding a ColumnRef
-            // wrapper with the alias to the column selection so downstream steps can
-            // resolve this aggregate column by its friendly name.
+            // AggregateRef has no setAlias(). Expose the alias via a ColumnRef alias so
+            // downstream steps can resolve this aggregate column by its friendly name.
             if(agg.getAlias() != null) {
-               ColumnRef aliasedCol = new ColumnRef(aggRef);
-               aliasedCol.setAlias(agg.getAlias());
-               ColumnSelection cs2 = table.getColumnSelection(false);
-               cs2.addAttribute(aliasedCol);
-               table.setColumnSelection(cs2, false);
+               DataRef col = privateCs.getAttribute(agg.getFieldName());
+
+               if(col instanceof ColumnRef columnRef) {
+                  columnRef.setAlias(agg.getAlias());
+               }
             }
          }
       }
 
       if(!info.isEmpty()) {
          table.setAggregateInfo(info);
+         table.setColumnSelection(privateCs, false);
       }
    }
 
@@ -763,58 +776,6 @@ public class WorksheetTableService {
    }
 
    // ─── Column extraction for response ──────────────────────────────────────
-
-   /**
-    * Extract the columns that the newly created table will expose to downstream steps.
-    * For aggregated tables this is computed from the aggregateInfo; for all others
-    * it comes from the table's effective column selection.
-    */
-   private List<WorksheetTableResponse.ColumnData> extractColumns(
-      AbstractTableAssembly table, WorksheetTableRequest.AggregateInfo aggInfo)
-   {
-      boolean hasAggregation = aggInfo != null &&
-         ((aggInfo.getGroups() != null && !aggInfo.getGroups().isEmpty()) ||
-          (aggInfo.getAggregates() != null && !aggInfo.getAggregates().isEmpty()));
-
-      if(hasAggregation) {
-         return extractColumnsFromAggregateInfo(table, aggInfo);
-      }
-
-      return extractColumnsFromSelection(table);
-   }
-
-   private List<WorksheetTableResponse.ColumnData> extractColumnsFromAggregateInfo(
-      AbstractTableAssembly table, WorksheetTableRequest.AggregateInfo aggInfo)
-   {
-      List<WorksheetTableResponse.ColumnData> result = new ArrayList<>();
-      ColumnSelection cs = table.getColumnSelection(true);
-
-      if(aggInfo.getGroups() != null) {
-         for(WorksheetTableRequest.GroupByFieldInfo grp : aggInfo.getGroups()) {
-            DataRef ref = cs.getAttribute(grp.getFieldName());
-            String type = ref != null ? ref.getDataType() : XSchema.STRING;
-            result.add(new WorksheetTableResponse.ColumnData(grp.getFieldName(), type));
-         }
-      }
-
-      if(aggInfo.getAggregates() != null) {
-         for(WorksheetTableRequest.AggregateFieldInfo agg : aggInfo.getAggregates()) {
-            String name = agg.getAlias() != null ? agg.getAlias() : agg.getFieldName();
-            AggregateFormula formula = AggregateFormula.getFormula(agg.getFormula());
-            String type = formula != null ? formula.getDataType() : null;
-
-            if(type == null) {
-               DataRef ref = cs.getAttribute(agg.getFieldName());
-               type = ref != null ? ref.getDataType() : XSchema.DOUBLE;
-            }
-
-            result.add(new WorksheetTableResponse.ColumnData(name, type));
-         }
-      }
-
-      return result;
-   }
-
    private List<WorksheetTableResponse.ColumnData> extractColumnsFromSelection(
       AbstractTableAssembly table)
    {
@@ -824,14 +785,11 @@ public class WorksheetTableService {
       for(int i = 0; i < cs.getAttributeCount(); i++) {
          DataRef attr = cs.getAttribute(i);
 
-         if(attr instanceof ColumnRef cr && !cr.isVisible()) {
-            continue;
+         if(attr instanceof ColumnRef cr && cr.isVisible()) {
+            String name = cr.getName();
+            String type = cr.getDataType();
+            result.add(new WorksheetTableResponse.ColumnData(name, type));
          }
-
-         // getAttribute() on a ColumnRef returns alias when set, otherwise the raw attribute name.
-         String name = attr.getAttribute();
-         String type = attr.getDataType();
-         result.add(new WorksheetTableResponse.ColumnData(name, type));
       }
 
       return result;
