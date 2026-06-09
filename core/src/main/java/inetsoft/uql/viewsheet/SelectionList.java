@@ -1163,6 +1163,12 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
    private ArrayList<SelectionValue> list;
    private String dtype;
    private Comparator comp;
+   // ConcurrentHashMap instead of HashMap: writeFormats() iterates this map while other
+   // threads may call clear() (via writeData/writeXML). Using entrySet() guarantees
+   // getValue() is never null (ConcurrentHashMap forbids null values), preventing NPE
+   // from the old keySet()+get() pattern under concurrent modification. Call sites guard
+   // fmt != null before getFormatIndex() and level is a primitive, so the no-null constraint
+   // is satisfied.
    private final Map<VSCompositeFormat, Integer> fmtmap = new ConcurrentHashMap<>(); // VSFormat -> index
    private double mmin = 0;
    private double mmax = 100;

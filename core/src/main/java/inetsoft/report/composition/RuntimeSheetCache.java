@@ -416,6 +416,13 @@ public class RuntimeSheetCache
       }
    }
 
+   /**
+    * Removes the session from both local memory and the distributed caches.
+    * Note: only returns the sheet if it was resident in local memory at the time of removal.
+    * If the session was held on a remote node, the return value is null. All current callers
+    * discard the return value, so this is a documentation-only contract change from the
+    * previous implementation which retrieved remote sessions via cache.getAndRemove().
+    */
    @Override
    public RuntimeSheet remove(Object key) {
       AffinityKey<String> affinityKey = null;
@@ -463,25 +470,20 @@ public class RuntimeSheetCache
          lock.readLock().unlock();
       }
 
-      // Re-check under readLock immediately before the distributed write to shrink the
-      // orphan window: remove() could have completed (removeAsync on accessTimeMap) between
-      // the first readLock release above and putAsync() below. A second containsKey check
-      // closes the common case; a residual window of one scheduling quantum remains and
-      // leaves at most one 8-byte orphan entry, cleaned up by the next remove() or clear().
-      lock.readLock().lock();
-
-      try {
-         if(!local.containsKey(id)) {
-            return;
-         }
-      }
-      finally {
-         lock.readLock().unlock();
-      }
-
+      // A residual race window exists between the readLock release and putAsync(): remove()
+      // could complete in that interval, leaving a one-entry orphan in accessTimeMap.
+      // The orphan is bounded (one 8-byte entry per closed session) and is cleaned up by
+      // the next remove() or clear() for the same key.
       accessTimeMap.putAsync(getAffinityKey(id), time);
    }
 
+   /**
+    * Inserts all entries into local memory and the distributed session cache.
+    * Note: accessTimeMap is NOT populated here. This method has no active callers in the
+    * current codebase and exists only to satisfy the Map interface contract. If it is ever
+    * used to bulk-insert sessions, callers must separately populate accessTimeMap to ensure
+    * access times survive a subsequent node restart or rebalance.
+    */
    @Override
    public void putAll(Map<? extends String, ? extends RuntimeSheet> m) {
       Map<AffinityKey<String>, CompressedSheetState> states =
@@ -555,33 +557,6 @@ public class RuntimeSheetCache
       this.applyMaxCount = applyMaxCount;
    }
 
-   // this should be called in a locked code section
-   private Set<AffinityKey<String>> getLocalKeys() {
-      Set<AffinityKey<String>> allIds = new HashSet<>();
-
-      local.keySet().stream()
-         .map(this::getAffinityKey)
-         .forEach(allIds::add);
-
-      Iterator<Cache.Entry<AffinityKey<String>, CompressedSheetState>> iter = cache.iterator();
-
-      try {
-         while(iter.hasNext()) {
-            allIds.add(iter.next().getKey());
-         }
-      }
-      catch(NoSuchElementException e) {
-         // Ignite closes distributed iterators mid-scan during topology changes
-         // (node join/leave/rebalance). Use whatever keys were collected so far;
-         // missing keys will be re-discovered on the next flush cycle.
-         LOG.warn("Cache iterator closed during getLocalKeys scan, using partial key set", e);
-      }
-      finally {
-         Tool.closeIterator(iter);
-      }
-
-      return Set.copyOf(cluster.getLocalCacheKeys(cache, allIds));
-   }
 
    public void flush(String key) {
       RuntimeSheet sheet;

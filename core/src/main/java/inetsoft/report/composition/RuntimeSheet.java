@@ -151,7 +151,7 @@ public abstract class RuntimeSheet {
       return accessed;
    }
 
-   public void setAccessed(long accessed) {
+   void setAccessed(long accessed) {
       this.accessed = accessed;
    }
 
