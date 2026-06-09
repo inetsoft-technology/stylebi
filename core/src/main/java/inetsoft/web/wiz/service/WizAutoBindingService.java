@@ -83,7 +83,7 @@ public class WizAutoBindingService {
    {
       List<SimpleFieldInfo> fieldConfigs = request.getFieldConfigs() != null
          ? request.getFieldConfigs() : Collections.emptyList();
-      String worksheetPath = request.getWorksheetPath();
+      String worksheetId = request.getWorksheetId();
 
       // Phase 1: resolve or create the recommendation RVS.
       String autoBindingRuntimeId = request.getAutoBindingRuntimeId();
@@ -91,11 +91,11 @@ public class WizAutoBindingService {
 
       if(Tool.isEmptyString(autoBindingRuntimeId)) {
          Viewsheet.WizInfo wizInfo = new Viewsheet.WizInfo(true, null, null);
-         // worksheetPath is the worksheet's full asset IDENTIFIER (e.g. "1^2^__NULL__^path^org"),
+         // worksheetId is the worksheet's full asset IDENTIFIER (e.g. "1^2^__NULL__^path^org"),
          // not a bare path — parse it with createAssetEntry, else getSheet finds nothing and the
          // recommender gets an empty worksheet (zero recommendations).
-         AssetEntry wsEntry = !Tool.isEmptyString(worksheetPath)
-            ? AssetEntry.createAssetEntry(worksheetPath)
+         AssetEntry wsEntry = !Tool.isEmptyString(worksheetId)
+            ? AssetEntry.createAssetEntry(worksheetId)
             : null;
          autoBindingRuntimeId = viewsheetService.openTemporaryViewsheet(null, wsEntry, user, wizInfo);
          createdAutoBindingRvs = true;
@@ -112,8 +112,8 @@ public class WizAutoBindingService {
          String tableName = null;
          List<ColumnRef> worksheetColumns = new ArrayList<>();
 
-         if(!Tool.isEmptyString(worksheetPath)) {
-            AssetEntry wsEntry = AssetEntry.createAssetEntry(worksheetPath);
+         if(!Tool.isEmptyString(worksheetId)) {
+            AssetEntry wsEntry = AssetEntry.createAssetEntry(worksheetId);
 
             try {
                AbstractSheet sheet = engine.getSheet(wsEntry, user, true, AssetContent.ALL);
@@ -146,7 +146,7 @@ public class WizAutoBindingService {
                }
             }
             catch(Exception e) {
-               LOG.warn("Failed to load worksheet '{}': {}", worksheetPath, e.getMessage());
+               LOG.warn("Failed to load worksheet '{}': {}", worksheetId, e.getMessage());
             }
          }
 
@@ -155,24 +155,11 @@ public class WizAutoBindingService {
             .collect(Collectors.toMap(SimpleFieldInfo::getField, f -> f, (a, b) -> a));
 
          final String tableNameFinal = tableName;
-         List<WorksheetColumnInfo> vizFields = request.getVisualizationUsedFields();
-         List<ColumnRef> bindColumns;
-
-         if(vizFields != null && !vizFields.isEmpty()) {
-            Set<String> vizFieldNames = vizFields.stream()
-               .map(col -> col.getAlias() != null && !col.getAlias().isEmpty()
-                  ? col.getAlias() : col.getName())
-               .collect(Collectors.toSet());
-            bindColumns = worksheetColumns.stream()
-               .filter(c -> vizFieldNames.contains(c.getAttribute()))
-               .collect(Collectors.toList());
-         }
-         else {
-            bindColumns = worksheetColumns;
-         }
+         List<ColumnRef> bindColumns =
+            selectBindColumns(worksheetColumns, request.getVisualizationUsedFields(), configMap);
 
          AssetEntry[] entries = bindColumns.stream()
-            .map(col -> buildEntryFromColumn(col, worksheetPath, tableNameFinal))
+            .map(col -> buildEntryFromColumn(col, worksheetId, tableNameFinal))
             .toArray(AssetEntry[]::new);
 
          bindingHandler.updateTemporaryFields(rvs, entries, tempInfo);
@@ -217,10 +204,10 @@ public class WizAutoBindingService {
          // Phase 3: place primary into the output viewsheet.
          CreateViewsheetResult visualizationResult = null;
 
-         if(selectedRec != null && !Tool.isEmptyString(worksheetPath)) {
+         if(selectedRec != null && !Tool.isEmptyString(worksheetId)) {
             VisualizationConfig sourceConfig = new VisualizationConfig();
             VisualizationConfig.DataSource ds = new VisualizationConfig.DataSource();
-            ds.setSource(worksheetPath);
+            ds.setSource(worksheetId);
             sourceConfig.setData(ds);
 
             CreateVisualizationModel vsModel = new CreateVisualizationModel();
@@ -247,7 +234,7 @@ public class WizAutoBindingService {
          }
 
          // Phase 4: build response.
-         RecommendedVisualization primary = recommendationToVisualization(selectedRec, entries, worksheetPath);
+         RecommendedVisualization primary = recommendationToVisualization(selectedRec, entries, worksheetId);
          AutoBindingResponse resp = new AutoBindingResponse();
          resp.setRecommendations(recommendations);
          resp.setPrimary(primary);
@@ -441,6 +428,51 @@ public class WizAutoBindingService {
             LOG.warn("Ignoring format '{}' for non-date/non-numeric field '{}'", format, fc.getField());
          }
       }
+   }
+
+   // ── Bind-column selection ────────────────────────────────────────────────────
+
+   /**
+    * Decide which worksheet columns autoBinding may bind.
+    * Precedence: explicit visualizationUsedFields (chat-app path) > fieldConfigs
+    * (plugin path) > all visible columns. A fieldConfig naming a column that does
+    * not exist is an error: silently binding everything produced junk measures.
+    */
+   static List<ColumnRef> selectBindColumns(List<ColumnRef> worksheetColumns,
+                                            List<WorksheetColumnInfo> vizFields,
+                                            Map<String, SimpleFieldInfo> configMap)
+   {
+      if(vizFields != null && !vizFields.isEmpty()) {
+         Set<String> vizFieldNames = vizFields.stream()
+            .map(col -> col.getAlias() != null && !col.getAlias().isEmpty()
+               ? col.getAlias() : col.getName())
+            .collect(Collectors.toSet());
+         return worksheetColumns.stream()
+            .filter(c -> vizFieldNames.contains(c.getAttribute()))
+            .collect(Collectors.toList());
+      }
+
+      if(!configMap.isEmpty()) {
+         Set<String> available = worksheetColumns.stream()
+            .map(ColumnRef::getAttribute)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+         List<String> missing = configMap.keySet().stream()
+            .filter(k -> !available.contains(k))
+            .sorted()
+            .collect(Collectors.toList());
+
+         if(!missing.isEmpty()) {
+            throw new IllegalArgumentException(
+               "Unknown field(s) in fieldConfigs: " + missing +
+               ". Available worksheet columns: " + available);
+         }
+
+         return worksheetColumns.stream()
+            .filter(c -> configMap.containsKey(c.getAttribute()))
+            .collect(Collectors.toList());
+      }
+
+      return worksheetColumns;
    }
 
    // ── Chart preference helpers ──────────────────────────────────────────────────
@@ -1289,7 +1321,7 @@ public class WizAutoBindingService {
       String autoBindingRuntimeId = request.getAutoBindingRuntimeId();
       String visualizationType = request.getVisualizationType();
       String wizRuntimeId = request.getWizRuntimeId();
-      String worksheetPath = request.getWorksheetPath();
+      String worksheetId = request.getWorksheetId();
       String viewsheetIdentifier = request.getViewsheetIdentifier();
 
       // 1. Try to get the recommendation model stored by a prior autoBinding call.
@@ -1319,7 +1351,7 @@ public class WizAutoBindingService {
       // 2. Model missing — fall back to full autoBinding (handles placement too).
       if(model == null) {
          AutoBindingRequest fallback = new AutoBindingRequest();
-         fallback.setWorksheetPath(worksheetPath);
+         fallback.setWorksheetId(worksheetId);
          fallback.setVisualizationType(visualizationType);
          // Do not forward autoBindingRuntimeId: if it was non-empty but invalid (expired RVS),
          // autoBindingInternal() would skip creating a new RVS and fail on the same dead id again.
@@ -1371,9 +1403,9 @@ public class WizAutoBindingService {
          }
       }
 
-      if(selectedRec == null || Tool.isEmptyString(worksheetPath) || Tool.isEmptyString(wizRuntimeId)) {
-         LOG.warn("changeType skipped: selectedRec={}, worksheetPath='{}', wizRuntimeId='{}'",
-                  selectedRec, worksheetPath, wizRuntimeId);
+      if(selectedRec == null || Tool.isEmptyString(worksheetId) || Tool.isEmptyString(wizRuntimeId)) {
+         LOG.warn("changeType skipped: selectedRec={}, worksheetId='{}', wizRuntimeId='{}'",
+                  selectedRec, worksheetId, wizRuntimeId);
          return new CreateViewsheetResult();
       }
 
@@ -1388,7 +1420,7 @@ public class WizAutoBindingService {
       // 4. Place the new primary in wizRuntimeId without executing the sandbox.
       VisualizationConfig sourceConfig = new VisualizationConfig();
       VisualizationConfig.DataSource ds = new VisualizationConfig.DataSource();
-      ds.setSource(worksheetPath);
+      ds.setSource(worksheetId);
       sourceConfig.setData(ds);
 
       CreateVisualizationModel vsModel = new CreateVisualizationModel();
@@ -1519,6 +1551,12 @@ public class WizAutoBindingService {
       // Invalidate the cached runtime descriptor so the change regenerates on re-execute.
       info.setRTChartDescriptor(null);
 
+      // The cached VGraphPair holds a reference to this same VSChartInfo, so the sandbox's
+      // staleness check (equalsContent against itself) can never detect the in-place mutation
+      // above. Clear the cached graph explicitly — mirroring VSChartDataHandler — or every
+      // subsequent render (including brand-new embed connections) serves the stale graph.
+      rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(request.getAssemblyName()));
+
       CreateViewsheetResult result =
          wizVsService.fetchAssemblyData(request.getWizRuntimeId(), request.getAssemblyName(), user);
 
@@ -1608,6 +1646,12 @@ public class WizAutoBindingService {
 
       info.setRTChartDescriptor(null);
 
+      // The cached VGraphPair holds a reference to this same VSChartInfo, so the sandbox's
+      // staleness check (equalsContent against itself) can never detect the in-place mutation
+      // above. Clear the cached graph explicitly — mirroring VSChartDataHandler — or every
+      // subsequent render (including brand-new embed connections) serves the stale graph.
+      rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(request.getAssemblyName()));
+
       CreateViewsheetResult result =
          wizVsService.fetchAssemblyData(request.getWizRuntimeId(), request.getAssemblyName(), user);
 
@@ -1629,7 +1673,12 @@ public class WizAutoBindingService {
       return result;
    }
 
-   /** Applies a single static color to every bound measure (aggregate) ref. */
+   /**
+    * Applies a single static color to every bound measure (aggregate) ref — both the design
+    * refs (so the change persists across runtime regeneration and save) and the runtime refs
+    * (the renderer reads getRTYFields()/getRTXFields(), clones made at execution time, so
+    * painting only the design refs would leave the next render on the old color).
+    */
    private void applyStaticColor(VSChartInfo vsChartInfo, Color color) {
       if(vsChartInfo == null) {
          return;
@@ -1643,6 +1692,14 @@ public class WizAutoBindingService {
 
       if(vsChartInfo.getXFields() != null) {
          refs.addAll(Arrays.asList(vsChartInfo.getXFields()));
+      }
+
+      if(vsChartInfo.getRTYFields() != null) {
+         refs.addAll(Arrays.asList(vsChartInfo.getRTYFields()));
+      }
+
+      if(vsChartInfo.getRTXFields() != null) {
+         refs.addAll(Arrays.asList(vsChartInfo.getRTXFields()));
       }
 
       for(ChartRef ref : refs) {

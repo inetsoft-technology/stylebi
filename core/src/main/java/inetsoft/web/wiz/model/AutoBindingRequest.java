@@ -26,12 +26,12 @@ import java.util.List;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AutoBindingRequest {
-   public String getWorksheetPath() {
-      return worksheetPath;
+   public String getWorksheetId() {
+      return worksheetId;
    }
 
-   public void setWorksheetPath(String worksheetPath) {
-      this.worksheetPath = worksheetPath;
+   public void setWorksheetId(String worksheetId) {
+      this.worksheetId = worksheetId;
    }
 
    public String getVisualizationType() {
@@ -69,7 +69,7 @@ public class AutoBindingRequest {
    /**
     * Worksheet global path, same as VisualizationConfig.data.source.
     */
-   private String worksheetPath;
+   private String worksheetId;
    /**
     * Expected visualization type string, e.g. "bar", "table", "crosstab", "gauge".
     */
