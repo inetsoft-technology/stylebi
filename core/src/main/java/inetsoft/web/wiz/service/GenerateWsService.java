@@ -1175,8 +1175,21 @@ public class GenerateWsService {
             dataType = XSchema.DOUBLE;
          }
 
+         // Each HavingCondition carries its own junction (default AND).
+         // GE/LE sub-conditions expanded from a single entry are joined with OR within that entry.
+         int junctionType = "OR".equalsIgnoreCase(havingCond.getJunction())
+            ? JunctionOperator.OR : JunctionOperator.AND;
+         boolean firstItemForThisCond = true;
+
          // Create condition(s) for each operator
          for(Integer op : conditionOperators) {
+            // ConditionList requires alternating ConditionItem / JunctionOperator entries.
+            // Insert a junction before every item except the very first in the list.
+            if(!conditionList.isEmpty()) {
+               int junction = firstItemForThisCond ? junctionType : JunctionOperator.OR;
+               conditionList.append(new JunctionOperator(junction, 0));
+            }
+
             AssetCondition assetCondition = new AssetCondition();
             addConditionValue(assetCondition, havingCond.getValue());
             assetCondition.setOperation(op);
@@ -1188,6 +1201,7 @@ public class GenerateWsService {
             }
 
             conditionList.append(new ConditionItem(aggregateRef, assetCondition, 0));
+            firstItemForThisCond = false;
          }
       }
 

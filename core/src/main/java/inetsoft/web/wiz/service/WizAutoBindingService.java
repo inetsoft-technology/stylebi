@@ -119,7 +119,15 @@ public class WizAutoBindingService {
                AbstractSheet sheet = engine.getSheet(wsEntry, user, true, AssetContent.ALL);
 
                if(sheet instanceof Worksheet ws) {
-                  WSAssembly primary = ws.getPrimaryAssembly();
+                  String wsTableName = request.getWsTableName();
+                  WSAssembly primary = null;
+
+                  if(Tool.isEmptyString(wsTableName)) {
+                     primary = ws.getPrimaryAssembly();
+                  }
+                  else {
+                     primary = (WSAssembly) ws.getAssembly(wsTableName);
+                  }
 
                   if(primary instanceof TableAssembly ta) {
                      tableName = primary.getName();

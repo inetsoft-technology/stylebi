@@ -521,6 +521,8 @@ public class WorksheetConstructionModel {
       private Object value;                    // The value to compare against
       private Integer n;                       // For NthLargest, NthSmallest, etc.
       private String secondaryField;           // For WeightedAverage, Correlation, etc.
+      /** Logical operator joining this condition to the preceding one. "AND" (default) or "OR". Omit for the first condition. */
+      private String junction;
 
       public String getField() {
          return field;
@@ -568,6 +570,14 @@ public class WorksheetConstructionModel {
 
       public void setSecondaryField(String secondaryField) {
          this.secondaryField = secondaryField;
+      }
+
+      public String getJunction() {
+         return junction;
+      }
+
+      public void setJunction(String junction) {
+         this.junction = junction;
       }
    }
 
