@@ -33,8 +33,8 @@
 
 - [ ] **Step 1: 创建 workflow 目录**
 
-```powershell
-New-Item -ItemType Directory -Force -Path ".claude/workflows"
+```bash
+mkdir -p .claude/workflows
 ```
 
 - [ ] **Step 2: 写入 workflow 脚本**
@@ -325,18 +325,18 @@ http.get("*/api/composer/viewsheet/list", () =>
 以如下格式向 Claude Code 发送请求（将 `<COMPONENT_PATH>` 替换为实际路径）：
 
 ```
-Follow the instructions in .claude/component-risk-driven-generation-prompt.md
+Follow the instructions in docs/superpowers/prompts/risk-driven-test-generation.md
 
-Scope: <COMPONENT_PATH>
+测试范围: <COMPONENT_PATH>
 Example: projects/portal/src/app/composer/toolbar/composer-toolbar.component.ts
 
-Reference test file: projects/em/src/app/auditing/audit-bookmark-history/audit-bookmark-history.component.tl.spec.ts
+参考测试文件: projects/em/src/app/auditing/audit-bookmark-history/audit-bookmark-history.component.tl.spec.ts
 
-Current pass: [single pass / Pass 1 / Pass 2 — 按 pre-scan 报告中的分类填写]
-Old spec notes: [pre-scan 报告「旧 spec 备注」列内容，若有]
+Prescan 数据: [选项 A — 粘贴该组件在 pre-scan 报告中的表格行（multi-pass 时一并附上详情段落）/ 选项 B — pre-scan 文件路径，如 docs/superpowers/specs/test-prescan/portal-route-prescan-2026-06-08.md]
+当前 Pass: [single-pass 时省略 / Pass 1 / Pass 2 / Pass 3 — 按 pre-scan 报告中的分类填写]
 ```
 
-等待 Stage 1 pre-scan 输出，确认指标与 workflow 报告一致，再继续。
+等待阶段 1 确认输出，核实分类与 Pass 计划与 pre-scan 报告一致；multi-pass 组件需指定当前 Pass 后再继续。
 
 - [ ] **Step 3: 保存生成的测试文件**
 
@@ -368,7 +368,7 @@ npx vitest run projects/portal/src/app/composer/path/to/ComponentName.tl.spec.ts
 如果同目录存在 `ComponentName.spec.ts`（注意：不是 `.tl.spec.ts`），且 Step 4 全部通过，则删除旧文件：
 
 ```bash
-Remove-Item "projects/portal/src/app/composer/path/to/ComponentName.spec.ts"
+rm "projects/portal/src/app/composer/path/to/ComponentName.spec.ts"
 ```
 
 - [ ] **Step 6: 更新 pre-scan 报告状态**
@@ -477,8 +477,8 @@ import { viewerHandlers } from "./handlers/viewer.handlers";
 
 | 资源 | 路径 |
 |------|------|
-| Risk-driven 测试生成 prompt | `.claude/component-risk-driven-generation-prompt.md` |
-| 测试技术补充说明 | `.claude/unit-test-techniques-supplement.md` |
+| Risk-driven 测试生成 prompt | `docs/superpowers/prompts/risk-driven-test-generation.md` |
+| 测试技术补充说明 | `docs/superpowers/prompts/test-techniques-reference.md` |
 | em 项目参考测试（ATL+MSW 范例） | `projects/em/src/app/auditing/audit-bookmark-history/audit-bookmark-history.component.tl.spec.ts` |
 | MSW server 入口 | `mocks/server.ts` |
 | Portal vitest TL 配置 | `projects/portal/src/vitest-setup-tl.ts` |

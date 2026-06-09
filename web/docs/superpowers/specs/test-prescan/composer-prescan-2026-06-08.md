@@ -59,7 +59,7 @@
 | 待审核 | AssetTreeComponent | 705 | 2 | 8 | **multi-pass** | ✅ 推进 | ⚠️ asset-tree.component.spec.ts | Bug 10264 make sure asset tree node remain expanded. | P1: AssetTreeComponent.interaction.tl.spec.ts<br>P2: AssetTreeComponent.risk.tl.spec.ts |
 | 待审核 | FontPane | 129 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ font-pane.spec.ts | for Bug #19781 | single pass (+内存泄漏) |
 | 待审核 | DynamicComboBox | 323 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ dynamic-combo-box.spec.ts | Bug #17341  and Bug #17765 disbale variable when no variable list and can not select disabled variable irem; Bug #17341; Bug #17765 | single pass (+内存泄漏) |
-| 待审核 | AlphaDropdown | 42 | 0 | 0 | **single-pass** | ⏭ 跳过 | ⚠️ alpha-dropdown.component.spec.ts | Bug #19399 should keep alpha value | single pass |
+| 待审核 | AlphaDropdown | 42 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ alpha-dropdown.component.spec.ts | Bug #19399 should keep alpha value | single pass |
 | 待审核 | BindingBorderPane | 331 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ binding-border-pane.spec.ts | Bug #10699 and Bug #17594 make sure when setting border style and color to default; test: should set borders to null when default borders selected | single pass |
 | 待审核 | RadiusDropdown | 74 | 0 | 10 | **multi-pass** | ✅ 推进 |  |  | P1: RadiusDropdown.interaction.tl.spec.ts<br>P2: RadiusDropdown.risk.tl.spec.ts |
 | 待审核 | FormattingPane | 185 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ formatting-pane.spec.ts | test: empty decimal format should increase decimal | single pass |

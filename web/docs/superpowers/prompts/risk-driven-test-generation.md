@@ -35,14 +35,13 @@
 - Angular TL 最小骨架：
 
 ```ts
-import { it } from "@jest/globals";
 import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse } from "msw";
 import { server } from "...../mocks/server";
 
 async function renderComponent() {
    const result = await render(MyComponent, {
-      providers: [provideHttpClient(), { provide: FooDep, useValue: { fn: jest.fn() } }],
+      providers: [provideHttpClient(), { provide: FooDep, useValue: { fn: vi.fn() } }],
       schemas: [NO_ERRORS_SCHEMA],
    });
    return result.fixture.componentInstance;
