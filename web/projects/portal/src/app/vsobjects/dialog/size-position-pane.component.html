@@ -22,14 +22,14 @@
       <div class="col">
         <div class="form-floating">
           <input type="number" class="form-control" formControlName="top" [(ngModel)]="model.top"
-            placeholder="_#(Top)" [disabled]="!layoutEnabled || model.locked">
+            placeholder="_#(Top)">
           <label>_#(Top)</label>
         </div>
       </div>
       <div class="col layout-col-offset">
         <div class="form-floating">
           <input type="number" class="form-control" formControlName="left" [(ngModel)]="model.left"
-            placeholder="_#(Left)" [disabled]="!layoutEnabled || model.locked">
+            placeholder="_#(Left)">
           <label>_#(Left)</label>
         </div>
       </div>
@@ -37,7 +37,7 @@
         @if (!isGroup && !isViewsheet) {
           <div class="form-floating">
             <input type="number" class="form-control" formControlName="width" [(ngModel)]="model.width"
-              placeholder="_#(Width)" [disabled]="!layoutEnabled || model.locked">
+              placeholder="_#(Width)">
             <label>_#(Width)</label>
           </div>
         }
@@ -46,7 +46,7 @@
         @if (!isGroup && !isViewsheet) {
           <div class="form-floating">
             <input type="number" class="form-control" formControlName="height" [(ngModel)]="model.height"
-              placeholder="_#(Height)" [disabled]="!layoutEnabled || model.locked">
+              placeholder="_#(Height)">
             <label>_#(Height)</label>
           </div>
         }
@@ -75,9 +75,9 @@
         <div class="col-auto">
           <div class="checkbox">
             <div class="form-check">
-              <input id="scaleV" type="checkbox" class="form-check-input" id="scaleV"
+              <input id="scaleV" type="checkbox" class="form-check-input"
                 formControlName="scaleVertical"
-                [(ngModel)]="model.scaleVertical" [disabled]="!layoutEnabled || model.locked"/>
+                [(ngModel)]="model.scaleVertical"/>
               <label class="form-check-label" for="scaleV">
                 _#(Scale vertically when scaling to screen)
               </label>
