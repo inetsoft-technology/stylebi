@@ -109,31 +109,31 @@ public class WsMergeService {
                                        (srcPost != null && !srcPost.isEmpty());
                boolean hasAggregation = srcAggr != null && !srcAggr.isEmpty();
 
-               if(hasConditions || hasAggregation) {
+               if(prevMirror == null) {
+                  // Unexpected state — fall back to name-only mapping
+                  wsRenameMap.put(srcBound.getName(), prevMirrorName);
+               }
+               else if(hasConditions || hasAggregation) {
                   // srcBound carries its own conditions or aggregation. Stack a mirror of
                   // prevMirror (not _base) so that runtime filters applied to prevMirror
                   // propagate through this mirror and on to any join that references it,
                   // preserving cross-chart filter interaction while retaining srcBound's
                   // conditions and aggregation.
-                  if(prevMirror == null) {
-                     // Unexpected state — fall back to name-only mapping
-                     wsRenameMap.put(srcBound.getName(), prevMirrorName);
-                  }
-                  else {
-                     String condMirrorName = ensureUniqueName(prevMirrorName, dashWS);
-                     MirrorTableAssembly condMirror = new MirrorTableAssembly(dashWS, condMirrorName, prevMirror);
-                     condMirror.setColumnSelection(srcBound.getColumnSelection(true).clone(), true);
-                     condMirror.setPreConditionList(srcPre != null ? (ConditionListWrapper) srcPre.clone() : new ConditionList());
-                     condMirror.setPostConditionList(srcPost != null ? (ConditionListWrapper) srcPost.clone() : new ConditionList());
-                     condMirror.setAggregateInfo(srcAggr != null ? (AggregateInfo) srcAggr.clone() : new AggregateInfo());
-                     condMirror.setProperty(PROP_WIZ_MERGED, "true");
-                     dashWS.addAssembly(condMirror);
-                     wsRenameMap.put(srcBound.getName(), condMirrorName);
-                  }
+                  String condMirrorName = ensureUniqueName(prevMirrorName, dashWS);
+                  MirrorTableAssembly condMirror = new MirrorTableAssembly(dashWS, condMirrorName, prevMirror);
+                  condMirror.setColumnSelection(srcBound.getColumnSelection(true).clone(), true);
+                  condMirror.setPreConditionList(srcPre != null ? (ConditionListWrapper) srcPre.clone() : new ConditionList());
+                  condMirror.setPostConditionList(srcPost != null ? (ConditionListWrapper) srcPost.clone() : new ConditionList());
+                  condMirror.setAggregateInfo(srcAggr != null ? (AggregateInfo) srcAggr.clone() : new AggregateInfo());
+                  condMirror.setProperty(PROP_WIZ_MERGED, "true");
+                  dashWS.addAssembly(condMirror);
+                  wsRenameMap.put(srcBound.getName(), condMirrorName);
                }
                else {
-                  // No conditions or aggregation — reuse prevMirror directly so the join
-                  // table shares the same node as chart1's binding, enabling cross-chart
+                  // srcBound has no conditions or aggregation: reuse prevMirror directly.
+                  // srcBound's own column selection is not applied here — prevMirror's
+                  // expanded union selection (refreshed above) is used instead, which is
+                  // required for both charts to share a single node and enable cross-chart
                   // filter interaction.
                   wsRenameMap.put(srcBound.getName(), prevMirrorName);
                }
