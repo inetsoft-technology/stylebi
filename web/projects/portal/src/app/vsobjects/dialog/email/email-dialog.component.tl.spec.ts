@@ -50,7 +50,6 @@ import { server } from "@test-mocks/server";
 import { EmailDialog } from "./email-dialog.component";
 import { ModelService } from "../../../widget/services/model.service";
 import { EmailDialogModel } from "../../model/email-dialog-model";
-import { EmailPaneModel } from "../../model/email-pane-model";
 import { FileFormatPaneModel } from "../../model/file-format-pane-model";
 
 // Allows partial overrides of nested model objects (deep merge handled by makeModel)
@@ -195,15 +194,20 @@ describe("EmailDialog — ok(): email validation + send chain", () => {
    });
 
    it("should reset showLoading=false when stop callback is invoked", async () => {
+      let loadingWhenStopCalled = false;
       const { comp } = await renderComponent({
          sendFn: (m, _commit, stop) => {
+            loadingWhenStopCalled = comp.showLoading; // must be true at this point
             stop();
          },
       });
 
       comp.ok();
 
-      await waitFor(() => expect(comp.showLoading).toBe(false));
+      // Blocks until HTTP fires and sendFn runs — proves the HTTP path was taken
+      await waitFor(() => expect(loadingWhenStopCalled).toBe(true));
+      // After stop() was called, showLoading must be false
+      expect(comp.showLoading).toBe(false);
    });
 });
 
