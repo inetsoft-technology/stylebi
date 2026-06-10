@@ -144,10 +144,6 @@ public class DatabaseTreeService {
                node.setType(DatabaseTreeNodeType.FOLDER);
                node.setCatalog(entry.getProperty(XSourceInfo.CATALOG));
                node.setSchema(entry.getProperty(XSourceInfo.SCHEMA));
-
-               if(!loadColumns && node.getSchema() != null && !node.getSchema().isEmpty()) {
-                  node.setTableCount(getPhysicalTableChildCount(entry, principal));
-               }
             }
             else if(entry.isColumn()) {
                node.setType(DatabaseTreeNodeType.COLUMN);
@@ -210,16 +206,10 @@ public class DatabaseTreeService {
          boolean isLeaf = loadColumns ? "column".equals(child.getType()) : !Folder.TYPE.equals(child.getType());
 
          TreeNodeModel.Builder  builder = TreeNodeModel.builder()
-            .label(getNodeLabel(child))
             .data(child)
             .leaf(isLeaf)
             .type(child.getType())
             .cssClass("action-color");
-         String tooltip = getNodeTooltip(child);
-
-         if(tooltip != null) {
-            builder.tooltip(tooltip);
-         }
 
          boolean loadTimeOut = System.currentTimeMillis() >= startTime + META_LOAD_TIME_OUT;
 
@@ -232,8 +222,21 @@ public class DatabaseTreeService {
          }
 
          if(!isLeaf) {
-            builder.children(getFullDatabaseTree(
-               child.getPath(), child.getParr(), additional, loadColumns, ignoreVpm, principal));
+            List<TreeNodeModel> grandChildren = getFullDatabaseTree(
+               child.getPath(), child.getParr(), additional, loadColumns, ignoreVpm, principal);
+
+            if(isSchemaFolder(child)) {
+               child.setTableCount(getPhysicalTableChildCount(grandChildren));
+            }
+
+            builder.children(grandChildren);
+         }
+
+         builder.label(getNodeLabel(child));
+         String tooltip = getNodeTooltip(child);
+
+         if(tooltip != null) {
+            builder.tooltip(tooltip);
          }
 
          results.add(builder.build());
@@ -262,22 +265,15 @@ public class DatabaseTreeService {
       return null;
    }
 
-   private int getPhysicalTableChildCount(AssetEntry folderEntry, Principal principal)
-      throws Exception
-   {
-      AssetEntry.Selector selector =
-         new AssetEntry.Selector(AssetEntry.Type.DATA, AssetEntry.Type.PHYSICAL);
-      AssetEntry[] entries = assetRepository.getEntries(folderEntry, principal, ResourceAction.READ,
-         selector);
-      int count = 0;
+   private boolean isSchemaFolder(DatabaseTreeNode node) {
+      return DatabaseTreeNodeType.FOLDER.equals(node.getType()) &&
+         node.getSchema() != null && !node.getSchema().isEmpty();
+   }
 
-      for(AssetEntry entry : entries) {
-         if(entry.isPhysicalTable()) {
-            count++;
-         }
-      }
-
-      return count;
+   private int getPhysicalTableChildCount(List<TreeNodeModel> children) {
+      return (int) children.stream()
+         .filter(child -> DatabaseTreeNodeType.TABLE.equals(child.type()))
+         .count();
    }
 
    public TreeNodeModel getAllAlias(String basePath, Principal principal) throws Exception {

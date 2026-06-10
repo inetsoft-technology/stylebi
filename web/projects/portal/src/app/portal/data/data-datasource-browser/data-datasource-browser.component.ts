@@ -93,7 +93,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    currentFolderPathString: string = "";
    currentFolderScope: string = "";
    currentFolderChain: DataSourceInfo[] = [];
-   currentFolderDetails: DataSourceInfo = null;
+   currentFolderDetails: DataSourceInfo | null = null;
    currentFolderIsRoot: boolean = true;
    currentSearchQuery: string = "";
    folders: DataSourceInfo[] = [];
@@ -182,7 +182,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
          || !this.isSelectionDeletable() || !this.isSelectionEditable();
    }
 
-   get currentFolderInfo(): DataSourceInfo {
+   get currentFolderInfo(): DataSourceInfo | null {
       return this.currentFolderDetails || (this.currentFolderChain?.length ?
          this.currentFolderChain[this.currentFolderChain.length - 1] : null);
    }
@@ -425,10 +425,10 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
 
       this.httpClient.get<DataSourceInfo>(
          DATASOURCE_FOLDER_URI + "/" + Tool.encodeURIComponentExceptSlash(this.currentFolderPathString)
-      ).subscribe(
-         (folder) => this.currentFolderDetails = folder,
-         () => this.currentFolderDetails = null
-      );
+      ).subscribe({
+         next: (folder) => this.currentFolderDetails = folder,
+         error: () => this.currentFolderDetails = null
+      });
    }
 
    private withCurrentFolderDetails(action: (folder: DataSourceInfo) => void): void {
@@ -437,17 +437,17 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
       if(this.currentFolderPathString) {
          this.httpClient.get<DataSourceInfo>(
             DATASOURCE_FOLDER_URI + "/" + Tool.encodeURIComponentExceptSlash(this.currentFolderPathString)
-         ).subscribe(
-            (folder) => {
+         ).subscribe({
+            next: (folder) => {
                this.currentFolderDetails = folder;
                action(folder);
             },
-            () => {
+            error: () => {
                if(!!fallbackFolder) {
                   action(fallbackFolder);
                }
             }
-         );
+         });
       }
       else if(!!fallbackFolder) {
          action(fallbackFolder);

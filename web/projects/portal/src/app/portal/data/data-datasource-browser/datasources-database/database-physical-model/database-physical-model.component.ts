@@ -951,8 +951,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
          this.openFolder(node)
             .subscribe(
                data => {
-                  node.children = data;
-                  node.childrenLoaded = true;
+                  this.setExpandedNodeChildren(node, data);
                },
                err => {
                }
@@ -1106,6 +1105,27 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
                }
             });
          }));
+   }
+
+   private setExpandedNodeChildren(node: TreeNodeModel, children: TreeNodeModel[]): void {
+      node.children = children;
+      node.childrenLoaded = true;
+      this.refreshExpandedSchemaTableCount(node);
+   }
+
+   private refreshExpandedSchemaTableCount(node: TreeNodeModel): void {
+      const data = <DatabaseTreeNodeModel> node?.data;
+
+      if(!data || data.type !== DatabaseTreeNodeType.FOLDER || !data.schema) {
+         return;
+      }
+
+      const tableCount = node.children
+         ?.filter(child => child.type === DatabaseTreeNodeType.TABLE)
+         .length ?? 0;
+      data.tableCount = tableCount;
+      node.label = tableCount > 0 ? data.name + " (" + tableCount + ")" : data.name;
+      node.tooltip = tableCount > 0 ? tableCount + " table" + (tableCount == 1 ? "" : "s") : undefined;
    }
 
    private loadDatabaseTree(): Observable<TreeNodeModel[]> {
@@ -1463,7 +1483,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
                this.openFolder(child)
                   .subscribe(
                      data => {
-                        child.children = data;
+                        this.setExpandedNodeChildren(child, data);
                         this.selectAndExpandToPath(paths, child);
                      });
             }

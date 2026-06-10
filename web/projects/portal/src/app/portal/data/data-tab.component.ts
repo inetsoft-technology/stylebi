@@ -129,7 +129,8 @@ export class DataTabComponent implements AfterViewInit, OnInit, OnDestroy {
                path: "/",
                scope: DATASOURCE_ROOT_SCOPE,
                temp: new Date().getTime()
-            }
+            },
+            replaceUrl: true
          });
       }
       else if(this.isLandingRoute(url, "/portal/tab/data/folder")) {
@@ -138,7 +139,8 @@ export class DataTabComponent implements AfterViewInit, OnInit, OnDestroy {
                path: "/",
                scope: WORKSHEET_ROOT_SCOPE,
                temp: new Date().getTime()
-            }
+            },
+            replaceUrl: true
          });
       }
    }
