@@ -58,8 +58,12 @@ import {
    ActionsContextmenuComponent
 } from "../../widget/fixed-dropdown/actions-contextmenu.component";
 import { FixedDropdownService } from "../../widget/fixed-dropdown/fixed-dropdown.service";
-import { EMBED_TEXT_URL_MATCHER } from "./app-routing.module";
+import { EMBED_TEXT_URL_MATCHER } from "./embed-text.routes";
 import { TooltipService } from "../../widget/tooltip/tooltip.service";
+import { ResizedDirective } from "../../../../../shared/resize-event/resized.directive";
+import { VSText } from "../../vsobjects/objects/output/text/vs-text.component";
+import { MiniToolbar } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.component";
+import { InteractContainerDirective } from "../../widget/interact/interact-container.directive";
 import { ShadowDomService } from "../shadow-dom.service";
 import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
 import { CollectParametersCommand } from "../../vsobjects/command/collect-parameters-command";
@@ -79,10 +83,11 @@ const COLLECT_PARAMS_URI: string = "/events/vs/collectParameters";
 declare const window: any;
 
 @Component({
-   selector: "embed-text",
-   templateUrl: "./embed-text.component.html",
-   styleUrls: ["./embed-text.component.scss"],
-   providers: [
+    imports: [ResizedDirective, VSText, MiniToolbar, InteractContainerDirective],
+    selector: "embed-text",
+    templateUrl: "./embed-text.component.html",
+    styleUrls: ["./embed-text.component.scss"],
+    providers: [
       ViewsheetClientService,
       TooltipService,
       NgbModal,
@@ -156,7 +161,15 @@ export class EmbedTextComponent extends CommandProcessor implements OnInit, OnDe
    ngOnInit(): void {
       if(this.url) {
          const tree = this.router.parseUrl(this.url);
-         const result = EMBED_TEXT_URL_MATCHER(tree.root?.children?.primary?.segments);
+         const segments = tree.root?.children?.primary?.segments ?? tree.root?.segments;
+         const result = EMBED_TEXT_URL_MATCHER(segments);
+
+         if(!result) {
+            this.showError = true;
+            console.error("Invalid embed URL: " + this.url);
+            return;
+         }
+
          this.assetId = result.posParams?.assetId?.path;
          this.assemblyName = result.posParams?.assemblyName?.path;
          this.inputRuntimeId = result.posParams?.runtimeId?.path;
@@ -234,6 +247,14 @@ export class EmbedTextComponent extends CommandProcessor implements OnInit, OnDe
    processSetRuntimeIdCommand(command: SetRuntimeIdCommand): void {
       this.viewsheetClient.runtimeId = command.runtimeId;
       this.runtimeId = command.runtimeId;
+
+      // A newly opened embedded assembly may need an explicit refresh to apply the
+      // requested assembly size after the runtime is established.
+      if(this.assemblyName && !this.inputRuntimeId) {
+         this.refreshEmbedAssembly();
+         return;
+      }
+
       this.onResize();
    }
 
@@ -357,10 +378,16 @@ export class EmbedTextComponent extends CommandProcessor implements OnInit, OnDe
 
    private refreshEmbedAssembly(): void {
       this.setAppSize();
+
+      if(this.assemblySize == null || this.assemblySize.width == 0 || this.assemblySize.height == 0) {
+         return;
+      }
+
       const refreshEvent: RefreshVsAssemblyEvent = {
          vsRuntimeId: this.runtimeId,
          assemblyName: this.assemblyName,
-         embed: true
+         embed: true,
+         assemblySize: this.assemblySize
       };
       this.viewsheetClient.sendEvent("/events/vs/refresh/assembly", refreshEvent);
    }
@@ -370,6 +397,7 @@ export class EmbedTextComponent extends CommandProcessor implements OnInit, OnDe
       let event: OpenViewsheetEvent = new OpenViewsheetEvent(
          this.assetId, this.appSize.width, this.appSize.height, this.mobileDevice,
          window.navigator.userAgent);
+      event.embed = true;
       event.embedAssemblyName = this.assemblyName;
       event.embedAssemblySize = this.assemblySize;
       event.disableParameterSheet = true;
@@ -497,7 +525,8 @@ export class EmbedTextComponent extends CommandProcessor implements OnInit, OnDe
          if(this.inputRuntimeId) {
             const refreshEvent: RefreshVsAssemblyEvent = {
                vsRuntimeId: this.runtimeId,
-               assemblyName: this.assemblyName
+               assemblyName: this.assemblyName,
+               assemblySize: this.assemblySize
             };
             this.viewsheetClient.sendEvent("/events/vs/refresh/assembly", refreshEvent);
          }

@@ -160,7 +160,15 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
       // custom element url
       if(this.url) {
          const tree = this.router.parseUrl(this.url);
-         const result = EMBED_VIEWER_URL_MATCHER(tree.root?.children?.primary?.segments);
+         const segments = tree.root?.children?.primary?.segments ?? tree.root?.segments;
+         const result = EMBED_VIEWER_URL_MATCHER(segments);
+
+         if(!result) {
+            this.showError = true;
+            console.error("Invalid embed URL: " + this.url);
+            return;
+         }
+
          this.assetId = result.posParams?.assetId?.path;
          this.queryParams = new Map();
          this.queryParams.set("disableParameterSheet", ["true"]);
@@ -179,26 +187,28 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
             }
          });
 
-         (window.inetsoftConnected as BehaviorSubject<boolean>).subscribe((connected) => {
-            if(!this.connected && connected) {
-               this.connected = true;
+         this.subscriptions.add(
+            (window.inetsoftConnected as BehaviorSubject<boolean>).subscribe((connected) => {
+               if(!this.connected && connected) {
+                  this.connected = true;
 
-               if(!!this.errorTimeout) {
-                  clearTimeout(this.errorTimeout);
+                  if(!!this.errorTimeout) {
+                     clearTimeout(this.errorTimeout);
+                  }
+
+                  this.showError = false;
+                  this.cdRef.detectChanges();
                }
 
-               this.showError = false;
-               this.cdRef.detectChanges();
-            }
-
-            if(!this.connected && !connected) {
-               this.errorTimeout = setTimeout(() => {
-                  this.showError = true;
-                  console.error("InetSoft client not connected. Please make sure to login first.");
-                  this.cdRef.detectChanges();
-               }, 2000);
-            }
-         });
+               if(!this.connected && !connected) {
+                  this.errorTimeout = setTimeout(() => {
+                     this.showError = true;
+                     console.error("InetSoft client not connected. Please make sure to login first.");
+                     this.cdRef.detectChanges();
+                  }, 2000);
+               }
+            })
+         );
       }
 
       this.createOverlayContainer();

@@ -15,25 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgModule } from "@angular/core";
-import { RouterModule, Routes } from "@angular/router";
+import { Routes, UrlSegment } from "@angular/router";
 import { canDeactivateGuard } from "../../common/services/can-deactivate-guard.service";
-import { EmbedGaugeComponent } from "./embed-gauge.component";
 import { createEmbedUrlMatcher } from "../embed-url-matcher";
+import { EmbedTableComponent } from "./embed-table.component";
 
-export const EMBED_GAUGE_URL_MATCHER = createEmbedUrlMatcher;
+export function EMBED_TABLE_URL_MATCHER(url: UrlSegment[]) {
+   return createEmbedUrlMatcher(url);
+}
 
-const routes: Routes = [
+export const embedTableRoutes: Routes = [
    {
-      component: EmbedGaugeComponent,
+      component: EmbedTableComponent,
       canDeactivate: [canDeactivateGuard],
-      matcher: EMBED_GAUGE_URL_MATCHER
+      matcher: EMBED_TABLE_URL_MATCHER
    }
 ];
-
-@NgModule({
-   imports: [RouterModule.forChild(routes)],
-   exports: [RouterModule]
-})
-export class EmbedGaugeRoutingModule {
-}

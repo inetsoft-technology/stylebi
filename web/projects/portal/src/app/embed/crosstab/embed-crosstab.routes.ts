@@ -15,25 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgModule } from "@angular/core";
-import { RouterModule, Routes } from "@angular/router";
+import { Routes, UrlSegment } from "@angular/router";
 import { canDeactivateGuard } from "../../common/services/can-deactivate-guard.service";
-import { EmbedCrosstabComponent } from "./embed-crosstab.component";
 import { createEmbedUrlMatcher } from "../embed-url-matcher";
+import { EmbedCrosstabComponent } from "./embed-crosstab.component";
 
-export const EMBED_CROSSTAB_URL_MATCHER = createEmbedUrlMatcher;
+export function EMBED_CROSSTAB_URL_MATCHER(url: UrlSegment[]) {
+   return createEmbedUrlMatcher(url);
+}
 
-const routes: Routes = [
+export const embedCrosstabRoutes: Routes = [
    {
       component: EmbedCrosstabComponent,
       canDeactivate: [canDeactivateGuard],
       matcher: EMBED_CROSSTAB_URL_MATCHER
    }
 ];
-
-@NgModule({
-   imports: [RouterModule.forChild(routes)],
-   exports: [RouterModule]
-})
-export class EmbedCrosstabRoutingModule {
-}

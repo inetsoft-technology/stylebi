@@ -17,7 +17,8 @@ function loadScript(relativePath) {
       }
 
       const script = document.createElement("script");
-      script.async = true;
+      script.type = "module";
+      script.crossOrigin = "anonymous";
       script.dataset.stylebiEmbed = url;
       script.src = url;
       script.addEventListener("load", () => resolve(), { once: true });

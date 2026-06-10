@@ -15,25 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgModule } from "@angular/core";
-import { RouterModule, Routes } from "@angular/router";
+import { Routes, UrlSegment } from "@angular/router";
 import { canDeactivateGuard } from "../../common/services/can-deactivate-guard.service";
-import { EmbedTextComponent } from "./embed-text.component";
 import { createEmbedUrlMatcher } from "../embed-url-matcher";
+import { EmbedTextComponent } from "./embed-text.component";
 
-export const EMBED_TEXT_URL_MATCHER = createEmbedUrlMatcher;
+export function EMBED_TEXT_URL_MATCHER(url: UrlSegment[]) {
+   return createEmbedUrlMatcher(url);
+}
 
-const routes: Routes = [
+export const embedTextRoutes: Routes = [
    {
       component: EmbedTextComponent,
       canDeactivate: [canDeactivateGuard],
       matcher: EMBED_TEXT_URL_MATCHER
    }
 ];
-
-@NgModule({
-   imports: [RouterModule.forChild(routes)],
-   exports: [RouterModule]
-})
-export class EmbedTextRoutingModule {
-}

@@ -56,7 +56,7 @@ export function EMBED_VIEWER_URL_MATCHER(url: UrlSegment[]): UrlMatchResult {
          }
          else {
             assetId = url.map((s) => s.path).join("/");
-            const match = /^([14])+\^128\^([^^]+)\^(.+)$/.exec(assetId);
+            const match = /^([14])\^128\^([^^]+)\^(.+)$/.exec(assetId);
 
             if(match) {
                if(match[1] == "1") {

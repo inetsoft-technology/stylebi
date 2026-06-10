@@ -17,20 +17,83 @@
  */
 import { createApplication } from "@angular/platform-browser";
 import { createCustomElement } from "@angular/elements";
+import { Optional } from "@angular/core";
 import { provideRouter } from "@angular/router";
-import { EmbedChartComponent } from "./app/embed/chart/embed-chart.component";
+
 import { embedElementConfig } from "./app/embed/embed-element.config";
-import { embedChartRoutes } from "./app/embed/chart/embed-chart.routes";
+
+import { EmbedChartComponent } from "./app/embed/chart/embed-chart.component";
+import { EmbedCrosstabComponent } from "./app/embed/crosstab/embed-crosstab.component";
+import { EmbedTableComponent } from "./app/embed/table/embed-table.component";
+import { EmbedGaugeComponent } from "./app/embed/gauge/embed-gauge.component";
+import { EmbedTextComponent } from "./app/embed/text/embed-text.component";
+import { EmbedImageComponent } from "./app/embed/image/embed-image.component";
+
+import { FullScreenService } from "./app/common/services/full-screen.service";
+import { UIContextService } from "./app/common/services/ui-context.service";
+import {
+   ComposerToken,
+   ContextProvider,
+   EmbedAssemblyContextProviderFactory
+} from "./app/vsobjects/context-provider.service";
+import { RichTextService } from "./app/vsobjects/dialog/rich-text-dialog/rich-text.service";
+import { DataTipService } from "./app/vsobjects/objects/data-tip/data-tip.service";
+import { PopComponentService } from "./app/vsobjects/objects/data-tip/pop-component.service";
+import { MiniToolbarService } from "./app/vsobjects/objects/mini-toolbar/mini-toolbar.service";
+import { ShowHyperlinkService } from "./app/vsobjects/show-hyperlink.service";
+import { CheckFormDataService } from "./app/vsobjects/util/check-form-data.service";
+import { VSTabService } from "./app/vsobjects/util/vs-tab.service";
+import { ScaleService } from "./app/widget/services/scale/scale-service";
+import { VSScaleService } from "./app/widget/services/scale/vs-scale.service";
+import { SlideOutService } from "./app/widget/slide-out/slide-out.service";
 import "./main-base-element";
 
 createApplication({
    providers: [
       ...embedElementConfig.providers,
-      provideRouter(embedChartRoutes)
+      // Empty router: these elements are used exclusively as standalone custom elements
+      // via the `url` attribute. Route-based navigation (/embed/chart/...) is not supported
+      // in this build — the elements bundle is embedded in third-party pages, not served as
+      // a navigable Angular app. Do not add embedXxxRoutes here without also reinstating
+      // the full route-navigation flow.
+      provideRouter([]),
+
+      // Shared providers for all embed elements — kept at app level so they are available
+      // to standalone custom elements (no router activation occurs in that usage).
+      DataTipService,
+      PopComponentService,
+      MiniToolbarService,
+      SlideOutService,
+      UIContextService,
+      CheckFormDataService,
+      ShowHyperlinkService,
+      VSTabService,
+      RichTextService,
+      FullScreenService,
+      {
+         provide: ScaleService,
+         useClass: VSScaleService
+      },
+      {
+         provide: ContextProvider,
+         useFactory: EmbedAssemblyContextProviderFactory,
+         deps: [[new Optional(), ComposerToken]]
+      },
    ]
 }).then(app => {
-   const embedChart = createCustomElement(EmbedChartComponent, {injector: app.injector});
-   customElements.define("inetsoft-chart", embedChart);
+   const injector = app.injector;
+   customElements.define("inetsoft-chart",
+      createCustomElement(EmbedChartComponent, { injector }));
+   customElements.define("inetsoft-crosstab",
+      createCustomElement(EmbedCrosstabComponent, { injector }));
+   customElements.define("inetsoft-table",
+      createCustomElement(EmbedTableComponent, { injector }));
+   customElements.define("inetsoft-gauge",
+      createCustomElement(EmbedGaugeComponent, { injector }));
+   customElements.define("inetsoft-text",
+      createCustomElement(EmbedTextComponent, { injector }));
+   customElements.define("inetsoft-image",
+      createCustomElement(EmbedImageComponent, { injector }));
 }).catch(err => console.error(err));
 
 /**

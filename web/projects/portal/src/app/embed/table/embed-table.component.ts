@@ -59,8 +59,16 @@ import {
    ActionsContextmenuComponent
 } from "../../widget/fixed-dropdown/actions-contextmenu.component";
 import { FixedDropdownService } from "../../widget/fixed-dropdown/fixed-dropdown.service";
-import { EMBED_TABLE_URL_MATCHER } from "./app-routing.module";
+import { EMBED_TABLE_URL_MATCHER } from "./embed-table.routes";
+import { DndService } from "../../common/dnd/dnd.service";
+import { VSDndService } from "../../common/dnd/vs-dnd.service";
+import { ModelService } from "../../widget/services/model.service";
 import { DownloadService } from "../../../../../shared/download/download.service";
+import { DownloadTargetComponent } from "../../../../../shared/download/download-target.component";
+import { ResizedDirective } from "../../../../../shared/resize-event/resized.directive";
+import { VSTable } from "../../vsobjects/objects/table/vs-table.component";
+import { MiniToolbar } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.component";
+import { InteractContainerDirective } from "../../widget/interact/interact-container.directive";
 import { TooltipService } from "../../widget/tooltip/tooltip.service";
 import { ShadowDomService } from "../shadow-dom.service";
 import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
@@ -81,10 +89,11 @@ const COLLECT_PARAMS_URI: string = "/events/vs/collectParameters";
 declare const window: any;
 
 @Component({
-   selector: "embed-table",
-   templateUrl: "./embed-table.component.html",
-   styleUrls: ["./embed-table.component.scss"],
-   providers: [
+    imports: [DownloadTargetComponent, ResizedDirective, VSTable, MiniToolbar, InteractContainerDirective],
+    selector: "embed-table",
+    templateUrl: "./embed-table.component.html",
+    styleUrls: ["./embed-table.component.scss"],
+    providers: [
       ViewsheetClientService,
       DownloadService,
       TooltipService,
@@ -93,7 +102,8 @@ declare const window: any;
       FixedDropdownService,
       InteractService,
       DebounceService,
-      AdhocFilterService
+      AdhocFilterService,
+      { provide: DndService, useClass: VSDndService, deps: [ModelService, NgbModal, ViewsheetClientService] }
    ]
 })
 export class EmbedTableComponent extends CommandProcessor implements OnInit, OnDestroy, AfterViewInit {
@@ -162,7 +172,15 @@ export class EmbedTableComponent extends CommandProcessor implements OnInit, OnD
       // custom element url
       if(this.url) {
          const tree = this.router.parseUrl(this.url);
-         const result = EMBED_TABLE_URL_MATCHER(tree.root?.children?.primary?.segments);
+         const segments = tree.root?.children?.primary?.segments ?? tree.root?.segments;
+         const result = EMBED_TABLE_URL_MATCHER(segments);
+
+         if(!result) {
+            this.showError = true;
+            console.error("Invalid embed URL: " + this.url);
+            return;
+         }
+
          this.assetId = result.posParams?.assetId?.path;
          this.assemblyName = result.posParams?.assemblyName?.path;
          this.inputRuntimeId = result.posParams?.runtimeId?.path;
@@ -248,6 +266,13 @@ export class EmbedTableComponent extends CommandProcessor implements OnInit, OnD
    processSetRuntimeIdCommand(command: SetRuntimeIdCommand): void {
       this.viewsheetClient.runtimeId = command.runtimeId;
       this.runtimeId = command.runtimeId;
+
+      // A newly opened embedded assembly may need an explicit refresh to apply the
+      // requested assembly size after the runtime is established.
+      if(this.assemblyName && !this.inputRuntimeId) {
+         this.refreshEmbedAssembly();
+         return;
+      }
 
       // call onResize in case the element was resized while the server was processing
       // open viewsheet event
@@ -401,13 +426,19 @@ export class EmbedTableComponent extends CommandProcessor implements OnInit, OnD
 
    private refreshEmbedAssembly(): void {
       this.setAppSize();
+
+      if(this.assemblySize == null || this.assemblySize.width == 0 || this.assemblySize.height == 0) {
+         return;
+      }
+
       // queryParams are intentionally not forwarded: the caller-owned viewsheet was
       // already opened with its parameters applied; re-sending them on refresh would
       // override any runtime state the caller has set since opening.
       const refreshEvent: RefreshVsAssemblyEvent = {
          vsRuntimeId: this.runtimeId,
          assemblyName: this.assemblyName,
-         embed: true
+         embed: true,
+         assemblySize: this.assemblySize
       };
       this.viewsheetClient.sendEvent("/events/vs/refresh/assembly", refreshEvent);
    }
@@ -420,6 +451,7 @@ export class EmbedTableComponent extends CommandProcessor implements OnInit, OnD
       let event: OpenViewsheetEvent = new OpenViewsheetEvent(
          this.assetId, this.appSize.width, this.appSize.height, this.mobileDevice,
          window.navigator.userAgent);
+      event.embed = true;
       event.embedAssemblyName = this.assemblyName;
       event.embedAssemblySize = this.assemblySize;
       event.disableParameterSheet = true;
@@ -566,7 +598,8 @@ export class EmbedTableComponent extends CommandProcessor implements OnInit, OnD
          if(this.inputRuntimeId) {
             const refreshEvent: RefreshVsAssemblyEvent = {
                vsRuntimeId: this.runtimeId,
-               assemblyName: this.assemblyName
+               assemblyName: this.assemblyName,
+               assemblySize: this.assemblySize
             };
             this.viewsheetClient.sendEvent("/events/vs/refresh/assembly", refreshEvent);
          }
