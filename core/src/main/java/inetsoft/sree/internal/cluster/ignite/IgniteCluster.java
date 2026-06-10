@@ -1549,7 +1549,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          }
       };
 
-      addMessageListener(listener);
+      exchangeListeners.computeIfAbsent(address, k -> new CopyOnWriteArrayList<>()).add(listener);
       addMembershipListener(membershipListener);
 
       try {
@@ -1565,7 +1565,13 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          }
       }
       finally {
-         removeMessageListener(listener);
+         CopyOnWriteArrayList<inetsoft.sree.internal.cluster.MessageListener> perAddress =
+            exchangeListeners.get(address);
+
+         if(perAddress != null) {
+            perAddress.remove(listener);
+         }
+
          removeMembershipListener(membershipListener);
       }
 
@@ -1847,6 +1853,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private final Ignite ignite;
    private volatile boolean closed;
    private final Set<inetsoft.sree.internal.cluster.MessageListener> messageListeners = new CopyOnWriteArraySet<>();
+   private final ConcurrentHashMap<String, CopyOnWriteArrayList<inetsoft.sree.internal.cluster.MessageListener>> exchangeListeners = new ConcurrentHashMap<>();
    private final Set<inetsoft.sree.internal.cluster.MembershipListener> membershipListeners = new CopyOnWriteArraySet<>();
    private final Map<String, MapListenerRegistration> mapListeners = new HashMap<>();
    private final Map<CacheRebalanceListener, UUID> rebalanceListeners = new ConcurrentHashMap<>();
@@ -2059,18 +2066,38 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
             }
          }
 
-         MessageEvent event = null;
+         ClusterNode senderNode = ignite.cluster().node(nodeId);
+
+         if(senderNode == null) {
+            return true;
+         }
+
+         String senderAddress = getNodeName(senderNode);
+         ClusterNode localNode = ignite.cluster().localNode();
+         MessageEvent event = new MessageEvent(
+            IgniteCluster.this, senderAddress,
+            Objects.equals(senderNode, localNode), message);
+
+         // Invoke exchange listeners directly (no executor) to avoid executor saturation
+         // under high concurrency when many exchangeMessages() calls are in flight.
+         List<inetsoft.sree.internal.cluster.MessageListener> perSender =
+            exchangeListeners.get(senderAddress);
+
+         if(perSender != null) {
+            for(inetsoft.sree.internal.cluster.MessageListener l : perSender) {
+               if(l != null) {
+                  try {
+                     l.messageReceived(event);
+                  }
+                  catch(Exception e) {
+                     LOG.error("Failed to dispatch exchange message", e);
+                  }
+               }
+            }
+         }
 
          for(inetsoft.sree.internal.cluster.MessageListener listener : messageListeners) {
             if(listener != null) {
-               if(event == null) {
-                  ClusterNode senderNode = ignite.cluster().node(nodeId);
-                  ClusterNode localNode = ignite.cluster().localNode();
-                  event = new MessageEvent(
-                     IgniteCluster.this, getNodeName(senderNode),
-                     Objects.equals(senderNode, localNode), message);
-               }
-
                messageExecutor.submit(new MessageDispatchTask(listener, event));
             }
          }
