@@ -116,7 +116,9 @@ public class ServerServiceMessageListener implements MessageListener {
       try {
          File file = FileSystemService.getInstance().getCacheFile(reqMsg.getId() + ".hprof.gz");
          if(file.isFile() && file.length() > 0) {
-            message.setLink(cluster.addTransferFile(file));
+            String link = cluster.addTransferFile(file);
+            message.setLink(link);
+            pendingTransferLinks.put(reqMsg.getId(), link);
          }
       }
       catch(Exception e) {
@@ -134,6 +136,14 @@ public class ServerServiceMessageListener implements MessageListener {
    void handleDisposeHeapDumpMessage(String sender,
                                      DisposeHeapDumpMessage reqMsg)
    {
+      String link = pendingTransferLinks.remove(reqMsg.getId());
+
+      if(link != null) {
+         cluster.cancelTransferFile(link);
+      }
+
+      disposeHeapDump(reqMsg.getId());
+
       DisposeHeapDumpCompleteMessage message = new DisposeHeapDumpCompleteMessage();
       message.setId(reqMsg.getId());
 
@@ -448,7 +458,9 @@ public class ServerServiceMessageListener implements MessageListener {
          File file = FileSystemService.getInstance().getCacheFile(id + ".hprof.gz");
 
          if(file.isFile() && file.length() > 0) {
-            local.setLink(cluster.addTransferFile(file));
+            String link = cluster.addTransferFile(file);
+            local.setLink(link);
+            pendingTransferLinks.put(id, link);
          }
 
          return local;
@@ -521,6 +533,7 @@ public class ServerServiceMessageListener implements MessageListener {
    public void disposeHeapDump(String id, String node) throws Exception {
       if(node == null) {
          disposeHeapDump(id);
+         return;
       }
 
       DisposeHeapDumpMessage req = new DisposeHeapDumpMessage();
@@ -543,5 +556,6 @@ public class ServerServiceMessageListener implements MessageListener {
 
    private final Cluster cluster;
    private String heapDumpId;
+   private final Map<String, String> pendingTransferLinks = new java.util.concurrent.ConcurrentHashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 }

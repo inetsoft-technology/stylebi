@@ -1616,6 +1616,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @Override
+   public void cancelTransferFile(String link) {
+      clusterFileTransfer.cancelTransferFile(link);
+   }
+
+   @Override
    public void close() {
       fireLifecycleEvent(ClusterLifecycleEvent.Type.CLOSED);
       lifecycleListeners.clear();

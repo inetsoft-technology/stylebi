@@ -46,22 +46,46 @@ public class ClusterFileTransfer implements AutoCloseable {
 
    public String addTransferFile(File file) {
       String fileId = UUID.randomUUID().toString();
-      String link = localAddress.getHostAddress() + ":" +
-         fileTransferSocket.getLocalPort() + "/" + fileId;
+      String host = localAddress instanceof Inet6Address
+         ? "[" + localAddress.getHostAddress() + "]"
+         : localAddress.getHostAddress();
+      String link = host + ":" + fileTransferSocket.getLocalPort() + "/" + fileId;
       transferFiles.put(fileId, file);
       return link;
    }
 
    public File getTransferFile(String link) throws IOException {
-      int index1 = link.indexOf(':');
       int index2 = link.indexOf('/');
 
-      if(index1 < 0 || index2 < 0) {
+      if(index2 < 0) {
          throw new IllegalArgumentException("Invalid file transfer link: " + link);
       }
 
-      String host = link.substring(0, index1);
-      int port = Integer.parseInt(link.substring(index1 + 1, index2));
+      String host;
+      int port;
+
+      if(link.startsWith("[")) {
+         // IPv6: "[fe80::1]:8080/uuid"
+         int closeBracket = link.indexOf(']');
+
+         if(closeBracket < 0 || link.charAt(closeBracket + 1) != ':') {
+            throw new IllegalArgumentException("Invalid file transfer link: " + link);
+         }
+
+         host = link.substring(1, closeBracket);
+         port = Integer.parseInt(link.substring(closeBracket + 2, index2));
+      }
+      else {
+         // IPv4: "1.2.3.4:8080/uuid"
+         int index1 = link.indexOf(':');
+
+         if(index1 < 0) {
+            throw new IllegalArgumentException("Invalid file transfer link: " + link);
+         }
+
+         host = link.substring(0, index1);
+         port = Integer.parseInt(link.substring(index1 + 1, index2));
+      }
       String fileId = link.substring(index2 + 1);
 
       if(transferFiles.containsKey(fileId)) {
@@ -94,12 +118,23 @@ public class ClusterFileTransfer implements AutoCloseable {
       return tempFile;
    }
 
+   public void cancelTransferFile(String link) {
+      int index = link.lastIndexOf('/');
+
+      if(index >= 0) {
+         String fileId = link.substring(index + 1);
+         File file = transferFiles.remove(fileId);
+         FileUtils.deleteQuietly(file);
+      }
+   }
+
    private void serviceFileTransfers() {
       while(!((GroupedThread) Thread.currentThread()).isCancelled()) {
          try(Socket socket = fileTransferSocket.accept();
              InputStream input = socket.getInputStream();
              OutputStream output = socket.getOutputStream())
          {
+            socket.setSoTimeout(30_000);
             byte[] idBytes = new byte[16];
 
             for(int i = 0; i < 16; i++) {
