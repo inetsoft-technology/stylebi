@@ -18,5 +18,9 @@
     "../shared/**/*.d.ts",
     "../../mocks/**/*.ts",
     "../../vitest-bootstrap.ts"
+  ],
+  "exclude": [
+    "src/**/*.tl.spec.ts",
+    "../shared/**/*.tl.spec.ts"
   ]
 }
