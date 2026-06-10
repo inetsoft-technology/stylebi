@@ -2417,7 +2417,8 @@ public class WizVsService {
       }
 
       // Apply aggregate conditions as post-conditions (HAVING equivalent)
-      // Aggregate column names are computed directly from ConditionSpec (field+formula+secondaryField+nOrP)
+      // Aggregate conditions are built as AggregateRef items (field+formula+secondaryField+nOrP)
+// so the engine matches them against post-aggregation (HAVING) result columns.
       // Use dimColumnMapping to translate dimension field+dateGroupLevel to DateRangeRef column names
       if(conditionModel.getAggregateConditions() != null && !conditionModel.getAggregateConditions().isEmpty()) {
          ConditionList postCondList = new ConditionList();
