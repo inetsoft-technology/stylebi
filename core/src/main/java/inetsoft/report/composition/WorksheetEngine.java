@@ -684,28 +684,23 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
       return null;
    }
 
-   /**
-    * Access a sheet.
-    */
    private void accessSheet(String id, boolean touch) {
       RuntimeSheet rs = amap.get(id);
 
-      if(rs != null) {
-         if(touch) {
-            rs.access(true);
-         }
-
-         // Only refresh the cache if this node is still the primary for this key.
-         // This debounced task is scheduled 1 second after getSheet() is called.
-         // During that window, an Ignite topology change (node join/leave/rebalance)
-         // can move the partition primary to a different node. Calling amap.put()
-         // on a non-primary node logs a spurious "Added remote runtime sheet" error,
-         // stores a stale copy in this node's local map, and causes memory growth
-         // as each non-primary node accumulates session copies it doesn't own.
-         if(amap.isLocal(id)) {
-            amap.put(id, rs);
-         }
+      if(rs == null) {
+         return;
       }
+
+      if(!touch) {
+         // touch=false: refresh heartbeat in memory only — prevents isTimeout() from
+         // evicting an actively-polled session at the 3-minute heartbeat check.
+         // access(false) updates heartbeat but not accessed, so no Ignite write is needed.
+         rs.access(false);
+         return;
+      }
+
+      rs.access(true);
+      amap.updateAccessTime(id, rs.getLastAccessed());
    }
 
    public RuntimeWorksheet[] getAllRuntimeWorksheetSheets() {

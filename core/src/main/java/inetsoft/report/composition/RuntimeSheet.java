@@ -99,7 +99,6 @@ public abstract class RuntimeSheet {
 
    RuntimeSheet(RuntimeSheetState state, ObjectMapper mapper) {
       entry = loadXml(new AssetEntry(), state.getEntry());
-      accessed = state.getAccessed();
       user = loadXPrincipal(state.getUser());
       contextPrincipal = loadXPrincipal(state.getContextPrincipal());
       editable = state.isEditable();
@@ -124,9 +123,12 @@ public abstract class RuntimeSheet {
       lowner = state.getLowner();
       isLockProcessed = state.isLockProcessed();
       disposed = state.isDisposed();
-      heartbeat = state.getHeartbeat();
       prop = loadPropMap(state.getProp(), mapper);
       previousURL = state.getPreviousURL();
+
+      // Safe fallback: toSheet() will overwrite with the authoritative value from accessTimeMap
+      // when one exists. Without this, accessed == 0 and isTimeout() evicts immediately.
+      access(true);
    }
 
    /**
@@ -147,6 +149,10 @@ public abstract class RuntimeSheet {
     */
    public long getLastAccessed() {
       return accessed;
+   }
+
+   void setAccessed(long accessed) {
+      this.accessed = accessed;
    }
 
    /**
@@ -486,8 +492,6 @@ public abstract class RuntimeSheet {
 
    synchronized void saveState(RuntimeSheetState state, ObjectMapper mapper) {
       state.setEntry(saveXml(entry));
-      state.setAccessed(accessed);
-
       if(user instanceof XPrincipal xuser) {
          state.setUser(saveXml(xuser));
       }
@@ -520,7 +524,6 @@ public abstract class RuntimeSheet {
       state.setLowner(lowner);
       state.setLockProcessed(isLockProcessed);
       state.setDisposed(disposed);
-      state.setHeartbeat(heartbeat);
       state.setProp(savePropMap(prop, mapper));
       state.setPreviousURL(previousURL);
    }
