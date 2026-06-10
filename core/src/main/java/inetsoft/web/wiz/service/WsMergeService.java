@@ -76,8 +76,35 @@ public class WsMergeService {
             if(existingTable != null) {
                ensureBaseHasPrevMirror(dashWS, existingTable, vsRenameMap);
                mergeColumns(existingTable, srcBound);
-               String curMirrorName = createVizMirror(dashWS, existingTable, srcBound);
-               wsRenameMap.put(srcBound.getName(), curMirrorName);
+               String baseName = existingTable.getName();
+               String prevMirrorName = baseName.endsWith("_base")
+                  ? baseName.substring(0, baseName.length() - 5)
+                  : baseName;
+
+               ConditionListWrapper srcPre = srcBound.getPreConditionList();
+               ConditionListWrapper srcPost = srcBound.getPostConditionList();
+
+               if((srcPre != null && !srcPre.isEmpty()) || (srcPost != null && !srcPost.isEmpty())) {
+                  // srcBound carries its own conditions. Stack a mirror of prevMirror (not
+                  // _base) so that runtime filters applied to prevMirror propagate through
+                  // this mirror and on to any join that references it, preserving cross-chart
+                  // filter interaction while retaining srcBound's conditions.
+                  WSAssembly prevMirror = (WSAssembly) dashWS.getAssembly(prevMirrorName);
+                  String condMirrorName = ensureUniqueName(prevMirrorName, dashWS);
+                  MirrorTableAssembly condMirror = new MirrorTableAssembly(dashWS, condMirrorName, prevMirror);
+                  condMirror.setColumnSelection(srcBound.getColumnSelection(true).clone(), true);
+                  condMirror.setPreConditionList(srcPre != null ? (ConditionListWrapper) srcPre.clone() : new ConditionList());
+                  condMirror.setPostConditionList(srcPost != null ? (ConditionListWrapper) srcPost.clone() : new ConditionList());
+                  condMirror.setAggregateInfo((AggregateInfo) srcBound.getAggregateInfo().clone());
+                  condMirror.setProperty(PROP_WIZ_MERGED, "true");
+                  dashWS.addAssembly(condMirror);
+                  wsRenameMap.put(srcBound.getName(), condMirrorName);
+               }
+               else {
+                  // No conditions on srcBound — reuse prevMirror directly so the join table
+                  // shares the same node as chart1's binding, enabling cross-chart interaction.
+                  wsRenameMap.put(srcBound.getName(), prevMirrorName);
+               }
                continue;
             }
          }
@@ -226,37 +253,6 @@ public class WsMergeService {
       }
 
       base.setColumnSelection(baseColumns, true);
-   }
-
-   /**
-    * Creates a MirrorTableAssembly in {@code dashWS} that points at {@code base} and
-    * carries only the columns/conditions/aggregation of {@code srcTable}.
-    *
-    * @return the name of the created mirror assembly
-    */
-   private String createVizMirror(Worksheet dashWS, BoundTableAssembly base,
-                                   BoundTableAssembly srcTable)
-   {
-      // Derive naming prefix from base: strip "_base" suffix to recover the original name,
-      // then ensureUniqueName to get "Query_1", "Query_2", etc.
-      String baseName = base.getName();
-      String namePrefix = baseName.endsWith("_base")
-         ? baseName.substring(0, baseName.length() - 5)
-         : baseName;
-      String mirrorName = ensureUniqueName(namePrefix, dashWS);
-      ColumnSelection vizCols = srcTable.getColumnSelection(true).clone();
-
-      MirrorTableAssembly mirror = new MirrorTableAssembly(dashWS, mirrorName, base);
-      mirror.setColumnSelection(vizCols, true);
-      ConditionListWrapper srcPre = srcTable.getPreConditionList();
-      ConditionListWrapper srcPost = srcTable.getPostConditionList();
-      mirror.setPreConditionList(srcPre != null ? (ConditionListWrapper) srcPre.clone() : new ConditionList());
-      mirror.setPostConditionList(srcPost != null ? (ConditionListWrapper) srcPost.clone() : new ConditionList());
-      mirror.setAggregateInfo((AggregateInfo) srcTable.getAggregateInfo().clone());
-      mirror.setProperty(PROP_WIZ_MERGED, "true");
-      dashWS.addAssembly(mirror);
-
-      return mirrorName;
    }
 
    /**
