@@ -2135,13 +2135,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
          processScriptAssociation(entry, clist, vs.getScriptDependings());
          processSelections(entry, clist, true, false, new HashSet<>());
-
-         // processSelections() above may have changed conditions so cached data in dmap
-         // should not be reused when output assemblies are subsequently executed.
-         // mirrors the same clearing done in the reset() path. (same rationale as ~line 1586)
-         for(AssemblyEntry dataEntry : clist.getDataList()) {
-            resetDataMap(dataEntry.getName());
-         }
       }
       catch(DependencyCycleException ex) {
          List<Exception> exs = WorksheetService.ASSET_EXCEPTIONS.get();
@@ -2152,6 +2145,13 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
       finally {
          schanged.set(null);
+      }
+
+      // processSelections() above may have changed conditions so cached data in dmap
+      // should not be reused when output assemblies are subsequently executed.
+      // mirrors the same clearing done in the reset() path (see reset()).
+      for(AssemblyEntry dataEntry : clist.getDataList()) {
+         resetDataMap(dataEntry.getName());
       }
    }
 
