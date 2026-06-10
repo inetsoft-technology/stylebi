@@ -783,6 +783,14 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       else {
          vsObject.selectedAnnotations = [ann.absoluteName];
       }
+
+      if(mouseEvent.button === 2) {
+         const vsObjectIndex = this.vsInfo.vsObjects.indexOf(vsObject);
+
+         if(vsObjectIndex >= 0 && this.vsObjectActions[vsObjectIndex]) {
+            this.showContextMenu(mouseEvent, this.vsObjectActions[vsObjectIndex]);
+         }
+      }
    }
 
    isChartAnnotationSelected(ann: VSAnnotationModel, vsObject: VSObjectModel): boolean {
