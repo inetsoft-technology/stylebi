@@ -44,6 +44,7 @@ export class ChartTypeButton {
    @Output() onChange = new EventEmitter<any>();
    @ViewChild(FixedDropdownDirective) dropdown: FixedDropdownDirective;
    url: string = "/api/adhoc/chart/changeChartType";
+   private applying = false;
    private outsideClickListener: () => any;
    customChartTypes: string[];
    chartStyles: ChartStylesModel;
@@ -89,8 +90,21 @@ export class ChartTypeButton {
    }
 
    changeChartType(): void {
-      this.checkValid();
-      this.dropdown.close();
+      // closing the dropdown re-fires openChange -> toggled -> changeChartType
+      // synchronously; guard against re-entry so the event is only sent once
+      if(this.applying) {
+         return;
+      }
+
+      this.applying = true;
+
+      try {
+         this.checkValid();
+         this.dropdown.close();
+      }
+      finally {
+         this.applying = false;
+      }
    }
 
    checkValid(): void {
