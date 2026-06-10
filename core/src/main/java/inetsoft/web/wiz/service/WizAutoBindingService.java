@@ -32,10 +32,12 @@ import inetsoft.util.Tool;
 import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
 import inetsoft.web.vswizard.model.VSWizardData;
 import inetsoft.web.vswizard.model.recommender.*;
+import inetsoft.web.vswizard.recommender.ChartRecommenderUtil;
 import inetsoft.web.vswizard.recommender.VSDefaultRecommendationFactory;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import inetsoft.web.vswizard.recommender.chart.ChartCombinationUtil;
 import inetsoft.web.vswizard.recommender.chart.ChartPreference;
+import inetsoft.web.vswizard.recommender.chart.ChartTypeFilter;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import inetsoft.uql.viewsheet.graph.Calculator;
@@ -170,6 +172,9 @@ public class WizAutoBindingService {
 
          String vizType = request.getVisualizationType();
          List<ExplicitBinding> explicitBindings = request.getExplicitBindings();
+         // Fail fast on impossible pins (unknown slot/field, measure→dimension-only slot, etc.)
+         // before running the recommender, so the caller gets a structured 400.
+         validateExplicitBindings(explicitBindings, configMap, entries);
          ChartPreference pref = buildChartPreference(explicitBindings);
          VSWizardData wizardData = new VSWizardData(entries, tempInfo, pref);
          VSRecommendationModel model = defaultRecommendationFactory.recommend(wizardData, rvs, user);
@@ -187,6 +192,23 @@ public class WizAutoBindingService {
 
             String intentCategory = request.getIntentCategory();
             selectedRec = selectPrimaryRecommendation(model, vizType, explicitBindings, intentCategory);
+
+            // Strict pins: when explicit bindings are present and the selected chart has NO
+            // pin-satisfying candidate (prefInfos empty/null — the constraints filter rejected every
+            // combination for these fields), there is no honest placement. Fail with a 400 rather
+            // than rendering an unconstrained chart that ignores the pins.
+            if(explicitBindings != null && !explicitBindings.isEmpty()
+               && selectedRec instanceof VSChartRecommendation vcr
+               && (vcr.getPrefInfos() == null || vcr.getPrefInfos().isEmpty()))
+            {
+               // The conflict is between the pins AS A SET — any single pin may be valid on
+               // its own — so report all of them rather than blaming the first.
+               List<UnsatisfiableBindingException.Pin> pins = explicitBindings.stream()
+                  .map(b -> new UnsatisfiableBindingException.Pin(b.getRole(), b.getField()))
+                  .collect(Collectors.toList());
+               throw new UnsatisfiableBindingException(pins,
+                  "no chart combination supports this placement for the bound fields");
+            }
 
             // Mirror the wizard path: call updatePrimaryAssembly on autoBindingRvs so it gets
             // the same full setup (calc field registration, format, legend, temp assembly cleanup).
@@ -231,6 +253,18 @@ public class WizAutoBindingService {
             if(Tool.isEmptyString(visualizationResult.getRuntimeId())) {
                visualizationResult.setRuntimeId(request.getWizRuntimeId());
             }
+
+            // Readability warnings: a PINNED aesthetic dimension whose cardinality exceeds the slot
+            // cap renders but may be unreadable. The recommender already respected caps on UNPINNED
+            // slots, so warn only for pinned ones. Honored stays true — we kept the user's pin.
+            if(explicitBindings != null && !explicitBindings.isEmpty()
+               && primaryAssembly instanceof ChartVSAssembly chartAsm
+               && chartAsm.getVSChartInfo() != null
+               && visualizationResult.getBinding() != null)
+            {
+               addReadabilityWarnings(visualizationResult.getBinding(), chartAsm.getVSChartInfo(),
+                                      explicitBindings, entries);
+            }
          }
 
          // Phase 4: build response.
@@ -245,10 +279,14 @@ public class WizAutoBindingService {
 
          // Tell the caller when a requested type could not be honored, so it can explain the
          // substitution to the user instead of the swap happening silently.
-         if(vizType != null && primary != null && !requestedTypeAvailable(vizType, model)) {
-            resp.setSelectionNote(
-               "Requested chart type '" + vizType + "' is not feasible for this data; used '" +
-               primary.getVisualizationType() + "' instead.");
+         boolean pinsPresent = explicitBindings != null && !explicitBindings.isEmpty();
+
+         if(vizType != null && primary != null && !requestedTypeAvailable(vizType, model, pinsPresent)) {
+            resp.setSelectionNote(pinsPresent
+               ? "Requested chart type '" + vizType + "' has no candidate honoring the explicit " +
+                 "bindings; used '" + primary.getVisualizationType() + "' instead."
+               : "Requested chart type '" + vizType + "' is not feasible for this data; used '" +
+                 primary.getVisualizationType() + "' instead.");
          }
 
          succeeded = true;
@@ -320,6 +358,12 @@ public class WizAutoBindingService {
       for(ChartRef ref : chartInfo.getYFields()) {
          applyFieldConfig(ref, configMap);
       }
+
+      // Aesthetics carry the same per-field config (title/format, ranking/aggregate) as x/y.
+      applyAestheticFieldConfig(chartInfo.getColorField(), configMap);
+      applyAestheticFieldConfig(chartInfo.getShapeField(), configMap);
+      applyAestheticFieldConfig(chartInfo.getSizeField(), configMap);
+      applyAestheticFieldConfig(chartInfo.getTextField(), configMap);
    }
 
    private void applyAestheticFieldConfig(AestheticRef aestheticRef,
@@ -327,6 +371,64 @@ public class WizAutoBindingService {
    {
       if(aestheticRef != null && aestheticRef.getDataRef() instanceof ChartRef ref) {
          applyFieldConfig(ref, configMap);
+      }
+   }
+
+   // ── Post-selection readability warnings ──────────────────────────────────────
+
+   /**
+    * Adds a warning {@link CreateViewsheetResult.BindingNote} for each PINNED aesthetic dimension
+    * whose distinct-value count exceeds the chart's cap for that slot. Caps come from
+    * {@link ChartTypeFilter#aestheticCaps(VSChartInfo)} (index 0=color, 1=shape, 2=size) and
+    * cardinality from {@link ChartRecommenderUtil#getCardinality(ChartRef, AssetEntry[])} — the same
+    * source the recommender's getAestheticScore uses. Notes are appended to any existing binding notes.
+    */
+   private void addReadabilityWarnings(CreateViewsheetResult.FlatBinding binding, VSChartInfo ci,
+                                       List<ExplicitBinding> pins, AssetEntry[] entries)
+   {
+      int[] caps = ChartTypeFilter.aestheticCaps(ci);
+      List<CreateViewsheetResult.BindingNote> notes = new ArrayList<>();
+
+      addCapWarning(notes, "color", ci.getColorField(), caps[0], pins, entries);
+      addCapWarning(notes, "shape", ci.getShapeField(), caps[1], pins, entries);
+      addCapWarning(notes, "size", ci.getSizeField(), caps[2], pins, entries);
+
+      if(!notes.isEmpty()) {
+         List<CreateViewsheetResult.BindingNote> existing = binding.getNotes();
+
+         if(existing != null && !existing.isEmpty()) {
+            List<CreateViewsheetResult.BindingNote> merged = new ArrayList<>(existing);
+            merged.addAll(notes);
+            binding.setNotes(merged);
+         }
+         else {
+            binding.setNotes(notes);
+         }
+      }
+   }
+
+   private void addCapWarning(List<CreateViewsheetResult.BindingNote> notes, String slot,
+                              AestheticRef aref, int cap, List<ExplicitBinding> pins,
+                              AssetEntry[] entries)
+   {
+      if(aref == null || !(aref.getDataRef() instanceof VSChartDimensionRef dim)) {
+         return;
+      }
+
+      String field = WizardRecommenderUtil.getChartRefFieldName(dim);
+      boolean pinned = pins.stream()
+         .anyMatch(p -> slot.equals(p.getRole()) && Objects.equals(field, p.getField()));
+
+      if(!pinned) {
+         return;
+      }
+
+      int n = ChartRecommenderUtil.getCardinality(dim, entries);
+
+      if(n > cap) {
+         notes.add(new CreateViewsheetResult.BindingNote(field, slot, true, "warning",
+            "cardinality " + n + " exceeds " + slot + " cap " + cap +
+            "; legend may be unreadable — consider a roll-up"));
       }
    }
 
@@ -476,6 +578,82 @@ public class WizAutoBindingService {
    }
 
    // ── Chart preference helpers ──────────────────────────────────────────────────
+
+   // Slot vocabularies. A role appearing in NEITHER set is an unknown slot.
+   // Chart slots (x/y/group/color/shape/size/text) are the ones the constraints filter enforces;
+   // rows/cols/aggregates/details are crosstab/table roles that we ACCEPT as known (so a
+   // crosstab-role pin does not 400 as "unknown") even though the chart filter does not enforce them.
+   private static final Set<String> DIMENSION_SLOTS =
+      Set.of("x", "y", "color", "shape", "size", "text", "group", "rows", "cols", "details");
+   private static final Set<String> MEASURE_SLOTS =
+      Set.of("x", "y", "color", "size", "text", "aggregates");
+
+   /**
+    * Validates explicit binding pins up front, before recommendation, so impossible pins fail fast
+    * with a structured 400 instead of silently producing a different chart. No-op on empty pins.
+    *
+    * <p>Field existence is checked against {@code configMap} when field configs are provided
+    * (plugin path), else against the worksheet {@code entries} (chat-app path). Measure/dimension
+    * slot-compatibility is only enforced when the field's type is known from its config; a field
+    * validated against entries alone has unknown measure/dimension role here, so the type check is
+    * skipped (the recommender's constraints filter still rejects truly impossible placements).
+    */
+   static void validateExplicitBindings(List<ExplicitBinding> bindings,
+                                        Map<String, SimpleFieldInfo> configMap,
+                                        AssetEntry[] entries)
+   {
+      if(bindings == null || bindings.isEmpty()) {
+         return;
+      }
+
+      Set<String> entryFieldNames = entries == null ? Collections.emptySet()
+         : Arrays.stream(entries)
+            .map(WizardRecommenderUtil::getFieldName)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+
+      for(ExplicitBinding eb : bindings) {
+         String role = eb.getRole();
+         String field = eb.getField();
+
+         if(role == null) {
+            throw new UnsatisfiableBindingException(null, field, "missing slot/role");
+         }
+
+         if(field == null) {
+            throw new UnsatisfiableBindingException(role, null, "missing field");
+         }
+
+         // unknown slot: role belongs to neither the dimension- nor the measure-capable set.
+         if(!DIMENSION_SLOTS.contains(role) && !MEASURE_SLOTS.contains(role)) {
+            throw new UnsatisfiableBindingException(role, field, "unknown slot");
+         }
+
+         SimpleFieldInfo fc = configMap != null ? configMap.get(field) : null;
+         boolean hasConfigs = configMap != null && !configMap.isEmpty();
+
+         // Field existence: prefer fieldConfigs (plugin path), else the worksheet entries.
+         if(hasConfigs) {
+            if(fc == null) {
+               throw new UnsatisfiableBindingException(role, field, "field not in fieldConfigs");
+            }
+         }
+         else if(!entryFieldNames.contains(field)) {
+            throw new UnsatisfiableBindingException(role, field, "field not in worksheet columns");
+         }
+
+         // Measure/dimension slot-compatibility — only when the field's type is known from its config.
+         if(fc instanceof MeasureFieldInfo && !MEASURE_SLOTS.contains(role)) {
+            throw new UnsatisfiableBindingException(
+               role, field, "measure cannot be placed in dimension-only slot");
+         }
+
+         if(fc instanceof DimensionFieldInfo && !DIMENSION_SLOTS.contains(role)) {
+            throw new UnsatisfiableBindingException(
+               role, field, "dimension cannot be placed in measure-only slot");
+         }
+      }
+   }
 
    private static ChartPreference buildChartPreference(List<ExplicitBinding> bindings) {
       if(bindings == null || bindings.isEmpty()) {
@@ -708,14 +886,19 @@ public class WizAutoBindingService {
                                                                String intentCategory)
    {
       List<VSObjectRecommendation> recs = model.getRecommendationList();
+      boolean pinsPresent = explicitBindings != null && !explicitBindings.isEmpty();
 
       if(vizType != null) {
-         VSObjectRecommendation found = findRecByType(vizType, model);
+         VSObjectRecommendation found = findRecByType(vizType, model, pinsPresent);
 
          if(found == null && !recs.isEmpty()) {
             LOG.debug("Requested vizType '{}' not found in recommendations; returning top recommendation", vizType);
          }
 
+         // When pins are present and the requested type has no pin-satisfying candidate, fall back to
+         // the best SATISFYING candidate (selectTopRecommendation walks prefInfos first) rather than
+         // the unconstrained chartInfos — never silently bypass the pins. The selectionNote on the
+         // response (driven by requestedTypeAvailable, also pin-aware) reports the substitution.
          return found != null ? found : selectTopRecommendation(recs, intentCategory);
       }
 
@@ -723,7 +906,7 @@ public class WizAutoBindingService {
          String inferredType = inferNonChartVizType(explicitBindings);
 
          if(inferredType != null) {
-            VSObjectRecommendation found = findRecByType(inferredType, model);
+            VSObjectRecommendation found = findRecByType(inferredType, model, pinsPresent);
 
             if(found != null) {
                return found;
@@ -738,10 +921,12 @@ public class WizAutoBindingService {
     * Finds the recommendation matching {@code vizType} and sets {@code selectedIndex}
     * on {@link VSChartRecommendation} when a specific chart sub-type is requested.
     */
-   private VSObjectRecommendation findRecByType(String vizType, VSRecommendationModel model) {
+   private VSObjectRecommendation findRecByType(String vizType, VSRecommendationModel model,
+                                                boolean pinsPresent)
+   {
       for(VSObjectRecommendation rec : model.getRecommendationList()) {
          if(isChartVizType(vizType) && rec instanceof VSChartRecommendation cr) {
-            if(setChartIndexForType(cr, vizType)) {
+            if(setChartIndexForType(cr, vizType, pinsPresent)) {
                return cr;
             }
          }
@@ -803,8 +988,15 @@ public class WizAutoBindingService {
       return null;
    }
 
-   /** Sets {@code selectedIndex} on {@code vcr} for the best chart matching {@code explicitChartType}. */
-   private boolean setChartIndexForType(VSChartRecommendation vcr, String explicitChartType) {
+   /**
+    * Sets {@code selectedIndex} on {@code vcr} for the best chart matching {@code explicitChartType}.
+    * When {@code pinsPresent}, the unconstrained {@code chartInfos} fallback is skipped: prefInfos
+    * already contains ONLY pin-satisfying candidates, so falling through to chartInfos would
+    * silently bypass the pins. A false return then lets the caller pick the best satisfying candidate.
+    */
+   private boolean setChartIndexForType(VSChartRecommendation vcr, String explicitChartType,
+                                        boolean pinsPresent)
+   {
       List<ChartCombinationUtil.ScoredInfo> prefInfos = vcr.getPrefInfos();
       List<ChartInfo> chartInfos = vcr.getChartInfos();
       int chartInfosSize = chartInfos != null ? chartInfos.size() : 0;
@@ -816,6 +1008,11 @@ public class WizAutoBindingService {
                return true;
             }
          }
+      }
+
+      // Pins present: do NOT scan unconstrained chartInfos (silent-bypass guard).
+      if(pinsPresent) {
+         return false;
       }
 
       if(chartInfos != null) {
@@ -1161,7 +1358,9 @@ public class WizAutoBindingService {
     * but, unlike findRecByType, does not mutate any {@code selectedIndex}. Used only to decide
     * whether a requested type was honored, so a substitution can be reported.
     */
-   private boolean requestedTypeAvailable(String vizType, VSRecommendationModel model) {
+   private boolean requestedTypeAvailable(String vizType, VSRecommendationModel model,
+                                          boolean pinsPresent)
+   {
       if(vizType == null || model == null) {
          return false;
       }
@@ -1176,6 +1375,12 @@ public class WizAutoBindingService {
                      return true;
                   }
                }
+            }
+
+            // Pins present: only pin-satisfying prefInfos count as "available" — the unconstrained
+            // chartInfos were never eligible, so a match there is still a substitution (note it).
+            if(pinsPresent) {
+               continue;
             }
 
             List<ChartInfo> chartInfos = cr.getChartInfos();
@@ -1389,8 +1594,9 @@ public class WizAutoBindingService {
          return result;
       }
 
-      // 3. Select the recommendation for the requested type.
-      VSObjectRecommendation selectedRec = findRecByType(visualizationType, model);
+      // 3. Select the recommendation for the requested type. changeType is an explicit user type
+      // switch (no explicit-binding pins in play), so the unconstrained chartInfos fallback is fine.
+      VSObjectRecommendation selectedRec = findRecByType(visualizationType, model, false);
 
       if(selectedRec == null) {
          selectedRec = model.getRecommendationList().stream()

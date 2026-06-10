@@ -19,6 +19,7 @@
 package inetsoft.web.wiz.controller;
 
 import inetsoft.web.wiz.model.*;
+import inetsoft.web.wiz.service.UnsatisfiableBindingException;
 import inetsoft.web.wiz.service.WizAutoBindingService;
 import inetsoft.web.wiz.service.WizVsService;
 import org.slf4j.Logger;
@@ -28,7 +29,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/wiz")
@@ -65,17 +68,13 @@ public class WizViewsheetController {
    }
 
    @PostMapping(value = "/viewsheet/format", produces = MediaType.APPLICATION_JSON_VALUE)
-   public CreateViewsheetResult setChartFormat(@RequestBody ChartFormatRequest request,
-                                               Principal user) throws Exception
-   {
-      return wizAutoBindingService.setChartFormat(request, user);
+   public ResponseEntity<?> setChartFormat(@RequestBody ChartFormatRequest request, Principal user) {
+      return run("set chart format", () -> wizAutoBindingService.setChartFormat(request, user));
    }
 
    @PostMapping(value = "/viewsheet/colors", produces = MediaType.APPLICATION_JSON_VALUE)
-   public CreateViewsheetResult setChartColors(@RequestBody ChartColorsRequest request,
-                                               Principal user) throws Exception
-   {
-      return wizAutoBindingService.setChartColors(request, user);
+   public ResponseEntity<?> setChartColors(@RequestBody ChartColorsRequest request, Principal user) {
+      return run("set chart colors", () -> wizAutoBindingService.setChartColors(request, user));
    }
 
    @DeleteMapping("/viewsheet")
@@ -94,14 +93,39 @@ public class WizViewsheetController {
       try {
          return ResponseEntity.ok(body.run());
       }
+      // Must precede the IllegalArgumentException catch below (it is a subclass), else it is shadowed.
+      catch(UnsatisfiableBindingException e) {
+         // Map.of rejects null values, and String.valueOf(null) would emit the literal
+         // string "null"; coerce absent fields to "" so the JSON body stays meaningful.
+         Map<String, Object> errorBody = new LinkedHashMap<>();
+         errorBody.put("error", "unsatisfiable explicit binding");
+
+         // A set-conflict failure carries every pin (no single culprit); report them all
+         // as "pins". A single-pin failure carries just role/field; report it as "pin".
+         if(!e.getPins().isEmpty()) {
+            errorBody.put("pins", e.getPins().stream()
+               .map(p -> Map.of("role", nullToEmpty(p.role()), "field", nullToEmpty(p.field())))
+               .collect(Collectors.toList()));
+         }
+         else {
+            errorBody.put("pin", Map.of("role", nullToEmpty(e.getRole()), "field", nullToEmpty(e.getField())));
+         }
+
+         errorBody.put("reason", nullToEmpty(e.getReason()));
+         return ResponseEntity.badRequest().body(errorBody);
+      }
       catch(IllegalArgumentException e) {
-         return ResponseEntity.badRequest().body(Map.of("error", String.valueOf(e.getMessage())));
+         return ResponseEntity.badRequest().body(Map.of("error", nullToEmpty(e.getMessage())));
       }
       catch(Exception e) {
          LOG.error("Failed to {}", action, e);
          return ResponseEntity.internalServerError()
             .body(Map.of("error", "An unexpected error occurred. Please try again."));
       }
+   }
+
+   private static String nullToEmpty(String value) {
+      return value == null ? "" : value;
    }
 
    private final WizVsService wizVsService;

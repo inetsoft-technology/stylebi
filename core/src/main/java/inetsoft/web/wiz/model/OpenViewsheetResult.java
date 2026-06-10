@@ -18,11 +18,14 @@
 
 package inetsoft.web.wiz.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 /**
  * Result of opening a saved wiz viewsheet: the runtime id plus the primary chart
  * assembly name, so callers can drive subsequent runtime operations (filter, browse-data,
  * embed) without a separate assembly lookup.
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class OpenViewsheetResult {
    public String getRuntimeId() {
       return runtimeId;
@@ -40,6 +43,15 @@ public class OpenViewsheetResult {
       this.assemblyName = assemblyName;
    }
 
+   public CreateViewsheetResult.FlatBinding getBinding() {
+      return binding;
+   }
+
+   public void setBinding(CreateViewsheetResult.FlatBinding binding) {
+      this.binding = binding;
+   }
+
    private String runtimeId;
    private String assemblyName;
+   private CreateViewsheetResult.FlatBinding binding;
 }

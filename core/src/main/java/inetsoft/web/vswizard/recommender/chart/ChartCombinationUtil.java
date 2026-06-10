@@ -197,6 +197,17 @@ public class ChartCombinationUtil {
    private static ChartInfosResult getChartInfosWithScores(int n, List<ChartTypeFilter> filters,
                                                             ChartPreference pref)
    {
+      // Pins must be visible during scoring: getClassyInfo prunes score<0 candidates at
+      // generation time, so the aesthetic-guard relaxation has to fire inside getScore.
+      //
+      // Pins are broadcast to ALL filters by slot name, including map/geo filters
+      // (MapChartFilter, ContourMapChartFilter) where x/y mean longitude/latitude rather
+      // than user-facing fields. A geo pin like x=country simply won't match there, so
+      // geo candidates drop out of prefInfos — expected, not a bug.
+      if(pref != null && !pref.isEmpty()) {
+         filters.forEach(f -> f.setPinnedSlots(pref.getSlotFields()));
+      }
+
       getChartCombination(n, filters);
 
       List<ChartInfo> allDefaultInfos = new ArrayList<>();
@@ -205,7 +216,7 @@ public class ChartCombinationUtil {
 
       filters.forEach(f -> {
          if(pref != null) {
-            ChartTypeFilter.FilterResult result = f.filterWithPreference(pref);
+            ChartTypeFilter.FilterResult result = f.filterWithConstraints(pref);
             baseScores.putAll(f.getScores());
 
             result.defaultRanked.stream()
