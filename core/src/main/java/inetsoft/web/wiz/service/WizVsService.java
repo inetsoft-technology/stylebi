@@ -2127,46 +2127,19 @@ public class WizVsService {
 
    /**
     * Builds a ConditionItem from a condition spec.
+    * When {@code aggregateFormula} is present, produces an {@link AggregateRef}-based item
+    * suitable for a post-condition (HAVING); otherwise produces an {@link AttributeRef}-based
+    * item for a pre-condition (WHERE).
     *
     * @param spec             the condition specification
     * @param level            the nesting level for the condition item
     * @param dimColumnMapping optional set of DateRangeRef column names that were pushed to worksheet;
-    *                         used for validating dateGroupLevel to DateRangeRef column names
+    *                         used for mapping dateGroupLevel to DateRangeRef column names
     */
    private ConditionItem buildConditionItem(VisualizationConditionModel.ConditionSpec spec,
                                             int level,
                                             Set<String> dimColumnMapping)
    {
-      // For aggregate conditions, translate field+formula to aggregated column name (fullName)
-      String fieldName = spec.getField();
-      // Check if this is a measure field condition (has an aggregate formula)
-      boolean isMeasure = spec.getAggregateFormula() != null;
-
-      if(isMeasure) {
-         // Compute fullName directly from ConditionSpec to correctly handle formulas
-         // that require secondaryField (Correlation, Covariance, WeightedAverage, SumWT)
-         // or nOrP parameter (NthLargest, NthSmallest, NthMostFrequent, PthPercentile)
-         fieldName = buildVSAggregateRefFullName(
-            spec.getField(),
-            spec.getAggregateFormula(),
-            spec.getSecondaryField(),
-            spec.getNOrP());
-      }
-
-      // If not a measure, check if it's a dimension with dateGroupLevel
-      if(!isMeasure && spec.getDateGroupLevel() != null) {
-         int dateLevel = getDateGroupLevel(spec.getDateGroupLevel());
-
-         if(dimColumnMapping != null && dateLevel != XConstants.NONE_DATE_GROUP) {
-            String dateRangeName = DateRangeRef.getName(spec.getField(), dateLevel);
-
-            if(dimColumnMapping.contains(dateRangeName)) {
-               fieldName = dateRangeName;
-            }
-         }
-      }
-
-      AttributeRef attr = new AttributeRef(null, fieldName);
       Condition condition = new Condition();
       condition.setOperation(mapConditionOperation(spec.getOperation()));
       condition.setNegated(spec.isNegated());
@@ -2181,7 +2154,43 @@ public class WizVsService {
          }
       }
 
-      return new ConditionItem(attr, condition, level);
+      // Aggregate (HAVING) condition: build AggregateRef so the engine evaluates it correctly
+      // against the post-aggregation result set.
+      if(spec.getAggregateFormula() != null) {
+         DataRef baseRef = new ColumnRef(new AttributeRef(null, spec.getField()));
+         DataRef secondaryRef = spec.getSecondaryField() != null
+            ? new ColumnRef(new AttributeRef(null, spec.getSecondaryField())) : null;
+         AggregateFormula formula = AggregateFormula.getFormula(spec.getAggregateFormula());
+
+         if(formula == null) {
+            formula = AggregateFormula.COUNT_ALL;
+         }
+
+         AggregateRef aggregateRef = new AggregateRef(baseRef, secondaryRef, formula);
+
+         if(spec.getNOrP() != null && formula.hasN()) {
+            aggregateRef.setN(spec.getNOrP());
+         }
+
+         return new ConditionItem(aggregateRef, condition, level);
+      }
+
+      // Base (WHERE) condition: use AttributeRef, resolving dateGroupLevel to DateRangeRef name if applicable.
+      String fieldName = spec.getField();
+
+      if(spec.getDateGroupLevel() != null) {
+         int dateLevel = getDateGroupLevel(spec.getDateGroupLevel());
+
+         if(dimColumnMapping != null && dateLevel != XConstants.NONE_DATE_GROUP) {
+            String dateRangeName = DateRangeRef.getName(spec.getField(), dateLevel);
+
+            if(dimColumnMapping.contains(dateRangeName)) {
+               fieldName = dateRangeName;
+            }
+         }
+      }
+
+      return new ConditionItem(new AttributeRef(null, fieldName), condition, level);
    }
 
    private int parseJunction(String junction) {
