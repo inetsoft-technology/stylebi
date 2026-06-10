@@ -2163,7 +2163,9 @@ public class WizVsService {
          AggregateFormula formula = AggregateFormula.getFormula(spec.getAggregateFormula());
 
          if(formula == null) {
-            formula = AggregateFormula.COUNT_ALL;
+            LOG.warn("Aggregate formula '{}' for measure '{}' is null or unrecognized; " +
+                        "defaulting to SUM", spec.getAggregateFormula(), spec.getField());
+            formula = AggregateFormula.SUM;
          }
 
          AggregateRef aggregateRef = new AggregateRef(baseRef, secondaryRef, formula);
