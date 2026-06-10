@@ -31,9 +31,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 public class ClusterFileTransfer implements AutoCloseable {
-   public ClusterFileTransfer() {
+   public ClusterFileTransfer(int port, InetAddress bindAddress) {
       try {
-         fileTransferSocket = new ServerSocket(0, 50, Tool.getLocalIP());
+         localAddress = bindAddress;
+         fileTransferSocket = new ServerSocket(port, 50, localAddress);
          fileTransferThread =
             new GroupedThread(this::serviceFileTransfers, "service-file-transfer");
          fileTransferThread.start();
@@ -45,7 +46,7 @@ public class ClusterFileTransfer implements AutoCloseable {
 
    public String addTransferFile(File file) {
       String fileId = UUID.randomUUID().toString();
-      String link = fileTransferSocket.getInetAddress().getHostAddress() + ":" +
+      String link = localAddress.getHostAddress() + ":" +
          fileTransferSocket.getLocalPort() + "/" + fileId;
       transferFiles.put(fileId, file);
       return link;
@@ -142,6 +143,7 @@ public class ClusterFileTransfer implements AutoCloseable {
       }
    }
 
+   private final InetAddress localAddress;
    private final GroupedThread fileTransferThread;
    private final ServerSocket fileTransferSocket;
    private final ConcurrentMap<String, File> transferFiles = new ConcurrentHashMap<>();

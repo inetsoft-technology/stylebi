@@ -51,6 +51,7 @@ import org.slf4j.LoggerFactory;
 import javax.cache.Cache;
 import javax.cache.expiry.ExpiryPolicy;
 import java.io.*;
+import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -79,7 +80,19 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       ignite.message().localListen(AFFINITY_TOPIC, new AffinityCallProcessor());
       ignite.message().localListen(ServiceTaskExecutorImpl.RESULT_TOPIC, new ServiceTaskResultListener());
       ignite.events().localListen(new MembershipDispatcher(), EventType.EVT_NODE_JOINED, EventType.EVT_NODE_LEFT);
-      clusterFileTransfer = new ClusterFileTransfer();
+      String localIp = ignite.cluster().localNode().attribute("local.ip.addr");
+      InetAddress fileTransferAddress;
+
+      try {
+         fileTransferAddress = InetAddress.getByName(localIp);
+      }
+      catch(Exception e) {
+         throw new RuntimeException("Failed to resolve local cluster IP: " + localIp, e);
+      }
+
+      clusterFileTransfer = new ClusterFileTransfer(
+         InetsoftConfig.getInstance().getCluster().getFileTransferPort(),
+         fileTransferAddress);
       messageExecutor = Executors.newFixedThreadPool(
          Runtime.getRuntime().availableProcessors(),
          r -> new GroupedThread(r, "IgniteMessages"));

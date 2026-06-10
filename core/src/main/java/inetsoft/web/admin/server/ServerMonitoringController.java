@@ -394,6 +394,9 @@ public class ServerMonitoringController {
       try {
          heapId = writeHeapDumpResponse(clusterNode);
       }
+      catch(IllegalStateException ex) {
+         LOG.warn("Heap dump request rejected: {}", ex.getMessage());
+      }
       catch(IOException ex) {
          LOG.debug("Failed to write file: " + ex, ex);
       }
@@ -432,33 +435,25 @@ public class ServerMonitoringController {
          throw new RuntimeException("Heap dump operation failed: " + exceptionMessage[0]);
       }
 
-      long length = serverService.getHeapDumpLength(heapId, clusterNode);
+      try {
+         GetHeapDumpTransferCompleteMessage info =
+            serverService.getHeapDumpInfo(heapId, clusterNode);
 
-      if(length > 0) {
-         try {
-            int bufferSize = 100 * 1024 * 1024;
-            long offset = 0;
-            file = fileSystemService.getCacheTempFile("HeapDump", ".hprof.gz");
+         if(info.getLink() != null) {
+            file = cluster.getTransferFile(info.getLink());
 
-            try(OutputStream output = new FileOutputStream(file)) {
-               while(offset < length) {
-                  int toRead = (int) Math.min(bufferSize, length - offset);
-                  byte[] buffer =
-                     serverService.getHeapDumpContent(heapId, offset, toRead, clusterNode);
-                  output.write(buffer);
-                  offset += buffer.length;
-               }
-            }
-
-            externalStorageService.write("heapdump/" + fileName, file.toPath(), null);
-         }
-         catch(Exception e) {
-            LOG.error("Failed to get heap dump: " + e.getMessage(), e);
-         }
-         finally {
             if(file != null && file.exists()) {
-               Tool.deleteFile(file);
+               String storagePath = externalStorageService.getAvailableFile("heapdump/" + fileName, 1);
+               externalStorageService.write(storagePath, file.toPath(), null);
             }
+         }
+      }
+      catch(Exception e) {
+         LOG.error("Failed to get heap dump: " + e.getMessage(), e);
+      }
+      finally {
+         if(file != null && file.exists()) {
+            Tool.deleteFile(file);
          }
       }
 

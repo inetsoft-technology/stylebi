@@ -19,7 +19,7 @@ package inetsoft.web.admin.server;
 
 import java.io.Serializable;
 
-public class GetHeapDumpContentCompleteMessage implements Serializable {
+public class GetHeapDumpTransferCompleteMessage implements Serializable {
    public String getId() {
       return id;
    }
@@ -28,14 +28,15 @@ public class GetHeapDumpContentCompleteMessage implements Serializable {
       this.id = id;
    }
 
-   public byte[] getContent() {
-      return content;
+   /** Transfer link produced by {@code Cluster.addTransferFile()}; null if the file is absent. */
+   public String getLink() {
+      return link;
    }
 
-   public void setContent(byte[] content) {
-      this.content = content;
+   public void setLink(String link) {
+      this.link = link;
    }
 
    private String id;
-   private byte[] content;
+   private String link;
 }
