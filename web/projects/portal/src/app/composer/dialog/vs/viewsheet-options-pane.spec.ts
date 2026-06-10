@@ -152,4 +152,23 @@ describe("Viewsheet Options Pane Unit Test", () => {
       fixture.detectChanges();
       expect(dataSize.getAttribute("class")).toContain("is-invalid");
    });
+
+   // Bug #75387 alias warning must not show until the value is actually invalid
+   it("alias validation feedback only shows for an invalid alias", () => {
+      const aliasInput = fixture.nativeElement.querySelector("input[ng-reflect-name=alias]");
+      const feedback = () => fixture.nativeElement.querySelector(".form-floating .invalid-feedback");
+
+      expect(aliasInput.classList).not.toContain("is-invalid");
+      expect(feedback()).toBeNull();
+
+      vsOptionPane.form.get("alias").setValue("-abc");
+      fixture.detectChanges();
+      expect(aliasInput.classList).toContain("is-invalid");
+      expect(feedback()).not.toBeNull();
+
+      vsOptionPane.form.get("alias").setValue("abc");
+      fixture.detectChanges();
+      expect(aliasInput.classList).not.toContain("is-invalid");
+      expect(feedback()).toBeNull();
+   });
 });

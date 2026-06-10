@@ -116,7 +116,7 @@
                         (valueChange)="model.maxRows = $event"
                         [invalid]="!!form.controls['maxRows'].errors">
             </number-stepper>
-            @if(form.controls['maxRows'].errors) {
+            @if (form.controls['maxRows'].errors) {
               <span class="invalid-feedback d-block">The sample size should be non-zero integer.</span>
             }
           </div>
@@ -126,7 +126,7 @@
                         (valueChange)="model.snapGrid = $event"
                         [invalid]="!!form.controls['snapGrid'].errors">
             </number-stepper>
-            @if(form.controls['snapGrid'].errors) {
+            @if (form.controls['snapGrid'].errors) {
               <span class="invalid-feedback d-block">_#(composer.vs.options.snapGrid)</span>
             }
           </div>
@@ -140,7 +140,7 @@
               <input type="text" formControlName="alias" class="form-control" placeholder="_#(Alias)" [(ngModel)]="model.alias"
                 [class.is-invalid]="form.controls['alias'].errors && form.controls['alias'].errors['doesNotStartWithNumberOrLetter']"/>
               <label><span>_#(Alias)</span></label>
-              @if(form.controls['alias'].errors && form.controls['alias'].errors['doesNotStartWithNumberOrLetter']) {
+              @if (form.controls['alias'].errors && form.controls['alias'].errors['doesNotStartWithNumberOrLetter']) {
                 <span class="invalid-feedback d-block">_#(viewer.nameSpecialChar)</span>
               }
             </div>
@@ -177,7 +177,7 @@
                         (valueChange)="model.touchInterval = $event"
                         [invalid]="!!form.controls['touchInterval'].errors">
             </number-stepper>
-            @if(form.controls['touchInterval'].errors) {
+            @if (form.controls['touchInterval'].errors) {
               <span class="invalid-feedback d-block">_#(composer.vs.options.refreshIntervalValid)</span>
             }
           </div>
