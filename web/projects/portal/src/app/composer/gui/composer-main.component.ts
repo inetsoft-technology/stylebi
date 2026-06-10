@@ -2723,7 +2723,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       }
    }
 
-   private get layoutShowing(): boolean {
+   get layoutShowing(): boolean {
       return this.focusedViewsheet && this.focusedViewsheet.type === "viewsheet" && this.focusedViewsheet.currentLayout != null;
    }
 
