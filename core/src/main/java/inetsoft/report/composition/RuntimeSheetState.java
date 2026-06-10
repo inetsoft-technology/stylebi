@@ -29,14 +29,6 @@ class RuntimeSheetState {
       this.entry = entry;
    }
 
-   public long getAccessed() {
-      return accessed;
-   }
-
-   public void setAccessed(long accessed) {
-      this.accessed = accessed;
-   }
-
    public String getUser() {
       return user;
    }
@@ -165,14 +157,6 @@ class RuntimeSheetState {
       this.disposed = disposed;
    }
 
-   public long getHeartbeat() {
-      return heartbeat;
-   }
-
-   public void setHeartbeat(long heartbeat) {
-      this.heartbeat = heartbeat;
-   }
-
    public String getProp() {
       return prop;
    }
@@ -196,10 +180,10 @@ class RuntimeSheetState {
       }
 
       RuntimeSheetState that = (RuntimeSheetState) o;
-      return accessed == that.accessed && editable == that.editable && point == that.point &&
+      return editable == that.editable && point == that.point &&
          max == that.max && savePoint == that.savePoint &&
          isLockProcessed == that.isLockProcessed && disposed == that.disposed &&
-         heartbeat == that.heartbeat && Objects.equals(entry, that.entry) &&
+         Objects.equals(entry, that.entry) &&
          Objects.equals(user, that.user) &&
          Objects.equals(contextPrincipal, that.contextPrincipal) &&
          Objects.equals(points, that.points) &&
@@ -232,9 +216,9 @@ class RuntimeSheetState {
    @Override
    public int hashCode() {
       int result = Objects.hash(
-         entry, accessed, user, contextPrincipal, editable, points,
+         entry, user, contextPrincipal, editable, points,
          point, max, savePoint, eid, id, socketSessionId, socketUserName, lowner,
-         isLockProcessed, disposed, heartbeat, prop, previousURL);
+         isLockProcessed, disposed, prop, previousURL);
       result = 31 * result + pointDeltasHashCode();
       return result;
    }
@@ -257,7 +241,6 @@ class RuntimeSheetState {
    public String toString() {
       return "RuntimeSheetState{" +
          "entry='" + entry + '\'' +
-         ", accessed=" + accessed +
          ", user='" + user + '\'' +
          ", contextPrincipal='" + contextPrincipal + '\'' +
          ", editable=" + editable +
@@ -272,14 +255,12 @@ class RuntimeSheetState {
          ", lowner='" + lowner + '\'' +
          ", isLockProcessed=" + isLockProcessed +
          ", disposed=" + disposed +
-         ", heartbeat=" + heartbeat +
          ", prop='" + prop + '\'' +
          ", previousURL='" + previousURL + '\'' +
          '}';
    }
 
    private String entry;
-   private long accessed;
    private String user;
    private String contextPrincipal;
    private boolean editable;
@@ -295,7 +276,6 @@ class RuntimeSheetState {
    private String lowner;
    private boolean isLockProcessed;
    private boolean disposed;
-   private long heartbeat;
    private String prop;
    private String previousURL;
    private boolean isUpdate = false;

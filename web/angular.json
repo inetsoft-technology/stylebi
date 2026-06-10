@@ -119,7 +119,8 @@
               "../../shared/**/*.spec.ts"
             ],
             "exclude": [
-              "**/*.tl.spec.ts"
+              "**/*.tl.spec.ts",
+              "../../shared/**/*.tl.spec.ts"
             ],
             "setupFiles": [
               "vitest-bootstrap.ts",

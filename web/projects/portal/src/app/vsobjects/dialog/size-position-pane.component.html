@@ -95,9 +95,9 @@
         <div class="col-auto">
           <div class="checkbox">
             <div class="form-check">
-              <input id="scaleV" type="checkbox" class="form-check-input" id="scaleV"
-                     formControlName="scaleVertical"
-                     [(ngModel)]="model.scaleVertical" [disabled]="!layoutEnabled || model.locked"/>
+              <input id="scaleV" type="checkbox" class="form-check-input"
+                formControlName="scaleVertical"
+                [(ngModel)]="model.scaleVertical"/>
               <label class="form-check-label" for="scaleV">
                 _#(Scale vertically when scaling to screen)
               </label>

@@ -58,15 +58,9 @@ public class RuntimeSheetCache
       this.local = new LinkedHashMap<>();
       this.cache = getCache(cluster, name);
       this.maxSheetCount = getMaxSheetCount();
-      this.executor = Executors.newSingleThreadScheduledExecutor(r -> {
-         Thread t = new Thread(r, "RuntimeSheetCacheFlusher");
-         t.setDaemon(true);
-         return t;
-      });
       this.mapper = createObjectMapper();
       this.sheetCountMap = cluster.getReplicatedMap(LOCAL_SHEET_COUNT);
-
-      this.executor.schedule(this::flushAll, 30L, TimeUnit.SECONDS);
+      this.accessTimeMap = getAccessTimeCache(cluster);
    }
 
    private static int getMaxSheetCount() {
@@ -88,6 +82,12 @@ public class RuntimeSheetCache
    @SuppressWarnings("unchecked")
    private static IgniteCache<AffinityKey<String>, CompressedSheetState> getCache(Cluster cluster, String name) {
       Cache<String, CompressedSheetState> cache = cluster.getCache(name);
+      return cache.unwrap(IgniteCache.class);
+   }
+
+   @SuppressWarnings("unchecked")
+   private static IgniteCache<AffinityKey<String>, Long> getAccessTimeCache(Cluster cluster) {
+      Cache<AffinityKey<String>, Long> cache = cluster.getCache(ACCESS_TIME_MAP_NAME);
       return cache.unwrap(IgniteCache.class);
    }
 
@@ -157,6 +157,8 @@ public class RuntimeSheetCache
          CompressedSheetState state = cache.get(affinityKey);
 
          if(state != null) {
+            RuntimeSheet sheet = null;
+            String evictedId = null;
             lock.writeLock().lock();
 
             try {
@@ -166,7 +168,7 @@ public class RuntimeSheetCache
                   return local.get(id);
                }
 
-               RuntimeSheet sheet = toSheet(state);
+               sheet = toSheet(state);
 
                if(sheet != null) {
                   if(!isLocal(affinityKey)) {
@@ -175,14 +177,37 @@ public class RuntimeSheetCache
                         id, new Exception("Stack trace"));
                   }
 
-                  putLocal(affinityKey, sheet);
+                  evictedId = putLocal(affinityKey, sheet);
                }
-
-               return sheet;
             }
             finally {
                lock.writeLock().unlock();
             }
+
+            evictFromIgnite(evictedId);
+
+            // Restore last-accessed time from the distributed map outside the write lock.
+            // accessTimeMap.get() is a distributed call and must not run under the lock.
+            if(sheet != null) {
+               Long accessTime = accessTimeMap.get(affinityKey);
+
+               if(accessTime != null) {
+                  lock.readLock().lock();
+
+                  try {
+                     // Only apply if the session is still resident — it may have been
+                     // evicted between the write-lock release and now.
+                     if(local.containsKey(id)) {
+                        sheet.setAccessed(accessTime);
+                     }
+                  }
+                  finally {
+                     lock.readLock().unlock();
+                  }
+               }
+            }
+
+            return sheet;
          }
       }
 
@@ -201,20 +226,25 @@ public class RuntimeSheetCache
          LOG.warn("Failed to serialize sheet state to cache", e);
       }
 
+      RuntimeSheet old;
+      String evictedId;
       lock.writeLock().lock();
 
       try {
-         RuntimeSheet sheet = putLocal(affinityKey, value);
+         old = local.get(key);
+         evictedId = putLocal(affinityKey, value);
 
          if(compressed != null) {
             putCache(affinityKey, value, compressed);
          }
-
-         return sheet;
       }
       finally {
          lock.writeLock().unlock();
       }
+
+      evictFromIgnite(evictedId);
+      accessTimeMap.putAsync(affinityKey, value.getLastAccessed());
+      return old;
    }
 
    public Future<RuntimeSheet> putSheet(String key, RuntimeSheet value) {
@@ -230,33 +260,48 @@ public class RuntimeSheetCache
          serializeError = e;
       }
 
+      String evictedId;
+      Future<RuntimeSheet> result;
       lock.writeLock().lock();
 
       try {
-         putLocal(affinityKey, value);
+         evictedId = putLocal(affinityKey, value);
 
          if(compressed != null) {
-            return putCache(affinityKey, value, compressed);
+            result = putCache(affinityKey, value, compressed);
          }
-
-         CompletableFuture<RuntimeSheet> failed = new CompletableFuture<>();
-         failed.completeExceptionally(serializeError != null ? serializeError
-            : new IllegalStateException("Serialization produced null state without throwing"));
-         return failed;
+         else {
+            CompletableFuture<RuntimeSheet> failed = new CompletableFuture<>();
+            failed.completeExceptionally(serializeError != null ? serializeError
+               : new IllegalStateException("Serialization produced null state without throwing"));
+            result = failed;
+         }
       }
       finally {
          lock.writeLock().unlock();
       }
+
+      evictFromIgnite(evictedId);
+      accessTimeMap.putAsync(affinityKey, value.getLastAccessed());
+      return result;
    }
 
-   private RuntimeSheet putLocal(AffinityKey<String> key, RuntimeSheet value) {
+   /**
+    * Inserts value into local. Returns the evicted preview-sheet ID if the max-count
+    * limit forced an eviction, or null otherwise. Callers must call
+    * cache.removeAsync() + accessTimeMap.remove() for the returned ID after releasing
+    * the write lock — both are distributed operations that must not run under the lock.
+    */
+   private String putLocal(AffinityKey<String> key, RuntimeSheet value) {
+      String evictedId = null;
+
       if(applyMaxCount && local.size() >= maxSheetCount && !local.containsKey(key.key())) {
          for(Iterator<String> i = local.keySet().iterator(); i.hasNext();) {
             String id = i.next();
 
             if(id.startsWith(WorksheetService.PREVIEW_PREFIX)) {
                i.remove();
-               cache.removeAsync(getAffinityKey(id));
+               evictedId = id;
                break;
             }
          }
@@ -268,9 +313,16 @@ public class RuntimeSheetCache
             key, new Exception("Stack trace"));
       }
 
-      RuntimeSheet result = local.put(key.key(), value);
+      local.put(key.key(), value);
       updateLocalSheetCount();
-      return result;
+      return evictedId;
+   }
+
+   private void evictFromIgnite(String evictedId) {
+      if(evictedId != null) {
+         cache.removeAsync(getAffinityKey(evictedId));
+         accessTimeMap.removeAsync(getAffinityKey(evictedId));
+      }
    }
 
    private Future<RuntimeSheet> putCache(AffinityKey<String> key, RuntimeSheet value,
@@ -364,32 +416,74 @@ public class RuntimeSheetCache
       }
    }
 
+   /**
+    * Removes the session from both local memory and the distributed caches.
+    * Note: only returns the sheet if it was resident in local memory at the time of removal.
+    * If the session was held on a remote node, the return value is null. All current callers
+    * discard the return value, so this is a documentation-only contract change from the
+    * previous implementation which retrieved remote sessions via cache.getAndRemove().
+    */
    @Override
    public RuntimeSheet remove(Object key) {
+      AffinityKey<String> affinityKey = null;
+      RuntimeSheet sheet;
       lock.writeLock().lock();
 
       try {
-         RuntimeSheet sheet = local.remove(key);
+         sheet = local.remove(key);
          updateLocalSheetCount();
 
          if(key instanceof String id) {
-            AffinityKey<String> affinityKey = getAffinityKey(id);
-
-            if(sheet == null) {
-               sheet = toSheet(cache.getAndRemove(affinityKey));
-            }
-            else {
-               cache.removeAsync(affinityKey);
-            }
+            affinityKey = getAffinityKey(id);
          }
-
-         return sheet;
       }
       finally {
          lock.writeLock().unlock();
       }
+
+      // Both Ignite calls are outside the lock — async, fire-and-forget
+      if(affinityKey != null) {
+         accessTimeMap.removeAsync(affinityKey);
+         cache.removeAsync(affinityKey);
+      }
+
+      return sheet;
    }
 
+   /**
+    * Update the last-accessed timestamp for a session in the distributed map without
+    * triggering a full sheet serialization. Called by accessSheet() on every getSheet() debounce.
+    */
+   public void updateAccessTime(String id, long time) {
+      lock.readLock().lock();
+
+      try {
+         RuntimeSheet rs = local.get(id);
+
+         if(rs == null) {
+            return;
+         }
+
+         rs.setAccessed(time);
+      }
+      finally {
+         lock.readLock().unlock();
+      }
+
+      // A residual race window exists between the readLock release and putAsync(): remove()
+      // could complete in that interval, leaving a one-entry orphan in accessTimeMap.
+      // The orphan is bounded (one 8-byte entry per closed session) and is cleaned up by
+      // the next remove() or clear() for the same key.
+      accessTimeMap.putAsync(getAffinityKey(id), time);
+   }
+
+   /**
+    * Inserts all entries into local memory and the distributed session cache.
+    * Note: accessTimeMap is NOT populated here. This method has no active callers in the
+    * current codebase and exists only to satisfy the Map interface contract. If it is ever
+    * used to bulk-insert sessions, callers must separately populate accessTimeMap to ensure
+    * access times survive a subsequent node restart or rebalance.
+    */
    @Override
    public void putAll(Map<? extends String, ? extends RuntimeSheet> m) {
       Map<AffinityKey<String>, CompressedSheetState> states =
@@ -404,26 +498,35 @@ public class RuntimeSheetCache
       try {
          local.putAll(m);
          updateLocalSheetCount();
-         cache.putAllAsync(states);
       }
       finally {
          lock.writeLock().unlock();
       }
+
+      cache.putAllAsync(states);
    }
 
    @Override
    public void clear() {
+      Set<AffinityKey<String>> affinityKeys = new HashSet<>();
       lock.writeLock().lock();
 
       try {
-         Set<AffinityKey<String>> ids = getLocalKeys();
+         // Snapshot affinity keys while holding the lock; Ignite calls must not occur
+         // under the lock.
+         for(String id : local.keySet()) {
+            affinityKeys.add(getAffinityKey(id));
+         }
+
          local.clear();
          updateLocalSheetCount();
-         cache.removeAllAsync(ids);
       }
       finally {
          lock.writeLock().unlock();
       }
+
+      accessTimeMap.removeAllAsync(affinityKeys);
+      cache.removeAllAsync(affinityKeys);
    }
 
    @Override
@@ -443,7 +546,6 @@ public class RuntimeSheetCache
 
    @Override
    public void close() throws IOException {
-      executor.close();
       sheetCountMap.remove(cluster.getLocalMember());
    }
 
@@ -455,33 +557,6 @@ public class RuntimeSheetCache
       this.applyMaxCount = applyMaxCount;
    }
 
-   // this should be called in a locked code section
-   private Set<AffinityKey<String>> getLocalKeys() {
-      Set<AffinityKey<String>> allIds = new HashSet<>();
-
-      local.keySet().stream()
-         .map(this::getAffinityKey)
-         .forEach(allIds::add);
-
-      Iterator<Cache.Entry<AffinityKey<String>, CompressedSheetState>> iter = cache.iterator();
-
-      try {
-         while(iter.hasNext()) {
-            allIds.add(iter.next().getKey());
-         }
-      }
-      catch(NoSuchElementException e) {
-         // Ignite closes distributed iterators mid-scan during topology changes
-         // (node join/leave/rebalance). Use whatever keys were collected so far;
-         // missing keys will be re-discovered on the next flush cycle.
-         LOG.warn("Cache iterator closed during getLocalKeys scan, using partial key set", e);
-      }
-      finally {
-         Tool.closeIterator(iter);
-      }
-
-      return Set.copyOf(cluster.getLocalCacheKeys(cache, allIds));
-   }
 
    public void flush(String key) {
       RuntimeSheet sheet;
@@ -497,14 +572,7 @@ public class RuntimeSheetCache
       AffinityKey<String> affinityKey = getAffinityKey(key);
 
       if(sheet == null) {
-         lock.writeLock().lock();
-
-         try {
-            cache.removeAsync(affinityKey);
-         }
-         finally {
-            lock.writeLock().unlock();
-         }
+         cache.removeAsync(affinityKey);
       }
       else {
          CompressedSheetState compressed = null;
@@ -517,67 +585,22 @@ public class RuntimeSheetCache
          }
 
          if(compressed != null) {
+            // Re-check: skip if the sheet was removed while we were serializing.
+            // Write lock guards only the local containment check; the Ignite call
+            // is submitted after the lock is released.
+            boolean shouldWrite;
             lock.writeLock().lock();
 
             try {
-               // Re-check: skip if the sheet was removed while we were serializing
-               if(local.containsKey(key)) {
-                  cache.putAsync(affinityKey, compressed);
-               }
+               shouldWrite = local.containsKey(key);
             }
             finally {
                lock.writeLock().unlock();
             }
-         }
-      }
-   }
 
-   private void flushAll() {
-      Map<AffinityKey<String>, RuntimeSheet> snapshot = new HashMap<>();
-      lock.readLock().lock();
-
-      try {
-         for(AffinityKey<String> key : getLocalKeys()) {
-            RuntimeSheet sheet = local.get(key.key());
-
-            if(sheet != null) {
-               snapshot.put(key, sheet);
+            if(shouldWrite) {
+               cache.putAsync(affinityKey, compressed);
             }
-         }
-      }
-      finally {
-         lock.readLock().unlock();
-      }
-
-      if(snapshot.isEmpty()) {
-         return;
-      }
-
-      Map<AffinityKey<String>, CompressedSheetState> changeset =
-         new TreeMap<>(Comparator.comparing(AffinityKey::key));
-
-      for(Map.Entry<AffinityKey<String>, RuntimeSheet> e : snapshot.entrySet()) {
-         try {
-            changeset.put(e.getKey(), compressState(e.getValue().saveState(mapper)));
-         }
-         catch(Exception ex) {
-            LOG.warn("Failed to serialize sheet state to cache", ex);
-         }
-      }
-
-      if(!changeset.isEmpty()) {
-         lock.writeLock().lock();
-
-         try {
-            // Remove keys that were evicted from local while we were serializing
-            changeset.keySet().removeIf(k -> !local.containsKey(k.key()));
-
-            if(!changeset.isEmpty()) {
-               cache.putAllAsync(changeset);
-            }
-         }
-         finally {
-            lock.writeLock().unlock();
          }
       }
    }
@@ -588,16 +611,15 @@ public class RuntimeSheetCache
       }
 
       RuntimeSheetState state = decompressState(compressed);
-      RuntimeSheet sheet = null;
 
       if(state instanceof RuntimeViewsheetState vsState) {
-         sheet = new RuntimeViewsheet(vsState, mapper);
+         return new RuntimeViewsheet(vsState, mapper);
       }
       else if(state instanceof RuntimeWorksheetState wsState) {
-         sheet = new RuntimeWorksheet(wsState, mapper);
+         return new RuntimeWorksheet(wsState, mapper);
       }
 
-      return sheet;
+      return null;
    }
 
    public List<String> getAllIds(Principal user) {
@@ -779,15 +801,16 @@ public class RuntimeSheetCache
    private final IgniteCache<AffinityKey<String>, CompressedSheetState> cache;
    private final int maxSheetCount;
    private final ReadWriteLock lock = new ReentrantReadWriteLock();
-   private final ScheduledExecutorService executor;
    private final ObjectMapper mapper;
    private boolean applyMaxCount;
    private static final Pattern tempIdPattern = Pattern.compile(
       "^(" + WorksheetEngine.PREVIEW_WORKSHEET + "|" + ViewsheetEngine.PREVIEW_VIEWSHEET +
       ")?(.+)-temp-\\d+$");
    private final Map<String, Integer> sheetCountMap;
+   private final IgniteCache<AffinityKey<String>, Long> accessTimeMap;
 
    public static final String LOCAL_SHEET_COUNT = RuntimeSheet.class.getName() + ".localSheetCount";
+   public static final String ACCESS_TIME_MAP_NAME = RuntimeSheet.class.getName() + ".accessTime";
    private static final Logger LOG = LoggerFactory.getLogger(RuntimeSheetCache.class);
 
    private abstract class CacheIterator<T> implements Iterator<T> {

@@ -177,20 +177,22 @@
                           [safeFont]="_cell.vsFormatModel.font"
                           [dataTip]="model.dataTip"
                           [dataTipOnClick]="model.isTipOnClick">
-                          @if (sortEnable(_cell) && model.sortOnHeader && !vsWizard) {
-                            <i sortButton
-                              title="_#(Sort Column)"
-                              class="sort-button vs-header-cell-button-sort hover-bg-secondary"
-                              [class.col-sorted]="isColSorted(_cell)"
-                              [class.sort-ascending-icon]="isSorted(_cell.field, 'asc')"
-                              [class.sort-descending-icon]="isSorted(_cell.field, 'desc')"
-                              [class.sort-value-ascending-icon]="isSorted(_cell.field, 'val-asc')"
-                              [class.sort-value-descending-icon]="isSorted(_cell.field, 'val-desc')"
-                              [class.sort-icon]="isSorted(_cell.field, 'none')"
-                              (click)="sortColumn(_cell, $event)"
-                              aria-hidden="true">
-                            </i>
-                          }
+                          <ng-container ngProjectAs="[sortButton]">
+                            @if (sortEnable(_cell) && model.sortOnHeader && !vsWizard) {
+                              <i sortButton
+                                title="_#(Sort Column)"
+                                class="sort-button vs-header-cell-button-sort hover-bg-secondary"
+                                [class.col-sorted]="isColSorted(_cell)"
+                                [class.sort-ascending-icon]="isSorted(_cell.field, 'asc')"
+                                [class.sort-descending-icon]="isSorted(_cell.field, 'desc')"
+                                [class.sort-value-ascending-icon]="isSorted(_cell.field, 'val-asc')"
+                                [class.sort-value-descending-icon]="isSorted(_cell.field, 'val-desc')"
+                                [class.sort-icon]="isSorted(_cell.field, 'none')"
+                                (click)="sortColumn(_cell, $event)"
+                                aria-hidden="true">
+                              </i>
+                            }
+                          </ng-container>
                         </td>
                       }
                     }
@@ -272,20 +274,22 @@
                           [style.color]="_cell.vsFormatModel.foreground"
                           [style.background]="_cell.vsFormatModel.background"
                           [safeFont]="_cell.vsFormatModel.font">
-                          @if (sortEnable(_cell) && !model.sortOnHeader && model.sortAggregate && model.timeSeriesNames.length == 0 && !vsWizard) {
-                            <i sortButton
-                              title="_#(Sort Column)"
-                              class="sort-button vs-header-cell-button-sort hover-bg-secondary"
-                              [class.col-sorted]="isColSorted(_cell)"
-                              [class.sort-ascending-icon]="isSorted(_cell.field, 'asc')"
-                              [class.sort-descending-icon]="isSorted(_cell.field, 'desc')"
-                              [class.sort-value-ascending-icon]="isSorted(_cell.field, 'val-asc')"
-                              [class.sort-value-descending-icon]="isSorted(_cell.field, 'val-desc')"
-                              [class.sort-icon]="isSorted(_cell.field, 'none')"
-                              (click)="sortColumn(_cell, $event)"
-                              aria-hidden="true">
-                            </i>
-                          }
+                          <ng-container ngProjectAs="[sortButton]">
+                            @if (sortEnable(_cell) && !model.sortOnHeader && model.sortAggregate && model.timeSeriesNames.length == 0 && !vsWizard) {
+                              <i sortButton
+                                title="_#(Sort Column)"
+                                class="sort-button vs-header-cell-button-sort hover-bg-secondary"
+                                [class.col-sorted]="isColSorted(_cell)"
+                                [class.sort-ascending-icon]="isSorted(_cell.field, 'asc')"
+                                [class.sort-descending-icon]="isSorted(_cell.field, 'desc')"
+                                [class.sort-value-ascending-icon]="isSorted(_cell.field, 'val-asc')"
+                                [class.sort-value-descending-icon]="isSorted(_cell.field, 'val-desc')"
+                                [class.sort-icon]="isSorted(_cell.field, 'none')"
+                                (click)="sortColumn(_cell, $event)"
+                                aria-hidden="true">
+                              </i>
+                            }
+                          </ng-container>
                         </td>
                       }
                     }
@@ -378,20 +382,22 @@
                           [dataTip]="model.dataTip"
                           [dataTipOnClick]="model.isTipOnClick"
                           [class.visible-cell]="getCellHeight(_cell.row, _cell) > 0">
-                          @if (sortEnable(_cell) && !model.sortOnHeader && !isAggregate(_cell.field) && model.sortDimension && !vsWizard) {
-                            <i sortButton
-                              title="_#(Sort Column)"
-                              class="sort-button vs-header-cell-button-sort hover-bg-secondary"
-                              [class.col-sorted]="isColSorted(_cell)"
-                              [class.sort-ascending-icon]="isSorted(_cell.field, 'asc')"
-                              [class.sort-descending-icon]="isSorted(_cell.field, 'desc')"
-                              [class.sort-value-ascending-icon]="isSorted(_cell.field, 'val-asc')"
-                              [class.sort-value-descending-icon]="isSorted(_cell.field, 'val-desc')"
-                              [class.sort-icon]="isSorted(_cell.field, 'none')"
-                              (click)="sortColumn(_cell, $event)"
-                              aria-hidden="true">
-                            </i>
-                          }
+                          <ng-container ngProjectAs="[sortButton]">
+                            @if (sortEnable(_cell) && !model.sortOnHeader && !isAggregate(_cell.field) && model.sortDimension && !vsWizard) {
+                              <i sortButton
+                                title="_#(Sort Column)"
+                                class="sort-button vs-header-cell-button-sort hover-bg-secondary"
+                                [class.col-sorted]="isColSorted(_cell)"
+                                [class.sort-ascending-icon]="isSorted(_cell.field, 'asc')"
+                                [class.sort-descending-icon]="isSorted(_cell.field, 'desc')"
+                                [class.sort-value-ascending-icon]="isSorted(_cell.field, 'val-asc')"
+                                [class.sort-value-descending-icon]="isSorted(_cell.field, 'val-desc')"
+                                [class.sort-icon]="isSorted(_cell.field, 'none')"
+                                (click)="sortColumn(_cell, $event)"
+                                aria-hidden="true">
+                              </i>
+                            }
+                          </ng-container>
                         </td>
                       }
                     }
@@ -476,20 +482,22 @@
                           [safeFont]="_cell.vsFormatModel.font"
                           [dataTip]="model.dataTip"
                           [dataTipOnClick]="model.isTipOnClick">
-                          @if (sortDimensionEnable(_cell) && !vsWizard) {
-                            <i sortButton
-                              title="_#(Sort Column)"
-                              class="sort-button vs-header-cell-button-sort hover-bg-secondary"
-                              [class.col-sorted]="isColSorted(_cell)"
-                              [class.sort-ascending-icon]="isSorted(_cell.field, 'asc')"
-                              [class.sort-descending-icon]="isSorted(_cell.field, 'desc')"
-                              [class.sort-value-ascending-icon]="isSorted(_cell.field, 'val-asc')"
-                              [class.sort-value-descending-icon]="isSorted(_cell.field, 'val-desc')"
-                              [class.sort-icon]="isSorted(_cell.field, 'none')"
-                              (click)="sortColumn(_cell, $event)"
-                              aria-hidden="true">
-                            </i>
-                          }
+                          <ng-container ngProjectAs="[sortButton]">
+                            @if (sortDimensionEnable(_cell) && !vsWizard) {
+                              <i sortButton
+                                title="_#(Sort Column)"
+                                class="sort-button vs-header-cell-button-sort hover-bg-secondary"
+                                [class.col-sorted]="isColSorted(_cell)"
+                                [class.sort-ascending-icon]="isSorted(_cell.field, 'asc')"
+                                [class.sort-descending-icon]="isSorted(_cell.field, 'desc')"
+                                [class.sort-value-ascending-icon]="isSorted(_cell.field, 'val-asc')"
+                                [class.sort-value-descending-icon]="isSorted(_cell.field, 'val-desc')"
+                                [class.sort-icon]="isSorted(_cell.field, 'none')"
+                                (click)="sortColumn(_cell, $event)"
+                                aria-hidden="true">
+                              </i>
+                            }
+                          </ng-container>
                         </td>
                       }
                     }

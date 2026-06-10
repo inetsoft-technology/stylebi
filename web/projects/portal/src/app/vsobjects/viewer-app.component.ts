@@ -322,7 +322,6 @@ export interface ScrollViewportRect {
         ComposerRecentService,
         SelectionMobileService,
         MiniToolbarService,
-        ShowHyperlinkService,
         {
             provide: RichTextService,
             useClass: CKEditorRichTextService,
