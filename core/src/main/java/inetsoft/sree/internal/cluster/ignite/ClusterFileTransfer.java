@@ -88,8 +88,10 @@ public class ClusterFileTransfer implements AutoCloseable {
       }
       String fileId = link.substring(index2 + 1);
 
-      if(transferFiles.containsKey(fileId)) {
-         return transferFiles.remove(fileId);
+      File localFile = transferFiles.remove(fileId);
+
+      if(localFile != null) {
+         return localFile;
       }
 
       File tempFile = FileSystemService.getInstance().getCacheTempFile("transfer", ".dat");
@@ -101,11 +103,14 @@ public class ClusterFileTransfer implements AutoCloseable {
       idBuffer.putLong(fileUuid.getMostSignificantBits());
       idBuffer.putLong(fileUuid.getLeastSignificantBits());
 
-      try(Socket socket = new Socket(address, port);
+      Socket socket = new Socket();
+      socket.connect(new InetSocketAddress(address, port), 30_000);
+      socket.setSoTimeout(30_000);
+
+      try(socket;
           InputStream input = socket.getInputStream();
           OutputStream output = socket.getOutputStream())
       {
-
          output.write(idBytes);
          output.flush();
          Files.copy(input, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
@@ -136,10 +141,7 @@ public class ClusterFileTransfer implements AutoCloseable {
          {
             socket.setSoTimeout(30_000);
             byte[] idBytes = new byte[16];
-
-            for(int i = 0; i < 16; i++) {
-               idBytes[i] = (byte) input.read();
-            }
+            new DataInputStream(input).readFully(idBytes);
 
             ByteBuffer idBuffer = ByteBuffer.wrap(idBytes);
             String fileId = new UUID(idBuffer.getLong(), idBuffer.getLong()).toString();
