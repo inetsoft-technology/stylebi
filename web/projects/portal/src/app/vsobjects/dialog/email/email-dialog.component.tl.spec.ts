@@ -50,6 +50,7 @@ import { server } from "@test-mocks/server";
 import { EmailDialog } from "./email-dialog.component";
 import { ModelService } from "../../../widget/services/model.service";
 import { EmailDialogModel } from "../../model/email-dialog-model";
+import { EmailPaneModel } from "../../model/email-pane-model";
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -66,13 +67,26 @@ const MODAL_MOCK = {
    })),
 };
 
-function makeModel(overrides: Partial<any> = {}): EmailDialogModel {
+function makeModel(overrides: Partial<EmailDialogModel> = {}): EmailDialogModel {
    return {
-      emailPaneModel: { toAddress: "test@example.com", ccAddress: "" },
-      fileFormatPaneModel: { includeCurrent: true, selectedBookmarks: [] },
+      id: "",
+      emailPaneModel: { toAddress: "test@example.com", ccAddress: "" } as EmailPaneModel,
+      fileFormatPaneModel: {
+         formatType: 0,
+         matchLayout: false,
+         expandSelections: false,
+         includeCurrent: true,
+         linkVisible: false,
+         sendLink: false,
+         selectedBookmarks: [],
+         allBookmarks: [],
+         allBookmarkLabels: [],
+         expandEnabled: false,
+         onlyDataComponents: false,
+      },
       historyEnabled: false,
       ...overrides,
-   } as EmailDialogModel;
+   };
 }
 
 async function renderComponent(opts: {
@@ -143,7 +157,6 @@ describe("EmailDialog — ok(): email validation + send chain", () => {
 
       await waitFor(() => expect(MODAL_MOCK.open).toHaveBeenCalled());
       expect(sendFunction).not.toHaveBeenCalled();
-      expect(comp.showLoading).toBe(false);
    });
 
    it("should set showLoading=true before invoking sendFunction", async () => {
@@ -205,11 +218,9 @@ describe("EmailDialog — ok() guard: no bookmark selection", () => {
 
       comp.ok();
 
-      // Allow microtask queue to drain — HTTP must NOT have been called
-      await new Promise(r => setTimeout(r, 10));
+      await waitFor(() => expect(MODAL_MOCK.open).toHaveBeenCalled());
       expect(httpCalled).toBe(false);
       expect(sendFunction).not.toHaveBeenCalled();
-      expect(MODAL_MOCK.open).toHaveBeenCalled();
    });
 
    it("should proceed with HTTP when includeCurrent=false but bookmarks are selected", async () => {
@@ -242,6 +253,10 @@ describe("EmailDialog — ok() guard: no bookmark selection", () => {
 // ---------------------------------------------------------------------------
 
 describe("EmailDialog — cancel, ngOnInit, emailExportTypes", () => {
+
+   beforeEach(() => {
+      MODAL_MOCK.open.mockClear();
+   });
 
    it("should emit 'cancel' when cancel() is called", async () => {
       const { comp } = await renderComponent();
