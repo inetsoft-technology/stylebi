@@ -36,6 +36,7 @@ import { modelHandlers } from "./handlers/model.handlers";
 import { composerHandlers } from "./handlers/composer.handlers";
 import { emHandlers } from "./handlers/em.handlers";
 import { portalHandlers } from "./handlers/portal.handlers";
+import { viewerHandlers } from "./handlers/viewer.handlers";
 
 type MswServer = ReturnType<typeof setupServer>;
 type GlobalWithMswServer = typeof globalThis & {
@@ -49,4 +50,5 @@ export const server = globalWithMswServer.__stylebiMswServer ??= setupServer(
    ...composerHandlers,
    ...emHandlers,
    ...portalHandlers,
+   ...viewerHandlers,
 );

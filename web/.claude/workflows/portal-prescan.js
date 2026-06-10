@@ -39,8 +39,10 @@ const COMPONENT_SCHEMA = {
 }
 
 phase('Scan')
+const parsedArgs = typeof args === 'string' ? JSON.parse(args) : args
+const candidates = Array.isArray(parsedArgs) ? parsedArgs : (parsedArgs && Array.isArray(parsedArgs.candidates) ? parsedArgs.candidates : [])
 const results = await pipeline(
-  args.candidates,
+  candidates,
   async (filePath) => agent(
     `Pre-scan this Angular component file for test planning.
 
@@ -85,7 +87,7 @@ Return the complete structured result.`,
 
 phase('Report')
 const valid = results.filter(Boolean)
-const routeName = args.route || 'unknown'
+const routeName = (parsedArgs && !Array.isArray(parsedArgs) && parsedArgs.route) || 'unknown'
 
 const tableRows = valid.map(r => {
   const passInfo = r.passPlan && r.passPlan.length > 0
