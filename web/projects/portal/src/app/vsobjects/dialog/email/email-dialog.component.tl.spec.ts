@@ -51,6 +51,12 @@ import { EmailDialog } from "./email-dialog.component";
 import { ModelService } from "../../../widget/services/model.service";
 import { EmailDialogModel } from "../../model/email-dialog-model";
 import { EmailPaneModel } from "../../model/email-pane-model";
+import { FileFormatPaneModel } from "../../model/file-format-pane-model";
+
+// Allows partial overrides of nested model objects (deep merge handled by makeModel)
+type ModelOverrides = Omit<Partial<EmailDialogModel>, "fileFormatPaneModel"> & {
+   fileFormatPaneModel?: Partial<FileFormatPaneModel>;
+};
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -67,10 +73,19 @@ const MODAL_MOCK = {
    })),
 };
 
-function makeModel(overrides: Partial<EmailDialogModel> = {}): EmailDialogModel {
-   return {
+function makeModel(overrides: ModelOverrides = {}): EmailDialogModel {
+   const base: EmailDialogModel = {
       id: "",
-      emailPaneModel: { toAddress: "test@example.com", ccAddress: "" } as EmailPaneModel,
+      emailPaneModel: {
+         toAddress: "test@example.com",
+         ccAddress: "",
+         fromAddress: "",
+         fromAddressEnabled: false,
+         subject: "",
+         message: "",
+         userDialogEnabled: false,
+         emailAddrDialogModel: { rootTree: {} },
+      },
       fileFormatPaneModel: {
          formatType: 0,
          matchLayout: false,
@@ -85,16 +100,22 @@ function makeModel(overrides: Partial<EmailDialogModel> = {}): EmailDialogModel 
          onlyDataComponents: false,
       },
       historyEnabled: false,
+   };
+   return {
+      ...base,
       ...overrides,
+      fileFormatPaneModel: overrides.fileFormatPaneModel
+         ? { ...base.fileFormatPaneModel, ...overrides.fileFormatPaneModel }
+         : base.fileFormatPaneModel,
    };
 }
 
 async function renderComponent(opts: {
-   modelOverrides?: Partial<any>;
-   sendFn?: (model: any, commit: Function, stop: Function) => void;
+   modelOverrides?: ModelOverrides;
+   sendFn?: (model: EmailDialogModel, commit: () => void, stop: () => void) => void;
    exportTypes?: { label: string; value: string }[];
 } = {}) {
-   const sendFunction = opts.sendFn ?? vi.fn((m: any, commit: Function) => commit());
+   const sendFunction = opts.sendFn ?? vi.fn((m: EmailDialogModel, commit: () => void) => commit());
    const { fixture } = await render(EmailDialog, {
       schemas: [NO_ERRORS_SCHEMA],
       imports: [ReactiveFormsModule],
@@ -163,7 +184,7 @@ describe("EmailDialog — ok(): email validation + send chain", () => {
       let loadingWhenSendCalled = false;
       const { comp } = await renderComponent({
          sendFn: (m, commit) => {
-            loadingWhenSendCalled = (comp as any).showLoading;
+            loadingWhenSendCalled = comp.showLoading;
             // do not call commit — leaves loading true
          },
       });
