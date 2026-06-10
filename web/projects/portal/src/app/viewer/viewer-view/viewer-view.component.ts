@@ -53,6 +53,7 @@ import { ViewData } from "../view-data";
 import { Tool } from "../../../../../shared/util/tool";
 import { map, mergeMap } from "rxjs/operators";
 import { ModelService } from "../../widget/services/model.service";
+import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
 import { PageTabComponent } from "./page-tab.component";
 
 
@@ -60,11 +61,14 @@ import { PageTabComponent } from "./page-tab.component";
     selector: "v-viewer-view",
     templateUrl: "viewer-view.component.html",
     styleUrls: ["viewer-view.component.scss"],
-    providers: [{
+    providers: [
+        ShowHyperlinkService,
+        {
             provide: ContextProvider,
             useFactory: ViewerContextProviderFactory,
             deps: [[new Optional(), ComposerToken], [new Optional(), EmbedToken]]
-        }],
+        }
+    ],
     imports: [ViewerAppComponent, PageTabComponent]
 })
 export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeactivate, AfterViewChecked {
