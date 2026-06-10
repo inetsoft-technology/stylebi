@@ -541,6 +541,44 @@ describe("VS Formats Pane Unit case", () => {
 
    });
 
+   //color should be enabled for legend selection in circle packing chart,
+   //and disabled only when a non-innermost circle (vo) is selected
+   it("check color status for circle packing chart", () => {
+      let chart: VSChartModel = TestUtils.createMockVSChartModel("packing");
+      chart.chartType = GraphTypes.CHART_CIRCLE_PACKING;
+      chart.axisFields = ["OuterDim", "InnerDim"];
+      chart.stringDictionary = ["OuterDim", "InnerDim"];
+      chart.chartSelection = {
+         chartObject: null,
+         regions: null
+      };
+      let region: ChartRegion = TestUtils.createMockChartRegion();
+
+      //select legend (not a circle) - color editable
+      chart.regionMetaDictionary = [{areaType: "legend_content", meaIdx: -1}];
+      chart.chartSelection.chartObject = TestUtils.createMockChartObject("legend_content");
+      chart.chartSelection.regions = [region];
+      vsFormatsPane._focusedAssemblies = [chart];
+      vsFormatsPane.updateProperties();
+      expect(vsFormatsPane.colorDisabled).toBeFalsy();
+
+      //select outer (non-innermost) circle - color disabled
+      chart.regionMetaDictionary = [{areaType: "vo", meaIdx: 0}];
+      chart.chartSelection.chartObject = TestUtils.createMockChartObject("plot_area");
+      chart.chartSelection.regions = [region];
+      vsFormatsPane._focusedAssemblies = [chart];
+      vsFormatsPane.updateProperties();
+      expect(vsFormatsPane.colorDisabled).toBeTruthy();
+
+      //select innermost circle - color editable
+      chart.regionMetaDictionary = [{areaType: "vo", meaIdx: 1}];
+      chart.chartSelection.chartObject = TestUtils.createMockChartObject("plot_area");
+      chart.chartSelection.regions = [region];
+      vsFormatsPane._focusedAssemblies = [chart];
+      vsFormatsPane.updateProperties();
+      expect(vsFormatsPane.colorDisabled).toBeFalsy();
+   });
+
    //Bug #18442 font color should disabled for image
    it("font color should disabled for image", () => {
       let vsformats = new VSFormatsPane(changeDetectorRef, fontService, modelService, modalService,
