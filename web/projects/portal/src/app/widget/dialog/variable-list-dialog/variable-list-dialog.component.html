@@ -25,7 +25,7 @@
   </variable-list-editor>
   @if (!isValid()) {
     <div class="alert alert-danger">_#(Data Format Error):
-      "@for (_tuple of invalidVariables(); track _tuple; let _last = $last) {
+      "@for (_tuple of invalidVariables(); track $index; let _last = $last) {
       <span>
       {{_tuple.value}}{{_last ? "" : ", "}}</span>
     }"</div>

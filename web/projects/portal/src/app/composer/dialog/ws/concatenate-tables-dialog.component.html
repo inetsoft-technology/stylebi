@@ -54,7 +54,7 @@
     <legend>_#(Concatenating the following tables)</legend>
     <div class="form-row-float-label row">
       <div class="col ms-2">
-        @for (_table of tables; track _table) {
+        @for (_table of tables; track _table.name) {
           <div class="text-overflow ms-3"
           [attr.title]="_table.name">{{_table.name}}</div>
         }

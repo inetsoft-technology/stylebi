@@ -37,7 +37,7 @@
     <select class="formatSelect form-control" [ngModel]="formatModel?.format"
       (ngModelChange)="typeChange($event)"
       placeholder="_#(Format)">
-      @for (fmt of formats; track fmt) {
+      @for (fmt of formats; track $index) {
         <option [ngValue]="fmt.value">
           {{fmt.label}}
         </option>
@@ -49,7 +49,7 @@
     <select [ngModel]="dateFormat"
       (ngModelChange)="updateDateFormat($event)"
       class="form-control mt-1">
-      @for (dfmt of dateFormats; track dfmt) {
+      @for (dfmt of dateFormats; track $index) {
         <option [value]="dfmt.value">
           {{dfmt.label}}
         </option>

@@ -25,7 +25,7 @@
   <div class="row form-row-float-label">
     <div class="col form-floating">
       <select class="form-control" [(ngModel)]="baseFormula" placeholder="_#(Aggregate)">
-        @for (fl of formulas; track fl) {
+        @for (fl of formulas; track $index) {
           <option [value]="fl.formulaName">{{fl.label}}</option>
         }
       </select>
@@ -37,7 +37,7 @@
       <div class="col form-floating">
         <select class="form-control" [(ngModel)]="secondCol"
           [disabled]="!isTwoColumns()" placeholder="_#(With)">
-          @for (col of availableFields; track col) {
+          @for (col of availableFields; track $index) {
             <option [value]="col.name" [attr.title]="col.description"
               [class.grayed-out-field]="isGrayedOut(col.name)"
             >{{col.name}}</option>
@@ -59,7 +59,7 @@
     <div class="col form-floating">
       <select class="form-control" [(ngModel)]="percentage" placeholder="_#(Percentage)"
         [disabled]="!isPercent()">
-        @for (per of getPercents(); track per) {
+        @for (per of getPercents(); track $index) {
           <option [value]="per.value">{{per.label}}</option>
         }
       </select>

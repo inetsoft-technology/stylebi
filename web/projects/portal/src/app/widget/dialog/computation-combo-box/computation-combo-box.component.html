@@ -17,7 +17,7 @@
 -->
 <div class="input-group">
   <select class="form-control" (change)="updateModel($event.target.value);">
-    @for (_comp of computationList; track _comp; let _i = $index) {
+    @for (_comp of computationList; track $index; let _i = $index) {
       <option [value]="_i"
         [selected]="_i == selectedIndex">
         {{_comp.label}} ({{_comp.value}})

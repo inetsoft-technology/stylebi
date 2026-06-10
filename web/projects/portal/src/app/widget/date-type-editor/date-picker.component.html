@@ -21,7 +21,7 @@
     @if (months) {
       <div class="col-6 form-floating">
         <select class="form-control" [ngModel]="dateTime.months" (ngModelChange)="selectMonth($event)">
-          @for (month of months; track month) {
+          @for (month of months; track $index) {
             <option [value]="month.value">
               {{month.label}}
             </option>
@@ -34,7 +34,7 @@
     @if (years) {
       <div class="col-6 form-floating">
         <select class="form-control" [ngModel]="dateTime.years" (ngModelChange)="selectYear($event)">
-          @for (year of years; track year) {
+          @for (year of years; track $index) {
             <option [value]="year.value">
               {{year.label}}
             </option>

@@ -28,7 +28,7 @@
   <div class="modal-body" [enterSubmit]="formValid" (onEnter)="saveChanges()"
     (onEsc)="cancel()" blockMouse>
     <div (mouseup)="onMouseUp($event)">
-      @for (_variableInfo of model.varInfos; track _variableInfo; let i = $index) {
+      @for (_variableInfo of model.varInfos; track $index; let i = $index) {
         <div>
           <fieldset>
             <legend>{{_variableInfo.alias ? _variableInfo.alias : _variableInfo.name}}</legend>

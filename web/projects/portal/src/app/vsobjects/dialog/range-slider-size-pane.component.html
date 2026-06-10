@@ -29,7 +29,7 @@
         <div class="col-auto ps-1">
           <select class="form-control"
             [ngModelOptions]="{standalone: true}" [(ngModel)]="model.rangeType">
-            @for (range of rangeOptions; track range) {
+            @for (range of rangeOptions; track $index) {
               <option [ngValue]="range.value">
                 {{range.label}}
               </option>

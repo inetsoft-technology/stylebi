@@ -40,7 +40,7 @@
 }
 @if (node && node.expanded && node.children) {
   <div [class.tree-children]="showRoot">
-    @for (_node of node.children; track _node) {
+    @for (_node of node.children; track $index) {
       <physical-table-tree-node [node]="_node"
         [tree]="tree"
         [indentLevel]="!showRoot ? indentLevel : indentLevel + 1">

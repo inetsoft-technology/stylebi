@@ -51,7 +51,7 @@
           </ng-container>
         </w-large-form-field>
         <div class="bordered-box bordered-box bd-gray mt-1">
-          @for (item of selectCondition; track item; let even = $even; let i = $index) {
+          @for (item of selectCondition; track $index; let even = $even; let i = $index) {
             <div>
               @if (even) {
                 <div>

@@ -36,7 +36,7 @@
           <select class="form-control" [ngModel]="model.dataType"
             [disabled]="!model.embedded || !enableDataType"
             (ngModelChange)="updateType($event)">
-            @for (dataType of dataTypeList; track dataType) {
+            @for (dataType of dataTypeList; track $index) {
               <option [ngValue]="dataType.data">
                 {{dataType.label}}
               </option>
@@ -120,7 +120,7 @@
                   [disabled]="model.noDefault || !(model.query || model.embedded)"
                   [(ngModel)]="model.defaultValue">
                   @if (valueList) {
-                    @for (entry of valueList; track entry; let i = $index) {
+                    @for (entry of valueList; track $index; let i = $index) {
                       <option [value]="valueList[i].value" >{{entry.formatValue}}</option>
                     }
                   }

@@ -31,7 +31,7 @@
         <div class="preview-style-box bordered-box bd-gray">
           @if (previewFolders.length > 0) {
             <div class="preview-folders-box">
-              @for (node of previewFolders; track node) {
+              @for (node of previewFolders; track $index) {
                 <div class="table-style-folder-preview bd-gray">
                   @if (node.type == 'folder') {
                     <div class="text-center"

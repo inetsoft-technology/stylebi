@@ -26,7 +26,7 @@
             <div class="col-5">
               <div class="form-group form-floating">
                 <select class="form-control" [ngModelOptions]="{standalone: true}" [(ngModel)]="groupBy" placeholder="_#(Group By)">
-                  @for (field of groupByFields; track field) {
+                  @for (field of groupByFields; track field.value) {
                     <option [value]="field.value">{{ field.label }}</option>
                   }
                 </select>
@@ -79,7 +79,7 @@
                     @if (tableData[0]) {
                       <thead>
                         <tr [style.height.px]="cellHeight">
-                          @for (_cell of tableData[0]; track _cell; let i = $index) {
+                          @for (_cell of tableData[0]; track $index; let i = $index) {
                             <th
                               [style.border-top]="_cell.vsFormatModel?.border.top"
                               [style.border-left]="_cell.vsFormatModel?.border.left"
@@ -112,11 +112,11 @@
                         [style.width.px]="tableWidth" (vScroll)="touchVScroll($event)" (hScroll)="touchHScroll($event)"
                         [style.top.px]="-scrollY">
                         <tbody>
-                          @for (_row of tableData; track _row; let _first = $first; let i = $index) {
+                          @for (_row of tableData; track $index; let _first = $first; let i = $index) {
                             <tr
                               [style.height.px]="!_first ? cellHeight : 0">
                               @if (!_first) {
-                                @for (_cell of _row; track _cell) {
+                                @for (_cell of _row; track $index) {
                                   <td
                                     [title]="_cell.cellLabel"
                                     [style.border-top]="_cell.vsFormatModel?.border.top"

@@ -46,7 +46,7 @@
     </div>
     <div class="form-floating">
       <div class="bordered-box bd-gray">
-        @for (column of availableColumns; track column) {
+        @for (column of availableColumns; track column.column) {
           <div class="form-check d-flex align-items-center pt-1 ps-1 availableCols_check_id">
             <label class="form-check-label action-style ps-1 no-float-label">
               <input class="form-check-input" type="checkbox" [(ngModel)]="column.selected">

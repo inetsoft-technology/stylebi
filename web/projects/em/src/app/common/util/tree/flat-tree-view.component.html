@@ -103,7 +103,7 @@
 </cdk-virtual-scroll-viewport>
 <mat-menu #nodeMenu="matMenu">
   <ng-template matMenuContent let-menu="menu" let-node="node">
-    @for (item of menu.items; track item) {
+    @for (item of menu.items; track item.name) {
       <button
         mat-menu-item
         (click)="contextMenuClicked(node, item)"

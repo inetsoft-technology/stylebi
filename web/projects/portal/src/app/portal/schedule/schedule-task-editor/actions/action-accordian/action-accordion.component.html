@@ -29,7 +29,7 @@
                     [ngModelOptions]="{standalone: true}" title="_#(Bookmark Tooltip)"
                     [(ngModel)]="selectedBookmark"
                     [compareWith]="bookmarksEquivalent">
-                    @for (bookmark of bookmarks; track bookmark) {
+                    @for (bookmark of bookmarks; track bookmark.name) {
                       <option [ngValue]="bookmark">{{ bookmark.label }}</option>
                     }
                   </select>
@@ -274,7 +274,7 @@
                       [ngModel]="formatValue"
                       (ngModelChange)="updateFormatValue($event)"
                       title="_#(Format Tooltip)">
-                      @for (format of mailFormats; track format) {
+                      @for (format of mailFormats; track format.type) {
                         <option [value]="format.type">
                           {{format.label}}
                         </option>
@@ -487,7 +487,7 @@
                       <select class="form-control" id="location"
                         [ngModelOptions]="{standalone: true}" [(ngModel)]="locationPath"
                         title="_#(Path Tooltip Schedule)" [class.is-invalid]="!locationPath">
-                        @for (location of locations; track location) {
+                        @for (location of locations; track location.path) {
                           <option [value]="location.path">{{location.label}}</option>
                         }
                       </select>
@@ -567,7 +567,7 @@
                       [ngModelOptions]="{standalone: true}"
                       [(ngModel)]="saveFormat"
                       title="_#(viewer.schedule.action.saveFormat)">
-                      @for (format of saveFormats; track format) {
+                      @for (format of saveFormats; track format.type) {
                         <option [value]="format.type">
                           {{ format.label }}
                         </option>
@@ -731,7 +731,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  @for (highlight of highlights; track highlight) {
+                  @for (highlight of highlights; track $index) {
                     <tr>
                       <td>
                         <input class="text-center align-middle"
@@ -744,7 +744,7 @@
                       <td>{{ getHighlightConditionLabel(highlight.condition) }}</td>
                     </tr>
                   }
-                  @for (highlight of disabledHighlights; track highlight) {
+                  @for (highlight of disabledHighlights; track $index) {
                     <tr class="txt-danger cross-out">
                       <td>
                         <input class="text-center align-middle"

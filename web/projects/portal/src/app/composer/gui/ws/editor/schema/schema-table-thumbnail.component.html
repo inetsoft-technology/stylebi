@@ -26,7 +26,7 @@
     [isVertical]="true"
   ></ws-assembly-thumbnail-title>
 </div>
-@for (_col of columns; track _col) {
+@for (_col of columns; track $index) {
   <schema-column [schemaTable]="schemaTable" [column]="_col" [twoStepJoinColumn]="twoStepJoinColumn"
     mouseEvent (rightMouseDown)="interactWithSubtable($event, true)"
     class="schema-table-body bb-gray">

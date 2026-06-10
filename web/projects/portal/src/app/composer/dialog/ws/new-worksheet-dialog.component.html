@@ -32,7 +32,7 @@
       <span>_#(Mashup Data)</span>
     </button>
     @if (sqlEnabled && !!databaseDataSources && !!databaseDataSources.length) {
-      @for (dataSource of databaseDataSources; track dataSource) {
+      @for (dataSource of databaseDataSources; track dataSource.name) {
         <button
           class="dropdown-item new-database-query-button hover-bg-primary"
           (click)="selectDatabaseQuery(dataSource.name)">
@@ -41,7 +41,7 @@
         </button>
       }
     }
-    @for (type of tabularDataSourceTypes; track type) {
+    @for (type of tabularDataSourceTypes; track type.name) {
       @if (type.exists) {
         <button class="dropdown-item hover-bg-primary"
           [disabled]="!type.exists"

@@ -26,7 +26,7 @@
 <div class="bordered-box bd-gray">
   <table class="table-bordered table-sm table-layout-fixed w-100">
     <tbody>
-      @for (_range of rangeList; track _range; let _i = $index) {
+      @for (_range of rangeList; track $index; let _i = $index) {
         <tr (click)="select(_i)"
           [class.selected]="_i === selectedIndex">
           <td>

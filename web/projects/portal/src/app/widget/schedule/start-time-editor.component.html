@@ -71,7 +71,7 @@
             [compareWith]="compareTimeRange"
             (change)="fireStartTimeChanged()"
             >
-            @for (range of timeRanges; track range) {
+            @for (range of timeRanges; track range.name) {
               <option
                 [ngValue]="range"
                 >

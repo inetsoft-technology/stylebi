@@ -16,7 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <form ngNoForm (submit)="$event.preventDefault()" class="form-horizontal">
-  @for (_row of rows; track _row; let _j = $index) {
+  @for (_row of rows; track _j; let _j = $index) {
     <div class="form-row-float-label row">
       <div class="col">
         <div class="row">

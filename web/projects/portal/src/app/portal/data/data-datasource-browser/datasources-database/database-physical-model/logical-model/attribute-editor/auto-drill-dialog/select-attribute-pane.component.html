@@ -15,7 +15,7 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
-@for (entity of entities; track entity; let i = $index) {
+@for (entity of entities; track entity.name; let i = $index) {
   <element-tree-node
     [node]="entity"
     [entityIndex]="i"

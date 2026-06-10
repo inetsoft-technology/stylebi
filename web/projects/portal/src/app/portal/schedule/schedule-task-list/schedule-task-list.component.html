@@ -79,7 +79,7 @@
                   </tr>
                 </thead>
                 <tbody [style.height.px]="tableHeight">
-                  @for (task of tasks; track task) {
+                  @for (task of tasks; track task.name) {
                     <tr class="task-row" [class.selected]="selectedItems.includes(task.name)"
                       (dragstart)="dragTask($event, task)" [draggable]="true"
                       (dragover)="$event.preventDefault();"

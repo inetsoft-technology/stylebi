@@ -21,7 +21,7 @@
       <div class="row form-row-float-label">
         <div class="col form-floating">
           <select class="form-control" [(ngModel)]="columnValue" placeholder="_#(Cell Binding)">
-            @for (col of valueList; track col) {
+            @for (col of valueList; track $index) {
               <option [value]="col.value"
                 [class.grayed-out-field]="isGrayedOut(col.value)"
                 [title]="col.tooltip">
@@ -64,7 +64,7 @@
             [disabled]="!cellGroupEnabled"
             (ngModelChange)="changeGroup()"
             placeholder="_#(Row Group)">
-            @for (cname of getCellNames(); track cname) {
+            @for (cname of getCellNames(); track $index) {
               <option [value]="cname.value"
                 [disabled]="cellBinding.runtimeName != null && cellBinding.runtimeName === cname.value">
                 {{cname.label}}
@@ -100,7 +100,7 @@
             [disabled]="!cellGroupEnabled"
             (ngModelChange)="changeGroup()"
             placeholder="_#(Column Group)">
-            @for (cname of getCellNames(); track cname) {
+            @for (cname of getCellNames(); track $index) {
               <option [value]="cname.value"
                 [disabled]="cellBinding.runtimeName != null && cellBinding.runtimeName === cname.value">
                 {{cname.label}}

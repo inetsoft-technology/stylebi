@@ -75,7 +75,7 @@
                         <select [ngModel]="model.webLink" (ngModelChange)="selectWebLink($event)"
                           class="form-control" >
                           <option [ngValue]="null" [selected]="model.webLink == null">
-                            @for (field of model.fields; track field) {
+                            @for (field of model.fields; track $index) {
                               <option
                                 [ngValue]="'hyperlink:' + field.name" [selected]="field.name == model.webLink">
                                 hyperlink:{{field.view}}
