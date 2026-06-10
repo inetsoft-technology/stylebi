@@ -2367,7 +2367,7 @@ public class WizVsService {
 
             AggregateRef aggRef = new AggregateRef(colRef, secondaryColRef, formula);
 
-            if(measure.getNOrP() != null) {
+            if(measure.getNOrP() != null && formula.hasN()) {
                aggRef.setN(measure.getNOrP());
             }
 
