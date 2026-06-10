@@ -67,7 +67,7 @@
 import "@angular/compiler";
 import { ComponentTool } from "../../common/util/component-tool";
 import { Point } from "../../common/data/point";
-import { SidebarTab } from "./composer-main.component";
+import { ComposerMainComponent, SidebarTab } from "./composer-main.component";
 import { ComposerTabModel } from "./composer-tab-model";
 import { Viewsheet } from "../data/vs/viewsheet";
 import { Worksheet } from "../data/ws/worksheet";
