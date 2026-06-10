@@ -36,3 +36,22 @@ projects/portal/src/app/vs-wizard/gui/object-wizard/object-wizard-pane.component
 projects/portal/src/app/widget/fixed-dropdown/actions-contextmenu.component.ts
 projects/portal/src/app/widget/dialog/variable-input-dialog/variable-input-dialog.component.ts
 projects/portal/src/app/binding/widget/binding-tree/edit-geographic-dialog.component.ts
+
+# ── Layer 2: sub-imports from ViewerAppComponent (missed in original scan) ─────
+projects/portal/src/app/vsobjects/objects/vs-object-container.component.ts
+projects/portal/src/app/widget/share/share-link-dialog.component.ts
+
+# ── Layer 2: sub-imports from VSBindingPane ───────────────────────────────────
+projects/portal/src/app/binding/editor/binding-editor.component.ts
+projects/portal/src/app/vsview/view/vs-object-view.component.ts
+
+# ── Layer 2: sub-imports from VsWizardPane ────────────────────────────────────
+projects/portal/src/app/vs-wizard/gui/wizard-tool-bar/wizard-tool-bar.component.ts
+projects/portal/src/app/vs-wizard/gui/objects/vs-wizard-object.component.ts
+projects/portal/src/app/vs-wizard/gui/objects/wizard-new-object.component.ts
+
+# ── Layer 2: sub-imports from ObjectWizardPane ────────────────────────────────
+projects/portal/src/app/vs-wizard/gui/object-wizard-tool-bar.component.ts
+projects/portal/src/app/vs-wizard/gui/object-wizard/wizard-binding-tree.component.ts
+projects/portal/src/app/vs-wizard/gui/object-wizard/wizard-aggregate-pane.component.ts
+projects/portal/src/app/vs-wizard/gui/object-wizard/wizard-preview-pane.component.ts
