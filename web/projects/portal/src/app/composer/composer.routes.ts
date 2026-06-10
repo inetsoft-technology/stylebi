@@ -23,8 +23,6 @@ import { BindingService } from "../binding/services/binding.service";
 import { VSBindingService } from "../binding/services/vs-binding.service";
 import { BindingTreeService } from "../binding/widget/binding-tree/binding-tree.service";
 import { VSBindingTreeService } from "../binding/widget/binding-tree/vs-binding-tree.service";
-import { DefaultCodemirrorService } from "../../../../shared/util/codemirror/default-codemirror.service";
-import { CodemirrorService } from "../../../../shared/util/codemirror/codemirror.service";
 import { UIContextService } from "../common/services/ui-context.service";
 import { FileUploadService } from "../common/services/file-upload.service";
 import { ModelService } from "../widget/services/model.service";
@@ -76,7 +74,6 @@ export const composerRoutes: Routes = [
          WsChangeService,
          ComposerRecentService,
          NgbModal,
-         { provide: CodemirrorService, useClass: DefaultCodemirrorService },
          ChatService,
          { provide: CHAT_API_KEY, useValue: "5ba3fdd5c666d426648af5c9/default" },
          DataQueryModelService,
