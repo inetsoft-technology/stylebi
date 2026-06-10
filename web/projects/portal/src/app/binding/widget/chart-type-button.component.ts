@@ -90,7 +90,7 @@ export class ChartTypeButton {
    }
 
    changeChartType(): void {
-      // closing the dropdown re-fires openChange -> toggled -> changeChartType
+      // Apply and dropdown-close both re-fire openChange -> toggled -> changeChartType
       // synchronously; guard against re-entry so the event is only sent once
       if(this.applying) {
          return;

@@ -71,4 +71,32 @@ describe("chart type button component unit case", () => {
 
       expect(editorService.changeChartType).toHaveBeenCalledTimes(1);
    });
+
+   it("sends changeChartType only once when the Apply button re-enters toggled", () => {
+      button.chartType = GraphTypes.CHART_BAR;
+      button.multiStyles = false;
+      button.stackMeasures = false;
+      button.refName = undefined;
+      button.dropdown = { close: vi.fn(() => button.toggled(false)) } as any;
+
+      // Apply button emits (apply) -> toggled(false)
+      button.toggled(false);
+
+      expect(editorService.changeChartType).toHaveBeenCalledTimes(1);
+   });
+
+   it("resets the guard after a no-op so a later change still fires", () => {
+      button.chartType = GraphTypes.CHART_BAR_STACK;   // unchanged from bindingModel
+      button.multiStyles = false;
+      button.stackMeasures = false;
+      button.refName = undefined;
+      button.dropdown = { close: vi.fn() } as any;
+
+      button.changeChartType();
+      expect(editorService.changeChartType).toHaveBeenCalledTimes(0);
+
+      button.chartType = GraphTypes.CHART_BAR;          // now a real change
+      button.changeChartType();
+      expect(editorService.changeChartType).toHaveBeenCalledTimes(1);
+   });
 });
