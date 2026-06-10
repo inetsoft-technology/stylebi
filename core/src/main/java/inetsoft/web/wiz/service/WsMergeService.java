@@ -1,4 +1,4 @@
-/*
+﻿/*
  * This file is part of StyleBI.
  * Copyright (C) 2026  InetSoft Technology
  *
@@ -28,9 +28,10 @@ import java.util.*;
  * Worksheet-level merge utilities shared by AddVisualizationService and GenerateWsService.
  *
  * <p>Core rule: each {@link BoundTableAssembly} appears only once in the target worksheet.
- * Different queries that share the same physical table each get their own
- * {@link MirrorTableAssembly} (tagged with {@link #PROP_WIZ_MERGED}) that carries
- * independent column selections, conditions, and aggregation.</p>
+ * Queries that share the same physical table reuse the shared prevMirror where possible
+ * (enabling cross-chart filter interaction). A new {@link MirrorTableAssembly} (tagged with
+ * {@link #PROP_WIZ_MERGED}) is created on top of prevMirror only when the incoming table
+ * carries its own conditions or aggregation that must be isolated.</p>
  */
 @Service
 public class WsMergeService {
@@ -49,7 +50,8 @@ public class WsMergeService {
     * <ul>
     *   <li>If a matching table already exists in dashWS (same data source): expand the base
     *       with any new columns, ensure it has a "prev" mirror for the first visualization,
-    *       and create a new mirror for the current visualization.</li>
+    *       then reuse that mirror directly (no conditions/aggregation) or stack a new mirror
+    *       on top of it (has conditions/aggregation) for the current visualization.</li>
     *   <li>Otherwise: clone the assembly, resolve name conflicts, and add it directly.</li>
     * </ul>
     *
@@ -81,28 +83,58 @@ public class WsMergeService {
                   ? baseName.substring(0, baseName.length() - 5)
                   : baseName;
 
+               // After mergeColumns may have added new columns to the base, refresh
+               // prevMirror's column selection so downstream mirrors and joins can see them.
+               TableAssembly prevMirror = (TableAssembly) dashWS.getAssembly(prevMirrorName);
+
+               if(prevMirror != null) {
+                  ColumnSelection baseColumns = existingTable.getColumnSelection(true);
+                  ColumnSelection mirrorColumns = prevMirror.getColumnSelection(true).clone();
+
+                  for(int i = 0; i < baseColumns.getAttributeCount(); i++) {
+                     DataRef col = baseColumns.getAttribute(i);
+
+                     if(mirrorColumns.getAttribute(col.getName()) == null) {
+                        mirrorColumns.addAttribute(col);
+                     }
+                  }
+
+                  prevMirror.setColumnSelection(mirrorColumns, true);
+               }
+
                ConditionListWrapper srcPre = srcBound.getPreConditionList();
                ConditionListWrapper srcPost = srcBound.getPostConditionList();
+               AggregateInfo srcAggr = srcBound.getAggregateInfo();
+               boolean hasConditions = (srcPre != null && !srcPre.isEmpty()) ||
+                                       (srcPost != null && !srcPost.isEmpty());
+               boolean hasAggregation = srcAggr != null && !srcAggr.isEmpty();
 
-               if((srcPre != null && !srcPre.isEmpty()) || (srcPost != null && !srcPost.isEmpty())) {
-                  // srcBound carries its own conditions. Stack a mirror of prevMirror (not
-                  // _base) so that runtime filters applied to prevMirror propagate through
-                  // this mirror and on to any join that references it, preserving cross-chart
-                  // filter interaction while retaining srcBound's conditions.
-                  WSAssembly prevMirror = (WSAssembly) dashWS.getAssembly(prevMirrorName);
-                  String condMirrorName = ensureUniqueName(prevMirrorName, dashWS);
-                  MirrorTableAssembly condMirror = new MirrorTableAssembly(dashWS, condMirrorName, prevMirror);
-                  condMirror.setColumnSelection(srcBound.getColumnSelection(true).clone(), true);
-                  condMirror.setPreConditionList(srcPre != null ? (ConditionListWrapper) srcPre.clone() : new ConditionList());
-                  condMirror.setPostConditionList(srcPost != null ? (ConditionListWrapper) srcPost.clone() : new ConditionList());
-                  condMirror.setAggregateInfo((AggregateInfo) srcBound.getAggregateInfo().clone());
-                  condMirror.setProperty(PROP_WIZ_MERGED, "true");
-                  dashWS.addAssembly(condMirror);
-                  wsRenameMap.put(srcBound.getName(), condMirrorName);
+               if(hasConditions || hasAggregation) {
+                  // srcBound carries its own conditions or aggregation. Stack a mirror of
+                  // prevMirror (not _base) so that runtime filters applied to prevMirror
+                  // propagate through this mirror and on to any join that references it,
+                  // preserving cross-chart filter interaction while retaining srcBound's
+                  // conditions and aggregation.
+                  if(prevMirror == null) {
+                     // Unexpected state — fall back to name-only mapping
+                     wsRenameMap.put(srcBound.getName(), prevMirrorName);
+                  }
+                  else {
+                     String condMirrorName = ensureUniqueName(prevMirrorName, dashWS);
+                     MirrorTableAssembly condMirror = new MirrorTableAssembly(dashWS, condMirrorName, prevMirror);
+                     condMirror.setColumnSelection(srcBound.getColumnSelection(true).clone(), true);
+                     condMirror.setPreConditionList(srcPre != null ? (ConditionListWrapper) srcPre.clone() : new ConditionList());
+                     condMirror.setPostConditionList(srcPost != null ? (ConditionListWrapper) srcPost.clone() : new ConditionList());
+                     condMirror.setAggregateInfo(srcAggr != null ? (AggregateInfo) srcAggr.clone() : new AggregateInfo());
+                     condMirror.setProperty(PROP_WIZ_MERGED, "true");
+                     dashWS.addAssembly(condMirror);
+                     wsRenameMap.put(srcBound.getName(), condMirrorName);
+                  }
                }
                else {
-                  // No conditions on srcBound — reuse prevMirror directly so the join table
-                  // shares the same node as chart1's binding, enabling cross-chart interaction.
+                  // No conditions or aggregation — reuse prevMirror directly so the join
+                  // table shares the same node as chart1's binding, enabling cross-chart
+                  // filter interaction.
                   wsRenameMap.put(srcBound.getName(), prevMirrorName);
                }
                continue;
