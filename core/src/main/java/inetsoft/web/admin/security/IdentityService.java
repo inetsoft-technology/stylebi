@@ -1629,7 +1629,7 @@ public class IdentityService {
 
          if(Tool.contains(identityIds, new IdentityID(name, oldID.orgID))) {
             final String err = Catalog.getCatalog().getString("common.duplicateName");
-            throw new Exception(err);
+            throw new MessageException(err);
          }
 
          actionRecord.setActionError("new name:" + name);
