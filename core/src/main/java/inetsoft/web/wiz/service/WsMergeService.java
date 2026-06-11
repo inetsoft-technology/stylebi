@@ -94,12 +94,12 @@ public class WsMergeService {
 
                if(prevMirror == null) {
                   // Unexpected: ensureBaseHasPrevMirror should always create the mirror.
-                  // Log a warning so the unexpected state is visible, then fall back to a
-                  // name-only mapping so the assembly is at least wired up rather than lost.
+                  // Do not map srcBound to the missing name — that would insert a dangling
+                  // reference into wsRenameMap and silently corrupt downstream joins.
+                  // Log and skip; the assembly remains unmapped in this merge pass.
                   LOG.warn("prevMirror '{}' not found in dashWS after ensureBaseHasPrevMirror; " +
-                           "falling back to name-only mapping for '{}'",
+                           "skipping rename mapping for '{}'",
                            prevMirrorName, srcBound.getName());
-                  wsRenameMap.put(srcBound.getName(), prevMirrorName);
                   continue;
                }
 
@@ -156,6 +156,11 @@ public class WsMergeService {
                   boolean prevHasAggregation = prevAggr != null && !prevAggr.isEmpty();
 
                   if(prevHasConditions || prevHasAggregation) {
+                     // Stack a mirror of prevMirror so chart2 goes through the shared node
+                     // and receives runtime cross-chart filter propagation. Note: because
+                     // cleanMirror is stacked on prevMirror, chart2 will also see prevMirror's
+                     // design-time conditions/aggregation — this is an inherent consequence of
+                     // sharing the node, and is acceptable for the cross-filter use case.
                      String cleanMirrorName = ensureUniqueName(prevMirrorName, dashWS);
                      MirrorTableAssembly cleanMirror = new MirrorTableAssembly(dashWS, cleanMirrorName, prevMirror);
                      cleanMirror.setColumnSelection(srcBound.getColumnSelection(true).clone(), true);
@@ -279,7 +284,8 @@ public class WsMergeService {
          ? existingTable.getPreConditionList() : new ConditionList();
       ConditionListWrapper postconds = existingTable.getPostConditionList() != null
          ? existingTable.getPostConditionList() : new ConditionList();
-      AggregateInfo aggr = (AggregateInfo) existingTable.getAggregateInfo().clone();
+      AggregateInfo existingAggr = existingTable.getAggregateInfo();
+      AggregateInfo aggr = existingAggr != null ? (AggregateInfo) existingAggr.clone() : new AggregateInfo();
       ColumnSelection origCols = existingTable.getColumnSelection(true).clone();
 
       // Rename the base to "{name}_base", freeing the original name for the mirror.
