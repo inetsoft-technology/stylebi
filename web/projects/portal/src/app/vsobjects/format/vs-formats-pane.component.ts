@@ -301,6 +301,11 @@ export class VSFormatsPane implements OnInit, OnChanges {
                      return false;
                   }
 
+                  // non-circle selections (legend, title, etc.) remain editable
+                  if(vos.length == 0) {
+                     return false;
+                  }
+
                   // innermost circle is same as selecting the text label.
                   const innermost = model.axisFields[model.axisFields.length - 1];
                   const innermostSelected =
