@@ -1,4 +1,4 @@
-﻿/*
+/*
  * This file is part of StyleBI.
  * Copyright (C) 2026  InetSoft Technology
  *
@@ -83,24 +83,29 @@ public class WsMergeService {
                   ? baseName.substring(0, baseName.length() - 5)
                   : baseName;
 
-               // After mergeColumns may have added new columns to the base, refresh
-               // prevMirror's column selection so downstream mirrors and joins can see them.
                TableAssembly prevMirror = (TableAssembly) dashWS.getAssembly(prevMirrorName);
 
-               if(prevMirror != null) {
-                  ColumnSelection baseColumns = existingTable.getColumnSelection(true);
-                  ColumnSelection mirrorColumns = prevMirror.getColumnSelection(true).clone();
-
-                  for(int i = 0; i < baseColumns.getAttributeCount(); i++) {
-                     DataRef col = baseColumns.getAttribute(i);
-
-                     if(mirrorColumns.getAttribute(col.getName()) == null) {
-                        mirrorColumns.addAttribute(col);
-                     }
-                  }
-
-                  prevMirror.setColumnSelection(mirrorColumns, true);
+               if(prevMirror == null) {
+                  // Unexpected: ensureBaseHasPrevMirror should always create the mirror.
+                  // Fall back to a name-only mapping so the assembly is at least wired up.
+                  wsRenameMap.put(srcBound.getName(), prevMirrorName);
+                  continue;
                }
+
+               // After mergeColumns may have added new columns to the base, refresh
+               // prevMirror's column selection so downstream mirrors and joins can see them.
+               ColumnSelection baseColumns = existingTable.getColumnSelection(true);
+               ColumnSelection mirrorColumns = prevMirror.getColumnSelection(true).clone();
+
+               for(int i = 0; i < baseColumns.getAttributeCount(); i++) {
+                  DataRef col = baseColumns.getAttribute(i);
+
+                  if(mirrorColumns.getAttribute(col.getName()) == null) {
+                     mirrorColumns.addAttribute(col);
+                  }
+               }
+
+               prevMirror.setColumnSelection(mirrorColumns, true);
 
                ConditionListWrapper srcPre = srcBound.getPreConditionList();
                ConditionListWrapper srcPost = srcBound.getPostConditionList();
@@ -109,11 +114,7 @@ public class WsMergeService {
                                        (srcPost != null && !srcPost.isEmpty());
                boolean hasAggregation = srcAggr != null && !srcAggr.isEmpty();
 
-               if(prevMirror == null) {
-                  // Unexpected state — fall back to name-only mapping
-                  wsRenameMap.put(srcBound.getName(), prevMirrorName);
-               }
-               else if(hasConditions || hasAggregation) {
+               if(hasConditions || hasAggregation) {
                   // srcBound carries its own conditions or aggregation. Stack a mirror of
                   // prevMirror (not _base) so that runtime filters applied to prevMirror
                   // propagate through this mirror and on to any join that references it,
