@@ -517,6 +517,12 @@ public class ServerServiceMessageListener implements MessageListener {
     * @param id the identifier returned from {@link #createHeapDump()}.
     */
    public void disposeHeapDump(String id) {
+      String link = pendingTransferLinks.remove(id);
+
+      if(link != null) {
+         cluster.cancelTransferFile(link);
+      }
+
       File file = FileSystemService.getInstance().getCacheFile( id + ".hprof.gz");
 
       if(file.exists() && !file.delete()) {
