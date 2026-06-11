@@ -20,6 +20,8 @@ package inetsoft.web.wiz.service;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -28,9 +30,19 @@ import java.util.*;
  * Worksheet-level merge utilities shared by AddVisualizationService and GenerateWsService.
  *
  * <p>Core rule: each {@link BoundTableAssembly} appears only once in the target worksheet.
- * Different queries that share the same physical table each get their own
- * {@link MirrorTableAssembly} (tagged with {@link #PROP_WIZ_MERGED}) that carries
- * independent column selections, conditions, and aggregation.</p>
+ * Queries that share the same physical table reuse the shared prevMirror where possible
+ * (enabling cross-chart filter interaction). A new {@link MirrorTableAssembly} (tagged with
+ * {@link #PROP_WIZ_MERGED}) is created on top of prevMirror only when the incoming table
+ * carries its own conditions or aggregation that must be isolated.</p>
+ *
+ * <p><b>Known limitation — condition stacking:</b> When two charts share the same physical
+ * table and each has its own design-time pre/post conditions, chart2's condMirror is stacked
+ * on prevMirror (which already carries chart1's conditions). Because MirrorTableAssembly
+ * evaluates its own conditions on top of the mirrored table's result, chart2 is effectively
+ * filtered by chart1's conditions AND chart2's conditions combined. This is an inherent
+ * trade-off of sharing the node for cross-chart filter propagation; stacking on the bare
+ * {@code _base} would break that propagation. Callers should be aware that merging two charts
+ * with conflicting static filters on the same physical table may yield unexpected results.</p>
  */
 @Service
 public class WsMergeService {
@@ -41,6 +53,8 @@ public class WsMergeService {
     */
    public static final String PROP_WIZ_MERGED = "wiz.merged";
 
+   private static final Logger LOG = LoggerFactory.getLogger(WsMergeService.class);
+
    /**
     * Merges all WSAssemblies from {@code vizWS} into {@code dashWS} and returns a map of
     * old assembly names (in vizWS) to their effective names in dashWS after merging.
@@ -49,7 +63,8 @@ public class WsMergeService {
     * <ul>
     *   <li>If a matching table already exists in dashWS (same data source): expand the base
     *       with any new columns, ensure it has a "prev" mirror for the first visualization,
-    *       and create a new mirror for the current visualization.</li>
+    *       then reuse that mirror directly (no conditions/aggregation) or stack a new mirror
+    *       on top of it (has conditions/aggregation) for the current visualization.</li>
     *   <li>Otherwise: clone the assembly, resolve name conflicts, and add it directly.</li>
     * </ul>
     *
@@ -76,8 +91,114 @@ public class WsMergeService {
             if(existingTable != null) {
                ensureBaseHasPrevMirror(dashWS, existingTable, vsRenameMap);
                mergeColumns(existingTable, srcBound);
-               String curMirrorName = createVizMirror(dashWS, existingTable, srcBound);
-               wsRenameMap.put(srcBound.getName(), curMirrorName);
+               // renameAssembly (called inside ensureBaseHasPrevMirror) mutates the
+               // assembly name in-place, so existingTable.getName() now returns the
+               // new "_base"-suffixed name.
+               String baseName = existingTable.getName();
+               String prevMirrorName = baseName.endsWith("_base")
+                  ? baseName.substring(0, baseName.length() - 5)
+                  : baseName;
+
+               Assembly prevAssembly = dashWS.getAssembly(prevMirrorName);
+               // Use instanceof guard rather than a raw cast: a name collision could place a
+               // non-table assembly at prevMirrorName, which would throw ClassCastException.
+               TableAssembly prevMirror = prevAssembly instanceof TableAssembly ta ? ta : null;
+
+               if(prevMirror == null) {
+                  // Unexpected: ensureBaseHasPrevMirror should always create the mirror.
+                  // Do not map srcBound to the missing name — that would insert a dangling
+                  // reference into wsRenameMap and silently corrupt downstream joins.
+                  // Log and skip; the assembly remains unmapped in this merge pass.
+                  LOG.warn("prevMirror '{}' not found in dashWS after ensureBaseHasPrevMirror; " +
+                           "skipping rename mapping for '{}'",
+                           prevMirrorName, srcBound.getName());
+                  continue;
+               }
+
+               // After mergeColumns may have added new columns to the base, refresh
+               // prevMirror's column selection so stacked mirrors (condMirror / cleanMirror)
+               // can see all columns transitively, even when they override their own selection.
+               // This runs unconditionally before the branch so any code path below benefits.
+               ColumnSelection baseColumns = existingTable.getColumnSelection(true);
+               ColumnSelection mirrorColumns = prevMirror.getColumnSelection(true).clone();
+
+               for(int i = 0; i < baseColumns.getAttributeCount(); i++) {
+                  DataRef col = baseColumns.getAttribute(i);
+
+                  if(mirrorColumns.getAttribute(col.getName()) == null) {
+                     mirrorColumns.addAttribute(col);
+                  }
+               }
+
+               prevMirror.setColumnSelection(mirrorColumns, true);
+
+               ConditionListWrapper srcPre = srcBound.getPreConditionList();
+               ConditionListWrapper srcPost = srcBound.getPostConditionList();
+               AggregateInfo srcAggr = srcBound.getAggregateInfo();
+               boolean hasConditions = (srcPre != null && !srcPre.isEmpty()) ||
+                                       (srcPost != null && !srcPost.isEmpty());
+               boolean hasAggregation = srcAggr != null && !srcAggr.isEmpty();
+
+               if(hasConditions || hasAggregation) {
+                  // srcBound carries its own conditions or aggregation. Stack a mirror of
+                  // prevMirror (not _base) so that runtime filters applied to prevMirror
+                  // propagate through this mirror and on to any join that references it,
+                  // preserving cross-chart filter interaction while retaining srcBound's
+                  // conditions and aggregation.
+                  String condMirrorName = ensureUniqueName(prevMirrorName, dashWS);
+                  MirrorTableAssembly condMirror = new MirrorTableAssembly(dashWS, condMirrorName, prevMirror);
+                  condMirror.setColumnSelection(srcBound.getColumnSelection(true).clone(), true);
+                  condMirror.setPreConditionList(srcPre != null ? (ConditionListWrapper) srcPre.clone() : new ConditionList());
+                  condMirror.setPostConditionList(srcPost != null ? (ConditionListWrapper) srcPost.clone() : new ConditionList());
+                  // MirrorTableAssembly.getAggregateInfo() returns its own field, not the
+                  // mirrored table's. Setting new AggregateInfo() when srcAggr is null means
+                  // "no additional aggregation on this mirror" — it does not suppress
+                  // prevMirror's aggregation. Verified: AbstractTableAssembly.getAggregateInfo()
+                  // returns ginfo (own field) at all levels; there is no inherited aggregation.
+                  condMirror.setAggregateInfo(srcAggr != null ? (AggregateInfo) srcAggr.clone() : new AggregateInfo());
+                  condMirror.setProperty(PROP_WIZ_MERGED, "true");
+                  dashWS.addAssembly(condMirror);
+                  wsRenameMap.put(srcBound.getName(), condMirrorName);
+               }
+               else {
+                  // srcBound has no conditions or aggregation of its own. Before reusing
+                  // prevMirror directly, check whether prevMirror carries design-time
+                  // conditions or aggregation from the first chart. If so, stack a clean
+                  // mirror of prevMirror so chart2 is not silently coupled to chart1's
+                  // design-time filters, while runtime filter propagation through the
+                  // shared prevMirror node is still preserved.
+                  ConditionListWrapper prevPre = prevMirror.getPreConditionList();
+                  ConditionListWrapper prevPost = prevMirror.getPostConditionList();
+                  AggregateInfo prevAggr = prevMirror.getAggregateInfo();
+                  boolean prevHasConditions = (prevPre != null && !prevPre.isEmpty()) ||
+                                              (prevPost != null && !prevPost.isEmpty());
+                  boolean prevHasAggregation = prevAggr != null && !prevAggr.isEmpty();
+
+                  if(prevHasConditions || prevHasAggregation) {
+                     // Stack a mirror of prevMirror so chart2 goes through the shared node
+                     // and receives runtime cross-chart filter propagation. Note: because
+                     // cleanMirror is stacked on prevMirror, chart2 will also see prevMirror's
+                     // design-time conditions/aggregation — this is an inherent consequence of
+                     // sharing the node, and is acceptable for the cross-filter use case.
+                     String cleanMirrorName = ensureUniqueName(prevMirrorName, dashWS);
+                     MirrorTableAssembly cleanMirror = new MirrorTableAssembly(dashWS, cleanMirrorName, prevMirror);
+                     cleanMirror.setColumnSelection(srcBound.getColumnSelection(true).clone(), true);
+                     cleanMirror.setProperty(PROP_WIZ_MERGED, "true");
+                     dashWS.addAssembly(cleanMirror);
+                     wsRenameMap.put(srcBound.getName(), cleanMirrorName);
+                  }
+                  else {
+                     // prevMirror has no design-time conditions or aggregation — reuse it
+                     // directly. srcBound's own column selection is not applied here —
+                     // prevMirror's expanded union selection (refreshed above) is used instead,
+                     // required for both charts to share a single node and enable cross-chart
+                     // filter interaction. Side effect: chart1 (which also points to prevMirror)
+                     // gains visibility into chart2's columns. This is acceptable: the wiz
+                     // portal always requests explicit column sets, so extra visible columns in
+                     // the shared node do not affect chart1's rendered output.
+                     wsRenameMap.put(srcBound.getName(), prevMirrorName);
+                  }
+               }
                continue;
             }
          }
@@ -185,7 +306,8 @@ public class WsMergeService {
          ? existingTable.getPreConditionList() : new ConditionList();
       ConditionListWrapper postconds = existingTable.getPostConditionList() != null
          ? existingTable.getPostConditionList() : new ConditionList();
-      AggregateInfo aggr = (AggregateInfo) existingTable.getAggregateInfo().clone();
+      AggregateInfo existingAggr = existingTable.getAggregateInfo();
+      AggregateInfo aggr = existingAggr != null ? (AggregateInfo) existingAggr.clone() : new AggregateInfo();
       ColumnSelection origCols = existingTable.getColumnSelection(true).clone();
 
       // Rename the base to "{name}_base", freeing the original name for the mirror.
@@ -226,37 +348,6 @@ public class WsMergeService {
       }
 
       base.setColumnSelection(baseColumns, true);
-   }
-
-   /**
-    * Creates a MirrorTableAssembly in {@code dashWS} that points at {@code base} and
-    * carries only the columns/conditions/aggregation of {@code srcTable}.
-    *
-    * @return the name of the created mirror assembly
-    */
-   private String createVizMirror(Worksheet dashWS, BoundTableAssembly base,
-                                   BoundTableAssembly srcTable)
-   {
-      // Derive naming prefix from base: strip "_base" suffix to recover the original name,
-      // then ensureUniqueName to get "Query_1", "Query_2", etc.
-      String baseName = base.getName();
-      String namePrefix = baseName.endsWith("_base")
-         ? baseName.substring(0, baseName.length() - 5)
-         : baseName;
-      String mirrorName = ensureUniqueName(namePrefix, dashWS);
-      ColumnSelection vizCols = srcTable.getColumnSelection(true).clone();
-
-      MirrorTableAssembly mirror = new MirrorTableAssembly(dashWS, mirrorName, base);
-      mirror.setColumnSelection(vizCols, true);
-      ConditionListWrapper srcPre = srcTable.getPreConditionList();
-      ConditionListWrapper srcPost = srcTable.getPostConditionList();
-      mirror.setPreConditionList(srcPre != null ? (ConditionListWrapper) srcPre.clone() : new ConditionList());
-      mirror.setPostConditionList(srcPost != null ? (ConditionListWrapper) srcPost.clone() : new ConditionList());
-      mirror.setAggregateInfo((AggregateInfo) srcTable.getAggregateInfo().clone());
-      mirror.setProperty(PROP_WIZ_MERGED, "true");
-      dashWS.addAssembly(mirror);
-
-      return mirrorName;
    }
 
    /**
