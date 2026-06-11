@@ -457,6 +457,8 @@ public class WizAutoBindingService {
                   if(level != XConstants.NONE_DATE_GROUP) {
                      dim.setDateLevelValue(String.valueOf(level));
                   }
+
+                  dim.setTimeSeries(dimFc.isTimeSeries());
                }
                catch(IllegalArgumentException e) {
                   LOG.warn("Ignoring unsupported dateGroupLevel '{}' for field '{}'",

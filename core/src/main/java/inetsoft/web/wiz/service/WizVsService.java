@@ -1917,6 +1917,7 @@ public class WizVsService {
 
       if(dim != null && dim.getDateGroupLevel() != null) {
          ref.setDateLevelValue(String.valueOf(getDateGroupLevel(dim.getDateGroupLevel())));
+         ref.setTimeSeries(dim.isTimeSeries());
       }
 
       if(dim != null && dim.getRanking() != null) {
@@ -1939,6 +1940,7 @@ public class WizVsService {
 
       if(field.getDateGroupLevel() != null) {
          ref.setDateLevelValue(String.valueOf(getDateGroupLevel(field.getDateGroupLevel())));
+         ref.setTimeSeries(field.isTimeSeries());
       }
 
       if(field.getRanking() != null) {
@@ -2412,6 +2414,7 @@ public class WizVsService {
                }
 
                groupRef = new GroupRef(dateCol);
+               groupRef.setTimeSeries(dim.isTimeSeries());
                groupRef.setDateGroup(dateLevel);
                dimColumnMapping.add(fullName);
             }
