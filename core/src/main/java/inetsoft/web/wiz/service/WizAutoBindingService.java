@@ -709,7 +709,7 @@ public class WizAutoBindingService {
 
       List<MeasureFieldInfo> aggs = Arrays.stream(info.getDesignAggregates())
          .filter(r -> r instanceof VSAggregateRef)
-         .map(r -> vsAggRefToFieldInfo((VSAggregateRef) r))
+         .map(r -> WizFieldInfoFactory.createCrosstabMeasureFieldInfo((VSAggregateRef) r))
          .collect(Collectors.toList());
       if(!aggs.isEmpty()) {
          binding.setAggregates(aggs);
@@ -724,29 +724,8 @@ public class WizAutoBindingService {
       }
       return Arrays.stream(refs)
          .filter(r -> r instanceof VSDimensionRef)
-         .map(r -> vsDimRefToFieldInfo((VSDimensionRef) r))
+         .map(r -> WizFieldInfoFactory.createCrosstabDimensionFieldInfo((VSDimensionRef) r))
          .collect(Collectors.toList());
-   }
-
-   private DimensionFieldInfo vsDimRefToFieldInfo(VSDimensionRef dim) {
-      DimensionFieldInfo info = new DimensionFieldInfo();
-      info.setField(dim.getGroupColumnValue());
-      info.setType(dim.getDataType());
-      int level = dim.getDateLevel();
-
-      if(level != XConstants.NONE_DATE_GROUP) {
-         info.setDateGroupLevel(WizVsService.getDateGroupLevelName(level));
-      }
-
-      return info;
-   }
-
-   private MeasureFieldInfo vsAggRefToFieldInfo(VSAggregateRef agg) {
-      MeasureFieldInfo info = new MeasureFieldInfo();
-      info.setField(agg.getColumnValue());
-      info.setAggregateFormula(agg.getFormula() != null ? agg.getFormula().getFormulaName() : null);
-      info.setCalculateInfo(CalculateInfo.createCalcInfo(agg.getCalculator()));
-      return info;
    }
 
    private MeasureFieldInfo dataRefToMeasureFieldInfo(DataRef ref) {
@@ -817,25 +796,11 @@ public class WizAutoBindingService {
       }
 
       if(ref instanceof VSAggregateRef agg) {
-         MeasureFieldInfo info = new MeasureFieldInfo();
-         info.setField(agg.getColumnValue());
-         info.setAggregateFormula(agg.getFormulaValue());
-         info.setFullName(agg.getFullName());
-         info.setCalculateInfo(CalculateInfo.createCalcInfo(agg.getCalculator()));
-         return info;
+         return WizFieldInfoFactory.createChartMeasureFieldInfo(agg);
       }
 
       if(ref instanceof VSDimensionRef dim) {
-         DimensionFieldInfo info = new DimensionFieldInfo();
-         info.setField(dim.getGroupColumnValue());
-         info.setFullName(dim.getFullName());
-         int level = dim.getDateLevel();
-
-         if(level != XConstants.NONE_DATE_GROUP) {
-            info.setDateGroupLevel(WizVsService.getDateGroupLevelName(level));
-         }
-
-         return info;
+         return WizFieldInfoFactory.createChartDimensionFieldInfo(dim);
       }
 
       SimpleFieldInfo info = new SimpleFieldInfo();

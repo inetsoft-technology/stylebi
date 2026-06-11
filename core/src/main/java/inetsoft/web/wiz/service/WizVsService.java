@@ -1046,34 +1046,40 @@ public class WizVsService {
 
       if(ref instanceof VSDimensionRef dim) {
          if(seen.add(dim.getFullName())) {
-            DimensionFieldInfo info = new DimensionFieldInfo();
-            info.setField(dim.getGroupColumnValue());
-            info.setFullName(dim.getFullName());
-            int dateLevel = dim.getDateLevel();
-
-            if(XSchema.isDateType(dim.getDataType()) && dateLevel != XConstants.NONE_DATE_GROUP) {
-               info.setDateGroupLevel(getDateGroupLevelName(dateLevel));
-            }
-
-            dimensions.add(info);
+            dimensions.add(WizFieldInfoFactory.createDimensionFieldInfo(dim));
          }
       }
       else if(ref instanceof VSAggregateRef agg) {
          if(seen.add(agg.getFullName())) {
-            MeasureFieldInfo info = new MeasureFieldInfo();
-            info.setField(agg.getColumnValue());
-            info.setFullName(agg.getFullName());
-            info.setAggregateFormula(agg.getFormulaValue());
+            measures.add(WizFieldInfoFactory.createMeasureFieldInfo(agg));
+         }
+      }
+   }
 
-            if(agg.getSecondaryColumnValue() != null) {
-               info.setSecondaryField(agg.getSecondaryColumnValue());
-            }
+   private static void collectDimensionFieldInfos(DataRef[] refs,
+                                                  List<DimensionFieldInfo> dimensions)
+   {
+      if(refs == null) {
+         return;
+      }
 
-            if(agg.getN() != 0) {
-               info.setNOrP(agg.getN());
-            }
+      for(DataRef ref : refs) {
+         if(ref instanceof VSDimensionRef dim) {
+            dimensions.add(WizFieldInfoFactory.createDimensionFieldInfo(dim));
+         }
+      }
+   }
 
-            measures.add(info);
+   private static void collectMeasureFieldInfos(DataRef[] refs,
+                                                List<MeasureFieldInfo> measures)
+   {
+      if(refs == null) {
+         return;
+      }
+
+      for(DataRef ref : refs) {
+         if(ref instanceof VSAggregateRef agg) {
+            measures.add(WizFieldInfoFactory.createMeasureFieldInfo(agg));
          }
       }
    }
@@ -1085,60 +1091,9 @@ public class WizVsService {
       List<DimensionFieldInfo> dimensions = new ArrayList<>();
       List<MeasureFieldInfo> measures = new ArrayList<>();
 
-      if(cinfo.getDesignRowHeaders() != null) {
-         for(DataRef ref : cinfo.getDesignRowHeaders()) {
-            if(ref instanceof VSDimensionRef dim) {
-               DimensionFieldInfo info = new DimensionFieldInfo();
-               info.setField(dim.getGroupColumnValue());
-               info.setFullName(dim.getFullName());
-               int dateLevel = dim.getDateLevel();
-
-               if(XSchema.isDateType(dim.getDataType()) && dateLevel != XConstants.NONE_DATE_GROUP) {
-                  info.setDateGroupLevel(getDateGroupLevelName(dateLevel));
-               }
-
-               dimensions.add(info);
-            }
-         }
-      }
-
-      if(cinfo.getDesignColHeaders() != null) {
-         for(DataRef ref : cinfo.getDesignColHeaders()) {
-            if(ref instanceof VSDimensionRef dim) {
-               DimensionFieldInfo info = new DimensionFieldInfo();
-               info.setField(dim.getGroupColumnValue());
-               info.setFullName(dim.getFullName());
-               int dateLevel = dim.getDateLevel();
-
-               if(XSchema.isDateType(dim.getDataType()) && dateLevel != XConstants.NONE_DATE_GROUP) {
-                  info.setDateGroupLevel(getDateGroupLevelName(dateLevel));
-               }
-
-               dimensions.add(info);
-            }
-         }
-      }
-
-      if(cinfo.getDesignAggregates() != null) {
-         for(DataRef ref : cinfo.getDesignAggregates()) {
-            if(ref instanceof VSAggregateRef agg) {
-               MeasureFieldInfo info = new MeasureFieldInfo();
-               info.setField(agg.getColumnValue());
-               info.setFullName(agg.getFullName());
-               info.setAggregateFormula(agg.getFormulaValue());
-
-               if(agg.getSecondaryColumnValue() != null) {
-                  info.setSecondaryField(agg.getSecondaryColumnValue());
-               }
-
-               if(agg.getN() != 0) {
-                  info.setNOrP(agg.getN());
-               }
-
-               measures.add(info);
-            }
-         }
-      }
+      collectDimensionFieldInfos(cinfo.getDesignRowHeaders(), dimensions);
+      collectDimensionFieldInfos(cinfo.getDesignColHeaders(), dimensions);
+      collectMeasureFieldInfos(cinfo.getDesignAggregates(), measures);
 
       if(dimensions.isEmpty() && measures.isEmpty()) {
          return null;
