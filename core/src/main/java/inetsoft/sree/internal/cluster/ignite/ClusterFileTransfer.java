@@ -103,17 +103,17 @@ public class ClusterFileTransfer implements AutoCloseable {
       idBuffer.putLong(fileUuid.getMostSignificantBits());
       idBuffer.putLong(fileUuid.getLeastSignificantBits());
 
-      Socket socket = new Socket();
-      socket.connect(new InetSocketAddress(address, port), 30_000);
-      socket.setSoTimeout(30_000);
+      try(Socket socket = new Socket()) {
+         socket.connect(new InetSocketAddress(address, port), 30_000);
+         socket.setSoTimeout(30_000);
 
-      try(socket;
-          InputStream input = socket.getInputStream();
-          OutputStream output = socket.getOutputStream())
-      {
-         output.write(idBytes);
-         output.flush();
-         Files.copy(input, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+         try(InputStream input = socket.getInputStream();
+             OutputStream output = socket.getOutputStream())
+         {
+            output.write(idBytes);
+            output.flush();
+            Files.copy(input, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+         }
       }
       catch(IOException | RuntimeException e) {
          FileUtils.deleteQuietly(tempFile);
@@ -136,12 +136,12 @@ public class ClusterFileTransfer implements AutoCloseable {
    private void serviceFileTransfers() {
       while(!((GroupedThread) Thread.currentThread()).isCancelled()) {
          try(Socket socket = fileTransferSocket.accept();
-             InputStream input = socket.getInputStream();
+             DataInputStream input = new DataInputStream(socket.getInputStream());
              OutputStream output = socket.getOutputStream())
          {
             socket.setSoTimeout(30_000);
             byte[] idBytes = new byte[16];
-            new DataInputStream(input).readFully(idBytes);
+            input.readFully(idBytes);
 
             ByteBuffer idBuffer = ByteBuffer.wrap(idBytes);
             String fileId = new UUID(idBuffer.getLong(), idBuffer.getLong()).toString();
