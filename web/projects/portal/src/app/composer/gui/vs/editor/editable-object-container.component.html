@@ -67,6 +67,8 @@
   @let preventDrag = isPreventDrag();
   @let preventResize = isPreventResize();
   @let dragBorder = isDragBorder();
+  @let dragBorderTop = isDragBorderTop();
+  @let dragBorderBottom = isDragBorderBottom();
   @let scriptPresent = hasScript();
   @let locked = isLocked();
   @let slideout = hasSlideout();
@@ -201,8 +203,8 @@
        [style.width.px]="selectionChildModel && selected ? vsObject.objectFormat.width - 2 : null"
        [style.height.px]="selectionChildModel && selected ? vsObject.objectFormat.height + 1 : null"
        [class.drop-target]="isDropTarget && !dragBorder"
-       [class.bt-highlight-med]="isDragBorderTop()"
-       [class.bb-highlight-med]="isDragBorderBottom()"
+       [class.bt-highlight-med]="dragBorderTop"
+       [class.bb-highlight-med]="dragBorderBottom"
        [style.border-top]="!vsObject.dropZone && selectionChildModel && !selected ? 0 : ''"
        [style.border-bottom]="!vsObject.dropZone && selectionChildModel && !selected ? 0 : ''"
        [style.opacity]="selected && vsObject.covered ? 0.5 : 1"

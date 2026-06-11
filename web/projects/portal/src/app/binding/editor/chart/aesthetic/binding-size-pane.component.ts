@@ -52,7 +52,7 @@ export class BindingSizePane implements OnChanges, OnInit {
    private initOptionsValue() {
       this.sliderOptions.selectStart = this.frameModel.smallest;
       this.sliderOptions.selectEnd = this.frameModel.largest;
-      this.slider2Options.value = this.frameModel.largest;
+      this.slider2Options = Object.assign(new SliderOptions(), this.slider2Options, { value: this.frameModel.largest });
    }
 
    sliderChanged(values: Array<number>) {

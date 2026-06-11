@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnDestroy, OnInit, Output, Renderer2,
-         ChangeDetectorRef } from "@angular/core";
+import { Component, EventEmitter, Input, OnChanges, OnDestroy, OnInit, Output,
+         Renderer2, ChangeDetectorRef, SimpleChanges } from "@angular/core";
 import { SliderOptions } from "./slider-options";
 import { GuiTool } from "../../common/util/gui-tool";
 
@@ -32,7 +32,7 @@ interface SliderTick {
     styleUrls: ["slider.component.scss"],
     imports: []
 })
-export class Slider implements OnInit, OnDestroy {
+export class Slider implements OnChanges, OnInit, OnDestroy {
    @Input() model: SliderOptions;
    @Input() enabled: boolean = true;
    @Output() sliderChanged = new EventEmitter();
@@ -51,6 +51,15 @@ export class Slider implements OnInit, OnDestroy {
 
    constructor(private renderer: Renderer2,
                private changeRef: ChangeDetectorRef) {
+   }
+
+   public ngOnChanges(changes: SimpleChanges): void {
+      if(changes["model"]) {
+         this.ticks = this.getTicks();
+         this.sliderLabel = this.getLabel();
+         this.labelLeft = this.getLabelLeft();
+         this.trackWidth = this.getValueLeft();
+      }
    }
 
    public ngOnInit(): void {
