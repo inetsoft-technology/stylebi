@@ -1192,6 +1192,10 @@ public class ServerMonitoringController {
    }
 
    private static String getClusterFileName(String clusterNode, String prefix, String suffix) {
+      if(clusterNode == null) {
+         return prefix + suffix;
+      }
+
       String node = clusterNode;
       int index = node.indexOf(':');
 

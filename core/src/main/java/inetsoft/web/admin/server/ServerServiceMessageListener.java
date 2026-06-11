@@ -136,12 +136,6 @@ public class ServerServiceMessageListener implements MessageListener {
    void handleDisposeHeapDumpMessage(String sender,
                                      DisposeHeapDumpMessage reqMsg)
    {
-      String link = pendingTransferLinks.remove(reqMsg.getId());
-
-      if(link != null) {
-         cluster.cancelTransferFile(link);
-      }
-
       disposeHeapDump(reqMsg.getId());
 
       DisposeHeapDumpCompleteMessage message = new DisposeHeapDumpCompleteMessage();
