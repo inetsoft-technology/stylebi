@@ -1547,7 +1547,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          }
       };
 
-      exchangeListeners.computeIfAbsent(address, k -> new CopyOnWriteArrayList<>()).add(listener);
+      exchangeListeners.compute(address, (k, list) -> {
+         if(list == null) list = new CopyOnWriteArrayList<>();
+         list.add(listener);
+         return list;
+      });
       addMembershipListener(membershipListener);
 
       try {
@@ -2085,13 +2089,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
          if(perSender != null) {
             for(inetsoft.sree.internal.cluster.MessageListener l : perSender) {
-               if(l != null) {
-                  try {
-                     l.messageReceived(event);
-                  }
-                  catch(Exception e) {
-                     LOG.error("Failed to dispatch exchange message", e);
-                  }
+               try {
+                  l.messageReceived(event);
+               }
+               catch(Exception e) {
+                  LOG.error("Failed to dispatch exchange message", e);
                }
             }
          }
