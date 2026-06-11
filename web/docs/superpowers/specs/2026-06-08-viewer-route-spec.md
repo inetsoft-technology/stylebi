@@ -138,6 +138,12 @@ npx vitest run projects/portal/src/app/viewer/path/to/ComponentName.tl.spec.ts
 
 **4e. 删除旧 spec**（验证全 PASS 后）
 
+若旧 `*.spec.ts` 存在，删除前先做缺口检查：
+
+1. 读取旧 spec，提取每个 `it` 的测试意图
+2. 判断是否有旧 spec 中已覆盖、但新文件中遗漏的有价值测试点
+3. 若有遗漏且有价值：补充到新文件并重新跑 4d；若无遗漏或遗漏无价值：直接删除
+
 ```bash
 rm projects/portal/src/app/viewer/path/to/ComponentName.spec.ts
 ```
