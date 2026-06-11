@@ -98,7 +98,7 @@ final class WizFieldInfoFactory {
       if((!requireDateType || XSchema.isDateType(dim.getDataType())) &&
          level != XConstants.NONE_DATE_GROUP)
       {
-         info.setDateGroupLevel(WizVsService.getDateGroupLevelName(level));
+         info.setDateGroupLevel(WizDateLevelUtil.getDateGroupLevelName(level));
          info.setTimeSeries(dim.isTimeSeries());
       }
    }

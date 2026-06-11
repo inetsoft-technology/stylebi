@@ -1976,48 +1976,7 @@ public class WizVsService {
    }
 
    public static int getDateGroupLevel(String level) {
-      if(level == null) {
-         return XConstants.NONE_DATE_GROUP;
-      }
-
-      // Map dateLevels.ts 'name' values to DateRangeRef expected format
-      String mappedLevel = switch(level.toLowerCase()) {
-         // Interval levels
-         case "year" -> "Year";
-         case "quarter" -> "Quarter";
-         case "month" -> "Month";
-         case "week" -> "Week";
-         case "day" -> "Day";
-         case "hour" -> "Hour";
-         case "minute" -> "Minute";
-         case "second" -> "Second";
-         // Part levels
-         case "quarter of year" -> "QuarterOfYear";
-         case "month of year" -> "MonthOfYear";
-         case "week of year" -> "WeekOfYear";
-         case "week of month" -> "WeekOfMonth";
-         case "day of year" -> "DayOfYear";
-         case "day of month" -> "DayOfMonth";
-         case "day of week" -> "DayOfWeek";
-         case "hour of day" -> "HourOfDay";
-         case "minute of hour" -> "MinuteOfHour";
-         case "second of minute" -> "SecondOfMinute";
-         // Full week levels
-         case "year of week" -> "YearOfWeek";
-         case "quarter of week" -> "QuarterOfWeek";
-         case "month of week" -> "MonthOfWeek";
-         case "quarter of week part" -> "QuarterOfWeekN";
-         case "month of week part" -> "MonthOfWeekN";
-         // None
-         case "none" -> null;
-         default -> throw new IllegalArgumentException("Unsupported date level: " + level);
-      };
-
-      if(mappedLevel == null) {
-         return XConstants.NONE_DATE_GROUP;
-      }
-
-      return DateRangeRef.getDateRangeOption(mappedLevel);
+      return WizDateLevelUtil.getDateGroupLevel(level);
    }
 
    /**
@@ -2030,30 +1989,7 @@ public class WizVsService {
     * @return the human-readable name, or null if level is NONE_DATE_GROUP or unrecognized
     */
    public static String getDateGroupLevelName(int level) {
-      return switch(level) {
-         // Interval levels
-         case XConstants.YEAR_DATE_GROUP -> "year";
-         case XConstants.QUARTER_DATE_GROUP -> "quarter";
-         case XConstants.MONTH_DATE_GROUP -> "month";
-         case XConstants.WEEK_DATE_GROUP -> "week";
-         case XConstants.DAY_DATE_GROUP -> "day";
-         case XConstants.HOUR_DATE_GROUP -> "hour";
-         case XConstants.MINUTE_DATE_GROUP -> "minute";
-         case XConstants.SECOND_DATE_GROUP -> "second";
-         // Part levels
-         case XConstants.QUARTER_OF_YEAR_DATE_GROUP -> "quarter of year";
-         case XConstants.MONTH_OF_YEAR_DATE_GROUP -> "month of year";
-         case XConstants.WEEK_OF_YEAR_DATE_GROUP -> "week of year";
-         case XConstants.WEEK_OF_MONTH_DATE_GROUP -> "week of month";
-         case XConstants.DAY_OF_YEAR_DATE_GROUP -> "day of year";
-         case XConstants.DAY_OF_MONTH_DATE_GROUP -> "day of month";
-         case XConstants.DAY_OF_WEEK_DATE_GROUP -> "day of week";
-         case XConstants.HOUR_OF_DAY_DATE_GROUP -> "hour of day";
-         case XConstants.MINUTE_OF_HOUR_DATE_GROUP -> "minute of hour";
-         case XConstants.SECOND_OF_MINUTE_DATE_GROUP -> "second of minute";
-         // None or unrecognized
-         default -> null;
-      };
+      return WizDateLevelUtil.getDateGroupLevelName(level);
    }
 
    /**

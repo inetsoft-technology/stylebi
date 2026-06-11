@@ -452,7 +452,7 @@ public class WizAutoBindingService {
             if(dimFc.getDateGroupLevel() != null) {
                try {
                   int level =
-                     WizVsService.getDateGroupLevel(dimFc.getDateGroupLevel());
+                     WizDateLevelUtil.getDateGroupLevel(dimFc.getDateGroupLevel());
 
                   if(level != XConstants.NONE_DATE_GROUP) {
                      dim.setDateLevelValue(String.valueOf(level));
