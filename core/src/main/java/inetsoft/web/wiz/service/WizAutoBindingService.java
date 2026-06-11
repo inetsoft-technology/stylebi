@@ -158,7 +158,7 @@ public class WizAutoBindingService {
 
          final String tableNameFinal = tableName;
          List<ColumnRef> bindColumns =
-            selectBindColumns(worksheetColumns, request.getVisualizationUsedFields(), configMap);
+            selectBindColumns(worksheetColumns, configMap);
 
          AssetEntry[] entries = bindColumns.stream()
             .map(col -> buildEntryFromColumn(col, worksheetId, tableNameFinal))
@@ -536,24 +536,14 @@ public class WizAutoBindingService {
 
    /**
     * Decide which worksheet columns autoBinding may bind.
-    * Precedence: explicit visualizationUsedFields (chat-app path) > fieldConfigs
-    * (plugin path) > all visible columns. A fieldConfig naming a column that does
-    * not exist is an error: silently binding everything produced junk measures.
+    * When fieldConfigs is non-empty it is the authoritative column list: only columns
+    * whose name appears as a key in configMap are bound. A fieldConfig naming a column
+    * that does not exist in the worksheet is an error (silently binding everything
+    * produced junk measures). When fieldConfigs is empty, all visible columns are eligible.
     */
    static List<ColumnRef> selectBindColumns(List<ColumnRef> worksheetColumns,
-                                            List<WorksheetColumnInfo> vizFields,
                                             Map<String, SimpleFieldInfo> configMap)
    {
-      if(vizFields != null && !vizFields.isEmpty()) {
-         Set<String> vizFieldNames = vizFields.stream()
-            .map(col -> col.getAlias() != null && !col.getAlias().isEmpty()
-               ? col.getAlias() : col.getName())
-            .collect(Collectors.toSet());
-         return worksheetColumns.stream()
-            .filter(c -> vizFieldNames.contains(c.getAttribute()))
-            .collect(Collectors.toList());
-      }
-
       if(!configMap.isEmpty()) {
          Set<String> available = worksheetColumns.stream()
             .map(ColumnRef::getAttribute)

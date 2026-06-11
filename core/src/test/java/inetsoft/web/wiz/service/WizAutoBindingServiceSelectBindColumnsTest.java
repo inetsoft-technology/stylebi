@@ -20,7 +20,6 @@ package inetsoft.web.wiz.service;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.web.wiz.model.SimpleFieldInfo;
-import inetsoft.web.wiz.model.WorksheetColumnInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -43,33 +42,12 @@ class WizAutoBindingServiceSelectBindColumnsTest {
       return info;
    }
 
-   private static WorksheetColumnInfo vizField(String name, String alias) {
-      WorksheetColumnInfo info = new WorksheetColumnInfo();
-      info.setName(name);
-      info.setAlias(alias);
-      return info;
-   }
-
-   @Test
-   void vizFieldsTakePrecedenceOverFieldConfigs() {
-      List<ColumnRef> columns = List.of(col("actor_name"), col("amount"), col("rental_id"));
-
-      List<ColumnRef> result = WizAutoBindingService.selectBindColumns(
-         columns,
-         List.of(vizField("amount", null)),
-         Map.of("actor_name", config("actor_name")));
-
-      assertEquals(1, result.size());
-      assertEquals("amount", result.get(0).getAttribute());
-   }
-
    @Test
    void fieldConfigsFilterBindColumns() {
       List<ColumnRef> columns = List.of(col("actor_name"), col("amount"), col("rental_id"));
 
       List<ColumnRef> result = WizAutoBindingService.selectBindColumns(
          columns,
-         List.of(),
          Map.of("actor_name", config("actor_name"), "amount", config("amount")));
 
       assertEquals(2, result.size());
@@ -83,7 +61,7 @@ class WizAutoBindingServiceSelectBindColumnsTest {
 
       IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
          () -> WizAutoBindingService.selectBindColumns(
-            columns, List.of(), Map.of("actor_nme", config("actor_nme"))));
+            columns, Map.of("actor_nme", config("actor_nme"))));
 
       assertTrue(e.getMessage().contains("actor_nme"));
       assertTrue(e.getMessage().contains("actor_name"));
@@ -95,19 +73,8 @@ class WizAutoBindingServiceSelectBindColumnsTest {
       List<ColumnRef> columns = List.of(col("actor_name"), col("amount"));
 
       List<ColumnRef> result =
-         WizAutoBindingService.selectBindColumns(columns, List.of(), Map.of());
+         WizAutoBindingService.selectBindColumns(columns, Map.of());
 
       assertEquals(2, result.size());
-   }
-
-   @Test
-   void nullVizFieldsTreatedAsAbsent() {
-      List<ColumnRef> columns = List.of(col("actor_name"), col("amount"));
-
-      List<ColumnRef> result = WizAutoBindingService.selectBindColumns(
-         columns, null, Map.of("amount", config("amount")));
-
-      assertEquals(1, result.size());
-      assertEquals("amount", result.get(0).getAttribute());
    }
 }
