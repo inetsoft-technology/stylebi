@@ -20,7 +20,7 @@
   [class.disabled]="!enabled">
   <div class="wrapper">
     <div class="slider-track" (click)="moveHandleHere($event)"></div>
-    <div class="slider-tracked" [style.width]="labelLeft"></div>
+    <div class="slider-tracked" [style.width]="trackWidth"></div>
     <div class="slider-handle" [style.left]="labelLeft"
       [class.is-dragging]="isDragging"
       (mousedown)="mouseDown($event)">

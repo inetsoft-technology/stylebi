@@ -47,6 +47,7 @@ export class Slider implements OnInit, OnDestroy {
    // Cached computed values — updated at every mutation site for mouseDownX/mouseDelta/model.value
    sliderLabel: string = "";
    labelLeft: string = "0px";
+   trackWidth: string = "0px";
 
    constructor(private renderer: Renderer2,
                private changeRef: ChangeDetectorRef) {
@@ -56,6 +57,7 @@ export class Slider implements OnInit, OnDestroy {
       this.ticks = this.getTicks();
       this.sliderLabel = this.getLabel();
       this.labelLeft = this.getLabelLeft();
+      this.trackWidth = this.getValueLeft();
    }
 
    public ngOnDestroy(): void {
@@ -230,6 +232,7 @@ export class Slider implements OnInit, OnDestroy {
       this.model.value = this.model.min + (x / this.getLineWidth()) * (this.model.max - this.model.min);
       this.sliderLabel = this.getLabel();
       this.labelLeft = this.getLabelLeft();
+      this.trackWidth = this.getValueLeft();
       this.sliderChanged.emit(parseFloat(this.toLabel(this.model.value)));
       this.changeCompleted.emit(true);
       this.changeRef.detectChanges();
@@ -251,6 +254,7 @@ export class Slider implements OnInit, OnDestroy {
             this.mouseDelta = e.pageX - this.mouseDownX;
             this.sliderLabel = this.getLabel();
             this.labelLeft = this.getLabelLeft();
+            this.trackWidth = this.getValueLeft();
             this.sliderChanged.emit(parseFloat(this.sliderLabel));
             this.changeRef.detectChanges();
          });
@@ -262,6 +266,7 @@ export class Slider implements OnInit, OnDestroy {
             this.mouseDelta = 0;
             this.sliderLabel = this.getLabel();
             this.labelLeft = this.getLabelLeft();
+            this.trackWidth = this.getValueLeft();
             this.cancelMouseMove?.();
             this.cancelMouseUp?.();
             this.cancelMouseMove = null;

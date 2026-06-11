@@ -80,15 +80,18 @@ export class MoveDataSourceDialogComponent implements OnInit, OnChanges {
 
    ngOnChanges(changes: SimpleChanges): void {
       if(changes["multi"] || changes["items"]) {
-         this.isFolder = this.multi ||
-            (this.items.length > 0 && this.items[0].type.name === PortalDataType.DATA_SOURCE_FOLDER);
+         this.isFolder = this.computeIsFolder();
       }
    }
 
    ngOnInit(): void {
       this.folderPath = null;
       this.folderScope = this.parentScope;
-      this.isFolder = this.multi ||
+      this.isFolder = this.computeIsFolder();
+   }
+
+   private computeIsFolder(): boolean {
+      return this.multi ||
          (this.items.length > 0 && this.items[0].type.name === PortalDataType.DATA_SOURCE_FOLDER);
    }
 

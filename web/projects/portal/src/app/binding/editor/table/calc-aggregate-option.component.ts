@@ -43,7 +43,6 @@ export class CalcAggregateOption implements OnInit, OnChanges {
    rowPercent: any[];
    colPercent: any[];
    rowColPercent: any[];
-   percents: any[] = [];
    aggregate: any = {};
    formulas: AggregateFormula[] = new Array<AggregateFormula>();
    _nStr: string = "";
@@ -56,22 +55,19 @@ export class CalcAggregateOption implements OnInit, OnChanges {
 
    ngOnInit() {
       this._nStr = this.nValue != null ? this.nValue + "" : "";
-      this.updatePercents();
       this.updateNPLabel();
    }
 
-   ngOnChanges(changes: SimpleChanges) {
+   ngOnChanges(_changes: SimpleChanges) {
       this.formulas = AssetUtil.getAggregateModel(this.dataRef);
 
       if(this.dataRef?.dataType == XSchema.BOOLEAN) {
          this.formulas = this.formulas.concat(AggregateFormula.NTH_MOST_FREQUENT);
       }
-
-      this.updatePercents();
    }
 
-   private updatePercents(): void {
-      this.percents = this.getPercents();
+   get percents(): any[] {
+      return this.getPercents();
    }
 
    get availableFields() {
