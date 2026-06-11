@@ -58,9 +58,22 @@ public class GeoDetectRequest {
       this.geoType = geoType;
    }
 
+   public String getViewsheetIdentifier() {
+      return viewsheetIdentifier;
+   }
+
+   public void setViewsheetIdentifier(String viewsheetIdentifier) {
+      this.viewsheetIdentifier = viewsheetIdentifier;
+   }
+
    private String runtimeId;
    private String assemblyName;
    private String column;
    /** Optional explicit map type (e.g. "World", "U.S."); when absent, auto-detected. */
    private String geoType;
+   /**
+    * Optional session viewsheet asset identifier. When present, the map conversion is persisted
+    * back to this asset (save_viewsheet reads from storage, not the live runtime).
+    */
+   private String viewsheetIdentifier;
 }

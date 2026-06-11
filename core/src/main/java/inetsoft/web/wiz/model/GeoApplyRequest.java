@@ -69,6 +69,14 @@ public class GeoApplyRequest {
       this.drop = drop;
    }
 
+   public String getViewsheetIdentifier() {
+      return viewsheetIdentifier;
+   }
+
+   public void setViewsheetIdentifier(String viewsheetIdentifier) {
+      this.viewsheetIdentifier = viewsheetIdentifier;
+   }
+
    private String runtimeId;
    private String assemblyName;
    private String column;
@@ -76,4 +84,9 @@ public class GeoApplyRequest {
    private Map<String, String> mappings;
    /** Values intentionally left unmatched. */
    private List<String> drop;
+   /**
+    * Optional session viewsheet asset identifier. When present, the resolved feature mappings are
+    * persisted back to this asset so a saved map keeps them.
+    */
+   private String viewsheetIdentifier;
 }

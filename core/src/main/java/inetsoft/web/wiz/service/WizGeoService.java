@@ -18,21 +18,32 @@
 package inetsoft.web.wiz.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.graph.aesthetic.GShape;
+import inetsoft.graph.aesthetic.StaticShapeFrame;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.geo.solver.NameTable;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.GraphUtil;
+import inetsoft.report.internal.graph.ChangeChartTypeProcessor;
 import inetsoft.report.internal.graph.MapData;
 import inetsoft.report.internal.graph.MapHelper;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.XDimensionRef;
+import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.FeatureMapping;
+import inetsoft.uql.viewsheet.graph.GeoRef;
 import inetsoft.uql.viewsheet.graph.GeographicOption;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.VSAestheticRef;
+import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartGeoRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.graph.VSMapInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.handler.VSChartHandler;
@@ -40,6 +51,8 @@ import inetsoft.web.wiz.model.GeoApplyRequest;
 import inetsoft.web.wiz.model.GeoApplyResponse;
 import inetsoft.web.wiz.model.GeoDetectRequest;
 import inetsoft.web.wiz.model.GeoDetectResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -111,7 +124,43 @@ public class WizGeoService {
       int layer = option.getLayer();
       String geoType = mapping != null ? mapping.getType() : cinfo.getMeasureMapType();
 
-      // 4. Compute unmatched values + matched count.
+      // 4. Convert the chart to a MAP if it is not one already. This mirrors the product's
+      //    "set column geographic -> change chart type to Map" flow: marking the column
+      //    geographic (step 1) populates the geo columns + auto-detected mapping, and
+      //    ChangeChartTypeProcessor builds the VSMapInfo, moving the geo dimension into a
+      //    geo field. The plugin's create path can't offer a map at recommend time (geo
+      //    columns aren't tagged until the chart's data is executed), so the conversion
+      //    happens here, where the data is already available.
+      if(!(cinfo instanceof VSMapInfo)) {
+         int oldType = cinfo.getRTChartType() != 0 ? cinfo.getRTChartType() : cinfo.getChartType();
+         VSChartInfo converted = (VSChartInfo) new ChangeChartTypeProcessor(
+            oldType, GraphTypes.CHART_MAP, null, cinfo).process();
+
+         if(converted instanceof VSMapInfo mapInfo) {
+            // Re-home the bindings deterministically: geo field = the detected column (carrying its
+            // auto-detected GeographicOption), and the remaining categorical dimension on color so
+            // the map renders as a choropleth. ChangeChartTypeProcessor's geo-field heuristic
+            // ("first dim on x") mis-assigns when the geo column wasn't on x (e.g. it was on shape),
+            // so we do not rely on its slot assignment.
+            fixMapBinding(mapInfo, refName);
+
+            if(!Tool.isEmptyString(geoType)) {
+               mapInfo.setMeasureMapType(geoType);
+            }
+
+            // Assign visual frames for the (re-homed) aesthetic fields. ChangeChartTypeProcessor
+            // already ran this once, but BEFORE we moved the category onto color — without it the
+            // color field has a null VisualFrame and graph generation NPEs ("graph.gen.failed").
+            GraphUtil.fixVisualFrames(mapInfo);
+
+            chart.setVSChartInfo(mapInfo);
+            cinfo = mapInfo;
+            // Rebuild the runtime geo columns so the map's RT structures reflect the new info.
+            chartHandler.updateAllGeoColumns(box, vs, chart);
+         }
+      }
+
+      // 5. Compute unmatched values + matched count.
       int colIndex = GraphUtil.indexOfHeader(source, refName);
       Set<String> unmatched = new LinkedHashSet<>(
          MapHelper.getUnMatchedValues(source, colIndex, mapping, cinfo).keySet());
@@ -123,6 +172,10 @@ public class WizGeoService {
       response.setMatchedCount(Math.max(0, distinct - unmatched.size()));
       response.setUnmatched(new ArrayList<>(unmatched));
       response.setCandidateFeatures(candidateFeatures(layer));
+
+      // Persist the converted map back to the session asset so save_viewsheet (which reads from
+      // storage, not the live runtime) captures the map type + geo binding.
+      persistViewsheet(vs, request.getViewsheetIdentifier(), user);
       return response;
    }
 
@@ -200,10 +253,143 @@ public class WizGeoService {
       GeoApplyResponse response = new GeoApplyResponse();
       response.setStatus(stillUnmatched.isEmpty() ? "complete" : "partial");
       response.setStillUnmatched(new ArrayList<>(stillUnmatched));
+
+      // Persist the resolved feature mappings to the session asset so a saved map keeps them.
+      persistViewsheet(vs, request.getViewsheetIdentifier(), user);
       return response;
    }
 
    // ── helpers ──────────────────────────────────────────────────────────────────
+
+   /**
+    * Writes the (mutated) runtime viewsheet back to its session asset so save_viewsheet — which
+    * reads the source viewsheet from the asset repository, not the live runtime — captures the
+    * geo binding / map conversion. No-op when no identifier is supplied. Mirrors the in-place
+    * persistence used by the apply-filter flow.
+    */
+   private void persistViewsheet(Viewsheet vs, String viewsheetIdentifier, Principal user) {
+      if(Tool.isEmptyString(viewsheetIdentifier)) {
+         return;
+      }
+
+      try {
+         AssetEntry entry = AssetEntry.createAssetEntry(viewsheetIdentifier);
+
+         if(entry != null) {
+            viewsheetService.setViewsheet(vs, entry, user, true, true);
+         }
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to persist geo viewsheet to {}: {}", viewsheetIdentifier, ex.getMessage());
+      }
+   }
+
+   /**
+    * Forces the converted map's binding to the choropleth we want: the detected geographic column is
+    * the sole geo field (carrying its auto-detected {@link GeographicOption}), and the remaining
+    * categorical dimension drives the fill color.
+    *
+    * <p>This does not trust {@code ChangeChartTypeProcessor}'s slot assignment: its geo-field
+    * heuristic moves the "first dimension on x" to the geo field, which mis-binds when the geo
+    * column was on a different slot (e.g. shape) — in the "most-popular category per region" case it
+    * wrongly makes the <em>category</em> the geo field and leaves the region on shape. We re-home
+    * explicitly off the known geo column name.
+    */
+   private void fixMapBinding(VSMapInfo mapInfo, String geoColumn) {
+      if(geoColumn == null) {
+         return;
+      }
+
+      // Find the category dimension (the non-geo dimension), wherever the conversion put it: a
+      // mis-assigned geo field, an axis, or a group slot. Strip those non-geo dims off their slots.
+      ChartRef category = firstNonGeoGeoField(mapInfo, geoColumn);
+      category = stripNonGeoDims(mapInfo, Slot.X, geoColumn, category);
+      category = stripNonGeoDims(mapInfo, Slot.Y, geoColumn, category);
+      category = stripNonGeoDims(mapInfo, Slot.GROUP, geoColumn, category);
+
+      // Geo field := the detected column, taken from the option-carrying geo-columns ref.
+      DataRef geoColRef = mapInfo.getGeoColumns().getAttribute(geoColumn);
+
+      if(geoColRef instanceof ChartRef geoChartRef) {
+         mapInfo.removeGeoFields();
+         mapInfo.addGeoField((ChartRef) geoChartRef.clone());
+      }
+
+      // A polygon map can't use the shape aesthetic; drop it (the region often lands there).
+      mapInfo.setShapeField(null);
+
+      // Category := color, as a plain categorical dimension (the source may have been a geo ref).
+      // Both candidate sources (a mis-assigned geo field or an axis/group dim) are VSChartDimensionRefs.
+      if(category instanceof VSChartDimensionRef catDim && mapInfo.getColorField() == null) {
+         VSChartDimensionRef colorDim = new VSChartDimensionRef(catDim.getDataRef());
+         // Carry the binding value so the color ref is fully formed (matches a native dimension ref);
+         // without it the column resolves only lazily and a saved copy can lose the binding.
+         colorDim.setGroupColumnValue(catDim.getGroupColumnValue());
+         VSAestheticRef color = new VSAestheticRef();
+         color.setDataRef(colorDim);
+         mapInfo.setColorField(color);
+      }
+
+      // Render filled polygons (a choropleth) rather than point markers: with no point-layer geo
+      // field and no size field, set a NIL static shape frame so the regions fill instead of
+      // drawing a shape at each centroid. Mirrors MapChartFilter.createChartInfo.
+      if(!hasPointField(mapInfo) && mapInfo.getSizeField() == null) {
+         mapInfo.setShapeFrame(new StaticShapeFrame(GShape.NIL));
+      }
+   }
+
+   /** True if any geo field is bound at a point (non-polygon) layer. */
+   private boolean hasPointField(VSMapInfo mapInfo) {
+      for(ChartRef f : mapInfo.getGeoFields()) {
+         if(f instanceof GeoRef geo && geo.getGeographicOption() != null &&
+            MapData.isPointLayer(geo.getGeographicOption().getLayer()))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private enum Slot { X, Y, GROUP }
+
+   /** The first geo FIELD whose name is not the geo column (a dimension the conversion mis-assigned). */
+   private ChartRef firstNonGeoGeoField(VSMapInfo mapInfo, String geoColumn) {
+      for(ChartRef gf : mapInfo.getGeoFields()) {
+         if(gf != null && !geoColumn.equals(gf.getName())) {
+            return gf;
+         }
+      }
+
+      return null;
+   }
+
+   /** Removes non-geo dimensions from the given slot; returns the category (first found, or prior). */
+   private ChartRef stripNonGeoDims(VSMapInfo mapInfo, Slot slot, String geoColumn, ChartRef category) {
+      ChartRef[] fields = switch(slot) {
+         case X -> mapInfo.getXFields();
+         case Y -> mapInfo.getYFields();
+         case GROUP -> mapInfo.getGroupFields();
+      };
+
+      for(int i = fields.length - 1; i >= 0; i--) {
+         ChartRef ref = fields[i];
+
+         if(ref instanceof XDimensionRef && !geoColumn.equals(ref.getName())) {
+            if(category == null) {
+               category = ref;
+            }
+
+            switch(slot) {
+               case X -> mapInfo.removeXField(i);
+               case Y -> mapInfo.removeYField(i);
+               case GROUP -> mapInfo.removeGroupField(i);
+            }
+         }
+      }
+
+      return category;
+   }
 
    private RuntimeViewsheet getRuntimeViewsheet(String runtimeId, Principal user) throws Exception {
       if(Tool.isEmptyString(runtimeId)) {
@@ -309,4 +495,6 @@ public class WizGeoService {
 
    private final ViewsheetService viewsheetService;
    private final VSChartHandler chartHandler;
+
+   private static final Logger LOG = LoggerFactory.getLogger(WizGeoService.class);
 }
