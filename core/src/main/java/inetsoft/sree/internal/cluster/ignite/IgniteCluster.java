@@ -1524,13 +1524,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       AtomicReference<T> result = new AtomicReference<>(null);
 
       inetsoft.sree.internal.cluster.MessageListener listener = e -> {
-         if(address.equals(e.getSender())) {
-            T value = matcher.apply(e);
+         T value = matcher.apply(e);
 
-            if(value != null) {
-               result.set(value);
-               latch.countDown();
-            }
+         if(value != null) {
+            result.set(value);
+            latch.countDown();
          }
       };
 
@@ -1565,12 +1563,13 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          }
       }
       finally {
-         CopyOnWriteArrayList<inetsoft.sree.internal.cluster.MessageListener> perAddress =
-            exchangeListeners.get(address);
-
-         if(perAddress != null) {
-            perAddress.remove(listener);
-         }
+         exchangeListeners.compute(address, (k, list) -> {
+            if(list != null) {
+               list.remove(listener);
+               return list.isEmpty() ? null : list;
+            }
+            return null;
+         });
 
          removeMembershipListener(membershipListener);
       }
@@ -2069,6 +2068,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          ClusterNode senderNode = ignite.cluster().node(nodeId);
 
          if(senderNode == null) {
+            LOG.warn("Received message from unknown node {}, dropping", nodeId);
             return true;
          }
 

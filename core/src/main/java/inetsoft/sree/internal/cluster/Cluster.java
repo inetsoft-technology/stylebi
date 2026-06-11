@@ -493,9 +493,10 @@ public interface Cluster extends AutoCloseable {
     * @param address         the address of the remote, recipient node.
     * @param outgoingMessage the message object to send to the recipient.
     * @param matcher         a function that checks if an incoming message is the response to the
-    *                        sent message. If it is, it returns the expected output; otherwise it
-    *                        returns {@code null}. It is guaranteed that the message was received
-    *                        from the recipient at <i>address</i>.
+    *                        sent message. Must be non-blocking — it is invoked on the Ignite
+    *                        message dispatcher thread. If it is the expected response, it returns
+    *                        the output; otherwise it returns {@code null}. It is guaranteed that
+    *                        the message was received from the recipient at <i>address</i>.
     *
     * @param <T> the return type of the matcher function.
     *
@@ -531,9 +532,10 @@ public interface Cluster extends AutoCloseable {
     * @param address         the address of the remote, recipient node.
     * @param outgoingMessage the message object to send to the recipient.
     * @param matcher         a function that checks if an incoming message is the response to the
-    *                        sent message. If it is, it returns the expected output; otherwise it
-    *                        returns {@code null}. It is guaranteed that the message was received
-    *                        from the recipient at <i>address</i>.
+    *                        sent message. Must be non-blocking — it is invoked on the Ignite
+    *                        message dispatcher thread. If it is the expected response, it returns
+    *                        the output; otherwise it returns {@code null}. It is guaranteed that
+    *                        the message was received from the recipient at <i>address</i>.
     * @param timeout         the maximum time to wait for a response.
     * @param unit            the time unit of the timeout argument.
     *
