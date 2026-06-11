@@ -20,6 +20,8 @@ package inetsoft.web.wiz.service;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -41,6 +43,8 @@ public class WsMergeService {
     * Used to identify wiz-managed mirrors without relying on name prefixes.
     */
    public static final String PROP_WIZ_MERGED = "wiz.merged";
+
+   private static final Logger LOG = LoggerFactory.getLogger(WsMergeService.class);
 
    /**
     * Merges all WSAssemblies from {@code vizWS} into {@code dashWS} and returns a map of
@@ -78,6 +82,9 @@ public class WsMergeService {
             if(existingTable != null) {
                ensureBaseHasPrevMirror(dashWS, existingTable, vsRenameMap);
                mergeColumns(existingTable, srcBound);
+               // renameAssembly (called inside ensureBaseHasPrevMirror) mutates the
+               // assembly name in-place, so existingTable.getName() now returns the
+               // new "_base"-suffixed name.
                String baseName = existingTable.getName();
                String prevMirrorName = baseName.endsWith("_base")
                   ? baseName.substring(0, baseName.length() - 5)
@@ -87,7 +94,11 @@ public class WsMergeService {
 
                if(prevMirror == null) {
                   // Unexpected: ensureBaseHasPrevMirror should always create the mirror.
-                  // Fall back to a name-only mapping so the assembly is at least wired up.
+                  // Log a warning so the unexpected state is visible, then fall back to a
+                  // name-only mapping so the assembly is at least wired up rather than lost.
+                  LOG.warn("prevMirror '{}' not found in dashWS after ensureBaseHasPrevMirror; " +
+                           "falling back to name-only mapping for '{}'",
+                           prevMirrorName, srcBound.getName());
                   wsRenameMap.put(srcBound.getName(), prevMirrorName);
                   continue;
                }
@@ -131,12 +142,35 @@ public class WsMergeService {
                   wsRenameMap.put(srcBound.getName(), condMirrorName);
                }
                else {
-                  // srcBound has no conditions or aggregation: reuse prevMirror directly.
-                  // srcBound's own column selection is not applied here — prevMirror's
-                  // expanded union selection (refreshed above) is used instead, which is
-                  // required for both charts to share a single node and enable cross-chart
-                  // filter interaction.
-                  wsRenameMap.put(srcBound.getName(), prevMirrorName);
+                  // srcBound has no conditions or aggregation of its own. Before reusing
+                  // prevMirror directly, check whether prevMirror carries design-time
+                  // conditions or aggregation from the first chart. If so, stack a clean
+                  // mirror of prevMirror so chart2 is not silently coupled to chart1's
+                  // design-time filters, while runtime filter propagation through the
+                  // shared prevMirror node is still preserved.
+                  ConditionListWrapper prevPre = prevMirror.getPreConditionList();
+                  ConditionListWrapper prevPost = prevMirror.getPostConditionList();
+                  AggregateInfo prevAggr = prevMirror.getAggregateInfo();
+                  boolean prevHasConditions = (prevPre != null && !prevPre.isEmpty()) ||
+                                              (prevPost != null && !prevPost.isEmpty());
+                  boolean prevHasAggregation = prevAggr != null && !prevAggr.isEmpty();
+
+                  if(prevHasConditions || prevHasAggregation) {
+                     String cleanMirrorName = ensureUniqueName(prevMirrorName, dashWS);
+                     MirrorTableAssembly cleanMirror = new MirrorTableAssembly(dashWS, cleanMirrorName, prevMirror);
+                     cleanMirror.setColumnSelection(srcBound.getColumnSelection(true).clone(), true);
+                     cleanMirror.setProperty(PROP_WIZ_MERGED, "true");
+                     dashWS.addAssembly(cleanMirror);
+                     wsRenameMap.put(srcBound.getName(), cleanMirrorName);
+                  }
+                  else {
+                     // prevMirror has no design-time conditions or aggregation — reuse it
+                     // directly. srcBound's own column selection is not applied here —
+                     // prevMirror's expanded union selection (refreshed above) is used
+                     // instead, required for both charts to share a single node and enable
+                     // cross-chart filter interaction.
+                     wsRenameMap.put(srcBound.getName(), prevMirrorName);
+                  }
                }
                continue;
             }
