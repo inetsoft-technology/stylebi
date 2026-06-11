@@ -183,43 +183,52 @@ describe("VsBookmarkPaneComponent — isEditBookmarkDisabled", () => {
 
 describe("VsBookmarkPaneComponent — bookmark action dispatchers", () => {
 
-   it("should emit the bookmark payload from setDefaultBookmark, editBookmark, deleteBookmark, and gotoBookmark", async () => {
+   it("should emit the bookmark from setDefaultBookmark", async () => {
       const comp = await renderComp();
-      const bookmark = makeBookmark();
-
-      const defaultSpy = vi.fn();
-      comp.onSetDefaultBookmark.subscribe(defaultSpy);
-      comp.setDefaultBookmark(bookmark);
-      expect(defaultSpy).toHaveBeenCalledWith(bookmark);
-
-      const editSpy = vi.fn();
-      comp.onEditBookmark.subscribe(editSpy);
-      comp.editBookmark(bookmark);
-      expect(editSpy).toHaveBeenCalledWith(bookmark);
-
-      const deleteSpy = vi.fn();
-      comp.onDeleteBookmark.subscribe(deleteSpy);
-      comp.deleteBookmark(bookmark);
-      expect(deleteSpy).toHaveBeenCalledWith(bookmark);
-
-      const gotoSpy = vi.fn();
-      comp.onGoToBookmark.subscribe(gotoSpy);
-      comp.gotoBookmark(bookmark);
-      expect(gotoSpy).toHaveBeenCalledWith(bookmark);
+      const spy = vi.fn();
+      comp.onSetDefaultBookmark.subscribe(spy);
+      comp.setDefaultBookmark(makeBookmark());
+      expect(spy).toHaveBeenCalledWith(makeBookmark());
    });
 
-   it("should emit from addBookmark and saveBookmark with no payload", async () => {
+   it("should emit the bookmark from editBookmark", async () => {
       const comp = await renderComp();
+      const spy = vi.fn();
+      comp.onEditBookmark.subscribe(spy);
+      comp.editBookmark(makeBookmark());
+      expect(spy).toHaveBeenCalledWith(makeBookmark());
+   });
 
-      const addSpy = vi.fn();
-      comp.onAddBookmark.subscribe(addSpy);
+   it("should emit the bookmark from deleteBookmark", async () => {
+      const comp = await renderComp();
+      const spy = vi.fn();
+      comp.onDeleteBookmark.subscribe(spy);
+      comp.deleteBookmark(makeBookmark());
+      expect(spy).toHaveBeenCalledWith(makeBookmark());
+   });
+
+   it("should emit the bookmark from gotoBookmark", async () => {
+      const comp = await renderComp();
+      const spy = vi.fn();
+      comp.onGoToBookmark.subscribe(spy);
+      comp.gotoBookmark(makeBookmark());
+      expect(spy).toHaveBeenCalledWith(makeBookmark());
+   });
+
+   it("should emit from addBookmark with no payload", async () => {
+      const comp = await renderComp();
+      const spy = vi.fn();
+      comp.onAddBookmark.subscribe(spy);
       comp.addBookmark();
-      expect(addSpy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledTimes(1);
+   });
 
-      const saveSpy = vi.fn();
-      comp.onSaveBookmark.subscribe(saveSpy);
+   it("should emit from saveBookmark with no payload", async () => {
+      const comp = await renderComp();
+      const spy = vi.fn();
+      comp.onSaveBookmark.subscribe(spy);
       comp.saveBookmark();
-      expect(saveSpy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledTimes(1);
    });
 });
 
@@ -229,9 +238,13 @@ describe("VsBookmarkPaneComponent — bookmark action dispatchers", () => {
 
 describe("VsBookmarkPaneComponent — visibility helpers", () => {
 
-   it("isSetDefaultBookmarkVisible: should be false when defaultBookmark is true or isDefaultOrgAsset is true", async () => {
+   it("isSetDefaultBookmarkVisible: should be false when defaultBookmark is true", async () => {
       const comp = await renderComp();
       expect(comp.isSetDefaultBookmarkVisible(makeBookmark({ defaultBookmark: true }))).toBe(false);
+   });
+
+   it("isSetDefaultBookmarkVisible: should be false when isDefaultOrgAsset is true", async () => {
+      const comp = await renderComp();
       comp.isDefaultOrgAsset = true;
       expect(comp.isSetDefaultBookmarkVisible(makeBookmark({ defaultBookmark: false }))).toBe(false);
    });

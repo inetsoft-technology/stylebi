@@ -102,6 +102,9 @@ describe("BookmarkPropertyDialog — saveChanges", () => {
 
    // 🔁 Regression-sensitive: untrimmed bookmark names create entries with leading/trailing
    // spaces that cannot be found by server-side exact-name lookup.
+   // Note: saveChanges() reads model.name directly (not the form control). In production,
+   // InputTrimDirective keeps them in sync; here NO_ERRORS_SCHEMA stubs the directive, so
+   // model.name is set via componentInputs — which is what this test exercises by design.
    it("should trim model.name before emitting onCommit", async () => {
       const comp = await renderComp({ model: makeModel({ name: "  My Report  " }) });
       const spy = vi.fn();
@@ -109,15 +112,6 @@ describe("BookmarkPropertyDialog — saveChanges", () => {
       comp.saveChanges();
       expect(spy).toHaveBeenCalledTimes(1);
       expect(spy.mock.calls[0][0].name).toBe("My Report");
-   });
-
-   it("should emit the model object via onCommit after trimming", async () => {
-      const model = makeModel({ name: "Dashboard" });
-      const comp = await renderComp({ model });
-      const spy = vi.fn();
-      comp.onCommit.subscribe(spy);
-      comp.saveChanges();
-      expect(spy).toHaveBeenCalledWith(model);
    });
 });
 

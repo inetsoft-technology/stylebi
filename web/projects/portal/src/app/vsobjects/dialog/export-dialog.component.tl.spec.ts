@@ -65,8 +65,11 @@ type ModelOverrides = {
 
 // saveToStorage() writes to localStorage on every ok() success; clear between tests
 // so getStorageModel() in ngOnInit does not overwrite the test's model settings.
+// MODAL_MOCK.open is cleared here (not per-describe) so future describe groups don't
+// need to remember to add their own mockClear().
 beforeEach(() => {
    localStorage.clear();
+   MODAL_MOCK.open.mockClear();
 });
 
 // ComponentTool.showMessageDialog calls modal.componentInstance["onCommit"].subscribe()
@@ -133,10 +136,6 @@ async function renderComponent(opts: {
 
 describe("ExportDialog — ok(): HTTP validation + commit chain", () => {
 
-   beforeEach(() => {
-      MODAL_MOCK.open.mockClear();
-   });
-
    // 🔁 Regression-sensitive: onCommit must only fire after a successful HTTP check
    it("should emit onCommit when server returns type=OK", async () => {
       const { comp } = await renderComponent();
@@ -173,10 +172,6 @@ describe("ExportDialog — ok(): HTTP validation + commit chain", () => {
 
 describe("ExportDialog — ok() guard", () => {
 
-   beforeEach(() => {
-      MODAL_MOCK.open.mockClear();
-   });
-
    // 🔁 Regression-sensitive: guard fires only when ALL THREE conditions are met
    //    (!includeCurrent AND no bookmarks AND formatType != SNAPSHOT)
    //    Bug #17235: verify exact i18n keys for title and message
@@ -190,23 +185,26 @@ describe("ExportDialog — ok() guard", () => {
       );
       const showMessageSpy = vi.spyOn(ComponentTool, "showMessageDialog");
 
-      const { comp } = await renderComponent({
-         modelOverrides: {
-            fileFormatPaneModel: {
-               includeCurrent: false,
-               selectedBookmarks: [],
-               formatType: FileFormatType.EXPORT_TYPE_EXCEL,
+      try {
+         const { comp } = await renderComponent({
+            modelOverrides: {
+               fileFormatPaneModel: {
+                  includeCurrent: false,
+                  selectedBookmarks: [],
+                  formatType: FileFormatType.EXPORT_TYPE_EXCEL,
+               },
             },
-         },
-      });
+         });
 
-      comp.ok();
+         comp.ok();
 
-      await waitFor(() => expect(MODAL_MOCK.open).toHaveBeenCalled());
-      expect(httpCalled).toBe(false);
-      expect(showMessageSpy.mock.calls[0][1]).toEqual("_#(js:Error)");
-      expect(showMessageSpy.mock.calls[0][2]).toEqual("_#(js:common.fileformatPane.notvoid)");
-      showMessageSpy.mockRestore();
+         await waitFor(() => expect(MODAL_MOCK.open).toHaveBeenCalled());
+         expect(httpCalled).toBe(false);
+         expect(showMessageSpy.mock.calls[0][1]).toEqual("_#(js:Error)");
+         expect(showMessageSpy.mock.calls[0][2]).toEqual("_#(js:common.fileformatPane.notvoid)");
+      } finally {
+         showMessageSpy.mockRestore();
+      }
    });
 
    // 🔁 Regression-sensitive: SNAPSHOT format bypasses the guard — the third condition
@@ -255,10 +253,6 @@ describe("ExportDialog — ok() guard", () => {
 // ---------------------------------------------------------------------------
 
 describe("ExportDialog — close, ngOnInit, isEmptyTable", () => {
-
-   beforeEach(() => {
-      MODAL_MOCK.open.mockClear();
-   });
 
    it("should emit 'cancel' when close() is called", async () => {
       const { comp } = await renderComponent();

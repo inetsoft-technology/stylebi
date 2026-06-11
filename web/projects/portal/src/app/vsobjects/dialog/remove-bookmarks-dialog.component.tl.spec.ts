@@ -41,6 +41,7 @@ import { render } from "@testing-library/angular";
 
 import { RemoveBookmarksDialog } from "./remove-bookmarks-dialog.component";
 import { AnnotationFilterOption } from "../model/remove-annotations-condition";
+import { DateTypeFormatter } from "../../../../../shared/util/date-type-formatter";
 
 async function renderComp() {
    const result = await render(RemoveBookmarksDialog, {
@@ -60,6 +61,10 @@ describe("RemoveBookmarksDialog — memory leak", () => {
    // takeUntilDestroyed/unsubscribe; after destroy the subscription still fires and mutates
    // condition.filterTime, leaving a potentially stale value visible to any code that holds
    // a reference to the destroyed instance.
+   // Expected failure: the final `expect(...).toBe(originalTime)` should fail because the
+   // live subscription mutates condition.filterTime to "2024-01-01" after destroy.
+   // If the test fails for any other reason (e.g. fixture.destroy() throws, or the form
+   // control is missing), the it.fails will still pass — check the failure message carefully.
    it.fails("should not update condition.filterTime after the component is destroyed (ngOnDestroy not implemented)", async () => {
       const { comp, fixture } = await renderComp();
       const originalTime = comp.condition.filterTime;
@@ -80,12 +85,11 @@ describe("RemoveBookmarksDialog — setFilterDate", () => {
    // agree; if any write is dropped, the filter sent to the server diverges from the picker UI.
    it("should update condition.filterTime, dateTime, and form control value in sync", async () => {
       const { comp } = await renderComp();
-      const initialDateTime = comp.dateTime;
-      const newDate = "2020-01-01"; // deliberately far from today so dateTime definitely changes
+      const newDate = "2020-01-01";
       comp.setFilterDate(newDate);
       expect(comp.condition.filterTime).toBe(newDate);
       expect(comp.form.get("filterDate")?.value).toBe(newDate);
-      expect(comp.dateTime).not.toBe(initialDateTime); // toTimeInstant was called with the new value
+      expect(comp.dateTime).toEqual(DateTypeFormatter.toTimeInstant(newDate, comp.format));
    });
 
    it("should preserve filterOption when setFilterDate is called after selectOption", async () => {
@@ -149,14 +153,21 @@ describe("RemoveBookmarksDialog — selectOption / cancelChanges / labels / isSe
       expect(comp.getFilterOptionLabel(AnnotationFilterOption.NOT_ACCESSED)).toBe("_#(js:Not accessed since)");
    });
 
-   it("isSelectedOption and selectedFilterOptionLabel: should reflect current filterOption", async () => {
+   it("isSelectedOption: should return true for current option and false for others", async () => {
       const { comp } = await renderComp();
       expect(comp.isSelectedOption(AnnotationFilterOption.OLDER_THAN)).toBe(true);
       expect(comp.isSelectedOption(AnnotationFilterOption.NOT_ACCESSED)).toBe(false);
-      expect(comp.selectedFilterOptionLabel).toBe("_#(js:Older than)");
 
       comp.selectOption(AnnotationFilterOption.NOT_ACCESSED);
       expect(comp.isSelectedOption(AnnotationFilterOption.NOT_ACCESSED)).toBe(true);
+      expect(comp.isSelectedOption(AnnotationFilterOption.OLDER_THAN)).toBe(false);
+   });
+
+   it("selectedFilterOptionLabel: should reflect current filterOption after selectOption", async () => {
+      const { comp } = await renderComp();
+      expect(comp.selectedFilterOptionLabel).toBe("_#(js:Older than)");
+
+      comp.selectOption(AnnotationFilterOption.NOT_ACCESSED);
       expect(comp.selectedFilterOptionLabel).toBe("_#(js:Not accessed since)");
    });
 });
