@@ -183,6 +183,8 @@ disabled 可被键盘或程序化调用绕过；`*ngIf` 隐藏则不行。两者
 - 每个上述方法至少对应 **1 条 happy path 用例**，无论风险等级是多少
 - Risk 1 的方法允许只写 happy path，不追加 error/boundary case
 - 确认跳过某个方法（测试价值确实为零）时，**必须在文件头 `Out of scope` 注释里注明原因**，不允许无声略过
+- **Boolean getter 覆盖规则**：返回 `boolean` 的 getter，`true` 和 `false` 两个方向各需至少一条用例。只测一个方向等同于允许 `return false` / `return true` 突变通过，构成基线缺失。
+- **事件处理函数的可测性判断**：在以"jsdom 不支持该事件类型"为由跳过之前，先确认能否直接调用该函数并传入 mock 对象（`comp.handler({ preventDefault: vi.fn(), targetTouches: [...] } as unknown as TouchEvent)`）。arrow function property 直接调用不依赖 jsdom，不属于 jsdom 限制。只有当函数依赖真正无法模拟的浏览器 API（如 `canvas.getContext()`、`IntersectionObserver` 回调）时，才可以以 jsdom 限制为由跳过。
 
 ---
 
@@ -266,6 +268,8 @@ HTTP: [其他方案] — 原因：[具体说明，且说明为何 MSW 不适用]
 
 超出上限时，优先删除价值最低或最重复的用例。
 已确认缺陷 → `it.fails(...)`，不计入上限。
+
+> **重要**：上限仅约束 2.5 节风险追加的额外用例，不约束 2.4 节要求的基线用例。削减时只能删 2.5 追加的用例，不能以"超出上限"为由删除基线用例（包括 boolean getter 的双向覆盖）。
 
 ## 3.2 文件头
 
