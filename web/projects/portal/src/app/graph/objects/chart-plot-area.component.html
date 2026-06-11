@@ -66,8 +66,7 @@
               (onLoaded)="loaded(true, tile)"
               (onError)="loaded(false, tile)">
             </div>
-          }
-          @else {
+          } @else {
             <img [chartImage]="getSrc(tile, container)"
               (onLoading)="loading(tile)"
               (onLoaded)="loaded(true, tile)"
@@ -90,8 +89,7 @@
                 [chartInlineSvg]="panSnapshot"
                 (onLoaded)="panImgLoaded()">
               </div>
-            }
-            @else {
+            } @else {
               <img (onLoaded)="panImgLoaded()"
                 [chartImage]="panSnapshot">
             }
