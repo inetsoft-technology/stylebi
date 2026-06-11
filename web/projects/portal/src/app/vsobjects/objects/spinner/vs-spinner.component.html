@@ -16,6 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 @if (model) {
+  @let textVerticalPosition = getTextVerticalPosition();
   <vs-input-label-wrapper
     [labelModel]="model.labelModel"
     [labelSelected]="model.labelSelected"
@@ -51,7 +52,7 @@
           [class.disable-actions-fade]="!model.enabled"
           [class.move-handle]="(selected || inSelectedGroupContainer) && !viewer"
           [style.text-align]="model.objectFormat.hAlign"
-          [style.padding]="getTextVerticalPosition()"
+          [style.padding]="textVerticalPosition"
           [safeFont]="model.objectFormat.font"
           [style.background]="model.objectFormat.background"
           [style.color]="model.objectFormat.foreground"

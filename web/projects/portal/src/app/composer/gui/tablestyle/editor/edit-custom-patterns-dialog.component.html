@@ -23,6 +23,9 @@
     <ng-container [ngbNavItem]="rowColTab">
       <a ngbNavLink>_#(Row/Column)</a>
       <ng-template ngbNavContent>
+        @let startLbl = startLabel();
+        @let repeatLbl = repeatLabel();
+        @let rangeLbl = rangeLabel();
         <fieldset>
           <div class="row form-row-float-label">
             <div class="col">
@@ -50,18 +53,18 @@
                 (change)="setStartValue($event.target.value)"
                 [class.is-invalid]="isInvalid(specModel.start)"
                 [disabled]="disableRowTab()">
-              <label>{{startLabel()}}</label>
+              <label>{{startLbl}}</label>
             </div>
             <div class="col">
               <div class="form-check">
                 <input class="form-check-input no-default" type="checkbox" id="nodefault"
                   [(ngModel)]="specModel.repeat" [disabled]="disableRowTab()">
-                <label class="form-check-label" for="nodefault">{{repeatLabel()}}</label>
+                <label class="form-check-label" for="nodefault">{{repeatLbl}}</label>
               </div>
             </div>
           </div>
           <div class="form-row-float-label row">
-            <legend>{{rangeLabel()}}:</legend>
+            <legend>{{rangeLbl}}:</legend>
             <div class="col form-floating">
               <input class="form-control defaultvalue" type="text"
                 [ngModel]="fromValue" (change)="setFromValue($event.target.value)"

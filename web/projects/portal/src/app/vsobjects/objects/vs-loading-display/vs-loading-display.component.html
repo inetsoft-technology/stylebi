@@ -17,6 +17,7 @@
 -->
 <div class="loading-container viewsheet-loading-container" [class.allow-interaction]="allowInteraction">
   @if (showIcon) {
+    @let btnsPosition = getBtnsPosition();
     <div class="viewsheet-loading-icon">
       @if (!justShowIcon && preparingData) {
         <div class="loading-message prepare-label">_#(vs.mv.prepare)</div>
@@ -28,7 +29,7 @@
         [class.icon-4x]="!assemblyLoading"
       [class.icon-2x]="assemblyLoading"></i>
       @if (!justShowIcon) {
-        <div class="loading-btns-container" [style.justify-content]="getBtnsPosition()">
+        <div class="loading-btns-container" [style.justify-content]="btnsPosition">
           @if (!!runtimeId && showSwitchToMeta) {
             <button class="btn btn-primary"
               (click)="switchToMetaMode()"

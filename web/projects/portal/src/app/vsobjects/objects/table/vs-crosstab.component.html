@@ -16,6 +16,8 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 @if (model) {
+  @let objectWidth = getObjectWidth();
+  @let objectHeight = getObjectHeight();
   <div
     #tableContainer
     class="table-container vs-object"
@@ -34,8 +36,8 @@
      getObjectTop() : null"
     [style.left.px]="(viewer || embeddedVS) && !model.maxMode && !isBinding ? model.objectFormat.left : null"
     [style.position]="viewer || embeddedVS || isBinding ? 'absolute' : 'relative'"
-    [style.width.px]="getObjectWidth()"
-    [style.height.px]="getObjectHeight()"
+    [style.width.px]="objectWidth"
+    [style.height.px]="objectHeight"
     (onClick)="showPagingControl()">
     @if (model.drillTip) {
       <i [wTooltip]="model.drillTip" class="drill-filter-icon drill-tip"
@@ -48,14 +50,16 @@
         [class.move-down]="isTipOverlapToolbar()"
       (click)="showDateComparisonDialog()"></i>
     }
+    @let zIndex = getZIndex();
+    @let lbTableWidth = getLBTableWidth();
     <div class="z-index-wrapper"
       [style.background]="model.objectFormat.background"
       [style.overflow]="model.objectFormat.roundCorner != 0 ? 'hidden' : ''"
       [style.border-radius.px]="model.objectFormat.roundCorner"
-      [style.z-index]="getZIndex()">
+      [style.z-index]="zIndex">
       @if (!model.shrink || (!viewer || totalColWidth > 0)) {
         <div class="border-div"
-          [style.width.px]="getObjectWidth()"
+          [style.width.px]="objectWidth"
           [style.height.px]="borderDivHeight"
           [style.border-top]="model.objectFormat.border.top"
           [style.border-left]="model.objectFormat.border.left"
@@ -71,7 +75,7 @@
             [formatPainterMode]="vsInfo?.formatPainterMode"
             [titleSelected]="model.titleSelected"
             [titleVisible]="model.titleVisible"
-            [titleWidth]="getObjectWidth()"
+            [titleWidth]="objectWidth"
             (selectTitle)="selectTitle($event)"
             (changeTitle)="changeTableTitle($event)"
             (titleResizeMove)="titleResizeMove($event)"
@@ -100,7 +104,7 @@
       <div class="table-wrapper"
         #tableWrapper
         [style.top.px]="tableWrapperTop"
-        [style.width.px]="getObjectWidth()"
+        [style.width.px]="objectWidth"
         [style.height.px]="tableWrapperHeight"
         selectionBox
         [selectionBoxBannedSelector]="'input, .highlightable'"
@@ -305,9 +309,9 @@
           [touchScrollEnabled]="selected"
           [style.top.px]="rtTableHeight"
           [style.left.px]="isFullHorizontalWrapper ? -scrollX : null"
-           [style.height.px]="isBinding ? getObjectHeight() - rtTableHeight :
-                              getObjectHeight() - rtTableHeight - (model.titleVisible ? model.titleFormat.height : 0) + 1"
-          [style.width.px]="getLBTableWidth()">
+           [style.height.px]="isBinding ? objectHeight - rtTableHeight :
+                              objectHeight - rtTableHeight - (model.titleVisible ? model.titleFormat.height : 0) + 1"
+          [style.width.px]="lbTableWidth">
           <table #leftBottomTable>
             <tbody>
               @for (_row of lbTable; track _row; let i = $index) {
@@ -654,7 +658,7 @@
     }
     @if (mobileDevice) {
       <div #resizeLine class="col-resize-line"
-        [style.height.px]="getObjectHeight()"
+        [style.height.px]="objectHeight"
         [style.top.px]="0">
       </div>
     }

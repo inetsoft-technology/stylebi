@@ -41,9 +41,10 @@
       [style.border-left]="model.objectFormat.border.left"
       [style.border-right]="model.objectFormat.border.right"
       [style.border-radius.px]="model.objectFormat.roundCorner">
+      @let contentSize = getContentSize();
       <div class="text-content"
-        [style.width.px]="getContentSize().width"
-        [style.height.px]="getContentSize().height">
+        [style.width.px]="contentSize.width"
+        [style.height.px]="contentSize.height">
         @if (!model.url || !viewer) {
           @if (!model?.editing) {
             <div class="text-view-wrapper"

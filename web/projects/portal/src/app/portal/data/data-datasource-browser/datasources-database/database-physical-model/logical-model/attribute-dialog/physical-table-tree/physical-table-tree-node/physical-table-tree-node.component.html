@@ -26,7 +26,7 @@
         (dblclick)="hasChildren() ? toggleNode() : null">
         @if (hasChildren()) {
           <span
-            class="{{getToggleIcon()}} tree-node-toggle cursor-pointer truncate-addon me-1"
+            class="{{node.expanded ? 'caret-down-icon' : 'caret-right-icon'}} tree-node-toggle cursor-pointer truncate-addon me-1"
             (click)="toggleNode()" (dblclick)="$event.stopPropagation()">
           </span>
         }

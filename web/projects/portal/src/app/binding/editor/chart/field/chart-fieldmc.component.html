@@ -21,6 +21,8 @@
     <div class="drag-handle"></div>
   }
   @if (field) {
+    @let fieldClassType = getFieldClassType();
+    @let titleText = getTitle();
     <div class="fieldmc fieldmc-combo"
       [style.max-width]="isAesthetic ? 'unset' : null">
       <dynamic-combo-box class="fieldCombo" [value]="cellValue" [vsId]="vsId"
@@ -37,9 +39,9 @@
           [attr.data-test]="cellLabel + ' measure dropdown'">
           <i class="icon-size-small btn-icon no-caret"
             [class.icon-disabled]="!isEnabled || !isEditMeasure()"
-            [class.dimension-setting-icon]="getFieldClassType() === 'Dimension'"
-            [class.measure-setting-icon]="getFieldClassType() === 'Measure'"
-          title="{{getTitle()}}"></i>
+            [class.dimension-setting-icon]="fieldClassType === 'Dimension'"
+            [class.measure-setting-icon]="fieldClassType === 'Measure'"
+          title="{{titleText}}"></i>
         </div>
       }
       @if (isVisibleChartTypeButton()) {

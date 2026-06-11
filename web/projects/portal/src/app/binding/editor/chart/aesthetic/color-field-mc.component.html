@@ -15,6 +15,7 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
+@let hintText = getHint();
 <div dropHighlight (drop)="drop($event)" [disabled]="!_isEnabled"
   outOfZone (onDragover)="dragOver($event)">
   <div class="field-pane bd-gray" [class.disabled-grayout]="!_isEnabled">
@@ -62,7 +63,7 @@
           [dragComplete]="dragFieldMCComplete" [currentAggr]="aggr"
           [grayedOutValues]="grayedOutValues"
           [targetField]="targetField"
-          [hint]="getHint()"
+          [hint]="hintText"
           (onChangeAesthetic)="doSubmit(false)"
           (onConvert)="convert($event)">
         </chart-aesthetic-mc>

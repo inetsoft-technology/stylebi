@@ -20,6 +20,7 @@
   [cshid]="'ScheduleDashboardCreationParameters'">
 </modal-header>
 @if (model && form) {
+  @let errorMessage = getErrorMessage();
   <div class="modal-body" [enterSubmit]="enterSubmit" (onEnter)="ok()">
     <form [formGroup]="form">
       <div class="form-row-float-label row">
@@ -92,7 +93,7 @@
               </div>
               @if (!verifyDynamicValue()) {
                 <div class="alert alert-danger mb-0">
-                  {{getErrorMessage()}}
+                  {{errorMessage}}
                 </div>
               }
             </div>
@@ -162,7 +163,7 @@
               <label>_#(Value)</label>
               @if (!verifyDynamicValue()) {
                 <div class="alert alert-danger mb-0">
-                  {{getErrorMessage()}}
+                  {{errorMessage}}
                 </div>
               }
             </div>

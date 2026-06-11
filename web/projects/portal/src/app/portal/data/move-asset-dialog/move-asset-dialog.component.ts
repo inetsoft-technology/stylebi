@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
-import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
+import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable } from "rxjs";
 import { CheckItemsDuplicateCommand } from "../commands/check-items-duplicate-command";
@@ -39,7 +39,7 @@ export const FAKE_ROOT_PATH: string = "_fake_root_";
     templateUrl: "move-asset-dialog.component.html",
     imports: [ModalHeaderComponent, FilesBrowserComponent]
 })
-export class MoveAssetDialogComponent implements OnInit {
+export class MoveAssetDialogComponent implements OnInit, OnChanges {
    @Input() originalPaths: string[] = [];
    @Input() parentPath: string = "/";
    @Input() parentScope: number = 1;
@@ -51,6 +51,7 @@ export class MoveAssetDialogComponent implements OnInit {
    folderPath: string;
    folderScope: number;
    AssetType = AssetType;
+   isFolder: boolean = false;
 
    private readonly fakeRootFolder: WorksheetBrowserInfo = {
       type: AssetType.FOLDER,
@@ -76,9 +77,16 @@ export class MoveAssetDialogComponent implements OnInit {
                public config: MoveAssetDialogDataConfig) {
    }
 
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["multi"] || changes["items"]) {
+         this.isFolder = this.computeIsFolder();
+      }
+   }
+
    ngOnInit(): void {
       this.folderPath = this.parentPath;
       this.folderScope = this.parentScope;
+      this.isFolder = this.computeIsFolder();
    }
 
    public openFolderRequest: (path: string, assetType?: string, scope?: number) => Observable<DataFolderBrowserModel> =
@@ -132,11 +140,7 @@ export class MoveAssetDialogComponent implements OnInit {
       }
    }
 
-   /**
-    * If the items being moved are folder types.
-    * @returns {boolean}   true if folder type item or multi move
-    */
-   isFolder(): boolean {
+   private computeIsFolder(): boolean {
       return this.multi || (this.items.length > 0 && this.items[0].type === AssetType.FOLDER);
    }
 
@@ -167,7 +171,7 @@ export class MoveAssetDialogComponent implements OnInit {
                      errorMessage = config.duplicateTargetFolderExists;
                   }
                   else {
-                     errorMessage = this.isFolder() ? config.duplicateTargetFolder :
+                     errorMessage = this.isFolder ? config.duplicateTargetFolder :
                         config.duplicateTargetAssetType;
                   }
 

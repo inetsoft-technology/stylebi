@@ -17,6 +17,7 @@
 -->
 <div #dropdownBody class="dynamic-combo-box-body w-100 input-group">
   @if (type == ComboMode.VALUE) {
+    @let currentVal = getCurrentValue();
     <ng-container [class.disable-actions]="disable">
       @if (!editable && mode == ValueMode.TEXT) {
         <div draggable="true"
@@ -28,7 +29,7 @@
           [fixedDropdown]="selectOnClick ? null : valueDropdownMenu"
           dropdownPlacement="bottom" [attr.title]="tooltip"
           [autoClose]="!asTree" [disabled]="disable">
-          {{getCurrentValue()}}&nbsp;
+          {{currentVal}}&nbsp;
         </div>
       }
       @if (editable && mode == ValueMode.TEXT) {
@@ -37,7 +38,7 @@
           [class.no-select-input-text]="!editable || disable"
           #textInput [ngClass]="getInputClass(value)"
           [placeholder]="promptString ? promptString : ''" type="text"
-          [ngModel]="getCurrentValue()"
+          [ngModel]="currentVal"
           (change)="onChanged($event)"
           (focus)="selectOnClick ? $event.target.select() : null"
           [fixedDropdown]="valueDropdownMenu"
@@ -102,7 +103,8 @@
   @if (type == ComboMode.VARIABLE) {
     <select class="form-control" [ngModel]="value" [attr.title]="value"
       (ngModelChange)="valueChange.emit($event)" [disabled]="disable" data-test="variable-value-dropdown">
-      @for (variable of (variables ? variables.sort() : []); track variable) {
+      @let sortedVariables = variables ? variables.slice().sort() : [];
+      @for (variable of sortedVariables; track variable) {
         <option [value]="variable">
           {{variable}}
         </option>

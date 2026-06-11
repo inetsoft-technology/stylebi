@@ -48,23 +48,23 @@
       [attr.aria-label]="model.objectType + ' ' + model.absoluteName"
       [attr.aria-valuemin]="model.min"
       [attr.aria-valuemax]="model.max"
-      [attr.aria-valuenow]="getLabel()"
+      [attr.aria-valuenow]="sliderLabel"
       [class.disable-actions-fade]="!model.enabled"
       [class.move-handle]="(selected || inSelectedGroupContainer) && !viewer"
       outOfZone (onMousemove)="mouseMove($event)" #sliderContainer
       (click)="clearLabelSelection()">
       <div class="wrapper" [style.top.px]="verticalCenter" [style.--slider-wrapper-top.px]="verticalCenter">
         @if (model.currentVisible || isMouseDown) {
-          <div class="slider-value" [style.left.px]="getLabelLeft()"
+          <div class="slider-value" [style.left.px]="handlePosition"
             [style.text-decoration]="model.objectFormat.decoration"
-          >{{getLabel()}}</div>
+          >{{sliderLabel}}</div>
         }
         <div class="slider-track prevent-drag" #trackLine (click)="moveHandleHere($event)"></div>
         <div class="slider-tracked" [style.width.px]="handlePosition"></div>
         @if (handleSelected) {
           <div #sliderHandle
             class="slider-handle selector bd-selected-cell"
-            tabindex="-1" [attr.aria-label]="getLabel()"
+            tabindex="-1" [attr.aria-label]="sliderLabel"
             [style.left.px]="handlePosition">
           </div>
         }

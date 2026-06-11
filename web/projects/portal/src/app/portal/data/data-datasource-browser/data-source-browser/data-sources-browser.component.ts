@@ -49,6 +49,7 @@ export class DataSourcesBrowser implements OnInit {
    @Input() rootLabel: string;
    @Output() selectionChange = new EventEmitter<DataSourceInfo[]>();
    bigDataEdition: boolean = false;
+   currentFolderName: string = "..";
 
    constructor(private modalService: NgbModal) {
    }
@@ -89,6 +90,7 @@ export class DataSourcesBrowser implements OnInit {
       this.openFolderRequest(path, assetType).subscribe(
          data => {
             this.browserView = data;
+            this.updateCurrentFolderName();
 
             if(!onInit) {
                // reset selected items when opening new folder
@@ -220,12 +222,12 @@ export class DataSourcesBrowser implements OnInit {
    }
 
    /**
-    * Gets the name of the lowest level folder in the view
+    * Updates the cached currentFolderName from the current browserView.
     */
-   currentFolderName(): string {
+   private updateCurrentFolderName(): void {
       let name: string = "..";
 
-      if(!!this.browserView.path && this.browserView.path.length > 0) {
+      if(!!this.browserView?.path && this.browserView.path.length > 0) {
          let parentNode = this.browserView.path[this.browserView.path.length - 1];
 
          if(!!parentNode && parentNode.name) {
@@ -236,6 +238,6 @@ export class DataSourcesBrowser implements OnInit {
          }
       }
 
-      return name;
+      this.currentFolderName = name;
    }
 }

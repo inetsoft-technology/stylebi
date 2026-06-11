@@ -16,10 +16,11 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 @if (!!type) {
+  @let imageInfo = getImageInfo();
   <div class="object-icon-container"
-    [attr.title]="getImageInfo()?.tooltip">
+    [attr.title]="imageInfo?.tooltip">
     <img class="object-icon"
-      [src]="getImageInfo()?.src"
+      [src]="imageInfo?.src"
       (click)="onSelected.emit()"/>
     <div class="additional-icon" (click)="onSelected.emit()">
       @if (isFacet()) {

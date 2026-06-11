@@ -15,11 +15,12 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
+@let bodyWidth = getBodyWidth();
 <div [style.position]="'absolute'"
-  [style.top.px]="getObjectTop()"
+  [style.top.px]="objectTop"
   [style.left.px]="vsObject.objectFormat.left"
-  [style.width.px]="getBodyWidth()"
-  [style.height.px]="getBodyHeight()"
+  [style.width.px]="bodyWidth"
+  [style.height.px]="bodyHeight"
   [style.z-index]="zIndex"
   [style.border-bottom]="vsObject.objectFormat.border.bottom"
   [style.border-left]="vsObject.objectFormat.border.left"
@@ -32,8 +33,8 @@
   (dragleave)="onLeave($event)"
   outOfZone (onDragover)="onContainerDragOver($event)"
   (drop)="onDrop($event)">
-  <div #scrollbarContainer class="scrollbar-container" [style.width.px]="getBodyWidth() + (isSelected() ? 0 : 16)">
-    <div class="scrollbar-container-inner" [style.width.px]="getInnerWidth()">
+  <div #scrollbarContainer class="scrollbar-container" [style.width.px]="bodyWidth + (isSelected() ? 0 : 16)">
+    <div class="scrollbar-container-inner" [style.width.px]="innerWidth">
       @for (outer of vsObject.outerSelections; track outer; let i = $index) {
         <current-selection
           cSelectionContainerActionHandler [vsInfo]="viewsheet" [model]="vsObject"
@@ -84,8 +85,8 @@
       }
       <div class="scrollbar-vertical-padding"
         [class.bt-highlight-med]="isContainerDragover && (dragOverBorder == 0 || childWithBorder < 0)"
-        [style.width.px]="getBodyWidth()"
-        [style.height.px]="getPaddingHeight()"
+        [style.width.px]="bodyWidth"
+        [style.height.px]="paddingHeight"
         (click)="select($event)">
       </div>
     </div>
