@@ -92,7 +92,11 @@
           width: 100%;
           margin-bottom: 2.5em;
 
-          .mat-mdc-button {
+          // These buttons are mat-stroked-button, which Material 21 renders as the
+          // "outlined" appearance (.mat-mdc-outlined-button), not .mat-mdc-button. Target
+          // the shared .mat-mdc-button-base host class so width: 100% applies to every
+          // variant and all buttons render at the same width. (Bug #75336)
+          .mat-mdc-button-base {
             margin-bottom: 1.25em;
             width: 100%;
           }

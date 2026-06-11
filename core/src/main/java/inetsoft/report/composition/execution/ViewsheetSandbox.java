@@ -2146,6 +2146,13 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       finally {
          schanged.set(null);
       }
+
+      // processSelections() above may have changed conditions so cached data in dmap
+      // should not be reused when output assemblies are subsequently executed.
+      // mirrors the same clearing done in the reset() path (see reset()).
+      for(AssemblyEntry dataEntry : clist.getDataList()) {
+         resetDataMap(dataEntry.getName());
+      }
    }
 
    /**

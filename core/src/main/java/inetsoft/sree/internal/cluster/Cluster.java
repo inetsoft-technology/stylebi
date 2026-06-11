@@ -619,6 +619,14 @@ public interface Cluster extends AutoCloseable {
    File getTransferFile(String link) throws IOException;
 
    /**
+    * Cancels a pending file transfer that was registered with {@link #addTransferFile(File)} but
+    * has not yet been consumed. Removes the entry from the transfer registry and deletes the file.
+    *
+    * @param link the link returned by {@link #addTransferFile(File)}.
+    */
+   void cancelTransferFile(String link);
+
+   /**
     * Executes a SQL query against a cache.
     *
     * @param cache    the name of the cache.

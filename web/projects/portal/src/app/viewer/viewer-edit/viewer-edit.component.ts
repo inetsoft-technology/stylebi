@@ -233,7 +233,8 @@ export class ViewerEditComponent implements OnInit, OnDestroy {
 
       const extras: NavigationExtras = {
          skipLocationChange: true,
-         queryParams: queryParams
+         queryParams: queryParams,
+         state: { returnFromEditor: true }
       };
 
       if(this.viewData.portal) {

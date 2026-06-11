@@ -40,4 +40,9 @@ export const viewerHandlers = [
       });
    }),
 
+   // ExportDialog.ok() — check if export is allowed for the current viewsheet
+   http.get("*/export/check/*", () => {
+      return HttpResponse.json({ type: "OK", message: "" });
+   }),
+
 ];

@@ -252,7 +252,13 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
       CreateHeapDumpCompleteMessage msg =
          cluster.exchangeMessages(node, new CreateHeapDumpMessage(),
                                   CreateHeapDumpCompleteMessage.class);
-      return msg.getId();
+      String id = msg.getId();
+
+      if(id == null) {
+         throw new IllegalStateException("A heap dump is already in progress on node " + node);
+      }
+
+      return id;
    }
 
    /**
@@ -269,10 +275,6 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
 
    public boolean isHeapDumpComplete(String heapId, String clusterNode) throws Exception {
       return serverServiceMessageListener.isHeapDumpComplete(heapId, clusterNode);
-   }
-
-   public long getHeapDumpLength(String heapId, String clusterNode) throws Exception {
-      return serverServiceMessageListener.getHeapDumpLength(heapId, clusterNode);
    }
 
    public long getHeapDumpLength(String heapId) {
@@ -295,10 +297,8 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
       serverServiceMessageListener.disposeHeapDump(id);
    }
 
-   public byte[] getHeapDumpContent(String heapId, long offset,
-                                    int toRead, String clusterNode) throws Exception
-   {
-      return serverServiceMessageListener.getHeapDumpContent(heapId, offset, toRead, clusterNode);
+   public GetHeapDumpTransferCompleteMessage getHeapDumpInfo(String heapId, String clusterNode) throws Exception {
+      return serverServiceMessageListener.getHeapDumpInfo(heapId, clusterNode);
    }
 
    public void disposeHeapDump(String heapId, String clusterNode) throws Exception {
