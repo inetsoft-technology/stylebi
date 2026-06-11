@@ -184,6 +184,7 @@ disabled 可被键盘或程序化调用绕过；`*ngIf` 隐藏则不行。两者
 - Risk 1 的方法允许只写 happy path，不追加 error/boundary case
 - 确认跳过某个方法（测试价值确实为零）时，**必须在文件头 `Out of scope` 注释里注明原因**，不允许无声略过
 - **Boolean getter 覆盖规则**：返回 `boolean` 的 getter，`true` 和 `false` 两个方向各需至少一条用例。只测一个方向等同于允许 `return false` / `return true` 突变通过，构成基线缺失。
+- **事件处理函数的可测性判断**：在以"jsdom 不支持该事件类型"为由跳过之前，先确认能否直接调用该函数并传入 mock 对象（`comp.handler({ preventDefault: vi.fn(), targetTouches: [...] } as unknown as TouchEvent)`）。arrow function property 直接调用不依赖 jsdom，不属于 jsdom 限制。只有当函数依赖真正无法模拟的浏览器 API（如 `canvas.getContext()`、`IntersectionObserver` 回调）时，才可以以 jsdom 限制为由跳过。
 
 ---
 

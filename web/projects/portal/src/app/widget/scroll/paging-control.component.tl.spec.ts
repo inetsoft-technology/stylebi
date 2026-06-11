@@ -29,11 +29,13 @@
  *   Group 4 [Risk 1] — startXPosition/startYPosition: moved flag selects between startX/Y
  *                       and movedX/Y
  *   Group 5 [Risk 1] — ngOnDestroy: touchmove listener must be removed to prevent memory leak
+ *   Group 6 [Risk 2] — moveListener: -40 offset arithmetic and inViewport/multi-touch guards;
+ *                       wrong offset misaligns the drag handle; missing guard lets out-of-viewport
+ *                       or multi-touch events corrupt the position
  *
  * Confirmed bugs: none
  *
  * Out of scope:
- *   moveListener — requires TouchEvent with targetTouches; not constructable in jsdom
  *   ngAfterViewInit — addEventListener call is the mirror of the ngOnDestroy test; verified
  *                     transitively when the listener removal test passes
  */
@@ -45,6 +47,11 @@ import { PagingControlComponent } from "./paging-control.component";
 import { PagingControlService } from "../../common/services/paging-control.service";
 
 const PAGING_SERVICE_MOCK = { inViewport: vi.fn().mockReturnValue(true) };
+
+beforeEach(() => {
+   PAGING_SERVICE_MOCK.inViewport.mockClear();
+   PAGING_SERVICE_MOCK.inViewport.mockReturnValue(true);
+});
 
 interface RenderOpts {
    viewportWidth?: number;
@@ -244,6 +251,80 @@ describe("PagingControlComponent — startXPosition / startYPosition", () => {
       comp.moved = true;
       comp.movedY = 60;
       expect(comp.startYPosition).toBe(60);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 6: moveListener — offset arithmetic and guards
+// ---------------------------------------------------------------------------
+
+describe("PagingControlComponent — moveListener", () => {
+
+   // 🔁 Regression-sensitive: preventDefault/stopPropagation must fire unconditionally on
+   // every touch event to prevent the page from scrolling while the paging handle is dragged.
+   it("should call preventDefault and stopPropagation on every single-touch event", async () => {
+      const { comp } = await renderComp();
+      const mockEvent = {
+         preventDefault: vi.fn(),
+         stopPropagation: vi.fn(),
+         targetTouches: [{ pageX: 120, pageY: 160 }],
+      } as unknown as TouchEvent;
+
+      comp.moveListener(mockEvent);
+
+      expect(mockEvent.preventDefault).toHaveBeenCalled();
+      expect(mockEvent.stopPropagation).toHaveBeenCalled();
+   });
+
+   // 🔁 Regression-sensitive: the -40 offset positions the drag handle relative to the
+   // finger; changing this value shifts the handle off-center. inViewport guards against
+   // updating coordinates when the finger is outside the viewport.
+   it("should set moved=true and update movedX/movedY with -40 offset when inViewport returns true", async () => {
+      const { comp } = await renderComp();
+      const mockEvent = {
+         preventDefault: vi.fn(),
+         stopPropagation: vi.fn(),
+         targetTouches: [{ pageX: 120, pageY: 160 }],
+      } as unknown as TouchEvent;
+
+      comp.moveListener(mockEvent);
+
+      expect(PAGING_SERVICE_MOCK.inViewport).toHaveBeenCalledWith({ pageX: 120, pageY: 160 }, true);
+      expect(comp.moved).toBe(true);
+      expect(comp.movedX).toBe(80);   // 120 - 40
+      expect(comp.movedY).toBe(120);  // 160 - 40
+   });
+
+   it("should set moved=true but not update movedX/movedY when inViewport returns false", async () => {
+      const { comp } = await renderComp();
+      PAGING_SERVICE_MOCK.inViewport.mockReturnValue(false);
+      const mockEvent = {
+         preventDefault: vi.fn(),
+         stopPropagation: vi.fn(),
+         targetTouches: [{ pageX: 120, pageY: 160 }],
+      } as unknown as TouchEvent;
+
+      comp.moveListener(mockEvent);
+
+      expect(comp.moved).toBe(true);
+      expect(comp.movedX).toBeUndefined();
+      expect(comp.movedY).toBeUndefined();
+   });
+
+   it("should not update any state when targetTouches has more than one touch point", async () => {
+      const { comp } = await renderComp();
+      const mockEvent = {
+         preventDefault: vi.fn(),
+         stopPropagation: vi.fn(),
+         targetTouches: [{ pageX: 120, pageY: 160 }, { pageX: 200, pageY: 200 }],
+      } as unknown as TouchEvent;
+
+      comp.moveListener(mockEvent);
+
+      expect(comp.moved).toBe(false);
+      expect(comp.movedX).toBeUndefined();
+      expect(comp.movedY).toBeUndefined();
+      expect(PAGING_SERVICE_MOCK.inViewport).not.toHaveBeenCalled();
    });
 });
 
