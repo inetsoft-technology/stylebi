@@ -116,9 +116,9 @@
                         (valueChange)="model.maxRows = $event"
                         [invalid]="!!form.controls['maxRows'].errors">
             </number-stepper>
-            <span class="invalid-feedback d-block" *ngIf="form.controls['maxRows'].errors">
-              The sample size should be non-zero integer.
-            </span>
+            @if (form.controls['maxRows'].errors) {
+              <span class="invalid-feedback d-block">The sample size should be non-zero integer.</span>
+            }
           </div>
           <div class="col-6 d-flex flex-column">
             <label class="form-label">_#(Snap Grid)</label>
@@ -126,9 +126,9 @@
                         (valueChange)="model.snapGrid = $event"
                         [invalid]="!!form.controls['snapGrid'].errors">
             </number-stepper>
-            <span class="invalid-feedback d-block" *ngIf="form.controls['snapGrid'].errors">
-              _#(composer.vs.options.snapGrid)
-            </span>
+            @if (form.controls['snapGrid'].errors) {
+              <span class="invalid-feedback d-block">_#(composer.vs.options.snapGrid)</span>
+            }
           </div>
         </div>
       </fieldset>
@@ -138,9 +138,11 @@
           <div class="col-12">
             <div class="form-floating">
               <input type="text" formControlName="alias" class="form-control" placeholder="_#(Alias)" [(ngModel)]="model.alias"
-                [class.is-invalid]="form.controls['alias'].errors && (form.controls['alias'].errors['containsSpecialChars'] || form.controls['alias'].errors['doesNotStartWithNumber'])"/>
+                [class.is-invalid]="form.controls['alias'].errors && form.controls['alias'].errors['doesNotStartWithNumberOrLetter']"/>
               <label><span>_#(Alias)</span></label>
-              <span class="invalid-feedback d-block">_#(viewer.nameSpecialChar)</span>
+              @if (form.controls['alias'].errors && form.controls['alias'].errors['doesNotStartWithNumberOrLetter']) {
+                <span class="invalid-feedback d-block">_#(viewer.nameSpecialChar)</span>
+              }
             </div>
           </div>
         </div>
@@ -175,9 +177,9 @@
                         (valueChange)="model.touchInterval = $event"
                         [invalid]="!!form.controls['touchInterval'].errors">
             </number-stepper>
-            <span class="invalid-feedback d-block" *ngIf="form.controls['touchInterval'].errors">
-              _#(composer.vs.options.refreshIntervalValid)
-            </span>
+            @if (form.controls['touchInterval'].errors) {
+              <span class="invalid-feedback d-block">_#(composer.vs.options.refreshIntervalValid)</span>
+            }
           </div>
         </div>
         <div class="row shell-form-row--field">
