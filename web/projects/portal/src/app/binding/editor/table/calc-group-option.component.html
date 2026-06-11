@@ -81,7 +81,7 @@
           <select class="form-control"
             [disabled]="topN.type == 0 || isDisableRanking()"
             [(ngModel)]="sumColValue" placeholder="_#(calculationOf)">
-            @for (agg of aggrs; track agg) {
+            @for (agg of aggrs; track $index) {
               <option [value]="agg.view">{{agg.view}}
               </option>
             }

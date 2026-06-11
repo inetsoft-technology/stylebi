@@ -25,7 +25,7 @@
       <div>
         <w-large-form-field>
           <div largeFieldElement class="bordered-box bd-gray">
-            @for (group of groups; track group; let i = $index) {
+            @for (group of groups; track group.name; let i = $index) {
               <div
                 [class.selected]="isSelected(group.name)" class="group-item"
                 (click)="selectGroup(group)">

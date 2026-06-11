@@ -26,7 +26,7 @@
               [ngModel]="getIndexOfRef(refList, _row)"
               (ngModelChange)="resetRow(_j, $event)">
               <option [ngValue]="EMPTY_REF_INDEX"></option>
-              @for (_ref of refList; track _ref; let _i = $index) {
+              @for (_ref of refList; track $index; let _i = $index) {
                 <option [ngValue]="_i"
                   [attr.title]="getTooltip(_ref)"
                 [class.grayed-out-field]="trapField(_ref)">{{_ref.view}}</option>
@@ -66,7 +66,7 @@
                   <select id="aggregate" class="form-control"
                     [ngModel]="getAggregateIndexOf(_row, _j)"
                     (ngModelChange)="aggregateChange(_row, _j, $event)">
-                    @for (_aggregate of aggregates[_j]; track _aggregate; let _i = $index) {
+                    @for (_aggregate of aggregates[_j]; track $index; let _i = $index) {
                       <option [ngValue]="_i">
                       {{_aggregate.label}}</option>
                     }
@@ -86,7 +86,7 @@
                     <select id="withColumn" class="form-control" placeholder="_#(With)"
                       [ngModel]="getIndexOfRef(aggregateRefList, _row, true)"
                       (ngModelChange)="_row.aggregateRef = aggregateRefList[$event]; updateState()">
-                      @for (_ref of aggregateRefList; track _ref; let _i = $index) {
+                      @for (_ref of aggregateRefList; track $index; let _i = $index) {
                         <option [value]="_i"
                           [class.grayed-out-field]="trapField(_ref)"
                           [title]="getTooltip(_ref)">{{_ref.name}}
@@ -124,7 +124,7 @@
                 [disabled]="_row.isGroup || !_row.aggregate || !_row.aggregate.supportPercentage"
                 [ngModel]="_row.percentageOption"
                 (ngModelChange)="percentageChange($event, _row)">
-                @for (option of percentageOptions; track option) {
+                @for (option of percentageOptions; track $index) {
                   <option [value]="option.value">{{option.label}}</option>
                 }
               </select>
