@@ -1167,7 +1167,7 @@ public class GenerateWsService {
     *       to {@code name} to signal "no aliasing".</li>
     * </ul>
     * {@code alias ?? name} therefore always equals what {@code c.getAttribute()} returns,
-    * making it the correct key for {@code visualizationUsedFields}.
+    * making it the correct key for the {@code configMap} lookup in {@code WizAutoBindingService.autoBinding}.
     */
    private List<WorksheetColumnInfo> extractPrimaryTableFields(
       Worksheet worksheet,

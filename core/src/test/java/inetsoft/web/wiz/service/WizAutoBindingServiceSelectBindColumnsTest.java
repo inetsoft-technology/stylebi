@@ -77,4 +77,5 @@ class WizAutoBindingServiceSelectBindColumnsTest {
 
       assertEquals(2, result.size());
    }
+
 }
