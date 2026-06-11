@@ -23,7 +23,6 @@ import inetsoft.report.lens.AbstractTableLens;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.XDimensionRef;
-import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -281,44 +280,46 @@ public class DCMergeDatePartFilter extends AbstractTableLens implements TableFil
             return null;
          }
 
-         Calendar cal = CoreTool.calendar.get();
-         cal.setTime((Date) getDateGroupValue());
-
          List<XDimensionRef> mergedRefs = getMergedRefs();
 
          if(mergedRefs == null || mergedRefs.size() == 0) {
             return null;
          }
 
-         int minimalDaysInFirstWeek = cal.getMinimalDaysInFirstWeek();
+         for(int i = 0; i < mergedRefs.size(); i++) {
+            XDimensionRef mergedRef = mergedRefs.get(i);
+            Object value = getValue(i);
 
-         try {
-            for(int i = 0; i < mergedRefs.size(); i++) {
-               XDimensionRef mergedRef = mergedRefs.get(i);
-               Object value = getValue(i);
+            if(mergedRef.getFullName().startsWith("WeekOfYear(") && value instanceof Integer) {
+               int weekMonthOfYear = (Integer) value;
+               // The merged bucket carries one period's week-of-year part value, which can map
+               // to a different actual week in another period's year (e.g. the previous year's
+               // bar shares the current year's bucket). Recompute the part value from this
+               // cell's own date using the same logic as JavaScriptEngine.datePart("wy") for the
+               // non-to-date case -- move to the first day of the week, then month*10 +
+               // weekOfMonth -- so the equivalence cell matches the data/label for the cell's
+               // actual week regardless of the configured first day of week. Deriving from the
+               // stored part value instead (the previous approach) failed when the first day of
+               // week was not Sunday, leaving drill-to-detail one week off. (Bug #75351)
+               Calendar cal = new GregorianCalendar();
+               cal.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
+               cal.setMinimalDaysInFirstWeek(7);
+               cal.setTime((Date) getDateGroupValue());
+               cal.add(Calendar.DATE, -(cal.get(Calendar.DAY_OF_WEEK) - 1));
+               int equivalenceValue =
+                  (cal.get(Calendar.MONTH) + 1) * 10 + cal.get(Calendar.WEEK_OF_MONTH);
 
-               if(mergedRef.getFullName().startsWith("WeekOfYear(") && value instanceof Integer) {
-                  cal.setMinimalDaysInFirstWeek(7);
-                  int weekMonthOfYear = (Integer) value;
-                  cal.set(Calendar.MONTH, weekMonthOfYear / 10 - 1);
-                  cal.set(Calendar.WEEK_OF_MONTH, weekMonthOfYear % 10);
-                  int equivalenceValue = (cal.get(Calendar.MONTH) + 1) * 10 + cal.get(Calendar.WEEK_OF_MONTH);
+               if(weekMonthOfYear != equivalenceValue) {
+                  MergePartCell equivalenceCell = new MergePartCell(this.originalValue);
+                  equivalenceCell.dateGroupValue = dateGroupValue;
+                  equivalenceCell.quarterOfYear = quarterOfYear;
+                  ArrayList<Object> newValues = new ArrayList<>(values);
+                  equivalenceCell.values = newValues;
+                  newValues.set(i, equivalenceValue);
 
-                  if(weekMonthOfYear != equivalenceValue) {
-                     MergePartCell equivalenceCell = new MergePartCell(this.originalValue);
-                     equivalenceCell.dateGroupValue = dateGroupValue;
-                     equivalenceCell.quarterOfYear = quarterOfYear;
-                     ArrayList<Object> newValues = new ArrayList<>(values);
-                     equivalenceCell.values = newValues;
-                     newValues.set(i, equivalenceValue);
-
-                     return equivalenceCell;
-                  }
+                  return equivalenceCell;
                }
             }
-         }
-         finally {
-            cal.setMinimalDaysInFirstWeek(minimalDaysInFirstWeek);
          }
 
          return null;

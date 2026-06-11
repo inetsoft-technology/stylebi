@@ -29,6 +29,8 @@ import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSFieldValue;
+import inetsoft.util.ThreadContext;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,8 +40,12 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
+import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.List;
+import java.util.Locale;
 
 import static inetsoft.test.XTableUtil.date;
 
@@ -151,5 +157,76 @@ public class DCMergeDatePartFilterTest {
       Assertions.assertNotNull(actual, "field value for the WeekOfYear column should be present");
       Assertions.assertEquals(expected, actual,
                               "drill field value should use the equivalence week, not the displayed part value");
+   }
+
+   // Bug #75351: a merged WeekOfYear bucket carries one period's part value, which can map
+   // to a different actual week in another period's year. getEquivalenceCell() must recompute
+   // the part value from the cell's own date (matching JavaScriptEngine.datePart("wy")), not
+   // from the stored part value. Deriving it from the stored value (the previous approach)
+   // failed when the first day of week was not Sunday, leaving drill-to-detail one week off.
+   @Test
+   public void testWeekOfYearEquivalenceUsesCellDateNonSundayWeekStart() {
+      Locale oldLocale = ThreadContext.getLocale();
+
+      try {
+         // Locale.UK uses Monday as the first day of week (no week.start property set), which
+         // is the configuration under which the previous fix failed.
+         ThreadContext.setLocale(Locale.UK);
+         Assertions.assertEquals(Calendar.MONDAY, Tool.getFirstDayOfWeek(),
+                                 "test requires a non-Sunday first day of week");
+
+         Date cellDate = date("2020-02-06");
+         // The bucket carries the comparison (other-year) period's week part value; here the
+         // 2021 bar's week is shared with the 2020 bar at the same axis position.
+         int storedPartValue = weekOfYearPart(date("2021-02-04"));
+         int actualWeekPart = weekOfYearPart(cellDate);
+
+         Assertions.assertNotEquals(actualWeekPart, storedPartValue,
+            "scenario requires the stored week part to differ from the cell's actual week");
+
+         DataSet dataSet = new DefaultDataSet(new Object[][]{
+            { "WeekOfYear(date)", "date" },
+            { storedPartValue, cellDate },
+            });
+         DataSetTable base = new DataSetTable(dataSet);
+
+         VSDimensionRef partRef = new VSDimensionRef();
+         partRef.setDataRef(new AttributeRef("WeekOfYear(date)"));
+         VSDimensionRef dateGroupRef = new VSDimensionRef();
+         dateGroupRef.setDataRef(new AttributeRef("date"));
+
+         DCMergeDatePartFilter filter =
+            new DCMergeDatePartFilter(base, new ArrayList<>(), partRef, dateGroupRef, null);
+
+         Object cell = filter.getObject(base.getHeaderRowCount(), 0);
+         Assertions.assertInstanceOf(DCMergeDatePartFilter.MergePartCell.class, cell);
+
+         DCMergeDatePartFilter.MergePartCell mpc = (DCMergeDatePartFilter.MergePartCell) cell;
+         Assertions.assertEquals(storedPartValue, ((Number) mpc.getValue(0)).intValue(),
+                                 "cell should carry the stored (other-period) week part value");
+
+         // The previous approach derived the equivalence value from the stored part value and,
+         // for a non-Sunday week start, produced the stored value again -- so getEquivalenceCell
+         // returned null and the drill stayed one week off. The fix derives it from the cell's
+         // actual date, so a corrected cell is now returned with the cell's real week.
+         DCMergeDatePartFilter.MergePartCell equivalenceCell = mpc.getEquivalenceCell();
+         Assertions.assertNotNull(equivalenceCell,
+            "equivalence cell expected when the stored week differs from the cell's actual week");
+         Assertions.assertEquals(actualWeekPart, ((Number) equivalenceCell.getValue(0)).intValue(),
+            "equivalence week must match the cell's actual date, not the stored part value");
+      }
+      finally {
+         ThreadContext.setLocale(oldLocale);
+      }
+   }
+
+   // Mirrors JavaScriptEngine.datePart("wy"): the week part value the data/query use.
+   private static int weekOfYearPart(Date dt) {
+      Calendar cal = new GregorianCalendar();
+      cal.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
+      cal.setMinimalDaysInFirstWeek(7);
+      cal.setTime(dt);
+      cal.add(Calendar.DATE, -(cal.get(Calendar.DAY_OF_WEEK) - 1));
+      return (cal.get(Calendar.MONTH) + 1) * 10 + cal.get(Calendar.WEEK_OF_MONTH);
    }
 }
