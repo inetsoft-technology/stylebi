@@ -1883,6 +1883,19 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
       this.ignoreDcTemp = ignoreDcTemp;
    }
 
+   /**
+    * Whether this is a date-comparison WeekOfYear part that uses the sequential
+    * week-of-year value (datePart 'ww') rather than the month*10+weekOfMonth encoding,
+    * so the same week aligns across comparison periods. (Bug #75351)
+    */
+   public boolean isDcSequentialWeek() {
+      return dcSequentialWeek;
+   }
+
+   public void setDcSequentialWeek(boolean dcSequentialWeek) {
+      this.dcSequentialWeek = dcSequentialWeek;
+   }
+
    public Integer getForceDcToDateWeekOfMonth() {
       return forceDcToDateWeekOfMonth;
    }
@@ -1892,6 +1905,7 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
    }
 
    private boolean ignoreDcTemp;
+   private boolean dcSequentialWeek;
    private static final String PERIOD_PREFIX = "P_";
    private DynamicValue groupValue;
    private DynamicValue rankingOptValue;

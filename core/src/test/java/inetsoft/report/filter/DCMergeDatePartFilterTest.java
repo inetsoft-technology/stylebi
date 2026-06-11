@@ -220,6 +220,60 @@ public class DCMergeDatePartFilterTest {
       }
    }
 
+   // Bug #75351: Same-Day comparison groups by the sequential week-of-year ('ww'), which already
+   // aligns across periods, so getEquivalenceCell() must NOT remap it (the month*10 math would
+   // corrupt a sequential value). A ref flagged dcSequentialWeek must skip the equivalence remap
+   // even in the same non-Sunday boundary scenario where the legacy 'wy' encoding diverges.
+   @Test
+   public void testSequentialWeekSkipsEquivalence() {
+      Locale oldLocale = ThreadContext.getLocale();
+
+      try {
+         ThreadContext.setLocale(Locale.UK);
+         Assertions.assertEquals(Calendar.MONDAY, Tool.getFirstDayOfWeek(),
+                                 "test requires a non-Sunday first day of week");
+
+         Date cellDate = date("2020-02-06");
+         // A sequential week-of-year value (datePart 'ww'), already aligned across periods.
+         int sequentialWeek = sequentialWeekOfYear(cellDate);
+
+         DataSet dataSet = new DefaultDataSet(new Object[][]{
+            { "WeekOfYear(date)", "date" },
+            { sequentialWeek, cellDate },
+            });
+         DataSetTable base = new DataSetTable(dataSet);
+
+         VSDimensionRef partRef = new VSDimensionRef();
+         partRef.setDataRef(new AttributeRef("WeekOfYear(date)"));
+         partRef.setDcSequentialWeek(true);
+         VSDimensionRef dateGroupRef = new VSDimensionRef();
+         dateGroupRef.setDataRef(new AttributeRef("date"));
+
+         DCMergeDatePartFilter filter =
+            new DCMergeDatePartFilter(base, new ArrayList<>(), partRef, dateGroupRef, null);
+
+         Object cell = filter.getObject(base.getHeaderRowCount(), 0);
+         Assertions.assertInstanceOf(DCMergeDatePartFilter.MergePartCell.class, cell);
+
+         DCMergeDatePartFilter.MergePartCell mpc = (DCMergeDatePartFilter.MergePartCell) cell;
+         Assertions.assertNull(mpc.getEquivalenceCell(),
+            "sequential-week part must skip the equivalence remap (it is already aligned)");
+      }
+      finally {
+         ThreadContext.setLocale(oldLocale);
+      }
+   }
+
+   // Mirrors JavaScriptEngine.datePart("ww", date, true): the sequential week-of-year value
+   // (read directly, with no week-start shift).
+   private static int sequentialWeekOfYear(Date dt) {
+      Calendar cal = new GregorianCalendar();
+      cal.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
+      cal.setMinimalDaysInFirstWeek(7);
+      cal.setTime(dt);
+      return cal.get(Calendar.WEEK_OF_YEAR);
+   }
+
    // Mirrors JavaScriptEngine.datePart("wy"): the week part value the data/query use.
    private static int weekOfYearPart(Date dt) {
       Calendar cal = new GregorianCalendar();

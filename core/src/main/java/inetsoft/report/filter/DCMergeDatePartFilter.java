@@ -290,7 +290,13 @@ public class DCMergeDatePartFilter extends AbstractTableLens implements TableFil
             XDimensionRef mergedRef = mergedRefs.get(i);
             Object value = getValue(i);
 
-            if(mergedRef.getFullName().startsWith("WeekOfYear(") && value instanceof Integer) {
+            // Sequential week-of-year ('ww') values already align across periods, so no
+            // equivalence remap is needed (and the month*10 math below would corrupt them).
+            // Only the legacy month*10+weekOfMonth ('wy') encoding needs the remap. (Bug #75351)
+            if(mergedRef.getFullName().startsWith("WeekOfYear(") && value instanceof Integer &&
+               !(mergedRef instanceof VSDimensionRef &&
+                 ((VSDimensionRef) mergedRef).isDcSequentialWeek()))
+            {
                int weekMonthOfYear = (Integer) value;
                // The merged bucket carries one period's week-of-year part value, which can map
                // to a different actual week in another period's year (e.g. the previous year's
