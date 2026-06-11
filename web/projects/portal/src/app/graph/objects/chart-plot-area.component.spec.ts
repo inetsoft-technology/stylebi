@@ -33,7 +33,9 @@ import { ChartObject } from "../model/chart-object";
 import { Plot } from "../model/plot";
 import { ChartTool } from "../model/chart-tool";
 import { ChartService } from "../services/chart.service";
+import { ChartConfigService } from "../services/chart-config.service";
 import { ChartPlotArea } from "./chart-plot-area.component";
+import { ChartInlineSvgDirective } from "./chart-inline-svg.directive";
 
 @Component({
    selector: "test-app",
@@ -471,6 +473,21 @@ describe("ChartPlotArea Integration Tests", () => {
       // Cursor at 200 is the wide polygon's center but should snap to the point.
       const primary = (component as any).findPrimarySnapRegion([narrowIdx, wideIdx], 200, 25);
       expect(primary.region.index).toBe(narrowIdx);
+   });
+
+   it("attaches the inline-svg directive when inlineSvg is enabled", () => {
+      TestBed.inject(ChartConfigService).inlineSvg = true;
+      const fixture = TestBed.createComponent(TestApp);
+      const debugEl = fixture.debugElement.query(By.css("chart-plot-area"));
+      const component: ChartPlotArea = debugEl.componentInstance;
+      vi.spyOn(component, "getSrc").mockImplementation(() => "");
+      fixture.detectChanges();
+
+      // Directive must be registered in the component imports, else [chartInlineSvg]
+      // binds to nothing and the plot never inlines (hover dimming breaks).
+      expect(fixture.debugElement.query(By.directive(ChartInlineSvgDirective))).toBeTruthy();
+      expect(fixture.debugElement.query(By.css(".chart-plot-area__tile img"))).toBeNull();
+      expect(component.inlineSvgTiles.length).toBeGreaterThan(0);
    });
 
    it.skip("should be able to select regions", () => {

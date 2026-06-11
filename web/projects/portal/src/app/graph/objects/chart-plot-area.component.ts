@@ -68,7 +68,7 @@ import { OutOfZoneDirective } from "../../widget/directive/out-of-zone.directive
             useExisting: ChartPlotArea
         }],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [SelectionBoxDirective, OutOfZoneDirective, ChartImageDirective]
+    imports: [SelectionBoxDirective, OutOfZoneDirective, ChartImageDirective, ChartInlineSvgDirective]
 })
 export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChanges {
    @Input() dataTip: string;
