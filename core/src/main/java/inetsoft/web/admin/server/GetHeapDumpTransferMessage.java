@@ -19,7 +19,7 @@ package inetsoft.web.admin.server;
 
 import java.io.Serializable;
 
-public class GetHeapDumpLengthCompleteMessage implements Serializable {
+public class GetHeapDumpTransferMessage implements Serializable {
    public String getId() {
       return id;
    }
@@ -28,14 +28,5 @@ public class GetHeapDumpLengthCompleteMessage implements Serializable {
       this.id = id;
    }
 
-   public long getLength() {
-      return length;
-   }
-
-   public void setLength(long length) {
-      this.length = length;
-   }
-
    private String id;
-   private long length;
 }

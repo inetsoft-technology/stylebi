@@ -54,11 +54,8 @@ public class ServerServiceMessageListener implements MessageListener {
       else if(event.getMessage() instanceof IsHeapDumpCompleteMessage) {
          handleIsHeapDumpCompleteMessage(sender, (IsHeapDumpCompleteMessage) event.getMessage());
       }
-      else if(event.getMessage() instanceof GetHeapDumpLengthMessage) {
-         handleGetHeapDumpLengthMessage(sender, (GetHeapDumpLengthMessage) event.getMessage());
-      }
-      else if(event.getMessage() instanceof GetHeapDumpContentMessage) {
-         handleGetHeapDumpContentMessage(sender, (GetHeapDumpContentMessage) event.getMessage());
+      else if(event.getMessage() instanceof GetHeapDumpTransferMessage) {
+         handleGetHeapDumpTransferMessage(sender, (GetHeapDumpTransferMessage) event.getMessage());
       }
       else if(event.getMessage() instanceof DisposeHeapDumpMessage) {
          handleDisposeHeapDumpMessage(sender, (DisposeHeapDumpMessage) event.getMessage());
@@ -79,7 +76,15 @@ public class ServerServiceMessageListener implements MessageListener {
 
    void handleCreateHeapDumpMessage(String sender) {
       CreateHeapDumpCompleteMessage message = new CreateHeapDumpCompleteMessage();
-      message.setId(createHeapDump());
+
+      try {
+         message.setId(createHeapDump());
+      }
+      catch(IllegalStateException e) {
+         LOG.warn("Cannot start heap dump: {}", e.getMessage());
+         // id remains null — the server side will detect this and surface a clear error
+         // rather than hanging until exchangeMessages times out.
+      }
 
       try {
          cluster.sendMessage(sender, message);
@@ -104,28 +109,21 @@ public class ServerServiceMessageListener implements MessageListener {
       }
    }
 
-   void handleGetHeapDumpLengthMessage(String sender,
-                                       GetHeapDumpLengthMessage reqMsg)
-   {
-      GetHeapDumpLengthCompleteMessage message = new GetHeapDumpLengthCompleteMessage();
+   void handleGetHeapDumpTransferMessage(String sender, GetHeapDumpTransferMessage reqMsg) {
+      GetHeapDumpTransferCompleteMessage message = new GetHeapDumpTransferCompleteMessage();
       message.setId(reqMsg.getId());
-      message.setLength(getHeapDumpLength(reqMsg.getId()));
 
       try {
-         cluster.sendMessage(sender, message);
+         File file = FileSystemService.getInstance().getCacheFile(reqMsg.getId() + ".hprof.gz");
+         if(file.isFile() && file.length() > 0) {
+            String link = cluster.addTransferFile(file);
+            message.setLink(link);
+            pendingTransferLinks.put(reqMsg.getId(), link);
+         }
       }
       catch(Exception e) {
-         LOG.warn("Failed to send the heap dump message", e);
+         LOG.warn("Failed to register heap dump file for transfer", e);
       }
-   }
-
-   void handleGetHeapDumpContentMessage(String sender,
-                                        GetHeapDumpContentMessage reqMsg)
-   {
-      GetHeapDumpContentCompleteMessage message = new GetHeapDumpContentCompleteMessage();
-      message.setId(reqMsg.getId());
-      message.setContent(getHeapDumpContent(reqMsg.getId(), reqMsg.getOffset(),
-                                                          reqMsg.getLength()));
 
       try {
          cluster.sendMessage(sender, message);
@@ -138,6 +136,8 @@ public class ServerServiceMessageListener implements MessageListener {
    void handleDisposeHeapDumpMessage(String sender,
                                      DisposeHeapDumpMessage reqMsg)
    {
+      disposeHeapDump(reqMsg.getId());
+
       DisposeHeapDumpCompleteMessage message = new DisposeHeapDumpCompleteMessage();
       message.setId(reqMsg.getId());
 
@@ -320,12 +320,23 @@ public class ServerServiceMessageListener implements MessageListener {
     */
    public String createHeapDump() {
       if(heapDumpId != null) {
-         throw new IllegalStateException("A heap dump is already in progress");
+         FileSystemService fss = FileSystemService.getInstance();
+         File staleIn = fss.getCacheFile(heapDumpId + ".hprof");
+         File staleOut = fss.getCacheFile(heapDumpId + ".hprof.gz");
+
+         if(staleIn.exists() || staleOut.exists()) {
+            throw new IllegalStateException("A heap dump is already in progress");
+         }
+
+         // Prior attempt timed out before creating any files; reset and allow a new attempt.
+         LOG.warn("Resetting stale heap dump state (id={}); no dump files found.", heapDumpId);
+         heapDumpId = null;
       }
 
       FileSystemService fileSystemService = FileSystemService.getInstance();
-      heapDumpId = UUID.randomUUID().toString();
-      final File inFile = fileSystemService.getCacheFile(heapDumpId + ".hprof");
+      final String dumpId = UUID.randomUUID().toString();
+      heapDumpId = dumpId;
+      final File inFile = fileSystemService.getCacheFile(dumpId + ".hprof");
       inFile.deleteOnExit();
       final File outFile = fileSystemService.getFile(
          inFile.getParentFile(), inFile.getName() + ".gz");
@@ -363,7 +374,11 @@ public class ServerServiceMessageListener implements MessageListener {
             }
          }
          finally {
-            heapDumpId = null;
+            // Only clear the field if it still refers to this dump; a timed-out retry
+            // may have already started a new dump and set a different ID.
+            if(dumpId.equals(heapDumpId)) {
+               heapDumpId = null;
+            }
 
             if(inFile.exists() && !inFile.delete()) {
                LOG.warn(
@@ -373,7 +388,7 @@ public class ServerServiceMessageListener implements MessageListener {
          }
       }).start();
 
-      return heapDumpId;
+      return dumpId;
    }
 
    /**
@@ -430,34 +445,30 @@ public class ServerServiceMessageListener implements MessageListener {
       return !file.isFile() ? 0L : file.length();
    }
 
-   /**
-    * Gets the length of a heap dump.
-    *
-    * @param id   the identifier returned from {@link #createHeapDump()}.
-    * @param node the address of the cluster node.
-    *
-    * @return the file length in bytes.
-    */
-   public long getHeapDumpLength(String id, String node) throws Exception {
+   public GetHeapDumpTransferCompleteMessage getHeapDumpInfo(String id, String node) throws Exception {
       if(node == null) {
-         return getHeapDumpLength(id);
+         GetHeapDumpTransferCompleteMessage local = new GetHeapDumpTransferCompleteMessage();
+         local.setId(id);
+         File file = FileSystemService.getInstance().getCacheFile(id + ".hprof.gz");
+
+         if(file.isFile() && file.length() > 0) {
+            String link = cluster.addTransferFile(file);
+            local.setLink(link);
+            pendingTransferLinks.put(id, link);
+         }
+
+         return local;
       }
 
-      GetHeapDumpLengthMessage req = new GetHeapDumpLengthMessage();
+      GetHeapDumpTransferMessage req = new GetHeapDumpTransferMessage();
       req.setId(id);
 
       return cluster.exchangeMessages(node, req, e -> {
-         Long result = null;
-
-         if(e.getMessage() instanceof GetHeapDumpLengthCompleteMessage) {
-            GetHeapDumpLengthCompleteMessage msg = (GetHeapDumpLengthCompleteMessage) e.getMessage();
-
-            if(msg.getId().equals(id)) {
-               result = msg.getLength();
-            }
+         if(e.getMessage() instanceof GetHeapDumpTransferCompleteMessage msg && msg.getId().equals(id)) {
+            return msg;
          }
 
-         return result;
+         return null;
       });
    }
 
@@ -495,49 +506,17 @@ public class ServerServiceMessageListener implements MessageListener {
    }
 
    /**
-    * Gets a block of content from a heap dump.
-    *
-    * @param id     the identifier returned from {@link #createHeapDump()}.
-    * @param offset the byte offset in the heap dump file at which the
-    *               content starts.
-    * @param length the length of the content to retrieve in bytes.
-    * @param node   the address of the cluster node.
-    *
-    * @return the file content.
-    */
-   public byte[] getHeapDumpContent(String id, long offset, int length, String node) throws Exception {
-      if(node == null) {
-         return getHeapDumpContent(id, offset, length);
-      }
-
-      GetHeapDumpContentMessage req = new GetHeapDumpContentMessage();
-      req.setId(id);
-      req.setOffset(offset);
-      req.setLength(length);
-
-      GetHeapDumpContentCompleteMessage message = cluster.exchangeMessages(node, req, e -> {
-         GetHeapDumpContentCompleteMessage result = null;
-
-         if(e.getMessage() instanceof GetHeapDumpContentCompleteMessage) {
-            GetHeapDumpContentCompleteMessage msg = (GetHeapDumpContentCompleteMessage) e.getMessage();
-
-            if(msg.getId().equals(id)) {
-               result = msg;
-            }
-         }
-
-         return result;
-      });
-
-      return message.getContent();
-   }
-
-   /**
     * Disposes of a heap dump.
     *
     * @param id the identifier returned from {@link #createHeapDump()}.
     */
    public void disposeHeapDump(String id) {
+      String link = pendingTransferLinks.remove(id);
+
+      if(link != null) {
+         cluster.cancelTransferFile(link);
+      }
+
       File file = FileSystemService.getInstance().getCacheFile( id + ".hprof.gz");
 
       if(file.exists() && !file.delete()) {
@@ -554,6 +533,7 @@ public class ServerServiceMessageListener implements MessageListener {
    public void disposeHeapDump(String id, String node) throws Exception {
       if(node == null) {
          disposeHeapDump(id);
+         return;
       }
 
       DisposeHeapDumpMessage req = new DisposeHeapDumpMessage();
@@ -576,5 +556,6 @@ public class ServerServiceMessageListener implements MessageListener {
 
    private final Cluster cluster;
    private String heapDumpId;
+   private final Map<String, String> pendingTransferLinks = new java.util.concurrent.ConcurrentHashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 }
