@@ -32,21 +32,21 @@ final class WizFieldInfoFactory {
    static DimensionFieldInfo createDimensionFieldInfo(VSDimensionRef dim) {
       DimensionFieldInfo info = baseDimensionFieldInfo(dim);
       info.setFullName(dim.getFullName());
-      applyDateGroup(info, dim, true);
+      applyDateGroup(info, dim);
       return info;
    }
 
    static DimensionFieldInfo createCrosstabDimensionFieldInfo(VSDimensionRef dim) {
       DimensionFieldInfo info = baseDimensionFieldInfo(dim);
       info.setType(dim.getDataType());
-      applyDateGroup(info, dim, false);
+      applyDateGroup(info, dim);
       return info;
    }
 
    static DimensionFieldInfo createChartDimensionFieldInfo(VSDimensionRef dim) {
       DimensionFieldInfo info = baseDimensionFieldInfo(dim);
       info.setFullName(dim.getFullName());
-      applyDateGroup(info, dim, false);
+      applyDateGroup(info, dim);
       return info;
    }
 
@@ -90,14 +90,10 @@ final class WizFieldInfoFactory {
       return info;
    }
 
-   private static void applyDateGroup(DimensionFieldInfo info, VSDimensionRef dim,
-                                      boolean requireDateType)
-   {
+   private static void applyDateGroup(DimensionFieldInfo info, VSDimensionRef dim) {
       int level = dim.getDateLevel();
 
-      if((!requireDateType || XSchema.isDateType(dim.getDataType())) &&
-         level != XConstants.NONE_DATE_GROUP)
-      {
+      if(XSchema.isDateType(dim.getDataType()) && level != XConstants.NONE_DATE_GROUP) {
          info.setDateGroupLevel(WizDateLevelUtil.getDateGroupLevelName(level));
          info.setTimeSeries(dim.isTimeSeries());
       }

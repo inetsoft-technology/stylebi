@@ -81,6 +81,11 @@ final class WizDateLevelUtil {
          case XConstants.HOUR_OF_DAY_DATE_GROUP -> "hour of day";
          case XConstants.MINUTE_OF_HOUR_DATE_GROUP -> "minute of hour";
          case XConstants.SECOND_OF_MINUTE_DATE_GROUP -> "second of minute";
+         case DateRangeRef.YEAR_OF_FULL_WEEK -> "year of week";
+         case DateRangeRef.QUARTER_OF_FULL_WEEK -> "quarter of week";
+         case DateRangeRef.MONTH_OF_FULL_WEEK -> "month of week";
+         case DateRangeRef.QUARTER_OF_FULL_WEEK_PART -> "quarter of week part";
+         case DateRangeRef.MONTH_OF_FULL_WEEK_PART -> "month of week part";
          default -> null;
       };
    }
