@@ -75,21 +75,14 @@ public class AutoBindingRequest {
     */
    private String visualizationType;
    /**
-    * Field configuration preferences (formerly "fieldConfigs").
-    * Carries optional per-field semantic annotations produced by the LLM
-    * (aggregateFormula, dateGroupLevel, ranking, etc.).  These are applied on top of
-    * the columns selected by {@link #visualizationUsedFields}; they do NOT drive
-    * which columns are bound — that is controlled exclusively by {@code visualizationUsedFields}.
+    * All fields to bind for visualization, each with its configuration
+    * (aggregateFormula, dateGroupLevel, ranking, sort order, etc.).
+    * This is the authoritative list: autoBinding filters the worksheet's
+    * {@code columnSelection} to exactly these columns and applies their configs.
+    * When empty or absent, all visible worksheet columns are eligible.
     */
    private List<SimpleFieldInfo> fieldConfigs;
 
-   /**
-    * Columns to bind, derived from the primary worksheet table assembly and reconciled with
-    * {@code selectFieldMappings}.  When non-empty, autoBinding filters the worksheet's
-    * {@code columnSelection} to exactly these columns (matched by {@code alias ?? name}).
-    * Takes precedence over {@link #fieldConfigs} for column selection.
-    */
-   private List<WorksheetColumnInfo> visualizationUsedFields;
    /**
     * Optional explicit slot assignments; may be null or empty.
     */
@@ -123,14 +116,6 @@ public class AutoBindingRequest {
 
    public void setViewsheetIdentifier(String viewsheetIdentifier) {
       this.viewsheetIdentifier = viewsheetIdentifier;
-   }
-
-   public List<WorksheetColumnInfo> getVisualizationUsedFields() {
-      return visualizationUsedFields;
-   }
-
-   public void setVisualizationUsedFields(List<WorksheetColumnInfo> visualizationUsedFields) {
-      this.visualizationUsedFields = visualizationUsedFields;
    }
 
    public String getWsTableName() {
