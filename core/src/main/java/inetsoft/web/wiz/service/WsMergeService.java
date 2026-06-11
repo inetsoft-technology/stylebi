@@ -34,6 +34,15 @@ import java.util.*;
  * (enabling cross-chart filter interaction). A new {@link MirrorTableAssembly} (tagged with
  * {@link #PROP_WIZ_MERGED}) is created on top of prevMirror only when the incoming table
  * carries its own conditions or aggregation that must be isolated.</p>
+ *
+ * <p><b>Known limitation — condition stacking:</b> When two charts share the same physical
+ * table and each has its own design-time pre/post conditions, chart2's condMirror is stacked
+ * on prevMirror (which already carries chart1's conditions). Because MirrorTableAssembly
+ * evaluates its own conditions on top of the mirrored table's result, chart2 is effectively
+ * filtered by chart1's conditions AND chart2's conditions combined. This is an inherent
+ * trade-off of sharing the node for cross-chart filter propagation; stacking on the bare
+ * {@code _base} would break that propagation. Callers should be aware that merging two charts
+ * with conflicting static filters on the same physical table may yield unexpected results.</p>
  */
 @Service
 public class WsMergeService {
@@ -90,7 +99,10 @@ public class WsMergeService {
                   ? baseName.substring(0, baseName.length() - 5)
                   : baseName;
 
-               TableAssembly prevMirror = (TableAssembly) dashWS.getAssembly(prevMirrorName);
+               Assembly prevAssembly = dashWS.getAssembly(prevMirrorName);
+               // Use instanceof guard rather than a raw cast: a name collision could place a
+               // non-table assembly at prevMirrorName, which would throw ClassCastException.
+               TableAssembly prevMirror = prevAssembly instanceof TableAssembly ta ? ta : null;
 
                if(prevMirror == null) {
                   // Unexpected: ensureBaseHasPrevMirror should always create the mirror.
@@ -104,7 +116,9 @@ public class WsMergeService {
                }
 
                // After mergeColumns may have added new columns to the base, refresh
-               // prevMirror's column selection so downstream mirrors and joins can see them.
+               // prevMirror's column selection so stacked mirrors (condMirror / cleanMirror)
+               // can see all columns transitively, even when they override their own selection.
+               // This runs unconditionally before the branch so any code path below benefits.
                ColumnSelection baseColumns = existingTable.getColumnSelection(true);
                ColumnSelection mirrorColumns = prevMirror.getColumnSelection(true).clone();
 
@@ -136,6 +150,11 @@ public class WsMergeService {
                   condMirror.setColumnSelection(srcBound.getColumnSelection(true).clone(), true);
                   condMirror.setPreConditionList(srcPre != null ? (ConditionListWrapper) srcPre.clone() : new ConditionList());
                   condMirror.setPostConditionList(srcPost != null ? (ConditionListWrapper) srcPost.clone() : new ConditionList());
+                  // MirrorTableAssembly.getAggregateInfo() returns its own field, not the
+                  // mirrored table's. Setting new AggregateInfo() when srcAggr is null means
+                  // "no additional aggregation on this mirror" — it does not suppress
+                  // prevMirror's aggregation. Verified: AbstractTableAssembly.getAggregateInfo()
+                  // returns ginfo (own field) at all levels; there is no inherited aggregation.
                   condMirror.setAggregateInfo(srcAggr != null ? (AggregateInfo) srcAggr.clone() : new AggregateInfo());
                   condMirror.setProperty(PROP_WIZ_MERGED, "true");
                   dashWS.addAssembly(condMirror);
@@ -171,9 +190,12 @@ public class WsMergeService {
                   else {
                      // prevMirror has no design-time conditions or aggregation — reuse it
                      // directly. srcBound's own column selection is not applied here —
-                     // prevMirror's expanded union selection (refreshed above) is used
-                     // instead, required for both charts to share a single node and enable
-                     // cross-chart filter interaction.
+                     // prevMirror's expanded union selection (refreshed above) is used instead,
+                     // required for both charts to share a single node and enable cross-chart
+                     // filter interaction. Side effect: chart1 (which also points to prevMirror)
+                     // gains visibility into chart2's columns. This is acceptable: the wiz
+                     // portal always requests explicit column sets, so extra visible columns in
+                     // the shared node do not affect chart1's rendered output.
                      wsRenameMap.put(srcBound.getName(), prevMirrorName);
                   }
                }
