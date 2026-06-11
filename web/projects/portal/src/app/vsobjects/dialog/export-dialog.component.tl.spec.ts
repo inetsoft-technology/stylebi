@@ -55,9 +55,9 @@ import { FileFormatPaneModel } from "../model/file-format-pane-model";
 import { FileFormatType } from "../model/file-format-type";
 
 // Allows partial overrides of the nested fileFormatPaneModel (deep merge in makeModel)
-type ModelOverrides = {
+interface ModelOverrides {
    fileFormatPaneModel?: Partial<FileFormatPaneModel>;
-};
+}
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
