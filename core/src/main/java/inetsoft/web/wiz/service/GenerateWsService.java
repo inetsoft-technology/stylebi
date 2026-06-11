@@ -40,7 +40,7 @@ import org.springframework.stereotype.Service;
 import java.security.Principal;
 import java.util.*;
 
-import static inetsoft.web.wiz.service.WizVsService.getDateGroupLevel;
+import static inetsoft.web.wiz.service.WizDateLevelUtil.getDateGroupLevel;
 
 @Service
 public class GenerateWsService {

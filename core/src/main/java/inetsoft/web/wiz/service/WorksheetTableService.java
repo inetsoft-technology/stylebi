@@ -39,7 +39,7 @@ import java.security.Principal;
 import java.util.*;
 
 import static inetsoft.web.wiz.service.GenerateWsService.WORKSHEET_ROOT_FOLDER_PATH;
-import static inetsoft.web.wiz.service.WizVsService.getDateGroupLevel;
+import static inetsoft.web.wiz.service.WizDateLevelUtil.getDateGroupLevel;
 
 /**
  * Implements the incremental worksheet-table creation endpoint (/ws/table).

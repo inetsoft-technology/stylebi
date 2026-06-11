@@ -1046,34 +1046,40 @@ public class WizVsService {
 
       if(ref instanceof VSDimensionRef dim) {
          if(seen.add(dim.getFullName())) {
-            DimensionFieldInfo info = new DimensionFieldInfo();
-            info.setField(dim.getGroupColumnValue());
-            info.setFullName(dim.getFullName());
-            int dateLevel = dim.getDateLevel();
-
-            if(XSchema.isDateType(dim.getDataType()) && dateLevel != XConstants.NONE_DATE_GROUP) {
-               info.setDateGroupLevel(getDateGroupLevelName(dateLevel));
-            }
-
-            dimensions.add(info);
+            dimensions.add(WizFieldInfoFactory.createDimensionFieldInfo(dim));
          }
       }
       else if(ref instanceof VSAggregateRef agg) {
          if(seen.add(agg.getFullName())) {
-            MeasureFieldInfo info = new MeasureFieldInfo();
-            info.setField(agg.getColumnValue());
-            info.setFullName(agg.getFullName());
-            info.setAggregateFormula(agg.getFormulaValue());
+            measures.add(WizFieldInfoFactory.createMeasureFieldInfo(agg));
+         }
+      }
+   }
 
-            if(agg.getSecondaryColumnValue() != null) {
-               info.setSecondaryField(agg.getSecondaryColumnValue());
-            }
+   private static void collectDimensionFieldInfos(DataRef[] refs,
+                                                  List<DimensionFieldInfo> dimensions)
+   {
+      if(refs == null) {
+         return;
+      }
 
-            if(agg.getN() != 0) {
-               info.setNOrP(agg.getN());
-            }
+      for(DataRef ref : refs) {
+         if(ref instanceof VSDimensionRef dim) {
+            dimensions.add(WizFieldInfoFactory.createDimensionFieldInfo(dim));
+         }
+      }
+   }
 
-            measures.add(info);
+   private static void collectMeasureFieldInfos(DataRef[] refs,
+                                                List<MeasureFieldInfo> measures)
+   {
+      if(refs == null) {
+         return;
+      }
+
+      for(DataRef ref : refs) {
+         if(ref instanceof VSAggregateRef agg) {
+            measures.add(WizFieldInfoFactory.createMeasureFieldInfo(agg));
          }
       }
    }
@@ -1085,60 +1091,9 @@ public class WizVsService {
       List<DimensionFieldInfo> dimensions = new ArrayList<>();
       List<MeasureFieldInfo> measures = new ArrayList<>();
 
-      if(cinfo.getDesignRowHeaders() != null) {
-         for(DataRef ref : cinfo.getDesignRowHeaders()) {
-            if(ref instanceof VSDimensionRef dim) {
-               DimensionFieldInfo info = new DimensionFieldInfo();
-               info.setField(dim.getGroupColumnValue());
-               info.setFullName(dim.getFullName());
-               int dateLevel = dim.getDateLevel();
-
-               if(XSchema.isDateType(dim.getDataType()) && dateLevel != XConstants.NONE_DATE_GROUP) {
-                  info.setDateGroupLevel(getDateGroupLevelName(dateLevel));
-               }
-
-               dimensions.add(info);
-            }
-         }
-      }
-
-      if(cinfo.getDesignColHeaders() != null) {
-         for(DataRef ref : cinfo.getDesignColHeaders()) {
-            if(ref instanceof VSDimensionRef dim) {
-               DimensionFieldInfo info = new DimensionFieldInfo();
-               info.setField(dim.getGroupColumnValue());
-               info.setFullName(dim.getFullName());
-               int dateLevel = dim.getDateLevel();
-
-               if(XSchema.isDateType(dim.getDataType()) && dateLevel != XConstants.NONE_DATE_GROUP) {
-                  info.setDateGroupLevel(getDateGroupLevelName(dateLevel));
-               }
-
-               dimensions.add(info);
-            }
-         }
-      }
-
-      if(cinfo.getDesignAggregates() != null) {
-         for(DataRef ref : cinfo.getDesignAggregates()) {
-            if(ref instanceof VSAggregateRef agg) {
-               MeasureFieldInfo info = new MeasureFieldInfo();
-               info.setField(agg.getColumnValue());
-               info.setFullName(agg.getFullName());
-               info.setAggregateFormula(agg.getFormulaValue());
-
-               if(agg.getSecondaryColumnValue() != null) {
-                  info.setSecondaryField(agg.getSecondaryColumnValue());
-               }
-
-               if(agg.getN() != 0) {
-                  info.setNOrP(agg.getN());
-               }
-
-               measures.add(info);
-            }
-         }
-      }
+      collectDimensionFieldInfos(cinfo.getDesignRowHeaders(), dimensions);
+      collectDimensionFieldInfos(cinfo.getDesignColHeaders(), dimensions);
+      collectMeasureFieldInfos(cinfo.getDesignAggregates(), measures);
 
       if(dimensions.isEmpty() && measures.isEmpty()) {
          return null;
@@ -1917,6 +1872,7 @@ public class WizVsService {
 
       if(dim != null && dim.getDateGroupLevel() != null) {
          ref.setDateLevelValue(String.valueOf(getDateGroupLevel(dim.getDateGroupLevel())));
+         ref.setTimeSeries(dim.isTimeSeries());
       }
 
       if(dim != null && dim.getRanking() != null) {
@@ -1939,6 +1895,7 @@ public class WizVsService {
 
       if(field.getDateGroupLevel() != null) {
          ref.setDateLevelValue(String.valueOf(getDateGroupLevel(field.getDateGroupLevel())));
+         ref.setTimeSeries(field.isTimeSeries());
       }
 
       if(field.getRanking() != null) {
@@ -2019,48 +1976,7 @@ public class WizVsService {
    }
 
    public static int getDateGroupLevel(String level) {
-      if(level == null) {
-         return XConstants.NONE_DATE_GROUP;
-      }
-
-      // Map dateLevels.ts 'name' values to DateRangeRef expected format
-      String mappedLevel = switch(level.toLowerCase()) {
-         // Interval levels
-         case "year" -> "Year";
-         case "quarter" -> "Quarter";
-         case "month" -> "Month";
-         case "week" -> "Week";
-         case "day" -> "Day";
-         case "hour" -> "Hour";
-         case "minute" -> "Minute";
-         case "second" -> "Second";
-         // Part levels
-         case "quarter of year" -> "QuarterOfYear";
-         case "month of year" -> "MonthOfYear";
-         case "week of year" -> "WeekOfYear";
-         case "week of month" -> "WeekOfMonth";
-         case "day of year" -> "DayOfYear";
-         case "day of month" -> "DayOfMonth";
-         case "day of week" -> "DayOfWeek";
-         case "hour of day" -> "HourOfDay";
-         case "minute of hour" -> "MinuteOfHour";
-         case "second of minute" -> "SecondOfMinute";
-         // Full week levels
-         case "year of week" -> "YearOfWeek";
-         case "quarter of week" -> "QuarterOfWeek";
-         case "month of week" -> "MonthOfWeek";
-         case "quarter of week part" -> "QuarterOfWeekN";
-         case "month of week part" -> "MonthOfWeekN";
-         // None
-         case "none" -> null;
-         default -> throw new IllegalArgumentException("Unsupported date level: " + level);
-      };
-
-      if(mappedLevel == null) {
-         return XConstants.NONE_DATE_GROUP;
-      }
-
-      return DateRangeRef.getDateRangeOption(mappedLevel);
+      return WizDateLevelUtil.getDateGroupLevel(level);
    }
 
    /**
@@ -2073,30 +1989,7 @@ public class WizVsService {
     * @return the human-readable name, or null if level is NONE_DATE_GROUP or unrecognized
     */
    public static String getDateGroupLevelName(int level) {
-      return switch(level) {
-         // Interval levels
-         case XConstants.YEAR_DATE_GROUP -> "year";
-         case XConstants.QUARTER_DATE_GROUP -> "quarter";
-         case XConstants.MONTH_DATE_GROUP -> "month";
-         case XConstants.WEEK_DATE_GROUP -> "week";
-         case XConstants.DAY_DATE_GROUP -> "day";
-         case XConstants.HOUR_DATE_GROUP -> "hour";
-         case XConstants.MINUTE_DATE_GROUP -> "minute";
-         case XConstants.SECOND_DATE_GROUP -> "second";
-         // Part levels
-         case XConstants.QUARTER_OF_YEAR_DATE_GROUP -> "quarter of year";
-         case XConstants.MONTH_OF_YEAR_DATE_GROUP -> "month of year";
-         case XConstants.WEEK_OF_YEAR_DATE_GROUP -> "week of year";
-         case XConstants.WEEK_OF_MONTH_DATE_GROUP -> "week of month";
-         case XConstants.DAY_OF_YEAR_DATE_GROUP -> "day of year";
-         case XConstants.DAY_OF_MONTH_DATE_GROUP -> "day of month";
-         case XConstants.DAY_OF_WEEK_DATE_GROUP -> "day of week";
-         case XConstants.HOUR_OF_DAY_DATE_GROUP -> "hour of day";
-         case XConstants.MINUTE_OF_HOUR_DATE_GROUP -> "minute of hour";
-         case XConstants.SECOND_OF_MINUTE_DATE_GROUP -> "second of minute";
-         // None or unrecognized
-         default -> null;
-      };
+      return WizDateLevelUtil.getDateGroupLevelName(level);
    }
 
    /**
@@ -2423,6 +2316,7 @@ public class WizVsService {
                }
 
                groupRef = new GroupRef(dateCol);
+               groupRef.setTimeSeries(dim.isTimeSeries());
                groupRef.setDateGroup(dateLevel);
                dimColumnMapping.add(fullName);
             }

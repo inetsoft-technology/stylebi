@@ -45,7 +45,16 @@ public class DimensionFieldInfo extends SimpleFieldInfo {
       this.fullName = fullName;
    }
 
+   public boolean isTimeSeries() {
+      return timeSeries;
+   }
+
+   public void setTimeSeries(boolean timeSeries) {
+      this.timeSeries = timeSeries;
+   }
+
    private String dateGroupLevel;
    private Ranking ranking;
    private String fullName;
+   private boolean timeSeries = false;
 }
