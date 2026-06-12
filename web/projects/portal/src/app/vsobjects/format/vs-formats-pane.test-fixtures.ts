@@ -72,7 +72,9 @@ export function resetMocks(): void {
    MessageDialog.lastMessageTS = 0;
    MODAL_MOCK.open.mockClear();
    DEBOUNCE_MOCK.debounce.mockClear();
+   DEBOUNCE_MOCK.cancel.mockClear();
    FONT_SERVICE_MOCK.getAllFonts.mockClear();
+   FONT_SERVICE_MOCK.getAllFonts.mockReturnValue(of(["Arial", "Roboto"]));
    MODEL_SERVICE_MOCK.getModel.mockClear();
    MODEL_SERVICE_MOCK.getModel.mockReturnValue(of(null));
 }

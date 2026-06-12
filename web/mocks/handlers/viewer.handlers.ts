@@ -20,8 +20,9 @@
  * MSW handlers for Viewer endpoints.
  *
  * Covers the ../api/vs/**, ../api/viewsheet/** API paths
- * used by components in the viewer. All defaults are the "happy path"
- * minimal responses needed for a component to finish initialisation without errors.
+ * used by components in the viewer. All defaults are "happy path" responses;
+ * simple endpoints return the minimal shape, model endpoints return the complete
+ * default model so that dialogs opened downstream do not hit missing-field errors.
  *
  * Per-test overrides:
  *   import { server } from '<path>/mocks/server';
