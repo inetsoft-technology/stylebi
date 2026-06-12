@@ -1357,7 +1357,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       if(this.updateEnabled) {
          const interval: number = this.touchInterval ? this.touchInterval * 1000 : 60000;
          this.serverUpdateSubscription = this.heartbeatWorkerService
-            .createHeartbeat("viewsheet-update", interval)
+            .createHeartbeat(this.runtimeId + "-viewsheet-update", interval)
             .subscribe(() => {
                const event = new TouchAssetEvent();
                event.setDesign(false);

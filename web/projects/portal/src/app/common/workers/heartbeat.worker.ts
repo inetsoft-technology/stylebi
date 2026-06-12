@@ -26,6 +26,8 @@ addEventListener("message", (event: MessageEvent) => {
    if(type === "start") {
       if(!intervalMs || intervalMs <= 0) return;
 
+      // A second start for the same id replaces the existing interval (timer is restarted).
+      // Callers must use unique ids per concurrent heartbeat to avoid unintended resets.
       if(intervals.has(id)) {
          clearInterval(intervals.get(id)!);
       }

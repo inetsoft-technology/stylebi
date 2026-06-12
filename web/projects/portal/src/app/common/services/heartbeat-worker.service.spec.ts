@@ -72,7 +72,9 @@ describe("HeartbeatWorkerService", () => {
    });
 
    it("should fall back to setInterval when Worker is unavailable", () => {
-      // Use a fresh service instance with no worker injected so the fallback path is exercised
+      // Use a fresh service instance with no worker injected so the fallback path is exercised.
+      // In Node/Vitest, typeof Worker === "undefined", so getWorker() returns null
+      // and createHeartbeat falls through to the setInterval path.
       TestBed.resetTestingModule();
       TestBed.configureTestingModule({});
       const fallbackService = TestBed.inject(HeartbeatWorkerService);

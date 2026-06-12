@@ -57,7 +57,7 @@ export class HeartbeatWorkerService implements OnDestroy {
 
          return () => {
             worker.removeEventListener("message", onMessage);
-            worker.postMessage({ type: "stop", id });
+            try { worker.postMessage({ type: "stop", id }); } catch { /* worker already terminated */ }
          };
       });
    }

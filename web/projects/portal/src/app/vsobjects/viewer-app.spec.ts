@@ -555,11 +555,12 @@ describe("ViewerApp Unit Tests", () => {
          assetLoadingService, viewContainerRef, baseHrefService,
          currentUserService as any, heartbeatWorkerService);
 
+      viewerApp.runtimeId = "test-runtime-id";
       viewerApp["updateEnabled"] = true;
       viewerApp.setServerUpdateInterval();
 
       expect(heartbeatWorkerService.createHeartbeat)
-         .toHaveBeenCalledWith("viewsheet-update", 60000);
+         .toHaveBeenCalledWith("test-runtime-id-viewsheet-update", 60000);
       expect(subscribeSpy).toHaveBeenCalled();
    });
 
