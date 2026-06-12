@@ -472,9 +472,7 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
       AssetEntry entry = getAssetEntry();
       entry.setAlias(alias);
 
-      // clear bookmarks here for new viewsheet imported
       AssetRepository engine = AssetUtil.getAssetRepository(false);
-      engine.clearVSBookmark(entry);
 
       if(usersList == null) {
          return;
@@ -485,13 +483,47 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
             continue;
          }
 
-         VSBookmark vsBookmark = new VSBookmark();
-         Node userBookmark = usersList.item(i);
-         IdentityID identityID = IdentityID.getIdentityIDFromKey(Tool.getChildValueByTagName(userBookmark, "name"));
+         Element userBookmark = (Element) usersList.item(i);
+         String name = Tool.getChildValueByTagName(userBookmark, "name");
+         Element bookmarkElem = Tool.getChildNodeByTagName(userBookmark, "bookmarks");
+
+         if(name == null || bookmarkElem == null) {
+            LOG.warn("Skipping malformed bookmark entry in import (missing name or bookmarks element)");
+            continue;
+         }
+
+         VSBookmark imported = new VSBookmark();
+         imported.parseXML(bookmarkElem);
+
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(name);
          identityID.setOrgID(OrganizationManager.getInstance().getCurrentOrgID());
-         Element bookmark = Tool.getChildNodeByTagName(userBookmark, "bookmarks");
-         vsBookmark.parseXML(bookmark);
-         engine.setVSBookmark(entry, vsBookmark, new XPrincipal(identityID));
+         XPrincipal principal = new XPrincipal(identityID);
+         VSBookmark existing = engine.getVSBookmark(entry, principal);
+
+         if(existing != null) {
+            XAssetConfig config = getConfig();
+            @SuppressWarnings("unchecked")
+            Map<String, Boolean> resolutions = config != null
+               ? (Map<String, Boolean>) config.getContextAttribute("bookmarkResolutions")
+               : null;
+
+            if(resolutions != null) {
+               // Remove names where the admin chose to keep the existing (current) bookmark.
+               for(String bName : new ArrayList<>(Arrays.asList(imported.getBookmarks()))) {
+                  String key = entry.getPath() + "|" + name + "|" + bName;
+
+                  if(Boolean.FALSE.equals(resolutions.get(key))) {
+                     imported.removeBookmark(bName);
+                  }
+               }
+            }
+
+            existing.mergeFrom(imported);
+            engine.setVSBookmark(entry, existing, principal);
+         }
+         else {
+            engine.setVSBookmark(entry, imported, principal);
+         }
       }
    }
 

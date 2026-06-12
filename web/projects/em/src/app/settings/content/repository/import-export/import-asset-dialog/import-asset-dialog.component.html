@@ -33,7 +33,7 @@
       <div class="flex-spacer"></div>
     </ng-container>
   }
-  @if (uploaded) {
+  @if (uploaded && !showBookmarkConflicts) {
     <ng-container [formGroup]="importForm">
       <div class="property-card">
         <div>
@@ -75,19 +75,86 @@
       </div>
     </ng-container>
   }
+  @if (uploaded && showBookmarkConflicts) {
+    <div class="bookmark-conflicts-container">
+      <p class="conflict-description">_#(em.import.bookmark.conflictDescription)</p>
+      <div class="conflict-bulk-actions">
+        <button mat-button (click)="setAllKeepImported(false)">_#(Keep All Current)</button>
+        <button mat-button (click)="setAllKeepImported(true)">_#(Keep All Import)</button>
+        <button mat-button (click)="setAllKeepLatest()">_#(Keep All Latest)</button>
+      </div>
+      <div class="conflict-table-wrapper">
+      <table mat-table [dataSource]="conflictTableData" class="bookmark-conflict-table">
+        <ng-container matColumnDef="groupHeader">
+          <td mat-cell *matCellDef="let row" [attr.colspan]="conflictColumns.length" class="group-header-cell">
+            {{row.viewsheetPath}}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="user">
+          <th mat-header-cell *matHeaderCellDef>_#(User)</th>
+          <td mat-cell *matCellDef="let row">{{row.conflict?.user}}</td>
+        </ng-container>
+        <ng-container matColumnDef="bookmarkName">
+          <th mat-header-cell *matHeaderCellDef>_#(Bookmark)</th>
+          <td mat-cell *matCellDef="let row">{{row.conflict?.bookmarkName}}</td>
+        </ng-container>
+        <ng-container matColumnDef="existingModified">
+          <th mat-header-cell *matHeaderCellDef>_#(Current Modified)</th>
+          <td mat-cell *matCellDef="let row"
+              [class.time-newer]="row.conflict?.existingModified > row.conflict?.importedModified"
+              [class.time-older]="row.conflict?.existingModified < row.conflict?.importedModified">
+            {{row.conflict?.existingModifiedLabel}}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="importedModified">
+          <th mat-header-cell *matHeaderCellDef>_#(Import Modified)</th>
+          <td mat-cell *matCellDef="let row"
+              [class.time-newer]="row.conflict?.importedModified > row.conflict?.existingModified"
+              [class.time-older]="row.conflict?.importedModified < row.conflict?.existingModified">
+            {{row.conflict?.importedModifiedLabel}}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="keep">
+          <th mat-header-cell *matHeaderCellDef>_#(Keep)</th>
+          <td mat-cell *matCellDef="let row">
+            <div class="conflict-radio-group" *ngIf="row.conflict">
+              <mat-radio-button [name]="row.conflict.viewsheetPath + '|' + row.conflict.user + '|' + row.conflict.bookmarkName"
+                                [value]="false" [checked]="!getResolution(row.conflict)"
+                                (change)="setResolution(row.conflict, false)">_#(Current)</mat-radio-button>
+              <mat-radio-button [name]="row.conflict.viewsheetPath + '|' + row.conflict.user + '|' + row.conflict.bookmarkName"
+                                [value]="true" [checked]="getResolution(row.conflict)"
+                                (change)="setResolution(row.conflict, true)">_#(Import)</mat-radio-button>
+            </div>
+          </td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="conflictColumns; sticky: true"></tr>
+        <tr mat-row *matRowDef="let row; columns: ['groupHeader']; when: isGroupHeader" class="viewsheet-header-row"></tr>
+        <tr mat-row *matRowDef="let row; columns: conflictColumns"></tr>
+      </table>
+      </div>
+    </div>
+  }
   <div class="progress-bar-container">
     <mat-progress-bar mode="indeterminate"></mat-progress-bar>
   </div>
 </div>
 <div mat-dialog-actions>
-  @if (uploaded) {
+  @if (uploaded && showBookmarkConflicts) {
+    <button mat-button (click)="backFromConflicts()">_#(Back)</button>
+  } @else if (uploaded) {
     <button mat-button (click)="back()">_#(Back)</button>
   }
   @if (!uploaded) {
     <button mat-raised-button color="primary" [disabled]="uploadForm.invalid || loading" (click)="upload()">_#(Next)</button>
   }
-  @if (uploaded) {
-    <button mat-raised-button color="primary" (click)="finish()" [disabled]="loading">_#(Finish)</button>
+  @if (uploaded && showBookmarkConflicts) {
+    <button mat-raised-button color="primary" (click)="finishWithResolutions()" [disabled]="loading || conflictsLoading">_#(Finish)</button>
+  } @else if (uploaded) {
+    @if (bookmarkConflicts.length > 0) {
+      <button mat-raised-button color="primary" (click)="finish()" [disabled]="loading || conflictsLoading">_#(Next)</button>
+    } @else {
+      <button mat-raised-button color="primary" (click)="finish()" [disabled]="loading || conflictsLoading">_#(Finish)</button>
+    }
   }
   <button mat-button (click)="cancel()">_#(Cancel)</button>
 </div>

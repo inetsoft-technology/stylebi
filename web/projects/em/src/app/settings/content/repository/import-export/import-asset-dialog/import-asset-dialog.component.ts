@@ -32,6 +32,9 @@ import { RepositoryFlatNode, RepositoryTreeNode } from "../../repository-tree-no
 import { ExportedAssetsModel } from "../exported-assets-model";
 import { RequiredAssetModel } from "../required-asset-model";
 import { SelectAssetFolderDialogComponent } from "../select-asset-folder-dialog/select-asset-folder-dialog.component";
+import { BookmarkConflict } from "../bookmark-conflict";
+import { BookmarkConflictResolution } from "../bookmark-conflict-resolution";
+import { ImportAssetRequest } from "../import-asset-request";
 import { MatProgressBar } from "@angular/material/progress-bar";
 import { RequiredAssetListComponent } from "../required-asset-list/required-asset-list.component";
 import { SelectedAssetListComponent } from "../selected-asset-list/selected-asset-list.component";
@@ -41,7 +44,8 @@ import { MatInput } from "@angular/material/input";
 import { MatIcon } from "@angular/material/icon";
 import { FileChooserComponent } from "../../../../../common/util/file-chooser/file-chooser/file-chooser.component";
 import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
-
+import { MatTable, MatHeaderCellDef, MatCellDef, MatHeaderRowDef, MatRowDef, MatHeaderCell, MatCell, MatHeaderRow, MatRow, MatColumnDef } from "@angular/material/table";
+import { MatRadioButton, MatRadioGroup } from "@angular/material/radio";
 import { ModalHeaderComponent } from "../../../../../common/util/modal-header/modal-header.component";
 import { NgIf } from "@angular/common";
 
@@ -50,7 +54,7 @@ import { NgIf } from "@angular/common";
     templateUrl: "./import-asset-dialog.component.html",
     styleUrls: ["./import-asset-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, FileChooserComponent, MatIcon, MatSuffix, MatError, MatInput, MatIconButton, MatCheckbox, SelectedAssetListComponent, RequiredAssetListComponent, MatProgressBar, MatDialogActions, MatButton]
+    imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, FileChooserComponent, MatIcon, MatSuffix, MatError, MatInput, MatIconButton, MatCheckbox, SelectedAssetListComponent, RequiredAssetListComponent, MatProgressBar, MatDialogActions, MatButton, MatTable, MatColumnDef, MatHeaderCellDef, MatCellDef, MatHeaderRowDef, MatRowDef, MatHeaderCell, MatCell, MatHeaderRow, MatRow, MatRadioGroup, MatRadioButton]
 })
 export class ImportAssetDialogComponent implements OnDestroy {
    @HostBinding("class") hostClass = "import-asset-dialog";
@@ -58,6 +62,13 @@ export class ImportAssetDialogComponent implements OnDestroy {
    importForm: UntypedFormGroup;
    selected: RequiredAssetModel[] = [];
    uploaded = false;
+   showBookmarkConflicts = false;
+   bookmarkConflicts: BookmarkConflict[] = [];
+   conflictsLoading = false;
+   conflictTableData: Array<{kind: "header", viewsheetPath: string} | {kind: "row", conflict: BookmarkConflict}> = [];
+   readonly conflictColumns = ["user", "bookmarkName", "existingModified", "importedModified", "keep"];
+   isGroupHeader = (_: number, row: any) => row.kind === "header";
+   private bookmarkResolutions: BookmarkConflictResolution[] = [];
    private targetNode: RepositoryFlatNode;
 
    get loading(): boolean {
@@ -189,6 +200,72 @@ export class ImportAssetDialogComponent implements OnDestroy {
    }
 
    finish(): void {
+      if(this.bookmarkConflicts.length > 0) {
+         this.showBookmarkConflicts = true;
+         return;
+      }
+
+      this.doImport([]);
+   }
+
+   finishWithResolutions(): void {
+      this.doImport(this.bookmarkResolutions.filter(r => !r.keepImported));
+   }
+
+   backFromConflicts(): void {
+      this.showBookmarkConflicts = false;
+   }
+
+   getResolution(conflict: BookmarkConflict): boolean {
+      const r = this.bookmarkResolutions.find(
+         x => x.viewsheetPath === conflict.viewsheetPath &&
+              x.user === conflict.user &&
+              x.bookmarkName === conflict.bookmarkName);
+      return r ? r.keepImported : true;
+   }
+
+   setResolution(conflict: BookmarkConflict, keepImported: boolean): void {
+      const r = this.bookmarkResolutions.find(
+         x => x.viewsheetPath === conflict.viewsheetPath &&
+              x.user === conflict.user &&
+              x.bookmarkName === conflict.bookmarkName);
+      if(r) {
+         r.keepImported = keepImported;
+      }
+   }
+
+   setAllKeepImported(keepImported: boolean): void {
+      this.bookmarkResolutions.forEach(r => r.keepImported = keepImported);
+   }
+
+   setAllKeepLatest(): void {
+      this.bookmarkConflicts.forEach(c => {
+         const r = this.bookmarkResolutions.find(
+            x => x.viewsheetPath === c.viewsheetPath &&
+                 x.user === c.user &&
+                 x.bookmarkName === c.bookmarkName);
+         if(r) {
+            r.keepImported = c.importedModified >= c.existingModified;
+         }
+      });
+   }
+
+   private buildConflictTableData(): void {
+      const map = new Map<string, BookmarkConflict[]>();
+      for(const c of this.bookmarkConflicts) {
+         const group = map.get(c.viewsheetPath) || [];
+         group.push(c);
+         map.set(c.viewsheetPath, group);
+      }
+      const rows: typeof this.conflictTableData = [];
+      for(const [viewsheetPath, conflicts] of map.entries()) {
+         rows.push({kind: "header", viewsheetPath});
+         conflicts.forEach(c => rows.push({kind: "row", conflict: c}));
+      }
+      this.conflictTableData = rows;
+   }
+
+   private doImport(bookmarkResolutions: BookmarkConflictResolution[]): void {
       let targetLocation = this.targetNode?.data;
       this.loading = true;
       const ignoreList = this.model.dependentAssets
@@ -213,9 +290,11 @@ export class ImportAssetDialogComponent implements OnDestroy {
          }
       }
 
+      const requestBody: ImportAssetRequest = { ignoreList, bookmarkResolutions };
+
       timer(0, 2000) // poll every 2 seconds
          .pipe(
-            switchMap(() => this.http.post<ImportAssetResponse>(uri, ignoreList, options)),
+            switchMap(() => this.http.post<ImportAssetResponse>(uri, requestBody, options)),
             filter(response => response.complete),
             take(1),
             timeout(600000) // time out after 10 minutes
@@ -224,6 +303,58 @@ export class ImportAssetDialogComponent implements OnDestroy {
             response => this.onImportComplete(response),
             err => this.handleImportError(err)
          );
+   }
+
+   private fetchBookmarkConflicts(): void {
+      const ignoreList = this.model?.dependentAssets
+         ?.map((asset) => this.isAssetIgnored(asset) ? asset.index : -1)
+         .filter(i => i !== -1)
+         .map(i => `${i}`) ?? [];
+
+      let params = new HttpParams();
+
+      for(const item of ignoreList) {
+         params = params.append("ignoreList", item);
+      }
+
+      const targetLocation = this.targetNode?.data;
+
+      if(targetLocation) {
+         params = params
+            .set("targetLocation", targetLocation.path)
+            .set("locationType", targetLocation.type)
+            .set("dependenciesApplyTarget", this.importForm.get("dependenciesApplyTarget").value);
+
+         if(targetLocation.owner) {
+            params = params.set("locationUser", convertToKey(targetLocation.owner));
+         }
+      }
+
+      const uri = `../api/em/content/repository/import-bookmark-conflicts/${this.model?.importId}`;
+      this.conflictsLoading = true;
+      this.http.get<BookmarkConflict[]>(uri, { params })
+         .pipe(catchError(err => { this.conflictsLoading = false; return throwError(err); }))
+         .subscribe(conflicts => {
+            this.conflictsLoading = false;
+            this.bookmarkConflicts = (conflicts || []).sort((a, b) => {
+               const aDiffers = a.existingModified !== a.importedModified ? 0 : 1;
+               const bDiffers = b.existingModified !== b.importedModified ? 0 : 1;
+               return aDiffers - bDiffers;
+            });
+            this.buildConflictTableData();
+            this.bookmarkResolutions = this.bookmarkConflicts.map(c => {
+               const existing = this.bookmarkResolutions.find(
+                  r => r.viewsheetPath === c.viewsheetPath &&
+                       r.user === c.user &&
+                       r.bookmarkName === c.bookmarkName);
+               return {
+                  viewsheetPath: c.viewsheetPath,
+                  user: c.user,
+                  bookmarkName: c.bookmarkName,
+                  keepImported: existing ? existing.keepImported : true
+               };
+            });
+         });
    }
 
    @HostListener("window:keyup.esc", [])
@@ -382,8 +513,12 @@ export class ImportAssetDialogComponent implements OnDestroy {
          this.http.get<ExportedAssetsModel>(uri, options).subscribe(result => {
             if(result) {
                this.model = result;
+               this.fetchBookmarkConflicts();
             }
          });
+      }
+      else {
+         this.fetchBookmarkConflicts();
       }
    }
 

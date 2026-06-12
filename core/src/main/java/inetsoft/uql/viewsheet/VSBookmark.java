@@ -149,6 +149,99 @@ public class VSBookmark implements XMLSerializable {
    }
 
    /**
+    * Merges bookmarks from {@code imported} into this instance.
+    * For each bookmark name in {@code imported}, the imported entry overwrites any
+    * existing entry with the same name. Bookmark names present only in this instance
+    * are preserved unchanged. The {@link DefaultBookmark} preference is kept from this
+    * instance if already set; otherwise the imported value is used.
+    *
+    * @param imported the source bookmark set to merge from. The caller must not use
+    *                 {@code imported} after this call if it may be mutated, because
+    *                 the merged {@link VSBookmarkInfo} objects are shared by reference.
+    */
+   public void mergeFrom(VSBookmark imported) {
+      Objects.requireNonNull(imported, "imported must not be null");
+      bmap.putAll(imported.bmap);
+      bookmarksInfo.putAll(imported.bookmarksInfo);
+
+      if(bookmark == null && imported.bookmark != null) {
+         bookmark = imported.bookmark;
+      }
+   }
+
+   /**
+    * Checks whether the stored bookmark state is structurally compatible with {@code vs}.
+    * Compares the {@code <assembly>} elements in the stored state XML against the current
+    * viewsheet's assemblies. Returns an empty result for system bookmarks
+    * ({@link #HOME_BOOKMARK}, {@link #INITIAL_STATE}).
+    *
+    * @param bookmarkName the name of the bookmark to check.
+    * @param vs           the current viewsheet to compare against.
+    * @return a {@link BookmarkIncompatibility} describing any structural drift found.
+    */
+   public BookmarkIncompatibility getIncompatibilities(String bookmarkName, Viewsheet vs) {
+      Objects.requireNonNull(vs, "vs must not be null");
+
+      if(HOME_BOOKMARK.equals(bookmarkName) || INITIAL_STATE.equals(bookmarkName)) {
+         return new BookmarkIncompatibility(
+            new ArrayList<>(), new ArrayList<>(), false);
+      }
+
+      byte[] bytes = (byte[]) bmap.get(bookmarkName);
+
+      if(bytes == null) {
+         return new BookmarkIncompatibility(
+            new ArrayList<>(), new ArrayList<>(), false);
+      }
+
+      List<String> missingAssemblies = new ArrayList<>();
+      List<String> typeChanges = new ArrayList<>();
+
+      try {
+         Document doc = Tool.parseXML(new ByteArrayInputStream(bytes));
+         Element root = doc.getDocumentElement();
+         // Note: this searches only direct-child <assembly> elements (one level deep).
+         // Assemblies inside embedded sub-viewsheets are not checked. This is a known
+         // limitation: embedded viewsheet incompatibilities are not detected.
+         NodeList anodes = Tool.getChildNodesByTagName(root, "assembly");
+
+         for(int i = 0; i < anodes.getLength(); i++) {
+            Element anode = (Element) anodes.item(i);
+            Element nnode = Tool.getChildNodeByTagName(anode, "name");
+            String name = Tool.getValue(nnode);
+
+            if(name == null || name.isEmpty()) {
+               continue;
+            }
+
+            VSAssembly assembly = vs.getAssembly(name);
+
+            if(assembly == null) {
+               missingAssemblies.add(name);
+            }
+            else {
+               String savedClass = Tool.getAttribute(anode, "class");
+
+               if(savedClass == null) {
+                  LOG.warn("Bookmark '{}': assembly '{}' has no class attribute in stored state",
+                     bookmarkName, name);
+               }
+               else if(!savedClass.equals(assembly.getClass().getName())) {
+                  typeChanges.add(name);
+               }
+            }
+         }
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to check bookmark compatibility for '{}'", bookmarkName, ex);
+         return new BookmarkIncompatibility(
+            new ArrayList<>(), new ArrayList<>(), true);
+      }
+
+      return new BookmarkIncompatibility(missingAssemblies, typeChanges, false);
+   }
+
+   /**
     * Get the bookmark.
     * @param name the specified bookmark name.
     * @param vs the specifie viewsheet.
@@ -244,10 +337,17 @@ public class VSBookmark implements XMLSerializable {
    }
 
    /**
-    * Remove a bookmark.
-    * @param name the specified bookmark name.
+    * Removes the bookmark with the given name from both the data map and the info map.
+    * Does nothing if the name does not exist or is a system bookmark
+    * ({@link #HOME_BOOKMARK}, {@link #INITIAL_STATE}).
+    *
+    * @param name the bookmark name to remove.
     */
    public void removeBookmark(String name) {
+      if(HOME_BOOKMARK.equals(name) || INITIAL_STATE.equals(name)) {
+         return;
+      }
+
       bmap.remove(name);
       bookmarksInfo.remove(name);
    }
@@ -451,7 +551,7 @@ public class VSBookmark implements XMLSerializable {
       return "VSBookmarkKey_" + identifier + "_" + bookmarkOwner;
    }
 
-   public class DefaultBookmark {
+   public static class DefaultBookmark {
       public DefaultBookmark(String name, IdentityID owner) {
          this.name = name;
          this.owner = owner;
@@ -479,6 +579,46 @@ public class VSBookmark implements XMLSerializable {
 
       private String name;
       private IdentityID owner;
+   }
+
+   /**
+    * Describes structural incompatibilities found between a stored bookmark state
+    * and the current viewsheet definition. Two categories are detected:
+    * <ul>
+    *   <li>Missing assemblies — present in the bookmark state but absent from the viewsheet</li>
+    *   <li>Type changes — assembly exists in both but its Java class has changed</li>
+    * </ul>
+    */
+   public static class BookmarkIncompatibility {
+      public BookmarkIncompatibility(List<String> missingAssemblies,
+                                     List<String> typeChanges,
+                                     boolean parseError)
+      {
+         this.missingAssemblies = Collections.unmodifiableList(missingAssemblies);
+         this.typeChanges = Collections.unmodifiableList(typeChanges);
+         this.parseError = parseError;
+      }
+
+      /** True when no incompatibilities were detected and no parse error occurred. */
+      public boolean isEmpty() {
+         return !parseError && missingAssemblies.isEmpty() && typeChanges.isEmpty();
+      }
+
+      /** Assembly names from the bookmark state that no longer exist in the current viewsheet. */
+      public List<String> getMissingAssemblies() { return missingAssemblies; }
+
+      /**
+       * Assembly names present in both the bookmark state and the current viewsheet, but whose
+       * Java class has changed (e.g. SelectionList replaced by a Chart).
+       */
+      public List<String> getTypeChanges() { return typeChanges; }
+
+      /** True when the bookmark bytes could not be parsed at all. */
+      public boolean isParseError() { return parseError; }
+
+      private final List<String> missingAssemblies;
+      private final List<String> typeChanges;
+      private final boolean parseError;
    }
 
    private Map<String, Object> bmap; // bookmark map

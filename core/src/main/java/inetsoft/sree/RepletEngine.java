@@ -1168,7 +1168,7 @@ public class RepletEngine extends AbstractAssetEngine
       throws Exception
    {
       return importAssets(overwriting, order, info, desktop, principal,
-                          ignoreList, null, actionRecord, ignoreUserAssets);
+                          ignoreList, null, actionRecord, ignoreUserAssets, null);
    }
 
    /**
@@ -1184,13 +1184,32 @@ public class RepletEngine extends AbstractAssetEngine
                                     List<String> ignoreUserAssets)
       throws Exception
    {
+      return importAssets(overwriting, order, info, desktop, principal, ignoreList,
+         targetFolderInfo, actionRecord, ignoreUserAssets, (Map<String, Boolean>) null);
+   }
+
+   /**
+    * Imports assets into the repository.
+    */
+   public List<String> importAssets(boolean overwriting,
+                                    List<String> order,
+                                    DeploymentInfo info,
+                                    boolean desktop, Principal principal,
+                                    List<String> ignoreList,
+                                    ImportTargetFolderInfo targetFolderInfo,
+                                    ActionRecord actionRecord,
+                                    List<String> ignoreUserAssets,
+                                    Map<String, Boolean> bookmarkResolutions)
+      throws Exception
+   {
       writeLock.lock();
 
       try {
          List<String> failedList = new ArrayList<>();
          deployManagerService.importAssets(
             overwriting, order, info, desktop, principal,
-            ignoreList, actionRecord, failedList, targetFolderInfo, ignoreUserAssets);
+            ignoreList, actionRecord, failedList, targetFolderInfo, ignoreUserAssets,
+            bookmarkResolutions);
          return failedList;
       }
       finally {
