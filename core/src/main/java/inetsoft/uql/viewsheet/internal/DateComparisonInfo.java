@@ -352,9 +352,28 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
             calcName = "DayOfYear(" + colName + ")";
          }
          else if(partLowLevel == XConstants.WEEK_DATE_GROUP) {
-            expression.append("datePartForceWeekOfMonth('wy', field['");
-            expression.append(colName);
-            expression.append("'], true, " + toDateWeekOfMonth + ")");
+            // Bug #75351: for Same-Day comparison the month*10+weekOfMonth ('wy') encoding
+            // assigns the same relative week a different value across years at month
+            // boundaries, so the previous year's week lands in the wrong x-bucket (or is
+            // dropped) and drill/labels are off by a week. Group by the sequential
+            // week-of-year ('ww') instead, which aligns the Nth week across periods, and mark
+            // the ref so the label decode and drill use the sequential value too. Other
+            // (week-to-date) configs keep the 'wy' encoding and its week-of-month forcing.
+            if(dcInterval != null && dcInterval.getLevel() == SAME_DAY) {
+               expression.append("datePart('ww', field['");
+               expression.append(colName);
+               expression.append("'], true)");
+
+               if(ref instanceof VSDimensionRef) {
+                  ((VSDimensionRef) ref).setDcSequentialWeek(true);
+               }
+            }
+            else {
+               expression.append("datePartForceWeekOfMonth('wy', field['");
+               expression.append(colName);
+               expression.append("'], true, " + toDateWeekOfMonth + ")");
+            }
+
             calcName = "WeekOfYear(" + colName + ")";
          }
       }
