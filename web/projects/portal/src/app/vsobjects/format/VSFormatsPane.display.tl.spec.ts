@@ -40,85 +40,12 @@
  *   getBorderLabel(), isFormattingDisabled(), getCSSLabel(), showPresenter()
  */
 
-import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { render } from "@testing-library/angular";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { Subject, of } from "rxjs";
-
-import { MessageDialog } from "../../widget/dialog/message-dialog/message-dialog.component";
-import { ModelService } from "../../widget/services/model.service";
-import { FontService } from "../../widget/services/font.service";
-import { DebounceService } from "../../widget/services/debounce.service";
 import { FormatTool } from "../../common/util/format-tool";
-import { VSFormatsPane } from "./vs-formats-pane.component";
-import { VSObjectFormatInfoModel } from "../../common/data/vs-object-format-info-model";
 import { FormatInfoModel } from "../../common/data/format-info-model";
 import { TestUtils } from "../../common/test/test-utils";
+import { DEBOUNCE_MOCK, resetMocks, renderComponent } from "./vs-formats-pane.test-fixtures";
 
-// ---------------------------------------------------------------------------
-// Shared fixtures (mirrors Pass 1 setup)
-// ---------------------------------------------------------------------------
-
-const FONT_SERVICE_MOCK = {
-   getAllFonts: vi.fn().mockReturnValue(of(["Arial", "Roboto"])),
-};
-
-const MODEL_SERVICE_MOCK = {
-   getModel: vi.fn().mockReturnValue(of(null)),
-};
-
-const DEBOUNCE_MOCK = {
-   debounce: vi.fn().mockImplementation((_key: string, fn: () => void) => fn()),
-   cancel: vi.fn(),
-};
-
-const MODAL_MOCK = {
-   open: vi.fn().mockImplementation(() => {
-      let resolveResult: (val: any) => void;
-      const result = new Promise<any>((res) => { resolveResult = res; });
-      const onCommit = new Subject<string>();
-      return {
-         result,
-         componentInstance: { onCommit },
-         close: vi.fn().mockImplementation((val: any) => resolveResult(val)),
-         dismiss: vi.fn(),
-      };
-   }),
-};
-
-beforeEach(() => {
-   MessageDialog.lastMessage = null;
-   MessageDialog.lastMessageTS = 0;
-   MODAL_MOCK.open.mockClear();
-   DEBOUNCE_MOCK.debounce.mockClear();
-   FONT_SERVICE_MOCK.getAllFonts.mockClear();
-   MODEL_SERVICE_MOCK.getModel.mockClear();
-   MODEL_SERVICE_MOCK.getModel.mockReturnValue(of(null));
-});
-
-interface RenderOptions {
-   viewer?: boolean;
-   vsId?: string;
-   format?: FormatInfoModel | VSObjectFormatInfoModel;
-}
-
-async function renderComponent(opts: RenderOptions = {}) {
-   const { fixture } = await render(VSFormatsPane, {
-      schemas: [NO_ERRORS_SCHEMA],
-      providers: [
-         { provide: ModelService, useValue: MODEL_SERVICE_MOCK },
-         { provide: FontService, useValue: FONT_SERVICE_MOCK },
-         { provide: DebounceService, useValue: DEBOUNCE_MOCK },
-         { provide: NgbModal, useValue: MODAL_MOCK },
-      ],
-      componentInputs: {
-         viewer: opts.viewer ?? false,
-         vsId: opts.vsId ?? "test-vs",
-         format: opts.format ?? TestUtils.createMockVSObjectFormatInfoModel(),
-      },
-   });
-   return { comp: fixture.componentInstance as VSFormatsPane, fixture };
-}
+beforeEach(() => resetMocks());
 
 // ---------------------------------------------------------------------------
 // Group 1 — isFormattingDisabled() [Risk 3]

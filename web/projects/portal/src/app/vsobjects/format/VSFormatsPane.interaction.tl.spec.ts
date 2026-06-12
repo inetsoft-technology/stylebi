@@ -53,93 +53,24 @@
  *   ngOnChanges() — only calls updateProperties() + CD attach/detach; covered transitively in other groups
  */
 
-import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { render, waitFor } from "@testing-library/angular";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { Subject, of } from "rxjs";
+import { waitFor } from "@testing-library/angular";
+import { of } from "rxjs";
 
-import { MessageDialog } from "../../widget/dialog/message-dialog/message-dialog.component";
-import { ModelService } from "../../widget/services/model.service";
-import { FontService } from "../../widget/services/font.service";
-import { DebounceService } from "../../widget/services/debounce.service";
 import { ComboMode } from "../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { ColorDropdown } from "../../widget/color-picker/color-dropdown.component";
-import { VSFormatsPane } from "./vs-formats-pane.component";
 import { VSObjectFormatInfoModel } from "../../common/data/vs-object-format-info-model";
 import { FormatInfoModel } from "../../common/data/format-info-model";
 import { TestUtils } from "../../common/test/test-utils";
 import { PresenterPropertyDialogModel } from "../../widget/presenter/data/presenter-property-dialog-model";
+import {
+   FONT_SERVICE_MOCK,
+   MODEL_SERVICE_MOCK,
+   MODAL_MOCK,
+   resetMocks,
+   renderComponent,
+} from "./vs-formats-pane.test-fixtures";
 
-// ---------------------------------------------------------------------------
-// Shared fixtures
-// ---------------------------------------------------------------------------
-
-// FontService mock — returns fonts synchronously; no HTTP needed.
-const FONT_SERVICE_MOCK = {
-   getAllFonts: vi.fn().mockReturnValue(of(["Arial", "Roboto"])),
-};
-
-// ModelService mock — getModel returns null by default; override per test as needed.
-const MODEL_SERVICE_MOCK = {
-   getModel: vi.fn().mockReturnValue(of(null)),
-};
-
-// DebounceService mock — executes the callback synchronously so output events fire immediately.
-const DEBOUNCE_MOCK = {
-   debounce: vi.fn().mockImplementation((_key: string, fn: () => void) => fn()),
-   cancel: vi.fn(),
-};
-
-// NgbModal mock — each call returns a fresh ref with a resolvable result promise.
-// Works for both showMessageDialog/showConfirmDialog (via onCommit) and direct modal.result usage.
-const MODAL_MOCK = {
-   open: vi.fn().mockImplementation(() => {
-      let resolveResult: (val: any) => void;
-      const result = new Promise<any>((res) => { resolveResult = res; });
-      const onCommit = new Subject<string>();
-      return {
-         result,
-         componentInstance: { onCommit },
-         close: vi.fn().mockImplementation((val: any) => resolveResult(val)),
-         dismiss: vi.fn(),
-      };
-   }),
-};
-
-// Reset message-dialog dedup guard and mock call counters before every test.
-beforeEach(() => {
-   MessageDialog.lastMessage = null;
-   MessageDialog.lastMessageTS = 0;
-   MODAL_MOCK.open.mockClear();
-   DEBOUNCE_MOCK.debounce.mockClear();
-   FONT_SERVICE_MOCK.getAllFonts.mockClear();
-   MODEL_SERVICE_MOCK.getModel.mockClear();
-   MODEL_SERVICE_MOCK.getModel.mockReturnValue(of(null));
-});
-
-interface RenderOptions {
-   viewer?: boolean;
-   vsId?: string;
-   format?: FormatInfoModel | VSObjectFormatInfoModel;
-}
-
-async function renderComponent(opts: RenderOptions = {}) {
-   const { fixture } = await render(VSFormatsPane, {
-      schemas: [NO_ERRORS_SCHEMA],
-      providers: [
-         { provide: ModelService, useValue: MODEL_SERVICE_MOCK },
-         { provide: FontService, useValue: FONT_SERVICE_MOCK },
-         { provide: DebounceService, useValue: DEBOUNCE_MOCK },
-         { provide: NgbModal, useValue: MODAL_MOCK },
-      ],
-      componentInputs: {
-         viewer: opts.viewer ?? false,
-         vsId: opts.vsId ?? "test-vs",
-         format: opts.format ?? TestUtils.createMockVSObjectFormatInfoModel(),
-      },
-   });
-   return { comp: fixture.componentInstance as VSFormatsPane, fixture };
-}
+beforeEach(() => resetMocks());
 
 // ---------------------------------------------------------------------------
 // Group 1 — reset(): confirm-dialog flow [Risk 3]
@@ -300,7 +231,7 @@ describe("VSFormatsPane — format setter: VSObjectFormatInfoModel type detectio
       comp.format = plain;
 
       expect(comp.colorType).toBe(ComboMode.VALUE);
-      // Access private _color via bracket notation to verify null assignment
+      // No public getter for _color; reading backing field to verify the null assignment.
       expect((comp as any)._color).toBeNull();
    });
 });
@@ -351,6 +282,7 @@ describe("VSFormatsPane — color / colorType setter side effects", () => {
 
       comp.colorType = ComboMode.VALUE;
 
+      // No public getter for _color; reading backing field to verify the STATIC reset.
       expect((comp as any)._color).toBe(ColorDropdown.STATIC);
    });
 
@@ -407,6 +339,7 @@ describe("VSFormatsPane — backgroundColor / backgroundColorType setter side ef
 
       comp.backgroundColorType = ComboMode.VALUE;
 
+      // No public getter for _backgroundColor; reading backing field to verify the STATIC reset.
       expect((comp as any)._backgroundColor).toBe(ColorDropdown.STATIC);
    });
 
@@ -744,6 +677,7 @@ describe("VSFormatsPane — isDynamicColorDisabled", () => {
    it("should set dynamicColorDisabled=true when viewer=false and no assemblies are focused", async () => {
       // No assemblies + viewer=false → !this.viewer = true
       const { comp } = await renderComponent({ viewer: false });
+      // Bypass public setter — TypeScript type constraint prevents passing null; null is required to test the no-assembly branch.
       comp._focusedAssemblies = null;
       comp.updateProperties();
 
@@ -820,6 +754,7 @@ describe("VSFormatsPane — isValueFillVisible: VSGauge face values", () => {
 describe("VSFormatsPane — roundCornerMax / tableSelected / textSelected / borderTooltip", () => {
    it("should return 20 for roundCornerMax when no assemblies are focused", async () => {
       const { comp } = await renderComponent();
+      // Bypass public setter — TypeScript type constraint prevents passing null; null is required to test the no-assembly branch.
       comp._focusedAssemblies = null;
 
       expect(comp.roundCornerMax).toBe(20);
@@ -831,6 +766,7 @@ describe("VSFormatsPane — roundCornerMax / tableSelected / textSelected / bord
       obj.objectFormat.height = 30;
       obj.objectFormat.width = 50;
 
+      // Bypass public setter (which calls updateProperties) — this getter reads _focusedAssemblies directly.
       comp._focusedAssemblies = [obj];
 
       expect(comp.roundCornerMax).toBe(30); // min(30, 50)

@@ -492,6 +492,7 @@ describe("VS Formats Pane Unit case", () => {
       expect(vsFormatsPane.alignDisabled).toBeFalsy();
    });
 
+   // isVAlignmentEnabled() branch coverage migrated to VSFormatsPane.interaction.tl.spec.ts Group 12a.
    //Bug #18582 textinput format status
    it("check formats status for textinput", () => {
       let textinput = TestUtils.createMockVSTextInputModel("textinput1");
