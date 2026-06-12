@@ -372,7 +372,7 @@ export class DatabaseDataModelBrowserComponent implements OnDestroy, OnInit {
             this.router.navigate(["/portal/tab/data/datasources/database",
                   Tool.byteEncode(logicalModelItem.databaseName), "physicalModel",
                   Tool.byteEncode(logicalModelItem.physicalModel), "logicalModel",
-                  Tool.byteEncode(logicalModelItem.name), {folder: folder}],
+                  Tool.byteEncode(logicalModelItem.name), {parent: Tool.byteEncode(parent), folder: folder}],
                {relativeTo: this.route});
          }
       }
