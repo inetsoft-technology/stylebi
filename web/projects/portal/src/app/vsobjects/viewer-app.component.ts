@@ -415,7 +415,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    set runtimeId(value: string) {
       this._runtimeId = value;
 
-      if(!this.embed) {
+      if(!this.embed && this.dialogService) {
          this.dialogService.container = `.viewer-container[runtime-id="${value}"]`;
       }
    }

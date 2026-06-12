@@ -582,6 +582,7 @@ describe("ViewerApp Unit Tests", () => {
          assetLoadingService, viewContainerRef, baseHrefService,
          currentUserService as any, heartbeatWorkerService);
 
+      viewerApp.runtimeId = "test-runtime-id";
       viewerApp["updateEnabled"] = true;
       viewerApp.setServerUpdateInterval();
       viewerApp.clearServerUpdateInterval();
