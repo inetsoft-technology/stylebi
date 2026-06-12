@@ -49,13 +49,19 @@ class FormatPainterServiceStaticFormatTest {
    @Test
    void applyFormatToStaticItemWritesInlineFields() {
       TextLayoutItem item = TextLayoutItem.ofStatic("Total:");
+      // Font.getFamily() resolves to "Dialog" when the named font is not registered in the JVM's
+      // GraphicsEnvironment, and whether StyleBI's bundled fonts are registered depends on test
+      // ordering in the full suite. applyFormatToStaticItem stores f.getFamily(), so assert against
+      // the family this Font actually reports rather than the literal name — the bridge logic is
+      // what's under test, not font availability.
+      Font font = new Font("Roboto", Font.BOLD, 16);
       TextFormat user = new TextFormat();
-      user.setFont(new Font("Roboto", Font.BOLD, 16), true);
+      user.setFont(font, true);
       user.setColor(Color.CYAN, true);
 
       FormatPainterService.applyFormatToStaticItem(item, user);
 
-      assertEquals("Roboto", item.getFontFamily());
+      assertEquals(font.getFamily(), item.getFontFamily());
       assertEquals(16, item.getFontSize());
       assertTrue(item.isBold());
       assertFalse(item.isItalic());
@@ -74,7 +80,10 @@ class FormatPainterServiceStaticFormatTest {
       TextFormat user = fmt.getUserDefinedFormat();
 
       assertNotNull(user.getFont());
-      assertEquals("Roboto", user.getFont().getFamily());
+      // buildFormatFromStaticItem reconstructs new Font(family, ...); getFamily() resolves to
+      // "Dialog" when the family is not registered (varies by full-suite test ordering). Assert
+      // against the family a Font built from the same name reports, not the literal name.
+      assertEquals(new Font("Roboto", Font.BOLD, 16).getFamily(), user.getFont().getFamily());
       assertEquals(16, user.getFont().getSize());
       assertTrue((user.getFont().getStyle() & Font.BOLD) != 0);
       assertEquals(Color.CYAN, user.getColor());
@@ -83,14 +92,18 @@ class FormatPainterServiceStaticFormatTest {
    @Test
    void roundTripsThroughItem() {
       TextLayoutItem item = TextLayoutItem.ofStatic("Total:");
+      Font font = new Font("Arial", Font.ITALIC, 20);
       TextFormat user = new TextFormat();
-      user.setFont(new Font("Arial", Font.ITALIC, 20), true);
+      user.setFont(font, true);
       user.setColor(Color.RED, true);
 
       FormatPainterService.applyFormatToStaticItem(item, user);
       TextFormat readBack = FormatPainterService.buildFormatFromStaticItem(item).getUserDefinedFormat();
 
-      assertEquals("Arial", readBack.getFont().getFamily());
+      // The family round-trips as whatever Font.getFamily() yields for "Arial" (the literal name
+      // when registered, "Dialog" otherwise) — assert the round-trip preserves it, independent of
+      // font registration / suite ordering.
+      assertEquals(font.getFamily(), readBack.getFont().getFamily());
       assertEquals(20, readBack.getFont().getSize());
       assertTrue((readBack.getFont().getStyle() & Font.ITALIC) != 0);
       assertEquals(Color.RED, readBack.getColor());
