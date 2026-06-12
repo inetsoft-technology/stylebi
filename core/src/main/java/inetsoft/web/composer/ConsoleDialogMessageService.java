@@ -59,6 +59,7 @@ public class ConsoleDialogMessageService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Boolean saveConsoleMessageLevels(@ClusterProxyKey String runtimeId, SaveConsoleMessageLevelsEvent event,
                                                                               Principal principal)

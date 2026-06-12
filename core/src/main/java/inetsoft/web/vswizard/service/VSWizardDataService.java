@@ -72,6 +72,7 @@ public class VSWizardDataService {
       return sourceChangeMessage;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Boolean treeCheckTrap(@ClusterProxyKey String vsId, AssetEntry[] entries,
                                 SourceInfo source, Principal principal)
@@ -132,6 +133,7 @@ public class VSWizardDataService {
       return trap;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Boolean aggregateCheckTrap(@ClusterProxyKey String id, ChartBindingModel tempChartModel ,
                                      Principal principal)

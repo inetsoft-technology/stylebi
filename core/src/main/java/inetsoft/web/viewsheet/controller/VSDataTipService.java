@@ -53,6 +53,7 @@ public class VSDataTipService {
       this.viewsheetService = viewsheetService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void applyDataTip(@ClusterProxyKey String runtimeId, OpenDataTipEvent event,
                             Principal principal, String linkUri, CommandDispatcher dispatcher) throws Exception

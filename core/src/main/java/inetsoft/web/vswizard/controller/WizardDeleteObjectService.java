@@ -42,6 +42,7 @@ public class WizardDeleteObjectService {
       this.wizardVsObjectService = wizardVsObjectService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void removeObject(@ClusterProxyKey String vsId, RemoveVSObjectsEvent event, String linkUri,
                             Principal principal, CommandDispatcher commandDispatcher)

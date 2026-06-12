@@ -34,6 +34,7 @@ public class RuntimeSheetTransformService {
       this.viewsheetService = viewsheetService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void updateRenameInfos(@ClusterProxyKey String id,
                                  AssetEntry entry, List<RenameInfo> renameInfos) {

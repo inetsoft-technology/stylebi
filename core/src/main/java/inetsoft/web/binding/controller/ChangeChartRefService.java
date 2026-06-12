@@ -67,6 +67,7 @@ public class ChangeChartRefService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void changeChartRef(@ClusterProxyKey String id, ChangeChartRefEvent event,
                               Principal principal, CommandDispatcher dispatcher,
                               String linkUri) throws Exception

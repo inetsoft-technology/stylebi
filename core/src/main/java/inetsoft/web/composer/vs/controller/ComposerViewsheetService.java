@@ -86,6 +86,7 @@ public class ComposerViewsheetService {
       this.sessionService = sessionService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void newViewsheet(@ClusterProxyKey String runtimeId,
                             NewViewsheetEvent event, Principal principal,
@@ -118,6 +119,7 @@ public class ComposerViewsheetService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Boolean saveViewsheet(@ClusterProxyKey String runtimeId,
                                 SaveSheetEvent event, Principal principal,
@@ -200,6 +202,7 @@ public class ComposerViewsheetService {
       }
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void closeViewsheet(@ClusterProxyKey String runtimeId, CloseSheetEvent event, Principal principal) throws Exception {
       RuntimeViewsheet rvs;
@@ -236,6 +239,7 @@ public class ComposerViewsheetService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public String previewViewsheet(@ClusterProxyKey String runtimeId, OpenPreviewViewsheetEvent event,
                                 Principal principal,
@@ -364,6 +368,7 @@ public class ComposerViewsheetService {
       }
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Boolean refreshPreviewViewsheet(@ClusterProxyKey String runtimeId,
                                        OpenPreviewViewsheetEvent event,
@@ -442,6 +447,7 @@ public class ComposerViewsheetService {
       }
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void refreshViewsheet(@ClusterProxyKey String runtimeId, OpenViewsheetEvent event,
                                 Principal principal, CommandDispatcher dispatcher,
@@ -514,6 +520,7 @@ public class ComposerViewsheetService {
       return "";
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void checkMV(@ClusterProxyKey String runtimeId, CheckMVEvent event, Principal principal,
                        CommandDispatcher dispatcher, String linkUri)

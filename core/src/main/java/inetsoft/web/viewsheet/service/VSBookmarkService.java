@@ -87,6 +87,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       }
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void saveBookmark(@ClusterProxyKey String runtimeId, VSEditBookmarkEvent value,
                             Principal principal, CommandDispatcher commandDispatcher, String linkUri) throws Exception
@@ -244,6 +245,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void addBookmark(@ClusterProxyKey String runtimeId, VSEditBookmarkEvent value,
                            Principal principal, CommandDispatcher commandDispatcher, String linkUri) throws Exception
@@ -262,6 +264,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void deleteBookmark(@ClusterProxyKey String runtimeId, VSEditBookmarkEvent value,
                               Principal principal, CommandDispatcher commandDispatcher, String linkUri) throws Exception
@@ -320,6 +323,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void deleteMatchedBookmarks(@ClusterProxyKey String runtimeId, VSDeletedMatchedBookmarksEvent event,
                                       Principal principal, CommandDispatcher commandDispatcher, @LinkUri String linkUri) throws Exception
@@ -407,6 +411,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void editBookmark(@ClusterProxyKey String runtimeId, VSEditBookmarkEvent value, Principal principal,
                             CommandDispatcher commandDispatcher, @LinkUri String linkUri) throws Exception
@@ -518,6 +523,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       return allBookmarks.toArray(new VSBookmarkInfoModel[0]);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void gotoBookmark(@ClusterProxyKey String runtimeId, VSEditBookmarkEvent value,
                             Principal principal, CommandDispatcher commandDispatcher, String linkUri) throws Exception
@@ -534,6 +540,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setDefaultBookmark(@ClusterProxyKey String runtimeId, VSEditBookmarkEvent value,
                                   Principal principal, CommandDispatcher commandDispatcher, String linkUri) throws Exception

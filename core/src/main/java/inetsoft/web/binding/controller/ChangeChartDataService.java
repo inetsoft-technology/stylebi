@@ -64,6 +64,7 @@ public class ChangeChartDataService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void changeChartData(@ClusterProxyKey String id,
                                ChangeChartRefEvent event,
                                Principal principal, CommandDispatcher dispatcher,

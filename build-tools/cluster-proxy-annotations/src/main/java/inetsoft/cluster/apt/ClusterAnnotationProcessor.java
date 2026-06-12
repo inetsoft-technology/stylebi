@@ -114,8 +114,10 @@ public class ClusterAnnotationProcessor extends AbstractProcessor {
          }
       }
 
+      boolean writeMethod = MoreElements.isAnnotationPresent(methodElement, ClusterWriteMethod.class);
       ProxyMethod proxyMethod = new ProxyMethod(
-         methodName, callableClassName, returnType, cacheName, keyParam, params, exceptions);
+         methodName, callableClassName, returnType, cacheName, keyParam, params, exceptions,
+         writeMethod);
       proxyClass.getMethods().add(proxyMethod);
    }
 

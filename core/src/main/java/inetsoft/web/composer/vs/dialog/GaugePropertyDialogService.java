@@ -203,6 +203,7 @@ public class GaugePropertyDialogService {
       return result;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setGaugePropertyDialogModel(@ClusterProxyKey String runtimeId, String objectId,
                                            GaugePropertyDialogModel value, String linkUri,

@@ -162,6 +162,7 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
    @Override
    public void dispose() {
       engine.dispose();
+      affinityExecutor.shutdownNow();
 
       try {
          amap.close();
@@ -684,6 +685,23 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
       return null;
    }
 
+   @Override
+   public void writeSheet(String id) {
+      // Debounce writes to at most once per second per session. Captures state at fire time
+      // so the write reflects all mutations that landed in the debounce window.
+      debouncer.debounce("writeSheet_" + id, 1L, TimeUnit.SECONDS, () -> {
+         RuntimeSheet rs = amap.get(id);
+
+         if(rs != null) {
+            CompletableFuture.runAsync(() -> amap.put(id, rs), affinityExecutor)
+               .exceptionally(e -> {
+                  LOG.error("Failed to write sheet {} to distributed cache", id, e);
+                  return null;
+               });
+         }
+      });
+   }
+
    private void accessSheet(String id, boolean touch) {
       RuntimeSheet rs = amap.get(id);
 
@@ -763,6 +781,7 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
          executionMap.setCompleted(id);
       }
 
+      debouncer.cancel("writeSheet_" + id);
       amap.remove(id);
       emap.remove(id);
       clearPreviewTarget(rsheet, id);

@@ -38,6 +38,7 @@ public class JoinViewService extends WorksheetControllerService {
       super(viewsheetService, dataSourceRegistry);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void openJoin(@ClusterProxyKey String runtimeId, Principal principal) throws Exception {
       final RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
@@ -46,6 +47,7 @@ public class JoinViewService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void cancelJoin(@ClusterProxyKey String runtimeId, Principal principal, CommandDispatcher dispatcher) throws Exception {
       final RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);

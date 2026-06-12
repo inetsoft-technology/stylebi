@@ -140,6 +140,7 @@ public class GroupContainerPropertyDialogService {
       return groupContainerPropertyDialog;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setGroupContainerPropertyDialogModel(@ClusterProxyKey String runtimeId, String objectId,
                                                     GroupContainerPropertyDialogModel value, String linkUri,

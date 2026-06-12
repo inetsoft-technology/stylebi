@@ -51,6 +51,7 @@ public class ConvertTableRefControllerService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void convertTableRef(@ClusterProxyKey String id, ConvertTableRefEvent event,
                                Principal principal, CommandDispatcher dispatcher) throws Exception
    {

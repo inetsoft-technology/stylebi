@@ -46,6 +46,7 @@ public class VSChartTitlesVisibilityService extends VSChartControllerService<VSC
    }
 
    @Override
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void eventHandler(@ClusterProxyKey String runtimeId,
                             VSChartTitlesVisibilityEvent event,

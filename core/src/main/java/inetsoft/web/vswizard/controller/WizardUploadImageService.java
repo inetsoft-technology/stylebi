@@ -50,6 +50,7 @@ public class WizardUploadImageService {
       this.vsObjectService = vsObjectService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public VSObjectModel uploadImage(@ClusterProxyKey String runtimeId, String assemblyName,
                                     MultipartFile mpf, Principal principal) throws Exception

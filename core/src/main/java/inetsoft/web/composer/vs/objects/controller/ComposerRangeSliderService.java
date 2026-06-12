@@ -46,6 +46,7 @@ public class ComposerRangeSliderService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void convertCSComponent(@ClusterProxyKey String vsId, ConvertToRangeSliderEvent event,
                                   Principal principal, CommandDispatcher dispatcher, String linkUri) throws Exception
    {

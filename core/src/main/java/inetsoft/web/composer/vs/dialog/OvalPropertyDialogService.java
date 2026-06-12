@@ -139,6 +139,7 @@ public class OvalPropertyDialogService {
       return result;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setOvalPropertyDialogModel(@ClusterProxyKey String runtimeId, String objectId,
                                           OvalPropertyDialogModel value, String linkUri,

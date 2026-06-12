@@ -40,6 +40,7 @@ public class SetColumnIndexService extends WorksheetControllerService {
       super(viewsheetService, dataSourceRegistry);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setColumnIndex(@ClusterProxyKey String runtimeId, WSSetColumnIndexEvent event,
                               Principal principal, CommandDispatcher commandDispatcher) throws Exception

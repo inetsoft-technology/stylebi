@@ -67,6 +67,7 @@ public class VSTableDndService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void dnd(@ClusterProxyKey String runtimeId, VSDndEvent event, Principal principal,
                    String linkUri, CommandDispatcher dispatcher) throws Exception
    {
@@ -164,6 +165,7 @@ public class VSTableDndService {
 
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void dndFromTree(@ClusterProxyKey String runtimeId, VSDndEvent event, Principal principal,
                            @LinkUri String linkUri, CommandDispatcher dispatcher) throws Exception
    {
@@ -225,6 +227,7 @@ public class VSTableDndService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void dndTotree(@ClusterProxyKey String runtimeId, VSDndEvent event, Principal principal,
                          @LinkUri String linkUri, CommandDispatcher dispatcher) throws Exception

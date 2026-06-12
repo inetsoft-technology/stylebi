@@ -156,6 +156,7 @@ public class SortColumnDialogService extends WorksheetControllerService {
       return model;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setSortInfo(@ClusterProxyKey String runtimeId, SortColumnDialogModel model,
                            Principal principal, CommandDispatcher commandDispatcher) throws Exception

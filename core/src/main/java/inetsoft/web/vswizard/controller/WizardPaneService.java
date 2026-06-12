@@ -42,6 +42,7 @@ public class WizardPaneService {
       this.wizardViewsheetService = wizardViewsheetService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void refreshWizardViewsheet(@ClusterProxyKey String vsId, Principal principal, String linkUri,
                                       boolean isFormGridPane, CommandDispatcher commandDispatcher)

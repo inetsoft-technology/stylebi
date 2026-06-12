@@ -89,6 +89,7 @@ public class WorksheetOpenAssetService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void openAsset(@ClusterProxyKey String runtimeId, OpenAssetEvent event,
                          Principal principal, CommandDispatcher commandDispatcher) throws Exception

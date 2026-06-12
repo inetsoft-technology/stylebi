@@ -162,6 +162,7 @@ public class PresenterPropertyDialogService {
          .build();
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setPresenterDialogModel(@ClusterProxyKey String runtimeId, String objectId, int row,
                                        int col, boolean layout, int layoutRegion,

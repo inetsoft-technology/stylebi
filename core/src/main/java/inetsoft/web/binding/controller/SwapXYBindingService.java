@@ -60,6 +60,7 @@ public class SwapXYBindingService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void swapXYBinding(@ClusterProxyKey String id, ChangeSeparateStatusEvent event,
                              Principal principal, CommandDispatcher dispatcher,
                              String linkUri) throws Exception

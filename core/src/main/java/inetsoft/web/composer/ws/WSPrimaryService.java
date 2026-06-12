@@ -44,6 +44,7 @@ public class WSPrimaryService extends WorksheetControllerService {
       super(viewsheetService, dataSourceRegistry);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setAsPrimary(@ClusterProxyKey String runtiemId, WSAssemblyEvent event,
                             Principal principal, CommandDispatcher commandDispatcher) throws Exception

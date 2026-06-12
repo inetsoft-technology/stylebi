@@ -81,6 +81,7 @@ public class DeleteColumnsService extends WorksheetControllerService {
       }
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void deleteColumns(
       @ClusterProxyKey String runtimeId,

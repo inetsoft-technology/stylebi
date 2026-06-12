@@ -42,6 +42,7 @@ public class WSRenameAssemblyService extends WorksheetControllerService {
       super(viewsheetService, dataSourceRegistry);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void renameAssembly(@ClusterProxyKey String runtimeId, WSRenameAssemblyEvent event,
                               Principal principal, CommandDispatcher commandDispatcher) throws Exception

@@ -131,6 +131,7 @@ public class SQLQueryDialogService {
       return browseDataController.process(rws.getAssetQuerySandbox());
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setModel(@ClusterProxyKey String runtimeId, SQLQueryDialogModel model,
                         Principal principal, CommandDispatcher commandDispatcher)
