@@ -138,6 +138,19 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
 
    private readonly debounceKey: string = "chart_dataTipEvent";
 
+   // Cross-tile area/line hover: the hovered tile reports the active series color; we mirror the
+   // dim onto every tile so the hovered series stays highlighted across a split chart's SVGs.
+   private seriesDimClearTimer: ReturnType<typeof setTimeout> | null = null;
+   // Tile currently driving the cross-tile dim, so a stale null from a tile the cursor already
+   // left (the events can arrive in either order) doesn't clear the dim the new tile just set.
+   private activeDimTile: ChartTile | null = null;
+
+   // Cross-tile relation/tree hover: the hovered tile reports the node id; we resolve neighbours
+   // from the graph merged across every tile (a node's neighbours may be in sibling tiles) and
+   // drive each tile's highlight. Same debounce + active-tile guard as the series dim above.
+   private relationDimClearTimer: ReturnType<typeof setTimeout> | null = null;
+   private activeRelationTile: ChartTile | null = null;
+
    // Snap: cached X ticks → region indices. Rebuilt on chartObject change.
    private snapXTicks: Array<{ pixelX: number, regionIndices: number[] }> = [];
    private snapXTicksFor: Plot = null;
@@ -183,6 +196,16 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
 
    protected cleanup(): void {
       this.destroyed = true;
+
+      if(this.seriesDimClearTimer !== null) {
+         clearTimeout(this.seriesDimClearTimer);
+         this.seriesDimClearTimer = null;
+      }
+
+      if(this.relationDimClearTimer !== null) {
+         clearTimeout(this.relationDimClearTimer);
+         this.relationDimClearTimer = null;
+      }
    }
 
    private emitFlyover(chartSelection: ChartSelection): void {
@@ -462,8 +485,24 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
       // display different values in the mobile state in different browsers. (Bug #60440)
       if((<any> event).button === 0) {
          const mevent: MouseEvent = <MouseEvent> event;
-         let eventX = mevent.offsetX + this.scrollLeft;
-         let eventY = mevent.offsetY + this.scrollTop;
+         let eventX: number;
+         let eventY: number;
+
+         if(this.inlineSvg) {
+            // Inline area/line/radar SVG tiles are raised above the overlay canvas with
+            // pointer-events:all, so they — not the canvas — become the event target and
+            // offsetX/offsetY are measured from the hovered tile's origin, not the plot. That
+            // left-shifts the X for every tile past the first, putting the snap line and tooltip
+            // in the wrong tile. Derive plot coordinates from the overlay canvas rect instead,
+            // matching onContextMenu's convention.
+            const rect = this.objectCanvas.nativeElement.getBoundingClientRect();
+            eventX = (mevent.clientX - rect.left) / this.viewsheetScale + this.scrollLeft;
+            eventY = (mevent.clientY - rect.top) / this.viewsheetScale + this.scrollTop;
+         }
+         else {
+            eventX = mevent.offsetX + this.scrollLeft;
+            eventY = mevent.offsetY + this.scrollTop;
+         }
          let regions: ChartRegion[] = this.getTreeRegions(eventX, eventY);
          let snapPrimary: ChartRegion = null;
 
@@ -755,6 +794,86 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
       if(this.inlineSvg) {
          this.inlineSvgTiles?.forEach(d => d.highlightElement(null, null));
       }
+   }
+
+   /**
+    * Mirror an area/line series hover (reported by the tile under the cursor) onto every tile so
+    * the hovered series stays highlighted across a split chart's separate SVGs. A non-null color
+    * applies immediately; a clear is debounced so moving the cursor between adjacent tiles does
+    * not flash the dim off. A null from a tile that is no longer the active source is ignored —
+    * when crossing a tile boundary the leave (null) and enter (color) can arrive in either order.
+    */
+   onSeriesDimChange(color: string | null, tile: ChartTile): void {
+      if(color != null) {
+         if(this.seriesDimClearTimer !== null) {
+            clearTimeout(this.seriesDimClearTimer);
+            this.seriesDimClearTimer = null;
+         }
+
+         this.activeDimTile = tile;
+         this.inlineSvgTiles?.forEach(d => d.setExternalSeriesDim(color));
+      }
+      else if(tile === this.activeDimTile && this.seriesDimClearTimer === null) {
+         this.seriesDimClearTimer = setTimeout(() => {
+            this.seriesDimClearTimer = null;
+            this.activeDimTile = null;
+            this.inlineSvgTiles?.forEach(d => d.setExternalSeriesDim(null));
+         }, 150);
+      }
+   }
+
+   /**
+    * Mirror a relation/tree node hover across a split chart's tiles. The hovered tile only reports
+    * the node id; neighbours are resolved from the edge graph merged across every tile (a node's
+    * neighbours may be rendered in sibling tiles), then each tile highlights its share. Clearing is
+    * debounced and guarded by the active source tile, mirroring onSeriesDimChange — the leave (null)
+    * and the next enter (id) can arrive in either order when crossing a tile boundary.
+    */
+   onRelationHover(nodeId: string | null, tile: ChartTile): void {
+      if(nodeId != null) {
+         if(this.relationDimClearTimer !== null) {
+            clearTimeout(this.relationDimClearTimer);
+            this.relationDimClearTimer = null;
+         }
+
+         const adjacency = this.buildRelationAdjacency();
+         const activeIds = new Set<string>([nodeId]);
+         adjacency.get(nodeId)?.forEach(n => activeIds.add(n));
+         this.activeRelationTile = tile;
+         this.inlineSvgTiles?.forEach(d => d.setExternalRelationHighlight(activeIds, nodeId));
+      }
+      else if(tile === this.activeRelationTile && this.relationDimClearTimer === null) {
+         this.relationDimClearTimer = setTimeout(() => {
+            this.relationDimClearTimer = null;
+            this.activeRelationTile = null;
+            this.inlineSvgTiles?.forEach(d => d.setExternalRelationHighlight(null, null));
+         }, 150);
+      }
+   }
+
+   // Merge every tile's relation edges into one undirected adjacency map. Each tile holds only its
+   // own slice of the graph, so neighbour resolution must span all tiles. Rebuilt per node change
+   // (emitRelationHover dedups, so this is not per-mousemove) to stay correct after data refresh.
+   private buildRelationAdjacency(): Map<string, Set<string>> {
+      const adjacency = new Map<string, Set<string>>();
+
+      const link = (a: string, b: string) => {
+         let set = adjacency.get(a);
+         if(!set) {
+            set = new Set();
+            adjacency.set(a, set);
+         }
+         set.add(b);
+      };
+
+      this.inlineSvgTiles?.forEach(d => {
+         for(const edge of d.getRelationEdges()) {
+            link(edge.source, edge.target);
+            link(edge.target, edge.source);
+         }
+      });
+
+      return adjacency;
    }
 
    public updateChartObject(oldObj?: Plot): void {

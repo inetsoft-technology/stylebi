@@ -524,4 +524,169 @@ describe("ChartPlotArea Integration Tests", () => {
       // Chart select region should have been called
       expect(selectRegionSpy).toHaveBeenCalled();
    });
+
+   describe("cross-tile series dim coordination", () => {
+      function setup() {
+         const fixture = TestBed.createComponent(TestApp);
+         const component: ChartPlotArea =
+            fixture.debugElement.query(By.css("chart-plot-area")).componentInstance;
+         vi.spyOn(component, "getSrc").mockImplementation(() => "");
+         fixture.detectChanges();
+         const tileA = { setExternalSeriesDim: vi.fn() };
+         const tileB = { setExternalSeriesDim: vi.fn() };
+         // QueryList exposes forEach; an array stands in for the test.
+         (component as any).inlineSvgTiles = [tileA, tileB];
+         return { component, tileA, tileB };
+      }
+
+      it("applies the dim to every tile when a tile reports a color", () => {
+         const { component, tileA, tileB } = setup();
+         const t1 = {} as any;
+         component.onSeriesDimChange("1,2,3", t1);
+         expect(tileA.setExternalSeriesDim).toHaveBeenCalledWith("1,2,3");
+         expect(tileB.setExternalSeriesDim).toHaveBeenCalledWith("1,2,3");
+         expect((component as any).activeDimTile).toBe(t1);
+      });
+
+      // Crossing a tile boundary, the leaving tile's null and the entering tile's color can
+      // arrive in either order. A null from a tile that is not the active source must not clear
+      // the dim the active tile just set.
+      it("ignores a null from a tile that is not the active source", () => {
+         vi.useFakeTimers();
+         try {
+            const { component, tileA, tileB } = setup();
+            const t1 = {} as any, t2 = {} as any;
+            component.onSeriesDimChange("c", t1);
+            tileA.setExternalSeriesDim.mockClear();
+            tileB.setExternalSeriesDim.mockClear();
+            component.onSeriesDimChange(null, t2);
+            vi.advanceTimersByTime(500);
+            expect(tileA.setExternalSeriesDim).not.toHaveBeenCalledWith(null);
+            expect(tileB.setExternalSeriesDim).not.toHaveBeenCalledWith(null);
+            expect((component as any).activeDimTile).toBe(t1);
+         }
+         finally {
+            vi.useRealTimers();
+         }
+      });
+
+      it("debounces a clear from the active tile and cancels it on re-hover", () => {
+         vi.useFakeTimers();
+         try {
+            const { component, tileA } = setup();
+            const t1 = {} as any;
+            component.onSeriesDimChange("c", t1);
+            component.onSeriesDimChange(null, t1);
+            component.onSeriesDimChange("c", t1);
+            tileA.setExternalSeriesDim.mockClear();
+            vi.advanceTimersByTime(500);
+            expect(tileA.setExternalSeriesDim).not.toHaveBeenCalledWith(null);
+         }
+         finally {
+            vi.useRealTimers();
+         }
+      });
+
+      it("clears every tile after the debounce when the active tile leaves", () => {
+         vi.useFakeTimers();
+         try {
+            const { component, tileA, tileB } = setup();
+            const t1 = {} as any;
+            component.onSeriesDimChange("c", t1);
+            tileA.setExternalSeriesDim.mockClear();
+            tileB.setExternalSeriesDim.mockClear();
+            component.onSeriesDimChange(null, t1);
+            expect(tileA.setExternalSeriesDim).not.toHaveBeenCalled();
+            vi.advanceTimersByTime(150);
+            expect(tileA.setExternalSeriesDim).toHaveBeenCalledWith(null);
+            expect(tileB.setExternalSeriesDim).toHaveBeenCalledWith(null);
+            expect((component as any).activeDimTile).toBeNull();
+         }
+         finally {
+            vi.useRealTimers();
+         }
+      });
+
+      it("cancels a pending dim-clear timer on cleanup", () => {
+         vi.useFakeTimers();
+         try {
+            const { component, tileA } = setup();
+            const t1 = {} as any;
+            component.onSeriesDimChange("c", t1);
+            component.onSeriesDimChange(null, t1);
+            (component as any).cleanup();
+            tileA.setExternalSeriesDim.mockClear();
+            vi.advanceTimersByTime(500);
+            expect(tileA.setExternalSeriesDim).not.toHaveBeenCalledWith(null);
+         }
+         finally {
+            vi.useRealTimers();
+         }
+      });
+   });
+
+   describe("cross-tile relation highlight coordination", () => {
+      function setup(edgesA: any[] = [], edgesB: any[] = []) {
+         const fixture = TestBed.createComponent(TestApp);
+         const component: ChartPlotArea =
+            fixture.debugElement.query(By.css("chart-plot-area")).componentInstance;
+         vi.spyOn(component, "getSrc").mockImplementation(() => "");
+         fixture.detectChanges();
+         const tileA = { getRelationEdges: vi.fn(() => edgesA), setExternalRelationHighlight: vi.fn() };
+         const tileB = { getRelationEdges: vi.fn(() => edgesB), setExternalRelationHighlight: vi.fn() };
+         (component as any).inlineSvgTiles = [tileA, tileB];
+         return { component, tileA, tileB };
+      }
+
+      // Connectivity is split across tiles: N->M lives in tile A, N->P in tile B. Hovering N must
+      // resolve both neighbours by merging every tile's edges, then broadcast to all tiles.
+      it("merges edges across tiles to resolve neighbours and broadcasts the active set", () => {
+         const { component, tileA, tileB } = setup(
+            [{ source: "N", target: "M" }], [{ source: "N", target: "P" }]);
+         const t = {} as any;
+         component.onRelationHover("N", t);
+         const [ids, hoveredId] = tileA.setExternalRelationHighlight.mock.calls[0];
+         expect(hoveredId).toBe("N");
+         expect([...(ids as Set<string>)].sort()).toEqual(["M", "N", "P"]);
+         expect(tileB.setExternalRelationHighlight).toHaveBeenCalledWith(ids, "N");
+         expect((component as any).activeRelationTile).toBe(t);
+      });
+
+      it("ignores a null from a tile that is not the active source", () => {
+         vi.useFakeTimers();
+         try {
+            const { component, tileA } = setup([{ source: "N", target: "M" }]);
+            const t1 = {} as any, t2 = {} as any;
+            component.onRelationHover("N", t1);
+            tileA.setExternalRelationHighlight.mockClear();
+            component.onRelationHover(null, t2);
+            vi.advanceTimersByTime(500);
+            expect(tileA.setExternalRelationHighlight).not.toHaveBeenCalledWith(null, null);
+            expect((component as any).activeRelationTile).toBe(t1);
+         }
+         finally {
+            vi.useRealTimers();
+         }
+      });
+
+      it("clears every tile after the debounce when the active tile leaves", () => {
+         vi.useFakeTimers();
+         try {
+            const { component, tileA, tileB } = setup([{ source: "N", target: "M" }]);
+            const t1 = {} as any;
+            component.onRelationHover("N", t1);
+            tileA.setExternalRelationHighlight.mockClear();
+            tileB.setExternalRelationHighlight.mockClear();
+            component.onRelationHover(null, t1);
+            expect(tileA.setExternalRelationHighlight).not.toHaveBeenCalled();
+            vi.advanceTimersByTime(150);
+            expect(tileA.setExternalRelationHighlight).toHaveBeenCalledWith(null, null);
+            expect(tileB.setExternalRelationHighlight).toHaveBeenCalledWith(null, null);
+            expect((component as any).activeRelationTile).toBeNull();
+         }
+         finally {
+            vi.useRealTimers();
+         }
+      });
+   });
 });

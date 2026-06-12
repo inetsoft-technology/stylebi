@@ -2703,9 +2703,20 @@ public class SVGAnimationDOMInjector {
          "svg:has(.inetsoft-bar.inetsoft-active) .inetsoft-bar:not(.inetsoft-active)," +
          "svg:has(.inetsoft-bar.inetsoft-active) .inetsoft-bar-label:not(.inetsoft-active)" +
          "{opacity:" + dim + "!important}" +
-         "svg:has(.inetsoft-relation.inetsoft-active) .inetsoft-relation:not(.inetsoft-active)," +
-         "svg:has(.inetsoft-relation.inetsoft-active) .inetsoft-relation-edge:not(.inetsoft-active)," +
-         "svg:has(.inetsoft-relation.inetsoft-active) .inetsoft-relation-label:not(.inetsoft-active)" +
+         // Trigger on an active node OR an active edge: when a chart is split into tiles, a tile
+         // may hold only an edge incident to the hovered node (its neighbour node lives in another
+         // tile), and that tile must still dim its non-active elements.
+         "svg:has(.inetsoft-relation.inetsoft-active,.inetsoft-relation-edge.inetsoft-active) .inetsoft-relation:not(.inetsoft-active)," +
+         "svg:has(.inetsoft-relation.inetsoft-active,.inetsoft-relation-edge.inetsoft-active) .inetsoft-relation-edge:not(.inetsoft-active)," +
+         "svg:has(.inetsoft-relation.inetsoft-active,.inetsoft-relation-edge.inetsoft-active) .inetsoft-relation-label:not(.inetsoft-active)" +
+         "{opacity:" + dim + "!important}" +
+         // Cross-tile dim: a large chart is split into multiple SVG tiles and the hovered
+         // element lives in only one of them. The :has() rules above are scoped to a single
+         // SVG and cannot reach sibling tiles, so the directive marks the other tiles' SVG
+         // roots with inetsoft-dim-all to dim their (non-active) elements too.
+         "svg.inetsoft-dim-all .inetsoft-bar,svg.inetsoft-dim-all .inetsoft-bar-label," +
+         "svg.inetsoft-dim-all .inetsoft-relation,svg.inetsoft-dim-all .inetsoft-relation-edge," +
+         "svg.inetsoft-dim-all .inetsoft-relation-label" +
          "{opacity:" + dim + "!important}" +
          // A1 chart types: animation is applied directly to the annotation group that is also
          // the hover target. The .ready gate prevents hover dim from conflicting with the
@@ -2731,6 +2742,12 @@ public class SVGAnimationDOMInjector {
          // Mekko + label dimming.
          "svg.ready:has(.inetsoft-mekko.inetsoft-active) .inetsoft-mekko:not(.inetsoft-active)," +
          "svg.ready:has(.inetsoft-mekko.inetsoft-active) .inetsoft-mekko-label:not(.inetsoft-active)" +
+         "{opacity:" + dim + "!important}" +
+         // Cross-tile dim for A1 types (same ready gate as their :has() rules above).
+         "svg.ready.inetsoft-dim-all .inetsoft-point,svg.ready.inetsoft-dim-all .inetsoft-candle," +
+         "svg.ready.inetsoft-dim-all .inetsoft-box,svg.ready.inetsoft-dim-all .inetsoft-treemap," +
+         "svg.ready.inetsoft-dim-all .inetsoft-mekko,svg.ready.inetsoft-dim-all .inetsoft-treemap-label," +
+         "svg.ready.inetsoft-dim-all .inetsoft-mekko-label" +
          "{opacity:" + dim + "!important}" +
          // Area/line hover uses JS-only inline style.opacity (no inetsoft-active class is set).
          // CSS :has(.inetsoft-area.inetsoft-active) rules are not used because CSS :has()
