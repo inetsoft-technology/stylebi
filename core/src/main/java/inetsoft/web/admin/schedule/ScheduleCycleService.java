@@ -59,7 +59,7 @@ public class ScheduleCycleService {
       List<DataCycleInfo> dataCycleInfoList = new ArrayList<>();
       String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
-      for(DataCycleInfo cycleInfo : schedulerMonitoringService.getCycleInfo()) {
+      for(DataCycleInfo cycleInfo : schedulerMonitoringService.getDataCycleInfos()) {
          if(securityEngine.checkPermission(principal, ResourceType.SCHEDULE_CYCLE,
                                            getCyclePermissionID(cycleInfo.getName(), orgId), ResourceAction.ACCESS))
          {

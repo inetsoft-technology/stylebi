@@ -20,8 +20,9 @@
  * MSW handlers for Viewer endpoints.
  *
  * Covers the ../api/vs/**, ../api/viewsheet/** API paths
- * used by components in the viewer. All defaults are the "happy path"
- * minimal responses needed for a component to finish initialisation without errors.
+ * used by components in the viewer. All defaults are "happy path" responses;
+ * simple endpoints return the minimal shape, model endpoints return the complete
+ * default model so that dialogs opened downstream do not hit missing-field errors.
  *
  * Per-test overrides:
  *   import { server } from '<path>/mocks/server';
@@ -38,6 +39,51 @@ export const viewerHandlers = [
          messageCommand: { type: "OK", message: "" },
          addressHistory: [],
       });
+   }),
+
+   // ExportDialog.ok() — check if export is allowed for the current viewsheet
+   http.get("*/export/check/*", () => {
+      return HttpResponse.json({ type: "OK", message: "" });
+   }),
+
+   // ScheduleDialog.ok() — check if schedule bookmark is valid
+   http.get("*/api/vs/check-schedule-dialog/*", () => {
+      return HttpResponse.json({ type: "OK", message: "" });
+   }),
+
+   // ScheduleDialog.getSimpleScheduleDialog() — fetch simple schedule model
+   http.get("*/api/vs/simple-schedule-dialog-model/*", () => {
+      return HttpResponse.json({
+         userDialogEnabled: false,
+         timeProp: "",
+         twelveHourSystem: false,
+         taskName: "",
+         isSecurity: false,
+         formatTypes: [],
+         expandEnabled: false,
+         emailButtonVisible: false,
+         emailDeliveryEnabled: false,
+         timeConditionModel: null,
+         actionModel: null,
+         emailAddrDialogModel: null,
+         timeRanges: [],
+         startTimeEnabled: false,
+         timeRangeEnabled: false,
+      });
+   }),
+
+   // ProfilingDialog.ngOnInit() — load group-by field list
+   http.get("*/api/portal/profile/group-by*", () => {
+      return HttpResponse.json({
+         fields: [
+            { label: "Cycle Name", value: "cycle" },
+         ],
+      });
+   }),
+
+   // ProfilingDialog.reloadTable() — reload profiling table data (PUT)
+   http.put("*/api/portal/profile/table*", () => {
+      return HttpResponse.json({ body: [] });
    }),
 
 ];

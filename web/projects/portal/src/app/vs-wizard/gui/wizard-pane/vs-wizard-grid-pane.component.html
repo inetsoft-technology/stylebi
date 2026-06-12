@@ -17,7 +17,7 @@
 -->
 <div class="vs-grid-table">
   <div class="vs-grid-col-container">
-    @for (_ of colRange; track $index; let colIndex = $index; let evenCol = $even) {
+    @for (_ of colRange; track colIndex; let colIndex = $index; let evenCol = $even) {
       <div
         class="vs-grid-table-col"
         [style.width.px]="cellWidth"
@@ -26,12 +26,12 @@
     }
   </div>
 
-  @for (_ of rowRange; track $index; let rowIndex = $index; let evenRow = $even) {
+  @for (_ of rowRange; track rowIndex; let rowIndex = $index; let evenRow = $even) {
     <div
       class="vs-grid-table-row"
       [class.even-row]="evenRow"
       [class.odd-row]="!evenRow">
-      @for (_ of colRange; track $index; let colIndex = $index; let evenCol = $even) {
+      @for (_ of colRange; track colIndex; let colIndex = $index; let evenCol = $even) {
         <div
           class="vs-grid-table-cell txt-primary"
           [class.even-col]="evenCol"

@@ -51,6 +51,7 @@ import org.slf4j.LoggerFactory;
 import javax.cache.Cache;
 import javax.cache.expiry.ExpiryPolicy;
 import java.io.*;
+import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -79,7 +80,19 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       ignite.message().localListen(AFFINITY_TOPIC, new AffinityCallProcessor());
       ignite.message().localListen(ServiceTaskExecutorImpl.RESULT_TOPIC, new ServiceTaskResultListener());
       ignite.events().localListen(new MembershipDispatcher(), EventType.EVT_NODE_JOINED, EventType.EVT_NODE_LEFT);
-      clusterFileTransfer = new ClusterFileTransfer();
+      String localIp = ignite.cluster().localNode().attribute("local.ip.addr");
+      InetAddress fileTransferAddress;
+
+      try {
+         fileTransferAddress = InetAddress.getByName(localIp);
+      }
+      catch(Exception e) {
+         throw new RuntimeException("Failed to resolve local cluster IP: " + localIp, e);
+      }
+
+      clusterFileTransfer = new ClusterFileTransfer(
+         InetsoftConfig.getInstance().getCluster().getFileTransferPort(),
+         fileTransferAddress);
       messageExecutor = Executors.newFixedThreadPool(
          Runtime.getRuntime().availableProcessors(),
          r -> new GroupedThread(r, "IgniteMessages"));
@@ -1487,10 +1500,14 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public void sendMessage(String server, Serializable message) {
-      AddressedMessage addressedMessage = new AddressedMessage();
-      addressedMessage.setRecipient(server);
-      addressedMessage.setMessage(message);
-      ignite.message().sendOrdered(MESSAGE_TOPIC, addressedMessage, 0);
+      ClusterNode target = ignite.cluster().nodes().stream()
+         .filter(n -> getNodeName(n).equals(server))
+         .findFirst().orElse(null);
+
+      if(target != null) {
+         ignite.message(ignite.cluster().forNode(target))
+            .sendOrdered(MESSAGE_TOPIC, message, 0);
+      }
    }
 
    @Override
@@ -1524,13 +1541,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       AtomicReference<T> result = new AtomicReference<>(null);
 
       inetsoft.sree.internal.cluster.MessageListener listener = e -> {
-         if(address.equals(e.getSender())) {
-            T value = matcher.apply(e);
+         T value = matcher.apply(e);
 
-            if(value != null) {
-               result.set(value);
-               latch.countDown();
-            }
+         if(value != null) {
+            result.set(value);
+            latch.countDown();
          }
       };
 
@@ -1549,7 +1564,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          }
       };
 
-      addMessageListener(listener);
+      exchangeListeners.compute(address, (k, list) -> {
+         if(list == null) list = new CopyOnWriteArrayList<>();
+         list.add(listener);
+         return list;
+      });
       addMembershipListener(membershipListener);
 
       try {
@@ -1565,7 +1584,14 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          }
       }
       finally {
-         removeMessageListener(listener);
+         exchangeListeners.compute(address, (k, list) -> {
+            if(list != null) {
+               list.remove(listener);
+               return list.isEmpty() ? null : list;
+            }
+            return null;
+         });
+
          removeMembershipListener(membershipListener);
       }
 
@@ -1600,6 +1626,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    @Override
    public File getTransferFile(String link) throws IOException {
       return clusterFileTransfer.getTransferFile(link);
+   }
+
+   @Override
+   public void cancelTransferFile(String link) {
+      clusterFileTransfer.cancelTransferFile(link);
    }
 
    @Override
@@ -1847,6 +1878,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private final Ignite ignite;
    private volatile boolean closed;
    private final Set<inetsoft.sree.internal.cluster.MessageListener> messageListeners = new CopyOnWriteArraySet<>();
+   private final ConcurrentHashMap<String, CopyOnWriteArrayList<inetsoft.sree.internal.cluster.MessageListener>> exchangeListeners = new ConcurrentHashMap<>();
    private final Set<inetsoft.sree.internal.cluster.MembershipListener> membershipListeners = new CopyOnWriteArraySet<>();
    private final Map<String, MapListenerRegistration> mapListeners = new HashMap<>();
    private final Map<CacheRebalanceListener, UUID> rebalanceListeners = new ConcurrentHashMap<>();
@@ -2048,29 +2080,37 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    {
       @Override
       public boolean apply(UUID nodeId, Serializable message) {
-         if(message instanceof AddressedMessage addressedMessage) {
-            if(getNodeName(ignite.cluster().localNode())
-               .equals(addressedMessage.getRecipient()))
-            {
-               message = addressedMessage.getMessage();
-            }
-            else {
-               return true;
+         ClusterNode senderNode = ignite.cluster().node(nodeId);
+
+         if(senderNode == null) {
+            LOG.warn("Received message from unknown node {}, dropping", nodeId);
+            return true;
+         }
+
+         String senderAddress = getNodeName(senderNode);
+         ClusterNode localNode = ignite.cluster().localNode();
+         MessageEvent event = new MessageEvent(
+            IgniteCluster.this, senderAddress,
+            Objects.equals(senderNode, localNode), message);
+
+         // Invoke exchange listeners directly (no executor) to avoid executor saturation
+         // under high concurrency when many exchangeMessages() calls are in flight.
+         List<inetsoft.sree.internal.cluster.MessageListener> perSender =
+            exchangeListeners.get(senderAddress);
+
+         if(perSender != null) {
+            for(inetsoft.sree.internal.cluster.MessageListener l : perSender) {
+               try {
+                  l.messageReceived(event);
+               }
+               catch(Exception e) {
+                  LOG.error("Failed to dispatch exchange message", e);
+               }
             }
          }
 
-         MessageEvent event = null;
-
          for(inetsoft.sree.internal.cluster.MessageListener listener : messageListeners) {
             if(listener != null) {
-               if(event == null) {
-                  ClusterNode senderNode = ignite.cluster().node(nodeId);
-                  ClusterNode localNode = ignite.cluster().localNode();
-                  event = new MessageEvent(
-                     IgniteCluster.this, getNodeName(senderNode),
-                     Objects.equals(senderNode, localNode), message);
-               }
-
                messageExecutor.submit(new MessageDispatchTask(listener, event));
             }
          }
@@ -2103,27 +2143,6 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
             }
          }
       }
-   }
-
-   private static final class AddressedMessage implements Serializable {
-      public String getRecipient() {
-         return recipient;
-      }
-
-      public void setRecipient(String recipient) {
-         this.recipient = recipient;
-      }
-
-      public Serializable getMessage() {
-         return message;
-      }
-
-      public void setMessage(Serializable message) {
-         this.message = message;
-      }
-
-      private String recipient;
-      private Serializable message;
    }
 
    private final class MembershipDispatcher implements IgnitePredicate<Event> {

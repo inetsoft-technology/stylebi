@@ -452,6 +452,10 @@ public final class XTableFragment extends XSwappable {
    }
 
    public final synchronized XTableColumnCreator addObject(int col, Object val) {
+      if(disposed) {
+         return null;
+      }
+
       XTableColumn column = columns[col].addObject(val);
 
       if(column != null) {

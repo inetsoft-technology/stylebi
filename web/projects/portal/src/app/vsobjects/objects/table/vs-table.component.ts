@@ -1228,9 +1228,9 @@ export class VSTable extends BaseTable<VSTableModel> implements OnInit, OnDestro
 
    /** @inheritDoc */
    protected positionDataAnnotations(): boolean {
-      // Since *ngFor was changed to use trackByConstant, this component's cells QueryList no longer
-      // updates on scroll events or loadTableData commands. Added a setTimeout to wait an extra tick
-      // for the cell values to update to correctly display annotations.
+      // The @for blocks reuse cell DOM by position (track $index), so this component's cells
+      // QueryList does not always update synchronously on scroll events or loadTableData commands.
+      // Wait an extra tick for the cell values to update to correctly display annotations.
       this.zone.run(() => {
          setTimeout(() => {
             const lt = this.positionAnnotationsToCell(this.model.leftTopAnnotations,
