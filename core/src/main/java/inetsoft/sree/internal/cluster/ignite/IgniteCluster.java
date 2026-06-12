@@ -1487,10 +1487,14 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public void sendMessage(String server, Serializable message) {
-      AddressedMessage addressedMessage = new AddressedMessage();
-      addressedMessage.setRecipient(server);
-      addressedMessage.setMessage(message);
-      ignite.message().sendOrdered(MESSAGE_TOPIC, addressedMessage, 0);
+      ClusterNode target = ignite.cluster().nodes().stream()
+         .filter(n -> getNodeName(n).equals(server))
+         .findFirst().orElse(null);
+
+      if(target != null) {
+         ignite.message(ignite.cluster().forNode(target))
+            .sendOrdered(MESSAGE_TOPIC, message, 0);
+      }
    }
 
    @Override
@@ -2058,17 +2062,6 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    {
       @Override
       public boolean apply(UUID nodeId, Serializable message) {
-         if(message instanceof AddressedMessage addressedMessage) {
-            if(getNodeName(ignite.cluster().localNode())
-               .equals(addressedMessage.getRecipient()))
-            {
-               message = addressedMessage.getMessage();
-            }
-            else {
-               return true;
-            }
-         }
-
          ClusterNode senderNode = ignite.cluster().node(nodeId);
 
          if(senderNode == null) {
@@ -2132,27 +2125,6 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
             }
          }
       }
-   }
-
-   private static final class AddressedMessage implements Serializable {
-      public String getRecipient() {
-         return recipient;
-      }
-
-      public void setRecipient(String recipient) {
-         this.recipient = recipient;
-      }
-
-      public Serializable getMessage() {
-         return message;
-      }
-
-      public void setMessage(Serializable message) {
-         this.message = message;
-      }
-
-      private String recipient;
-      private Serializable message;
    }
 
    private final class MembershipDispatcher implements IgnitePredicate<Event> {
