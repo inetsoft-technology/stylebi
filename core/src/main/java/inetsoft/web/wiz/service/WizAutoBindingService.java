@@ -220,6 +220,15 @@ public class WizAutoBindingService {
                if(primaryAssembly instanceof ChartVSAssembly chartAsm && chartAsm.getVSChartInfo() != null) {
                   applyFieldConfigs(chartAsm.getVSChartInfo(), configMap);
                }
+               // The crosstab recommender decides row/col header placement itself and ignores
+               // rows/cols pins (ChartPreference, the only pin channel into the recommender, models
+               // chart slots — x/y/color/... — not rows/cols). Honor those pins here by moving the
+               // pinned fields into the row- vs column-header groups on the rendered binding.
+               else if(primaryAssembly instanceof CrosstabVSAssembly crosstabAsm &&
+                       crosstabAsm.getVSCrosstabInfo() != null)
+               {
+                  applyCrosstabHeaderPins(crosstabAsm.getVSCrosstabInfo(), explicitBindings);
+               }
             }
          }
 
@@ -364,6 +373,136 @@ public class WizAutoBindingService {
       applyAestheticFieldConfig(chartInfo.getShapeField(), configMap);
       applyAestheticFieldConfig(chartInfo.getSizeField(), configMap);
       applyAestheticFieldConfig(chartInfo.getTextField(), configMap);
+   }
+
+   /**
+    * Honor rows/cols explicitBindings pins on a crosstab. The recommender assigns row/col header
+    * placement on its own and the pin channel into it (ChartPreference) has no rows/cols slots, so
+    * such pins are otherwise dropped. This repartitions the existing header dimensions: a field
+    * pinned to "rows"/"cols" moves to that group (in pin order); any unpinned field keeps its
+    * current group. Design and runtime headers are kept in sync. No-op when there are no pins.
+    */
+   private void applyCrosstabHeaderPins(VSCrosstabInfo cinfo, List<ExplicitBinding> bindings) {
+      List<String> rowPins = pinnedHeaderFields(bindings, "rows");
+      List<String> colPins = pinnedHeaderFields(bindings, "cols");
+
+      if(rowPins.isEmpty() && colPins.isEmpty()) {
+         return;
+      }
+
+      DataRef[][] design = repartitionHeaders(
+         cinfo.getDesignRowHeaders(), cinfo.getDesignColHeaders(), rowPins, colPins);
+      cinfo.setDesignRowHeaders(design[0]);
+      cinfo.setDesignColHeaders(design[1]);
+
+      DataRef[] rtRows = cinfo.getRuntimeRowHeaders();
+      DataRef[] rtCols = cinfo.getRuntimeColHeaders();
+
+      // Runtime headers are normally re-derived from design at execution, but update them in
+      // lockstep when already populated so the placement is correct regardless of execution path.
+      if(rtRows != null && rtRows.length > 0 || rtCols != null && rtCols.length > 0) {
+         DataRef[][] runtime = repartitionHeaders(rtRows, rtCols, rowPins, colPins);
+         cinfo.setRuntimeRowHeaders(runtime[0]);
+         cinfo.setRuntimeColHeaders(runtime[1]);
+      }
+   }
+
+   /** Field names pinned to the given crosstab role, in binding order (deduplicated). */
+   static List<String> pinnedHeaderFields(List<ExplicitBinding> bindings, String role) {
+      if(bindings == null) {
+         return Collections.emptyList();
+      }
+
+      List<String> fields = new ArrayList<>();
+
+      for(ExplicitBinding b : bindings) {
+         if(b != null && role.equals(b.getRole()) && !Tool.isEmptyString(b.getField()) &&
+            !fields.contains(b.getField()))
+         {
+            fields.add(b.getField());
+         }
+      }
+
+      return fields;
+   }
+
+   /**
+    * Repartition crosstab header dimensions across rows/cols per the pin lists. Pinned fields are
+    * placed in their target group first (in pin order); unpinned fields keep their original group
+    * and relative order. Matching is case-insensitive on the dimension's column value. Returns
+    * {@code {newRowHeaders, newColHeaders}}.
+    */
+   static DataRef[][] repartitionHeaders(DataRef[] rows, DataRef[] cols,
+                                         List<String> rowPins, List<String> colPins)
+   {
+      LinkedHashMap<String, DataRef> byName = new LinkedHashMap<>();
+      List<String> origRows = new ArrayList<>();
+      List<String> origCols = new ArrayList<>();
+
+      if(rows != null) {
+         for(DataRef r : rows) {
+            String key = headerFieldKey(r);
+            byName.put(key, r);
+            origRows.add(key);
+         }
+      }
+
+      if(cols != null) {
+         for(DataRef c : cols) {
+            String key = headerFieldKey(c);
+            byName.put(key, c);
+            origCols.add(key);
+         }
+      }
+
+      List<DataRef> newRows = new ArrayList<>();
+      List<DataRef> newCols = new ArrayList<>();
+      Set<String> placed = new HashSet<>();
+
+      for(String f : rowPins) {
+         String key = f.toLowerCase();
+
+         if(byName.containsKey(key) && placed.add(key)) {
+            newRows.add(byName.get(key));
+         }
+      }
+
+      for(String f : colPins) {
+         String key = f.toLowerCase();
+
+         if(byName.containsKey(key) && placed.add(key)) {
+            newCols.add(byName.get(key));
+         }
+      }
+
+      // Unpinned dimensions stay in their original group, preserving order.
+      for(String key : origRows) {
+         if(placed.add(key)) {
+            newRows.add(byName.get(key));
+         }
+      }
+
+      for(String key : origCols) {
+         if(placed.add(key)) {
+            newCols.add(byName.get(key));
+         }
+      }
+
+      return new DataRef[][] { newRows.toArray(new DataRef[0]), newCols.toArray(new DataRef[0]) };
+   }
+
+   /** Lowercased field key for a crosstab header dimension, for case-insensitive pin matching. */
+   static String headerFieldKey(DataRef ref) {
+      String name = null;
+
+      if(ref instanceof VSDimensionRef dim && !Tool.isEmptyString(dim.getGroupColumnValue())) {
+         name = dim.getGroupColumnValue();
+      }
+      else if(ref != null) {
+         name = ref.getName();
+      }
+
+      return name == null ? "" : name.toLowerCase();
    }
 
    private void applyAestheticFieldConfig(AestheticRef aestheticRef,
