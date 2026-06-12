@@ -35,7 +35,7 @@
 | 待审核 | SelectWorksheetDialog | 131 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | 待审核 | AttributeFormattingPane | 232 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | LogicalModelEntityDialog | 59 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | LogicalModelExpressionDialog | 230 | 0 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: LogicalModelExpressionDialog.interaction.tl.spec.ts<br>P2: LogicalModelExpressionDialog.risk.tl.spec.ts |
+| 待审核 | LogicalModelExpressionDialog | 230 | 0 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: LogicalModelExpressionDialog.interaction.tl.spec.ts |
 | 待审核 | LogicalModelPropertyPane | 591 | 0 | 2 | **multi-pass** | ✅ 推进 |  |  | P1: LogicalModelPropertyPane.interaction.tl.spec.ts |
 | 待审核 | LogicalModelComponent | 275 | 2 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: LogicalModelComponent.interaction.tl.spec.ts<br>P2: LogicalModelComponent.risk.tl.spec.ts |
 | 待审核 | PhysicalGraphPane | 237 | 0 | 9 | **multi-pass** | ✅ 推进 |  |  | P1: PhysicalGraphPane.interaction.tl.spec.ts<br>P2: PhysicalGraphPane.risk.tl.spec.ts |
@@ -134,11 +134,11 @@
 ### DatasourceSelectionViewComponent
 
 **Pass 1** (`DatasourceSelectionViewComponent.interaction.tl.spec.ts`)
-- Methods: canDeactivate, getListings, isCreateDisabled, create, subscribe, cancel
+- Methods: getListings, isCreateDisabled, cancel
 - Reason: 回归主体：navigation / HTTP loading / lifecycle / user flows
 
 **Pass 2** (`DatasourceSelectionViewComponent.risk.tl.spec.ts`)
-- Methods: canDeactivate, getListings, isCreateDisabled, create, subscribe, cancel
+- Methods: canDeactivate, create, subscribe
 - Reason: async≥3：竞态 / destructive / state inconsistency
 
 ### DatabaseDataModelBrowserComponent
@@ -188,12 +188,8 @@
 ### LogicalModelExpressionDialog
 
 **Pass 1** (`LogicalModelExpressionDialog.interaction.tl.spec.ts`)
-- Methods: nameControl, parentControl, initFormControl, loadFields, ok, updateExpression
+- Methods: nameControl, parentControl, initFormControl, loadFields, ok, updateExpression, cancel
 - Reason: 回归主体：navigation / HTTP loading / lifecycle / user flows
-
-**Pass 2** (`LogicalModelExpressionDialog.risk.tl.spec.ts`)
-- Methods: cancel
-- Reason: async≥3：竞态 / destructive / state inconsistency
 
 ### LogicalModelPropertyPane
 

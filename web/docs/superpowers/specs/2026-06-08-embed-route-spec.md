@@ -80,7 +80,7 @@ docs/superpowers/specs/test-prescan/embed-prescan-YYYY-MM-DD.md
 **4b. 调用 risk-driven prompt 生成测试**
 
 ```
-Follow the instructions in docs/superpowers/prompts/risk-driven-generation-prompt.md
+Follow the instructions in docs/superpowers/prompts/risk-driven-test-generation.md
 
 Scope: <COMPONENT_PATH>
 Reference test file: projects/em/src/app/auditing/audit-bookmark-history/audit-bookmark-history.component.tl.spec.ts
@@ -151,7 +151,7 @@ rm projects/portal/src/app/embed/path/to/ComponentName.spec.ts
 | 资源 | 路径 |
 |------|------|
 | 整体设计文档 | `docs/superpowers/specs/2026-06-08-portal-unit-test-strategy-design.md` |
-| Risk-driven 生成 prompt | `docs/superpowers/prompts/risk-driven-generation-prompt.md` |
+| Risk-driven 生成 prompt | `docs/superpowers/prompts/risk-driven-test-generation.md` |
 | Pre-scan workflow | `.claude/workflows/portal-prescan.js` |
 | 复用 handler | `mocks/handlers/portal.handlers.ts` |
 | MSW server 入口 | `mocks/server.ts` |
