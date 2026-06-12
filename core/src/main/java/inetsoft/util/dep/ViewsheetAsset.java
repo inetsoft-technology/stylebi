@@ -507,12 +507,19 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
                ? (Map<String, Boolean>) config.getContextAttribute("bookmarkResolutions")
                : null;
 
+            // HOME_BOOKMARK and INITIAL_STATE are always written together (INITIAL_STATE is a
+            // mirror of HOME_BOOKMARK saved in RuntimeViewsheet). The conflict table only shows
+            // HOME_BOOKMARK; we apply the same resolution to INITIAL_STATE implicitly.
             if(resolutions != null) {
                // Remove names where the admin chose to keep the existing (current) bookmark.
                for(String bName : new ArrayList<>(Arrays.asList(imported.getBookmarks()))) {
                   String key = entry.getPath() + "|" + name + "|" + bName;
+                  boolean keepCurrent = Boolean.FALSE.equals(resolutions.get(key)) ||
+                     // INITIAL_STATE follows the HOME_BOOKMARK resolution — no separate key.
+                     (VSBookmark.INITIAL_STATE.equals(bName) &&
+                        Boolean.FALSE.equals(resolutions.get(entry.getPath() + "|" + name + "|" + VSBookmark.HOME_BOOKMARK)));
 
-                  if(Boolean.FALSE.equals(resolutions.get(key))) {
+                  if(keepCurrent) {
                      imported.removeBookmark(bName);
                   }
                }

@@ -31,7 +31,7 @@ class VSBookmarkTest {
    private static final IdentityID USER_ID = new IdentityID(USER, null);
 
    @Test
-   void removeBookmark_systemBookmarks_areIgnored() {
+   void removeBookmark_systemBookmarks_canBeRemoved() {
       VSBookmark bookmark = new VSBookmark("test-vs-id", USER_ID);
       bookmark.setBookmarkData(VSBookmark.HOME_BOOKMARK, new byte[]{ 1, 2, 3 });
       bookmark.setBookmarkData(VSBookmark.INITIAL_STATE, new byte[]{ 4, 5, 6 });
@@ -39,9 +39,8 @@ class VSBookmarkTest {
       bookmark.removeBookmark(VSBookmark.HOME_BOOKMARK);
       bookmark.removeBookmark(VSBookmark.INITIAL_STATE);
 
-      // System bookmarks should not be removed
-      assertNotNull(bookmark.getBookmarkData(VSBookmark.HOME_BOOKMARK));
-      assertNotNull(bookmark.getBookmarkData(VSBookmark.INITIAL_STATE));
+      assertNull(bookmark.getBookmarkData(VSBookmark.HOME_BOOKMARK));
+      assertNull(bookmark.getBookmarkData(VSBookmark.INITIAL_STATE));
    }
 
    @Test

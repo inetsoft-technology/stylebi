@@ -172,8 +172,9 @@ public class VSBookmark implements XMLSerializable {
    /**
     * Checks whether the stored bookmark state is structurally compatible with {@code vs}.
     * Compares the {@code <assembly>} elements in the stored state XML against the current
-    * viewsheet's assemblies. Returns an empty result for system bookmarks
-    * ({@link #HOME_BOOKMARK}, {@link #INITIAL_STATE}).
+    * viewsheet's assemblies. Returns an empty result for {@link #HOME_BOOKMARK} and
+    * {@link #INITIAL_STATE}: Home is only read for annotations (not full state), so missing
+    * assemblies do not affect it; INITIAL_STATE is a runtime-only mirror of Home.
     *
     * @param bookmarkName the name of the bookmark to check.
     * @param vs           the current viewsheet to compare against.
@@ -338,16 +339,11 @@ public class VSBookmark implements XMLSerializable {
 
    /**
     * Removes the bookmark with the given name from both the data map and the info map.
-    * Does nothing if the name does not exist or is a system bookmark
-    * ({@link #HOME_BOOKMARK}, {@link #INITIAL_STATE}).
+    * Does nothing if the name does not exist.
     *
     * @param name the bookmark name to remove.
     */
    public void removeBookmark(String name) {
-      if(HOME_BOOKMARK.equals(name) || INITIAL_STATE.equals(name)) {
-         return;
-      }
-
       bmap.remove(name);
       bookmarksInfo.remove(name);
    }

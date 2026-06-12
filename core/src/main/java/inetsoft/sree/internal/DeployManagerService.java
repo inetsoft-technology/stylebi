@@ -1084,8 +1084,11 @@ public class DeployManagerService {
                }
 
                for(String bName : imported.getBookmarks()) {
-                  // System bookmarks cannot be selectively kept — skip them
-                  if(VSBookmark.HOME_BOOKMARK.equals(bName) || VSBookmark.INITIAL_STATE.equals(bName)) {
+                  // INITIAL_STATE is always a mirror of HOME_BOOKMARK (written together in
+                  // RuntimeViewsheet.saveBookmark when confirmed=true). Showing it as a
+                  // separate conflict row would be confusing and redundant — skip it here;
+                  // it is handled implicitly when HOME_BOOKMARK is resolved.
+                  if(VSBookmark.INITIAL_STATE.equals(bName)) {
                      continue;
                   }
 
