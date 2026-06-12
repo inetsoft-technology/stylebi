@@ -1086,7 +1086,10 @@ public abstract class RuntimeSheet {
       // storing that raw XML in Ignite causes SnapshotEmbeddedTableAssembly to reference temp
       // paths local to this node when another node restores an undo checkpoint.
       // For other sheet types (Viewsheet etc.), reads the .tdat file directly, skipping the
-      // DOM parse + object construction + re-serialize round-trip.
+      // DOM parse + object construction + re-serialize round-trip. The ISTEMP flag set by
+      // _swap() is a ThreadLocal read exclusively by SnapshotEmbeddedTableAssembly, which is
+      // a Worksheet-only class — Viewsheet.writeXML() never consults it, so raw .tdat bytes
+      // for non-Worksheet checkpoints are safe to store in Ignite without re-serialization.
       String getXml() {
          if(valid) {
             if(sheet == null) {

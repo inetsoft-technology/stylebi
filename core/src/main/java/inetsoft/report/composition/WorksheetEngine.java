@@ -165,6 +165,7 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
       affinityExecutor.shutdownNow();
 
       try {
+         debouncer.close();
          amap.close();
       }
       catch(Exception e) {
