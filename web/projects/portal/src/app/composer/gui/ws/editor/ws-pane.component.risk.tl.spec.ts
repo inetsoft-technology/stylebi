@@ -58,7 +58,6 @@
 
 import {
    renderComponent,
-   dispatchCommand,
    makeMocks,
 } from "./ws-pane.component.test-helpers";
 
@@ -73,14 +72,14 @@ describe("WSPaneComponent — processWSRemoveAssemblyCommand (tables)", () => {
    // 🔁 Regression-sensitive: splice must remove exactly the matched entry and forward
    //    the name via onRemoveWSAssembly so the parent can remove the canvas node.
    it("should remove a table by name and emit onRemoveWSAssembly", async () => {
-      const { comp } = await renderComponent();
+      const { comp, mocks } = await renderComponent();
       const t1 = { name: "T1", classType: "TableAssembly" } as any;
       const t2 = { name: "T2", classType: "TableAssembly" } as any;
       comp.worksheet.tables = [t1, t2];
       const removeSpy = vi.fn();
       comp.onRemoveWSAssembly.subscribe(removeSpy);
 
-      dispatchCommand("WSRemoveAssemblyCommand", { assemblyName: "T1" });
+      mocks.dispatchCommand("WSRemoveAssemblyCommand", { assemblyName: "T1" });
 
       expect(comp.worksheet.tables).toHaveLength(1);
       expect(comp.worksheet.tables[0]).toBe(t2);
@@ -88,11 +87,11 @@ describe("WSPaneComponent — processWSRemoveAssemblyCommand (tables)", () => {
    });
 
    it("should call worksheet.deselectAssembly for the removed assembly", async () => {
-      const { comp } = await renderComponent();
+      const { comp, mocks } = await renderComponent();
       const t = { name: "Q1", classType: "TableAssembly" } as any;
       comp.worksheet.tables = [t];
 
-      dispatchCommand("WSRemoveAssemblyCommand", { assemblyName: "Q1" });
+      mocks.dispatchCommand("WSRemoveAssemblyCommand", { assemblyName: "Q1" });
 
       expect(comp.worksheet.deselectAssembly).toHaveBeenCalledWith(t);
    });
@@ -105,21 +104,21 @@ describe("WSPaneComponent — processWSRemoveAssemblyCommand (tables)", () => {
 describe("WSPaneComponent — processWSRemoveAssemblyCommand (variables/groupings)", () => {
 
    it("should remove a variable by name", async () => {
-      const { comp } = await renderComponent();
+      const { comp, mocks } = await renderComponent();
       const v = { name: "Var1", classType: "VariableAssembly" } as any;
       comp.worksheet.variables = [v];
 
-      dispatchCommand("WSRemoveAssemblyCommand", { assemblyName: "Var1" });
+      mocks.dispatchCommand("WSRemoveAssemblyCommand", { assemblyName: "Var1" });
 
       expect(comp.worksheet.variables).toHaveLength(0);
    });
 
    it("should remove a grouping by name", async () => {
-      const { comp } = await renderComponent();
+      const { comp, mocks } = await renderComponent();
       const g = { name: "Grp1", classType: "GroupingAssembly" } as any;
       comp.worksheet.groupings = [g];
 
-      dispatchCommand("WSRemoveAssemblyCommand", { assemblyName: "Grp1" });
+      mocks.dispatchCommand("WSRemoveAssemblyCommand", { assemblyName: "Grp1" });
 
       expect(comp.worksheet.groupings).toHaveLength(0);
    });
@@ -142,7 +141,7 @@ describe("WSPaneComponent — processWSRemoveAssemblyCommand (not found)", () =>
       const removeSpy = vi.fn();
       comp.onRemoveWSAssembly.subscribe(removeSpy);
 
-      dispatchCommand("WSRemoveAssemblyCommand", { assemblyName: "Ghost" });
+      mocks.dispatchCommand("WSRemoveAssemblyCommand", { assemblyName: "Ghost" });
 
       expect(mocks.notifications.warning).toHaveBeenCalled();
       expect(removeSpy).not.toHaveBeenCalled();
@@ -162,7 +161,7 @@ describe("WSPaneComponent — processMessageCommand routing", () => {
       const mocks = makeMocks();
       const { comp } = await renderComponent(mocks);
 
-      dispatchCommand("MessageCommand", { type: "OK", message: "Saved!" });
+      mocks.dispatchCommand("MessageCommand", { type: "OK", message: "Saved!" });
 
       expect(mocks.notifications.success).toHaveBeenCalledWith("Saved!");
    });
@@ -171,7 +170,7 @@ describe("WSPaneComponent — processMessageCommand routing", () => {
       const mocks = makeMocks();
       const { comp } = await renderComponent(mocks);
 
-      dispatchCommand("MessageCommand", { type: "INFO", message: "FYI" });
+      mocks.dispatchCommand("MessageCommand", { type: "INFO", message: "FYI" });
 
       expect(mocks.notifications.info).toHaveBeenCalledWith("FYI");
    });
@@ -180,7 +179,7 @@ describe("WSPaneComponent — processMessageCommand routing", () => {
       const mocks = makeMocks();
       const { comp } = await renderComponent(mocks);
 
-      dispatchCommand("MessageCommand", { type: "UNKNOWN", message: "?" });
+      mocks.dispatchCommand("MessageCommand", { type: "UNKNOWN", message: "?" });
 
       expect(mocks.notifications.warning).toHaveBeenCalledWith("?");
    });
@@ -189,24 +188,9 @@ describe("WSPaneComponent — processMessageCommand routing", () => {
       const { comp } = await renderComponent();
       comp.worksheet.saving = true;
 
-      // processMessageCommand0 calls ComponentTool.showMessageDialog which needs modalService;
-      // spy it out so the test stays synchronous.
-      const showMsgSpy = vi.spyOn(
-         await import("../../../../common/util/component-tool"),
-         "ComponentTool",
-         "get",
-      ).mockReturnValue({
-         showMessageDialog: vi.fn().mockReturnValue(Promise.resolve()),
-         showConfirmDialog: vi.fn().mockReturnValue(Promise.resolve("yes")),
-         showTrapAlert: vi.fn().mockReturnValue(Promise.resolve("yes")),
-         formatCatalogString: vi.fn((s: string) => s),
-      } as any);
-
-      // Simpler: just assert saving is cleared synchronously
       (comp as any).processMessageCommand({ type: "ERROR", message: "bad" });
 
       expect(comp.worksheet.saving).toBe(false);
-      showMsgSpy.mockRestore?.();
    });
 
    it("should NOT clear worksheet.saving for type=WARNING", async () => {
@@ -293,24 +277,24 @@ describe("WSPaneComponent — processClearLoadingCommand / updateLoadingMask", (
    // 🔁 Regression-sensitive: each ShowLoadingMask increments a counter, ClearLoading
    //    decrements it. worksheet.loading should only become false when counter reaches 0.
    it("should decrement loadingEventCount and clear worksheet.loading when it reaches 0", async () => {
-      const { comp } = await renderComponent();
+      const { comp, mocks } = await renderComponent();
       // Simulate one ShowLoadingMask first
-      dispatchCommand("ShowLoadingMaskCommand", { preparingData: false, count: 1 });
+      mocks.dispatchCommand("ShowLoadingMaskCommand", { preparingData: false, count: 1 });
 
       expect(comp.worksheet.loading).toBe(true);
 
-      dispatchCommand("ClearLoadingCommand", { count: 1 });
+      mocks.dispatchCommand("ClearLoadingCommand", { count: 1 });
 
       expect(comp.worksheet.loading).toBe(false);
    });
 
    it("should keep worksheet.loading true if count > cleared amount", async () => {
-      const { comp } = await renderComponent();
+      const { comp, mocks } = await renderComponent();
       // Simulate two ShowLoadingMask events
-      dispatchCommand("ShowLoadingMaskCommand", { preparingData: false, count: 1 });
-      dispatchCommand("ShowLoadingMaskCommand", { preparingData: false, count: 1 });
+      mocks.dispatchCommand("ShowLoadingMaskCommand", { preparingData: false, count: 1 });
+      mocks.dispatchCommand("ShowLoadingMaskCommand", { preparingData: false, count: 1 });
 
-      dispatchCommand("ClearLoadingCommand", { count: 1 });
+      mocks.dispatchCommand("ClearLoadingCommand", { count: 1 });
 
       expect(comp.worksheet.loading).toBe(true);
    });
@@ -323,27 +307,27 @@ describe("WSPaneComponent — processClearLoadingCommand / updateLoadingMask", (
 describe("WSPaneComponent — processShowLoadingMaskCommand", () => {
 
    it("should set worksheet.loading=true after ShowLoadingMaskCommand", async () => {
-      const { comp } = await renderComponent();
+      const { comp, mocks } = await renderComponent();
 
-      dispatchCommand("ShowLoadingMaskCommand", { preparingData: false, count: 1 });
+      mocks.dispatchCommand("ShowLoadingMaskCommand", { preparingData: false, count: 1 });
 
       expect(comp.worksheet.loading).toBe(true);
    });
 
    it("should NOT increment loadingEventCount when preparingData=true", async () => {
-      const { comp } = await renderComponent();
+      const { comp, mocks } = await renderComponent();
       // Dispatch once with preparingData=true then clear 0 — counter should still be 0
-      dispatchCommand("ShowLoadingMaskCommand", { preparingData: true, count: 1 });
-      dispatchCommand("ClearLoadingCommand", { count: 0 });
+      mocks.dispatchCommand("ShowLoadingMaskCommand", { preparingData: true, count: 1 });
+      mocks.dispatchCommand("ClearLoadingCommand", { count: 0 });
 
       // Loading counter was never incremented, so worksheet.loading should be false
       expect(comp.worksheet.loading).toBe(false);
    });
 
    it("should set preparingData flag from the command", async () => {
-      const { comp } = await renderComponent();
+      const { comp, mocks } = await renderComponent();
 
-      dispatchCommand("ShowLoadingMaskCommand", { preparingData: true, count: 1 });
+      mocks.dispatchCommand("ShowLoadingMaskCommand", { preparingData: true, count: 1 });
 
       expect((comp as any).preparingData).toBe(true);
    });
@@ -358,12 +342,12 @@ describe("WSPaneComponent — processWSMoveAssembliesCommand", () => {
    // 🔁 Regression-sensitive: positions must match by name; wrong index lookup would
    //    move the wrong table and desync the canvas layout.
    it("should update top/left for each named assembly", async () => {
-      const { comp } = await renderComponent();
+      const { comp, mocks } = await renderComponent();
       const a1 = { name: "T1", top: 0, left: 0 };
       const a2 = { name: "T2", top: 0, left: 0 };
       comp.worksheet.assemblies = vi.fn().mockReturnValue([a1, a2]);
 
-      dispatchCommand("WSMoveAssembliesCommand", {
+      mocks.dispatchCommand("WSMoveAssembliesCommand", {
          assemblyNames: ["T1", "T2"],
          tops: [100, 200],
          lefts: [10, 20],
@@ -376,11 +360,11 @@ describe("WSPaneComponent — processWSMoveAssembliesCommand", () => {
    });
 
    it("should skip assemblies not found by name without throwing", async () => {
-      const { comp } = await renderComponent();
+      const { comp, mocks } = await renderComponent();
       comp.worksheet.assemblies = vi.fn().mockReturnValue([]);
 
       expect(() => {
-         dispatchCommand("WSMoveAssembliesCommand", {
+         mocks.dispatchCommand("WSMoveAssembliesCommand", {
             assemblyNames: ["NotFound"],
             tops: [50],
             lefts: [5],
@@ -396,7 +380,7 @@ describe("WSPaneComponent — processWSMoveAssembliesCommand", () => {
 describe("WSPaneComponent — processWSLoadTableDataCountCommand", () => {
 
    it("should update table rowsCompleted and totalRows when found", async () => {
-      const { comp } = await renderComponent();
+      const { comp, mocks } = await renderComponent();
       const table = {
          name: "Q1",
          classType: "TableAssembly",
@@ -411,7 +395,7 @@ describe("WSPaneComponent — processWSLoadTableDataCountCommand", () => {
       comp.worksheet.tables = [table];
       comp.worksheet.isAssemblyFocused = vi.fn().mockReturnValue(false);
 
-      dispatchCommand("WSLoadTableDataCountCommand", {
+      mocks.dispatchCommand("WSLoadTableDataCountCommand", {
          name: "Q1",
          count: 42,
          completed: true,
@@ -425,11 +409,11 @@ describe("WSPaneComponent — processWSLoadTableDataCountCommand", () => {
    });
 
    it("should do nothing when table is not found", async () => {
-      const { comp } = await renderComponent();
+      const { comp, mocks } = await renderComponent();
       comp.worksheet.tables = [];
 
       expect(() => {
-         dispatchCommand("WSLoadTableDataCountCommand", {
+         mocks.dispatchCommand("WSLoadTableDataCountCommand", {
             name: "NotFound",
             count: 5,
             completed: true,

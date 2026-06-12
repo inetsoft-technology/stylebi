@@ -32,7 +32,7 @@
  *   - All subscriptions use EMPTY / Subject so tests are hermetic.
  */
 
-import { NO_ERRORS_SCHEMA, DOCUMENT } from "@angular/core";
+import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { provideHttpClient } from "@angular/common/http";
 import { render } from "@testing-library/angular";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
@@ -53,28 +53,16 @@ import { GettingStartedService } from "../../../../widget/dialog/getting-started
 import { WsChangeService } from "./ws-change.service";
 import { WSPaneComponent } from "./ws-pane.component";
 import { Worksheet } from "../../../data/ws/worksheet";
-import { AssetType } from "../../../../../../../shared/data/asset-type";
-import { AssetTreeService } from "../../../../widget/asset-tree/asset-tree.service";
 
 // ---------------------------------------------------------------------------
-// Commands Subject — exposed so tests can dispatch STOMP commands
-// ---------------------------------------------------------------------------
-
-export let commandSubject: Subject<ViewsheetCommandMessage>;
-
-/** Dispatches a global STOMP command to the component under test. */
-export function dispatchCommand(type: string, command: any): void {
-   commandSubject.next(new ViewsheetCommandMessage(null, type, command));
-}
-
-// ---------------------------------------------------------------------------
-// ViewsheetClientService mock factory (re-created per test suite)
+// ViewsheetClientService mock factory
+// Returns both the service mock and the Subject used to dispatch commands,
+// keeping the Subject local rather than in shared module-level state.
 // ---------------------------------------------------------------------------
 
 export function makeWsClientMock() {
-   commandSubject = new Subject<ViewsheetCommandMessage>();
-
-   return {
+   const commandSubject = new Subject<ViewsheetCommandMessage>();
+   const mock = {
       commands: commandSubject.asObservable(),
       connect: vi.fn(),
       sendEvent: vi.fn(),
@@ -86,6 +74,7 @@ export function makeWsClientMock() {
       runtimeId: "test-ws-rt",
       setSheetId: vi.fn(),
    };
+   return { mock, commandSubject };
 }
 
 // ---------------------------------------------------------------------------
@@ -156,8 +145,12 @@ export function makeWorksheet(overrides: Partial<any> = {}): any {
 // ---------------------------------------------------------------------------
 
 export function makeMocks() {
+   const { mock: wsClient, commandSubject } = makeWsClientMock();
    return {
-      wsClient: makeWsClientMock(),
+      wsClient,
+      commandSubject,
+      dispatchCommand: (type: string, command: any) =>
+         commandSubject.next(new ViewsheetCommandMessage(null, type, command)),
       dragService: makeDragServiceMock(),
       worksheet: makeWorksheet(),
       modalService: {

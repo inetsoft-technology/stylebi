@@ -219,8 +219,7 @@ describe("AssetTreePane — deleteAssets", () => {
       await waitFor(() =>
          expect(ComponentTool.showMessageDialog).toHaveBeenCalled(),
       );
-      // Allow time for any errant HTTP call to complete
-      await new Promise(r => setTimeout(r, 20));
+      // Dialog being shown confirms the early-return guard fired; no HTTP call will follow.
       expect(removeCalled).toBe(false);
    });
 });
@@ -340,7 +339,7 @@ describe("AssetTreePane — dispatchChangeAssetEvent", () => {
       (comp as any).dispatchChangeAssetEvent(targetNode, parentEntry, [entry]);
 
       await waitFor(() => expect(ComponentTool.showConfirmDialog).toHaveBeenCalled());
-      await new Promise(r => setTimeout(r, 20));
+      // Dialog being shown confirms the guard fired before any HTTP call was dispatched.
       expect(changeCalled).toBe(false);
    });
 
@@ -445,10 +444,11 @@ describe("AssetTreePane — confirm", () => {
       const comp = await renderComponent();
       const onOk = vi.fn();
 
-      await expect(async () => {
-         comp.confirm("Proceed?", onOk);
-         await new Promise(r => setTimeout(r, 20));
-      }).not.toThrow();
+      comp.confirm("Proceed?", onOk);
+      // showMessageDialog being called means the promise chain has started; waitFor lets
+      // the rejection microtask settle, verifying the null-onCancel catch branch doesn't throw.
+      await waitFor(() => expect(ComponentTool.showMessageDialog).toHaveBeenCalled());
+      expect(onOk).not.toHaveBeenCalled();
    });
 });
 

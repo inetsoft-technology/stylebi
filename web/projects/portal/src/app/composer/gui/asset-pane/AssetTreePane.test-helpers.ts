@@ -39,7 +39,12 @@ import { ComposerRecentService } from "../composer-recent.service";
 import { TreeView } from "../../../widget/tree/tree.component";
 
 // ---------------------------------------------------------------------------
-// Shared mock factories — re-created per test via beforeEach resets
+// Module-level mock singletons shared across all importing test suites.
+// Spy methods are reset via mockClear()/mockReset() in each suite's beforeEach.
+// recentChange$ is a BehaviorSubject, not a spy: each beforeEach calls
+// recentChange$.next([]) to flush the stored value. Subscribers that
+// complete/error inside a test will not receive future emissions, but this is
+// safe because renderComponent() creates a fresh component instance per test.
 // ---------------------------------------------------------------------------
 
 export const recentChange$ = new BehaviorSubject<any[]>([]);
