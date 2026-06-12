@@ -33,13 +33,14 @@ import { SizeFieldMc } from "./size-field-mc.component";
 import { ShapeFieldMc } from "./shape-field-mc.component";
 import { ColorFieldMc } from "./color-field-mc.component";
 import { NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
+import { NgTemplateOutlet } from "@angular/common";
 
 
 @Component({
     selector: "aesthetic-pane",
     templateUrl: "aesthetic-pane.component.html",
     styleUrls: ["aesthetic-pane.scss"],
-    imports: [NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, ColorFieldMc, ShapeFieldMc, SizeFieldMc, TextFieldMc]
+    imports: [NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, ColorFieldMc, ShapeFieldMc, SizeFieldMc, TextFieldMc, NgTemplateOutlet]
 })
 export class AestheticPane implements OnChanges {
    @Input() vsId: string;
@@ -193,5 +194,21 @@ export class AestheticPane implements OnChanges {
 
    isRelationChart(): boolean {
       return GraphTypes.isRelation(this.chartModel?.chartType);
+   }
+
+   openLayoutDesigner(): void {
+      const suffix = (this.multiStyles && this.currAggregate)
+         ? `:${this.currAggregate.fullName}` : "";
+      this.onUpdateData.emit(`openLayoutDesigner${suffix}`);
+   }
+
+   get isLayoutDesignerActive(): boolean {
+      const hasFields = (m: any) => Array.isArray(m?.textFields) && m.textFields.length > 0;
+
+      if(this.multiStyles && this.currAggregate) {
+         return !!this.currAggregate.textLayout && hasFields(this.currAggregate);
+      }
+
+      return !!this.bindingModel?.textLayout && hasFields(this.bindingModel);
    }
 }

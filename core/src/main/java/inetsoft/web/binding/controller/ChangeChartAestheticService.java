@@ -46,6 +46,7 @@ import org.springframework.stereotype.Service;
 import java.awt.*;
 import java.security.Principal;
 import java.util.*;
+import java.util.List;
 
 @Service
 @ClusterProxy
@@ -99,6 +100,9 @@ public class ChangeChartAestheticService {
          ChartBindingModel cmodel = event.getModel();
          Map<String, Color> oDimColors = getDimensionColor(assembly, vs);
          clone = (ChartVSAssembly) bindingFactory.updateAssembly(cmodel, clone);
+         // The frontend model never carries static-item styling (only text), so a model-driven
+         // rebuild would wipe panel-set static formatting. Carry it over from the live assembly.
+         preserveAllTextLayoutStaticFormatting(assembly.getVSChartInfo(), clone.getVSChartInfo());
          ChartVSAssemblyInfo ninfo = clone.getChartInfo();
          ChartVSAssemblyInfo oinfo = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo().clone();
          chartHandler.fixAggregateInfo(ninfo, vs, null);
@@ -165,6 +169,57 @@ public class ChangeChartAestheticService {
       }
 
       return new HashMap<>();
+   }
+
+   // Static text items are styled via the Format panel, which writes directly to the backend
+   // TextLayoutItem's inline fields (color/font/bold/italic). The frontend layout model never
+   // carries that styling (the designer's Text Properties only edits text), so a layout
+   // round-trip would wipe it. Carry the existing static items' styling onto the incoming
+   // layout, matched by text, so panel-set static formatting survives layout edits.
+   //
+   // NOTE on ownership: chart-level plot-layout static formatting is owned by
+   // ChartInfoModelBuilder.carryOverStaticItemFormat, which runs inside updateAssembly() against the
+   // ChartVSAssemblyInfo descriptor that is actually rendered. The chart-level branch below reads
+   // VSChartInfo.getChartDescriptor() (a separate transient field that is typically null/stale at
+   // this point), so it is a harmless redundant net there. The per-aggregate branch IS load-bearing:
+   // updateChartInfo never rebuilds per-aggregate layouts, and these read each aggregate's own
+   // TextLayout off the ref, so this is the only place per-aggregate static formatting is preserved.
+   static void preserveAllTextLayoutStaticFormatting(VSChartInfo oldInfo, VSChartInfo newInfo) {
+      if(oldInfo == null || newInfo == null) {
+         return;
+      }
+
+      PlotDescriptor oldPlot = oldInfo.getChartDescriptor() != null
+         ? oldInfo.getChartDescriptor().getPlotDescriptor() : null;
+      PlotDescriptor newPlot = newInfo.getChartDescriptor() != null
+         ? newInfo.getChartDescriptor().getPlotDescriptor() : null;
+
+      if(oldPlot != null && newPlot != null) {
+         preserveStaticFormatting(oldPlot.getTextLayout(), newPlot.getTextLayout());
+      }
+
+      // Per-aggregate: match aggregates by full name.
+      Map<String, ChartAggregateRef> oldAggrs = new HashMap<>();
+
+      for(ChartAggregateRef aggr : oldInfo.getAestheticAggregateRefs(false)) {
+         oldAggrs.put(aggr.getFullName(), aggr);
+      }
+
+      for(ChartAggregateRef newAggr : newInfo.getAestheticAggregateRefs(false)) {
+         ChartAggregateRef oldAggr = oldAggrs.get(newAggr.getFullName());
+
+         if(oldAggr != null) {
+            preserveStaticFormatting(oldAggr.getTextLayout(), newAggr.getTextLayout());
+         }
+      }
+   }
+
+   // Delegates to the single canonical implementation on TextLayout so the chart-level path
+   // (ChartInfoModelBuilder) and this per-aggregate net share identical precedence semantics.
+   static void preserveStaticFormatting(inetsoft.uql.viewsheet.graph.TextLayout oldLayout,
+                                        inetsoft.uql.viewsheet.graph.TextLayout newLayout)
+   {
+      inetsoft.uql.viewsheet.graph.TextLayout.carryStaticItemFormatting(oldLayout, newLayout);
    }
 
    private final VSBindingService bindingFactory;

@@ -999,6 +999,11 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
    @Override
    public String toView() {
       String view = NamedRangeRef.getBaseName(getFullName());
+
+      if(view == null) {
+         return "";
+      }
+
       int idx = view.indexOf('(');
 
       if(idx > 0) {

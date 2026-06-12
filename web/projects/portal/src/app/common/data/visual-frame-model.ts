@@ -210,6 +210,36 @@ export class TextFrameModel extends VisualFrameModel {
    clazz: string = "inetsoft.web.binding.model.graph.aesthetic.TextFrameModel";
 }
 
+export interface TextLayoutFieldRef {
+   fullName?: string;
+   dataInfo?: any;  // ChartRef — typed loosely to avoid circular import with AestheticInfo
+   frame?: any;
+   classType?: string;
+}
+
+export interface TextLayoutItemModel {
+   type: number;               // 0=FIELD, 1=STATIC, 2=SPACING
+   fieldIndex?: number;        // valid when type === 0: index into textFields
+   fieldRef?: TextLayoutFieldRef; // valid when type === 0: full binding ref (AestheticInfo-compatible)
+   text?: string;              // valid when type === 1
+   spacingAmount?: number;     // valid when type === 2 (points of blank space)
+   // Styling (type === 1 STATIC only):
+   color?: string;
+   fontFamily?: string;
+   fontSize?: number;          // -1 = inherit
+   bold?: boolean;
+   italic?: boolean;
+}
+
+export interface TextLayoutRowModel {
+   items: TextLayoutItemModel[];
+   horizontalAlign?: string;  // 'left' | 'center' | 'right'; undefined = left (default)
+}
+
+export interface TextLayoutModel {
+   rows: TextLayoutRowModel[];
+}
+
 export class BluesColorModel extends ColorFrameModel {
    clazz: string = "inetsoft.web.binding.model.graph.aesthetic.BluesColorModel";
 }

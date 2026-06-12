@@ -833,7 +833,8 @@ public final class ChartDndHandler {
       else if(dropType == ChartConstants.DROP_REGION_SIZE) {
          atype = ChartConstants.AESTHETIC_SIZE;
       }
-      else if(dropType == ChartConstants.DROP_REGION_TEXT) {
+      else if(dropType == ChartConstants.DROP_REGION_TEXT ||
+              dropType == ChartConstants.DROP_REGION_TEXT_APPEND) {
          atype = ChartConstants.AESTHETIC_TEXT;
       }
 
@@ -860,6 +861,14 @@ public final class ChartDndHandler {
       }
       else if(dropType == ChartConstants.DROP_REGION_TEXT) {
          bindable.setTextField(ref);
+      }
+      else if(dropType == ChartConstants.DROP_REGION_TEXT_APPEND) {
+         if(bindable instanceof AbstractChartInfo) {
+            ((AbstractChartInfo) bindable).addTextLayoutField(ref);
+         }
+         else if(bindable instanceof ChartAggregateRef) {
+            ((ChartAggregateRef) bindable).addTextLayoutField(ref);
+         }
       }
 
       fixVisualFrame(dropType, bindable, cinfo, ref);
@@ -1426,7 +1435,8 @@ public final class ChartDndHandler {
       return type0 == ChartConstants.DROP_REGION_COLOR ||
          type0 == ChartConstants.DROP_REGION_SHAPE ||
          type0 == ChartConstants.DROP_REGION_SIZE ||
-         type0 == ChartConstants.DROP_REGION_TEXT;
+         type0 == ChartConstants.DROP_REGION_TEXT ||
+         type0 == ChartConstants.DROP_REGION_TEXT_APPEND;
    }
 
    /**

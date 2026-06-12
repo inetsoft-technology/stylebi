@@ -199,6 +199,25 @@ public class ChartAestheticService {
       }
    }
 
+   /**
+    * Create an AestheticInfo model from a domain AestheticRef.
+    * Exposed so that builders can produce per-field AestheticInfo for textFields.
+    */
+   public AestheticInfo createAestheticInfo(AestheticRef ref, ChartInfo cinfo,
+                                            OriginalDescriptor original)
+   {
+      return afactoryService.createAestheticInfo(ref, cinfo, original);
+   }
+
+   /**
+    * Paste (domain) AestheticRef from an AestheticInfo model, cloning the old ref as the base.
+    * Exposed so that builders can apply per-field AestheticInfo for textFields.
+    */
+   public AestheticRef pasteAestheticRef(ChartInfo cinfo, AestheticRef ref, AestheticInfo model) {
+      AestheticRef oldref = ref != null ? (AestheticRef) ref.clone() : null;
+      return afactoryService.pasteAestheticRef(cinfo, oldref, model);
+   }
+
    private AestheticRef getAestheticRef(AestheticInfo info, AestheticRef ref, ChartInfo cinfo) {
       AestheticRef oldref = ref != null ? (AestheticRef) ref.clone() : null;
       return afactoryService.pasteAestheticRef(cinfo, oldref, info);

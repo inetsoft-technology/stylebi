@@ -387,6 +387,36 @@ public class VSChartAggregateRef extends VSAggregateRef
       this.textField = field;
    }
 
+   @Override
+   public java.util.List<AestheticRef> getTextLayoutFields() {
+      return java.util.Collections.unmodifiableList(textLayoutFields);
+   }
+
+   @Override
+   public void setTextLayoutFields(java.util.List<AestheticRef> fields) {
+      this.textLayoutFields = fields == null ? new java.util.ArrayList<>() : new java.util.ArrayList<>(fields);
+   }
+
+   @Override
+   public void addTextLayoutField(AestheticRef field) {
+      textLayoutFields.add(field);
+   }
+
+   @Override
+   public int getTextLayoutFieldCount() {
+      return textLayoutFields.size();
+   }
+
+   @Override
+   public TextLayout getTextLayout() {
+      return textLayout;
+   }
+
+   @Override
+   public void setTextLayout(TextLayout layout) {
+      this.textLayout = layout;
+   }
+
    /**
     * Get the runtime color field.
     */
@@ -657,6 +687,27 @@ public class VSChartAggregateRef extends VSAggregateRef
          textField.parseXML(Tool.getFirstChildNode(textNode));
       }
 
+      Element textLayoutFieldsElem = Tool.getChildNodeByTagName(elem, "textLayoutFields");
+      if(textLayoutFieldsElem != null) {
+         org.w3c.dom.NodeList tlNodes = textLayoutFieldsElem.getChildNodes();
+         for(int i = 0; i < tlNodes.getLength(); i++) {
+            if(tlNodes.item(i) instanceof Element
+                  && "textLayoutField".equals(((Element) tlNodes.item(i)).getNodeName()))
+            {
+               VSAestheticRef ref = new VSAestheticRef();
+               ref.parseXML(Tool.getFirstChildNode((Element) tlNodes.item(i)));
+               textLayoutFields.add(ref);
+            }
+         }
+      }
+
+      // textLayout unchanged
+      Element textLayoutElem = Tool.getChildNodeByTagName(elem, "textLayout");
+
+      if(textLayoutElem != null) {
+         textLayout = TextLayout.parseXML(textLayoutElem);
+      }
+
       parseHighlightGroup(elem);
 
       node = Tool.getChildNodeByTagName(elem, "Hyperlink");
@@ -752,6 +803,24 @@ public class VSChartAggregateRef extends VSAggregateRef
          writer.println("<text>");
          getTextField().writeXML(writer);
          writer.println("</text>");
+      }
+
+      // textLayoutFields
+      if(!textLayoutFields.isEmpty()) {
+         writer.println("<textLayoutFields>");
+         for(AestheticRef ref : textLayoutFields) {
+            if(ref != null) {
+               writer.println("<textLayoutField>");
+               ref.writeXML(writer);
+               writer.println("</textLayoutField>");
+            }
+         }
+         writer.println("</textLayoutFields>");
+      }
+
+      // textLayout unchanged
+      if(textLayout != null) {
+         textLayout.writeXML(writer);
       }
 
       writeHighlightGroup(writer);
@@ -872,6 +941,16 @@ public class VSChartAggregateRef extends VSAggregateRef
             caggRef.textField = (AestheticRef) textField.clone();
          }
 
+         caggRef.textLayoutFields = new java.util.ArrayList<>();
+
+         for(AestheticRef ref : textLayoutFields) {
+            if(ref != null) {
+               caggRef.textLayoutFields.add((AestheticRef) ref.clone());
+            }
+         }
+
+         caggRef.textLayout = this.textLayout != null ? this.textLayout.clone() : null;
+
          return caggRef;
       }
       catch(Exception e) {
@@ -920,6 +999,8 @@ public class VSChartAggregateRef extends VSAggregateRef
          Tool.equalsContent(shapeField, ref.shapeField) &&
          Tool.equalsContent(sizeField, ref.sizeField) &&
          Tool.equalsContent(textField, ref.textField) &&
+         Tool.equalsContent(textLayoutFields, ref.textLayoutFields) &&
+         Tool.equals(textLayout, ref.textLayout) &&
          Tool.equalsContent(titleDesc, ref.titleDesc) &&
          discrete == ref.discrete;
    }
@@ -1060,6 +1141,8 @@ public class VSChartAggregateRef extends VSAggregateRef
    private AestheticRef shapeField;
    private AestheticRef sizeField;
    private AestheticRef textField;
+   private java.util.List<AestheticRef> textLayoutFields = new java.util.ArrayList<>();
+   private TextLayout textLayout;
    private int rtype; // runtime chart type
    private boolean y2;
    private boolean supportsLine;

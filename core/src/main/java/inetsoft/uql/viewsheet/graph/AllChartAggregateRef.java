@@ -208,6 +208,42 @@ public class AllChartAggregateRef extends VSChartAggregateRef {
    }
 
    @Override
+   @SuppressWarnings("unchecked")
+   public List<AestheticRef> getTextLayoutFields() {
+      Object result = applyGet("getTextLayoutFields");
+      return result instanceof List
+         ? java.util.Collections.unmodifiableList((List<AestheticRef>) result)
+         : java.util.Collections.emptyList();
+   }
+
+   @Override
+   public void setTextLayoutFields(List<AestheticRef> fields) {
+      applySet("setTextLayoutFields", fields, List.class);
+   }
+
+   @Override
+   public void addTextLayoutField(AestheticRef field) {
+      applySet("addTextLayoutField", field, AestheticRef.class);
+   }
+
+   @Override
+   public int getTextLayoutFieldCount() {
+      Object result = applyGet("getTextLayoutFieldCount");
+      return result instanceof Integer ? (Integer) result : 0;
+   }
+
+   @Override
+   public TextLayout getTextLayout() {
+      Object result = applyGet("getTextLayout");
+      return result instanceof TextLayout ? (TextLayout) result : null;
+   }
+
+   @Override
+   public void setTextLayout(TextLayout layout) {
+      applySet("setTextLayout", layout, TextLayout.class);
+   }
+
+   @Override
    public ColorFrameWrapper getColorFrameWrapper() {
       return (ColorFrameWrapper) applyGet("getColorFrameWrapper");
    }

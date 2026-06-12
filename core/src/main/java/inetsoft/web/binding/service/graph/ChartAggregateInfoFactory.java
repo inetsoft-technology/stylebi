@@ -26,6 +26,7 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.*;
 import inetsoft.web.binding.model.graph.*;
 import inetsoft.web.binding.model.graph.aesthetic.ColorFrameModel;
+import inetsoft.web.binding.model.graph.aesthetic.TextLayoutModel;
 import inetsoft.web.binding.model.graph.aesthetic.TextureFrameModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.graph.aesthetic.VisualFrameModelFactoryService;
@@ -173,6 +174,38 @@ public abstract class ChartAggregateInfoFactory<A extends ChartAggregateRef>
       CalculateInfo calcInfo = model.getCalculateInfo();
       ref.setCalculator(calcInfo != null ? calcInfo.toCalculator() : null);
       updateVisualFrames(model, cinfo, ref);
+
+      // Save per-aggregate textLayout
+      TextLayoutModel aggrLayoutModel = model.getTextLayout();
+      ref.setTextLayout(aggrLayoutModel != null ? aggrLayoutModel.toDomain() : null);
+
+      // Rebuild per-aggregate textLayoutFields from the model via the aesthetic paste path
+      if(model.getTextFields() != null) {
+         List<AestheticRef> refs = new ArrayList<>();
+         List<AestheticRef> old = ref.getTextLayoutFields();
+
+         for(int i = 0; i < model.getTextFields().size(); i++) {
+            AestheticRef base = i < old.size() ? old.get(i) : null;
+            AestheticRef pasted = aesService.pasteAestheticRef(cinfo, base, model.getTextFields().get(i));
+
+            // The binding model doesn't carry the per-field CompositeTextFormat, so the paste
+            // rebuilds the ref and would wipe panel-set field formatting on a round-trip. Carry it
+            // over from the old ref. Mirrors the chart-level path in ChartInfoModelBuilder.
+            if(base != null && base.getDataRef() instanceof ChartRef
+               && pasted != null && pasted.getDataRef() instanceof ChartRef)
+            {
+               CompositeTextFormat oldFmt = ((ChartRef) base.getDataRef()).getTextFormat();
+
+               if(oldFmt != null) {
+                  ((ChartRef) pasted.getDataRef()).setTextFormat(oldFmt);
+               }
+            }
+
+            refs.add(pasted);
+         }
+
+         ref.setTextLayoutFields(refs);
+      }
    }
 
    private void updateVisualFrames(ChartAggregateRefModel model, ChartInfo cinfo, A ref) {

@@ -81,6 +81,7 @@
       [grayedOutValues]="grayedOutValues"
       [chartModel]="chartModel" (onUpdateData)="updateData($event)">
     </text-field-mc>
+    <ng-container *ngTemplateOutlet="layoutDesignerBtn"></ng-container>
   </div>
 }
 
@@ -115,8 +116,23 @@
         [grayedOutValues]="grayedOutValues" [assetId]="assetId"
         [chartModel]="chartModel" (onUpdateData)="updateData($event)">
       </text-field-mc>
+      <ng-container *ngTemplateOutlet="layoutDesignerBtn"></ng-container>
     </div>
   }
 </fieldset>
 }
+
+<ng-template #layoutDesignerBtn>
+  <button class="btn btn-default layout-designer-btn"
+          (click)="openLayoutDesigner()"
+          [title]="'_#(Open Layout Designer)'"
+          [attr.aria-label]="'_#(Open Layout Designer)'">
+    <span class="ld-icon-wrap">
+      <i class="layout-icon icon-size-small" aria-hidden="true"></i>
+      @if(isLayoutDesignerActive) {
+        <span class="layout-active-badge" aria-hidden="true"></span>
+      }
+    </span>
+  </button>
+</ng-template>
 </div>

@@ -236,6 +236,19 @@ public abstract class ChartInfoModelBuilder {
       model.setStackMeasures(plot.isStackMeasures());
       fixColorChanged(model);
 
+      // Populate text layout
+      model.setTextLayout(TextLayoutModel.fromDomain(plot.getTextLayout()));
+
+      // Populate text fields from chart-level textLayoutFields
+      List<AestheticInfo> tfs = new ArrayList<>();
+
+      for(AestheticRef ref : ((AbstractChartInfo) cinfo).getTextLayoutFields()) {
+         tfs.add(aesService.createAestheticInfo(ref, cinfo,
+            new OriginalDescriptor(OriginalDescriptor.TEXT)));
+      }
+
+      model.setTextFields(tfs);
+
       return model;
    }
 
@@ -367,6 +380,51 @@ public abstract class ChartInfoModelBuilder {
          ncinfo.getColorField().setDataRef(color);
       }
 
+      if(model.getTextLayout() != null) {
+         inetsoft.uql.viewsheet.graph.TextLayout oldLayout =
+            descriptor.getPlotDescriptor().getTextLayout();
+         inetsoft.uql.viewsheet.graph.TextLayout newLayout = model.getTextLayout().toDomain();
+
+         // The Format panel writes a STATIC item's inline font/color directly to the runtime
+         // layout (FormatPainterService.writeToStaticLayoutItems), but the binding editor's model
+         // is not refreshed afterward. A subsequent round-trip (e.g. reopening the Format panel)
+         // would send that stale model back and toDomain() would rebuild the layout without the
+         // panel-set formatting. Carry it over from the old layout. Symmetric with the field
+         // carry-over below; shared with the per-aggregate net in ChangeChartAestheticService.
+         inetsoft.uql.viewsheet.graph.TextLayout.carryStaticItemFormatting(oldLayout, newLayout);
+         descriptor.getPlotDescriptor().setTextLayout(newLayout);
+      }
+
+      // Rebuild chart-level textLayoutFields from the model via the aesthetic paste path
+      if(model.getTextFields() != null) {
+         AbstractChartInfo aci = (AbstractChartInfo) ncinfo;
+         List<AestheticRef> refs = new ArrayList<>();
+         List<AestheticRef> old = aci.getTextLayoutFields();
+
+         for(int i = 0; i < model.getTextFields().size(); i++) {
+            AestheticRef base = i < old.size() ? old.get(i) : null;
+            AestheticRef pasted = aesService.pasteAestheticRef(ncinfo, base, model.getTextFields().get(i));
+
+            // The binding model doesn't carry the per-field CompositeTextFormat, so a model
+            // round-trip (e.g. opening the Format panel via changeChartAesthetic) would rebuild
+            // the ref and wipe panel-set field formatting. Carry it over from the old ref.
+            if(base != null && base.getDataRef() instanceof ChartRef
+               && pasted != null && pasted.getDataRef() instanceof ChartRef)
+            {
+               inetsoft.uql.viewsheet.graph.CompositeTextFormat oldFmt =
+                  ((ChartRef) base.getDataRef()).getTextFormat();
+
+               if(oldFmt != null) {
+                  ((ChartRef) pasted.getDataRef()).setTextFormat(oldFmt);
+               }
+            }
+
+            refs.add(pasted);
+         }
+
+         aci.setTextLayoutFields(refs);
+      }
+
       GraphFormatUtil.fixDefaultNumberFormat(descriptor, ncinfo);
 
       return ncinfo;
@@ -418,6 +476,18 @@ public abstract class ChartInfoModelBuilder {
          ChartAggregateRefModel aggModel = (ChartAggregateRefModel) cmodel;
          ChartAggregateRef aggRef = (ChartAggregateRef) ref;
          loadVisualFrames(aggModel, cinfo, aggRef);
+
+         aggModel.setTextLayout(TextLayoutModel.fromDomain(aggRef.getTextLayout()));
+
+         // Populate per-aggregate text fields from textLayoutFields
+         List<AestheticInfo> atfs = new ArrayList<>();
+
+         for(AestheticRef tref : aggRef.getTextLayoutFields()) {
+            atfs.add(aesService.createAestheticInfo(tref, cinfo,
+               new OriginalDescriptor(OriginalDescriptor.TEXT, desc)));
+         }
+
+         aggModel.setTextFields(atfs);
 
          if(GraphTypeUtil.isWaterfall(cinfo)) {
             ColorFrameModel csummary = visualService.createVisualFrameModel(
