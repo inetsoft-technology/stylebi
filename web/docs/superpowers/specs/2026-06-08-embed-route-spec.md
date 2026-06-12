@@ -80,7 +80,7 @@ docs/superpowers/specs/test-prescan/embed-prescan-YYYY-MM-DD.md
 **4b. 调用 risk-driven prompt 生成测试**
 
 ```
-Follow the instructions in .claude/component-risk-driven-generation-prompt.md
+Follow the instructions in docs/superpowers/prompts/component-risk-driven-generation-prompt.md
 
 Scope: <COMPONENT_PATH>
 Reference test file: projects/em/src/app/auditing/audit-bookmark-history/audit-bookmark-history.component.tl.spec.ts
@@ -124,6 +124,12 @@ npx vitest run projects/portal/src/app/embed/path/to/ComponentName.tl.spec.ts
 
 **4e. 删除旧 spec**（验证全 PASS 后）
 
+若旧 `*.spec.ts` 存在，删除前先做缺口检查：
+
+1. 读取旧 spec，提取每个 `it` 的测试意图
+2. 判断是否有旧 spec 中已覆盖、但新文件中遗漏的有价值测试点
+3. 若有遗漏且有价值：补充到新文件并重新跑 4d；若无遗漏或遗漏无价值：直接删除
+
 ```bash
 rm projects/portal/src/app/embed/path/to/ComponentName.spec.ts
 ```
@@ -145,7 +151,7 @@ rm projects/portal/src/app/embed/path/to/ComponentName.spec.ts
 | 资源 | 路径 |
 |------|------|
 | 整体设计文档 | `docs/superpowers/specs/2026-06-08-portal-unit-test-strategy-design.md` |
-| Risk-driven 生成 prompt | `.claude/component-risk-driven-generation-prompt.md` |
+| Risk-driven 生成 prompt | `docs/superpowers/prompts/risk-driven-generation-prompt.md` |
 | Pre-scan workflow | `.claude/workflows/portal-prescan.js` |
 | 复用 handler | `mocks/handlers/portal.handlers.ts` |
 | MSW server 入口 | `mocks/server.ts` |

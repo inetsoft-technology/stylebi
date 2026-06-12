@@ -1,8 +1,13 @@
-# /embed route candidates — 2026-06-08
+# /embed route candidates — 2026-06-08（2026-06-12 补充扫描，新增 1 个组件）
 # Generated from embed-chart.routes.ts → embed-chart.component.ts + Layer 1 imports
+# 2026-06-12: added embed-viewer.component.ts (second top-level route, was absent from original scan)
 
-# ── Top-level route component ──────────────────────────────────────────────────
+# ── Top-level route components ─────────────────────────────────────────────────
 projects/portal/src/app/embed/chart/embed-chart.component.ts
+
+# --- 2026-06-12 补充扫描新增 ---
+# depth=0 logic_lines≈201
+projects/portal/src/app/embed/viewer/embed-viewer.component.ts
 
 # ── Layer 1: direct imports of EmbedChartComponent ─────────────────────────────
 projects/portal/src/app/vsobjects/objects/chart/vs-chart.component.ts
