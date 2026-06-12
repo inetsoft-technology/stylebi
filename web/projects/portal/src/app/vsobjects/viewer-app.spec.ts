@@ -41,6 +41,7 @@ import { DownloadService } from "../../../../shared/download/download.service";
 import { AppInfoService } from "../../../../shared/util/app-info.service";
 import { AssetLoadingService } from "../common/services/asset-loading.service";
 import { BaseHrefService } from "../common/services/base-href.service";
+import { HeartbeatWorkerService } from "../common/services/heartbeat-worker.service";
 import { FirstDayOfWeekService } from "../common/services/first-day-of-week.service";
 import { FullScreenService } from "../common/services/full-screen.service";
 import { PagingControlService } from "../common/services/paging-control.service";
@@ -148,6 +149,7 @@ describe("ViewerApp Unit Tests", () => {
    let assetLoadingService: any;
    let viewContainerRef: any;
    let baseHrefService: any;
+   let heartbeatWorkerService: any;
    let timerService: any;
 
    beforeEach(waitForAsync(() => {
@@ -280,6 +282,11 @@ describe("ViewerApp Unit Tests", () => {
       baseHrefService = {
          getBaseHref: vi.fn(),
       };
+      heartbeatWorkerService = {
+         createHeartbeat: vi.fn().mockReturnValue({
+            subscribe: vi.fn().mockReturnValue({ unsubscribe: vi.fn() })
+         })
+      };
       timerService = {
          defer: vi.fn((fn) => {
             fn();
@@ -341,6 +348,7 @@ describe("ViewerApp Unit Tests", () => {
             { provide: AssetLoadingService, useValue: assetLoadingService },
             { provide: ViewContainerRef, useValue: viewContainerRef },
             { provide: BaseHrefService, useValue: baseHrefService },
+            { provide: HeartbeatWorkerService, useValue: heartbeatWorkerService },
             AppInfoService,
             { provide: TimerService, useValue: timerService },
          ],
@@ -398,7 +406,7 @@ describe("ViewerApp Unit Tests", () => {
          richTextService, viewerToolbarMessageService, mobileToolbarService, mockDocument, composerRecentService,
          pageTabService, pagingControlService, selectionMobileService,
          assetLoadingService, viewContainerRef, baseHrefService,
-         currentUserService as any);
+         currentUserService as any, heartbeatWorkerService);
       const mockChart = TestUtils.createMockVSChartModel("Mock Chart");
       const mockTable = TestUtils.createMockVSTableModel("Mock Table");
       const mockCrosstab = TestUtils.createMockVSCrosstabModel("Mock Crosstab");
@@ -530,6 +538,57 @@ describe("ViewerApp Unit Tests", () => {
       previousBtn = fixture.nativeElement.querySelector("button.viewer-toolbar-btn.viewer-previous-button i");
       expect(previousBtn.classList).not.toContain("icon-disabled");
    }));
+
+   it("should call createHeartbeat when server update interval is set", () => {
+      const subscribeSpy = vi.fn().mockReturnValue({ unsubscribe: vi.fn() });
+      heartbeatWorkerService.createHeartbeat.mockReturnValue({ subscribe: subscribeSpy });
+
+      const currentUserService = { getPortalCurrentUser: vi.fn().mockReturnValue(observableOf(null)) };
+      const viewerApp = new ViewerAppComponent(
+         viewsheetClientService, null, null, null, null, null, null, null,
+         new NgbDatepickerConfig(), null, actionFactory, null, null, formDataService,
+         debounceService, scaleService, contextProvider, viewDataService, fullScreenService, router,
+         renderer, null, sanitizer, titleService, hyperlinkService, viewerResizeService,
+         firstDayOfWeekService, TestBed.inject(NgbTooltipConfig), shareService, null,
+         richTextService, viewerToolbarMessageService, mobileToolbarService, mockDocument, composerRecentService,
+         pageTabService, pagingControlService, selectionMobileService,
+         assetLoadingService, viewContainerRef, baseHrefService,
+         currentUserService as any, heartbeatWorkerService);
+
+      viewerApp.runtimeId = "test-runtime-id";
+      viewerApp["updateEnabled"] = true;
+      viewerApp.setServerUpdateInterval();
+
+      expect(heartbeatWorkerService.createHeartbeat)
+         .toHaveBeenCalledWith("test-runtime-id-viewsheet-update", 60000);
+      expect(subscribeSpy).toHaveBeenCalled();
+   });
+
+   it("should unsubscribe the server update heartbeat on clear", () => {
+      const unsubscribeSpy = vi.fn();
+      heartbeatWorkerService.createHeartbeat.mockReturnValue({
+         subscribe: vi.fn().mockReturnValue({ unsubscribe: unsubscribeSpy })
+      });
+
+      const currentUserService = { getPortalCurrentUser: vi.fn().mockReturnValue(observableOf(null)) };
+      const viewerApp = new ViewerAppComponent(
+         viewsheetClientService, null, null, null, null, null, null, null,
+         new NgbDatepickerConfig(), null, actionFactory, null, null, formDataService,
+         debounceService, scaleService, contextProvider, viewDataService, fullScreenService, router,
+         renderer, null, sanitizer, titleService, hyperlinkService, viewerResizeService,
+         firstDayOfWeekService, TestBed.inject(NgbTooltipConfig), shareService, null,
+         richTextService, viewerToolbarMessageService, mobileToolbarService, mockDocument, composerRecentService,
+         pageTabService, pagingControlService, selectionMobileService,
+         assetLoadingService, viewContainerRef, baseHrefService,
+         currentUserService as any, heartbeatWorkerService);
+
+      viewerApp.runtimeId = "test-runtime-id";
+      viewerApp["updateEnabled"] = true;
+      viewerApp.setServerUpdateInterval();
+      viewerApp.clearServerUpdateInterval();
+
+      expect(unsubscribeSpy).toHaveBeenCalled();
+   });
 
    //Bug #21287
    it("should show confirm dialog when edit form table", () => {

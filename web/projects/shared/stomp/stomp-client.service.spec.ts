@@ -33,7 +33,10 @@ function makeService(constructTracker: Mock) {
    const ssoHeartbeat = { heartbeat: vi.fn() } as any;
    const logout = { logout: vi.fn(), inactivityTimeout: vi.fn() } as any;
    const baseHref = { getBaseHref: vi.fn().mockReturnValue("/") } as any;
-   const service: any = new StompClientService(zone, ssoHeartbeat, logout, baseHref);
+   const heartbeatWorker = {
+      createHeartbeat: vi.fn().mockReturnValue({ subscribe: vi.fn().mockReturnValue({ unsubscribe: vi.fn() }) })
+   } as any;
+   const service: any = new StompClientService(zone, ssoHeartbeat, logout, baseHref, heartbeatWorker);
 
    // Override service.connect to bypass `new StompClient(...)`. Each call
    // creates (or reuses) a fake client per endpoint, mirroring the original
