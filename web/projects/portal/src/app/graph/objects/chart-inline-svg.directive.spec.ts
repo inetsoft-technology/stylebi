@@ -89,6 +89,31 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
       });
    });
 
+   describe("cross-tile dim-all lifecycle", () => {
+      it("clears inetsoft-dim-all on a sibling tile when the hover ends", () => {
+         vi.useFakeTimers();
+         try {
+            const { dir, host } = makeDirective(
+               `<div class="inetsoft-bar" data-row="1" data-col="0"></div>`);
+            // A loaded sibling tile: holds bar elements but not the element being hovered.
+            (dir as any).svgRootEl = host;
+            (dir as any).elementGroupMap = new Map([["1-0", host.querySelector(".inetsoft-bar")]]);
+
+            // Hover a data point that lives in another tile (key absent from this tile's map).
+            dir.highlightElement(0, 0);
+            expect(host.classList.contains("inetsoft-dim-all")).toBe(true);
+
+            // Mouse leaves the chart: the parent calls highlightElement(null, null) on every tile.
+            dir.highlightElement(null, null);
+            vi.advanceTimersByTime(200);
+            expect(host.classList.contains("inetsoft-dim-all")).toBe(false);
+         }
+         finally {
+            vi.useRealTimers();
+         }
+      });
+   });
+
    describe("setExternalRelationHighlight", () => {
       const html = `
          <div class="inetsoft-relation" data-id="A" data-row="0" data-col="0"></div>

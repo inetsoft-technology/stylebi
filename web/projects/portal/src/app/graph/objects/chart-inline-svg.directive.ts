@@ -767,12 +767,15 @@ export class ChartInlineSvgDirective implements OnDestroy {
     * never coexist in one SVG.
     */
    private setupRadarSeriesHover(radarGroups: Element[]): void {
+      // Single-tile radar dims via server CSS :hover alone; no JS coordination needed.
       if(!this.crossTile) {
          return;
       }
 
       this.usesSeriesColorDim = true;
       this.dimKeyAttr = "data-row";
+      // Radar has no external label annotation class (labels render inside the polygon/point
+      // groups), so dimming the polygons and vertex points covers every radar element.
       this.dimTargetSelector = ".inetsoft-radar,.inetsoft-point";
 
       const points = Array.from(

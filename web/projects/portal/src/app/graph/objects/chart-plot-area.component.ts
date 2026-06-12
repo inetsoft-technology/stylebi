@@ -814,6 +814,9 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
          this.inlineSvgTiles?.forEach(d => d.setExternalSeriesDim(color));
       }
       else if(tile === this.activeDimTile && this.seriesDimClearTimer === null) {
+         // Separate from the directive's CLEAR_DELAY_MS (which debounces moving between elements
+         // within one tile): this debounces the cross-tile clear so a tile-boundary crossing
+         // (leave then enter) doesn't flash the dim off. Intentionally independent layers.
          this.seriesDimClearTimer = setTimeout(() => {
             this.seriesDimClearTimer = null;
             this.activeDimTile = null;
