@@ -120,8 +120,8 @@ public class WorksheetTableService {
 
       // 6. Apply ranking / top-N conditions.
       if(request.getRankingCondition() != null && !request.getRankingCondition().isEmpty()) {
-         ConditionList rankList = buildConditionList(
-            table.getColumnSelection(true), request.getRankingCondition(), worksheet, false);
+         ConditionList rankList = buildRankingConditionList(
+            table.getColumnSelection(true), request.getRankingCondition());
          table.setRankingConditionList(rankList);
       }
 
@@ -403,6 +403,7 @@ public class WorksheetTableService {
          ExpressionRef expr = new ExpressionRef(null, colName);
          expr.setExpression(col.getExpression() != null ? col.getExpression() : "");
          ColumnRef colRef = new ColumnRef(expr);
+         colRef.setSQL(col.isSql());
 
          if(col.getAlias() != null) {
             colRef.setAlias(col.getAlias());
@@ -561,6 +562,63 @@ public class WorksheetTableService {
       }
 
       return list;
+   }
+
+   private ConditionList buildRankingConditionList(ColumnSelection columns,
+                                                   List<WorksheetTableRequest.ConditionItem> items)
+   {
+      ConditionList list = new ConditionList();
+
+      for(WorksheetTableRequest.ConditionItem item : items) {
+         if(item.getJunction() != null) {
+            int junctionType = "or".equalsIgnoreCase(item.getJunction())
+               ? JunctionOperator.OR : JunctionOperator.AND;
+            list.append(new JunctionOperator(junctionType, item.resolveJunctionLevel()));
+         }
+
+         appendRankingConditionItem(list, item, columns);
+      }
+
+      return list;
+   }
+
+   private void appendRankingConditionItem(ConditionList list,
+                                           WorksheetTableRequest.ConditionItem item,
+                                           ColumnSelection columns)
+   {
+      if(item.getField() == null || item.getOperation() == null) {
+         return;
+      }
+
+      DataRef ref = columns.getAttribute(item.getField());
+
+      if(ref == null) {
+         return;
+      }
+
+      int op = switch(item.getOperation()) {
+         case "TOP_N"    -> XCondition.TOP_N;
+         case "BOTTOM_N" -> XCondition.BOTTOM_N;
+         default -> throw new IllegalArgumentException(
+            "rankingCondition only supports TOP_N or BOTTOM_N, got: " + item.getOperation());
+      };
+
+      RankingCondition rc = new RankingCondition();
+      rc.setOperation(op);
+      rc.setDataRef(ref);
+
+      if(item.getValues() != null && !item.getValues().isEmpty()) {
+         WorksheetTableRequest.WorksheetConditionValue v = item.getValues().get(0);
+
+         if("VALUE".equals(v.getType()) && v.getValue() != null) {
+            Object val = v.getValue() instanceof Number
+               ? ((Number) v.getValue()).intValue()
+               : Integer.parseInt(v.getValue().toString());
+            rc.setN(val);
+         }
+      }
+
+      list.append(new ConditionItem(ref, rc, item.getConditionLevel()));
    }
 
    private void appendConditionItem(ConditionList list,

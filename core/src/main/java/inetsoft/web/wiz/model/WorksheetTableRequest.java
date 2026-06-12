@@ -164,9 +164,13 @@ public class WorksheetTableRequest {
    public static class ExpressionColumnInfo extends ColumnInfo {
       /** JavaScript expression. Reference worksheet columns as field['TableName.col']. */
       private String expression;
+      /** true = SQL expression inlined into the query; false (default) = JavaScript expression. */
+      private boolean sql = false;
 
       public String getExpression() { return expression; }
       public void setExpression(String expression) { this.expression = expression; }
+      public boolean isSql() { return sql; }
+      public void setSql(boolean sql) { this.sql = sql; }
    }
 
    // ─── Nested: join path ────────────────────────────────────────────────────
@@ -276,8 +280,14 @@ public class WorksheetTableRequest {
 
       // ── Condition payload ────────────────────────────────────────────────
       private String field;
-      /** "EQUAL_TO" | "ONE_OF" | "LESS_THAN" | "GREATER_THAN" | "BETWEEN" |
-       *  "STARTING_WITH" | "CONTAINS" | "LIKE" | "NULL" | "DATE_IN" */
+      /**
+       * "EQUAL_TO" | "ONE_OF" | "LESS_THAN" | "GREATER_THAN" | "BETWEEN" |
+       * "STARTING_WITH" | "CONTAINS" | "LIKE" | "NULL" | "DATE_IN"
+       * — for preAggregateCondition / postAggregateCondition.
+       *
+       * "TOP_N" | "BOTTOM_N"
+       * — for rankingCondition only; paired with a single VALUE (integer N).
+       */
       private String operation;
       private boolean negated;
       /** For LESS_THAN / GREATER_THAN: true → ≤ / ≥ (inclusive). */
