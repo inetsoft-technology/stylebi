@@ -35,8 +35,8 @@
 | 待审核 | SelectWorksheetDialog | 131 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | 待审核 | AttributeFormattingPane | 232 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | LogicalModelEntityDialog | 59 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | LogicalModelExpressionDialog | 230 | 0 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: LogicalModelExpressionDialog.interaction.tl.spec.ts |
-| 待审核 | LogicalModelPropertyPane | 591 | 0 | 2 | **multi-pass** | ✅ 推进 |  |  | P1: LogicalModelPropertyPane.interaction.tl.spec.ts |
+| 待审核 | LogicalModelExpressionDialog | 230 | 0 | 6 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
+| 待审核 | LogicalModelPropertyPane | 591 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | 待审核 | LogicalModelComponent | 275 | 2 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: LogicalModelComponent.interaction.tl.spec.ts<br>P2: LogicalModelComponent.risk.tl.spec.ts |
 | 待审核 | PhysicalGraphPane | 237 | 0 | 9 | **multi-pass** | ✅ 推进 |  |  | P1: PhysicalGraphPane.interaction.tl.spec.ts<br>P2: PhysicalGraphPane.risk.tl.spec.ts |
 | 待审核 | PhysicalJoinEditPane | 120 | 0 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: PhysicalJoinEditPane.interaction.tl.spec.ts<br>P2: PhysicalJoinEditPane.risk.tl.spec.ts |
@@ -63,7 +63,7 @@
 | 待审核 | CreateMVPane | 112 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | ArrangeDashboardDialog | 94 | 0 | 2 | **single-pass** | ✅ 推进 | ⚠️ arrange-dashboard-dialog.spec.ts | Bug #18799 not enabled dashboard should display in list | single pass (+内存泄漏) |
 | 待审核 | AutoJoinTablesDialog | 144 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核 | ChooseTableDialog | 204 | 1 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: ChooseTableDialog.interaction.tl.spec.ts<br>P2: ChooseTableDialog.risk.tl.spec.ts |
+| 待审核 | ChooseTableDialog | 204 | 1 | 7 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核 | EditDashboardDialog | 179 | 0 | 7 | **multi-pass** | ✅ 推进 | ⚠️ edit-dashboard-dialog.spec.ts | Bug #18620 Don't allow special characters in the name; Bug #21678 should allow & -+ | P1: EditDashboardDialog.interaction.tl.spec.ts<br>P2: EditDashboardDialog.risk.tl.spec.ts |
 | 待审核 | InlineViewDialog | 66 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | 待审核 | PhysicalTableAliasesDialog | 101 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
@@ -187,13 +187,13 @@
 
 ### LogicalModelExpressionDialog
 
-**Pass 1** (`LogicalModelExpressionDialog.interaction.tl.spec.ts`)
+**Pass 1** (`LogicalModelExpressionDialog.tl.spec.ts`)
 - Methods: nameControl, parentControl, initFormControl, loadFields, ok, updateExpression, cancel
 - Reason: 回归主体：navigation / HTTP loading / lifecycle / user flows
 
 ### LogicalModelPropertyPane
 
-**Pass 1** (`LogicalModelPropertyPane.interaction.tl.spec.ts`)
+**Pass 1** (`LogicalModelPropertyPane.tl.spec.ts`)
 - Methods: logicalModel, editingEle, attributeOrderChanged, updateExistNames, getSelectedItem, isElementSelected, editingElement, moveEntityDown, moveEntityUp, deleteEntityByIndex, keyDown, deleteSelectedItem, checkOuterDependencies, deleteSelectedItem0, resetSelectedStatus, isEntity, hasSelected, validSelected, deleteEntity, getEntity, getAttribute, deleteAttribute, checkInvalidAttributes, sortElements, sortEntities, sortAttributes, showEntityDialog, trim, showAddAttributeDialog, getSelectedEntity, showAddExpressionDialog, addAttributes, checkModified, isDuplicateEntity, isDuplicateAttribute, shiftSelect, entityToggle, onDeleteAttribute, canDelete, itemDeletable, resetState
 - Reason: 回归主体：navigation / HTTP loading / lifecycle / user flows
 
@@ -343,13 +343,9 @@
 
 ### ChooseTableDialog
 
-**Pass 1** (`ChooseTableDialog.interaction.tl.spec.ts`)
-- Methods: title, searchStart, initRoot, subscribe, initSelectedTable, selectAndExpandToPath, tableNameNull, selectNode, expandNode, openFolder, getTreeNodeIcon, ok
+**Pass 1** (`ChooseTableDialog.tl.spec.ts`)
+- Methods: title, searchStart, initRoot, subscribe, initSelectedTable, selectAndExpandToPath, tableNameNull, selectNode, expandNode, openFolder, getTreeNodeIcon, ok, databaseParr, cancel
 - Reason: 回归主体：navigation / HTTP loading / lifecycle / user flows
-
-**Pass 2** (`ChooseTableDialog.risk.tl.spec.ts`)
-- Methods: databaseParr, cancel
-- Reason: async≥3：竞态 / destructive / state inconsistency
 
 ### EditDashboardDialog
 
