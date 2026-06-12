@@ -77,7 +77,7 @@ docs/superpowers/specs/test-prescan/portal-route-prescan-YYYY-MM-DD.md
 **4b. 调用 risk-driven prompt 生成测试**
 
 ```
-Follow the instructions in docs/superpowers/prompts/component-risk-driven-generation-prompt.md
+Follow the instructions in docs/superpowers/prompts/risk-driven-generation-prompt.md
 
 Scope: <COMPONENT_PATH>
 Reference test file: projects/em/src/app/auditing/audit-bookmark-history/audit-bookmark-history.component.tl.spec.ts
