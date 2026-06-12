@@ -711,7 +711,20 @@ public class VLabel extends BoundedVisualizable {
          g2.fill(bounds);
       }
 
-      Point2D p2d = getTextPosition();
+      // Vertical anchor: getTextPosition() derives lheight from getDisplayLabel(), which for a
+      // CompositeLabel collapses to the single line label.toString(). MIDDLE/TOP alignment would
+      // then place the multi-row block as if it were one line tall and overshoot the allocated
+      // bounds. Recompute the y-anchor from the true composite height so every vertical alignment
+      // anchors correctly (BOTTOM is unaffected — alignText ignores lheight for BOTTOM).
+      Point2D pos = getPosition();
+
+      if(offset != null) {
+         pos = new Point2D.Double(pos.getX() + offset.getX(), pos.getY() + offset.getY());
+      }
+
+      double compositeH = getCompositeLabelPreferredHeight();
+      Point2D p2d = alignText(pos, getSize().getWidth(), getSize().getHeight(),
+                              0, compositeH, getAlignmentX0(), getAlignmentY0());
       // For composite labels, use the bounds left edge as the x origin so that
       // per-row xStart alignment works correctly. getTextPosition().getX() applies
       // element-level horizontal alignment using label.toString() width, which

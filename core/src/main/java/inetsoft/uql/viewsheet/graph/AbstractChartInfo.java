@@ -310,8 +310,19 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
       }
 
       if(aggr instanceof RelationChartInfo) {
-         list.add(((RelationChartInfo) aggr).getNodeColorField());
-         list.add(((RelationChartInfo) aggr).getNodeSizeField());
+         AestheticRef nodeColorField = ((RelationChartInfo) aggr).getNodeColorField();
+         AestheticRef nodeSizeField = ((RelationChartInfo) aggr).getNodeSizeField();
+
+         // VSDimensionRef nodeColorField and nodeSizeField are excluded here; ChartVSAQuery
+         // adds them back as MAX aggregates to prevent extra GROUP BY rows per relation chart
+         // target node. VSAggregateRef variants flow through the normal aggregate path unchanged.
+         if(nodeColorField == null || !(nodeColorField.getDataRef() instanceof VSDimensionRef)) {
+            list.add(nodeColorField);
+         }
+
+         if(nodeSizeField == null || !(nodeSizeField.getDataRef() instanceof VSDimensionRef)) {
+            list.add(nodeSizeField);
+         }
       }
 
       return list.stream().filter(a -> a != null).collect(Collectors.toList());

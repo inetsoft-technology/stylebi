@@ -694,9 +694,13 @@ public class VSChartAggregateRef extends VSAggregateRef
             if(tlNodes.item(i) instanceof Element
                   && "textLayoutField".equals(((Element) tlNodes.item(i)).getNodeName()))
             {
-               VSAestheticRef ref = new VSAestheticRef();
-               ref.parseXML(Tool.getFirstChildNode((Element) tlNodes.item(i)));
-               textLayoutFields.add(ref);
+               Element inner = Tool.getFirstChildNode((Element) tlNodes.item(i));
+
+               if(inner != null) {
+                  VSAestheticRef ref = new VSAestheticRef();
+                  ref.parseXML(inner);
+                  textLayoutFields.add(ref);
+               }
             }
          }
       }

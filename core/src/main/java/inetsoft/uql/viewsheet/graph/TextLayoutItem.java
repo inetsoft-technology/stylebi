@@ -6,6 +6,8 @@ import java.io.Serializable;
 import java.util.Objects;
 
 public class TextLayoutItem implements Serializable, Cloneable {
+   private static final long serialVersionUID = 1L;
+
    public static final int FIELD = 0;
    public static final int STATIC = 1;
    public static final int SPACING = 2;  // blank space between items
@@ -86,7 +88,8 @@ public class TextLayoutItem implements Serializable, Cloneable {
 
    public static TextLayoutItem parseXML(Element elem) {
       TextLayoutItem item = new TextLayoutItem();
-      item.type = Integer.parseInt(elem.getAttribute("type"));
+      try { item.type = Integer.parseInt(elem.getAttribute("type")); }
+      catch(NumberFormatException ignored) { item.type = FIELD; }
       String fi = elem.getAttribute("fieldIndex");
       if(!fi.isEmpty()) {
          try { item.fieldIndex = Integer.parseInt(fi); }
@@ -102,7 +105,10 @@ public class TextLayoutItem implements Serializable, Cloneable {
       String fontFamilyAttr = elem.getAttribute("fontFamily");
       if(!fontFamilyAttr.isEmpty()) item.fontFamily = fontFamilyAttr;
       String fontSizeAttr = elem.getAttribute("fontSize");
-      if(!fontSizeAttr.isEmpty()) item.fontSize = Integer.parseInt(fontSizeAttr);
+      if(!fontSizeAttr.isEmpty()) {
+         try { item.fontSize = Integer.parseInt(fontSizeAttr); }
+         catch(NumberFormatException ignored) { /* leave default -1 */ }
+      }
       String boldAttr = elem.getAttribute("bold");
       if(!boldAttr.isEmpty()) item.bold = Boolean.parseBoolean(boldAttr);
       String italicAttr = elem.getAttribute("italic");

@@ -48,6 +48,12 @@ public class CompositeLabel implements Serializable {
       StringBuilder sb = new StringBuilder();
 
       for(TextSegment seg : segments) {
+         // SPACING segments carry empty text and only encode vertical/horizontal gap;
+         // including them would inject stray/double spaces into the plain-text label.
+         if(seg.isSpacing()) {
+            continue;
+         }
+
          if(sb.length() > 0) {
             sb.append(' ');
          }
