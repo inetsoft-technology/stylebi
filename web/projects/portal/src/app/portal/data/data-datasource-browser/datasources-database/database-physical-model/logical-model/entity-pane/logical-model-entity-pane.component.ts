@@ -22,7 +22,7 @@ import {
    Input,
    OnChanges,
    OnDestroy,
-   Output, SimpleChanges, ViewChild
+   Output, ViewChild
 } from "@angular/core";
 import { UntypedFormGroup, Validators, UntypedFormControl, AbstractControl, ValidatorFn, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { EntityModel } from "../../../../../model/datasources/database/physical-model/logical-model/entity-model";
@@ -109,20 +109,18 @@ export class LogicalModelEntityPane implements AfterViewInit, OnChanges, OnDestr
       }
    }
 
-   ngOnChanges(changes: SimpleChanges): void {
+   ngOnChanges(): void {
       if(!this.inited) {
          this.inited = true;
          this.resetFormControl();
       }
-      else if(changes["existNames"] && !changes["entity"]) {
-         // A reorder updates only existNames (the edited entity reference is
-         // unchanged). Defer the reset so the shared form is not mutated during
-         // change detection, which would change form.invalid after the parent's
-         // Save button [disabled] binding was checked (NG0100).
-         this.scheduleReset();
-      }
       else {
-         this.resetFormControl();
+         // Any post-init input change must defer the form rebuild: a reorder
+         // updates existNames, and selecting a different entity updates entity.
+         // Either way, rebuilding synchronously would mutate the shared form and
+         // change form.invalid after the parent's Save button [disabled] binding
+         // was already checked, throwing NG0100.
+         this.scheduleReset();
       }
    }
 
