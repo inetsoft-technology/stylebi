@@ -1,7 +1,7 @@
 # embed Route Pre-scan Report
 
-**日期**: 2026-06-08
-**候选组件数**: 5 | **建议推进**: 5 | **建议跳过**: 0 | **多 pass 组件**: 3
+**日期**: 2026-06-08（2026-06-12 补充扫描，新增 1 个组件）
+**候选组件数**: 6 | **建议推进**: 6 | **建议跳过**: 0 | **多 pass 组件**: 3
 
 ## 状态说明
 - 第一列「状态」初始为「待审核」，人工审核后改为 ✅已测试 / ⏭已跳过
@@ -22,6 +22,12 @@
 | 待审核 | MiniToolbar | 185 | 3 | 3 | **multi-pass** | ✅ 推进 |  |  | P1: MiniToolbar.interaction.tl.spec.ts<br>P2: MiniToolbar.risk.tl.spec.ts |
 | 待审核 | ActionsContextmenuComponent | 154 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ actions-contextmenu.component.spec.ts | test: should not create a dropdown when there are no visible actions | single pass (+内存泄漏) |
 | 待审核 | DownloadTargetComponent | 84 | 1 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
+
+> **以下为 2026-06-12 补充扫描新增组件**
+
+| 状态 | 组件 | logic_lines | dispatch | async_zones | 分类 | 建议 | 旧 spec | 旧 spec 备注 | Pass 计划 |
+|------|------|-------------|----------|-------------|------|------|---------|-------------|-----------|
+| 待审核 | EmbedViewerComponent | 201 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 
 ## 多 pass 组件详情
 
