@@ -127,6 +127,7 @@ describe("ScheduleDialog — ok(): empty bookmark name guard", () => {
 
       comp.ok();
 
+      await waitFor(() => expect(MODAL_MOCK.open).toHaveBeenCalledTimes(1)); // error dialog shown — proves ok() ran the guard
       expect(httpCalled).toBe(false);
    });
 
@@ -162,6 +163,7 @@ describe("ScheduleDialog — ok(): special-character bookmark guard", () => {
 
       comp.ok();
 
+      await waitFor(() => expect(MODAL_MOCK.open).toHaveBeenCalledTimes(1)); // error dialog shown — proves ok() ran the guard
       expect(httpCalled).toBe(false);
    });
 
@@ -183,6 +185,32 @@ describe("ScheduleDialog — ok(): special-character bookmark guard", () => {
 describe("ScheduleDialog — ok(): HTTP type=OK → onCommit emitted", () => {
    // 🔁 Regression-sensitive: the full commit chain (check → fetch → modal → emit) must
    // fire in order; a broken link at any step silently drops the schedule creation.
+
+   it("should reach the HTTP check when bookmarkEnabled=false (guard is correctly bypassed)", async () => {
+      let httpCalled = false;
+      server.use(
+         http.get("*/api/vs/check-schedule-dialog/*", () => {
+            httpCalled = true;
+            return MswHttpResponse.json({ type: "OK", message: "" });
+         })
+      );
+      // Provide a Promise-based result so the component's .result.then() call doesn't throw
+      // after the type=OK response triggers getSimpleScheduleDialog → modal.open().
+      MODAL_MOCK.open.mockImplementationOnce(() => ({
+         result: new Promise(() => {}),
+         componentInstance: { onCommit: new Subject<string>() },
+         close: vi.fn(),
+         dismiss: vi.fn(),
+      }));
+      const { comp } = await renderComponent({
+         model: makeModel({ bookmarkEnabled: false }),
+      });
+
+      comp.ok();
+
+      await waitFor(() => expect(httpCalled).toBe(true));
+   });
+
    it("should emit onCommit after type=OK HTTP response triggers the simple schedule flow", async () => {
       const { comp } = await renderComponent();
       const committed: ScheduleDialogModel[] = [];
@@ -263,9 +291,9 @@ describe("ScheduleDialog — ok(): HTTP type=CONFIRM flow", () => {
 
       comp.ok();
 
-      // Give enough time for async confirm dialog to resolve
-      await waitFor(() => expect(MODAL_MOCK.open).toHaveBeenCalled());
-      // Still no commit after cancel
+      // Pin to exactly 1 open() call: confirms the confirm dialog fired but no second modal
+      // (e.g. schedule modal) was opened as a side-effect of the cancel path.
+      await waitFor(() => expect(MODAL_MOCK.open).toHaveBeenCalledTimes(1));
       expect(committed).toHaveLength(0);
    });
 });
@@ -275,7 +303,21 @@ describe("ScheduleDialog — ok(): HTTP type=CONFIRM flow", () => {
 // ---------------------------------------------------------------------------
 
 describe("ScheduleDialog — ok(): HTTP non-OK/CONFIRM type", () => {
-   it("should show error dialog and NOT emit onCommit when HTTP returns type=ERROR", async () => {
+   it("should show error dialog when HTTP returns type=ERROR", async () => {
+      server.use(
+         http.get("*/api/vs/check-schedule-dialog/*", () =>
+            MswHttpResponse.json({ type: "ERROR", message: "Cannot schedule viewsheet" })
+         )
+      );
+
+      const { comp } = await renderComponent();
+
+      comp.ok();
+
+      await waitFor(() => expect(MODAL_MOCK.open).toHaveBeenCalled());
+   });
+
+   it("should NOT emit onCommit when HTTP returns type=ERROR", async () => {
       server.use(
          http.get("*/api/vs/check-schedule-dialog/*", () =>
             MswHttpResponse.json({ type: "ERROR", message: "Cannot schedule viewsheet" })
@@ -288,7 +330,7 @@ describe("ScheduleDialog — ok(): HTTP non-OK/CONFIRM type", () => {
 
       comp.ok();
 
-      await waitFor(() => expect(MODAL_MOCK.open).toHaveBeenCalled());
+      await waitFor(() => expect(MODAL_MOCK.open).toHaveBeenCalled()); // positive gate: error dialog opened
       expect(committed).toHaveLength(0);
    });
 });

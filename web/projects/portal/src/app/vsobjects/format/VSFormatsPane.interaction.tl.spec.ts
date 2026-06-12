@@ -332,7 +332,7 @@ describe("VSFormatsPane — color / colorType setter side effects", () => {
 
    it("should NOT trigger onChangeFormat when color is set to the same value", async () => {
       const { comp } = await renderComponent();
-      (comp as any)._color = "#ff0000"; // pre-set backing field
+      comp.color = "#ff0000"; // pre-set via public setter (spy not yet subscribed)
 
       const changeSpy = vi.fn();
       comp.onChangeFormat.subscribe(changeSpy);
@@ -345,9 +345,9 @@ describe("VSFormatsPane — color / colorType setter side effects", () => {
    // 🔁 Regression-sensitive: switching the combo to VALUE must reset the color to STATIC so the
    // picker shows a solid colour swatch, not a raw expression string.
    it("should reset _color backing field to STATIC when colorType is switched to VALUE", async () => {
-      const { comp } = await renderComponent();
-      (comp as any)._colorType = ComboMode.EXPRESSION;
-      (comp as any)._color = "=myExpr";
+      const { comp } = await renderComponent({
+         format: { ...TestUtils.createMockVSObjectFormatInfoModel(), colorType: "=myExpr" },
+      });
 
       comp.colorType = ComboMode.VALUE;
 
@@ -355,9 +355,9 @@ describe("VSFormatsPane — color / colorType setter side effects", () => {
    });
 
    it("should set vsObjectFormat.colorType to STATIC when colorType is switched to VALUE", async () => {
-      const { comp } = await renderComponent();
-      (comp as any)._colorType = ComboMode.EXPRESSION;
-      (comp as any)._color = "=myExpr";
+      const { comp } = await renderComponent({
+         format: { ...TestUtils.createMockVSObjectFormatInfoModel(), colorType: "=myExpr" },
+      });
 
       comp.colorType = ComboMode.VALUE;
 
@@ -388,7 +388,7 @@ describe("VSFormatsPane — backgroundColor / backgroundColorType setter side ef
 
    it("should NOT trigger onChangeFormat when backgroundColor is set to the same value", async () => {
       const { comp } = await renderComponent();
-      (comp as any)._backgroundColor = "#00ff00"; // pre-set backing field
+      comp.backgroundColor = "#00ff00"; // pre-set via public setter (spy not yet subscribed)
 
       const changeSpy = vi.fn();
       comp.onChangeFormat.subscribe(changeSpy);
@@ -401,9 +401,9 @@ describe("VSFormatsPane — backgroundColor / backgroundColorType setter side ef
    // 🔁 Regression-sensitive: switching the background combo to VALUE must reset backgroundColor
    // to STATIC, mirroring the same contract for the foreground color.
    it("should reset _backgroundColor backing field to STATIC when backgroundColorType is switched to VALUE", async () => {
-      const { comp } = await renderComponent();
-      (comp as any)._backgroundColorType = ComboMode.EXPRESSION;
-      (comp as any)._backgroundColor = "=myBgExpr";
+      const { comp } = await renderComponent({
+         format: { ...TestUtils.createMockVSObjectFormatInfoModel(), backgroundColorType: "=myBgExpr" },
+      });
 
       comp.backgroundColorType = ComboMode.VALUE;
 
@@ -411,9 +411,9 @@ describe("VSFormatsPane — backgroundColor / backgroundColorType setter side ef
    });
 
    it("should set vsObjectFormat.backgroundColorType to STATIC when backgroundColorType is switched to VALUE", async () => {
-      const { comp } = await renderComponent();
-      (comp as any)._backgroundColorType = ComboMode.EXPRESSION;
-      (comp as any)._backgroundColor = "=myBgExpr";
+      const { comp } = await renderComponent({
+         format: { ...TestUtils.createMockVSObjectFormatInfoModel(), backgroundColorType: "=myBgExpr" },
+      });
 
       comp.backgroundColorType = ComboMode.VALUE;
 
@@ -627,26 +627,20 @@ describe("VSFormatsPane — updateProperties(): viewer=true orchestration", () =
 describe("VSFormatsPane — isFontDisabled / isColorDisabled with VSImage", () => {
    it("should set fontDisabled=true when VSImage is focused", async () => {
       const { comp } = await renderComponent();
-      const image = TestUtils.createMockVSImageModel("Image1");
-      comp._focusedAssemblies = [image];
-      comp.updateProperties();
+      comp.focusedAssemblies = [TestUtils.createMockVSImageModel("Image1")];
       expect(comp.fontDisabled).toBe(true);
    });
 
    it("should set colorDisabled=true when VSImage is focused", async () => {
       const { comp } = await renderComponent();
-      const image = TestUtils.createMockVSImageModel("Image1");
-      comp._focusedAssemblies = [image];
-      comp.updateProperties();
+      comp.focusedAssemblies = [TestUtils.createMockVSImageModel("Image1")];
       expect(comp.colorDisabled).toBe(true);
    });
 
    it("should set colorDisabled=false when a non-image assembly is focused", async () => {
       const { comp } = await renderComponent();
-      const text = TestUtils.createMockVSTextModel("Text1");
 
-      comp._focusedAssemblies = [text];
-      comp.updateProperties();
+      comp.focusedAssemblies = [TestUtils.createMockVSTextModel("Text1")];
 
       expect(comp.colorDisabled).toBe(false);
    });
@@ -658,21 +652,18 @@ describe("VSFormatsPane — isFontDisabled / isColorDisabled with VSImage", () =
 
 describe("VSFormatsPane — isAlignDisabled: alignment flag logic", () => {
    it("should set alignDisabled=true when both halignmentEnabled=false and valignmentEnabled=false", async () => {
-      const { comp } = await renderComponent();
-      comp._format.halignmentEnabled = false;
-      comp._format.valignmentEnabled = false;
-
-      comp.updateProperties();
+      const { comp } = await renderComponent({
+         format: { ...TestUtils.createMockVSObjectFormatInfoModel(), halignmentEnabled: false, valignmentEnabled: false },
+      });
 
       expect(comp.alignDisabled).toBe(true);
    });
 
    it("should set alignDisabled=false when viewer=true and halignmentEnabled=true", async () => {
-      const { comp } = await renderComponent({ viewer: true });
-      comp._format.halignmentEnabled = true;
-      comp._format.valignmentEnabled = false;
-
-      comp.updateProperties();
+      const { comp } = await renderComponent({
+         viewer: true,
+         format: { ...TestUtils.createMockVSObjectFormatInfoModel(), halignmentEnabled: true, valignmentEnabled: false },
+      });
 
       expect(comp.alignDisabled).toBe(false);
    });
@@ -730,20 +721,16 @@ describe("VSFormatsPane — isVAlignmentEnabled()", () => {
 describe("VSFormatsPane — isBorderDisabled / isBackgroundDisabled with VSLine", () => {
    it("should set borderDisabled=true when VSLine is focused (Bug #18597)", async () => {
       const { comp } = await renderComponent();
-      const line = TestUtils.createMockVSObjectModel("VSLine", "Line1") as any;
 
-      comp._focusedAssemblies = [line];
-      comp.updateProperties();
+      comp.focusedAssemblies = [TestUtils.createMockVSObjectModel("VSLine", "Line1")];
 
       expect(comp.borderDisabled).toBe(true);
    });
 
    it("should set backgroundDisabled=true when VSLine is focused", async () => {
       const { comp } = await renderComponent();
-      const line = TestUtils.createMockVSObjectModel("VSLine", "Line1") as any;
 
-      comp._focusedAssemblies = [line];
-      comp.updateProperties();
+      comp.focusedAssemblies = [TestUtils.createMockVSObjectModel("VSLine", "Line1")];
 
       expect(comp.backgroundDisabled).toBe(true);
    });
@@ -772,8 +759,7 @@ describe("VSFormatsPane — isDynamicColorDisabled", () => {
       // empty array → whole-chart selection path → isDynamicColorDisabled returns true in viewer.
       chart.chartSelection = { chartObject: { areaName: "plot_area" } as any, regions: [] };
 
-      comp._focusedAssemblies = [chart];
-      comp.updateProperties();
+      comp.focusedAssemblies = [chart];
 
       expect(comp.dynamicColorDisabled).toBe(true);
    });
@@ -795,8 +781,7 @@ describe("VSFormatsPane — isCSSDisabled", () => {
       const table = TestUtils.createMockVSTableModel("Table1");
       table.selectedData = new Map([[1, [2]]]);
 
-      comp._focusedAssemblies = [table];
-      comp.updateProperties();
+      comp.focusedAssemblies = [table];
 
       expect(comp.cssDisabled).toBe(true);
    });
@@ -905,8 +890,7 @@ describe("VSFormatsPane — isRoundTopCornersOnlyVisible: VSTab region check", (
       const tab = TestUtils.createMockVSTabModel("Tab1");
       tab.selectedRegions = [];
 
-      comp._focusedAssemblies = [tab];
-      comp.updateProperties();
+      comp.focusedAssemblies = [tab];
 
       expect(comp.roundTopCornersOnlyVisible).toBe(true);
    });
@@ -916,8 +900,7 @@ describe("VSFormatsPane — isRoundTopCornersOnlyVisible: VSTab region check", (
       const tab = TestUtils.createMockVSTabModel("Tab1");
       tab.selectedRegions = [TestUtils.createMockselectedRegion()];
 
-      comp._focusedAssemblies = [tab];
-      comp.updateProperties();
+      comp.focusedAssemblies = [tab];
 
       expect(comp.roundTopCornersOnlyVisible).toBe(false);
    });

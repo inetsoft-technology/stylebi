@@ -107,10 +107,7 @@ async function renderComponent(opts: {
 // ---------------------------------------------------------------------------
 
 describe("ProfilingDialog — ngOnInit: group-by fields", () => {
-   // 🔁 Regression-sensitive: groupByFields drives the group-by selector in the template;
-   // if the GET response is not applied the user sees only the default "Cycle Name" entry
-   // even when the server provides additional grouping options.
-   it("should populate groupByFields with 2 entries from the group-by API response", async () => {
+   beforeEach(() => {
       server.use(
          http.get("*/api/portal/profile/group-by*", () =>
             MswHttpResponse.json({
@@ -121,21 +118,17 @@ describe("ProfilingDialog — ngOnInit: group-by fields", () => {
             })
          )
       );
+   });
+
+   // 🔁 Regression-sensitive: groupByFields drives the group-by selector in the template;
+   // if the GET response is not applied the user sees only the default "Cycle Name" entry
+   // even when the server provides additional grouping options.
+   it("should populate groupByFields with 2 entries from the group-by API response", async () => {
       const { comp } = await renderComponent();
       await waitFor(() => expect(comp.groupByFields).toHaveLength(2));
    });
 
    it("should populate the second groupByField with the server-provided label and value", async () => {
-      server.use(
-         http.get("*/api/portal/profile/group-by*", () =>
-            MswHttpResponse.json({
-               fields: [
-                  { label: "Cycle Name", value: "cycle" },
-                  { label: "Query Name", value: "query" },
-               ],
-            })
-         )
-      );
       const { comp } = await renderComponent();
       await waitFor(() => expect(comp.groupByFields[1]).toEqual({ label: "Query Name", value: "query" }));
    });
@@ -277,6 +270,16 @@ describe("ProfilingDialog — getSortLabel(): all branches", () => {
       expect(comp.getSortLabel(1)).toBe("sort-ascending");
    });
 
+   it("should return 'sort' when sortInfo.col matches but sortValue is NONE", async () => {
+      server.use(http.put("*/api/portal/profile/table*", () => MswHttpResponse.json({ body: [] })));
+      const { comp } = await renderComponent();
+
+      comp.sortClicked(1); // DESC
+      comp.sortClicked(1); // NONE
+
+      expect(comp.getSortLabel(1)).toBe("sort");
+   });
+
    it("should return 'sort' when sortInfo exists but col does not match", async () => {
       server.use(http.put("*/api/portal/profile/table*", () => MswHttpResponse.json({ body: [] })));
       const { comp } = await renderComponent();
@@ -390,6 +393,7 @@ describe("ProfilingDialog — wheelScrollHandler()", () => {
    // on a page that is not itself scrollable.
    it("should increment verticalScrollWrapper scrollTop by event.deltaY", async () => {
       const { comp, fixture } = await renderComponent();
+      // Bypass showDetails setter (which triggers reloadTable) — this test targets scroll behaviour only.
       comp._showDetails = true;
       fixture.detectChanges();
 
@@ -408,6 +412,7 @@ describe("ProfilingDialog — wheelScrollHandler()", () => {
 
    it("should call event.preventDefault() to block native page scroll", async () => {
       const { comp, fixture } = await renderComponent();
+      // Bypass showDetails setter (which triggers reloadTable) — this test targets scroll behaviour only.
       comp._showDetails = true;
       fixture.detectChanges();
 
@@ -425,6 +430,7 @@ describe("ProfilingDialog — wheelScrollHandler()", () => {
 describe("ProfilingDialog — touchHScroll()", () => {
    it("should reduce previewContainer scrollLeft by delta", async () => {
       const { comp, fixture } = await renderComponent();
+      // Bypass showDetails setter (which triggers reloadTable) — this test targets scroll behaviour only.
       comp._showDetails = true;
       fixture.detectChanges();
 
@@ -442,6 +448,7 @@ describe("ProfilingDialog — touchHScroll()", () => {
 
    it("should clamp scrollLeft to 0 when delta exceeds current scrollLeft", async () => {
       const { comp, fixture } = await renderComponent();
+      // Bypass showDetails setter (which triggers reloadTable) — this test targets scroll behaviour only.
       comp._showDetails = true;
       fixture.detectChanges();
 
@@ -470,8 +477,9 @@ describe("ProfilingDialog — touchVScroll()", () => {
    // is used to supply a realistic scrollable range for each test.
    async function renderWithScrollRange(scrollHeight = 200, clientHeight = 100) {
       const { comp, fixture } = await renderComponent();
+      // Bypass showDetails setter (which triggers reloadTable) — this helper targets scroll behaviour only.
       comp._showDetails = true;
-      comp._tableData = [makeTableRow()]; // satisfies @if (tableData.length > 0) for #tableContainer
+      comp.tableData = [makeTableRow()]; // satisfies @if (tableData.length > 0) for #tableContainer
       fixture.detectChanges();
       const el = comp.tableContainer.nativeElement;
       Object.defineProperty(el, "scrollHeight", { get: () => scrollHeight, configurable: true });

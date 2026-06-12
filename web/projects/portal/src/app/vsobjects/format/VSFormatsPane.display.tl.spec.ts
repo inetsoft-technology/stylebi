@@ -136,14 +136,14 @@ describe("VSFormatsPane — isFormattingDisabled()", () => {
 
    it("should return true when a VSTab assembly is focused", async () => {
       const { comp } = await renderComponent();
-      comp._focusedAssemblies = [TestUtils.createMockVSObjectModel("VSTab", "tab1")];
+      comp.focusedAssemblies = [TestUtils.createMockVSObjectModel("VSTab", "tab1")];
 
       expect(comp.isFormattingDisabled()).toBe(true);
    });
 
    it("should return true when a VSLine assembly is focused", async () => {
       const { comp } = await renderComponent();
-      comp._focusedAssemblies = [TestUtils.createMockVSObjectModel("VSLine", "line1")];
+      comp.focusedAssemblies = [TestUtils.createMockVSObjectModel("VSLine", "line1")];
 
       expect(comp.isFormattingDisabled()).toBe(true);
    });
@@ -159,7 +159,7 @@ describe("VSFormatsPane — isFormattingDisabled()", () => {
    it("should return false when a chart assembly is editable (no VO selected)", async () => {
       const { comp } = await renderComponent();
       // createMockVSChartModel has chartSelection=null → isNonEditableChartVOSelected=false
-      comp._focusedAssemblies = [TestUtils.createMockVSChartModel("chart1")];
+      comp.focusedAssemblies = [TestUtils.createMockVSChartModel("chart1")];
 
       expect(comp.isFormattingDisabled()).toBe(false);
    });
@@ -178,14 +178,14 @@ describe("VSFormatsPane — isFormattingDisabled()", () => {
 describe("VSFormatsPane — isFormatDisabled()", () => {
    it("should return true when a VSViewsheet assembly is focused", async () => {
       const { comp } = await renderComponent();
-      comp._focusedAssemblies = [TestUtils.createMockVSObjectModel("VSViewsheet", "vs1")];
+      comp.focusedAssemblies = [TestUtils.createMockVSObjectModel("VSViewsheet", "vs1")];
 
       expect(comp.isFormatDisabled()).toBe(true);
    });
 
    it("should return true when a VSThermometer assembly is focused", async () => {
       const { comp } = await renderComponent();
-      comp._focusedAssemblies = [TestUtils.createMockVSObjectModel("VSThermometer", "therm1")];
+      comp.focusedAssemblies = [TestUtils.createMockVSObjectModel("VSThermometer", "therm1")];
 
       expect(comp.isFormatDisabled()).toBe(true);
    });
@@ -198,7 +198,7 @@ describe("VSFormatsPane — isFormatDisabled()", () => {
 
    it("should return false when a VSText assembly is focused (viewer=false)", async () => {
       const { comp } = await renderComponent({ viewer: false });
-      comp._focusedAssemblies = [TestUtils.createMockVSObjectModel("VSText", "text1")];
+      comp.focusedAssemblies = [TestUtils.createMockVSObjectModel("VSText", "text1")];
 
       expect(comp.isFormatDisabled()).toBe(false);
    });
@@ -320,6 +320,8 @@ describe("VSFormatsPane — closeFormat()", () => {
 describe("VSFormatsPane — getCSSLabel()", () => {
    it("should return None when cssID and cssClass are both absent", async () => {
       // default mock: cssID=null, cssClass=""
+      // Note: cssClass="" is treated as falsy here, unlike borderTopStyle=""
+      // which getBorderLabel() treats as non-null and returns "Custom" (see Group 3).
       const { comp } = await renderComponent();
 
       expect(comp.getCSSLabel()).toBe("_#(js:None)");
@@ -356,7 +358,7 @@ describe("VSFormatsPane — showPresenter()", () => {
       const { comp } = await renderComponent();
       const table = TestUtils.createMockVSTableModel("table1");
       // default: firstSelectedRow=0 >= 0, titleSelected=undefined (falsy)
-      comp._focusedAssemblies = [table];
+      comp.focusedAssemblies = [table];
 
       expect(comp.showPresenter()).toBe(true);
    });
@@ -364,14 +366,14 @@ describe("VSFormatsPane — showPresenter()", () => {
    it("should return false for a VSTable when the title row is selected", async () => {
       const { comp } = await renderComponent();
       const table = { ...TestUtils.createMockVSTableModel("table1"), titleSelected: true };
-      comp._focusedAssemblies = [table];
+      comp.focusedAssemblies = [table];
 
       expect(comp.showPresenter()).toBe(false);
    });
 
    it("should return true for a VSText assembly", async () => {
       const { comp } = await renderComponent();
-      comp._focusedAssemblies = [TestUtils.createMockVSObjectModel("VSText", "text1")];
+      comp.focusedAssemblies = [TestUtils.createMockVSObjectModel("VSText", "text1")];
 
       expect(comp.showPresenter()).toBe(true);
    });
