@@ -20,7 +20,7 @@ import {AfterViewInit, Component, ElementRef, NgZone, OnDestroy, OnInit, Rendere
 import { ActivatedRoute, ParamMap, ResolveStart, Router, RouterLink } from "@angular/router";
 import { NgbModal, NgbPopover, NgbTypeahead, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
 import {Observable, of, Subscription} from "rxjs";
-import {catchError, debounceTime, distinctUntilChanged, map, switchMap} from "rxjs/operators";
+import {catchError, debounceTime, distinctUntilChanged, finalize, map, switchMap} from "rxjs/operators";
 import {AssetType} from "../../../../../../shared/data/asset-type";
 import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
 import {FormValidators} from "../../../../../../shared/util/form-validators";
@@ -310,6 +310,13 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
       };
 
       const sub = this.httpClient.post<DataSourceStatus[]>(DATASOURCE_STATUSES_URI, request)
+         .pipe(finalize(() => {
+            if(updateStatus) {
+               this.updatingStatus = false;
+            }
+
+            this.requests.remove(sub);
+         }))
          .subscribe(statuses => {
             for(let i = 0; i < dsCopy.length; i++) {
                if(!!statuses[i]) {
@@ -322,12 +329,6 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
                ds.statusMessage = this.failedConnectionStatus;
                ds.connected = false;
             });
-         }, () => {
-            if(updateStatus) {
-               this.updatingStatus = false;
-            }
-
-            this.requests.remove(sub);
          });
 
       this.requests.add(sub);
@@ -379,8 +380,8 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    }
 
    getParentRouterLinkParams(path: string): any {
-      let arr: string[] = path.split("/");
-      let parentPath = arr.length == 1 ? "/" : arr[arr.length - 2];
+      const idx = path.lastIndexOf("/");
+      const parentPath = idx < 0 ? "/" : path.substring(0, idx);
       return {path: parentPath, scope: 0};
    }
 
@@ -838,16 +839,17 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    }
 
    dropAssets(event: DragEvent, datasource: DataSourceInfo) {
+      event.stopPropagation();
+
       if(datasource && !this.isDataSourceFolder(datasource)) {
          return;
       }
 
-      event.stopPropagation();
       let dragData = this.dragService.getDragData();
 
       if(dragData["dragDataSources"]) {
-         this.moveDataSources0(
-            JSON.parse(dragData["dragDataSources"]), datasource.path);
+         const targetFolder = datasource?.path ?? this.currentFolderPathString;
+         this.moveDataSources0(JSON.parse(dragData["dragDataSources"]), targetFolder);
       }
       else {
          this.dataTreeDragToPane(datasource, dragData);
