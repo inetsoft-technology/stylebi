@@ -20,14 +20,13 @@ package inetsoft.web.wiz.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.uql.jdbc.*;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.osi.*;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.*;
-import inetsoft.uql.jdbc.JDBCDataSource;
-import inetsoft.uql.jdbc.JDBCHandler;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.jdbc.util.SQLTypes;
 import inetsoft.uql.schema.XSchema;
@@ -129,7 +128,8 @@ public class MetadataApiService {
       OsiDataset dataset = new OsiDataset();
       dataset.setName(tableName);
       dataset.setSource(source);
-      dataset.setCustomExtensions(List.of(buildDatasetExtension(dsName, catalog, schema, source)));
+      String datasourceType = SQLHelper.getProductName(jdbcDataSource);
+      dataset.setCustomExtensions(List.of(buildDatasetExtension(dsName, catalog, schema, source, datasourceType)));
 
       Object synonyms = tableData.getAttribute("synonyms");
       boolean hasSynonyms = synonyms instanceof String s ? !s.isEmpty()
@@ -214,7 +214,8 @@ public class MetadataApiService {
    }
 
    private OsiCustomExtension buildDatasetExtension(String dsName, String catalog,
-                                                     String schema, String path)
+                                                     String schema, String path,
+                                                     String datasourceType)
    {
       try {
          Map<String, Object> extData = new LinkedHashMap<>();
@@ -230,6 +231,10 @@ public class MetadataApiService {
          }
 
          extData.put("path", path);
+
+         if(!Tool.isEmptyString(datasourceType)) {
+            extData.put("datasourceType", datasourceType);
+         }
 
          OsiCustomExtension ext = new OsiCustomExtension();
          ext.setVendorName("COMMON");
