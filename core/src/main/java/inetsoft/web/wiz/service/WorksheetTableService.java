@@ -28,6 +28,7 @@ import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.util.SQLTypes;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.wiz.model.*;
@@ -417,6 +418,10 @@ public class WorksheetTableService {
 
          if(Boolean.FALSE.equals(col.getVisible())) {
             colRef.setVisible(false);
+         }
+
+         if(!Tool.isEmptyString(col.getType())) {
+            colRef.setDataType(col.getType());
          }
 
          cs.addAttribute(colRef);
