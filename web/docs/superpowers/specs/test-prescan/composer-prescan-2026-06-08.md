@@ -28,12 +28,12 @@
 | 待审核 | ScriptTreePane | 74 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | ✅已测试 | ComponentsPane | 302 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | StyleTreePane | 97 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核 | VSFormatsPane | 679 | 4 | 1 | **multi-pass** | ✅ 推进 | ⚠️ vs-formats-pane.spec.ts | Bug #16685, Bug #16689 check the aligment combox status; Bug #18597, BUg #18664 color,border, aligment status; Bug #18060, Bug #18342 for wrap text on | P1: VSFormatsPane.interaction.tl.spec.ts<br>P3: VSFormatsPane.display.tl.spec.ts |
+| ✅已测试 P1P3 | VSFormatsPane | 679 | 4 | 1 | **multi-pass** | ✅ 推进 | ⚠️ vs-formats-pane.spec.ts | Bug #16685, Bug #16689 check the aligment combox status; Bug #18597, BUg #18664 color,border, aligment status; Bug #18060, Bug #18342 for wrap text on | P1: VSFormatsPane.interaction.tl.spec.ts<br>P3: VSFormatsPane.display.tl.spec.ts |
 | ✅已测试 | WSCompositeTableSidebarPane | 77 | 1 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) ✅ ws-composite-table-sidebar-pane.component.tl.spec.ts |
 | ✅已测试 P1P2P3 | WSPaneComponent | 944 | 5 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: ws-pane.component.interaction.tl.spec.ts ✅<br>P2: ws-pane.component.risk.tl.spec.ts ✅<br>P3: ws-pane.component.display.tl.spec.ts ✅ |
-| 待审核 | VSPane | 2071 | 7 | 23 | **multi-pass** | ✅ 推进 | ⚠️ viewsheet-pane.component.spec.ts | Bug #10442 make sure to update send to back/front enabled after adding vs object to vs; Bug #16274 make sure to update send to back/front enabled afte | P1: VSPane.interaction.tl.spec.ts<br>P2: VSPane.risk.tl.spec.ts<br>P3: VSPane.display.tl.spec.ts |
+| ✅已测试 P1P2P3 | VSPane | 2071 | 7 | 23 | **multi-pass** | ✅ 推进 | ⚠️ viewsheet-pane.component.spec.ts | Bug #10442 make sure to update send to back/front enabled after adding vs object to vs; Bug #16274 make sure to update send to back/front enabled afte | P1: viewsheet-pane.component.interaction.tl.spec.ts ✅<br>P2: viewsheet-pane.component.risk.tl.spec.ts ✅<br>P3: viewsheet-pane.component.display.tl.spec.ts ✅ |
 | 待审核 | ViewerAppComponent | 3363 | 10 | 53 | **multi-pass** | ✅ 推进 | ⚠️ viewer-app.spec.ts | Bug #16456 TODO, logica changed, can not get fixed dropdown pane; Bug #19176 hide full screen in preview; Bug #16961 should refresh scale to screen vs | P1: ViewerAppComponent.interaction.tl.spec.ts<br>P2: ViewerAppComponent.risk.tl.spec.ts<br>P3: ViewerAppComponent.display.tl.spec.ts |
-| 待审核 | ScriptEditPaneComponent | 194 | 2 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅已测试 | ScriptEditPaneComponent | 194 | 2 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) ✅ script-edit-pane.component.tl.spec.ts |
 | 待审核 | StylePaneComponent | 89 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | ComposerEmptyEditor | 95 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | 待审核 | SheetTabSelectorComponent | 87 | 1 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
@@ -47,7 +47,7 @@
 | 待审核 | EditCustomPatternsDialog | 86 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | ViewsheetPropertyDialog | 112 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核 | ToolbarGroup | 84 | 1 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | ImportCSVDialog | 423 | 1 | 33 | **multi-pass** | ✅ 推进 | ⚠️ import-csv-dialog.component.spec.ts | test: should throw an error on empty file | P1: ImportCSVDialog.interaction.tl.spec.ts<br>P2: ImportCSVDialog.risk.tl.spec.ts |
+| ✅已测试 P1P2 | ImportCSVDialog  | 423 | 1 | 33 | **multi-pass** | ✅ 推进 | ⚠️ import-csv-dialog.component.spec.ts | test: should throw an error on empty file | P1: import-csv-dialog.component.interaction.tl.spec.ts ✅<br>P2: import-csv-dialog.component.risk.tl.spec.ts ✅ |
 | 待审核 | SQLQueryDialog | 386 | 0 | 10 | **multi-pass** | ✅ 推进 |  |  | P1: SQLQueryDialog.interaction.tl.spec.ts<br>P2: SQLQueryDialog.risk.tl.spec.ts |
 | 待审核 | TabularQueryDialog | 374 | 0 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: TabularQueryDialog.interaction.tl.spec.ts<br>P2: TabularQueryDialog.risk.tl.spec.ts |
 | 待审核 | GroupingDialog | 346 | 0 | 52 | **multi-pass** | ✅ 推进 |  |  | P1: GroupingDialog.interaction.tl.spec.ts<br>P2: GroupingDialog.risk.tl.spec.ts |
@@ -56,7 +56,7 @@
 | 待审核 | VariableAssemblyDialog | 334 | 0 | 26 | **multi-pass** | ✅ 推进 | ⚠️ variable-assembly-dialog.spec.ts | Bug #20319 should allow some characters for variable | P1: VariableAssemblyDialog.interaction.tl.spec.ts<br>P2: VariableAssemblyDialog.risk.tl.spec.ts |
 | 待审核 | VariableInputDialog | 214 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ variable-input-dialog.spec.ts | Bug #16824 Make sure the default value of a boolean type is false | single pass |
 | 待审核 | VPMPrincipalDialogComponent | 84 | 0 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: VPMPrincipalDialogComponent.interaction.tl.spec.ts<br>P2: VPMPrincipalDialogComponent.risk.tl.spec.ts |
-| 待审核 | AssetTreeComponent | 705 | 2 | 8 | **multi-pass** | ✅ 推进 | ⚠️ asset-tree.component.spec.ts | Bug 10264 make sure asset tree node remain expanded. | P1: AssetTreeComponent.interaction.tl.spec.ts<br>P2: AssetTreeComponent.risk.tl.spec.ts |
+| ✅已测试 P1P2 | AssetTreeComponent | 705 | 2 | 8 | **multi-pass** | ✅ 推进 | ⚠️ asset-tree.component.spec.ts | Bug 10264 make sure asset tree node remain expanded. | P1: asset-tree.component.interaction.tl.spec.ts ✅<br>P2: asset-tree.component.risk.tl.spec.ts ✅ |
 | 待审核 | FontPane | 129 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ font-pane.spec.ts | for Bug #19781 | single pass (+内存泄漏) |
 | 待审核 | DynamicComboBox | 323 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ dynamic-combo-box.spec.ts | Bug #17341  and Bug #17765 disbale variable when no variable list and can not select disabled variable irem; Bug #17341; Bug #17765 | single pass (+内存泄漏) |
 | 待审核 | AlphaDropdown | 42 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ alpha-dropdown.component.spec.ts | Bug #19399 should keep alpha value | single pass |
@@ -67,7 +67,7 @@
 | 待审核 | PresenterPropertyDialog | 74 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | WSAssemblyGraphPaneComponent | 1080 | 2 | 20 | **multi-pass** | ✅ 推进 | ⚠️ ws-assembly-graph-pane.spec.ts | test: should not open a confirm dialog for a non-primary assembly | P1: WSAssemblyGraphPaneComponent.interaction.tl.spec.ts<br>P2: WSAssemblyGraphPaneComponent.risk.tl.spec.ts |
 | 待审核 | WSCompositeTableFocusPaneComponent | 89 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | WSDetailsPaneComponent | 727 | 1 | 3 | **multi-pass** | ✅ 推进 |  |  | P1: WSDetailsPaneComponent.interaction.tl.spec.ts<br>P2: WSDetailsPaneComponent.risk.tl.spec.ts |
+| ✅已测试 P1P2 | WSDetailsPaneComponent | 727 | 1 | 3 | **multi-pass** | ✅ 推进 |  |  | P1: ws-details-pane.component.interaction.tl.spec.ts ✅<br>P2: ws-details-pane.component.risk.tl.spec.ts ✅ |
 | 待审核 | VSLoadingDisplay | 71 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | 待审核 | EditableObjectContainer | 1592 | 10 | 4 | **multi-pass** | ✅ 推进 | ⚠️ editable-object-container.component.spec.ts | for Bug #9947; Bug #9817 ensure that when object is dropped the layout dialog is opened; Bug #19077 drag detail calcfield to form object the layout di | P1: EditableObjectContainer.interaction.tl.spec.ts<br>P2: EditableObjectContainer.risk.tl.spec.ts<br>P3: EditableObjectContainer.display.tl.spec.ts |
 | 待审核 | ComposerSelectionContainerChildren | 512 | 1 | 4 | **multi-pass** | ✅ 推进 |  |  | P1: ComposerSelectionContainerChildren.interaction.tl.spec.ts<br>P2: ComposerSelectionContainerChildren.risk.tl.spec.ts |
@@ -79,7 +79,7 @@
 | 待审核 | VSObjectContainer | 633 | 3 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: VSObjectContainer.interaction.tl.spec.ts<br>P2: VSObjectContainer.risk.tl.spec.ts<br>P3: VSObjectContainer.display.tl.spec.ts |
 | ✅已测试 | ExportDialog | 103 | 1 | 3 | **single-pass** | ✅ 推进 |  | Bug #17235 should not; test: should show error | single pass (+竞态+内存泄漏) |
 | ✅已测试 | EmailDialog | 103 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | ScheduleDialog | 106 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅已测试 | ScheduleDialog | 106 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | BookmarkPropertyDialog | 58 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | ShareEmailDialogComponent | 79 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核 | ShareGoogleChatDialog | 52 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
@@ -150,29 +150,29 @@
 
 ### WSPaneComponent
 
-**Pass 1** (`WSPaneComponent.interaction.tl.spec.ts`)
+**Pass 1** (`ws-pane.component.interaction.tl.spec.ts`)
 - Methods: worksheet, active, onSplitDrag, concatenateTables, enterParams, processNotification, cleanup, getAssemblyName, addVariable, addGrouping, editJoin, selectCompositeTable, worksheetCompositionChanged, cut, copy, paste, insertColumns, replaceColumns, openAssemblyConditionDialog, openAggregateDialog, toggleAutoUpdate, selectColumnSource, oozColumnMouseEvent, getSourceTableName, addTable, fetchTableDataCount, touchAsset, initKeyListeners, updateSelectingColumnSource, openExistingWorksheet, refreshAssembly, confirm, processWSCollectVariablesCommand, processReopenSheetCommand, processOpenWorksheetCommand, processWSInitCommand, processRefreshWorksheetCommand, processWSAddAssemblyCommand, processWSEditAssemblyCommand, processWSRefreshAssemblyCommand, processMessageCommand, processExpiredSheetCommand, processWSFocusCompositeTableCommand, processUpdateUndoStateCommand, processWSExportCommand, processSaveSheetCommand, processCloseSheetCommand, processSetWorksheetInfoCommand, processForceNotCloseWorksheetCommand, processWSLoadTableDataCountCommand, updateLoadingMask, processWSFocusAssembliesCommand, processSetVPMPrincipalCommand, processWSSetMessageLevelsCommand, processWSFinishPasteWithCutCommand, processSaveWorksheetCommand
 - Reason: 回归主体：navigation / HTTP loading / lifecycle / user flows
 
-**Pass 2** (`WSPaneComponent.risk.tl.spec.ts`)
+**Pass 2** (`ws-pane.component.risk.tl.spec.ts`)
 - Methods: sqlEnabled, freeFormSqlEnabled, crossJoinEnabled, showGettingStartedMessage, expressionColumnEnabled, setup, worksheetCancel, openSortColumnDialog, editQuery, openSqlQueryDialog, openTabularQueryDialog, cancelLoading, subscribeToFocus, initDragAssetColumnsListener, destroyKeyListeners, openWorksheet, processWSRemoveAssemblyCommand, processWSMoveAssembliesCommand, processWSMoveSchemaTablesCommand, processClearLoadingCommand
 - Reason: async≥3：竞态 / destructive / state inconsistency
 
-**Pass 3** (`WSPaneComponent.display.tl.spec.ts`)
+**Pass 3** (`ws-pane.component.display.tl.spec.ts`)
 - Methods: toggleShowColumnName, processShowLoadingMaskCommand
 - Reason: dispatch≥3：label/icon/conditional display / boundary inputs
 
 ### VSPane
 
-**Pass 1** (`VSPane.interaction.tl.spec.ts`)
+**Pass 1** (`viewsheet-pane.component.interaction.tl.spec.ts`)
 - Methods: vs, active, getAssemblyName, getSnapGridStyle, getBackgroundImage, ngAfterViewInit, zoom, detectChanges, isActionEnabled, isGroupActionEnabled, isUngroupActionEnabled, isBringToFrontActionEnabled, isSendToBackActionEnabled, isSnapshot, isVSSnapshot, processSetViewsheetInfoCommand, processUpdateLayoutCommand, processVSDependencyChangedCommand, processReopenSheetCommand, processCollectParametersCommand, enterParameters, processInitGridCommand, processUpdateLayoutUndoStateCommand, processUpdateUndoStateCommand, isInZone, processCloseSheetCommand, processSaveSheetCommand, processExpiredSheetCommand, processChangeCurrentLayoutCommand, processSetRuntimeIdCommand, processAddVSObjectCommand, applyAddVSObjectCommand, processAssemblyChangedCommand, processUpdateZIndexesCommand, processRefreshVSObjectCommand, applyRefreshVSObjectCommand, refreshGroupContainerOrder, processRenameVSObjectCommand, processPopulateVSObjectTreeCommand, processRefreshBindingTreeCommand, processExportVSCommand, processMessageCommand, processProgress, processVSTrapCommand, processSetGrayedOutFieldsCommand, confirm, drop, dragenter, dragover, mousedown, onKeydown, dblClick, paste, isModalOpen, trackByFn, onAssemblyActionEvent, copyAssembly, cutAssembly, bringAssemblyToFront, bringAssemblyForward, sendAssemblyToBack, sendAssemblyBackward, assemblyResized, processAssemblyResize, updateDragRulerGuides, onSnap, clickEvent, isTargetVSPane, isTargetShape, replaceObject, layoutToolbarVisible, mobileToolbarVisible, layoutChanged, layoutName, touchAsset, openEmbeddedViewsheet, openEditPane, openWizardPane, onSelectionBox, forEach, refreshStatusByVs, openWorksheet, refreshStatusByLayout, trimComma, substring, processOpenBindingPaneCommand, popupNotifications, onMaxModeChange, openConsoleDialog, getTemplateWidth, getTemplateHeight, onKeyUp, changeSearchMode, isSearchMode, search, nextFocus, previousFocus, scrollToMatchedAssembly, flatMap, scrollToAssembly, compareObjectByPosition, getStatusForStatusBar, getStatus2ForStatusBar, getSearchString, isVisible, searchInputKeyUp, isDefaultOrgAsset, isFilterInMaxModeView
 - Reason: 回归主体：navigation / HTTP loading / lifecycle / user flows
 
-**Pass 2** (`VSPane.risk.tl.spec.ts`)
+**Pass 2** (`viewsheet-pane.component.risk.tl.spec.ts`)
 - Methods: openExistingViewsheet, processClearLoadingCommand, cancelViewsheetLoading, processRemoveVSObjectCommand, removeVSObject, addConsoleMessage, deselectObjects, resetCursor, removeAssembly, assemblyMoved, processAssemblyMoved, updateRulerGuides, updateSnapGuides, updateFormats, refreshStatus, updateRulerPosition
 - Reason: async≥3：竞态 / destructive / state inconsistency
 
-**Pass 3** (`VSPane.display.tl.spec.ts`)
+**Pass 3** (`viewsheet-pane.component.display.tl.spec.ts`)
 - Methods: processShowLoadingMaskCommand, processSetCurrentFormatCommand, showProgressDialog, getDataSourceCSSIcon, displayPlaceholderDragElementModel, openFormatPane, getSearchResultLabel
 - Reason: dispatch≥3：label/icon/conditional display / boundary inputs
 
@@ -206,11 +206,11 @@
 
 ### ImportCSVDialog
 
-**Pass 1** (`ImportCSVDialog.interaction.tl.spec.ts`)
+**Pass 1** (`import-csv-dialog.component.interaction.tl.spec.ts`)
 - Methods: ngAfterViewChecked, setEnabled, updateFile, updateForm, showLimitMessage, handleEmptyFile, reset, unpivotEnabled, onHeaderRename, validateHeaders, toString, validateFirstRow
 - Reason: 回归主体：navigation / HTTP loading / lifecycle / user flows
 
-**Pass 2** (`ImportCSVDialog.risk.tl.spec.ts`)
+**Pass 2** (`import-csv-dialog.component.risk.tl.spec.ts`)
 - Methods: initForm, clearProgress, ok, cancel, initFileToucher, updatePreviewTable, parsePreviewResponse
 - Reason: async≥3：竞态 / destructive / state inconsistency
 
@@ -266,11 +266,11 @@
 
 ### AssetTreeComponent
 
-**Pass 1** (`AssetTreeComponent.interaction.tl.spec.ts`)
+**Pass 1** (`asset-tree.component.interaction.tl.spec.ts`)
 - Methods: searchMode, handleAssetChangeEvent, refreshParentNodes, refreshSelectedNodes, recursiveRefreshSelectedNodes, refreshNodeChildren, loadAll, containsLoadAssetEvent, findAssetTreeNodeFromIdentifier, findAssetTreeNodeParentFromIdentifier, nodeExpanded, selectNodes, doubleclickNode, contextmenuTreeNode, getCSSIcon, getParentNode, getNodeByData, searchStrChange, checkDSPlaceholder, searchStart, updateUseVirtualScroll, hasLoadedAllNode, getNodeByPath, getPathToEntry, addExtraTrees, revalidateExtraTrees, refreshView, getNodeEqualsFun, isTableStyle
 - Reason: 回归主体：navigation / HTTP loading / lifecycle / user flows
 
-**Pass 2** (`AssetTreeComponent.risk.tl.spec.ts`)
+**Pass 2** (`asset-tree.component.risk.tl.spec.ts`)
 - Methods: loadAssetTree, addDeleteDataSources, addDeleteDataSources0, setupAssetClientService, createRefreshNodeEvent, removeDSLoadingPlaceholder, removeExtraTrees
 - Reason: async≥3：竞态 / destructive / state inconsistency
 
@@ -296,11 +296,11 @@
 
 ### WSDetailsPaneComponent
 
-**Pass 1** (`WSDetailsPaneComponent.interaction.tl.spec.ts`)
+**Pass 1** (`ws-details-pane.component.interaction.tl.spec.ts`)
 - Methods: searchQuery, replace, headerNameChanged, populateTableModeButtons, getTableStatus, openAggregateDialog, openFormulaEditorDialog, openConditionDialog, openShowHideColumnsDialog, isSupportChangeColumnOrder, openReorderColumnsDialog, toggleSearchBar, checkEnterKey, searchPrevious, searchNext, onSearchResultUpdate, openImportCSVDialog, openChangeColumnTypeDialog, openChangeColumnDesDialog, getValueRangeParams, validateValueRangeModel, changeTableMode, setRuntime, setShowName, getTableModeButton, exportTable, toggleMirrorAutoUpdate, submitExpressionCallback, _submitColumnTypeCallback, runQuery, formatAll, openConsoleDialog, isTableButtonVisible, isTableButtonToggled, toggleWrapColumnHeaders, isWrapColumnHeadersEnabled
 - Reason: 回归主体：navigation / HTTP loading / lifecycle / user flows
 
-**Pass 2** (`WSDetailsPaneComponent.risk.tl.spec.ts`)
+**Pass 2** (`ws-details-pane.component.risk.tl.spec.ts`)
 - Methods: dataModeEnabled, updateRowRange, selectColumnSource, oozColumnMouseEvent, openDateRangeOptionDialog, openNumericRangeOptionDialog, openValueRangeDialog, clearSearch, cancelQuery
 - Reason: async≥3：竞态 / destructive / state inconsistency
 

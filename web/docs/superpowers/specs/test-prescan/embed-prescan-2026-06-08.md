@@ -21,7 +21,7 @@
 | 待审核 | VSChart | 1076 | 0 | 12 | **multi-pass** | ✅ 推进 | ⚠️ vs-chart.component.spec.ts | Jasmine bug, can't use DebugElement directly in expect | P1: VSChart.interaction.tl.spec.ts<br>P2: VSChart.risk.tl.spec.ts |
 | 待审核 | MiniToolbar | 185 | 3 | 3 | **multi-pass** | ✅ 推进 |  |  | P1: MiniToolbar.interaction.tl.spec.ts<br>P2: MiniToolbar.risk.tl.spec.ts |
 | 待审核 | ActionsContextmenuComponent | 154 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ actions-contextmenu.component.spec.ts | test: should not create a dropdown when there are no visible actions | single pass (+内存泄漏) |
-| 待审核 | DownloadTargetComponent | 84 | 1 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
+| ✅已测试 | DownloadTargetComponent | 84 | 1 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 
 > **以下为 2026-06-12 补充扫描新增组件**
 
