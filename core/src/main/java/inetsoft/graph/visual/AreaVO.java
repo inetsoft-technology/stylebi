@@ -73,7 +73,7 @@ public class AreaVO extends LineVO {
    /**
     * Include the base (baseline) points: the area fills down to them, so bounds limited to
     * the data points would let the plot-tile clip test cull the area from a tile covering
-    * only the baseline band, leaving an empty strip above the baseline.
+    * only the baseline band, leaving an empty strip between the data band and the baseline.
     */
    @Override
    public Rectangle2D getBounds() {
