@@ -36,6 +36,12 @@ class WizAutoBindingServiceSelectBindColumnsTest {
       return new ColumnRef(new AttributeRef(null, name));
    }
 
+   private static ColumnRef aliasedCol(String attribute, String alias) {
+      ColumnRef ref = new ColumnRef(new AttributeRef(null, attribute));
+      ref.setAlias(alias);
+      return ref;
+   }
+
    private static SimpleFieldInfo config(String field) {
       SimpleFieldInfo info = new SimpleFieldInfo();
       info.setField(field);
@@ -66,6 +72,34 @@ class WizAutoBindingServiceSelectBindColumnsTest {
       assertTrue(e.getMessage().contains("actor_nme"));
       assertTrue(e.getMessage().contains("actor_name"));
       assertTrue(e.getMessage().contains("amount"));
+   }
+
+   @Test
+   void aggregateAliasColumnMatchedByDisplayName() {
+      // An aggregate-output column: getAttribute() returns the underlying base column
+      // (growth_pct), while the alias carries the output name (growth_rate). A fieldConfig
+      // keyed by the alias must match (Redmine #75420).
+      List<ColumnRef> columns = List.of(col("band"), aliasedCol("growth_pct", "growth_rate"));
+
+      List<ColumnRef> result = WizAutoBindingService.selectBindColumns(
+         columns, Map.of("band", config("band"), "growth_rate", config("growth_rate")));
+
+      assertEquals(2, result.size());
+      assertTrue(result.stream().anyMatch(c -> "growth_rate".equals(c.getDisplayName())));
+   }
+
+   @Test
+   void aggregateBaseAttributeReportedUnknownWhenAliased() {
+      // When a column is aliased, the base attribute name is no longer a valid binding key;
+      // the error must list the display name (growth_rate), guiding the caller to it.
+      List<ColumnRef> columns = List.of(col("band"), aliasedCol("growth_pct", "growth_rate"));
+
+      IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+         () -> WizAutoBindingService.selectBindColumns(
+            columns, Map.of("growth_pct", config("growth_pct"))));
+
+      assertTrue(e.getMessage().contains("growth_pct"));
+      assertTrue(e.getMessage().contains("growth_rate"));
    }
 
    @Test

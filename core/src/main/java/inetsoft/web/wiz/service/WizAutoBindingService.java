@@ -133,9 +133,19 @@ public class WizAutoBindingService {
 
                   if(primary instanceof TableAssembly ta) {
                      tableName = primary.getName();
-                     // Use private selection so visibility flags set by applyFieldVisibility
-                     // (which writes to the private selection) are correctly reflected.
-                     ColumnSelection cs = ta.getColumnSelection(false);
+                     // An aggregating table exposes its aggregate-output columns (the group/aggregate
+                     // aliases) ONLY in the public selection; the private selection still holds the
+                     // pre-aggregation base columns. Read public for those so the aggregated columns
+                     // are bindable (e.g. an aggregate-only mirror). The aggregate FLAG is not reliable
+                     // here — the wiz worksheet-construction flow sets aggregateInfo without calling
+                     // setAggregate(true) — so key off a non-empty aggregateInfo, not isAggregate().
+                     // Non-aggregating tables keep using the private selection so visibility flags set
+                     // by applyFieldVisibility (which writes to the private selection) are honored; the
+                     // public selection is regenerated only from visible private columns, so visibility
+                     // is preserved for the aggregating case as well.
+                     AggregateInfo aggInfo = ta.getAggregateInfo();
+                     boolean aggregating = aggInfo != null && !aggInfo.isEmpty();
+                     ColumnSelection cs = ta.getColumnSelection(aggregating);
 
                      for(int i = 0; i < cs.getAttributeCount(); i++) {
                         DataRef ref = cs.getAttribute(i);
@@ -681,13 +691,21 @@ public class WizAutoBindingService {
     * whose name appears as a key in configMap are bound. A fieldConfig naming a column
     * that does not exist in the worksheet is an error (silently binding everything
     * produced junk measures). When fieldConfigs is empty, all visible columns are eligible.
+    *
+    * <p>Columns are matched by their display name ({@link ColumnRef#getDisplayName()} =
+    * alias when set, else attribute) — the same name {@code buildEntryFromColumn} uses to
+    * name the bound entry and the name the caller sees. This matters for aggregate-output
+    * columns: an aggregate ColumnRef's {@code getAttribute()} returns the underlying base
+    * column (e.g. {@code growth_pct}) while its alias carries the output name (e.g.
+    * {@code growth_rate}); matching on the attribute alone would reject the alias the caller
+    * (correctly) supplies in fieldConfigs.
     */
    static List<ColumnRef> selectBindColumns(List<ColumnRef> worksheetColumns,
                                             Map<String, SimpleFieldInfo> configMap)
    {
       if(!configMap.isEmpty()) {
          Set<String> available = worksheetColumns.stream()
-            .map(ColumnRef::getAttribute)
+            .map(ColumnRef::getDisplayName)
             .collect(Collectors.toCollection(LinkedHashSet::new));
          List<String> missing = configMap.keySet().stream()
             .filter(k -> !available.contains(k))
@@ -701,7 +719,7 @@ public class WizAutoBindingService {
          }
 
          return worksheetColumns.stream()
-            .filter(c -> configMap.containsKey(c.getAttribute()))
+            .filter(c -> configMap.containsKey(c.getDisplayName()))
             .collect(Collectors.toList());
       }
 
@@ -815,7 +833,13 @@ public class WizAutoBindingService {
          List<SimpleFieldInfo> details = new ArrayList<>();
 
          for(int i = 0; i < columns.getAttributeCount(); i++) {
-            AssetEntry entry = entryByName.get(columns.getAttribute(i).getAttribute());
+            // entryByName is keyed on WizardRecommenderUtil.getFieldName(entry), which is the
+            // alias-preferred name buildEntryFromColumn assigns. Look up by the same display name
+            // (alias when set, else attribute) so aliased columns — e.g. aggregate outputs — are
+            // not silently dropped from the table detail list.
+            DataRef colRef = columns.getAttribute(i);
+            String name = colRef instanceof ColumnRef cr ? cr.getDisplayName() : colRef.getAttribute();
+            AssetEntry entry = entryByName.get(name);
 
             if(entry != null) {
                details.add(entryToSimpleFieldInfo(entry));
