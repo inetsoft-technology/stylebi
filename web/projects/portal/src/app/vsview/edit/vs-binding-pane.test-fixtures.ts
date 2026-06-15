@@ -46,6 +46,8 @@ import { MiniToolbarService } from "../../vsobjects/objects/mini-toolbar/mini-to
 import { BindingEditor } from "../../binding/editor/binding-editor.component";
 import { VSObjectView } from "../view/vs-object-view.component";
 import { VSFormatsPane } from "../../vsobjects/format/vs-formats-pane.component";
+import { BindingPaneData } from "../model/binding-pane-data";
+import { VsWizardEditModes } from "../../vs-wizard/model/vs-wizard-edit-modes";
 
 import { VSBindingPane } from "./vs-binding-pane.component";
 
@@ -110,8 +112,6 @@ class VSFormatsPaneStub {
    @Output() onPresenterPropertiesChange = new EventEmitter<any>();
    @Output() onChangeFormat = new EventEmitter<any>();
 }
-import { BindingPaneData } from "../model/binding-pane-data";
-import { VsWizardEditModes } from "../../vs-wizard/model/vs-wizard-edit-modes";
 
 // ViewsheetClientService mock — no-op for all connection/send operations.
 // commands must be Observable (CommandProcessor subscribes to it in its constructor).

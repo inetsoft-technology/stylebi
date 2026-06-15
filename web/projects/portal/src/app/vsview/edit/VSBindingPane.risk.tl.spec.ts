@@ -20,8 +20,8 @@
  * VSBindingPane — Pass 2: risk
  *
  * Risk-first coverage:
- *   Group 1  [Risk 3] — isActionEnabled (merge-cells / split-cells): layout null guard, cell count / span check
- *   Group 2  [Risk 3] — isActionEnabled (delete-row / delete-column): layout null guard, row/col count guards
+ *   Group 1  [Risk 3] — isActionEnabled (merge-cells / split-cells): layout null guard, selectedCells null guard, cell count / span check
+ *   Group 2  [Risk 3] — isActionEnabled (delete-row / delete-column): layout null guard, row/col count + selectedCells null guards
  *   Group 3  [Risk 2] — handleExpiredSheet: opens expiry dialog, sets dedup flag, blocks second dialog
  *   Group 4  [Risk 2] — cancelViewsheetLoading: dispatches cancel event with current runtimeId
  *   Group 5  [baseline] — processClearLoadingCommand: sets loading=false
@@ -80,6 +80,13 @@ describe("VSBindingPane — isActionEnabled (merge/split/delete)", () => {
       CALC_TABLE_MOCK.getTableLayout.mockReturnValue({ selectedCells: [{}, {}] });
 
       expect((comp as any).isActionEnabled("calc-table merge-cells", {})).toBe(true);
+   });
+
+   it("merge-cells: should return false when selectedCells is null", async () => {
+      const { comp } = await renderComponent({ objectType: "VSCalcTable" });
+      CALC_TABLE_MOCK.getTableLayout.mockReturnValue({ selectedCells: null });
+
+      expect((comp as any).isActionEnabled("calc-table merge-cells", {})).toBe(false);
    });
 
    it("split-cells: should return false when layoutModel is null", async () => {
@@ -169,6 +176,17 @@ describe("VSBindingPane — isDeleteRowActionEnabled / isDeleteColumnActionEnabl
       expect((comp as any).isActionEnabled("calc-table delete-row", {})).toBe(false);
    });
 
+   it("delete-row: should return false when selectedRect is absent", async () => {
+      const { comp } = await renderComponent({ objectType: "VSCalcTable" });
+      CALC_TABLE_MOCK.getTableLayout.mockReturnValue({
+         tableRows: [{}, {}],
+         selectedCells: [{}],
+         selectedRect: null,
+      });
+
+      expect((comp as any).isActionEnabled("calc-table delete-row", {})).toBe(false);
+   });
+
    it("delete-column: should return false when layoutModel is null", async () => {
       const { comp } = await renderComponent({ objectType: "VSCalcTable" });
       CALC_TABLE_MOCK.getTableLayout.mockReturnValue(null);
@@ -192,6 +210,28 @@ describe("VSBindingPane — isDeleteRowActionEnabled / isDeleteColumnActionEnabl
       CALC_TABLE_MOCK.getTableLayout.mockReturnValue({
          tableColumns: [{}],
          selectedCells: [{}],
+         selectedRect: {},
+      });
+
+      expect((comp as any).isActionEnabled("calc-table delete-column", {})).toBe(false);
+   });
+
+   it("delete-column: should return false when selectedRect is absent", async () => {
+      const { comp } = await renderComponent({ objectType: "VSCalcTable" });
+      CALC_TABLE_MOCK.getTableLayout.mockReturnValue({
+         tableColumns: [{}, {}],
+         selectedCells: [{}],
+         selectedRect: null,
+      });
+
+      expect((comp as any).isActionEnabled("calc-table delete-column", {})).toBe(false);
+   });
+
+   it("delete-column: should return false when selectedCells is absent", async () => {
+      const { comp } = await renderComponent({ objectType: "VSCalcTable" });
+      CALC_TABLE_MOCK.getTableLayout.mockReturnValue({
+         tableColumns: [{}, {}],
+         selectedCells: null,
          selectedRect: {},
       });
 

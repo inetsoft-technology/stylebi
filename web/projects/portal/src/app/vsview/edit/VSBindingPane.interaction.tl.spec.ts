@@ -27,18 +27,20 @@
  *   Group 5  [Risk 2] — processAssemblyChangedCommand: emits only when pane is closed
  *   Group 6  [Risk 2] — updateData routing: getCurrentFormat / getTextFormat / updateFormat / reset / unknown
  *   Group 7  [Risk 2] — goToWizardVisible: hasDynamic / inEmbeddedViewsheet / isCube guards
- *   Group 8  [it.fails] — hasExpression: method-reference bug blocks chart branch
+ *   Group 8  [it.fails] — hasExpression: dead code (haveDynamicBinding fires first); documents method-reference flaw
  *   Group 9  [baseline] — sourceName / originalMode / haveDynamicBinding getters
  *   Group 10 [baseline] — isChart / isCrosstab / getBindingType mapping
  *   Group 11 [baseline] — messageChange: replaces consoleMessages
  *
- * Confirmed bugs (it.fails):
- *   hasExpression — `this.isCrosstab` is used as a method reference (without `()`) in the
- *     branch condition. A method reference is always truthy, so the isCrosstab branch always
- *     runs when bindingModel is set. For a VSChart assembly, crosstab.rows is undefined →
- *     returns false even when xfields contain an expression value.
+ * Confirmed bugs (it.fails): none
  *
- * Suspected bugs (header only): none
+ * Suspected dead code (documented via it.fails):
+ *   hasExpression — contains a missing-`()` bug (`this.isCrosstab` used as a method reference)
+ *     that causes the method to always return false for VSChart assemblies. However, this method
+ *     is effectively dead code: in goToWizardVisible the `!haveDynamicBinding` guard (backed by
+ *     objectModel.hasDynamic, set by the server when expression fields exist) short-circuits
+ *     the && chain before hasExpression() is ever evaluated. No user-visible impact; no bug
+ *     report needed.
  *
  * Out of scope this pass:
  *   closeHandler / closeHandler0 / goToWizard / openWizardPane — require modal + setTimeout
@@ -61,7 +63,7 @@ import { SetGrayedOutFieldsCommand } from "../../binding/command/set-grayed-out-
 import { RefreshBindingTreeCommand } from "../../binding/command/refresh-binding-tree-command";
 import { TestUtils } from "../../common/test/test-utils";
 import {
-   CLIENT_SERVICE_MOCK, MODEL_SERVICE_MOCK, TREE_SERVICE_MOCK, MODAL_MOCK,
+   CLIENT_SERVICE_MOCK, MODEL_SERVICE_MOCK, TREE_SERVICE_MOCK, MODAL_MOCK, AI_MOCK,
    renderComponent, resetMocks,
 } from "./vs-binding-pane.test-fixtures";
 
@@ -105,9 +107,12 @@ describe("VSBindingPane — processAddVSObjectCommand", () => {
       expect(comp.blocking).toBe(false);
    });
 
-   it("should call ai services on updateObjectModel with the new model type", async () => {
+   it("should notify AI assistant with the new model type when objectModel is updated", async () => {
       const { comp } = await renderComponent({ assemblyName: "Chart1" });
       const model = TestUtils.createMockVSChartModel("Chart1");
+      AI_MOCK.setContextType.mockClear();
+      AI_MOCK.setDateComparisonContext.mockClear();
+      AI_MOCK.setScriptContext.mockClear();
 
       comp.processAddVSObjectCommand({
          model,
@@ -116,8 +121,9 @@ describe("VSBindingPane — processAddVSObjectCommand", () => {
          parent: null,
       });
 
-      expect(MODEL_SERVICE_MOCK.getModel).toHaveBeenCalledWith(
-         expect.stringContaining("vsbinding/open"), expect.anything());
+      expect(AI_MOCK.setContextType).toHaveBeenCalledWith(model.objectType);
+      expect(AI_MOCK.setDateComparisonContext).toHaveBeenCalledWith(model);
+      expect(AI_MOCK.setScriptContext).toHaveBeenCalledWith(model);
    });
 });
 
@@ -240,19 +246,27 @@ describe("VSBindingPane — processRenameVSObjectCommand", () => {
 // ---------------------------------------------------------------------------
 
 describe("VSBindingPane — processAssemblyChangedCommand", () => {
-   it("should emit onAssemblyChanged only when the pane is closed", async () => {
+   it("should not emit when the pane is not yet closed", async () => {
       const { comp } = await renderComponent();
       const cmd: AssemblyChangedCommand = {} as AssemblyChangedCommand;
       const emitted: AssemblyChangedCommand[] = [];
       comp.onAssemblyChanged.subscribe(c => emitted.push(c));
 
-      // Not yet closed → no emit
       comp.processAssemblyChangedCommand(cmd);
-      expect(emitted).toHaveLength(0);
 
-      // Mark as closed, then call again → emits
+      expect(emitted).toHaveLength(0);
+   });
+
+   it("should emit the command when the pane is closed", async () => {
+      const { comp } = await renderComponent();
+      const cmd: AssemblyChangedCommand = {} as AssemblyChangedCommand;
+      const emitted: AssemblyChangedCommand[] = [];
+      comp.onAssemblyChanged.subscribe(c => emitted.push(c));
+
+      // Bypass: closed is a private field with no public setter — simulates post-close pane state.
       (comp as any).closed = true;
       comp.processAssemblyChangedCommand(cmd);
+
       expect(emitted).toHaveLength(1);
       expect(emitted[0]).toBe(cmd);
    });
@@ -385,23 +399,28 @@ describe("VSBindingPane — goToWizardVisible", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Group 8 — hasExpression (known bug) [it.fails]
+// Group 8 — hasExpression [dead-code documentation, it.fails]
 // ---------------------------------------------------------------------------
 
 describe("VSBindingPane — hasExpression", () => {
-   // Expected failure: hasExpression() uses `this.isCrosstab` (a private method reference,
-   // without '()') as the branch condition. A method reference is always truthy, so the
-   // `if(this.isCrosstab && bindingModel)` block always enters when bindingModel is set.
-   // For a VSChart assembly, this means the isCrosstab branch runs, accesses crosstab.rows
-   // (undefined on a chart binding model) → null-guarded → returns false, even though the
-   // chart's xfields contain an expression.
+   // hasExpression() is dead code in practice:
+   //   goToWizardVisible evaluates `!this.haveDynamicBinding` before `!this.hasExpression()`.
+   //   When expression fields exist the server sets objectModel.hasDynamic = true, so
+   //   haveDynamicBinding returns true and the && chain short-circuits — hasExpression() is
+   //   never called. Confirmed by manual testing: adding an expression field hides "Go to
+   //   Wizard" via hasDynamic, not via hasExpression().
    //
-   // Expected failure point: the final `expect(...).toBe(true)` fails because the isCrosstab
-   // branch preempts the isChart branch, returning false when it should return true.
-   // If this it.fails suddenly passes for an unrelated reason (e.g., binding model throws),
-   // look for a TypeError in the test output — that would be a different failure mode.
+   // The method nonetheless contains a code-level flaw documented below.
+   //
+   // Expected failure point: the final `expect(...).toBe(true)` fails because
+   //   `this.isCrosstab` (without `()`) is a method reference (always truthy), so the
+   //   isCrosstab branch runs for all assembly types, casting bindingModel to
+   //   CrosstabBindingModel and checking rows/cols/aggregates (all undefined for a chart
+   //   model) → returns false. The isChart branch is unreachable.
+   // If the test fails for an unrelated reason (e.g. fixture throws), it.fails still passes
+   //   — verify the failure message shows the expect().toBe(true) line, not a setup error.
    it.fails(
-      "should return true for VSChart with expression in xfields (blocked by method-reference bug)",
+      "should return true for VSChart with expression in xfields (dead-code flaw: isCrosstab used as method reference without ())",
       async () => {
          const { comp } = await renderComponent();
          comp.objectModel = TestUtils.createMockVSChartModel("Chart1");
