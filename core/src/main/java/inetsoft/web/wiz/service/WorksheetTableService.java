@@ -511,15 +511,14 @@ public class WorksheetTableService {
             DataRef aggColumn;
 
             if(occurrence == 1) {
-               // First aggregate for this field: reuse the existing column and set alias.
-               aggColumn = column;
+               // First aggregate for this field: use the private column directly so that
+               // aggColumn and the alias target are the same object (avoids relying on
+               // cs / privateCs sharing identical ColumnRef instances).
+               DataRef privateCol = privateCs.getAttribute(agg.getFieldName());
+               aggColumn = privateCol != null ? privateCol : column;
 
-               if(agg.getAlias() != null) {
-                  DataRef col = privateCs.getAttribute(agg.getFieldName());
-
-                  if(col instanceof ColumnRef columnRef) {
-                     columnRef.setAlias(agg.getAlias());
-                  }
+               if(agg.getAlias() != null && privateCol instanceof ColumnRef columnRef) {
+                  columnRef.setAlias(agg.getAlias());
                }
             }
             else {
@@ -527,10 +526,20 @@ public class WorksheetTableService {
                // column so each AggregateRef has a distinct entry in the private column
                // selection. Without this, setColumnSelection()'s getAggregate() loop only
                // finds one match per field and the remaining aggregates are silently lost.
-               String colName = agg.getAlias() != null
+               String entity = column instanceof ColumnRef cr ? cr.getEntity() : null;
+               String baseName = agg.getAlias() != null
                   ? agg.getAlias()
                   : column.getName() + "_" + occurrence;
-               ExpressionRef expRef = new ExpressionRef(null, colName);
+
+               // Bump suffix until the name is free in privateCs to avoid silent duplicates.
+               String colName = baseName;
+               int suffix = 2;
+
+               while(privateCs.getAttribute(colName) != null) {
+                  colName = baseName + "_" + suffix++;
+               }
+
+               ExpressionRef expRef = new ExpressionRef(entity, colName);
                expRef.setExpression("field['" + column.getName() + "']");
                ColumnRef syntheticCol = new ColumnRef(expRef);
 
