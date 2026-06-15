@@ -19,8 +19,10 @@ package inetsoft.graph.guide;
 
 import com.inetsoft.build.tern.*;
 import inetsoft.graph.*;
-import inetsoft.graph.internal.GTool;
-import inetsoft.graph.internal.LabelValue;
+import inetsoft.graph.internal.*;
+import inetsoft.uql.viewsheet.graph.TextLayout;
+import inetsoft.uql.viewsheet.graph.TextLayoutItem;
+import inetsoft.uql.viewsheet.graph.TextLayoutRow;
 import inetsoft.util.MessageFormat;
 import inetsoft.util.*;
 import org.slf4j.Logger;
@@ -116,6 +118,11 @@ public class VLabel extends BoundedVisualizable {
     * @param bg true to paint background.
     */
    public void paint(Graphics2D g, boolean bg) {
+      if(label instanceof CompositeLabel) {
+         paintComposite(g, bg);
+         return;
+      }
+
       Graphics2D g2 = (Graphics2D) g.create();
       Font font = getFont();
       FontMetrics fm = GTool.getFontMetrics(font);
@@ -351,6 +358,10 @@ public class VLabel extends BoundedVisualizable {
     * @return lines of text to display in the label.
     */
    public String[] getDisplayLabel() {
+      if(label instanceof CompositeLabel) {
+         return new String[] { label.toString() };
+      }
+
       if(dlabels0 != null && getBounds().equals(dbounds0)) {
          return dlabels0;
       }
@@ -582,6 +593,10 @@ public class VLabel extends BoundedVisualizable {
     */
    @Override
    protected double getPreferredWidth0() {
+      if(label instanceof CompositeLabel) {
+         return getCompositeLabelPreferredWidth();
+      }
+
       double pwidth = getPreferredWidth(getLinesForSize());
 
       if(isNumeric() || maxSize == null) {
@@ -596,6 +611,10 @@ public class VLabel extends BoundedVisualizable {
     */
    @Override
    protected double getPreferredHeight0() {
+      if(label instanceof CompositeLabel) {
+         return getCompositeLabelPreferredHeight();
+      }
+
       double pheight = getPreferredHeight(getLinesForSize());
 
       if(isNumeric() || maxSize == null) {
@@ -603,6 +622,233 @@ public class VLabel extends BoundedVisualizable {
       }
 
       return Math.min(maxSize.getHeight(), pheight);
+   }
+
+   /**
+    * Get preferred width for a CompositeLabel.
+    * Row-based layout: the preferred width is the maximum row width across all rows.
+    */
+   private double getCompositeLabelPreferredWidth() {
+      CompositeLabel composite = (CompositeLabel) label;
+      TextLayout tl = composite.getLayout();
+      TextSegment[] allSegs = composite.getSegments();
+      double maxRowW = 0;
+      int segIdx = 0;
+
+      for(TextLayoutRow row : tl.getRows()) {
+         double rowW = 0;
+         for(TextLayoutItem item : row.getItems()) {
+            if(item.getType() == TextLayoutItem.SPACING && segIdx < allSegs.length) {
+               rowW += allSegs[segIdx++].getSpacingAmount();
+            }
+            else if(segIdx < allSegs.length) {
+               TextSegment seg = allSegs[segIdx++];
+               Font f = resolveSegmentFont(seg);
+               rowW += GTool.stringWidth(new String[]{seg.getText()}, f);
+            }
+         }
+         maxRowW = Math.max(maxRowW, rowW);
+      }
+
+      return maxSize != null ? Math.min(maxRowW, maxSize.getWidth()) : maxRowW;
+   }
+
+   /**
+    * Get preferred height for a CompositeLabel.
+    * Row-based layout: sum the heights of all rows (spacing rows contribute their
+    * spacing amount; content rows contribute the tallest segment font height).
+    */
+   private double getCompositeLabelPreferredHeight() {
+      CompositeLabel composite = (CompositeLabel) label;
+      TextLayout tl = composite.getLayout();
+      TextSegment[] allSegs = composite.getSegments();
+      double totalH = 0;
+      int segIdx = 0;
+
+      for(TextLayoutRow row : tl.getRows()) {
+         if(row.isSpacingRow() && segIdx < allSegs.length) {
+            totalH += allSegs[segIdx++].getSpacingAmount();
+            continue;
+         }
+         double rowH = 0;
+         for(TextLayoutItem item : row.getItems()) {
+            if(item.getType() != TextLayoutItem.SPACING && segIdx < allSegs.length) {
+               TextSegment seg = allSegs[segIdx++];
+               Font f = resolveSegmentFont(seg);
+               rowH = Math.max(rowH, GTool.getFontMetrics(f).getHeight());
+            }
+            else if(item.getType() == TextLayoutItem.SPACING && segIdx < allSegs.length) {
+               segIdx++;  // advance past spacing segment
+            }
+         }
+         totalH += rowH;
+      }
+
+      return maxSize != null ? Math.min(totalH, maxSize.getHeight()) : totalH;
+   }
+
+   /**
+    * Paint a CompositeLabel — each segment with its own font and color,
+    * arranged according to the row-based TextLayout (rows stack top-to-bottom,
+    * items within a row are placed left-to-right).
+    */
+   private void paintComposite(Graphics2D g, boolean bg) {
+      CompositeLabel composite = (CompositeLabel) label;
+      TextLayout tl = composite.getLayout();
+      TextSegment[] allSegs = composite.getSegments();
+      java.util.List<TextLayoutRow> rows = tl.getRows();
+      Rectangle2D bounds = getBounds();
+
+      if(bounds == null) {
+         return;
+      }
+
+      Graphics2D g2 = (Graphics2D) g.create();
+      clipGraphics(g2);
+
+      if(bg && spec.getBackground() != null) {
+         g2.setColor(spec.getBackground());
+         g2.fill(bounds);
+      }
+
+      // Vertical anchor: getTextPosition() derives lheight from getDisplayLabel(), which for a
+      // CompositeLabel collapses to the single line label.toString(). MIDDLE/TOP alignment would
+      // then place the multi-row block as if it were one line tall and overshoot the allocated
+      // bounds. Recompute the y-anchor from the true composite height so every vertical alignment
+      // anchors correctly (BOTTOM is unaffected — alignText ignores lheight for BOTTOM).
+      Point2D pos = getPosition();
+
+      if(offset != null) {
+         pos = new Point2D.Double(pos.getX() + offset.getX(), pos.getY() + offset.getY());
+      }
+
+      double compositeH = getCompositeLabelPreferredHeight();
+      Point2D p2d = alignText(pos, getSize().getWidth(), getSize().getHeight(),
+                              0, compositeH, getAlignmentX0(), getAlignmentY0());
+      // For composite labels, use the bounds left edge as the x origin so that
+      // per-row xStart alignment works correctly. getTextPosition().getX() applies
+      // element-level horizontal alignment using label.toString() width, which
+      // differs from the actual max-row width and corrupts per-row centering.
+      g2.translate(bounds.getX(), p2d.getY());
+      double angle = Math.toRadians(spec.getRotation());
+      if(angle != 0) g2.rotate(angle);
+
+      // First pass: assign segments to rows, measure heights and widths.
+      // Each entry: [TextSegment[] rowSegs, double rowHeight, boolean isSpacingRow, double rowWidth]
+      java.util.List<Object[]> rowData = new java.util.ArrayList<>();
+      int segIdx = 0;
+
+      for(TextLayoutRow row : rows) {
+         if(row.isSpacingRow() && segIdx < allSegs.length) {
+            rowData.add(new Object[]{ new TextSegment[]{ allSegs[segIdx++] }, 0.0, true, 0.0 });
+            continue;
+         }
+         java.util.List<TextSegment> rowSegs = new java.util.ArrayList<>();
+         double rowH = 0;
+         double rowW = 0;
+         for(TextLayoutItem item : row.getItems()) {
+            if(segIdx >= allSegs.length) break;
+            if(item.getType() == TextLayoutItem.SPACING) {
+               TextSegment spaceSeg = allSegs[segIdx++];
+               rowSegs.add(spaceSeg);
+               rowW += spaceSeg.getSpacingAmount();
+            }
+            else {
+               TextSegment seg = allSegs[segIdx++];
+               rowSegs.add(seg);
+               Font f = resolveSegmentFont(seg);
+               rowH = Math.max(rowH, GTool.getFontMetrics(f).getHeight());
+               rowW += GTool.stringWidth(new String[]{seg.getText()}, f);
+            }
+         }
+         rowData.add(new Object[]{ rowSegs.toArray(new TextSegment[0]), rowH, false, rowW });
+      }
+
+      // Use the label's actual allocated bounds width as the alignment container.
+      // bounds.getWidth() is set by the chart engine from getCompositeLabelPreferredWidth(),
+      // so it equals the widest row. Using it (rather than a freshly-computed max) is the
+      // authoritative width for horizontal alignment.
+      double containerW = bounds.getWidth();
+
+      // Second pass: paint in REVERSE order (last row at y=0=visual bottom, first row highest),
+      // matching the non-composite backward paint pattern.
+      double yOffset = 0;
+      for(int ri = rowData.size() - 1; ri >= 0; ri--) {
+         TextSegment[] rowSegs = (TextSegment[]) rowData.get(ri)[0];
+         double rowH = (double) rowData.get(ri)[1];
+         boolean isSpacingRow = (boolean) rowData.get(ri)[2];
+         double rowW = (double) rowData.get(ri)[3];
+
+         if(isSpacingRow) {
+            yOffset += rowSegs[0].getSpacingAmount();
+            continue;
+         }
+
+         // Apply horizontal alignment within the allocated label width.
+         TextLayoutRow row = rows.get(ri);
+         String align = row.getAlignment();
+         double xStart = 0;
+         if("center".equals(align) && containerW > rowW) {
+            xStart = (containerW - rowW) / 2.0;
+         }
+         else if("right".equals(align) && containerW > rowW) {
+            xStart = containerW - rowW;
+         }
+
+         double xOffset = xStart;
+         int si = 0;
+
+         for(TextLayoutItem item : row.getItems()) {
+            if(si >= rowSegs.length) break;
+            TextSegment seg = rowSegs[si++];
+
+            if(seg.isSpacing()) {
+               xOffset += seg.getSpacingAmount();
+               continue;
+            }
+
+            Font font = resolveSegmentFont(seg);
+            Color color = resolveSegmentColor(seg);
+            FontMetrics fm = GTool.getFontMetrics(font);
+            double sw = GTool.stringWidth(new String[]{seg.getText()}, font);
+
+            if(bg && seg.getTextSpec() != null && seg.getTextSpec().getBackground() != null) {
+               Graphics2D bgG = (Graphics2D) g2.create();
+               bgG.setColor(seg.getTextSpec().getBackground());
+               bgG.fill(new java.awt.geom.Rectangle2D.Double(
+                  xOffset, yOffset, sw, fm.getHeight()));
+               bgG.dispose();
+            }
+
+            g2.setFont(font);
+            g2.setColor(color);
+            GTool.drawString(g2, seg.getText(), xOffset, yOffset);
+            xOffset += sw;
+         }
+
+         yOffset += rowH;
+      }
+
+      g2.dispose();
+   }
+
+   /** Resolve the effective font for a segment (segment > element-wide > default). */
+   private Font resolveSegmentFont(TextSegment seg) {
+      if(seg != null && seg.getTextSpec() != null && seg.getTextSpec().getFont() != null) {
+         return seg.getTextSpec().getFont();
+      }
+      Font f = spec.getFont();
+      return f != null ? f : GDefaults.DEFAULT_TEXT_FONT;
+   }
+
+   /** Resolve the effective color for a segment (segment > element-wide > default). */
+   private Color resolveSegmentColor(TextSegment seg) {
+      if(seg != null && seg.getTextSpec() != null && seg.getTextSpec().getColor() != null) {
+         return seg.getTextSpec().getColor();
+      }
+      // Fall back to element-wide color, respecting autoBG if set
+      Color c = getColor();
+      return c != null ? c : GDefaults.DEFAULT_TEXT_COLOR;
    }
 
    private String[] getLines(String str) {
@@ -762,6 +1008,13 @@ public class VLabel extends BoundedVisualizable {
    public String getText() {
       if(dlabel != null) {
          return dlabel;
+      }
+
+      // A CompositeLabel (multi-field text layout) is not formattable by a value Format;
+      // applying spec.getFormat() to it throws and logs per render. Return its composed text
+      // directly, mirroring getDisplayLabel().
+      if(this.label instanceof CompositeLabel) {
+         return dlabel = this.label.toString();
       }
 
       Format fmt = spec.getFormat();

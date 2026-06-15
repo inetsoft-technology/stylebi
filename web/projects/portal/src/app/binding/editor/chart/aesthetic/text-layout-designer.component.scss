@@ -1,0 +1,324 @@
+// ─── Panel layout: header / scrolling body / pinned footer ───────────────────
+// The host fills the height-bounded .layout-designer-overlay (a flex column with
+// overflow:hidden). Making the host a flex column lets the body absorb the remaining
+// space and scroll, while the footer stays pinned to the bottom and never clips.
+
+:host {
+   display: flex;
+   flex-direction: column;
+   height: 100%;
+   overflow: hidden;
+}
+
+.layout-designer-panel-body {
+   flex: 1;
+   overflow-y: auto;
+}
+
+.layout-designer-panel-footer {
+   flex-shrink: 0;
+   border-top: 1px solid var(--inet-default-border-color, #ddd);
+   background: var(--inet-shell-surface, #fff);
+}
+
+// ─── Top bar ───────────────────────────────────────────────────────────────
+
+.top-bar {
+   flex-wrap: nowrap;
+   align-items: stretch;   // properties panel fills the full height of the left column
+}
+
+.palette-section {
+   // flex-column set inline via d-flex flex-column
+}
+
+// ─── Element palette ────────────────────────────────────────────────────────
+
+.element-palette {
+   display: flex;
+   align-items: center;
+   flex-wrap: wrap;
+   gap: 0.4rem;
+   padding: 0.4rem 0.5rem;
+   background: var(--inet-shell-surface-subtle, #f8f9fa);
+   border: 1px solid var(--inet-default-border-color, #ddd);
+   border-radius: 0.25rem;
+   white-space: nowrap;
+}
+
+.palette-label { font-size: 0.8rem; opacity: 0.7; }
+
+.palette-chip-slot {
+   position: relative;      // needed so the overlay can be positioned absolutely
+   display: inline-flex;
+}
+
+.palette-chip {
+   display: inline-flex;
+   align-items: center;
+   padding: 0.2rem 0.5rem;
+   border-radius: 0.25rem;
+   font-size: 0.85rem;
+   user-select: none;
+   border: 1px dashed #aaa;
+
+   &.text-chip   { background: #fff3cd; }
+   &.spacer-chip { background: #e2e3e5; }
+}
+
+// Transparent CDK drag overlay — sits on top of .palette-chip, handles drag.
+// CDK hides/moves this element during drag; the static .palette-chip beneath stays visible.
+.palette-drag-overlay {
+   position: absolute;
+   inset: 0;
+   cursor: grab;
+}
+
+// ─── Properties panel ───────────────────────────────────────────────────────
+
+.properties-panel {
+   padding: 0.4rem 0.6rem;
+   background: var(--inet-shell-surface-subtle, #f8f9fa);
+   border: 1px solid var(--inet-default-border-color, #ddd);
+   border-radius: 0.25rem;
+   min-height: 3rem;
+}
+
+.properties-label {
+   font-size: 0.75rem;
+   font-weight: 600;
+   opacity: 0.7;
+   text-transform: uppercase;
+   letter-spacing: 0.04em;
+}
+
+.properties-hint {
+   font-size: 0.8rem;
+   opacity: 0.5;
+   font-style: italic;
+   line-height: 2;
+}
+
+.prop-text-input  { width: 7rem; }
+.prop-font-select { width: 9rem; font-size: 0.8rem; }
+.prop-size-input  { width: 3.5rem; }
+
+// ─── Grid ────────────────────────────────────────────────────────────────────
+
+.layout-grid {
+   min-height: 24rem;
+   max-height: 45vh;
+   overflow-y: auto;
+   padding: 0.5rem;
+}
+
+.layout-row {
+   display: flex;
+   align-items: center;
+   padding: 0.25rem 0;
+   border-bottom: 1px solid var(--inet-default-border-color, #ddd);
+   cursor: pointer;
+
+   &:last-child { border-bottom: none; }
+
+   &.row-selected {
+      background: rgba(0, 0, 0, 0.03);
+   }
+}
+
+// Row-level drag handle (hamburger ≡)
+.row-drag-handle {
+   cursor: grab;
+   padding: 0 0.4rem;
+   user-select: none;
+   opacity: 0.45;
+   font-size: 0.85rem;
+
+   &:hover { opacity: 0.8; }
+}
+
+.row-items {
+   display: flex;
+   align-items: center;
+   flex-wrap: wrap;
+   gap: 0.25rem;
+   flex: 1;
+   min-height: 2rem;
+}
+
+// ─── Layout items ────────────────────────────────────────────────────────────
+
+.layout-item {
+   display: inline-flex;
+   align-items: center;
+   height: 26px;               // uniform height across all item types
+   padding: 0 0.35rem;
+   border-radius: 0.25rem;
+   cursor: pointer;             // whole item is clickable to select
+   user-select: none;
+
+   &.field-item   { background: #d1ecf1; }
+   &.static-item  { background: #fff3cd; }
+   &.spacing-item { background: #e2e3e5; }
+
+   &.item-selected {
+      outline: 2px solid var(--inet-primary-color, #0d6efd);
+      outline-offset: 1px;
+   }
+}
+
+// Item-level drag handle (applies to both icon handles and the spacer ⠿ span)
+.item-drag-handle {
+   cursor: grab;
+   opacity: 0.45;
+   margin-right: 0.2rem;
+   flex-shrink: 0;
+
+   &:hover { opacity: 0.8; }
+}
+
+// Shared six-dot (⠿) drag handle — consistent across Text, Spacer, and Field chips.
+.drag-dots {
+   font-size: 0.85rem;
+   line-height: 1;
+}
+
+.item-label {
+   font-size: 0.83rem;
+   max-width: 9rem;
+   overflow: hidden;
+   text-overflow: ellipsis;
+   white-space: nowrap;
+}
+
+// ─── Field chip (embeds chart-aesthetic-mc → chart-fieldmc) ──────────────────
+// The embedded field component is full-width and input-tall by default; constrain
+// it to a compact, consistent chip size so it matches the Text/Spacer chips.
+.field-chip-wrap {
+   display: inline-flex;
+   align-items: center;
+   // NO overflow clipping / wrap-level max-width — all chart-fieldmc edit controls
+   // (value combo, value-type, edit-measure, chart-type) must stay visible & usable.
+
+   ::ng-deep {
+      .field-container { margin: 0; padding: 0; }
+
+      .fieldmc-combo {
+         margin: 0;
+         display: inline-flex;
+         align-items: center;
+      }
+
+      // Cap only the VALUE text area so the field name doesn't stretch the row; the
+      // edit icons follow it and remain visible.
+      .fieldCombo {
+         width: 6.5rem;
+         flex: 0 0 auto;
+      }
+
+      // The value trigger uses Bootstrap .form-control (≈38px tall) — shrink it to the
+      // chip height. Dropdowns are fixed-positioned, so this doesn't clip them.
+      .dynamic-combo-box__trigger.form-control,
+      .fieldCombo .form-control {
+         height: 22px;
+         min-height: 22px;
+         padding: 0 0.3rem;
+         line-height: 20px;
+         font-size: 0.82rem;
+      }
+
+      // edit-measure / value-type / chart-type icons sit snug to the value and never clip
+      .fieldEditIcon {
+         margin-left: 0.1rem;
+         flex-shrink: 0;
+      }
+   }
+}
+
+// Italic/dimmed preview shown when text item content is empty
+.text-preview {
+   font-style: italic;
+   opacity: 0.6;
+}
+
+// Spacer number input: fully custom — Bootstrap form-control classes are NOT
+// applied so the browser default and Bootstrap minimum heights don't interfere.
+.spacing-amount-input {
+   width: 3rem;
+   height: 18px;
+   padding: 0 0.25rem;
+   font-size: 0.78rem;
+   line-height: 18px;
+   box-sizing: border-box;
+   border: 1px solid rgba(0, 0, 0, 0.25);
+   border-radius: 0.2rem;
+   background: rgba(255, 255, 255, 0.75);
+
+   &:focus {
+      border-color: var(--inet-primary-color, #0d6efd);
+      outline: none;
+      box-shadow: none;
+   }
+
+   // Remove native spinner arrows — they add height and are redundant here
+   &::-webkit-outer-spin-button,
+   &::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+   }
+
+   -moz-appearance: textfield;
+}
+
+// Format icon button — consistent square, trailing position before the remove button.
+.item-format-btn {
+   display: inline-flex;
+   align-items: center;
+   justify-content: center;
+   width: 18px;
+   height: 18px;
+   padding: 0;
+   flex-shrink: 0;
+   opacity: 0.6;
+
+   &:hover { opacity: 1; }
+}
+
+.item-remove-btn {
+   padding: 0 0.3rem;
+   line-height: 1;
+   font-weight: bold;
+   height: 18px;
+   font-size: 0.75rem;
+   flex-shrink: 0;
+
+   &:hover { background: #dc3545; color: #fff; }
+}
+
+// ─── Formatting toggles (in properties panel) ───────────────────────────────
+// Fixed square size so B and I render identically — matches icon-button
+// conventions used throughout the binding editor (e.g. move-up/down buttons).
+
+.style-toggle {
+   width: 26px;
+   height: 26px;
+   padding: 0;
+   text-align: center;
+   line-height: 26px;
+   flex-shrink: 0;
+
+   &.active { background: var(--inet-primary-color, #0d6efd); color: #fff; }
+}
+
+// ─── CDK drag-and-drop visual cues ─────────────────────────────────────────
+
+.cdk-drag-preview {
+   box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+   opacity: 0.9;
+}
+
+.cdk-drag-placeholder { opacity: 0.3; }
+
+.cdk-drop-list-dragging .layout-item:not(.cdk-drag-placeholder) {
+   transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}

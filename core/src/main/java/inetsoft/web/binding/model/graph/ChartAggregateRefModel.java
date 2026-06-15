@@ -22,6 +22,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.graph.aesthetic.*;
+import inetsoft.web.binding.model.graph.aesthetic.TextLayoutModel;
+
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ChartAggregateRefModel extends BAggregateRefModel
@@ -125,6 +127,22 @@ public class ChartAggregateRefModel extends BAggregateRefModel
    @Override
    public void setTextField(AestheticInfo textField) {
       this.textField = textField;
+   }
+
+   public java.util.List<AestheticInfo> getTextFields() {
+      return textFields;
+   }
+
+   public void setTextFields(java.util.List<AestheticInfo> textFields) {
+      this.textFields = textFields;
+   }
+
+   public TextLayoutModel getTextLayout() {
+      return textLayout;
+   }
+
+   public void setTextLayout(TextLayoutModel textLayout) {
+      this.textLayout = textLayout;
    }
 
    @Override
@@ -323,6 +341,8 @@ public class ChartAggregateRefModel extends BAggregateRefModel
    private AestheticInfo shapeField;
    private AestheticInfo sizeField;
    private AestheticInfo textField;
+   private java.util.List<AestheticInfo> textFields = new java.util.ArrayList<>();
+   private TextLayoutModel textLayout;
    private ColorFrameModel colorFrame;
    private ShapeFrameModel shapeFrame;
    private LineFrameModel lineFrame;

@@ -487,6 +487,31 @@ public interface ChartInfo extends AssetObject, ChartBindable {
    void setTextField(AestheticRef field);
 
    /**
+    * Get all layout text fields as an unmodifiable list.
+    */
+   List<AestheticRef> getTextLayoutFields();
+
+   /**
+    * Set all layout text fields, replacing the current list.
+    */
+   void setTextLayoutFields(List<AestheticRef> fields);
+
+   /**
+    * Add a layout text field to the list.
+    */
+   void addTextLayoutField(AestheticRef field);
+
+   /**
+    * Remove the layout text field at the specified index.
+    */
+   void removeTextLayoutField(int idx);
+
+   /**
+    * Get the number of layout text fields.
+    */
+   int getTextLayoutFieldCount();
+
+   /**
     * Set the runtime x fields.
     */
    void setRTXFields(ChartRef[] refs);

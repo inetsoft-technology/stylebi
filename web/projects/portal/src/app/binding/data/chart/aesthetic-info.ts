@@ -19,6 +19,7 @@ import { ChartRef } from "../../../common/data/chart-ref";
 import { VisualFrameModel } from "./../../../common/data/visual-frame-model";
 
 export interface AestheticInfo {
+   classType?: string;
    fullName: string;
    dataInfo: ChartRef;
    frame: VisualFrameModel;

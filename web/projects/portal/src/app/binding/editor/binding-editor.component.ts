@@ -34,6 +34,11 @@ import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { ConsoleDialogComponent } from "../../widget/console-dialog/console-dialog.component";
 import { ConsoleMessage } from "../../widget/console-dialog/console-message";
 import { Tool } from "../../../../../shared/util/tool";
+import { GraphUtil } from "../util/graph-util";
+import { AestheticInfo } from "../data/chart/aesthetic-info";
+import { TextLayoutModel } from "../../common/data/visual-frame-model";
+import { TextLayoutDesignerComponent } from "./chart/aesthetic/text-layout-designer.component";
+import { ChartEditorService } from "../services/chart/chart-editor.service";
 import { ModelService } from "../../widget/services/model.service";
 import { StatusBar } from "../../status-bar/status-bar.component";
 import { CalcDataPane } from "./table/calc-data-pane.component";
@@ -57,7 +62,7 @@ const GET_MESSAGE_LEVELS_URI = "../api/composer/console-dialog/get-message-level
     selector: "binding-editor",
     templateUrl: "binding-editor.component.html",
     styleUrls: ["binding-editor.component.scss"],
-    imports: [EditorTitleBar, NgClass, SplitPane, DataEditorTabPane, FormatsPane, DataEditorBindingTree, ChartEditorToolbar, ChartHighLowPane, AestheticPane, TableOption, CrosstabOption, CalcOptionPane, ChartDataPane, TableDataPane, CrosstabDataPane, CalcDataPane, StatusBar, NotificationsComponent, ConsoleDialogComponent]
+    imports: [EditorTitleBar, NgClass, SplitPane, DataEditorTabPane, FormatsPane, DataEditorBindingTree, ChartEditorToolbar, ChartHighLowPane, AestheticPane, TableOption, CrosstabOption, CalcOptionPane, ChartDataPane, TableDataPane, CrosstabDataPane, CalcDataPane, StatusBar, NotificationsComponent, ConsoleDialogComponent, TextLayoutDesignerComponent]
 })
 export class BindingEditor implements OnInit, AfterViewInit, OnDestroy {
    @Input() objectModel: any;
@@ -93,6 +98,13 @@ export class BindingEditor implements OnInit, AfterViewInit, OnDestroy {
    showDragTip: boolean = true;
    showDcAppliedTip: boolean = false;
    messageLevels: string[] = [];
+   // Text Layout Designer overlay state.
+   showLayoutDesigner: boolean = false;
+   layoutDesignerLayout: TextLayoutModel | null = null;
+   layoutDesignerTextFields: AestheticInfo[] = [];
+   layoutDesignerAggregateName: string | null = null;
+   // FIELD item type constant (mirrors TextLayoutDesignerComponent.FIELD).
+   private readonly LAYOUT_FIELD_TYPE = 0;
    private _bindingModel: BindingModel;
    private _variableValues: string[];
    private _assemblyName: string;
@@ -100,7 +112,8 @@ export class BindingEditor implements OnInit, AfterViewInit, OnDestroy {
    constructor(private bindingService: BindingService,
                private uiContextService: UIContextService,
                protected modalService: NgbModal,
-               private modelService: ModelService)
+               private modelService: ModelService,
+               private chartEditorService: ChartEditorService)
    {
    }
 
@@ -229,6 +242,13 @@ export class BindingEditor implements OnInit, AfterViewInit, OnDestroy {
    }
 
    updateData(action: string) {
+      if(action.startsWith("openLayoutDesigner")) {
+         const parts = action.split(":");
+         const aggregateName = parts.length > 1 ? parts[1] : null;
+         this.openLayoutDesignerOverlay(aggregateName);
+         return;
+      }
+
       switch(action) {
          case "getCurrentFormat":
             this.hideFormatPane = false;
@@ -254,6 +274,135 @@ export class BindingEditor implements OnInit, AfterViewInit, OnDestroy {
          default:
              this.onUpdateData.emit(action);
       }
+   }
+
+   private openLayoutDesignerOverlay(aggregateName: string | null): void {
+      const bindingModel = this.bindingModel as ChartBindingModel;
+      if(!bindingModel) return;
+
+      this.layoutDesignerAggregateName = aggregateName;
+
+      const target = this.getLayoutTarget(bindingModel, aggregateName);
+
+      this.layoutDesignerLayout = target?.textLayout ?? null;
+      // The designer's FIELD items index into this real binding list.
+      this.layoutDesignerTextFields = (target?.textFields ?? []).slice();
+
+      // Seed from the legacy single Text binding: if there are no textFields yet but a
+      // scalar textField exists, show it as field 0 and initialize the layout to a single
+      // row with one FIELD item referencing index 0. Seed the WORKING COPY only; it is applied
+      // to the model on Commit (the backend maps textFields -> textLayoutFields), so Cancel
+      // leaves the bound model untouched.
+      if(this.layoutDesignerTextFields.length === 0 && target?.textField?.dataInfo) {
+         const seed = Tool.clone(target.textField) as AestheticInfo;
+         this.layoutDesignerTextFields = [seed];
+
+         if(!this.layoutDesignerLayout?.rows?.length) {
+            this.layoutDesignerLayout = {
+               rows: [{ items: [{ type: this.LAYOUT_FIELD_TYPE, fieldIndex: 0 }] }]
+            };
+         }
+      }
+
+      this.showLayoutDesigner = true;
+   }
+
+   /**
+    * Resolve the layout target: the per-aggregate ref when an aggregate name is supplied
+    * (multi-style), otherwise the chart-level binding model. Both carry textField /
+    * textFields / textLayout.
+    */
+   private getLayoutTarget(bindingModel: ChartBindingModel,
+                           aggregateName: string | null): any
+   {
+      if(aggregateName) {
+         const aggrs = GraphUtil.getAestheticAggregateRefs(bindingModel, false);
+         return aggrs.find(a => a.fullName === aggregateName) ?? null;
+      }
+
+      return bindingModel;
+   }
+
+   /**
+    * A tree column was dropped onto the layout grid. The designer built the AestheticInfo
+    * client-side; append it to the designer's WORKING COPY only (layoutDesignerTextFields). The
+    * live model (target.textFields) is applied once, on Commit — so Cancel discards.
+    */
+   onLayoutAddField(e: { field: AestheticInfo; insertRow: number; insertIndex: number }): void {
+      if(!this.bindingModel || !e?.field) {
+         return;
+      }
+
+      this.layoutDesignerTextFields = [...this.layoutDesignerTextFields, e.field];
+   }
+
+   /**
+    * A FIELD chip was removed in the designer; drop the binding at this index from the WORKING
+    * COPY only. The component has already compacted the remaining FIELD items' indices to match.
+    * The live model is left untouched until Commit, so Cancel discards the removal.
+    */
+   onLayoutRemoveField(fieldIndex: number): void {
+      if(fieldIndex < 0 || fieldIndex >= this.layoutDesignerTextFields.length) {
+         return;
+      }
+
+      const next = this.layoutDesignerTextFields.slice();
+      next.splice(fieldIndex, 1);
+      this.layoutDesignerTextFields = next;
+   }
+
+   onLayoutDesignerCommit(result: TextLayoutModel): void {
+      const bindingModel = this.bindingModel as ChartBindingModel;
+      if(!bindingModel) return;
+
+      const target = this.getLayoutTarget(bindingModel, this.layoutDesignerAggregateName);
+
+      if(target) {
+         target.textLayout = result;
+         // layoutDesignerTextFields is the authoritative field list; apply it on commit so the
+         // sent model carries the fields.
+         target.textFields = this.layoutDesignerTextFields.slice();
+      }
+
+      // Apply textFields AND textLayout together via the full model round-trip so the layout's
+      // field indices resolve against the same assembly that carries the fields.
+      this.chartEditorService.changeChartAesthetic("text");
+      this.showLayoutDesigner = false;
+   }
+
+   onLayoutDesignerCancel(): void {
+      this.showLayoutDesigner = false;
+   }
+
+   /**
+    * A FIELD chip's binding was edited in the designer (aggregate/value-type/convert). chart-fieldmc
+    * mutates the bound AestheticInfo in place — a live reference inside textFields — so the edit is
+    * already captured; it persists on commit. No mid-session round-trip (it previously wiped fields).
+    */
+   onLayoutFieldChanged(): void {
+      // no-op: the chip's in-place mutation persists with the layout on commit.
+   }
+
+   onLayoutDesignerPreSave(layout: TextLayoutModel): void {
+      const bindingModel = this.bindingModel as ChartBindingModel;
+
+      if(bindingModel) {
+         const target = this.getLayoutTarget(bindingModel, this.layoutDesignerAggregateName);
+
+         if(target) {
+            target.textLayout = layout;
+         }
+      }
+
+      // Persist the current arrangement via the full model round-trip (same path as commit) so the
+      // field's format edits apply to the saved layout. Designer stays open.
+      this.chartEditorService.changeChartAesthetic("text");
+   }
+
+   onLayoutFieldFormat(fullName: string): void {
+      this.chartEditorService.measureName = fullName;
+      this.hideFormatPane = false;
+      this.updateData("showTextFormat");
    }
 
    updateFormat(model: any) {

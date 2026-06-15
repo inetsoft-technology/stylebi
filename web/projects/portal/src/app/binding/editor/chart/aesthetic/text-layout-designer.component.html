@@ -1,0 +1,229 @@
+<!-- Panel header -->
+<div class="layout-designer-panel-header d-flex align-items-center px-3 py-2">
+  <span class="fw-semibold">_#(Text Layout Designer)</span>
+</div>
+<div class="layout-designer-panel-body" blockMouse>
+
+  <!-- Top bar: palette (left, fixed) + properties panel (right, stretches to fill) -->
+  <div class="top-bar d-flex gap-3 mb-2">
+
+    <!-- Left column: Add Row button + element palette -->
+    <div class="palette-section d-flex flex-column gap-1">
+      <button class="btn btn-sm btn-default" (click)="addRow()" title="_#(Add Row)">
+        + _#(Add Row)
+      </button>
+
+      <!-- Palette: only connects TO row lists; sorting disabled so chips can't be rearranged -->
+      <div class="element-palette"
+           cdkDropList
+           [id]="PALETTE_LIST_ID"
+           [cdkDropListData]="paletteItems"
+           [cdkDropListConnectedTo]="rowItemListIds"
+           [cdkDropListSortingDisabled]="true"
+           cdkDropListOrientation="horizontal">
+        <span class="palette-label unhighlightable me-1">_#(Elements):</span>
+        <!--
+          Each chip uses a two-layer pattern to keep the chip permanently visible:
+          1. Static display div — pure HTML, never touched by CDK, always visible.
+          2. Transparent overlay div — the actual cdkDrag element, positioned on top.
+             CDK hides/moves the overlay during drag; the static chip underneath
+             remains unaffected, so the palette never appears empty.
+        -->
+        <div *ngFor="let chip of paletteItems; trackBy: trackByIndex" class="palette-chip-slot">
+          <!-- Static chip: always visible in the palette -->
+          <div class="palette-chip"
+               [class.text-chip]="chip.type === STATIC"
+               [class.spacer-chip]="chip.type === SPACING">
+            <i *ngIf="chip.type === STATIC" class="text-icon icon-size-small me-1" aria-hidden="true"></i>
+            <span class="unhighlightable">{{ chip.label }}</span>
+          </div>
+          <!-- Transparent CDK drag overlay — covers the chip, handles dragging -->
+          <div class="palette-drag-overlay"
+               cdkDrag
+               [cdkDragData]="chip">
+            <ng-template cdkDragPreview>
+              <div class="palette-chip"
+                   [class.text-chip]="chip.type === STATIC"
+                   [class.spacer-chip]="chip.type === SPACING">
+                <i *ngIf="chip.type === STATIC" class="text-icon icon-size-small me-1" aria-hidden="true"></i>
+                <span>{{ chip.label }}</span>
+              </div>
+            </ng-template>
+            <!-- Empty placeholder: nothing replaces the overlay while dragging -->
+            <ng-template cdkDragPlaceholder></ng-template>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: properties for the selected row / item — stretches to match left column height -->
+    <div class="properties-panel flex-grow-1">
+
+      <!-- Text item properties (click a static text item) -->
+      <ng-container *ngIf="selectedItem?.type === STATIC">
+        <div class="properties-label unhighlightable mb-1">_#(Text Properties)</div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <input class="form-control form-control-sm prop-text-input"
+                 [(ngModel)]="selectedItem.text"
+                 placeholder="_#(Enter text...)"
+                 title="_#(Text content)">
+        </div>
+        <div class="properties-hint unhighlightable mt-1">_#(Click Format on a chip to style it.)</div>
+      </ng-container>
+
+      <!-- Row alignment: only when the row itself is selected (no item selected) -->
+      <ng-container *ngIf="selectedRowIndex >= 0 && selectedItemIndex < 0">
+        <div class="properties-label unhighlightable mb-1">_#(Row Alignment)</div>
+        <div class="d-flex gap-1">
+          <button class="btn btn-xs style-toggle"
+                  [class.active]="getRowAlign() === 'left'"
+                  (click)="setRowAlign('left')"
+                  title="_#(Left)">
+            <i class="align-left-icon icon-size-small" aria-hidden="true"></i>
+          </button>
+          <button class="btn btn-xs style-toggle"
+                  [class.active]="getRowAlign() === 'center'"
+                  (click)="setRowAlign('center')"
+                  title="_#(Center)">
+            <i class="align-center-icon icon-size-small" aria-hidden="true"></i>
+          </button>
+          <button class="btn btn-xs style-toggle"
+                  [class.active]="getRowAlign() === 'right'"
+                  (click)="setRowAlign('right')"
+                  title="_#(Right)">
+            <i class="align-right-icon icon-size-small" aria-hidden="true"></i>
+          </button>
+        </div>
+      </ng-container>
+
+      <!-- Hint when nothing is selected or a field/spacing item is selected -->
+      <div *ngIf="selectedRowIndex < 0 || (selectedItemIndex >= 0 && selectedItem?.type !== STATIC)"
+           class="properties-hint unhighlightable">
+        _#(Click a row (empty area) for alignment, or a Text chip to edit its content.)
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Row grid -->
+  <div class="layout-grid bordered-box bd-gray"
+       #layoutGrid
+       cdkDropList
+       [cdkDropListData]="workingRows"
+       (cdkDropListDropped)="onRowDropped($event)">
+
+    <div *ngFor="let row of workingRows; let ri = index; trackBy: trackByIndex"
+         class="layout-row"
+         [class.row-selected]="isRowSelected(ri)"
+         [attr.data-row-index]="ri"
+         cdkDrag
+         [cdkDragData]="row"
+         (click)="selectRow(ri)">
+
+      <!-- Row-level drag handle (hamburger ≡) -->
+      <span class="row-drag-handle" cdkDragHandle title="_#(Drag to Reorder Row)">&#9776;</span>
+
+      <!-- Item list: connects to sibling rows only, NOT to palette -->
+      <div class="row-items"
+           cdkDropList
+           [id]="'items-' + ri"
+           [cdkDropListData]="row.items"
+           [cdkDropListConnectedTo]="rowItemListIds"
+           cdkDropListOrientation="horizontal"
+           (cdkDropListDropped)="onItemDroppedInRow($event, ri)">
+
+        <div *ngFor="let item of row.items; let ii = index; trackBy: trackByIndex"
+             class="layout-item"
+             cdkDrag
+             [cdkDragData]="item"
+             [class.field-item]="item.type === FIELD"
+             [class.static-item]="item.type === STATIC"
+             [class.spacing-item]="item.type === SPACING"
+             [class.item-selected]="isItemSelected(ri, ii)"
+             (click)="selectItem(ri, ii); $event.stopPropagation()">
+
+          <!-- FIELD bound to a real textFields entry: render as chart-fieldmc chip (like TextFieldMc).
+               Layout is consistent with the other chips: [six-dot drag handle] [content] [format] [remove]. -->
+          <ng-container *ngIf="item.type === FIELD && getFieldRef(item) as boundField">
+            <span class="item-drag-handle drag-dots" cdkDragHandle title="_#(Drag)">&#10303;</span>
+            <!-- Use the canonical aesthetic chip (same as the Text well) so the field has the
+                 working edit menu (change aggregate / value type / convert). Suppress its native
+                 draggable so CDK row-drag stays in control. The allaggregate sentinel routes edits
+                 through onChangeAesthetic (not changeChartRef); the host round-trips the model. -->
+            <div class="field-chip-wrap" (dragstart)="$event.stopPropagation(); $event.preventDefault()">
+              <chart-aesthetic-mc
+                [field]="boundField"
+                [fieldType]="'text'"
+                [isEnabled]="true"
+                [isEditEnabled]="true"
+                [currentAggr]="allChartSentinel"
+                [dragComplete]="fieldChipDragComplete"
+                (onChangeAesthetic)="onFieldChipChanged()"
+                (onConvert)="onFieldChipChanged()">
+              </chart-aesthetic-mc>
+            </div>
+            <button class="btn btn-xs item-format-btn ms-1"
+                    (click)="openFieldFormat(item); $event.stopPropagation()"
+                    title="_#(Format)">
+              <i class="format-icon icon-size-small" aria-hidden="true"></i>
+            </button>
+            <button class="btn btn-xs item-remove-btn ms-1"
+                    (click)="removeFieldItem(ri, ii); $event.stopPropagation()"
+                    title="_#(Remove)">&#215;</button>
+          </ng-container>
+
+          <!-- FIELD whose index can't be resolved (pending host round-trip): label + format + remove -->
+          <ng-container *ngIf="item.type === FIELD && !getFieldRef(item)">
+            <span class="item-drag-handle drag-dots" cdkDragHandle title="_#(Drag)">&#10303;</span>
+            <span class="item-label unhighlightable">{{ getFieldLabel(item) }}</span>
+            <button class="btn btn-xs item-format-btn ms-1"
+                    (click)="openFieldFormat(item); $event.stopPropagation()"
+                    title="_#(Format)">
+              <i class="format-icon icon-size-small" aria-hidden="true"></i>
+            </button>
+            <button class="btn btn-xs item-remove-btn ms-1"
+                    (click)="removeFieldItem(ri, ii); $event.stopPropagation()"
+                    title="_#(Remove)">&#215;</button>
+          </ng-container>
+
+          <!-- STATIC: six-dot drag handle + text preview + format button -->
+          <ng-container *ngIf="item.type === STATIC">
+            <span class="item-drag-handle drag-dots" cdkDragHandle title="_#(Drag)">&#10303;</span>
+            <span class="item-label unhighlightable text-preview">{{ item.text || '...' }}</span>
+            <button class="btn btn-xs item-format-btn ms-1"
+                    (click)="openStaticItemFormat(item); $event.stopPropagation()"
+                    title="_#(Format)">
+              <i class="format-icon icon-size-small" aria-hidden="true"></i>
+            </button>
+          </ng-container>
+
+          <!-- SPACING: six-dot drag handle + compact number input (no format icon) -->
+          <ng-container *ngIf="item.type === SPACING">
+            <span class="item-drag-handle drag-dots" cdkDragHandle title="_#(Drag)">&#10303;</span>
+            <input type="number" class="spacing-amount-input"
+                   [(ngModel)]="item.spacingAmount" min="0" max="200" step="1"
+                   title="_#(Spacing)"
+                   (click)="$event.stopPropagation()">
+          </ng-container>
+
+          <!-- X remove button (STATIC and SPACING only) -->
+          <button *ngIf="item.type !== FIELD"
+                  class="btn btn-xs item-remove-btn ms-1"
+                  (click)="removeItem(ri, ii); $event.stopPropagation()"
+                  title="_#(Remove)">&#215;</button>
+        </div>
+
+      </div>
+    </div>
+
+    <div *ngIf="workingRows.length === 0" class="empty-grid-hint p-2 unhighlightable">
+      _#(Click Add Row to start building the layout.)
+    </div>
+  </div>
+
+</div>
+<!-- Panel footer: actions pinned to the bottom -->
+<div class="layout-designer-panel-footer d-flex justify-content-end align-items-center gap-2 px-3 py-2">
+  <button class="btn btn-primary btn-sm" (click)="commit()">_#(OK)</button>
+  <button class="btn btn-default btn-sm" (click)="onCancel.emit()">_#(Cancel)</button>
+</div>

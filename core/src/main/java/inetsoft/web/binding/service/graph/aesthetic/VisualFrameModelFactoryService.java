@@ -57,6 +57,10 @@ public class VisualFrameModelFactoryService {
    public <V extends VisualFrameWrapper, F extends VisualFrameModel> F
       createVisualFrameModel(V wrapper)
    {
+      if(wrapper == null) {
+         return null;
+      }
+
       VisualFrameModelFactory<V, F> factory = getFactory(wrapper);
       return factory.createVisualFrameModel(wrapper);
    }
