@@ -486,6 +486,13 @@ public class WorksheetTableService {
       }
 
       if(aggregates != null) {
+         // Tracks how many aggregates have been registered for each fieldName so far.
+         // The first occurrence reuses the existing ColumnRef; subsequent ones need a
+         // dedicated synthetic column so setColumnSelection()'s getAggregate() loop
+         // can find a distinct match for each AggregateRef (mirrors the approach in
+         // AggregateDialogService.updateAggregateInfo()).
+         Map<String, Integer> fieldOccurrenceCount = new HashMap<>();
+
          for(WorksheetTableRequest.AggregateFieldInfo agg : aggregates) {
             DataRef column = cs.getAttribute(agg.getFieldName());
 
@@ -505,7 +512,51 @@ public class WorksheetTableService {
                secondaryCol = cs.getAttribute(agg.getSecondaryField());
             }
 
-            AggregateRef aggRef = new AggregateRef(column, secondaryCol, formula);
+            int occurrence = fieldOccurrenceCount.merge(agg.getFieldName(), 1, Integer::sum);
+            DataRef aggColumn;
+
+            if(occurrence == 1) {
+               // First aggregate for this field: use the private column directly so that
+               // aggColumn and the alias target are the same object (avoids relying on
+               // cs / privateCs sharing identical ColumnRef instances).
+               DataRef privateCol = privateCs.getAttribute(agg.getFieldName());
+               aggColumn = privateCol != null ? privateCol : column;
+
+               if(agg.getAlias() != null && privateCol instanceof ColumnRef columnRef) {
+                  columnRef.setAlias(agg.getAlias());
+               }
+            }
+            else {
+               // Second+ aggregate on the same field: create a synthetic ExpressionRef
+               // column so each AggregateRef has a distinct entry in the private column
+               // selection. Without this, setColumnSelection()'s getAggregate() loop only
+               // finds one match per field and the remaining aggregates are silently lost.
+               String entity = column instanceof ColumnRef cr ? cr.getEntity() : null;
+               String baseName = agg.getAlias() != null
+                  ? agg.getAlias()
+                  : column.getName() + "_" + occurrence;
+
+               // Bump suffix until the name is free in privateCs to avoid silent duplicates.
+               String colName = baseName;
+               int suffix = 2;
+
+               while(privateCs.getAttribute(colName) != null) {
+                  colName = baseName + "_" + suffix++;
+               }
+
+               ExpressionRef expRef = new ExpressionRef(entity, colName);
+               expRef.setExpression("field['" + column.getName() + "']");
+               ColumnRef syntheticCol = new ColumnRef(expRef);
+
+               if(column instanceof ColumnRef cr) {
+                  syntheticCol.setDataType(cr.getDataType());
+               }
+
+               privateCs.addAttribute(syntheticCol);
+               aggColumn = syntheticCol;
+            }
+
+            AggregateRef aggRef = new AggregateRef(aggColumn, secondaryCol, formula);
 
             if(agg.getN() != null && formula.hasN()) {
                aggRef.setN(agg.getN());
@@ -515,16 +566,6 @@ public class WorksheetTableService {
             // with different formulas (e.g. NthLargest(1) and NthLargest(2)). Each entry
             // carries a distinct alias, so field-name deduplication is not needed here.
             info.addAggregate(aggRef, false);
-
-            // AggregateRef has no setAlias(). Expose the alias via a ColumnRef alias so
-            // downstream steps can resolve this aggregate column by its friendly name.
-            if(agg.getAlias() != null) {
-               DataRef col = privateCs.getAttribute(agg.getFieldName());
-
-               if(col instanceof ColumnRef columnRef) {
-                  columnRef.setAlias(agg.getAlias());
-               }
-            }
          }
       }
 
