@@ -50,7 +50,25 @@ export class ChartInlineSvgDirective implements OnDestroy {
    @Output() onLoading = new EventEmitter<void>();
    @Output() onLoaded = new EventEmitter<void>();
    @Output() onError = new EventEmitter<void>();
+   /** Emits the data-color of the hovered area/line series (null on clear) so the parent can
+    *  mirror the dim across sibling tiles of a split chart. Only emitted in cross-tile mode. */
+   @Output() seriesDimChange = new EventEmitter<string | null>();
+   /** Emits the data-id of the hovered relation/tree node (null on clear). The parent resolves
+    *  neighbours from the merged cross-tile graph and drives every tile, since a node's neighbours
+    *  may be rendered in sibling tiles this tile's connectivity maps can't see. Cross-tile only. */
+   @Output() relationHover = new EventEmitter<string | null>();
+   /** True when this chart is split into multiple SVG tiles. In that mode area/line hover only
+    *  detects the active series and emits its color; opacity is applied solely by the parent via
+    *  setExternalSeriesDim so every tile dims consistently (geometry-based local dim can't reach
+    *  sibling SVGs). */
+   @Input() crossTile = false;
    private _url: string = null;
+   /** Last color emitted via seriesDimChange, to suppress duplicate emits. */
+   private _emittedSeriesColor: string | null = null;
+   /** Last node id emitted via relationHover, to suppress duplicate emits. */
+   private _emittedRelationId: string | null = null;
+   /** True when this tile holds relation/tree nodes; gates the cross-tile relation path. */
+   private isRelationChart = false;
 
    /**
     * Unified map from "rowIdx-colIdx" to the annotated SVG group for that data point,
@@ -64,6 +82,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
    private labelGroupMap = new Map<string, Element[]>();
    /** Key of the currently active element, or null. */
    private _activeKey: string | null = null;
+   /** Cached SVG root of this tile, used to toggle the cross-tile inetsoft-dim-all class. */
+   private svgRootEl: SVGSVGElement | null = null;
    /** Timer handle for debounced deactivation, so fast inter-bar moves don't flash. */
    private clearHandle: ReturnType<typeof setTimeout> | null = null;
    /** Timer handle for Retry-After retry, stored so it can be cancelled on destroy. */
@@ -82,6 +102,15 @@ export class ChartInlineSvgDirective implements OnDestroy {
    private areaSeriesCache: Array<{localX: number, localY: number}[]> = [];
    /** Index into areaSeries of the currently highlighted series, or -1. */
    private activeSeriesIdx: number = -1;
+   /** True for area/line/radar charts, which dim by series key (setExternalSeriesDim) rather than
+    *  the inetsoft-active/inetsoft-dim-all class mechanism. Prevents the class-based cross-tile
+    *  dim from fighting the key-based one over shared .inetsoft-point markers. */
+   private usesSeriesColorDim = false;
+   /** Attribute identifying a series for cross-tile dim: data-color for area/line, data-row for
+    *  radar. The value is stable across a split chart's SVG tiles. */
+   private dimKeyAttr = "data-color";
+   /** Selector for the elements setExternalSeriesDim dims (per chart type). */
+   private dimTargetSelector = ".inetsoft-area,.inetsoft-line,.inetsoft-point";
    /** SVG element that holds area mousemove/mouseleave listeners, kept for cleanup. */
    private areaHoverSvgEl: SVGSVGElement | null = null;
    private areaMouseMoveHandler: ((e: MouseEvent) => void) | null = null;
@@ -200,10 +229,27 @@ export class ChartInlineSvgDirective implements OnDestroy {
    private activateKey(key: string): void {
       const el = this.elementGroupMap.get(key);
       if(el) {
+         // Relation in a split chart: the hovered node's neighbours may live in sibling tiles
+         // this tile's connectivity maps can't see. Emit the node id and let the parent resolve
+         // neighbours from the merged graph and drive every tile via setExternalRelationHighlight.
+         if(this.isRelationChart && this.crossTile) {
+            this.emitRelationHover(el.getAttribute("data-id"));
+            return;
+         }
          el.classList.add("inetsoft-active");
          if(el.classList.contains("inetsoft-relation")) {
             this.activateRelationNeighbors(el);
          }
+      }
+      // A large chart is split into multiple SVG tiles. The hovered data point lives in
+      // only one tile, so its inetsoft-active class (and the server's :has() dim rule, which
+      // is scoped to a single SVG) never reaches sibling tiles. When this tile holds
+      // hover-managed elements but not the active one, flag its root so server CSS dims them.
+      // Skipped for area/line charts (they dim by series color) and cross-tile relation charts
+      // (the parent drives per-tile highlight + dim via setExternalRelationHighlight).
+      else if(this.elementGroupMap.size > 0 && this.svgRootEl && !this.usesSeriesColorDim &&
+              !(this.isRelationChart && this.crossTile)) {
+         this.svgRootEl.classList.add("inetsoft-dim-all");
       }
       const glyphs = this.labelGroupMap.get(key);
       if(glyphs) glyphs.forEach(g => g.classList.add("inetsoft-active"));
@@ -211,6 +257,13 @@ export class ChartInlineSvgDirective implements OnDestroy {
 
    private deactivateCurrent(): void {
       if(this._activeKey === null) return;
+      // Cross-tile relation: the parent set inetsoft-active/dim-all across tiles, so clearing is
+      // its job too — emit the clear and don't strip classes locally (that would fight the parent).
+      if(this.isRelationChart && this.crossTile) {
+         this.emitRelationHover(null);
+         return;
+      }
+      if(this.svgRootEl) this.svgRootEl.classList.remove("inetsoft-dim-all");
       const el = this.elementGroupMap.get(this._activeKey);
       if(el) el.classList.remove("inetsoft-active");
       for(const n of this.activeRelationNeighbors) {
@@ -311,6 +364,12 @@ export class ChartInlineSvgDirective implements OnDestroy {
       this.teardownLineSeriesHover();
       this.areaSeries = [];
       this.activeSeriesIdx = -1;
+      this.usesSeriesColorDim = false;
+      this.dimKeyAttr = "data-color";
+      this.dimTargetSelector = ".inetsoft-area,.inetsoft-line,.inetsoft-point";
+      this._emittedSeriesColor = null;
+      this.isRelationChart = false;
+      this._emittedRelationId = null;
 
       this.elementGroupMap.clear();
       this.labelGroupMap.clear();
@@ -318,6 +377,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
       this.relationEdges = [];
       this.activeRelationNeighbors = [];
       this._activeKey = null;
+      this.svgRootEl = this.element.nativeElement.querySelector("svg");
 
       // Populate the unified element map from all annotated VO groups.
       // Each CSS class corresponds to a different chart type; the CSS class on the stored
@@ -353,6 +413,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
          // interior areas. pointer-events:none on the container is kept (set in the host
          // component's SCSS); events outside polygon hit areas pass through to the canvas.
          this.element.nativeElement.style.zIndex = "1";
+         this.setupRadarSeriesHover(radarGroups);
       }
       else if(areaFillGroups.length > 0) {
          // Area chart — raise SVG above canvas overlay and enable pointer-events on the SVG
@@ -383,6 +444,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
       // Build relation connectivity maps so activateKey can highlight connected edges/neighbors.
       const relationNodes = Array.from(
          this.element.nativeElement.querySelectorAll(".inetsoft-relation") as NodeListOf<Element>);
+      this.isRelationChart = relationNodes.length > 0;
       for(const n of relationNodes) {
          const nodeId = n.getAttribute("data-id");
          if(nodeId) this.relationNodeIdMap.set(nodeId, n);
@@ -448,6 +510,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
 
       if(this.areaSeries.length === 0) return;
 
+      this.usesSeriesColorDim = true;
+
       // Pre-sample each line path in SVG local coordinates so mousemove hit-testing can avoid
       // repeated getPointAtLength() calls. getPointAtLength is O(path-length) in all browsers;
       // at 60 fps with multiple series that compounds quickly. Pre-sampling once at load time
@@ -478,7 +542,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
 
       this.areaHoverSvgEl = svgEl;
       this.areaMouseMoveHandler = (e: MouseEvent) => this.onAreaMouseMove(e);
-      this.areaMouseLeaveHandler = () => this.deactivateArea();
+      this.areaMouseLeaveHandler = () => { this.deactivateArea(); this.emitSeriesDim(null); };
       svgEl.addEventListener("mousemove", this.areaMouseMoveHandler);
       svgEl.addEventListener("mouseleave", this.areaMouseLeaveHandler);
    }
@@ -610,6 +674,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
 
       if(seriesMap.size === 0) return;
 
+      this.usesSeriesColorDim = true;
+
       // allElems intentionally spans the entire SVG (all panels). Hovering a series dims
       // every element outside that series, including sibling panels in a faceted chart.
       // This is deliberate: cross-panel dimming focuses attention on the hovered panel.
@@ -625,6 +691,11 @@ export class ChartInlineSvgDirective implements OnDestroy {
 
       const clearDim = () => {
          this.lineSeriesClearTimer = null;
+         // Cross-tile: opacity is managed by the parent via setExternalSeriesDim; just emit clear.
+         if(this.crossTile) {
+            this.emitSeriesDim(null);
+            return;
+         }
          for(const elem of allElems) {
             (elem as HTMLElement).style.removeProperty("opacity");
          }
@@ -632,11 +703,19 @@ export class ChartInlineSvgDirective implements OnDestroy {
 
       for(const [, series] of seriesMap) {
          const seriesSet = new Set<Element>([...series.lines, ...series.points]);
+         const seriesColor = [...series.lines, ...series.points]
+            .map(e => e.getAttribute("data-color")).find(c => c) ?? null;
 
          const enterHandler = () => {
             if(this.lineSeriesClearTimer !== null) {
                clearTimeout(this.lineSeriesClearTimer);
                this.lineSeriesClearTimer = null;
+            }
+            // Cross-tile: emit the active color so the parent dims every tile uniformly; the
+            // per-SVG loop below cannot reach sibling tiles holding the rest of each series.
+            if(this.crossTile) {
+               this.emitSeriesDim(seriesColor);
+               return;
             }
             for(const elem of allElems) {
                if(!seriesSet.has(elem)) {
@@ -678,6 +757,63 @@ export class ChartInlineSvgDirective implements OnDestroy {
       // entirely. In both cases, resetting the style would be a no-op.
    }
 
+   /**
+    * Cross-tile radar hover. Single-tile radar dims entirely via server CSS :hover, which is
+    * scoped to one SVG and cannot reach sibling tiles of a split chart. In cross-tile mode we add
+    * JS listeners that emit the hovered series' data-row (radar's stable series key); the parent
+    * mirrors the dim onto every tile via setExternalSeriesDim. Listeners cover both polygon groups
+    * and their vertex points (points sit on top, so the mouse may enter a point without crossing
+    * the polygon interior). Reuses the line-series abort controller/timer — radar and line charts
+    * never coexist in one SVG.
+    */
+   private setupRadarSeriesHover(radarGroups: Element[]): void {
+      // Single-tile radar dims via server CSS :hover alone; no JS coordination needed.
+      if(!this.crossTile) {
+         return;
+      }
+
+      this.usesSeriesColorDim = true;
+      this.dimKeyAttr = "data-row";
+      // Radar has no external label annotation class (labels render inside the polygon/point
+      // groups), so dimming the polygons and vertex points covers every radar element.
+      this.dimTargetSelector = ".inetsoft-radar,.inetsoft-point";
+
+      const points = Array.from(
+         this.element.nativeElement.querySelectorAll(".inetsoft-point") as NodeListOf<Element>);
+      const targets = [...radarGroups, ...points];
+
+      if(targets.length === 0) {
+         return;
+      }
+
+      const ac = new AbortController();
+      this.lineSeriesAbortController = ac;
+
+      const enter = (el: Element) => {
+         if(this.lineSeriesClearTimer !== null) {
+            clearTimeout(this.lineSeriesClearTimer);
+            this.lineSeriesClearTimer = null;
+         }
+         this.emitSeriesDim(el.getAttribute("data-row"));
+      };
+
+      const leave = () => {
+         if(this.lineSeriesClearTimer !== null) {
+            clearTimeout(this.lineSeriesClearTimer);
+         }
+         this.lineSeriesClearTimer = setTimeout(() => {
+            this.lineSeriesClearTimer = null;
+            this.emitSeriesDim(null);
+         }, ChartInlineSvgDirective.CLEAR_DELAY_MS);
+      };
+
+      for(const el of targets) {
+         (el as HTMLElement).style.pointerEvents = "all";
+         el.addEventListener("mouseenter", () => enter(el), { signal: ac.signal } as AddEventListenerOptions);
+         el.addEventListener("mouseleave", leave, { signal: ac.signal } as AddEventListenerOptions);
+      }
+   }
+
    private onAreaMouseMove(e: MouseEvent): void {
       // Collect screen y for every series. getScreenYAtX returns NaN when the mouse x is
       // outside that path's x-range (> 20px beyond path endpoints) — cross-panel paths
@@ -708,7 +844,14 @@ export class ChartInlineSvgDirective implements OnDestroy {
          this.deactivateArea();
          this.activeSeriesIdx = nearestIdx;
 
-         if(nearestIdx >= 0) {
+         // Cross-tile: don't dim locally — emit the active color so the parent dims every tile
+         // (including this one) uniformly. The geometry-based local dim below cannot reach the
+         // sibling SVGs that hold the rest of each series.
+         if(this.crossTile) {
+            this.emitSeriesDim(nearestIdx >= 0
+               ? this.areaSeries[nearestIdx].fillGroup.getAttribute("data-color") : null);
+         }
+         else if(nearestIdx >= 0) {
             // Dim only same-panel series (those with a valid y at this mouse x).
             // Cross-panel series (yValues[i] === null) keep full opacity — no contamination.
             for(let i = 0; i < this.areaSeries.length; i++) {
@@ -721,12 +864,118 @@ export class ChartInlineSvgDirective implements OnDestroy {
    }
 
    private deactivateArea(): void {
-      if(this.activeSeriesIdx >= 0) {
+      // In cross-tile mode opacity is managed only by setExternalSeriesDim, so leave it alone.
+      if(this.activeSeriesIdx >= 0 && !this.crossTile) {
          for(const s of this.areaSeries) {
             (s.fillGroup as HTMLElement).style.opacity = "";
             (s.lineGroup as HTMLElement).style.opacity = "";
          }
-         this.activeSeriesIdx = -1;
+      }
+      this.activeSeriesIdx = -1;
+   }
+
+   /** Emit seriesDimChange only when the active color actually changes, to suppress duplicates. */
+   private emitSeriesDim(color: string | null): void {
+      if(color !== this._emittedSeriesColor) {
+         this._emittedSeriesColor = color;
+         this.seriesDimChange.emit(color);
+      }
+   }
+
+   /** Emit relationHover only when the active node id changes, to suppress duplicates. */
+   private emitRelationHover(id: string | null): void {
+      if(id !== this._emittedRelationId) {
+         this._emittedRelationId = id;
+         this.relationHover.emit(id);
+      }
+   }
+
+   /** This tile's relation edges as source/target id pairs, for the parent to merge into the
+    *  cross-tile connectivity graph. */
+   getRelationEdges(): { source: string, target: string }[] {
+      return this.relationEdges.map(e => ({ source: e.sourceId, target: e.targetId }));
+   }
+
+   /**
+    * Highlight this tile's share of a relation hover, driven by the parent so neighbours render
+    * correctly across a split chart's SVGs. Nodes whose data-id is in activeIds (the hovered node
+    * plus its neighbours) and edges incident to hoveredId get inetsoft-active; their labels too.
+    * A tile with at least one active element relies on the server :has() rule to dim the rest; a
+    * tile with none gets inetsoft-dim-all so it dims fully. Pass null to clear.
+    */
+   setExternalRelationHighlight(activeIds: Set<string> | null, hoveredId: string | null): void {
+      const nodes = Array.from(this.element.nativeElement
+         .querySelectorAll(".inetsoft-relation") as NodeListOf<Element>);
+      const edges = Array.from(this.element.nativeElement
+         .querySelectorAll(".inetsoft-relation-edge") as NodeListOf<Element>);
+      const labels = Array.from(this.element.nativeElement
+         .querySelectorAll(".inetsoft-relation-label") as NodeListOf<Element>);
+
+      if(activeIds == null) {
+         for(const el of [...nodes, ...edges, ...labels]) el.classList.remove("inetsoft-active");
+         this.svgRootEl?.classList.remove("inetsoft-dim-all");
+         return;
+      }
+
+      let anyActive = false;
+      const activeRowCols = new Set<string>();
+
+      for(const node of nodes) {
+         const id = node.getAttribute("data-id");
+         if(id != null && activeIds.has(id)) {
+            node.classList.add("inetsoft-active");
+            anyActive = true;
+            const r = node.getAttribute("data-row"), c = node.getAttribute("data-col");
+            if(r != null && c != null) activeRowCols.add(`${r}-${c}`);
+         }
+         else {
+            node.classList.remove("inetsoft-active");
+         }
+      }
+
+      for(const edge of edges) {
+         const s = edge.getAttribute("data-source"), t = edge.getAttribute("data-target");
+         if(hoveredId != null && (s === hoveredId || t === hoveredId)) {
+            edge.classList.add("inetsoft-active");
+            anyActive = true;
+         }
+         else {
+            edge.classList.remove("inetsoft-active");
+         }
+      }
+
+      for(const label of labels) {
+         const r = label.getAttribute("data-row"), c = label.getAttribute("data-col");
+         if(r != null && c != null && activeRowCols.has(`${r}-${c}`)) {
+            label.classList.add("inetsoft-active");
+         }
+         else {
+            label.classList.remove("inetsoft-active");
+         }
+      }
+
+      if(this.svgRootEl) {
+         this.svgRootEl.classList.toggle("inetsoft-dim-all", !anyActive);
+      }
+   }
+
+   /**
+    * Dim this tile's series elements whose dimKeyAttr value differs from activeValue, leaving the
+    * matching (hovered) series at full opacity. Pass null to clear. Called by the parent for every
+    * tile so the hovered series stays highlighted consistently across a split chart's SVGs. The
+    * key is data-color for area/line and data-row for radar — both stable across tiles.
+    */
+   setExternalSeriesDim(activeValue: string | null): void {
+      const elems = this.element.nativeElement.querySelectorAll(
+         this.dimTargetSelector) as NodeListOf<Element>;
+
+      for(const el of Array.from(elems) as Element[]) {
+         if(activeValue != null && el.getAttribute(this.dimKeyAttr) !== activeValue) {
+            (el as HTMLElement).style.setProperty("opacity", "0.2", "important");
+         }
+         else {
+            (el as HTMLElement).style.removeProperty("opacity");
+         }
       }
    }
 

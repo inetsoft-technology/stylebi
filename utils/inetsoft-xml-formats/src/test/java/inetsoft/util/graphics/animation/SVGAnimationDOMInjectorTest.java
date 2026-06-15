@@ -257,6 +257,21 @@ class SVGAnimationDOMInjectorTest {
    }
 
    @Test
+   void hoverCssCrossTileDimRulesPresent() throws Exception {
+      Document doc = newDocument();
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_TREEMAP);
+      String css = allStyleContent(doc.getDocumentElement());
+
+      // When a chart is split into multiple SVG tiles, the directive flags tiles that do not
+      // contain the hovered element with inetsoft-dim-all so they dim too (the :has() rules are
+      // scoped to a single SVG). Bar/pie tiles use the non-ready-gated rule; A1 types are gated.
+      assertTrue(css.contains("svg.inetsoft-dim-all .inetsoft-bar"),
+                 "hover CSS must contain cross-tile dim rule for bar/pie");
+      assertTrue(css.contains("svg.ready.inetsoft-dim-all .inetsoft-treemap"),
+                 "hover CSS must contain ready-gated cross-tile dim rule for A1 types");
+   }
+
+   @Test
    void hoverCssTransitionIsUniform() throws Exception {
       Document doc = newDocument();
       SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_TREEMAP);
