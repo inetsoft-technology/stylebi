@@ -57,6 +57,7 @@
 
 import { makeMocks, renderComponent } from "./viewsheet-pane.component.test-helpers";
 import { VSLayoutModel } from "../../../data/vs/vs-layout-model";
+import { UIContextService } from "../../../../common/services/ui-context.service";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -566,9 +567,7 @@ describe("VSPane — processRenameVSObjectCommand", () => {
       const mocks = makeMocks();
       const { comp, fixture } = await renderComponent(mocks);
       // uiContextService is accessed via the injector — get it through the comp's injector
-      const uiContext = fixture.debugElement.injector.get(
-         (await import("../../../../common/services/ui-context.service")).UIContextService
-      );
+      const uiContext = fixture.debugElement.injector.get(UIContextService);
       const obj: any = {
          absoluteName: "OldChart",
          objectType: "VSChart",

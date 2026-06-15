@@ -44,7 +44,6 @@
 
 import {
    renderComponent,
-   dispatchCommand,
    makeMocks,
 } from "./ws-pane.component.test-helpers";
 
@@ -86,18 +85,18 @@ describe("WSPaneComponent — preparingData display state", () => {
    // preparingData is bound in the template to the VSLoadingDisplay component;
    // it must reflect the server-pushed ShowLoadingMaskCommand.preparingData value.
    it("should expose preparingData=true when ShowLoadingMaskCommand has preparingData=true", async () => {
-      const { comp } = await renderComponent();
+      const { comp, mocks } = await renderComponent();
 
-      dispatchCommand("ShowLoadingMaskCommand", { preparingData: true, count: 1 });
+      mocks.dispatchCommand("ShowLoadingMaskCommand", { preparingData: true, count: 1 });
 
       expect((comp as any).preparingData).toBe(true);
    });
 
    it("should expose preparingData=false when ShowLoadingMaskCommand has preparingData=false", async () => {
-      const { comp } = await renderComponent();
+      const { comp, mocks } = await renderComponent();
       (comp as any).preparingData = true;
 
-      dispatchCommand("ShowLoadingMaskCommand", { preparingData: false, count: 1 });
+      mocks.dispatchCommand("ShowLoadingMaskCommand", { preparingData: false, count: 1 });
 
       expect((comp as any).preparingData).toBe(false);
    });

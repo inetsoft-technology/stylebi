@@ -30,19 +30,15 @@
  *                        for each script entry
  *   Group 5  [Risk 2] — onDrop (tableStyle): emits onOpenLibraryAsset with
  *                        {type:"tableStyle", assetId, styleId} from properties["styleID"]
- *   Group 6  [Risk 2] — createVSMessage / editVSMessage getters: return custom message when
- *                        set, default i18n key otherwise
+ *   Group 6  [Risk 2] — createVSMessage / createWSMessage / editVSMessage getters:
+ *                        return custom message when set, default i18n key otherwise
  *   Group 7  [Risk 1] — memory-leak: getModel() completes after first emit (of()), so no
  *                        persistent subscription is held; no unsubscribe needed
  *
  * Confirmed bugs: none
  *
  * Suspected bugs (header only):
- *   Suspicion A — createWSMessage getter uses `trim().length >= 0` instead of `> 0`, which
- *     means an empty string passes the guard and the custom message (empty) is returned instead
- *     of the fallback i18n key. This is a latent bug; a test documents the current (surprising)
- *     behavior so a future fix is intentional.
- *   Suspicion B — Group 7 (memory-leak): Because getModel() is implemented as of() in the mock
+ *   Suspicion A — Group 7 (memory-leak): Because getModel() is implemented as of() in the mock
  *     (single synchronous emit + complete), the subscription auto-completes and no manual
  *     unsubscribe is needed. If the real API ever changes to a long-lived observable this
  *     guarantee disappears. No action needed now; document awareness here.
@@ -393,6 +389,21 @@ describe("ComposerEmptyEditor — createVSMessage getter", () => {
    });
 });
 
+describe("ComposerEmptyEditor — createWSMessage getter", () => {
+
+   it("should return the default i18n key when worksheetCreateMessage is empty", async () => {
+      const msg: ComposerCustomMessageModel = {
+         viewsheetCreateMessage: "",
+         viewsheetEditMessage: "",
+         worksheetCreateMessage: "",
+         worksheetEditMessage: "",
+      };
+      const { comp } = await renderComponent(msg);
+
+      expect(comp.createWSMessage).toBe("_#(js:common.createWorksheet)");
+   });
+});
+
 describe("ComposerEmptyEditor — editVSMessage getter", () => {
 
    it("should return the custom viewsheetEditMessage when set", async () => {
@@ -433,7 +444,7 @@ describe("ComposerEmptyEditor — editVSMessage getter", () => {
 describe("ComposerEmptyEditor — ngOnInit subscription lifecycle", () => {
 
    /**
-    * Suspicion B note: getModel() in production returns an HttpClient observable which
+    * Suspicion A note: getModel() in production returns an HttpClient observable which
     * completes after a single emit (HTTP response). The of() mock here mirrors that
     * semantics. If this ever changes to a long-lived stream, the component will need an
     * explicit takeUntilDestroyed or similar guard.

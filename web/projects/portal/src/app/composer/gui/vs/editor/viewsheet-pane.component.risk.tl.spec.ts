@@ -47,6 +47,7 @@
 import { of } from "rxjs";
 import { makeMocks, renderComponent } from "./viewsheet-pane.component.test-helpers";
 import { Status } from "../../../../status-bar/status";
+import { DataTipService } from "../../../../vsobjects/objects/data-tip/data-tip.service";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -132,9 +133,7 @@ describe("VSPane — removeVSObject", () => {
    it("should call dataTipService.clearDataTips with name", async () => {
       const mocks = makeMocks();
       const { comp, fixture } = await renderComponent(mocks);
-      const dataTipService = fixture.debugElement.injector.get(
-         (await import("../../../../vsobjects/objects/data-tip/data-tip.service")).DataTipService
-      );
+      const dataTipService = fixture.debugElement.injector.get(DataTipService);
 
       comp.removeVSObject("Chart1");
 

@@ -153,12 +153,12 @@ describe("VSPane — getDataSourceCSSIcon", () => {
       expect(comp.getDataSourceCSSIcon()).toBe("");
    });
 
-   it("should return a string (CSS class from GuiTool) when vs is set", async () => {
+   it("should return empty string when vs is set with null baseEntry", async () => {
       const { comp } = await renderComponent();
       // vs is already set via makeViewsheet(); baseEntry may be null → GuiTool returns ""
       const result = comp.getDataSourceCSSIcon();
 
-      expect(typeof result).toBe("string");
+      expect(result).toBe("");
    });
 });
 
