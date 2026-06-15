@@ -25,7 +25,7 @@
     </tr>
   </thead>
   <tbody>
-    @for (param of parameters; track param; let i = $index) {
+    @for (param of parameters; track $index; let i = $index) {
       <tr>
         <td>{{ param.name }}</td>
         <td [title]="getParamValue(param)">{{ getParamValue(param) }}</td>

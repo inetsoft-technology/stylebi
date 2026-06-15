@@ -16,7 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
-  @for (_sortRef of sortRefs; track _sortRef; let _i = $index) {
+  @for (_sortRef of sortRefs; track $index; let _i = $index) {
     <div class="shell-form-row--field row align-items-center sort-column-editor__row">
       <div class="col-auto pe-0">
         <button [disabled]="_i >= model.selectedColumns.length - 1" class="btn btn-sm btn-light-no-bg"

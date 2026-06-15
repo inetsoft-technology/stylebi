@@ -37,22 +37,6 @@
  *   Group 15 [Risk 2] - updateSortOptions: toggles direction on same key; resets to ascending on new key
  *   Group 16 [Risk 1] - setShowDetailsItem: toggles item on/off
  *
- * Confirmed bugs (it.failing - remove wrapper once fixed Bug #75157):
- *
- *   Bug A - root physical model edit route does not encode item.name (Group 1):
- *     Extended physical models encode the route param but root physical models pass raw names.
- *     Result: deep links with slashes route to the wrong editor page.
- *
- *   Bug B - root logical model edit route does not encode item.name (Group 1):
- *     Extended logical models encode the route param but root logical models pass raw names.
- *     Result: logical model edit URLs break for names containing slashes.
- *
- * Suspected bugs (header only - no case until confirmed):
- *
- *   Suspicion A - disableAction stale HTTP response (Group 5):
- *     disableAction() has no request token; an older folder-browser response can re-enable actions
- *     after a newer empty response should keep them disabled.
- *
  * KEY contracts:
  *   Every user-controlled route segment passed as a path parameter is Tool.byteEncode()'d.
  *   Extended data models cannot be moved unless their base model is selected in the same batch.
@@ -289,7 +273,7 @@ function flushFolderBrowser(
 
 describe("DatabaseDataModelBrowserComponent - editModel - route param encoding [Group 1, Risk 3]", () => {
 
-   // 🔁 Regression-sensitive: extended physical models already encode both database and model path params.
+   // 🔁 Regression-sensitive: route path params must be byte-encoded consistently for every editModel branch.
    it("should encode database, physical model name, and parent for an extended physical model route", async () => {
       const { fixture, router, route } = await renderBrowser();
       const comp = fixture.componentInstance;
@@ -311,7 +295,6 @@ describe("DatabaseDataModelBrowserComponent - editModel - route param encoding [
       ], { relativeTo: route });
    });
 
-   // 🔁 Regression-sensitive: extended logical models encode every path segment including parent.
    it("should encode extended logical model route segments including parent", async () => {
       const { fixture, router, route } = await renderBrowser();
       const comp = fixture.componentInstance;
@@ -336,9 +319,7 @@ describe("DatabaseDataModelBrowserComponent - editModel - route param encoding [
       ], { relativeTo: route });
    });
 
-   // 🔁 Regression-sensitive: raw slash/special chars in a model path param route users to the wrong model.
-   // Risk Point/Contract: root physical model names must be encoded the same way extended physical model names are.
-   it.fails("should encode the root physical model name route segment", async () => {
+   it("should encode the root physical model name route segment", async () => {
       const { fixture, router, route } = await renderBrowser();
       const comp = fixture.componentInstance;
       const item = createPhysical({
@@ -359,9 +340,7 @@ describe("DatabaseDataModelBrowserComponent - editModel - route param encoding [
       ], { relativeTo: route });
    });
 
-   // 🔁 Regression-sensitive: raw logical model names with slash/special chars break deep edit links.
-   // Risk Point/Contract: root logical model names must be encoded the same way extended logical model names are.
-   it.fails("should encode the root logical model name route segment", async () => {
+   it("should encode the root logical model name route segment", async () => {
       const { fixture, router, route } = await renderBrowser();
       const comp = fixture.componentInstance;
       const item = createLogical({
@@ -404,7 +383,6 @@ describe("DatabaseDataModelBrowserComponent - moveDisable - extended physical ba
       expect(comp.moveDisable).toBe(true);
    });
 
-   // Risk Point/Contract: the batch is valid only when the base physical model is selected too.
    it("should allow move when an extended physical model and its base physical model are selected together", async () => {
       const { fixture } = await renderBrowser();
       const comp = fixture.componentInstance;
@@ -436,7 +414,6 @@ describe("DatabaseDataModelBrowserComponent - moveDisable - extended logical bat
       expect(comp.moveDisable).toBe(true);
    });
 
-   // Risk Point/Contract: logical extended batches require the parent logical model in the selection.
    it("should allow move when an extended logical model and its base logical model are selected together", async () => {
       const { fixture } = await renderBrowser();
       const comp = fixture.componentInstance;
@@ -456,7 +433,6 @@ describe("DatabaseDataModelBrowserComponent - moveDisable - extended logical bat
 
 describe("DatabaseDataModelBrowserComponent - dataTreeDragToPane - drag/drop filtering [Group 4, Risk 3]", () => {
 
-   // 🔁 Regression-sensitive: drop onto non-folder must be a no-op before reading drag payloads.
    it("should ignore drops onto non-folder targets", async () => {
       const { fixture, dragService } = await renderBrowser();
       const comp = fixture.componentInstance;
@@ -466,8 +442,7 @@ describe("DatabaseDataModelBrowserComponent - dataTreeDragToPane - drag/drop fil
       expect(dragService.getDragData).not.toHaveBeenCalled();
    });
 
-   // 🔁 Regression-sensitive: moving a folder into itself/descendant creates cycles; unsupported types corrupt the batch.
-   // Risk Point/Contract: only LOGIC_MODEL and PARTITION entries that are not self/ancestor moves are forwarded.
+   // 🔁 Regression-sensitive: data-tree drops must reject self, ancestor, and unsupported assets.
    it("should forward only allowed non-cyclic data-tree entries to moveModels0", async () => {
       const { fixture, dataModelBrowserService } = await renderBrowser();
       const comp = fixture.componentInstance;
@@ -511,7 +486,6 @@ describe("DatabaseDataModelBrowserComponent - disableAction - selection gating [
       flushFolderBrowser(httpMock, "SalesDB");
    });
 
-   // 🔁 Regression-sensitive: move stays disabled when the folder browser reports an empty data model list.
    it("should keep actions disabled when the folder browser returns an empty list", async () => {
       const { fixture, httpMock } = await renderBrowser();
       const comp = fixture.componentInstance;
@@ -526,7 +500,6 @@ describe("DatabaseDataModelBrowserComponent - disableAction - selection gating [
       expect(comp.moveDisable).toBe(true);
    });
 
-   // 🔁 Regression-sensitive: a non-empty folder browser response must re-enable batch move for valid selections.
    it("should enable actions when the folder browser reports existing data models", async () => {
       const { fixture, httpMock } = await renderBrowser();
       const comp = fixture.componentInstance;
@@ -542,7 +515,6 @@ describe("DatabaseDataModelBrowserComponent - disableAction - selection gating [
       expect(comp.moveDisable).toBe(false);
    });
 
-   // Risk Point/Contract: stale HTTP responses must not re-enable actions after a newer empty response.
    it.fails("should not re-enable actions when an older folder-browser response arrives after a newer empty one", async () => {
       const { fixture, httpMock } = await renderBrowser();
       const comp = fixture.componentInstance;
@@ -568,7 +540,6 @@ describe("DatabaseDataModelBrowserComponent - disableAction - selection gating [
 
 describe("DatabaseDataModelBrowserComponent - dropAssetsItems - internal pane drag [Group 6, Risk 3]", () => {
 
-   // 🔁 Regression-sensitive: internal pane drops reuse the same non-folder guard as data-tree drops.
    it("should ignore internal drops onto non-folder targets", async () => {
       const { fixture, dragService } = await renderBrowser();
       const comp = fixture.componentInstance;
@@ -581,7 +552,7 @@ describe("DatabaseDataModelBrowserComponent - dropAssetsItems - internal pane dr
       expect(dragService.getDragData).not.toHaveBeenCalled();
    });
 
-   // 🔁 Regression-sensitive: folder rows must never be included in a pane-to-folder move batch.
+   // 🔁 Regression-sensitive: pane-to-folder moves must exclude folder rows and confirm before forwarding.
    it("should move only non-folder assets after confirmation when dropping onto a folder", async () => {
       const { fixture, dragService, dataModelBrowserService } = await renderBrowser();
       const comp = fixture.componentInstance;
@@ -667,8 +638,7 @@ describe("DatabaseDataModelBrowserComponent - ngOnInit - subscription data flow 
       TestBed.inject(HttpTestingController).verify();
    });
 
-   // 🔁 Regression-sensitive: databaseName/folderName must be decoded before refreshModels runs.
-   // Why High Value: route params drive all subsequent HTTP calls; wrong decode silently loads wrong data.
+   // 🔁 Regression-sensitive: route query params must decode databaseName/folderName before refreshModels runs.
    it("should decode databaseName and folderName from queryParamMap emission before calling refreshModels", async () => {
       const { fixture, routeSubject } = await renderBrowserControlled();
       const comp = fixture.componentInstance;
@@ -681,7 +651,6 @@ describe("DatabaseDataModelBrowserComponent - ngOnInit - subscription data flow 
       expect(refreshSpy).toHaveBeenCalled();
    });
 
-   // 🔁 Regression-sensitive: service change events must trigger a list refresh to keep the pane in sync.
    it("should call refreshModels when dataModelBrowserService emits a changed event", async () => {
       const { fixture, changedSubject } = await renderBrowserControlled();
       const comp = fixture.componentInstance;
@@ -692,7 +661,6 @@ describe("DatabaseDataModelBrowserComponent - ngOnInit - subscription data flow 
       expect(refreshSpy).toHaveBeenCalled();
    });
 
-   // 🔁 Regression-sensitive: search mode controls which HTTP endpoint is called; wrong flag silently skips search.
    it("should set searchView to true and capture currentSearchQuery when the query param is present", async () => {
       const { fixture, routeSubject } = await renderBrowserControlled();
       const comp = fixture.componentInstance;
@@ -727,7 +695,6 @@ describe("DatabaseDataModelBrowserComponent - clickItem - navigation paths [Grou
       );
    });
 
-   // 🔁 Regression-sensitive: clicking an editable non-folder item must open its edit route.
    it("should navigate to the edit route when an editable non-folder item is clicked", async () => {
       const { fixture, router } = await renderBrowser();
       const comp = fixture.componentInstance;
@@ -741,7 +708,6 @@ describe("DatabaseDataModelBrowserComponent - clickItem - navigation paths [Grou
       );
    });
 
-   // Risk Point/Contract: non-editable items must never trigger navigation — prevents unauthorized model edits.
    it("should not navigate when a non-editable non-folder item is clicked", async () => {
       const { fixture, router } = await renderBrowser();
       const comp = fixture.componentInstance;
@@ -785,7 +751,6 @@ describe("DatabaseDataModelBrowserComponent - updateModels - HTTP states [Group 
       expect(comp.models[0].type).toBe(FOLDER_ASSET);
    });
 
-   // Risk Point/Contract: HTTP errors must be silently swallowed — no unhandled rejection, models stay empty.
    it("should silently swallow the HTTP error and leave models empty", async () => {
       const { fixture, httpMock } = await renderBrowser();
       const comp = fixture.componentInstance;
@@ -835,7 +800,6 @@ describe("DatabaseDataModelBrowserComponent - refreshSearchBrowser - HTTP error 
 
 describe("DatabaseDataModelBrowserComponent - getTypeLabel - type label display contract [Group 13, Risk 2]", () => {
 
-   // 🔁 Regression-sensitive: wrong label misleads users about which model type they are viewing or editing.
    it("should return the XPARTITION label for a non-extended physical view", async () => {
       const { fixture } = await renderBrowser();
       expect(fixture.componentInstance.getTypeLabel(createPhysical({ parentView: null }))).toBe("_#(js:asset.type.XPARTITION)");
@@ -863,7 +827,7 @@ describe("DatabaseDataModelBrowserComponent - getTypeLabel - type label display 
 
 describe("DatabaseDataModelBrowserComponent - getBasedView - based-view display contract [Group 14, Risk 2]", () => {
 
-   // 🔁 Regression-sensitive: non-logical assets must never show a basedView value — wrong column misleads users.
+   // 🔁 Regression-sensitive: based-view display must distinguish logical variants and default connection fallback.
    it("should return an empty string for a non-logical-model asset", async () => {
       const { fixture } = await renderBrowser();
       expect(fixture.componentInstance.getBasedView(createPhysical())).toBe("");
@@ -875,14 +839,12 @@ describe("DatabaseDataModelBrowserComponent - getBasedView - based-view display 
       expect(fixture.componentInstance.getBasedView(item)).toBe("PhysView");
    });
 
-   // 🔁 Regression-sensitive: extended logical model with a named connection must include it after '/'.
    it("should return physicalModel/connection for an extended logical model with a named connection", async () => {
       const { fixture } = await renderBrowser();
       const item = createLogical({ physicalModel: "PhysView", parentModel: "BaseModel", connection: "ConnA" });
       expect(fixture.componentInstance.getBasedView(item)).toBe("PhysView/ConnA");
    });
 
-   // Risk Point/Contract: null/empty connection must fall back to the (Default Connection) sentinel string.
    it("should return physicalModel/(Default Connection) for an extended logical model without a connection", async () => {
       const { fixture } = await renderBrowser();
       const item = createLogical({ physicalModel: "PhysView", parentModel: "BaseModel", connection: null });
@@ -918,7 +880,6 @@ describe("DatabaseDataModelBrowserComponent - updateSortOptions - sort toggle co
       expect(comp.sortOptions.type).toBe(SortTypes.ASCENDING);
    });
 
-   // Risk Point/Contract: switching to a new column key must always start ASCENDING, not inherit previous direction.
    it("should set the new key and reset direction to ASCENDING when a different sort key is applied", async () => {
       const { fixture } = await renderBrowser();
       const comp = fixture.componentInstance;
@@ -949,7 +910,6 @@ describe("DatabaseDataModelBrowserComponent - setShowDetailsItem - details panel
       expect(comp.showDetailsItem).toBe(item);
    });
 
-   // Risk Point/Contract: clicking the same item again must toggle the panel off.
    it("should clear showDetailsItem to null when the currently shown item is clicked again", async () => {
       const { fixture } = await renderBrowser();
       const comp = fixture.componentInstance;

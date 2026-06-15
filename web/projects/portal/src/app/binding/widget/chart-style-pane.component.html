@@ -25,9 +25,9 @@
     </div>
   }
   <div class="thumbnail-pane">
-    @for (stylesRow of stylesRows; track stylesRow) {
+    @for (stylesRow of stylesRows; track $index) {
       <div class="thumbnail-row">
-        @for (item of stylesRow; track item) {
+        @for (item of stylesRow; track $index) {
           <div class="chart-style-item m-1">
             <span class="{{getCssIcon(item)}}" [title]="item.label"
               (click)="updateChartType(item.data)"

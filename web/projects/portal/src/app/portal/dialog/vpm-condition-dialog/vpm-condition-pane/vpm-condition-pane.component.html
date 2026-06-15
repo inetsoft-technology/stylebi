@@ -61,7 +61,7 @@
   <div class="row condition-list-pane">
     <div class="col-10">
       <div class="condition-builder__list" [ngClass]="getConditionListBoxClass()">
-        @for (item of conditionList; track item; let even = $even; let i = $index) {
+        @for (item of conditionList; track $index; let even = $even; let i = $index) {
           <div
             class="condition-builder__list-item unhighlightable"
             [class.bg-selected]="selectedIndex == i" (click)="conditionItemSelected(i)">

@@ -23,7 +23,7 @@
     </button>
   </div>
   <div class="container">
-    @for (aggr of chartRefs; track aggr) {
+    @for (aggr of chartRefs; track aggr.fullName) {
       <div class="row shell-form-row--field">
         <div class="col text-style">{{aggr.view + ":"}}</div>
         <div class="col-auto g-0">

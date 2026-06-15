@@ -98,7 +98,7 @@
 @if (node && node.expanded && node.children) {
   <div>
     @for (_node of tree?.useVirtualScroll ? getVirtualScrollShowChildren() :
-      (keepAllChildren ? getSort(node.children) :(node.children | search:searchStr:false:searchEndNode)); track _node; let isLast = $last) {
+      (keepAllChildren ? getSort(node.children) :(node.children | search:searchStr:false:searchEndNode)); track $index; let isLast = $last) {
       <tree-node
         [node]="_node" [class.tree-node-last]="isLast" [draggable]="draggable"
         [tree]="tree" [multiSelect]="multiSelect" [nodeSelectable]="nodeSelectable"

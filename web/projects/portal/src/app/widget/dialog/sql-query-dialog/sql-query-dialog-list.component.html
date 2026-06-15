@@ -17,7 +17,7 @@
 -->
 <div class="bordered-box scroll-pane sql-query-dialog-list__surface" (dragover)="dragOverContainer($event)"
   (dragleave)="dragLeave()" (drop)="drop($event, insertPositionDragOverContainer($event))">
-  @for (_item of items; track _item; let _i = $index) {
+  @for (_item of items; track $index; let _i = $index) {
     <div #item
       class="item-entry unhighlightable text-overflow sql-query-dialog-list__item"
        [ngClass]="{'selected': selectedIndexes.indexOf(_i) >= 0,

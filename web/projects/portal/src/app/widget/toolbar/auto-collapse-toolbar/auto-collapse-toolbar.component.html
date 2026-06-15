@@ -19,7 +19,7 @@
   [style.justify-content]="flowRight ? 'flex-end' : 'flex-start'"
   (resized)="resize($event)">
   <div #buttonsContainer class="auto-buttons-container">
-    @for (action of actions; track action) {
+    @for (action of actions; track $index) {
       @if (!collapse && action.visible()) {
         <button type="button" class="btn btn-light-no-bg btn-sm"
           [ngClass]="action.buttonClass"
@@ -40,7 +40,7 @@
 
 <ng-template #treeDropdownMenu>
   <div class="dropdown-pane">
-    @for (action of actions; track action) {
+    @for (action of actions; track $index) {
       @if (collapse && action.visible()) {
         <button type="button" class="dropdown-item"
           (click)="clickAction(action)">

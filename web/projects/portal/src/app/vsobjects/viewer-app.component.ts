@@ -206,6 +206,7 @@ import { ViewerResizeService } from "./util/viewer-resize.service";
 import { VSUtil } from "./util/vs-util";
 import { VsToolbarButtonDirective } from "./vs-toolbar-button.directive";
 import { BaseHrefService } from "../common/services/base-href.service";
+import { HeartbeatWorkerService } from "../common/services/heartbeat-worker.service";
 import { CurrentUserService } from "../../../../shared/util/current-user.service";
 import { RemoveBookmarksDialog } from "./dialog/remove-bookmarks-dialog.component";
 import { ShareLinkDialog } from "../widget/share/share-link-dialog.component";
@@ -415,7 +416,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    set runtimeId(value: string) {
       this._runtimeId = value;
 
-      if(!this.embed) {
+      if(!this.embed && this.dialogService) {
          this.dialogService.container = `.viewer-container[runtime-id="${value}"]`;
       }
    }
@@ -480,7 +481,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    appSize: Dimension = new Dimension(0, 0);
    contextMenu: ActionsContextmenuComponent;
    private initing: boolean = true;
-   private serverUpdateIntervalId: any;
+   private serverUpdateSubscription: Subscription | null = null;
    private _active: boolean = true;
    private _vsConnectionInitialized: boolean = false;
    private _destroyed: boolean = false;
@@ -577,7 +578,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                private viewContainerRef: ViewContainerRef,
                private baseHrefService: BaseHrefService,
                private currentUserService: CurrentUserService,
-               private chartConfigService: ChartConfigService)
+               private chartConfigService: ChartConfigService,
+               private heartbeatWorkerService: HeartbeatWorkerService)
    {
       super(viewsheetClient, zone, true);
       tooltipConfig.tooltipClass = "top-tooltip";
@@ -1355,23 +1357,25 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.clearServerUpdateInterval();
 
       if(this.updateEnabled) {
-         // clear old server update interval
-         let interval: number = this.touchInterval ? this.touchInterval * 1000 : 60000;
-         this.serverUpdateIntervalId = setInterval(() => {
-            let event = new TouchAssetEvent();
-            event.setDesign(false);
-            event.setChanged(false);
-            event.setUpdate(true);
-            event.setWidth(this.viewerRoot.nativeElement.offsetWidth);
-            event.setHeight(this.viewerRoot.nativeElement.offsetHeight);
-            this.viewsheetClient.sendEvent(TOUCH_ASSET_URI, event);
-         }, interval);
+         const interval: number = this.touchInterval ? this.touchInterval * 1000 : 60000;
+         this.serverUpdateSubscription = this.heartbeatWorkerService
+            .createHeartbeat(this.runtimeId + "-viewsheet-update", interval)
+            .subscribe(() => {
+               const event = new TouchAssetEvent();
+               event.setDesign(false);
+               event.setChanged(false);
+               event.setUpdate(true);
+               event.setWidth(this.viewerRoot.nativeElement.offsetWidth);
+               event.setHeight(this.viewerRoot.nativeElement.offsetHeight);
+               this.viewsheetClient.sendEvent(TOUCH_ASSET_URI, event);
+            });
       }
    }
 
    clearServerUpdateInterval(): void {
-      if(this.serverUpdateIntervalId != null && !isNaN(this.serverUpdateIntervalId)) {
-         clearInterval(this.serverUpdateIntervalId);
+      if(this.serverUpdateSubscription) {
+         this.serverUpdateSubscription.unsubscribe();
+         this.serverUpdateSubscription = null;
       }
    }
 

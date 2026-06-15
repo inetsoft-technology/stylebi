@@ -458,7 +458,7 @@
           <div class="editor-side-layout">
             <div class="additional-datasource">
               <div class="bordered-box additional-datasource__list">
-                @for (additional of additionalList; track additional; let i = $index) {
+                @for (additional of additionalList; track additional.name; let i = $index) {
                   <div class="unhighlightable additional-datasource__list-item"
                        [class.selected]="additionalSelected(i)"
                        (click)="selectAdditional($event, i)">
@@ -508,7 +508,7 @@
                     </tr>
                   </thead>
                   <tbody>
-                    @for (properties of database.info.poolProperties | keyvalue; track properties) {
+                    @for (properties of database.info.poolProperties | keyvalue; track $index) {
                       <tr class="pool-property-row"
                           (mousedown)="selectProperty($event, properties)"
                           [class.selected]="isSelectedProperty(properties)">

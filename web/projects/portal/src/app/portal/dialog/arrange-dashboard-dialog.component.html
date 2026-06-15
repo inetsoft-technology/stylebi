@@ -45,7 +45,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (dashboard of model.dashboards; track dashboard; let i = $index) {
+            @for (dashboard of model.dashboards; track $index; let i = $index) {
               <tr>
                 <td class="align-middle">
                   {{dashboard.label}}

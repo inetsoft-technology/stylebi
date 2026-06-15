@@ -24,7 +24,7 @@
         class="field-icon hover-bg-neutral" (openChange)="openChanged($event)">
         @if (_isEditEnabled) {
           <div class="visual-cell-container" title="_#(Edit Shape)">
-            @for (f of frames; track f; let i = $index) {
+            @for (f of frames; track $index; let i = $index) {
               <div class="visual-cell no-caret"
                 [style.margin-left.px]="i > 0 ? 2 : 0"
                 >

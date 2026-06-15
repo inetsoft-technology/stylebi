@@ -117,14 +117,14 @@
         <legend class="ms-1">_#(Conditions)</legend>
         <w-large-form-field>
           <div class="col bordered-box bd-gray" largeFieldElement>
-            @for (_expr of form.get('conditionExpressions').value; track _expr; let i = $index) {
+            @for (_expr of form.get('conditionExpressions').value; track $index; let i = $index) {
               <div
                 class="condition-container"
                 [class.selected]="i === selectedConditionIndex"
                 [class.hover-bg-primary-selectable]="i !== selectedConditionIndex"
                 (click)="selectedConditionIndex = i">
                 {{_expr.name}} -
-                @for (_clause of _expr.list; track _clause; let even = $even; let first = $first; let last = $last) {
+                @for (_clause of _expr.list; track $index; let even = $even; let first = $first; let last = $last) {
                   <div
                     class="condition-element">
                     {{(first ? '(' : '') + (even ? (_clause | conditionToString) : (_clause |

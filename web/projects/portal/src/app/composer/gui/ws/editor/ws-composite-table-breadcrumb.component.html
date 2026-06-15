@@ -16,7 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <div class="composite-breadcrumb-container">
-  @for (_breadcrumb of breadcrumbs; track _breadcrumb; let _last = $last) {
+  @for (_breadcrumb of breadcrumbs; track $index; let _last = $last) {
     <button class="composite-breadcrumb btn hover-bg-primary" [attr.title]="_breadcrumb.compositeTable.name"
       [class.selected]="_breadcrumb === selectedBreadcrumb"
     (click)="selectBreadcrumb(_breadcrumb)">{{_breadcrumb.compositeTable.name}}</button>

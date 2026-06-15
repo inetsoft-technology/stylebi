@@ -21,7 +21,7 @@
   {{table.name}}
 </div>
 
-@for (_col of table.columns; track _col) {
+@for (_col of table.columns; track $index) {
   <edit-join-table-column [column]="_col"
   class="physical-graph-table-body"></edit-join-table-column>
 }

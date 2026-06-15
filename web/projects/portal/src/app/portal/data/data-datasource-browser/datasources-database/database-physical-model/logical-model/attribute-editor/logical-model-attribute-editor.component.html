@@ -104,12 +104,12 @@
          [style.width.px]="referenceTypeTrigger.offsetWidth"
          [style.min-width.px]="referenceTypeTrigger.offsetWidth">
       <div class="logical-model-attribute-editor__reference-group-label">_#(Measure)</div>
-      @for (ref of currentFormulas; track ref) {
+      @for (ref of currentFormulas; track $index) {
         <div class="logical-model-attribute-editor__reference-option logical-model-attribute-editor__reference-option--nested"
              (click)="selectFormula(ref, dropdown)"
              [class.selected]="isSelected(ref)">{{ ref.label }}</div>
       }
-      @for (ref of defaultRefTypes; track ref) {
+      @for (ref of defaultRefTypes; track $index) {
         <div class="logical-model-attribute-editor__reference-option"
              (click)="selectFormula(ref, dropdown)"
              [class.selected]="isSelected(ref)">{{ ref.label }}</div>

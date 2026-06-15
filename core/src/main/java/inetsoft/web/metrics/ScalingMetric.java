@@ -32,6 +32,10 @@ public abstract class ScalingMetric {
    public final void update() {
       double nextValue = calculate();
 
+      if(Double.isNaN(nextValue) || nextValue < 0D) {
+         nextValue = 0D;
+      }
+
       if(movingAverage) {
          buffer[writePos++] = nextValue;
 

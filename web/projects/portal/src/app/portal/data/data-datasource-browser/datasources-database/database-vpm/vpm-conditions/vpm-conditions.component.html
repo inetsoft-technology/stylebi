@@ -37,7 +37,7 @@
         </div>
       </div>
       <div class="group-container-body vpm-conditions-list__body">
-        @for (condition of conditions; track condition; let i = $index) {
+        @for (condition of conditions; track $index; let i = $index) {
           <div
               class="list-group-item list-group-item-action truncate-parent justify-content-between hover-bg-primary
                      align-items-center rounded-0 cursor-pointer"
@@ -139,7 +139,7 @@
                             _#(data.vpm.noClauses)
                           </div>
                         }
-                        @for (item of editingCondition.clauses; track item; let even = $even) {
+                        @for (item of editingCondition.clauses; track $index; let even = $even) {
                           <div
                             class="unhighlightable">
                             @if (even) {

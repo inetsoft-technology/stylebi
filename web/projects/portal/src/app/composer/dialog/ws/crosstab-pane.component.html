@@ -57,7 +57,7 @@
 <div class="container-fluid row">
   <div class="col-6">
     <div class="title-bar">_#(Row Header)</div>
-    @for (_header of rowHeaders; track _header; let _i = $index) {
+    @for (_header of rowHeaders; track $index; let _i = $index) {
       <div class="row pb-1">
         <div class="col-5">
           <custom-select id="headerRowRef"

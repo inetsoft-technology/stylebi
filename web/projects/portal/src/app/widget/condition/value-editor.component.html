@@ -73,7 +73,7 @@
 <ng-template #dropdownMenu>
   @if (!isOneOf) {
     <div class="dropdown-pane browse-data-dropdown">
-      @for (choice of dataList; track choice) {
+      @for (choice of dataList; track $index) {
         <a role="menuitem" class="dropdown-item browse-data-dropdown__item"
         (click)="selectData(choice)">{{ choice.label || choice.value }}</a>
       }
@@ -99,7 +99,7 @@
   <!--select multiple values -->
   @if (isOneOf) {
     <div class="dropdown-pane browse-data-dropdown">
-      @for (item of dataList; track item; let i = $index) {
+      @for (item of dataList; track $index; let i = $index) {
         <div>
           <div class="form-check">
             <input type="checkbox" class="form-check-input" id="{{'item' + i}}"

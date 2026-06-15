@@ -27,7 +27,7 @@
 
 <ng-template #dropdownMenu>
   <div class="condition-field-combo-dropdown dropdown-pane" role="menu">
-    @for (field of fields; track field) {
+    @for (field of fields; track field.name) {
       <div>
         <div class="condition-field-combo-list-item list-content hover-bg-primary"
           (click)="selectField(field)"

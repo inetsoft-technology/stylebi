@@ -163,7 +163,6 @@ describe("VS Formats Pane Unit case", () => {
       expect(vsFormatsPane.dynamicColorDisabled).toBeTruthy();
       expect(vsFormatsPane.alignDisabled).toBeFalsy();
       expect(vsFormatsPane.isHAlignmentEnabled()).toBeFalsy();
-      expect(vsFormatsPane.isVAlignmentEnabled()).toBeTruthy();
       expect(vsFormatsPane.wrapTextDisabled).toBeTruthy();
       expect(vsFormatsPane.borderDisabled).toBeTruthy();
       expect(vsFormatsPane.cssDisabled).toBeFalsy();
@@ -179,7 +178,6 @@ describe("VS Formats Pane Unit case", () => {
       vsFormatsPane._focusedAssemblies = [chart1];
       vsFormatsPane.updateProperties();
       expect(vsFormatsPane.isHAlignmentEnabled()).toBeTruthy();
-      expect(vsFormatsPane.isVAlignmentEnabled()).toBeFalsy();
 
       //select x1 axis
       vsFormatsPane._format.halignmentEnabled = false;
@@ -206,7 +204,6 @@ describe("VS Formats Pane Unit case", () => {
       vsFormatsPane.updateProperties();
       expect(vsFormatsPane.alignDisabled).toBeFalsy();
       expect(vsFormatsPane.isHAlignmentEnabled()).toBeTruthy();
-      expect(vsFormatsPane.isVAlignmentEnabled()).toBeFalsy();
 
       //select y1|y2 axis
       vsFormatsPane._format.halignmentEnabled = false;
@@ -231,7 +228,6 @@ describe("VS Formats Pane Unit case", () => {
       expect(vsFormatsPane.dynamicColorDisabled).toBeTruthy();
       expect(vsFormatsPane.alignDisabled).toBeFalsy();
       expect(vsFormatsPane.isHAlignmentEnabled()).toBeTruthy();
-      expect(vsFormatsPane.isVAlignmentEnabled()).toBeFalsy();
 
       //select legend title and legend content
       vsFormatsPane._format.halignmentEnabled = true;
@@ -244,7 +240,6 @@ describe("VS Formats Pane Unit case", () => {
       vsFormatsPane.updateProperties();
       expect(vsFormatsPane.alignDisabled).toBeFalsy();
       expect(vsFormatsPane.isHAlignmentEnabled()).toBeTruthy();
-      expect(vsFormatsPane.isVAlignmentEnabled()).toBeFalsy();
 
       //select element vo Bug #18790
       vsFormatsPane._format.halignmentEnabled = false;
@@ -498,6 +493,7 @@ describe("VS Formats Pane Unit case", () => {
       expect(vsFormatsPane.alignDisabled).toBeFalsy();
    });
 
+   // isVAlignmentEnabled() branch coverage migrated to VSFormatsPane.interaction.tl.spec.ts Group 12a.
    //Bug #18582 textinput format status
    it("check formats status for textinput", () => {
       let textinput = TestUtils.createMockVSTextInputModel("textinput1");

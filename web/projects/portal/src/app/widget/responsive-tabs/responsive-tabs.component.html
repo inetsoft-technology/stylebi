@@ -16,7 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <ul class="nav nav-inline me-auto tabs" #tabSet>
-  @for (tab of tabs; track tab; let i = $index) {
+  @for (tab of tabs; track $index; let i = $index) {
     @if (firstTabDropdownIndex === -1 || i < firstTabDropdownIndex) {
       <li class="nav-item tab"
         (click)="selectTab(i)"
@@ -39,7 +39,7 @@
 </ul>
 <ng-template #dropdown>
   <ul role="menu" class="dropdown-pane responsive-tabs-dropdown">
-    @for (tab of tabs; track tab; let i = $index) {
+    @for (tab of tabs; track $index; let i = $index) {
       @if (i >= firstTabDropdownIndex) {
         <li class="nav-item dropdown-item"
           (click)="selectTab(i)" [class.selected]="i === selectedIndex"

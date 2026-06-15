@@ -73,7 +73,7 @@
     <button mat-menu-item (click)="logout()">_#(Log Out)</button>
   </mat-menu>
   <mat-menu #favoritesMenu="matMenu">
-    @for (favorite of favorites | async; track favorite; let last = $last) {
+    @for (favorite of favorites | async; track favorite.path; let last = $last) {
       <a mat-menu-item (click)="navigateToFavorite(favorite.path)">{{favorite.label}}</a>
       @if (last) {
         <hr/>

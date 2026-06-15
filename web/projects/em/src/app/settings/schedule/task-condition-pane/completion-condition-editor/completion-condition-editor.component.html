@@ -20,7 +20,7 @@
     <mat-form-field [formGroup]="form" appearance="outline" color="accent">
       <mat-label>_#(Run after)</mat-label>
       <mat-select formControlName="task" placeholder="_#(Run after)" (selectionChange)="fireModelChanged()">
-        @for (task of allTasks; track task) {
+        @for (task of allTasks; track task.name) {
           @if (task.name !== originalTaskName) {
             <mat-option [value]="task.name">{{task.label}}</mat-option>
           }

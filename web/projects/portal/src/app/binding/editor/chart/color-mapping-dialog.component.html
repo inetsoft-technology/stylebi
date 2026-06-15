@@ -25,7 +25,7 @@
     <div class="modal-body" blockMouse>
       <div class="bordered-box bordered-box-lg bd-gray">
         <form class="container-fluid">
-          @for (colorMap of currentColorMaps; track colorMap; let _j = $index) {
+          @for (colorMap of currentColorMaps; track $index; let _j = $index) {
             <div class="row shell-form-row--field"
               >
               <div class="col-auto">

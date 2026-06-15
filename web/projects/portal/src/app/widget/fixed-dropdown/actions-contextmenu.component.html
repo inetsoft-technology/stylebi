@@ -22,7 +22,7 @@
       @if (!_first) {
         <div class="dropdown-divider"></div>
       }
-      @for (action of group.actions; track action; let j = $index) {
+      @for (action of group.actions; track $index; let j = $index) {
         @if (itemVisible(action)) {
           <a class="dropdown-item"
             [attr.data-menu-id]="action.id()"

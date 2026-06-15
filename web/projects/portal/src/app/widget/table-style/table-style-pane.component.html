@@ -31,7 +31,7 @@
         <div class="preview-style-box bordered-box table-style-pane__preview-surface">
           @if (previewFolders.length > 0) {
             <div class="preview-folders-box">
-              @for (node of previewFolders; track node) {
+              @for (node of previewFolders; track $index) {
                 <div class="table-style-folder-preview">
                   @if (node.type == 'folder') {
                     <div class="table-style-folder-preview__tile text-center"

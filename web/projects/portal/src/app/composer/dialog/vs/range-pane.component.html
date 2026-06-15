@@ -37,7 +37,7 @@
       </color-editor>
     </div>
   </div>
-  @for (rangeValue of values; track rangeValue) {
+  @for (rangeValue of values; track $index) {
     <div>
       <div class="shell-form-row--field row">
         <label class="col-2" [wExpandString]="[getIndex(rangeValue.index)]">_#(Range.to):</label>

@@ -31,7 +31,7 @@
               (keyup.escape)="searching = false" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true" aria-label="_#(Search)"
               placeholder="_#(Search)"/>
             <div class="dropdown-menu" [class.show]="!!searchResults && !!searchResults.length">
-              @for (result of searchResults; track result) {
+              @for (result of searchResults; track $index) {
                 <button class="dropdown-item" type="button"
                   (click)="selectSearchResult(result.tag)"
                 [class.active]="result.tag === value">{{result.label}}</button>

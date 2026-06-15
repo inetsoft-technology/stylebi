@@ -28,7 +28,7 @@
         </tr>
       </thead>
       <tbody>
-        @for (exception of exceptions; track exception; let i = $index) {
+        @for (exception of exceptions; track $index; let i = $index) {
           <tr>
             <td>{{ exception.viewsheet }}</td>
             <td>{{ exception.reasons }}</td>

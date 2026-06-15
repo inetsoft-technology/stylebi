@@ -18,7 +18,7 @@
 <div class="container-fluid">
   <div class="row">
     <div class="selectable-list col-12 simple-condition-pane__list">
-      @for (item of conditionList; track item; let even = $even; let i = $index) {
+      @for (item of conditionList; track $index; let even = $even; let i = $index) {
         <div class="unhighlightable"
           [class.selected]="selectedIndex == i" (click)="conditionItemSelected(i)">
           @if (even) {

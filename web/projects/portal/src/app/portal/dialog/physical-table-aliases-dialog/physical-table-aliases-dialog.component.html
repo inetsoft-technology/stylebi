@@ -32,7 +32,7 @@
     </div>
     @if (table.autoAliasesEnabled) {
       <div>
-        @for (autoAlias of table.autoAliases; track autoAlias) {
+        @for (autoAlias of table.autoAliases; track autoAlias.foreignTable) {
           <div>
             <div class="shell-form-group form-check offset-1">
               <label class="form-check-label">

@@ -59,7 +59,7 @@
   <div class="row">
     <div class="col-10">
       <div class="bordered-box h-100 condition-list condition-pane__list" [style.max-height.px]="listPaneHeight">
-        @for (item of conditionList; track item; let even = $even; let i = $index) {
+        @for (item of conditionList; track $index; let even = $even; let i = $index) {
           <div
             class="unhighlightable condition-pane__list-item"
             [class.selected]="selectedIndex == i" (click)="conditionItemSelected(i)">

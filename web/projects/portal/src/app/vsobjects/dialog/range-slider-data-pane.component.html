@@ -71,7 +71,7 @@
       <div class="row">
         <div class="col-10">
           <div class="bordered-box range-slider-data-pane__surface range-slider-data-pane__level-surface">
-            @for (_node of compositeNodes; track _node; let _i = $index) {
+            @for (_node of compositeNodes; track $index; let _i = $index) {
               <div [class.selected]="_i === selectedCompositeNodeIndex"
                 (click)="selectCompositeNode(_i)"
               [title]="levelTooltips[_i]">{{_node.label}}</div>

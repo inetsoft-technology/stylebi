@@ -15,7 +15,7 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
-@for (_rotation of rotationStyles; track _rotation; let _i = $index) {
+@for (_rotation of rotationStyles; track $index; let _i = $index) {
   <div style="float:left;" class="radio-inline radio-image-inline"
     >
     <input type="radio" name="rotation" class="form-check-input radio-image" [checked]="isChecked(_i)"

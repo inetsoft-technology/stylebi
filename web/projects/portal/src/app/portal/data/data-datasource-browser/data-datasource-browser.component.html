@@ -194,7 +194,7 @@
             _#(data.datasets.noSearchResults)
           </div>
         }
-        @for (datasource of datasources; track datasource; let isLast = $last; let i = $index) {
+        @for (datasource of datasources; track datasource.path; let isLast = $last; let i = $index) {
           <div
             class="datasource-list-item d-flex align-items-center"
             [class.td-cell-border]="!isLast"

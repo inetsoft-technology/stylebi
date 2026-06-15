@@ -22,7 +22,7 @@
     </tr>
   </thead>
   <tbody>
-    @for (item of items; track item; let i = $index) {
+    @for (item of items; track $index; let i = $index) {
       <tr (click)="selectItem($event, i)"
         [class.selected]="selectedItems.indexOf(i) > -1">
         <td>{{ item }}</td>

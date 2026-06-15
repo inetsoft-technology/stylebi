@@ -724,7 +724,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  @for (highlight of highlights; track highlight) {
+                  @for (highlight of highlights; track $index) {
                     <tr>
                       <td>
                         <input class="form-check-input text-center align-middle"
@@ -737,7 +737,7 @@
                       <td>{{ getHighlightConditionLabel(highlight.condition) }}</td>
                     </tr>
                   }
-                  @for (highlight of disabledHighlights; track highlight) {
+                  @for (highlight of disabledHighlights; track $index) {
                     <tr class="txt-danger cross-out">
                       <td>
                         <input class="form-check-input text-center align-middle"

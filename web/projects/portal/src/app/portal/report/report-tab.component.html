@@ -24,7 +24,7 @@
           <i class="recent-outline-icon icon-size-large" aria-hidden="true" title="_#(History)"></i>
         </div>
         <ul class="nav">
-          @for (entry of recentlyViewed; track entry) {
+          @for (entry of recentlyViewed; track entry.path) {
             <li class="nav-item">
               <a class="nav-link" (click)="showEntry(entry)" tabindex="-1" enterClick>{{ entry.alias || entry.label }}</a>
             </li>

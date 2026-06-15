@@ -38,7 +38,7 @@
 </div>
 <ng-template #dropdownMenu>
   <ul role="menu" class="dropdown-pane">
-    @for (style of styles; track style) {
+    @for (style of styles; track $index) {
       <li class="line-style hover-bg-primary-selectable"
         [class.selected]="style.value == currentBorderStyle"
         [class.fade]="style.value == '1'"

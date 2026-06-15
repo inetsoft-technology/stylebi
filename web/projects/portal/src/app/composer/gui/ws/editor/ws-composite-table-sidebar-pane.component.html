@@ -22,7 +22,7 @@
       <div class="unrelated-table-list-container">
         @if (compatibleTables?.length > 0) {
           <div>
-            @for (_table of compatibleTables; track _table) {
+            @for (_table of compatibleTables; track _table.name) {
               <div class="text-overflow" draggable="true"
                 (dragstart)="dragCompatibleTable($event, _table.name)">
                 <ws-assembly-thumbnail-title [assembly]="_table"></ws-assembly-thumbnail-title>

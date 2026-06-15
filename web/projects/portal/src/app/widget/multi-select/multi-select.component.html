@@ -28,7 +28,7 @@
 <ng-template #dropdownMenu>
   @if (items.length > 0) {
     <div class="multi-select-menu dropdown-pane">
-      @for (item of items; track item; let i = $index) {
+      @for (item of items; track $index; let i = $index) {
         <div>
           <div class="form-check">
             <input type="checkbox" class="form-check-input" id="{{'item' + i}}"

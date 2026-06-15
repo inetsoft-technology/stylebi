@@ -73,7 +73,7 @@
             [style.min-width.px]="dropdownMinWidth"
             >
             @if (!asTree) {
-              @for (choice of values; track choice; let i = $index) {
+              @for (choice of values; track $index; let i = $index) {
                 <div placement="bottom">
                   <a>
                     <div class="dropdown-item dropdown-item-label custom-select-option"

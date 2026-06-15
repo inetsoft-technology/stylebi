@@ -35,7 +35,7 @@
     @if (isValueListVisible(value.type)) {
       <div class="value-list-container">
         <div class="sm-selectable-list value-list">
-          @for (val of values; track val; let i = $index) {
+          @for (val of values; track $index; let i = $index) {
             <div class="unhighlightable value-list__element"
               [class.selected]="isSelected(val)" (click)="selectValue(i, $event)">
               {{val | conditionValueToString}}

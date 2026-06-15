@@ -19,7 +19,7 @@
 </modal-header>
 @if (model) {
   <div class="modal-body container-fluid">
-    @for (descriptor of model.descriptors; track descriptor; let i = $index) {
+    @for (descriptor of model.descriptors; track descriptor.name; let i = $index) {
       <div class="form-group row">
         <label class="text-nowrap mb-0">{{descriptor.displayName}}:</label>
         <div class="col-9 descriptor-div">

@@ -25,7 +25,7 @@
       <fieldset>
         <legend>_#(Select Device Classes)</legend>
         <div class="bordered-box bd-gray">
-          @for (device of devices; track device; let i = $index) {
+          @for (device of devices; track $index; let i = $index) {
             <div class="d-flex justify-content-between">
               <label [title]="deviceTooltip(device)" class="form-check-label">
                 <input type="checkbox" class="form-check-input" [(ngModel)]="selected[i]"

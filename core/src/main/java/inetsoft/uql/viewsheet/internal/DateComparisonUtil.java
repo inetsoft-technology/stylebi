@@ -1213,11 +1213,24 @@ public class DateComparisonUtil {
                cal.set(Calendar.DAY_OF_WEEK, Tool.getFirstDayOfWeek());
             }
             else if(mergedRef.getFullName().startsWith("WeekOfYear(")) {
-               // WeekOfYear is MMW where MM is month and W is week of month.
-               // @see JavaScriptEngine.datePart().
-               cal.set(Calendar.MONTH, value / 10 - 1);
-               cal.set(Calendar.WEEK_OF_MONTH, value % 10);
-               cal.set(Calendar.DAY_OF_WEEK, Tool.getFirstDayOfWeek());
+               if(mergedRef instanceof VSDimensionRef &&
+                  ((VSDimensionRef) mergedRef).isDcSequentialWeek())
+               {
+                  // Bug #75351: Same-Day comparison groups by the sequential week-of-year
+                  // (datePart 'ww') so weeks align across periods; decode via WEEK_OF_YEAR.
+                  cal.set(Calendar.WEEK_OF_YEAR, value);
+
+                  if(last) {
+                     cal.set(Calendar.DAY_OF_WEEK, Tool.getFirstDayOfWeek());
+                  }
+               }
+               else {
+                  // WeekOfYear is MMW where MM is month and W is week of month.
+                  // @see JavaScriptEngine.datePart().
+                  cal.set(Calendar.MONTH, value / 10 - 1);
+                  cal.set(Calendar.WEEK_OF_MONTH, value % 10);
+                  cal.set(Calendar.DAY_OF_WEEK, Tool.getFirstDayOfWeek());
+               }
             }
          }
          else {

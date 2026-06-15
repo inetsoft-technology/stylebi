@@ -16,7 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <ul class="nav nav-tabs tabs-bottom composer-bottom-tabs" [class.unhighlightable]="isEdge ">
-  @for (_tab of tabs; track _tab) {
+  @for (_tab of tabs; track $index) {
     <li class="nav-item hover-bg-secondary"
       [class.active]="isSelected(_tab)"
       [class.bt-highlight-filler]="!isSelected(_tab)"

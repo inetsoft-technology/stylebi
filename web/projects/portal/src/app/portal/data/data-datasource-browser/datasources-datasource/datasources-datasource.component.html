@@ -35,7 +35,7 @@
           <div class="row">
             <div class="col-10 additional-datasource">
               <div class="bordered-box bd-gray h-100">
-                @for (additional of additionalList; track additional; let i = $index) {
+                @for (additional of additionalList; track additional.name; let i = $index) {
                   <div
                     class="unhighlightable additional-datasource-list__item" [class.selected]="additionalSelected(i)"
                     [title]="additional.tooltip"

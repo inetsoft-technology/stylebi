@@ -61,7 +61,7 @@
 </div>
 @if (expanded && !!entityNode) {
   <div class="tree-children">
-    @for (attribute of entityNode.attributes; track attribute; let i = $index) {
+    @for (attribute of entityNode.attributes; track attribute.name; let i = $index) {
       <element-tree-node
         [node]="attribute" [moveEnabled]="moveEnabled"
         [attrIndex]="i" [draggable]="draggable" [droppable]="droppable"

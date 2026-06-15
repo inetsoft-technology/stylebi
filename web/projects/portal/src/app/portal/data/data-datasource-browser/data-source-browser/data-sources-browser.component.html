@@ -21,7 +21,7 @@
     triggers="mouseenter:mouseleave" placement="right">
     <ol class="breadcrumb data-sources-browser__breadcrumb mb-0">
       @if (showBreadcrumb) {
-        @for (folder of browserView?.path; track folder; let isLast = $last) {
+        @for (folder of browserView?.path; track folder.path; let isLast = $last) {
           <li
             class="breadcrumb-item"
             [class.active]="isLast">
@@ -48,7 +48,7 @@
           </span>
         </div>
       }
-      @for (folder of browserView.folders; track folder) {
+      @for (folder of browserView.folders; track folder.path) {
         <div class="list-group-item list-group-item-action px-1"
           [class.active]="!multiSelect && isItemSelected(folder, true)"
           (dblclick)="dblclickFolder(folder.path, folder.hasSubFolder, folder.type)"
@@ -76,7 +76,7 @@
           </div>
         </div>
       }
-      @for (file of browserView.files; track file) {
+      @for (file of browserView.files; track file.path) {
         <div class="list-group-item list-group-item-action px-1"
           [class.active]="!multiSelect && isItemSelected(file, false)"
           (click)="selectFile(file)">

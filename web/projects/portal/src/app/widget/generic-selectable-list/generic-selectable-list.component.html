@@ -16,7 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <div class="selectable-list generic-selectable-list">
-  @for (_item of itemList; track _item; let _i = $index) {
+  @for (_item of itemList; track $index; let _i = $index) {
     <div class="unhighlightable generic-selectable-list__item"
       (click)="!disabled && select(_i)" [class.selected]="!disabled && selectedIndex == _i"
       [class.fade]="disabled">

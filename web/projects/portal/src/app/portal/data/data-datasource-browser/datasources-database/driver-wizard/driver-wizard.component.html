@@ -34,7 +34,7 @@
         <div class="row mb-1">
           <div class="col-10 upload-files">
             <div class="list-group">
-              @for (file of uploadForm.controls['uploadFiles']?.value; track file; let i = $index) {
+              @for (file of uploadForm.controls['uploadFiles']?.value; track $index; let i = $index) {
                 <a class="driver-wizard__list-item unhighlightable"
                   [class.selected]="selectedDriverFiles.indexOf(i) >= 0"
                   [attr.title]="file.name"

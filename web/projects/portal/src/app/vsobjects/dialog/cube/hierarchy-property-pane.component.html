@@ -22,7 +22,7 @@
       <div class="bordered-box bordered-box-md hierarchy-property-pane__surface"
         outOfZone (onDragover)="allowDrop($event)"
         (drop)="columnDrop($event)">
-        @for (columnRef of localColumnList; track columnRef; let i = $index) {
+        @for (columnRef of localColumnList; track $index; let i = $index) {
           <div draggable="true" (dragstart)="columnDragStart($event, columnRef, i)"
             (dragend)="columnDragEnd($event)" [ngClass]="getInputClass(columnRef)"
             [class.selected]="selectedColumn == columnRef"
@@ -38,11 +38,11 @@
       <legend>_#(Hierarchy)</legend>
       <div class="bordered-box bordered-box-md hierarchy-content-list hierarchy-property-pane__surface"
         (dragleave)="contentDragLeave($event)">
-        @for (dimension of model.dimensions; track dimension; let dimIndex = $index) {
+        @for (dimension of model.dimensions; track $index; let dimIndex = $index) {
           <div class="col-12 px-0"
             outOfZone (onDragover)="allowDrop($event)"
             >
-            @for (member of dimension.members; track member; let memberIndex = $index) {
+            @for (member of dimension.members; track $index; let memberIndex = $index) {
               <div draggable="true"
                 class="hierarchy-content-item ps-1 item-{{memberIndex}} hierarchy_item_id"
                 (dragstart)="contentDragStart($event, member, dimension, dimIndex, memberIndex)"
