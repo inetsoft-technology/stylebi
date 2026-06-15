@@ -48,4 +48,32 @@ class WizGeoMappingResolverTest {
 
       assertEquals(Set.of("Foo"), remaining);
    }
+
+   @Test
+   void nullDroppedDoesNotThrow() {
+      Set<String> unmatched = new LinkedHashSet<>(List.of("Runion"));
+      Map<String, String> applied = Map.of("Runion", "FR-RE");
+
+      Set<String> remaining = WizGeoMappingResolver.stillUnmatched(unmatched, applied, null);
+
+      assertTrue(remaining.isEmpty());
+   }
+
+   @Test
+   void appliedValueNotInUnmatchedHasNoEffect() {
+      Set<String> unmatched = new LinkedHashSet<>(List.of("Foo"));
+      Map<String, String> applied = Map.of("Unknown", "XX-00");
+      Set<String> dropped = Set.of();
+
+      Set<String> remaining = WizGeoMappingResolver.stillUnmatched(unmatched, applied, dropped);
+
+      assertEquals(Set.of("Foo"), remaining);
+   }
+
+   @Test
+   void emptyUnmatchedReturnsEmpty() {
+      Set<String> remaining = WizGeoMappingResolver.stillUnmatched(Set.of(), Map.of(), Set.of());
+
+      assertTrue(remaining.isEmpty());
+   }
 }

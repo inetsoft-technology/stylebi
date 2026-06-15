@@ -111,6 +111,12 @@ public class WizGeoService {
       }
 
       // 3. Auto-detect type/layer and seed the (lazy, empty) feature mapping on the geo ref.
+      //    Pre-seed the map type when the caller supplied one; autoDetect skips type detection
+      //    if a valid type is already present on the chart info.
+      if(!Tool.isEmptyString(request.getGeoType())) {
+         cinfo.setMeasureMapType(request.getGeoType());
+      }
+
       chartHandler.autoDetect(vs, sourceInfo, cinfo, refName, source);
 
       VSChartGeoRef geoRef = getGeoRef(cinfo, refName);
@@ -220,7 +226,7 @@ public class WizGeoService {
       int layer = mapping.getLayer();
 
       if(source == null) {
-         throw new IllegalStateException("Failed to execute chart data for geo detection");
+         throw new IllegalStateException("Failed to execute chart data for geo apply");
       }
 
       // Originally-unmatched values BEFORE applying the manual mappings.
@@ -302,24 +308,22 @@ public class WizGeoService {
          return;
       }
 
-      // Find the category dimension (the non-geo dimension), wherever the conversion put it: a
-      // mis-assigned geo field, an axis, or a group slot. Strip those non-geo dims off their slots.
+      // Guard before any mutations.
+      DataRef geoColRef = mapInfo.getGeoColumns().getAttribute(geoColumn);
+
+      if(!(geoColRef instanceof ChartRef geoChartRef)) {
+         LOG.warn("Unable to fix geo binding: geo column '{}' not found in geoColumns", geoColumn);
+         return;
+      }
+
+      // Safe to mutate now.
       ChartRef category = firstNonGeoGeoField(mapInfo, geoColumn);
       category = stripNonGeoDims(mapInfo, Slot.X, geoColumn, category);
       category = stripNonGeoDims(mapInfo, Slot.Y, geoColumn, category);
       category = stripNonGeoDims(mapInfo, Slot.GROUP, geoColumn, category);
 
-      // Geo field := the detected column, taken from the option-carrying geo-columns ref.
-      DataRef geoColRef = mapInfo.getGeoColumns().getAttribute(geoColumn);
-
-      if(geoColRef instanceof ChartRef geoChartRef) {
-         mapInfo.removeGeoFields();
-         mapInfo.addGeoField((ChartRef) geoChartRef.clone());
-      }
-      else {
-         LOG.warn("Unable to fix geo binding: invalid geo column reference");
-         return;
-      }
+      mapInfo.removeGeoFields();
+      mapInfo.addGeoField((ChartRef) geoChartRef.clone());
 
       // A polygon map can't use the shape aesthetic; drop it (the region often lands there).
       mapInfo.setShapeField(null);
@@ -459,6 +463,11 @@ public class WizGeoService {
       }
 
       String resolved = MapHelper.getGeoCodeByLabel(type, layer, code);
+
+      if(resolved == null) {
+         LOG.warn("Could not resolve '{}' to a geoCode for type={} layer={}; using as-is", code, type, layer);
+      }
+
       return resolved != null ? resolved : code;
    }
 
@@ -481,7 +490,7 @@ public class WizGeoService {
       return distinct.size();
    }
 
-   /** Candidate feature display labels for the given layer's name table. */
+   /** Candidate feature display labels for the given layer's name table, capped at {@value MAX_CANDIDATES}. */
    private List<String> candidateFeatures(int layer) {
       NameTable names = MapData.getNameTable(layer);
 
@@ -489,15 +498,13 @@ public class WizGeoService {
          return Collections.emptyList();
       }
 
-      List<String> labels = new ArrayList<>();
-
-      for(String code : names.getNames()) {
-         String label = names.getLabel(code);
-         labels.add(label != null ? label : code);
-      }
-
-      return labels;
+      return names.getNames().stream()
+         .limit(MAX_CANDIDATES)
+         .map(code -> { String label = names.getLabel(code); return label != null ? label : code; })
+         .collect(java.util.stream.Collectors.toList());
    }
+
+   private static final int MAX_CANDIDATES = 500;
 
    private final ViewsheetService viewsheetService;
    private final VSChartHandler chartHandler;
