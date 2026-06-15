@@ -46,6 +46,8 @@ public class BookmarkConflictResolution {
    public boolean isKeepImported() { return keepImported; }
    public void setKeepImported(boolean keepImported) { this.keepImported = keepImported; }
 
+   // Equality is identifier-only (path + user + name). keepImported is intentionally excluded
+   // so instances can be found by key regardless of their current resolution state.
    @Override
    public boolean equals(Object o) {
       if(this == o) { return true; }

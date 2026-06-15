@@ -19,7 +19,7 @@ import { HttpClient, HttpErrorResponse, HttpParams } from "@angular/common/http"
 import { Component, HostBinding, HostListener, Inject, OnDestroy, ViewEncapsulation } from "@angular/core";
 import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
-import { Observable, throwError, timer } from "rxjs";
+import { Observable, Subject, throwError, timer } from "rxjs";
 import { catchError, filter, switchMap, take, timeout } from "rxjs/operators";
 import { DateTypeFormatter } from "../../../../../../../../shared/util/date-type-formatter";
 import { RepositoryEntryType } from "../../../../../../../../shared/data/repository-entry-type.enum";
@@ -70,6 +70,7 @@ export class ImportAssetDialogComponent implements OnDestroy {
    private bookmarkResolutions: BookmarkConflictResolution[] = [];
    private targetNode: RepositoryFlatNode;
    private _selected: RequiredAssetModel[] = [];
+   private readonly conflictsRefresh$ = new Subject<HttpParams>();
 
    get selected(): RequiredAssetModel[] { return this._selected; }
 
@@ -182,9 +183,42 @@ export class ImportAssetDialogComponent implements OnDestroy {
          overwrite: [true],
          dependenciesApplyTarget: [true]
       });
+
+      this.conflictsRefresh$
+         .pipe(
+            switchMap(params =>
+               this.http.get<BookmarkConflict[]>(
+                  `../api/em/content/repository/import-bookmark-conflicts/${this.model?.importId}`,
+                  { params }
+               ).pipe(catchError(err => { this.conflictsLoading = false; return throwError(err); }))
+            )
+         )
+         .subscribe(conflicts => {
+            this.conflictsLoading = false;
+            // Sort conflicts where timestamps differ to the top (they're more actionable).
+            this.bookmarkConflicts = (conflicts || []).sort((a, b) => {
+               const aSortKey = a.existingModified === a.importedModified ? 1 : 0;
+               const bSortKey = b.existingModified === b.importedModified ? 1 : 0;
+               return aSortKey - bSortKey;
+            });
+            this.buildConflictTableData();
+            this.bookmarkResolutions = this.bookmarkConflicts.map(c => {
+               const existing = this.bookmarkResolutions.find(
+                  r => r.viewsheetPath === c.viewsheetPath &&
+                       r.user === c.user &&
+                       r.bookmarkName === c.bookmarkName);
+               return {
+                  viewsheetPath: c.viewsheetPath,
+                  user: c.user,
+                  bookmarkName: c.bookmarkName,
+                  keepImported: existing ? existing.keepImported : true
+               };
+            });
+         });
    }
 
    ngOnDestroy() {
+      this.conflictsRefresh$.complete();
       this.clearImportCache();
    }
 
@@ -341,32 +375,8 @@ export class ImportAssetDialogComponent implements OnDestroy {
          }
       }
 
-      const uri = `../api/em/content/repository/import-bookmark-conflicts/${this.model?.importId}`;
       this.conflictsLoading = true;
-      this.http.get<BookmarkConflict[]>(uri, { params })
-         .pipe(catchError(err => { this.conflictsLoading = false; return throwError(err); }))
-         .subscribe(conflicts => {
-            this.conflictsLoading = false;
-            // Sort conflicts where timestamps differ to the top (they're more actionable).
-            this.bookmarkConflicts = (conflicts || []).sort((a, b) => {
-               const aSortKey = a.existingModified === a.importedModified ? 1 : 0;
-               const bSortKey = b.existingModified === b.importedModified ? 1 : 0;
-               return aSortKey - bSortKey;
-            });
-            this.buildConflictTableData();
-            this.bookmarkResolutions = this.bookmarkConflicts.map(c => {
-               const existing = this.bookmarkResolutions.find(
-                  r => r.viewsheetPath === c.viewsheetPath &&
-                       r.user === c.user &&
-                       r.bookmarkName === c.bookmarkName);
-               return {
-                  viewsheetPath: c.viewsheetPath,
-                  user: c.user,
-                  bookmarkName: c.bookmarkName,
-                  keepImported: existing ? existing.keepImported : true
-               };
-            });
-         });
+      this.conflictsRefresh$.next(params);
    }
 
    @HostListener("window:keyup.esc", [])
