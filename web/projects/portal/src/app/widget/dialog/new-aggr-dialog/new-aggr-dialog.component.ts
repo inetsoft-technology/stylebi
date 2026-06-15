@@ -36,6 +36,7 @@ export class NewAggrDialog implements OnInit {
    form: UntypedFormGroup;
    formulas: any[];
    _nStr: string = "";
+   npLabel: string = "";
    @Output() onCommit: EventEmitter<NewAggrDialogModel> = new EventEmitter<NewAggrDialogModel>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
 
@@ -46,6 +47,7 @@ export class NewAggrDialog implements OnInit {
 
    ngOnInit(): void {
       this.initForm();
+      this.updateNPLabel();
    }
 
    initForm(): void {
@@ -80,6 +82,8 @@ export class NewAggrDialog implements OnInit {
       if(this.isWithFormula()) {
          this.model.with = this.model.fields[0];
       }
+
+      this.updateNPLabel();
    }
 
    hasN(): boolean {
@@ -97,8 +101,8 @@ export class NewAggrDialog implements OnInit {
       this.model.numValue = val < 1 || isNaN(val) ? "1" : val + "";
    }
 
-   getNPLabel(): string {
-      return AggregateFormula.getNPLabel(this.model.aggregate);
+   private updateNPLabel(): void {
+      this.npLabel = AggregateFormula.getNPLabel(this.model.aggregate);
    }
 
    isNValid(): boolean {

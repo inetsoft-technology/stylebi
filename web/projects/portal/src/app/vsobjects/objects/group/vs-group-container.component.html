@@ -16,6 +16,8 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 @if (model) {
+  @let opacity = getOpacity();
+  @let src = getSrc();
   <div
     VSDataTip [dataTipName]="model.absoluteName"
     VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
@@ -43,12 +45,12 @@
           (load)="onImageLoad($event)"
           [style.width.px]="imageSize.width"
           [style.height.px]="imageSize.height"
-          [style.opacity]="getOpacity()"
-          [attr.src]="getSrc()">
+          [style.opacity]="opacity"
+          [attr.src]="src">
       } @else {
         <div class="vs-group-container__tiled-image"
-          [style.background-image]="'url(' + getSrc() + ')'"
-          [style.opacity]="getOpacity()">
+          [style.background-image]="'url(' + src + ')'"
+          [style.opacity]="opacity">
         </div>
       }
     }

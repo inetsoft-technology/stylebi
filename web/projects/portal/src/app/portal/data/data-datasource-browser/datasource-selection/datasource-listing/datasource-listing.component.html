@@ -16,7 +16,8 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 @if (listing.iconUrl) {
-  <img class="datasource-listing__icon" [attr.src]="getIconUrl()" [attr.alt]="listing.name">
+  @let iconUrl = getIconUrl();
+  <img class="datasource-listing__icon" [attr.src]="iconUrl" [attr.alt]="listing.name">
 } @else {
   <span class="database-icon icon-size-xlarge"></span>
 }

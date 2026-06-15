@@ -54,6 +54,7 @@ export class VSWizardAggregateItem extends VSWizardItem<BAggregateRef> implement
    @Output() onEditAggregateFormat: EventEmitter<null> = new EventEmitter<null>();
    formulaObjs: any[];
    availableValues: any[];
+   npLabel: string = "";
 
    constructor(protected modalService: NgbModal,
                protected clientService: ViewsheetClientService,
@@ -67,6 +68,7 @@ export class VSWizardAggregateItem extends VSWizardItem<BAggregateRef> implement
       this.availableValues = this.getAvailableFields();
       let formulas: AggregateFormula[] = AssetUtil.getDefaultFormulas();
       this.formulaObjs = AggregateFormula.getFormulaObjs(formulas);
+      this.updateNPLabel();
    }
 
    get formulaLabel(): string {
@@ -92,6 +94,7 @@ export class VSWizardAggregateItem extends VSWizardItem<BAggregateRef> implement
       this.dataRef.formula = val;
       this.availableValues = this.getAvailableFields();
       this.fixSecondaryColumn();
+      this.updateNPLabel();
 
       if(this.isWithFormula() && this.dataRef.secondaryColumnValue == null) {
          let defaultSecondColumn = this.getDefaultSecondColumn();
@@ -190,8 +193,8 @@ export class VSWizardAggregateItem extends VSWizardItem<BAggregateRef> implement
          this.dataRef.secondaryColumnValue : column ? column.name : null;
    }
 
-   getNPLabel(): string {
-      return AggregateFormula.getNPLabel(this.dataRef.formula);
+   private updateNPLabel(): void {
+      this.npLabel = AggregateFormula.getNPLabel(this.dataRef.formula);
    }
 
    private fixSecondaryColumn(): void {

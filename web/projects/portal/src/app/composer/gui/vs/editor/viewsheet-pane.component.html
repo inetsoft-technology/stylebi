@@ -43,17 +43,20 @@
       (scroll)="updateRulerPosition()"
       actionsContextmenuAnchor [actions]="menuActions" [position]="menuPosition">
       @if (vs && templateEnabled && !isSnapshot()) {
+        @let templateWidth = getTemplateWidth();
+        @let templateHeight = getTemplateHeight();
         <div [hidden]="vs.currentLayout"
-          class="viewsheet-target-layout" [style.width.px]="getTemplateWidth()"
-        [style.height.px]="getTemplateHeight()" [style.border-color]="guideLineColor"></div>
+          class="viewsheet-target-layout" [style.width.px]="templateWidth"
+        [style.height.px]="templateHeight" [style.border-color]="guideLineColor"></div>
       }
       @if (vs && vs.vsObjects.length === 0) {
+        @let dataSourceCSSIcon = getDataSourceCSSIcon();
         <div class="intro" [hidden]="vs.currentLayout">
           <div class="intro-content text-muted">
             _#(composer.vs.addDashboard)
             <ul>
               <li>_#(composer.vs.dragVisual) <i class="folder-toolbox-icon"></i></li>
-              <li>_#(composer.vs.dragData) <i class="{{getDataSourceCSSIcon()}}"></i></li>
+              <li>_#(composer.vs.dragData) <i class="{{dataSourceCSSIcon}}"></i></li>
             </ul>
           </div>
         </div>
@@ -170,11 +173,12 @@
         </button>
       }
       @if (isSearchMode()) {
+        @let searchResultLabel = getSearchResultLabel();
         <div class="d-flex me-auto flex-grow-1 flex-nowrap align-items-center">
           <div class="p-1 d-flex align-items-center flex-grow-1">
             <input class="form-control form-control-sm search-input" type="text" placeholder="_#(Search)" [title]="getSearchString()"
               (input)="search($event.target.value)" (keyup)="searchInputKeyUp($event)">
-            <span class="search-result-label"> {{getSearchResultLabel()}} </span>
+            <span class="search-result-label"> {{searchResultLabel}} </span>
           </div>
           <div class="p-1 d-flex">
             <button (click)="previousFocus()"

@@ -16,7 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <div unselectable="on" class="month-calendar" [class.double-calendar]="model.doubleCalendar" [class.second-calendar]="secondCalendar"
-  [style.height.px]= "getCalendarHeight()" >
+  [style.height.px]="calendarHeight">
   <div class="child-calendar-title w-100" [style.border-bottom]="model?.calendarTitleFormat?.border?.bottom"
     [style.border-top]="model?.calendarTitleFormat?.border?.top"
     [style.border-right]="model?.calendarTitleFormat?.border?.right"
@@ -40,7 +40,8 @@
       <i class="backward-icon icon-size-small" [style.color]="iconColor"></i>
     </div>
     <div class="calendar-title-label-container">
-      <div #titleRef
+      @let currentMonth = getMonth();
+    <div #titleRef
         class="calendar-title-label bd-gray text-center selectable"
              [ngClass]="{
                 'calendar-selected-cell': isMonthSelected()
@@ -56,7 +57,7 @@
         [style.text-decoration]="model.calendarTitleFormat.decoration"
         [style.word-wrap]="model.calendarTitleFormat.wrapping.wordWrap"
         [style.overflow]="model.calendarTitleFormat.wrapping.overflow"
-        tabindex="-1" [attr.aria-label]="monthTitle">{{getMonth()}}
+        tabindex="-1" [attr.aria-label]="monthTitle">{{currentMonth}}
       </div>
     </div>
     <div #nextMonthRef

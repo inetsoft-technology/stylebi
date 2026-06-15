@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input, Output, EventEmitter } from "@angular/core";
+import { Component, Input, OnChanges, Output, EventEmitter, SimpleChanges } from "@angular/core";
 import { StaticTexturePane } from "./static-texture-pane.component";
 import { TextureItem } from "./texture-item.component";
 import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-dropdown.directive";
@@ -26,10 +26,17 @@ import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-
     styleUrls: ["texture-combo-box.component.scss"],
     imports: [FixedDropdownDirective, TextureItem, StaticTexturePane]
 })
-export class TextureComboBox {
+export class TextureComboBox implements OnChanges {
    @Input() texture: number;
    @Input() index: number;
    @Output() textureChanged = new EventEmitter<number>();
+   titleLabel: string = "";
+
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["index"]) {
+         this.titleLabel = this.getTitle();
+      }
+   }
 
    changeTexture(ntexture: number): void {
       this.textureChanged.emit(ntexture);

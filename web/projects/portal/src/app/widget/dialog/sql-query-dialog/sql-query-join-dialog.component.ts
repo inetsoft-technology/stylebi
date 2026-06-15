@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angular/core";
+import { Component, EventEmitter, Input, OnChanges, OnDestroy, OnInit, Output, SimpleChanges } from "@angular/core";
 import { Observable ,  Subscription } from "rxjs";
 import { AssetUtil } from "../../../binding/util/asset-util";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
@@ -31,7 +31,7 @@ import { ModalHeaderComponent } from "../../modal-header/modal-header.component"
     templateUrl: "sql-query-join-dialog.component.html",
     imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule]
 })
-export class SQLQueryJoinDialog implements OnInit, OnDestroy {
+export class SQLQueryJoinDialog implements OnInit, OnChanges, OnDestroy {
    @Input() joins: JoinItem[];
    @Input() join: JoinItem;
    @Input() supportsFullOuterJoin: boolean;
@@ -43,6 +43,7 @@ export class SQLQueryJoinDialog implements OnInit, OnDestroy {
    tempColumn2: AssetEntry;
    columns1: AssetEntry[];
    columns2: AssetEntry[];
+   tableNames: string[] = [];
    operators: string[] = ["=", "<>", ">", "<", ">=", "<="];
    editIndex: number = -1;
    error: string = null;
@@ -50,7 +51,15 @@ export class SQLQueryJoinDialog implements OnInit, OnDestroy {
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
    formValid = () => !this.error;
 
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["tables"]) {
+         this.tableNames = this.getTableNames() ?? [];
+      }
+   }
+
    ngOnInit(): void {
+      this.tableNames = this.getTableNames() ?? [];
+
       if(this.join == null) {
          this.join = <JoinItem> {
             operator: this.operators[0],

@@ -17,7 +17,8 @@
   -->
 <ng-container *ngIf="(expired || transformFinished || editBookmarkFinished) && !embed">
   <div class="expired-vs-banner alert-danger" role="alert">
-    <div class="p-2">{{getReloadMessage()}}</div>
+    @let reloadMessage = getReloadMessage();
+    <div class="p-2">{{reloadMessage}}</div>
     <div class="ms-auto me-1">
       <button *ngIf="!!assetId && !preview" type="button" class="btn btn-sm btn-danger"
               (click)="reopenExpiredViewsheet()">_#(Reload Now)
@@ -370,6 +371,7 @@
       </button>
     </div>
   </div>
+  @let viewerRootHeight = getViewerRootHeight();
   <div class="viewer-root" #viewerRoot
        tabindex="0"
        [class.mobile-viewer-root]="mobileDevice && !drillTabsTop"
@@ -384,7 +386,7 @@
        [style.background]="viewsheetBackground"
        [style.background-image]="backgroundImage"
        [style.background-repeat]="backgroundImageRepeat"
-       [style.height]="getViewerRootHeight()"
+       [style.height]="viewerRootHeight"
        wInteractContainer [draggableRestriction]="draggableRestriction"
        (contextmenu)="showViewsheetContextMenu($event)"
        [scrollLeft]="scrollLeft"

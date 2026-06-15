@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input, Output, EventEmitter } from "@angular/core";
+import { Component, Input, OnChanges, Output, EventEmitter, SimpleChanges } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
@@ -26,11 +26,18 @@ import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directi
     styleUrls: ["multi-select.component.scss"],
     imports: [FixedDropdownDirective, FormsModule]
 })
-export class MultiSelect {
+export class MultiSelect implements OnChanges {
    @Input() items: any[] = [];
    @Input() selectedItems: any[] = [];
    @Input() disabled: boolean = false;
    @Output() selectedItemsChange: EventEmitter<any[]> = new EventEmitter<any[]>();
+   label: string = "";
+
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["selectedItems"]) {
+         this.label = this.selectedItems ? this.selectedItems.join(",") : "";
+      }
+   }
 
    changed(event) {
       if(event.target.checked) {
@@ -40,11 +47,8 @@ export class MultiSelect {
          this.selectedItems = this.selectedItems.filter(s => s != event.target.value);
       }
 
+      this.label = this.selectedItems ? this.selectedItems.join(",") : "";
       this.selectedItemsChange.emit(this.selectedItems);
-   }
-
-   getLabel(): string {
-      return this.selectedItems ? this.selectedItems.join(",") : "";
    }
 
    isSelected(item: any): boolean {

@@ -51,7 +51,7 @@
     <div class="row form-row-float-label">
       <div class="col-auto form-floating">
         <input type="text" id="num" class="form-control" [(ngModel)]="nStr">
-        <label><span>{{getNPLabel()}}</span></label>
+        <label><span>{{npLabel}}</span></label>
       </div>
     </div>
   }
@@ -59,7 +59,7 @@
     <div class="col form-floating">
       <select class="form-control" [(ngModel)]="percentage" placeholder="_#(Percentage)"
         [disabled]="!isPercent()">
-        @for (per of getPercents(); track $index) {
+        @for (per of percents; track per.value) {
           <option [value]="per.value">{{per.label}}</option>
         }
       </select>

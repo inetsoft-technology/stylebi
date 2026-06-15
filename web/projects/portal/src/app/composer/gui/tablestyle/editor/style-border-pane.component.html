@@ -19,7 +19,7 @@
   <button class="form-control dropdown-toggle style-select-height"
     [fixedDropdown]="dropdownMenu" [style.white-space]="'nowrap'" data-test="border-style-dropdown">
     @if (!cssClass) {
-      <span class="line-label">{{getStyleLabel()}}</span>
+      <span class="line-label">{{styleLabel}}</span>
     }
     @if (cssClass) {
       <div [class]="'line-display ' + cssClass"></div>

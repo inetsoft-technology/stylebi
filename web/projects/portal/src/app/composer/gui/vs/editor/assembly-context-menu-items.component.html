@@ -21,8 +21,10 @@
       <div class="dropdown-divider"></div>
     }
     @for (action of group.actions; track $index) {
+      @let label = action.label();
+      @let enabled = action.enabled();
       @if (action.visible()) {
-        <a class="dropdown-item" [class.disable-link]="!action.enabled()" (click)="action.action()">{{action.label()}}</a>
+        <a class="dropdown-item" [class.disable-link]="!enabled" (click)="action.action()">{{label}}</a>
       }
     }
   }

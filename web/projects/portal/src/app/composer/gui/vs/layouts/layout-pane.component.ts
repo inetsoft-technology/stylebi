@@ -93,6 +93,7 @@ export class LayoutPane extends CommandProcessor implements OnInit, OnChanges, O
    @ViewChild("layoutPane", {static: true}) layoutPane: ElementRef;
    @ViewChild(InteractContainerDirective) interactContainer: InteractContainerDirective;
    vsLayout: VSLayoutModel;
+   layoutObjects: VSLayoutObjectModel[] = [];
    _guideSize: Dimension = new Dimension(0, 0);
    _layoutRegion: string = "CONTENT";
    pages: number[];
@@ -184,6 +185,8 @@ export class LayoutPane extends CommandProcessor implements OnInit, OnChanges, O
          this.vsLayout = value;
       }
 
+      this.updateLayoutObjects();
+
       if(this.vsLayout.printLayout) {
          this.focusedObjectSubscription && this.focusedObjectSubscription.unsubscribe();
          this.focusedObjectSubscription = this.vsLayout.focused.subscribe(
@@ -231,6 +234,10 @@ export class LayoutPane extends CommandProcessor implements OnInit, OnChanges, O
       super(viewsheetClientService, zone, true);
    }
 
+   private updateLayoutObjects(): void {
+      this.layoutObjects = this.getLayoutObjects();
+   }
+
    ngOnInit() {
       this.viewsheetClientService.connect();
       this.viewsheetClientService.runtimeId = this.vsLayout.runtimeID;
@@ -238,6 +245,7 @@ export class LayoutPane extends CommandProcessor implements OnInit, OnChanges, O
       this.refreshViewsheet();
       this.inited = true;
       this.vsLayout.socketConnection = this.viewsheetClientService;
+      this.updateLayoutObjects();
 
       // Subscribe to heartbeat and touch asset to prevent expiration
       this.subscriptions.add(this.viewsheetClientService.onHeartbeat.subscribe(() => {
@@ -250,6 +258,7 @@ export class LayoutPane extends CommandProcessor implements OnInit, OnChanges, O
 
       this.subscriptions.add(this.layoutChange.subscribe((isGuideChanged) => {
          this.getLayoutSize(isGuideChanged);
+         this.updateLayoutObjects();
       }));
 
       this.subscriptions.add(this.resizeHandlerService.anyResizeSubject
@@ -261,6 +270,8 @@ export class LayoutPane extends CommandProcessor implements OnInit, OnChanges, O
          this._layoutRegion = this.vsLayout.getLayoutSection();
          this.refreshViewsheet();
       }
+
+      this.updateLayoutObjects();
    }
 
    ngOnDestroy() {
@@ -585,6 +596,7 @@ export class LayoutPane extends CommandProcessor implements OnInit, OnChanges, O
       }
 
       this.vsLayout.updateFocusedObjects(command.object);
+      this.updateLayoutObjects();
       this.onLayoutObjectChange.emit(null);
    }
 
@@ -761,6 +773,7 @@ export class LayoutPane extends CommandProcessor implements OnInit, OnChanges, O
          }
       });
 
+      this.updateLayoutObjects();
       this.onLayoutObjectChange.emit(null);
    }
 

@@ -15,7 +15,7 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
-<em-audit-table-view [dateRangeVisible]="false" [displayedColumns]="getDisplayedColumns()" [columnRenderers]="columnRenderers" [parameterForm]="form"
+<em-audit-table-view [dateRangeVisible]="false" [displayedColumns]="displayedColumns" [columnRenderers]="columnRenderers" [parameterForm]="form"
   [fetchParameters]="fetchParameters" [fetchData]="fetchData" [isIdentityInfo]="true" [orgNames]="orgNames">
   <section class="flex-row" [formGroup]="form">
     @if (organizationFilter) {

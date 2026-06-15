@@ -49,6 +49,7 @@ export class FilesBrowserComponent implements OnInit {
    @Input() breadcrumbTooltip: string = null;
    @Output() selectionChange = new EventEmitter<WorksheetBrowserInfo[]>();
    bigDataEdition: boolean = false;
+   currentFolderName: string = "..";
 
    constructor(private modalService: NgbModal) {
    }
@@ -71,6 +72,7 @@ export class FilesBrowserComponent implements OnInit {
       this.openFolderRequest(path, assetType, scope).subscribe(
          data => {
             this.browserView = data;
+            this.updateCurrentFolderName();
 
             if(this.browserView.folders == null || this.browserView.folders.length == 0) {
                this.selectedFiles = [];
@@ -200,16 +202,16 @@ export class FilesBrowserComponent implements OnInit {
    }
 
    /**
-    * Gets the name of the lowest level folder in the view
+    * Updates the cached currentFolderName from the current browserView.
     */
-   currentFolderName(): string {
+   private updateCurrentFolderName(): void {
       let name: string = "..";
 
-      if(!!this.browserView.path && this.browserView.path.length > 0) {
+      if(!!this.browserView?.path && this.browserView.path.length > 0) {
          let parentNode = this.browserView.path[this.browserView.path.length - 1];
          name = !!parentNode ? parentNode.name ? parentNode.name : parentNode.description : name;
       }
 
-      return name;
+      this.currentFolderName = name;
    }
 }

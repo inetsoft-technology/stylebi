@@ -51,7 +51,7 @@
     <div class="row form-row-float-label">
       <div class="col-4">
         <select class="form-control" [(ngModel)]="join.table1" (ngModelChange)="tableChange($event, true)">
-          @for (table of getTableNames(); track table) {
+          @for (table of tableNames; track table) {
 <option [ngValue]="table">{{table}}</option>
 }
         </select>
@@ -59,7 +59,7 @@
       <div class="col-4"></div>
       <div class="col-4">
         <select class="form-control" [(ngModel)]="join.table2" (ngModelChange)="tableChange($event, false)">
-          @for (table of getTableNames(); track table) {
+          @for (table of tableNames; track table) {
 <option [ngValue]="table">{{table}}</option>
 }
         </select>

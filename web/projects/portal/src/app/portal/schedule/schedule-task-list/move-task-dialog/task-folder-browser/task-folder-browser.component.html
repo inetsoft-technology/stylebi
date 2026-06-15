@@ -39,12 +39,13 @@
   @if (!!browserView) {
     <div class="list-group list-group-flush files-browser my-1">
       @if (!browserView.root) {
+        @let currentFolderNameVal = currentFolderName();
         <div
           class="list-group-item list-group-item-action px-1"
           (click)="openParentFolder()">
           <span class="cursor-pointer text-nowrap">
             <i class="upward-icon"></i>
-            {{currentFolderName()}}
+            {{currentFolderNameVal}}
           </span>
         </div>
       }

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
+import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges } from "@angular/core";
 import { SubqueryTable } from "../../common/data/condition/subquery-table";
 import { SubqueryValue } from "../../common/data/condition/subquery-value";
 import { DataRef } from "../../common/data/data-ref";
@@ -29,16 +29,30 @@ import { ModalHeaderComponent } from "../modal-header/modal-header.component";
     templateUrl: "subquery-dialog.component.html",
     imports: [ModalHeaderComponent, FormsModule]
 })
-export class SubqueryDialog implements OnInit {
+export class SubqueryDialog implements OnInit, OnChanges {
    @Input() subqueryTables: SubqueryTable[];
    @Input() value: SubqueryValue;
    @Input() showOriginalName: boolean = false;
    selectedTable: SubqueryTable;
+   availableTables: SubqueryTable[] = [];
+   currentTableColumns: DataRef[] | null = null;
    @Output() onCommit: EventEmitter<SubqueryValue> = new EventEmitter<SubqueryValue>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
 
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["subqueryTables"]) {
+         this.updateTableCaches();
+      }
+   }
+
+   private updateTableCaches(): void {
+      this.availableTables = this.getAvailableTables();
+      this.currentTableColumns = this.getCurrentTableColumns();
+   }
+
    ngOnInit(): void {
-      let tables: SubqueryTable[] = this.getAvailableTables();
+      this.updateTableCaches();
+      let tables: SubqueryTable[] = this.availableTables;
 
       if(this.value == null) {
          if(tables != null && tables.length > 0) {

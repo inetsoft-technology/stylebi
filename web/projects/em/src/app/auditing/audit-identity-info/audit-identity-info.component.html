@@ -31,7 +31,7 @@
     <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Types)</mat-label>
       <mat-select formControlName="selectedTypes" multiple>
-        @for (type of getTypes(); track type) {
+        @for (type of displayTypes; track type) {
           <mat-option [value]="type">{{getTypeLabel(type)}}</mat-option>
         }
       </mat-select>

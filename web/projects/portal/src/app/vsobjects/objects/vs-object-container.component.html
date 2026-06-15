@@ -42,7 +42,7 @@
         [class.popup-showing]="isPopupShowing(vsObject)"
         [class.max-mode]="vsObject.maxMode"
         [class.force-show-toolbar]="forceShowMiniToolbar && isFocused(vsObject)"
-        [style.z-index]="isActivePopComponent(vsObject) || needsZIndexBoost(vsObject) ? zIndex(vsObject) + getPopUpContentBoostZIndex() : zIndex(vsObject)"
+        [style.z-index]="isActivePopComponent(vsObject) || needsZIndexBoost(vsObject) ? zIndex(vsObject) + popUpContentBoostZIndex : zIndex(vsObject)"
         (click)="select(i, $event)" (mouseenter)="onMouseEnter(vsObject, $event)">
         @if (vsObject.objectType == 'VSAnnotation') {
           <vs-annotation
@@ -405,7 +405,10 @@
 </div>
 <placeholder-drag-element [model]="placeholderDragElementModel" #placeholderDragElement></placeholder-drag-element>
 @if (showingPopUpOrDataTip() && (containerBounds || embeddedVSBounds)) {
-  <canvas #popUpDim class="pop-component-bg" [style.z-index]="getPopDimZIndex()" [attr.height]="getPopDimHeight()"
-    [attr.width]="getPopDimWidth()">
+  @let popDimZIndex = getPopDimZIndex();
+  @let popDimHeight = getPopDimHeight();
+  @let popDimWidth = getPopDimWidth();
+  <canvas #popUpDim class="pop-component-bg" [style.z-index]="popDimZIndex" [attr.height]="popDimHeight"
+    [attr.width]="popDimWidth">
   </canvas>
 }

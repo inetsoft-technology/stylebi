@@ -17,6 +17,7 @@
 -->
 <mat-card appearance="outlined" class="select-viewsheet">
   <mat-card-content>
+    @let notExistsMsg = notExistsMessage();
     <mat-form-field appearance="outline" color="accent" [formGroup]="form">
       <mat-label>_#(Select Dashboard)</mat-label>
       <mat-select placeholder="_#(Select Dashboard)" name="someName"
@@ -59,7 +60,7 @@
         </mat-tree>
       </mat-select>
       <mat-error *ngIf="form.controls.dashboardSelected?.errors?.required">_#(em.scheduleRepletAction.dashboardRequired)</mat-error>
-      <mat-error *ngIf="form.controls.dashboardSelected?.errors?.notExists">{{notExistsMessage()}}</mat-error>
+      <mat-error *ngIf="form.controls.dashboardSelected?.errors?.notExists">{{notExistsMsg}}</mat-error>
     </mat-form-field>
     <table mat-table [dataSource]="bookmarksDB">
       <ng-container matColumnDef="bookmark">

@@ -18,7 +18,7 @@
 <button class="form-control dropdown-toggle" type="button"
   [disabled]="disabled" [fixedDropdown]="dropdownMenu" [autoClose]="false"
   dropdownPlacement="bottom">
-  <div>{{getLabel()}}&nbsp;</div>
+  <div>{{label}}&nbsp;</div>
 </button>
 <ng-template #dropdownMenu>
   @if (items.length > 0) {

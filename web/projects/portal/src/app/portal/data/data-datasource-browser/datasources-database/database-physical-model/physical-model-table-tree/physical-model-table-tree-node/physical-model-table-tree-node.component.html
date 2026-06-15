@@ -28,7 +28,7 @@
         @if (hasChildren()) {
           <span
             [class.disabled]="disabled"
-            class="{{getToggleIcon()}} tree-node-toggle cursor-pointer truncate-addon"
+            class="{{node.expanded ? 'caret-down-icon' : 'caret-right-icon'}} tree-node-toggle cursor-pointer truncate-addon"
             (click)="toggleNode(); $event.stopPropagation()"
             (dblclick)="$event.stopPropagation()">
           </span>

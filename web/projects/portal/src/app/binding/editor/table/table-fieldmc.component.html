@@ -36,17 +36,20 @@
       </div>
     }
     @if (isEditEnable()) {
+      @let fieldClassType = getFieldClassType();
+      @let titleText = getTitle();
       <div (openChange)="toggled($event)" [autoClose]="false" class="fieldEditIcon"
         [closeOnOutsideClick]="!dialogOpened"
         [fixedDropdown]="dropdownMenu" [zIndex]="10000">
         <i class="icon-size-small btn-icon"
-          [class.dimension-setting-icon]="getFieldClassType() == 'Dimension'"
-          [class.measure-setting-icon]="getFieldClassType() == 'Measure'"
-        title="{{getTitle()}}"></i>
+          [class.dimension-setting-icon]="fieldClassType == 'Dimension'"
+          [class.measure-setting-icon]="fieldClassType == 'Measure'"
+        title="{{titleText}}"></i>
       </div>
     }
     @if (fieldType==='details') {
-      <detail-option [attr.data-test]="getFieldName() + ' detail option'"
+      @let fieldName = getFieldName();
+      <detail-option [attr.data-test]="fieldName + ' detail option'"
         [field]="field" [fieldType]="'details'"
         [col]="dragIndex" [embedded]="tableBindingModel?.embedded"
         (onPopUpWarning)="onPopUpWarning.emit($event)">
