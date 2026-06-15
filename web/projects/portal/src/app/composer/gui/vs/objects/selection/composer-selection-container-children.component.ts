@@ -111,6 +111,7 @@ export class ComposerSelectionContainerChildren extends VSSelectionContainerChil
 
    objectTop: number = 0;
    bodyHeight: number = 0;
+   bodyWidth: number = 0;
    innerWidth: number = 0;
    paddingHeight: number = 0;
 
@@ -220,6 +221,7 @@ export class ComposerSelectionContainerChildren extends VSSelectionContainerChil
 
       this.objectTop = this.getObjectTop();
       this.bodyHeight = this.getBodyHeight();
+      this.bodyWidth = this.getBodyWidth();
       this.innerWidth = this.getInnerWidth();
       this.paddingHeight = this.getPaddingHeight();
    }

@@ -130,6 +130,7 @@ export class VSSelectionContainerChildren extends CommandProcessor implements On
    cachedBodyTop: number = 0;
    cachedBodyLeft: number = 0;
    cachedBodyHeight: number = 0;
+   cachedBodyWidth: number = 0;
    cachedInnerWidth: number = 0;
    private _vsObject: VSSelectionContainerModel;
 
@@ -200,6 +201,7 @@ export class VSSelectionContainerChildren extends CommandProcessor implements On
       this.cachedBodyHeight = this.getBodyHeight();
       this.cachedBodyLeft = this.getBodyLeft();
       this.cachedBodyTop = this.getBodyTop();
+      this.cachedBodyWidth = this.getBodyWidth();
       this.cachedInnerWidth = this.getInnerWidth();
    }
 

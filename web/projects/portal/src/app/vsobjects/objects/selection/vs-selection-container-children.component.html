@@ -16,13 +16,12 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 @if (vsObject && vsObject.visible) {
-  @let bodyWidth = getBodyWidth();
   <div
     [class.mobile]="mobileDevice"
     [style.position]="'absolute'"
     [style.top.px]="cachedBodyTop"
     [style.left.px]="cachedBodyLeft"
-    [style.width.px]="bodyWidth"
+    [style.width.px]="cachedBodyWidth"
     [style.height.px]="cachedBodyHeight"
     [style.z-index]="vsObject.objectFormat.zIndex"
     [style.border-bottom]="vsObject.objectFormat.border.bottom"
@@ -36,7 +35,7 @@
     outOfZone (onDragover)="onDragOverContainer($event)"
     (drop)="onDrop($event)">
     <div #containerBody class="scrollbar-container"
-      [style.width.px]="bodyWidth + scrollbarWidth">
+      [style.width.px]="cachedBodyWidth + scrollbarWidth">
       <div class="scrollbar-container-inner" [style.width.px]="cachedInnerWidth">
         @for (outer of vsObject.outerSelections; track outer.name; let i = $index) {
           <current-selection
