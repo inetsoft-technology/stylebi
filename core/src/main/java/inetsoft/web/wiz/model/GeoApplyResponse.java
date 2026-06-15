@@ -24,6 +24,9 @@ import java.util.List;
  * {@code status} is "complete" when no originally-unmatched values remain, else "partial".
  */
 public class GeoApplyResponse {
+   public static final String STATUS_COMPLETE = "complete";
+   public static final String STATUS_PARTIAL  = "partial";
+
    public String getStatus() {
       return status;
    }

@@ -55,6 +55,14 @@ public class GeoDetectResponse {
       this.unmatched = unmatched;
    }
 
+   public String getLayerName() {
+      return layerName;
+   }
+
+   public void setLayerName(String layerName) {
+      this.layerName = layerName;
+   }
+
    public List<String> getCandidateFeatures() {
       return candidateFeatures;
    }
@@ -65,6 +73,7 @@ public class GeoDetectResponse {
 
    private String geoType;
    private int layer;
+   private String layerName;
    private int matchedCount;
    private List<String> unmatched;
    private List<String> candidateFeatures;

@@ -169,6 +169,7 @@ public class WizGeoService {
       GeoDetectResponse response = new GeoDetectResponse();
       response.setGeoType(geoType);
       response.setLayer(layer);
+      response.setLayerName(MapData.getLayerName(layer));
       response.setMatchedCount(Math.max(0, distinct - unmatched.size()));
       response.setUnmatched(new ArrayList<>(unmatched));
       response.setCandidateFeatures(candidateFeatures(layer));
@@ -252,7 +253,7 @@ public class WizGeoService {
          WizGeoMappingResolver.stillUnmatched(originalUnmatched, applied, dropped);
 
       GeoApplyResponse response = new GeoApplyResponse();
-      response.setStatus(stillUnmatched.isEmpty() ? "complete" : "partial");
+      response.setStatus(stillUnmatched.isEmpty() ? GeoApplyResponse.STATUS_COMPLETE : GeoApplyResponse.STATUS_PARTIAL);
       response.setStillUnmatched(new ArrayList<>(stillUnmatched));
 
       // Persist the resolved feature mappings to the session asset so a saved map keeps them.
@@ -281,7 +282,7 @@ public class WizGeoService {
          }
       }
       catch(Exception ex) {
-         LOG.warn("Failed to persist geo viewsheet to {}: {}", viewsheetIdentifier, ex.getMessage());
+         LOG.error("Failed to persist geo viewsheet to {}: {}", viewsheetIdentifier, ex.getMessage());
       }
    }
 
@@ -472,7 +473,7 @@ public class WizGeoService {
       for(int r = 0; r < source.getRowCount(); r++) {
          Object v = source.getData(colIndex, r);
 
-         if(v != null) {
+         if(!Tool.isEmptyString(Tool.toString(v))) {
             distinct.add(Tool.toString(v));
          }
       }
