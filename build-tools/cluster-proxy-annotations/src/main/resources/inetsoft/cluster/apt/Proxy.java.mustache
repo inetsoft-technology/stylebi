@@ -35,7 +35,16 @@ public class {{proxySimpleName}} {
 
          try {
             {{targetClass}} service = inetsoft.util.ConfigurationContext.getContext().lookupProxyTarget({{targetClass}}.class);
+            {{#writeMethod}}
+            {{{returnType}}} _callResult = service.{{name}}({{#parameters}}{{^first}}, {{/first}}{{value.getter}}{{/parameters}});
+            inetsoft.util.ConfigurationContext.getContext()
+               .getSpringBean(inetsoft.report.composition.WorksheetService.class)
+               .writeSheet({{keyParam}});
+            return _callResult;
+            {{/writeMethod}}
+            {{^writeMethod}}
             return service.{{name}}({{#parameters}}{{^first}}, {{/first}}{{value.getter}}{{/parameters}});
+            {{/writeMethod}}
          }
          finally {
             serviceProxyContext.postprocess();

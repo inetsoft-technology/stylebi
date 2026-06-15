@@ -90,6 +90,7 @@ public class ImportCSVDialogService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setImportCSVDialogModel(@ClusterProxyKey String runtimeId,
                                        ImportCSVDialogModel model, Principal principal,

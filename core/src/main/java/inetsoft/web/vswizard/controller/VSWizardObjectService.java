@@ -83,6 +83,7 @@ public class VSWizardObjectService {
       this.assetDataCache = assetDataCache;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void openViewsheetWizardObject(@ClusterProxyKey String vsId, OpenWizardObjectEvent event, Principal principal,
                                          CommandDispatcher dispatcher, @LinkUri String linkUri)
@@ -423,6 +424,7 @@ public class VSWizardObjectService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void updateObjectByTempAssembly(@ClusterProxyKey String rid, UpdateWizardObjectEvent event, Principal principal,
                                           CommandDispatcher dispatcher, String linkUri) throws Exception
@@ -527,6 +529,7 @@ public class VSWizardObjectService {
       }
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void switchToMeta(@ClusterProxyKey String id, SwitchToMetaModeEvent event,
                             Principal principal) throws Exception

@@ -470,27 +470,28 @@ public class RuntimeSheetCache
          lock.readLock().unlock();
       }
 
-      // A residual race window exists between the readLock release and putAsync(): remove()
-      // could complete in that interval, leaving a one-entry orphan in accessTimeMap.
-      // The orphan is bounded (one 8-byte entry per closed session) and is cleaned up by
-      // the next remove() or clear() for the same key.
+      // Residual race: remove() could complete between the lock release and putAsync(),
+      // leaving a one-entry orphan in accessTimeMap. The orphan is bounded (8 bytes)
+      // and is cleaned up by the next remove() or clear() for the same key.
       accessTimeMap.putAsync(getAffinityKey(id), time);
    }
 
    /**
-    * Inserts all entries into local memory and the distributed session cache.
-    * Note: accessTimeMap is NOT populated here. This method has no active callers in the
-    * current codebase and exists only to satisfy the Map interface contract. If it is ever
-    * used to bulk-insert sessions, callers must separately populate accessTimeMap to ensure
-    * access times survive a subsequent node restart or rebalance.
+    * Inserts all entries into local memory, the distributed session cache, and accessTimeMap.
+    * This method has no active callers in the current codebase and exists only to satisfy
+    * the Map interface contract.
     */
    @Override
    public void putAll(Map<? extends String, ? extends RuntimeSheet> m) {
       Map<AffinityKey<String>, CompressedSheetState> states =
          new TreeMap<>(Comparator.comparing(AffinityKey::key));
 
+      Map<AffinityKey<String>, Long> accessTimes = new HashMap<>();
+
       for(Map.Entry<? extends String, ? extends RuntimeSheet> e : m.entrySet()) {
-         states.put(getAffinityKey(e.getKey()), compressState(e.getValue().saveState(mapper)));
+         AffinityKey<String> key = getAffinityKey(e.getKey());
+         states.put(key, compressState(e.getValue().saveState(mapper)));
+         accessTimes.put(key, e.getValue().getLastAccessed());
       }
 
       lock.writeLock().lock();
@@ -504,6 +505,7 @@ public class RuntimeSheetCache
       }
 
       cache.putAllAsync(states);
+      accessTimeMap.putAllAsync(accessTimes);
    }
 
    @Override

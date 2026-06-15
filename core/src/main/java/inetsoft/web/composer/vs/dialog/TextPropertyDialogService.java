@@ -183,6 +183,7 @@ public class TextPropertyDialogService {
       return result;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setTextPropertyDialogModel(@ClusterProxyKey String runtimeId, String objectId,
                                           TextPropertyDialogModel value, String linkUri,

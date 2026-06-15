@@ -61,6 +61,7 @@ public class WorksheetEventService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public String openWorksheet(@ClusterProxyKey String id, Principal user, AssetEntry entry,
                                boolean openAutoSaved, boolean gettingStartedCreateQuery,

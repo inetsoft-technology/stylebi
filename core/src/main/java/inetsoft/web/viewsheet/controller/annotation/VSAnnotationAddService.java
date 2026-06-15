@@ -51,6 +51,7 @@ public class VSAnnotationAddService {
    /**
     * Add an annotation to the runtime viewsheet.
     **/
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void addAnnotation(@ClusterProxyKey String id, final AddAnnotationEvent event,
                              final String linkUri, final Principal principal,

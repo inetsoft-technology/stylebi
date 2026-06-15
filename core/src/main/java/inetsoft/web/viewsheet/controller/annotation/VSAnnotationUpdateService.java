@@ -44,6 +44,7 @@ public class VSAnnotationUpdateService {
       this.annotationService = annotationService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void updateAnnotation(@ClusterProxyKey String id, UpdateAnnotationEvent event,
                                 Principal principal, String linkUri, CommandDispatcher dispatcher) throws Exception
@@ -93,6 +94,7 @@ public class VSAnnotationUpdateService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void updateAnnotationEndpoint(@ClusterProxyKey String id, UpdateAnnotationEvent event,
                                         Principal principal,

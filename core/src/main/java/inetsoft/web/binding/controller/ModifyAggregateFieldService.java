@@ -46,6 +46,7 @@ public class ModifyAggregateFieldService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void modifyAggregateField(@ClusterProxyKey String id, ModifyAggregateFieldEvent event,
                                     Principal principal) throws Exception
    {
@@ -80,6 +81,7 @@ public class ModifyAggregateFieldService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void removeAggregateField(@ClusterProxyKey String id, ModifyAggregateFieldEvent event, Principal principal) throws Exception {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
       Viewsheet vs = rvs.getViewsheet();

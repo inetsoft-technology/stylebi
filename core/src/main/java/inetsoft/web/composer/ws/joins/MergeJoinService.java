@@ -47,6 +47,7 @@ public class MergeJoinService extends WorksheetControllerService {
       super(viewsheetService, dataSourceRegistry);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void doMergeJoin(@ClusterProxyKey String runtimeId, WSMergeJoinEvent event, Principal principal,
                            CommandDispatcher commandDispatcher) throws Exception
@@ -71,6 +72,7 @@ public class MergeJoinService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void addJoinTable(@ClusterProxyKey String runtimeId, WSMergeAddJoinTableEvent event,
                             Principal principal, CommandDispatcher commandDispatcher) throws Exception

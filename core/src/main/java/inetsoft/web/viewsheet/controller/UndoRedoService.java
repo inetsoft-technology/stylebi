@@ -51,6 +51,7 @@ public class UndoRedoService {
       this.wizardViewsheetService = wizardViewsheetService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void undo(@ClusterProxyKey String vsId, Principal principal, String linkUri,
                     CommandDispatcher dispatcher) throws Exception
@@ -94,6 +95,7 @@ public class UndoRedoService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void redo(@ClusterProxyKey String vsId, Principal principal, String linkUri,
                     CommandDispatcher dispatcher) throws Exception

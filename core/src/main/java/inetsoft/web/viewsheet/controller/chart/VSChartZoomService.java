@@ -57,6 +57,7 @@ public class VSChartZoomService extends VSChartControllerService<VSChartZoomEven
    }
 
    @Override
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void eventHandler(@ClusterProxyKey String runtimeId,
                             VSChartZoomEvent event,

@@ -64,6 +64,9 @@ public class EventAspectService {
          }
 
          if(textVSAssembly != null) {
+            // No @ClusterWriteMethod: the warning text assembly is a transient UI element
+            // re-evaluated from scratch on every execution pass. Any node will reposition it
+            // correctly on the next event, so this mutation does not need Ignite persistence.
             vs.adjustWarningTextPosition();
             coreLifecycleService.addDeleteVSObject(rvs, textVSAssembly, commandDispatcher);
             coreLifecycleService.refreshVSAssembly(rvs, textVSAssembly, commandDispatcher);

@@ -401,6 +401,7 @@ public class HighlightDialogService {
       return false;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setHighlightDialogModel(@ClusterProxyKey String runtimeId, String objectId,
                                        HighlightDialogModel model, String linkUri, Principal principal,

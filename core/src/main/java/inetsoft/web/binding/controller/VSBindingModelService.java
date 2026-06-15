@@ -172,6 +172,7 @@ public class VSBindingModelService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void setBinding(@ClusterProxyKey String id, ApplyVSAssemblyInfoEvent event,
                           Principal principal, CommandDispatcher dispatcher) throws Exception
    {

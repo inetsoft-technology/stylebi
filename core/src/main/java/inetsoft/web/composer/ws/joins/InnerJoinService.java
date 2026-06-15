@@ -51,6 +51,7 @@ public class InnerJoinService extends WorksheetControllerService {
       super(viewsheetService, dataSourceRegistry);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void editInnerJoin(@ClusterProxyKey String runtimeId, WSInnerJoinEvent event,
                              Principal principal, CommandDispatcher commandDispatcher) throws Exception
@@ -82,6 +83,7 @@ public class InnerJoinService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void dragTableIntoJoinSchema(@ClusterProxyKey String runtimeId,
                                        WSDropTableIntoJoinSchemaEvent event, Principal principal,
@@ -99,6 +101,7 @@ public class InnerJoinService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void joinTables(@ClusterProxyKey String runtimeId, WSJoinTablesEvent event,
                           Principal principal, CommandDispatcher commandDispatcher) throws Exception
@@ -135,6 +138,7 @@ public class InnerJoinService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void joinTablePair(@ClusterProxyKey String runtimeId, WSJoinTablePairEvent event,
                              Principal principal, CommandDispatcher commandDispatcher) throws Exception

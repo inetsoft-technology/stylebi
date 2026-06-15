@@ -46,6 +46,7 @@ public class VSWizardObjectToolbarService {
    }
 
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void gotoFullEditor(@ClusterProxyKey String id,
       @RequestParam(value = "assemblyName", required = false) String assemblyName,

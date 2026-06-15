@@ -86,6 +86,7 @@ public class VPMPrincipalDialogService extends WorksheetControllerService {
       return builder.build();
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setVPMPrincipalModel(@ClusterProxyKey String runtimeId, VPMPrincipalDialogModel model,
                                     CommandDispatcher commandDispatcher, Principal principal) throws Exception

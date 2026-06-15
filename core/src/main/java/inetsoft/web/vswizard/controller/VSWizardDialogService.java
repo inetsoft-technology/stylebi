@@ -52,6 +52,7 @@ public class VSWizardDialogService {
       this.temporaryInfoService = temporaryInfoService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void createRuntimeSheet(@ClusterProxyKey String runtimeId, String linkUri,
                                   CommandDispatcher dispatcher, Principal principal) throws Exception
@@ -75,6 +76,7 @@ public class VSWizardDialogService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public String createRuntimeSheet0(@ClusterProxyKey String runtimeId, boolean viewer,
                                      boolean temporarySheet, Principal principal) throws Exception
@@ -87,6 +89,7 @@ public class VSWizardDialogService {
       return nrid;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void closeVSWizard(@ClusterProxyKey String runtimeId, CloseVsWizardEvent event,
                              CommandDispatcher dispatcher, Principal principal) throws Exception

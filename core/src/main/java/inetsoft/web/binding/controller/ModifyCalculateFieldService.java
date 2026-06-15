@@ -86,6 +86,7 @@ public class ModifyCalculateFieldService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void modifyCalculateField(@ClusterProxyKey String id, ModifyCalculateFieldEvent event,
                                     Principal principal, CommandDispatcher dispatcher,
                                     String linkUri)

@@ -42,6 +42,7 @@ public class CancelLoadingService extends WorksheetControllerService{
       this.xRepository = xRepository;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void cancelLoading(
       @ClusterProxyKey String runtimeId,

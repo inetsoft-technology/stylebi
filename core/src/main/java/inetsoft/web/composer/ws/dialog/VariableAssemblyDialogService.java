@@ -165,6 +165,7 @@ public class VariableAssemblyDialogService extends WorksheetControllerService {
       return result;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setVariableAssemblyProperties(@ClusterProxyKey String runtimeId,
                                              VariableAssemblyDialogModel model, Principal principal,

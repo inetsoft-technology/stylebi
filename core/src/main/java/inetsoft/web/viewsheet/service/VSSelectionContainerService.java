@@ -61,6 +61,7 @@ public class VSSelectionContainerService {
       this.assemblyInfoHandler = vsAssemblyInfoHandler;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void applySelection(@ClusterProxyKey String vsId, String assemblyName,
                               MoveSelectionChildEvent event, Principal principal,
@@ -81,6 +82,7 @@ public class VSSelectionContainerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void applySelection(@ClusterProxyKey String vsId, String assemblyName,
                               HideSelectionListEvent event, String linkUri,

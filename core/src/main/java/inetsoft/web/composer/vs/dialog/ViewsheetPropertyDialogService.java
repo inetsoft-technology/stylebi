@@ -260,6 +260,7 @@ public class ViewsheetPropertyDialogService {
       return vsModel.build();
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public String setViewsheetInfo(@ClusterProxyKey String runtimeId, ViewsheetPropertyDialogModel value,
                                 Principal principal, CommandDispatcher commandDispatcher, String linkUri,
@@ -541,6 +542,7 @@ public class ViewsheetPropertyDialogService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public ConvertToWorksheetResponseModel convertLogicModelToWorksheet(@ClusterProxyKey String runtimeId,
                                                                        Principal principal) throws Exception

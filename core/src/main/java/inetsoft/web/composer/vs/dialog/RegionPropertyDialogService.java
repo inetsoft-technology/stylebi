@@ -100,6 +100,7 @@ public class RegionPropertyDialogService {
          axisIdx, field, plotDesc.isFacetGrid(), vs.isMaxMode());
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setAxisPropertyDialogModel(@ClusterProxyKey String runtimeId, String objectId, String axisType,
                                           int index, String field, AxisPropertyDialogModel value, String linkUri,
@@ -197,6 +198,7 @@ public class RegionPropertyDialogService {
                                                          descriptor, legendIdx);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setLegendFormatDialogModel(@ClusterProxyKey String runtimeId, String objectId,
                                           int index, LegendFormatDialogModel value, String linkUri,
@@ -261,6 +263,7 @@ public class RegionPropertyDialogService {
       return new TitleFormatDialogModel(titleDesc, oldTitle);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setTitleFormatDialogModel(@ClusterProxyKey String runtimeId, String objectId,
                                          String axisType, TitleFormatDialogModel value, String linkUri,

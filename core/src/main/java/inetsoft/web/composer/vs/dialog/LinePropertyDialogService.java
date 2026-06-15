@@ -108,6 +108,7 @@ public class LinePropertyDialogService {
       return result;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setLinePropertyDialogModel(@ClusterProxyKey String runtimeId, String objectId,
                                           LinePropertyDialogModel value, String linkUri, Principal principal,

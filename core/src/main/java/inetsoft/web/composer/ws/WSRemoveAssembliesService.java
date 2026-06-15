@@ -78,6 +78,7 @@ public class WSRemoveAssembliesService extends WorksheetControllerService {
       }
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void removeAssemblies(@ClusterProxyKey String runtimeId, WSRemoveAssembliesEvent event,
                                 Principal principal, CommandDispatcher commandDispatcher) throws Exception

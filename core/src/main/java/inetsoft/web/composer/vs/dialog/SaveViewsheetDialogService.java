@@ -204,6 +204,7 @@ public class SaveViewsheetDialogService {
       return validator;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void saveViewsheet(@ClusterProxyKey String runtimeId, SaveViewsheetDialogModel model,
                              String linkUri, Principal principal, CommandDispatcher commandDispatcher) throws Exception

@@ -90,6 +90,7 @@ public class ConvertChartRefService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void convertChartRef(@ClusterProxyKey String id, ConvertChartRefEvent event,
                                Principal principal, CommandDispatcher dispatcher,
                                String linkUri) throws Exception

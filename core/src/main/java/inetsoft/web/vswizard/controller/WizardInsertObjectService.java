@@ -39,6 +39,7 @@ public class WizardInsertObjectService {
       this.wizardVsObjectService = wizardVSObjectService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void addTextObject(@ClusterProxyKey String vId, AddNewVSObjectEvent event, String linkUri,
                              Principal principal, CommandDispatcher commandDispatcher)

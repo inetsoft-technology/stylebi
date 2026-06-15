@@ -198,6 +198,7 @@ public class CalendarPropertyDialogService {
       return trap;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setCalendarPropertyModel(@ClusterProxyKey String runtimeId, String objectId,
                                         CalendarPropertyDialogModel value, String linkUri,

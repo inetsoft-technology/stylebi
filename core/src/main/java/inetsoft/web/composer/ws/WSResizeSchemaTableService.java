@@ -43,6 +43,7 @@ public class WSResizeSchemaTableService extends WorksheetControllerService {
       super(viewsheetService, dataSourceRegistry);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void resizeSchemaTable(@ClusterProxyKey String runtimeId, WSResizeSchemaTableEvent event,
                                  Principal principal, CommandDispatcher commandDispatcher) throws Exception

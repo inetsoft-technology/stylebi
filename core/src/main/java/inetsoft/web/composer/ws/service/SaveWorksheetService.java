@@ -68,6 +68,7 @@ public class SaveWorksheetService extends WorksheetControllerService {
       this.renameTransformHandler = renameTransformHandler;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Boolean saveWorksheet(@ClusterProxyKey String runtimeId, SaveSheetEvent event,
                                 Principal principal, CommandDispatcher commandDispatcher) throws Exception

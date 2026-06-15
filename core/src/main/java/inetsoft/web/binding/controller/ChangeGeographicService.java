@@ -93,6 +93,7 @@ public class ChangeGeographicService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void changeGeographic(@ClusterProxyKey String id, ChangeGeographicEvent event,
                                 Principal principal, CommandDispatcher dispatcher,
                                 String linkUri) throws Exception

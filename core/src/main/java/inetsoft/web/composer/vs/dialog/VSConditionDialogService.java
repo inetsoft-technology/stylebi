@@ -166,6 +166,7 @@ public class VSConditionDialogService {
       return model;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setModel(@ClusterProxyKey String runtimeId, String assemblyName,
                         VSConditionDialogModel model, String linkUri,

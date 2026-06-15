@@ -42,6 +42,7 @@ public class WSMoveAssembliesService extends WorksheetControllerService {
       super(viewsheetService, dataSourceRegistry);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void offsetAssemblies(@ClusterProxyKey String runtimeId, WSMoveAssembliesEvent event,
                                 Principal principal, CommandDispatcher commandDispatcher) throws Exception
@@ -69,6 +70,7 @@ public class WSMoveAssembliesService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void relocateAssemblies(@ClusterProxyKey String runtimeId, WSRelocateAssembliesEvent event,
                                   Principal principal, CommandDispatcher commandDispatcher) throws Exception

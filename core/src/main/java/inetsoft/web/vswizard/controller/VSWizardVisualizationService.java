@@ -53,6 +53,7 @@ public class VSWizardVisualizationService {
       this.temporaryInfoService = temporaryInfoService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void changeSelectedType(@ClusterProxyKey String id, ChangeVisualizationTypeEvent event,
                                   CommandDispatcher dispatcher, Principal principal,
