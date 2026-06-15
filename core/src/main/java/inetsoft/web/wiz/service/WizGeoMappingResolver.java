@@ -23,7 +23,7 @@ import java.util.*;
 final class WizGeoMappingResolver {
    private WizGeoMappingResolver() {}
 
-   static Set<String> stillUnmatched(Set<String> unmatched, Map<String,String> applied, Set<String> dropped) {
+   static Set<String> stillUnmatched(Set<String> unmatched, Map<String, String> applied, Set<String> dropped) {
       Set<String> remaining = new LinkedHashSet<>(unmatched);
       remaining.removeAll(applied.keySet());
       remaining.removeAll(dropped == null ? Set.of() : dropped);

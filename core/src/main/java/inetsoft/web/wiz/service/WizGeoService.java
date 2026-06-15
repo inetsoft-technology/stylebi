@@ -173,7 +173,7 @@ public class WizGeoService {
       int distinct = distinctValueCount(source, colIndex);
 
       GeoDetectResponse response = new GeoDetectResponse();
-      response.setGeoType(geoType);
+      response.setGeoType(geoType != null ? geoType : "");
       response.setLayer(layer);
       response.setLayerName(MapData.getLayerName(layer));
       response.setMatchedCount(Math.max(0, distinct - unmatched.size()));
