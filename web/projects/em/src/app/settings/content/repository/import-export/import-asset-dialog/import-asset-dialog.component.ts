@@ -45,7 +45,7 @@ import { MatIcon } from "@angular/material/icon";
 import { FileChooserComponent } from "../../../../../common/util/file-chooser/file-chooser/file-chooser.component";
 import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
 import { MatTable, MatHeaderCellDef, MatCellDef, MatHeaderRowDef, MatRowDef, MatHeaderCell, MatCell, MatHeaderRow, MatRow, MatColumnDef } from "@angular/material/table";
-import { MatRadioButton, MatRadioGroup } from "@angular/material/radio";
+import { MatRadioButton } from "@angular/material/radio";
 import { ModalHeaderComponent } from "../../../../../common/util/modal-header/modal-header.component";
 import { NgIf } from "@angular/common";
 
@@ -54,13 +54,12 @@ import { NgIf } from "@angular/common";
     templateUrl: "./import-asset-dialog.component.html",
     styleUrls: ["./import-asset-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, FileChooserComponent, MatIcon, MatSuffix, MatError, MatInput, MatIconButton, MatCheckbox, SelectedAssetListComponent, RequiredAssetListComponent, MatProgressBar, MatDialogActions, MatButton, MatTable, MatColumnDef, MatHeaderCellDef, MatCellDef, MatHeaderRowDef, MatRowDef, MatHeaderCell, MatCell, MatHeaderRow, MatRow, MatRadioGroup, MatRadioButton]
+    imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, FileChooserComponent, MatIcon, MatSuffix, MatError, MatInput, MatIconButton, MatCheckbox, SelectedAssetListComponent, RequiredAssetListComponent, MatProgressBar, MatDialogActions, MatButton, MatTable, MatColumnDef, MatHeaderCellDef, MatCellDef, MatHeaderRowDef, MatRowDef, MatHeaderCell, MatCell, MatHeaderRow, MatRow, MatRadioButton]
 })
 export class ImportAssetDialogComponent implements OnDestroy {
    @HostBinding("class") hostClass = "import-asset-dialog";
    uploadForm: UntypedFormGroup;
    importForm: UntypedFormGroup;
-   selected: RequiredAssetModel[] = [];
    uploaded = false;
    showBookmarkConflicts = false;
    bookmarkConflicts: BookmarkConflict[] = [];
@@ -70,6 +69,18 @@ export class ImportAssetDialogComponent implements OnDestroy {
    isGroupHeader = (_: number, row: any) => row.kind === "header";
    private bookmarkResolutions: BookmarkConflictResolution[] = [];
    private targetNode: RepositoryFlatNode;
+   private _selected: RequiredAssetModel[] = [];
+
+   get selected(): RequiredAssetModel[] { return this._selected; }
+
+   set selected(value: RequiredAssetModel[]) {
+      const old = this._selected;
+      this._selected = value;
+
+      if(this.model && this.hasViewsheetChange(old, value)) {
+         this.fetchBookmarkConflicts();
+      }
+   }
 
    get loading(): boolean {
       return this._loading;
@@ -96,11 +107,11 @@ export class ImportAssetDialogComponent implements OnDestroy {
       this._model = value;
 
       if(value) {
-         this.selected = this.model.dependentAssets.slice();
+         this._selected = this.model.dependentAssets.slice();
          this.importForm.get("overwrite").setValue(this.model.overwriting);
       }
       else {
-         this.selected = [];
+         this._selected = [];
       }
    }
 
@@ -336,10 +347,11 @@ export class ImportAssetDialogComponent implements OnDestroy {
          .pipe(catchError(err => { this.conflictsLoading = false; return throwError(err); }))
          .subscribe(conflicts => {
             this.conflictsLoading = false;
+            // Sort conflicts where timestamps differ to the top (they're more actionable).
             this.bookmarkConflicts = (conflicts || []).sort((a, b) => {
-               const aDiffers = a.existingModified !== a.importedModified ? 0 : 1;
-               const bDiffers = b.existingModified !== b.importedModified ? 0 : 1;
-               return aDiffers - bDiffers;
+               const aSortKey = a.existingModified === a.importedModified ? 1 : 0;
+               const bSortKey = b.existingModified === b.importedModified ? 1 : 0;
+               return aSortKey - bSortKey;
             });
             this.buildConflictTableData();
             this.bookmarkResolutions = this.bookmarkConflicts.map(c => {
@@ -369,6 +381,21 @@ export class ImportAssetDialogComponent implements OnDestroy {
    private isAssetIgnored(asset: RequiredAssetModel): boolean {
       return !this.selected.some(s =>
          s.name === asset.name && s.type === asset.type && s.user === asset.user);
+   }
+
+   private hasViewsheetChange(a: RequiredAssetModel[], b: RequiredAssetModel[]): boolean {
+      const vsIndices = (list: RequiredAssetModel[]) =>
+         new Set(list.filter(x => x.type === "VIEWSHEET").map(x => x.index));
+      const setA = vsIndices(a);
+      const setB = vsIndices(b);
+
+      if(setA.size !== setB.size) { return true; }
+
+      for(const i of setA) {
+         if(!setB.has(i)) { return true; }
+      }
+
+      return false;
    }
 
    private updateAssetInfo(info: ExportedAssetsModel): void {

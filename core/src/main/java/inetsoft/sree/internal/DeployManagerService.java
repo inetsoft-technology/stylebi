@@ -1003,16 +1003,18 @@ public class DeployManagerService {
 
       AssetRepository engine = AssetUtil.getAssetRepository(false);
 
-      AssetEntry targetFolder = targetFolderInfo != null
-         ? new DeployHelper(info, targetFolderInfo).getTargetFolder()
+      DeployHelper deployHelper = targetFolderInfo != null
+         ? new DeployHelper(info, targetFolderInfo)
          : null;
+
+      AssetEntry targetFolder = deployHelper != null ? deployHelper.getTargetFolder() : null;
 
       if(targetFolder != null && targetFolder.isRoot()) {
          targetFolder = null;
       }
 
-      AssetEntry commonPrefixFolder = targetFolder != null
-         ? new DeployHelper(info, targetFolderInfo).getCommonPrefixFolder()
+      AssetEntry commonPrefixFolder = deployHelper != null && targetFolder != null
+         ? deployHelper.getCommonPrefixFolder()
          : null;
 
       Map<String, String> names = info.getNames();
@@ -1077,6 +1079,7 @@ public class DeployManagerService {
                imported.parseXML(bookmarkElem);
 
                IdentityID userID = IdentityID.getIdentityIDFromKey(userName);
+               userID.setOrgID(OrganizationManager.getInstance().getCurrentOrgID());
                VSBookmark existing = engine.getVSBookmark(entry, new XPrincipal(userID));
 
                if(existing == null) {

@@ -20,6 +20,8 @@ package inetsoft.uql.viewsheet;
 import inetsoft.sree.security.IdentityID;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -131,5 +133,84 @@ class VSBookmarkTest {
       VSBookmark.DefaultBookmark db = new VSBookmark.DefaultBookmark("myBookmark", USER_ID);
       assertEquals("myBookmark", db.getName());
       assertEquals(USER_ID, db.getOwner());
+   }
+
+   // ---- getIncompatibilities tests ----
+
+   @Test
+   void getIncompatibilities_homeAndInitialState_alwaysEmpty() {
+      VSBookmark bm = new VSBookmark("test-vs-id", USER_ID);
+      Viewsheet vs = new Viewsheet();
+
+      assertTrue(bm.getIncompatibilities(VSBookmark.HOME_BOOKMARK, vs).isEmpty(),
+         "Home bookmark is annotation-only and must never be reported as structurally incompatible");
+      assertTrue(bm.getIncompatibilities(VSBookmark.INITIAL_STATE, vs).isEmpty(),
+         "INITIAL_STATE is a runtime-only mirror of Home and must never be reported as incompatible");
+   }
+
+   @Test
+   void getIncompatibilities_missingBookmarkName_returnsEmpty() {
+      VSBookmark bm = new VSBookmark("test-vs-id", USER_ID);
+      Viewsheet vs = new Viewsheet();
+
+      VSBookmark.BookmarkIncompatibility result = bm.getIncompatibilities("NonExistent", vs);
+
+      assertTrue(result.isEmpty());
+      assertTrue(result.getMissingAssemblies().isEmpty());
+      assertTrue(result.getTypeChanges().isEmpty());
+      assertFalse(result.isParseError());
+   }
+
+   @Test
+   void getIncompatibilities_assemblyRemovedFromViewsheet_reportedAsMissing() {
+      VSBookmark bm = new VSBookmark("test-vs-id", USER_ID);
+      // Stored state references "DeletedChart" which no longer exists in the viewsheet.
+      String xml = "<state>" +
+         "<assembly class=\"inetsoft.uql.viewsheet.ChartVSAssembly\">" +
+         "<name>DeletedChart</name></assembly>" +
+         "</state>";
+      bm.setBookmarkData("MyBookmark", xml.getBytes(StandardCharsets.UTF_8));
+
+      VSBookmark.BookmarkIncompatibility result =
+         bm.getIncompatibilities("MyBookmark", new Viewsheet());
+
+      assertFalse(result.isParseError());
+      assertEquals(1, result.getMissingAssemblies().size());
+      assertEquals("DeletedChart", result.getMissingAssemblies().get(0));
+      assertTrue(result.getTypeChanges().isEmpty());
+   }
+
+   @Test
+   void getIncompatibilities_assemblyClassChanged_reportedAsTypeChange() {
+      Viewsheet vs = new Viewsheet();
+      TextVSAssembly text = new TextVSAssembly(vs, "Widget1");
+      vs.addAssembly(text);
+
+      VSBookmark bm = new VSBookmark("test-vs-id", USER_ID);
+      // Stored state claims Widget1 was a ChartVSAssembly (different from current TextVSAssembly).
+      String xml = "<state>" +
+         "<assembly class=\"inetsoft.uql.viewsheet.ChartVSAssembly\">" +
+         "<name>Widget1</name></assembly>" +
+         "</state>";
+      bm.setBookmarkData("MyBookmark", xml.getBytes(StandardCharsets.UTF_8));
+
+      VSBookmark.BookmarkIncompatibility result = bm.getIncompatibilities("MyBookmark", vs);
+
+      assertFalse(result.isParseError());
+      assertTrue(result.getMissingAssemblies().isEmpty());
+      assertEquals(1, result.getTypeChanges().size());
+      assertEquals("Widget1", result.getTypeChanges().get(0));
+   }
+
+   @Test
+   void getIncompatibilities_malformedXml_setsParseError() {
+      VSBookmark bm = new VSBookmark("test-vs-id", USER_ID);
+      bm.setBookmarkData("MyBookmark", "<<not valid xml>>".getBytes(StandardCharsets.UTF_8));
+
+      VSBookmark.BookmarkIncompatibility result =
+         bm.getIncompatibilities("MyBookmark", new Viewsheet());
+
+      assertTrue(result.isParseError());
+      assertFalse(result.isEmpty());
    }
 }

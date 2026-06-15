@@ -45,6 +45,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -107,20 +108,25 @@ class ImportAssetControllerTest {
    // importAsset()
    // -------------------------------------------------------------------------
 
-   // [delegation] all parameters forwarded to proxy unchanged; response returned
+   // [delegation] ignoreList and empty resolutionMap forwarded to proxy when no keepCurrent
+   // resolutions are present
    @Test
    void importAsset_delegatesToService() throws Exception {
       List<String> ignoreList = List.of("ignoredAsset");
+      ImportAssetRequest request = new ImportAssetRequest();
+      request.setIgnoreList(ignoreList);
+      // All resolutions default to keepImported=true → resolutionMap stays empty
+
       when(importService.importAsset(
-         "id1", "/target", 2, "alice", true, ignoreList, true, false, principal))
+         "id1", "/target", 2, "alice", true, ignoreList, true, false, principal, Map.of()))
          .thenReturn(importAssetResponse);
 
       ImportAssetResponse result = controller.importAsset(
-         "id1", "/target", 2, "alice", true, ignoreList, true, false, principal);
+         "id1", "/target", 2, "alice", true, request, true, false, principal);
 
       assertSame(importAssetResponse, result);
       verify(importService).importAsset(
-         "id1", "/target", 2, "alice", true, ignoreList, true, false, principal);
+         "id1", "/target", 2, "alice", true, ignoreList, true, false, principal, Map.of());
    }
 
    // -------------------------------------------------------------------------
