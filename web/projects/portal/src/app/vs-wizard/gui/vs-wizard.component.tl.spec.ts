@@ -33,7 +33,7 @@
  *   Group 11 [baseline] — showLoading(): all three || guards (no runtimeId / objectWizardLoading / loadingEventCount)
  *   Group 12 [baseline] — hiddenNewBlockChanged() / changeCurrentObject()
  *   Group 13 [baseline] — processOpenObjectWizardCommand: currentPane / objectWizardLoading (split)
- *   Group 14 [baseline] — processShowLoadingMaskCommand: preparingData + loadingEventCount
+ *   Group 14 [baseline] — processShowLoadingMaskCommand/processClearLoadingCommand: preparingData + loadingEventCount increment/decrement
  *   Group 15 [baseline] — goToComponentWizard: objectWizardLoading=true / sendEvent (split)
  *   Group 16 [baseline, +内存泄漏] — ngOnDestroy: heartbeat subscription cleaned up
  *
@@ -664,7 +664,16 @@ describe("VsWizardComponent — processOpenObjectWizardCommand", () => {
 // ---------------------------------------------------------------------------
 
 describe("VsWizardComponent — processShowLoadingMaskCommand", () => {
-   it("should set preparingData=true and not increment loadingEventCount when preparingData=true", async () => {
+   it("should set preparingData=true when preparingData=true", async () => {
+      const { comp } = await renderComponent();
+
+      // Bypass: processShowLoadingMaskCommand is a private STOMP handler — called directly to simulate server push.
+      (comp as any)["processShowLoadingMaskCommand"]({ preparingData: true } as ShowLoadingMaskCommand);
+
+      expect(comp.preparingData).toBe(true);
+   });
+
+   it("should not increment loadingEventCount when preparingData=true", async () => {
       const { comp } = await renderComponent();
       // Bypass: loadingEventCount is a private field with no public reader — read directly to verify count.
       const before = (comp as any)["loadingEventCount"];
@@ -672,8 +681,7 @@ describe("VsWizardComponent — processShowLoadingMaskCommand", () => {
       // Bypass: processShowLoadingMaskCommand is a private STOMP handler — called directly to simulate server push.
       (comp as any)["processShowLoadingMaskCommand"]({ preparingData: true } as ShowLoadingMaskCommand);
 
-      expect(comp.preparingData).toBe(true);
-      expect((comp as any)["loadingEventCount"]).toBe(before); // not incremented
+      expect((comp as any)["loadingEventCount"]).toBe(before);
    });
 
    it("should increment loadingEventCount when preparingData=false", async () => {
@@ -685,6 +693,17 @@ describe("VsWizardComponent — processShowLoadingMaskCommand", () => {
       (comp as any)["processShowLoadingMaskCommand"]({ preparingData: false } as ShowLoadingMaskCommand);
 
       expect((comp as any)["loadingEventCount"]).toBe(before + 1);
+   });
+
+   it("should decrement loadingEventCount by command.count via processClearLoadingCommand", async () => {
+      const { comp } = await renderComponent();
+      // Bypass: processShowLoadingMaskCommand is a private STOMP handler — called directly to increment loadingEventCount.
+      (comp as any)["processShowLoadingMaskCommand"]({ preparingData: false } as ShowLoadingMaskCommand);
+
+      // Bypass: processClearLoadingCommand is a private STOMP handler — called directly to simulate server clear.
+      (comp as any)["processClearLoadingCommand"]({ count: 1 } as ClearLoadingCommand);
+
+      expect(comp.showLoading()).toBe(false);
    });
 });
 
