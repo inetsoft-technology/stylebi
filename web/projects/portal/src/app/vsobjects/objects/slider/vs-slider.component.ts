@@ -90,6 +90,7 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
    isMouseDown: boolean = false;
    private previousLabel: string = "";
    handlePosition: number;
+   sliderLabel: string = "";
    submittedForm: Subscription;
    private unappliedSelection = false;
    private tickSize: number;
@@ -136,6 +137,7 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
 
    ngOnChanges(changes: SimpleChanges) {
       this.handlePosition = this.getValueX();
+      this.sliderLabel = this.getLabel();
       this.ticks = this.getTicks();
 
       if(this.viewer && changes.submitted && this.submitted) {
@@ -161,6 +163,7 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
 
       if(initialPos !== this.handlePosition || initialTicks.length !== this.ticks.length) {
          this.handlePosition = initialPos;
+         this.sliderLabel = this.getLabel();
          this.ticks = initialTicks;
          this.changeRef.detectChanges();
       }
@@ -177,6 +180,7 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
                rafPending = false;
                this.zone.run(() => {
                   this.handlePosition = this.getValueX();
+                  this.sliderLabel = this.getLabel();
                   this.ticks = this.getTicks();
                   this.changeRef.detectChanges();
                });
@@ -375,6 +379,7 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
          this.handlePosition = this.getLineWidth();
       }
 
+      this.sliderLabel = this.getLabel();
       this.changeRef.detectChanges();
    }
 
@@ -392,6 +397,7 @@ export class VSSlider extends NavigationComponent<VSSliderModel> implements OnCh
       this.handlePosition = Math.max(0, Math.min(this.snap(event.offsetX), this.getLineWidth()));
       this.model.value = this.getModelValueFromXPosition(this.handlePosition);
       this.previousLabel = this.model.currentLabel;
+      this.sliderLabel = this.getLabel();
       this.isMouseDown = true;
       this.mouseUp(event);
    }

@@ -15,10 +15,11 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
+@let tableDataLeftPosition = getTableDataLeftPosition();
 <div class="table-layout-fixed ws-table-headers"
-  [style.width.px]="tableWidth + scrollbarWidth - getTableDataLeftPosition()"
+  [style.width.px]="tableWidth + scrollbarWidth - tableDataLeftPosition"
   [style.height.px]="HEADER_CELL_HEIGHT"
-  [style.left.px]="getTableDataLeftPosition()">
+  [style.left.px]="tableDataLeftPosition">
   @for (_i of columnIndexRange; track trackByFn.bind(this)($index, _i)) {
     <ws-header-cell
       #cell
@@ -67,12 +68,15 @@
   (scroll)="verticalScrollHandler()"
   (wheel)="wheelScrollHandler($event)"
   touchScroll (vScroll)="scrollTableY(-$event)" (hScroll)="scrollTableX(-$event)">
+  @let pillarHeight = getPillarHeight();
+  @let editTableCellTop = getEditTableCellTop();
+  @let tableDataWidth = getTableDataWidth();
   <div #tableDataHeightPillar class="table-data__table-height-pillar"
-    [style.height.px]="getPillarHeight()"
+    [style.height.px]="pillarHeight"
     (scroll)="pillarScroll()">
     @if (tableData) {
       <div class="edit-data-wrapper"
-        [style.top.px]="getEditTableCellTop()"
+        [style.top.px]="editTableCellTop"
         [style.left.px]="currentEditPosition?.col - 1 >= 0 ? columnRightPositions[currentEditPosition.col - 1] : 0"
         [style.width.px]="table.colInfos ? table.colInfos[currentEditPosition?.col]?.width : 0"
         [style.height.px]="TABLE_CELL_HEIGHT"
@@ -83,9 +87,9 @@
     }
     @if (tableData) {
       <div class="table-data"
-        [style.width.px]="getTableDataWidth()"
+        [style.width.px]="tableDataWidth"
         [style.top.px]="getDataTableTopPosition(tableData.startRow + rowIndexRange.start)"
-        [style.left.px]="getTableDataLeftPosition()">
+        [style.left.px]="tableDataLeftPosition">
         @if (isFirstRowEven()) {
           <div class="nth-child-parity-row"></div>
         }
@@ -124,9 +128,9 @@
 
   @if (dragging | async) {
     <div #dropTable class="drop-table"
-      [style.width.px]="tableWidth - getTableDataLeftPosition() + scrollbarWidth"
+      [style.width.px]="tableWidth - tableDataLeftPosition + scrollbarWidth"
       [style.height.px]="tableHeight"
-      [style.left.px]="getTableDataLeftPosition()"
+      [style.left.px]="tableDataLeftPosition"
       outOfZone (onDragleave)="dragLeave($event, dropTable)">
       @for (_columnIndex of columnIndexRange; track _columnIndex) {
         <div

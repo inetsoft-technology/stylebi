@@ -44,9 +44,10 @@
       </div>
     }
     @if (bindingModel.supportsGroupFields) {
+      @let isTreemapLayout = isTreemap();
       <div class="field-row">
         <div class="unhighlightable field-list-label"
-        [class.label-plus]="!isTreemap()">{{isTreemap() ? "_#(T)" : "+"}}</div>
+        [class.label-plus]="!isTreemapLayout">{{isTreemapLayout ? "_#(T)" : "+"}}</div>
         <div class="field-list">
           <chart-data-editor [fieldType]="'groupfields'" [refs]="bindingModel.groupFields"
             [bindingModel]="bindingModel" [grayedOutValues]="grayedOutValues" data-test="group-fields-editor">

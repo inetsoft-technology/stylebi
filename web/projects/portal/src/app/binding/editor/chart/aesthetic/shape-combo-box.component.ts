@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input, Output, EventEmitter, ViewChild } from "@angular/core";
+import { Component, Input, OnChanges, Output, EventEmitter, SimpleChanges, ViewChild } from "@angular/core";
 import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { StaticShapePane } from "./static-shape-pane.component";
 import { ShapeItem } from "./shape-item.component";
@@ -27,12 +27,19 @@ import { ShapeItem } from "./shape-item.component";
 
     imports: [ShapeItem, FixedDropdownDirective, StaticShapePane]
 })
-export class ShapeComboBox {
+export class ShapeComboBox implements OnChanges {
    @Input() shapeStr: string;
    @Input() index: number;
    @Output() shapeChanged: EventEmitter<string> = new EventEmitter<string>();
    @ViewChild(FixedDropdownDirective) dropdown: FixedDropdownDirective;
    open: boolean = false;
+   titleLabel: string = "";
+
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["index"]) {
+         this.titleLabel = this.getTitle();
+      }
+   }
 
    changeShape(nshape: string) {
       this.shapeChanged.emit(nshape);

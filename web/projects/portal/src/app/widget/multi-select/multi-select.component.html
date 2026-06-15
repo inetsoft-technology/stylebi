@@ -19,7 +19,7 @@
   [disabled]="disabled" [fixedDropdown]="dropdownMenu" [autoClose]="false"
   [closeOnOutsideClick]="true"
   dropdownPlacement="bottom" (openChange)="handleOpenChange($event)">
-  <div class="multi-select__label">{{getLabel()}}&nbsp;</div>
+  <div class="multi-select__label">{{label}}&nbsp;</div>
   <i class="custom-select-trigger__icon dropdown-caret icon-color-default"
      [class.chevron-up-icon]="open"
      [class.chevron-down-icon]="!open"

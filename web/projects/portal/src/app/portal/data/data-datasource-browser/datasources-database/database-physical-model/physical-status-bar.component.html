@@ -16,8 +16,9 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 @if (!!message) {
-  <div [attr.title]="getMessage()"
+  @let msg = getMessage();
+  <div [attr.title]="msg"
     class="physical-status-bar base-font-size alert-warning">
-    {{getMessage()}}
+    {{msg}}
   </div>
 }

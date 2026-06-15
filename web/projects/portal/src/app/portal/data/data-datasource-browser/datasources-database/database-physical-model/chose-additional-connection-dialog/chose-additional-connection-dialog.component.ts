@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
+import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges } from "@angular/core";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Observable } from "rxjs";
 import { ComponentTool } from "../../../../../../common/util/component-tool";
@@ -37,7 +37,7 @@ const EXTENDED_PHYSICAL_DUPLICATE_NAME_CHECK_URI: string = "../api/data/physical
     styleUrls: ["./chose-additional-connection-dialog.component.scss"],
     imports: [ModalHeaderComponent, FormsModule, DefaultFocusDirective, CustomSelectComponent]
 })
-export class ChoseAdditionalConnectionDialog implements OnInit {
+export class ChoseAdditionalConnectionDialog implements OnInit, OnChanges {
   @Input() database: string;
   @Input() isView: boolean = false;
   @Input() physicalView: string;
@@ -48,10 +48,18 @@ export class ChoseAdditionalConnectionDialog implements OnInit {
   public static default_connection: string = DEFAULT_CONNECTION;
   selectedConnection: string = DEFAULT_CONNECTION;
   helpLinkKey: string;
+  titleLabel: string = "";
 
   constructor(private http: HttpClient, protected modalService: NgbModal) { }
 
+  ngOnChanges(changes: SimpleChanges): void {
+    if(changes["isView"]) {
+      this.titleLabel = this.getTitle();
+    }
+  }
+
   ngOnInit(): void {
+    this.titleLabel = this.getTitle();
     this.connections = [DEFAULT_CONNECTION];
     let params: HttpParams = new HttpParams().set("database", this.database);
     this.http.get<string[]>(GET_DATABASE_ADDITIONAL_CONNECTIONS_URI, {params: params})

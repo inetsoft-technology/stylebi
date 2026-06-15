@@ -111,6 +111,13 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    readonly tickOffset: number = 5;
    readonly isMobile: boolean = GuiTool.isMobileDevice();
 
+   // Cached computed values — updated in ngOnChanges (model change) and at mutation sites
+   minLabel: string = "";
+   maxLabel: string = "";
+   bodyHeight: number = 0;
+   currentLabel: string = "";
+   containerLabel: string = "";
+
    mouseHandle: Handle = Handle.None;
    private startingXPosition: number;
    private _isMouseDown: boolean = false;
@@ -329,6 +336,23 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
       }
    }
 
+   private updateLabels(): void {
+      if(!this.model || !this.model.labels) {
+         this.minLabel = "";
+         this.maxLabel = "";
+         this.bodyHeight = 0;
+         this.currentLabel = "";
+         this.containerLabel = "";
+         return;
+      }
+
+      this.minLabel = this.getMinLabel();
+      this.maxLabel = this.getMaxLabel();
+      this.bodyHeight = this.getBodyHeight();
+      this.currentLabel = this.getCurrentLabel();
+      this.containerLabel = this.getContainerLabel();
+   }
+
    calculatePositions(): void {
       this.rangeLineWidth = this.model.maxRangeBarWidth - (2 * this.pointerOffset) - 1;
       this.widthBetweenTicks = this.getWidthBetweenTicks();
@@ -337,7 +361,8 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
          : this.rangeLineWidth;
       this._leftHandlePosition = this.model.labels.length > 1 ? this.getLeftHandlePosition() : 0;
       this.ticks = this.getTicks();
-      this.textSize = GuiTool.measureText(this.getCurrentLabel(), this.model.objectFormat.font);
+      this.updateLabels();
+      this.textSize = GuiTool.measureText(this.currentLabel, this.model.objectFormat.font);
    }
 
    private getWidthBetweenTicks(): number {
@@ -506,6 +531,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
       }
 
       this.startingXPosition = GuiTool.pageX(event) * (1 / this.viewsheetScale);
+      this.updateLabels();
    }
 
    mouseUp(event: MouseEvent|TouchEvent): void {
@@ -569,6 +595,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
 
       this.model.selectStart = this.getIndex(this._leftHandlePosition);
       this.model.selectEnd = this.getIndex(this._rightHandlePosition);
+      this.updateLabels();
    }
 
    // get the index (in selection list) of the mouse position
@@ -729,6 +756,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
                }
             }
 
+            this.updateLabels();
             this.updateSelections(this.model.selectStart, this.model.selectEnd);
          }, options);
       if (this.model.dataType && XSchema.isDateType(this.model.dataType)) {
@@ -1026,10 +1054,12 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
          case Handle.Left:
             this._leftHandlePosition = this.handleMoved(movement, this._leftHandlePosition);
             this.model.selectStart = this.getIndex(this._leftHandlePosition);
+            this.updateLabels();
             break;
          case Handle.Right:
             this._rightHandlePosition = this.handleMoved(movement, this._rightHandlePosition);
             this.model.selectEnd = this.getIndex(this._rightHandlePosition);
+            this.updateLabels();
             break;
          case Handle.Middle:
             this.moveMiddle(movement);

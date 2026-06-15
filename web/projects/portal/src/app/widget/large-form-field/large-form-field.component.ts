@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, Output, ViewEncapsulation } from "@angular/core";
+import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewEncapsulation } from "@angular/core";
 import { EnterClickDirective } from "../directive/enter-click.directive";
 import { EnterSubmitDirective } from "../directive/enter-submit.directive";
 import { FormsModule } from "@angular/forms";
@@ -28,11 +28,18 @@ import { FormsModule } from "@angular/forms";
     encapsulation: ViewEncapsulation.None,
     imports: [FormsModule, EnterSubmitDirective, EnterClickDirective]
 })
-export class LargeFormFieldComponent {
+export class LargeFormFieldComponent implements OnChanges {
    @Input() search: boolean = false;
    @Output() onSearchChange: EventEmitter<string> = new EventEmitter<string>();
    @Output() onCloseSearch: EventEmitter<any> = new EventEmitter<any>();
    searchString: string;
+   fieldsContainerHeight: string = "";
+
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["search"]) {
+         this.fieldsContainerHeight = this.search ? "calc(100% - 30px)" : "";
+      }
+   }
 
    getFieldsContainerHeight(): string {
       return this.search ? "calc(100% - 30px)" : "";

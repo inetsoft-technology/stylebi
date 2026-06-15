@@ -24,10 +24,11 @@
     <div class="form-group">
       <h2>{{selectedFile.name}}</h2>
     </div>
-    @if (!!getBasedView()) {
+    @let basedView = getBasedView();
+    @if (!!basedView) {
       <div class="form-group">
         <div class="overview-item__label">_#(data.datasources.basedView)</div>
-        <div>{{getBasedView()}}</div>
+        <div>{{basedView}}</div>
       </div>
     }
     <div class="form-group">

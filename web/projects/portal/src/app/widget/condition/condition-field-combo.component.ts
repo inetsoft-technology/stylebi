@@ -60,6 +60,7 @@ export class ConditionFieldComboComponent implements OnChanges, OnInit {
    @Output() onSelectField: EventEmitter<any> = new EventEmitter<any>();
    @ViewChild(FixedDropdownDirective) fieldsDropdown: FixedDropdownDirective;
    noneItem: DataRef = {name: "None", view: "_#(js:None)", fakeNone: true};
+   defaultValue: string = "_#(js:None)";
    defaultFocus: boolean = false;
    treeModel: TreeNodeModel = {};
    listModel: DataRef[] = [];
@@ -96,6 +97,10 @@ export class ConditionFieldComboComponent implements OnChanges, OnInit {
    }
 
    ngOnChanges(changes: SimpleChanges) {
+      if(changes.hasOwnProperty("addNoneItem")) {
+         this.defaultValue = this.addNoneItem ? "_#(js:None)" : "";
+      }
+
       if(changes.hasOwnProperty("fieldsModel")) {
          this.listModel = this.createListModel();
          this.treeModel = this.createTreeModel();

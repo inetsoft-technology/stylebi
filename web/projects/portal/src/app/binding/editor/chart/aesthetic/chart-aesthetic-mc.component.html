@@ -17,10 +17,11 @@
 -->
 <div>
   @if (!field) {
+    @let hintText = getHint();
     <div class="field-mc-hint chart-aes-mc-span"
       [class.txt-primary]="isPrimaryField"
       [class.primary-label]="isPrimaryField">
-      <span class="unhighlightable">{{getHint()}}</span>
+      <span class="unhighlightable">{{hintText}}</span>
     </div>
   }
 

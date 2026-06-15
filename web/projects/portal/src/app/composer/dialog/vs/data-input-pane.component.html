@@ -138,7 +138,7 @@
               (blur)="updatePopupTablePage($event, pageInput.value)"
               outOfZone
               (onKeydown)="updatePopupTablePage($event, pageInput.value)">
-            <span class="input-group-text">{{getPageLabel()}}</span>
+            <span class="input-group-text">{{pageLabel}}</span>
             <button type="button" class="btn btn-default"
               [disabled]="popupTable.page == popupTable.numPages"
               (click)="updatePopupTablePage($event, popupTable.page + 1)">

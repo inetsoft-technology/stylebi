@@ -39,7 +39,7 @@ export class StaticSizePane implements OnChanges, OnInit {
    sliderOptions: SliderOptions = new SliderOptions();
 
    ngOnChanges(changes: any) {
-      this.sliderOptions.value = this.getFrameSize();
+      this.sliderOptions = Object.assign(new SliderOptions(), this.sliderOptions, { value: this.getFrameSize() });
    }
 
    ngOnInit() {

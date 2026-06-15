@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnDestroy, OnInit, Output, Renderer2,
-         ViewChild, ElementRef } from "@angular/core";
+import { Component, EventEmitter, Input, OnChanges, OnDestroy, OnInit, Output, Renderer2,
+         SimpleChanges, ViewChild, ElementRef } from "@angular/core";
 import { RangeSliderOptions } from "./range-slider-options";
 
 
@@ -33,7 +33,7 @@ enum Handle { Left, Middle, Right, None }
     styleUrls: ["range-slider.component.scss"],
     imports: []
 })
-export class RangeSlider implements OnInit, OnDestroy {
+export class RangeSlider implements OnInit, OnChanges, OnDestroy {
    @Input() model: RangeSliderOptions;
    @Output() sliderChanged = new EventEmitter();
    @ViewChild("rangeSlider") sliderDiv: ElementRef;
@@ -46,6 +46,11 @@ export class RangeSlider implements OnInit, OnDestroy {
    private size: number;
    private cancelMouseMove: Function | null = null;
    private cancelMouseUp: Function | null = null;
+
+   // Cached computed values — updated in ngOnChanges and at selectStart/selectEnd mutation sites
+   rangeX: number = 0;
+   rangeWidth: number = 0;
+   currentLabel: string = "";
 
    get isDraggingLeft(): boolean {
       return this.mouseHandle === Handle.Left || this.mouseHandle === Handle.Middle;
@@ -65,6 +70,21 @@ export class RangeSlider implements OnInit, OnDestroy {
    ngOnInit(): void {
       this.size = this.model.max - this.model.min;
       this.ticks = this.getTicks();
+      this.updateRangeCache();
+   }
+
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["model"] && this.model) {
+         this.size = this.model.max - this.model.min;
+         this.ticks = this.getTicks();
+         this.updateRangeCache();
+      }
+   }
+
+   private updateRangeCache(): void {
+      this.rangeX = this.getRangeX();
+      this.rangeWidth = this.getRangeWidth();
+      this.currentLabel = this.getCurrentLabel();
    }
 
    ngOnDestroy(): void {
@@ -152,6 +172,7 @@ export class RangeSlider implements OnInit, OnDestroy {
       default:
       }
 
+      this.updateRangeCache();
       this.valueChanged();
    }
 

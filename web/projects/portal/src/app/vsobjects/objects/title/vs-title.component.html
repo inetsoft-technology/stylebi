@@ -47,6 +47,7 @@
     [resizableMargin]="5"
     (onResizableMove)="titleResizeMoving($event)"
     (onResizableEnd)="titleResizeEnded()">
+    @let htmlText = getHTMLText();
     <div tooltipIf class="title-content non-editable-text"
       [attr.title]="titleContent"
       [style.white-space]="titleFormat.wrapping.whiteSpace"
@@ -59,7 +60,7 @@
       [style.padding-left.px]="titleFormat?.padding?.left"
       [style.padding-right.px]="titleFormat?.padding?.right"
       [class.wrapped]="titleFormat.wrapping.whiteSpace != 'nowrap'"
-      [class.floating]="floating" [innerHTML]="getHTMLText()"
+      [class.floating]="floating" [innerHTML]="htmlText"
       [class.cursor-pointer]="cursorPointer"
       (dblclick)="editingTitle = (!viewer || binding) && !preview">
     </div>

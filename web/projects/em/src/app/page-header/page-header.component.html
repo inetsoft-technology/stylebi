@@ -16,10 +16,11 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <mat-toolbar class="em-header-toolbar">
+  @let pageTitle = getTitle();
   <button mat-icon-button (click)="toggleSidenav.emit()">
     <mat-icon fontSet="ineticons" fontIcon="menu-sandwich-icon"></mat-icon>
   </button>
-  <h1 class="em-page-title">{{getTitle()}}</h1>
+  <h1 class="em-page-title">{{pageTitle}}</h1>
   @if (model?.isMultiTenant && !!model?.currOrgID && showOrgs() && isEnterprise) {
     <div class="org-label">_#(Select Organization):</div>
   }

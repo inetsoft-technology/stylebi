@@ -64,6 +64,16 @@
      (mouseenter)="onMouseEnter($event)"
      outOfZone (onDocKeydown)="onKeyDown($event)">
 
+  @let preventDrag = isPreventDrag();
+  @let preventResize = isPreventResize();
+  @let dragBorder = isDragBorder();
+  @let dragBorderTop = isDragBorderTop();
+  @let dragBorderBottom = isDragBorderBottom();
+  @let scriptPresent = hasScript();
+  @let locked = isLocked();
+  @let slideout = hasSlideout();
+  @let minHeight = getMinHeight();
+
   <div class="editor-overlay" *ngIf="showEdit">
     <button class="form-control"
             (click)="clickEditButton()">
@@ -71,22 +81,22 @@
     </button>
   </div>
 
-  <i class="lock-icon disable-actions" *ngIf="selected && isLocked()"></i>
+  <i class="lock-icon disable-actions" *ngIf="selected && locked"></i>
   <i class="javascript-icon script-icon-position"
      [class.embedded-vs-script]="vsObject.objectType == 'VSViewsheet'"
-     [style.left]="selected && isLocked() ? '18px' : null"
-     *ngIf="hasScript()"
+     [style.left]="selected && locked ? '18px' : null"
+     *ngIf="scriptPresent"
      (click)="actions.scriptAction.action($event)"></i>
   <i class="condition-icon condition-icon-position"
-     [class.condition-icon-position-offset]="hasScript() && vsObject.hasCondition"
+     [class.condition-icon-position-offset]="scriptPresent && vsObject.hasCondition"
      *ngIf="vsObject.hasCondition"
      (click)="conditionAction() && conditionAction().action($event)"></i>
   <i class="setting-icon script-icon-position"
-     [style.left]="selected && isLocked() ? '18px' : null"
-     *ngIf="!hasScript() && hasSlideout()"
+     [style.left]="selected && locked ? '18px' : null"
+     *ngIf="!scriptPresent && slideout"
      (click)="showSlideout()"></i>
 
-  <ng-container *ngIf="!isPreventDrag() && dragInteractionEnabled">
+  <ng-container *ngIf="!preventDrag && dragInteractionEnabled">
     <div class="handle move composer-object__move-handle" [class.move-only]="true"
          [style.top.px]="vsObject.objectFormat.top < 16 ? vsObject.objectFormat.height : -16"
          [style.left.px]="vsObject.objectFormat.left < 16 ? vsObject.objectFormat.width : -16"
@@ -94,7 +104,7 @@
       <i class="move-icon icon-size1" (click)="select($event, true)"></i>
     </div>
   </ng-container>
-  <ng-container *ngIf="!isPreventResize() && dragInteractionEnabled">
+  <ng-container *ngIf="!preventResize && dragInteractionEnabled">
     <div class="handle top right"
          [class.bg-primary]="!isDropTarget"
          [class.bg-highlight-color]="isDropTarget"
@@ -138,7 +148,7 @@
       <div class="container-gutter right" *ngIf="!selectionChildModel"></div>
     </ng-container>
   </ng-container>
-  <ng-container *ngIf="(isPreventResize() || !dragInteractionEnabled) && !vsObject?.interactionDisabled">
+  <ng-container *ngIf="(preventResize || !dragInteractionEnabled) && !vsObject?.interactionDisabled">
     <div class="handle top right not-selected"
          [class.bg-primary]="!isDropTarget"
          [class.bg-highlight-color]="isDropTarget"
@@ -192,14 +202,14 @@
        [class.txt-primary]="isSearchFocus"
        [style.width.px]="selectionChildModel && selected ? vsObject.objectFormat.width - 2 : null"
        [style.height.px]="selectionChildModel && selected ? vsObject.objectFormat.height + 1 : null"
-       [class.drop-target]="isDropTarget && !isDragBorder()"
-       [class.bt-highlight-med]="isDragBorderTop()"
-       [class.bb-highlight-med]="isDragBorderBottom()"
+       [class.drop-target]="isDropTarget && !dragBorder"
+       [class.bt-highlight-med]="dragBorderTop"
+       [class.bb-highlight-med]="dragBorderBottom"
        [style.border-top]="!vsObject.dropZone && selectionChildModel && !selected ? 0 : ''"
        [style.border-bottom]="!vsObject.dropZone && selectionChildModel && !selected ? 0 : ''"
        [style.opacity]="selected && vsObject.covered ? 0.5 : 1"
        [style.min-width.px]="vsObject.objectType === 'VSViewsheet' ? viewsheetModel.bounds.width : (selectionChildModel ? null : vsObject.objectFormat.width)"
-       [style.min-height.px]="vsObject.objectType === 'VSViewsheet' ? viewsheetModel.bounds.height : getMinHeight()">
+       [style.min-height.px]="vsObject.objectType === 'VSViewsheet' ? viewsheetModel.bounds.height : minHeight">
     <vs-calendar *ngSwitchCase="'VSCalendar'" #objectComponent
                  cCalendarActionHandler [vsInfo]="viewsheet" [actions]="actions"
                  [model]="vsObject" [selected]="selected"
@@ -371,10 +381,13 @@
 </ng-container>
 
 <ng-template [ngIf]="vsObject.objectType == 'VSLine'">
+  @let lineScriptPresent = hasScript();
+  @let lineSlideout = hasSlideout();
+  @let lineLocked = isLocked();
   <i class="setting-icon script-icon-position"
      [style.left.px]="vsObject.objectFormat.left"
      [style.top.px]="vsObject.objectFormat.top"
-     *ngIf="!hasScript() && hasSlideout()"
+     *ngIf="!lineScriptPresent && lineSlideout"
      (click)="showSlideout()"></i>
 
   <vs-line cLineActionHandler #objectComponent [vsInfo]="viewsheet" [actions]="actions"
@@ -383,6 +396,8 @@
            [class.search-no-match]="searchMode && !isSearchResults"
            (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-line>
 
+  @let lineLength = getLineLength();
+  @let lineRotationAngle = getLineRotationAngle();
   <div #objectEditor class="object-editor line-resize-container"
        [style.display]="vsObject.active? null : 'none'"
        [class.active]="selected"
@@ -394,8 +409,8 @@
        (onContextmenuClosed)="contextMenuVisible = false"
        [style.left.px]="vsObject.objectFormat.left + lineModel.startLeft"
        [style.top.px]="vsObject.objectFormat.top + lineModel.startTop"
-       [style.width.px]="getLineLength()"
-       [style.transform]="'rotate(' + getLineRotationAngle() + 'rad)'"
+       [style.width.px]="lineLength"
+       [style.transform]="'rotate(' + lineRotationAngle + 'rad)'"
        [style.z-index]="zIndex"
        [class.move-handle]="selected && !lineModel.locked"
        wInteractable
@@ -442,7 +457,7 @@
        *ngIf="actions && actions.scriptAction && actions.scriptAction.visible()"
        (click)="actions.scriptAction.action($event)"></i>
     <i class="locked-icon lock-icon disable-actions"
-       *ngIf="selected && isLocked()"></i>
+       *ngIf="selected && lineLocked"></i>
   </div>
 </ng-template>
 

@@ -17,10 +17,11 @@
 -->
 @if (table) {
   <div class="ws-table-bar bg-white1 bb-gray">
-    <div class="ws-details-table-info" [attr.title]="table.name + getTableStatus()">
+    @let tableStatus = getTableStatus();
+    <div class="ws-details-table-info" [attr.title]="table.name + tableStatus">
       <div class="ws-table-image" [ngClass]="iconCss"></div>
       <span class="ws-details-table-name">{{table.name}}</span>
-      <span>{{getTableStatus()}}</span>
+      <span>{{tableStatus}}</span>
     </div>
     <div class="ws-table-buttons me-3">
       <button type="button" class="btn btn-sm btn-primary me-1" (click)="openConsoleDialog()">

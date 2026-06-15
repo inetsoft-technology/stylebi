@@ -20,7 +20,9 @@ import {
    Component,
    EventEmitter,
    Input,
-   Output
+   OnChanges,
+   Output,
+   SimpleChanges
 } from "@angular/core";
 import { AbstractTableAssembly } from "../../../data/ws/abstract-table-assembly";
 import { ConcatenatedTableAssembly } from "../../../data/ws/concatenated-table-assembly";
@@ -35,11 +37,18 @@ import { TooltipDirective } from "../../../../widget/tooltip/tooltip.directive";
     styleUrls: ["data-block-status-indicator.component.scss"],
     imports: [TooltipDirective]
 })
-export class DataBlockStatusIndicatorComponent {
+export class DataBlockStatusIndicatorComponent implements OnChanges {
    @Input() table: AbstractTableAssembly;
    @Output() onConditionIconClicked = new EventEmitter();
    @Output() onAggregateIconClicked = new EventEmitter();
    @Output() onSortIconClicked = new EventEmitter();
+   columnsLabel: string = "";
+
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["table"]) {
+         this.columnsLabel = this.getColumnsLabel();
+      }
+   }
 
    concatenationWarning(): boolean {
       return this.table instanceof ConcatenatedTableAssembly &&

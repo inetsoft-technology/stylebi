@@ -17,6 +17,7 @@
 -->
 <mat-card appearance="outlined" class="select-report">
   <mat-card-content [formGroup]="form">
+    @let notExistsMsg = notExistsMessage();
     <mat-form-field appearance="outline" color="accent">
       <mat-label>_#(Select Schedule Task)</mat-label>
       <mat-select placeholder="_#(Select Schedule Task)" (blur)="onTouched()"
@@ -52,7 +53,7 @@
         </mat-tree>
       </mat-select>
       <mat-error *ngIf="form.controls.selectedTaskName?.errors?.required">_#(em.scheduleBatchAction.taskRequired)</mat-error>
-      <mat-error *ngIf="form.controls.selectedTaskName?.errors?.notExists">{{notExistsMessage()}}</mat-error>
+      <mat-error *ngIf="form.controls.selectedTaskName?.errors?.notExists">{{notExistsMsg}}</mat-error>
     </mat-form-field>
   </mat-card-content>
 </mat-card>

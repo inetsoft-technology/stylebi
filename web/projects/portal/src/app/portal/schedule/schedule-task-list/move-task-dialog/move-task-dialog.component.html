@@ -28,8 +28,9 @@
           (selectionChange)="folderSelected($event)">
         </task-folder-browser>
         @if (!selectedFolder?.path) {
+          @let requiredMessage = getRequiredMessage();
           <div class="shell-alert shell-alert--danger w-100 mt-2">
-            {{getRequiredMessage()}}
+            {{requiredMessage}}
           </div>
         }
       </div>

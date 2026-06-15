@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input, Output, EventEmitter } from "@angular/core";
+import { Component, Input, OnChanges, Output, EventEmitter, SimpleChanges } from "@angular/core";
 import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
 import { AiAssistantDialogService } from "../../common/services/ai-assistant-dialog.service";
 import { VSWizardConstants } from "../../vs-wizard/model/vs-wizard-constants";
@@ -32,7 +32,7 @@ import { ToolbarGroup } from "../../widget/toolbar/toolbar-group/toolbar-group.c
         "../../composer/gui/toolbar/composer-toolbar.component.scss"],
     imports: [ToolbarGroup, HelpLinkDirective]
 })
-export class EditorTitleBar {
+export class EditorTitleBar implements OnChanges {
    private _elementName: string;
 
    @Input() set elementName(name: string) {
@@ -46,6 +46,7 @@ export class EditorTitleBar {
 
    @Input() sourceName: string;
    @Input() objectType: string;
+   assemblyTypeIcon: string = "";
    @Input() goToWizardVisible: boolean = false;
    @Input() backToReportWizardVisible: boolean = false;
    @Input() reportMode: number;
@@ -55,6 +56,12 @@ export class EditorTitleBar {
    @Output() onChangeReportMode = new EventEmitter<number>();
 
    constructor(public aiAssistantDialogService: AiAssistantDialogService, private aiAssistantService: AiAssistantService) {
+   }
+
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["objectType"]) {
+         this.assemblyTypeIcon = this.getAssemblyTypeIcon();
+      }
    }
 
    done() {

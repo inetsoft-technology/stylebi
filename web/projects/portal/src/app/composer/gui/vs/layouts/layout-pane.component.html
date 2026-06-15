@@ -57,7 +57,7 @@
         [style.left.px]="currentSnapGuides.x">
       </div>
     }
-    @for (object of getLayoutObjects(); track trackByFn($index, object)) {
+    @for (object of layoutObjects; track trackByFn($index, object)) {
       <layout-object
         [model]="object" [layout]="vsLayout"
         [viewsheetScale]="vs.scale"

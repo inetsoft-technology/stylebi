@@ -48,8 +48,9 @@
       <div>{{variable.variableInfo.description}}</div>
     }
     @if (variable.variableInfo.value) {
+      @let currentValue = getCurrentValue();
       <div class="text-overflow">_#(Current Value):
-        <span [attr.title]="getCurrentValue()">{{getCurrentValue()}}</span>
+        <span [attr.title]="currentValue">{{currentValue}}</span>
       </div>
     }
   </div>
