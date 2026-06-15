@@ -71,6 +71,27 @@ public class AreaVO extends LineVO {
    }
 
    /**
+    * Include the base (baseline) points: the area fills down to them, so bounds limited to
+    * the data points would let the plot-tile clip test cull the area from a tile covering
+    * only the baseline band, leaving an empty strip above the baseline.
+    */
+   @Override
+   public Rectangle2D getBounds() {
+      Rectangle2D bounds = super.getBounds();
+
+      for(Point2D pt : getTransformedBasePoints()) {
+         if(pt == null || Double.isNaN(pt.getX()) || Double.isNaN(pt.getY())) {
+            continue;
+         }
+
+         Rectangle2D r = new Rectangle2D.Double(pt.getX(), pt.getY(), 0, 0);
+         bounds = bounds == null ? r : bounds.createUnion(r);
+      }
+
+      return bounds;
+   }
+
+   /**
     * Paint the visual object on the graphics.
     * @param g the graphics context to use for painting.
     */
