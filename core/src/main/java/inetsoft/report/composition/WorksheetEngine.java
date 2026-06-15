@@ -59,6 +59,7 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
    public WorksheetEngine(AssetRepository engine, Cluster cluster) throws RemoteException {
       this.cluster = cluster;
       cluster.registerSpringProxyPartitionedCache(CACHE_NAME);
+      cluster.getCache(RuntimeSheetCache.ACCESS_TIME_MAP_NAME);
       amap = new RuntimeSheetCache(cluster, CACHE_NAME);
       emap = new ConcurrentHashMap<>();
       executionMap = new ExecutionMap();
@@ -694,7 +695,11 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
          RuntimeSheet rs = amap.get(id);
 
          if(rs != null) {
-            CompletableFuture.runAsync(() -> amap.put(id, rs), affinityExecutor)
+            CompletableFuture.runAsync(() -> {
+               if(amap.containsKey(id)) {
+                  amap.put(id, rs);
+               }
+            }, affinityExecutor)
                .exceptionally(e -> {
                   LOG.error("Failed to write sheet {} to distributed cache", id, e);
                   return null;
@@ -1166,6 +1171,7 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
                      executionMap.setCompleted(id);
                   }
 
+                  debouncer.cancel("writeSheet_" + id);
                   amap.remove(id);
                   emap.remove(id);
                   clearPreviewTarget(rs, id);

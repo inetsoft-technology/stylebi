@@ -202,7 +202,6 @@ public class ComposerViewsheetService {
       }
    }
 
-   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void closeViewsheet(@ClusterProxyKey String runtimeId, CloseSheetEvent event, Principal principal) throws Exception {
       RuntimeViewsheet rvs;

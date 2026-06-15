@@ -42,7 +42,6 @@ public class CloseWorksheetService extends WorksheetControllerService {
       this.runtimeViewsheetManager = runtimeViewsheetManager;
    }
 
-   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void closeWorksheet(@ClusterProxyKey String runtimeId, Principal principal) throws Exception {
       RuntimeWorksheet rws = getRuntimeWorksheet(runtimeId, principal);
