@@ -31,7 +31,7 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
 
 const VPM_URI: string = "../api/data/vpm/";
 const PHYSICAL_TREE_NODES_URI: string = "../api/data/physicalmodel/tree/nodes";
-const PHYSICAL_TREE_ALL_NODES_URI: string = "../api/data/physicalmodel/tree/allNodes/";
+const PHYSICAL_TREE_ALL_NODES_URI: string = "../api/data/physicalmodel/tree/allNodes";
 const PHYSICAL_TABLE_PATH_URI: string = VPM_URI + "physicalModel/tablePath/";
 
 @Component({

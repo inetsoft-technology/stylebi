@@ -190,12 +190,6 @@ export abstract class AbstractVSObject<T extends VSObjectModel> extends CommandP
       return index;
    }
 
-   // For use in ngFor to prevent excessive DOM manipulation due to component creation/destruction.
-   // The child views will still be checked for changes.
-   public trackByConstant(index, item) {
-      return 0;
-   }
-
    /**
     * Add an assembly level annotation to this component
     */

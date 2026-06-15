@@ -30,7 +30,6 @@ import { FileFormatPane } from "./file-format-pane.component";
 
 import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
-const CHECK_EXPORT_VALID_URI: string = "../api/vs/check-export-valid/";
 const modelKey = "filePaneModel";
 
 @Component({

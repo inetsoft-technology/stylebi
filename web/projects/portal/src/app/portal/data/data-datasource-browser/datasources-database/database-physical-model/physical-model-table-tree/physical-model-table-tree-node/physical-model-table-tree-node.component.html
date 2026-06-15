@@ -57,7 +57,7 @@
 }
 @if (node && node.expanded && node.children) {
   <div [class.tree-children]="showRoot">
-    @for (_node of (keepAllChildren ? node.children : (node.children | search:searchStr:true)); track _node) {
+    @for (_node of (keepAllChildren ? node.children : (node.children | search:searchStr:true)); track $index) {
       @if (isTableVisible(_node)) {
         <physical-model-table-tree-node
           [node]="_node"

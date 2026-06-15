@@ -26,7 +26,7 @@
         <!--size cells-->
         @if (isFrameEditEnabled()) {
           <div class="visual-cell-container">
-            @for (frame of frames; track frame; let i = $index) {
+            @for (frame of frames; track $index; let i = $index) {
               <div class="visual-cell no-caret"
                 [style.margin-left.px]="i > 0 ? 2 : 0"
                 title="_#(Edit Size)">

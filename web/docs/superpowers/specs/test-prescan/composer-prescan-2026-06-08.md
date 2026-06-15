@@ -20,17 +20,17 @@
 | ✅已测试 | ComposerAppComponent | 93 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | AiAssistantPanelComponent | 177 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | ✅已测试 | DownloadTargetComponent | 84 | 1 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| ✅已测试 P1P2P3 | ComposerMainComponent | 2512 | 8 | 34 | **multi-pass** | ✅ 推进 | ⚠️ composer-main.spec.ts | Bug #16301 set embeddedId set if opening an embedded vs; Bug #18803 should disable format pane when select device layout; Bug #18805 should enable for | P1: composer-main.component.interaction.tl.spec.ts ✅<br>P2: composer-main.component.risk.tl.spec.ts ✅<br>P3: composer-main.component.display.tl.spec.ts ✅ |
-| 待审核 | ComposerToolbarComponent | 1746 | 8 | 11 | **multi-pass** | ✅ 推进 | ⚠️ composer-toolbar.component.spec.ts | BUg #21103 should not show preview button on worksheet; Bug #17208 enable layout align when select multi object on layouts; Bug #16940 disbale move mo | P1: ComposerToolbarComponent.interaction.tl.spec.ts<br>P2: ComposerToolbarComponent.risk.tl.spec.ts<br>P3: ComposerToolbarComponent.display.tl.spec.ts |
+| ✅已测试 P1P2P3 | ComposerMainComponent | 2512 | 8 | 34 | **multi-pass** | ✅ 推进 |  | Bug #16301 set embeddedId set if opening an embedded vs; Bug #18803 should disable format pane when select device layout; Bug #18805 should enable for | P1: composer-main.component.interaction.tl.spec.ts ✅<br>P2: composer-main.component.risk.tl.spec.ts ✅<br>P3: composer-main.component.display.tl.spec.ts ✅ |
+| ✅已测试 P1P2P3 | ComposerToolbarComponent | 1746 | 8 | 11 | **multi-pass** | ✅ 推进 |  | BUg #21103 should not show preview button on worksheet; Bug #17208 enable layout align when select multi object on layouts; Bug #16940 disbale move mo | P1: composer-toolbar.component.interaction.tl.spec.ts ✅<br>P2: composer-toolbar.component.risk.tl.spec.ts ✅<br>P3: composer-toolbar.component.display.tl.spec.ts ✅ |
 | 待审核 | SplitPane | 120 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核 | AssetTreePane | 843 | 1 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: AssetTreePane.interaction.tl.spec.ts<br>P2: AssetTreePane.risk.tl.spec.ts |
+| ✅已测试 P1P2 | AssetTreePane | 843 | 1 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: AssetTreePane.interaction.tl.spec.ts ✅<br>P2: AssetTreePane.risk.tl.spec.ts ✅ |
 | 待审核 | ToolboxPane | 144 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | 待审核 | ScriptTreePane | 74 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核 | ComponentsPane | 302 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试 | ComponentsPane | 302 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | StyleTreePane | 97 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | VSFormatsPane | 679 | 4 | 1 | **multi-pass** | ✅ 推进 | ⚠️ vs-formats-pane.spec.ts | Bug #16685, Bug #16689 check the aligment combox status; Bug #18597, BUg #18664 color,border, aligment status; Bug #18060, Bug #18342 for wrap text on | P1: VSFormatsPane.interaction.tl.spec.ts<br>P3: VSFormatsPane.display.tl.spec.ts |
-| 待审核 | WSCompositeTableSidebarPane | 77 | 1 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | WSPaneComponent | 944 | 5 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: WSPaneComponent.interaction.tl.spec.ts<br>P2: WSPaneComponent.risk.tl.spec.ts<br>P3: WSPaneComponent.display.tl.spec.ts |
+| ✅已测试 | WSCompositeTableSidebarPane | 77 | 1 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) ✅ ws-composite-table-sidebar-pane.component.tl.spec.ts |
+| ✅已测试 P1P2P3 | WSPaneComponent | 944 | 5 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: ws-pane.component.interaction.tl.spec.ts ✅<br>P2: ws-pane.component.risk.tl.spec.ts ✅<br>P3: ws-pane.component.display.tl.spec.ts ✅ |
 | 待审核 | VSPane | 2071 | 7 | 23 | **multi-pass** | ✅ 推进 | ⚠️ viewsheet-pane.component.spec.ts | Bug #10442 make sure to update send to back/front enabled after adding vs object to vs; Bug #16274 make sure to update send to back/front enabled afte | P1: VSPane.interaction.tl.spec.ts<br>P2: VSPane.risk.tl.spec.ts<br>P3: VSPane.display.tl.spec.ts |
 | 待审核 | ViewerAppComponent | 3363 | 10 | 53 | **multi-pass** | ✅ 推进 | ⚠️ viewer-app.spec.ts | Bug #16456 TODO, logica changed, can not get fixed dropdown pane; Bug #19176 hide full screen in preview; Bug #16961 should refresh scale to screen vs | P1: ViewerAppComponent.interaction.tl.spec.ts<br>P2: ViewerAppComponent.risk.tl.spec.ts<br>P3: ViewerAppComponent.display.tl.spec.ts |
 | 待审核 | ScriptEditPaneComponent | 194 | 2 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
@@ -73,18 +73,18 @@
 | 待审核 | ComposerSelectionContainerChildren | 512 | 1 | 4 | **multi-pass** | ✅ 推进 |  |  | P1: ComposerSelectionContainerChildren.interaction.tl.spec.ts<br>P2: ComposerSelectionContainerChildren.risk.tl.spec.ts |
 | 待审核 | LayoutPane | 886 | 8 | 16 | **multi-pass** | ✅ 推进 |  |  | P1: LayoutPane.interaction.tl.spec.ts<br>P2: LayoutPane.risk.tl.spec.ts<br>P3: LayoutPane.display.tl.spec.ts |
 | 待审核 | ConsoleDialogComponent | 88 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ console-dialog.component.spec.ts | callbacks queue dialog opens that NG0205 after the fixture is destroyed.; (after the fixture is destroyed) is a no-op instead of NG0205. | single pass (+内存泄漏) |
-| 待审核 | PagingControlComponent | 84 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核 | ViewerMobileToolbarComponent | 72 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核 | VsBookmarkPaneComponent | 97 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试 | PagingControlComponent | 84 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试 | ViewerMobileToolbarComponent | 72 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试 | VsBookmarkPaneComponent | 97 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | VSObjectContainer | 633 | 3 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: VSObjectContainer.interaction.tl.spec.ts<br>P2: VSObjectContainer.risk.tl.spec.ts<br>P3: VSObjectContainer.display.tl.spec.ts |
-| 待审核 | ExportDialog | 103 | 1 | 3 | **single-pass** | ✅ 推进 | ⚠️ export-dialog.spec.ts | Bug #17235 should not; test: should show error | single pass (+竞态+内存泄漏) |
-| 待审核 | EmailDialog | 103 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅已测试 | ExportDialog | 103 | 1 | 3 | **single-pass** | ✅ 推进 |  | Bug #17235 should not; test: should show error | single pass (+竞态+内存泄漏) |
+| ✅已测试 | EmailDialog | 103 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | 待审核 | ScheduleDialog | 106 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | BookmarkPropertyDialog | 58 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试 | BookmarkPropertyDialog | 58 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | ShareEmailDialogComponent | 79 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核 | ShareGoogleChatDialog | 52 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核 | ShareSlackDialog | 52 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核 | RemoveBookmarksDialog | 69 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅已测试 | RemoveBookmarksDialog | 69 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | 待审核 | BindingEditor | 267 | 1 | 1 | **single-pass** | ✅ 推进 | ⚠️ binding-editor.spec.ts | Bug #20245; for Bug #20163; test: Crosstab should not have a percent by option | single pass (+内存泄漏) |
 | 待审核 | VSObjectView | 190 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | 待审核 | VsWizardPane | 901 | 1 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: VsWizardPane.interaction.tl.spec.ts<br>P2: VsWizardPane.risk.tl.spec.ts |
@@ -116,15 +116,15 @@
 
 ### ComposerToolbarComponent
 
-**Pass 1** (`ComposerToolbarComponent.interaction.tl.spec.ts`)
+**Pass 1** (`composer-toolbar.component.interaction.tl.spec.ts`)
 - Methods: sheet, crossJoinEnabled, tables, focusedObjects, alignObjects, layoutDistributeEnabled, layoutAlignEnabled, layoutResizeEnabled, openViewsheetWizard, notify, save, getTabularDataSourceTypes, save0, saveAs, options, preview, refresh, getTableStyleModel, undo, undoEnabled, redo, redoEnabled, currentLayout, layoutRuntimeId, cut, copy, paste, snapToGridChanged, snapToObjectsChanged, getAlignObj, layoutAlign, layoutDistribute, openVPMPrincipalDialog, getNextName, concatEnabled, newConcatTable, joinEnabled, newJoinTable, createCrossJoin, layoutWorksheetGraph, isInitializedWorksheet, isWorksheet, isViewsheet, isScript, isTableStyle, isObjectSelected, isPreview, scrollLeft, scrollRight, enableLayoutAlign, isPrintLayout, editPrintHeader, editPrintContent, editPrintFooter, isPrintLayoutSelected, selectGuideType, isGuideSelected, zoomLayout, zoom, isZoomItemSelected, zoomOutEnabled, zoomInEnabled, vs, worksheetOperationsDisabled, resizeListener, toggleFullScreen, getNonMenuToolbarActions, getOptionsTooltipText, openSession, getMergeMenuToolbarActions, saveTooltipText, saveAsTooltipText, previewOperations, editOperations, layoutOperations, snappingOperations, getVPMPrincipalToolbarActions, jdbcExists, sqlEnabled, pasteEnabled, isCompositeView, left, top, width, height
 - Reason: 回归主体：navigation / HTTP loading / lifecycle / user flows
 
-**Pass 2** (`ComposerToolbarComponent.risk.tl.spec.ts`)
+**Pass 2** (`composer-toolbar.component.risk.tl.spec.ts`)
 - Methods: loadDataSources, ngAfterViewInit, addDropdownListeners, subscribe, newWorksheet, forEach, fireMoveResize, layoutResize, enterParameters, onFullScreenChange
 - Reason: async≥3：竞态 / destructive / state inconsistency
 
-**Pass 3** (`ComposerToolbarComponent.display.tl.spec.ts`)
+**Pass 3** (`composer-toolbar.component.display.tl.spec.ts`)
 - Methods: enableFormatPainter, layoutShowing, hiddenComposerIcon, getDatabaseLabel, getTabularLabel
 - Reason: dispatch≥3：label/icon/conditional display / boundary inputs
 

@@ -143,11 +143,11 @@
           [style.z-index]="1">
           <table>
             <tbody>
-              @for (_header of tableHeaders; track trackByConstant(i, _header); let i = $index) {
+              @for (_header of tableHeaders; track $index; let i = $index) {
                 <tr
                   [class.hidden-row]="getRowHeight(i) <= 0"
                   [style.height.px]="getHeaderRowHeight(i)">
-                  @for (_cell of _header; track trackByConstant(j, _cell); let j = $index) {
+                  @for (_cell of _header; track $index; let j = $index) {
                     <td vs-table-cell
                       class="table-cell"
                       [cell]="_cell"
@@ -226,11 +226,11 @@
             [class.table-focus-row]="rowHoverable()"
             [class.cursor-pointer]="rowHoverable() && viewer">
             <tbody>
-              @for (_row of tableData; track trackByConstant(i, _row); let i = $index; let firstRow = $first) {
+              @for (_row of tableData; track $index; let i = $index; let firstRow = $first) {
                 <tr
                   [class.hidden-row]="getRowHeight(indexToRow(i)) <= 0"
                   [style.height.px]="getRowHeight(indexToRow(i))">
-                  @for (_cell of _row; track trackByConstant(j, _cell); let j = $index) {
+                  @for (_cell of _row; track $index; let j = $index) {
                     <td vs-table-cell
                       class="table-cell"
                       valign="top"

@@ -41,7 +41,7 @@
         <label for="aggregate" class="col-2">_#(Aggregate):</label>
         <div class="col-sm-6">
           <select id="aggregate" class="form-control" [ngModelOptions]="{standalone:true}" [(ngModel)]="model.aggregate" (ngModelChange)="changeWithCol($event)">
-            @for (_aggregate of formulas; track _aggregate) {
+            @for (_aggregate of formulas; track $index) {
               <option [value]="_aggregate.value">{{_aggregate.label}}</option>
             }
           </select>

@@ -183,6 +183,25 @@ disabled 可被键盘或程序化调用绕过；`*ngIf` 隐藏则不行。两者
 - 每个上述方法至少对应 **1 条 happy path 用例**，无论风险等级是多少
 - Risk 1 的方法允许只写 happy path，不追加 error/boundary case
 - 确认跳过某个方法（测试价值确实为零）时，**必须在文件头 `Out of scope` 注释里注明原因**，不允许无声略过
+- **Boolean getter 覆盖规则**：返回 `boolean` 的 getter，`true` 和 `false` 两个方向各需至少一条用例。只测一个方向等同于允许 `return false` / `return true` 突变通过，构成基线缺失。**间接调用不计入双向覆盖**：若该 getter 仅在测试其他方法时被顺带调用（如通过 `isAlignDisabled` 间接触发 `isVAlignmentEnabled`），不得以此作为双向覆盖已满足的依据——必须构造能分别到达 `true` 和 `false` 返回路径的独立测试场景。public boolean getter 在方法覆盖表中必须使用 `test`，不允许填 `via [其他方法]`。
+- **对称方法规则**：若两个方法实现**相同的逻辑模式**（相同的守卫条件、相同的字段变更方式、相同的 emit 行为）但作用于不同的字段（如 `color`/`backgroundColor`、`colorType`/`backgroundColorType`），必须为**每一侧**分别生成测试，不得以"A 已覆盖、B 结构相同"为由跳过 B。判断标准：若把 B 的实现粘贴到 A 的位置、仅替换字段名，逻辑完全等价，则构成对称。在方法覆盖表（2.6 ①）中，对称方法必须**各自单独出现**。
+- **多入口规则**：若同一业务功能存在多个独立入口（如模板直接绑定的 `changeColor(color, colorType)` 与属性 setter `set color(value)`），且两条路径的**实现逻辑不完全相同**（如使用了不同的相等性检查、更新了不同的字段、有不同的前置条件守卫），每个入口须**独立生成测试**，不得以"功能等同"为由合并。若两个入口仅是对同一 private 方法的透传且无任何额外逻辑，可视为一条路径，在方法覆盖表中注明"via [另一入口]"。
+- **事件处理函数的可测性判断**：在以"jsdom 不支持该事件类型"为由跳过之前，先确认能否直接调用该函数并传入 mock 对象（`comp.handler({ preventDefault: vi.fn(), targetTouches: [...] } as unknown as TouchEvent)`）。arrow function property 直接调用不依赖 jsdom，不属于 jsdom 限制。只有当函数依赖真正无法模拟的浏览器 API（如 `canvas.getContext()`、`IntersectionObserver` 回调）时，才可以以 jsdom 限制为由跳过。
+
+- **DOM 访问的可测性决策（逐项检查，不得整体跳过）**：遇到访问 DOM 属性的方法时，按下表逐项判断，而不是整体归为"DOM 依赖 → 不可测"：
+
+  | DOM 访问类型 | jsdom 中的实际行为 | 测试策略 |
+  |---|---|---|
+  | `el.scrollTop` 读写 | 可读写的 IDL 属性，赋值后可读回 | 直接赋值 + 读回断言；或 spy `renderer.setProperty` |
+  | `el.scrollLeft` 读写 | 同上 | 同上 |
+  | `renderer.setProperty(el, prop, val)` | 可 spy，不依赖 DOM 实际更新 | `vi.spyOn(comp['renderer'], 'setProperty')` 断言调用参数 |
+  | `el.scrollHeight` / `el.clientHeight` | 始终为 0（布局计算值） | 需要 `Object.defineProperty` 才能模拟非零值；不模拟则依赖这些值的分支无法覆盖 |
+  | `el.getBoundingClientRect()` | 返回全零对象 | 同上 |
+  | `canvas.getContext()` / `IntersectionObserver` / `ResizeObserver` | 无法在 jsdom 中模拟 | 可跳过，但须在 Out of scope 中写明 |
+
+- **ViewChild 在 `@if` / `*ngIf` 条件块内**：ViewChild 只有在对应条件为 `true` 并经过 `detectChanges()` 后才被填充。依赖该 ViewChild 的方法，可通过**直接设置 backing field（如 `comp._showDetails = true`）后立即调用 `fixture.detectChanges()`** 来激活条件、填充 ViewChild，再调用目标方法——这**不是技术性限制**，不得将"ViewChild 在条件块内无法访问"作为跳过理由。是否跳过仍依 2.4 基线规则和测试价值判断。
+
+- **函数的局部可测性**：若一个函数包含**不依赖 DOM 的纯逻辑**（如状态赋值、数学计算）和**依赖 DOM 的逻辑**（如 `getBoundingClientRect()`），两部分应分开评估，**不得以函数内存在 DOM 操作为由整体跳过**。纯逻辑部分依 2.4 基线规则判断测试价值：逻辑平凡（单行赋值、无分支算术）且即使出错也会即刻暴露于视觉回归，允许以"测试价值为零：[具体说明]"跳过；逻辑含分支或不易被视觉发现，则必须测试。DOM 部分若无法模拟，在 Out of scope 中单独注明（如"tooltip placement branch: getBoundingClientRect 不可测"），而非整函数标为不可测。
 
 ---
 
@@ -266,6 +285,8 @@ HTTP: [其他方案] — 原因：[具体说明，且说明为何 MSW 不适用]
 
 超出上限时，优先删除价值最低或最重复的用例。
 已确认缺陷 → `it.fails(...)`，不计入上限。
+
+> **重要**：上限仅约束 2.5 节风险追加的额外用例，不约束 2.4 节要求的基线用例。削减时只能删 2.5 追加的用例，不能以"超出上限"为由删除基线用例（包括 boolean getter 的双向覆盖）。
 
 ## 3.2 文件头
 

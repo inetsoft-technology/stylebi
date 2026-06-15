@@ -36,7 +36,7 @@
           <div class="row">
             <div [ngClass]="fieldWidthClasses">
               @if (pageModel.params) {
-                @for (param of pageModel.params; track param) {
+                @for (param of pageModel.params; track $index) {
                   @switch (param.type) {
                     @case ('BooleanParameter') {
                       <div class="form-row-checkbox form-row">
@@ -55,7 +55,7 @@
                             <legend>{{!!param.alias ? param.alias : param.name}}</legend>
                             <div class="container">
                               <div class="row justify-content-start">
-                                @for (val of param.choicesValue; track val; let idx = $index) {
+                                @for (val of param.choicesValue; track $index; let idx = $index) {
                                   <div class="col-auto">
                                     <div class="form-check">
                                       <input type="radio" class="form-check-input" [name]="param.name" [value]="val" [(ngModel)]="param.value" [attr.aria-label]="param.choicesLabel[idx]"/>
@@ -76,7 +76,7 @@
                             <legend>{{!!param.alias ? param.alias : param.name}}</legend>
                             <div class="container">
                               <div class="row justify-content-start">
-                                @for (val of param.choicesValue; track val; let idx = $index) {
+                                @for (val of param.choicesValue; track $index; let idx = $index) {
                                   <div class="col-auto">
                                     <div class="form-check">
                                       <input type="checkbox" class="form-check-input" [value]="val" [(ngModel)]="param.selectedValues[idx]" [attr.aria-label]="param.choicesLabel[idx]"/>
@@ -117,7 +117,7 @@
                           }
                           @if (param.type === 'ChoiceParameter' && !!param.choicesValue) {
                             <select class="form-control" [(ngModel)]="param.value">
-                              @for (val of param.choicesValue; track val; let idx = $index) {
+                              @for (val of param.choicesValue; track $index; let idx = $index) {
                                 <option [value]="val">
                                   {{param.choicesLabel[idx]}}
                                 </option>
@@ -129,7 +129,7 @@
                           }
                           @if (param.type === 'ListParameter') {
                             <select class="form-control" [(ngModel)]="param.values" multiple size="6">
-                              @for (val of param.choicesValue; track val; let i = $index) {
+                              @for (val of param.choicesValue; track $index; let i = $index) {
                                 <option [value]="val">
                                   {{param.choicesLabel[i]}}
                                 </option>

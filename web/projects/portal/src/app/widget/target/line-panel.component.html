@@ -21,7 +21,7 @@
     <div class="row form-row-float-label">
       <div class="col form-floating">
         <select class="form-control" [(ngModel)]="model.measure" placeholder="_#(Field)">
-          @for (field of availableFields; track field) {
+          @for (field of availableFields; track field.name) {
             @if (!field.groupOthers) {
               <option [ngValue]="field">
                 {{field.label}}

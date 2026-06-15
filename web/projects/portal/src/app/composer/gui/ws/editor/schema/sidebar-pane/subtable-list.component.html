@@ -20,7 +20,7 @@
   (click)="reorderTables()">_#(Reorder Tables)</button>
 </div>
 <div class="subtable-container pt-2 ps-2">
-  @for (_subTable of subtables; track _subTable) {
+  @for (_subTable of subtables; track _subTable.name) {
     <div class="subtable" [attr.title]="_subTable.name">
       <ws-assembly-thumbnail-title [assembly]="_subTable"></ws-assembly-thumbnail-title>
     </div>

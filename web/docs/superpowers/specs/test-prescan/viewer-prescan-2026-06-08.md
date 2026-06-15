@@ -20,28 +20,28 @@
 | 待审核 | ViewerRootComponent | 32 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | 待审核 | ViewerViewComponent | 261 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核 | ViewerEditComponent | 188 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | AiAssistantPanelComponent | 177 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核 | DownloadTargetComponent | 84 | 1 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
+| ✅已测试 | AiAssistantPanelComponent | 177 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
+| ✅已测试 | DownloadTargetComponent | 84 | 1 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核 | PageTabComponent | 98 | 0 | 3 | **single-pass** | ✅ 推进 | ⚠️ page-tab.component.spec.ts | 无 | single pass (+竞态+内存泄漏) |
 | 待审核 | ViewerAppComponent | 3363 | 10 | 53 | **multi-pass** | ✅ 推进 | ⚠️ viewer-app.spec.ts | Bug #16456 TODO, logica changed, can not get fixed dropdown pane; Bug #19176 hide full screen in preview; Bug #16961 should refresh scale to screen vs | P1: ViewerAppComponent.interaction.tl.spec.ts<br>P2: ViewerAppComponent.risk.tl.spec.ts<br>P3: ViewerAppComponent.display.tl.spec.ts |
-| 待审核 | VSBindingPane | 805 | 4 | 5 | **multi-pass** | ✅ 推进 |  |  | P1: VSBindingPane.interaction.tl.spec.ts<br>P2: VSBindingPane.risk.tl.spec.ts<br>P3: VSBindingPane.display.tl.spec.ts |
-| 待审核 | VsWizardComponent | 371 | 0 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核 | PagingControlComponent | 84 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核 | ViewerMobileToolbarComponent | 72 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核 | VsBookmarkPaneComponent | 97 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核 | ExportDialog | 103 | 1 | 3 | **single-pass** | ✅ 推进 | ⚠️ export-dialog.spec.ts | Bug #17235 should not; test: should show error | single pass (+竞态+内存泄漏) |
+| ✅已测试 | VSBindingPane | 805 | 4 | 5 | **multi-pass** | ✅ 推进 |  |  | P1: VSBindingPane.interaction.tl.spec.ts (31+1xfail)<br>P2: VSBindingPane.risk.tl.spec.ts (21)<br>P3: VSBindingPane.display.tl.spec.ts (19) |
+| ✅已测试 | VsWizardComponent | 371 | 0 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
+| ✅已测试 | PagingControlComponent | 84 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试 | ViewerMobileToolbarComponent | 72 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试 | VsBookmarkPaneComponent | 97 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试 | ExportDialog | 103 | 1 | 3 | **single-pass** | ✅ 推进 | ⚠️ export-dialog.spec.ts | Bug #17235 should not; test: should show error | single pass (+竞态+内存泄漏) |
 | ✅已测试 | EmailDialog | 103 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | ScheduleDialog | 106 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | BookmarkPropertyDialog | 58 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核 | ProfilingDialog | 210 | 2 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | RemoveBookmarksDialog | 69 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | VSFormatsPane | 679 | 4 | 1 | **multi-pass** | ✅ 推进 | ⚠️ vs-formats-pane.spec.ts | Bug #16685, Bug #16689 check the aligment combox status; Bug #18597, BUg #18664 color,border, aligment status; Bug #18060, Bug #18342 for wrap text on | P1: VSFormatsPane.interaction.tl.spec.ts<br>P3: VSFormatsPane.display.tl.spec.ts |
+| ✅已测试 | ScheduleDialog | 106 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅已测试 | BookmarkPropertyDialog | 58 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试 | ProfilingDialog | 210 | 2 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅已测试 | RemoveBookmarksDialog | 69 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅已测试 | VSFormatsPane | 679 | 4 | 1 | **multi-pass** | ✅ 推进 | ⚠️ vs-formats-pane.spec.ts | Bug #16685, Bug #16689 check the aligment combox status; Bug #18597, BUg #18664 color,border, aligment status; Bug #18060, Bug #18342 for wrap text on | ✅ P1: VSFormatsPane.interaction.tl.spec.ts (40 tests)<br>✅ P3: VSFormatsPane.display.tl.spec.ts (27 tests) |
 | 待审核 | ShareEmailDialogComponent | 79 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核 | ShareGoogleChatDialog | 52 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核 | ShareSlackDialog | 52 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核 | NotificationsComponent | 65 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ notifications.component.spec.ts | 无 | single pass (+内存泄漏) |
-| 待审核 | VsWizardPane | 901 | 1 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: VsWizardPane.interaction.tl.spec.ts<br>P2: VsWizardPane.risk.tl.spec.ts |
-| 待审核 | ObjectWizardPane | 556 | 1 | 3 | **multi-pass** | ✅ 推进 |  |  | P1: ObjectWizardPane.interaction.tl.spec.ts<br>P2: ObjectWizardPane.risk.tl.spec.ts |
+| ✅ 推进 | VsWizardPane | 901 | 1 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: VsWizardPane.interaction.tl.spec.ts<br>P2: VsWizardPane.risk.tl.spec.ts |
+| ✅ 推进 | ObjectWizardPane | 556 | 1 | 3 | **multi-pass** | ✅ 推进 |  |  | P1: ObjectWizardPane.interaction.tl.spec.ts<br>P2: ObjectWizardPane.risk.tl.spec.ts |
 | 待审核 | ActionsContextmenuComponent | 154 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ actions-contextmenu.component.spec.ts | test: should not create a dropdown when there are no visible actions | single pass (+内存泄漏) |
 | 待审核 | VariableInputDialog | 214 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ variable-input-dialog.spec.ts | Bug #16824 Make sure the default value of a boolean type is false | single pass |
 | 待审核 | EditGeographicDialog | 47 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |

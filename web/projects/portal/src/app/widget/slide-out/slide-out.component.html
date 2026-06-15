@@ -36,7 +36,7 @@
               <div class="dropdown-pane p-1">
                 <button class="form-control" (click)="dismissAll()">_#(Close All)</button>
                 <div class="slideout-list mt-2">
-                  @for (slideout of currentSlideouts; track slideout; let i = $index) {
+                  @for (slideout of currentSlideouts; track slideout.objectId; let i = $index) {
                     <div
                       class="dropdown-item"
                       [class.selected]="isSlideoutOnTop(i)"

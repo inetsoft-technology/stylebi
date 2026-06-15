@@ -27,7 +27,7 @@
         <div class="col form-floating">
           <select class="form-control" [ngModel]="value.query"
             (ngModelChange)="changeSelectedTable($event)">
-            @for (_subqueryTable of availableTables; track _subqueryTable) {
+            @for (_subqueryTable of availableTables; track _subqueryTable.name) {
               <option
                 [value]="_subqueryTable.name" [attr.title]="_subqueryTable.description">
                 {{_subqueryTable.name}}
@@ -42,7 +42,7 @@
           <select class="form-control" [compareWith]="dataRefsEqual"
             [ngModel]="value.attribute"
             (ngModelChange)="attributeChanged($event)">
-            @for (_field of selectedTable?.columns; track _field) {
+            @for (_field of selectedTable?.columns; track _field.name) {
               <option
                 [ngValue]="_field"
                 [attr.title]="getTooltip(_field)">
@@ -67,7 +67,7 @@
             [ngModel]="value.subAttribute"
             (ngModelChange)="subAttributeChanged($event)">
             <option [ngValue]="null"></option>
-            @for (_field of selectedTable?.columns; track _field) {
+            @for (_field of selectedTable?.columns; track _field.name) {
               <option
                 [ngValue]="_field"
                 [attr.title]="getTooltip(_field)">
@@ -87,7 +87,7 @@
             [ngModel]="value.mainAttribute"
             (ngModelChange)="mainAttributeChanged($event)">
             <option [ngValue]="null"></option>
-            @for (_field of currentTableColumns; track _field) {
+            @for (_field of currentTableColumns; track _field.name) {
               <option
                 [ngValue]="_field"
                 [attr.title]="getTooltip(_field)">

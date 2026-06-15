@@ -69,7 +69,7 @@
             </div>
             <div class="bordered-box bd-gray bordered-box-lg mt-1"
               tabindex="0" role="list" aria-label="_#(Users)" (keyup)="focus($event)">
-              @for (_identity of searchAllIdentities(); track _identity) {
+              @for (_identity of searchAllIdentities(); track $index) {
                 <div class="unhighlightable d-flex align-items-center force-focus-highlight"
                   (click)="select(_identity, $event)"
                   [class.selected]="isSelectedIdentity(_identity)"

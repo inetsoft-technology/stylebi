@@ -55,7 +55,7 @@
     </div>
     <div class="col-auto form-group-column">
       <select class="form-control operation_check_id" [(ngModel)]="optSymbol" (ngModelChange)="optionChange($event)">
-        @for (opt of operations; track opt) {
+        @for (opt of operations; track opt.symbol) {
           <option [ngValue]="opt.symbol">
             {{opt.name}}
           </option>

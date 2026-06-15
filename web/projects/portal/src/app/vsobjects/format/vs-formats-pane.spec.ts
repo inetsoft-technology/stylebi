@@ -162,7 +162,6 @@ describe("VS Formats Pane Unit case", () => {
       expect(vsFormatsPane.dynamicColorDisabled).toBeTruthy();
       expect(vsFormatsPane.alignDisabled).toBeFalsy();
       expect(vsFormatsPane.isHAlignmentEnabled()).toBeFalsy();
-      expect(vsFormatsPane.isVAlignmentEnabled()).toBeTruthy();
       expect(vsFormatsPane.wrapTextDisabled).toBeTruthy();
       expect(vsFormatsPane.borderDisabled).toBeTruthy();
       expect(vsFormatsPane.cssDisabled).toBeFalsy();
@@ -178,7 +177,6 @@ describe("VS Formats Pane Unit case", () => {
       vsFormatsPane._focusedAssemblies = [chart1];
       vsFormatsPane.updateProperties();
       expect(vsFormatsPane.isHAlignmentEnabled()).toBeTruthy();
-      expect(vsFormatsPane.isVAlignmentEnabled()).toBeFalsy();
 
       //select x1 axis
       vsFormatsPane._format.halignmentEnabled = false;
@@ -205,7 +203,6 @@ describe("VS Formats Pane Unit case", () => {
       vsFormatsPane.updateProperties();
       expect(vsFormatsPane.alignDisabled).toBeFalsy();
       expect(vsFormatsPane.isHAlignmentEnabled()).toBeTruthy();
-      expect(vsFormatsPane.isVAlignmentEnabled()).toBeFalsy();
 
       //select y1|y2 axis
       vsFormatsPane._format.halignmentEnabled = false;
@@ -230,7 +227,6 @@ describe("VS Formats Pane Unit case", () => {
       expect(vsFormatsPane.dynamicColorDisabled).toBeTruthy();
       expect(vsFormatsPane.alignDisabled).toBeFalsy();
       expect(vsFormatsPane.isHAlignmentEnabled()).toBeTruthy();
-      expect(vsFormatsPane.isVAlignmentEnabled()).toBeFalsy();
 
       //select legend title and legend content
       vsFormatsPane._format.halignmentEnabled = true;
@@ -243,7 +239,6 @@ describe("VS Formats Pane Unit case", () => {
       vsFormatsPane.updateProperties();
       expect(vsFormatsPane.alignDisabled).toBeFalsy();
       expect(vsFormatsPane.isHAlignmentEnabled()).toBeTruthy();
-      expect(vsFormatsPane.isVAlignmentEnabled()).toBeFalsy();
 
       //select element vo Bug #18790
       vsFormatsPane._format.halignmentEnabled = false;
@@ -497,6 +492,7 @@ describe("VS Formats Pane Unit case", () => {
       expect(vsFormatsPane.alignDisabled).toBeFalsy();
    });
 
+   // isVAlignmentEnabled() branch coverage migrated to VSFormatsPane.interaction.tl.spec.ts Group 12a.
    //Bug #18582 textinput format status
    it("check formats status for textinput", () => {
       let textinput = TestUtils.createMockVSTextInputModel("textinput1");
@@ -539,6 +535,44 @@ describe("VS Formats Pane Unit case", () => {
       vsFormatsPane.updateProperties();
       expect(vsFormatsPane.alignDisabled).toBeTruthy();
 
+   });
+
+   //color should be enabled for legend selection in circle packing chart,
+   //and disabled only when a non-innermost circle (vo) is selected
+   it("check color status for circle packing chart", () => {
+      let chart: VSChartModel = TestUtils.createMockVSChartModel("packing");
+      chart.chartType = GraphTypes.CHART_CIRCLE_PACKING;
+      chart.axisFields = ["OuterDim", "InnerDim"];
+      chart.stringDictionary = ["OuterDim", "InnerDim"];
+      chart.chartSelection = {
+         chartObject: null,
+         regions: null
+      };
+      let region: ChartRegion = TestUtils.createMockChartRegion();
+
+      //select legend (not a circle) - color editable
+      chart.regionMetaDictionary = [{areaType: "legend_content", meaIdx: -1}];
+      chart.chartSelection.chartObject = TestUtils.createMockChartObject("legend_content");
+      chart.chartSelection.regions = [region];
+      vsFormatsPane._focusedAssemblies = [chart];
+      vsFormatsPane.updateProperties();
+      expect(vsFormatsPane.colorDisabled).toBeFalsy();
+
+      //select outer (non-innermost) circle - color disabled
+      chart.regionMetaDictionary = [{areaType: "vo", meaIdx: 0}];
+      chart.chartSelection.chartObject = TestUtils.createMockChartObject("plot_area");
+      chart.chartSelection.regions = [region];
+      vsFormatsPane._focusedAssemblies = [chart];
+      vsFormatsPane.updateProperties();
+      expect(vsFormatsPane.colorDisabled).toBeTruthy();
+
+      //select innermost circle - color editable
+      chart.regionMetaDictionary = [{areaType: "vo", meaIdx: 1}];
+      chart.chartSelection.chartObject = TestUtils.createMockChartObject("plot_area");
+      chart.chartSelection.regions = [region];
+      vsFormatsPane._focusedAssemblies = [chart];
+      vsFormatsPane.updateProperties();
+      expect(vsFormatsPane.colorDisabled).toBeFalsy();
    });
 
    //Bug #18442 font color should disabled for image

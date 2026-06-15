@@ -552,6 +552,15 @@ public class MockCluster implements Cluster {
    }
 
    @Override
+   public void cancelTransferFile(String link) {
+      File file = transferFiles.remove(link);
+
+      if(file != null) {
+         file.delete();
+      }
+   }
+
+   @Override
    public List<String> getClusterAddresses() {
       return List.of(getLocalMember());
    }

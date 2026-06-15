@@ -90,7 +90,7 @@
     <div class="form-row-float-label row form-group">
       <div class="col form-floating">
         <select class="form-control" [ngModel]="localTimeZoneId" formControlName="timeZone">
-          @for (tz of timeZoneOptions; track tz) {
+          @for (tz of timeZoneOptions; track tz.timeZoneId) {
             <option [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
           }
         </select>
@@ -101,7 +101,7 @@
       <div class="col form-floating">
         <div class="input-group btn-group">
           <select class="form-control w-auto" [disabled]="disableExecuteAs()" [(ngModel)]="executeAsType" [ngModelOptions]="{standalone: true}">
-            @for (type of executeAsTypes; track type) {
+            @for (type of executeAsTypes; track $index) {
               <option [value]="type.value">{{type.label}}</option>
             }
           </select>

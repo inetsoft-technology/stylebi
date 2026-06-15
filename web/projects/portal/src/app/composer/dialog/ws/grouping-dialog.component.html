@@ -50,7 +50,7 @@
       <div class="form-row-float-label row">
         <div class="col-6 form-floating">
           <select class="form-control" formControlName="type" placeholder="_#(Type)">
-            @for (_type of types; track _type) {
+            @for (_type of types; track _type.data) {
               <option [value]="_type.data">{{_type.label}}</option>
             }
           </select>
@@ -74,7 +74,7 @@
           <select class="form-control" formControlName="attributeIndex"
             [class.is-invalid]="!this.form.get('attribute').value && this.form.get('type').value === '-1'"
             placeholder="_#(Attribute)">
-            @for (_attr of attributes; track _attr; let i = $index) {
+            @for (_attr of attributes; track $index; let i = $index) {
               <option
                 [value]="i" [attr.title]="getTooltip(_attr)">
                 {{_attr.name}}
@@ -121,14 +121,14 @@
         <legend class="ms-1">_#(Conditions)</legend>
         <w-large-form-field>
           <div class="col bordered-box bd-gray" largeFieldElement>
-            @for (_expr of form.get('conditionExpressions').value; track _expr; let i = $index) {
+            @for (_expr of form.get('conditionExpressions').value; track $index; let i = $index) {
               <div
                 class="condition-container"
                 [class.selected]="i === selectedConditionIndex"
                 [class.hover-bg-primary-selectable]="i !== selectedConditionIndex"
                 (click)="selectedConditionIndex = i">
                 {{_expr.name}} -
-                @for (_clause of _expr.list; track _clause; let even = $even; let first = $first; let last = $last) {
+                @for (_clause of _expr.list; track $index; let even = $even; let first = $first; let last = $last) {
                   <div
                     class="condition-element">
                     {{(first ? '(' : '') + (even ? (_clause | conditionToString) : (_clause |

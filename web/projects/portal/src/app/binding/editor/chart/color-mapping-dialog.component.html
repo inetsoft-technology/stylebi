@@ -25,7 +25,7 @@
     <div class="modal-body" blockMouse>
       <div class="bordered-box bordered-box-lg bd-gray">
         <form class="container-fluid">
-          @for (colorMap of currentColorMaps; track colorMap; let _j = $index) {
+          @for (colorMap of currentColorMaps; track $index; let _j = $index) {
             <div class="row form-row-float-label"
               >
               <div class="col-auto">
@@ -45,7 +45,7 @@
                 @if (truncatedDimensionData?.length > 0 && !colorMap.manualInput) {
                   <select class="form-control"
                     [(ngModel)]="colorMap.option" [ngModelOptions]="{standalone: true}">
-                    @for (data of truncatedDimensionData; track data) {
+                    @for (data of truncatedDimensionData; track $index) {
                       <option [value]="data.value"
                         >{{data.label}}
                       </option>

@@ -35,7 +35,7 @@
         </div>
         <div class="ps-0 pe-1 col-6 form-floating">
           <select class="form-control" formControlName="parent" [class.is-invalid]="!parentControl.valid">
-            @for (entity of entities; track entity; let i = $index) {
+            @for (entity of entities; track entity.name; let i = $index) {
               <option [value]="i">{{ entity.name }}</option>
             }
           </select>

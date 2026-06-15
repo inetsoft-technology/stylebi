@@ -35,7 +35,7 @@
   (drop)="onDrop($event)">
   <div #scrollbarContainer class="scrollbar-container" [style.width.px]="bodyWidth + (isSelected() ? 0 : 16)">
     <div class="scrollbar-container-inner" [style.width.px]="innerWidth">
-      @for (outer of vsObject.outerSelections; track outer; let i = $index) {
+      @for (outer of vsObject.outerSelections; track outer.name; let i = $index) {
         <current-selection
           cSelectionContainerActionHandler [vsInfo]="viewsheet" [model]="vsObject"
           [selection]="outer"

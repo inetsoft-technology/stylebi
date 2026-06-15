@@ -34,9 +34,9 @@
           (onRegionSelect)="selectRegion($event)">
         </table-style-border-region>
         <table class="style-table">
-          @for (row of cssTableStyle.tableStyleRows; track row; let r = $index) {
+          @for (row of cssTableStyle.tableStyleRows; track $index; let r = $index) {
             <tr>
-              @for (cell of row.styleCells; track cell; let c = $index) {
+              @for (cell of row.styleCells; track $index; let c = $index) {
                 <td
                   [ngClass]="{'hover': isHoverRegion(cell.region), 'selected' : isSelectRegion(cell.region)}"
                   (click)="selectRegion(cell.region)"

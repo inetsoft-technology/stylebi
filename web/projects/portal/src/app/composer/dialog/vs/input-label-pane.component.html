@@ -48,7 +48,7 @@
       <div class="form-row-float-label row">
         <div class="col-6 form-floating mb-2">
           <select class="form-control" [(ngModel)]="model.labelPosition" id="labelPosition">
-            @for (opt of positionOptions; track opt) {
+            @for (opt of positionOptions; track $index) {
               <option [value]="opt.value">
                 {{ opt.label }}
               </option>

@@ -33,23 +33,6 @@
  *   Group 6 [Risk 2] - action guards: direct method calls must honor disabled UI contracts.
  *   Group 7 [Risk 3] - search result location: full parent path must be preserved.
  *
- * Confirmed bugs (it.failing - remove wrapper once fixed Issue #75144):
- *
- *   Bug A - status-error-leaves-updatingStatus-true (Group 2):
- *     fetchDataSourceStatuses resets updatingStatus only in the complete callback. RxJS does not
- *     call complete after error, so a failed refresh leaves the toolbar permanently disabled.
- *
- *   Bug B - empty-pane-drop-crashes (Group 5):
- *     dropAssets($event, null) is wired in the template, but the dragDataSources branch reads
- *     datasource.path without a null guard.
- *
- *   Bug C - non-folder-drop-bubbles-to-pane (Group 5):
- *     Dropping on a data source row returns before stopPropagation(), so the parent pane drop
- *     handler can also run and move/crash unexpectedly.
- *
- *   Bug D - nested-search-location-loses-parent-prefix (Group 7):
- *     getParentRouterLinkParams("root/folder/ds") returns "folder" instead of "root/folder".
- *
  * KEY contracts:
  *   Folder rows are navigable/move targets; data source rows are not move targets.
  *   Selection-mode status refresh only checks selected non-folder data sources.
@@ -353,7 +336,6 @@ describe("DataDatasourceBrowserComponent - browser refresh [Group 1, Risk 3]", (
       expect(comp.datasources[2].connected).toBe(false);
    });
 
-   // 🔁 Regression-sensitive: refreshed objects replace stale rows but selected paths should survive.
    it("should remap selectedItems to refreshed objects with the same path", async () => {
       const oldInfo = makeDataSource("Old Name", "root/DS", PortalDataType.DATABASE);
       const { comp, queryParamSubject } = await renderComponent({
@@ -421,8 +403,7 @@ describe("DataDatasourceBrowserComponent - status refresh [Group 2, Risk 3]", ()
       expect(dsB.statusMessage).toBe("selected ok");
    });
 
-   // Bug A: error callback sets row status but never resets updatingStatus.
-   it.fails("should reset updatingStatus after a status refresh request errors", async () => {
+   it("should reset updatingStatus after a status refresh request errors", async () => {
       const ds = makeDataSource("Broken", "Broken", PortalDataType.DATABASE);
       const { comp } = await renderComponent();
 
@@ -461,7 +442,6 @@ describe("DataDatasourceBrowserComponent - search [Group 3, Risk 2]", () => {
       expect(comp.searchQuery).toBeNull();
    });
 
-   // 🔁 Regression-sensitive: failed search must not leave stale results from the previous view.
    it("should clear results and show a danger notification when search load fails", async () => {
       server.use(
          http.post("*/api/data/search/dataSources", () =>
@@ -530,8 +510,7 @@ describe("DataDatasourceBrowserComponent - deleteSelected [Group 4, Risk 3]", ()
 // ---------------------------------------------------------------------------
 
 describe("DataDatasourceBrowserComponent - drag/drop [Group 5, Risk 3]", () => {
-   // Bug B: template passes null for pane drops, but implementation dereferences datasource.path.
-   it.fails("should move dragged data sources to the current folder when dropped on the empty pane", async () => {
+   it("should move dragged data sources to the current folder when dropped on the empty pane", async () => {
       const source = makeDataSource("Source", "source/Source", PortalDataType.DATABASE);
       const confirmSpy = vi.spyOn(ComponentTool, "showConfirmDialog")
          .mockResolvedValue("ok");
@@ -549,8 +528,7 @@ describe("DataDatasourceBrowserComponent - drag/drop [Group 5, Risk 3]", () => {
          .toHaveBeenCalledWith([source], "target", expect.any(Function)));
    });
 
-   // Bug C: row-level non-folder drop must stop propagation so the parent pane does not process it.
-   it.fails("should stop propagation when dropping on a non-folder data source row", async () => {
+   it("should stop propagation when dropping on a non-folder data source row", async () => {
       const target = makeDataSource("Target", "target/Target", PortalDataType.DATABASE);
       const { comp, dragService } = await renderComponent();
       const event = { stopPropagation: vi.fn() } as any as DragEvent;
@@ -591,7 +569,6 @@ describe("DataDatasourceBrowserComponent - drag/drop [Group 5, Risk 3]", () => {
 // ---------------------------------------------------------------------------
 
 describe("DataDatasourceBrowserComponent - action guards [Group 6, Risk 2]", () => {
-   // 🔁 Regression-sensitive: disabled toolbar classes can be bypassed by direct method calls.
    it("should not move a mixed selection when any selected item lacks edit/delete permission", async () => {
       const movable = makeDataSource("Movable", "Movable", PortalDataType.DATABASE);
       const locked = makeDataSource("Locked", "Locked", PortalDataType.DATABASE, {
@@ -607,7 +584,6 @@ describe("DataDatasourceBrowserComponent - action guards [Group 6, Risk 2]", () 
       expect(comp.selectedItems).toEqual([movable, locked]);
    });
 
-   // Risk Point/Contract: folder or non-editable entries must not emit create events.
    it("should emit create events only for editable non-folder data sources", async () => {
       const editable = makeDataSource("Editable", "Editable", PortalDataType.DATABASE);
       const folder = makeDataSource("Folder", "Folder", PortalDataType.DATA_SOURCE_FOLDER);
@@ -631,8 +607,7 @@ describe("DataDatasourceBrowserComponent - action guards [Group 6, Risk 2]", () 
 // ---------------------------------------------------------------------------
 
 describe("DataDatasourceBrowserComponent - search result location [Group 7, Risk 3]", () => {
-   // Bug D: nested search-result links need the full parent folder path, not only the last segment.
-   it.fails("should preserve the full parent path in router params for nested search results", async () => {
+   it("should preserve the full parent path in router params for nested search results", async () => {
       const { comp } = await renderComponent();
 
       expect(comp.getParentRouterLinkParams("root/folder/DS")).toEqual({

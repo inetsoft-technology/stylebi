@@ -31,7 +31,7 @@
           <div class="col form-floating">
             <select class="form-control" type="text" id="dataType" formControlName="dataType"
               placeholder="_#(Type)">
-              @for (_dataType of dataTypeList; track _dataType) {
+              @for (_dataType of dataTypeList; track _dataType.data) {
                 <option [value]="_dataType.data">
                 {{_dataType.label}}</option>
               }

@@ -29,7 +29,7 @@
           <div class="form-floating">
             <select class="palette-cell" class="form-control"
               [(ngModel)]="_selectedIndex">
-              @for (p of colorPalettes; track p; let i = $index) {
+              @for (p of colorPalettes; track p.name; let i = $index) {
                 <option [value]="i">
                   {{p.name}}
                 </option>

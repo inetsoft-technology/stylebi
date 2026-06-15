@@ -203,13 +203,23 @@ public class SchedulerMonitoringService
    }
 
    /**
-    * Get Datacycle infos from DataCycleManager.
+    * Get Datacycle infos from DataCycleManager. Used for monitoring metrics, so the
+    * result is gated by the current monitoring level.
     */
    public DataCycleInfo[] getCycleInfo() {
       if(!isLevelQualified("cycleInfo")) {
          return new DataCycleInfo[0];
       }
 
+      return getDataCycleInfos();
+   }
+
+   /**
+    * Get Datacycle infos from DataCycleManager regardless of the monitoring level.
+    * The data cycle list is configuration (not runtime monitoring data), so the EM
+    * settings page must be able to read it even when monitoring is off.
+    */
+   public DataCycleInfo[] getDataCycleInfos() {
       String orgId = OrganizationManager.getInstance().getCurrentOrgID();
       Enumeration<String> cycles = cycleManager.getDataCycles(orgId);
       ScheduleCondition scond;

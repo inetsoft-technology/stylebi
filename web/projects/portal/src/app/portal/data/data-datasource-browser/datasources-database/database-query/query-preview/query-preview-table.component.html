@@ -60,7 +60,7 @@
           touchScroll (vScroll)="touchVScroll($event)" (hScroll)="touchHScroll($event)"
           [style.top.px]="-scrollY">
           <tbody>
-            @for (_row of tableData; track _row; let _first = $first; let i = $index) {
+            @for (_row of tableData; track $index; let _first = $first; let i = $index) {
               @if (!_first) {
                 <tr [style.height.px]="cellHeight">
                   @if (isRowVisible(i)) {

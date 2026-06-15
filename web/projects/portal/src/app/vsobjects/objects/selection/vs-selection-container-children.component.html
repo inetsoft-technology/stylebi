@@ -38,7 +38,7 @@
     <div #containerBody class="scrollbar-container"
       [style.width.px]="bodyWidth + scrollbarWidth">
       <div class="scrollbar-container-inner" [style.width.px]="cachedInnerWidth">
-        @for (outer of vsObject.outerSelections; track outer; let i = $index) {
+        @for (outer of vsObject.outerSelections; track outer.name; let i = $index) {
           <current-selection
             [selection]="outer"
             [model]="vsObject"

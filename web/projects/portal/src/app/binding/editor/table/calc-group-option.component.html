@@ -27,7 +27,7 @@
       <div class="col form-floating">
         <select class="form-control" [(ngModel)]="order.type" placeholder="_#(Sort)"
           [disabled]="cellBinding.timeSeries">
-          @for (sort of sorts; track sort) {
+          @for (sort of sorts; track $index) {
             @if (sortItemVisible(sort)) {
               <option [value]="sort.value">{{sort.label}}</option>
             }
@@ -40,7 +40,7 @@
           <div class="form-floating by_label_id">
             <select class="form-control" placeholder="_#(By)" [(ngModel)]="sortValue"
               [disabled]="cellBinding.timeSeries">
-              @for (agg of aggrs; track agg) {
+              @for (agg of aggrs; track $index) {
                 <option [value]="agg.view">{{agg.view}}
                 </option>
               }
@@ -62,7 +62,7 @@
           <select class="form-control" [(ngModel)]="topN.type" placeholder="_#(Ranking)"
             (ngModelChange)="changeTopnType($event)"
             [disabled]="isDisableRanking()">
-            @for (top of TOP_OPTION; track top) {
+            @for (top of TOP_OPTION; track $index) {
               <option [value]="top.value">{{top.label}}</option>
             }
           </select>
@@ -81,7 +81,7 @@
           <select class="form-control"
             [disabled]="topN.type == 0 || isDisableRanking()"
             [(ngModel)]="sumColValue" placeholder="_#(calculationOf)">
-            @for (agg of aggrs; track agg) {
+            @for (agg of aggrs; track $index) {
               <option [value]="agg.view">{{agg.view}}
               </option>
             }
@@ -110,7 +110,7 @@
           <select class="form-control" [ngModel]="order.info?.name"
             (ngModelChange)="changeNamedGroup($event)" placeholder="_#(Named Group)"
             [disabled]="cellBinding.timeSeries">
-            @for (name of ngNames; track name) {
+            @for (name of ngNames; track $index) {
               <option [ngValue]="name.name">
                 {{name.label}}
               </option>

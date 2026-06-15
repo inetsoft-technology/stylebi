@@ -42,7 +42,7 @@
         }
       </colgroup>
       <tr #columnRow>
-        @for (column of _value; track column) {
+        @for (column of _value; track column.name) {
           <th>
             <div class="cell-content">
               {{column.name}}
@@ -51,7 +51,7 @@
         }
       </tr>
       <tr #aliasRow>
-        @for (column of _value; track column) {
+        @for (column of _value; track column.name) {
           <td>
             <div class="cell-content">
               <tabular-text-editor [(value)]="column.alias" (valueChange)="valueChanged()"
@@ -61,7 +61,7 @@
         }
       </tr>
       <tr #typeRow>
-        @for (column of _value; track column) {
+        @for (column of _value; track column.name) {
           <td>
             <div class="cell-content">
               <select class="form-control" [(ngModel)]="column.type" (ngModelChange)="valueChanged()"
@@ -84,7 +84,7 @@
         }
       </tr>
       <tr #formatRow>
-        @for (column of _value; track column) {
+        @for (column of _value; track column.name) {
           <td>
             <div class="cell-content">
               <tabular-text-editor [(value)]="column.format" (valueChange)="valueChanged()"
@@ -94,7 +94,7 @@
         }
       </tr>
       <tr #selectedRow>
-        @for (column of _value; track column) {
+        @for (column of _value; track column.name) {
           <td class="text-center">
             <div class="cell-content">
               <input class="checkbox center" type="checkbox" [(ngModel)]="column.selected"
