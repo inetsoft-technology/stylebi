@@ -32,8 +32,14 @@ import org.immutables.value.Value;
 public interface BookmarkConflict {
    /** Path of the viewsheet asset (e.g. "Reports/Sales/Dashboard"). */
    String viewsheetPath();
-   /** Username that owns this bookmark. */
+   /** IdentityID key of the user that owns this bookmark (used as the resolution map key). */
    String user();
+   /**
+    * Display name for {@link #user()} — the plain username without org suffix.
+    * Falls back to {@link #user()} when not set.
+    */
+   @Value.Default
+   default String userLabel() { return user(); }
    /** Name of the conflicting bookmark. */
    String bookmarkName();
    /** VSBookmarkInfo.getCreateTime() for the existing (PROD) bookmark. */

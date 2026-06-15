@@ -92,7 +92,7 @@
         </ng-container>
         <ng-container matColumnDef="user">
           <th mat-header-cell *matHeaderCellDef>_#(User)</th>
-          <td mat-cell *matCellDef="let row">{{row.conflict?.user}}</td>
+          <td mat-cell *matCellDef="let row">{{row.conflict?.userLabel ?? row.conflict?.user}}</td>
         </ng-container>
         <ng-container matColumnDef="bookmarkName">
           <th mat-header-cell *matHeaderCellDef>_#(Bookmark)</th>
@@ -117,14 +117,12 @@
         <ng-container matColumnDef="keep">
           <th mat-header-cell *matHeaderCellDef>_#(Keep)</th>
           <td mat-cell *matCellDef="let row">
-            <div class="conflict-radio-group" *ngIf="row.conflict">
-              <mat-radio-button [name]="row.conflict.viewsheetPath + '|' + row.conflict.user + '|' + row.conflict.bookmarkName"
-                                [value]="false" [checked]="!getResolution(row.conflict)"
-                                (change)="setResolution(row.conflict, false)">_#(Current)</mat-radio-button>
-              <mat-radio-button [name]="row.conflict.viewsheetPath + '|' + row.conflict.user + '|' + row.conflict.bookmarkName"
-                                [value]="true" [checked]="getResolution(row.conflict)"
-                                (change)="setResolution(row.conflict, true)">_#(Import)</mat-radio-button>
-            </div>
+            <mat-radio-group *ngIf="row.conflict" class="conflict-radio-group"
+                             [value]="getResolution(row.conflict)"
+                             (change)="setResolution(row.conflict, $event.value)">
+              <mat-radio-button [value]="false">_#(Current)</mat-radio-button>
+              <mat-radio-button [value]="true">_#(Import)</mat-radio-button>
+            </mat-radio-group>
           </td>
         </ng-container>
         <tr mat-header-row *matHeaderRowDef="conflictColumns; sticky: true"></tr>

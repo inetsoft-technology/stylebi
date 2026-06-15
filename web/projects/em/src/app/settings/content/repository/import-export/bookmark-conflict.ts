@@ -1,6 +1,9 @@
 export interface BookmarkConflict {
    viewsheetPath: string;
+   /** IdentityID key — used as the resolution map key, not for display. */
    user: string;
+   /** Display name (plain username without org suffix). Falls back to user when absent. */
+   userLabel?: string;
    bookmarkName: string;
    /** Epoch millis from VSBookmarkInfo.getCreateTime() for the existing (current) bookmark. -1 if unavailable. */
    existingCreated: number;

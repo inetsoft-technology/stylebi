@@ -1105,6 +1105,7 @@ public class DeployManagerService {
                   conflicts.add(BookmarkConflict.builder()
                      .viewsheetPath(entry.getPath())
                      .user(userName)
+                     .userLabel(userID.getName())
                      .bookmarkName(bName)
                      .existingCreated(existingInfo.getCreateTime())
                      .existingModified(existingInfo.getLastModified())

@@ -19,7 +19,7 @@ import { HttpClient, HttpErrorResponse, HttpParams } from "@angular/common/http"
 import { Component, HostBinding, HostListener, Inject, OnDestroy, ViewEncapsulation } from "@angular/core";
 import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
-import { Observable, Subject, throwError, timer } from "rxjs";
+import { Observable, Subject, of, throwError, timer } from "rxjs";
 import { catchError, filter, switchMap, take, timeout } from "rxjs/operators";
 import { DateTypeFormatter } from "../../../../../../../../shared/util/date-type-formatter";
 import { RepositoryEntryType } from "../../../../../../../../shared/data/repository-entry-type.enum";
@@ -45,7 +45,7 @@ import { MatIcon } from "@angular/material/icon";
 import { FileChooserComponent } from "../../../../../common/util/file-chooser/file-chooser/file-chooser.component";
 import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
 import { MatTable, MatHeaderCellDef, MatCellDef, MatHeaderRowDef, MatRowDef, MatHeaderCell, MatCell, MatHeaderRow, MatRow, MatColumnDef } from "@angular/material/table";
-import { MatRadioButton } from "@angular/material/radio";
+import { MatRadioButton, MatRadioGroup } from "@angular/material/radio";
 import { ModalHeaderComponent } from "../../../../../common/util/modal-header/modal-header.component";
 import { NgIf } from "@angular/common";
 
@@ -54,7 +54,7 @@ import { NgIf } from "@angular/common";
     templateUrl: "./import-asset-dialog.component.html",
     styleUrls: ["./import-asset-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, FileChooserComponent, MatIcon, MatSuffix, MatError, MatInput, MatIconButton, MatCheckbox, SelectedAssetListComponent, RequiredAssetListComponent, MatProgressBar, MatDialogActions, MatButton, MatTable, MatColumnDef, MatHeaderCellDef, MatCellDef, MatHeaderRowDef, MatRowDef, MatHeaderCell, MatCell, MatHeaderRow, MatRow, MatRadioButton]
+    imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, FileChooserComponent, MatIcon, MatSuffix, MatError, MatInput, MatIconButton, MatCheckbox, SelectedAssetListComponent, RequiredAssetListComponent, MatProgressBar, MatDialogActions, MatButton, MatTable, MatColumnDef, MatHeaderCellDef, MatCellDef, MatHeaderRowDef, MatRowDef, MatHeaderCell, MatCell, MatHeaderRow, MatRow, MatRadioGroup, MatRadioButton]
 })
 export class ImportAssetDialogComponent implements OnDestroy {
    @HostBinding("class") hostClass = "import-asset-dialog";
@@ -190,7 +190,7 @@ export class ImportAssetDialogComponent implements OnDestroy {
                this.http.get<BookmarkConflict[]>(
                   `../api/em/content/repository/import-bookmark-conflicts/${this.model?.importId}`,
                   { params }
-               ).pipe(catchError(err => { this.conflictsLoading = false; return throwError(err); }))
+               ).pipe(catchError(err => { this.conflictsLoading = false; return of<BookmarkConflict[]>([]); }))
             )
          )
          .subscribe(conflicts => {
