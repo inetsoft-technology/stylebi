@@ -64,6 +64,8 @@ public class WorksheetTableRequest {
    private List<String> baseTables;
    /** Join definitions (required for relational join tables). */
    private List<JoinPathInfo> joinPaths;
+   /** Marks this table as the primary table of the join. */
+   private boolean asPrimaryTable;
 
    // ─── Aggregation ─────────────────────────────────────────────────────────
 
@@ -109,6 +111,9 @@ public class WorksheetTableRequest {
 
    public List<JoinPathInfo> getJoinPaths() { return joinPaths; }
    public void setJoinPaths(List<JoinPathInfo> joinPaths) { this.joinPaths = joinPaths; }
+
+   public boolean isAsPrimaryTable() { return asPrimaryTable; }
+   public void setAsPrimaryTable(boolean asPrimaryTable) { this.asPrimaryTable = asPrimaryTable; }
 
    public AggregateInfo getAggregateInfo() { return aggregateInfo; }
    public void setAggregateInfo(AggregateInfo aggregateInfo) { this.aggregateInfo = aggregateInfo; }
