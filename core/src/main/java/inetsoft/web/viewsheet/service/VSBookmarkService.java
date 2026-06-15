@@ -44,6 +44,8 @@ import inetsoft.web.viewsheet.event.*;
 import inetsoft.web.viewsheet.model.RemoveAnnotationsCondition;
 import inetsoft.web.viewsheet.model.VSBookmarkInfoModel;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationListener;
@@ -560,7 +562,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       }
 
       rvs.setDefaultBookmark(
-         new VSBookmark().new DefaultBookmark(name, owner));
+         new VSBookmark.DefaultBookmark(name, owner));
 
       return null;
    }
@@ -786,6 +788,56 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
          execSessionID, userSessionID, objectName, objectType, ExecutionRecord.EXEC_TYPE_FINISH,
          execTimestamp, ExecutionRecord.EXEC_STATUS_SUCCESS, null);
 
+      // Check structural compatibility between the bookmark state and the current dashboard.
+      // Dispatch a non-blocking WARNING toast if assemblies are missing or types have changed.
+      try {
+         AssetRepository bookmarkRep =
+            inetsoft.uql.asset.internal.AssetUtil.getAssetRepository(false);
+         VSBookmark vsBookmark = bookmarkRep.getVSBookmark(
+            rvs.getEntry(), new XPrincipal(owner));
+
+         if(vsBookmark != null) {
+            VSBookmark.BookmarkIncompatibility incompatibility =
+               vsBookmark.getIncompatibilities(name, rvs.getViewsheet());
+
+            if(!incompatibility.isEmpty()) {
+               StringBuilder msg = new StringBuilder();
+               msg.append(catalog.getString(
+                  "viewer.viewsheet.bookmark.mayBeOutOfDate", name));
+
+               if(incompatibility.isParseError()) {
+                  msg.append(" ").append(
+                     catalog.getString("viewer.viewsheet.bookmark.parseError"));
+               }
+               else {
+                  if(!incompatibility.getMissingAssemblies().isEmpty()) {
+                     msg.append(" ").append(catalog.getString(
+                        "viewer.viewsheet.bookmark.missingComponents",
+                        String.join(", ", incompatibility.getMissingAssemblies())));
+                  }
+
+                  if(!incompatibility.getTypeChanges().isEmpty()) {
+                     msg.append(" ").append(catalog.getString(
+                        "viewer.viewsheet.bookmark.typeChanges",
+                        String.join(", ", incompatibility.getTypeChanges())));
+                  }
+               }
+
+               msg.append(" ").append(
+                  catalog.getString("viewer.viewsheet.bookmark.considerUpdating"));
+
+               MessageCommand warnCommand = new MessageCommand();
+               warnCommand.setMessage(msg.toString());
+               warnCommand.setType(MessageCommand.Type.WARNING);
+               dispatcher.sendCommand(warnCommand);
+            }
+         }
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to check bookmark compatibility for bookmark '{}'",
+            name, ex);
+      }
+
       try {
          removeAssemblyAndRefreshViewSheet(
             dispatcher, rvs, url, oldArr, vsId, width, height, mobile, userAgent, clist);
@@ -996,4 +1048,5 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
    private final Cluster cluster;
    private final XSessionService sessionService;
    private static final Catalog catalog = Catalog.getCatalog();
+   private static final Logger LOG = LoggerFactory.getLogger(VSBookmarkService.class);
 }
