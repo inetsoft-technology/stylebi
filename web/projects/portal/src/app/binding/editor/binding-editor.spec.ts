@@ -36,6 +36,7 @@ import { CrosstabBindingModel } from "../data/table/crosstab-binding-model";
 import { BindingService } from "../services/binding.service";
 import { BindingTreeService } from "../widget/binding-tree/binding-tree.service";
 import { TableEditorService } from "../services/table/table-editor.service";
+import { ChartEditorService } from "../services/chart/chart-editor.service";
 import { SidebarTab } from "../widget/binding-tree/data-editor-tab-pane.component";
 import { BindingEditor } from "./binding-editor.component";
 import { CrosstabOption } from "./table/crosstab-option.component";
@@ -79,7 +80,7 @@ describe("Binding Editor Component Unit Test", () => {
          ],
          
          providers: [
-            BindingService, TableEditorService,
+            BindingService, TableEditorService, ChartEditorService,
             {
                provide: UIContextService, useValue: uiContextService
             },
