@@ -59,6 +59,7 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
    public WorksheetEngine(AssetRepository engine, Cluster cluster) throws RemoteException {
       this.cluster = cluster;
       cluster.registerSpringProxyPartitionedCache(CACHE_NAME);
+      cluster.registerSpringProxyPartitionedCache(RuntimeSheetCache.ACCESS_TIME_MAP_NAME);
       cluster.getCache(RuntimeSheetCache.ACCESS_TIME_MAP_NAME);
       amap = new RuntimeSheetCache(cluster, CACHE_NAME);
       emap = new ConcurrentHashMap<>();
@@ -162,11 +163,17 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
     */
    @Override
    public void dispose() {
-      engine.dispose();
-      affinityExecutor.shutdownNow();
-
       try {
          debouncer.close();
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to close debouncer", e);
+      }
+
+      affinityExecutor.shutdownNow();
+      engine.dispose();
+
+      try {
          amap.close();
       }
       catch(Exception e) {
