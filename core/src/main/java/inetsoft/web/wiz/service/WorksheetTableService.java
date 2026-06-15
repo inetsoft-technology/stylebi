@@ -506,7 +506,7 @@ public class WorksheetTableService {
                aggRef.setN(agg.getN());
             }
 
-            info.addAggregate(aggRef);
+            info.addAggregate(aggRef, false);
 
             // AggregateRef has no setAlias(). Expose the alias via a ColumnRef alias so
             // downstream steps can resolve this aggregate column by its friendly name.
