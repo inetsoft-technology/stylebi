@@ -158,12 +158,18 @@ public class WorksheetTableService {
          throw new IllegalArgumentException("tableType is required");
       }
 
-      return switch(tableType) {
+      AbstractTableAssembly table = switch(tableType) {
          case "physical table"        -> buildPhysicalTable(worksheet, request, user);
          case "mirror table"          -> buildMirrorTable(worksheet, request);
          case "relational join table" -> buildJoinTable(worksheet, request);
          default -> throw new IllegalArgumentException("Unknown tableType: " + tableType);
       };
+
+      if(request.isAsPrimaryTable()) {
+         worksheet.setPrimaryAssembly(table.getName());
+      }
+
+      return table;
    }
 
    private AbstractTableAssembly buildPhysicalTable(Worksheet worksheet,
