@@ -191,7 +191,6 @@ public class WizGeoService {
 
       ChartVSAssemblyInfo ainfo = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
       VSChartInfo cinfo = ainfo.getVSChartInfo();
-      SourceInfo sourceInfo = ainfo.getSourceInfo();
       String refName = request.getColumn();
 
       if(Tool.isEmptyString(refName)) {
@@ -219,10 +218,12 @@ public class WizGeoService {
       String type = mapping.getType();
       int layer = mapping.getLayer();
 
+      if(source == null) {
+         throw new IllegalStateException("Failed to execute chart data for geo detection");
+      }
+
       // Originally-unmatched values BEFORE applying the manual mappings.
-      Set<String> originalUnmatched = source == null
-         ? new LinkedHashSet<>()
-         : new LinkedHashSet<>(MapHelper.getUnMatchedValues(
+      Set<String> originalUnmatched = new LinkedHashSet<>(MapHelper.getUnMatchedValues(
             source, GraphUtil.indexOfHeader(source, refName), mapping, cinfo).keySet());
 
       // Apply each mapping. The supplied value is a geoCode; if a caller passed a display label,
@@ -313,6 +314,10 @@ public class WizGeoService {
       if(geoColRef instanceof ChartRef geoChartRef) {
          mapInfo.removeGeoFields();
          mapInfo.addGeoField((ChartRef) geoChartRef.clone());
+      }
+      else {
+         LOG.warn("Unable to fix geo binding: invalid geo column reference");
+         return;
       }
 
       // A polygon map can't use the shape aesthetic; drop it (the region often lands there).
