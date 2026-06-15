@@ -26,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -82,12 +83,12 @@ public class WizViewsheetController {
    }
 
    @PostMapping(value = "/viewsheet/geo/detect", produces = MediaType.APPLICATION_JSON_VALUE)
-   public ResponseEntity<?> geoDetect(@RequestBody GeoDetectRequest request, Principal user) {
+   public ResponseEntity<?> geoDetect(@Valid @RequestBody GeoDetectRequest request, Principal user) {
       return run("geo detect", () -> wizGeoService.detect(request, user));
    }
 
    @PostMapping(value = "/viewsheet/geo/apply", produces = MediaType.APPLICATION_JSON_VALUE)
-   public ResponseEntity<?> geoApply(@RequestBody GeoApplyRequest request, Principal user) {
+   public ResponseEntity<?> geoApply(@Valid @RequestBody GeoApplyRequest request, Principal user) {
       return run("geo apply", () -> wizGeoService.apply(request, user));
    }
 

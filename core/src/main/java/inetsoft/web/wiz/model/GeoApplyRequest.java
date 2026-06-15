@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import jakarta.validation.constraints.NotBlank;
 
 import java.util.List;
 import java.util.Map;
@@ -77,8 +78,11 @@ public class GeoApplyRequest {
       this.viewsheetIdentifier = viewsheetIdentifier;
    }
 
+   @NotBlank
    private String runtimeId;
+   @NotBlank
    private String assemblyName;
+   @NotBlank
    private String column;
    /** dataValue -> geoCode (or display label, resolved to a geoCode by the service). */
    private Map<String, String> mappings;

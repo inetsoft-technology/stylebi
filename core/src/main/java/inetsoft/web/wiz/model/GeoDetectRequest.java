@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import jakarta.validation.constraints.NotBlank;
 
 /**
  * Request body for {@code POST /api/wiz/viewsheet/geo/detect}.
@@ -66,8 +67,11 @@ public class GeoDetectRequest {
       this.viewsheetIdentifier = viewsheetIdentifier;
    }
 
+   @NotBlank
    private String runtimeId;
+   @NotBlank
    private String assemblyName;
+   @NotBlank
    private String column;
    /** Optional explicit map type (e.g. "World", "U.S."); when absent, auto-detected. */
    private String geoType;
