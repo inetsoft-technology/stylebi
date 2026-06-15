@@ -411,6 +411,10 @@ public class WorksheetTableService {
          ColumnRef colRef = new ColumnRef(expr);
          colRef.setSQL(col.isSql());
 
+         if(col.getType() != null) {
+            colRef.setDataType(col.getType());
+         }
+
          if(col.getAlias() != null) {
             colRef.setAlias(col.getAlias());
          }
