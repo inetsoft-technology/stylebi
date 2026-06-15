@@ -60,6 +60,17 @@ import { Worksheet } from "../../../data/ws/worksheet";
 // keeping the Subject local rather than in shared module-level state.
 // ---------------------------------------------------------------------------
 
+// Module-level convenience export so spec files can call dispatchCommand()
+// without needing mocks.dispatchCommand. Updated by every makeMocks() call.
+let _lastCommandSubject: Subject<ViewsheetCommandMessage> | null = null;
+
+export function dispatchCommand(type: string, command: any): void {
+   if (!_lastCommandSubject) {
+      throw new Error("dispatchCommand() called before makeMocks()");
+   }
+   _lastCommandSubject.next(new ViewsheetCommandMessage(null, type, command));
+}
+
 export function makeWsClientMock() {
    const commandSubject = new Subject<ViewsheetCommandMessage>();
    const mock = {
@@ -127,6 +138,7 @@ export function makeWorksheet(overrides: Partial<any> = {}): any {
       callBackFun: null,
       clearFocusedAssemblies: vi.fn(),
       isModified: vi.fn().mockReturnValue(false),
+      isCompositeView: vi.fn().mockReturnValue(false),
       isAssemblyFocused: vi.fn().mockReturnValue(false),
       replaceFocusedAssembly: vi.fn(),
       deselectAssembly: vi.fn(),
@@ -146,6 +158,7 @@ export function makeWorksheet(overrides: Partial<any> = {}): any {
 
 export function makeMocks() {
    const { mock: wsClient, commandSubject } = makeWsClientMock();
+   _lastCommandSubject = commandSubject;
    return {
       wsClient,
       commandSubject,

@@ -474,48 +474,22 @@ describe("WSPaneComponent — getAssemblyName", () => {
 
 describe("WSPaneComponent — processNotification", () => {
 
-   it("should call notifications.success for type=success", async () => {
+   it("should route notification type to the correct notifications method", async () => {
       const mocks = makeMocks();
       const { comp } = await renderComponent(mocks);
 
-      comp.processNotification({ type: "success", message: "Done" });
+      const cases = [
+         { type: "success", message: "Done", method: "success" as const },
+         { type: "info", message: "FYI", method: "info" as const },
+         { type: "warning", message: "Caution", method: "warning" as const },
+         { type: "danger", message: "Error!", method: "danger" as const },
+         { type: "unknown", message: "Unhandled notification", method: "warning" as const },
+      ];
 
-      expect(mocks.notifications.success).toHaveBeenCalledWith("Done");
-   });
-
-   it("should call notifications.info for type=info", async () => {
-      const mocks = makeMocks();
-      const { comp } = await renderComponent(mocks);
-
-      comp.processNotification({ type: "info", message: "FYI" });
-
-      expect(mocks.notifications.info).toHaveBeenCalledWith("FYI");
-   });
-
-   it("should call notifications.warning for type=warning", async () => {
-      const mocks = makeMocks();
-      const { comp } = await renderComponent(mocks);
-
-      comp.processNotification({ type: "warning", message: "Caution" });
-
-      expect(mocks.notifications.warning).toHaveBeenCalledWith("Caution");
-   });
-
-   it("should call notifications.danger for type=danger", async () => {
-      const mocks = makeMocks();
-      const { comp } = await renderComponent(mocks);
-
-      comp.processNotification({ type: "danger", message: "Error!" });
-
-      expect(mocks.notifications.danger).toHaveBeenCalledWith("Error!");
-   });
-
-   it("should call notifications.warning for unknown type", async () => {
-      const mocks = makeMocks();
-      const { comp } = await renderComponent(mocks);
-
-      comp.processNotification({ type: "unknown", message: "???" });
-
-      expect(mocks.notifications.warning).toHaveBeenCalledWith("???");
+      for(const { type, message, method } of cases) {
+         vi.mocked(mocks.notifications[method]).mockClear();
+         comp.processNotification({ type: type as any, message });
+         expect(mocks.notifications[method]).toHaveBeenCalledWith(message);
+      }
    });
 });
