@@ -86,4 +86,10 @@ export const viewerHandlers = [
       return HttpResponse.json({ body: [] });
    }),
 
+   // VsWizardComponent.createNewRuntimeViewsheet() — GET to create a new runtime viewsheet
+   // from an existing one; returns the new runtimeId string.
+   http.get("*/api/vswizard/dialog/open", () => {
+      return HttpResponse.json("rt-new-wizard");
+   }),
+
 ];
