@@ -64,7 +64,6 @@ public class WorksheetTableRequest {
    private List<String> baseTables;
    /** Join definitions (required for relational join tables). */
    private List<JoinPathInfo> joinPaths;
-   /** Marks this table as the primary table of the join. */
    private boolean asPrimaryTable;
 
    // ─── Aggregation ─────────────────────────────────────────────────────────
