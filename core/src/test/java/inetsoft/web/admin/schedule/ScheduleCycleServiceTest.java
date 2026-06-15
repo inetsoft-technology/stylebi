@@ -90,6 +90,7 @@ class ScheduleCycleServiceTest {
       DataCycleListModel result = service.getCycleInfos(principal);
 
       assertEquals(List.of(allowed), result.cycles());
+      assertFalse(result.cycles().contains(denied));
       verify(securityProvider).checkPermission(
          principal, ResourceType.SCHEDULE_CYCLE,
          ScheduleCycleService.getCyclePermissionID("AllowedCycle", "host-org"),
@@ -117,6 +118,27 @@ class ScheduleCycleServiceTest {
       DataCycleListModel result = service.getCycleInfos(principal);
 
       assertEquals(List.of(adminOnly), result.cycles());
+   }
+
+   @Test
+   void getCycleInfos_excludesCycleWhenAccessAndAdminPermissionsAreDenied() throws Exception {
+      DataCycleInfo denied = new DataCycleInfo("DeniedCycle");
+      String permissionId = ScheduleCycleService.getCyclePermissionID("DeniedCycle", "host-org");
+      when(schedulerMonitoringService.getDataCycleInfos()).thenReturn(new DataCycleInfo[] { denied });
+      when(securityProvider.checkPermission(
+         principal, ResourceType.SCHEDULE_CYCLE, permissionId, ResourceAction.ACCESS))
+         .thenReturn(false);
+      when(securityProvider.checkPermission(
+         principal, ResourceType.SCHEDULE_CYCLE, permissionId, ResourceAction.ADMIN))
+         .thenReturn(false);
+
+      DataCycleListModel result = service.getCycleInfos(principal);
+
+      assertEquals(List.of(), result.cycles());
+      verify(securityProvider).checkPermission(
+         principal, ResourceType.SCHEDULE_CYCLE, permissionId, ResourceAction.ACCESS);
+      verify(securityProvider).checkPermission(
+         principal, ResourceType.SCHEDULE_CYCLE, permissionId, ResourceAction.ADMIN);
    }
 
    @Test

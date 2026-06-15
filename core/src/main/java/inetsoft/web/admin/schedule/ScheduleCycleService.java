@@ -75,6 +75,7 @@ public class ScheduleCycleService {
       SecurityProvider provider = securityEngine.getSecurityProvider();
       String permissionId = getCyclePermissionID(cycleName, orgId);
 
+      // A missing security provider means security is disabled, so cycles are unfiltered.
       return provider == null || provider.checkPermission(
          principal, ResourceType.SCHEDULE_CYCLE, permissionId, ResourceAction.ACCESS) ||
          provider.checkPermission(
