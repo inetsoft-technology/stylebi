@@ -26,7 +26,7 @@
       <button type="button" class="btn btn-sm btn-primary me-1" (click)="openConsoleDialog()">
         Console <span class="badge text-bg-light">{{consoleMessages ? consoleMessages.length : 0}}</span>
       </button>
-      @for (_button of tableButtons; track _button) {
+      @for (_button of tableButtons; track _button.id) {
         @if (isTableButtonVisible(_button)) {
           <button
             class="ws-details-table-button hover-bg-primary bg-white1"

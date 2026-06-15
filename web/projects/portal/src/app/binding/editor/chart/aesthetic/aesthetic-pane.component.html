@@ -29,7 +29,7 @@
           </div>
           <ul ngbDropdownMenu role="menu"
             aria-labelledby="simple-dropdown">
-            @for (aggr of aggregates; track aggr) {
+            @for (aggr of aggregates; track aggr.fullName) {
               <li role="menuitem"
                 (click)="selectCurrentAggregate(aggr)">
                 <a class="dropdown-item">{{aggr.view}}</a>

@@ -16,7 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <ul class="tree-view">
-  @for (node of children; track node) {
+  @for (node of children; track node.model.absoluteName) {
     <li>
       <div class="tree-node" [class.bg-selected]="isSelected(node)" (click)="selectNode($event, node)">
         @if (hasChildren(node)) {

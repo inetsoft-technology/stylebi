@@ -20,7 +20,7 @@
 </modal-header>
 <div class="modal-body" [enterSubmit]="submitOnEnter" (onEnter)="onSubmit.emit()">
   <ul ngbNav #nav="ngbNav" class="nav-tabs" [activeId]="defaultTab" (navChange)="defaultTab = $event.nextId">
-    @for (tab of tabs; track tab) {
+    @for (tab of tabs; track $index) {
       <ng-container [ngbNavItem]="tab.title">
         <a ngbNavLink>{{tab.title}}</a>
         <ng-template ngbNavContent>

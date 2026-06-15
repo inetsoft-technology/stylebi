@@ -101,7 +101,7 @@
           (dragover)="$event.preventDefault()"
           (drop)="drop($event)">
           @if (model && model.fields) {
-            @for (field of model.fields; track field; let i = $index) {
+            @for (field of model.fields; track $index; let i = $index) {
               <div class="field-item"
                 [title]="field.name" [draggable]="true"
                 (mousedown)="selectField($event, i)"

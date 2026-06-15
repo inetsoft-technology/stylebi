@@ -133,7 +133,7 @@
                   [(ngModel)]="specModel.level"
                   [disabled]="disableGroupTab()">
                   <ng-container>
-                    @for (level of groupLevels; track level) {
+                    @for (level of groupLevels; track $index) {
                       <option [value]="level.value">{{level.label}}</option>
                     }
                   </ng-container>

@@ -49,7 +49,7 @@
         (ngModelChange)="joinSelectionChanged(true)"
         required>
         <option></option>
-        @for (foreignTable of foreignTables; track foreignTable) {
+        @for (foreignTable of foreignTables; track foreignTable.qualifiedName) {
           <option [ngValue]="foreignTable.qualifiedName">
             {{foreignTable.qualifiedName}}
           </option>

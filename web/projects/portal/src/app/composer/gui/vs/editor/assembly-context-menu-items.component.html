@@ -15,12 +15,12 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
-@for (group of actions.menuActions; track group) {
+@for (group of actions.menuActions; track $index) {
   @if (group.visible) {
     @if (actions.requiresMenuSeparator(group)) {
       <div class="dropdown-divider"></div>
     }
-    @for (action of group.actions; track action) {
+    @for (action of group.actions; track $index) {
       @if (action.visible()) {
         <a class="dropdown-item" [class.disable-link]="!action.enabled()" (click)="action.action()">{{action.label()}}</a>
       }

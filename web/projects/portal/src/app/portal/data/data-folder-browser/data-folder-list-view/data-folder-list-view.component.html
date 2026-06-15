@@ -91,7 +91,7 @@
           _#(data.datasets.noSearchResults)
         </div>
       }
-      @for (asset of assets; track asset; let isLast = $last) {
+      @for (asset of assets; track asset.path; let isLast = $last) {
         <div
           class="hover-bg-primary folder-list-item d-flex align-items-center"
           [class.td-cell-border]="!isLast"

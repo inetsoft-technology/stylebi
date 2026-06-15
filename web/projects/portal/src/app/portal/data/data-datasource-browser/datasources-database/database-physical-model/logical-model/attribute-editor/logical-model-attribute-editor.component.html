@@ -45,7 +45,7 @@
     <select class="form-control" [ngModel]="attribute.dataType"
       formControlName="dataType" (ngModelChange)="updateDataType($event)"
       [class.is-invalid]="dataTypeControl.invalid">
-      @for (dataType of dataTypes; track dataType) {
+      @for (dataType of dataTypes; track $index) {
         <option [value]="dataType.data">
           {{ dataType.label }}
         </option>
@@ -102,11 +102,11 @@
     }
     <div ngbDropdownMenu class="tree-dropdown-menu">
       <div class="ps-2 font-weight-bold">_#(Measure)</div>
-      @for (ref of currentFormulas; track ref) {
+      @for (ref of currentFormulas; track $index) {
         <div class="ps-4" (click)="selectFormula(ref, dropdown)"
         [class.selected]="isSelected(ref)">{{ ref.label }}</div>
       }
-      @for (ref of defaultRefTypes; track ref) {
+      @for (ref of defaultRefTypes; track $index) {
         <div class="ps-2" (click)="selectFormula(ref, dropdown)"
         [class.selected]="isSelected(ref)">{{ ref.label }}</div>
       }

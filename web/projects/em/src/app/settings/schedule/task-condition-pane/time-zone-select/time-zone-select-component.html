@@ -20,7 +20,7 @@
     <mat-label>_#(Time Zone)</mat-label>
     <mat-select [(value)]="selectedTimeZone" [compareWith]="compareTimeZones"
       placeholder="_#(Time Zone)" (selectionChange)="onSelectionChanged()" [disabled]="!enabled">
-      @for (tz of timeZoneOptions; track tz) {
+      @for (tz of timeZoneOptions; track tz.timeZoneId) {
         <mat-option [value]="tz" [title]="tz.timeZoneId">{{tz.hourOffset ? tz.hourOffset + " " + tz.label : tz.label}}</mat-option>
       }
     </mat-select>

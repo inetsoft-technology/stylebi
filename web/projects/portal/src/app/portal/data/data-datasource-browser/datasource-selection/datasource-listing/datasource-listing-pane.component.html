@@ -16,7 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <div class="row g-0">
-  @for (_listing of listings; track _listing) {
+  @for (_listing of listings; track _listing.name) {
     <datasource-listing
       class="col-auto hover-bg-primary m-1"
       [class.bg-selected]="_listing.name === selectedListingName"

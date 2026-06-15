@@ -21,7 +21,7 @@
       <div class="col form-floating">
         <select class="form-control" [(ngModel)]="mapType" placeholder="_#(Map)"
           (change)="mapChange($event.target.value)">
-          @for (type of typeModel; track type) {
+          @for (type of typeModel; track $index) {
             <option [value]="type.data">{{type.label}}</option>
           }
         </select>
@@ -36,7 +36,7 @@
           <select class="form-control"
             [(ngModel)]="chartGeoModel.option.layerValue"
             (change)="layerChange($event.target.value)" placeholder="_#(Layer)">
-            @for (layer of layerMode; track layer) {
+            @for (layer of layerMode; track $index) {
               <option [value]="layer.data">
                 {{layer.label}}
               </option>
@@ -54,7 +54,7 @@
           <select class="form-control"
             [ngModel]="chartGeoModel.option.mapping" placeholder="_#(Mapping)"
             (ngModelChange)="mappingChange($event)">
-            @for (mapping of mappingMode; track mapping) {
+            @for (mapping of mappingMode; track $index) {
               <option [ngValue]="mapping.data">
                 {{mapping.label}}
               </option>

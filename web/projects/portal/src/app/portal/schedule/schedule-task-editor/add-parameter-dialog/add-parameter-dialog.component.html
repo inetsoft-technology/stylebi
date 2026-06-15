@@ -56,7 +56,7 @@
         <div class="col">
           <div class="form-floating">
             <select class="form-control" formControlName="type">
-              @for (type of dataTypeList; track type) {
+              @for (type of dataTypeList; track $index) {
                 <option [value]="type.data"
                 [selected]="model.type == type.data">{{type.label}}</option>
               }

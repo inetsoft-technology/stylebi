@@ -226,7 +226,7 @@
                       <ng-template #localeList>
                         <div class="dropdown-pane browse-data-dropdown locale-list"
                           [style.min-width.px]="patternInput?.offsetWidth - 20">
-                          @for (locale of defaultLocals; track locale) {
+                          @for (locale of defaultLocals; track locale.value) {
                             <a role="menuitem"
                               [class.selected]="selectedCubeNode?.member?.metaInfo?.locale == locale.value"
                               class="dropdown-item" (click)="changeLocal(locale.value)">

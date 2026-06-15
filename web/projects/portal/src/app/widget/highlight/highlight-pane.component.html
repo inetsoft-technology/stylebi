@@ -22,7 +22,7 @@
         <legend>_#(Highlights)</legend>
         <w-large-form-field>
           <div class="bordered-box bd-gray border-box-md" largeFieldElement>
-            @for (highlight of model.highlights; track highlight) {
+            @for (highlight of model.highlights; track highlight.name) {
               <div
                 [class.selected]="highlight == selectedHighlight"
                 (click)="selectHighlight(highlight)">
@@ -94,7 +94,7 @@
             <div class="bordered-box bd-gray">
               @if (selectedHighlight) {
                 <div>
-                  @for (item of selectedHighlight.vsConditionDialogModel.conditionList; track item; let even = $even; let i = $index) {
+                  @for (item of selectedHighlight.vsConditionDialogModel.conditionList; track $index; let even = $even; let i = $index) {
                     <div class="unhighlightable">
                       @if (even) {
                         <div>

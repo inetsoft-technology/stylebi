@@ -41,7 +41,7 @@
     <div class="display-color-pane" [style.background]="background">
     </div>
     <div class="gradient-slider">
-      @for (color of colors; track color; let i = $index) {
+      @for (color of colors; track $index; let i = $index) {
         <gradient-color-item class="slider-item"
           actionsContextmenuAnchor [actions]="actions"
           [style.left.px]="300*color.offset/100 - 5"

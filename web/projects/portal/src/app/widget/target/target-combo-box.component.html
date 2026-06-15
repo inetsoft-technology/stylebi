@@ -38,7 +38,7 @@
   <!--[ngClass]="getDisplayClass(choice)"-->
   @if (values) {
     <ul ngbDropdownMenu class="dropdown-container">
-      @for (choice of values; track choice; let i = $index) {
+      @for (choice of values; track $index; let i = $index) {
         <li>
           @if (isValueEnabled(choice)) {
             <div class="dropdown-item"

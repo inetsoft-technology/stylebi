@@ -25,7 +25,7 @@
         <div class="col form-floating">
           <select class="form-control" id="dataType" [(ngModel)]="dataType"
             [ngModelOptions]="{standalone: true}">
-            @for (_dataType of dataTypeList; track _dataType) {
+            @for (_dataType of dataTypeList; track $index) {
               <option [value]="_dataType.data">
                 {{_dataType.label}}
               </option>

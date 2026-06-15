@@ -17,7 +17,7 @@
 -->
 <div class="field-list-pane bd-gray" (drop)="onDrop($event)" outOfZone (onDragover)="dragOver($event)">
   <div class="fieldmc-container">
-    @for (ref of refs; track ref; let i = $index) {
+    @for (ref of refs; track $index; let i = $index) {
       <div class="fieldmc-outer">
         <div class="field-divider" [class.bg-success]="activeIdx == i && !replaceField"
           (dragenter)="dragOverField($event, i, false)" (dragleave)="dragLeave($event)"

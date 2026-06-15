@@ -36,7 +36,7 @@
         <mat-radio-button value="TIME_RANGE"></mat-radio-button>
         <mat-form-field appearance="outline" color="accent">
           <mat-select formControlName="timeRange" placeholder="_#(Time Range)" [compareWith]="compareTimeRange" (selectionChange)="fireStartTimeChanged()">
-            @for (range of timeRanges; track range) {
+            @for (range of timeRanges; track range.name) {
               <mat-option [value]="range">{{range.label}}</mat-option>
             }
           </mat-select>

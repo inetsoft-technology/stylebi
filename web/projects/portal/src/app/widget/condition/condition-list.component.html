@@ -18,7 +18,7 @@
 <div class="container">
   <div class="row">
     <div class="bordered-box bd-gray col">
-      @for (item of conditionList; track item; let even = $even; let i = $index) {
+      @for (item of conditionList; track $index; let even = $even; let i = $index) {
         <div
           class="unhighlightable" [class.selected]="selectedIndex === i"
           (click)="selectedIndex = i">

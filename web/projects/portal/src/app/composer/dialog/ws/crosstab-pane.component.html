@@ -24,7 +24,7 @@
         <select id="headerColumnRef" class="form-control"
           [ngModel]="getIndexOfRef(refList, columnHeader)"
           (ngModelChange)="resetGroupHeader(columnHeader, $event)">
-          @for (_ref of refList; track _ref; let _i = $index) {
+          @for (_ref of refList; track $index; let _i = $index) {
             <option [value]="_i"
               [attr.title]="getTooltip(_ref)"
             [class.grayed-out-field]="trapField(_ref)">{{_ref.view}}</option>
@@ -60,13 +60,13 @@
 <div class="container-fluid row">
   <div class="col-6">
     <div class="title-bar">_#(Row Header)</div>
-    @for (_header of rowHeaders; track _header; let _i = $index) {
+    @for (_header of rowHeaders; track $index; let _i = $index) {
       <div class="row pb-1">
         <div class="col-5">
           <select id="headerRowRef" class="form-control"
             [ngModel]="getIndexOfRef(refList, _header)"
             (ngModelChange)="resetGroupHeader(_header, $event, _i)">
-            @for (_ref of refList; track _ref; let _i = $index) {
+            @for (_ref of refList; track $index; let _i = $index) {
               <option [value]="_i"
                 [attr.title]="getTooltip(_ref)"
               [class.grayed-out-field]="trapField(_ref)">{{_ref.view}}</option>
@@ -106,7 +106,7 @@
         <select id="measureColumnRef" class="form-control"
           [ngModel]="getIndexOfRef(refList, measure)"
           (ngModelChange)="resetAggregateMeasure($event)">
-          @for (_ref of refList; track _ref; let _i = $index) {
+          @for (_ref of refList; track $index; let _i = $index) {
             <option [value]="_i"
               [attr.title]="getTooltip(_ref)"
             [class.grayed-out-field]="trapField(_ref)">{{_ref.view}}</option>
@@ -117,7 +117,7 @@
         <select id="measureAggregateFormula" class="form-control"
           [disabled]="!measure.availableAggregates"
           [ngModel]="getAggregateIndex()" (ngModelChange)="aggregateChange($event)">
-          @for (_aggregate of measure.availableAggregates; track _aggregate; let _i = $index) {
+          @for (_aggregate of measure.availableAggregates; track $index; let _i = $index) {
             <option
             [value]="_i">{{_aggregate.label}}</option>
           }
@@ -131,7 +131,7 @@
             class="form-control"
             [ngModel]="getIndexOfRef(aggregateRefList, measure, true)  "
             (ngModelChange)="measure.aggregateRef = aggregateRefList[$event]; updateState()">
-            @for (_ref of aggregateRefList; track _ref; let _i = $index) {
+            @for (_ref of aggregateRefList; track $index; let _i = $index) {
               <option [value]="_i"
                 [attr.title]="getTooltip(_ref)"
               [class.grayed-out-field]="trapField(_ref)">{{_ref.name}}</option>

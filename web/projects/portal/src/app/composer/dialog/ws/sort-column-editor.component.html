@@ -16,7 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
-  @for (_sortRef of sortRefs; track _sortRef; let _i = $index) {
+  @for (_sortRef of sortRefs; track $index; let _i = $index) {
     <div class="form-row-float-label row">
       <div class="col-auto pe-0">
         <button [disabled]="_i >= model.selectedColumns.length - 1" class="btn btn-sm btn-light-no-bg"
@@ -35,7 +35,7 @@
       <div class="col">
         <select class="form-control" [ngModel]="_sortRef.name" (ngModelChange)="updateRow($event, _i)"
           [disabled]="_i > model.selectedColumns.length">
-          @for (_col of columnList; track _col; let _j = $index) {
+          @for (_col of columnList; track $index; let _j = $index) {
             <option [value]="_col.name"
               [disabled]="isOptionDisabled(_col.name, _sortRef.name)"
             [attr.title]="_col.tooltip">{{_col.label}}</option>

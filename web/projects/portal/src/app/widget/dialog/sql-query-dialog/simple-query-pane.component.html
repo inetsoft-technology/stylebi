@@ -75,7 +75,7 @@
                     <div class="col-12 pe-0">
                       <div class="form-floating">
                         <div class="bordered-box bd-gray col">
-                          @for (item of model.conditionList; track item; let even = $even; let i = $index) {
+                          @for (item of model.conditionList; track $index; let even = $even; let i = $index) {
                             <div
                               class="unhighlightable"  [class.selected]="selectedConditionIndex === i"
                               (click)="selectedConditionIndex = i">

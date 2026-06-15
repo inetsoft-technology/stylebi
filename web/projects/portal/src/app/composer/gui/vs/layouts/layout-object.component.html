@@ -212,7 +212,7 @@
     </div>
   }
 </div>
-@for (childModel of model.childModels; track childModel) {
+@for (childModel of model.childModels; track childModel.absoluteName) {
   <div [class.search-no-match]="searchMode && !isSearchResults">
     <div class="object child-object"
       [style.left.px]="childModel.objectFormat.left"

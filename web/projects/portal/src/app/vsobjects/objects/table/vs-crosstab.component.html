@@ -111,11 +111,11 @@
           [style.left.px]="isFullHorizontalWrapper ? -scrollX : null">
           <table>
             <tbody>
-              @for (_row of ltTable; track _row; let i = $index) {
+              @for (_row of ltTable; track $index; let i = $index) {
                 <tr
                   [class.hidden-row]="getRowHeight(i) <= 0"
                   [style.height.px]="getRowHeight(i)">
-                  @for (_cell of _row; track _cell; let j = $index) {
+                  @for (_cell of _row; track $index; let j = $index) {
                     @if (i < model.headerRowCount && !_cell.spanCell) {
                       @if ((!isRowVisible(i, _cell) || !isColVisible(j)) && getCellWidth(_cell, j) == 0) {
                         <td vs-simple-cell
@@ -210,11 +210,11 @@
           [style.top.px]="rtTableHeight" [style.left.px]="-rbTableX - scrollX">
           <table #lowerTable>
             <tbody>
-              @for (_row of table; track _row; let i = $index) {
+              @for (_row of table; track $index; let i = $index) {
                 <tr
                   [class.hidden-row]="getRowHeight(indexToRow(i)) <= 0"
                   [style.height.px]="getRowHeight(indexToRow(i))">
-                  @for (_cell of _row; track _cell; let j = $index) {
+                  @for (_cell of _row; track $index; let j = $index) {
                     @if (!_cell.spanCell && isShowCol(_cell, j)) {
                       @if (!isRowVisible(i, _cell) || !isColVisible(j)) {
                         <td vs-simple-cell
@@ -310,11 +310,11 @@
           [style.width.px]="getLBTableWidth()">
           <table #leftBottomTable>
             <tbody>
-              @for (_row of lbTable; track _row; let i = $index) {
+              @for (_row of lbTable; track $index; let i = $index) {
                 <tr
                   [class.hidden-row]="getRowHeight(indexToRow(i)) <= 0"
                   [style.height.px]="getRowHeight(indexToRow(i))">
-                  @for (_cell of _row; track _cell; let j = $index) {
+                  @for (_cell of _row; track $index; let j = $index) {
                     @if (!_cell.spanCell && isShowCol(_cell, j)) {
                       @if ((!isRowVisible(i, _cell) && getRowPosition(i) + getCellHeight(_cell.row, _cell) < scrollY) || !isColVisible(j)) {
                         <td vs-simple-cell
@@ -412,11 +412,11 @@
           [style.width.px]="isFullHorizontalWrapper ? rbTableWidth + scrollX : rbTableWidth ">
           <table #rightTopTable [style.transform]="'translate(' + rbTableX + 'px,0px)'">
             <tbody>
-              @for (_row of rtTable; track _row; let i = $index) {
+              @for (_row of rtTable; track $index; let i = $index) {
                 <tr
                   [class.hidden-row]="getRowHeight(i) <= 0"
                   [style.height.px]="getRowHeight(i)">
-                  @for (_cell of _row; track _cell; let j = $index) {
+                  @for (_cell of _row; track $index; let j = $index) {
                     @if (i < model.headerRowCount && !_cell.spanCell && isShowCol(_cell, j)) {
                       @if (!isRowVisible(i, _cell) || !isColVisible(j)) {
                         <td vs-simple-cell
