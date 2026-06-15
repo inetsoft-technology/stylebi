@@ -506,6 +506,9 @@ public class WorksheetTableService {
                aggRef.setN(agg.getN());
             }
 
+            // Pass false to skip name-based dedup — same field can have multiple aggregates
+            // with different formulas (e.g. NthLargest(1) and NthLargest(2)). Each entry
+            // carries a distinct alias, so field-name deduplication is not needed here.
             info.addAggregate(aggRef, false);
 
             // AggregateRef has no setAlias(). Expose the alias via a ColumnRef alias so
