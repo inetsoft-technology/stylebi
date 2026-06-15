@@ -16,7 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <mat-list>
-  @for (provider of providers; track provider; let i = $index; let first = $first; let last = $last) {
+  @for (provider of providers; track provider.name; let i = $index; let first = $first; let last = $last) {
     <mat-list-item class="list-item"
       [draggable]="true" [disableRipple]="true"
       (dragenter)="dragEnter($event)"

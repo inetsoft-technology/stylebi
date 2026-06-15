@@ -20,7 +20,7 @@
     <mat-form-field appearance="outline" color="accent">
       <mat-label>_#(Condition Type)</mat-label>
       <mat-select placeholder="_#(Condition Type)" [(value)]="selectedConditionType" (selectionChange)="changeConditionType()">
-        @for (type of conditionTypes; track type) {
+        @for (type of conditionTypes; track $index) {
           <mat-option [value]="type">{{type.label}}</mat-option>
         }
       </mat-select>

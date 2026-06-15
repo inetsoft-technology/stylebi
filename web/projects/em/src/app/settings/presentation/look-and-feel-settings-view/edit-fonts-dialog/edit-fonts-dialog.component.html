@@ -49,7 +49,7 @@
         <td mat-cell *matCellDef="let element" [attr.colspan]="displayedColumns.length">
           <div class="font-element-detail"
             [@detailExpand]="element === expandedElement ? 'expanded' : 'collapsed'">
-            @for (_fontFace of element.fontFaces; track _fontFace; let _i = $index) {
+            @for (_fontFace of element.fontFaces; track _fontFace.identifier; let _i = $index) {
               <div>
                 <button mat-icon-button title="_#(Remove Font Face)" aria-label="_#(Remove Font Face)"
                   (click)="removeFontFace(element, _i)">

@@ -29,7 +29,7 @@
                 </tr>
               </thead>
               <tbody>
-                @for (filter of model.filters; track filter; let _i = $index) {
+                @for (filter of model.filters; track filter.column; let _i = $index) {
                   <tr>
                     <td class="filters-col" [class.selected]="isFilterSelected(_i)"
                       (click)="selectFilter(_i, $event)">
@@ -60,7 +60,7 @@
                 </tr>
               </thead>
               <tbody>
-                @for (filter of model.sharedFilters; track filter; let _i = $index) {
+                @for (filter of model.sharedFilters; track filter.column; let _i = $index) {
                   <tr
                     [class.selected]="isSharedFilterSelected(_i)"
                     (click)="selectSharedFilter(_i, $event)">

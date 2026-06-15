@@ -50,7 +50,7 @@
               </button>
             </section>
             <section class="flex-row">
-              @for (tab of model.tabs; track tab; let i = $index) {
+              @for (tab of model.tabs; track tab.name; let i = $index) {
                 <mat-card class="tab-block portal-card">
                   <mat-card-subtitle class="visible-subtitle">
                     <h4 class="tab-name mat-subtitle-2">{{tab.label}}</h4>

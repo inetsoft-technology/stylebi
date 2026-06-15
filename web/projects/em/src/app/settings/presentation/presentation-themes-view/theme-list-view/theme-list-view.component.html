@@ -38,7 +38,7 @@
   <div class="theme-list" emTopScroll>
     <div class="theme-list__container">
       <mat-action-list class="flat-tree">
-        @for (theme of themes; track theme) {
+        @for (theme of themes; track theme.id) {
           <div class="flat-tree-node" [class.selected]="theme.id == selectedTheme?.id">
             <a
               mat-list-item

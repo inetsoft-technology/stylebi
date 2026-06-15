@@ -24,7 +24,7 @@
 
   <mat-card-content>
     <div class="flex-row">
-      @for (option of options; track option) {
+      @for (option of options; track option.name) {
         <mat-checkbox class="checkbox-container margin-bottom-sm" [(ngModel)]="option.value" (change)="optionsChanged.emit(options)" labelPosition="after">
           {{option.description}}
         </mat-checkbox>

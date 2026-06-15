@@ -85,7 +85,7 @@
             <mat-card appearance="outlined">
               <mat-card-content>
                 <mat-nav-list dense>
-                  @for (action of actionItems; track action; let i = $index) {
+                  @for (action of actionItems; track action.id; let i = $index) {
                     <mat-list-item [class.mat-active]="selectedActionIndex === i" (click)="selectAction(i)">
                       <a class="list-label" [class.mat-error]="!action.valid" [matTooltip]="action.label">
                         {{ action.label }}

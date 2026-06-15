@@ -20,7 +20,7 @@
     <mat-form-field appearance="outline" color="accent" class="flex">
       <mat-label>_#(Target Asset Type)</mat-label>
       <mat-select formControlName="selectedTargetType">
-        @for (type of targetTypes; track type) {
+        @for (type of targetTypes; track type.value) {
           <mat-option [value]="type.value">{{type.label}}</mat-option>
         }
       </mat-select>
@@ -28,7 +28,7 @@
     <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Target Asset User)</mat-label>
       <mat-select formControlName="selectedTargetUser">
-        @for (user of targetUsers; track user) {
+        @for (user of targetUsers; track user.value) {
           <mat-option [value]="user.value">{{user.label}}</mat-option>
         }
       </mat-select>
@@ -36,7 +36,7 @@
     <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Target Asset Names)</mat-label>
       <mat-select formControlName="selectedTargetAssets" multiple>
-        @for (asset of targetAssets; track asset) {
+        @for (asset of targetAssets; track asset.assetId) {
           <mat-option [value]="asset.assetId">{{asset.label}}</mat-option>
         }
       </mat-select>
@@ -44,7 +44,7 @@
     <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Dependent Asset Types)</mat-label>
       <mat-select formControlName="selectedDependentTypes" multiple>
-        @for (type of dependentTypes; track type) {
+        @for (type of dependentTypes; track type.value) {
           <mat-option [value]="type.value">{{type.label}}</mat-option>
         }
       </mat-select>
@@ -52,7 +52,7 @@
     <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Dependent Asset Users)</mat-label>
       <mat-select formControlName="selectedDependentUsers" multiple>
-        @for (user of dependentUsers; track user) {
+        @for (user of dependentUsers; track user.value) {
           <mat-option [value]="user.value">{{user.label}}</mat-option>
         }
       </mat-select>

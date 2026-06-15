@@ -379,13 +379,13 @@
 }
 <!-- Chart data annotations rendered outside all VS object stacking contexts -->
 <div class="chart-annotation-overlay">
-  @for (vsObject of vsInfo.vsObjects; track vsObject; let i = $index) {
+  @for (vsObject of vsInfo.vsObjects; track vsObject.absoluteName; let i = $index) {
     @if (vsObject.objectType === 'VSChart' && viewer && !context.binding &&
       !$any(vsObject).maxMode && !!$any(vsObject).plot) {
       <div [style.top.px]="getVsObjectPosition(vsObject, i, true)"
         [style.left.px]="getVsObjectPosition(vsObject, i, false)"
         style="position: absolute;">
-        @for (ann of getChartDataAnnotations(vsObject); track ann) {
+        @for (ann of getChartDataAnnotations(vsObject); track ann.absoluteName) {
           <vs-annotation
             [model]="ann"
             [vsInfo]="vsInfo"
