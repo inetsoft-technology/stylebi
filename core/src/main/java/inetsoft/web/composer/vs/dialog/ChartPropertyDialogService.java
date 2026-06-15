@@ -327,6 +327,7 @@ public class ChartPropertyDialogService {
       return trap;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setChartPropertyModel(@ClusterProxyKey String runtimeId, String objectId,
                                      ChartPropertyDialogModel value, String linkUri,

@@ -42,6 +42,7 @@ public class VSTabService {
       this.viewsheetService = viewsheetService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void changeTab(@ClusterProxyKey  String vsId, String name, ChangeTabStateEvent event,
                          String linkUri, Principal principal, CommandDispatcher dispatcher) throws Exception

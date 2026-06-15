@@ -52,6 +52,7 @@ public class TableUnpivotDialogService extends WorksheetControllerService {
       this.vsLayoutService = vsLayoutService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void createUnpivotTable(@ClusterProxyKey String runtimeId, WSUnpivotDialogEvent event, Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
@@ -89,6 +90,7 @@ public class TableUnpivotDialogService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void changeUnpivotTableRowHeaders(@ClusterProxyKey String runtimeId, WSUnpivotDialogEvent event,
                                             Principal principal, CommandDispatcher commandDispatcher) throws Exception

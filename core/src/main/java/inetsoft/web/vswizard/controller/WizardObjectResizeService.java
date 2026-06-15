@@ -41,6 +41,7 @@ public class WizardObjectResizeService {
       this.wizardVSObjectService = wizardVSObjectService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void resizeObject(@ClusterProxyKey String vID, ResizeVSObjectEvent event, @LinkUri String linkUri,
                             Principal principal, CommandDispatcher commandDispatcher)

@@ -84,6 +84,7 @@ public class TablePropertyDialogService extends WorksheetControllerService {
       }
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void saveProperties(@ClusterProxyKey String runtimeId, TablePropertyDialogModel model,
                               Principal principal, CommandDispatcher commandDispatcher) throws Exception

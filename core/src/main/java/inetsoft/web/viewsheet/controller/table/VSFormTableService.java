@@ -57,6 +57,7 @@ public class VSFormTableService {
       this.coreLifecycleService = coreLifecycleService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void addRow(@ClusterProxyKey String id, InsertTableRowEvent event, @LinkUri String linkUri,
                       CommandDispatcher dispatcher, Principal principal)
@@ -99,6 +100,7 @@ public class VSFormTableService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void deleteRows(@ClusterProxyKey String runtimeId, DeleteTableRowsEvent event, String linkUri,
                           CommandDispatcher dispatcher, Principal principal) throws Exception
@@ -129,6 +131,7 @@ public class VSFormTableService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void changeFormInput(@ClusterProxyKey String id, ChangeFormTableCellInputEvent event,
                                String linkUri, CommandDispatcher dispatcher, Principal principal)
@@ -288,6 +291,7 @@ public class VSFormTableService {
       return val;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void applyChanges(@ClusterProxyKey String id, ApplyFormChangesEvent event,
                             String linkUri, CommandDispatcher dispatcher,

@@ -54,6 +54,7 @@ public class ImportXLSControllerService {
       return viewsheetService.getViewsheet(runtimeId, principal) != null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void processXLSUpload(@ClusterProxyKey String vsId, String type, String linkUri,
                                 Principal principal, CommandDispatcher dispatcher) throws Exception

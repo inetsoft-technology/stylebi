@@ -55,6 +55,7 @@ public class TableModeService extends WorksheetControllerService {
       this.assetDataCache = assetDataCache;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setDefaultMode(@ClusterProxyKey String runtimeId, WSAssemblyEvent event,
                               Principal principal, CommandDispatcher commandDispatcher) throws Exception
@@ -73,6 +74,7 @@ public class TableModeService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setDependencyJoinTableToDefaultMode(@ClusterProxyKey String runtimeId,
                                                    WSRefreshAssemblyEvent event, Principal principal,
@@ -93,6 +95,7 @@ public class TableModeService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setLiveMode(@ClusterProxyKey String runtimeId, WSAssemblyEvent event,
                            Principal principal, CommandDispatcher commandDispatcher) throws Exception
@@ -110,6 +113,7 @@ public class TableModeService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setFullMode(@ClusterProxyKey String runtimeId, WSAssemblyEvent event, Principal principal,
                            CommandDispatcher commandDispatcher) throws Exception
@@ -143,6 +147,7 @@ public class TableModeService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setDetailMode(@ClusterProxyKey String runtimeId, WSAssemblyEvent event,
                              Principal principal, CommandDispatcher commandDispatcher) throws Exception
@@ -165,6 +170,7 @@ public class TableModeService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setRuntime(@ClusterProxyKey String runtimeId, WSSetRuntimeEvent event,
                           Principal principal, CommandDispatcher commandDispatcher) throws Exception
@@ -185,6 +191,7 @@ public class TableModeService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setEditMode(@ClusterProxyKey String runtimeId, WSAssemblyEvent event,
                            Principal principal, CommandDispatcher commandDispatcher) throws Exception
@@ -207,6 +214,7 @@ public class TableModeService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void refreshLiveData(@ClusterProxyKey String runtimeId, WSAssemblyEvent event,
                                Principal principal, CommandDispatcher commandDispatcher) throws Exception
@@ -249,6 +257,7 @@ public class TableModeService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void refreshData(@ClusterProxyKey String runtimeId, WSRefreshAssemblyEvent event,
                            Principal principal, CommandDispatcher commandDispatcher) throws Exception

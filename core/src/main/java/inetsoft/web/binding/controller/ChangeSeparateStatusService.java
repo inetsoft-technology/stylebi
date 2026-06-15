@@ -56,6 +56,7 @@ public class ChangeSeparateStatusService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void changeSeparateStatus(@ClusterProxyKey String id, ChangeSeparateStatusEvent event,
                                     Principal principal, CommandDispatcher dispatcher,
                                     String linkUri) throws Exception

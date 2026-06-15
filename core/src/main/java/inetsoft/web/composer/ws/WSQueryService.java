@@ -46,6 +46,7 @@ public class WSQueryService extends WorksheetControllerService {
       this.assetDataCache = assetDataCache;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void runQuery(@ClusterProxyKey String runtimeId, WSAssemblyEvent event, Principal principal,
                         CommandDispatcher commandDispatcher) throws Exception
@@ -97,6 +98,7 @@ public class WSQueryService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void stopQuery(@ClusterProxyKey String runtimeId, WSAssemblyEvent event,
                          Principal principal, CommandDispatcher commandDispatcher) throws Exception

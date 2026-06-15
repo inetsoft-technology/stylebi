@@ -100,6 +100,7 @@ public class ReplaceColumnsService extends WorksheetControllerService {
       return builder.build();
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void replaceColumns(@ClusterProxyKey String runtimeId, WSReplaceColumnsEvent event,
                               Principal principal, CommandDispatcher commandDispatcher) throws Exception

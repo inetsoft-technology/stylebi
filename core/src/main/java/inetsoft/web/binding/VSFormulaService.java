@@ -129,6 +129,7 @@ public class VSFormulaService {
       }
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void modifyAggregateField(@ClusterProxyKey String vsId, String assemblyName, String tname,
                                     Map<String, AggregateRefModel> model, Principal principal) throws Exception

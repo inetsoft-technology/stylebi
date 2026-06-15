@@ -100,6 +100,10 @@ public class VSRefreshService {
       return null;
    }
 
+   // @ClusterWriteMethod required: when userRefresh=true this calls replaceCheckpoint(), which
+   // updates the undo stack with the current viewsheet state — persistent session state that
+   // must be visible to other cluster nodes.
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void refreshViewsheet(@ClusterProxyKey String id, VSRefreshEvent event, Principal principal,
                                 CommandDispatcher commandDispatcher, String linkUri) throws Exception

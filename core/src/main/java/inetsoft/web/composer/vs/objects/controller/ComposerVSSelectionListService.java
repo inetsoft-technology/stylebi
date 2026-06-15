@@ -52,6 +52,7 @@ public class ComposerVSSelectionListService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void changeColCount(@ClusterProxyKey String vsId, int count, VSObjectEvent event,
                               Principal principal, CommandDispatcher dispatcher) throws Exception
    {
@@ -85,6 +86,7 @@ public class ComposerVSSelectionListService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void updateCellHeight(@ClusterProxyKey String vsId, VSSetCellHeightEvent event,
                                 Principal principal, CommandDispatcher dispatcher) throws Exception
    {
@@ -106,6 +108,7 @@ public class ComposerVSSelectionListService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void updateMeasureSize(@ClusterProxyKey String vsId, VSSetMeasuresEvent event,
                                  Principal principal, CommandDispatcher dispatcher) throws Exception
    {
@@ -126,6 +129,7 @@ public class ComposerVSSelectionListService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void removeColumnByDrag(@ClusterProxyKey String vsId, VSDndEvent event, Principal principal,
                                   String linkUri, CommandDispatcher dispatcher) throws Exception
    {
@@ -166,6 +170,7 @@ public class ComposerVSSelectionListService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void convertToRangeSlider(@ClusterProxyKey String vsId, ConvertToRangeSliderEvent event,
                                     Principal principal, CommandDispatcher dispatcher, String linkUri) throws Exception
    {

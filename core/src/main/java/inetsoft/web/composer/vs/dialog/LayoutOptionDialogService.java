@@ -65,6 +65,7 @@ public class LayoutOptionDialogService {
       this.coreLifecycleService = coreLifecycleService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setLayoutOptionDialogModel(@ClusterProxyKey String runtimeId,
                                           LayoutOptionDialogModel model,

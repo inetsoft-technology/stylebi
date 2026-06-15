@@ -100,6 +100,7 @@ public class DateComparisonDialogService {
       return model;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void clearDateComparison(@ClusterProxyKey String runtimeId, String assemblyName, String linkUri,
                                    Principal principal, CommandDispatcher dispatcher) throws Exception
@@ -164,6 +165,7 @@ public class DateComparisonDialogService {
       return model;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setDateComparison(@ClusterProxyKey String runtimeId, String assemblyName,
                                  DateComparisonInfo comparisonInfo, String shareAssembly,

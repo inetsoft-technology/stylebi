@@ -43,6 +43,7 @@ public class DeleteSubTableService extends WorksheetControllerService {
       super(viewsheetService, dataSourceRegistry);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void deleteSubTable(@ClusterProxyKey String runtimeId, WSDeleteSubtablesEvent event,
                               Principal principal, CommandDispatcher commandDispatcher) throws Exception

@@ -80,6 +80,7 @@ public class VSAnnotationFormatService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void updateFormat(@ClusterProxyKey String id, UpdateAnnotationFormatEvent event,
                             Principal principal, String linkUri, CommandDispatcher dispatcher) throws Exception

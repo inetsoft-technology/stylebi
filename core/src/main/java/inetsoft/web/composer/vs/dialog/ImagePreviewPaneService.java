@@ -72,6 +72,7 @@ public class ImagePreviewPaneService {
       return dataTransfer;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public TreeNodeModel uploadImage(@ClusterProxyKey String runtimeId, String mpfName,
                                     BinaryTransfer dataTransfer, Principal principal) throws Exception
@@ -105,6 +106,7 @@ public class ImagePreviewPaneService {
       }
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Boolean deleteImage(@ClusterProxyKey String runtimeId, String name,
                               Principal principal) throws Exception

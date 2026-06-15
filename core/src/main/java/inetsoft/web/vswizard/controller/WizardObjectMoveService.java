@@ -42,6 +42,7 @@ public class WizardObjectMoveService {
       this.engine = engine;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void moveObject(@ClusterProxyKey String vId, MoveVSObjectEvent event, String linkUri,
                           Principal principal, CommandDispatcher commandDispatcher) throws Exception
@@ -71,6 +72,7 @@ public class WizardObjectMoveService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void moveObjects(@ClusterProxyKey String vId, MultiMoveVsObjectEvent multiEvent,
                            Principal principal, CommandDispatcher dispatcher,String linkUri)

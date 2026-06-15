@@ -115,6 +115,7 @@ public class TabularQueryDialogService extends WorksheetControllerService {
       return model;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setModel(@ClusterProxyKey String runtimeId, TabularQueryDialogModel model,
                         Principal principal, CommandDispatcher commandDispatcher) throws Exception

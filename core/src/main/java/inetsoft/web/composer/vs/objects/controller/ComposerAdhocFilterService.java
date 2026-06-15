@@ -64,6 +64,7 @@ public class ComposerAdhocFilterService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void addTableFilter(@ClusterProxyKey String runtimeId, FilterTableEvent event,
                               Principal principal, String linkUri, CommandDispatcher dispatcher) throws Exception
    {
@@ -183,6 +184,7 @@ public class ComposerAdhocFilterService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void addChartFilter(@ClusterProxyKey String runtimeId, FilterChartEvent event,
                               Principal principal, String linkUri,
                               CommandDispatcher dispatcher) throws Exception
@@ -215,6 +217,7 @@ public class ComposerAdhocFilterService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void moveAdhocFilter(@ClusterProxyKey String runtimeId, VSObjectEvent event, Principal principal,
                                String linkUri, CommandDispatcher dispatcher) throws Exception
    {

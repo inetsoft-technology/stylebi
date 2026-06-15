@@ -105,6 +105,7 @@ public class SubmitPropertyDialogService {
       return result;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setSubmitPropertyDialogModel(@ClusterProxyKey String runtimeId, String objectId,
                                             SubmitPropertyDialogModel value, String linkUri,

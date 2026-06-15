@@ -62,6 +62,8 @@ public interface WorksheetService {
 
    void putRuntimeSheet(String id, RuntimeSheet rs);
 
+   void writeSheet(String id);
+
    /**
     * Dispose the worksheet service.
     */

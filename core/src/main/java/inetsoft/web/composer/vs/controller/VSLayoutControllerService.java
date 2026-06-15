@@ -68,6 +68,7 @@ public class VSLayoutControllerService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void changeViewsheetLayout(@ClusterProxyKey String id,
                                      String currLayout,
                                      String layoutName,
@@ -137,6 +138,7 @@ public class VSLayoutControllerService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void layoutUndo(@ClusterProxyKey String runtimeId, String parentRuntimeId,
                           String layoutName, Principal principal, String linkUri,
                           CommandDispatcher dispatcher)
@@ -170,6 +172,7 @@ public class VSLayoutControllerService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void layoutRedo(@ClusterProxyKey String runtimeId, String parentRuntimeId,
                           String layoutName, Principal principal,
                           String linkUri, CommandDispatcher dispatcher)
@@ -203,6 +206,7 @@ public class VSLayoutControllerService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void moveResizeLayoutObjects(@ClusterProxyKey String runtimeId,
                                        String focusedLayoutName,
                                        MoveResizeLayoutObjectsEvent event,
@@ -289,6 +293,7 @@ public class VSLayoutControllerService {
 
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void addObject(@ClusterProxyKey String runtimeId,
                          String focusedLayoutName,
                          AddVSLayoutObjectEvent event,
@@ -372,6 +377,7 @@ public class VSLayoutControllerService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void removeObject(@ClusterProxyKey String runtimeId,
                             String focusedLayoutName,
                             RemoveVSLayoutObjectEvent event,
@@ -486,6 +492,7 @@ public class VSLayoutControllerService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Boolean setTextPropertyDialogModel(@ClusterProxyKey String runtimeId,
                                           String focusedLayoutName,
                                           int region,
@@ -588,6 +595,7 @@ public class VSLayoutControllerService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Boolean setImagePropertyDialogModel(@ClusterProxyKey String runtimeId,
                                            String focusedLayoutName,
                                            int region,
@@ -658,6 +666,7 @@ public class VSLayoutControllerService {
 
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Boolean setTableLayoutPropertyDialogModel(@ClusterProxyKey String runtimeId,
                                                     String focusedLayoutName,
                                                     int region,

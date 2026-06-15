@@ -230,6 +230,7 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
       return model;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setModel(@ClusterProxyKey String runtimeId, String assemblyName,
                         AssemblyConditionDialogModel model, Principal principal,

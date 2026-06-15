@@ -52,6 +52,7 @@ public class WSEditTableDataService extends WorksheetControllerService {
       this.assetDataCache = assetDataCache;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void editTableData(@ClusterProxyKey String runtimeId,  WSEditTableDataEvent event,
                              Principal principal, CommandDispatcher commandDispatcher) throws Exception

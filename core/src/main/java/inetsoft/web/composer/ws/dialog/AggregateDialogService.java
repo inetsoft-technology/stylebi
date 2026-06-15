@@ -208,6 +208,7 @@ public class AggregateDialogService extends WorksheetControllerService {
       availableColumns.add(refModel);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setAggregateInfo(@ClusterProxyKey String runtimeId, AggregateDialogModel model,
                                 Principal principal, CommandDispatcher commandDispatcher) throws Exception

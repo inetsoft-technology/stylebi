@@ -70,6 +70,7 @@ public class RenameColumnService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void renameColumn(
       @ClusterProxyKey String runtimeId,

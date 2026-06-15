@@ -503,11 +503,11 @@ public abstract class RuntimeSheet {
          List<String> values = new ArrayList<>();
 
          for(int i = 0; i < points.size(); i++) {
-            AbstractSheet sheet = points.get(i);
+            String[] classAndXml = points.getXmlForState(i);
 
-            if(sheet != null) {
-               values.add(sheet.getClass().getName());
-               values.add(saveXml(sheet));
+            if(classAndXml != null) {
+               values.add(classAndXml[0]);
+               values.add(classAndXml[1]);
             }
          }
 
@@ -840,6 +840,24 @@ public abstract class RuntimeSheet {
          }
       }
 
+      // Returns {className, xml} for saveState without calling access() or validate().
+      // Avoids the swap-in round-trip (decompress + DOM parse + object + reserialize)
+      // for checkpoints that are already on disk.
+      String[] getXmlForState(int index) {
+         XSwappableSheet swappable = values.get(index);
+
+         synchronized(swappable) {
+            String className = swappable.sheetClassName;
+            String xml = swappable.getXml();
+
+            if(className == null || xml == null) {
+               return null;
+            }
+
+            return new String[]{ className, xml };
+         }
+      }
+
       @SuppressWarnings("removal")
       @Override
       protected void finalize() throws Throwable {
@@ -855,6 +873,7 @@ public abstract class RuntimeSheet {
    public static final class XSwappableSheet extends XSwappable {
       public XSwappableSheet(AbstractSheet sheet, XPrincipal contextPrincipal) {
          this.sheet = sheet;
+         this.sheetClassName = sheet != null ? sheet.getClass().getName() : null;
          this.contextPrincipal = contextPrincipal;
          this.contextOrgId = OrganizationContextHolder.getCurrentOrgId();
          this.valid = true;
@@ -1060,7 +1079,66 @@ public abstract class RuntimeSheet {
          return sheet;
       }
 
+      // Returns the sheet's XML for saveState serialization without triggering validate().
+      // If the sheet is in memory, serializes to XML directly.
+      // If the sheet is swapped and is a Worksheet, falls back to validate() + writeXML() to
+      // produce non-ISTEMP XML — _swap() writes the .tdat with Worksheet.setIsTEMP(true), and
+      // storing that raw XML in Ignite causes SnapshotEmbeddedTableAssembly to reference temp
+      // paths local to this node when another node restores an undo checkpoint.
+      // For other sheet types (Viewsheet etc.), reads the .tdat file directly, skipping the
+      // DOM parse + object construction + re-serialize round-trip. The ISTEMP flag set by
+      // _swap() is a ThreadLocal read exclusively by SnapshotEmbeddedTableAssembly, which is
+      // a Worksheet-only class — Viewsheet.writeXML() never consults it, so raw .tdat bytes
+      // for non-Worksheet checkpoints are safe to store in Ignite without re-serialization.
+      String getXml() {
+         if(valid) {
+            if(sheet == null) {
+               return null;
+            }
+
+            StringWriter buffer = new StringWriter();
+            PrintWriter writer = new PrintWriter(buffer);
+            sheet.writeXML(writer);
+            writer.flush();
+            return buffer.toString();
+         }
+
+         // Worksheet checkpoints are written with Worksheet.setIsTEMP(true) by _swap().
+         // Fall back to validate() + writeXML() so Ignite receives non-ISTEMP XML.
+         if(Worksheet.class.getName().equals(sheetClassName)) {
+            validate(false);
+
+            if(sheet == null) {
+               return null;
+            }
+
+            StringWriter buffer = new StringWriter();
+            PrintWriter writer = new PrintWriter(buffer);
+            sheet.writeXML(writer);
+            writer.flush();
+            return buffer.toString();
+         }
+
+         File file = getFile(prefix + ".tdat");
+
+         if(!file.exists()) {
+            LOG.warn("Swap file missing for checkpoint serialization: {}", file);
+            return null;
+         }
+
+         try(InputStream in = Tool.createUncompressInputStream(new FileInputStream(file))) {
+            String xml = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            // Strip the XML declaration written by _swap() — saveState stores element XML only.
+            return xml.replaceFirst("^<\\?xml[^?]*\\?>\\s*", "");
+         }
+         catch(Exception e) {
+            LOG.error("Failed to read swapped sheet XML for state serialization", e);
+            return null;
+         }
+      }
+
       private AbstractSheet sheet;
+      private final String sheetClassName;
       private final XPrincipal contextPrincipal;
       private final String contextOrgId;
       private boolean valid;

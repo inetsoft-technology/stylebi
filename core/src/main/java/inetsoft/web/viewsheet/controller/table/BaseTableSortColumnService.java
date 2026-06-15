@@ -55,6 +55,7 @@ public class BaseTableSortColumnService extends BaseTableService<SortColumnEvent
    }
 
    @Override
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void eventHandler(@ClusterProxyKey String runtimeId,
                             SortColumnEvent event,
@@ -87,6 +88,7 @@ public class BaseTableSortColumnService extends BaseTableService<SortColumnEvent
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void sortColumnAction(@ClusterProxyKey String runtimeId,
                                 SortColumnEvent event, Principal principal,
