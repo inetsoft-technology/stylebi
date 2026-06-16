@@ -22,13 +22,13 @@ import inetsoft.uql.XPrincipal;
 
 import java.security.Principal;
 
-final class TestPrincipals {
+public final class TestPrincipals {
    /**
     * Builds an XPrincipal with the given name+org without requiring a Spring context.
     * Uses the protected no-arg XPrincipal constructor (designed for Ignite deserialization)
     * and sets the name field directly, matching the IdentityID key format used at runtime.
     */
-   static Principal user(String name, String org) {
+   public static Principal user(String name, String org) {
       return new MinimalXPrincipal(new IdentityID(name, org));
    }
 
