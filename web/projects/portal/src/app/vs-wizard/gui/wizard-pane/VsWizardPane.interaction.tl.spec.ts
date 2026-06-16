@@ -44,7 +44,7 @@
  *   Group 18 [baseline] — getFollowDirSrc: three direction branches
  *   Group 19 [baseline] — hiddenNewBlockChanged: emits toggled value
  *   Group 20 [baseline] — keyDown: Escape clears focused assemblies
- *   Group 21 [baseline, +内存泄漏] — ngOnDestroy: command subscription cleaned up
+ *   Group 21 [baseline, +memory-leak] — ngOnDestroy: command subscription cleaned up
  *
  * Confirmed bugs (it.fails): none
  *
@@ -710,7 +710,7 @@ describe("VsWizardPane — keyDown()", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Group 21 — ngOnDestroy subscription cleanup (+内存泄漏) [baseline]
+// Group 21 — ngOnDestroy subscription cleanup (+memory-leak) [baseline]
 // ---------------------------------------------------------------------------
 
 describe("VsWizardPane — ngOnDestroy subscription cleanup", () => {

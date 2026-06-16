@@ -214,7 +214,10 @@ export function resetMocks(): void {
    AI_ASSISTANT_MOCK.aiAssistantVisible = false;
    AI_ASSISTANT_MOCK.loadCurrentUser.mockClear();
    AI_ASSISTANT_MOCK.setBindingContext.mockClear();
+   AI_ASSISTANT_MOCK.setDataContext.mockClear();
+   AI_ASSISTANT_MOCK.setDateComparisonContext.mockClear();
    AI_ASSISTANT_MOCK.setContextType.mockClear();
+   AI_ASSISTANT_MOCK.setScriptContext.mockClear();
 }
 
 // ---------------------------------------------------------------------------

@@ -27,8 +27,16 @@
  * Structure mirrors share-google-chat-dialog.component.tl.spec.ts; only the
  * HTTP endpoint and error message differ.
  *
- * Implementation note: SilentErrorHandler absorbs the RxJS unhandled rejection from
- * handleError → throwError() to prevent Zone.js bleed between tests.
+ * Mocking strategy — real ShareService + AppInfoService via MSW (not vi.fn() mocks):
+ *   ShareSlackDialog does NOT inject AppInfoService directly. ShareService's constructor
+ *   subscribes to AppInfoService.getCurrentOrgInfo(), but that HTTP call completes before
+ *   fixture teardown and causes no NG0205. Contrast with share-email-dialog.component.tl.spec.ts,
+ *   where AppInfoService is injected directly and its constructor-fired GET /api/org/info
+ *   was arriving after teardown — requiring full vi.fn() mocks. The strategies are
+ *   intentionally different; both rely on MSW viewerHandlers being active in the suite.
+ *
+ * SilentErrorHandler absorbs the RxJS unhandled rejection from handleError → throwError()
+ * to prevent Zone.js bleed between tests.
  */
 
 import { ErrorHandler, NO_ERRORS_SCHEMA } from "@angular/core";

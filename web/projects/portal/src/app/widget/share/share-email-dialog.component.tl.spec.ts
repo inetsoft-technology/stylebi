@@ -107,9 +107,9 @@ function resetMocks() {
    MODAL_MOCK.open.mockClear();
    MessageDialog.lastMessage = null;
    MessageDialog.lastMessageTS = 0;
-   SHARE_SERVICE_MOCK.getEmailModel.mockReturnValue(of(makeEmailModel()));
-   SHARE_SERVICE_MOCK.shareViewsheetInEmail.mockReturnValue(of(undefined));
-   APP_INFO_MOCK.isEnterprise.mockReturnValue(of(false));
+   SHARE_SERVICE_MOCK.getEmailModel.mockClear().mockReturnValue(of(makeEmailModel()));
+   SHARE_SERVICE_MOCK.shareViewsheetInEmail.mockClear().mockReturnValue(of(undefined));
+   APP_INFO_MOCK.isEnterprise.mockClear().mockReturnValue(of(false));
 }
 
 interface RenderOpts {
@@ -222,11 +222,13 @@ describe("ShareEmailDialogComponent — ok()", () => {
 
       comp.ok();
 
-      // of() subscribe fires synchronously — all effects happen before next statement
-      expect(comp.loading).toBe(true);         // set before HTTP subscribe
-      expect(MODAL_MOCK.open).toHaveBeenCalledTimes(1); // success dialog
+      // of() subscribe fires synchronously — all effects happen before next statement.
+      // loading is set to true and never reset on success (no this.loading = false in the
+      // success callback), so toBe(true) tests the final post-send state, not transient state.
+      expect(comp.loading).toBe(true);
+      expect(MODAL_MOCK.open).toHaveBeenCalledTimes(1);
       expect(MessageDialog.lastMessage).toBe("_#(js:viewer.viewsheet.email.successful)");
-      expect(onCommitSpy).toHaveBeenCalledTimes(1);      // onCommit
+      expect(onCommitSpy).toHaveBeenCalledTimes(1);
    });
 
    it("should show error dialog and reset loading=false on HTTP error", async () => {

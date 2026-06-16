@@ -24,12 +24,17 @@
  *   Group 2 [Risk 3]    — ok(): form guard blocks HTTP; loading flag; success commit; error dialog
  *   Group 3 [baseline]  — cancel(): onCancel emission
  *
- * Implementation note:
- *   SilentErrorHandler is provided to absorb the RxJS unhandled rejection produced by
- *   handleError returning throwError(). The unhandled rejection would otherwise bleed
- *   into subsequent tests via Zone.js. All observable-outcome assertions are still made
- *   before the error propagates (MODAL_MOCK.open called, loading=false), so nothing is
- *   hidden from the test.
+ * Mocking strategy — real ShareService + AppInfoService via MSW (not vi.fn() mocks):
+ *   ShareGoogleChatDialog does NOT inject AppInfoService directly. ShareService's
+ *   constructor subscribes to AppInfoService.getCurrentOrgInfo(), but that HTTP call
+ *   completes before fixture teardown (MSW responds synchronously) and causes no NG0205.
+ *   Contrast with share-email-dialog.component.tl.spec.ts, where AppInfoService is
+ *   injected directly and its constructor-fired GET /api/org/info was arriving after
+ *   teardown — requiring full vi.fn() mocks to eliminate all HTTP. The strategies are
+ *   intentionally different; both rely on MSW viewerHandlers being active in the suite.
+ *
+ * SilentErrorHandler absorbs the RxJS unhandled rejection from handleError → throwError()
+ * to prevent Zone.js bleed between tests.
  */
 
 import { ErrorHandler, NO_ERRORS_SCHEMA } from "@angular/core";

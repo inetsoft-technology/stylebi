@@ -41,6 +41,7 @@
 
 import { waitFor } from "@testing-library/angular";
 import { of } from "rxjs";
+import { ComponentTool } from "../../../common/util/component-tool";
 
 import {
    CLIENT_SERVICE_MOCK,
@@ -153,8 +154,7 @@ describe("ObjectWizardPane — onEditSecondColumn", () => {
       CLIENT_SERVICE_MOCK.sendEvent.mockClear();
 
       // Mock the trap alert to immediately resolve with "continue"
-      const ComponentTool = await import("../../../common/util/component-tool");
-      const spy = vi.spyOn(ComponentTool.ComponentTool, "showTrapAlert")
+      const spy = vi.spyOn(ComponentTool, "showTrapAlert")
          .mockResolvedValue("continue");
 
       try {
@@ -180,8 +180,7 @@ describe("ObjectWizardPane — onEditSecondColumn", () => {
       BINDING_TREE_MOCK.checkAggTrap.mockReturnValue(of(true));
       CLIENT_SERVICE_MOCK.sendEvent.mockClear();
 
-      const ComponentTool = await import("../../../common/util/component-tool");
-      const spy = vi.spyOn(ComponentTool.ComponentTool, "showTrapAlert")
+      const spy = vi.spyOn(ComponentTool, "showTrapAlert")
          .mockResolvedValue("cancel");
 
       try {

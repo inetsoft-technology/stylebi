@@ -92,12 +92,6 @@ export const viewerHandlers = [
       return HttpResponse.json("rt-new-wizard");
    }),
 
-   // VsWizardComponent.createNewRuntimeViewsheet() — GET to create a new runtime viewsheet
-   // from an existing one; returns the new runtimeId string.
-   http.get("*/api/vswizard/dialog/open", () => {
-      return HttpResponse.json("rt-new-wizard");
-   }),
-
    // VsWizardPane.fileChanged() — POST to upload an image into a wizard object.
    // Default returns a minimal VSImageModel so tests that don't care about the
    // response content don't hit "Unhandled request" warnings.

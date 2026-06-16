@@ -444,7 +444,7 @@ describe("ObjectWizardPane — onDeleteAggregate", () => {
 
       expect(CLIENT_SERVICE_MOCK.sendEvent).toHaveBeenCalledWith(
          "/events/vswizard/binding/refresh",
-         expect.objectContaining({ deleteFormatColumn: undefined })
+         expect.not.objectContaining({ deleteFormatColumn: expect.anything() })
       );
    });
 
