@@ -147,6 +147,160 @@ public class WorksheetTableService {
       return response;
    }
 
+   // ─── Delete tables ────────────────────────────────────────────────────────
+
+   public DeleteWorksheetTablesResponse deleteTables(DeleteWorksheetTablesRequest request,
+                                                     Principal user)
+      throws Exception
+   {
+      if(request.getWorksheetId() == null) {
+         throw new IllegalArgumentException("worksheetId is required");
+      }
+
+      if(request.getTableNames() == null || request.getTableNames().isEmpty()) {
+         throw new IllegalArgumentException("tableNames must not be empty");
+      }
+
+      AssetEntry worksheetEntry = AssetEntry.createAssetEntry(request.getWorksheetId());
+      AbstractSheet sheet = viewsheetService.getAssetRepository()
+         .getSheet(worksheetEntry, user, false, AssetContent.ALL);
+
+      if(!(sheet instanceof Worksheet worksheet)) {
+         throw new IllegalArgumentException("worksheetId does not reference a worksheet: "
+                                            + request.getWorksheetId());
+      }
+
+      Set<String> deleteSet = new LinkedHashSet<>(request.getTableNames());
+
+      DeleteWorksheetTablesResponse response = new DeleteWorksheetTablesResponse();
+      List<String> deleted = new ArrayList<>();
+      List<String> notFound = new ArrayList<>();
+      Map<String, String> skipped = new LinkedHashMap<>();
+
+      for(String name : request.getTableNames()) {
+         if(worksheet.getAssembly(name) == null) {
+            notFound.add(name);
+            continue;
+         }
+
+         // Check whether any assembly NOT in the delete set depends on this one.
+         String blocker = findExternalDependent(worksheet, name, deleteSet);
+
+         if(blocker != null) {
+            skipped.put(name, blocker);
+         }
+      }
+
+      // Remove tables that passed the blocker check, dependents-first so that
+      // removeAssembly never encounters a broken reference within the delete set.
+      List<String> toDelete = new ArrayList<>(deleteSet);
+      toDelete.removeAll(notFound);
+      toDelete.removeAll(skipped.keySet());
+      toDelete = topoSort(worksheet, toDelete);
+
+      for(String name : toDelete) {
+         worksheet.removeAssembly(name);
+         deleted.add(name);
+      }
+
+      // Persist only when something changed.
+      if(!deleted.isEmpty()) {
+         WsServiceHelper.layoutGraph(layoutGraphService, worksheet);
+         viewsheetService.getAssetRepository().setSheet(worksheetEntry, worksheet, user, true);
+      }
+
+      response.setWsId(request.getWorksheetId());
+      response.setDeleted(deleted);
+      response.setNotFound(notFound);
+      response.setSkipped(skipped);
+      response.setSuccess(true);
+      return response;
+   }
+
+   /**
+    * Returns the name of the first assembly that is NOT in {@code deleteSet} and
+    * directly depends on {@code targetName}, or {@code null} if none exists.
+    */
+   private String findExternalDependent(Worksheet worksheet, String targetName,
+                                        Set<String> deleteSet)
+   {
+      for(Assembly asm : worksheet.getAssemblies()) {
+         String asmName = asm.getName();
+
+         if(deleteSet.contains(asmName)) {
+            continue;
+         }
+
+         if(dependsOn(asm, targetName)) {
+            return asmName;
+         }
+      }
+
+      return null;
+   }
+
+   /** True when {@code assembly} directly references {@code targetName} as a base table. */
+   private boolean dependsOn(Assembly assembly, String targetName) {
+      if(assembly instanceof MirrorTableAssembly mirror) {
+         TableAssembly base = mirror.getTableAssembly();
+         return base != null && targetName.equals(base.getName());
+      }
+
+      if(assembly instanceof CompositeTableAssembly composite) {
+         for(TableAssembly ta : composite.getTableAssemblies()) {
+            if(targetName.equals(ta.getName())) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Returns {@code names} in topological order so that dependents come before
+    * their bases (safe delete order).  Uses a simple DFS; cycles are impossible
+    * in a valid worksheet.
+    */
+   private List<String> topoSort(Worksheet worksheet, List<String> names) {
+      Set<String> nameSet = new HashSet<>(names);
+      List<String> result = new ArrayList<>();
+      Set<String> visited = new HashSet<>();
+
+      for(String name : names) {
+         topoVisit(worksheet, name, nameSet, visited, result);
+      }
+
+      return result;
+   }
+
+   private void topoVisit(Worksheet worksheet, String name, Set<String> nameSet,
+                          Set<String> visited, List<String> result)
+   {
+      if(!visited.add(name)) {
+         return;
+      }
+
+      Assembly asm = worksheet.getAssembly(name);
+
+      if(asm == null) {
+         return;
+      }
+
+      // Visit dependents first (assemblies in the delete set that reference this one).
+      for(String candidate : nameSet) {
+         if(!visited.contains(candidate)) {
+            Assembly candidateAsm = worksheet.getAssembly(candidate);
+
+            if(candidateAsm != null && dependsOn(candidateAsm, name)) {
+               topoVisit(worksheet, candidate, nameSet, visited, result);
+            }
+         }
+      }
+
+      result.add(name);
+   }
+
    // ─── Table builders ───────────────────────────────────────────────────────
 
    private AbstractTableAssembly buildTable(Worksheet worksheet, WorksheetTableRequest request,
