@@ -364,6 +364,10 @@ describe("ViewerAppComponent — previousPage() / nextPage()", () => {
       expect(VS_CLIENT_MOCK.sendEvent).not.toHaveBeenCalled();
    });
 
+   // nextPage() has no redoEnabled guard — by design: the disabled state is
+   // enforced by the template (isNextPageDisabled), not by the method itself.
+   // The server handles an unconditional REDO when nothing is redoable.
+   // Contrast: previousPage() does guard on undoEnabled (AND !maxMode).
    it("nextPage should always send REDO event regardless of redoEnabled", async () => {
       const { comp } = await renderComponent();
       comp.redoEnabled = false;
@@ -780,7 +784,7 @@ describe("ViewerAppComponent — getReloadMessage()", () => {
    it("should return rename-transform key when transformFinished=true", async () => {
       const { comp } = await renderComponent();
       comp.expired = false;
-      (comp as any)["transformFinished"] = true;
+      comp.transformFinished = true;
 
       expect(comp.getReloadMessage()).toBe("_#(js:viewer.expiration.renameTransformFinished)");
    });
@@ -788,8 +792,8 @@ describe("ViewerAppComponent — getReloadMessage()", () => {
    it("should return edit-bookmark key when editBookmarkFinished=true", async () => {
       const { comp } = await renderComponent();
       comp.expired = false;
-      (comp as any)["transformFinished"] = false;
-      (comp as any)["editBookmarkFinished"] = true;
+      comp.transformFinished = false;
+      comp.editBookmarkFinished = true;
 
       expect(comp.getReloadMessage()).toBe("_#(js:viewer.expiration.editBookmarkFinished)");
    });

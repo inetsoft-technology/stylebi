@@ -750,8 +750,6 @@ describe("ViewerAppComponent — setServerUpdateInterval() / clearServerUpdateIn
       comp.updateEnabled = true;
       comp.setServerUpdateInterval();
       // private field — bypass needed to intercept the subscription
-      const sub = (comp as any)["serverUpdateSubscription"];
-      const origUnsubscribe = sub.unsubscribe.bind(sub);
       (comp as any)["serverUpdateSubscription"].unsubscribe = unsubscribeSpy;
 
       comp.clearServerUpdateInterval();
