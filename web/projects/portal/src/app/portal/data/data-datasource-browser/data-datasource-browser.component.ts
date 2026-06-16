@@ -441,6 +441,8 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
       else if(!!fallbackFolder) {
          action(fallbackFolder);
       }
+      // else: no path and no fallback — silent no-op. Callers are gated by
+      // currentFolder*Disabled getters, so this branch is unreachable in normal use.
    }
 
    /**

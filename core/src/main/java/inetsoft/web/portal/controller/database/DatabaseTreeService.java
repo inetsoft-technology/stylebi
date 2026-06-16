@@ -18,6 +18,7 @@
 package inetsoft.web.portal.controller.database;
 
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.util.Catalog;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.AssetEntry;
@@ -259,7 +260,11 @@ public class DatabaseTreeService {
       Integer tableCount = node.getTableCount();
 
       if(tableCount != null && tableCount > 0) {
-         return tableCount + " table" + (tableCount == 1 ? "" : "s");
+         Catalog catalog = Catalog.getCatalog();
+         String word = catalog.getString(tableCount == 1
+            ? "data.physicalmodel.schemaTable"
+            : "data.physicalmodel.schemaTables");
+         return tableCount + " " + word;
       }
 
       return null;

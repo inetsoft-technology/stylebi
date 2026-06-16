@@ -1127,7 +1127,11 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
          .length ?? 0;
       data.tableCount = tableCount;
       node.label = tableCount > 0 ? data.name + " (" + tableCount + ")" : data.name;
-      node.tooltip = tableCount > 0 ? tableCount + " table" + (tableCount == 1 ? "" : "s") : undefined;
+      node.tooltip = tableCount > 0
+         ? tableCount + " " + (tableCount === 1
+            ? "_#(js:data.physicalmodel.schemaTable)"
+            : "_#(js:data.physicalmodel.schemaTables)")
+         : undefined;
    }
 
    private loadDatabaseTree(): Observable<TreeNodeModel[]> {
