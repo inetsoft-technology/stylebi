@@ -1164,6 +1164,8 @@ class SVGAnimationDOMInjectorTest {
                    "milestone label must fade in sync with the milestone marker");
 
       // Bar hover must NOT dim milestone labels; point hover MUST dim other milestone labels.
+      // These rules are emitted globally by appendHoverCSS (not gated on the gantt flag); the
+      // assertions guard that the point-label class is wired into the correct hover rule.
       String css = allStyleContent(doc.getDocumentElement());
       assertFalse(css.contains(".inetsoft-bar.inetsoft-active) .inetsoft-point-label"),
                   "bar hover must not dim milestone labels");
@@ -1184,6 +1186,36 @@ class SVGAnimationDOMInjectorTest {
          SVGSupport.ANIMATION_GROW + ":" + SVGSupport.ANIMATION_FLAG_GANTT));
       assertTrue(doc.getDocumentElement().hasAttribute("data-animated"),
                  "data-animated must be set even when there is no milestone point");
+   }
+
+   /**
+    * A stacked gantt (multi-resource task bars) produces the {@code grow:stacked:gantt} hint.
+    * The gantt flag must still be detected regardless of position, so the milestone fades after
+    * the bars exactly as in the unstacked case.
+    */
+   @Test
+   void gantt_stackedMilestoneFadesAfterBars() throws Exception {
+      Document doc = newDocument();
+      Element bar0 = addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR,
+                                   Map.of("row", "0", "col", "0", "orient", "h"),
+                                   0,   0, 200, 50);
+      Element bar1 = addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR,
+                                   Map.of("row", "1", "col", "0", "orient", "h"),
+                                   0, 100, 200, 50);
+      Element milestone = addAnnotGroup(doc, SVGSupport.ANNOTATION_POINT,
+                                        Map.of("row", "0", "col", "0", "size", "9"),
+                                        150, 50, 10, 10);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(),
+         SVGSupport.ANIMATION_GROW + ":" + SVGSupport.ANIMATION_FLAG_STACKED +
+         ":" + SVGSupport.ANIMATION_FLAG_GANTT);
+
+      String milestoneStyle = firstChildStyle(milestone);
+      assertNotNull(milestoneStyle, "milestone inner child must receive an animation style");
+      double lastBarDelay = Math.max(parseDelay(firstChildStyle(bar0)),
+                                     parseDelay(firstChildStyle(bar1)));
+      assertTrue(parseDelay(milestoneStyle) >= lastBarDelay + AnimationConstants.DURATION - 0.01,
+                 "milestone must start after the last bar finishes for grow:stacked:gantt");
    }
 
    /**

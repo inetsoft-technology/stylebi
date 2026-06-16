@@ -39,8 +39,9 @@ import java.util.*;
 @TernClass(url = "#cshid=PointElement")
 public class PointElement extends StackableElement {
    /**
-    * Hint marking this point element as a gantt milestone marker, a string of true or false.
-    * Used to tag the milestone value label for the SVG entrance animation.
+    * Hint marking this point element as a gantt milestone marker; the value is {@code "true"}
+    * when set, absent otherwise. Used to tag the milestone value label for the SVG entrance
+    * animation.
     */
    public static final String HINT_GANTT_MILESTONE = "gantt_milestone";
 

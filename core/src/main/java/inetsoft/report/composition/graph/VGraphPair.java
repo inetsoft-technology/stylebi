@@ -2648,11 +2648,13 @@ public class VGraphPair {
       for(int i = 0; i < graph.getVisualCount(); i++) {
          Visualizable v = graph.getVisual(i);
 
-         if(v instanceof PointVO &&
-            "true".equals(((ElementGeometry) ((PointVO) v).getGeometry()).getElement()
-               .getHint(PointElement.HINT_GANTT_MILESTONE)))
-         {
-            return true;
+         if(v instanceof PointVO pvo) {
+            // PointGeometry extends ElementGeometry, so the cast is always safe.
+            GraphElement elem = ((ElementGeometry) pvo.getGeometry()).getElement();
+
+            if("true".equals(elem.getHint(PointElement.HINT_GANTT_MILESTONE))) {
+               return true;
+            }
          }
 
          if(v instanceof GraphVO && hasGanttMilestoneVO(((GraphVO) v).getVGraph())) return true;

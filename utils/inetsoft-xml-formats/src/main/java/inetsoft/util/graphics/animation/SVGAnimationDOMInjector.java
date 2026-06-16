@@ -133,9 +133,9 @@ public class SVGAnimationDOMInjector {
 
          // Gantt charts have interval bars plus a milestone point marker (a separate PointElement).
          // Fade the milestones in after the last bar finishes, matching the bar-label timing.
-         Set<String> flags = new HashSet<>(Arrays.asList(animHint.split(":")));
-
-         if(flags.contains(SVGSupport.ANIMATION_FLAG_GANTT)) {
+         // The base hint is the first token and ":" is the separator, so a ":gantt" substring
+         // match is unambiguous (no base hint or other flag contains "gantt").
+         if(animHint.contains(":" + SVGSupport.ANIMATION_FLAG_GANTT)) {
             double milestoneDelay = lastBarDelay + AnimationConstants.DURATION + AnimationConstants.READY_BUFFER;
             String milestoneAnimStyle = String.format(java.util.Locale.US,
                "opacity:0;animation:inetsoft-bar-fade %.2fs %s %.2fs both",
