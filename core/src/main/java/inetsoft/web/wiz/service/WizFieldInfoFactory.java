@@ -24,6 +24,7 @@ import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.web.binding.model.graph.CalculateInfo;
 import inetsoft.web.wiz.model.DimensionFieldInfo;
 import inetsoft.web.wiz.model.MeasureFieldInfo;
+import inetsoft.web.wiz.model.Ranking;
 
 final class WizFieldInfoFactory {
    private WizFieldInfoFactory() {
@@ -33,6 +34,7 @@ final class WizFieldInfoFactory {
       DimensionFieldInfo info = baseDimensionFieldInfo(dim);
       info.setFullName(dim.getFullName());
       applyDateGroup(info, dim);
+      applyRanking(info, dim);
       return info;
    }
 
@@ -40,6 +42,7 @@ final class WizFieldInfoFactory {
       DimensionFieldInfo info = baseDimensionFieldInfo(dim);
       info.setType(dim.getDataType());
       applyDateGroup(info, dim);
+      applyRanking(info, dim);
       return info;
    }
 
@@ -47,6 +50,7 @@ final class WizFieldInfoFactory {
       DimensionFieldInfo info = baseDimensionFieldInfo(dim);
       info.setFullName(dim.getFullName());
       applyDateGroup(info, dim);
+      applyRanking(info, dim);
       return info;
    }
 
@@ -88,6 +92,24 @@ final class WizFieldInfoFactory {
       DimensionFieldInfo info = new DimensionFieldInfo();
       info.setField(dim.getGroupColumnValue());
       return info;
+   }
+
+   private static void applyRanking(DimensionFieldInfo info, VSDimensionRef dim) {
+      String optValue = dim.getRankingOptionValue();
+
+      if(optValue != null && !"0".equals(optValue)) {
+         Ranking ranking = new Ranking();
+         ranking.setOptionValue(Integer.parseInt(optValue));
+
+         String nValue = dim.getRankingNValue();
+
+         if(nValue != null) {
+            ranking.setRankingN(Integer.parseInt(nValue));
+         }
+
+         ranking.setRankingCol(dim.getRankingColValue());
+         info.setRanking(ranking);
+      }
    }
 
    private static void applyDateGroup(DimensionFieldInfo info, VSDimensionRef dim) {
