@@ -553,7 +553,7 @@ describe("ViewerApp Unit Tests", () => {
          richTextService, viewerToolbarMessageService, mobileToolbarService, mockDocument, composerRecentService,
          pageTabService, pagingControlService, selectionMobileService,
          assetLoadingService, viewContainerRef, baseHrefService,
-         currentUserService as any, heartbeatWorkerService);
+         currentUserService as any, null, heartbeatWorkerService);
 
       viewerApp.runtimeId = "test-runtime-id";
       viewerApp["updateEnabled"] = true;
@@ -580,7 +580,7 @@ describe("ViewerApp Unit Tests", () => {
          richTextService, viewerToolbarMessageService, mobileToolbarService, mockDocument, composerRecentService,
          pageTabService, pagingControlService, selectionMobileService,
          assetLoadingService, viewContainerRef, baseHrefService,
-         currentUserService as any, heartbeatWorkerService);
+         currentUserService as any, null, heartbeatWorkerService);
 
       viewerApp.runtimeId = "test-runtime-id";
       viewerApp["updateEnabled"] = true;
