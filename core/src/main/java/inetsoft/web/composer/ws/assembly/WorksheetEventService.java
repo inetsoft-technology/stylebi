@@ -67,6 +67,12 @@ public class WorksheetEventService {
                                CommandDispatcher commandDispatcher) throws Exception
    {
       RuntimeWorksheet rws = engine.getWorksheet(id, user);
+      recordSocketSession(rws, commandDispatcher.getSessionId());
+
+      if(rws != null) {
+         rws.setSocketUserName(commandDispatcher.getUserName());
+      }
+
       fixWorksheetMode(rws);
       clearGettingStatedRuntimeWs(rws, gettingStartedCreateQuery);
 
@@ -162,6 +168,13 @@ public class WorksheetEventService {
       }
 
       return id;
+   }
+
+   /** Record the browser's STOMP session on the worksheet runtime so refresh commands can target it. */
+   static void recordSocketSession(RuntimeWorksheet rws, String socketSessionId) {
+      if(rws != null && socketSessionId != null) {
+         rws.setSocketSessionId(socketSessionId);
+      }
    }
 
    private static void clearGettingStatedRuntimeWs(RuntimeWorksheet rws,
