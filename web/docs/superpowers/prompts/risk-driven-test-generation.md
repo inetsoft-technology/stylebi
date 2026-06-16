@@ -27,6 +27,10 @@
 
 - **输出语言**：生成的测试代码、注释、`describe` / `it` 描述文本统一使用**英文**；本提示词为中文，不影响输出语言。
 - 命名与测试命令以参考文件为准，不得猜测。
+- **输出文件名必须与被测组件的源文件名一致**（kebab-case + `.component`），**绝不使用 PascalCase 类名**。
+  例：`VSBindingPane`（类名）的源文件为 `vs-binding-pane.component.ts`，
+  测试文件命名为 `vs-binding-pane.component.tl.spec.ts`，而非 `VSBindingPane.tl.spec.ts`。
+  确定文件名的方法：读取 prescan 行或 Glob 搜索 `**/<kebab-name>.component.ts`。
 - 使用 **Angular Testing Library**。
 - HTTP mock → **MSW**；非 HTTP 边界（router / auth / WebSocket）→ 直接模块 mock。
 - 若同时存在 `*.spec.ts` 和 `*.tl.spec.ts`，以 `*.tl.spec.ts` 为格式参考；
