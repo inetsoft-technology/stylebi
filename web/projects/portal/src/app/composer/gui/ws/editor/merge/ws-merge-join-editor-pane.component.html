@@ -17,7 +17,7 @@
 -->
 <div class="merge-join-container" (mousedown)="focusMergeTable($event)">
   <div class="merge-join-subtable-container">
-    @for (_subtable of subtables; track _i; let _i = $index; let _last = $last) {
+    @for (_subtable of subtables; track $index; let _i = $index; let _last = $last) {
       <merge-join-subtable
                          [ngClass]="{'bg-highlight-color insert-left': dropInfo?.currentInsertionIndex === _i,
                                      'insert-right br-highlight': dropInfo?.currentInsertionIndex === _i + 1 && _last}"

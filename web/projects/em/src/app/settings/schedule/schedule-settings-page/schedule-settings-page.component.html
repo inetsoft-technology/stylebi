@@ -16,7 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <nav mat-tab-nav-bar mat-stretch-tabs="false" [tabPanel]="tabPanel">
-  @for (link of visibleLinks; track link) {
+  @for (link of visibleLinks; track link.path) {
     <a
       mat-tab-link
       [routerLink]="link.path"

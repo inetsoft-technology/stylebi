@@ -75,7 +75,7 @@
 }
 @if (!asMenu) {
   <div class="btn-group" role="group" [attr.aria-label]="actionGroup.label">
-    @for (action of actionGroup.actions; track action) {
+    @for (action of actionGroup.actions; track $index) {
       <ng-template #toolTipContentNoMenu>
         <div class="composer-tooltip" [innerHTML]="action.tooltip()"></div>
       </ng-template>
