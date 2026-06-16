@@ -395,6 +395,11 @@ describe("AssetTreeComponent — isTableStyle", () => {
       });
       expect(comp.isTableStyle()).toBe(false);
    });
+
+   it("should return false when defaultFolder is null", async () => {
+      const { comp } = await renderComponent({ defaultFolder: null });
+      expect(comp.isTableStyle()).toBe(false);
+   });
 });
 
 // ---------------------------------------------------------------------------
