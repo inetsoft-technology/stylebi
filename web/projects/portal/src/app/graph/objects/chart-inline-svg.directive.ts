@@ -458,8 +458,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
       }
 
       // Build label map from server-annotated label elements for all chart types that have
-      // external text groups matched to data elements (bar, treemap/sunburst/icicle, mekko).
-      for(const labelClass of [".inetsoft-bar-label", ".inetsoft-treemap-label", ".inetsoft-mekko-label", ".inetsoft-relation-label"]) {
+      // external text groups matched to data elements (bar, point/gantt-milestone, treemap/sunburst/icicle, mekko).
+      for(const labelClass of [".inetsoft-bar-label", ".inetsoft-point-label", ".inetsoft-treemap-label", ".inetsoft-mekko-label", ".inetsoft-relation-label"]) {
          const labels = Array.from(
             this.element.nativeElement.querySelectorAll(labelClass) as NodeListOf<Element>);
 

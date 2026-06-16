@@ -2459,6 +2459,15 @@ public class VGraphPair {
          if(!has3DBarVO(graph)) {
             String hint = SVGSupport.ANIMATION_GROW;
             if(hasStackedBarVO(graph)) hint += ":" + SVGSupport.ANIMATION_FLAG_STACKED;
+
+            // Gantt bars are an IntervalElement; the milestone marker is a separate PointElement.
+            // The bar branch is selected before hasPointVO, so flag gantt to fade the milestone
+            // marker and its label after the bars. Keyed on the milestone element so the flag and
+            // the label tagging in PointVO derive from the same signal.
+            if(hasGanttMilestoneVO(graph)) {
+               hint += ":" + SVGSupport.ANIMATION_FLAG_GANTT;
+            }
+
             g.setRenderingHint(SVGSupport.ANIMATION_KEY, hint);
          }
       }
@@ -2631,6 +2640,22 @@ public class VGraphPair {
          Visualizable v = graph.getVisual(i);
          if(v instanceof PointVO) return true;
          if(v instanceof GraphVO && hasPointVO(((GraphVO) v).getVGraph())) return true;
+      }
+      return false;
+   }
+
+   private static boolean hasGanttMilestoneVO(VGraph graph) {
+      for(int i = 0; i < graph.getVisualCount(); i++) {
+         Visualizable v = graph.getVisual(i);
+
+         if(v instanceof PointVO &&
+            "true".equals(((ElementGeometry) ((PointVO) v).getGeometry()).getElement()
+               .getHint(PointElement.HINT_GANTT_MILESTONE)))
+         {
+            return true;
+         }
+
+         if(v instanceof GraphVO && hasGanttMilestoneVO(((GraphVO) v).getVGraph())) return true;
       }
       return false;
    }

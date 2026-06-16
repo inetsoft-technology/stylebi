@@ -130,6 +130,31 @@ public class SVGAnimationDOMInjector {
             double lineDelay = lastBarDelay + AnimationConstants.DURATION + AnimationConstants.READY_BUFFER;
             injectParetoLineAnimation(paretoLines, svgRoot, doc, lineDelay);
          }
+
+         // Gantt charts have interval bars plus a milestone point marker (a separate PointElement).
+         // Fade the milestones in after the last bar finishes, matching the bar-label timing.
+         Set<String> flags = new HashSet<>(Arrays.asList(animHint.split(":")));
+
+         if(flags.contains(SVGSupport.ANIMATION_FLAG_GANTT)) {
+            double milestoneDelay = lastBarDelay + AnimationConstants.DURATION + AnimationConstants.READY_BUFFER;
+            String milestoneAnimStyle = String.format(java.util.Locale.US,
+               "opacity:0;animation:inetsoft-bar-fade %.2fs %s %.2fs both",
+               AnimationConstants.DURATION, AnimationConstants.EASING, milestoneDelay);
+
+            // A2 pattern: animate inner children so the annotation group's own opacity stays free
+            // (point markers gate hover dimming on the .ready class; labels are never dimmed).
+            List<Element> milestones = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_POINT);
+
+            for(Element milestone : milestones) {
+               applyAnimStyleToChildren(milestone, milestoneAnimStyle);
+            }
+
+            List<Element> milestoneLabels = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_POINT_LABEL);
+
+            for(Element label : milestoneLabels) {
+               applyAnimStyleToChildren(label, milestoneAnimStyle);
+            }
+         }
       }
 
       // Signal to the Angular directive that animation was injected so it can schedule .ready.
@@ -2721,13 +2746,14 @@ public class SVGAnimationDOMInjector {
          // A1 chart types: animation is applied directly to the annotation group that is also
          // the hover target. The .ready gate prevents hover dim from conflicting with the
          // group's own animation fill-mode during the entrance animation (~0.9s gate).
-         "svg.ready .inetsoft-point,svg.ready .inetsoft-candle,svg.ready .inetsoft-box," +
+         "svg.ready .inetsoft-point,svg.ready .inetsoft-point-label,svg.ready .inetsoft-candle,svg.ready .inetsoft-box," +
          "svg.ready .inetsoft-treemap,svg.ready .inetsoft-mekko," +
          "svg.ready .inetsoft-treemap-label,svg.ready .inetsoft-mekko-label," +
          "svg.ready .inetsoft-radar" +
          "{transition:" + tr + "}" +
-         // Point dimming.
-         "svg.ready:has(.inetsoft-point.inetsoft-active) .inetsoft-point:not(.inetsoft-active)" +
+         // Point dimming (markers + their value labels).
+         "svg.ready:has(.inetsoft-point.inetsoft-active) .inetsoft-point:not(.inetsoft-active)," +
+         "svg.ready:has(.inetsoft-point.inetsoft-active) .inetsoft-point-label:not(.inetsoft-active)" +
          "{opacity:" + dim + "!important}" +
          // Candlestick dimming.
          "svg.ready:has(.inetsoft-candle.inetsoft-active) .inetsoft-candle:not(.inetsoft-active)" +
@@ -2744,7 +2770,8 @@ public class SVGAnimationDOMInjector {
          "svg.ready:has(.inetsoft-mekko.inetsoft-active) .inetsoft-mekko-label:not(.inetsoft-active)" +
          "{opacity:" + dim + "!important}" +
          // Cross-tile dim for A1 types (same ready gate as their :has() rules above).
-         "svg.ready.inetsoft-dim-all .inetsoft-point,svg.ready.inetsoft-dim-all .inetsoft-candle," +
+         "svg.ready.inetsoft-dim-all .inetsoft-point,svg.ready.inetsoft-dim-all .inetsoft-point-label," +
+         "svg.ready.inetsoft-dim-all .inetsoft-candle," +
          "svg.ready.inetsoft-dim-all .inetsoft-box,svg.ready.inetsoft-dim-all .inetsoft-treemap," +
          "svg.ready.inetsoft-dim-all .inetsoft-mekko,svg.ready.inetsoft-dim-all .inetsoft-treemap-label," +
          "svg.ready.inetsoft-dim-all .inetsoft-mekko-label" +
