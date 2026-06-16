@@ -196,6 +196,7 @@ public class WorksheetTableService {
       List<String> toDelete = new ArrayList<>(deleteSet);
       toDelete.removeAll(notFound);
       toDelete.removeAll(skipped.keySet());
+      propagateSkippedDependencies(worksheet, toDelete, skipped);
       toDelete = topoSort(worksheet, toDelete);
 
       for(String name : toDelete) {
@@ -215,6 +216,40 @@ public class WorksheetTableService {
       response.setSkipped(skipped);
       response.setSuccess(true);
       return response;
+   }
+
+   /**
+    * Ensures that deleting a table never breaks a skipped table.
+    *
+    * If a skipped table depends on a table in {@code toDelete}, that table is also
+    * moved to {@code skipped}. The process repeats until the skipped set is stable.
+    */
+   private void propagateSkippedDependencies(Worksheet worksheet, List<String> toDelete,
+                                             Map<String, String> skipped)
+   {
+      boolean changed;
+
+      do {
+         changed = false;
+         Iterator<String> it = toDelete.iterator();
+
+         while(it.hasNext()) {
+            String name = it.next();
+            Assembly asm = worksheet.getAssembly(name);
+
+            if(asm != null) {
+               for(String skippedName : skipped.keySet()) {
+                  if(dependsOn(asm, skippedName)) {
+                     skipped.put(name, skippedName);
+                     it.remove();
+                     changed = true;
+                     break;
+                  }
+               }
+            }
+         }
+      }
+      while(changed);
    }
 
    /**
