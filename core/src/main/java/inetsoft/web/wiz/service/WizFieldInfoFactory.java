@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.service;
 
+import inetsoft.uql.XCondition;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.VSAggregateRef;
@@ -95,16 +96,16 @@ final class WizFieldInfoFactory {
    }
 
    private static void applyRanking(DimensionFieldInfo info, VSDimensionRef dim) {
-      String optValue = dim.getRankingOptionValue();
+      int opt = dim.getRankingOption();
 
-      if(optValue != null && !"0".equals(optValue)) {
+      if(opt != XCondition.NONE) {
          Ranking ranking = new Ranking();
-         ranking.setOptionValue(Integer.parseInt(optValue));
+         ranking.setOptionValue(opt);
 
-         String nValue = dim.getRankingNValue();
+         int n = dim.getRankingN();
 
-         if(nValue != null) {
-            ranking.setRankingN(Integer.parseInt(nValue));
+         if(n != 0) {
+            ranking.setRankingN(n);
          }
 
          ranking.setRankingCol(dim.getRankingColValue());
