@@ -20,6 +20,7 @@ package inetsoft.web.wiz.worksheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
@@ -29,6 +30,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.List;
 
 /**
  * Session-resolved edit service for worksheets.
@@ -197,8 +199,188 @@ public class WorksheetEditService {
       }
 
       // -----------------------------------------------------------------------
+      // Filter mutators
+      // -----------------------------------------------------------------------
+
+      /**
+       * Appends a simple pre-condition (AND-joined) to the named table.
+       *
+       * @param table     the assembly name
+       * @param field     the column name to filter on
+       * @param operation comparison operator: {@code "="}, {@code "!="}, {@code "<"}, {@code ">"}
+       * @param values    one or more literal string values
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists
+       */
+      public void addFilter(String table, String field,
+                            String operation, String... values) throws PairingException
+      {
+         WorksheetMutationSupport.addFilter(requireTable(table), field, operation, values);
+      }
+
+      /**
+       * Removes every pre-condition on {@code field} from the named table.
+       *
+       * @param table the assembly name
+       * @param field the column name whose conditions should be removed
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists
+       */
+      public void removeFilter(String table, String field) throws PairingException {
+         WorksheetMutationSupport.removeFilter(requireTable(table), field);
+      }
+
+      // -----------------------------------------------------------------------
+      // Aggregate mutator
+      // -----------------------------------------------------------------------
+
+      /**
+       * Builds and sets a new {@link AggregateInfo} on the named table.
+       *
+       * @param table      the assembly name
+       * @param groups     column names to group by
+       * @param aggregates aggregate measures to apply
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists
+       */
+      public void setGroupAggregate(String table, List<String> groups,
+                                    List<WorksheetMutationSupport.AggregateSpec> aggregates)
+         throws PairingException
+      {
+         WorksheetMutationSupport.applyAggregateInfo(requireTable(table), groups, aggregates);
+      }
+
+      // -----------------------------------------------------------------------
+      // Expression column mutator
+      // -----------------------------------------------------------------------
+
+      /**
+       * Adds an expression column to the named table.
+       *
+       * @param table      the assembly name
+       * @param name       the column name
+       * @param expression the expression body
+       * @param type       the data type string, or {@code null}
+       * @param sql        {@code true} if the expression is SQL rather than script
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists
+       */
+      public void addExpressionColumn(String table, String name, String expression,
+                                      String type, boolean sql) throws PairingException
+      {
+         WorksheetMutationSupport.addExpressionColumn(requireTable(table), name,
+                                                      expression, type, sql);
+      }
+
+      // -----------------------------------------------------------------------
+      // Sort mutator
+      // -----------------------------------------------------------------------
+
+      /**
+       * Sets (or replaces) the sort direction on a column of the named table.
+       *
+       * @param table     the assembly name
+       * @param field     the column name to sort on
+       * @param direction {@code "ASC"} or {@code "DESC"} (case-insensitive)
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists
+       */
+      public void setSort(String table, String field, String direction) throws PairingException {
+         WorksheetMutationSupport.setSort(requireTable(table), field, direction);
+      }
+
+      // -----------------------------------------------------------------------
+      // Join mutators (low-level TableAssemblyOperator API)
+      // -----------------------------------------------------------------------
+
+      /**
+       * Creates a new {@link RelationalJoinTableAssembly} joining {@code leftTable} and
+       * {@code rightTable} on the given key columns and adds it to the worksheet.
+       *
+       * <p>Implementation note: {@link inetsoft.web.composer.ws.joins.InnerJoinService}
+       * requires a live STOMP/runtime context and is not usable here.  This method uses
+       * the lower-level {@link TableAssemblyOperator} API directly instead.</p>
+       *
+       * @param name      the name for the new join assembly
+       * @param leftTable the left source table assembly name
+       * @param leftKey   the column name from the left table to join on
+       * @param rightTable the right source table assembly name
+       * @param rightKey   the column name from the right table to join on
+       * @param joinType   one of {@code "INNER"}, {@code "LEFT"}, {@code "RIGHT"},
+       *                   {@code "FULL"} (case-insensitive; defaults to {@code "INNER"})
+       * @throws PairingException if either source assembly is not found
+       */
+      public void addJoin(String name, String leftTable, String leftKey,
+                          String rightTable, String rightKey,
+                          String joinType) throws PairingException
+      {
+         TableAssembly left  = requireTable(leftTable);
+         TableAssembly right = requireTable(rightTable);
+
+         int operation = parseJoinType(joinType);
+
+         // Build the operator for the single key-pair join.
+         TableAssemblyOperator top = new TableAssemblyOperator();
+         TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+         op.setLeftTable(leftTable);
+         op.setRightTable(rightTable);
+         op.setLeftAttribute(new AttributeRef(null, leftKey));
+         op.setRightAttribute(new AttributeRef(null, rightKey));
+         op.setOperation(operation);
+         top.addOperator(op);
+
+         RelationalJoinTableAssembly join =
+            new RelationalJoinTableAssembly(ws, name,
+                                            new TableAssembly[]{ left, right },
+                                            new TableAssemblyOperator[]{ top });
+         ws.addAssembly(join);
+      }
+
+      /**
+       * Removes an assembly (typically a join assembly) from the worksheet by name.
+       *
+       * <p>No-ops if no assembly with {@code name} exists.</p>
+       *
+       * @param name the assembly name to remove
+       */
+      public void removeJoin(String name) {
+         ws.removeAssembly(name);
+      }
+
+      // -----------------------------------------------------------------------
+      // Add table (embedded)
+      // -----------------------------------------------------------------------
+
+      /**
+       * Creates an {@link EmbeddedTableAssembly} with the given column names and adds
+       * it to the worksheet.
+       *
+       * @param name    the assembly name
+       * @param columns the column names to include in the private column selection
+       */
+      public void addTable(String name, String... columns) {
+         EmbeddedTableAssembly t = new EmbeddedTableAssembly(ws, name);
+         ColumnSelection cs = new ColumnSelection();
+
+         for(String col : columns) {
+            cs.addAttribute(new ColumnRef(new AttributeRef(null, col)));
+         }
+
+         t.setColumnSelection(cs, false);
+         ws.addAssembly(t);
+      }
+
+      // -----------------------------------------------------------------------
       // Helper
       // -----------------------------------------------------------------------
+
+      private static int parseJoinType(String joinType) {
+         if(joinType == null) {
+            return TableAssemblyOperator.INNER_JOIN;
+         }
+
+         return switch(joinType.toUpperCase()) {
+            case "LEFT"  -> TableAssemblyOperator.LEFT_JOIN;
+            case "RIGHT" -> TableAssemblyOperator.RIGHT_JOIN;
+            case "FULL"  -> TableAssemblyOperator.FULL_JOIN;
+            default      -> TableAssemblyOperator.INNER_JOIN;
+         };
+      }
 
       private TableAssembly requireTable(String name) throws PairingException {
          Assembly a = ws.getAssembly(name);
