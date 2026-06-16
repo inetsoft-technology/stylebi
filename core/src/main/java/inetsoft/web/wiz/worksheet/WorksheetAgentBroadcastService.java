@@ -50,7 +50,12 @@ public class WorksheetAgentBroadcastService {
       headers.setLeaveMutable(true);
       headers.setNativeHeader(CommandDispatcher.RUNTIME_ID_ATTR, runtimeId);
 
-      dispatcher.convertAndSendToUser(owner.getName(), CommandDispatcher.COMMANDS_TOPIC,
+      // The browser that must re-render is a DIFFERENT login session than the agent
+      // principal; route to the runtime's recorded socket user (set on open), falling
+      // back to the agent owner's name when unknown. Mirrors SharedFilterService.
+      String user = rws.getSocketUserName() != null ? rws.getSocketUserName() : owner.getName();
+
+      dispatcher.convertAndSendToUser(user, CommandDispatcher.COMMANDS_TOPIC,
                                       RefreshWorksheetCommand.builder().build(),
                                       headers.getMessageHeaders());
    }

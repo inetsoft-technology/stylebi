@@ -66,6 +66,7 @@ class WorksheetAgentBroadcastServiceTest {
 
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getSocketSessionId()).thenReturn("stomp-1");
+      when(rws.getSocketUserName()).thenReturn("browser-user");
       Principal owner = TestPrincipals.user("alice", "host-org");
 
       svc.broadcastRefresh(rws, "Worksheet/foo-7", owner);
@@ -73,7 +74,31 @@ class WorksheetAgentBroadcastServiceTest {
       @SuppressWarnings("unchecked")
       ArgumentCaptor<Map<String, Object>> headers =
          ArgumentCaptor.forClass(Map.class);
-      verify(dispatcher).convertAndSendToUser(eq(owner.getName()), eq("/commands"), any(),
+      // Must target the browser's recorded socket user, NOT the agent owner's name.
+      verify(dispatcher).convertAndSendToUser(eq("browser-user"), eq("/commands"), any(),
+                                              headers.capture());
+      assertEquals("stomp-1", SimpMessageHeaderAccessor.getSessionId(headers.getValue()));
+      assertNull(headers.getValue().get("inetsoftClientId"),
+                 "broadcast must omit inetsoftClientId so the browser accepts it");
+   }
+
+   @Test
+   void fallsBackToOwnerWhenNoSocketUser() {
+      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      WorksheetAgentBroadcastService svc = new WorksheetAgentBroadcastService(dispatcher);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getSocketSessionId()).thenReturn("stomp-1");
+      when(rws.getSocketUserName()).thenReturn(null);
+      Principal owner = TestPrincipals.user("alice", "host-org");
+
+      svc.broadcastRefresh(rws, "Worksheet/foo-7", owner);
+
+      @SuppressWarnings("unchecked")
+      ArgumentCaptor<Map<String, Object>> headers =
+         ArgumentCaptor.forClass(Map.class);
+      // No recorded socket user -> fall back to the agent owner's name.
+      verify(dispatcher).convertAndSendToUser(eq("alice~;~host-org"), eq("/commands"), any(),
                                               headers.capture());
       assertEquals("stomp-1", SimpMessageHeaderAccessor.getSessionId(headers.getValue()));
       assertNull(headers.getValue().get("inetsoftClientId"),
