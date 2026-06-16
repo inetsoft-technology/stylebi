@@ -120,7 +120,16 @@ export class LogicalModelPropertyPane implements OnInit {
       this.updateExistNames();
    }
 
-   attributeOrderChanged() {
+   attributeOrderChanged(event: {entityIndex: number, oldAttrIndex: number, newAttrIndex: number}) {
+      if(this.editingEle && this.editingEle.entity == event.entityIndex) {
+         if(this.editingEle.attribute == event.oldAttrIndex) {
+            this._editingEle = {...this.editingEle, attribute: event.newAttrIndex};
+         }
+         else if(this.editingEle.attribute == event.newAttrIndex) {
+            this._editingEle = {...this.editingEle, attribute: event.oldAttrIndex};
+         }
+      }
+
       this.updateExistNames();
    }
 
