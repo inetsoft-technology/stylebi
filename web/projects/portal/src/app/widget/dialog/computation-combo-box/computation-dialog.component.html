@@ -27,7 +27,7 @@
           <dynamic-combo-box [(value)]="model.value" [editable]="true" [variables]="variables"
             [valueOnly]="hideDcombox" [vsId]="vsId">
           </dynamic-combo-box>
-          <label>{{getLabel()}}</label>
+          <label>{{label}}</label>
         </div>
         @if (model.name == 'Confidence Interval' && !isValueValid(model.value)) {
           <div class="shell-alert shell-alert--danger">

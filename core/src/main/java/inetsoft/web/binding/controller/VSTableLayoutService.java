@@ -136,6 +136,7 @@ public class VSTableLayoutService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void changeColumnValue(@ClusterProxyKey String id, ChangeColumnValueEvent event,
                                  String linkUri, Principal principal, CommandDispatcher dispatcher)
       throws Exception
@@ -174,6 +175,7 @@ public class VSTableLayoutService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void setCellBinding(@ClusterProxyKey String id, SetCellBindingEvent event,
                               Principal principal, CommandDispatcher dispatcher) throws Exception
    {
@@ -240,6 +242,7 @@ public class VSTableLayoutService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void modifyLayout(@ClusterProxyKey String id, ModifyTableLayoutEvent event,
                             Principal principal, CommandDispatcher dispatcher) throws Exception
    {
@@ -260,6 +263,7 @@ public class VSTableLayoutService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void copyCut(@ClusterProxyKey String id, CopyCutCalcCellEvent event,
                        Principal principal, CommandDispatcher dispatcher) throws Exception
    {
@@ -330,6 +334,7 @@ public class VSTableLayoutService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void resizeCalcTableCell(@ClusterProxyKey String id, ResizeCalcTableCellEvent event, Principal principal,
                                    CommandDispatcher dispatcher) throws Exception
    {

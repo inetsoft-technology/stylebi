@@ -49,7 +49,7 @@
               <mat-form-field>
                 <mat-label>_#(Mapbox Style)</mat-label>
                 <mat-select formControlName="mapboxStyle" placeholder="_#(Mapbox Style)">
-                  @for (style of model?.mapboxStyles; track style) {
+                  @for (style of model?.mapboxStyles; track style.id) {
                     <mat-option [value]="style.id"
                     [title]="style.name">{{style.name}}</mat-option>
                   }

@@ -53,6 +53,7 @@ export class DataInputPane implements OnInit, OnChanges {
    selectedRow: string = "";
    rowType: ComboMode = ComboMode.VALUE;
    popupTable: PopupEmbeddedTable;
+   pageLabel: string = "";
    dateFormatInvalid: boolean = false;
    @Output() dateFormatInvalidChange = new EventEmitter<boolean>();
    @ViewChild(FixedDropdownDirective) dropdown: FixedDropdownDirective;
@@ -256,6 +257,7 @@ export class DataInputPane implements OnInit, OnChanges {
          this.popupTable.page = 1;
       }
 
+      this.updatePageLabel();
       this.initPopupTableData();
    }
 
@@ -357,8 +359,8 @@ export class DataInputPane implements OnInit, OnChanges {
       }
    }
 
-   getPageLabel(): string {
-      return Tool.formatCatalogString("_#(js:nOfTotal)", ["", this.popupTable.numPages]);
+   private updatePageLabel(): void {
+      this.pageLabel = Tool.formatCatalogString("_#(js:nOfTotal)", ["", this.popupTable.numPages]);
    }
 
    get isDateType(): boolean {

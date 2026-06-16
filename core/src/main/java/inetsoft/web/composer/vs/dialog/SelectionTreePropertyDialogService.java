@@ -204,6 +204,7 @@ public class SelectionTreePropertyDialogService {
       return result;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setSelectionTreePropertyModel(@ClusterProxyKey String runtimeId, String objectId,
                                              SelectionTreePropertyDialogModel value, String linkUri,

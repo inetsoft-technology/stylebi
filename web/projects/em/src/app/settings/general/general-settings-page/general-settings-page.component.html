@@ -95,7 +95,7 @@
     </em-navigation-scrollable>
     <div class="general-settings-nav">
       <mat-nav-list dense>
-        @for (link of navLinks; track link) {
+        @for (link of navLinks; track link.id) {
           <a
             mat-list-item
             [attr.id]="link.id + '-navlink'"

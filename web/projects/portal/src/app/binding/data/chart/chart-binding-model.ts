@@ -21,7 +21,8 @@ import {
    LineFrameModel,
    ShapeFrameModel,
    SizeFrameModel,
-   TextureFrameModel
+   TextureFrameModel,
+   TextLayoutModel
 } from "../../../common/data/visual-frame-model";
 import { AestheticInfo } from "./aesthetic-info";
 import { AllChartAggregateRef } from "./all-chart-aggregate-ref";
@@ -36,6 +37,8 @@ export interface ChartAestheticModel {
    shapeField: AestheticInfo;
    sizeField: AestheticInfo;
    textField: AestheticInfo;
+   textFields?: AestheticInfo[];
+   textLayout?: TextLayoutModel;
    colorFrame: ColorFrameModel;
    shapeFrame: ShapeFrameModel;
    lineFrame: LineFrameModel;
@@ -50,6 +53,8 @@ export class ChartBindingModel extends BindingModel implements ChartAestheticMod
    shapeField: AestheticInfo;
    sizeField: AestheticInfo;
    textField: AestheticInfo;
+   textFields?: AestheticInfo[];
+   textLayout?: TextLayoutModel;
    colorFrame: ColorFrameModel;
    shapeFrame: ShapeFrameModel;
    lineFrame: LineFrameModel;

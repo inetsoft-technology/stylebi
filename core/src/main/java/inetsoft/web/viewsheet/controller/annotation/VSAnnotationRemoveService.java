@@ -39,6 +39,7 @@ public class VSAnnotationRemoveService {
       this.service = service;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void removeAnnotation(@ClusterProxyKey String id, RemoveAnnotationEvent event,
                                 String linkUri,Principal principal, CommandDispatcher dispatcher) throws Exception

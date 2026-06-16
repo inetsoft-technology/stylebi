@@ -48,6 +48,7 @@ public class ComposerControllerErrorHandlerService {
       return coreLifecycleService.waitForMV(e, rvs, dispatcher);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void handleInvalidDependencyRollback(@ClusterProxyKey String runtimeId, Principal principal) {
       RuntimeSheet rs = viewsheetService.getSheet(runtimeId, principal);

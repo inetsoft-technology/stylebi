@@ -20,6 +20,7 @@ import {
    LineFrameModel,
    ShapeFrameModel,
    SizeFrameModel,
+   TextLayoutModel,
    TextureFrameModel
 } from "../../../common/data/visual-frame-model";
 import { BAggregateRef } from "../b-aggregate-ref";
@@ -36,6 +37,8 @@ export class ChartAggregateRef extends BAggregateRef implements ChartRef, ChartA
    shapeField: AestheticInfo;
    sizeField: AestheticInfo;
    textField: AestheticInfo;
+   textFields?: AestheticInfo[];
+   textLayout?: TextLayoutModel;
    colorFrame: ColorFrameModel;
    shapeFrame: ShapeFrameModel;
    lineFrame: LineFrameModel;

@@ -813,4 +813,92 @@ describe("Aesthetic Pane Unit Test", () => {
       let shapeCell: HTMLElement = fixture.debugElement.query(By.css(".shape_field_id .visual-cell-container .visual-cell")).nativeElement;
       expect(shapeCell).not.toBeNull();
    });
+
+   it("isLayoutDesignerActive should be true when textLayout is set and textFields is non-empty", () => {
+      fixture = TestBed.createComponent(AestheticPane);
+      aestheticPane = <AestheticPane>fixture.componentInstance;
+      aestheticPane.assemblyName = "Chart1";
+      aestheticPane.objectType = "chart";
+      aestheticPane.bindingModel = TestUtils.createMockChartBindingModel();
+      aestheticPane.bindingModel.textLayout = { rows: [] };
+      aestheticPane.bindingModel.textFields = [createMockAestheticInfo("id")];
+      aestheticPane.chartModel = TestUtils.createMockVSChartModel("vsChart1");
+      fixture.detectChanges();
+      expect(aestheticPane.isLayoutDesignerActive).toBe(true);
+   });
+
+   it("isLayoutDesignerActive should be false when textLayout is set but textFields is empty", () => {
+      fixture = TestBed.createComponent(AestheticPane);
+      aestheticPane = <AestheticPane>fixture.componentInstance;
+      aestheticPane.assemblyName = "Chart1";
+      aestheticPane.objectType = "chart";
+      aestheticPane.bindingModel = TestUtils.createMockChartBindingModel();
+      aestheticPane.bindingModel.textLayout = { rows: [] };
+      aestheticPane.bindingModel.textFields = [];
+      aestheticPane.chartModel = TestUtils.createMockVSChartModel("vsChart1");
+      fixture.detectChanges();
+      expect(aestheticPane.isLayoutDesignerActive).toBe(false);
+   });
+
+   it("isLayoutDesignerActive should be false when textLayout is null", () => {
+      fixture = TestBed.createComponent(AestheticPane);
+      aestheticPane = <AestheticPane>fixture.componentInstance;
+      aestheticPane.assemblyName = "Chart1";
+      aestheticPane.objectType = "chart";
+      aestheticPane.bindingModel = TestUtils.createMockChartBindingModel();
+      aestheticPane.bindingModel.textLayout = null;
+      aestheticPane.bindingModel.textFields = [createMockAestheticInfo("id")];
+      aestheticPane.chartModel = TestUtils.createMockVSChartModel("vsChart1");
+      fixture.detectChanges();
+      expect(aestheticPane.isLayoutDesignerActive).toBe(false);
+   });
+
+   it("renders the Layout Designer button inside the Text row with no visible text", () => {
+      fixture = TestBed.createComponent(AestheticPane);
+      aestheticPane = <AestheticPane>fixture.componentInstance;
+      aestheticPane.assemblyName = "Chart1";
+      aestheticPane.objectType = "chart";
+      aestheticPane.bindingModel = TestUtils.createMockChartBindingModel();
+      aestheticPane.chartModel = TestUtils.createMockVSChartModel("vsChart1");
+      fixture.detectChanges();
+
+      const btn = fixture.debugElement.query(By.css(".text_field_id .layout-designer-btn"));
+      expect(btn).not.toBeNull();
+      expect(btn.nativeElement.textContent.trim()).toBe("");
+      expect(btn.nativeElement.getAttribute("aria-label")).toBeTruthy();
+   });
+
+   it("clicking the Layout Designer button emits openLayoutDesigner", () => {
+      fixture = TestBed.createComponent(AestheticPane);
+      aestheticPane = <AestheticPane>fixture.componentInstance;
+      aestheticPane.assemblyName = "Chart1";
+      aestheticPane.objectType = "chart";
+      aestheticPane.bindingModel = TestUtils.createMockChartBindingModel();
+      aestheticPane.chartModel = TestUtils.createMockVSChartModel("vsChart1");
+      const spy = vi.fn();
+      aestheticPane.onUpdateData.subscribe(spy);
+      fixture.detectChanges();
+
+      const btn = fixture.debugElement.query(By.css(".text_field_id .layout-designer-btn")).nativeElement;
+      btn.click();
+      expect(spy).toHaveBeenCalledWith("openLayoutDesigner");
+   });
+
+   it("shows the active badge in the Text row only when a text layout is active", () => {
+      fixture = TestBed.createComponent(AestheticPane);
+      aestheticPane = <AestheticPane>fixture.componentInstance;
+      aestheticPane.assemblyName = "Chart1";
+      aestheticPane.objectType = "chart";
+      aestheticPane.bindingModel = TestUtils.createMockChartBindingModel();
+      aestheticPane.chartModel = TestUtils.createMockVSChartModel("vsChart1");
+      fixture.detectChanges();
+
+      const badgeSel = ".text_field_id .layout-designer-btn .layout-active-badge";
+      expect(fixture.debugElement.query(By.css(badgeSel))).toBeNull();
+
+      aestheticPane.bindingModel.textLayout = { rows: [] };
+      aestheticPane.bindingModel.textFields = [createMockAestheticInfo("id")];
+      fixture.detectChanges();
+      expect(fixture.debugElement.query(By.css(badgeSel))).not.toBeNull();
+   });
 });

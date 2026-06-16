@@ -59,6 +59,7 @@ public class VSChartMapService {
       this.viewsheetService = viewsheetService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void zoomIn(@ClusterProxyKey String runtimeId,
                       VSMapZoomEvent event,
@@ -70,6 +71,7 @@ public class VSChartMapService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void pan(@ClusterProxyKey String runtimeId,
                    VSMapPanEvent event,
@@ -115,6 +117,7 @@ public class VSChartMapService {
       }
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void clear(@ClusterProxyKey String runtimeId,
                      VSMapPanEvent event,

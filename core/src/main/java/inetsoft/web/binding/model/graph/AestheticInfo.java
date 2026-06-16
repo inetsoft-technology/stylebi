@@ -29,7 +29,8 @@ import inetsoft.web.binding.model.graph.aesthetic.VisualFrameModel;
 @JsonTypeInfo(
    use = JsonTypeInfo.Id.NAME,
    include = JsonTypeInfo.As.PROPERTY,
-   property = "classType")
+   property = "classType",
+   defaultImpl = AestheticInfo.class)
 public class AestheticInfo {
    /**
     * Constructor.

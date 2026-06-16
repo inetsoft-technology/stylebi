@@ -46,6 +46,7 @@ public class VSChartMoveLegendService extends VSChartControllerService<VSChartLe
    }
 
    @Override
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void eventHandler(@ClusterProxyKey String runtimeId,
                             VSChartLegendRelocateEvent event,

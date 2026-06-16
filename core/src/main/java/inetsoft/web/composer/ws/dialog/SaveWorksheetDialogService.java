@@ -109,6 +109,7 @@ public class SaveWorksheetDialogService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void saveWorksheet(@ClusterProxyKey String runtimeId, SaveWorksheetDialogModel model,
                              Principal principal, CommandDispatcher commandDispatcher) throws Exception

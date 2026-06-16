@@ -51,6 +51,7 @@ export class DataSourcesBrowser implements OnInit {
    @Input() rootLabel: string;
    @Output() selectionChange = new EventEmitter<DataSourceInfo[]>();
    bigDataEdition: boolean = false;
+   currentFolderName: string = "..";
 
    constructor(private modalService: NgbModal) {
    }
@@ -93,6 +94,7 @@ export class DataSourcesBrowser implements OnInit {
             this.browserView = data;
             this.selectedFiles = [];
             this.selectedFolders = [];
+            this.updateCurrentFolderName();
 
             if(this.folderSelectable && !this.showBreadcrumb) {
                const currentFolder = this.currentDestination;
@@ -235,12 +237,12 @@ export class DataSourcesBrowser implements OnInit {
    }
 
    /**
-    * Gets the name of the lowest level folder in the view
+    * Updates the cached currentFolderName from the current browserView.
     */
-   currentFolderName(): string {
+   private updateCurrentFolderName(): void {
       let name: string = "..";
 
-      if(!!this.browserView.path && this.browserView.path.length > 0) {
+      if(!!this.browserView?.path && this.browserView.path.length > 0) {
          let parentNode = this.browserView.path[this.browserView.path.length - 1];
 
          if(!!parentNode && parentNode.name) {
@@ -251,7 +253,7 @@ export class DataSourcesBrowser implements OnInit {
          }
       }
 
-      return name;
+      this.currentFolderName = name;
    }
 
    parentFolderName(): string {

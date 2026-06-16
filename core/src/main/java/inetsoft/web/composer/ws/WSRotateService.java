@@ -44,6 +44,7 @@ public class WSRotateService extends WorksheetControllerService{
       super(viewsheetService, dataSourceRegistry);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void addRotateAssembly(@ClusterProxyKey String runtimeId, WSAssemblyEvent event,
                                  Principal principal, CommandDispatcher commandDispatcher) throws Exception

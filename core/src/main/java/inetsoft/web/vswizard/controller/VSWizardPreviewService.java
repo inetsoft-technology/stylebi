@@ -50,6 +50,7 @@ public class VSWizardPreviewService {
       this.temporaryInfoService = temporaryInfoService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void changeDescription(@ClusterProxyKey String id, ChangeVSObjectTextEvent event,
                                  CommandDispatcher dispatcher, Principal principal)
@@ -70,6 +71,7 @@ public class VSWizardPreviewService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setPreviewPaneSize(@ClusterProxyKey String id, SetPreviewPaneSizeEvent event,
                                   CommandDispatcher dispatcher, String linkUri,

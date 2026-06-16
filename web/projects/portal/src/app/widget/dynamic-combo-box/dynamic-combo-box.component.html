@@ -17,6 +17,7 @@
 -->
 <div #dropdownBody class="dynamic-combo-box-body w-100">
   @if (type == ComboMode.VALUE) {
+    @let currentVal = getCurrentValue();
     <ng-container [class.disable-actions]="disable">
       @if (!editable && mode == ValueMode.TEXT) {
         <div draggable="true"
@@ -31,7 +32,7 @@
           (openChange)="handleValueDropdownOpenChange($event)"
           dropdownPlacement="bottom" [attr.title]="tooltip"
           [autoClose]="!asTree" [disabled]="disable">
-          <span class="dynamic-combo-box__display-text custom-select-trigger__text">{{getCurrentValue()}}&nbsp;</span>
+          <span class="dynamic-combo-box__display-text custom-select-trigger__text">{{currentVal}}&nbsp;</span>
           @if (isValuesDefinedAndNotEmpty()) {
             <i class="dynamic-combo-box__display-icon custom-select-trigger__icon dropdown-caret icon-color-default"
               aria-hidden="true"
@@ -46,7 +47,7 @@
           [class.no-select-input-text]="!editable || disable"
           #textInput [ngClass]="getInputClass(value)"
           [placeholder]="promptString ? promptString : ''" type="text"
-          [ngModel]="getCurrentValue()"
+          [ngModel]="currentVal"
           (change)="onChanged($event)"
           (focus)="selectOnClick ? $event.target.select() : null"
           [fixedDropdown]="valueDropdownMenu"

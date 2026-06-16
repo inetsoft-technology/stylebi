@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, ElementRef, HostListener, Input, OnDestroy } from "@angular/core";
+import { Component, ElementRef, HostListener, Input, OnChanges, OnDestroy, SimpleChanges } from "@angular/core";
 import { AssemblyActionGroup } from "../../../common/action/assembly-action-group";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { AbstractVSActions } from "../../action/abstract-vs-actions";
@@ -44,7 +44,7 @@ import { ToolbarActionsHandler } from "../../toolbar-actions-handler";
     styleUrls: ["mini-toolbar.component.scss"],
     imports: []
 })
-export class MiniToolbar implements OnDestroy {
+export class MiniToolbar implements OnChanges, OnDestroy {
    @Input() actions: AbstractVSActions<any>;
    @Input() miniToolbarActions: AssemblyActionGroup[];
    @Input() top: number;
@@ -87,6 +87,7 @@ export class MiniToolbar implements OnDestroy {
             });
       }
    }
+   displayActions: AssemblyActionGroup[] = [];
    mobileDevice: boolean = GuiTool.isMobileDevice();
    private focusedGroupIndex: number = -1;
    private focusedActionIndex: number = -1;
@@ -98,6 +99,12 @@ export class MiniToolbar implements OnDestroy {
                private element: ElementRef,
                private miniToolbarService: MiniToolbarService,
                private popComponentService: PopComponentService) {
+   }
+
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["actions"] || changes["miniToolbarActions"] || changes["width"]) {
+         this.displayActions = this.getActions();
+      }
    }
 
    ngOnDestroy() {

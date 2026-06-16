@@ -17,7 +17,9 @@
 -->
 <div unselectable="on" class="year-calendar"
   [class.double-calendar]="model.doubleCalendar" [class.second-calendar]="secondCalendar"
-  [style.height.px]= "getCalendarHeight()">
+  [style.height.px]="calendarHeight">
+  @let yearSelected = isYearSelected();
+  @let yearLabel = getYear();
   <div class="child-calendar-title w-100" [style.border-bottom]="model?.calendarTitleFormat?.border?.bottom">
     <div #lastYearRef
       class="calendar-navBtn calendar-preYear"
@@ -31,19 +33,19 @@
     <div class="calendar-title-label-container">
       <div #titleRef
         class="calendar-title-label calendar-title-label--surface selectable"
-        [class.selected-cell]="isYearSelected()"
+        [class.selected-cell]="yearSelected"
         [class.bd-selected-cell]="selectedRow == SelectionRegions.TITLE"
         [style.align-items]="model.calendarTitleFormat.alignItems"
         [style.justify-content]="model.calendarTitleFormat.justifyContent"
         (click)="clickYearTitle($event)"
         [safeFont]="model.calendarTitleFormat.font"
-        [style.background]="isYearSelected() ? selectedBgColor : model.calendarTitleFormat.background"
+        [style.background]="yearSelected ? selectedBgColor : model.calendarTitleFormat.background"
         [style.color]="model.calendarTitleFormat.foreground"
         [style.text-decoration]="model.calendarTitleFormat.decoration"
         [style.word-wrap]="model.calendarTitleFormat.wrapping.wordWrap"
         [style.overflow]="model.calendarTitleFormat.wrapping.overflow"
         tabindex="-1" [attr.aria-label]="currentDate.year"
-        [attr.aria-selected]="isYearSelected()">{{getYear()}}
+        [attr.aria-selected]="yearSelected">{{yearLabel}}
       </div>
     </div>
     <div #nextYearRef

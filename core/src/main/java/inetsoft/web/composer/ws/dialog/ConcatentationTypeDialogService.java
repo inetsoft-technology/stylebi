@@ -75,6 +75,7 @@ public class ConcatentationTypeDialogService extends WorksheetControllerService 
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void updateConcatenationType(@ClusterProxyKey String runtimeId, ConcatenationTypeDialogModel model,
                                        Principal principal, CommandDispatcher commandDispatcher) throws Exception

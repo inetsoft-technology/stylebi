@@ -65,6 +65,7 @@ public class ExportControllerService {
       this.binaryTransferService = binaryTransferService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public ViewsheetExportResult exportViewsheet(@ClusterProxyKey String runtimeId, int format, String type, boolean matchesAssetIdFormat,
                                                 boolean match, boolean expandSelections, boolean current,

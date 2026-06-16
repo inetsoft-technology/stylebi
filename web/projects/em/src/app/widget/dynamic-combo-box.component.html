@@ -17,6 +17,7 @@
 -->
 @if (form) {
   <form [formGroup]="form" class="flex-col">
+    @let errorMessage = getErrorMessage();
     @if (type == ComboMode.VALUE && mode == ValueMode.TEXT || array) {
       <mat-form-field appearance="outline" color="accent">
         <mat-label>_#(Value)</mat-label>
@@ -35,7 +36,7 @@
           <mat-icon fontSet="ineticons" fontIcon="calendar-icon"></mat-icon>
         </button>
         <mat-error *ngIf="hasError">
-          {{getErrorMessage()}}
+          {{errorMessage}}
         </mat-error>
       </mat-form-field>
     }
@@ -49,7 +50,7 @@
           <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="function-and-variable-icon"></mat-icon>
         </button>
         <mat-error *ngIf="hasError">
-          {{getErrorMessage()}}
+          {{errorMessage}}
         </mat-error>
       </mat-form-field>
     }
@@ -68,7 +69,7 @@
       </mat-form-field>
     }
     <mat-autocomplete #auto="matAutocomplete">
-      @for (value of values; track value) {
+      @for (value of values; track value.value) {
         <mat-option [value]="value.value"
         [class.selected]="selectedOption(value.value)">{{value.label}}</mat-option>
       }

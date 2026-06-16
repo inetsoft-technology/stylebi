@@ -17,7 +17,8 @@
 -->
 <div class="list-height-pillar condition-field-combo-list__surface" [style.height.px]="listContainerHeight"
   [style.min-width.px]="minWidth">
-  <div class="list-container" [style.top.px]="getVisibleListTop()">
+  @let visibleListTop = getVisibleListTop();
+  <div class="list-container" [style.top.px]="visibleListTop">
     @for (_i of visibleIndexRange; track _i) {
       <div>
         <div class="condition-field-combo-list-item" (click)="selectField(listModel[_i])"

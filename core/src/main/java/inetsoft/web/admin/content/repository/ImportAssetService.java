@@ -29,8 +29,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.*;
-import inetsoft.web.admin.content.repository.model.ExportedAssetsModel;
-import inetsoft.web.admin.content.repository.model.ImportAssetResponse;
+import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.deploy.*;
 import inetsoft.web.admin.model.FileData;
 import org.slf4j.Logger;
@@ -114,7 +113,8 @@ public class ImportAssetService {
                                           String targetLocation, Integer locationType,
                                           String locationUser, Boolean dependenciesApplyTarget,
                                           List<String> ignoreList, boolean overwriting,
-                                          boolean background, Principal principal)
+                                          boolean background, Principal principal,
+                                          Map<String, Boolean> bookmarkResolutions)
       throws Exception
    {
       if(principal instanceof SRPrincipal && ((SRPrincipal) principal).isSelfOrganization()) {
@@ -160,7 +160,7 @@ public class ImportAssetService {
 
       if(importId == null) {
          return deployService.importAsset(deploymentInfo, ignoreList, overwriting,
-                                          targetFolderInfo, principal);
+                                          targetFolderInfo, principal, bookmarkResolutions);
       }
       else if(importCache.getIfPresent(importId) == null) {
          CompletableFuture<ImportAssetResponse> future = new CompletableFuture<>();
@@ -171,7 +171,8 @@ public class ImportAssetService {
 
             try {
                ImportAssetResponse response = deployService.importAsset(
-                  deploymentInfo, ignoreList, overwriting, targetFolderInfo, principal);
+                  deploymentInfo, ignoreList, overwriting, targetFolderInfo, principal,
+                  bookmarkResolutions);
                future.complete(response);
             }
             catch(Exception e) {
@@ -184,6 +185,37 @@ public class ImportAssetService {
       }
 
       return ImportAssetResponse.builder().complete(false).build();
+   }
+
+   @ClusterProxyMethod(CACHE_NAME)
+   public List<BookmarkConflict> getBookmarkConflicts(@ClusterProxyKey String importId,
+                                                      String targetLocation, Integer locationType,
+                                                      String locationUser,
+                                                      Boolean dependenciesApplyTarget,
+                                                      List<String> ignoreList,
+                                                      Principal principal) throws Exception
+   {
+      ImportAssetContext context = contexts.get(importId);
+
+      if(context == null) {
+         return Collections.emptyList();
+      }
+
+      PartialDeploymentJarInfo info = context.getInfo();
+      ImportJarProperties properties = context.getProperties();
+
+      if(info == null || properties == null) {
+         return Collections.emptyList();
+      }
+
+      IdentityID locationUserID = IdentityID.getIdentityIDFromKey(locationUser);
+      AssetEntry targetFolder = targetLocation != null && locationType != null ?
+         createImportTargetFolderEntry(targetLocation, locationType, locationUserID) : null;
+      ImportTargetFolderInfo targetFolderInfo = targetFolder == null ? null :
+         new ImportTargetFolderInfo(targetFolder, dependenciesApplyTarget);
+
+      DeploymentInfo deploymentInfo = new DeploymentInfo(info, properties);
+      return deployService.getBookmarkConflicts(deploymentInfo, targetFolderInfo, ignoreList);
    }
 
    @GetMapping("/api/em/content/repository/import/clear-cache")

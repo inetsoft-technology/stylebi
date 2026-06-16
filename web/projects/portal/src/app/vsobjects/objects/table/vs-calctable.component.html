@@ -16,6 +16,9 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 @if (model) {
+  @let objectWidth = getObjectWidth();
+  @let objectHeight = getObjectHeight();
+  @let objectTop = getObjectTop();
   <div
     #tableContainer
     class="table-container vs-object"
@@ -31,20 +34,23 @@
     [style.display]="getVisible() ? null : 'none'"
     [class.fade-assembly]="!viewer && !model.visible"
     [class.disable-actions-fade]="!model.enabled"
-    [style.top.px]="(viewer || embeddedVS) && !model.maxMode ? getObjectTop() : null"
+    [style.top.px]="(viewer || embeddedVS) && !model.maxMode ? objectTop : null"
     [style.left.px]="(viewer || embeddedVS) && !model.maxMode ? model.objectFormat.left : null"
     [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
-    [style.width.px]="getObjectWidth()"
-    [style.height.px]="getObjectHeight()"
+    [style.width.px]="objectWidth"
+    [style.height.px]="objectHeight"
     (onClick)="showPagingControl()">
+    @let colGroupColWidths = getColGroupColWidths();
+    @let headerHeight = getHeaderHeight();
+    @let zIndex = getZIndex();
     <div class="z-index-wrapper"
       [style.background]="model.objectFormat.background"
       [style.height.px]="borderDivHeight"
       [style.overflow]="model.objectFormat.roundCorner != 0 ? 'hidden' : ''"
       [style.border-radius.px]="model.objectFormat.roundCorner"
-      [style.z-index]="getZIndex()">
+      [style.z-index]="zIndex">
       <div class="border-div"
-        [style.width.px]="getObjectWidth()"
+        [style.width.px]="objectWidth"
         [style.height.px]="borderDivHeight"
         [style.border-top]="model.objectFormat.border.top"
         [style.border-left]="model.objectFormat.border.left"
@@ -59,7 +65,7 @@
           [formatPainterMode]="vsInfo?.formatPainterMode"
           [titleSelected]="model.titleSelected"
           [titleVisible]="model.titleVisible"
-          [titleWidth]="getObjectWidth()"
+          [titleWidth]="objectWidth"
           (selectTitle)="selectTitle($event)"
           (changeTitle)="changeTableTitle($event)"
           (titleResizeMove)="titleResizeMove($event)"
@@ -86,7 +92,7 @@
       </div>
       <div class="table-wrapper"
         #tableWrapper
-        [style.width.px]="getObjectWidth()"
+        [style.width.px]="objectWidth"
         [style.height.px]="tableWrapperHeight"
         [style.top.px]="tableWrapperTop"
         selectionBox
@@ -95,7 +101,7 @@
         (wheel)="wheelScrollHandler($event)">
         <div class="overflow-wrapper"
           #aggregateView
-          [style.top.px]="getHeaderHeight()"
+          [style.top.px]="headerHeight"
           [style.left.px]="isFullHorizontalWrapper ? getColumnWidthSum(0, model.headerColCount - 1) - scrollX : getColumnWidthSum(0, model.headerColCount - 1)"
           [style.width]="isFullHorizontalWrapper ? 'calc(100% + ' +  scrollX + 'px)' : '100%'">
           <div #lowerTable class="lower-table-wrapper"
@@ -104,7 +110,7 @@
             [style.left.px]="-getColumnWidthSum(0, model.headerColCount - 1) - (isFullHorizontalWrapper ? 0 : scrollX)">
             <table>
               <colgroup>
-              @for (colWidth of getColGroupColWidths(); track $index) {
+              @for (colWidth of colGroupColWidths; track $index) {
                 @if (colWidth > 0) {
                   <col [style.width.px]="colWidth">
                 }
@@ -207,7 +213,7 @@
           [style.left.px]="(isFullHorizontalWrapper ? 0 : -scrollX) - getColumnWidthSum(0, model.headerColCount - 1)">
           <table>
             <colgroup>
-            @for (colWidth of getColGroupColWidths(); track $index) {
+            @for (colWidth of colGroupColWidths; track $index) {
               @if (colWidth > 0) {
                 <col [style.width.px]="colWidth">
               }
@@ -279,7 +285,7 @@
       </div>
     </div>
     <div #leftBottomView class="overflow-wrapper"
-      [style.top.px]="getHeaderHeight()">
+      [style.top.px]="headerHeight">
       <div #leftBottomDiv class="left-bottom-table"
         [style.left.px]="isFullHorizontalWrapper ? -scrollX : null">
         @for (_col of tableTranspose; track $index; let i = $index) {
@@ -444,7 +450,7 @@
     <vs-hidden-annotation [annotations]="model.assemblyAnnotationModels"></vs-hidden-annotation>
   </div>
   <div class="annotation-container">
-    @for (annotationModel of model.assemblyAnnotationModels; track $index) {
+    @for (annotationModel of model.assemblyAnnotationModels; track annotationModel.absoluteName) {
       <vs-annotation
         [model]="annotationModel"
         [actions]="actions"
@@ -459,7 +465,7 @@
 }
 @if (enableAnnotation) {
   <div class="annotation-container">
-    @for (annotationModel of model.leftTopAnnotations; track $index) {
+    @for (annotationModel of model.leftTopAnnotations; track annotationModel.absoluteName) {
       @if (annotationModel.cellOffset) {
         <div
           class="annotation-cell-container"
@@ -480,7 +486,7 @@
 @if (enableAnnotation) {
   <div class="annotation-container"
     [style.left.px]="-scrollX">
-    @for (annotationModel of model.rightTopAnnotations; track annotationModel) {
+    @for (annotationModel of model.rightTopAnnotations; track annotationModel.absoluteName) {
       @if (annotationModel.cellOffset) {
         <div
           class="annotation-cell-container"
@@ -505,7 +511,7 @@
 @if (enableAnnotation) {
   <div class="annotation-container"
     [style.top.px]="-scrollY" [style.left.px]="isFullHorizontalWrapper ? -scrollX : 'unset'">
-    @for (annotationModel of model.leftBottomAnnotations; track annotationModel) {
+    @for (annotationModel of model.leftBottomAnnotations; track annotationModel.absoluteName) {
       @if (annotationModel.cellOffset && isCellLoaded(annotationModel)) {
         <div
           class="annotation-cell-container"
@@ -534,7 +540,7 @@
     class="annotation-container"
     [style.top.px]="-scrollY"
     [style.left.px]="-scrollX">
-    @for (annotationModel of model.rightBottomAnnotations; track annotationModel) {
+    @for (annotationModel of model.rightBottomAnnotations; track annotationModel.absoluteName) {
       @if (annotationModel.cellOffset && isCellLoaded(annotationModel)) {
         <div
           class="annotation-cell-container"

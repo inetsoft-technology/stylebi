@@ -44,6 +44,7 @@ public class EquiJoinService extends WorksheetControllerService {
       super(viewsheetService, dataSourceRegistry);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setEquiJoin(@ClusterProxyKey String runtimeId, WSEquiJoinEvent event, Principal principal,
                            CommandDispatcher commandDispatcher) throws Exception

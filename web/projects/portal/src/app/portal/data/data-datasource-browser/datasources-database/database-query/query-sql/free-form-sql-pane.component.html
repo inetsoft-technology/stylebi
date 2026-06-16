@@ -35,7 +35,8 @@
           <button class="btn btn-default" [disabled]="!model.hasColumnInfo" (click)="clearColumnInfo()">_#(Clear Column Info)</button>
         }
       </div>
-      <label class="parse-status-label">{{getStatusString()}}</label>
+      @let statusString = getStatusString();
+      <label class="parse-status-label">{{statusString}}</label>
     </div>
     <div class="row">
       <div class="col">

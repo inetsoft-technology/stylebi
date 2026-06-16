@@ -34,6 +34,7 @@ export class StyleBorderPaneComponent implements OnInit, OnChanges {
    @Output() borderChange: EventEmitter<number> = new EventEmitter<number>();
    styles: Array<{ label: string, value: number, cssClass: string }> = [];
    cssClass: string;
+   styleLabel: string = "";
 
    ngOnInit() {
       this.styles = TableStyleUtil.STYLE_BORDER_STYLES;
@@ -48,6 +49,7 @@ export class StyleBorderPaneComponent implements OnInit, OnChanges {
 
    updateParameters(): void {
       this.cssClass = this.getStyleCssClass();
+      this.styleLabel = this.getStyleLabel();
    }
 
    getStyleLabel(): string {
@@ -78,6 +80,7 @@ export class StyleBorderPaneComponent implements OnInit, OnChanges {
       this.borderStyle = style;
       this.borderChange.emit(style);
       this.cssClass = cssClass;
+      this.styleLabel = this.getStyleLabel();
    }
 }
 

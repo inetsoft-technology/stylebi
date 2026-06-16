@@ -166,6 +166,22 @@
                 </status-bar>
               </div>
             }
+
+            @if(showLayoutDesigner) {
+              <div class="layout-designer-overlay">
+                <text-layout-designer
+                  [layout]="layoutDesignerLayout"
+                  [textFields]="layoutDesignerTextFields"
+                  (onAddField)="onLayoutAddField($event)"
+                  (onRemoveField)="onLayoutRemoveField($event)"
+                  (onFieldChange)="onLayoutFieldChanged()"
+                  (onCommit)="onLayoutDesignerCommit($event)"
+                  (onCancel)="onLayoutDesignerCancel()"
+                  (onPreSaveLayout)="onLayoutDesignerPreSave($event)"
+                  (onFormatField)="onLayoutFieldFormat($event)">
+                </text-layout-designer>
+              </div>
+            }
           </div>
         </div>
       </split-pane>

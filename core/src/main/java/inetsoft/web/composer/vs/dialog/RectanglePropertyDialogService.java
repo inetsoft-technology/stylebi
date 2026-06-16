@@ -138,6 +138,7 @@ public class RectanglePropertyDialogService {
       return result;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setRectanglePropertyDialogModel(@ClusterProxyKey String runtimeId, String objectId,
                                                RectanglePropertyDialogModel value, String linkUri,

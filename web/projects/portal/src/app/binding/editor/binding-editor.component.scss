@@ -149,3 +149,21 @@
   right: 75px;
   bottom: 20px;
 }
+
+.right-container-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.layout-designer-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: var(--inet-shell-surface, #fff);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}

@@ -239,6 +239,7 @@ public class CrosstabPropertyDialogService {
       return trap;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setCrosstabPropertyModel(@ClusterProxyKey String runtimeId, String objectId,
                                         CrosstabPropertyDialogModel value, String linkUri,

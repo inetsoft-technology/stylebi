@@ -107,6 +107,7 @@ public class VSWizardConvertColumnService {
       return trapInfo.showWarning();
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void convertColumn(@ClusterProxyKey String id, ConvertColumnEvent event,
                              Principal principal, CommandDispatcher dispatcher)

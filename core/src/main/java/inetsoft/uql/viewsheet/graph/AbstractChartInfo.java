@@ -285,7 +285,29 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
       list.add(aggr.getColorField());
       list.add(aggr.getShapeField());
       list.add(aggr.getSizeField());
-      list.add(aggr.getTextField());
+      // Include the scalar text field and all layout text fields unconditionally
+      // (null-skip only). textLayoutFields are real aesthetic bindings; any null-RT
+      // filtering happens later in getRTFields, so they must not be pre-filtered here.
+      // NOTE (accepted, by design): when the Layout Designer seeds an existing scalar Text
+      // binding it clones it into textLayoutFields[0] WITHOUT clearing the scalar textField, so
+      // the same field can appear both here and in getRTFields. This is harmless — the renderer
+      // is layout-wins (a LayoutTextFrame is built from textLayoutFields and the scalar is ignored
+      // when a layout is present, see GraphGenerator) — so the duplicate is only a redundant entry
+      // in the field/query enumeration, not a double-drawn label. Left undeduped intentionally.
+      if(aggr instanceof AbstractChartInfo) {
+         AbstractChartInfo aci = (AbstractChartInfo) aggr;
+         list.add(aci.getTextField());
+         aci.getTextLayoutFields()
+            .forEach(a -> { if(a != null) list.add(a); });
+      }
+      else if(aggr instanceof ChartAggregateRef) {
+         list.add(aggr.getTextField());
+         ((ChartAggregateRef) aggr).getTextLayoutFields()
+            .forEach(a -> { if(a != null) list.add(a); });
+      }
+      else {
+         list.add(aggr.getTextField());
+      }
 
       if(aggr instanceof RelationChartInfo) {
          AestheticRef nodeColorField = ((RelationChartInfo) aggr).getNodeColorField();
@@ -760,11 +782,46 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
    }
 
    /**
-    * Set the text field.
+    * Set the scalar text field.
     */
    @Override
    public void setTextField(AestheticRef field) {
       this.textField = field;
+   }
+
+   /**
+    * Get all layout text fields as an unmodifiable list.
+    */
+   public List<AestheticRef> getTextLayoutFields() {
+      return Collections.unmodifiableList(textLayoutFields);
+   }
+
+   /**
+    * Set all layout text fields, replacing the current list.
+    */
+   public void setTextLayoutFields(List<AestheticRef> fields) {
+      this.textLayoutFields = new ArrayList<>(fields);
+   }
+
+   /**
+    * Add a layout text field to the list.
+    */
+   public void addTextLayoutField(AestheticRef field) {
+      textLayoutFields.add(field);
+   }
+
+   /**
+    * Remove the layout text field at the specified index.
+    */
+   public void removeTextLayoutField(int idx) {
+      textLayoutFields.remove(idx);
+   }
+
+   /**
+    * Get the number of layout text fields.
+    */
+   public int getTextLayoutFieldCount() {
+      return textLayoutFields.size();
    }
 
    /**
@@ -1424,10 +1481,19 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
          list.add(ref);
       }
 
-      ref = (textField != null) ? textField.getDataRef() : null;
+      if(textField != null) {
+         DataRef tDataRef = textField.getDataRef();
+         if(tDataRef != null) {
+            list.add(tDataRef);
+         }
+      }
 
-      if(ref != null) {
-         list.add(ref);
+      // textLayoutFields are real aesthetic bindings; mirror the scalar textField above
+      // so design-time consumers (e.g. the format panel / available-fields) see them too.
+      for(AestheticRef aref : getTextLayoutFields()) {
+         if(aref != null && aref.getDataRef() != null) {
+            list.add(aref.getDataRef());
+         }
       }
 
       for(AestheticRef aref : getAggregateAestheticRefs(false)) {
@@ -2226,8 +2292,13 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
             obj.sizeField = (AestheticRef) sizeField.clone();
          }
 
-         if(textField != null) {
-            obj.textField = (AestheticRef) textField.clone();
+         obj.textField = textField != null ? (AestheticRef) textField.clone() : null;
+
+         obj.textLayoutFields = new ArrayList<>();
+         for(AestheticRef ref : this.textLayoutFields) {
+            if(ref != null) {
+               obj.textLayoutFields.add((AestheticRef) ref.clone());
+            }
          }
 
          if(sFrame != null) {
@@ -2337,6 +2408,16 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
 
       if(!equalsContent(textField, textField2)) {
          return false;
+      }
+
+      if(textLayoutFields.size() != chartInfo.textLayoutFields.size()) {
+         return false;
+      }
+
+      for(int i = 0; i < textLayoutFields.size(); i++) {
+         if(!equalsContent(textLayoutFields.get(i), chartInfo.textLayoutFields.get(i))) {
+            return false;
+         }
       }
 
       SizeFrameWrapper sFrame2 = chartInfo.sFrame;
@@ -2524,10 +2605,24 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
          writer.println("</size>");
       }
 
-      if(getTextField() != null) {
+      // Scalar textField
+      AestheticRef scalarTF = getTextField();
+      if(scalarTF != null) {
          writer.println("<text>");
-         getTextField().writeXML(writer);
+         scalarTF.writeXML(writer);
          writer.println("</text>");
+      }
+      // textLayoutFields
+      if(!textLayoutFields.isEmpty()) {
+         writer.println("<textLayoutFields>");
+         for(AestheticRef ref : textLayoutFields) {
+            if(ref != null) {
+               writer.println("<textLayoutField>");
+               ref.writeXML(writer);
+               writer.println("</textLayoutField>");
+            }
+         }
+         writer.println("</textLayoutFields>");
       }
 
       if(sFrame != null) {
@@ -2801,11 +2896,28 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
          sizeField.parseXML(Tool.getFirstChildNode(sizeNode));
       }
 
+      // Scalar textField
       Element textNode = Tool.getChildNodeByTagName(elem, "text");
-
       if(textNode != null) {
          textField = createAestheticRef();
          textField.parseXML(Tool.getFirstChildNode(textNode));
+      }
+      // textLayoutFields (new)
+      Element textLayoutFieldsElem = Tool.getChildNodeByTagName(elem, "textLayoutFields");
+      if(textLayoutFieldsElem != null) {
+         NodeList tlNodes = textLayoutFieldsElem.getChildNodes();
+         for(int i = 0; i < tlNodes.getLength(); i++) {
+            if(tlNodes.item(i) instanceof Element
+                  && "textLayoutField".equals(((Element) tlNodes.item(i)).getNodeName()))
+            {
+               Element inner = Tool.getFirstChildNode((Element) tlNodes.item(i));
+               if(inner != null) {
+                  AestheticRef ref = createAestheticRef();
+                  ref.parseXML(inner);
+                  textLayoutFields.add(ref);
+               }
+            }
+         }
       }
 
       node = Tool.getChildNodeByTagName(elem, "sizeVisualFrame");
@@ -3037,6 +3149,16 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
          }
 
          for(AestheticRef aref : getAggregateAestheticRefs(false)) {
+            if(aref.getDataRef() instanceof ChartRef &&
+               isSameField((ChartRef) aref.getDataRef(), name, ignoreDataGroup))
+            {
+               return (ChartRef) aref.getDataRef();
+            }
+         }
+
+         // Also search the textLayout aesthetic refs so the format panel can resolve
+         // a layout field by its bound field name.
+         for(AestheticRef aref : getTextLayoutFields()) {
             if(aref.getDataRef() instanceof ChartRef &&
                isSameField((ChartRef) aref.getDataRef(), name, ignoreDataGroup))
             {
@@ -3928,6 +4050,7 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
    private AestheticRef shapeField;
    private AestheticRef sizeField;
    private AestheticRef textField;
+   private List<AestheticRef> textLayoutFields = new ArrayList<>();
    private ColorFrameWrapper cFrame;
    private SizeFrameWrapper sFrame;
    private ShapeFrameWrapper spFrame;

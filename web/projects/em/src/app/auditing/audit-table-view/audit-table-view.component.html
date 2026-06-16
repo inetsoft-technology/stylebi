@@ -41,7 +41,7 @@
 <div class="mat-elevation-z8 margin-top audit-table-view">
   @if (!!displayedColumns) {
     <table mat-table [dataSource]="dataSource" matSort (matSortChange)="changeSort($event)">
-      @for (renderer of columnRenderers; track renderer) {
+      @for (renderer of columnRenderers; track renderer.name) {
         <ng-container [matColumnDef]="renderer.name">
           <th mat-header-cell *matHeaderCellDef mat-sort-header>{{renderer.label}}</th>
           <td mat-cell *matCellDef="let row">

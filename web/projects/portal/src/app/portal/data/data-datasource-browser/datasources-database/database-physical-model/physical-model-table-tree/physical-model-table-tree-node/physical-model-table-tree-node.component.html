@@ -28,7 +28,7 @@
         @if (hasChildren()) {
           <span
             [class.disabled]="disabled"
-            class="{{getToggleIcon()}} physical-model-table-tree-node__toggle tree-node-toggle cursor-pointer truncate-addon"
+            class="{{node.expanded ? 'chevron-down-icon' : 'chevron-right-icon'}} physical-model-table-tree-node__toggle tree-node-toggle cursor-pointer truncate-addon"
             (click)="toggleNode(); $event.stopPropagation()"
             (dblclick)="$event.stopPropagation()">
           </span>

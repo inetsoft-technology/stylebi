@@ -26,7 +26,7 @@
         (dblclick)="hasChildren() ? toggleNode() : null">
         @if (hasChildren()) {
           <span
-            class="{{getToggleIcon()}} physical-table-tree-node__toggle tree-node-toggle cursor-pointer truncate-addon"
+            class="{{node.expanded ? 'chevron-down-icon' : 'chevron-right-icon'}} physical-table-tree-node__toggle tree-node-toggle cursor-pointer truncate-addon"
             (click)="toggleNode()" (dblclick)="$event.stopPropagation()">
           </span>
         }

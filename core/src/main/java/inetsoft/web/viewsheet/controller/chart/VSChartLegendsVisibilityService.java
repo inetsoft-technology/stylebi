@@ -57,6 +57,7 @@ public class VSChartLegendsVisibilityService extends VSChartControllerService<VS
    }
 
    @Override
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void eventHandler(@ClusterProxyKey String runtimeId,
                             VSChartLegendsVisibilityEvent event,

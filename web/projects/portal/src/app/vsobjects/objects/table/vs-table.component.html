@@ -16,6 +16,10 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 @if (model) {
+  @let objectWidth = getObjectWidth();
+  @let objectHeight = getObjectHeight();
+  @let objectTop = getObjectTop();
+  @let wrapperWidth = getWrapperWidth();
   <div #tableContainer
     VSDataTip [dataTipName]="model.absoluteName"
     VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
@@ -27,11 +31,11 @@
     [style.display]="getVisible() ? null : 'none'"
     [class.fade-assembly]="!viewer && !model.visible"
      [style.top.px]="(viewer || embeddedVS) && !model.maxMode && !isBinding ?
-     getObjectTop() : null"
+     objectTop : null"
     [style.left.px]="(viewer || embeddedVS) && !model.maxMode && !isBinding ? model.objectFormat.left : null"
     [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
-    [style.width.px]="getObjectWidth()"
-    [style.height.px]="getObjectHeight()"
+    [style.width.px]="objectWidth"
+    [style.height.px]="objectHeight"
     (onMouseleave)="mouseLeave($event)"
     outOfZone (onDragover)="dropOverEmptyTable($event, null)"
     (drop)="dropEmptyTable($event)"
@@ -41,14 +45,16 @@
       <div class="drag-message">
       _#(viewer.dragColumns)</div>
     }
+    @let zIndex = getZIndex();
+    @let headerHeight = getHeaderHeight();
     <div class="z-index-wrapper"
       #zIndexWrapper
       [style.background]="model.objectFormat.background"
       [style.overflow]="model.objectFormat.roundCorner != 0 ? 'hidden' : ''"
       [style.border-radius.px]="model.objectFormat.roundCorner"
-      [style.z-index]="getZIndex()">
+      [style.z-index]="zIndex">
       <div class="border-div"
-        [style.width.px]="getObjectWidth()"
+        [style.width.px]="objectWidth"
         [style.height.px]="borderDivHeight"
         [style.border-top]="model.objectFormat.border.top"
         [style.border-left]="model.objectFormat.border.left"
@@ -100,7 +106,7 @@
             [formatPainterMode]="vsInfo?.formatPainterMode"
             [titleSelected]="model.titleSelected"
             [titleVisible]="model.titleVisible"
-            [titleWidth]="getObjectWidth()"
+            [titleWidth]="objectWidth"
             (selectTitle)="selectTitle($event)"
             (changeTitle)="changeTableTitle($event)"
             (titleResizeMove)="titleResizeMove($event)"
@@ -128,7 +134,7 @@
       </div>
       <div class="vstable-wrapper"
         [style.top.px]="tableWrapperTop"
-        [style.width]="getWrapperWidth()"
+        [style.width]="wrapperWidth"
         [style.height.px]="tableWrapperHeight"
         outOfZone
         (onWheel)="wheelScrollHandler($event)">
@@ -209,13 +215,13 @@
           [touchScrollEnabled]="selected"
           class="table-wrapper"
           [class.disable-actions-fade]="!model.enabled"
-          [style.width]="getWrapperWidth()"
+          [style.width]="wrapperWidth"
           [style.height.px]="tableDataWrapperHeight"
           selectionBox
           [selectionBoxBannedSelector]="'input, .highlightable'"
           (onSelectionBox)="selectCells($event)"
           (mousedown)="onDown($event)"
-          [style.top.px]="getHeaderHeight()">
+          [style.top.px]="headerHeight">
           <table #dataTable class="vstable-data"
             [style.left.px]="-scrollX"
             [class.table-focus-row]="rowHoverable()"
@@ -286,7 +292,7 @@
       </div>
       <div [style.width.px]="scrollbarWidth" class="horizontal-scrollbar-wrapper-container">
         <div class="horizontal-scroll-wrapper horizontal-scrollbar-offset"
-          [style.width.px]="getObjectWidth()"
+          [style.width.px]="objectWidth"
           [style.height.px]="scrollbarWidth + 1"
           ngbTooltip="0"
           placement="bottom"
@@ -308,7 +314,7 @@
         <vs-hidden-annotation [annotations]="model.assemblyAnnotationModels"></vs-hidden-annotation>
       </div>
       <div class="annotation-container">
-        @for (annotationModel of model.assemblyAnnotationModels; track annotationModel) {
+        @for (annotationModel of model.assemblyAnnotationModels; track annotationModel.absoluteName) {
           <vs-annotation
             [model]="annotationModel"
             [actions]="actions"
@@ -325,7 +331,7 @@
       <div
         class="annotation-container"
         [style.left.px]="-scrollX">
-        @for (annotationModel of model.leftTopAnnotations; track annotationModel) {
+        @for (annotationModel of model.leftTopAnnotations; track annotationModel.absoluteName) {
           @if (annotationModel.cellOffset) {
             <div
               class="annotation-cell-container"
@@ -352,7 +358,7 @@
         class="annotation-container"
         [style.top.px]="-scrollY"
         [style.left.px]="-scrollX">
-        @for (annotationModel of model.leftBottomAnnotations; track annotationModel) {
+        @for (annotationModel of model.leftBottomAnnotations; track annotationModel.absoluteName) {
           @if (annotationModel.cellOffset && isCellLoaded(annotationModel)) {
             <div
               class="annotation-cell-container"

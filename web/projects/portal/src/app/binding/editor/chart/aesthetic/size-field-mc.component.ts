@@ -45,6 +45,7 @@ import { DropHighlightDirective } from "../../../widget/drophighlight.directive"
 })
 export class SizeFieldMc extends AestheticFieldMc implements OnChanges {
    chartRefs: ChartRef[];
+   isTreemapLayout: boolean = false;
 
    constructor(editorService: ChartEditorService, dservice: DndService,
                protected uiContextService: UIContextService)
@@ -56,6 +57,7 @@ export class SizeFieldMc extends AestheticFieldMc implements OnChanges {
    ngOnChanges(changes: SimpleChanges) {
       super.ngOnChanges(changes);
       this.chartRefs = GraphUtil.getModelRefs(this.editorService.bindingModel);
+      this.isTreemapLayout = this.isTreemap();
    }
 
    protected getField(): AestheticInfo {

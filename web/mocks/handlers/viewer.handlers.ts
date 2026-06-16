@@ -92,4 +92,80 @@ export const viewerHandlers = [
       return HttpResponse.json("rt-new-wizard");
    }),
 
+   // VsWizardPane.fileChanged() — POST to upload an image into a wizard object.
+   // Default returns a minimal VSImageModel so tests that don't care about the
+   // response content don't hit "Unhandled request" warnings.
+   http.post("*/api/composer/vswizard/update-image/**", () => {
+      return HttpResponse.json({
+         absoluteName: "PlaceholderImage",
+         objectType: "VSImage",
+         noImageFlag: false,
+         objectFormat: { top: 10, left: 10, width: 200, height: 150 },
+      });
+   }),
+
+   // AppInfoService constructor — load current org info on startup
+   http.get("*/api/org/info", () => {
+      return HttpResponse.json({ key: "host-org", value: "Default" });
+   }),
+
+   // AppInfoService.isEnterprise() — default: community edition
+   http.get("*/api/enterprise", () => {
+      return HttpResponse.json(false);
+   }),
+
+   // ShareEmailDialogComponent.ngOnInit() — load share-email model
+   http.get("*/api/share/email", () => {
+      return HttpResponse.json({
+         emailModel: {
+            toAddress: "test@example.com",
+            ccAddress: "",
+            bccAddress: "",
+            fromAddress: "",
+            fromAddressEnabled: false,
+            subject: "Share Dashboard",
+            message: "",
+            userDialogEnabled: false,
+            emailAddrDialogModel: { rootTree: {} },
+         },
+         historyEnabled: false,
+         securityEnabled: false,
+      });
+   }),
+
+   // ShareEmailDialogComponent.ok() — send email
+   http.post("*/api/share/email", () => {
+      return HttpResponse.json({});
+   }),
+
+   // ShareGoogleChatDialog.ok() — post to Google Chat
+   http.post("*/api/share/google-chat", () => {
+      return HttpResponse.json({});
+   }),
+
+   // ShareSlackDialog.ok() — post to Slack
+   http.post("*/api/share/slack", () => {
+      return HttpResponse.json({});
+   }),
+   
+   // showBookmarks() — check whether the current asset belongs to the default org
+   http.get("*/api/vs/bookmark/isDefaultOrgAsset/*", () => {
+      return HttpResponse.json(false);
+   }),
+
+   // showBookmarks() — fetch the list of bookmarks for the current viewsheet
+   http.get("*/api/vs/bookmark/get-bookmarks/*", () => {
+      return HttpResponse.json([]);
+   }),
+
+   // closeViewsheet() — check whether the viewsheet has unsaved form-table data
+   http.get("*/api/vs/checkFormTables*", () => {
+      return HttpResponse.json(false);
+   }),
+
+   // ViewerViewComponent.ngOnInit() — PageTabService.getDrillTabsTop() preference lookup
+   http.get("*/api/portal/drill-tabs-top", () => {
+      return HttpResponse.json(false);
+   }),
+
 ];

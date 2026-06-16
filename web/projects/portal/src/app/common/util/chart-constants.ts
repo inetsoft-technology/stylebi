@@ -101,6 +101,10 @@ export class ChartConstants {
     */
    public static DROP_REGION_MILESTONE = 21;
    /**
+    * Drop to append a field to the multi-field text layout (textLayoutFields).
+    */
+   public static DROP_REGION_TEXT_APPEND = 22;
+   /**
     * Drill down op.
     */
    public static DRILL_DOWN_OP = "+";

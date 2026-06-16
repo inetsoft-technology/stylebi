@@ -26,7 +26,7 @@
   [style.padding-left.px]="indentLevel * INDENT_SIZE">
   @if (!node.leaf) {
     <span
-      class="{{getToggleIcon()}} logical-model-tree-node__toggle tree-node-toggle truncate-addon cursor-pointer"
+      class="{{expanded ? 'chevron-down-icon' : 'chevron-right-icon'}} logical-model-tree-node__toggle tree-node-toggle truncate-addon cursor-pointer"
     (click)="toggleNode()"></span>
   }
   <span class="logical-model-tree-node__icon tree-node-icon" [ngClass]="getIcon()"></span>

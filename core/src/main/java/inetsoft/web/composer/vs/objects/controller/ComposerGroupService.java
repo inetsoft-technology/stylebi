@@ -61,6 +61,7 @@ public class ComposerGroupService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void groupComponents(@ClusterProxyKey String runtimeId, GroupVSObjectsEvent event, String linkUri,
                                Principal principal, CommandDispatcher dispatcher) throws Exception
    {
@@ -246,6 +247,7 @@ public class ComposerGroupService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void ungroup(@ClusterProxyKey String runtimeId, String objectName, String linkUri,
                        Principal principal, CommandDispatcher dispatcher) throws Exception
    {

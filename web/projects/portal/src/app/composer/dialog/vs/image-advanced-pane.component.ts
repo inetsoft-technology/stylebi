@@ -48,6 +48,7 @@ export class ImageAdvancedPane {
    @Input() animateGif: boolean = false;
    @Input() objectAddRemoved: boolean = false;
    alphaInvalid = false;
+   readonly popLocationKeys: string[] = Object.keys(PopLocation);
 
    constructor(public popService: PopComponentService) {
    }

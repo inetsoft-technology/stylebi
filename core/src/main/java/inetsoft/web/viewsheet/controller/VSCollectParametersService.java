@@ -65,6 +65,7 @@ public class VSCollectParametersService {
       this.xRepository = xRepository;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void collectParameters(@ClusterProxyKey String vsId, CollectParametersOverEvent event,
                                  Principal principal, String linkUri,CommandDispatcher dispatcher) throws Exception

@@ -48,6 +48,8 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.TextLayout;
+import inetsoft.uql.viewsheet.graph.TextLayoutItem;
 import inetsoft.uql.viewsheet.graph.aesthetic.BrushingColor;
 import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameContext;
 import inetsoft.uql.viewsheet.internal.*;
@@ -1505,13 +1507,11 @@ public abstract class GraphGenerator {
    }
 
    private AestheticRef getTextFiled(ChartRef aggr) {
-      AestheticRef textField = info.getTextField();
-
       if(info.isMultiAesthetic() && aggr instanceof ChartBindable) {
-         textField = ((ChartBindable) aggr).getTextField();
+         return ((ChartBindable) aggr).getTextField();
       }
 
-      return textField;
+      return info.getTextField();
    }
 
    private Format getTextFormat(AestheticRef textField) {
@@ -1528,6 +1528,49 @@ public abstract class GraphGenerator {
       }
 
       return format;
+   }
+
+   // Build a per-field TextSpec from the user-defined portion of a CompositeTextFormat.
+   private static TextSpec buildFieldSpecFromFormat(CompositeTextFormat ctf) {
+      if(ctf == null) return null;
+      TextFormat userFmt = ctf.getUserDefinedFormat();
+      if(userFmt == null) return null;
+      Font font = userFmt.isFontDefined() ? userFmt.getFont() : null;
+      Color color = userFmt.isColorDefined() ? userFmt.getColor() : null;
+      if(font == null && color == null) return null;
+      TextSpec spec = new TextSpec();
+      if(font != null) spec.setFont(font);
+      if(color != null) spec.setColor(color);
+      return spec;
+   }
+
+   // STATIC item specs in layout order (null = inherit; LayoutTextFrame reads static styling
+   // from the TextLayoutItem itself).
+   private static TextSpec[] buildStaticSpecs(TextLayout layout) {
+      java.util.List<TextSpec> specs = new java.util.ArrayList<>();
+      for(TextLayoutItem item : layout.getAllItems()) {
+         if(item.getType() == TextLayoutItem.STATIC) {
+            specs.add(null);
+         }
+      }
+      return specs.toArray(new TextSpec[0]);
+   }
+
+   // Re-base the layout's FIELD indices onto the compacted cols list so the frame iterates
+   // by position. Mutates a clone's FIELD items in place.
+   private static TextLayout remapLayoutIndices(TextLayout layout, java.util.List<Integer> ordered) {
+      java.util.Map<Integer,Integer> pos = new java.util.HashMap<>();
+      for(int i = 0; i < ordered.size(); i++) pos.put(ordered.get(i), i);
+      TextLayout copy = layout.clone();
+      for(TextLayoutRow row : copy.getRows()) {
+         for(TextLayoutItem item : row.getItems()) {
+            if(item.getType() == TextLayoutItem.FIELD) {
+               Integer p = pos.get(item.getFieldIndex());
+               item.setFieldIndex(p != null ? p : -1);
+            }
+         }
+      }
+      return copy;
    }
 
    private void setNodeTextBackground(PlotDescriptor plotdesc, TextSpec textSpec,
@@ -4684,8 +4727,23 @@ public abstract class GraphGenerator {
       }
 
       // ignore text if it's the base of brushed data, only show on brushed data
-      if(GraphTypeUtil.supportsFrame(info, chartType2, getTextFrame(elem), elem,
-                                     desc.getPlotDescriptor()) &&
+      PlotDescriptor plotdescText = desc.getPlotDescriptor();
+      // A textLayout on the PlotDescriptor (or any aggregate) drives text independently of
+      // textField — supportsFrame returns false when getTextFrame() is null, so we must
+      // allow the block through when a textLayout is active.
+      boolean hasTextLayout = plotdescText != null && plotdescText.getTextLayout() != null;
+
+      if(!hasTextLayout && info.isMultiAesthetic()) {
+         for(ChartAggregateRef _aggr : info.getAestheticAggregateRefs(true)) {
+            if(_aggr.getTextLayout() != null) {
+               hasTextLayout = true;
+               break;
+            }
+         }
+      }
+
+      if((GraphTypeUtil.supportsFrame(info, chartType2, getTextFrame(elem), elem,
+                                     desc.getPlotDescriptor()) || hasTextLayout) &&
          // don't show middle text in donut pie when brushed
          (adata == null || !GraphTypes.isPie(info.getChartType()) ||
           elem.getVarCount() > 0 && ymeasures.indexOf(elem.getVar(0)) < 1) &&
@@ -4701,7 +4759,77 @@ public abstract class GraphGenerator {
                elem instanceof PolygonElement && !GraphUtil.containsMapPoint(info)) &&
             !"true".equals(elem.getHint("_show_point_")))
          {
-            elem.setTextFrame(getTextFrame(elem, all));
+            // Resolve the active layout (per-aggregate first, else chart-level).
+            ChartAggregateRef textAggr = null;
+
+            if(info.isMultiAesthetic() && names != null && names.length > 0) {
+               java.util.Set<String> nameSet =
+                  new java.util.HashSet<>(java.util.Arrays.asList(names));
+               for(ChartAggregateRef aggr : info.getAestheticAggregateRefs(true)) {
+                  if(nameSet.contains(aggr.getFullName())) {
+                     textAggr = aggr;
+                     break;
+                  }
+               }
+            }
+
+            PlotDescriptor plotdesc2 = desc.getPlotDescriptor();
+            TextLayout textLayout = (textAggr != null && textAggr.getTextLayout() != null)
+               ? textAggr.getTextLayout().clone()
+               : (plotdesc2 != null && plotdesc2.getTextLayout() != null
+                  ? plotdesc2.getTextLayout().clone() : null);
+
+            // The real, resolved refs backing the layout (per-aggregate or chart-level).
+            java.util.List<AestheticRef> layoutRefs =
+               (textAggr != null && !textAggr.getTextLayoutFields().isEmpty())
+                  ? textAggr.getTextLayoutFields()
+                  : ((AbstractChartInfo) info).getTextLayoutFields();
+
+            if(textLayout != null && !layoutRefs.isEmpty()) {
+               java.util.List<Integer> orderedIdx = textLayout.getFieldIndices();
+               java.util.List<Integer> keptIdx = new java.util.ArrayList<>();
+               java.util.List<String> cols = new java.util.ArrayList<>();
+               java.util.List<Format> formats = new java.util.ArrayList<>();
+               java.util.List<TextSpec> fieldSpecs = new java.util.ArrayList<>();
+
+               for(int idx : orderedIdx) {
+                  if(idx < 0 || idx >= layoutRefs.size()) {
+                     continue;
+                  }
+
+                  AestheticRef ref = layoutRefs.get(idx);
+                  DataRef rt = ref.getRTDataRef() != null ? ref.getRTDataRef() : ref.getDataRef();
+                  String col = (rt instanceof VSDataRef)
+                     ? ((VSDataRef) rt).getFullName() : (rt != null ? rt.getName() : null);
+
+                  if(col == null) {
+                     continue;
+                  }
+
+                  cols.add(col);
+                  keptIdx.add(idx);
+                  CompositeTextFormat ctf = (ref.getDataRef() instanceof ChartRef)
+                     ? ((ChartRef) ref.getDataRef()).getTextFormat() : null;
+                  Format userFmt = ctf != null ? GraphUtil.getFormat(ctf) : null;
+                  formats.add(userFmt != null ? userFmt : getDefaultFormat(col));
+                  fieldSpecs.add(buildFieldSpecFromFormat(ctf));
+               }
+
+               if(!cols.isEmpty()) {
+                  LayoutTextFrame ltf = new LayoutTextFrame(cols.toArray(new String[0]));
+                  ltf.setLayout(remapLayoutIndices(textLayout, keptIdx));
+                  ltf.setFieldFormats(formats.toArray(new Format[0]));
+                  ltf.setFieldTextSpecs(fieldSpecs.toArray(new TextSpec[0]));
+                  ltf.setStaticItemSpecs(buildStaticSpecs(textLayout));
+                  elem.setTextFrame(ltf);
+               }
+               else {
+                  elem.setTextFrame(getTextFrame(elem, all));
+               }
+            }
+            else {
+               elem.setTextFrame(getTextFrame(elem, all));
+            }
          }
       }
 

@@ -15,6 +15,7 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
+@let hintText = getHint();
 <div dropHighlight (drop)="drop($event)" [disabled]="!_isEnabled"
   outOfZone (onDragover)="dragOver($event)">
   <div class="field-pane field-pane--surface" [class.disabled-grayout]="!_isEnabled" >
@@ -59,7 +60,7 @@
           [isEnabled]="_isEnabled" [isEditEnabled]="_isEditEnabled"
           [fieldType]="getFieldType()" [isMixed]="_isMixed"
           [dragComplete]="dragFieldMCComplete" [currentAggr]="aggr"
-          [grayedOutValues]="grayedOutValues" [hint]="getHint()"
+          [grayedOutValues]="grayedOutValues" [hint]="hintText"
           [targetField]="targetField"
           (onChangeAesthetic)="doSubmit(false)"
           (onConvert)="convert($event)" data-test="size-field-aesthetic">
@@ -77,7 +78,7 @@
             @case ('StaticSize') {
               <div>
                 <static-size-pane [frameModel]="frames[0]" [aggr]="aggr"
-                  [autoOnly]="isTreemap()"
+                  [autoOnly]="isTreemapLayout"
                   (sizeChanged)="submitIfChanged()"
                   (apply)="openChanged(false)">
                 </static-size-pane>

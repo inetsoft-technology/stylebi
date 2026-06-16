@@ -171,6 +171,10 @@ public class GraphUtil {
          return caption;
       }
 
+      if(name == null) {
+         return "";
+      }
+
       int open = name.indexOf('(');
 
       if(open > 0 && name.indexOf(':') > 0 && name.endsWith(")")) {

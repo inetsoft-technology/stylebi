@@ -51,6 +51,7 @@ public class VSChartSortAxisService extends VSChartControllerService<VSChartSort
    }
 
    @Override
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void eventHandler(@ClusterProxyKey String runtimeId,
                             VSChartSortAxisEvent event,

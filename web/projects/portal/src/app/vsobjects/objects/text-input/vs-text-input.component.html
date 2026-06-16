@@ -17,6 +17,7 @@
 -->
 <app-error-message></app-error-message>
 @if (model) {
+  @let borderStyle = getBorderStyle();
   <vs-input-label-wrapper [labelModel]="model.labelModel"
     [labelSelected]="model.labelSelected"
     [disabled]="!model.enabled"
@@ -60,7 +61,7 @@
           [safeFont]="model.objectFormat.font"
           [style.text-align]="model.objectFormat.hAlign"
           [style.text-decoration]="model.objectFormat.decoration"
-          [style.border-style]="getBorderStyle()"
+          [style.border-style]="borderStyle"
           [class.disable-input]="isInputDisabled()">
         </textarea>
       }
@@ -88,7 +89,7 @@
           [style.white-space]="model.objectFormat.wrapping.whiteSpace"
           [style.wordWrap]="model.objectFormat.wrapping.wordWrap"
           [style.overflow]="model.objectFormat.wrapping.overflow"
-          [style.border-style]="getBorderStyle()"
+          [style.border-style]="borderStyle"
           [class.disable-input]="isInputDisabled()">
       }
       @if (model.option == 'Date') {
@@ -113,7 +114,7 @@
             [style.white-space]="model.objectFormat.wrapping.whiteSpace"
             [style.wordWrap]="model.objectFormat.wrapping.wordWrap"
             [style.overflow]="model.objectFormat.wrapping.overflow"
-            [style.border-style]="getBorderStyle()"
+            [style.border-style]="borderStyle"
             [class.disable-input]="isInputDisabled()">
           <i #calendarButton class="calendar-icon date-editor-toggle" tabindex="-1" enterClick
             role="button" aria-haspopup="true" [attr.aria-label]="model.absoluteName + ' _#(Date Input)'"

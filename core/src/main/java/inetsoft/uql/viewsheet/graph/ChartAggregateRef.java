@@ -23,6 +23,7 @@ import inetsoft.report.filter.HighlightGroup;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.XAggregateRef;
 import inetsoft.uql.viewsheet.graph.aesthetic.*;
+import java.util.List;
 
 /**
  * ChartRef, as a DataRef, it also stores the layout and format information
@@ -235,6 +236,36 @@ public interface ChartAggregateRef extends ChartRef, XAggregateRef, ChartBindabl
    public LineFrameWrapper getLineFrameWrapper();
    @Override
    public TextureFrameWrapper getTextureFrameWrapper();
+
+   /**
+    * Get all layout text fields for this aggregate (Layout Designer text binding).
+    */
+   List<AestheticRef> getTextLayoutFields();
+
+   /**
+    * Replace the complete list of layout text fields.
+    */
+   void setTextLayoutFields(List<AestheticRef> fields);
+
+   /**
+    * Append a layout text field to the list.
+    */
+   void addTextLayoutField(AestheticRef field);
+
+   /**
+    * Get the number of layout text fields for this aggregate.
+    */
+   int getTextLayoutFieldCount();
+
+   /**
+    * Get the text layout for this aggregate (per-aggregate Layout Designer config).
+    */
+   TextLayout getTextLayout();
+
+   /**
+    * Set the text layout for this aggregate.
+    */
+   void setTextLayout(TextLayout layout);
 
    void initDefaultFormat();
 

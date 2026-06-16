@@ -476,6 +476,7 @@ public class FormatPainterService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void setFormat(@ClusterProxyKey String runtimeId, FormatVSObjectEvent event,
                          Principal principal,
                          CommandDispatcher commandDispatcher, String linkUri)
@@ -1629,14 +1630,37 @@ public class FormatPainterService {
             region.equals(ChartFormatConstants.TEXT_FIELD))
          {
             PlotDescriptor descriptor = chartDescriptor.getPlotDescriptor();
-            ChartBindable bindable = regionHandler.getChartBindable(chartInfo, columnName);
-            bindable = chartInfo.isMultiAesthetic() ? bindable : chartInfo;
-            boolean textField = bindable.getRTTextField() != null && !ignoreTextField;
-            format = GraphFormatUtil.getBindingTextFormat(bindable, ref, descriptor, textField);
 
-            if(format == null) {
-               format = new CompositeTextFormat();
-               GraphFormatUtil.setBindingTextFormat(bindable, ref, descriptor, format, textField);
+            if(isStaticKey(columnName)) {
+               // STATIC item: read style from the matching TextLayoutItem's inline fields.
+               List<TextLayoutItem> staticItems =
+                  collectStaticItems(chartInfo, descriptor, staticTextOf(columnName));
+               format = staticItems.isEmpty() ? new CompositeTextFormat()
+                                              : buildFormatFromStaticItem(staticItems.get(0));
+            }
+            else {
+               // Multi-field text layout: read the field's format from its layout-field ref
+               // (symmetric with writeToTextLayoutStubs and with the render path), so the panel
+               // reflects what was saved. Falls through to the legacy path when no layout field
+               // matches (e.g. single scalar text field / show-values).
+               CompositeTextFormat layoutFmt = readFromTextLayoutStubs(chartInfo, columnName);
+
+               if(layoutFmt != null) {
+                  format = layoutFmt;
+               }
+               else {
+                  ChartBindable bindable = regionHandler.getChartBindable(chartInfo, columnName);
+                  bindable = chartInfo.isMultiAesthetic() ? bindable : chartInfo;
+                  boolean textField = (bindable.getRTTextField() != null
+                                       || !chartInfo.getTextLayoutFields().isEmpty())
+                                      && !ignoreTextField;
+                  format = GraphFormatUtil.getBindingTextFormat(bindable, ref, descriptor, textField);
+
+                  if(format == null) {
+                     format = new CompositeTextFormat();
+                     GraphFormatUtil.setBindingTextFormat(bindable, ref, descriptor, format, textField);
+                  }
+               }
             }
 
             format.getCSSFormat().setCSSType(CSSConstants.CHART_PLOTLABELS);
@@ -2093,6 +2117,14 @@ public class FormatPainterService {
             GraphUtil.textColorChanged(chartInfo, columnName, format.getColor());
          }
 
+         if(writeToTextLayoutStubs(chartInfo, columnName, format)) {
+            return;
+         }
+
+         if(writeToStaticLayoutItems(chartInfo, chart.getChartDescriptor(), columnName, format)) {
+            return;
+         }
+
          if(!chartInfo.isMultiAesthetic()) {
             return;
          }
@@ -2105,6 +2137,183 @@ public class FormatPainterService {
          boolean textField = bindable.getRTTextField() != null && !valueText;
          GraphFormatUtil.setBindingTextFormat(bindable, aggr, descriptor, format, textField);
       }
+   }
+
+   private boolean writeToTextLayoutStubs(VSChartInfo chartInfo, String columnName,
+                                          CompositeTextFormat format)
+   {
+      boolean found = false;
+
+      for(AestheticRef aref : chartInfo.getTextLayoutFields()) {
+         if(textLayoutStubKeyMatches(aref, columnName)) {
+            ((ChartRef) aref.getDataRef()).setTextFormat(format);
+            found = true;
+         }
+      }
+
+      for(ChartAggregateRef aggr : AllChartAggregateRef.getXYAggregateRefs(chartInfo, false)) {
+         for(AestheticRef aref : aggr.getTextLayoutFields()) {
+            if(textLayoutStubKeyMatches(aref, columnName)) {
+               ((ChartRef) aref.getDataRef()).setTextFormat(format);
+               found = true;
+            }
+         }
+      }
+
+      return found;
+   }
+
+   // Read the CompositeTextFormat stored on the matching text-layout field ref. Symmetric with
+   // writeToTextLayoutStubs (SET) and with what GraphGenerator reads at render time, so the Format
+   // panel reads back the same format it wrote. Returns null when no layout field matches the key.
+   private CompositeTextFormat readFromTextLayoutStubs(VSChartInfo chartInfo, String columnName) {
+      for(AestheticRef aref : chartInfo.getTextLayoutFields()) {
+         if(textLayoutStubKeyMatches(aref, columnName)) {
+            return ((ChartRef) aref.getDataRef()).getTextFormat();
+         }
+      }
+
+      for(ChartAggregateRef aggr : AllChartAggregateRef.getXYAggregateRefs(chartInfo, false)) {
+         for(AestheticRef aref : aggr.getTextLayoutFields()) {
+            if(textLayoutStubKeyMatches(aref, columnName)) {
+               return ((ChartRef) aref.getDataRef()).getTextFormat();
+            }
+         }
+      }
+
+      return null;
+   }
+
+   // ── Static text-item formatting bridge (issue 1) ─────────────────────────────────────
+   // A STATIC layout item has no DataRef, so the Format panel addresses it by the synthetic
+   // key "_static:<text>". The renderer styles static items from the TextLayoutItem's own inline
+   // fields (color/font/size/bold/italic) via LayoutTextFrame.buildStaticTextSpec, so the panel
+   // must read/write those fields rather than a CompositeTextFormat on a ref.
+   private static final String STATIC_KEY_PREFIX = "_static:";
+
+   private static boolean isStaticKey(String columnName) {
+      return columnName != null && columnName.startsWith(STATIC_KEY_PREFIX);
+   }
+
+   private static String staticTextOf(String columnName) {
+      return columnName.substring(STATIC_KEY_PREFIX.length());
+   }
+
+   // Write the user-defined font/color of a CompositeTextFormat onto a STATIC item's inline fields.
+   static void applyFormatToStaticItem(TextLayoutItem item, TextFormat user) {
+      if(item == null || user == null) {
+         return;
+      }
+
+      if(user.isColorDefined()) {
+         item.setColor(user.getColor());
+      }
+
+      if(user.isFontDefined() && user.getFont() != null) {
+         Font f = user.getFont();
+         item.setFontFamily(f.getFamily());
+         item.setFontSize(f.getSize());
+         item.setBold((f.getStyle() & Font.BOLD) != 0);
+         item.setItalic((f.getStyle() & Font.ITALIC) != 0);
+      }
+   }
+
+   // Build a CompositeTextFormat reflecting a STATIC item's inline styling, so the Format panel
+   // displays the item's current style.
+   static CompositeTextFormat buildFormatFromStaticItem(TextLayoutItem item) {
+      CompositeTextFormat fmt = new CompositeTextFormat();
+
+      if(item == null) {
+         return fmt;
+      }
+
+      TextFormat user = fmt.getUserDefinedFormat();
+
+      if(item.getColor() != null) {
+         user.setColor(item.getColor(), true);
+      }
+
+      boolean hasFont = item.getFontFamily() != null || item.getFontSize() > 0
+         || item.isBold() || item.isItalic();
+
+      if(hasFont) {
+         Font base = fmt.getDefaultFormat() != null && fmt.getDefaultFormat().getFont() != null
+            ? fmt.getDefaultFormat().getFont() : new Font("Default", Font.PLAIN, 11);
+         String fam = item.getFontFamily() != null ? item.getFontFamily() : base.getFamily();
+         int sz = item.getFontSize() > 0 ? item.getFontSize() : base.getSize();
+         int style = (item.isBold() ? Font.BOLD : 0) | (item.isItalic() ? Font.ITALIC : 0);
+         user.setFont(new Font(fam, style, sz), true);
+      }
+
+      return fmt;
+   }
+
+   // Collect STATIC items matching the key text across the chart-level layout and every
+   // per-aggregate layout (the panel's "all aggregate" semantics in multi-style).
+   private static List<TextLayoutItem> collectStaticItems(VSChartInfo chartInfo,
+                                                          PlotDescriptor plot, String staticText)
+   {
+      List<TextLayoutItem> matches = new ArrayList<>();
+      addStaticMatches(plot != null ? plot.getTextLayout() : null, staticText, matches);
+
+      for(ChartAggregateRef aggr : AllChartAggregateRef.getXYAggregateRefs(chartInfo, false)) {
+         addStaticMatches(aggr.getTextLayout(), staticText, matches);
+      }
+
+      return matches;
+   }
+
+   private static void addStaticMatches(TextLayout layout, String staticText,
+                                        List<TextLayoutItem> out)
+   {
+      if(layout == null) {
+         return;
+      }
+
+      for(TextLayoutItem item : layout.getAllItems()) {
+         if(item.getType() == TextLayoutItem.STATIC) {
+            String t = item.getText() != null ? item.getText() : "";
+
+            if(Tool.equals(t, staticText)) {
+               out.add(item);
+            }
+         }
+      }
+   }
+
+   // SET: apply the format to every matching STATIC item's inline fields. Returns true for any
+   // _static: key so the caller never falls through to the element/plot text format.
+   private boolean writeToStaticLayoutItems(VSChartInfo chartInfo, ChartDescriptor desc,
+                                            String columnName, CompositeTextFormat format)
+   {
+      if(!isStaticKey(columnName)) {
+         return false;
+      }
+
+      TextFormat user = format != null ? format.getUserDefinedFormat() : null;
+
+      for(TextLayoutItem item :
+          collectStaticItems(chartInfo, desc.getPlotDescriptor(), staticTextOf(columnName)))
+      {
+         applyFormatToStaticItem(item, user);
+      }
+
+      return true;
+   }
+
+   private static boolean textLayoutStubKeyMatches(AestheticRef aref, String key) {
+      if(aref == null || !(aref.getDataRef() instanceof ChartRef)) {
+         return false;
+      }
+
+      ChartRef ref = (ChartRef) aref.getDataRef();
+      String name = ref.getFullName();
+
+      if(name == null) {
+         name = ref.getName();
+      }
+
+      return Tool.equals(name, key);
    }
 
    private void changeChartRegionFormat(VSObjectFormatInfoModel model,

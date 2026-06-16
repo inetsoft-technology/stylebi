@@ -34,7 +34,7 @@
           <span>_#(em.presentation.dataSource.emptyVisibleList)</span>
         }
         <section class="flex-row">
-          @for (dataSource of model.visibleDataSources; track dataSource; let i = $index) {
+          @for (dataSource of model.visibleDataSources; track dataSource.key; let i = $index) {
             <mat-card class="tab-block portal-card">
               <mat-card-subtitle class="visible-subtitle">
                 <h4 class="tab-name mat-subtitle-2">{{dataSource.value}}</h4>
@@ -67,7 +67,7 @@
           <span>_#(em.presentation.dataSource.emptyHiddenList)</span>
         }
         <section class="flex-row">
-          @for (dataSource of model.hiddenDataSources; track dataSource; let i = $index) {
+          @for (dataSource of model.hiddenDataSources; track dataSource.key; let i = $index) {
             <mat-card class="tab-block portal-card">
               <mat-card-subtitle class="visible-subtitle">
                 <h4 class="tab-name mat-subtitle-2">{{dataSource.value}}</h4>

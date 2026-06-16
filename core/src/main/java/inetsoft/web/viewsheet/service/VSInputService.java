@@ -103,6 +103,7 @@ public class VSInputService {
     *
     * @throws Exception if the selection could not be applied.
     */
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void singleApplySelection(@ClusterProxyKey String vsId, String assemblyName, Object selectedObject,
                                     Principal principal, CommandDispatcher dispatcher,
@@ -124,6 +125,7 @@ public class VSInputService {
       rvs.getViewsheetSandbox().ifPresent(ViewsheetSandbox::detachScriptEvent);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void multiApplySelection(@ClusterProxyKey String vsId, String[] assemblyNames, Object[] selectedObjects, Principal principal,
                                    CommandDispatcher dispatcher, @LinkUri String linkUri)
@@ -145,6 +147,7 @@ public class VSInputService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void applySelection(@ClusterProxyKey String vsId, VSListInputSelectionEvent event,
                               Principal principal, CommandDispatcher dispatcher,
@@ -190,6 +193,7 @@ public class VSInputService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public String setDetailHeight(@ClusterProxyKey String runtimeId, String objectId,
                                  double height, Principal principal) throws Exception
@@ -214,6 +218,7 @@ public class VSInputService {
    }
 
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void onConfirm(@ClusterProxyKey String vsId, String name, String x, String y, boolean isConfirm,
                          VSOnClickEvent confirmEvent, String linkUri, Principal principal, CommandDispatcher dispatcher) throws Exception
@@ -274,6 +279,7 @@ public class VSInputService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void onClick(@ClusterProxyKey String vsId, String name, String x, String y, VSSubmitEvent submitEvent,
                        String linkUri, Principal principal, CommandDispatcher dispatcher) throws Exception
@@ -437,6 +443,7 @@ public class VSInputService {
       return result;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setCheckboxPropertyModel(@ClusterProxyKey String vsId, String objectId,
                                         CheckboxPropertyDialogModel value,String linkUri,
@@ -586,6 +593,7 @@ public class VSInputService {
       return vsSortingDialogModel;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setVSSortingDialogModel(@ClusterProxyKey String vsId, String objectId,
                                        VSSortingDialogModel model,Principal principal,
@@ -741,6 +749,7 @@ public class VSInputService {
       return result;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setTextInputPropertyDialogModel(@ClusterProxyKey String vsId, String objectId,
                                                TextInputPropertyDialogModel value, String linkUri,
@@ -948,6 +957,7 @@ public class VSInputService {
       return result;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setSliderPropertyDialogModel(@ClusterProxyKey String vsId, String objectId,
                                             SliderPropertyDialogModel value,String linkUri, Principal principal,
@@ -1181,6 +1191,7 @@ public class VSInputService {
       return result;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setRadioButtonPropertyModel(@ClusterProxyKey String vsId, String objectId,
                                            RadioButtonPropertyDialogModel value, String linkUri,
@@ -1534,6 +1545,7 @@ public class VSInputService {
       return model;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setColumnOptionDialogModel(@ClusterProxyKey String vsId, String objectId, int col,
                                           ColumnOptionDialogModel model, Principal principal,
@@ -1860,6 +1872,7 @@ public class VSInputService {
       assemblyInfo.setListBindingInfo(listBindingInfo);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setComboboxPropertyDialogModel(@ClusterProxyKey String vsId, String objectId,
                                               ComboboxPropertyDialogModel value, String linkUri,
@@ -2146,6 +2159,7 @@ public class VSInputService {
       return result;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setSpinnerPropertyDialogModel(@ClusterProxyKey String vsId, String objectId,
                                              SpinnerPropertyDialogModel value, String linkUri,

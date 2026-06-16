@@ -43,6 +43,7 @@ public class WSMirrorService extends WorksheetControllerService {
       super(viewsheetService, dataSourceRegistry);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void addMirrorAssembly(@ClusterProxyKey String runtimeId, WSAssemblyEvent event,
                                  Principal principal, CommandDispatcher commandDispatcher) throws Exception

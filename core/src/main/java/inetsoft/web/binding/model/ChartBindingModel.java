@@ -292,6 +292,28 @@ public class ChartBindingModel extends BindingModel implements ChartAestheticMod
       this.textField = textField;
    }
 
+   public List<AestheticInfo> getTextFields() {
+      return textFields;
+   }
+
+   public void setTextFields(List<AestheticInfo> textFields) {
+      this.textFields = textFields;
+   }
+
+   /**
+    * Get the text layout descriptor for multi-field text.
+    */
+   public TextLayoutModel getTextLayout() {
+      return textLayout;
+   }
+
+   /**
+    * Set the text layout descriptor for multi-field text.
+    */
+   public void setTextLayout(TextLayoutModel textLayout) {
+      this.textLayout = textLayout;
+   }
+
    @Override
    public void setColorFrame(ColorFrameModel frame) {
       this.colorFrame = frame;
@@ -603,6 +625,8 @@ public class ChartBindingModel extends BindingModel implements ChartAestheticMod
    private AestheticInfo shapeField;
    private AestheticInfo sizeField;
    private AestheticInfo textField;
+   private List<AestheticInfo> textFields = new ArrayList<>();
+   private TextLayoutModel textLayout;
    private ColorFrameModel colorFrame;
    private ShapeFrameModel shapeFrame;
    private LineFrameModel lineFrame;

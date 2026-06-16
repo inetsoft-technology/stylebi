@@ -76,6 +76,7 @@ public class ComposerObjectService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void addNewObject(@ClusterProxyKey String vsId, AddNewVSObjectEvent event, Principal principal,
                             CommandDispatcher dispatcher, String linkUri) throws Exception
    {
@@ -121,6 +122,7 @@ public class ComposerObjectService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void resizeObject(@ClusterProxyKey String vsId, ResizeVSObjectEvent event,
                             Principal principal, CommandDispatcher dispatcher,
                             String linkUri) throws Exception
@@ -314,6 +316,7 @@ public class ComposerObjectService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void moveObjects(@ClusterProxyKey String vsId, MultiMoveVsObjectEvent multiEvent,
                            Principal principal, CommandDispatcher dispatcher,String linkUri)
       throws Exception
@@ -331,6 +334,7 @@ public class ComposerObjectService {
 
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void moveObject(@ClusterProxyKey String vsId, MoveVSObjectEvent event,
                           Principal principal, CommandDispatcher dispatcher,
                           String linkUri) throws Exception
@@ -380,6 +384,7 @@ public class ComposerObjectService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void copyObject(@ClusterProxyKey String vsId, CopyVSObjectsEvent event,
                           Principal principal, CommandDispatcher dispatcher, String linkUri) throws Exception
    {
@@ -425,6 +430,7 @@ public class ComposerObjectService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void resizeObjectTitle(@ClusterProxyKey String vsId, ResizeVSObjectTitleEvent event,
                                  Principal principal, CommandDispatcher dispatcher,
                                  String linkUri) throws Exception
@@ -444,6 +450,7 @@ public class ComposerObjectService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void removeSelectedObjects(@ClusterProxyKey String vsId, RemoveVSObjectsEvent event,
                                      String linkUri, Principal principal,
                                      CommandDispatcher dispatcher) throws Exception
@@ -515,6 +522,7 @@ public class ComposerObjectService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void removeObject(@ClusterProxyKey String vsId, String objectName, String linkUri, Principal principal,
                             CommandDispatcher dispatcher) throws Exception
    {
@@ -593,6 +601,7 @@ public class ComposerObjectService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void changeZIndex(@ClusterProxyKey String vsId, ChangeVSObjectLayerEvent event, Principal principal,
                             CommandDispatcher dispatcher) throws Exception
    {
@@ -616,6 +625,7 @@ public class ComposerObjectService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void changeTitle(@ClusterProxyKey String vsId, ChangeVSObjectTextEvent event, Principal principal,
                            CommandDispatcher dispatcher) throws Exception
    {
@@ -675,6 +685,7 @@ public class ComposerObjectService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void changeLockState(@ClusterProxyKey String vsId, LockVSObjectEvent event,
                                Principal principal, CommandDispatcher dispatcher) throws Exception
    {
@@ -701,6 +712,7 @@ public class ComposerObjectService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void moveFromContainer(@ClusterProxyKey String runtimeId, MoveVSObjectEvent event, Principal principal,
                                  CommandDispatcher dispatcher, String linkUri) throws Exception
    {

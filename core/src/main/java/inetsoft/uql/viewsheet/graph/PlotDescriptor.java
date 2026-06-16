@@ -808,6 +808,14 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       this.oneLine = oneLine;
    }
 
+   public TextLayout getTextLayout() {
+      return textLayout;
+   }
+
+   public void setTextLayout(TextLayout textLayout) {
+      this.textLayout = textLayout;
+   }
+
    /**
     * Get the color of the trend line.
     */
@@ -1593,6 +1601,12 @@ public class PlotDescriptor implements AssetObject, ContentObject {
          format.parseXML(child);
          circleFormats.put(level, format);
       }
+
+      Element textLayoutElem = Tool.getChildNodeByTagName(node, "textLayout");
+
+      if(textLayoutElem != null) {
+         this.textLayout = TextLayout.parseXML(textLayoutElem);
+      }
    }
 
    /**
@@ -1720,6 +1734,10 @@ public class PlotDescriptor implements AssetObject, ContentObject {
          format.writeXML(writer);
          writer.println("</circleFormat>");
       }
+
+      if(textLayout != null) {
+         textLayout.writeXML(writer);
+      }
    }
 
    /**
@@ -1753,6 +1771,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
          obj.trendLineExcludedMeasures = new HashSet<>(trendLineExcludedMeasures);
          obj.circleFormats = Tool.deepCloneMap(circleFormats);
          obj.errorFormat = obj.errorFormat.clone();
+         obj.textLayout = textLayout != null ? textLayout.clone() : null;
 
          return obj;
       }
@@ -1842,7 +1861,8 @@ public class PlotDescriptor implements AssetObject, ContentObject {
          circleFormats.equals(desc.circleFormats) &&
          Tool.equals(errorFormat, desc.errorFormat) &&
          includeParentLabels == desc.includeParentLabels &&
-         oneLine == desc.oneLine;
+         oneLine == desc.oneLine &&
+         java.util.Objects.equals(textLayout, desc.textLayout);
    }
 
    public void resetCompositeValues(CompositeValue.Type type) {
@@ -1940,6 +1960,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    private static final double DEFAULT_NODE_CORNER_RADIUS = 0.3;
    private double nodeCornerRadius = DEFAULT_NODE_CORNER_RADIUS;
    private boolean oneLine = false;
+   private TextLayout textLayout;
 
    private static final Logger LOG = LoggerFactory.getLogger(PlotDescriptor.class);
 }

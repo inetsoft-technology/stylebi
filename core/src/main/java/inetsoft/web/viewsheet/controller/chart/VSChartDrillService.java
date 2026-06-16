@@ -58,6 +58,7 @@ public class VSChartDrillService extends VSChartControllerService<VSChartDrillEv
 
    // from analytic.composition.event.DrillEvent.process()
    @Override
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void eventHandler(@ClusterProxyKey String runtimeId,
                             VSChartDrillEvent event,

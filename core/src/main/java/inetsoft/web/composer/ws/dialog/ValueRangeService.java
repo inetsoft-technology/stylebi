@@ -123,6 +123,7 @@ public class ValueRangeService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void editValueRange(@ClusterProxyKey String runtimeId, ValueRangeDialogModel model,
                               String tableName, Principal principal,  CommandDispatcher commandDispatcher) throws Exception
@@ -161,6 +162,7 @@ public class ValueRangeService extends WorksheetControllerService {
       return builder.build();
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void newValueRange(@ClusterProxyKey String runtimeId, ValueRangeDialogModel model,
                              String tableName, String fromColumn, Principal principal,

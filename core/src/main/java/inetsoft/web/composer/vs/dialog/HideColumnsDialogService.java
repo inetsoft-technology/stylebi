@@ -77,6 +77,7 @@ public class HideColumnsDialogService {
          .build();
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setColumnOptionDialogModel(@ClusterProxyKey String runtimeId, String objectId,
                                           HideColumnsDialogModel model, Principal principal,

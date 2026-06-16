@@ -235,6 +235,7 @@ public class HyperlinkDialogService {
       return model;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setHyperlinkDialogModel(@ClusterProxyKey String runtimeId, String objectId, HyperlinkDialogModel model,
                                        @LinkUri String linkUri, Principal principal, CommandDispatcher dispatcher) throws Exception

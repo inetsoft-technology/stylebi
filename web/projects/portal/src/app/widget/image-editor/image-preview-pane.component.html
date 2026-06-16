@@ -29,7 +29,8 @@
       <div contenteditable="false" tabindex="1" class="bordered-box image-preview-pane__preview-surface"
            [style.background-color]="blackBackground ? 'black' : 'transparent'">
         <div>
-          <img [src]="imageSrc" [style.opacity]="getAlpha()">
+          @let alpha = getAlpha();
+          <img [src]="imageSrc" [style.opacity]="alpha">
         </div>
       </div>
     </div>

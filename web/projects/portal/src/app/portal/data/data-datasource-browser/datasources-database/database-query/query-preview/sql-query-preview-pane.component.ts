@@ -52,7 +52,18 @@ export class SqlQueryPreviewPaneComponent implements OnDestroy, OnInit {
    @Output() goBackToPreviousTab = new EventEmitter<void>();
    previewPending: boolean = false;
    tableData: string[][];
-   scrollbarWidth: number;
+   previewContainerMaxWidth: string = "";
+   private _scrollbarWidth: number;
+
+   get scrollbarWidth(): number {
+      return this._scrollbarWidth;
+   }
+
+   set scrollbarWidth(value: number) {
+      this._scrollbarWidth = value;
+      this.previewContainerMaxWidth = this.getPreviewContainerMaxWidth();
+   }
+
    private previewSub: Subscription;
    constructor(private http: HttpClient,
                private modalService: NgbModal,

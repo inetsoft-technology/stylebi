@@ -23,16 +23,17 @@ package inetsoft.web.admin.content.repository;
  * ImportAssetController has real in-controller logic in one method:
  *   setJarFile — generates a UUID import ID before delegating to the proxy
  *
- * All other endpoints (updateImportInfo, getJarFileInfo, importAsset, finishImport)
- * are pure-delegation methods and are tested as such.
+ * All other endpoints (updateImportInfo, getJarFileInfo, getBookmarkConflicts, importAsset,
+ * finishImport) are pure-delegation methods and are tested as such.
  *
  * @PostConstruct (cluster cache init) is not invoked without a Spring context.
  *
  * Coverage scope:
- *   [setJarFile: UUID generation]     proxy called with a generated UUID, file, and principal
- *   [updateImportInfo: delegation]    all parameters forwarded to proxy unchanged
- *   [importAsset: delegation]         all parameters (including ignoreList, flags) forwarded
- *   [finishImport: delegation]        proxy.finishImport(importId) called
+ *   [setJarFile: UUID generation]        proxy called with a generated UUID, file, and principal
+ *   [updateImportInfo: delegation]       all parameters forwarded to proxy unchanged
+ *   [getBookmarkConflicts: delegation]   all parameters forwarded to proxy unchanged
+ *   [importAsset: delegation]            all parameters (including ignoreList, flags) forwarded
+ *   [finishImport: delegation]           proxy.finishImport(importId) called
  */
 
 import inetsoft.sree.internal.cluster.Cluster;
@@ -45,6 +46,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -107,20 +109,44 @@ class ImportAssetControllerTest {
    // importAsset()
    // -------------------------------------------------------------------------
 
-   // [delegation] all parameters forwarded to proxy unchanged; response returned
+   // [delegation] ignoreList and empty resolutionMap forwarded to proxy when no keepCurrent
+   // resolutions are present
    @Test
    void importAsset_delegatesToService() throws Exception {
       List<String> ignoreList = List.of("ignoredAsset");
+      ImportAssetRequest request = new ImportAssetRequest();
+      request.setIgnoreList(ignoreList);
+      // All resolutions default to keepImported=true → resolutionMap stays empty
+
       when(importService.importAsset(
-         "id1", "/target", 2, "alice", true, ignoreList, true, false, principal))
+         "id1", "/target", 2, "alice", true, ignoreList, true, false, principal, Map.of()))
          .thenReturn(importAssetResponse);
 
       ImportAssetResponse result = controller.importAsset(
-         "id1", "/target", 2, "alice", true, ignoreList, true, false, principal);
+         "id1", "/target", 2, "alice", true, request, true, false, principal);
 
       assertSame(importAssetResponse, result);
       verify(importService).importAsset(
-         "id1", "/target", 2, "alice", true, ignoreList, true, false, principal);
+         "id1", "/target", 2, "alice", true, ignoreList, true, false, principal, Map.of());
+   }
+
+   // -------------------------------------------------------------------------
+   // getBookmarkConflicts()
+   // -------------------------------------------------------------------------
+
+   // [delegation] all parameters forwarded to proxy unchanged
+   @Test
+   void getBookmarkConflicts_delegatesToService() throws Exception {
+      List<BookmarkConflict> expected = List.of();
+      when(importService.getBookmarkConflicts("id1", "/target", 2, "alice", true, null, principal))
+         .thenReturn(expected);
+
+      List<BookmarkConflict> result = controller.getBookmarkConflicts(
+         "id1", "/target", 2, "alice", true, null, principal);
+
+      assertSame(expected, result);
+      verify(importService).getBookmarkConflicts(
+         "id1", "/target", 2, "alice", true, null, principal);
    }
 
    // -------------------------------------------------------------------------

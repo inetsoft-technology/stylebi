@@ -224,6 +224,7 @@ public class ImagePropertyDialogService {
       return result;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setImagePropertyDialogModel(@ClusterProxyKey String runtimeId, String objectId,
                                            ImagePropertyDialogModel value, String linkUri,

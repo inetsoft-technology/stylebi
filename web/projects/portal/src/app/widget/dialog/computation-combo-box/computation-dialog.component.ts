@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input, Output, EventEmitter, OnInit } from "@angular/core";
+import { Component, Input, Output, EventEmitter, OnChanges, OnInit, SimpleChanges } from "@angular/core";
 import { ComboMode, ValueMode } from "../../dynamic-combo-box/dynamic-combo-box-model";
 import { StrategyInfo } from "../../target/target-info";
 import { Tool } from "../../../../../../shared/util/tool";
@@ -33,7 +33,7 @@ import { ModalHeaderComponent } from "../../modal-header/modal-header.component"
     DynamicComboBox
 ]
 })
-export class ComputationDialog implements OnInit {
+export class ComputationDialog implements OnInit, OnChanges {
    @Input() model: StrategyInfo;
    @Input() selectedIndex: number;
    @Input() variables: string[] = [];
@@ -42,6 +42,7 @@ export class ComputationDialog implements OnInit {
    @Output() onCommit: EventEmitter<StrategyInfo> = new EventEmitter<StrategyInfo>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
    mode: ValueMode = ValueMode.NUMBER;
+   label: string = "";
    valueType: ComboMode = ComboMode.VALUE;
    percentagesValues: { label?: string, value: string }[] = [
       { label: "_#(js:Enter a Value)", value:  "Enter a Value" },
@@ -51,6 +52,12 @@ export class ComputationDialog implements OnInit {
       { label: "_#(js:Median)", value: "Median" },
       { label: "_#(js:Sum)", value: "Sum" }
    ];
+
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["model"] && this.model) {
+         this.label = this.model.name == "Standard Deviation" ? "_#(js:Factors)" : this.model.label;
+      }
+   }
 
    ngOnInit(): void {
       this.model.standardIsSample = String(this.model.standardIsSample) == "true";

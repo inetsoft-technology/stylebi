@@ -48,6 +48,7 @@ public class ConcatenateTablesService extends WorksheetControllerService {
       super(viewsheetService, dataSourceRegistry);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void concatenateTables(
       @ClusterProxyKey String runtimeId,
@@ -61,6 +62,7 @@ public class ConcatenateTablesService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void addSubTable(
       @ClusterProxyKey String runtimeId,

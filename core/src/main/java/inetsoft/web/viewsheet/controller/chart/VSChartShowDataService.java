@@ -123,6 +123,7 @@ public class VSChartShowDataService extends VSChartControllerService<VSChartShow
       return format;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setColWidth(@ClusterProxyKey String vsId, String assemblyName, int columnIndex,
                            int width, Principal principal) throws Exception

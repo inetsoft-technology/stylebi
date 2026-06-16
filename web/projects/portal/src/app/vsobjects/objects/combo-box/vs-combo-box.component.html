@@ -90,16 +90,17 @@
           }
         }
         @if (showCalendar()) {
+          @let dateString = getDateString();
           @if (model.editable) {
             <input #comboBoxInput class="calendar-input" [placeholder]="inputPlaceholder"
-              [attr.aria-label]="model.absoluteName + ' _#(Date Input)'" [ngModel]="getDateString()"
+              [attr.aria-label]="model.absoluteName + ' _#(Date Input)'" [ngModel]="dateString"
               (keydown)="preventPropagation($event)" [style.background]="model.objectFormat.background"
               (blur)="onInputDate($event.target.value)" (keyup.enter)="onEnter($event.target.value)"
               [style.flex-grow]="10">
           }
           @if (!model.editable) {
             <input class="calendar-input" readonly [placeholder]="inputPlaceholder"
-              [attr.aria-label]="model.absoluteName + ' _#(Date Input)'" [ngModel]="getDateString()"
+              [attr.aria-label]="model.absoluteName + ' _#(Date Input)'" [ngModel]="dateString"
               [style.background]="model.objectFormat.background"
               [style.flex-grow]="10">
           }

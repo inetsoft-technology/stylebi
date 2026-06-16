@@ -175,6 +175,10 @@ public class ChartConstants {
     */
    public static final int DROP_REGION_MILESTONE = 21;
    /**
+    * Drop region for appending a field to the multi-field text layout binding.
+    */
+   public static final int DROP_REGION_TEXT_APPEND = 22;
+   /**
     * String type in script.
     */
    public static final String STRING = "string";

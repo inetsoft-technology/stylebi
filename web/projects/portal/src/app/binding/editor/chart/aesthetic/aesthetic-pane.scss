@@ -67,3 +67,28 @@
   border-radius: var(--inet-radius-md);
   background: var(--inet-shell-surface-subtle);
 }
+
+.layout-designer-btn {
+  flex: 0 0 auto;
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.25rem;
+  padding: 4px 6px;
+}
+
+.ld-icon-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.layout-active-badge {
+  position: absolute;
+  top: 1px;
+  right: -1px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--inet-primary-color);
+}
