@@ -1104,7 +1104,7 @@ public class DeployManagerService {
                   VSBookmarkInfo importedInfo = imported.getBookmarkInfo(bName);
                   conflicts.add(BookmarkConflict.builder()
                      .viewsheetPath(entry.getPath())
-                     .user(userName)
+                     .user(userID.convertToKey())
                      .userLabel(userID.getName())
                      .bookmarkName(bName)
                      .existingCreated(existingInfo.getCreateTime())
