@@ -1,0 +1,15 @@
+<div class="wiz-connect-to-claude">
+  <button (click)="requestCode()" [disabled]="loading" class="btn btn-primary btn-sm">
+    {{ loading ? 'Generating...' : 'Connect to Claude' }}
+  </button>
+
+  <div *ngIf="error" class="wiz-connect-error alert alert-danger mt-2">{{ error }}</div>
+
+  <div *ngIf="code" class="wiz-connect-code mt-2">
+    <span class="wiz-connect-label">Pairing Code:</span>
+    <code class="wiz-connect-value ms-2">{{ code }}</code>
+    <button (click)="copyCode()" class="btn btn-sm btn-outline-secondary ms-2">
+      {{ copied ? 'Copied!' : 'Copy' }}
+    </button>
+  </div>
+</div>
