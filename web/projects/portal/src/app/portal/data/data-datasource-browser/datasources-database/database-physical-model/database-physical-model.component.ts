@@ -1113,6 +1113,8 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
       this.refreshExpandedSchemaTableCount(node);
    }
 
+   // Label/tooltip format must match DatabaseTreeService.getNodeLabel() / getNodeTooltip() (Java).
+   // If the format changes, update both places.
    private refreshExpandedSchemaTableCount(node: TreeNodeModel): void {
       const data = <DatabaseTreeNodeModel> node?.data;
 

@@ -128,8 +128,7 @@ public class DatabaseTreeNode {
       return tableCount;
    }
 
-   @Nullable
-   public void setTableCount(Integer tableCount) {
+   public void setTableCount(@Nullable Integer tableCount) {
       this.tableCount = tableCount;
    }
 

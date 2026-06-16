@@ -127,8 +127,7 @@ export class DataTabComponent implements AfterViewInit, OnInit, OnDestroy {
          this.router.navigate(["/portal/tab/data/datasources"], {
             queryParams: {
                path: "/",
-               scope: DATASOURCE_ROOT_SCOPE,
-               temp: new Date().getTime()
+               scope: DATASOURCE_ROOT_SCOPE
             },
             replaceUrl: true
          });
@@ -137,8 +136,7 @@ export class DataTabComponent implements AfterViewInit, OnInit, OnDestroy {
          this.router.navigate(["/portal/tab/data/folder"], {
             queryParams: {
                path: "/",
-               scope: WORKSHEET_ROOT_SCOPE,
-               temp: new Date().getTime()
+               scope: WORKSHEET_ROOT_SCOPE
             },
             replaceUrl: true
          });

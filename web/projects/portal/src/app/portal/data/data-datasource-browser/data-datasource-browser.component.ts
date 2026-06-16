@@ -16,11 +16,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
-import {AfterViewInit, Component, ElementRef, NgZone, OnDestroy, OnInit, Renderer2, ViewChild} from "@angular/core";
+import {AfterViewInit, Component, NgZone, OnDestroy, OnInit, ViewChild} from "@angular/core";
 import { ActivatedRoute, ParamMap, ResolveStart, Router, RouterLink } from "@angular/router";
 import { NgbModal, NgbPopover, NgbTypeahead, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
-import {Observable, of, Subscription} from "rxjs";
-import {catchError, debounceTime, distinctUntilChanged, finalize, map, switchMap} from "rxjs/operators";
+import {Subscription} from "rxjs";
+import {finalize, map} from "rxjs/operators";
 import {AssetType} from "../../../../../../shared/data/asset-type";
 import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
 import {FormValidators} from "../../../../../../shared/util/form-validators";
@@ -83,7 +83,6 @@ const DATASOURCE_STATUSES_URI  = DATASOURCES_URI + "/statuses";
 })
 export class DataDatasourceBrowserComponent extends CommandProcessor implements AfterViewInit, OnInit, OnDestroy {
    @ViewChild("dataNotifications") dataNotifications: DataNotificationsComponent;
-   @ViewChild("searchInput") searchInput: ElementRef;
    @ViewChild("newQueryPopover", {read: NgbPopover}) newQueryPopover: NgbPopover;
    datasources: DataSourceInfo[] = [];
    sortOptions: SortOptions = new SortOptions(["name"], SortTypes.ASCENDING);
@@ -98,9 +97,6 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    currentSearchQuery: string = "";
    folders: DataSourceInfo[] = [];
    physicalTablePermission: boolean;
-   searchVisible: boolean = false;
-   searchQuery: string = "";
-   searchAssets: DataSourceInfo[] = [];
    searchView: boolean = false;
    selectedItems: DataSourceInfo[] = [];
    selectedFile: DataSourceInfo = null;
@@ -111,17 +107,6 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    private requests = new Subscription();
    private attemptingConnectionStatus: string = "_#(js:data.datasources.attemptingToConnectToDataSource)";
    private failedConnectionStatus: string = "_#(js:data.datasources.problemRetrievingDataSourceStatus)";
-   searchFunc: (text: Observable<string>) => Observable<any> = (text: Observable<string>) =>
-      text.pipe(
-         debounceTime(300),
-         distinctUntilChanged(),
-         switchMap((term) => this.httpClient.post(DATASOURCE_SEARCH_URI + "/names",
-            new SearchCommand(term, this.currentFolderPathString || "/", +this.currentFolderScope))),
-         catchError(() => of([])),
-         map((data: SearchDataSourceResultsModel) => {
-            return !!data && !!data.dataSourceNames ? data.dataSourceNames.slice(0, 8) : [];
-         })
-      );
    private subscriptions: Subscription = new Subscription();
    private multiObjectSelectList: MultiObjectSelectList<DataSourceInfo>;
 
@@ -130,7 +115,6 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
                public viewsheetClient: ViewsheetClientService,
                private datasourceService: DatasourceBrowserService,
                private route: ActivatedRoute,
-               private renderer: Renderer2,
                private router: Router,
                private zone: NgZone,
                private openComposerService: OpenComposerService,
@@ -174,7 +158,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
     */
    get viewAssets(): DataSourceInfo[] {
 
-      return this.searchView ? this.searchAssets : this.folders.concat(this.datasources);
+      return this.folders.concat(this.datasources);
    }
 
    get moveDisable(): boolean {
@@ -432,6 +416,11 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    }
 
    private withCurrentFolderDetails(action: (folder: DataSourceInfo) => void): void {
+      if(this.currentFolderDetails) {
+         action(this.currentFolderDetails);
+         return;
+      }
+
       const fallbackFolder = this.currentFolderInfo;
 
       if(this.currentFolderPathString) {
@@ -537,66 +526,10 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
             datasource.type.name === PortalDataType.XMLA_SOURCE);
    }
 
-   toggleSearch(event: any) {
-      if(!this.searchVisible) {
-         this.searchVisible = true;
-
-         let collapseSearchListener: any = this.renderer.listen("document", "click",
-            (targetEvent: any) => {
-            if(event !== targetEvent && targetEvent.target != this.searchInput?.nativeElement) {
-               this.searchVisible = false;
-               collapseSearchListener();
-            }
-         });
-
-         // since searchInput is hidden at time of toggle, need to set timeout so it is focused correctly
-         setTimeout(() => {
-            this.searchInput.nativeElement.focus();
-         });
-      }
-      else {
-         this.searchVisible = false;
-
-         if(!!this.searchQuery) {
-            this.search();
-         }
-      }
-   }
-
-   search(query: string = null): void {
-      if(!!query) {
-         this.searchQuery = query;
-      }
-
-      if(!this.searchQuery) {
-         return;
-      }
-
-      const queryParams: any = { query: this.searchQuery };
-
-      if(this.currentFolderScope) {
-         queryParams.scope = this.currentFolderScope;
-      }
-
-      if(this.currentFolderPathString) {
-         queryParams.path = this.currentFolderPathString;
-      }
-
-      const extras = {
-         queryParams: queryParams,
-         relativeTo: this.route.parent
-      };
-
-      this.router.navigate(["datasources"], extras);
-      this.searchQuery = null;
-   }
-
    /**
     * Clear current search.
     */
    clearSearch(): void {
-      this.searchQuery = null;
-      this.searchVisible = false;
       const extras = {
          queryParams: !this.currentFolderPathString ? { scope: this.currentFolderScope } :
             { path: this.currentFolderPathString, scope: this.currentFolderScope },
