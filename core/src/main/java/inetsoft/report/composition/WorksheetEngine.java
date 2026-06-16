@@ -583,6 +583,32 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
       return rs;
    }
 
+   /**
+    * Pairing-authorized access to a runtime worksheet. The caller
+    * (WorksheetJoinService) must have verified the agent is the same logical user as
+    * the runtime owner via a valid, single-use pairing grant. This intentionally
+    * fetches the shared runtime the same way getSheet() does, but WITHOUT the
+    * per-session SRPrincipal {@code rs.matches(user)} check, so a second login session
+    * of the same logical user can join the open runtime. It does NOT relax getSheet().
+    *
+    * @param runtimeId the runtime worksheet id.
+    * @param agentUser the agent (paired) user principal, used only for error reporting.
+    * @return the shared runtime worksheet.
+    */
+   public RuntimeWorksheet getWorksheetForPairing(String runtimeId, Principal agentUser) {
+      if(!isLocal(runtimeId)) {
+         LOG.error("Getting sheet from non-owner: {}", runtimeId, new Exception("Stack trace"));
+      }
+
+      RuntimeSheet rs = amap.get(runtimeId);
+
+      if(!(rs instanceof RuntimeWorksheet)) {
+         throw new ExpiredSheetException(runtimeId, agentUser);
+      }
+
+      return (RuntimeWorksheet) rs;
+   }
+
    @Override
    public boolean sheetExists(String id) {
       return amap.containsKey(id);
