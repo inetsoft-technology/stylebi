@@ -358,6 +358,17 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
    }
 
    /**
+    * Direct runtime access for the agent pairing path. Bypasses the per-session matches()
+    * check. The caller must have already authorized the agent via a valid PairingGrant.
+    * Returns null if the runtimeId is not in this node's cache.
+    * Overrides the WorksheetEngine method to make it accessible at the ViewsheetEngine type.
+    */
+   @Override
+   public RuntimeSheet getSheetDirect(String runtimeId) {
+      return super.getSheetDirect(runtimeId);
+   }
+
+   /**
     * Save the viewsheet.
     * @param vs the specified viewsheet.
     * @param entry the specified asset entry.
