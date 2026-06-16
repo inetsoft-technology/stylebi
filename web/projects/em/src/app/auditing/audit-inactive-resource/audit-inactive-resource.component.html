@@ -31,7 +31,7 @@
     <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Resource Types)</mat-label>
       <mat-select formControlName="selectedTypes" multiple>
-        @for (type of objectTypes; track type) {
+        @for (type of objectTypes; track type.value) {
           <mat-option [value]="type.value">{{getAssetTypeLabel(type.label)}}</mat-option>
         }
       </mat-select>

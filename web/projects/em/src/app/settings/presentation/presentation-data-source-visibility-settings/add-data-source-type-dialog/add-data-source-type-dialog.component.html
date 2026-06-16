@@ -21,7 +21,7 @@
   <mat-form-field appearance="outline" color="accent">
     <mat-label>_#(Data Source Type)</mat-label>
     <mat-select formControlName="dataSource" placeholder="_#(Data Source Type)">
-      @for (type of listings; track type) {
+      @for (type of listings; track type.key) {
         <mat-option [value]="type.key">{{type.value}}</mat-option>
       }
     </mat-select>

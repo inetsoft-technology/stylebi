@@ -46,7 +46,7 @@
                   <mat-icon fontSet="ineticons" fontIcon="shape-cross-icon"></mat-icon>
                 </button>
                 <mat-autocomplete #auto="matAutocomplete">
-                  @for (prop of editPropertyAutocomplete | async; track prop) {
+                  @for (prop of editPropertyAutocomplete | async; track prop.propertyName) {
                     <mat-option
                       [value]="prop.propertyName" (click)="setPropertyName(prop)">
                       {{prop.propertyName}}
@@ -80,7 +80,7 @@
                     <mat-icon fontSet="ineticons" fontIcon="shape-cross-icon"></mat-icon>
                   </button>
                   <mat-autocomplete #valueAuto="matAutocomplete">
-                    @for (option of valueOptions; track option) {
+                    @for (option of valueOptions; track $index) {
                       <mat-option
                         [value]="option.value" (click)="editingRow.propertyValue = option.value">
                         {{option.label}}

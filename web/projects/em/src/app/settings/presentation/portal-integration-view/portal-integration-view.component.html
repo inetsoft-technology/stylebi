@@ -52,7 +52,7 @@
             <section>
               <h4 class="mat-subtitle-2 nav-group-label">_#(Left Nav)</h4>
               <div class="flex-row">
-                @for (entry of leftNavTabs; track entry.tab) {
+                @for (entry of leftNavTabs; track entry.tab.name) {
                   <mat-card class="tab-block portal-card">
                     <mat-card-subtitle class="visible-subtitle">
                       <h4 class="tab-name mat-subtitle-2">{{entry.tab.label}}</h4>

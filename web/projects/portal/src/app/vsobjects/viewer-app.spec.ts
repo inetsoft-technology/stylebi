@@ -15,7 +15,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClient } from "@angular/common/http";
 import { AsyncPipe, NgClass, NgFor, NgIf, NgStyle } from "@angular/common";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import {
@@ -47,7 +46,6 @@ import { FullScreenService } from "../common/services/full-screen.service";
 import { PagingControlService } from "../common/services/paging-control.service";
 import { DropDownTestModule } from "../common/test/test-module";
 import { TestUtils } from "../common/test/test-utils";
-import { ComponentTool } from "../common/util/component-tool";
 import { StompClientService, ViewsheetClientService } from "../common/viewsheet-client";
 import { Viewsheet } from "../composer/data/vs/viewsheet";
 import { ComposerRecentService } from "../composer/gui/composer-recent.service";
@@ -65,11 +63,7 @@ import { DialogService } from "../widget/slide-out/dialog-service.service";
 import { TooltipDirective } from "../widget/tooltip/tooltip.directive";
 import { TooltipService } from "../widget/tooltip/tooltip.service";
 import { AssemblyActionFactory } from "./action/assembly-action-factory.service";
-import { ChartActions } from "./action/chart-actions";
-import { CrosstabActions } from "./action/crosstab-actions";
-import { TableActions } from "./action/table-actions";
-import { RemoveVSObjectCommand } from "./command/remove-vs-object-command";
-import { ContextProvider, ViewerContextProviderFactory } from "./context-provider.service";
+import { ContextProvider } from "./context-provider.service";
 import { RichTextService } from "./dialog/rich-text-dialog/rich-text.service";
 import { ViewerToolbarButtonCommand } from "./iframe/viewer-toolbar-button-command";
 import { ViewerToolbarEvent } from "./iframe/viewer-toolbar-event";
@@ -393,58 +387,10 @@ describe("ViewerApp Unit Tests", () => {
       expect(fullScreenBtn).toBeFalsy();
    }));
 
-   it("should remove the vsobject's actions when removing the vsobject", () => {
-      const httpClient = TestBed.inject(HttpClient);
-      const tooltipConfig = TestBed.inject(NgbTooltipConfig);
-      const currentUserService = { getPortalCurrentUser: vi.fn().mockReturnValue(observableOf(null)) };
-      const viewerApp = new ViewerAppComponent(
-         viewsheetClientService, null, null, null, null, null, null, null,
-         new NgbDatepickerConfig(), null, actionFactory, httpClient, null, formDataService,
-         debounceService, scaleService, contextProvider, viewDataService, fullScreenService, router,
-         renderer, null, sanitizer, titleService, hyperlinkService, viewerResizeService,
-         firstDayOfWeekService, TestBed.inject(NgbTooltipConfig), shareService, null,
-         richTextService, viewerToolbarMessageService, mobileToolbarService, mockDocument, composerRecentService,
-         pageTabService, pagingControlService, selectionMobileService,
-         assetLoadingService, viewContainerRef, baseHrefService,
-         currentUserService as any, null, heartbeatWorkerService);
-      const mockChart = TestUtils.createMockVSChartModel("Mock Chart");
-      const mockTable = TestUtils.createMockVSTableModel("Mock Table");
-      const mockCrosstab = TestUtils.createMockVSCrosstabModel("Mock Crosstab");
-      const mockChartActions = new ChartActions(mockChart, popService, ViewerContextProviderFactory(false));
-      const mockTableActions = new TableActions(mockTable, ViewerContextProviderFactory(false), false);
-      const mockCrosstabActions = new CrosstabActions(mockCrosstab, ViewerContextProviderFactory(false), false);
-
-      viewerApp.vsObjects = [
-         mockChart,
-         mockTable,
-         mockCrosstab
-      ];
-
-      viewerApp.vsObjectActions = [
-         mockChartActions,
-         mockTableActions,
-         mockCrosstabActions
-      ];
-
-      const removeCommand: RemoveVSObjectCommand = {
-         name: mockTable.absoluteName
-      };
-
-      viewerApp.processRemoveVSObjectCommand(removeCommand);
-
-      const vsObjects = viewerApp.vsObjects;
-      const actions = viewerApp.vsObjectActions;
-
-      expect(vsObjects.length).toBe(2);
-      expect(vsObjects[0]).toBe(mockChart);
-      expect(vsObjects[1]).toBe(mockCrosstab);
-      expect(vsObjects.indexOf(mockTable)).toBe(-1);
-
-      expect(actions.length).toBe(2);
-      expect(actions[0]).toBe(mockChartActions);
-      expect(actions[1]).toBe(mockCrosstabActions);
-      expect(actions.indexOf(mockTableActions)).toBe(-1);
-   });
+   // Removed: processRemoveVSObjectCommand coverage migrated to ATL pass 2.
+   //   viewer-app.component.risk.tl.spec.ts — Group 8 "processRemoveVSObjectCommand()"
+   //   covers: removes from vsObjects + vsObjectActions in sync, name not found,
+   //   selectedActions cleared when removed assembly was selected, emit onLoadingStateChanged.
 
    // Bug #16961 should refresh scale to screen vs when viewer root pane size changes
    // @by jasonshobe, this test case is failing, but it is bad (testing implementation instead of
@@ -539,71 +485,15 @@ describe("ViewerApp Unit Tests", () => {
       expect(previousBtn.classList).not.toContain("icon-disabled");
    }));
 
-   it("should call createHeartbeat when server update interval is set", () => {
-      const subscribeSpy = vi.fn().mockReturnValue({ unsubscribe: vi.fn() });
-      heartbeatWorkerService.createHeartbeat.mockReturnValue({ subscribe: subscribeSpy });
+   // Removed: setServerUpdateInterval / clearServerUpdateInterval coverage migrated to ATL pass 2.
+   //   viewer-app.component.risk.tl.spec.ts — Group 10 "setServerUpdateInterval() / clearServerUpdateInterval()"
+   //   covers: createHeartbeat called with correct key + interval, TOUCH_ASSET event on tick,
+   //   unsubscribe called on clear, touchInterval (seconds) scaling.
 
-      const currentUserService = { getPortalCurrentUser: vi.fn().mockReturnValue(observableOf(null)) };
-      const viewerApp = new ViewerAppComponent(
-         viewsheetClientService, null, null, null, null, null, null, null,
-         new NgbDatepickerConfig(), null, actionFactory, null, null, formDataService,
-         debounceService, scaleService, contextProvider, viewDataService, fullScreenService, router,
-         renderer, null, sanitizer, titleService, hyperlinkService, viewerResizeService,
-         firstDayOfWeekService, TestBed.inject(NgbTooltipConfig), shareService, null,
-         richTextService, viewerToolbarMessageService, mobileToolbarService, mockDocument, composerRecentService,
-         pageTabService, pagingControlService, selectionMobileService,
-         assetLoadingService, viewContainerRef, baseHrefService,
-         currentUserService as any, heartbeatWorkerService);
-
-      viewerApp.runtimeId = "test-runtime-id";
-      viewerApp["updateEnabled"] = true;
-      viewerApp.setServerUpdateInterval();
-
-      expect(heartbeatWorkerService.createHeartbeat)
-         .toHaveBeenCalledWith("test-runtime-id-viewsheet-update", 60000);
-      expect(subscribeSpy).toHaveBeenCalled();
-   });
-
-   it("should unsubscribe the server update heartbeat on clear", () => {
-      const unsubscribeSpy = vi.fn();
-      heartbeatWorkerService.createHeartbeat.mockReturnValue({
-         subscribe: vi.fn().mockReturnValue({ unsubscribe: unsubscribeSpy })
-      });
-
-      const currentUserService = { getPortalCurrentUser: vi.fn().mockReturnValue(observableOf(null)) };
-      const viewerApp = new ViewerAppComponent(
-         viewsheetClientService, null, null, null, null, null, null, null,
-         new NgbDatepickerConfig(), null, actionFactory, null, null, formDataService,
-         debounceService, scaleService, contextProvider, viewDataService, fullScreenService, router,
-         renderer, null, sanitizer, titleService, hyperlinkService, viewerResizeService,
-         firstDayOfWeekService, TestBed.inject(NgbTooltipConfig), shareService, null,
-         richTextService, viewerToolbarMessageService, mobileToolbarService, mockDocument, composerRecentService,
-         pageTabService, pagingControlService, selectionMobileService,
-         assetLoadingService, viewContainerRef, baseHrefService,
-         currentUserService as any, heartbeatWorkerService);
-
-      viewerApp.runtimeId = "test-runtime-id";
-      viewerApp["updateEnabled"] = true;
-      viewerApp.setServerUpdateInterval();
-      viewerApp.clearServerUpdateInterval();
-
-      expect(unsubscribeSpy).toHaveBeenCalled();
-   });
-
-   //Bug #21287
-   it("should show confirm dialog when edit form table", () => {
-      const fixture: ComponentFixture<ViewerAppComponent> =
-         TestBed.createComponent(ViewerAppComponent);
-
-      modelService.getModel.mockImplementation(() => observableOf(true));
-      let showConfirmDialog = vi.spyOn(ComponentTool, "showConfirmDialog");
-      showConfirmDialog.mockImplementation(() => Promise.resolve("ok"));
-
-      fixture.componentInstance.closeViewsheet();
-      expect(showConfirmDialog).toHaveBeenCalled();
-      expect(showConfirmDialog.mock.calls[0][1]).toBe("_#(js:Confirm)");
-      expect(showConfirmDialog.mock.calls[0][2]).toBe("_#(js:common.warnUnsavedChanges)");
-   });
+   // Removed (Bug #21287): closeViewsheet confirm-dialog coverage migrated to ATL pass 2.
+   //   viewer-app.component.risk.tl.spec.ts — Group 5 "closeViewsheet() non-inTabs path"
+   //   covers: confirm dialog when form tables exist, close on ok, no-close on cancel,
+   //   direct close when checkFormTables returns false.
 
    it("should send and receive viewer toolbar window messages", () => new Promise<void>((done) => {
       window["globalPostParams"] = null; // to resolve global var

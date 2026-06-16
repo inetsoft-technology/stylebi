@@ -162,7 +162,7 @@
                   </td>
                 }
               </tr>
-              @for (row of popupTable.pageData; track row; let i = $index) {
+              @for (row of popupTable.pageData; track $index; let i = $index) {
                 <tr>
                   <td class="popup-table-cell bd-gray">
                     {{getRowIndex(i)}}

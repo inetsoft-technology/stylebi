@@ -51,7 +51,7 @@
       <legend>_#(Display)</legend>
       <div class="row shell-form-row--field">
         <div class="col-11 d-flex justify-content-between">
-          @for (option of comparisonOption; track option; let i = $index) {
+          @for (option of comparisonOption; track option.value; let i = $index) {
             <div class="option form-check">
               <input type="radio" class="form-check-input"
                 [ngModelOptions]="{standalone: true}"

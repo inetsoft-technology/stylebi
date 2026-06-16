@@ -39,7 +39,7 @@
       </button>
     </mat-form-field>
     <mat-autocomplete #auto="matAutocomplete" (optionSelected)="onSelectOrg($event)">
-      @for (org of searchResults; track org; let i = $index) {
+      @for (org of searchResults; track org.id; let i = $index) {
         <mat-option class="dropdownItem" [value]="org.name" [class.mdc-list-item--selected]="isSelected(org.name)">
           {{ org.name }}
         </mat-option>

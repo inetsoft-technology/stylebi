@@ -21,7 +21,7 @@
       <mat-form-field class="log-file-name">
         <mat-label>_#(Log File)</mat-label>
         <mat-select [(value)]="model.selectedLog"  [compareWith]="compareLogFileModel" (selectionChange)="refreshLog.emit()">
-          @for (log of model.logFiles; track log) {
+          @for (log of model.logFiles; track $index) {
             <mat-option [value]="log">{{log.logFile}}</mat-option>
           }
         </mat-select>

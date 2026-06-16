@@ -508,7 +508,7 @@
                     </tr>
                   </thead>
                   <tbody>
-                    @for (properties of database.info.poolProperties | keyvalue; track $index) {
+                    @for (properties of database.info.poolProperties | keyvalue; track properties.key) {
                       <tr class="pool-property-row"
                           (mousedown)="selectProperty($event, properties)"
                           [class.selected]="isSelectedProperty(properties)">

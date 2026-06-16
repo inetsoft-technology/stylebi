@@ -22,7 +22,7 @@
       <div class="row">
         <div class="col-9 p-0 target-container">
           <div class="list-group chart-target-lines-pane__list">
-            @for (_chartTarget of model.chartTargets; track _chartTarget; let _idx = $index) {
+            @for (_chartTarget of model.chartTargets; track $index; let _idx = $index) {
               <a class="list-group-item chart-target-lines-pane__list-item"
                 (click)="select(_idx, $event)" [class.selected]="selectedIndexes.indexOf(_idx) >= 0">
                 {{_chartTarget.targetString}}
