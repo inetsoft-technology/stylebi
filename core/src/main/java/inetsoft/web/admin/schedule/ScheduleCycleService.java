@@ -215,7 +215,7 @@ public class ScheduleCycleService {
          if(!securityEngine.checkPermission(principal, ResourceType.SCHEDULE_CYCLE,
                getCyclePermissionID(oldName, orgId), ResourceAction.ACCESS))
          {
-            catalog.getString("em.scheduler.cycle.unauthorized", oldName);
+            throw new SecurityException(catalog.getString("em.scheduler.cycle.unauthorized", oldName));
          }
 
          String newName = model.label();
