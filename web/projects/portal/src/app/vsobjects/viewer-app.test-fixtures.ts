@@ -89,6 +89,7 @@ import { AssetLoadingService } from "../common/services/asset-loading.service";
 import { BaseHrefService } from "../common/services/base-href.service";
 import { CurrentUserService } from "../../../../shared/util/current-user.service";
 import { HeartbeatWorkerService } from "../common/services/heartbeat-worker.service";
+import { KeepAwakeService } from "../common/services/keep-awake.service";
 import { OpenComposerService } from "../common/services/open-composer.service";
 
 // ---------------------------------------------------------------------------
@@ -253,6 +254,11 @@ export const HEARTBEAT_WORKER_SERVICE_MOCK = {
    removeHeartbeat: vi.fn(),
 };
 
+export const KEEP_AWAKE_SERVICE_MOCK = {
+   keepAwake: vi.fn(),
+   release: vi.fn(),
+};
+
 export const CHECK_FORM_DATA_SERVICE_MOCK = {
    checkFormData: vi.fn().mockReturnValue(of(0)),
    removeObject: vi.fn(),
@@ -405,6 +411,7 @@ export async function renderComponent(opts: RenderOptions = {}): Promise<RenderR
          { provide: BaseHrefService, useValue: { getBaseHref: vi.fn().mockReturnValue("/") } },
          { provide: CurrentUserService, useValue: CURRENT_USER_SERVICE_MOCK },
          { provide: HeartbeatWorkerService, useValue: HEARTBEAT_WORKER_SERVICE_MOCK },
+         { provide: KeepAwakeService, useValue: KEEP_AWAKE_SERVICE_MOCK },
          { provide: OpenComposerService, useValue: { composerOpen: NEVER, openComposerWindow: vi.fn() } },
       ],
       importOverrides: [

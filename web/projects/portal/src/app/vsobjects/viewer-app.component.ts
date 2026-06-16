@@ -206,6 +206,7 @@ import { VSUtil } from "./util/vs-util";
 import { VsToolbarButtonDirective } from "./vs-toolbar-button.directive";
 import { BaseHrefService } from "../common/services/base-href.service";
 import { HeartbeatWorkerService } from "../common/services/heartbeat-worker.service";
+import { KeepAwakeService } from "../common/services/keep-awake.service";
 import { CurrentUserService } from "../../../../shared/util/current-user.service";
 import { RemoveBookmarksDialog } from "./dialog/remove-bookmarks-dialog.component";
 import { ShareLinkDialog } from "../widget/share/share-link-dialog.component";
@@ -282,6 +283,7 @@ export interface ScrollViewportRect {
     styleUrls: ["viewer-app.component.scss"],
     providers: [
         ViewsheetClientService,
+        KeepAwakeService,
         DataTipService,
         AdhocFilterService,
         PopComponentService,
@@ -577,7 +579,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                private viewContainerRef: ViewContainerRef,
                private baseHrefService: BaseHrefService,
                private currentUserService: CurrentUserService,
-               private heartbeatWorkerService: HeartbeatWorkerService)
+               private heartbeatWorkerService: HeartbeatWorkerService,
+               private keepAwakeService: KeepAwakeService)
    {
       super(viewsheetClient, zone, true);
       tooltipConfig.tooltipClass = "top-tooltip";
@@ -2257,6 +2260,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
       this.viewsheetClient.runtimeId = command.runtimeId;
       this.runtimeId = command.runtimeId;
+      this.keepAwakeService.keepAwake(command.runtimeId);
       this.runtimeIdChange.emit(command.runtimeId);
       command.permissions = command.permissions || [];
       command.permissions.push("Toolbar");
