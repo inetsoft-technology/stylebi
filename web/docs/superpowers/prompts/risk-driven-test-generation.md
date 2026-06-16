@@ -80,7 +80,7 @@ multi-pass 组件一并读取其「多 pass 组件详情」段落。
 
 报告：`"单 pass — 继续生成单文件。"`
 
-输出文件：`ComponentName.tl.spec.ts`
+输出文件：`<source-file-name>.component.tl.spec.ts`（如 `vs-binding-pane.component.tl.spec.ts`）
 
 从「Pass 计划」列读取追加项并应用：
 - `+竞态` → 添加竞态用例（MSW delay、并发触发）
@@ -95,9 +95,9 @@ multi-pass 组件一并读取其「多 pass 组件详情」段落。
 
 | Pass | 文件 | 方法列表 | 原因 |
 |------|------|----------|------|
-| 1 | ComponentName.interaction.tl.spec.ts | method1, method2 … | 导航 / 加载 / 回归主体 |
-| 2 | ComponentName.risk.tl.spec.ts | method3, method4 … | 异步竞态 / 破坏性操作 |
-| 3 | ComponentName.display.tl.spec.ts | method5, method6 … | 多态展示 / 边界输入 |
+| 1 | source-file-name.component.interaction.tl.spec.ts | method1, method2 … | 导航 / 加载 / 回归主体 |
+| 2 | source-file-name.component.risk.tl.spec.ts | method3, method4 … | 异步竞态 / 破坏性操作 |
+| 3 | source-file-name.component.display.tl.spec.ts | method5, method6 … | 多态展示 / 边界输入 |
 
 **停下来，等待用户指定执行哪个 Pass。**
 
@@ -106,7 +106,7 @@ multi-pass 组件一并读取其「多 pass 组件详情」段落。
 - **在范围内**：仅当前 Pass 列出的 methods。
 - **范围外**：其余所有 methods — 视为已覆盖，不生成测试。
 - **共享 helper**：Pass 1 完成后，对比后续 Pass 的 `renderComponent()` 配置。
-  相同 → 提取到 `ComponentName.test-helpers.ts` 并导入；不同 → 各文件保留本地 helper。
+  相同 → 提取到 `source-file-name.component.test-helpers.ts` 并导入；不同 → 各文件保留本地 helper。
 
 ---
 
@@ -308,7 +308,7 @@ HTTP: [其他方案] — 原因：[具体说明，且说明为何 MSW 不适用]
  * Suspected bugs (header only):
  *   Suspicion A — <name>: <evidence gap>.
  *
- * Out of scope this pass: [method list — covered in ComponentName.risk / .interaction / .display]
+ * Out of scope this pass: [method list — covered in source-file-name.component.risk / .interaction / .display]
  */
 ```
 
