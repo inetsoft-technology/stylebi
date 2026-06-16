@@ -239,7 +239,9 @@ public class WorksheetTableService {
 
             if(asm != null) {
                for(String skippedName : skipped.keySet()) {
-                  if(dependsOn(asm, skippedName)) {
+                  Assembly skippedAsm = worksheet.getAssembly(skippedName);
+
+                  if(dependsOn(skippedAsm, name)) {
                      skipped.put(name, skippedName);
                      it.remove();
                      changed = true;
