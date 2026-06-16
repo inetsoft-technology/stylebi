@@ -27,12 +27,20 @@ public class WorksheetPairingService {
 
    /** Non-destructive lookup. Returns null if absent or expired. */
    public PairingGrant peek(String code) {
+      if(code == null) {
+         return null;
+      }
+
       PairingGrant g = grants.get(code);
       return (g == null || g.isExpired(clock.getAsLong())) ? null : g;
    }
 
    /** Single-use: removes and returns the grant, or null if absent/expired. */
    public PairingGrant consume(String code) {
+      if(code == null) {
+         return null;
+      }
+
       PairingGrant g = grants.remove(code);
       return (g == null || g.isExpired(clock.getAsLong())) ? null : g;
    }

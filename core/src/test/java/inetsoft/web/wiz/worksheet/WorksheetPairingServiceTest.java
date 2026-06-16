@@ -37,4 +37,10 @@ class WorksheetPairingServiceTest {
       now += WorksheetPairingService.TTL_MILLIS + 1;
       assertNull(svc.consume(code), "expired code must not consume");
    }
+
+   @Test
+   void nullCodeDoesNotThrow() {
+      assertNull(svc.consume(null), "consume(null) must return null, not throw");
+      assertNull(svc.peek(null), "peek(null) must return null, not throw");
+   }
 }

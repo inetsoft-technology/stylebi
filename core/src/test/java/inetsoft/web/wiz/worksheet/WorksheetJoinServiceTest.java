@@ -90,6 +90,17 @@ class WorksheetJoinServiceTest {
    }
 
    @Test
+   void nullCodeIsRejected() {
+      assertThrows(PairingException.class, () -> join.join(null, agent("alice", "host-org")));
+   }
+
+   @Test
+   void nullAgentIsRejected() {
+      String code = pairing.mint("Worksheet/foo-7", new IdentityID("alice", "host-org").convertToKey(), "stomp-1");
+      assertThrows(PairingException.class, () -> join.join(code, null));
+   }
+
+   @Test
    void featureFlagOffRejectsJoinAndDoesNotConsumeCode() {
       when(feature.isEnabled()).thenReturn(false);
       String code = pairing.mint("Worksheet/foo-7", new IdentityID("alice", "host-org").convertToKey(), "stomp-1");

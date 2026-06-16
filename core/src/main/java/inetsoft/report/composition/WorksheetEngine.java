@@ -590,6 +590,8 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
     * fetches the shared runtime the same way getSheet() does, but WITHOUT the
     * per-session SRPrincipal {@code rs.matches(user)} check, so a second login session
     * of the same logical user can join the open runtime. It does NOT relax getSheet().
+    * Like getSheet(id, user, true), it also refreshes the runtime's access time/heartbeat
+    * so the shared runtime is not reaped out from under the paired agent mid-edit.
     *
     * @param runtimeId the runtime worksheet id.
     * @param agentUser the agent (paired) user principal, used only for error reporting.
@@ -605,6 +607,16 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
       if(!(rs instanceof RuntimeWorksheet)) {
          throw new ExpiredSheetException(runtimeId, agentUser);
       }
+
+      // refresh the access time/heartbeat so the shared runtime is not reaped while the
+      // paired agent is editing it (mirrors what getSheet(..., touch=true) ultimately does
+      // via accessSheet -> rs.access(true)).
+      rs.access(true);
+
+      // audit the pairing bypass so any future unintended caller of this path is visible in
+      // the trail. Never log the pairing code (this method does not receive it).
+      LOG.info("Worksheet pairing access granted (runtime={}, agent={})",
+               runtimeId, agentUser == null ? "?" : agentUser.getName());
 
       return (RuntimeWorksheet) rs;
    }
