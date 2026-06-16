@@ -30,7 +30,7 @@ import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { provideHttpClient } from "@angular/common/http";
 import { render } from "@testing-library/angular";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { of } from "rxjs";
+import { EMPTY, of } from "rxjs";
 
 import { AiAssistantService } from "../../../../../../../shared/ai-assistant/ai-assistant.service";
 import { AiAssistantDialogService } from "../../../../common/services/ai-assistant-dialog.service";
@@ -109,7 +109,7 @@ export function makeMocks() {
    };
    const downloadService = { download: vi.fn() };
    const dragService = {
-      registerDragDataListener: vi.fn().mockReturnValue({ subscribe: vi.fn() }),
+      registerDragDataListener: vi.fn().mockReturnValue(EMPTY),
       put: vi.fn(),
    };
 

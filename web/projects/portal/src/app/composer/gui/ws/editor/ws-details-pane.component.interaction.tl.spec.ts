@@ -222,23 +222,10 @@ describe("WSDetailsPaneComponent — ngOnChanges table", () => {
    it("should re-populate tableModeButtons for the new table's modes", async () => {
       const mocks = makeMocks();
       mocks.table.modes = ["default", "live"];
-      const { comp } = await renderComponent(mocks);
+      const { comp, fixture } = await renderComponent(mocks);
 
       const newTable = makeTable({ name: "NewTable", modes: ["default", "live", "full"] });
-
-      comp.ngOnChanges({
-         table: {
-            currentValue: newTable,
-            previousValue: mocks.table,
-            firstChange: false,
-            isFirstChange: () => false,
-         } as any,
-      });
-
-      // After ngOnChanges, tableModeButtons is populated from the component's this.table,
-      // but the component tracks input table reference directly. Update the reference:
-      comp.table = newTable;
-      (comp as any).populateTableModeButtons();
+      fixture.componentRef.setInput("table", newTable);
 
       expect(comp.tableModeButtons).toHaveLength(3);
    });
