@@ -241,13 +241,8 @@ public class WorksheetTableService {
 
    /** True when {@code assembly} directly references {@code targetName} as a base table. */
    private boolean dependsOn(Assembly assembly, String targetName) {
-      if(assembly instanceof MirrorTableAssembly mirror) {
-         TableAssembly base = mirror.getTableAssembly();
-         return base != null && targetName.equals(base.getName());
-      }
-
-      if(assembly instanceof CompositeTableAssembly composite) {
-         for(TableAssembly ta : composite.getTableAssemblies()) {
+      if(assembly instanceof ComposedTableAssembly composed) {
+         for(TableAssembly ta : composed.getTableAssemblies(false)) {
             if(targetName.equals(ta.getName())) {
                return true;
             }
