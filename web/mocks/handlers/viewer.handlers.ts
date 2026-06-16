@@ -147,5 +147,25 @@ export const viewerHandlers = [
    http.post("*/api/share/slack", () => {
       return HttpResponse.json({});
    }),
+   
+   // showBookmarks() — check whether the current asset belongs to the default org
+   http.get("*/api/vs/bookmark/isDefaultOrgAsset/*", () => {
+      return HttpResponse.json(false);
+   }),
+
+   // showBookmarks() — fetch the list of bookmarks for the current viewsheet
+   http.get("*/api/vs/bookmark/get-bookmarks/*", () => {
+      return HttpResponse.json([]);
+   }),
+
+   // closeViewsheet() — check whether the viewsheet has unsaved form-table data
+   http.get("*/api/vs/checkFormTables*", () => {
+      return HttpResponse.json(false);
+   }),
+
+   // ViewerViewComponent.ngOnInit() — PageTabService.getDrillTabsTop() preference lookup
+   http.get("*/api/portal/drill-tabs-top", () => {
+      return HttpResponse.json(false);
+   }),
 
 ];

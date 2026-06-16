@@ -17,13 +17,13 @@
 
 | 状态 | 组件 | logic_lines | dispatch | async_zones | 分类 | 建议 | 旧 spec | 旧 spec 备注 | Pass 计划 |
 |------|------|-------------|----------|-------------|------|------|---------|-------------|-----------|
-| 待审核 | ViewerRootComponent | 32 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | ViewerViewComponent | 261 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核 | ViewerEditComponent | 188 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅ 推进 | ViewerRootComponent | 32 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅ 推进 | ViewerViewComponent | 261 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
+| ✅ 推进 | ViewerEditComponent | 188 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | AiAssistantPanelComponent | 177 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | ✅已测试 | DownloadTargetComponent | 84 | 1 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核 | PageTabComponent | 98 | 0 | 3 | **single-pass** | ✅ 推进 | ⚠️ page-tab.component.spec.ts | 无 | single pass (+竞态+内存泄漏) |
-| ✅ 推进 | ViewerAppComponent | 3363 | 10 | 53 | **multi-pass** | ✅ 推进 | ⚠️ viewer-app.spec.ts | Bug #16456 TODO, logica changed, can not get fixed dropdown pane; Bug #19176 hide full screen in preview; Bug #16961 should refresh scale to screen vs | ✅ P1: viewer-app.component.interaction.tl.spec.ts (73 tests)<br>P2: viewer-app.component.risk.tl.spec.ts<br>P3: viewer-app.component.display.tl.spec.ts |
+| ✅已测试 | ViewerAppComponent | 3363 | 10 | 53 | **multi-pass** | ✅ 推进 | ⚠️ viewer-app.spec.ts | Bug #16456 TODO, logica changed, can not get fixed dropdown pane; Bug #19176 hide full screen in preview; Bug #16961 should refresh scale to screen vs | ✅ P1: viewer-app.component.interaction.tl.spec.ts (73 tests)<br>✅ P2: viewer-app.component.risk.tl.spec.ts (42 tests)<br>✅ P3: viewer-app.component.display.tl.spec.ts (61 tests) |
 | ✅已测试 | VSBindingPane | 805 | 4 | 5 | **multi-pass** | ✅ 推进 |  |  | P1: vs-binding-pane.component.interaction.tl.spec.ts (31+1xfail)<br>P2: vs-binding-pane.component.risk.tl.spec.ts (21)<br>P3: vs-binding-pane.component.display.tl.spec.ts (19) |
 | ✅已测试 | VsWizardComponent | 371 | 0 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | ✅已测试 | PagingControlComponent | 84 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
