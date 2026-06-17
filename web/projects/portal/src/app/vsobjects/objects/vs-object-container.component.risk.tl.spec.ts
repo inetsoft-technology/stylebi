@@ -33,6 +33,7 @@
 import {
    makeComponent,
    makeContextProvider,
+   makeDataTipService,
    makeVSObject,
    makeVsInfo,
    makeObjectFormat,
@@ -66,16 +67,10 @@ describe("Group 1 — isAssemblyVisible: all branches", () => {
 
    it("should return true in viewer when dataTipService.isDataTipVisible returns true for absoluteName", () => {
       const context = { viewer: true, preview: false, binding: false };
-      const dataTipSvc = {
-         showHideDataTip: { subscribe: vi.fn() } as any,
+      const dataTipSvc = makeDataTipService({
          isDataTipVisible: vi.fn((name: string) => name === "Tip1"),
-         isDataTip: vi.fn().mockReturnValue(false),
          dataTipName: "Tip1",
-         isDataTipSource: vi.fn(),
-         isCurrentDataTip: vi.fn(),
-         hasDataTipShowing: vi.fn(),
-         getVSObjectId: vi.fn((n: string) => n),
-      };
+      });
       const { comp } = makeComponent({ context, dataTipSvc: dataTipSvc as any });
       const obj = makeVSObject({ visible: false, absoluteName: "Tip1" });
       expect(comp.isAssemblyVisible(obj)).toBe(true);
@@ -83,16 +78,10 @@ describe("Group 1 — isAssemblyVisible: all branches", () => {
 
    it("should return true in viewer when container dataTip is visible", () => {
       const context = { viewer: true, preview: false, binding: false };
-      const dataTipSvc = {
-         showHideDataTip: { subscribe: vi.fn() } as any,
+      const dataTipSvc = makeDataTipService({
          isDataTipVisible: vi.fn((name: string) => name === "ParentTip"),
-         isDataTip: vi.fn().mockReturnValue(false),
          dataTipName: "ParentTip",
-         isDataTipSource: vi.fn(),
-         isCurrentDataTip: vi.fn(),
-         hasDataTipShowing: vi.fn(),
-         getVSObjectId: vi.fn((n: string) => n),
-      };
+      });
       const { comp } = makeComponent({ context, dataTipSvc: dataTipSvc as any });
       const obj = makeVSObject({ visible: false, container: "ParentTip" });
       expect(comp.isAssemblyVisible(obj)).toBe(true);
@@ -169,7 +158,7 @@ describe("Group 3 — isMaxModeHidden: complex max mode logic", () => {
    it("should return false for the object that IS in max mode (absoluteName === maxObj.absoluteName)", () => {
       const { comp } = makeComponent();
       const maxObj = makeVSObject({ absoluteName: "Chart1", objectType: "VSChart", sheetMaxMode: true });
-      (maxObj as any).maxMode = true;
+      (maxObj as any).maxMode = true; // maxMode is per-subtype (VSChartModel etc.), not on VSObjectModel base
       comp.vsInfo = makeVsInfo([maxObj]);
       expect(comp.isMaxModeHidden(maxObj)).toBe(false);
    });
@@ -177,7 +166,7 @@ describe("Group 3 — isMaxModeHidden: complex max mode logic", () => {
    it("should return true for a non-max-mode object when another VSChart is in max mode", () => {
       const { comp } = makeComponent();
       const maxChart = makeVSObject({ absoluteName: "Chart1", objectType: "VSChart" });
-      (maxChart as any).maxMode = true;
+      (maxChart as any).maxMode = true; // maxMode is per-subtype (VSChartModel etc.), not on VSObjectModel base
       const otherObj = makeVSObject({ absoluteName: "Table1", objectType: "VSTable", sheetMaxMode: true });
       comp.vsInfo = makeVsInfo([maxChart, otherObj]);
       expect(comp.isMaxModeHidden(otherObj)).toBe(true);
@@ -286,16 +275,10 @@ describe("Group 7 — popupShowing / isPopupShowing: data tip and pop component"
    });
 
    it("should return true for isPopupShowing when dataTip matches and dataTip is visible", () => {
-      const dataTipSvc = {
-         showHideDataTip: { subscribe: vi.fn() } as any,
+      const dataTipSvc = makeDataTipService({
          isDataTipVisible: vi.fn().mockReturnValue(true),
-         isDataTip: vi.fn().mockReturnValue(false),
          dataTipName: "TipX",
-         isDataTipSource: vi.fn(),
-         isCurrentDataTip: vi.fn(),
-         hasDataTipShowing: vi.fn(),
-         getVSObjectId: vi.fn((n: string) => n),
-      };
+      });
       const { comp } = makeComponent({ dataTipSvc: dataTipSvc as any });
       const obj = makeVSObject({ absoluteName: "TipX" });
       (obj as any).dataTip = "TipX";
@@ -325,7 +308,7 @@ describe("Group 8 — isFilterInMaxModeView: adhocFilter in max mode context", (
    it("should return true when viewer=true and adhocFilter=true and vsInfo has a maxMode object", () => {
       const context = { viewer: true, preview: false, binding: false };
       const maxObj = makeVSObject({ absoluteName: "Chart1", objectType: "VSChart" });
-      (maxObj as any).maxMode = true;
+      (maxObj as any).maxMode = true; // maxMode is per-subtype (VSChartModel etc.), not on VSObjectModel base
       const filterObj = makeVSObject({ absoluteName: "Filter1" });
       (filterObj as any).adhocFilter = true;
       const { comp } = makeComponent({ context, vsInfo: makeVsInfo([maxObj, filterObj]) });

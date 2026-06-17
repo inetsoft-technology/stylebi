@@ -164,6 +164,32 @@ describe("EditableObjectContainer — onDragMove", () => {
       expect(dragObj.objectFormat.left).toBe(5);
       expect(dragObj.objectFormat.top).toBe(5);
    });
+
+   // 🔁 Regression-sensitive: VSSelectionContainer children are OnPush so the position
+   //    update is invisible to Angular unless detectChanges() is called explicitly.
+   it("calls changeDetectorRef.detectChanges() for VSSelectionContainer (no placeholder)", () => {
+      const { comp, mocks } = makeComponent();
+      const dragObj = makeVsObjectModel("VSSelectionContainer", "SC1") as any;
+      dragObj.objectFormat = { left: 0, top: 0 };
+      (comp as any).dragObj = dragObj;
+      (comp as any).dragPlaceholderElement = null;
+
+      comp.onDragMove({ dx: 5, dy: 5 });
+
+      expect(mocks.changeDetectorRef.detectChanges).toHaveBeenCalled();
+   });
+
+   it("does NOT call detectChanges() for non-container types (VSText)", () => {
+      const { comp, mocks } = makeComponent();
+      const dragObj = makeVsObjectModel("VSText", "T2") as any;
+      dragObj.objectFormat = { left: 0, top: 0 };
+      (comp as any).dragObj = dragObj;
+      (comp as any).dragPlaceholderElement = null;
+
+      comp.onDragMove({ dx: 5, dy: 5 });
+
+      expect(mocks.changeDetectorRef.detectChanges).not.toHaveBeenCalled();
+   });
 });
 
 // ---------------------------------------------------------------------------

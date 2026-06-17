@@ -67,7 +67,7 @@ describe("Group 1 — ngOnInit: loads model and initializes view", () => {
       makeComponent({ model, http });
 
       const refreshCalls = http.post.mock.calls.filter((c: any[]) =>
-         (c[0] as string).includes("refreshView"),
+         (c[0] as string).endsWith("/refreshView"),
       );
       expect(refreshCalls.length).toBe(0);
    });
@@ -78,7 +78,7 @@ describe("Group 1 — ngOnInit: loads model and initializes view", () => {
       makeComponent({ model, http });
 
       const refreshCalls = http.post.mock.calls.filter((c: any[]) =>
-         (c[0] as string).includes("refreshView"),
+         (c[0] as string).endsWith("/refreshView"),
       );
       expect(refreshCalls.length).toBeGreaterThan(0);
    });
@@ -264,7 +264,7 @@ describe("Group 6 — buttonClicked: routes OAUTH to authorize, others to refres
       comp.buttonClicked(button);
 
       const refreshCalls = http.post.mock.calls.filter((c: any[]) =>
-         (c[0] as string).includes("refreshView"),
+         (c[0] as string).endsWith("/refreshView"),
       );
       expect(refreshCalls.length).toBeGreaterThan(0);
    });
@@ -303,7 +303,7 @@ describe("Group 7 — viewChanged: refreshes when changed view value is a depend
       comp.viewChanged([changedView, parentView]);
 
       const refreshCalls = http.post.mock.calls.filter((c: any[]) =>
-         (c[0] as string).includes("refreshView"),
+         (c[0] as string).endsWith("/refreshView"),
       );
       expect(refreshCalls.length).toBeGreaterThan(0);
    });
@@ -319,7 +319,7 @@ describe("Group 7 — viewChanged: refreshes when changed view value is a depend
       comp.viewChanged([changedView, makeTabularView()]);
 
       const refreshCalls = http.post.mock.calls.filter((c: any[]) =>
-         (c[0] as string).includes("refreshView"),
+         (c[0] as string).endsWith("/refreshView"),
       );
       expect(refreshCalls.length).toBe(0);
    });
@@ -335,7 +335,7 @@ describe("Group 7 — viewChanged: refreshes when changed view value is a depend
       comp.viewChanged([changedView, makeTabularView()]);
 
       const refreshCalls = http.post.mock.calls.filter((c: any[]) =>
-         (c[0] as string).includes("refreshView"),
+         (c[0] as string).endsWith("/refreshView"),
       );
       expect(refreshCalls.length).toBe(0);
    });

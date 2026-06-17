@@ -82,7 +82,6 @@ describe("EditableObjectContainer — showEdit getter", () => {
       const model = makeVsObjectModel("VSText", "T1") as any;
       model.empty = true;
       model.changedByScript = false;
-      comp.viewsheet = comp.viewsheet;
       comp.vsObjectModel = model;
       mocks.dragService.currentlyDragging = false;
 

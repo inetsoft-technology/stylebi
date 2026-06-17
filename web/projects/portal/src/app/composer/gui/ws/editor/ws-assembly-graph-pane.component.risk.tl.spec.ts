@@ -20,6 +20,8 @@
  * WSAssemblyGraphPaneComponent — Pass 2: Risk
  *
  * Risk-first coverage:
+ *   Group 0  [Risk 2] — constructor: zone.runOutsideAngular is invoked (jspInitGraphMain
+ *                        code path is entered even though the no-op mock suppresses it)
  *   Group 1  [Risk 3] — clearSelection: clears when target===currentTarget and focused>0;
  *                        does NOT clear otherwise
  *   Group 2  [Risk 3] — selectCompositeTable: always emits onEditJoin; emits
@@ -37,12 +39,12 @@
  *
  * Confirmed bugs: none
  *
- * Suspected bugs (header only):
- *   Suspicion A — removeAssemblies: when modelService returns body==="true" and the user
- *     clicks "yes", a second modelService.sendModel call is made. If that second call also
- *     returns body==="true", another confirm dialog opens, creating an unexpected loop.
- *     The code only guards on the "all=true" params branch but both calls share the same
- *     endpoint.
+ * Suspected bugs (resolved by inspection):
+ *   Suspicion A — removeAssemblies: initially suspected that returning body==="true" from
+ *     the second sendModel call (all=true) would re-enter the same confirm flow and loop.
+ *     Code review shows the second call does NOT check body==="true"; it passes msg2.body
+ *     as a plain string message to a different confirm dialog. No recursion is possible.
+ *     See Group 4 regression test for the "both calls return true" scenario.
  *
  * Out of scope this pass (covered in ws-assembly-graph-pane.component.interaction.tl.spec.ts):
  *   cutAssembly, copyAssembly, toggleAutoUpdate, paste, notify, selectAssembly,
@@ -127,6 +129,22 @@ function makeCompositeTable(): CompositeTableAssembly {
       headers: [],
    } as any);
 }
+
+// ---------------------------------------------------------------------------
+// Group 0: constructor [Risk 2]
+// ---------------------------------------------------------------------------
+
+describe("WSAssemblyGraphPaneComponent — constructor", () => {
+
+   // zone.runOutsideAngular is a no-op in the mock, so jspInitGraphMain() never
+   // actually runs, but this test confirms the constructor does invoke the correct
+   // zone path. If it stops being called, the graph init code path has been moved
+   // or removed and the mock strategy needs revisiting.
+   it("should call zone.runOutsideAngular during construction", () => {
+      const { mocks } = makeComponent();
+      expect(mocks.zone.runOutsideAngular).toHaveBeenCalled();
+   });
+});
 
 // ---------------------------------------------------------------------------
 // Group 1: clearSelection [Risk 3]
@@ -376,6 +394,27 @@ describe("WSAssemblyGraphPaneComponent — removeAssemblies", () => {
       tick();
 
       expect(mocks.wsClient.sendEvent).not.toHaveBeenCalled();
+   }));
+
+   // Regression for Suspicion A: the second sendModel call (all=true) uses msg2.body as a
+   // plain dialog message string — it does NOT re-enter the body==="true" guard. Returning
+   // "true" from the second call is therefore safe; it shows "true" as dialog text and
+   // terminates normally. This test confirms no infinite recursion occurs.
+   it("should terminate normally when second sendModel also returns 'true' (no recursion)", fakeAsync(() => {
+      const { comp, mocks } = makeComponent();
+      mocks.modelService.sendModel.mockReturnValue(of(new HttpResponse({ body: "true" })));
+      vi.spyOn(ComponentTool, "showConfirmDialog")
+         .mockResolvedValueOnce("yes") // first dialog: user proceeds
+         .mockResolvedValueOnce("ok"); // second dialog: user confirms (msg2.body = "true" as text)
+
+      const event = { setAssemblyNames: vi.fn() } as any;
+      expect(() => {
+         comp.removeAssemblies(event);
+         tick();
+      }).not.toThrow();
+
+      expect(mocks.modelService.sendModel).toHaveBeenCalledTimes(2);
+      expect(mocks.wsClient.sendEvent).toHaveBeenCalled();
    }));
 });
 

@@ -28,12 +28,14 @@ import { Subject, Subscription } from "rxjs";
 import { of } from "rxjs";
 import { VSObjectContainer } from "./vs-object-container.component";
 import { VSObjectModel } from "../model/vs-object-model";
+import { DataTipService } from "./data-tip/data-tip.service";
+import { MiniToolbarService } from "./mini-toolbar/mini-toolbar.service";
 
 // ---------------------------------------------------------------------------
 // Service mocks
 // ---------------------------------------------------------------------------
 
-export function makeMiniToolbarService() {
+export function makeMiniToolbarService(overrides: Partial<MiniToolbarService> = {}) {
    return {
       addContainerEvents: vi.fn().mockReturnValue(new Subscription()),
       isMiniToolbarHidden: vi.fn().mockReturnValue(false),
@@ -41,10 +43,11 @@ export function makeMiniToolbarService() {
       getToolbarLeft: vi.fn().mockReturnValue(0),
       getToolbarWidth: vi.fn().mockReturnValue(100),
       handleMouseEnter: vi.fn(),
+      ...overrides,
    };
 }
 
-export function makeDataTipService() {
+export function makeDataTipService(overrides: Partial<DataTipService> = {}) {
    return {
       showHideDataTip: new Subject<void>(),
       isDataTipVisible: vi.fn().mockReturnValue(false),
@@ -54,6 +57,7 @@ export function makeDataTipService() {
       isCurrentDataTip: vi.fn().mockReturnValue(false),
       hasDataTipShowing: vi.fn().mockReturnValue(false),
       getVSObjectId: vi.fn((name: string) => name),
+      ...overrides,
    };
 }
 
@@ -68,7 +72,7 @@ export function makeAdhocFilterService() {
 export function makePopService() {
    return {
       componentPop: new Subject<string>(),
-      getPopComponent: vi.fn().mockReturnValue(null as string),
+      getPopComponent: vi.fn().mockReturnValue(""),
       isPopComponent: vi.fn().mockReturnValue(false),
       isPopSource: vi.fn().mockReturnValue(false),
       hasPopUpComponentShowing: vi.fn().mockReturnValue(false),

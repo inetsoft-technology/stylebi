@@ -34,11 +34,14 @@
  *
  * Confirmed bugs: none
  *
- * Suspected bugs (header only):
- *   Suspicion A — deleteCondition splices from the mutable value array directly; if something
- *     else holds a reference to the array, it will see the mutation without a valueChanges event.
- *   Suspicion B — moveConditionUp/Down mutate the array in-place without emitting valueChanges;
+ * Suspected bugs (current behavior asserted — tests will break if the bug is fixed):
+ *   Suspicion A — deleteCondition calls updateValueAndValidity({emitEvent:false}), so
+ *     valueChanges never fires after deletion; external holders of the array reference
+ *     see the mutation silently. See Group 3 negative-assertion test.
+ *   Suspicion B — moveConditionUp/Down mutate the array in-place with no
+ *     updateValueAndValidity call at all; valueChanges never fires after a move and
  *     the UI list won't refresh unless change detection is triggered externally.
+ *     See Groups 4–5 negative-assertion tests.
  */
 
 import { of } from "rxjs";
@@ -236,6 +239,22 @@ describe("GroupingDialog — deleteCondition", () => {
       expect(remaining).toHaveLength(1);
       expect(remaining[0]).toBe(c1);
    });
+
+   // Suspicion A: deleteCondition calls updateValueAndValidity({emitEvent:false}),
+   // so valueChanges is intentionally suppressed. This test documents that known
+   // limitation — if it starts failing, the bug has been fixed and the test should
+   // be updated to expect(changed).toBe(true).
+   it("should NOT trigger valueChanges on conditionExpressions after deletion", () => {
+      const c1 = makeConditionExpr("C1");
+      const { comp } = makeInitializedComponent({ conditionExpressions: [c1] });
+      comp.selectedConditionIndex = 0;
+      let changed = false;
+      comp.form.get("conditionExpressions").valueChanges.subscribe(() => { changed = true; });
+
+      comp.deleteCondition();
+
+      expect(changed).toBe(false);
+   });
 });
 
 // ---------------------------------------------------------------------------
@@ -286,6 +305,23 @@ describe("GroupingDialog — moveConditionUp", () => {
       expect(list[1]).toBe(c3);
       expect(list[2]).toBe(c2);
       expect(comp.selectedConditionIndex).toBe(1);
+   });
+
+   // Suspicion B: moveConditionUp mutates the array with no updateValueAndValidity call,
+   // so valueChanges never fires. This test documents that known limitation — if it
+   // starts failing, the bug has been fixed and the test should be updated to
+   // expect(changed).toBe(true).
+   it("should NOT trigger valueChanges on conditionExpressions after moving up", () => {
+      const c1 = makeConditionExpr("C1");
+      const c2 = makeConditionExpr("C2");
+      const { comp } = makeInitializedComponent({ conditionExpressions: [c1, c2] });
+      comp.selectedConditionIndex = 1;
+      let changed = false;
+      comp.form.get("conditionExpressions").valueChanges.subscribe(() => { changed = true; });
+
+      comp.moveConditionUp();
+
+      expect(changed).toBe(false);
    });
 });
 
@@ -350,6 +386,23 @@ describe("GroupingDialog — moveConditionDown", () => {
       const list = comp.form.get("conditionExpressions").value;
       expect(list[0]).toBe(c2);
       expect(list[1]).toBe(c1);
+   });
+
+   // Suspicion B: moveConditionDown mutates the array with no updateValueAndValidity call,
+   // so valueChanges never fires. This test documents that known limitation — if it
+   // starts failing, the bug has been fixed and the test should be updated to
+   // expect(changed).toBe(true).
+   it("should NOT trigger valueChanges on conditionExpressions after moving down", () => {
+      const c1 = makeConditionExpr("C1");
+      const c2 = makeConditionExpr("C2");
+      const { comp } = makeInitializedComponent({ conditionExpressions: [c1, c2] });
+      comp.selectedConditionIndex = 0;
+      let changed = false;
+      comp.form.get("conditionExpressions").valueChanges.subscribe(() => { changed = true; });
+
+      comp.moveConditionDown();
+
+      expect(changed).toBe(false);
    });
 });
 

@@ -37,9 +37,10 @@
  *
  * Confirmed bugs: none
  *
- * Suspected bugs (header only):
+ * Suspected bugs (current behavior asserted — test will break if the bug is fixed):
  *   Suspicion A — validateVariableList trims whitespace-only values to "" but still keeps the pair
  *     (value != null check passes for ""), so a whitespace-only value with a null label is retained.
+ *     See Group 8 negative-assertion test.
  *
  * Out of scope this pass (covered in variable-assembly-dialog.component.risk.tl.spec.ts):
  *   cancelChanges
@@ -370,6 +371,31 @@ describe("Group 8 — validateVariableList: removes null-null pairs", () => {
       comp.saveChanges();
 
       expect(comp.model.variableListDialogModel.labels.length).toBe(2);
+   });
+
+   // Suspicion A: validateVariableList trims a whitespace-only value to "" but the
+   // `"" != null` check keeps the (null, "") pair — it should be treated as empty
+   // and removed. This test documents the current (buggy) behavior; if it starts
+   // failing the bug has been fixed and the assertion should flip to length === 0.
+   it("currently retains a pair with null label and whitespace-only value (Suspicion A)", () => {
+      const { comp } = makeComponent({
+         presetModel: makeModel({
+            selectionList: "none",
+            none: true,
+            variableListDialogModel: {
+               labels: [null],
+               values: ["   "],
+               dataType: XSchema.STRING,
+            },
+         }),
+      });
+      vi.spyOn(comp.onCommit, "emit");
+
+      comp.saveChanges();
+
+      // Bug: trimmed "" passes `!= null` so the (null, "") pair survives the filter.
+      expect(comp.model.variableListDialogModel.labels.length).toBe(1);
+      expect(comp.model.variableListDialogModel.values[0]).toBe("");
    });
 });
 
