@@ -154,6 +154,12 @@ export class LogicalModelAttributeEditor implements OnInit, OnDestroy {
       const columnChanged: boolean = !this.attribute || value.qualifiedName != this.attribute.qualifiedName;
       const tableChanged: boolean = !this.attribute || value.table != this.attribute.table;
       const formatChanged: boolean = !this.attribute || !Tool.isEquals(value.format, this.attribute.format);
+      // Cancel the stale subscription before switching attributes. The deferred
+      // resetFormControl (scheduleReset) leaves form.valueChanges active across the
+      // transition. Without this unsubscribe, Angular's [ngModel] sync for dataType
+      // triggers valueChanges → apply() writes the old form "name" value onto the
+      // new attribute object, corrupting its name and breaking @for track-by-name.
+      this.unsubscribeForm();
       this._attribute = value;
       this.editable = !!value && !value.baseElement;
 
