@@ -687,9 +687,10 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       SecurityEngine engine = securityEngine;
       MessageCommand messageCommand = new MessageCommand();
 
-      boolean isGlobalVSPermDenied = SUtil.isDefaultVSGloballyVisible(currentPrincipal) &&
+      boolean isGlobalVSPermDenied = currentPrincipal instanceof XPrincipal &&
+                                     SUtil.isDefaultVSGloballyVisible(currentPrincipal) &&
                                      !Tool.equals(rvs.getEntry() == null ? "" :
-                                     rvs.getEntry().getOrgID(),((XPrincipal)currentPrincipal).getOrgId());
+                                     rvs.getEntry().getOrgID(), ((XPrincipal) currentPrincipal).getOrgId());
 
       if(!engine.checkPermission(currentPrincipal, ResourceType.VIEWSHEET_ACTION, "Bookmark",
                                  ResourceAction.READ))
@@ -712,6 +713,8 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
          messageCommand.setMessage(catalog.getString("common.viewsheet.saveViewsheetDependence"));
          messageCommand.setType(MessageCommand.Type.ERROR);
       }
+      // Use principal (bookmark owner), not currentPrincipal — the "replace?" prompt must check
+      // whether the owner already has a bookmark by this name, not whether the current user does.
       else if(!confirmed && rvs.containsBookmark(bookmarkName, IdentityID.getIdentityIDFromKey(principal.getName()))) {
          messageCommand.setMessage(
                  catalog.getString("viewer.viewsheet.bookmark.replaceWarning", bookmarkName));
