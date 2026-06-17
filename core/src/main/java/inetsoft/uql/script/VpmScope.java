@@ -24,6 +24,13 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.ConfigurationContext;
 import inetsoft.util.script.*;
+import inetsoft.util.script.graal.ScriptScope;
+// NOTE (Feature #75423): the static root-scope plumbing below (Context,
+// Scriptable, Function, FunctionObject, ScriptableObject root, standard
+// objects) is Rhino script-engine substrate, replaced by the native-binding
+// mechanism at the Milestone 4 cutover. Only the instance scope surface has
+// been converted to ScriptScope; the static execute/getRoot/createRoot logic
+// is preserved as-is.
 import org.mozilla.javascript.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,7 +46,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * @version 8.0
  * @author InetSoft Technology Corp
  */
-public class VpmScope extends ScriptableObject {
+public class VpmScope implements ScriptScope {
    /**
     * Execute the script.
     * @param statement the specified script statement.
@@ -210,9 +217,13 @@ public class VpmScope extends ScriptableObject {
       super();
 
       try {
-         FunctionObject func = new FunctionObject2(this, getClass(), "runQuery",
+         // NOTE (Feature #75423): FunctionObject2 is a Rhino FunctionObject,
+         // replaced by the native-binding mechanism at the Milestone 4 cutover.
+         // VpmScope no longer extends Rhino's ScriptableObject, so 'this' can no
+         // longer be passed as the Rhino scope; pass null until the M4 cutover.
+         FunctionObject func = new FunctionObject2(null, getClass(), "runQuery",
                                                    String.class, Object.class);
-         put("runQuery", this, func);
+         members.put("runQuery", func);
       }
       catch(Exception ex) {
          LOG.error("Failed to register functions", ex);
@@ -235,7 +246,7 @@ public class VpmScope extends ScriptableObject {
     */
    public void setVariableTable(VariableTable vars) {
       this.vars = vars;
-      put("parameter", this, new VariableScriptable(this.vars));
+      members.put("parameter", new VariableScriptable(this.vars));
    }
 
    /**
@@ -253,10 +264,8 @@ public class VpmScope extends ScriptableObject {
    public void setUser(Principal user) {
       this.user = user;
 
-      // put("roles", this, new StringArray("role", XUtil.getUserRoles(user)));
-      // put("groups", this, new StringArray("group", XUtil.getUserGroups(user)));
-      put("roles", this, XUtil.getUserRoleNames(user));
-      put("groups", this, XUtil.getUserGroups(user));
+      members.put("roles", XUtil.getUserRoleNames(user));
+      members.put("groups", XUtil.getUserGroups(user));
 
       // @by stephenwebster, For bug1413383077871
       // Make sure to copy the user's parameters into the variable table
@@ -285,63 +294,71 @@ public class VpmScope extends ScriptableObject {
    /**
     * Check if has a property.
     * @param id the specified property.
-    * @param start the specified scriptable to start.
     */
    @Override
-   public boolean has(String id, Scriptable start) {
-      return "user".equals(id) || super.has(id, start);
+   public boolean hasMember(String id) {
+      return "user".equals(id) || members.containsKey(id);
    }
 
    /**
     * Get the value of a property.
     * @param id the specified property.
-    * @param start the specified scriptable to start.
     */
    @Override
-   public Object get(String id, Scriptable start) {
+   public Object getMember(String id) {
       if(id.equals("user")) {
          return user == null ? null : XUtil.getUserName(user);
       }
 
-      Object val = super.get(id, start);
+      // the ScopeProxy/HostAccess layer now handles array wrapping
+      return members.get(id);
+   }
 
-      // Bug #61669, use NativeArray instead of NativeJavaArray
-      // same as what we do in inetsoft.uql.script.VariableScriptable.get()
-      // to make sure that includes() function works properly
-      if(val instanceof Object[]) {
-         NativeArray arr = new NativeArray((Object[]) val);
-         ScriptRuntime.setBuiltinProtoAndParent(arr, getParentScope(),
-                                                TopLevel.Builtins.Array);
-         return arr;
-      }
+   /**
+    * Set a named property in this object.
+    */
+   @Override
+   public void putMember(String id, Object value) {
+      members.put(id, value);
+   }
 
-      return val;
+   /**
+    * Remove a named property from this object.
+    */
+   @Override
+   public boolean removeMember(String id) {
+      return members.remove(id) != null;
+   }
+
+   /**
+    * Get an array of property ids.
+    */
+   @Override
+   public Object[] getMemberKeys() {
+      return members.keySet().toArray();
+   }
+
+   /**
+    * Get the parent scope of the object.
+    */
+   @Override
+   public ScriptScope getParentScope() {
+      return parent;
+   }
+
+   /**
+    * Set the parent scope of the object.
+    */
+   public void setParentScope(ScriptScope parent) {
+      this.parent = parent;
    }
 
    /**
     * Get the name of this scriptable.
     * @return the name of this scriptable.
     */
-   @Override
    public String getClassName() {
       return "VpmScope";
-   }
-
-   /**
-    * Clone the scriptable.
-    * @return the cloned scriptable.
-    */
-   @Override
-   public Object clone() {
-      try {
-         VpmScope obj = (VpmScope) super.clone();
-         return obj;
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to clone object", ex);
-      }
-
-      return null;
    }
 
    /**
@@ -362,6 +379,8 @@ public class VpmScope extends ScriptableObject {
    private static Map roots = new HashMap();
    private Principal user;
    private VariableTable vars;
+   private ScriptScope parent;
+   private final Map<String, Object> members = new LinkedHashMap<>();
 
    private static final String ROOT_KEY = VpmScope.class.getName() + ".rootScope";
    private static final ReadWriteLock ROOT_LOCK = new ReentrantReadWriteLock(true);

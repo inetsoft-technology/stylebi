@@ -17,7 +17,9 @@
  */
 package inetsoft.util.script;
 
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptScope;
+import org.mozilla.javascript.FunctionObject;
+import org.mozilla.javascript.Scriptable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,7 +30,7 @@ import java.util.Map;
 /**
  * Mark a class as an array. Used in autocompletion only.
  */
-public class Calc extends ScriptableObject {
+public class Calc implements ScriptScope {
    public Calc() {
       Class[] calcs = new Class[]{
          CalcDateTime.class,
@@ -48,7 +50,12 @@ public class Calc extends ScriptableObject {
                   continue;
                }
 
-               FunctionObject func = new FunctionObject(methods[j].getName(), methods[j], this);
+               // NOTE (Feature #75423): FunctionObject is Rhino substrate,
+               // replaced by the native-binding mechanism at the Milestone 4
+               // cutover. Calc no longer extends Rhino's ScriptableObject, so
+               // 'this' can no longer be passed as the Rhino scope; pass null
+               // until the M4 cutover rewires it.
+               FunctionObject func = new FunctionObject(methods[j].getName(), methods[j], (Scriptable) null);
                String name = methods[j].getName().toLowerCase();
                funcmap.put(name, func);
 
@@ -68,72 +75,51 @@ public class Calc extends ScriptableObject {
       }
    }
 
-   @Override
    public String getClassName() {
       return "Calc";
    }
 
    @Override
-   public boolean has(String id, Scriptable start) {
-      return get(id, start) != null;
+   public boolean hasMember(String id) {
+      return getMember(id) != null;
    }
 
    @Override
-   public boolean has(int index, Scriptable start) {
-      return super.has(index, start);
-   }
-
-   @Override
-   public Object get(String id, Scriptable start) {
-      // get is called before the constructor is completed
+   public Object getMember(String id) {
+      // getMember may be called before the constructor is completed
       if(funcmap != null) {
-         Object val = funcmap.get(id.toLowerCase());
-
-         if(val != null) {
-            return val;
-         }
+         return funcmap.get(id.toLowerCase());
       }
 
-      return super.get(id, start);
+      return null;
    }
 
    @Override
-   public Object get(int index, Scriptable start) {
-      return super.get(index, start);
+   public void putMember(String id, Object value) {
+      // not supported
    }
 
    @Override
-   public void put(String id, Scriptable start, Object value) {
-      super.put(id, start, value);
-   }
-
-   @Override
-   public void put(int index, Scriptable start, Object value) {
-      super.put(index, start, value);
-   }
-
-   @Override
-   public Object getDefaultValue(Class hint) {
-      if(hint == ScriptRuntime.BooleanClass) {
-         return Boolean.TRUE;
-      }
-      else if(hint == ScriptRuntime.NumberClass) {
-         return ScriptRuntime.NaNobj;
-      }
-
-      return this;
-   }
-
-   @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       return funcmap.keySet().toArray();
    }
 
+   /**
+    * Get the parent scope of the object.
+    */
    @Override
-   public boolean hasInstance(Scriptable value) {
-      return false;
+   public ScriptScope getParentScope() {
+      return parent;
    }
 
+   /**
+    * Set the parent scope of the object.
+    */
+   public void setParentScope(ScriptScope parent) {
+      this.parent = parent;
+   }
+
+   private ScriptScope parent;
    private Map<String, FunctionObject> funcmap = new Hashtable<>(); // name -> FunctionObject
 
    private static final Logger LOG = LoggerFactory.getLogger(Calc.class);

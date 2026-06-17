@@ -23,7 +23,13 @@ import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.Cleaner;
 import inetsoft.util.Tool;
 import inetsoft.util.script.TimeoutContext;
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptScope;
+// NOTE (Feature #75423): Context/Function/Scriptable are Rhino compilation
+// substrate, replaced by the native-binding mechanism at the Milestone 4
+// cutover. The lazy script compilation below still uses them until then.
+import org.mozilla.javascript.Context;
+import org.mozilla.javascript.Function;
+import org.mozilla.javascript.Scriptable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,7 +45,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @version 11.5
  * @author InetSoft Technology Corp
  */
-public class LibScriptable extends ScriptableObject {
+public class LibScriptable implements ScriptScope {
    /**
     * Get a per scope (report) scriptable.
     */
@@ -69,7 +75,7 @@ public class LibScriptable extends ScriptableObject {
     */
    private void deleteScripts(Set<String> funcs) {
       for(String func : funcs) {
-         delete(func);
+         removeMember(func);
       }
 
       funcs.clear();
@@ -90,7 +96,7 @@ public class LibScriptable extends ScriptableObject {
    }
 
    @Override
-   public Object get(String name, Scriptable scope) {
+   public Object getMember(String name) {
       if(funcs.containsKey(name)) {
          Object func = funcs.get(name);
 
@@ -107,14 +113,34 @@ public class LibScriptable extends ScriptableObject {
          func = funcs.get(name);
 
          // simulate dynamic scope
-         if(func instanceof Function) {
-            ((Function) func).setParentScope(scope);
+         if(func instanceof Function && funcScope != null) {
+            ((Function) func).setParentScope(funcScope);
          }
 
          return func;
       }
 
-      return super.get(name, scope);
+      return null;
+   }
+
+   @Override
+   public boolean hasMember(String name) {
+      return funcs.containsKey(name);
+   }
+
+   @Override
+   public void putMember(String name, Object value) {
+      funcs.put(name, value);
+   }
+
+   @Override
+   public boolean removeMember(String name) {
+      return funcs.remove(name) != null;
+   }
+
+   @Override
+   public Object[] getMemberKeys() {
+      return funcs.keySet().toArray(new Object[0]);
    }
 
    /**
@@ -130,7 +156,7 @@ public class LibScriptable extends ScriptableObject {
       Context cx = TimeoutContext.enter();
 
       try {
-         Scriptable funcScope = this.funcScope != null ? this.funcScope : this;
+         Scriptable funcScope = this.funcScope != null ? this.funcScope : null;
          return cx.compileFunction(funcScope, source, "<" + fname + ">", 1, null);
       }
       finally {
@@ -138,7 +164,6 @@ public class LibScriptable extends ScriptableObject {
       }
    }
 
-   @Override
    public String getClassName() {
       return "Lib";
    }

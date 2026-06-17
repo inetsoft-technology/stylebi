@@ -218,7 +218,7 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          return null;
       }
 
-      if(!has(name, start)) {
+      if(!hasMember(name)) {
          return super.getMember(name);
       }
 
@@ -252,7 +252,7 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
             }
          }
 
-         return getTableArray().get(row, this);
+         return getTableArray().getArrayElement(row);
       }
       else if("row".equals(name)) {
          int row = TableDataVSAScriptable.row.get();
@@ -308,14 +308,14 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
             return super.getMember(name);
          }
 
-         return getTableData().get("length", null);
+         return getTableData().getMember("length");
       }
       else if("data.size".equals(name)) {
          if(!initTableArray()) {
             return super.getMember(name);
          }
 
-         return getTableData().get("size", null);
+         return getTableData().getMember("size");
       }
       else if("tablelens".equals(name)) {
          if(!initTableArray()) {
@@ -667,7 +667,7 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          return "[][]";
       }
 
-      if("colFormat".equals(prop) || get(prop + "", this) instanceof ArrayObject) {
+      if("colFormat".equals(prop) || getMember(prop + "") instanceof ArrayObject) {
          return "[]";
       }
 
@@ -984,7 +984,8 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
       if(ftable != null) {
          FormTableRow[] rows = null;
 
-         if(state instanceof Undefined) {
+         // an omitted/undefined script argument arrives as null under GraalJS
+         if(state == null) {
             rows = ftable.rows();
          }
          else if(state instanceof Number) {
@@ -1092,7 +1093,8 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
       FormTableRow[] rows = null;
       FormTableLens ftable = initFormTableLens();
 
-      if(state instanceof Undefined) {
+      // an omitted/undefined script argument arrives as null under GraalJS
+      if(state == null) {
          rows = ftable.rows();
          commitRows(rows);
       }
@@ -1335,9 +1337,9 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
        * Get a property from the object selected by an integral index.
        */
       @Override
-      public Object get(int index, Scriptable start) {
+      public Object getArrayElement(long index) {
          if(index >= 0 && index < table.getColCount()) {
-            return formRow.get(index);
+            return formRow.get((int) index);
          }
 
          return null;

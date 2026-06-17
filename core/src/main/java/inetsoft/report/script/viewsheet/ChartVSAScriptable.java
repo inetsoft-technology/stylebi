@@ -622,7 +622,7 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
          graphScript = new VSEGraphScriptable();
       }
 
-      return graphScript.getIds();
+      return graphScript.getMemberKeys();
    }
 
    /**
