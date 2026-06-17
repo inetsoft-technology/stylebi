@@ -2,7 +2,7 @@
 
 **日期**: 2026-06-08
 **候选组件数**: 80 | **建议推进**: 78 | **建议跳过**: 2 | **多 pass 组件**: 25
-**测试进度**: ✅已测试 63 / 80 | 待审核 17 / 80（含 SelectDataSourceDialog 跳过项 1 个）
+**测试进度**: ✅已测试 65 / 80 | 待审核 15 / 80（含 SelectDataSourceDialog 跳过项 1 个）
 
 ## 状态说明
 - 第一列「状态」初始为「待审核」，人工审核后改为 ✅已测试 / ⏭已跳过
@@ -95,9 +95,9 @@
 | ✅已测试 P1P2 | CodemirrorComponent | 417 | 1 | 8 | **multi-pass** | ✅ 推进 |  |  | P1: codemirror.component.interaction.tl.spec.ts ✅<br>P2: codemirror.component.risk.tl.spec.ts ✅ |
 | 待审核 | ViewsheetOptionsPane | 131 | 0 | 5 | **single-pass** | ✅ 推进 | ⚠️ viewsheet-options-pane.spec.ts | #17036,the design mode data size should be disable when use worksheet; Bug #17303 Clear button should be enabled when has datasource; Bug #10157 Clear | single pass (+竞态+内存泄漏) |
 | 待审核 | FiltersPane | 119 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| ✅ 推进 | ScreensPane | 160 | 0 | 2 | **single-pass** | ✅ 推进 | ⚠️ screens-pane.spec.ts | Bug #19354 Click device 'Delete' button, confirm dialog should pop up.; Bug #18417, clear button should be disabled when no print layout; Bug #19349,  | single pass (+内存泄漏) |
+| ✅已测试 | ScreensPane | 160 | 0 | 2 | **single-pass** | ✅ 推进 | ⚠️ screens-pane.spec.ts | Bug #19354 Click device 'Delete' button, confirm dialog should pop up.; Bug #18417, clear button should be disabled when no print layout; Bug #19349,  | single pass (+内存泄漏) ✅ screens-pane.component.tl.spec.ts |
 | 待审核 | LocalizationPane | 81 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ localization-pane.component.spec.ts | Bug #19630 Components node should display; Bug #19118 should focus on the selected column | single pass |
-| ✅ 推进 | ViewsheetScriptPane | 184 | 2 | 0 | **single-pass** | ✅ 推进 | ⚠️ viewsheet-script-pane.spec.ts | TypeError when the timer fired after the fixture was destroyed.; Bug #18853 should select onRefresh by default; fixture is destroyed (which nulls code | single pass |
+| ✅已测试 | ViewsheetScriptPane | 184 | 2 | 0 | **single-pass** | ✅ 推进 | ⚠️ viewsheet-script-pane.spec.ts | TypeError when the timer fired after the fixture was destroyed.; Bug #18853 should select onRefresh by default; fixture is destroyed (which nulls code | single pass ✅ viewsheet-script-pane.component.tl.spec.ts |
 
 ## 多 pass 组件详情
 
