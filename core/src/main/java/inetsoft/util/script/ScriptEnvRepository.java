@@ -17,8 +17,6 @@
  */
 package inetsoft.util.script;
 
-import inetsoft.sree.SreeEnv;
-
 /**
  * ScriptEnvRepository creates script environment.
  *
@@ -29,19 +27,7 @@ public class ScriptEnvRepository {
    static boolean found = false;
    static {
       try {
-         try {
-            int timeout = Integer.parseInt(
-               SreeEnv.getProperty("script.execution.timeout"));
-            TimeoutContext.setTimeout(timeout);
-            int maxiStackDepth = Integer.parseInt(
-               SreeEnv.getProperty("script.execution.stackdepth"));
-            TimeoutContext.setStackDepth(maxiStackDepth);
-         }
-         catch(NumberFormatException ex) {
-            // ign
-         }
-
-         Class.forName("inetsoft.util.script.JavaScriptEngine");
+         Class.forName("inetsoft.util.script.graal.GraalJavaScriptEngine");
          found = true;
       }
       catch(Throwable e) {
@@ -54,7 +40,7 @@ public class ScriptEnvRepository {
    public static ScriptEnv getScriptEnv() {
       if(found) {
          try {
-            String cls = "inetsoft.util.script.JavaScriptEnv";
+            String cls = "inetsoft.util.script.graal.GraalJavaScriptEnv";
 
             return (ScriptEnv) Class.forName(cls).newInstance();
          }
