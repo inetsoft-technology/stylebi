@@ -17,23 +17,23 @@
  */
 package inetsoft.report.internal;
 
-import inetsoft.report.*;
-import inetsoft.report.script.*;
+import inetsoft.report.ReportElement;
+import inetsoft.report.ReportSheet;
+import inetsoft.report.script.graal.ReportGraalJavaScriptEngine;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
-import inetsoft.util.script.JavaScriptEngine;
-import inetsoft.util.script.JavaScriptEnv;
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.GraalJavaScriptEngine;
+import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Encapsulate a script engine.
+ * Report-level script environment, backed by the GraalJS engine.
  *
  * @version 6.1, 6/20/2004
  * @author InetSoft Technology Corp
  */
-public class ReportJavaScriptEnv extends JavaScriptEnv
+public class ReportJavaScriptEnv extends GraalJavaScriptEnv
    implements ReportScriptEnv
 {
    /**
@@ -50,7 +50,8 @@ public class ReportJavaScriptEnv extends JavaScriptEnv
    public synchronized void reset() {
       if(rengine != null) {
          try {
-            rengine.init(report, vars);
+            rengine.setReport(report);
+            rengine.init(vars);
          }
          catch(Exception ex) {
             LOG.error("Failed to initialize script engine when " +
@@ -76,6 +77,10 @@ public class ReportJavaScriptEnv extends JavaScriptEnv
    @Override
    public void setReport(ReportSheet report) {
       this.report = report;
+
+      if(rengine != null) {
+         rengine.setReport(report);
+      }
    }
 
    /**
@@ -89,41 +94,29 @@ public class ReportJavaScriptEnv extends JavaScriptEnv
    public Object exec(ReportElement elem, Object script, Object scope) throws Exception {
       init();
 
-      if(scope == null) {
-         if(elem != null) {
-            // use the element scope for execution
-            scope = engine.getScriptable(elem.getID(), null);
-         }
-         else {
-            // use the report scope if element is not passed in
-            scope = engine.getScriptable(null, null);
-         }
-      }
+      // TODO(cutover): element-keyed scope resolution. The Rhino engine resolved
+      // an element's scriptable via engine.getScriptable(elem.getID(), null) when
+      // scope was null. The GraalJS scope-chain resolution (getScope/getScriptable)
+      // is deferred to Task 5.3; until then a null scope executes against the
+      // report/global scope, which covers report-level (non-element-scoped) scripts.
+      final Object execScope = scope;
 
       return ProfileUtils.addExecutionBreakDownRecord(report,
          ExecutionBreakDownRecord.JAVASCRIPT_PROCESSING_CYCLE, args -> {
             return exec(script, args[0], null, report);
-         }, scope);
-
-      //return exec(script, scope);
+         }, execScope);
    }
 
    /**
-    * Find the scope of the specified object.
+    * Find the type of the specified object.
     */
    @Override
    public Class getType(Object id, Object scope) {
       init();
-      return rengine.getType(id, (Scriptable) scope);
-   }
-
-   /**
-    * Find the scope of the specified object.
-    */
-   @Override
-   public Object getScope(Object id, Object scope) {
-      init();
-      return engine.getScriptable(id, (Scriptable) scope);
+      // TODO(cutover): property typing for the autocomplete/property tree was
+      // provided by ReportJavaScriptEngine.getType under Rhino. Deferred to
+      // Task 5.3 (scope-chain lookup); returns null (unknown type) until then.
+      return null;
    }
 
    /**
@@ -132,11 +125,13 @@ public class ReportJavaScriptEnv extends JavaScriptEnv
    @Override
    public synchronized void init() {
       if(rengine == null) {
-         rengine = (ReportJavaScriptEngine) createScriptEngine();
+         rengine = (ReportGraalJavaScriptEngine) createScriptEngine();
          engine = rengine;
 
          try {
-            rengine.init(report, vars);
+            rengine.setReport(report);
+            rengine.setSQL(sql);
+            rengine.init(vars);
          }
          catch(Exception e) {
             LOG.error("Failed to initialize script engine when " +
@@ -146,12 +141,14 @@ public class ReportJavaScriptEnv extends JavaScriptEnv
    }
 
    /**
-    * Run cleanup tasks for the javascript engine
+    * Run cleanup tasks for the javascript engine.
     */
+   @Override
    public void dispose() {
       if(rengine != null) {
-         rengine.dispose();
+         rengine.close();
          rengine = null;
+         engine = null;
       }
    }
 
@@ -159,11 +156,11 @@ public class ReportJavaScriptEnv extends JavaScriptEnv
     * Create a script engine instance.
     */
    @Override
-   protected JavaScriptEngine createScriptEngine() {
-      return new ReportJavaScriptEngine();
+   protected GraalJavaScriptEngine createScriptEngine() {
+      return new ReportGraalJavaScriptEngine();
    }
 
-   private ReportJavaScriptEngine rengine = null;
+   private ReportGraalJavaScriptEngine rengine = null;
    private ReportSheet report;
 
    private static final Logger LOG =
