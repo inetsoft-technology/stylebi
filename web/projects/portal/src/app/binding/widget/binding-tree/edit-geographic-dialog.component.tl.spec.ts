@@ -83,10 +83,10 @@ const PROVIDER_MOCK = {
 };
 
 beforeEach(() => {
+   Object.values(PROVIDER_MOCK).forEach(m => typeof (m as any).mockClear === "function" && (m as any).mockClear());
    PROVIDER_MOCK.getBindingModel.mockReturnValue({ mapType: "World" });
    PROVIDER_MOCK.getChartGeoModel.mockReturnValue(null);
    PROVIDER_MOCK.changeMapType.mockReturnValue(of(null));
-   PROVIDER_MOCK.changeMapType.mockClear();
 });
 
 // ---------------------------------------------------------------------------

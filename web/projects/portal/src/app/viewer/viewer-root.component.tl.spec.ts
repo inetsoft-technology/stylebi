@@ -25,7 +25,7 @@
  *   Group 2 [Risk 2] — ngOnDestroy: disconnects stored connection; safe when null
  *   Group 3 [Risk 2] — downloadStarted: opens info message dialog via ComponentTool
  *
- * Suspected bugs (header only):
+ * Confirmed bugs (it.fails):
  *   memory-leak — viewer-root.component.ts:51: the subscription returned by
  *     this.socket.connect().subscribe() is never stored, so ngOnDestroy() cannot
  *     call unsubscribe(). After destroy, a new connection emission would still update
