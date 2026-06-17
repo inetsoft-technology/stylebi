@@ -19,8 +19,8 @@ import { HttpClient, HttpParams } from "@angular/common/http";
 import {AfterViewInit, Component, NgZone, OnDestroy, OnInit, ViewChild} from "@angular/core";
 import { ActivatedRoute, ParamMap, ResolveStart, Router, RouterLink } from "@angular/router";
 import { NgbModal, NgbPopover, NgbTypeahead, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
-import {Subscription} from "rxjs";
-import {finalize, map} from "rxjs/operators";
+import {Observable, Subscription} from "rxjs";
+import {finalize, map, shareReplay} from "rxjs/operators";
 import {AssetType} from "../../../../../../shared/data/asset-type";
 import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
 import {FormValidators} from "../../../../../../shared/util/form-validators";
@@ -93,6 +93,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    currentFolderScope: string = "";
    currentFolderChain: DataSourceInfo[] = [];
    currentFolderDetails: DataSourceInfo | null = null;
+   private currentFolderDetails$: Observable<DataSourceInfo> | null = null;
    currentFolderIsRoot: boolean = true;
    currentSearchQuery: string = "";
    folders: DataSourceInfo[] = [];
@@ -404,20 +405,47 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    private loadCurrentFolderDetails(): void {
       if(this.currentFolderIsRoot || !this.currentFolderPathString) {
          this.currentFolderDetails = null;
+         this.currentFolderDetails$ = null;
          return;
       }
 
-      this.httpClient.get<DataSourceInfo>(
+      const request$ = this.httpClient.get<DataSourceInfo>(
          DATASOURCE_FOLDER_URI + "/" + Tool.encodeURIComponentExceptSlash(this.currentFolderPathString)
-      ).subscribe({
-         next: (folder) => this.currentFolderDetails = folder,
-         error: () => this.currentFolderDetails = null
+      ).pipe(shareReplay(1));
+
+      this.currentFolderDetails$ = request$;
+
+      request$.subscribe({
+         next: (folder) => {
+            this.currentFolderDetails = folder;
+            this.currentFolderDetails$ = null;
+         },
+         error: () => {
+            this.currentFolderDetails = null;
+            this.currentFolderDetails$ = null;
+         }
       });
    }
 
    private withCurrentFolderDetails(action: (folder: DataSourceInfo) => void): void {
       if(this.currentFolderDetails) {
          action(this.currentFolderDetails);
+         return;
+      }
+
+      // Join an in-flight load rather than issuing a duplicate GET.
+      const inflight$ = this.currentFolderDetails$;
+
+      if(inflight$) {
+         const fallbackFolder = this.currentFolderInfo;
+         inflight$.subscribe({
+            next: (folder) => action(folder),
+            error: () => {
+               if(fallbackFolder) {
+                  action(fallbackFolder);
+               }
+            }
+         });
          return;
       }
 
@@ -432,13 +460,13 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
                action(folder);
             },
             error: () => {
-               if(!!fallbackFolder) {
+               if(fallbackFolder) {
                   action(fallbackFolder);
                }
             }
          });
       }
-      else if(!!fallbackFolder) {
+      else if(fallbackFolder) {
          action(fallbackFolder);
       }
       // else: no path and no fallback — silent no-op. Callers are gated by

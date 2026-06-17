@@ -513,11 +513,11 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
          return;
       }
 
-      this.openDataModelTreeFolder(node).subscribe((data) => {
+      this.subscriptions.add(this.openDataModelTreeFolder(node).subscribe((data) => {
          data?.forEach((child) => this.normalizeDataModelTreeNodes(child));
          node.children = data || [];
          node.expanded = node.children.length > 0;
-      });
+      }));
    }
 
    private isLazyDataModelFolder(node: TreeNodeModel): boolean {
