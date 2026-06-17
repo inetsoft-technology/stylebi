@@ -514,7 +514,7 @@ describe("WSPaneComponent — processNotification", () => {
       const mocks = makeMocks();
       const { comp } = await renderComponent(mocks);
 
-      comp.processNotification({ type: "unknown", message: "???" });
+      comp.processNotification({ type: "unknown" as any, message: "???" });
 
       expect(mocks.notifications.warning).toHaveBeenCalledWith("???");
    });

@@ -55,6 +55,26 @@ import { WSPaneComponent } from "./ws-pane.component";
 import { Worksheet } from "../../../data/ws/worksheet";
 
 // ---------------------------------------------------------------------------
+// Module-level commandSubject reference — updated by makeMocks() so that
+// the standalone dispatchCommand() helper can dispatch to the most-recently
+// created component without requiring callers to pass the Subject explicitly.
+// ---------------------------------------------------------------------------
+
+let _activeCommandSubject: Subject<ViewsheetCommandMessage> | null = null;
+
+/**
+ * Dispatches a STOMP-style command to the most-recently-created component's
+ * ViewsheetClientService mock. Must be called after renderComponent() /
+ * makeMocks() to ensure a commandSubject is active.
+ */
+export function dispatchCommand(type: string, command: any): void {
+   if(!_activeCommandSubject) {
+      throw new Error("dispatchCommand called before makeMocks() — no active commandSubject");
+   }
+   _activeCommandSubject.next(new ViewsheetCommandMessage(null, type, command));
+}
+
+// ---------------------------------------------------------------------------
 // ViewsheetClientService mock factory
 // Returns both the service mock and the Subject used to dispatch commands,
 // keeping the Subject local rather than in shared module-level state.
@@ -146,6 +166,8 @@ export function makeWorksheet(overrides: Partial<any> = {}): any {
 
 export function makeMocks() {
    const { mock: wsClient, commandSubject } = makeWsClientMock();
+   // Update module-level reference so the standalone dispatchCommand() helper works.
+   _activeCommandSubject = commandSubject;
    return {
       wsClient,
       commandSubject,
