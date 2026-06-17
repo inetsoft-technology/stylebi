@@ -164,7 +164,7 @@ final class WsServiceHelper {
                schema = si != null && si.getProperty(SourceInfo.SCHEMA) != null ? si.getProperty(SourceInfo.SCHEMA) : "";
                catalog = si != null && si.getProperty(SourceInfo.CATALOG) != null ? si.getProperty(SourceInfo.CATALOG) : "";
 
-               ColumnSelection subCS = subPhys.getColumnSelection(true);
+               ColumnSelection subCS = subPhys.getColumnSelection(false);
 
                for(int j = 0; j < subCS.getAttributeCount(); j++) {
                   DataRef subAttr = subCS.getAttribute(j);

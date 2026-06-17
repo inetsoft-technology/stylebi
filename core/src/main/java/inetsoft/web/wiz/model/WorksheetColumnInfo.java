@@ -18,6 +18,8 @@
 
 package inetsoft.web.wiz.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 /**
  * Describes one column in the primary worksheet table assembly.
  * <p>
@@ -31,6 +33,7 @@ package inetsoft.web.wiz.model;
  * catalog – DB catalog (may be empty)
  * path    – datasource path (used to match against FieldInfo.source.path)
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class WorksheetColumnInfo {
    public String getName() {
       return name;
