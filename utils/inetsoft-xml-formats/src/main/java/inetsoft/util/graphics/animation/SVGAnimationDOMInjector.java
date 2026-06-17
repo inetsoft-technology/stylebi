@@ -858,20 +858,18 @@ public class SVGAnimationDOMInjector {
                                                             List<Element> annotAreas,
                                                             Element svgRoot, Document doc)
    {
-      // Line rank: data-series column index → 0-based rank.
-      // getColIndex() starts at 1 in some charts; TreeSet + sequential rank normalizes to 0-based.
-      // In a facet chart the same column indices repeat across panels; TreeSet deduplicates them.
-      TreeSet<Integer> lineColSet = new TreeSet<>();
+      // Line rank: composite data-series + data-color key, first-seen DOM order → 0-based rank.
+      // data-series alone (getColIndex()) collapses when one measure is split by a color/group
+      // dimension — all those LineVO share the same measure column index, so every line would
+      // rank 0 and animate at once (the same problem documented for area below).  Adding
+      // data-color distinguishes color-dimension series, while data-series still separates
+      // distinct measures that happen to share a color.
+      LinkedHashMap<String, Integer> lineSeriesRank = new LinkedHashMap<>();
 
       for(Element g : annotLines) {
-         lineColSet.add(parseIntAttr(g, "data-" + SVGSupport.ATTR_SERIES, 0));
-      }
-
-      Map<Integer, Integer> lineSeriesRank = new LinkedHashMap<>();
-      int rank = 0;
-
-      for(int col : lineColSet) {
-         lineSeriesRank.put(col, rank++);
+         String key = g.getAttribute("data-" + SVGSupport.ATTR_SERIES) + "|" +
+                      g.getAttribute("data-" + SVGSupport.ATTR_COLOR);
+         lineSeriesRank.putIfAbsent(key, lineSeriesRank.size());
       }
 
       // Area rank: data-color in DOM first-seen order.
@@ -920,8 +918,9 @@ public class SVGAnimationDOMInjector {
             seriesIdx = areaColorRank.getOrDefault(color, 0);
          }
          else {
-            int col = parseIntAttr(g, "data-" + SVGSupport.ATTR_SERIES, 0);
-            seriesIdx = lineSeriesRank.getOrDefault(col, 0);
+            String key = g.getAttribute("data-" + SVGSupport.ATTR_SERIES) + "|" +
+                         g.getAttribute("data-" + SVGSupport.ATTR_COLOR);
+            seriesIdx = lineSeriesRank.getOrDefault(key, 0);
          }
 
          double delay = AnimationConstants.staggerDelay(seriesIdx, numSeries);
@@ -1454,22 +1453,6 @@ public class SVGAnimationDOMInjector {
       }
       catch(NumberFormatException e) {
          return null;
-      }
-   }
-
-   /** Read an integer attribute from an element, returning {@code defaultVal} if absent/invalid. */
-   private static int parseIntAttr(Element el, String attr, int defaultVal) {
-      String v = el.getAttribute(attr);
-
-      if(v.isEmpty()) {
-         return defaultVal;
-      }
-
-      try {
-         return Integer.parseInt(v);
-      }
-      catch(NumberFormatException e) {
-         return defaultVal;
       }
    }
 
