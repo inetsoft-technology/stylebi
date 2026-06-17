@@ -24,6 +24,8 @@ package inetsoft.web.wiz.model;
  * name    – the underlying DB column name (used to match against FieldInfo.name)
  * alias   – the column identifier as StyleBI knows it in the worksheet;
  * null when the alias equals the DB column name
+ * type    – the column data type (XSchema type, e.g. "string", "integer", "date");
+ * used by the visualization layer to classify dimension vs measure
  * table   – DB table name (used to match against FieldInfo.table)
  * schema  – DB schema (may be empty)
  * catalog – DB catalog (may be empty)
@@ -44,6 +46,14 @@ public class WorksheetColumnInfo {
 
    public void setAlias(String alias) {
       this.alias = alias;
+   }
+
+   public String getType() {
+      return type;
+   }
+
+   public void setType(String type) {
+      this.type = type;
    }
 
    public String getTable() {
@@ -80,6 +90,7 @@ public class WorksheetColumnInfo {
 
    private String name;
    private String alias;
+   private String type;
    private String table;
    private String schema;
    private String catalog;

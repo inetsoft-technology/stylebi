@@ -1174,110 +1174,17 @@ public class GenerateWsService {
       AbstractTableAssembly primaryTable,
       WorksheetConstructionModel model)
    {
-      if(primaryTable == null) {
-         return Collections.emptyList();
-      }
+      // For a physical primary table the DB table name is resolved from the construction model's
+      // fields (falling back to the assembly name); WsServiceHelper applies the assembly-name
+      // fallback when the override is null.
+      String physicalDbTableNameOverride = model.getFields() == null ? null :
+         model.getFields().stream()
+            .filter(f -> f.getTable() != null)
+            .map(f -> f.getTable().getName())
+            .findFirst()
+            .orElse(null);
 
-      ColumnSelection cs = primaryTable.getColumnSelection(false);
-      List<WorksheetColumnInfo> result = new ArrayList<>(cs.getAttributeCount());
-
-      if(primaryTable instanceof PhysicalBoundTableAssembly physTable) {
-         String dbTableName = model.getFields() == null ? physTable.getName() :
-            model.getFields().stream()
-               .filter(f -> f.getTable() != null)
-               .map(f -> f.getTable().getName())
-               .findFirst()
-               .orElse(physTable.getName());
-
-         SourceInfo si = physTable.getSourceInfo();
-         String path = si != null && si.getPrefix() != null ? si.getPrefix() : "";
-         String schema = si != null && si.getProperty(SourceInfo.SCHEMA) != null ? si.getProperty(SourceInfo.SCHEMA) : "";
-         String catalog = si != null && si.getProperty(SourceInfo.CATALOG) != null ? si.getProperty(SourceInfo.CATALOG) : "";
-
-         for(int i = 0; i < cs.getAttributeCount(); i++) {
-            DataRef attr = cs.getAttribute(i);
-
-            // ColumnRef.getAttribute() returns the alias when one is set (StyleBI override).
-            // Go through getDataRef() to reach the underlying AttributeRef and get the true DB column name.
-            DataRef underlying = attr instanceof ColumnRef cr && cr.getDataRef() != null
-               ? cr.getDataRef() : attr;
-            String name = underlying.getAttribute();
-
-            // alias = what c.getAttribute() returns in autoBinding's column filter:
-            // the explicitly-set alias when it differs from the DB column name, null otherwise.
-            String colRefAlias = attr instanceof ColumnRef cr && !Tool.isEmptyString(cr.getAlias())
-               ? cr.getAlias() : null;
-            String alias = colRefAlias != null && !colRefAlias.equals(name) ? colRefAlias : null;
-
-            WorksheetColumnInfo info = new WorksheetColumnInfo();
-            info.setName(name);
-            info.setAlias(alias);
-            info.setTable(dbTableName);
-            info.setSchema(schema);
-            info.setCatalog(catalog);
-            info.setPath(path);
-            result.add(info);
-         }
-      }
-      else {
-         // CompositeTableAssembly: each column's entity is the sub-table assembly name (= DB table name).
-         for(int i = 0; i < cs.getAttributeCount(); i++) {
-            DataRef attr = cs.getAttribute(i);
-            String worksheetColName = attr.getAttribute(); // base alias or DB column name
-            String subTableName = attr.getEntity();
-
-            if(Tool.isEmptyString(subTableName)) {
-               continue;
-            }
-
-            String dbColumnName = worksheetColName; // fallback if sub-table is not a physical table
-            String path = "";
-            String schema = "";
-            String catalog = "";
-
-            Assembly subAssembly = worksheet.getAssembly(subTableName);
-
-            if(subAssembly instanceof PhysicalBoundTableAssembly subPhys) {
-               SourceInfo si = subPhys.getSourceInfo();
-               path = si != null && si.getPrefix() != null ? si.getPrefix() : "";
-               schema = si != null && si.getProperty(SourceInfo.SCHEMA) != null ? si.getProperty(SourceInfo.SCHEMA) : "";
-               catalog = si != null && si.getProperty(SourceInfo.CATALOG) != null ? si.getProperty(SourceInfo.CATALOG) : "";
-
-               // Resolve worksheetColName back to the underlying DB column name.
-               // In WsServiceHelper.initCompositeColumnSelection the join column attribute was set
-               // to the base column's alias (if any) or its attribute. Reverse-map that here.
-               ColumnSelection subCS = subPhys.getColumnSelection(true);
-
-               for(int j = 0; j < subCS.getAttributeCount(); j++) {
-                  DataRef subAttr = subCS.getAttribute(j);
-                  String subAlias = subAttr instanceof ColumnRef sc && !Tool.isEmptyString(sc.getAlias())
-                     ? sc.getAlias() : null;
-                  String subColName = subAlias != null ? subAlias : subAttr.getAttribute();
-
-                  if(worksheetColName.equals(subColName)) {
-                     // Bypass ColumnRef.getAttribute() alias override to get the real DB column name.
-                     DataRef subUnderlying = subAttr instanceof ColumnRef sc && sc.getDataRef() != null
-                        ? sc.getDataRef() : subAttr;
-                     dbColumnName = subUnderlying.getAttribute();
-                     break;
-                  }
-               }
-            }
-
-            String alias = dbColumnName.equals(worksheetColName) ? null : worksheetColName;
-
-            WorksheetColumnInfo info = new WorksheetColumnInfo();
-            info.setName(dbColumnName);
-            info.setAlias(alias);
-            info.setTable(subTableName);
-            info.setSchema(schema);
-            info.setCatalog(catalog);
-            info.setPath(path);
-            result.add(info);
-         }
-      }
-
-      return result;
+      return WsServiceHelper.extractPrimaryTableFields(worksheet, primaryTable, physicalDbTableNameOverride);
    }
 
    private final ViewsheetService viewsheetService;
