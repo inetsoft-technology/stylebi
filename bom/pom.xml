@@ -966,12 +966,6 @@
       </dependency>
 
       <dependency>
-        <groupId>org.mozilla</groupId>
-        <artifactId>rhino</artifactId>
-        <version>1.7.14</version>
-      </dependency>
-
-      <dependency>
         <groupId>org.graalvm.polyglot</groupId>
         <artifactId>polyglot</artifactId>
         <version>24.1.2</version>

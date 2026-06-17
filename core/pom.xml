@@ -98,12 +98,6 @@
     </dependency>
 
     <dependency>
-      <groupId>org.mozilla</groupId>
-      <artifactId>rhino</artifactId>
-      <scope>compile</scope>
-    </dependency>
-
-    <dependency>
       <groupId>org.graalvm.polyglot</groupId>
       <artifactId>polyglot</artifactId>
     </dependency>
