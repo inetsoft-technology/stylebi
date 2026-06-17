@@ -228,11 +228,10 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       }
 
       if("add".equals(action)) {
-         rvs.removeBookmark(name, ownerId, false);
          //add the bookmark
          addBookmark(rvs, name, type, readOnly,
                                      !"add".equals(originalAction) || value.confirmed(), owner,
-                                     commandDispatcher, value, BookmarkRecord.ACTION_TYPE_MODIFY,
+                                     principal, commandDispatcher, value, BookmarkRecord.ACTION_TYPE_MODIFY,
                                      origBookmarkInfo);
       }
       else if("readd".equals(action)) {
@@ -240,7 +239,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
          rvs.updateVSBookmark();
          addBookmark(rvs, name, type, readOnly,
                                      !"add".equals(originalAction) || value.confirmed(), owner,
-                                     commandDispatcher, value, BookmarkRecord.ACTION_TYPE_MODIFY,
+                                     principal, commandDispatcher, value, BookmarkRecord.ACTION_TYPE_MODIFY,
                                      origBookmarkInfo);
       }
 
@@ -601,8 +600,18 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
                            CommandDispatcher commandDispatcher, VSEditBookmarkEvent value,
                            String bookmarkActionType, VSBookmarkInfo origBookmarkInfo)
       throws Exception {
+      addBookmark(rvs, bookmarkName, type, readOnly, confirmed, principal, principal,
+                  commandDispatcher, value, bookmarkActionType, origBookmarkInfo);
+   }
+
+   private void addBookmark(RuntimeViewsheet rvs, String bookmarkName, int type,
+                           boolean readOnly, boolean confirmed, Principal principal,
+                           Principal currentPrincipal,
+                           CommandDispatcher commandDispatcher, VSEditBookmarkEvent value,
+                           String bookmarkActionType, VSBookmarkInfo origBookmarkInfo)
+      throws Exception {
       MessageCommand messageCommand = addBookmarkToViewSheet(rvs, bookmarkName, type, readOnly,
-                                                             confirmed, principal);
+                                                             confirmed, principal, currentPrincipal);
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
 
       if(messageCommand.getType() != MessageCommand.Type.OK) {
@@ -640,8 +649,16 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
                                                 Principal principal)
       throws Exception
    {
+      return addBookmarkToViewSheet(rvs, bookmarkName, type, readOnly, confirmed, principal, principal);
+   }
+
+   public MessageCommand addBookmarkToViewSheet(RuntimeViewsheet rvs, String bookmarkName, int type,
+                                                boolean readOnly, boolean confirmed,
+                                                Principal principal, Principal currentPrincipal)
+      throws Exception
+   {
       Viewsheet vs = rvs.getViewsheet();
-      MessageCommand messageCommand = checkAddBookmark(rvs, bookmarkName, confirmed, principal);
+      MessageCommand messageCommand = checkAddBookmark(rvs, bookmarkName, confirmed, principal, currentPrincipal);
 
       if(messageCommand.getType() != MessageCommand.Type.OK) {
          return messageCommand;
@@ -659,14 +676,22 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
                                           boolean confirmed, Principal principal)
       throws SecurityException
    {
+      return checkAddBookmark(rvs, bookmarkName, confirmed, principal, principal);
+   }
+
+   public MessageCommand checkAddBookmark(RuntimeViewsheet rvs, String bookmarkName,
+                                          boolean confirmed, Principal principal,
+                                          Principal currentPrincipal)
+      throws SecurityException
+   {
       SecurityEngine engine = securityEngine;
       MessageCommand messageCommand = new MessageCommand();
 
-      boolean isGlobalVSPermDenied = SUtil.isDefaultVSGloballyVisible(principal) &&
+      boolean isGlobalVSPermDenied = SUtil.isDefaultVSGloballyVisible(currentPrincipal) &&
                                      !Tool.equals(rvs.getEntry() == null ? "" :
-                                     rvs.getEntry().getOrgID(),((XPrincipal)principal).getOrgId());
+                                     rvs.getEntry().getOrgID(),((XPrincipal)currentPrincipal).getOrgId());
 
-      if(!engine.checkPermission(principal, ResourceType.VIEWSHEET_ACTION, "Bookmark",
+      if(!engine.checkPermission(currentPrincipal, ResourceType.VIEWSHEET_ACTION, "Bookmark",
                                  ResourceAction.READ))
       {
          messageCommand.setMessage(catalog.getString("viewer.viewsheet.security.addbookmark"));
