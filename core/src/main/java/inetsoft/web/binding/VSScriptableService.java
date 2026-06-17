@@ -1068,6 +1068,13 @@ public class VSScriptableService {
       for(Object fieldId : fieldIds) {
          String field = (String) fieldId;
          ScriptScope fieldScriptable = (ScriptScope) fieldsScriptable.getMember(field);
+
+         // a member key may resolve to null/non-scope for some chart array
+         // implementations; skip rather than NPE in createProperties0
+         if(fieldScriptable == null) {
+            continue;
+         }
+
          ObjectNode fieldNode = mapper.createObjectNode();
 
          if(!Tool.isValidIdentifier(field)) {
