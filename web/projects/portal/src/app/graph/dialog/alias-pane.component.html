@@ -25,7 +25,7 @@
         </tr>
       </thead>
       <tbody>
-        @for (_val of model.aliasList; track _val; let _i = $index) {
+        @for (_val of model.aliasList; track _val.value; let _i = $index) {
           <tr (click)="selectedIndex = _i"
             [class.selected]="_i === selectedIndex">
             <td>

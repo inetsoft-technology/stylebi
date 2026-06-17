@@ -31,7 +31,7 @@
       <input matInput placeholder="" formControlName="idName"
         [matAutocomplete]="auto">
       <mat-autocomplete #auto="matAutocomplete">
-        @for (id of filteredIdentities | async; track id) {
+        @for (id of filteredIdentities | async; track id.name) {
           <mat-option [value]="id.name">{{id.name}}</mat-option>
         }
       </mat-autocomplete>

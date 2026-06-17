@@ -64,7 +64,7 @@
       </li>
     </ul>
   </div>
-  @for (bookmark of vsBookmarkList; track bookmark) {
+  @for (bookmark of vsBookmarkList; track bookmark.name) {
     @if (bookmarkVisible(bookmark)) {
       <li class="dropdown-item bookmark-item hover-bg-primary"
         [class.bg-bold-selected]="bookmark.currentBookmark"

@@ -30,7 +30,7 @@
     <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Tasks and Cycles)</mat-label>
       <mat-select formControlName="selectedTasks" multiple (selectionChange)="clearFolders($event)">
-        @for (task of tasks; track task) {
+        @for (task of tasks; track task.assetId) {
           <mat-option [value]="task.assetId">{{task.label}}</mat-option>
         }
       </mat-select>

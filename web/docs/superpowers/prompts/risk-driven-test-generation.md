@@ -27,6 +27,10 @@
 
 - **输出语言**：生成的测试代码、注释、`describe` / `it` 描述文本统一使用**英文**；本提示词为中文，不影响输出语言。
 - 命名与测试命令以参考文件为准，不得猜测。
+- **输出文件名必须与被测组件的源文件名一致**（kebab-case + `.component`），**绝不使用 PascalCase 类名**。
+  例：`VSBindingPane`（类名）的源文件为 `vs-binding-pane.component.ts`，
+  测试文件命名为 `vs-binding-pane.component.tl.spec.ts`，而非 `VSBindingPane.tl.spec.ts`。
+  确定文件名的方法：读取 prescan 行或 Glob 搜索 `**/<kebab-name>.component.ts`。
 - 使用 **Angular Testing Library**。
 - HTTP mock → **MSW**；非 HTTP 边界（router / auth / WebSocket）→ 直接模块 mock。
 - 若同时存在 `*.spec.ts` 和 `*.tl.spec.ts`，以 `*.tl.spec.ts` 为格式参考；
@@ -76,7 +80,7 @@ multi-pass 组件一并读取其「多 pass 组件详情」段落。
 
 报告：`"单 pass — 继续生成单文件。"`
 
-输出文件：`ComponentName.tl.spec.ts`
+输出文件：`<source-file-name>.component.tl.spec.ts`（如 `vs-binding-pane.component.tl.spec.ts`）
 
 从「Pass 计划」列读取追加项并应用：
 - `+竞态` → 添加竞态用例（MSW delay、并发触发）
@@ -91,9 +95,9 @@ multi-pass 组件一并读取其「多 pass 组件详情」段落。
 
 | Pass | 文件 | 方法列表 | 原因 |
 |------|------|----------|------|
-| 1 | ComponentName.interaction.tl.spec.ts | method1, method2 … | 导航 / 加载 / 回归主体 |
-| 2 | ComponentName.risk.tl.spec.ts | method3, method4 … | 异步竞态 / 破坏性操作 |
-| 3 | ComponentName.display.tl.spec.ts | method5, method6 … | 多态展示 / 边界输入 |
+| 1 | source-file-name.component.interaction.tl.spec.ts | method1, method2 … | 导航 / 加载 / 回归主体 |
+| 2 | source-file-name.component.risk.tl.spec.ts | method3, method4 … | 异步竞态 / 破坏性操作 |
+| 3 | source-file-name.component.display.tl.spec.ts | method5, method6 … | 多态展示 / 边界输入 |
 
 **停下来，等待用户指定执行哪个 Pass。**
 
@@ -102,7 +106,7 @@ multi-pass 组件一并读取其「多 pass 组件详情」段落。
 - **在范围内**：仅当前 Pass 列出的 methods。
 - **范围外**：其余所有 methods — 视为已覆盖，不生成测试。
 - **共享 helper**：Pass 1 完成后，对比后续 Pass 的 `renderComponent()` 配置。
-  相同 → 提取到 `ComponentName.test-helpers.ts` 并导入；不同 → 各文件保留本地 helper。
+  相同 → 提取到 `source-file-name.component.test-helpers.ts` 并导入；不同 → 各文件保留本地 helper。
 
 ---
 
@@ -304,7 +308,7 @@ HTTP: [其他方案] — 原因：[具体说明，且说明为何 MSW 不适用]
  * Suspected bugs (header only):
  *   Suspicion A — <name>: <evidence gap>.
  *
- * Out of scope this pass: [method list — covered in ComponentName.risk / .interaction / .display]
+ * Out of scope this pass: [method list — covered in source-file-name.component.risk / .interaction / .display]
  */
 ```
 
@@ -319,6 +323,8 @@ it("should ...", async () => { ... });
 ## 3.4 多契约断言
 
 断言错误或无效结果时，同时断言导致该结果的具体标志 / 元素，并确认没有误命中的兄弟条件激活——「输出正确但原因错误」同样是缺陷。
+
+**i18n / 文案断言规则**：涉及 i18n key、默认文案、通知消息或模板文本时，先用 `rg` 从组件实现、已导入常量、`srinter.properties` / `srinter_*.properties` 确认真实值，不得自行猜测。若被测路径返回 `"_#(js:...)"` key，就断言该 key；只有实际经过翻译管线时才断言展开文本。
 
 ## 3.5 验证
 

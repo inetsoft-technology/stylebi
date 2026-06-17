@@ -31,7 +31,7 @@
             <div class="format-container">
               <mat-form-field appearance="outline" color="accent">
                 <mat-select [(value)]="element.format" placeholder="#(Select Format)" (valueChange)="fireServerSaveChanged()" [required]="true">
-                  @for (format of formats; track format) {
+                  @for (format of formats; track format.type) {
                     <mat-option [value]="format.type">{{format.label}}</mat-option>
                   }
                 </mat-select>
@@ -69,7 +69,7 @@
                     @if (hasLocations) {
                       <mat-form-field floatLabel="never" appearance="outline" color="accent">
                         <mat-select [formControlName]="i" (selectionChange)="locationPathChanged(i)" placeholder="_#(Location)" [required]="true">
-                          @for (location of locations; track location) {
+                          @for (location of locations; track location.path) {
                             <mat-option [value]="location.path">{{location.label}}</mat-option>
                           }
                         </mat-select>

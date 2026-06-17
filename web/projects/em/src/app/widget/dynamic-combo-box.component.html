@@ -69,7 +69,7 @@
       </mat-form-field>
     }
     <mat-autocomplete #auto="matAutocomplete">
-      @for (value of values; track value) {
+      @for (value of values; track value.value) {
         <mat-option [value]="value.value"
         [class.selected]="selectedOption(value.value)">{{value.label}}</mat-option>
       }

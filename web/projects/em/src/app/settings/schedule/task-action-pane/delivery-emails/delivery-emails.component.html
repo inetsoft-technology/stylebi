@@ -64,7 +64,7 @@
         <mat-form-field appearance="outline" color="accent">
           <mat-label>_#(Format)</mat-label>
           <mat-select formControlName="format" placeholder="_#(Format)" (selectionChange)="changeFormat()">
-            @for (format of mailFormats; track format) {
+            @for (format of mailFormats; track format.type) {
               <mat-option [value]="format.type">{{format.label}}</mat-option>
             }
           </mat-select>

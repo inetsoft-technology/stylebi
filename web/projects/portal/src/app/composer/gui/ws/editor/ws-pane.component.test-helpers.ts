@@ -147,6 +147,7 @@ export function makeWorksheet(overrides: Partial<any> = {}): any {
       callBackFun: null,
       clearFocusedAssemblies: vi.fn(),
       isModified: vi.fn().mockReturnValue(false),
+      isCompositeView: vi.fn().mockReturnValue(false),
       isAssemblyFocused: vi.fn().mockReturnValue(false),
       replaceFocusedAssembly: vi.fn(),
       deselectAssembly: vi.fn(),

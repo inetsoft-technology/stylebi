@@ -78,13 +78,13 @@
     </button>
     <ng-template #mobileSandwichDropdown>
       <div class="dropdown-menu show" role="menu">
-        @for (group of actions.menuActions; track group) {
+        @for (group of actions.menuActions; track $index) {
           @if (group.visible) {
             @if (actions.requiresMenuSeparator(group) && group.visible) {
               <div class="dropdown-divider"
               ></div>
             }
-            @for (action of group.actions; track action) {
+            @for (action of group.actions; track $index) {
               @if (action.visible()) {
                 <a role="menuitem" class="dropdown-item"
                   [class.disable-link]="!action.enabled()"
