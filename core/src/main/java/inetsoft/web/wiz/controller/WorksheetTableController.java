@@ -18,8 +18,7 @@
 
 package inetsoft.web.wiz.controller;
 
-import inetsoft.web.wiz.model.WorksheetTableRequest;
-import inetsoft.web.wiz.model.WorksheetTableResponse;
+import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.service.WorksheetTableService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,6 +67,29 @@ public class WorksheetTableController {
          response.setTableName(request.getTableName());
          response.setErrorMessage(e.getMessage());
          LOG.error("Failed to create worksheet table '{}'", request.getTableName(), e);
+         return response;
+      }
+   }
+
+   /**
+    * Delete one or more table assemblies from an existing worksheet.
+    *
+    * @param request the list of table names to remove and the worksheet identifier
+    * @param user    the authenticated user
+    * @return lists of deleted, not-found, and skipped table names
+    */
+   @DeleteMapping(value = "/ws/table", produces = MediaType.APPLICATION_JSON_VALUE)
+   public DeleteWorksheetTablesResponse deleteTables(@RequestBody DeleteWorksheetTablesRequest request,
+                                                     Principal user)
+   {
+      try {
+         return worksheetTableService.deleteTables(request, user);
+      }
+      catch(Exception e) {
+         DeleteWorksheetTablesResponse response = new DeleteWorksheetTablesResponse();
+         response.setSuccess(false);
+         response.setErrorMessage(e.getMessage());
+         LOG.error("Failed to delete worksheet tables {}", request.getTableNames(), e);
          return response;
       }
    }
