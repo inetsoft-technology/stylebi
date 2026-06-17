@@ -109,6 +109,12 @@ export class ComposerSelectionContainerChildren extends VSSelectionContainerChil
    scrollbarWidth: number = GuiTool.measureScrollbars();
    private gutterMargin: number = 0.15;
 
+   objectTop: number = 0;
+   bodyHeight: number = 0;
+   bodyWidth: number = 0;
+   innerWidth: number = 0;
+   paddingHeight: number = 0;
+
    private model: VSSelectionContainerModel;
    private subscriptions: Subscription = new Subscription();
    private dragPlaceholderElement: boolean = false;
@@ -131,6 +137,7 @@ export class ComposerSelectionContainerChildren extends VSSelectionContainerChil
          }
 
          this.setChildrenHeight();
+         this.updateCachedDimensions();
       }
    }
 
@@ -166,6 +173,7 @@ export class ComposerSelectionContainerChildren extends VSSelectionContainerChil
 
       this.selectionContainerChildrenService.onChildUpdate.subscribe((index) => {
          this.setChildrenHeight();
+         this.updateCachedDimensions();
       });
 
       this.subscriptions.add(this.composerVsSearchService.focusChange().subscribe(obj => {
@@ -198,11 +206,24 @@ export class ComposerSelectionContainerChildren extends VSSelectionContainerChil
    ngOnChanges(changes: SimpleChanges) {
       if(changes["childObjects"]) {
          this.setChildrenHeight();
+         this.updateCachedDimensions();
       }
    }
 
    getObjectTop(): number {
       return this.vsObject.objectFormat.top + this.vsObject.titleFormat.height;
+   }
+
+   private updateCachedDimensions(): void {
+      if(!this.model) {
+         return;
+      }
+
+      this.objectTop = this.getObjectTop();
+      this.bodyHeight = this.getBodyHeight();
+      this.bodyWidth = this.getBodyWidth();
+      this.innerWidth = this.getInnerWidth();
+      this.paddingHeight = this.getPaddingHeight();
    }
 
    setChildrenHeight() {

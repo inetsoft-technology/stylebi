@@ -51,7 +51,7 @@
         <select class="form-control" [(ngModel)]="model.popLocation"
           [disabled]="layoutObject"
           placeholder="_#(Pop Location)">
-          @for (component of getKeys(); track component) {
+          @for (component of popLocationKeys; track component) {
             <option [title]="popService.getPopLocationLabel(component)" [value]="component">
               {{popService.getPopLocationLabel(component) | truncate}}
             </option>

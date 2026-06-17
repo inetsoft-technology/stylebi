@@ -22,7 +22,7 @@
       [selectionBoxScale]="scale"
       (onSelectionBox)="onSelectionBox($event)" (mousedown)="clearSelection($event)">
       <!-- Using tabindex to make node can getting focus, then hidden endpoint when blur -->
-      @for (graph of graphViewModel.graphs; track graph) {
+      @for (graph of graphViewModel.graphs; track graph.node.id) {
         <join-node-graph tabindex="0"
           class="ws-assembly-graph-element jsplumb-element"
           [class.physical-graph-columns-popped]="graph.showColumns"

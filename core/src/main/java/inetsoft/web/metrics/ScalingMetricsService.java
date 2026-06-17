@@ -132,7 +132,7 @@ public class ScalingMetricsService {
          ScalingMetricData data = new ScalingMetricData(
             jvmCpu.get(), jvmCpu.calculate(),
             jvmMemory.get(), jvmMemory.calculate(),
-            systemCpu.get(), systemMemory.calculate(),
+            systemCpu.get(), systemCpu.calculate(),
             systemMemory.get(), systemMemory.calculate(),
             scheduler.get(), scheduler.calculate(),
             cacheSwapMemory.get(), cacheSwapMemory.calculate(),

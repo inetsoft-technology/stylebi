@@ -44,6 +44,7 @@ public class UpdateMirrorService extends WorksheetControllerService {
       this.assetDataCache = assetDataCache;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void updateMirror(@ClusterProxyKey String runtimeId, WSAssemblyEvent event,
                             Principal principal, CommandDispatcher commandDispatcher) throws Exception

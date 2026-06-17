@@ -39,6 +39,7 @@ public class VSAnnotationToggleService {
       this.service = service;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void toggleAnnotationStatus(@ClusterProxyKey String id, ToggleAnnotationStatusEvent event,
                                       Principal principal, String linkUri, CommandDispatcher dispatcher) throws Exception

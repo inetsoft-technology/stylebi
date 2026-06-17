@@ -27,7 +27,7 @@
             <select class="form-control" id="calculateClassType"
               [ngModel]="calculator.classType" placeholder="_#(Calculate)"
               (ngModelChange)="calcTypeChange($event)">
-              @for (calc of calcDatas; track calc) {
+              @for (calc of calcDatas; track $index) {
                 <option [value]="calc.data">
                   {{calc.label}}
                 </option>
@@ -55,7 +55,7 @@
             <div class="col">
               <div class="form-floating">
                 <select class="form-control" [(ngModel)]="percOfValue" placeholder="_#(calculationOf)" id="percOfValue">
-                  @for (perc of percDims; track perc) {
+                  @for (perc of percDims; track $index) {
                     <option [value]="perc.data" [attr.title]="perc.description"
                       >
                       {{perc.label}}
@@ -91,7 +91,7 @@
               <div class="form-floating">
                 <select class="form-control" [(ngModel)]="changeColumn" id="changeColumn"
                   placeholder="_#(Value of)">
-                  @for (value of valueOfDatas; track value) {
+                  @for (value of valueOfDatas; track $index) {
                     <option [value]="value.data" [attr.title]="value.description"
                       >
                       {{value.label}}
@@ -107,7 +107,7 @@
               <div class="form-floating">
                 <select class="form-control" [(ngModel)]="changeCalculator.from"
                   placeholder="_#(From)" id="calculatorFrom">
-                  @for (from of fromDatas; track from) {
+                  @for (from of fromDatas; track $index) {
                     <option [value]="from.data">
                       {{from.label}}
                     </option>
@@ -127,7 +127,7 @@
               <div class="form-floating">
                 <select class="form-control" [(ngModel)]="aggregateCalculator.aggregate"
                   placeholder="_#(Aggregate)">
-                  @for (aggr of aggregateDatas; track aggr) {
+                  @for (aggr of aggregateDatas; track $index) {
                     <option [value]="aggr.formulaName">
                       {{aggr.label}}
                     </option>
@@ -158,7 +158,7 @@
               <div class="form-floating">
                 <select class="form-control" [(ngModel)]="valueOfColumn"
                   placeholder="_#(Value of)">
-                  @for (value of valueOfDatas; track value) {
+                  @for (value of valueOfDatas; track $index) {
                     <option [value]="value.data" [attr.title]="value.description"
                       >
                       {{value.label}}
@@ -174,7 +174,7 @@
               <div class="form-floating">
                 <select class="form-control" [(ngModel)]="valueOfCalculator.from"
                   placeholder="_#(From)">
-                  @for (from of fromDatas; track from) {
+                  @for (from of fromDatas; track $index) {
                     <option [value]="from.data">
                       {{from.label}}
                     </option>
@@ -197,7 +197,7 @@
           <div class="col">
             <div class="form-floating">
               <select class="form-control" [(ngModel)]="breakBy" placeholder="_#(Break By)">
-                @for (dim of breakByDims; track dim) {
+                @for (dim of breakByDims; track $index) {
                   <option [value]="dim.data">
                     {{dim.label}}
                   </option>
@@ -215,7 +215,7 @@
             <div class="form-floating">
               <select class="form-control" [(ngModel)]="runningTotalCalculator.resetLevel"
                 placeholder="_#(Reset at)">
-                @for (reset of resetOptsData; track reset) {
+                @for (reset of resetOptsData; track $index) {
                   <option [value]="reset.data">
                     {{reset.label}}
                   </option>
@@ -234,7 +234,7 @@
               <div class="form-floating">
                 <select class="form-control" [(ngModel)]="movingCalculator.innerDim"
                   placeholder="_#(Moving Of)">
-                  @for (dim of movingDims; track dim) {
+                  @for (dim of movingDims; track $index) {
                     <option [value]="dim.data">
                       {{dim.label}}
                     </option>

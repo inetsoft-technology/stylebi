@@ -85,7 +85,8 @@
   </div>
   <div class="treeStatus">
     @if (this.selectedNodes?.length == 1) {
-      @for (metaTypeEntry of selectedNodes[0].getNodeMetaMap().entries(); track metaTypeEntry) {
+      @let metaEntries = selectedNodes[0].getNodeMetaMap().entries();
+      @for (metaTypeEntry of metaEntries; track metaTypeEntry[0]) {
         <span class="treeStatusItem">
           <span class="badge">{{metaTypeEntry[0]}}: {{metaTypeEntry[1]}}
           </span>

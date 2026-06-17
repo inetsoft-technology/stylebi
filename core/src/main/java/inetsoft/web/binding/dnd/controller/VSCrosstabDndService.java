@@ -83,6 +83,7 @@ public class VSCrosstabDndService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void dnd(@ClusterProxyKey String runtimeId, VSDndEvent event, Principal principal,
                    String linkUri, CommandDispatcher dispatcher) throws Exception
    {
@@ -205,6 +206,7 @@ public class VSCrosstabDndService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void dndFromTree(@ClusterProxyKey String runtimeId, VSDndEvent event, Principal principal,
                            String linkUri, CommandDispatcher dispatcher) throws Exception
    {

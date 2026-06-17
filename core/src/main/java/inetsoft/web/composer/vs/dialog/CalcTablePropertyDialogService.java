@@ -323,6 +323,7 @@ public class CalcTablePropertyDialogService {
       return approxVisibleCols;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setCalcTablePropertyModel(@ClusterProxyKey String runtimeId,
                                          String objectId,

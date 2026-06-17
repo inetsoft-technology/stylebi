@@ -100,6 +100,7 @@ public class ReorderColumnsDialogService extends WorksheetControllerService {
       return cols;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void reorderColumns(@ClusterProxyKey String runtimeId, ReorderColumnsDialogModel model,
                               String tableName, Principal principal, CommandDispatcher commandDispatcher) throws Exception

@@ -20,7 +20,7 @@
   selectionBox (onSelectionBox)="onSelectionBox($event)" selectionBoxBannedSelector="schema-table-thumbnail"
   (drop)="dropSchemaTable($event)" (mousedown)="jsplumbContainerMousedown($event)" outOfZone
   (onKeydown)="oozKeydown($event)">
-  @for (_pair of tableColumnsPairs; track _pair) {
+  @for (_pair of tableColumnsPairs; track $index) {
     <schema-table-thumbnail class="bd-gray" tabindex="0"
       [schemaTable]="_pair.table"
       [selected]="worksheet.selectedSubtables.indexOf(_pair.table) !== -1"

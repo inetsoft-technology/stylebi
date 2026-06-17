@@ -20,8 +20,7 @@ package inetsoft.web.admin.content.repository;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
-import inetsoft.web.admin.content.repository.model.ExportedAssetsModel;
-import inetsoft.web.admin.content.repository.model.ImportAssetResponse;
+import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.model.FileData;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
@@ -30,8 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 @RestController
 public class ImportAssetController {
@@ -104,6 +102,27 @@ public class ImportAssetController {
          actions = ResourceAction.ACCESS
       )
    )
+   @GetMapping("/api/em/content/repository/import-bookmark-conflicts/{importId}")
+   public List<BookmarkConflict> getBookmarkConflicts(
+      @PathVariable("importId") String importId,
+      @RequestParam(name = "targetLocation", required = false) String targetLocation,
+      @RequestParam(name = "locationType", required = false) Integer locationType,
+      @RequestParam(name = "locationUser", required = false) String locationUser,
+      @RequestParam(name = "dependenciesApplyTarget", defaultValue = "true") Boolean dependenciesApplyTarget,
+      @RequestParam(name = "ignoreList", required = false) List<String> ignoreList,
+      Principal principal) throws Exception
+   {
+      return importService.getBookmarkConflicts(importId, targetLocation, locationType,
+         locationUser, dependenciesApplyTarget, ignoreList, principal);
+   }
+
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      )
+   )
    @PostMapping("/api/em/content/repository/import/{importId}")
    public ImportAssetResponse importAsset(
       @PathVariable("importId") String importId,
@@ -111,13 +130,23 @@ public class ImportAssetController {
       @RequestParam(name = "locationType", required = false) Integer locationType,
       @RequestParam(name = "locationUser", required = false) String locationUser,
       @RequestParam(name = "dependenciesApplyTarget", defaultValue = "true") Boolean dependenciesApplyTarget,
-      @RequestBody() List<String> ignoreList,
+      @RequestBody ImportAssetRequest importRequest,
       @RequestParam("overwrite") boolean overwriting,
       @RequestParam("background") boolean background, Principal principal) throws Exception
    {
+      List<String> ignoreList = importRequest.getIgnoreList();
+
+      Map<String, Boolean> resolutionMap = new HashMap<>();
+      for(BookmarkConflictResolution r : importRequest.getBookmarkResolutions()) {
+         if(!r.isKeepImported()) {
+            String key = r.getViewsheetPath() + "|" + r.getUser() + "|" + r.getBookmarkName();
+            resolutionMap.put(key, Boolean.FALSE);
+         }
+      }
+
       return importService.importAsset(
          importId, targetLocation, locationType, locationUser, dependenciesApplyTarget, ignoreList,
-         overwriting, background, principal);
+         overwriting, background, principal, resolutionMap);
    }
 
    @Secured(

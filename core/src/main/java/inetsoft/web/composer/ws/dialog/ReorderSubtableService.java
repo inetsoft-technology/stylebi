@@ -47,6 +47,7 @@ public class ReorderSubtableService extends WorksheetControllerService {
       super(viewsheetService, dataSourceRegistry);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void reorderSubtables(@ClusterProxyKey String runtimeId, ReorderSubtablesEvent event,
                                 Principal principal, CommandDispatcher commandDispatcher) throws Exception
@@ -88,6 +89,7 @@ public class ReorderSubtableService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void reorderJoinTable(@ClusterProxyKey String runtimeId, WSMergeAddJoinTableEvent event,
                                 Principal principal, CommandDispatcher commandDispatcher) throws Exception

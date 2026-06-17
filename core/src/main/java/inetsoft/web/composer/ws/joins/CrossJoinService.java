@@ -59,6 +59,7 @@ public class CrossJoinService extends WorksheetControllerService {
       this.service = service;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void executeCrossjoinAssemblies(@ClusterProxyKey String runtimeId, Principal principal,
                                    CommandDispatcher dispatcher, String linkUri, String tableName) throws Exception
@@ -75,6 +76,7 @@ public class CrossJoinService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void doCrossJoin(@ClusterProxyKey String runtimeId, WSCrossJoinEvent event, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception

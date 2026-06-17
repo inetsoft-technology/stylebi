@@ -52,6 +52,7 @@ public class SetColumnVisibleService extends WorksheetControllerService {
       this.dataRefModelFactoryService = dataRefModelFactoryService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setColumnVisibility(@ClusterProxyKey String runtimeId, WSSetColumnVisibilityEvent event,
                                    Principal principal, CommandDispatcher commandDispatcher) throws Exception

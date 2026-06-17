@@ -16,7 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <div class="range-container">
-  @for (period of customPeriodPaneModel.datePeriods; track period; let i = $index) {
+  @for (period of customPeriodPaneModel.datePeriods; track $index; let i = $index) {
     <div class="form-row-float-label row g-0">
       <div class="col-5">
         <dynamic-value-editor [valueModel]="period.start" [disable]="disable"

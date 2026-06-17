@@ -51,7 +51,7 @@
     <div class="row form-row-float-label">
       <div class="col-4">
         <select class="form-control" [(ngModel)]="join.table1" (ngModelChange)="tableChange($event, true)">
-          @for (table of getTableNames(); track table) {
+          @for (table of tableNames; track table) {
 <option [ngValue]="table">{{table}}</option>
 }
         </select>
@@ -59,7 +59,7 @@
       <div class="col-4"></div>
       <div class="col-4">
         <select class="form-control" [(ngModel)]="join.table2" (ngModelChange)="tableChange($event, false)">
-          @for (table of getTableNames(); track table) {
+          @for (table of tableNames; track table) {
 <option [ngValue]="table">{{table}}</option>
 }
         </select>
@@ -68,7 +68,7 @@
     <div class="row form-row-float-label">
       <div class="col-4">
         <select class="form-control" [ngModel]="columns1?.indexOf(tempColumn1)" (ngModelChange)="tempColumn1 = columns1[$event]; validate()" [disabled]="columns1 == null">
-          @for (_col of columns1; track _col; let _i = $index) {
+          @for (_col of columns1; track $index; let _i = $index) {
 <option [ngValue]="_i">{{_col.properties.attribute}}</option>
 }
         </select>
@@ -82,7 +82,7 @@
       </div>
       <div class="col-4">
         <select class="form-control" [ngModel]="columns2?.indexOf(tempColumn2)" (ngModelChange)="tempColumn2 = columns2[$event]; validate()" [disabled]="columns2 == null">
-          @for (_col of columns2; track _col; let _i = $index) {
+          @for (_col of columns2; track $index; let _i = $index) {
 <option [ngValue]="_i">{{_col.properties.attribute}}</option>
 }
         </select>

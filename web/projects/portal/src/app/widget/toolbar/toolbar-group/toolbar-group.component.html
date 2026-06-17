@@ -40,7 +40,7 @@
     <div ngbDropdownMenu aria-labelledby="dropdownId" class="drop-down-pane">
       @if (!!mergeActionGroup) {
         <div>
-          @for (group of mergeActionGroup.actions; track group) {
+          @for (group of mergeActionGroup.actions; track $index) {
             <div>
               <toolbar-group [actionGroup]="group" [childGroupToolbar]="true"
                 [asMenu]="true" [snapToObjects]="snapToObjects" [snapToGrid]="snapToGrid">
@@ -49,7 +49,7 @@
           }
         </div>
       }
-      @for (action of actionGroup.actions; track action) {
+      @for (action of actionGroup.actions; track $index) {
         <ng-template #toolTipContent>
           <div class="composer-tooltip" [innerHTML]="action.tooltip()"></div>
         </ng-template>
@@ -75,7 +75,7 @@
 }
 @if (!asMenu) {
   <div class="btn-group" role="group" [attr.aria-label]="actionGroup.label">
-    @for (action of actionGroup.actions; track action) {
+    @for (action of actionGroup.actions; track $index) {
       <ng-template #toolTipContentNoMenu>
         <div class="composer-tooltip" [innerHTML]="action.tooltip()"></div>
       </ng-template>

@@ -16,7 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <div>
-  @for (parameter of value.parameters; track parameter) {
+  @for (parameter of value.parameters; track $index) {
     <div class="form-row form-row-float-label">
       <div class="form-floating col-12">
         <input type="text" class="form-control" [(ngModel)]="parameter.value"

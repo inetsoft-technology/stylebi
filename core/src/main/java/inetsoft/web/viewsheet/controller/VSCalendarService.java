@@ -52,6 +52,7 @@ public class VSCalendarService {
       this.viewsheetService = viewsheetService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void toggleRangeComparison(@ClusterProxyKey String vsId, String assemblyName,
                                      ToggleRangeComparisonEvent event, String linkUri, Principal principal,
@@ -73,6 +74,7 @@ public class VSCalendarService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void toggleYearView(@ClusterProxyKey String vsId, String assemblyName,
                               ToggleYearViewEvent event, String linkUri,
@@ -97,6 +99,7 @@ public class VSCalendarService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void clearCalendar(@ClusterProxyKey String vsId, String assemblyName,
                              Principal principal, CommandDispatcher dispatcher,
@@ -113,6 +116,7 @@ public class VSCalendarService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void toggleDoubleCalendar(@ClusterProxyKey String vsId, String assemblyName,
                                     ToggleDoubleCalendarEvent event, String linkUri,
@@ -196,6 +200,7 @@ public class VSCalendarService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void applyCalendar(@ClusterProxyKey String vsId, String assemblyName, CalendarSelectionEvent event,
                              Principal principal, CommandDispatcher dispatcher, String linkUri) throws Exception

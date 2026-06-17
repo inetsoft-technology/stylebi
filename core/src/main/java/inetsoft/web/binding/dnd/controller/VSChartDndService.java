@@ -68,6 +68,7 @@ public class VSChartDndService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void addRemoveColumns(@ClusterProxyKey String runtimeId, VSDndEvent event,
                                 Principal principal,String linkUri, CommandDispatcher dispatcher) throws Exception
    {
@@ -87,6 +88,7 @@ public class VSChartDndService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void addColumns(@ClusterProxyKey String runtimeId, VSDndEvent event, Principal principal,
                           String linkUri, CommandDispatcher dispatcher) throws Exception
    {
@@ -180,6 +182,7 @@ public class VSChartDndService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void removeColumns(@ClusterProxyKey String runtimeId, VSDndEvent event, Principal principal,
                              String linkUri, CommandDispatcher dispatcher) throws Exception
    {

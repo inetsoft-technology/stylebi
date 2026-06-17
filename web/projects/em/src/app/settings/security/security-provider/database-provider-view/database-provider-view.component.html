@@ -119,7 +119,7 @@
 
       <div class="flex-row">
 
-        @for (item of dbFormItems; track item) {
+        @for (item of dbFormItems; track $index) {
           @if (!item.requiresMultiTenant || isMultiTenant) {
             <em-query-item-view
               [form]="dbForm"

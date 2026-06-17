@@ -38,7 +38,7 @@
   @if (!selectingColumnSource) {
     <div class="column-buttons ws-header-primary-bg-color"
       (click)="$event.stopPropagation()">
-      @for (_button of columnButtons; track _button) {
+      @for (_button of columnButtons; track $index) {
         @if (!table.info.editMode || _button.editMode) {
           <button [title]="_button.tooltip"
             class="ws-header-cell-button column-button icon-size-small hover-bg-primary"

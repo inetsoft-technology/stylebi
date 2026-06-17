@@ -55,6 +55,7 @@ public class InsertColumnsService extends WorksheetControllerService {
       return validateInsertColumns0(rws, event, principal, null);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void insertColumns(
       @ClusterProxyKey String runtimeId,

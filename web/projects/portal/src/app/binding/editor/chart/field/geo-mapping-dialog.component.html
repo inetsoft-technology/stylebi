@@ -28,7 +28,7 @@
           <div class="col form-floating">
             <select class="form-control" placeholder="_#(Algorithm)" [(ngModel)]="algorithm"
               (ngModelChange)="changeAlgorithm()">
-              @for (_algorithm of showAlgorithms; track _algorithm) {
+              @for (_algorithm of showAlgorithms; track $index) {
                 <option [value]="_algorithm.value">
                   {{_algorithm.label}}
                 </option>
@@ -45,7 +45,7 @@
         <div class="form-row-float-label row">
           <div class="col">
             <div class="bordered-box bd-gray region-list">
-              @for (_region of model.regions; track _region) {
+              @for (_region of model.regions; track $index) {
                 <div class="list-item"
                   [class.selected]="model.currentSelection.region == _region"
                   (click)="unmatchedListChange(_region)">
@@ -56,7 +56,7 @@
           </div>
           <div class="col">
             <div class="bordered-box bd-gray city-list">
-              @for (_city of model.cities; track _city) {
+              @for (_city of model.cities; track $index) {
                 <div class="list-item"
                   [class.selected]="model.currentSelection.city == _city"
                   (click)="model.currentSelection.city = _city" (dblclick)="add()">
@@ -88,7 +88,7 @@
                 </tr>
               </thead>
               <tbody>
-                @for (_val of model.list; track _val; let _i = $index) {
+                @for (_val of model.list; track $index; let _i = $index) {
                   <tr
                     (click)="model.selectedIndex = _i"
                     [class.selected]="_i === model.selectedIndex">

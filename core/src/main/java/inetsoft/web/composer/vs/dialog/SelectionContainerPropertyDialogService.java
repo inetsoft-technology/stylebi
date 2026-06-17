@@ -107,6 +107,7 @@ public class SelectionContainerPropertyDialogService {
       return result;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setSelectionContainerPropertyModel(@ClusterProxyKey String runtimeId, String objectId,
                                                   SelectionContainerPropertyDialogModel value,

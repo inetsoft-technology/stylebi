@@ -20,14 +20,14 @@
   [class.disabled]="!enabled">
   <div class="wrapper">
     <div class="slider-track" (click)="moveHandleHere($event)"></div>
-    <div class="slider-tracked" [style.width]="getValueX() + 'px'"></div>
-    <div class="slider-handle" [style.left]="getValueLeft()"
+    <div class="slider-tracked" [style.width]="trackWidth"></div>
+    <div class="slider-handle" [style.left]="labelLeft"
       [class.is-dragging]="isDragging"
       (mousedown)="mouseDown($event)">
     </div>
-    @for (tick of ticks; track tick) {
+    @for (tick of ticks; track tick.left) {
       <div class="slider-tick" [style.left]="tick.left"></div>
     }
-    <div class="slider-value" [style.left]="getLabelLeft()">{{getLabel()}}</div>
+    <div class="slider-value" [style.left]="labelLeft">{{sliderLabel}}</div>
   </div>
 </div>

@@ -41,6 +41,7 @@ public class ResizeColumnService extends WorksheetControllerService {
       super(viewsheetService, dataSourceRegistry);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void resizeColumn(@ClusterProxyKey String runtimeId, WSResizeColumnEvent event,
                             Principal principal, CommandDispatcher commandDispatcher) throws Exception

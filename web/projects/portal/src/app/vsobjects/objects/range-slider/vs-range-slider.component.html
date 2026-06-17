@@ -38,8 +38,8 @@
   (mousedown)="selectTitle($event, false)"
   role="slider" tabindex="-1"
   [attr.aria-label]="model.objectType + ' ' + model.absoluteName"
-  [attr.aria-valuemin]="getMinLabel()"
-  [attr.aria-valuemax]="getMaxLabel()"
+  [attr.aria-valuemin]="minLabel"
+  [attr.aria-valuemax]="maxLabel"
   class="vs-range-slider vs-object" #rangeSliderContainer>
 
   @if (isInSelectionContainer()) {
@@ -164,7 +164,7 @@
         [style.color]="model.titleFormat.foreground"
         [style.text-decoration]="model.titleFormat.decoration"
         [style.white-space]="model.titleFormat.wrapping.whiteSpace"
-      [style.word-wrap]="model.titleFormat.wrapping.wordWrap">{{getContainerLabel()}}</span>
+      [style.word-wrap]="model.titleFormat.wrapping.wordWrap">{{containerLabel}}</span>
     </div>
   </div>
 }
@@ -172,12 +172,12 @@
 @if (!model.container || !model.hidden) {
   <div class="vs-range-slider-body"
     [class.prevent-drag]="isInSelectionContainer()"
-    [style.height.px]="getBodyHeight()"
+    [style.height.px]="bodyHeight"
     [style.text-decoration]="model.objectFormat.decoration">
     <div class="range-slider" [style.top.px]="sliderTop" [style.width.px]="model.maxRangeBarWidth"
     (click)="snapToSide($event)"></div>
     <div class="range-line prevent-drag" [style.top.px]="sliderTop">
-      <ng-template #minLabelContent>{{getMinLabel()}}</ng-template>
+      <ng-template #minLabelContent>{{minLabel}}</ng-template>
       <div [style.left.px]="leftHandlePosition"
         class="range-slider-handle range-slider-left-handle"
         [class.mobile-padding]="hasMobilePadding"
@@ -194,7 +194,7 @@
           class="overlay bd-selected-cell"></div>
         }
       </div>
-      <ng-template #maxLabelContent>{{getMaxLabel()}}</ng-template>
+      <ng-template #maxLabelContent>{{maxLabel}}</ng-template>
       <ng-template #updateRightHandle>
         <div class="range-slider-tip">{{model.labels[model.selectEnd]}}</div>
       </ng-template>
@@ -235,21 +235,22 @@
     @if (model.minVisible) {
       <div class="range-value range-left ps-1"
         [style.top.px]="sliderTop + rangeValueOffset">
-        {{getMinLabel()}}
+        {{minLabel}}
       </div>
     }
     @if (model.maxVisible) {
       <div class="range-value range-right pe-1"
         [style.top.px]="sliderTop + rangeValueOffset">
-        {{getMaxLabel()}}
+        {{maxLabel}}
       </div>
     }
     <div class="current-value-wrapper">
       @if (model.currentVisible || isMouseDown) {
+        @let labelPosition = getLabelPosition();
         <div class="current-value"
-          [style.left.px]="getLabelPosition()"
+          [style.left.px]="labelPosition"
           [style.top]="'calc(' + sliderTop + 'px - 1em)'">
-          {{getCurrentLabel()}}
+          {{currentLabel}}
         </div>
       }
     </div>

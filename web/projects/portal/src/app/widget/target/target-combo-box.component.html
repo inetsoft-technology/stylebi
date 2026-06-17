@@ -20,10 +20,11 @@
   class="target-combo-box-body w-100"
   [class.dropdown-toggle]="values && values.length > 0">
   @if (mode == ValueMode.TEXT) {
+    @let currentVal = getCurrentValue();
     <input
       class="input-area form-control"
       [placeholder]="promptString"
-      type='text' [ngModel]="getCurrentValue()"
+      type='text' [ngModel]="currentVal"
       (ngModelChange)="updateValue($event); valueDropdown.close()"
       [readonly]="!editable" ngbDropdownToggle>
   }
@@ -38,7 +39,7 @@
   <!--[ngClass]="getDisplayClass(choice)"-->
   @if (values) {
     <ul ngbDropdownMenu class="dropdown-container">
-      @for (choice of values; track choice; let i = $index) {
+      @for (choice of values; track $index; let i = $index) {
         <li>
           @if (isValueEnabled(choice)) {
             <div class="dropdown-item"

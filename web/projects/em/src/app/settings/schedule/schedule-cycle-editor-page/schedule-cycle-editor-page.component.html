@@ -37,7 +37,7 @@
             <mat-card appearance="outlined">
               <mat-card-content>
                 <mat-nav-list dense>
-                  @for (condition of conditionItems; track condition; let i = $index) {
+                  @for (condition of conditionItems; track $index; let i = $index) {
                     <mat-list-item [class.mat-active]="selectedConditionIndex === i">
                       <a class="list-label" [class.mat-error]="!condition.valid"
                         [matTooltip]="condition.label" [matTooltipClass]="'tooltip-custom-css'"

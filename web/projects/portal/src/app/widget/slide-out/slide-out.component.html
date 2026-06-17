@@ -17,6 +17,7 @@
 -->
 @if (visible) {
   <div class="slide-out-wrapper h-100 d-flex {{side}}">
+    @let currentSlideouts = getCurrentSlideouts();
     <div class="slide-out-toggle-container bg-white3">
       <div class="slide-out-toggle">
         <div class="slide-out-label rotate align-middle cursor-pointer" (click)="toggle()">
@@ -25,17 +26,17 @@
             [class.chevron-circle-arrow-up-icon]="open"
           [class.chevron-circle-arrow-down-icon]="!open"></i>
           <i class="ps-1 pe-1 close-icon cursor-pointer" (click)="dismissComponent(null)"></i>
-          @if (getCurrentSlideouts().length > 1) {
+          @if (currentSlideouts.length > 1) {
             <div class="spacer"></div>
             <div class="count-label txt-primary" blockMouse
               [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom">
-              {{getCurrentSlideouts().length}}
+              {{currentSlideouts.length}}
             </div>
             <ng-template #dropdownMenu>
               <div class="dropdown-pane p-1">
                 <button class="form-control" (click)="dismissAll()">_#(Close All)</button>
                 <div class="slideout-list mt-2">
-                  @for (slideout of getCurrentSlideouts(); track slideout; let i = $index) {
+                  @for (slideout of currentSlideouts; track slideout.objectId; let i = $index) {
                     <div
                       class="dropdown-item"
                       [class.selected]="isSlideoutOnTop(i)"

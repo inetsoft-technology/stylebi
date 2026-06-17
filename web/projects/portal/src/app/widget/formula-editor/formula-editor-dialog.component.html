@@ -77,7 +77,7 @@
       @if (returnTypeVisible) {
         <div class="col-3 form-floating return-type">
           <select class="form-control" formControlName="dataType" placeholder="_#(Return Data Type)">
-            @for (type of returnTypes; track type) {
+            @for (type of returnTypes; track type.data) {
               <option [value]="type.data">
               {{type.label}}</option>
             }

@@ -29,18 +29,20 @@
            change-detection pass, so tracking by identity recreated the entire toolbar DOM
            every pass (NG0956). The toolbar is positional, so index tracking is stable and
            the inner bindings still re-evaluate per pass. (Bug #75329) -->
-      @for (group of getActions(); track $index; let i = $index) {
+      @for (group of displayActions; track $index; let i = $index) {
         @if (group.visible) {
           <div class="btn-group mini-toolbar-button-group" role="group">
             @for (action of group.actions; track $index; let j = $index) {
+              @let label = action.label();
+              @let icon = action.icon();
               @if (action.visible()) {
                 <button type="button" role="button"
                   class="btn icon-hover-bg btn-sm bg-white2 bd-gray"
                   [class.bd-selected-cell]="isFocused(i, j)"
                   [disabled]="!action.enabled()" (click)="doAction(action, $event)"
-                  title="{{action.label()}}">
-                  <i [class]="action.icon() + ' icon-size-small'" aria-hidden="true"></i>
-                  <span class="visually-hidden">{{action.label()}}</span>
+                  title="{{label}}">
+                  <i [class]="icon + ' icon-size-small'" aria-hidden="true"></i>
+                  <span class="visually-hidden">{{label}}</span>
                 </button>
               }
             }

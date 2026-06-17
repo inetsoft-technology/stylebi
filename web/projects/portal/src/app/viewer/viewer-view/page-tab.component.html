@@ -29,7 +29,7 @@
     (scroll)="refreshScroll()">
     @if (tabs.length > 1) {
       <ul class="nav nav-tabs tabs-bottom">
-        @for (tab of tabs; track tab) {
+        @for (tab of tabs; track tab.id) {
           <li class="nav-item hover-bg-secondary"
             [title]="tab.tooltip"
             [class.active]="tab.isFocused"

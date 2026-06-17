@@ -476,6 +476,7 @@ public class FormatPainterService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void setFormat(@ClusterProxyKey String runtimeId, FormatVSObjectEvent event,
                          Principal principal,
                          CommandDispatcher commandDispatcher, String linkUri)

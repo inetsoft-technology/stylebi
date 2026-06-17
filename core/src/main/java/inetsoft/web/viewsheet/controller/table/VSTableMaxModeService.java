@@ -42,6 +42,7 @@ public class VSTableMaxModeService {
       this.coreLifecycleService = coreLifecycleService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void toggleMaxMode(@ClusterProxyKey String id, MaxTableEvent event, Principal principal, @LinkUri String linkUri,
                              CommandDispatcher dispatcher)

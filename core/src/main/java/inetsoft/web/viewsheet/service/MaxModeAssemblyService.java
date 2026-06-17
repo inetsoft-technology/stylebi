@@ -39,6 +39,7 @@ public class MaxModeAssemblyService {
       this.viewsheetService =   viewsheetService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void toggleMaxMode(@ClusterProxyKey String vsId, String assemblyName, Dimension maxSize,
                              CommandDispatcher dispatcher, String linkUri, Principal principal)

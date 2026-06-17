@@ -49,7 +49,7 @@
         <mat-form-field appearance="outline" color="accent">
           <mat-label>_#(Type)</mat-label>
           <mat-select placeholder="_#(Type)" formControlName="type">
-            @for (type of dataTypeList; track type) {
+            @for (type of dataTypeList; track $index) {
               <mat-option [value]="type.data">{{type.label}}</mat-option>
             }
           </mat-select>

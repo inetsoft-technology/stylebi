@@ -23,7 +23,7 @@
     <mat-card-content>
       @if (!uploading && displayList) {
         <mat-list>
-          @for (file of value; track file) {
+          @for (file of value; track file.name) {
             <mat-list-item role="listitem">
               <div class="fileListItem">
                 <span class="fileItemText">{{ file.name }}</span>

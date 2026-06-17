@@ -34,7 +34,7 @@
           </div>
         </div>
         <ul class="list-group list-group-flush auto-overflow">
-          @for (drill of autoDrillModel.paths; track drill; let i = $index) {
+          @for (drill of autoDrillModel.paths; track drill.name; let i = $index) {
             <li
               (click)="selectDrill($event, i)"
               class="list-group-item d-flex justify-content-between align-items-center no-shrink">
@@ -210,7 +210,7 @@
                     </span>
                   </div>
                   <ul class="list-group list-group-flush param-card-body auto-overflow">
-                    @for (param of editDrill.params; track param; let i = $index) {
+                    @for (param of editDrill.params; track $index; let i = $index) {
                       <li
                         class="list-group-item d-flex justify-content-between align-items-center">
                         <span class="parameter-label">{{ getDisplayParam(param) }}</span>

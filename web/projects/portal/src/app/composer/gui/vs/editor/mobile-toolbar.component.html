@@ -16,14 +16,16 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <div class="mobile-toolbar btn-toolbar composer-btn-toolbar" role="toolbar" aria-label="Component Toolbar">
-  @for (group of actions?.showingActions; track group) {
+  @for (group of actions?.showingActions; track $index) {
     @if (group.visible) {
       <div class="btn-group" role="group">
-        @for (action of group.actions; track action) {
+        @for (action of group.actions; track $index) {
+          @let label = action.label();
+          @let enabled = action.enabled();
           @if (action.visible()) {
-            <button type="button" class="btn composer-btn btn-sm" [disabled]="!action.enabled()" (click)="action.action()">
+            <button type="button" class="btn composer-btn btn-sm" [disabled]="!enabled" (click)="action.action()">
               <i [class]="action.icon()" aria-hidden="true"></i>
-              <span class="visually-hidden">{{action.label()}}</span>
+              <span class="visually-hidden">{{label}}</span>
             </button>
           }
         }
@@ -37,14 +39,16 @@
         <span class="visually-hidden">_#(Show Menu)</span>
       </button>
       <div ngbDropdownMenu>
-        @for (group of actions.menuActions; track group) {
+        @for (group of actions.menuActions; track $index) {
           @if (group.visible) {
             @if (actions.requiresMenuSeparator(group)) {
               <div class="dropdown-divider"></div>
             }
-            @for (action of group.actions; track action) {
+            @for (action of group.actions; track $index) {
+              @let label = action.label();
+              @let enabled = action.enabled();
               @if (action.visible()) {
-                <a class="dropdown-item" [class.disable-link]="!action.enabled()" (click)="action.action()">{{action.label()}}</a>
+                <a class="dropdown-item" [class.disable-link]="!enabled" (click)="action.action()">{{label}}</a>
               }
             }
           }

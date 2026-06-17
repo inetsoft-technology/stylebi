@@ -41,6 +41,7 @@ public class OpenWorksheetControllerService {
       this.runtimeViewsheetManager = runtimeViewsheetManager;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void processNewWorksheet(@ClusterProxyKey String runtimeId, Principal principal,
                                    CommandDispatcher commandDispatcher) throws Exception

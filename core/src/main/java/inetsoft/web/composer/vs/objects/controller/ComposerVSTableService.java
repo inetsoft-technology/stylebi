@@ -92,6 +92,7 @@ public class ComposerVSTableService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void changeColumnTitle(@ClusterProxyKey String vsId,  int row, int col,
                                  ChangeVSObjectTextEvent event, Principal principal,
                                  CommandDispatcher dispatcher, String linkUri) throws Exception
@@ -227,6 +228,7 @@ public class ComposerVSTableService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void changeCellText(@ClusterProxyKey String vsId, ChangeVSTableCellsTextEvent event,
                               Principal principal, String linkUri, CommandDispatcher dispatcher) throws Exception
    {
@@ -271,6 +273,7 @@ public class ComposerVSTableService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void deleteColumns(@ClusterProxyKey String vsId, RemoveTableColumnsEvent event, Principal principal,
                              CommandDispatcher dispatcher, String linkUri) throws Exception
    {
@@ -333,6 +336,7 @@ public class ComposerVSTableService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void hideColumns(@ClusterProxyKey String vsId, ShowHideCrosstabColumnsEvent event,
                            Principal principal, CommandDispatcher dispatcher, String linkUri) throws Exception
    {
@@ -385,6 +389,7 @@ public class ComposerVSTableService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void resetTableLayout(@ClusterProxyKey String vsId, RemoveTableColumnsEvent event,
                                 Principal principal, CommandDispatcher dispatcher) throws Exception
    {
@@ -415,6 +420,7 @@ public class ComposerVSTableService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void resizeTableCell(@ClusterProxyKey String vsId, ResizeTableCellEvent event,
                                Principal principal, String linkUri, CommandDispatcher dispatcher) throws Exception
    {
@@ -427,6 +433,7 @@ public class ComposerVSTableService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void changeColumnWidth(@ClusterProxyKey String vsId, ResizeTableColumnEvent event,
                                  Principal principal, String linkUri, CommandDispatcher dispatcher) throws Exception
    {
@@ -437,6 +444,7 @@ public class ComposerVSTableService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void changeRowHeight(@ClusterProxyKey String vsId, ResizeTableRowEvent event, Principal principal,
                                String linkUri,CommandDispatcher dispatcher) throws Exception
    {
@@ -448,6 +456,7 @@ public class ComposerVSTableService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void convertToFreehandTable(@ClusterProxyKey String vsId, ConvertToFreehandTableEvent event,
                                       Principal principal, String linkUri, CommandDispatcher dispatcher) throws Exception
    {

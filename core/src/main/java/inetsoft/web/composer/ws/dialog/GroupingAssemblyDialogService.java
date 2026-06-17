@@ -124,6 +124,7 @@ public class GroupingAssemblyDialogService extends WorksheetControllerService {
       return model;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setGroupingAssemblyDialogProperties(@ClusterProxyKey String runtimeId,
                                                    GroupingAssemblyDialogModel model,

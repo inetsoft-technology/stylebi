@@ -91,6 +91,7 @@ public class ViewsheetObjectPropertyDialogService {
       return model.build();
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setViewsheetPropertyModel(@ClusterProxyKey String runtimeId, String objectId,
                                          ViewsheetObjectPropertyDialogModel model, String linkUri,

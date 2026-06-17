@@ -173,7 +173,14 @@ public abstract class AbstractSheetAsset extends AbstractXAsset {
          engine.setSheet(entry, sheet0, null, overwriting);
       }
 
-      parseContent0(root);
+      this.currentConfig = config;
+
+      try {
+         parseContent0(root);
+      }
+      finally {
+         this.currentConfig = null;
+      }
    }
 
    /**
@@ -350,6 +357,15 @@ public abstract class AbstractSheetAsset extends AbstractXAsset {
    }
 
    /**
+    * Returns the {@link XAssetConfig} that was passed to the current
+    * {@link #parseContent(java.io.InputStream, XAssetConfig, boolean)} invocation.
+    * Only valid during a {@code parseContent0} call — null at all other times.
+    */
+   protected XAssetConfig getConfig() {
+      return currentConfig;
+   }
+
+   /**
     * Parse content from an xml element.
     */
    protected synchronized void parseContent0(Element elem) throws Exception {
@@ -443,6 +459,7 @@ public abstract class AbstractSheetAsset extends AbstractXAsset {
 
    protected AbstractSheet sheet;
    protected AssetEntry entry;
+   private XAssetConfig currentConfig;
    private LibManager manager;
    private static final Logger LOG =
       LoggerFactory.getLogger(AbstractSheetAsset.class);

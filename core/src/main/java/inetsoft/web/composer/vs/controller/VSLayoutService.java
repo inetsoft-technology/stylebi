@@ -963,6 +963,7 @@ public class VSLayoutService {
       return psize;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void makeUndoable(@ClusterProxyKey String id, Principal principal,
                             CommandDispatcher dispatcher, String focusedLayoutName)

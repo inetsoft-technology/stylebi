@@ -28,7 +28,7 @@
         <span id="repository-list-title">[...]{{openNodes[openNodes.length - 1].label}}</span>
       }
     </div>
-    @for (node of openNodes[openNodes.length - 1].children; track node) {
+    @for (node of openNodes[openNodes.length - 1].children; track $index) {
       <div
         class="repository-list-item px-2 py-1" role="listitem"
         (contextmenu)="openTreeContextmenu($event, node)">

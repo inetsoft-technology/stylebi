@@ -65,6 +65,7 @@ public class ChangeChartAestheticService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void changeChartAesthetic(@ClusterProxyKey String id, ChangeChartRefEvent event,
                                     Principal principal, CommandDispatcher dispatcher,
                                     String linkUri) throws Exception

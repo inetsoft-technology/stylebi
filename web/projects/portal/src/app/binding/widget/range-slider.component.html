@@ -24,15 +24,15 @@
 
     <!-- Active track — spans between the two handles; draggable to move the whole range -->
     <div class="slider-tracked"
-      [style.left.px]="getRangeX()"
-      [style.width.px]="getRangeWidth()"
+      [style.left.px]="rangeX"
+      [style.width.px]="rangeWidth"
       [class.is-dragging]="isDraggingMiddle"
       (mousedown)="mouseDown($event, handleType.Middle)">
     </div>
 
     <!-- Left handle -->
     <div class="slider-handle"
-      [style.left.px]="getRangeX()"
+      [style.left.px]="rangeX"
       [class.is-dragging]="isDraggingLeft"
       (mousedown)="mouseDown($event, handleType.Left)"
       #leftHandle>
@@ -40,19 +40,19 @@
 
     <!-- Right handle -->
     <div class="slider-handle"
-      [style.left.px]="getRangeX() + getRangeWidth()"
+      [style.left.px]="rangeX + rangeWidth"
       [class.is-dragging]="isDraggingRight"
       (mousedown)="mouseDown($event, handleType.Right)">
     </div>
 
     <!-- Tick dots -->
-    @for (tick of ticks; track tick) {
+    @for (tick of ticks; track tick.left) {
       <div class="slider-tick" [style.left]="tick.left"></div>
     }
 
     <!-- Value label — centred between the two handles -->
-    <div class="slider-value" [style.left.px]="getRangeX() + getRangeWidth() / 2">
-      {{getCurrentLabel()}}
+    <div class="slider-value" [style.left.px]="rangeX + rangeWidth / 2">
+      {{currentLabel}}
     </div>
   </div>
 </div>

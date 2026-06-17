@@ -39,7 +39,7 @@
           </tr>
         </thead>
         <tbody class="tbody-content table-bordered">
-          @for (drill of drillBody; track drill) {
+          @for (drill of drillBody; track $index) {
             <tr [class.selected]="isSelected(drill)"
               (click)="selectRow(drill)">
               @for (_row of drill; track _row) {

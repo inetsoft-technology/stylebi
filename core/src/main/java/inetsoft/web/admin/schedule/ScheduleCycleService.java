@@ -60,8 +60,7 @@ public class ScheduleCycleService {
       String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       for(DataCycleInfo cycleInfo : schedulerMonitoringService.getDataCycleInfos()) {
-         if(securityEngine.checkPermission(principal, ResourceType.SCHEDULE_CYCLE,
-                                           getCyclePermissionID(cycleInfo.getName(), orgId), ResourceAction.ACCESS))
+         if(hasCycleAccess(principal, cycleInfo.getName(), orgId))
          {
             dataCycleInfoList.add(cycleInfo);
          }
@@ -70,6 +69,17 @@ public class ScheduleCycleService {
       return DataCycleListModel.builder()
          .cycles(dataCycleInfoList)
          .build();
+   }
+
+   private boolean hasCycleAccess(Principal principal, String cycleName, String orgId) {
+      SecurityProvider provider = securityEngine.getSecurityProvider();
+      String permissionId = getCyclePermissionID(cycleName, orgId);
+
+      // A missing security provider means security is disabled, so cycles are unfiltered.
+      return provider == null || provider.checkPermission(
+         principal, ResourceType.SCHEDULE_CYCLE, permissionId, ResourceAction.ACCESS) ||
+         provider.checkPermission(
+            principal, ResourceType.SCHEDULE_CYCLE, permissionId, ResourceAction.ADMIN);
    }
 
    public ScheduleCycleDialogModel getDialogModel(String cycleName, Principal principal)
@@ -205,7 +215,7 @@ public class ScheduleCycleService {
          if(!securityEngine.checkPermission(principal, ResourceType.SCHEDULE_CYCLE,
                getCyclePermissionID(oldName, orgId), ResourceAction.ACCESS))
          {
-            catalog.getString("em.scheduler.cycle.unauthorized", oldName);
+            throw new SecurityException(catalog.getString("em.scheduler.cycle.unauthorized", oldName));
          }
 
          String newName = model.label();
