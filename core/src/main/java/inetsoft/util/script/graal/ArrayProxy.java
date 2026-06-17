@@ -17,25 +17,47 @@
  */
 package inetsoft.util.script.graal;
 
+import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.proxy.ProxyArray;
 import org.graalvm.polyglot.proxy.ProxyObject;
-import java.util.Arrays;
 
 /**
- * Bridges a {@link ScriptScope} to GraalJS. This is the only class that
- * references org.graalvm.polyglot.proxy. All host<->guest conversion is
- * delegated to {@link ScriptValueConverter}; GraalJS auto-wraps the host
- * values returned here according to the active HostAccess policy.
+ * Bridges a {@link ScriptArrayScope} to GraalJS. Exposes the scope as a JS
+ * array (via {@link ProxyArray}) while still allowing named-member access
+ * (via {@link ProxyObject}) so {@code arr.length} and other named properties
+ * continue to resolve. Indexed access delegates to
+ * {@link ScriptArrayScope#getArrayElement(long)}; named access delegates to the
+ * {@link ScriptScope} string-member methods. The array view is read-only.
  */
-public class ScopeProxy implements ProxyObject {
-   private final ScriptScope scope;
+public class ArrayProxy implements ProxyArray, ProxyObject {
+   private final ScriptArrayScope scope;
 
-   public ScopeProxy(ScriptScope scope) {
+   public ArrayProxy(ScriptArrayScope scope) {
       this.scope = scope;
    }
 
-   public ScriptScope getScope() {
+   public ScriptArrayScope getScope() {
       return scope;
    }
+
+   // --- ProxyArray ---
+
+   @Override
+   public long getSize() {
+      return scope.getArraySize();
+   }
+
+   @Override
+   public Object get(long index) {
+      return ScriptValueConverter.toGuest(scope.getArrayElement(index));
+   }
+
+   @Override
+   public void set(long index, Value value) {
+      throw new UnsupportedOperationException("Array is read-only");
+   }
+
+   // --- ProxyObject ---
 
    @Override
    public Object getMember(String key) {
@@ -43,7 +65,7 @@ public class ScopeProxy implements ProxyObject {
    }
 
    @Override
-   public void putMember(String key, org.graalvm.polyglot.Value value) {
+   public void putMember(String key, Value value) {
       scope.putMember(key, ScriptValueConverter.toHost(value));
    }
 

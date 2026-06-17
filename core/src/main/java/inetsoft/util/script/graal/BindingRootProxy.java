@@ -98,8 +98,7 @@ public class BindingRootProxy implements ProxyObject {
    }
 
    @Override public Object getMember(String key) {
-      Object val = resolve(key);
-      return val instanceof ScriptScope ? new ScopeProxy((ScriptScope) val) : val;
+      return ScriptValueConverter.toGuest(resolve(key));
    }
    @Override public boolean hasMember(String key) { return resolves(key); }
    @Override public Object getMemberKeys() { return enumerate().toArray(new String[0]); }

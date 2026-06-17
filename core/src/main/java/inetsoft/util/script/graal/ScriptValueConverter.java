@@ -30,6 +30,25 @@ public final class ScriptValueConverter {
    private ScriptValueConverter() {
    }
 
+   /**
+    * Wrap a host value for hand-off to GraalJS. Centralizes the decision of
+    * which proxy adapter to use: a {@link ScriptArrayScope} is wrapped as an
+    * {@link ArrayProxy} (so it exposes JS array semantics), any other
+    * {@link ScriptScope} as a {@link ScopeProxy}, and all other values are
+    * returned unchanged (GraalJS auto-wraps them per the HostAccess policy).
+    */
+   public static Object toGuest(Object value) {
+      if(value instanceof ScriptArrayScope) {
+         return new ArrayProxy((ScriptArrayScope) value);
+      }
+
+      if(value instanceof ScriptScope) {
+         return new ScopeProxy((ScriptScope) value);
+      }
+
+      return value;
+   }
+
    /** Convert a guest Value to its host (Java) representation. */
    public static Object toHost(Value v) {
       if(v == null || v.isNull()) {
