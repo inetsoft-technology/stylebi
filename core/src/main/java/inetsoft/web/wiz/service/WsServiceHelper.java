@@ -27,6 +27,7 @@ import inetsoft.uql.erm.*;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
+import inetsoft.web.wiz.model.WorksheetColumnInfo;
 import inetsoft.web.wiz.model.osi.*;
 
 import java.security.Principal;
@@ -62,6 +63,139 @@ final class WsServiceHelper {
       }
 
       return null;
+   }
+
+   /**
+    * Describe the columns of the worksheet's primary (binding) table for the visualization layer.
+    * <p>
+    * For each column:
+    * <ul>
+    *   <li>name  – the underlying DB column name (via {@code ColumnRef.getDataRef()}, bypassing the
+    *       alias override of {@code getAttribute()}).</li>
+    *   <li>alias – the explicitly-set alias when it differs from the DB column name, else null.</li>
+    *   <li>type  – the column data type (XSchema type), used to classify dimension vs measure.</li>
+    * </ul>
+    * {@code alias ?? name} always equals what {@code c.getAttribute()} returns, the key used by
+    * {@code WizAutoBindingService.autoBinding}'s column filter.
+    * <p>
+    * Note: {@code type} may be null when a column's data type was never set (e.g. metadata with no
+    * type); consumers must handle null types. Mirror-table primaries yield an empty list (their
+    * columns carry no sub-table entity name).
+    *
+    * @param worksheet owning worksheet, used to resolve sub-table source info for composite primary
+    *        tables; may be null only for a physical primary table (it is not dereferenced in that
+    *        path). A null worksheet with a composite primary table leaves source fields unresolved.
+    * @param physicalDbTableNameOverride when non-null, used as the DB table name for a physical
+    *        primary table (the flat path resolves this from the construction model); null falls back
+    *        to the assembly name.
+    */
+   static List<WorksheetColumnInfo> extractPrimaryTableFields(
+      Worksheet worksheet,
+      AbstractTableAssembly primaryTable,
+      String physicalDbTableNameOverride)
+   {
+      if(primaryTable == null) {
+         return Collections.emptyList();
+      }
+
+      ColumnSelection cs = primaryTable.getColumnSelection(true);
+      List<WorksheetColumnInfo> result = new ArrayList<>(cs.getAttributeCount());
+
+      if(primaryTable instanceof PhysicalBoundTableAssembly physTable) {
+         String dbTableName = physicalDbTableNameOverride != null
+            ? physicalDbTableNameOverride : physTable.getName();
+
+         SourceInfo si = physTable.getSourceInfo();
+         String path = si != null && si.getPrefix() != null ? si.getPrefix() : "";
+         String schema = si != null && si.getProperty(SourceInfo.SCHEMA) != null ? si.getProperty(SourceInfo.SCHEMA) : "";
+         String catalog = si != null && si.getProperty(SourceInfo.CATALOG) != null ? si.getProperty(SourceInfo.CATALOG) : "";
+
+         for(int i = 0; i < cs.getAttributeCount(); i++) {
+            DataRef attr = cs.getAttribute(i);
+
+            // ColumnRef.getAttribute() returns the alias when one is set (StyleBI override).
+            // Go through getDataRef() to reach the underlying AttributeRef and get the true DB column name.
+            DataRef underlying = attr instanceof ColumnRef cr && cr.getDataRef() != null
+               ? cr.getDataRef() : attr;
+            String name = underlying.getAttribute();
+
+            String colRefAlias = attr instanceof ColumnRef cr && !Tool.isEmptyString(cr.getAlias())
+               ? cr.getAlias() : null;
+            String alias = colRefAlias != null && !colRefAlias.equals(name) ? colRefAlias : null;
+
+            WorksheetColumnInfo info = new WorksheetColumnInfo();
+            info.setName(name);
+            info.setAlias(alias);
+            info.setType(attr.getDataType());
+            info.setTable(dbTableName);
+            info.setSchema(schema);
+            info.setCatalog(catalog);
+            info.setPath(path);
+            result.add(info);
+         }
+      }
+      else {
+         // Non-physical primary table (RelationalJoinTableAssembly and other composites):
+         // each column's entity is the sub-table assembly name, used to resolve the DB table name.
+         // Note: MirrorTableAssembly columns typically lack an entity name and will be skipped
+         // by the Tool.isEmptyString(subTableName) check below, so the result is empty for mirror
+         // primaries.
+         for(int i = 0; i < cs.getAttributeCount(); i++) {
+            DataRef attr = cs.getAttribute(i);
+            String worksheetColName = attr.getAttribute(); // base alias or DB column name
+            String subTableName = attr.getEntity();
+
+            if(Tool.isEmptyString(subTableName)) {
+               continue;
+            }
+
+            String dbColumnName = worksheetColName; // fallback if sub-table is not a physical table
+            String path = "";
+            String schema = "";
+            String catalog = "";
+
+            // worksheet may be null only if a caller passes a composite primary table without its
+            // owning worksheet; treat the sub-table as unresolvable and fall back to the column name.
+            Assembly subAssembly = worksheet != null ? worksheet.getAssembly(subTableName) : null;
+
+            if(subAssembly instanceof PhysicalBoundTableAssembly subPhys) {
+               SourceInfo si = subPhys.getSourceInfo();
+               path = si != null && si.getPrefix() != null ? si.getPrefix() : "";
+               schema = si != null && si.getProperty(SourceInfo.SCHEMA) != null ? si.getProperty(SourceInfo.SCHEMA) : "";
+               catalog = si != null && si.getProperty(SourceInfo.CATALOG) != null ? si.getProperty(SourceInfo.CATALOG) : "";
+
+               ColumnSelection subCS = subPhys.getColumnSelection(false);
+
+               for(int j = 0; j < subCS.getAttributeCount(); j++) {
+                  DataRef subAttr = subCS.getAttribute(j);
+                  String subAlias = subAttr instanceof ColumnRef sc && !Tool.isEmptyString(sc.getAlias())
+                     ? sc.getAlias() : null;
+                  String subColName = subAlias != null ? subAlias : subAttr.getAttribute();
+
+                  if(worksheetColName.equals(subColName)) {
+                     DataRef subUnderlying = subAttr instanceof ColumnRef sc && sc.getDataRef() != null
+                        ? sc.getDataRef() : subAttr;
+                     dbColumnName = subUnderlying.getAttribute();
+                     break;
+                  }
+               }
+            }
+
+            String alias = dbColumnName.equals(worksheetColName) ? null : worksheetColName;
+
+            WorksheetColumnInfo info = new WorksheetColumnInfo();
+            info.setName(dbColumnName);
+            info.setAlias(alias);
+            info.setType(attr.getDataType());
+            info.setTable(subTableName);
+            info.setSchema(schema);
+            info.setCatalog(catalog);
+            info.setPath(path);
+            result.add(info);
+         }
+      }
+
+      return result;
    }
 
    static AssetEntry persistWorksheet(ViewsheetService viewsheetService,

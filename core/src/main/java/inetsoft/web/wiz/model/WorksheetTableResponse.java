@@ -40,6 +40,12 @@ public class WorksheetTableResponse {
    /** Columns exposed by the newly created table. */
    private List<ColumnData> columns;
 
+   /**
+    * Primary-table fields (name, alias, type, source) StyleBI exposes for visualization binding.
+    * Populated only when this table was created with {@code asPrimaryTable = true}; null otherwise.
+    */
+   private List<WorksheetColumnInfo> primaryTableFields;
+
    private boolean success;
    private String errorMessage;
 
@@ -51,6 +57,11 @@ public class WorksheetTableResponse {
 
    public List<ColumnData> getColumns() { return columns; }
    public void setColumns(List<ColumnData> columns) { this.columns = columns; }
+
+   public List<WorksheetColumnInfo> getPrimaryTableFields() { return primaryTableFields; }
+   public void setPrimaryTableFields(List<WorksheetColumnInfo> primaryTableFields) {
+      this.primaryTableFields = primaryTableFields;
+   }
 
    public boolean isSuccess() { return success; }
    public void setSuccess(boolean success) { this.success = success; }

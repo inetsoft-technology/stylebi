@@ -143,6 +143,14 @@ public class WorksheetTableService {
       response.setWsId(worksheetEntry.toIdentifier());
       response.setTableName(table.getName());
       response.setColumns(columns);
+
+      if(request.isAsPrimaryTable()) {
+         String dbTableOverride = request.getPhysicalSource() != null
+            ? request.getPhysicalSource().getTableName() : null;
+         response.setPrimaryTableFields(
+            WsServiceHelper.extractPrimaryTableFields(worksheet, table, dbTableOverride));
+      }
+
       response.setSuccess(true);
       return response;
    }
