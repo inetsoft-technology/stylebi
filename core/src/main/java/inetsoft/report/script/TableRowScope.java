@@ -18,8 +18,8 @@
 package inetsoft.report.script;
 
 import inetsoft.util.script.DynamicScope;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.ScriptableObject;
+import inetsoft.util.script.graal.ScriptArrayScope;
+import inetsoft.util.script.graal.ScriptScope;
 
 import java.util.HashMap;
 
@@ -29,29 +29,23 @@ import java.util.HashMap;
  * (e.g. new Date()) it would work and the column would be accessible using
  * regular TableRow like field['Date'].
  */
-public class TableRowScope extends ScriptableObject implements DynamicScope {
+public class TableRowScope implements DynamicScope, ScriptArrayScope {
    public TableRowScope(TableRow base, String basename) {
       this.base = base;
       this.basename = basename;
    }
 
-   @Override
    public String getClassName() {
       return "TableRowScope";
    }
 
    @Override
-   public boolean has(String id, Scriptable start) {
-      return valmap.containsKey(id) || base.has(id, start);
+   public boolean hasMember(String id) {
+      return valmap.containsKey(id) || base.hasMember(id);
    }
 
    @Override
-   public boolean has(int index, Scriptable start) {
-      return base.has(index, start);
-   }
-
-   @Override
-   public Object get(String id, Scriptable start) {
+   public Object getMember(String id) {
       if(valmap.containsKey(id)) {
          return valmap.get(id);
       }
@@ -59,71 +53,50 @@ public class TableRowScope extends ScriptableObject implements DynamicScope {
          return base;
       }
 
-      // avoid overriding builtin from column
+      // avoid overriding builtin from column; returning null lets the
+      // engine resolve the builtin (Array/Math/Date) from the global scope
       switch(id) {
       case "Array":
       case "Math":
-         return super.get(id, start);
+         return null;
       case "Date":
          if(builtinDate) {
-            return super.get(id, start);
+            return null;
          }
       }
 
-      return base.get(id, start);
+      return base.getMember(id);
    }
 
    @Override
-   public Object get(int index, Scriptable start) {
-      return base.get(index, start);
+   public Object getArrayElement(long index) {
+      return base.getArrayElement(index);
    }
 
    @Override
-   public void put(String id, Scriptable start, Object value) {
-      if(!base.putLocal(id, start, value)) {
+   public long getArraySize() {
+      return base.getArraySize();
+   }
+
+   @Override
+   public void putMember(String id, Object value) {
+      if(!base.putLocal(id, value)) {
          valmap.put(id, value);
       }
    }
 
    @Override
-   public void put(int index, Scriptable start, Object value) {
-      base.put(index, start, value);
+   public Object[] getMemberKeys() {
+      return base.getMemberKeys();
    }
 
    @Override
-   public Object getDefaultValue(Class hint) {
-      return base.getDefaultValue(hint);
+   public ScriptScope getParentScope() {
+      return parent;
    }
 
-   @Override
-   public Object[] getIds() {
-      return base.getIds();
-   }
-
-   @Override
-   public boolean hasInstance(Scriptable value) {
-      return base.hasInstance(value);
-   }
-
-   @Override
-   public Scriptable getPrototype() {
-      return base.getPrototype();
-   }
-
-   @Override
-   public void setPrototype(Scriptable prototype) {
-      base.setPrototype(prototype);
-   }
-
-   @Override
-   public Scriptable getParentScope() {
-      return base.getParentScope();
-   }
-
-   @Override
-   public void setParentScope(Scriptable scope) {
-      super.setParentScope(scope);
-      base.setParentScope(scope);
+   public void setParentScope(ScriptScope scope) {
+      this.parent = scope;
    }
 
    /**
@@ -135,6 +108,7 @@ public class TableRowScope extends ScriptableObject implements DynamicScope {
 
    private TableRow base;
    private String basename;
+   private ScriptScope parent;
    private boolean builtinDate = true;
    private HashMap valmap = new HashMap(); // from put()
 }

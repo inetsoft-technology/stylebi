@@ -19,7 +19,8 @@ package inetsoft.report.script;
 
 
 import inetsoft.util.script.FunctionObject2;
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptScope;
+import org.mozilla.javascript.UniqueTag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * A base class scriptable that implements methods for adding properties using
  * reflection.
  */
-public abstract class PropertyScriptable implements Scriptable, Cloneable {
+public abstract class PropertyScriptable implements ScriptScope, Cloneable {
    /**
     * Get the object for getting and setting properties.
     */
@@ -73,7 +74,11 @@ public abstract class PropertyScriptable implements Scriptable, Cloneable {
    }
 
    protected void addFunctionProperty(Class cls, String name, Class ...params) {
-      addProperty(name, new FunctionObject2(this, cls, name, params));
+      // NOTE (Feature #75423): FunctionObject2 is a Rhino FunctionObject and is
+      // replaced by the native-binding mechanism in Milestone 4. PropertyScriptable
+      // no longer implements Rhino's Scriptable, so 'this' can no longer be passed
+      // as the Rhino scope; pass null until the M4 native-binding cutover rewires it.
+      addProperty(name, new FunctionObject2(null, cls, name, params));
    }
 
    /**
@@ -90,23 +95,15 @@ public abstract class PropertyScriptable implements Scriptable, Cloneable {
     * Check if the named property exists.
     */
    @Override
-   public boolean has(String id, Scriptable start) {
+   public boolean hasMember(String id) {
       return propmap.containsKey(id);
-   }
-
-   /**
-    * Index property is not supported.
-    */
-   @Override
-   public boolean has(int index, Scriptable start) {
-      return false;
    }
 
    /**
     * Get a property value.
     */
    @Override
-   public Object get(String id, Scriptable start) {
+   public Object getMember(String id) {
       Object val = null;
 
       if(propmap.containsKey(id)) {
@@ -130,22 +127,14 @@ public abstract class PropertyScriptable implements Scriptable, Cloneable {
          }
       }
 
-      return NOT_FOUND;
-   }
-
-   /**
-    * Index property is not found.
-    */
-   @Override
-   public Object get(int index, Scriptable start) {
-      return Undefined.instance;
+      return null;
    }
 
    /**
     * Set the property value.
     */
    @Override
-   public void put(String id, Scriptable start, Object value) {
+   public void putMember(String id, Object value) {
       try {
          Object val = propmap.get(id);
 
@@ -171,16 +160,9 @@ public abstract class PropertyScriptable implements Scriptable, Cloneable {
    }
 
    /**
-    * Index property is not supported.
-    */
-   @Override
-   public void put(int index, Scriptable start, Object value) {
-   }
-
-   /**
     * Get the type of a named property from the object.
     */
-   public Class getType(String name, Scriptable start) {
+   public Class getType(String name) {
       Object val = propmap.get(name);
 
       if(val instanceof PropertyDescriptor) {
@@ -192,76 +174,35 @@ public abstract class PropertyScriptable implements Scriptable, Cloneable {
       return null;
    }
 
-   @Override
-   public Object getDefaultValue(Class hint) {
-      if(hint == ScriptRuntime.BooleanClass) {
-         return Boolean.TRUE;
-      }
-      else if(hint == ScriptRuntime.NumberClass) {
-         return ScriptRuntime.NaNobj;
-      }
-
-      return this;
-   }
-
    /**
     * Get the names of all properties in this scope.
     */
    @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       return propmap.keySet().toArray(new Object[0]);
    }
 
-   @Override
-   public boolean hasInstance(Scriptable value) {
-      return false;
-   }
-
    /**
     * Removes a property from this object.
     */
    @Override
-   public void delete(String name) {
-      propmap.remove(name);
-   }
-
-   /**
-    * Removes a property from this object.
-    */
-   @Override
-   public void delete(int index) {
+   public boolean removeMember(String name) {
+      return propmap.remove(name) != null;
    }
 
    /**
     * Get the parent scope of the object.
     */
    @Override
-   public Scriptable getParentScope() {
+   public ScriptScope getParentScope() {
       return parent;
    }
 
    /**
     * Set the parent scope of the object.
     */
-   @Override
-   public void setParentScope(Scriptable parent) {
+   public void setParentScope(ScriptScope parent) {
       this.parent = parent;
-   }
-
-   /**
-    * Set the prototype of the object.
-    */
-   @Override
-   public void setPrototype(Scriptable prototype) {
-      this.prototype = prototype;
-   }
-
-   /**
-    * Get the prototype of the object.
-    */
-   @Override
-   public Scriptable getPrototype() {
-      return prototype;
    }
 
    /**
@@ -292,7 +233,7 @@ public abstract class PropertyScriptable implements Scriptable, Cloneable {
       return null;
    }
 
-   private Scriptable prototype, parent;
+   private ScriptScope parent;
    protected ConcurrentHashMap propmap = new ConcurrentHashMap();
    private boolean dirty = false; // true if a copy sharing propmap
 

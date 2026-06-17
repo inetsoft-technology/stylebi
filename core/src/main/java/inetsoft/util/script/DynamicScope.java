@@ -17,10 +17,10 @@
  */
 package inetsoft.util.script;
 
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptScope;
 
 /**
  * Mark a scriptable that should be treated as dynamic scope for script function.
  */
-public interface DynamicScope extends Scriptable {
+public interface DynamicScope extends ScriptScope {
 }

@@ -17,7 +17,7 @@
  */
 package inetsoft.report.script;
 
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,7 +27,7 @@ import java.lang.reflect.Field;
  * This class provides a proxy to allow a javascript object to have properties
  * that are tied to Java object fields.
  */
-public class ProxyScriptable extends ScriptableObject {
+public class ProxyScriptable implements ScriptScope {
    /**
     * Create a proxy to a java object.
     * @param target target Java object.
@@ -57,7 +57,6 @@ public class ProxyScriptable extends ScriptableObject {
       }
    }
 
-   @Override
    public String getClassName() {
       return "ProxyObject";
    }
@@ -69,7 +68,7 @@ public class ProxyScriptable extends ScriptableObject {
    }
 
    @Override
-   public boolean has(String id, Scriptable start) {
+   public boolean hasMember(String id) {
       for(int i = 0; i < props.length; i++) {
          if(id.equals(props[i])) {
             return true;
@@ -80,12 +79,7 @@ public class ProxyScriptable extends ScriptableObject {
    }
 
    @Override
-   public boolean has(int index, Scriptable start) {
-      return false;
-   }
-
-   @Override
-   public Object get(String id, Scriptable start) {
+   public Object getMember(String id) {
       init();
 
       try {
@@ -99,16 +93,11 @@ public class ProxyScriptable extends ScriptableObject {
          LOG.error("Failed to get proxy property: " + id, ex);
       }
 
-      return Undefined.instance;
+      return null;
    }
 
    @Override
-   public Object get(int index, Scriptable start) {
-      return Undefined.instance;
-   }
-
-   @Override
-   public void put(String id, Scriptable start, Object value) {
+   public void putMember(String id, Object value) {
       init();
 
       try {
@@ -131,29 +120,8 @@ public class ProxyScriptable extends ScriptableObject {
    }
 
    @Override
-   public void put(int index, Scriptable start, Object value) {
-   }
-
-   @Override
-   public Object getDefaultValue(Class hint) {
-      if(hint == ScriptRuntime.BooleanClass) {
-         return Boolean.TRUE;
-      }
-      else if(hint == ScriptRuntime.NumberClass) {
-         return ScriptRuntime.NaNobj;
-      }
-
-      return this;
-   }
-
-   @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       return props;
-   }
-
-   @Override
-   public boolean hasInstance(Scriptable value) {
-      return false;
    }
 
    Object target;
