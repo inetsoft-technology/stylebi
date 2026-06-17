@@ -174,6 +174,46 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
       });
    });
 
+   describe("milestone point label activation (gantt)", () => {
+      // <svg> sets svgRootEl; two milestone markers + labels keyed by data-row/col.
+      const html = `
+         <svg>
+            <g class="inetsoft-point" data-row="0" data-col="0"></g>
+            <g class="inetsoft-point-label" data-row="0" data-col="0"></g>
+            <g class="inetsoft-point" data-row="1" data-col="0"></g>
+            <g class="inetsoft-point-label" data-row="1" data-col="0"></g>
+         </svg>`;
+
+      function activeFlags(host: HTMLElement, sel: string): boolean[] {
+         return Array.from(host.querySelectorAll(sel)).map(e => e.classList.contains("inetsoft-active"));
+      }
+
+      it("activates the hovered point's own label so it is not dimmed", () => {
+         const { dir, host } = makeDirective(html);
+         (dir as any).afterSvgInjected();
+
+         dir.highlightElement(0, 0);
+         // The hovered marker and its label are active; the other row stays inactive (dimmable).
+         expect(activeFlags(host, ".inetsoft-point")).toEqual([true, false]);
+         expect(activeFlags(host, ".inetsoft-point-label")).toEqual([true, false]);
+      });
+
+      it("clears the label active class when the hover ends", () => {
+         vi.useFakeTimers();
+         try {
+            const { dir, host } = makeDirective(html);
+            (dir as any).afterSvgInjected();
+            dir.highlightElement(0, 0);
+            dir.highlightElement(null, null);
+            vi.advanceTimersByTime(ChartInlineSvgDirective["CLEAR_DELAY_MS"]);
+            expect(activeFlags(host, ".inetsoft-point,.inetsoft-point-label").some(Boolean)).toBe(false);
+         }
+         finally {
+            vi.useRealTimers();
+         }
+      });
+   });
+
    describe("getRelationEdges + emitRelationHover dedup", () => {
       it("returns this tile's edges as source/target pairs", () => {
          const { dir } = makeDirective("");

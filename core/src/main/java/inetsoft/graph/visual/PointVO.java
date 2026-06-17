@@ -285,6 +285,15 @@ public class PointVO extends ElementVO {
 
       PointElement elem = (PointElement) ((ElementGeometry) getGeometry()).getElement();
 
+      // Tag gantt milestone value labels with a dedicated class so the SVG injector fades them in
+      // with the milestone marker. A separate class (not the bar label) keeps them out of the
+      // bar hover-dim rule so they are never dimmed when hovering a bar.
+      if("true".equals(elem.getHint(PointElement.HINT_GANTT_MILESTONE))) {
+         vtext.setSvgAnnotation(SVGSupport.ANNOTATION_POINT_LABEL, Map.of(
+            SVGSupport.ATTR_ROW, String.valueOf(getRowIndex()),
+            SVGSupport.ATTR_COL, String.valueOf(getColIndex())));
+      }
+
       // make sure word cloud is not drawn in the neighboring area
       if(elem.isWordCloud()) {
          String key = "__cached_textClip" + CoreTool.arrayToString(gobj.getTuple());

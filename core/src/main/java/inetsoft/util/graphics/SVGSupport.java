@@ -67,6 +67,9 @@ public interface SVGSupport {
    /** Stacked bar chart. Example hint: "grow:stacked". */
    String ANIMATION_FLAG_STACKED = "stacked";
 
+   /** Gantt chart: milestone points fade in after the bars. Example hint: "grow:gantt". */
+   String ANIMATION_FLAG_GANTT = "gantt";
+
    // -------------------------------------------------------------------------
    // Semantic annotation constants (stamped on <g> elements during rendering)
    // -------------------------------------------------------------------------
@@ -85,6 +88,8 @@ public interface SVGSupport {
    String ANNOTATION_LABEL      = "inetsoft-bar-label";
    /** CSS class for point/scatter annotation groups ({@code <g class="inetsoft-point" ...>}). */
    String ANNOTATION_POINT      = "inetsoft-point";
+   /** CSS class for gantt milestone value labels. Faded with the marker but never hover-dimmed. */
+   String ANNOTATION_POINT_LABEL = "inetsoft-point-label";
    /** CSS class for candlestick annotation groups ({@code <g class="inetsoft-candle" ...>}). */
    String ANNOTATION_CANDLE     = "inetsoft-candle";
    /** CSS class for box-plot annotation groups ({@code <g class="inetsoft-box" ...>}). */

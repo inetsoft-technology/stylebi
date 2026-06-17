@@ -3801,6 +3801,7 @@ public abstract class GraphGenerator {
 
             PointElement point = new PointElement();
             point.setShapeFrame(frame);
+            point.setHint(PointElement.HINT_GANTT_MILESTONE, "true");
             elements.add(point);
          }
       }
