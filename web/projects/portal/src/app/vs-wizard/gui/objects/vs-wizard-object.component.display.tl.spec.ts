@@ -81,16 +81,18 @@ describe("VsWizardObjectComponent — isVSWizardObject()", () => {
 describe("VsWizardObjectComponent — canEdit() via miniToolbarActions visible()", () => {
    it("should return true when vsObject is set and hasDynamic is false", async () => {
       const { comp } = await renderComponent({ vsObject: makeVsObject("VSChart", { hasDynamic: false }) });
-      const editAction = comp.miniToolbarActions[0].actions[0];
-      expect(editAction.visible!()).toBe(true);
+      const editAction = comp.miniToolbarActions[0]?.actions.find(a => a.id() === "Edit VS Wizard Object");
+      expect(editAction).toBeDefined();
+      expect(editAction!.visible!()).toBe(true);
    });
 
    it("should return false when vsObject.hasDynamic is true", async () => {
       const { comp } = await renderComponent({
          vsObject: makeVsObject("VSChart", { hasDynamic: true } as any),
       });
-      const editAction = comp.miniToolbarActions[0].actions[0];
-      expect(editAction.visible!()).toBe(false);
+      const editAction = comp.miniToolbarActions[0]?.actions.find(a => a.id() === "Edit VS Wizard Object");
+      expect(editAction).toBeDefined();
+      expect(editAction!.visible!()).toBe(false);
    });
 });
 

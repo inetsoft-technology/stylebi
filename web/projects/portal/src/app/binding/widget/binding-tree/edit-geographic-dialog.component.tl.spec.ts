@@ -28,7 +28,7 @@
  *   Group 4 [Risk 2] — okClicked: stopPropagation + onCommit("ok") emission
  *   Group 5 [Risk 1] — updateLoadData: sets loadData=true to enable OK button
  *
- * Suspected bugs:
+ * Confirmed bugs (it.fails):
  *   cancelClicked subscription leak — when changeMapType returns a non-completing Observable
  *   and the component is destroyed before response, the subscribe callback fires post-destroy.
  *   The component does not implement OnDestroy, so the subscription is never cleaned up.
@@ -40,7 +40,7 @@
 
 import { Component, EventEmitter, Input, NO_ERRORS_SCHEMA, Output } from "@angular/core";
 import { render } from "@testing-library/angular";
-import { of } from "rxjs";
+import { Subject, of } from "rxjs";
 
 import { EditGeographicDialog } from "./edit-geographic-dialog.component";
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
@@ -244,5 +244,33 @@ describe("EditGeographicDialog — updateLoadData", () => {
       expect(comp.loadData).toBe(false);
       comp.updateLoadData("someEvent");
       expect(comp.loadData).toBe(true);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 6: memory-leak — cancelClicked subscription not unsubscribed on destroy
+// ---------------------------------------------------------------------------
+
+describe("EditGeographicDialog — cancelClicked subscription leak", () => {
+   // Expected failure: `expect(cancelled).toHaveLength(0)` fails because the changeMapType
+   // subscription callback fires post-destroy, calling onCancel.emit("cancel").
+   // Bug: the component has no ngOnDestroy, so the .subscribe() from changeMapType is never
+   // unsubscribed. If the test fails for an unrelated reason (e.g. fixture.destroy() throws),
+   // check that the failure is an assertion error on toHaveLength(0), not an exception.
+   it.fails("post-destroy changeMapType callback should NOT emit after component is destroyed", async () => {
+      const delayed = new Subject<any>();
+      PROVIDER_MOCK.changeMapType.mockReturnValue(delayed);
+      const { comp, fixture } = await renderComp({ mapType: "World", geoRef: false });
+      PROVIDER_MOCK.getBindingModel.mockReturnValue({ mapType: "US" }); // simulate map type change
+      const cancelled: string[] = [];
+      comp.onCancel.subscribe(v => cancelled.push(v));
+      comp.cancelClicked({ stopPropagation: vi.fn() } as unknown as MouseEvent);
+      // subscription is now active; destroy the component before Observable completes
+      fixture.destroy();
+      // emit post-destroy — callback fires because there is no unsubscribe in ngOnDestroy
+      delayed.next(null);
+      delayed.complete();
+      // this assertion FAILS: post-destroy callback called onCancel.emit("cancel")
+      expect(cancelled).toHaveLength(0);
    });
 });
