@@ -21,15 +21,14 @@ import inetsoft.report.filter.Highlight;
 import inetsoft.report.filter.HighlightGroup;
 import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
 import inetsoft.util.script.ArrayObject;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.ScriptableObject;
+import inetsoft.util.script.graal.ScriptArrayScope;
 
 import java.util.*;
 
 /**
  * This array provides access to highlighted status.
  */
-public class OutputHighlightedArray extends ScriptableObject implements ArrayObject {
+public class OutputHighlightedArray implements ArrayObject, ScriptArrayScope {
    /**
     * Constructor.
     */
@@ -46,13 +45,13 @@ public class OutputHighlightedArray extends ScriptableObject implements ArrayObj
    }
 
    @Override
-   public boolean has(String id, Scriptable start) {
+   public boolean hasMember(String id) {
       init();
       return hlnames.contains(id);
    }
 
    @Override
-   public Object get(String id, Scriptable start) {
+   public Object getMember(String id) {
       init();
 
       if(hlnames.contains(id)) {
@@ -62,11 +61,26 @@ public class OutputHighlightedArray extends ScriptableObject implements ArrayObj
 	 return hl != null && hl.getName().equals(id);
       }
 
-      return super.get(id, start);
+      return members.get(id);
    }
 
    @Override
-   public Object[] getIds() {
+   public void putMember(String id, Object value) {
+      members.put(id, value);
+   }
+
+   @Override
+   public Object getArrayElement(long index) {
+      return null;
+   }
+
+   @Override
+   public long getArraySize() {
+      return 0;
+   }
+
+   @Override
+   public Object[] getMemberKeys() {
       init();
       return hlnames.toArray();
    }
@@ -87,7 +101,6 @@ public class OutputHighlightedArray extends ScriptableObject implements ArrayObj
       return "[]";
    }
 
-   @Override
    public String getClassName() {
       return "Highlighted";
    }
@@ -108,4 +121,5 @@ public class OutputHighlightedArray extends ScriptableObject implements ArrayObj
    private OutputVSAssemblyInfo assembly;
    private boolean inited = false;
    private List hlnames = new ArrayList();
+   private final Map<String, Object> members = new LinkedHashMap<>();
 }

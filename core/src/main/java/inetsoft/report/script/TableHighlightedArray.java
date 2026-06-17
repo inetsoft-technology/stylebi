@@ -22,16 +22,17 @@ import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.uql.XTable;
 import inetsoft.util.script.ArrayObject;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.ScriptableObject;
+import inetsoft.util.script.graal.ScriptArrayScope;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This array provides access to highlighted status.
  */
-public class TableHighlightedArray extends ScriptableObject implements ArrayObject {
+public class TableHighlightedArray implements ArrayObject, ScriptArrayScope {
    /**
     * Constructor.
     */
@@ -48,21 +49,36 @@ public class TableHighlightedArray extends ScriptableObject implements ArrayObje
    }
 
    @Override
-   public boolean has(String id, Scriptable start) {
+   public boolean hasMember(String id) {
       return hlnames.contains(id);
    }
 
    @Override
-   public Object get(String id, Scriptable start) {
+   public Object getMember(String id) {
       if(hlnames.contains(id)) {
          return hltable.isHighlighted(id);
       }
 
-      return super.get(id, start);
+      return members.get(id);
    }
 
    @Override
-   public Object[] getIds() {
+   public void putMember(String id, Object value) {
+      members.put(id, value);
+   }
+
+   @Override
+   public Object getArrayElement(long index) {
+      return null;
+   }
+
+   @Override
+   public long getArraySize() {
+      return 0;
+   }
+
+   @Override
+   public Object[] getMemberKeys() {
       return hlnames.toArray();
    }
 
@@ -82,7 +98,6 @@ public class TableHighlightedArray extends ScriptableObject implements ArrayObje
       return "[]";
    }
 
-   @Override
    public String getClassName() {
       return "Highlighted";
    }
@@ -103,4 +118,5 @@ public class TableHighlightedArray extends ScriptableObject implements ArrayObje
    private boolean inited = false;
    private List hlnames = new ArrayList();
    private TableHighlightAttr.HighlightTableLens hltable;
+   private final Map<String, Object> members = new LinkedHashMap<>();
 }

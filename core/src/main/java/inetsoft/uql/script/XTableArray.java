@@ -20,7 +20,8 @@ package inetsoft.uql.script;
 import inetsoft.report.script.formula.CellRange;
 import inetsoft.uql.XTable;
 import inetsoft.uql.util.XUtil;
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptArrayScope;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,7 +33,7 @@ import java.util.*;
  * @version 8.0
  * @author InetSoft Technology Corp
  */
-public class XTableArray implements Scriptable, Wrapper {
+public class XTableArray implements ScriptArrayScope {
    /**
     * Constructor.
     */
@@ -92,7 +93,6 @@ public class XTableArray implements Scriptable, Wrapper {
    /**
     * Get the name of the set of objects implemented by this Java class.
     */
-   @Override
    public String getClassName() {
       return "XTableArray";
    }
@@ -101,11 +101,11 @@ public class XTableArray implements Scriptable, Wrapper {
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       XTable table = getTable0();
 
       if(table == null){
-         return Undefined.instance;
+         return null;
       }
 
       if(name.equals("length")) {
@@ -122,39 +122,54 @@ public class XTableArray implements Scriptable, Wrapper {
          return range.getCollectionValue(cells);
       }
       catch(Exception ex) {
-         LOG.warn("Failed to get property " + name + " from " + start, ex);
+         LOG.warn("Failed to get property " + name + " from " + this, ex);
       }
 
-      return Undefined.instance;
+      return null;
    }
 
    /**
     * Get a property from the object selected by an integral index.
     */
    @Override
-   public Object get(int index, Scriptable start) {
+   public Object getArrayElement(long index) {
       XTable table = getTable0();
 
       if(table == null){
-         return Undefined.instance;
+         return null;
       }
 
-      table.moreRows(index);
+      table.moreRows((int) index);
       int rcount = table.getRowCount();
       rcount = rcount < 0 ? -rcount - 1 : rcount;
 
       if(index >= 0 && index < rcount) {
-         return new XTableRow(table, index, map);
+         return new XTableRow(table, (int) index, map);
       }
 
-      return Undefined.instance;
+      return null;
+   }
+
+   /**
+    * Get the number of indexed elements.
+    */
+   @Override
+   public long getArraySize() {
+      XTable table = getTable0();
+
+      if(table == null) {
+         return 0;
+      }
+
+      table.moreRows(Integer.MAX_VALUE);
+      return table.getRowCount();
    }
 
    /**
     * Indicate whether or not a named property is defined in an object.
     */
    @Override
-   public boolean has(String name, Scriptable start) {
+   public boolean hasMember(String name) {
       XTable table = getTable0();
 
       if(table == null){
@@ -169,35 +184,10 @@ public class XTableArray implements Scriptable, Wrapper {
    }
 
    /**
-    * Indicate whether or not an indexed property is defined in an object.
-    */
-   @Override
-   public boolean has(int index, Scriptable start) {
-      XTable table = getTable0();
-
-      if(table == null){
-         return false;
-      }
-
-      table.moreRows(index);
-      int rcount = table.getRowCount();
-      rcount = rcount < 0 ? -rcount - 1 : rcount;
-      return index >= 0 && index < rcount;
-   }
-
-   /**
     * Set a named property in this object.
     */
    @Override
-   public void put(String name, Scriptable start, Object value) {
-      // do nothing
-   }
-
-   /**
-    * Set an indexed property in this object.
-    */
-   @Override
-   public void put(int index, Scriptable start, Object value) {
+   public void putMember(String name, Object value) {
       // do nothing
    }
 
@@ -205,47 +195,23 @@ public class XTableArray implements Scriptable, Wrapper {
     * Remove a property from this object.
     */
    @Override
-   public void delete(String name) {
+   public boolean removeMember(String name) {
       // do nothing
-   }
-
-   /**
-    * Remove a property from this object.
-    */
-   @Override
-   public void delete(int index) {
-      // do nothing
-   }
-
-   /**
-    * Get the prototype of the object.
-    */
-   @Override
-   public Scriptable getPrototype() {
-      return prototype;
-   }
-
-   /**
-    * Set the prototype of the object.
-    */
-   @Override
-   public void setPrototype(Scriptable prototype) {
-      this.prototype = prototype;
+      return false;
    }
 
    /**
     * Get the parent scope of the object.
     */
    @Override
-   public Scriptable getParentScope() {
+   public ScriptScope getParentScope() {
       return parent;
    }
 
    /**
     * Set the parent scope of the object.
     */
-   @Override
-   public void setParentScope(Scriptable parent) {
+   public void setParentScope(ScriptScope parent) {
       this.parent = parent;
    }
 
@@ -253,7 +219,7 @@ public class XTableArray implements Scriptable, Wrapper {
     * Get an array of property ids.
     */
    @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       XTable table = getTable0();
 
       if(table == null){
@@ -274,26 +240,9 @@ public class XTableArray implements Scriptable, Wrapper {
    }
 
    /**
-    * Get the default value of the object with a given hint.
-    */
-   @Override
-   public Object getDefaultValue(Class hint) {
-      return table;
-   }
-
-   /**
-    * Implement the instanceof operator.
-    */
-   @Override
-   public boolean hasInstance(Scriptable instance) {
-      return false;
-   }
-
-   /**
     * Unwrap the object by returning the wrapped value.
     * @return the wrapped value.
     */
-   @Override
    public Object unwrap() {
       return getTable0();
    }
@@ -309,8 +258,7 @@ public class XTableArray implements Scriptable, Wrapper {
    private XTable table;
    private XTable lastTable;
    private Map map;
-   private Scriptable parent;
-   private Scriptable prototype;
+   private ScriptScope parent;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(XTableArray.class);

@@ -20,11 +20,14 @@ package inetsoft.report.script;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.VisualFrameWrapper;
 import inetsoft.util.script.ArrayObject;
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptArrayScope;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Method;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * This represents an array of chart styles, axises in a chart info.
@@ -32,8 +35,8 @@ import java.lang.reflect.Method;
  * @version 10.3
  * @author InetSoft Technology Corp
  */
-public abstract class AbstractChartArray extends ScriptableObject
-   implements ArrayObject {
+public abstract class AbstractChartArray
+   implements ArrayObject, ScriptArrayScope {
    /**
     * Constructor.
     * @param property property name, e.g. Object.
@@ -107,7 +110,6 @@ public abstract class AbstractChartArray extends ScriptableObject
    /**
     * Get the name of the set of objects implemented by this Java class.
     */
-   @Override
    public String getClassName() {
       return "AbstractChartArray";
    }
@@ -116,23 +118,15 @@ public abstract class AbstractChartArray extends ScriptableObject
     * Indicate whether or not a named property is defined in an object.
     */
    @Override
-   public boolean has(String id, Scriptable start) {
-      return get(id, start) != null;
-   }
-
-   /**
-    * Indicate whether or not a indexed property is defined in an object.
-    */
-   @Override
-   public boolean has(int index, Scriptable start) {
-      return false;
+   public boolean hasMember(String id) {
+      return getMember(id) != null;
    }
 
    /**
     * Get a named property from the object.
     */
    @Override
-   public Object get(String id, Scriptable start) {
+   public Object getMember(String id) {
       init();
 
       ChartInfo info = getInfo();
@@ -178,22 +172,30 @@ public abstract class AbstractChartArray extends ScriptableObject
          }
       }
 
-      return super.get(id, start);
+      return members.get(id);
    }
 
    /**
     * Get a indexed property from the object.
     */
    @Override
-   public Object get(int index, Scriptable start) {
-      return Undefined.instance;
+   public Object getArrayElement(long index) {
+      return null;
+   }
+
+   /**
+    * Get the number of indexed elements.
+    */
+   @Override
+   public long getArraySize() {
+      return 0;
    }
 
    /**
     * Sets a named property in this object.
     */
    @Override
-   public void put(String id, Scriptable start, Object value) {
+   public void putMember(String id, Object value) {
       init();
 
       if(setMethod != null) {
@@ -241,28 +243,12 @@ public abstract class AbstractChartArray extends ScriptableObject
    }
 
    /**
-    * Sets a indexed property in this object.
-    */
-   @Override
-   public void put(int index, Scriptable start, Object value) {
-      LOG.error("Indexed property cannot be modified: " + property);
-   }
-
-   /**
     * Get an array of property ids.
     */
    @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       init();
       return ids;
-   }
-
-   /**
-    * Check if a specific object has an instance.
-    */
-   @Override
-   public boolean hasInstance(Scriptable value) {
-      return false;
    }
 
    /**
@@ -288,6 +274,7 @@ public abstract class AbstractChartArray extends ScriptableObject
       return "[]";
    }
 
+   protected final Map<String, Object> members = new LinkedHashMap<>();
    protected boolean inited = false;
    protected Method setMethod = null;
    protected Method getMethod = null;

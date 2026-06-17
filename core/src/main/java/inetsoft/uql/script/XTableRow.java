@@ -18,8 +18,8 @@
 package inetsoft.uql.script;
 
 import inetsoft.uql.XTable;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.Undefined;
+import inetsoft.util.script.graal.ScriptArrayScope;
+import inetsoft.util.script.graal.ScriptScope;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -30,7 +30,7 @@ import java.util.Map;
  * @version 8.0
  * @author InetSoft Technology Corp
  */
-public class XTableRow implements Scriptable {
+public class XTableRow implements ScriptArrayScope {
    /**
     * Constructor.
     */
@@ -43,7 +43,6 @@ public class XTableRow implements Scriptable {
    /**
     * Get the name of the set of objects implemented by this Java class.
     */
-   @Override
    public String getClassName() {
       return "XTableRow";
    }
@@ -52,7 +51,7 @@ public class XTableRow implements Scriptable {
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       if(name.equals("length")) {
          return Integer.valueOf(table.getColCount());
       }
@@ -63,26 +62,34 @@ public class XTableRow implements Scriptable {
          return table.getObject(row, index.intValue());
       }
 
-      return Undefined.instance;
+      return null;
    }
 
    /**
     * Get a property from the object selected by an integral index.
     */
    @Override
-   public Object get(int index, Scriptable start) {
+   public Object getArrayElement(long index) {
       if(index >= 0 && index < table.getColCount()) {
-         return table.getObject(row, index);
+         return table.getObject(row, (int) index);
       }
 
-      return Undefined.instance;
+      return null;
+   }
+
+   /**
+    * Get the number of indexed elements.
+    */
+   @Override
+   public long getArraySize() {
+      return table.getColCount();
    }
 
    /**
     * Indicate whether or not a named property is defined in an object.
     */
    @Override
-   public boolean has(String name, Scriptable start) {
+   public boolean hasMember(String name) {
       if(name.equals("length") || map.containsKey(name)) {
          return true;
       }
@@ -91,26 +98,10 @@ public class XTableRow implements Scriptable {
    }
 
    /**
-    * Indicate whether or not an indexed property is defined in an object.
-    */
-   @Override
-   public boolean has(int index, Scriptable start) {
-      return index >= 0 && index < table.getColCount();
-   }
-
-   /**
     * Set a named property in this object.
     */
    @Override
-   public void put(String name, Scriptable start, Object value) {
-      // do nothing
-   }
-
-   /**
-    * Set an indexed property in this object.
-    */
-   @Override
-   public void put(int index, Scriptable start, Object value) {
+   public void putMember(String name, Object value) {
       // do nothing
    }
 
@@ -118,47 +109,23 @@ public class XTableRow implements Scriptable {
     * Remove a property from this object.
     */
    @Override
-   public void delete(String name) {
+   public boolean removeMember(String name) {
       // do nothing
-   }
-
-   /**
-    * Remove a property from this object.
-    */
-   @Override
-   public void delete(int index) {
-      // do nothing
-   }
-
-   /**
-    * Get the prototype of the object.
-    */
-   @Override
-   public Scriptable getPrototype() {
-      return prototype;
-   }
-
-   /**
-    * Set the prototype of the object.
-    */
-   @Override
-   public void setPrototype(Scriptable prototype) {
-      this.prototype = prototype;
+      return false;
    }
 
    /**
     * Get the parent scope of the object.
     */
    @Override
-   public Scriptable getParentScope() {
+   public ScriptScope getParentScope() {
       return parent;
    }
 
    /**
     * Set the parent scope of the object.
     */
-   @Override
-   public void setParentScope(Scriptable parent) {
+   public void setParentScope(ScriptScope parent) {
       this.parent = parent;
    }
 
@@ -166,7 +133,7 @@ public class XTableRow implements Scriptable {
     * Get an array of property ids.
     */
    @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       int counter = 0;
       Object[] ids = new Object[table.getColCount() + map.size() + 1];
 
@@ -185,25 +152,8 @@ public class XTableRow implements Scriptable {
       return ids;
    }
 
-   /**
-    * Get the default value of the object with a given hint.
-    */
-   @Override
-   public Object getDefaultValue(Class hint) {
-      return this;
-   }
-
-   /**
-    * Implement the instanceof operator.
-    */
-   @Override
-   public boolean hasInstance(Scriptable instance) {
-      return false;
-   }
-
    private XTable table;
    private int row;
    protected Map map;
-   private Scriptable parent;
-   private Scriptable prototype;
+   private ScriptScope parent;
 }
