@@ -1134,6 +1134,39 @@ class SVGAnimationDOMInjectorTest {
    }
 
    /**
+    * In a facet chart the same series (same data-series + data-color) repeats across panels.
+    * Repeated keys must dedup to a stable rank so the series count is not inflated: same-key
+    * lines in different panels must share a delay, and the rank spacing must stay at the
+    * two-series spacing (STAGGER_WINDOW), not a four-series spacing.
+    */
+   @Test
+   void facetPanelsWithRepeatedSeries_dedupToStableRank() throws Exception {
+      Document doc = newDocument();
+      Element svg = doc.getDocumentElement();
+
+      // Panel 1: series A then series B.
+      Element p1a = addLineSeries(doc, svg, "34,211,238",  "0", "M0,50 L50,40 L100,30 L150,20");
+      Element p1b = addLineSeries(doc, svg, "167,139,250", "0", "M0,40 L50,30 L100,20 L150,10");
+      // Panel 2: same two series repeated.
+      Element p2a = addLineSeries(doc, svg, "34,211,238",  "0", "M200,50 L250,40 L300,30 L350,20");
+      Element p2b = addLineSeries(doc, svg, "167,139,250", "0", "M200,40 L250,30 L300,20 L350,10");
+
+      SVGAnimationDOMInjector.injectAnimation(svg, SVGSupport.ANIMATION_LINE);
+
+      double d1a = parseDelay(firstDescendantPathOf(p1a).getAttribute("style"));
+      double d1b = parseDelay(firstDescendantPathOf(p1b).getAttribute("style"));
+      double d2a = parseDelay(firstDescendantPathOf(p2a).getAttribute("style"));
+      double d2b = parseDelay(firstDescendantPathOf(p2b).getAttribute("style"));
+
+      assertEquals(d1a, d2a, 0.01, "same series across panels must share a delay (stable rank)");
+      assertEquals(d1b, d2b, 0.01, "same series across panels must share a delay (stable rank)");
+      // Two distinct series → spacing is the full STAGGER_WINDOW.  A dedup failure would inflate
+      // numSeries to 4 and shrink this spacing to STAGGER_WINDOW/3.
+      assertEquals(AnimationConstants.STAGGER_WINDOW, d1b - d1a, 0.01,
+         "series count must not be inflated by repeated facet keys");
+   }
+
+   /**
     * Adds a standalone {@code inetsoft-line} annotation group (outer g → inner g → path) to the
     * SVG root.  No paired area, modeling a pure line/stacked-line chart.
     *

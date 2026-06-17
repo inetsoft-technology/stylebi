@@ -864,7 +864,7 @@ public class SVGAnimationDOMInjector {
       // rank 0 and animate at once (the same problem documented for area below).  Adding
       // data-color distinguishes color-dimension series, while data-series still separates
       // distinct measures that happen to share a color.
-      LinkedHashMap<String, Integer> lineSeriesRank = new LinkedHashMap<>();
+      Map<String, Integer> lineSeriesRank = new LinkedHashMap<>();
 
       for(Element g : annotLines) {
          String key = g.getAttribute("data-" + SVGSupport.ATTR_SERIES) + "|" +
@@ -876,7 +876,7 @@ public class SVGAnimationDOMInjector {
       // AreaVO.getColIndex() is unreliable for ordering — in stacked area charts all AreaVO
       // instances share the same measure column index.  data-color is unique per series and
       // preserves DOM (visual) order, so it gives the correct stagger without extra metadata.
-      LinkedHashMap<String, Integer> areaColorRank = new LinkedHashMap<>();
+      Map<String, Integer> areaColorRank = new LinkedHashMap<>();
 
       for(Element g : annotAreas) {
          String color = g.getAttribute("data-" + SVGSupport.ATTR_COLOR);
@@ -2324,10 +2324,9 @@ public class SVGAnimationDOMInjector {
     * Parse the {@code data-<attr>} integer attribute of an element, returning {@code 0} on
     * missing or malformed values.
     *
-    * <p><b>Note:</b> this overload automatically prepends {@code "data-"} to {@code attr}.
+    * <p><b>Note:</b> this method automatically prepends {@code "data-"} to {@code attr}.
     * Pass a short name like {@code SVGSupport.ATTR_LEVEL} (not {@code "data-level"}) or the
-    * attribute read will be {@code "data-data-level"}.  The 3-arg overload takes the full
-    * attribute name as-is and should be used when the caller already holds the full name.
+    * attribute read will be {@code "data-data-level"}.
     */
    private static int parseIntAttr(Element el, String attr) {
       String v = el.getAttribute("data-" + attr);
