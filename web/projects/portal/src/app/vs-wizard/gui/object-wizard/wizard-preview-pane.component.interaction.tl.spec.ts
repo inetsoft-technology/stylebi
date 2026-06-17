@@ -55,7 +55,6 @@ import { Subject } from "rxjs";
 import { VSWizardPreviewPane } from "./wizard-preview-pane.component";
 import { WizardPreviewContainer } from "./wizard-preview-container.component";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
-import { AssemblyActionFactory } from "../../../vsobjects/action/assembly-action-factory.service";
 import { ContextProvider } from "../../../vsobjects/context-provider.service";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { VsWizardEditModes } from "../../model/vs-wizard-edit-modes";

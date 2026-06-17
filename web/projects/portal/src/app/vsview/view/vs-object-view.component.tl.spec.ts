@@ -177,7 +177,6 @@ async function renderComponent(opts: RenderOptions = {}) {
 // ---------------------------------------------------------------------------
 
 beforeEach(() => {
-   vi.useFakeTimers();
    vi.spyOn(LocalStorage, "getItem").mockReturnValue(null);
    ACTION_FACTORY_MOCK.createActions.mockClear();
    MINI_TOOLBAR_MOCK.isMiniToolbarHidden.mockClear().mockReturnValue(false);
@@ -282,6 +281,7 @@ describe("VSObjectView — onChartMaxModeChange", () => {
 // ---------------------------------------------------------------------------
 
 describe("VSObjectView — getFormats @HostListener click", () => {
+   beforeEach(() => vi.useFakeTimers());
    // 🔁 Regression-sensitive: the 250ms delay is intentional (debounces rapid clicks);
    // removing the timeout causes the format pane to update before selection stabilizes.
 

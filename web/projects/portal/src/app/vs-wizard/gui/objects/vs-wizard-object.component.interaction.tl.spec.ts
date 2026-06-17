@@ -192,7 +192,9 @@ describe("VsWizardObjectComponent — editObject() via miniToolbarActions", () =
       comp.interactionDraggable = true;
       comp.interactionResizable = true;
 
-      comp.miniToolbarActions[0].actions[0].action({} as MouseEvent);
+      const editAction1 = comp.miniToolbarActions[0]?.actions.find(a => a.id() === "Edit VS Wizard Object");
+      expect(editAction1).toBeDefined();
+      editAction1!.action({} as MouseEvent);
 
       expect(vsObject.editing).toBe(true);
       expect(emitted).toHaveLength(0);
@@ -208,7 +210,9 @@ describe("VsWizardObjectComponent — editObject() via miniToolbarActions", () =
       const emitted: string[] = [];
       comp.onEdit.subscribe((v: string) => emitted.push(v));
 
-      comp.miniToolbarActions[0].actions[0].action({} as MouseEvent);
+      const editAction2 = comp.miniToolbarActions[0]?.actions.find(a => a.id() === "Edit VS Wizard Object");
+      expect(editAction2).toBeDefined();
+      editAction2!.action({} as MouseEvent);
 
       expect(emitted).toEqual(["TestObj"]);
    });
@@ -218,7 +222,9 @@ describe("VsWizardObjectComponent — editObject() via miniToolbarActions", () =
       const emitted: string[] = [];
       comp.onEdit.subscribe((v: string) => emitted.push(v));
 
-      comp.miniToolbarActions[0].actions[0].action({} as MouseEvent);
+      const editAction3 = comp.miniToolbarActions[0]?.actions.find(a => a.id() === "Edit VS Wizard Object");
+      expect(editAction3).toBeDefined();
+      editAction3!.action({} as MouseEvent);
 
       expect(emitted).toEqual(["TestObj"]);
    });
@@ -228,7 +234,9 @@ describe("VsWizardObjectComponent — editObject() via miniToolbarActions", () =
       const emitted: string[] = [];
       comp.onRemove.subscribe((v: string) => emitted.push(v));
 
-      comp.miniToolbarActions[0].actions[1].action({} as MouseEvent);
+      const deleteAction = comp.miniToolbarActions[0]?.actions.find(a => a.id() === "Delete VS Wizard Object");
+      expect(deleteAction).toBeDefined();
+      deleteAction!.action({} as MouseEvent);
 
       expect(emitted).toEqual(["TestObj"]);
    });

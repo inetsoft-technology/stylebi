@@ -192,6 +192,10 @@ beforeEach(() => {
    (MessageDialog as any).lastMessageTS = 0;
 });
 
+afterEach(() => {
+   vi.restoreAllMocks();
+});
+
 // ---------------------------------------------------------------------------
 // Group 1 — ngOnInit: refreshSubject → GET_BINDING_TREE_URI [Risk 3]
 // ---------------------------------------------------------------------------
@@ -527,6 +531,20 @@ describe("WizardBindingTree — processRefreshWizardTreeCommand()", () => {
       // Dimensions + Measures merged and sorted: Amount < Category < Zebra
       const labels = treeModel.children.map((n: any) => n.label);
       expect(labels).toEqual(["Amount", "Category", "Zebra"]);
+   });
+
+   // End-to-end: CommandProcessor dispatch routes to processRefreshWizardTreeCommand
+   it("should route RefreshWizardTreeCommand via commandsSubject to the handler", async () => {
+      await renderComponent();
+      const treeModel = { label: "root", children: [] } as any;
+
+      commandsSubject.next({
+         assembly: null,
+         type: "RefreshWizardTreeCommand",
+         command: { forceRefresh: false, reload: true, treeModel, treeInfo: null },
+      });
+
+      expect(BINDING_TREE_SERVICE_MOCK.resetTreeModel).toHaveBeenCalledWith(treeModel);
    });
 });
 
