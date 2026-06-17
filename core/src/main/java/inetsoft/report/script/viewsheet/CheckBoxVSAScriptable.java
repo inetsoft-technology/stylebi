@@ -19,8 +19,6 @@ package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.internal.CheckBoxVSAssemblyInfo;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.Undefined;
 
 /**
  * The checkbox viewsheet assembly scriptable in viewsheet scope.
@@ -71,16 +69,16 @@ public class CheckBoxVSAScriptable extends InputVSAScriptable
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       if(!(getVSAssemblyInfo() instanceof CheckBoxVSAssemblyInfo)) {
-         return Undefined.instance;
+         return null;
       }
 
       if(cellValue != NULL && name.equals("value")) {
          return cellValue;
       }
 
-      return super.get(name, start);
+      return super.getMember(name);
    }
 
    /**
@@ -105,7 +103,7 @@ public class CheckBoxVSAScriptable extends InputVSAScriptable
     * Indicate whether or not a named property is defined in an object.
     */
    @Override
-   public boolean has(String name, Scriptable start) {
+   public boolean hasMember(String name) {
       if(!(getVSAssemblyInfo() instanceof CheckBoxVSAssemblyInfo)) {
          return false;
       }
@@ -114,7 +112,7 @@ public class CheckBoxVSAScriptable extends InputVSAScriptable
          return true;
       }
 
-      return super.has(name, start);
+      return super.hasMember(name);
    }
 
    public boolean isSelectFirstItem() {

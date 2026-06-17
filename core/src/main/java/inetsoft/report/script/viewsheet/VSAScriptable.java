@@ -28,9 +28,8 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.ContainerVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.util.script.*;
+import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.ScriptableObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,7 +43,7 @@ import java.util.stream.Collectors;
  * @version 10.3
  * @author InetSoft Technology Corp
  */
-public class VSAScriptable extends ScriptableObject
+public class VSAScriptable
    implements Cloneable, DynamicScope, BaseScriptable
 {
    /**
@@ -52,8 +51,6 @@ public class VSAScriptable extends ScriptableObject
     * @param box the specified viewsheet sandbox.
     */
    public VSAScriptable(ViewsheetSandbox box) {
-      super();
-
       this.box = box;
       map = Collections.synchronizedMap(new HashMap<>());
 
@@ -74,7 +71,6 @@ public class VSAScriptable extends ScriptableObject
    /**
     * Get the name of the set of objects implemented by this Java class.
     */
-   @Override
    public String getClassName() {
       return "VSA";
    }
@@ -162,7 +158,7 @@ public class VSAScriptable extends ScriptableObject
     * Sets a named property in this object.
     */
    @Override
-   public void put(String name, Scriptable start, Object value) {
+   public void putMember(String name, Object value) {
       init();
 
       Object val = propmap.get(name);
@@ -188,7 +184,7 @@ public class VSAScriptable extends ScriptableObject
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       final Map<String, Object> varMap = getVarMap();
 
       if(varMap.containsKey(name)) {
@@ -218,47 +214,43 @@ public class VSAScriptable extends ScriptableObject
          }
       }
 
-      if(vsproto != null) {
-         Object rc = vsproto.get(name, start);
-
-         if(rc != NOT_FOUND) {
-            return rc;
-         }
+      if(vsproto != null && vsproto.hasMember(name)) {
+         return vsproto.getMember(name);
       }
 
-      return super.get(name, start);
+      return members.get(name);
    }
 
    /**
     * Indicate whether or not a named property is defined in an object.
     */
    @Override
-   public boolean has(String name, Scriptable start) {
+   public boolean hasMember(String name) {
       init();
 
       if(map.containsKey(name) || propmap.containsKey(name) || getVarMap().containsKey(name)) {
          return true;
       }
 
-      if(vsproto != null && vsproto.has(name, start)) {
+      if(vsproto != null && vsproto.hasMember(name)) {
          return true;
       }
 
-      return super.has(name, start);
+      return members.containsKey(name);
    }
 
    /**
     * Get an array of property ids.
     */
    @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       init();
 
       Set<Object> ids = new HashSet<>();
-      Object[] sids = includedAll ? super.getIds() : new Object[0];
+      Object[] sids = includedAll ? members.keySet().toArray() : new Object[0];
       Object[] pids = (vsproto != null && (includedAll ||
          !(vsproto instanceof CubeVSAScriptable))) ?
-         vsproto.getIds() : new Object[] {};
+         vsproto.getMemberKeys() : new Object[] {};
 
       ids.addAll(Arrays.asList(sids));
       ids.addAll(Arrays.asList(pids));
@@ -294,7 +286,7 @@ public class VSAScriptable extends ScriptableObject
          return "()";
       }
 
-      if(get(prop + "", this) instanceof ArrayObject) {
+      if(getMember(prop + "") instanceof ArrayObject) {
          return "[]";
       }
       else {
@@ -781,6 +773,18 @@ public class VSAScriptable extends ScriptableObject
    }
 
    /**
+    * Register a native function property.
+    */
+   protected void addFunctionProperty(Class cls, String name, Class ...params) {
+      // NOTE (Feature #75423): FunctionObject2 is a Rhino FunctionObject and is
+      // replaced by the native-binding mechanism in Milestone 4. VSAScriptable
+      // no longer extends Rhino's ScriptableObject, so 'this' can no longer be
+      // passed as the Rhino scope; pass null until the M4 native-binding cutover
+      // rewires it.
+      addProperty(name, new FunctionObject2(null, cls, name, params));
+   }
+
+   /**
     * Add a property to this scriptable.
     * @param name property name.
     * @param getter getter method for retrieving the property value.
@@ -835,7 +839,8 @@ public class VSAScriptable extends ScriptableObject
     * Get the string representation.
     */
    public String toString() {
-      return super.toString() + '[' + assembly + ']';
+      return getClassName() + '@' + Integer.toHexString(System.identityHashCode(this)) +
+         '[' + assembly + ']';
    }
 
    /**
@@ -948,7 +953,7 @@ public class VSAScriptable extends ScriptableObject
    /**
     * Get tipped assembly's tip condition.
     */
-   protected Scriptable[] getTipConditions() {
+   protected ScriptScope[] getTipConditions() {
       ConditionListWrapper wrapper = getVSAssembly().getTipConditionList();
 
       if(wrapper == null || wrapper.isEmpty()) {
@@ -956,7 +961,7 @@ public class VSAScriptable extends ScriptableObject
       }
 
       int size = wrapper.getConditionSize();
-      ArrayList<Scriptable> items = new ArrayList<>();
+      ArrayList<ScriptScope> items = new ArrayList<>();
       ConditionItem item;
       Condition cond;
 
@@ -973,26 +978,25 @@ public class VSAScriptable extends ScriptableObject
          items.add(new TipDataCondition(attr, value));
       }
 
-      return items.toArray(new Scriptable[0]);
+      return items.toArray(new ScriptScope[0]);
    }
 
    protected Map<String, Object> getVarMap() {
       return map;
    }
 
-   private static class TipDataCondition extends ScriptableObject {
+   private static class TipDataCondition implements ScriptScope {
       public TipDataCondition(String attr, Object value) {
          this.attr = attr;
          this.value = value;
       }
 
-      @Override
       public String getClassName() {
          return "ConditionItem";
       }
 
       @Override
-      public Object get(String id, Scriptable script) {
+      public Object getMember(String id) {
          if("attr".equals(id)) {
             return attr;
          }
@@ -1001,7 +1005,22 @@ public class VSAScriptable extends ScriptableObject
             return value;
          }
 
-         return super.get(id, script);
+         return null;
+      }
+
+      @Override
+      public boolean hasMember(String id) {
+         return "attr".equals(id) || "value".equals(id);
+      }
+
+      @Override
+      public void putMember(String id, Object value) {
+         // read-only
+      }
+
+      @Override
+      public Object[] getMemberKeys() {
+         return new Object[] {"attr", "value"};
       }
 
       private final String attr;
@@ -1027,6 +1046,7 @@ public class VSAScriptable extends ScriptableObject
    private VSAScriptable vsproto; // vs prototype
    private final Map<String, Object> map;
    private final Map<String, Object> propmap = Collections.synchronizedMap(new HashMap<>()); // properties map
+   private final Map<String, Object> members = new LinkedHashMap<>(); // builtin/extra members
    private boolean includedAll = true;
    private Object element = null;
    private boolean inited = false;

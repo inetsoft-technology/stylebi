@@ -38,8 +38,6 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ArrayObject;
 import inetsoft.util.script.JavaScriptEngine;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.Undefined;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -215,18 +213,18 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       if(!(getVSAssemblyInfo() instanceof TableDataVSAssemblyInfo)) {
-         return Undefined.instance;
+         return null;
       }
 
       if(!has(name, start)) {
-         return super.get(name, start);
+         return super.getMember(name);
       }
 
       if("value".equals(name)) {
          if(!initTableArray()) {
-            return super.get(name, start);
+            return super.getMember(name);
          }
 
          Object cval = getCellValue();
@@ -237,7 +235,7 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
       }
       else if("field".equals(name)) {
          if(!initTableArray()) {
-            return super.get(name, start);
+            return super.getMember(name);
          }
 
          int row = TableDataVSAScriptable.row.get();
@@ -250,7 +248,7 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
                row = 0;
             }
             else {
-               return Undefined.instance;
+               return null;
             }
          }
 
@@ -269,7 +267,7 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          }
          else {
             if(!initTableArray()) {
-               return super.get(name, start);
+               return super.getMember(name);
             }
 
             table.moreRows(Integer.MAX_VALUE);
@@ -288,7 +286,7 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          }
          else {
             if(!initTableArray()) {
-               return super.get(name, start);
+               return super.getMember(name);
             }
 
             return table.getColCount();
@@ -296,7 +294,7 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
       }
       else if("data".equals(name) || "table".equals(name)) {
          if(!initTableArray()) {
-            return super.get(name, start);
+            return super.getMember(name);
          }
 
          if("table".equals(name)) {
@@ -307,21 +305,21 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
       }
       else if("data.length".equals(name)) {
          if(!initTableArray()) {
-            return super.get(name, start);
+            return super.getMember(name);
          }
 
          return getTableData().get("length", null);
       }
       else if("data.size".equals(name)) {
          if(!initTableArray()) {
-            return super.get(name, start);
+            return super.getMember(name);
          }
 
          return getTableData().get("size", null);
       }
       else if("tablelens".equals(name)) {
          if(!initTableArray()) {
-            return super.get(name, start);
+            return super.getMember(name);
          }
 
          if(table == null) {
@@ -333,7 +331,7 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
       else if("highlighted".equals(name)) {
          if(highlighted == null) {
             if(!initTableArray()) {
-               return super.get(name, start);
+               return super.getMember(name);
             }
 
             // set highlighted to empty array to prevent infinite recursion
@@ -348,7 +346,7 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          return getTipConditions();
       }
 
-      return super.get(name, start);
+      return super.getMember(name);
    }
 
    /**
@@ -1313,7 +1311,7 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
        * Get a named property from the object.
        */
       @Override
-      public Object get(String name, Scriptable start) {
+      public Object getMember(String name) {
          if(name.equals("rowState")) {
             return rowState;
          }
@@ -1330,7 +1328,7 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
             return formRow.get(index.intValue());
          }
 
-         return Undefined.instance;
+         return null;
       }
 
       /**
@@ -1342,7 +1340,7 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
             return formRow.get(index);
          }
 
-         return Undefined.instance;
+         return null;
       }
 
       private int rowState;

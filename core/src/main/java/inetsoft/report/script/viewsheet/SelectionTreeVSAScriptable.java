@@ -25,8 +25,6 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.Undefined;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -83,13 +81,13 @@ public class SelectionTreeVSAScriptable extends SelectionVSAScriptable
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       Viewsheet vs = box.getViewsheet();
       VSAssembly vassembly = assembly == null ? null :
          (VSAssembly) vs.getAssembly(assembly);
 
       if(!(vassembly instanceof SelectionTreeVSAssembly)) {
-         return Undefined.instance;
+         return null;
       }
 
       if(cellValue != NULL && name.equals("value")) {
@@ -105,7 +103,7 @@ public class SelectionTreeVSAScriptable extends SelectionVSAScriptable
 
       }
 
-      return super.get(name, start);
+      return super.getMember(name);
    }
 
    /**
@@ -219,7 +217,7 @@ public class SelectionTreeVSAScriptable extends SelectionVSAScriptable
     * Indicate whether or not a named property is defined in an object.
     */
    @Override
-   public boolean has(String name, Scriptable start) {
+   public boolean hasMember(String name) {
       if(!(getVSAssemblyInfo() instanceof SelectionTreeVSAssemblyInfo)) {
          return false;
       }
@@ -228,7 +226,7 @@ public class SelectionTreeVSAScriptable extends SelectionVSAScriptable
          return true;
       }
 
-      return super.has(name, start);
+      return super.hasMember(name);
    }
 
    /**

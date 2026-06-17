@@ -24,8 +24,6 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.internal.CalendarUtil;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
 import inetsoft.util.CoreTool;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.Undefined;
 
 import java.util.*;
 
@@ -56,12 +54,12 @@ public class CalendarVSAScriptable extends SelectionVSAScriptable {
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       if(!(getVSAssemblyInfo() instanceof CalendarVSAssemblyInfo)) {
-         return Undefined.instance;
+         return null;
       }
 
-      return super.get(name, start);
+      return super.getMember(name);
    }
 
    /**

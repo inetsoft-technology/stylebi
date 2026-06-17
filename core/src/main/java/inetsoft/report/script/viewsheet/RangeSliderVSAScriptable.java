@@ -26,8 +26,6 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TimeSliderVSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.util.script.NativeJavaArray2;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.Undefined;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -59,13 +57,13 @@ public class RangeSliderVSAScriptable extends SelectionVSAScriptable {
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       Viewsheet vs = box.getViewsheet();
       VSAssembly vassembly = assembly == null ? null :
          (VSAssembly) vs.getAssembly(assembly);
 
       if(!(vassembly instanceof TimeSliderVSAssembly)) {
-         return Undefined.instance;
+         return null;
       }
 
       if(name.equals("selectedObjects")) {
@@ -77,13 +75,13 @@ public class RangeSliderVSAScriptable extends SelectionVSAScriptable {
       }
 
       initTimeInfo(getInfo().getTimeInfo());
-      return super.get(name, start);
+      return super.getMember(name);
    }
 
    @Override
-   public void put(String name, Scriptable start, Object value) {
+   public void putMember(String name, Object value) {
       initTimeInfo(getInfo().getTimeInfo());
-      super.put(name, start, value);
+      super.putMember(name, value);
    }
 
    /**

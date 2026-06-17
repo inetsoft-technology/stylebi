@@ -191,7 +191,10 @@ public class SelectionVSAScriptable extends VSAScriptable {
     */
    public NativeJavaArray getSelectedObjectsArray() {
       Object[] arr = getSelectedObjects();
-      return new NativeJavaArray2(arr, getParentScope());
+      // NOTE (Feature #75423): NativeJavaArray2 is a Rhino-specific workaround
+      // (obsolete under GraalJS, which exposes Java arrays as JS arrays); the
+      // Rhino scope arg is bridged to null until the cutover removes this method.
+      return new NativeJavaArray2(arr, null);
    }
 
     /**

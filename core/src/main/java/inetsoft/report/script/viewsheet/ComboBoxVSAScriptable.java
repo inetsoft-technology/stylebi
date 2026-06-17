@@ -20,8 +20,6 @@ package inetsoft.report.script.viewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.ComboBoxVSAssemblyInfo;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.Undefined;
 
 import java.sql.Timestamp;
 
@@ -74,23 +72,23 @@ public class ComboBoxVSAScriptable extends InputVSAScriptable {
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       Viewsheet vs = box.getViewsheet();
       VSAssembly vassembly = assembly == null ? null :
          (VSAssembly) vs.getAssembly(assembly);
 
       if(!(vassembly instanceof ComboBoxVSAssembly)) {
-         return Undefined.instance;
+         return null;
       }
 
-      return super.get(name, start);
+      return super.getMember(name);
    }
 
    /**
     * Indicate whether or not a named property is defined in an object.
     */
    @Override
-   public boolean has(String name, Scriptable start) {
+   public boolean hasMember(String name) {
       Viewsheet vs = box.getViewsheet();
       VSAssembly vassembly = assembly == null ? null :
          (VSAssembly) vs.getAssembly(assembly);
@@ -99,7 +97,7 @@ public class ComboBoxVSAScriptable extends InputVSAScriptable {
          return false;
       }
 
-      return super.has(name, start);
+      return super.hasMember(name);
    }
 
    /**

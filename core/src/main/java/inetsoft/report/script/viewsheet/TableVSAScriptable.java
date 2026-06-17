@@ -80,8 +80,11 @@ public class TableVSAScriptable extends TableDataVSAScriptable {
     */
    protected void addFunctions() {
       try {
+         // NOTE (Feature #75423): FunctionObject is a Rhino FunctionObject,
+         // replaced by the native-binding mechanism in Milestone 4. 'this' can no
+         // longer be passed as the Rhino scope; pass null until the M4 cutover.
          FunctionObject func = new FunctionObject("applyChanges",
-            getClass().getMethod("applyChanges", new Class[] {}), this);
+            getClass().getMethod("applyChanges", new Class[] {}), null);
          addProperty("applyChanges", func);
 
          super.addFunctions();
