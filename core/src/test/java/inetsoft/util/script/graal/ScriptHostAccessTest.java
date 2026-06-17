@@ -57,6 +57,25 @@ class ScriptHostAccessTest {
       }
    }
 
+   /** FIX 1: internal blocked class must not be reachable via Java.type(). */
+   @Test void blockedInternalClassDenied() {
+      try(Context ctx = newContext()) {
+         assertThrows(PolyglotException.class,
+            () -> ctx.eval("js",
+               "Java.type('inetsoft.report.internal.license.LicenseManager')"));
+      }
+   }
+
+   /** FIX 2: reflection escape via getClass() on a host object must be blocked. */
+   @Test void reflectionEscapeBlocked() {
+      try(Context ctx = newContext()) {
+         ctx.getBindings("js").putMember("d", new java.util.Date());
+         // d.getClass() would return java.lang.Class — denyAccess(Class.class) must block it
+         assertThrows(PolyglotException.class,
+            () -> ctx.eval("js", "d.getClass()"));
+      }
+   }
+
    public static class Sample {
       @org.graalvm.polyglot.HostAccess.Export public String allowed() { return "ok"; }
       public String denied() { return "no"; }

@@ -66,8 +66,6 @@ public class ScopeProxy implements ProxyObject {
 
    @Override
    public boolean removeMember(String key) {
-      boolean had = scope.hasMember(key);
-      scope.removeMember(key);
-      return had;
+      return scope.removeMember(key);
    }
 }

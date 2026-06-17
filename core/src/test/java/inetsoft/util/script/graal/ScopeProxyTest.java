@@ -30,7 +30,7 @@ class ScopeProxyTest {
       public Object getMember(String name) { return m.get(name); }
       public boolean hasMember(String name) { return m.containsKey(name); }
       public void putMember(String name, Object v) { m.put(name, v); }
-      public void removeMember(String name) { m.remove(name); }
+      public boolean removeMember(String name) { return m.remove(name) != null; }
       public Object[] getMemberKeys() { return m.keySet().toArray(); }
    }
 

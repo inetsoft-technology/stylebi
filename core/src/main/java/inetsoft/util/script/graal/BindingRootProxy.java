@@ -38,8 +38,16 @@ public class BindingRootProxy implements ProxyObject {
       this.execScopeSupplier = execScopeSupplier;
    }
 
-   /** Resolve a name through the full chain; returns null if not found. */
-   public Object resolve(String name) {
+   /** Sentinel that distinguishes "present with null value" from "absent". */
+   private static final Object NOT_FOUND = new Object();
+
+   /**
+    * Walk the full scope chain once and return the value for {@code name},
+    * or {@link #NOT_FOUND} if it is not defined anywhere in the chain.
+    * Preserves the distinction between a member set to {@code null} and a
+    * member that is simply absent.
+    */
+   private Object findInChain(String name) {
       for(ScriptScope s = global; s != null; s = s.getParentScope()) {
          if(s.hasMember(name)) {
             return s.getMember(name);
@@ -52,18 +60,17 @@ public class BindingRootProxy implements ProxyObject {
          return exec.getMember(name);
       }
 
-      return null;
+      return NOT_FOUND;
+   }
+
+   /** Resolve a name through the full chain; returns null if not found. */
+   public Object resolve(String name) {
+      Object result = findInChain(name);
+      return result == NOT_FOUND ? null : result;
    }
 
    private boolean resolves(String name) {
-      for(ScriptScope s = global; s != null; s = s.getParentScope()) {
-         if(s.hasMember(name)) {
-            return true;
-         }
-      }
-
-      ScriptScope exec = execScopeSupplier.get();
-      return exec != null && exec.hasMember(name);
+      return findInChain(name) != NOT_FOUND;
    }
 
    private Set<String> enumerate() {

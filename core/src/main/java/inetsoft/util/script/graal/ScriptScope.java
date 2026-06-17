@@ -32,8 +32,9 @@ public interface ScriptScope {
    /** Define or replace a named member. */
    void putMember(String name, Object value);
 
-   /** Remove a named member (no-op if unsupported). */
-   default void removeMember(String name) {
+   /** Remove a named member. Returns true if the member existed and was removed. */
+   default boolean removeMember(String name) {
+      return false;
    }
 
    /** All member names exposed by this scope. */

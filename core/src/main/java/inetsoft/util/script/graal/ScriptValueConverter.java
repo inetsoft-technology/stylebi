@@ -61,6 +61,11 @@ public final class ScriptValueConverter {
 
       if(v.hasArrayElements()) {
          long n = v.getArraySize();
+
+         if(n > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Array too large to convert: " + n);
+         }
+
          Object[] arr = new Object[(int) n];
 
          for(int i = 0; i < n; i++) {

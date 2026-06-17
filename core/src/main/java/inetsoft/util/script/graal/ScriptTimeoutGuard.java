@@ -41,20 +41,31 @@ public class ScriptTimeoutGuard {
          return t;
       });
 
+   // Separate cached pool for the blocking ctx.interrupt() calls so that
+   // concurrent timeouts never queue behind each other on the scheduler thread.
+   private static final ExecutorService INTERRUPT_POOL =
+      Executors.newCachedThreadPool(r -> {
+         Thread t = new Thread(r, "script-timeout-interrupt");
+         t.setDaemon(true);
+         return t;
+      });
+
    /** Returns a Guard that cancels the watchdog when the eval finishes. */
    public Guard guard(Context ctx, Duration timeout) {
       if(timeout == null || timeout.isZero() || timeout.isNegative()) {
          return () -> { };
       }
 
-      ScheduledFuture<?> f = SCHED.schedule(() -> {
-         try {
-            ctx.interrupt(Duration.ofSeconds(2));
-         }
-         catch(Exception ignore) {
-            // context may already be closed
-         }
-      }, timeout.toMillis(), TimeUnit.MILLISECONDS);
+      ScheduledFuture<?> f = SCHED.schedule(() ->
+         INTERRUPT_POOL.submit(() -> {
+            try {
+               ctx.interrupt(Duration.ofSeconds(2));
+            }
+            catch(Exception ignore) {
+               // context may already be closed
+            }
+         }),
+         timeout.toMillis(), TimeUnit.MILLISECONDS);
 
       return () -> f.cancel(false);
    }
