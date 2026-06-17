@@ -261,6 +261,39 @@ public final class AutoSaveUtils {
       }
    }
 
+   // Delete all auto save files (active and recycle bin) owned by the given user.
+   // Used when a user is deleted so their drafts are not left orphaned.
+   public static void deleteUserAutoSaveFiles(IdentityID user, Principal principal) {
+      if(user == null) {
+         return;
+      }
+
+      try {
+         BlobStorage<Metadata> blobStorage = getStorage(principal);
+
+         for(String file : getAutoSavedFiles(principal)) {
+            String[] attrs = Tool.split(getName(file), '^');
+
+            if(attrs.length > 3) {
+               String fileUser = attrs[2];
+
+               if(fileUser == null || "anonymous".equals(fileUser) ||
+                  Tool.equals(fileUser, "_NULL_"))
+               {
+                  continue;
+               }
+
+               if(user.equals(IdentityID.getIdentityIDFromKey(fileUser))) {
+                  blobStorage.delete(file);
+               }
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to delete auto save files for user {}", user, e);
+      }
+   }
+
    public static void deleteRecycledAutoSaveFiles(Principal principal) {
       try {
          BlobStorage<Metadata> blobStorage = getStorage(principal);
