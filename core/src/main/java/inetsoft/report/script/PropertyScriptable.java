@@ -18,9 +18,8 @@
 package inetsoft.report.script;
 
 
-import inetsoft.util.script.FunctionObject2;
+import inetsoft.util.script.graal.ScriptFunction;
 import inetsoft.util.script.graal.ScriptScope;
-import org.mozilla.javascript.UniqueTag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,11 +73,7 @@ public abstract class PropertyScriptable implements ScriptScope, Cloneable {
    }
 
    public void addFunctionProperty(Class cls, String name, Class ...params) {
-      // NOTE (Feature #75423): FunctionObject2 is a Rhino FunctionObject and is
-      // replaced by the native-binding mechanism in Milestone 4. PropertyScriptable
-      // no longer implements Rhino's Scriptable, so 'this' can no longer be passed
-      // as the Rhino scope; pass null until the M4 native-binding cutover rewires it.
-      addProperty(name, new FunctionObject2(null, cls, name, params));
+      addProperty(name, new ScriptFunction(this, cls, name, params));
    }
 
    /**
@@ -110,7 +105,7 @@ public abstract class PropertyScriptable implements ScriptScope, Cloneable {
          try {
             val = propmap.get(id);
 
-            if(UniqueTag.NULL_VALUE.equals(val)) {
+            if(NULL_VALUE.equals(val)) {
                return null;
             }
 
@@ -150,7 +145,7 @@ public abstract class PropertyScriptable implements ScriptScope, Cloneable {
                propmap.put(id, value);
             }
             else {
-               propmap.put(id, UniqueTag.NULL_VALUE);
+               propmap.put(id, NULL_VALUE);
             }
          }
       }
@@ -232,6 +227,10 @@ public abstract class PropertyScriptable implements ScriptScope, Cloneable {
 
       return null;
    }
+
+   // sentinel for an explicitly-null property value (ConcurrentHashMap forbids
+   // null values); replaces the Rhino UniqueTag.NULL_VALUE sentinel.
+   private static final Object NULL_VALUE = new Object();
 
    private ScriptScope parent;
    protected ConcurrentHashMap propmap = new ConcurrentHashMap();

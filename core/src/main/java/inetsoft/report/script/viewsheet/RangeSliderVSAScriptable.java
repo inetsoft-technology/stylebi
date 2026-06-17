@@ -25,7 +25,6 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TimeSliderVSAssemblyInfo;
 import inetsoft.util.Tool;
-import inetsoft.util.script.NativeJavaArray2;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -71,7 +70,7 @@ public class RangeSliderVSAScriptable extends SelectionVSAScriptable {
          arr[0] = ((TimeSliderVSAssembly) vassembly).getSelectedMin();
          arr[1] = ((TimeSliderVSAssembly) vassembly).getSelectedMax();
 
-         return new NativeJavaArray2(arr, getParentScope());
+         return arr;
       }
 
       initTimeInfo(getInfo().getTimeInfo());

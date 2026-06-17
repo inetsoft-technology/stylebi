@@ -1,0 +1,89 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.util.script.graal;
+
+import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.proxy.ProxyExecutable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+
+/**
+ * A callable script function backed by a Java method, invoked reflectively.
+ * Replaces the Rhino FunctionObject/FunctionObject2 native-binding mechanism.
+ *
+ * <p>If the bound method is static it is invoked with a null receiver; if it
+ * is an instance method it is invoked on the supplied target object (typically
+ * the scope object that registered the function via
+ * {@code addFunctionProperty}).
+ */
+public class ScriptFunction implements ProxyExecutable {
+   /**
+    * @param target the receiver for instance methods (may be null for static).
+    * @param cls    the class declaring the method.
+    * @param name   the method name.
+    * @param params the method parameter types.
+    */
+   public ScriptFunction(Object target, Class<?> cls, String name, Class<?>... params) {
+      this.target = target;
+      this.method = findMethod(cls, name, params);
+      this.name = name;
+   }
+
+   private static Method findMethod(Class<?> cls, String name, Class<?>... params) {
+      try {
+         return cls.getMethod(name, params);
+      }
+      catch(NoSuchMethodException e) {
+         LOG.error("Failed to get method: " + name + " in " + cls, e);
+         return null;
+      }
+   }
+
+   @Override
+   public Object execute(Value... arguments) {
+      if(method == null) {
+         throw new IllegalStateException("Script function not found: " + name);
+      }
+
+      try {
+         Class<?>[] ptypes = method.getParameterTypes();
+         Object[] args = new Object[ptypes.length];
+
+         for(int i = 0; i < ptypes.length; i++) {
+            args[i] = (i < arguments.length)
+               ? ScriptValueConverter.toHost(arguments[i]) : null;
+         }
+
+         Object receiver = Modifier.isStatic(method.getModifiers()) ? null : target;
+         Object result = method.invoke(receiver, args);
+         return ScriptValueConverter.toGuest(result);
+      }
+      catch(Exception ex) {
+         throw new RuntimeException("Failed to invoke script function: " + name, ex);
+      }
+   }
+
+   private final Object target;
+   private final Method method;
+   private final String name;
+
+   private static final Logger LOG = LoggerFactory.getLogger(ScriptFunction.class);
+}

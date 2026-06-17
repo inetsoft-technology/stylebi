@@ -21,7 +21,6 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
-import inetsoft.util.script.NativeJavaArray2;
 
 /**
  * The input viewsheet assembly scriptable in viewsheet scope.
@@ -272,7 +271,7 @@ public class InputVSAScriptable extends VSAScriptable {
 
       if(vassembly instanceof InputVSAssembly) {
          InputVSAssemblyInfo info = (InputVSAssemblyInfo) vassembly.getVSAssemblyInfo();
-         return new NativeJavaArray2(info.getSelectedObjects(), getParentScope());
+         return info.getSelectedObjects();
       }
 
       return null;
@@ -292,7 +291,7 @@ public class InputVSAScriptable extends VSAScriptable {
 
       if(vassembly instanceof InputVSAssembly) {
          InputVSAssemblyInfo info = (InputVSAssemblyInfo) vassembly.getVSAssemblyInfo();
-         return new NativeJavaArray2(info.getSelectedLabels(), getParentScope());
+         return info.getSelectedLabels();
       }
 
       return null;

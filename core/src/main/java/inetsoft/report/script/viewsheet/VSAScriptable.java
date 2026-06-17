@@ -28,6 +28,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.ContainerVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.util.script.*;
+import inetsoft.util.script.graal.ScriptFunction;
 import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import org.slf4j.Logger;
@@ -776,12 +777,7 @@ public class VSAScriptable
     * Register a native function property.
     */
    public void addFunctionProperty(Class cls, String name, Class ...params) {
-      // NOTE (Feature #75423): FunctionObject2 is a Rhino FunctionObject and is
-      // replaced by the native-binding mechanism in Milestone 4. VSAScriptable
-      // no longer extends Rhino's ScriptableObject, so 'this' can no longer be
-      // passed as the Rhino scope; pass null until the M4 native-binding cutover
-      // rewires it.
-      addProperty(name, new FunctionObject2(null, cls, name, params));
+      addProperty(name, new ScriptFunction(this, cls, name, params));
    }
 
    /**
