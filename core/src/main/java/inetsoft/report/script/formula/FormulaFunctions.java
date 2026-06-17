@@ -34,7 +34,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.script.*;
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
@@ -1370,7 +1370,7 @@ public class FormulaFunctions {
       }
 
       TableLens table = (TableLens) obj;
-      Scriptable scope = FormulaContext.getScope();
+      ScriptScope scope = FormulaContext.getScope();
       TableRangeProcessor proc = new TableRangeProcessor(table, scope);
       Vector locs = new Vector();
       NamedCellRange range = new NamedCellRange(spec);

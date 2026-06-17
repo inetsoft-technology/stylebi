@@ -20,11 +20,10 @@ package inetsoft.uql.asset.internal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.util.DataCache;
-import org.mozilla.javascript.Parser;
-import org.mozilla.javascript.Token;
-import org.mozilla.javascript.ast.*;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * {@code ScriptedTableDependencies} handles extracting references to other table assemblies and
@@ -120,57 +119,50 @@ public class ScriptedTableDependencies {
                                                  String script)
    {
       Set<AssemblyRef> references = new HashSet<>();
-      Parser parser = new Parser();
-      AstRoot root = parser.parse(script, source.getName() + ".js", 1);
-      root.visit(astNode -> {
-         if(astNode.getType() == Token.NAME) {
-            String name = ((Name) astNode).getIdentifier();
-            String objectName = getObjectNameForProperty(astNode);
 
-            if(!Assembly.FIELD.equals(name) && !Assembly.FIELD.equals(objectName)) {
-               Assembly assembly = worksheet.getAssembly(name);
+      // TODO(cutover): GraalJS does not expose a public Java AST/parser like
+      // Rhino's org.mozilla.javascript.Parser, so identifier references are
+      // extracted with a lexical (regex) scan rather than a true AST walk. This
+      // matches identifier tokens and "object.property" accesses, which covers
+      // the original two cases (bare assembly-name references and
+      // parameter.<name> references). It may over-match identifiers that appear
+      // inside string literals; over-matching only adds spurious dependency
+      // edges, which is conservative and safe.
+      Matcher matcher = IDENTIFIER.matcher(script);
 
-               if((assembly instanceof TableAssembly) && !assembly.equals(source)) {
-                  references.add(new AssemblyRef(assembly.getAssemblyEntry()));
-                  return true;
-               }
+      while(matcher.find()) {
+         String objectName = matcher.group(1); // optional "object." prefix name
+         String name = matcher.group(2);        // the identifier / property name
+
+         if(!Assembly.FIELD.equals(name) && !Assembly.FIELD.equals(objectName)) {
+            Assembly assembly = worksheet.getAssembly(name);
+
+            if((assembly instanceof TableAssembly) && !assembly.equals(source)) {
+               references.add(new AssemblyRef(assembly.getAssemblyEntry()));
+               continue;
             }
+         }
 
-            if("parameter".equals(objectName)) {
-               for(Assembly assembly : worksheet.getAssemblies()) {
-                  if(assembly instanceof VariableAssembly) {
-                     UserVariable variable = ((VariableAssembly) assembly).getVariable();
+         if("parameter".equals(objectName)) {
+            for(Assembly assembly : worksheet.getAssemblies()) {
+               if(assembly instanceof VariableAssembly) {
+                  UserVariable variable = ((VariableAssembly) assembly).getVariable();
 
-                     if(variable != null && variable.getName().equals(name)) {
-                        references.add(new AssemblyRef(assembly.getAssemblyEntry()));
-                     }
+                  if(variable != null && variable.getName().equals(name)) {
+                     references.add(new AssemblyRef(assembly.getAssemblyEntry()));
                   }
                }
             }
          }
+      }
 
-         return true;
-      });
       return references;
    }
 
-   private static String getObjectNameForProperty(AstNode node) {
-      AstNode parent = node.getParent();
-
-      if(parent != null && parent.getType() == Token.GETPROP) {
-         PropertyGet getProp = (PropertyGet) parent;
-
-         if(getProp.getProperty() == node) {
-            AstNode target = getProp.getTarget();
-
-            if(target.getType() == Token.NAME) {
-               return ((Name) target).getIdentifier();
-            }
-         }
-      }
-
-      return null;
-   }
+   // Matches an optional "object." qualifier followed by an identifier; both
+   // captured (group 1 = object name or null, group 2 = identifier/property).
+   private static final Pattern IDENTIFIER = Pattern.compile(
+      "(?:([A-Za-z_$][A-Za-z0-9_$]*)\\s*\\.\\s*)?([A-Za-z_$][A-Za-z0-9_$]*)");
 
    private static final DataCache<String, Set<AssemblyRef>> outputCache =
       new DataCache<>(1000, 5000);

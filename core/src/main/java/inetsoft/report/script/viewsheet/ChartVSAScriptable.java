@@ -35,7 +35,7 @@ import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.log.LogManager;
 import inetsoft.util.script.*;
-import org.mozilla.javascript.FunctionObject;
+import inetsoft.util.script.graal.ScriptFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -550,7 +550,7 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
       {
          return "[]";
       }
-      else if(getMember(prop + "") instanceof FunctionObject) {
+      else if(getMember(prop + "") instanceof ScriptFunction) {
          return "()";
       }
 

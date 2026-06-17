@@ -19,7 +19,7 @@ package inetsoft.report.script.formula;
 
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.uql.XTable;
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptScope;
 
 import java.util.Collection;
 
@@ -31,7 +31,7 @@ import java.util.Collection;
  * @author InetSoft Technology Corp
  */
 public class CalcRangeProcessor extends RangeProcessor {
-   public CalcRangeProcessor(XTable table, Scriptable scope) {
+   public CalcRangeProcessor(XTable table, ScriptScope scope) {
       super(table, scope);
    }
 

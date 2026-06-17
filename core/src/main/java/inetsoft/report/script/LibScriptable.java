@@ -22,14 +22,7 @@ import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.Cleaner;
 import inetsoft.util.Tool;
-import inetsoft.util.script.TimeoutContext;
 import inetsoft.util.script.graal.ScriptScope;
-// NOTE (Feature #75423): Context/Function/Scriptable are Rhino compilation
-// substrate, replaced by the native-binding mechanism at the Milestone 4
-// cutover. The lazy script compilation below still uses them until then.
-import org.mozilla.javascript.Context;
-import org.mozilla.javascript.Function;
-import org.mozilla.javascript.Scriptable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,7 +42,7 @@ public class LibScriptable implements ScriptScope {
    /**
     * Get a per scope (report) scriptable.
     */
-   public LibScriptable(Scriptable funcScope) {
+   public LibScriptable(ScriptScope funcScope) {
       this.funcScope = funcScope;
       loadScripts();
 
@@ -97,30 +90,12 @@ public class LibScriptable implements ScriptScope {
 
    @Override
    public Object getMember(String name) {
-      if(funcs.containsKey(name)) {
-         Object func = funcs.get(name);
-
-         if(func instanceof String) {
-            try {
-               func = compileFunction(name, (String) func);
-               funcs.put(name, func);
-            }
-            catch(Exception ex) {
-               LOG.warn(ex.getMessage(), ex);
-            }
-         }
-
-         func = funcs.get(name);
-
-         // simulate dynamic scope
-         if(func instanceof Function && funcScope != null) {
-            ((Function) func).setParentScope(funcScope);
-         }
-
-         return func;
-      }
-
-      return null;
+      // TODO(cutover): library script functions are stored as source. Under
+      // GraalJS a function is a guest value bound to a Context and cannot be
+      // precompiled to a host-shareable object as Rhino Functions were; library
+      // functions must be installed as engine global function definitions at
+      // engine init. This returns the source string so a member is present.
+      return funcs.get(name);
    }
 
    @Override
@@ -143,32 +118,18 @@ public class LibScriptable implements ScriptScope {
       return funcs.keySet().toArray(new Object[0]);
    }
 
-   /**
-    * Add one function to the scope.
-    * @param fname the specified function name.
-    * @param source the specified source code.
-    */
-   private Object compileFunction(String fname, String source) {
-      if(source == null || source.length() == 0) {
-         return null;
-      }
-
-      Context cx = TimeoutContext.enter();
-
-      try {
-         Scriptable funcScope = this.funcScope != null ? this.funcScope : null;
-         return cx.compileFunction(funcScope, source, "<" + fname + ">", 1, null);
-      }
-      finally {
-         Context.exit();
-      }
-   }
-
    public String getClassName() {
       return "Lib";
    }
 
-   private Scriptable funcScope;
+   /**
+    * Get all library function sources keyed by name.
+    */
+   public Map<String, Object> getFunctions() {
+      return funcs;
+   }
+
+   private ScriptScope funcScope;
    private Map<String, Object> funcs = new ConcurrentHashMap<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(LibScriptable.class);

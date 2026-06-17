@@ -17,14 +17,13 @@
  */
 package inetsoft.report.script.viewsheet;
 
+import inetsoft.util.script.graal.ScriptFunction;
 import inetsoft.uql.XTable;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.script.XTableArray;
 import inetsoft.uql.util.XNodeTable;
-import inetsoft.util.script.FunctionObject2;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.graal.ScriptScope;
-import org.mozilla.javascript.FunctionObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,142 +79,140 @@ public class CallableStatementScriptable implements ScriptScope {
     * Add methods to write to database.
     */
    private void addFunctions() {
-      // NOTE (Feature #75423): FunctionObject2 is a Rhino FunctionObject, replaced
-      // by the native-binding mechanism in Milestone 4. 'this' can no longer be
-      // passed as the Rhino scope; pass null until the M4 cutover.
+      // Feature #75423: native functions exposed via ScriptFunction (GraalJS).
       try {
-         FunctionObject func = new FunctionObject2(null, getClass(), "clearParameters");
+         ScriptFunction func = new ScriptFunction(this, getClass(), "clearParameters");
          members.put("clearParameters", func);
 
-         func = new FunctionObject2(null, getClass(), "execute");
+         func = new ScriptFunction(this, getClass(), "execute");
          members.put("execute", func);
 
-         func = new FunctionObject2(null, getClass(), "executeQuery");
+         func = new ScriptFunction(this, getClass(), "executeQuery");
          members.put("executeQuery", func);
 
-         func = new FunctionObject2(null, getClass(), "executeUpdate");
+         func = new ScriptFunction(this, getClass(), "executeUpdate");
          members.put("executeUpdate", func);
 
-         func = new FunctionObject2(null, getClass(), "getBigDecimal", Object.class);
+         func = new ScriptFunction(this, getClass(), "getBigDecimal", Object.class);
          members.put("getBigDecimal", func);
 
-         func = new FunctionObject2(null, getClass(), "getBoolean", Object.class);
+         func = new ScriptFunction(this, getClass(), "getBoolean", Object.class);
          members.put("getBoolean", func);
 
-         func = new FunctionObject2(null, getClass(), "getByte", Object.class);
+         func = new ScriptFunction(this, getClass(), "getByte", Object.class);
          members.put("getByte", func);
 
-         func = new FunctionObject2(null, getClass(), "getBytes", Object.class);
+         func = new ScriptFunction(this, getClass(), "getBytes", Object.class);
          members.put("getBytes", func);
 
-         func = new FunctionObject2(null, getClass(), "getClob", Object.class);
+         func = new ScriptFunction(this, getClass(), "getClob", Object.class);
          members.put("getClob", func);
 
-         func = new FunctionObject2(null, getClass(), "getDate", Object.class);
+         func = new ScriptFunction(this, getClass(), "getDate", Object.class);
          members.put("getDate", func);
 
-         func = new FunctionObject2(null, getClass(), "getDouble", Object.class);
+         func = new ScriptFunction(this, getClass(), "getDouble", Object.class);
          members.put("getDouble", func);
 
-         func = new FunctionObject2(null, getClass(), "getFloat", Object.class);
+         func = new ScriptFunction(this, getClass(), "getFloat", Object.class);
          members.put("getFloat", func);
 
-         func = new FunctionObject2(null, getClass(), "getInt", Object.class);
+         func = new ScriptFunction(this, getClass(), "getInt", Object.class);
          members.put("getInt", func);
 
-         func = new FunctionObject2(null, getClass(), "getLong", Object.class);
+         func = new ScriptFunction(this, getClass(), "getLong", Object.class);
          members.put("getLong", func);
 
-         func = new FunctionObject2(null, getClass(), "getNClob", Object.class);
+         func = new ScriptFunction(this, getClass(), "getNClob", Object.class);
          members.put("getNClob", func);
 
-         func = new FunctionObject2(null, getClass(), "getNString", Object.class);
+         func = new ScriptFunction(this, getClass(), "getNString", Object.class);
          members.put("getNString", func);
 
-         func = new FunctionObject2(null, getClass(), "getObject", Object.class);
+         func = new ScriptFunction(this, getClass(), "getObject", Object.class);
          members.put("getObject", func);
 
-         func = new FunctionObject2(null, getClass(), "getRef", Object.class);
+         func = new ScriptFunction(this, getClass(), "getRef", Object.class);
          members.put("getRef", func);
 
-         func = new FunctionObject2(null, getClass(), "getRowId", Object.class);
+         func = new ScriptFunction(this, getClass(), "getRowId", Object.class);
          members.put("getRowId", func);
 
-         func = new FunctionObject2(null, getClass(), "getShort", Object.class);
+         func = new ScriptFunction(this, getClass(), "getShort", Object.class);
          members.put("getShort", func);
 
-         func = new FunctionObject2(null, getClass(), "getSQLXML", Object.class);
+         func = new ScriptFunction(this, getClass(), "getSQLXML", Object.class);
          members.put("getSQLXML", func);
 
-         func = new FunctionObject2(null, getClass(), "getString", Object.class);
+         func = new ScriptFunction(this, getClass(), "getString", Object.class);
          members.put("getString", func);
 
-         func = new FunctionObject2(null, getClass(), "getTime", Object.class);
+         func = new ScriptFunction(this, getClass(), "getTime", Object.class);
          members.put("getTime", func);
 
-         func = new FunctionObject2(null, getClass(), "getTimestamp", Object.class);
+         func = new ScriptFunction(this, getClass(), "getTimestamp", Object.class);
          members.put("getTimestamp", func); 
          
-         func = new FunctionObject2(null, getClass(), "registerOutParameter",
+         func = new ScriptFunction(this, getClass(), "registerOutParameter",
                                     Object.class, int.class, Object.class);
          members.put("registerOutParameter", func);
 
-         func = new FunctionObject2(null, getClass(), "setBigDecimal",
+         func = new ScriptFunction(this, getClass(), "setBigDecimal",
                      Object.class, Object.class);
          members.put("setBigDecimal", func);
 
-         func = new FunctionObject2(null, getClass(), "setBoolean", Object.class, boolean.class);
+         func = new ScriptFunction(this, getClass(), "setBoolean", Object.class, boolean.class);
          members.put("setBoolean", func);
 
-         func = new FunctionObject2(null, getClass(), "setByte", Object.class, Object.class);
+         func = new ScriptFunction(this, getClass(), "setByte", Object.class, Object.class);
          members.put("setByte", func);
 
-         func = new FunctionObject2(null, getClass(), "setDate", Object.class, Object.class);
+         func = new ScriptFunction(this, getClass(), "setDate", Object.class, Object.class);
          members.put("setDate", func);
 
-         func = new FunctionObject2(null, getClass(), "setDouble", Object.class, double.class);
+         func = new ScriptFunction(this, getClass(), "setDouble", Object.class, double.class);
          members.put("setDouble", func);
 
-         func = new FunctionObject2(null, getClass(), "setFloat", Object.class, Object.class);
+         func = new ScriptFunction(this, getClass(), "setFloat", Object.class, Object.class);
          members.put("setFloat", func);
 
-         func = new FunctionObject2(null, getClass(), "setInt", Object.class, int.class);
+         func = new ScriptFunction(this, getClass(), "setInt", Object.class, int.class);
          members.put("setInt", func);
 
-         func = new FunctionObject2(null, getClass(), "setLong", Object.class, Object.class);
+         func = new ScriptFunction(this, getClass(), "setLong", Object.class, Object.class);
          members.put("setLong", func);
 
-         func = new FunctionObject2(null, getClass(), "setNull", Object.class, int.class);
+         func = new ScriptFunction(this, getClass(), "setNull", Object.class, int.class);
          members.put("setNull", func);
 
-         func = new FunctionObject2(null, getClass(), "setNull", Object.class, int.class,
+         func = new ScriptFunction(this, getClass(), "setNull", Object.class, int.class,
                                     String.class);
          members.put("setNull", func);
 
-         func = new FunctionObject2(null, getClass(), "setObject", Object.class, Object.class);
+         func = new ScriptFunction(this, getClass(), "setObject", Object.class, Object.class);
          members.put("setObject", func);
 
-         func = new FunctionObject2(null, getClass(), "setObject", Object.class, Object.class,
+         func = new ScriptFunction(this, getClass(), "setObject", Object.class, Object.class,
                                     int.class);
          members.put("setObject", func);
 
-         func = new FunctionObject2(null, getClass(), "setObject", Object.class,
+         func = new ScriptFunction(this, getClass(), "setObject", Object.class,
                                     Object.class, int.class, int.class);
          members.put("setObject", func);
 
-         func = new FunctionObject2(null, getClass(), "setShort", Object.class, Object.class);
+         func = new ScriptFunction(this, getClass(), "setShort", Object.class, Object.class);
          members.put("setShort", func);
 
-         func = new FunctionObject2(null, getClass(), "setString", Object.class, String.class);
+         func = new ScriptFunction(this, getClass(), "setString", Object.class, String.class);
          members.put("setString", func);
 
-         func = new FunctionObject2(null, getClass(), "setTime", Object.class, Object.class);
+         func = new ScriptFunction(this, getClass(), "setTime", Object.class, Object.class);
          members.put("setTime", func);
 
-         func = new FunctionObject2(null, getClass(), "setTimestamp", Object.class, Object.class);
+         func = new ScriptFunction(this, getClass(), "setTimestamp", Object.class, Object.class);
          members.put("setTimestamp", func);
 
-         func = new FunctionObject2(null, getClass(), "wasNull");
+         func = new ScriptFunction(this, getClass(), "wasNull");
          members.put("wasNull", func);
       }
       catch(Exception ex) {

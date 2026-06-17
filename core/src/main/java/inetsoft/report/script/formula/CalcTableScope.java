@@ -23,6 +23,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.report.lens.CalcTableLens;
 import inetsoft.report.script.*;
+import inetsoft.report.script.graal.ReportGraalJavaScriptEngine;
 import inetsoft.util.script.DynamicScope;
 import inetsoft.util.script.JavaScriptEngine;
 import org.slf4j.Logger;

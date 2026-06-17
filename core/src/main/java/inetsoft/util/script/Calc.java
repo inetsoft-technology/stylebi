@@ -17,9 +17,8 @@
  */
 package inetsoft.util.script;
 
+import inetsoft.util.script.graal.ScriptFunction;
 import inetsoft.util.script.graal.ScriptScope;
-import org.mozilla.javascript.FunctionObject;
-import org.mozilla.javascript.Scriptable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,12 +49,9 @@ public class Calc implements ScriptScope {
                   continue;
                }
 
-               // NOTE (Feature #75423): FunctionObject is Rhino substrate,
-               // replaced by the native-binding mechanism at the Milestone 4
-               // cutover. Calc no longer extends Rhino's ScriptableObject, so
-               // 'this' can no longer be passed as the Rhino scope; pass null
-               // until the M4 cutover rewires it.
-               FunctionObject func = new FunctionObject(methods[j].getName(), methods[j], (Scriptable) null);
+               // CALC functions are static methods exposed as ScriptFunction
+               // (ProxyExecutable) callables under GraalJS.
+               ScriptFunction func = new ScriptFunction(null, methods[j]);
                String name = methods[j].getName().toLowerCase();
                funcmap.put(name, func);
 
@@ -120,7 +116,7 @@ public class Calc implements ScriptScope {
    }
 
    private ScriptScope parent;
-   private Map<String, FunctionObject> funcmap = new Hashtable<>(); // name -> FunctionObject
+   private Map<String, ScriptFunction> funcmap = new Hashtable<>(); // name -> ScriptFunction
 
    private static final Logger LOG = LoggerFactory.getLogger(Calc.class);
 }

@@ -39,7 +39,7 @@ import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.vswizard.model.VSWizardConstants;
-import org.mozilla.javascript.FunctionObject;
+import inetsoft.util.script.graal.ScriptFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,46 +85,26 @@ public class ViewsheetScope implements Cloneable, DynamicScope {
     * Add user defined functions to the scope.
     */
    private void addFunctions() {
-      // NOTE (Feature #75423): FunctionObject/FunctionObject2 are Rhino
-      // FunctionObjects, replaced by the native-binding mechanism in Milestone 4.
-      // ViewsheetScope no longer implements Rhino's Scriptable, so 'this' can no
-      // longer be passed as the Rhino scope; pass null until the M4 cutover.
+      // Native functions are exposed as ScriptFunction (ProxyExecutable) bound
+      // to this scope object (replaces the Rhino FunctionObject mechanism).
       try {
-         FunctionObject func = new FunctionObject2(null, getClass(), "runQuery",
-            String.class, Object.class);
-         propmap.put("runQuery", func);
-         func = new FunctionObject2(null, getClass(), "toList", Object.class, String.class);
-         propmap.put("toList", func);
-         func = new FunctionObject2(null, getClass(), "addImage", String.class, Object.class);
-         propmap.put("addImage", func);
-         func = new FunctionObject2(null, getClass(), "createConnection",
-            String.class, String.class, String.class);
-         propmap.put("createConnection", func);
-         /* not supported in 13.1
-         func = new FunctionObject("addAction",
-            getClass().getMethod("addAction",
-            new Class[] {String.class, String.class, String.class}), this);
-         propmap.put("addAction", func);
-         */
-         func = new FunctionObject2(null, getClass(), "refreshData");
-         propmap.put("refreshData", func);
-         func = new FunctionObject2(null, getClass(), "isCancelled");
-         propmap.put("isCancelled", func);
-
-         func = new FunctionObject("appendRow", getClass().getMethod("appendRow",
-            new Class[] {String.class, Object.class}), null);
-         propmap.put("appendRow", func);
-
-         func = new FunctionObject("setCellValue", getClass().getMethod("setCellValue",
-            new Class[] {String.class, int.class, int.class, Object.class}), null);
-         propmap.put("setCellValue", func);
-
-         func = new FunctionObject("saveWorksheet",
-            getClass().getMethod("saveWorksheet"), null);
-         propmap.put("saveWorksheet", func);
-
-         func = new FunctionObject2(null, getClass(), "delayVisibility", int.class, Object.class);
-         propmap.put("delayVisibility", func);
+         propmap.put("runQuery", new ScriptFunction(this, getClass(), "runQuery",
+            String.class, Object.class));
+         propmap.put("toList", new ScriptFunction(this, getClass(), "toList",
+            Object.class, String.class));
+         propmap.put("addImage", new ScriptFunction(this, getClass(), "addImage",
+            String.class, Object.class));
+         propmap.put("createConnection", new ScriptFunction(this, getClass(),
+            "createConnection", String.class, String.class, String.class));
+         propmap.put("refreshData", new ScriptFunction(this, getClass(), "refreshData"));
+         propmap.put("isCancelled", new ScriptFunction(this, getClass(), "isCancelled"));
+         propmap.put("appendRow", new ScriptFunction(this, getClass(), "appendRow",
+            String.class, Object.class));
+         propmap.put("setCellValue", new ScriptFunction(this, getClass(), "setCellValue",
+            String.class, int.class, int.class, Object.class));
+         propmap.put("saveWorksheet", new ScriptFunction(this, getClass(), "saveWorksheet"));
+         propmap.put("delayVisibility", new ScriptFunction(this, getClass(),
+            "delayVisibility", int.class, Object.class));
       }
       catch(Exception ex) {
          LOG.error("Failed to register viewsheet functions", ex);

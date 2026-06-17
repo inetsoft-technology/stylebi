@@ -20,9 +20,7 @@ package inetsoft.util.script;
 import inetsoft.report.filter.*;
 import inetsoft.util.Tool;
 import org.apache.commons.math3.stat.descriptive.rank.Percentile;
-import org.mozilla.javascript.*;
 
-import java.io.StringReader;
 import java.util.*;
 
 /**
@@ -244,9 +242,10 @@ public class CalcStat {
 
       // ChrisS bug1403899061216 2014-6-27
       // Compensate for any "empty" parameters in the list
+      // sparse-array holes / not-found elements arrive as null under GraalJS
       int notFoundCount = 0;
       for (int i=0; i<array.length; i++) {
-         if(array[i] == org.mozilla.javascript.UniqueTag.NOT_FOUND) {
+         if(array[i] == null) {
             notFoundCount++;
          }
       }
@@ -285,48 +284,34 @@ public class CalcStat {
       Object[] range = JavaScriptEngine.split(rangeObj);
 
       String cond = "_value_" + criteria;
-      Script condScript = null;
-      Scriptable scope = new ScriptableObject() {
-         @Override
-         public String getClassName() {
-            return "countif";
+      org.graalvm.polyglot.Source condSource;
+
+      try(org.graalvm.polyglot.Context cx = org.graalvm.polyglot.Context.create("js")) {
+         try {
+            condSource = org.graalvm.polyglot.Source.newBuilder("js", cond, "<condition>")
+               .buildLiteral();
          }
-         };
+         catch(Exception e) {
+            throw new RuntimeException("Invalid Search Criteria specified !");
+         }
 
-      Object result = null;
-      Context cx = null;
+         int count = 0;
 
-      try {
-         cx = TimeoutContext.enter();
-         condScript = cx.compileReader(scope, new StringReader(cond),
-                                             "<condition>", 1, null);
-      }
-      catch(Exception e) {
-         throw new RuntimeException("Invalid Search Criteria specified !");
-      }
-
-      int count = 0;
-
-      for(int i = 0; i < range.length; i++) {
-         if(cond != null) {
+         for(int i = 0; i < range.length; i++) {
             try {
-               scope.put("_value_", scope, range[i].toString());
-               TimeoutContext.startClock(cx);
-               result = condScript.exec(cx, scope);
+               cx.getBindings("js").putMember("_value_", range[i].toString());
+               org.graalvm.polyglot.Value result = cx.eval(condSource);
 
-               if("true".equals(result.toString())) {
+               if(result.isBoolean() ? result.asBoolean() : "true".equals(result.toString())) {
                   count++;
                }
             }
             catch(Exception ex) {
             }
          }
+
+         return count;
       }
-
-      TimeoutContext.stopClock(cx);
-      Context.exit();
-
-      return count;
    }
 
    /**

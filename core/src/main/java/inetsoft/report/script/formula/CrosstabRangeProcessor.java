@@ -18,7 +18,7 @@
 package inetsoft.report.script.formula;
 
 import inetsoft.uql.XTable;
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptScope;
 
 import java.awt.*;
 import java.util.Collection;
@@ -34,7 +34,7 @@ public class CrosstabRangeProcessor extends RangeProcessor {
    /**
     * Create a processor for a table.
     */
-   public CrosstabRangeProcessor(XTable table, Scriptable scope) {
+   public CrosstabRangeProcessor(XTable table, ScriptScope scope) {
       super(table, scope);
    }
 

@@ -47,6 +47,18 @@ public class ScriptFunction implements ProxyExecutable {
       this.name = name;
    }
 
+   /**
+    * Create a script function from an already-resolved method.
+    *
+    * @param target the receiver for instance methods (may be null for static).
+    * @param method the method to invoke.
+    */
+   public ScriptFunction(Object target, Method method) {
+      this.target = target;
+      this.method = method;
+      this.name = method == null ? null : method.getName();
+   }
+
    private static Method findMethod(Class<?> cls, String name, Class<?>... params) {
       try {
          return cls.getMethod(name, params);

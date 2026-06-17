@@ -17,15 +17,14 @@
  */
 package inetsoft.report.script.viewsheet;
 
+import inetsoft.util.script.graal.ScriptFunction;
 import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.uql.*;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.JDBCHandler;
 import inetsoft.uql.util.ConnectionProcessor;
 import inetsoft.util.Tool;
-import inetsoft.util.script.FunctionObject2;
 import inetsoft.util.script.graal.ScriptScope;
-import org.mozilla.javascript.FunctionObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -269,36 +268,34 @@ public class DBScriptable implements ScriptScope {
     * Add methods to write to database.
     */
    private void addFunctions() {
-      // NOTE (Feature #75423): FunctionObject2 is a Rhino FunctionObject, replaced
-      // by the native-binding mechanism in Milestone 4. 'this' can no longer be
-      // passed as the Rhino scope; pass null until the M4 cutover.
+      // Feature #75423: native functions exposed via ScriptFunction (GraalJS).
       try {
-         FunctionObject func = new FunctionObject2(null, getClass(), "executeSelect", String.class);
+         ScriptFunction func = new ScriptFunction(this, getClass(), "executeSelect", String.class);
          members.put("executeSelect", func);
 
-         func = new FunctionObject2(null, getClass(), "executeQuery",
+         func = new ScriptFunction(this, getClass(), "executeQuery",
                                     PreparedStatementScriptable.class);
          members.put("executeQuery", func);
 
-         func = new FunctionObject2(null, getClass(), "executeUpdate", String.class);
+         func = new ScriptFunction(this, getClass(), "executeUpdate", String.class);
          members.put("executeUpdate", func);
 
-         func = new FunctionObject2(null, getClass(), "update", PreparedStatementScriptable.class);
+         func = new ScriptFunction(this, getClass(), "update", PreparedStatementScriptable.class);
          members.put("update", func);
 
-         func = new FunctionObject2(null, getClass(), "commit");
+         func = new ScriptFunction(this, getClass(), "commit");
          members.put("commit", func);
 
-         func = new FunctionObject2(null, getClass(), "rollback");
+         func = new ScriptFunction(this, getClass(), "rollback");
          members.put("rollback", func);
 
-         func = new FunctionObject2(null, getClass(), "close");
+         func = new ScriptFunction(this, getClass(), "close");
          members.put("close", func);
 
-         func = new FunctionObject2(null, getClass(), "prepareStatement", String.class);
+         func = new ScriptFunction(this, getClass(), "prepareStatement", String.class);
          members.put("prepareStatement", func);
 
-         func = new FunctionObject2(null, getClass(), "prepareCall", String.class);
+         func = new ScriptFunction(this, getClass(), "prepareCall", String.class);
          members.put("prepareCall", func);
       }
       catch(Exception e) {

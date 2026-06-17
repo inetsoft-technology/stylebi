@@ -67,7 +67,6 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
 import com.zaxxer.hikari.HikariConfig;
-import org.mozilla.javascript.Undefined;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Node;
@@ -3790,7 +3789,7 @@ public final class XUtil {
                   catch(Exception ex) {
                      LOG.error(
                         "Failed to check asset permission: " + entry, ex);
-                     return Undefined.instance;
+                     return null;
                   }
 
                   if(message != null) {
@@ -3819,7 +3818,7 @@ public final class XUtil {
             }
          }
          else {
-            return Undefined.instance;
+            return null;
          }
 
          return new XTableArray(table);
@@ -3851,7 +3850,7 @@ public final class XUtil {
          }
       }
 
-      return Undefined.instance;
+      return null;
    }
 
    /**

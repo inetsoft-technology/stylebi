@@ -473,7 +473,7 @@ public class PropertyDescriptor {
             return null;
          }
          else if(type == Image.class) {
-            return ReportJavaScriptEngine.getImage(val);
+            return JavaScriptEngine.getImage(val);
          }
          else if(type == BorderColors.class) {
             if(JSObject.isArray(val)) {
