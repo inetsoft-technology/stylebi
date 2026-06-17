@@ -22,7 +22,6 @@ import inetsoft.test.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
-import org.mozilla.javascript.NativeArray;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -210,21 +209,21 @@ public class CalcUtilTest {
       assertNotNull(result2, "Result should not be null for 2D array input");
       assertEquals(2, result2.length, "Result should have two rows for 2D array input");
 
-      // Test case 3: Input contains NativeArray
-      NativeArray nativeArray = new NativeArray(new Object[]{ 1, 2, 3 });
+      // Test case 3: Input contains a nested array (GraalJS arrays surface as Object[]/List)
+      Object[] nativeArray = new Object[]{ 1, 2, 3 };
       Object input3 = new Object[]{ nativeArray };
       Object[] result3 = CalcUtil.split2D(input3);
-      assertNotNull(result3, "Result should not be null for input containing NativeArray");
-      assertTrue(result3[0] instanceof Object[], "NativeArray should be converted to Object[]");
+      assertNotNull(result3, "Result should not be null for input containing nested array");
+      assertTrue(result3[0] instanceof Object[], "Nested array should be converted to Object[]");
 
-      // Test case 4: Nested NativeArray
-      NativeArray nestedNativeArray = new NativeArray(new Object[]{ new NativeArray(new Object[]{ 4, 5 }) });
+      // Test case 4: Doubly-nested array
+      Object[] nestedNativeArray = new Object[]{ new Object[]{ 4, 5 } };
       Object input4 = new Object[]{ nestedNativeArray };
       Object[] result4 = CalcUtil.split2D(input4);
-      assertNotNull(result4, "Result should not be null for nested NativeArray input");
-      assertTrue(result4[0] instanceof Object[], "Outer NativeArray should be converted to Object[]");
+      assertNotNull(result4, "Result should not be null for nested array input");
+      assertTrue(result4[0] instanceof Object[], "Outer array should be converted to Object[]");
       assertTrue(((Object[]) result4[0])[0] instanceof Object[],
-                 "Inner NativeArray should be converted to Object[]");
+                 "Inner array should be converted to Object[]");
 
       // Test case 5: Null input
       Object input5 = null;

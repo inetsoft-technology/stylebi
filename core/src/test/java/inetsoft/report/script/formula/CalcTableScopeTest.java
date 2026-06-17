@@ -22,7 +22,7 @@ import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.report.lens.CalcTableLens;
 import inetsoft.report.script.TableRow;
 import inetsoft.test.*;
-import inetsoft.util.script.FunctionObject2;
+import inetsoft.util.script.graal.ScriptFunction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -64,11 +64,11 @@ public class CalcTableScopeTest {
     */
    @Test
    void testCalcTableScopeInitializesWithCalcTableLens() {
-      assertNotNull(calcTableScope.get("field", calcTableScope));
-      assertNotNull(calcTableScope.get("sum", calcTableScope));
+      assertNotNull(calcTableScope.getMember("field"));
+      assertNotNull(calcTableScope.getMember("sum"));
 
-      assertInstanceOf(FunctionObject2.class, calcTableScope.get("sum", null));
-      assertEquals("a", calcTableScope.get("$name", null));
+      assertInstanceOf(ScriptFunction.class, calcTableScope.getMember("sum"));
+      assertEquals("a", calcTableScope.getMember("$name"));
    }
 
    /**
@@ -79,8 +79,8 @@ public class CalcTableScopeTest {
       RuntimeCalcTableLens runtimeCalcTableLens = new RuntimeCalcTableLens(calcTableLens);
       CalcTableScope calcTableScope = new CalcTableScope(runtimeCalcTableLens);
 
-      assertInstanceOf(FunctionObject2.class, calcTableScope.get("sum", null));
-      assertInstanceOf(CalcRef.class, calcTableScope.get("$name", null));
+      assertInstanceOf(ScriptFunction.class, calcTableScope.getMember("sum"));
+      assertInstanceOf(CalcRef.class, calcTableScope.getMember("$name"));
    }
 
    /**
@@ -90,12 +90,12 @@ public class CalcTableScopeTest {
    void testSetRow() {
       calcTableScope.setRow(2);
       // Verify that the "row" property is updated
-      assertEquals(2, calcTableScope.get("row", null));
+      assertEquals(2, calcTableScope.getMember("row"));
 
       // Verify that the "field" property reflects the correct row
-      TableRow field = (TableRow) calcTableScope.get("field", null);
-      assertEquals("c", field.get("name"));
-      assertEquals(2.0, field.get("id"));
+      TableRow field = (TableRow) calcTableScope.getMember("field");
+      assertEquals("c", field.getMember("name"));
+      assertEquals(2.0, field.getMember("id"));
    }
 
    /**

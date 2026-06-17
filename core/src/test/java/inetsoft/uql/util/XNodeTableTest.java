@@ -22,7 +22,7 @@ import inetsoft.report.internal.table.XTableLens;
 import inetsoft.report.lens.FormulaTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
-import inetsoft.util.script.JavaScriptEnv;
+import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -69,7 +69,7 @@ public class XNodeTableTest {
       // any table that creates a descriptor with a table reference would do
       FormulaTableLens originalTable = new FormulaTableLens(new XTableLens(xNodeTable),
                                                             new String[0], new String[0],
-                                                            new JavaScriptEnv(), null);
+                                                            new GraalJavaScriptEnv(), null);
       XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
       Assertions.assertEquals(FormulaTableLens.class, deserializedTable.getClass());
    }

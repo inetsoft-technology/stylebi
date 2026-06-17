@@ -23,16 +23,12 @@ import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.XUtil;
-import inetsoft.util.ConfigurationContext;
-import inetsoft.util.script.ScriptEnv;
-import inetsoft.util.script.ScriptEnvRepository;
+import inetsoft.util.script.graal.ScriptScope;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
 import org.mockito.MockedStatic;
-import org.mozilla.javascript.Context;
-import org.mozilla.javascript.Scriptable;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -51,11 +47,11 @@ import static org.mockito.Mockito.*;
 class VpmScopeTest {
 
    private VpmScope vpmScope;
-   private Scriptable parentScopeMock;
+   private ScriptScope parentScopeMock;
 
    @BeforeEach
    void setUp() {
-      parentScopeMock = mock(Scriptable.class);
+      parentScopeMock = mock(ScriptScope.class);
       vpmScope = new VpmScope();
       vpmScope.setParentScope(parentScopeMock);
    }
@@ -72,7 +68,7 @@ class VpmScopeTest {
 
    @Test
    public void testSetAndGetUser() {
-      assertNull(vpmScope.get("user", vpmScope));
+      assertNull(vpmScope.getMember("user"));
 
       Principal testUser = new XPrincipal(new IdentityID("testUser", "testOrg"));
       vpmScope.setUser(testUser);
@@ -83,12 +79,12 @@ class VpmScopeTest {
       assertEquals("testUser", XUtil.getUserName(retrievedUser));
 
       // Verify get user property
-      Object userProperty = vpmScope.get("user", vpmScope);
+      Object userProperty = vpmScope.getMember("user");
       assertEquals("testUser", userProperty);
 
       // Verify roles and groups are set correctly
-      assertNotNull(vpmScope.get("roles", vpmScope));
-      assertNotNull(vpmScope.get("groups", vpmScope));
+      assertNotNull(vpmScope.getMember("roles"));
+      assertNotNull(vpmScope.getMember("groups"));
    }
 
    @Test
@@ -100,8 +96,8 @@ class VpmScopeTest {
 
    @Test
    void testHasProperty() {
-      assertTrue(vpmScope.has("user", vpmScope));
-      assertFalse(vpmScope.has("nonexistent", vpmScope));
+      assertTrue(vpmScope.hasMember("user"));
+      assertFalse(vpmScope.hasMember("nonexistent"));
    }
 
    @Test
@@ -129,68 +125,36 @@ class VpmScopeTest {
 
    @Test
    void testExecute() throws Exception {
-      Context cx = Context.enter();
-      try {
-         VpmScope scope = new VpmScope();
+      VpmScope scope = new VpmScope();
+      Principal guest = new XPrincipal(new IdentityID("guest", "host-org"));
+      scope.setUser(guest);
 
-         Scriptable root = ConfigurationContext.getContext().computeIfAbsent(
-            "inetsoft.uql.script.VpmScope.rootScope", key -> {
-               try {
-                  java.lang.reflect.Method createRootMethod =
-                     VpmScope.class.getDeclaredMethod("createRoot");
-                  createRootMethod.setAccessible(true);
-                  return (Scriptable) createRootMethod.invoke(null);
-               }
-               catch(Exception e) {
-                  throw new RuntimeException("Failed to create root scope", e);
-               }
-            }
-         );
+      //condition statement
+      String statement = "if (user == 'guest') {\n" +
+         "  condition = 'SA.CONTACTS.CONTACT_ID>20';\n" +
+         "}\n" +
+         "condition;";
+      assertEquals("SA.CONTACTS.CONTACT_ID>20", VpmScope.execute(statement, scope));
 
-         root.put("vpm", root, scope);
-         scope.setParentScope(root);
+      //hiddenColumns statement
+      statement = "if (user == 'guest') {\n" +
+         "  hiddenColumns  = ['SA.CONTACTS.FIRST_NAME'];\n" +
+         "}\n" +
+         "hiddenColumns ;";
+      assertEquals("[SA.CONTACTS.FIRST_NAME]",
+                   Arrays.toString((Object[]) VpmScope.execute(statement, scope)));
 
-         ScriptEnv scriptEnv = ScriptEnvRepository.getScriptEnv();
-         assertNotNull(scriptEnv, "ScriptEnv should not be null");
+      //lookup statement
+      statement = "if(user == 'guest') {\n" +
+         "   false;\n" +
+         "} else {\n" +
+         "  true;\n" +
+         "}\n";
+      assertEquals(false, VpmScope.execute(statement, scope));
 
-         Principal guest = new XPrincipal(new IdentityID("guest", "host-org"));
-         scope.setUser(guest);
-
-         //condition statement
-         String statement = "if (user == 'guest') {\n" +
-            "  condition = 'SA.CONTACTS.CONTACT_ID>20';\n" +
-            "}\n" +
-            "condition;";
-         assertEquals("SA.CONTACTS.CONTACT_ID>20", VpmScope.execute(statement, scope));
-
-         //hiddenColumns statement
-         statement = "if (user == 'guest') {\n" +
-            "  hiddenColumns  = ['SA.CONTACTS.FIRST_NAME'];\n" +
-            "}\n" +
-            "hiddenColumns ;";
-         assertEquals("[SA.CONTACTS.FIRST_NAME]",
-                      Arrays.toString((Object[]) VpmScope.execute(statement, scope)));
-
-         //lookup statement
-         statement = "if(user == 'guest') {\n" +
-            "   false;\n" +
-            "} else {\n" +
-            "  true;\n" +
-            "}\n";
-         assertEquals(false, VpmScope.execute(statement, scope));
-
-         //invalid statement
-         statement = "if(user == 'guest') {";
-         try {
-            VpmScope.execute(statement, scope);
-            fail("Expected exception for invalid statement");
-         }
-         catch(Exception e) {
-            assertEquals("missing } in compound statement (<cmd>#1)", e.getMessage());
-         }
-      }
-      finally {
-         Context.exit();
-      }
+      //invalid statement
+      statement = "if(user == 'guest') {";
+      assertThrows(Exception.class, () -> VpmScope.execute("if(user == 'guest') {", scope),
+                   "Expected exception for invalid statement");
    }
 }
