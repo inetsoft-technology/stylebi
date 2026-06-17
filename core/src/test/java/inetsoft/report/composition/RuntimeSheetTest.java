@@ -17,12 +17,22 @@
  */
 package inetsoft.report.composition;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.SreeEnv;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
+import inetsoft.uql.asset.AbstractSheet;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@Tag("core")
 @SreeHome()
 class RuntimeSheetTest {
    private String saved;
@@ -77,5 +87,45 @@ class RuntimeSheetTest {
       SreeEnv.setProperty("viewsheet.heartbeat.timeout", "600000");
       long now = System.currentTimeMillis();
       assertFalse(RuntimeSheet.isHeartbeatExpired(now - 200000, now));
+   }
+
+   @Test
+   void isTimeoutFreshSheetIsNotTimedOut() {
+      assertFalse(newSheet().isTimeout());
+   }
+
+   @Test
+   void isTimeoutReturnsTrueWhenIdleExceeded() {
+      RuntimeSheet sheet = newSheet();
+      sheet.setAccessed(1L);
+      assertTrue(sheet.isTimeout());
+   }
+
+   @Test
+   void isTimeoutReturnsTrueWhenHeartbeatExpired() {
+      RuntimeSheet sheet = newSheet();
+      sheet.heartbeat = 1L;
+      sheet.setAccessed(System.currentTimeMillis());
+      assertTrue(sheet.isTimeout());
+   }
+
+   @Test
+   void isTimeoutReturnsFalseWhenBothFresh() {
+      RuntimeSheet sheet = newSheet();
+      sheet.setAccessed(System.currentTimeMillis());
+      assertFalse(sheet.isTimeout());
+   }
+
+   private static RuntimeSheet newSheet() {
+      return new RuntimeSheet() {
+         @Override public boolean undo(ChangedAssemblyList clist) { return false; }
+         @Override public boolean redo(ChangedAssemblyList clist) { return false; }
+         @Override public void rollback() {}
+         @Override public AbstractSheet getSheet() { return null; }
+         @Override public int getMode() { return 0; }
+         @Override public boolean isRuntime() { return false; }
+         @Override public boolean isPreview() { return false; }
+         @Override RuntimeSheetState saveState(ObjectMapper mapper) { return null; }
+      };
    }
 }

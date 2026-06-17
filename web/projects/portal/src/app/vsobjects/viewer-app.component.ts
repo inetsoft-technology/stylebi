@@ -811,6 +811,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          this.dashboardName : this.assetId, false);
 
       this.debounceService.cancel(this.runtimeId + "_notify_parent_frame");
+      this.keepAwakeService.release();
 
       if(this.inDashboard && window != window.parent) {
          window.parent.postMessage({"dashboardClosed": this.runtimeId}, "*");

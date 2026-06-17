@@ -53,7 +53,11 @@ export class KeepAwakeService implements OnDestroy {
          `viewsheet-keep-awake-${id}`,
          { signal: this.abortController.signal },
          () => new Promise<void>(() => { /* held until aborted */ })
-      ).catch(() => { /* request aborted on release — expected */ });
+      ).catch((err: any) => {
+         if(err?.name !== "AbortError") {
+            console.warn("Unexpected Web Locks error:", err);
+         }
+      });
    }
 
    /** Release the held lock, if any. */

@@ -354,6 +354,9 @@ export function resetMocks(): void {
 
    ASSET_LOADING_SERVICE_MOCK.setLoading.mockClear();
 
+   KEEP_AWAKE_SERVICE_MOCK.keepAwake.mockClear();
+   KEEP_AWAKE_SERVICE_MOCK.release.mockClear();
+
    MessageDialog.lastMessage = null;
    MessageDialog.lastMessageTS = 0;
 }
