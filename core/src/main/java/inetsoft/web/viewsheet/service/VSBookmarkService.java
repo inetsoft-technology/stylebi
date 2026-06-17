@@ -138,6 +138,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
 
          try {
             engine.setViewsheet(vs0, vsEntry0, principal, true, true);
+            saveEmbeddedViewsheets(vs0, engine, principal);
          }
          finally {
             if(rvs.isViewer()) {
@@ -1039,6 +1040,36 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       }
 
       return matchingTasks;
+   }
+
+   private void saveEmbeddedViewsheets(Viewsheet vs, ViewsheetService engine,
+                                       Principal principal)
+   {
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(assembly instanceof Viewsheet embeddedVs) {
+            AssetEntry embeddedEntry = embeddedVs.getEntry();
+
+            if(embeddedEntry != null) {
+               Viewsheet cloned = embeddedVs.clone();
+
+               if(cloned != null) {
+                  // Clear parent so isEmbedded()=false and writeXML persists inner assemblies
+                  cloned.setViewsheet(null);
+
+                  try {
+                     // updateDependency=false: saving embedded VS runtime state does not change the dependency graph
+                     engine.setViewsheet(cloned, embeddedEntry, principal, true, false);
+                  }
+                  catch(Exception ex) {
+                     LOG.warn("Failed to save embedded viewsheet for HOME bookmark: {}", embeddedEntry, ex);
+                  }
+               }
+
+               // Always recurse so deeply-nested embedded VSes are visited even if cloning this level failed
+               saveEmbeddedViewsheets(embeddedVs, engine, principal);
+            }
+         }
+      }
    }
 
    private final ViewsheetService viewsheetService;
