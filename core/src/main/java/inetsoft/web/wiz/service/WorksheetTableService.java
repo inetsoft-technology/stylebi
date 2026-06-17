@@ -498,6 +498,20 @@ public class WorksheetTableService {
             dsName + "'.");
       }
 
+      // StyleBI's SQL parser captures selection aliases with surrounding double-quotes (e.g.
+      // "seller_state"). Expose a clean column name via an applied alias — this leaves each column's
+      // underlying ref (which maps to the SQL result) untouched, so data still binds.
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         if(columns.getAttribute(i) instanceof ColumnRef cr) {
+            String nm = cr.getName();
+
+            if(nm != null && nm.length() >= 2 && nm.startsWith("\"") && nm.endsWith("\"")) {
+               cr.setAlias(nm.substring(1, nm.length() - 1));
+               cr.setApplyingAlias(true);
+            }
+         }
+      }
+
       table.setColumnSelection(columns);
       table.setSQLEdited(false);
 
