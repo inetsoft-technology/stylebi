@@ -77,7 +77,14 @@ final class WsServiceHelper {
     * </ul>
     * {@code alias ?? name} always equals what {@code c.getAttribute()} returns, the key used by
     * {@code WizAutoBindingService.autoBinding}'s column filter.
+    * <p>
+    * Note: {@code type} may be null when a column's data type was never set (e.g. metadata with no
+    * type); consumers must handle null types. Mirror-table primaries yield an empty list (their
+    * columns carry no sub-table entity name).
     *
+    * @param worksheet owning worksheet, used to resolve sub-table source info for composite primary
+    *        tables; may be null only for a physical primary table (it is not dereferenced in that
+    *        path). A null worksheet with a composite primary table leaves source fields unresolved.
     * @param physicalDbTableNameOverride when non-null, used as the DB table name for a physical
     *        primary table (the flat path resolves this from the construction model); null falls back
     *        to the assembly name.
@@ -91,7 +98,7 @@ final class WsServiceHelper {
          return Collections.emptyList();
       }
 
-      ColumnSelection cs = primaryTable.getColumnSelection(false);
+      ColumnSelection cs = primaryTable.getColumnSelection(true);
       List<WorksheetColumnInfo> result = new ArrayList<>(cs.getAttributeCount());
 
       if(primaryTable instanceof PhysicalBoundTableAssembly physTable) {
@@ -128,7 +135,11 @@ final class WsServiceHelper {
          }
       }
       else {
-         // CompositeTableAssembly: each column's entity is the sub-table assembly name (= DB table name).
+         // Non-physical primary table (RelationalJoinTableAssembly and other composites):
+         // each column's entity is the sub-table assembly name, used to resolve the DB table name.
+         // Note: MirrorTableAssembly columns typically lack an entity name and will be skipped
+         // by the Tool.isEmptyString(subTableName) check below, so the result is empty for mirror
+         // primaries.
          for(int i = 0; i < cs.getAttributeCount(); i++) {
             DataRef attr = cs.getAttribute(i);
             String worksheetColName = attr.getAttribute(); // base alias or DB column name
@@ -143,7 +154,9 @@ final class WsServiceHelper {
             String schema = "";
             String catalog = "";
 
-            Assembly subAssembly = worksheet.getAssembly(subTableName);
+            // worksheet may be null only if a caller passes a composite primary table without its
+            // owning worksheet; treat the sub-table as unresolvable and fall back to the column name.
+            Assembly subAssembly = worksheet != null ? worksheet.getAssembly(subTableName) : null;
 
             if(subAssembly instanceof PhysicalBoundTableAssembly subPhys) {
                SourceInfo si = subPhys.getSourceInfo();
