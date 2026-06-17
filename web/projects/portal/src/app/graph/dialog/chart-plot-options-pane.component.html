@@ -417,7 +417,7 @@
           <select class="form-control" [(ngModel)]="model.webMapStyle"
             [attr.disabled]="!model.webMap ? '' : null"
             [ngModelOptions]="{standalone: true}">
-            @for (style of model.mapboxStyles; track style) {
+            @for (style of model.mapboxStyles; track style.id) {
               <option [ngValue]="style.id">
                 {{style.name}}
               </option>

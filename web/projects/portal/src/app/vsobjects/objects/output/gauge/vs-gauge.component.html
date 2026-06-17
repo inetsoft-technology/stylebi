@@ -64,7 +64,7 @@
     [assemblyLoading]="true"></vs-loading-display>
   }
   @if (viewer) {
-    @for (annotationModel of model.assemblyAnnotationModels; track annotationModel) {
+    @for (annotationModel of model.assemblyAnnotationModels; track annotationModel.absoluteName) {
       <vs-annotation
         [model]="annotationModel"
         [actions]="actions"

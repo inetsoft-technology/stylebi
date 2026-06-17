@@ -75,7 +75,7 @@
         </div>
         <mat-card appearance="outlined" class="flex-col flex-grow-1 list-container">
           <mat-list>
-            @for (asset of selectedEntities; track asset) {
+            @for (asset of selectedEntities; track $index) {
               <mat-list-item
                 [class.selected]="entitySelection.includes(asset)"
                 (click)="selectEntity(asset, $event)">

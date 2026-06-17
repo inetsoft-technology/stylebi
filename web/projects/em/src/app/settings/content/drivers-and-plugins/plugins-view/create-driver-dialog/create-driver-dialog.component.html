@@ -25,7 +25,7 @@
           <mat-radio-button value="upload">_#(Upload)</mat-radio-button>
           <div>
             <mat-list>
-              @for (file of uploadForm.controls['uploadFiles']?.value; track file) {
+              @for (file of uploadForm.controls['uploadFiles']?.value; track file.name) {
                 <mat-list-item>
                   <div class="fileListItem">
                     <div class="flex-row">

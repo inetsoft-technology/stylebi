@@ -68,7 +68,7 @@
         <td mat-cell *matCellDef="let element; let i = index">
           <mat-form-field floatLabel="never" appearance="outline" color="accent">
             <mat-select [(value)]="selectedBookmarks[i]" placeholder="_#(Select Bookmark)" [compareWith]="compareBookmark" (valueChange)="fireModelChanged()">
-              @for (bookmark of bookmarks | async; track bookmark) {
+              @for (bookmark of bookmarks | async; track $index) {
                 <mat-option [value]="bookmark">{{bookmark.label}}
                 </mat-option>
               }
