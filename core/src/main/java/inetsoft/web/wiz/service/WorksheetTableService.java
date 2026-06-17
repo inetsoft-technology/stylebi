@@ -23,14 +23,19 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.JDBCDataSource;
+import inetsoft.uql.jdbc.JDBCQuery;
+import inetsoft.uql.jdbc.UniformSQL;
+import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.jdbc.util.SQLTypes;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.osi.*;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
@@ -51,6 +56,8 @@ import static inetsoft.web.wiz.service.WizDateLevelUtil.getDateGroupLevel;
  *   <li>{@code mirror table}   — {@link MirrorTableAssembly} over an existing worksheet table,
  *       with optional aggregation and expression columns</li>
  *   <li>{@code relational join table} — {@link RelationalJoinTableAssembly} over existing tables</li>
+ *   <li>{@code sql query table} — {@link SQLBoundTableAssembly} bound to a raw SQL SELECT
+ *       (window functions / CTEs / any dialect SQL execute on the database)</li>
  * </ul>
  */
 @Service
@@ -60,12 +67,16 @@ public class WorksheetTableService {
                                 MetadataApiService metadataApiService,
                                 InnerJoinService innerJoinService,
                                 LayoutGraphService layoutGraphService,
+                                QueryManagerService queryManagerService,
+                                XRepository xrepository,
                                 ObjectMapper objectMapper)
    {
       this.viewsheetService = viewsheetService;
       this.metadataApiService = metadataApiService;
       this.innerJoinService = innerJoinService;
       this.layoutGraphService = layoutGraphService;
+      this.queryManagerService = queryManagerService;
+      this.xrepository = xrepository;
       this.objectMapper = objectMapper;
    }
 
@@ -357,6 +368,7 @@ public class WorksheetTableService {
          case "physical table"        -> buildPhysicalTable(worksheet, request, user);
          case "mirror table"          -> buildMirrorTable(worksheet, request);
          case "relational join table" -> buildJoinTable(worksheet, request);
+         case "sql query table"       -> buildSqlTable(worksheet, request);
          default -> throw new IllegalArgumentException("Unknown tableType: " + tableType);
       };
 
@@ -422,6 +434,86 @@ public class WorksheetTableService {
       // Expression columns are only meaningful on non-aggregated mirror tables;
       // log a warning but don't fail if someone passes them here.
       applyExpressionColumns(table, request.getExpressionColumns());
+
+      worksheet.addAssembly(table);
+      return table;
+   }
+
+   /**
+    * Build a {@link SQLBoundTableAssembly} from a raw SQL SELECT. The query is pushed to the
+    * database verbatim, so window functions, CTEs, non-equi joins and any dialect-specific SQL
+    * work — unlike the physical/mirror/join model, whose generated SQL can't express them.
+    * Other tables can mirror/join the result by name.
+    */
+   private AbstractTableAssembly buildSqlTable(Worksheet worksheet, WorksheetTableRequest request)
+      throws Exception
+   {
+      String sqlString = request.getSqlExpression();
+      WorksheetTableRequest.PhysicalSource src = request.getPhysicalSource();
+
+      if(sqlString == null || sqlString.isBlank()) {
+         throw new IllegalArgumentException("sqlExpression is required for sql query table");
+      }
+
+      if(src == null || src.getDatasourcePath() == null) {
+         throw new IllegalArgumentException(
+            "physicalSource.datasourcePath is required for sql query table");
+      }
+
+      String dsName = src.getDatasourcePath();
+      JDBCDataSource ds = metadataApiService.getJDBCDatasource(dsName);
+
+      SQLBoundTableAssembly table = new SQLBoundTableAssembly(worksheet, request.getTableName());
+
+      UniformSQL sql = new UniformSQL();
+      sql.setDataSource(ds);
+
+      // Block until the SQL string is parsed; SQLProcessor calls notifyAll() in its parse finally
+      // block. Bounded wait so a parse that never notifies can't hang the request thread — the
+      // column resolution below falls back to executing the query for output metadata.
+      synchronized(sql) {
+         sql.setParseSQL(true);
+         sql.setSQLString(sqlString, true);
+         sql.wait(30000);
+      }
+
+      JDBCQuery query = new JDBCQuery();
+      query.setUserQuery(true);
+      query.setDataSource(ds);
+      query.setSQLDefinition(sql);
+
+      SQLBoundTableAssemblyInfo info = (SQLBoundTableAssemblyInfo) table.getInfo();
+      info.setQuery(query);
+      info.setSourceInfo(new SourceInfo(SourceInfo.PHYSICAL_TABLE, dsName, dsName));
+
+      Object session = viewsheetService.getAssetRepository().getSession();
+      JDBCUtil.fixUniformSQLInfo(sql, xrepository, session, ds);
+
+      ColumnSelection columns =
+         queryManagerService.getColumnSelection(query, new VariableTable(), table, session, null);
+
+      if(columns == null || columns.getAttributeCount() == 0) {
+         throw new IllegalArgumentException(
+            "Could not resolve any columns from sqlExpression — check the SQL is a valid SELECT for datasource '" +
+            dsName + "'.");
+      }
+
+      // StyleBI's SQL parser captures selection aliases with surrounding double-quotes (e.g.
+      // "seller_state"). Expose a clean column name via an applied alias — this leaves each column's
+      // underlying ref (which maps to the SQL result) untouched, so data still binds.
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         if(columns.getAttribute(i) instanceof ColumnRef cr) {
+            String nm = cr.getName();
+
+            if(nm != null && nm.length() >= 2 && nm.startsWith("\"") && nm.endsWith("\"")) {
+               cr.setAlias(nm.substring(1, nm.length() - 1));
+               cr.setApplyingAlias(true);
+            }
+         }
+      }
+
+      table.setColumnSelection(columns);
+      table.setSQLEdited(false);
 
       worksheet.addAssembly(table);
       return table;
@@ -1082,5 +1174,7 @@ public class WorksheetTableService {
    private final MetadataApiService metadataApiService;
    private final InnerJoinService innerJoinService;
    private final LayoutGraphService layoutGraphService;
+   private final QueryManagerService queryManagerService;
+   private final XRepository xrepository;
    private final ObjectMapper objectMapper;
 }
