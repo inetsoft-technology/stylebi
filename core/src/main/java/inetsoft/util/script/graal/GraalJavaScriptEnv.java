@@ -22,7 +22,6 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.ScriptEnv;
-import org.mozilla.javascript.Scriptable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -235,7 +234,7 @@ public class GraalJavaScriptEnv implements ScriptEnv {
    }
 
    @Override
-   public String getSuggestion(Exception ex, String fieldName, Scriptable scope) {
+   public String getSuggestion(Exception ex, String fieldName, ScriptScope scope) {
       return getSuggestion0(ex, fieldName, scope);
    }
 
@@ -253,7 +252,7 @@ public class GraalJavaScriptEnv implements ScriptEnv {
     * Copied verbatim from JavaScriptEnv.getSuggestion0 (message-match strings
     * updated in Task 6.5).
     */
-   public String getSuggestion0(Exception ex, String fieldName, Scriptable scope) {
+   public String getSuggestion0(Exception ex, String fieldName, ScriptScope scope) {
       String msg = ex.getMessage();
 
       if(msg == null) {
