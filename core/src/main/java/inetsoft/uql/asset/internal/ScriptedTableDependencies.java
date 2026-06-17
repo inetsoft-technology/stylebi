@@ -121,7 +121,7 @@ public class ScriptedTableDependencies {
       Set<AssemblyRef> references = new HashSet<>();
 
       // TODO(cutover): GraalJS does not expose a public Java AST/parser like
-      // Rhino's org.mozilla.javascript.Parser, so identifier references are
+      // the old Rhino Parser, so identifier references are
       // extracted with a lexical (regex) scan rather than a true AST walk. This
       // matches identifier tokens and "object.property" accesses, which covers
       // the original two cases (bare assembly-name references and
