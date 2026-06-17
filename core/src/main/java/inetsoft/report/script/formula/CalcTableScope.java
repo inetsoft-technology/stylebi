@@ -25,7 +25,6 @@ import inetsoft.report.lens.CalcTableLens;
 import inetsoft.report.script.*;
 import inetsoft.util.script.DynamicScope;
 import inetsoft.util.script.JavaScriptEngine;
-import org.mozilla.javascript.Scriptable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,6 +33,13 @@ import java.util.Iterator;
 
 /**
  * A scriptable used as the execution scope for formulas in a CalcTableLens.
+ *
+ * NOTE (Feature #75423, Rhino->GraalJS): the report-scope summarize() calls
+ * below previously passed {@code this} as the Rhino {@code Scriptable} execution
+ * scope. {@code ReportJavaScriptEngine.summarize}'s scope parameter is a cutover
+ * consumer (still Rhino-typed). The scope-chain resolution it provided is now
+ * handled centrally by BindingRootProxy/FormulaContext, so {@code null} is passed
+ * here as a cutover bridge; rewire when ReportJavaScriptEngine is migrated.
  */
 public class CalcTableScope extends PropertyScriptable implements DynamicScope {
    /**
@@ -136,7 +142,6 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
    /**
     * Get the name of this scriptable.
     */
-   @Override
    public String getClassName() {
       return "CalcTableLens";
    }
@@ -145,8 +150,8 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
     * Get a property value.
     */
    @Override
-   public Object get(String id, Scriptable start) {
-      Object val = super.get(id, start);
+   public Object getMember(String id) {
+      Object val = super.getMember(id);
 
       if(val instanceof DelayedRef) {
          val = ((DelayedRef) val).get();
@@ -196,7 +201,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
       else {
          // report scope function, (table, column)
          return ReportJavaScriptEngine.summarize(
-            column, group, "none", formula, cond, this);
+            column, group, "none", formula, cond, null);
       }
    }
 
@@ -219,7 +224,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
       else {
          // report scope function, (table, column)
          return toDouble(ReportJavaScriptEngine.summarize(
-                            column, group, "sum", formula, cond, this));
+                            column, group, "sum", formula, cond, null));
       }
    }
 
@@ -242,7 +247,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
       else {
          // report scope function, (table, column)
          return toDouble(ReportJavaScriptEngine.summarize(
-                            column, group, "average", formula, cond, this));
+                            column, group, "average", formula, cond, null));
       }
    }
 
@@ -265,7 +270,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
       else {
          // report scope function, (table, column)
          return toDouble(ReportJavaScriptEngine.summarize(
-                            column, group, "count", formula, cond, this));
+                            column, group, "count", formula, cond, null));
       }
    }
 
@@ -288,7 +293,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
       else {
          // report scope function, (table, column)
          return toDouble(ReportJavaScriptEngine.summarize(
-                            column, group, "distinct count", formula, cond, this));
+                            column, group, "distinct count", formula, cond, null));
       }
    }
 
@@ -317,7 +322,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
       }
       else {
          // report scope function, (table, column)
-         return ReportJavaScriptEngine.summarize(column, group, "max", formula, cond, this);
+         return ReportJavaScriptEngine.summarize(column, group, "max", formula, cond, null);
       }
    }
 
@@ -347,7 +352,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
       }
       else {
          // report scope function, (table, column)
-         return ReportJavaScriptEngine.summarize(column, group, "min", formula, cond, this);
+         return ReportJavaScriptEngine.summarize(column, group, "min", formula, cond, null);
       }
    }
 
@@ -384,7 +389,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
       else {
          // report scope function, (table, column)
          return toDouble(ReportJavaScriptEngine.summarize(column, group, "product", formula,
-                                                          cond, this));
+                                                          cond, null));
       }
    }
 
@@ -406,7 +411,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
       }
       else {
          // report scope function, (table, column)
-         return ReportJavaScriptEngine.summarize(column, group, "concat", formula, cond, this);
+         return ReportJavaScriptEngine.summarize(column, group, "concat", formula, cond, null);
       }
    }
 
@@ -429,7 +434,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
       else {
          // report scope function, (table, column)
          return toDouble(ReportJavaScriptEngine.summarize(
-                            column, group, "standard deviation", formula, cond, this));
+                            column, group, "standard deviation", formula, cond, null));
       }
    }
 
@@ -452,7 +457,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
       else {
          // report scope function, (table, column)
          return toDouble(ReportJavaScriptEngine.summarize(
-                            column, group, "variance", formula, cond, this));
+                            column, group, "variance", formula, cond, null));
       }
    }
 
@@ -475,7 +480,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
       else {
          // report scope function, (table, column)
          return toDouble(ReportJavaScriptEngine.summarize(
-                            column, group, "population variance", formula, cond, this));
+                            column, group, "population variance", formula, cond, null));
       }
    }
 
@@ -499,7 +504,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
       else {
          // report scope function, (table, column)
          return toDouble(ReportJavaScriptEngine.summarize(
-                            column, group, "population standard deviation", formula, cond, this));
+                            column, group, "population standard deviation", formula, cond, null));
       }
    }
 
@@ -523,7 +528,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
       else {
          // report scope function, (table, column)
          return toDouble(ReportJavaScriptEngine.summarize(
-            column, group, "median", formula, cond, this));
+            column, group, "median", formula, cond, null));
       }
    }
 
@@ -546,7 +551,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
       }
       else {
          // report scope function, (table, column)
-         return ReportJavaScriptEngine.summarize(column, group, "mode", formula, cond, this);
+         return ReportJavaScriptEngine.summarize(column, group, "mode", formula, cond, null);
       }
    }
 
@@ -620,7 +625,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
          (ucond == null || ucond instanceof String))
       {
          return ReportJavaScriptEngine.summarize(data1, (String) udata2,
-            (String) ucolumn2, formula, (String) ucond, this);
+            (String) ucolumn2, formula, (String) ucond, null);
       }
 
       Object[] arr1 = JavaScriptEngine.split(data1);
@@ -664,7 +669,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
          formula.setDefaultResult(isDefaultToZero());
 
          // report scope function, (table, n, column)
-         return ReportJavaScriptEngine.summarize(p, group, "pth percentile", formula, cond, this);
+         return ReportJavaScriptEngine.summarize(p, group, "pth percentile", formula, cond, null);
       }
    }
 
@@ -699,7 +704,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
 
          // report scope function, (table, n, column)
          return ReportJavaScriptEngine.summarize(
-            n, group, "nth largest", formula, cond, this);
+            n, group, "nth largest", formula, cond, null);
       }
    }
 
@@ -729,7 +734,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
          //formula.setDefaultResult(isDefaultToZero("nthSmallest"));
 
          // report scope function, (table, n, column)
-         return ReportJavaScriptEngine.summarize(n, group, "nth smallest", formula, cond, this);
+         return ReportJavaScriptEngine.summarize(n, group, "nth smallest", formula, cond, null);
       }
    }
 
@@ -760,7 +765,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
 
          // report scope function, (table, n, column)
          return ReportJavaScriptEngine.summarize(n, group, "nth most frequent", formula,
-            cond, this);
+            cond, null);
       }
    }
 
