@@ -917,6 +917,6 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    }
 
    isTableStyle(): boolean {
-      return this.defaultFolder.path.includes("/Table Style");
+      return !!this.defaultFolder?.path?.includes("/Table Style");
    }
 }
