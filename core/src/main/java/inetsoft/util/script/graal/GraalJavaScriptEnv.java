@@ -17,6 +17,7 @@
  */
 package inetsoft.util.script.graal;
 
+import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.FormulaContext;
@@ -195,8 +196,9 @@ public class GraalJavaScriptEnv implements ScriptEnv {
     * @param name variable name.
     * @param obj  variable value.
     */
+   // FIX C: synchronized to close the reset()/put() race on the engine reference
    @Override
-   public void put(String name, Object obj) {
+   public synchronized void put(String name, Object obj) {
       init();
       vars.put(name, obj);
       engine.put(name, obj);
@@ -275,6 +277,12 @@ public class GraalJavaScriptEnv implements ScriptEnv {
          if(fieldName != null) {
             str += " Field/row values are referenced using field['columnName'].";
          }
+         else if(scope instanceof ViewsheetScope) {
+            StringBuffer stringBuffer =
+               new StringBuffer("\nIf you are trying to use a data field called 'field'");
+            stringBuffer.append(", please change to ['table name']['field'].");
+            str += stringBuffer.toString();
+         }
 
          return str;
       }
@@ -327,7 +335,8 @@ public class GraalJavaScriptEnv implements ScriptEnv {
       return sql;
    }
 
-   protected GraalJavaScriptEngine engine;
+   // FIX C: volatile so unsynchronized readers (e.g. get()) see the latest value
+   protected volatile GraalJavaScriptEngine engine;
    protected Hashtable vars = new Hashtable();
    protected boolean sql;
 

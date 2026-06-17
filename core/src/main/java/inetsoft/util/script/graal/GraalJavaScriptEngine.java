@@ -20,9 +20,13 @@ package inetsoft.util.script.graal;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.script.ScriptException;
 import org.graalvm.polyglot.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -41,8 +45,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    protected final ScriptTimeoutGuard timeoutGuard = new ScriptTimeoutGuard();
    protected boolean sql;
 
-   private final ThreadLocal<Integer> errorCount = ThreadLocal.withInitial(() -> 0);
-   private static final int MAX_ERRORS = 30000;
+   /**
+    * Per-Source error counts. Keyed by compiled Source identity; WeakHashMap
+    * allows entries to be GC'd when the Source is no longer referenced.
+    * Must only be accessed while holding {@code lock}.
+    */
+   private final Map<Object, Integer> errorCounts = new WeakHashMap<>();
 
    private static final ScriptScope EMPTY_SCOPE = new ScriptScope() {
       public Object getMember(String n) { return null; }
@@ -69,6 +77,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             .allowCreateProcess(false)
             .allowEnvironmentAccess(org.graalvm.polyglot.EnvironmentAccess.NONE)
             .build();
+
+         // FIX B: reset per-Source error counts on (re)init
+         errorCounts.clear();
 
          initScope(vars);
       }
@@ -105,6 +116,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       lock.lock();
 
       try {
+         // FIX A: guard against null context before initialization
+         if(context == null) {
+            throw new IllegalStateException("Engine not initialized");
+         }
+
          context.parse("js", cmd); // parse-only; throws on syntax error
       }
       catch(PolyglotException ex) {
@@ -119,6 +135,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       lock.lock();
 
       try {
+         // FIX A: guard against null context before initialization
+         if(context == null) {
+            throw new IllegalStateException("Engine not initialized");
+         }
+
          ScriptScope root = (scope instanceof ScriptScope) ? (ScriptScope) scope : null;
          BindingRootProxy proxy =
             new BindingRootProxy(root != null ? root : EMPTY_SCOPE,
@@ -129,7 +150,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          Duration timeout = currentTimeout();
 
          try(ScriptTimeoutGuard.Guard ignored = timeoutGuard.guard(context, timeout)) {
-            if(errorCount.get() >= MAX_ERRORS) {
+            // FIX B: per-Source error count check (read limit while holding lock)
+            int limit = maxErrors();
+
+            if(limit > 0 && errorCounts.getOrDefault(script, 0) >= limit) {
                return null;
             }
 
@@ -137,7 +161,19 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             return ScriptValueConverter.toHost(result);
          }
          catch(PolyglotException ex) {
-            errorCount.set(errorCount.get() + 1);
+            // FIX B: increment per-Source error count and warn when limit first crossed
+            int limit = maxErrors();
+
+            if(limit > 0) {
+               int prev = errorCounts.getOrDefault(script, 0);
+               int next = prev + 1;
+               errorCounts.put(script, next);
+
+               if(next == limit) {
+                  LOG.warn("Script max errors exceeded ({})", limit);
+               }
+            }
+
             String loc = "";
 
             if(ex.getSourceLocation() != null) {
@@ -146,9 +182,40 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
             throw new ScriptException(ex.getMessage() + loc, ex);
          }
+         finally {
+            // FIX D: remove __scope__ binding to prevent cross-exec bleed and GC leak
+            if(context != null) {
+               context.getBindings("js").removeMember("__scope__");
+            }
+         }
       }
       finally {
          lock.unlock();
+      }
+   }
+
+   /**
+    * Read the script.max.errors limit from SreeEnv. Returns 0 to mean "no limit".
+    * Must be called while holding {@code lock} (result used inline in exec).
+    */
+   private int maxErrors() {
+      try {
+         String prop = SreeEnv.getProperty("script.max.errors");
+
+         if(prop == null || prop.isEmpty()) {
+            return 30000;
+         }
+
+         int val = Integer.parseInt(prop.trim());
+         return val <= 0 ? 0 : val;
+      }
+      catch(NumberFormatException ex) {
+         // property is set but not a valid integer — treat as no limit
+         return 30000;
+      }
+      catch(Exception ex) {
+         // SreeEnv unavailable (e.g. in tests)
+         return 30000;
       }
    }
 
@@ -156,6 +223,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       try {
          long secs = Long.parseLong(SreeEnv.getProperty("script.execution.timeout"));
          return Duration.ofSeconds(secs);
+      }
+      catch(NumberFormatException ex) {
+         // FIX E: warn when the property is set but not a valid number
+         LOG.warn("Invalid script.execution.timeout value; script timeouts disabled", ex);
+         return Duration.ZERO;
       }
       catch(Exception ex) {
          // SreeEnv unavailable in test context, or property not set → no timeout
@@ -251,4 +323,6 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          lock.unlock();
       }
    }
+
+   private static final Logger LOG = LoggerFactory.getLogger(GraalJavaScriptEngine.class);
 }
