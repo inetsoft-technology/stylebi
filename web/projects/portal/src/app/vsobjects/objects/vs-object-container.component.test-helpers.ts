@@ -52,7 +52,7 @@ export function makeDataTipService(overrides: Partial<DataTipService> = {}) {
       showHideDataTip: new Subject<void>(),
       isDataTipVisible: vi.fn().mockReturnValue(false),
       isDataTip: vi.fn().mockReturnValue(false),
-      dataTipName: null as string,
+      dataTipName: null,
       isDataTipSource: vi.fn().mockReturnValue(false),
       isCurrentDataTip: vi.fn().mockReturnValue(false),
       hasDataTipShowing: vi.fn().mockReturnValue(false),
