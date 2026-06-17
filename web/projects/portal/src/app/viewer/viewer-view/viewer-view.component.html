@@ -19,7 +19,7 @@
   <div class="viewer-view-container">
     <div class="page-tab-content">
       <!-- use a for loop to ensure that the viewer-app gets re-created when the asset ID changes -->
-      @for (tab of tabs; track tab) {
+      @for (tab of tabs; track tab.id) {
         <viewer-app #viewerApp
           [class.viewer-app--active]="isActiveTab(tab)"
           [active]="isActiveTab(tab)"

@@ -70,7 +70,7 @@ export class ComposerEmptyEditor implements OnInit {
 
    get createWSMessage(): string {
       if(!!this.customMessageModel?.worksheetCreateMessage &&
-         this.customMessageModel.worksheetCreateMessage.trim().length >= 0)
+         this.customMessageModel.worksheetCreateMessage.trim().length > 0)
       {
          return this.customMessageModel?.worksheetCreateMessage;
       }

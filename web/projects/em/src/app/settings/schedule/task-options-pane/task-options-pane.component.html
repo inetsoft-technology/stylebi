@@ -89,7 +89,7 @@
             <input matInput placeholder="_#(Owner)" formControlName="owner"
               [matAutocomplete]="auto" (change)="fireModelChanged()">
             <mat-autocomplete #auto="matAutocomplete" (optionSelected)="fireModelChanged()">
-              @for (user of filteredUsers | async; track user) {
+              @for (user of filteredUsers | async; track user.identityID.name) {
                 <mat-option [value]="user.identityID.name">{{ user.identityID.name }}</mat-option>
               }
             </mat-autocomplete>

@@ -46,7 +46,7 @@
     </div>
 
     <!-- Tick dots -->
-    @for (tick of ticks; track tick) {
+    @for (tick of ticks; track tick.left) {
       <div class="slider-tick" [style.left]="tick.left"></div>
     }
 

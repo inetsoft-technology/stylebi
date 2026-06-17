@@ -42,7 +42,7 @@
                     placeholder="_#(None)"
                     #roleSelection
                     multiple>
-                    @for (role of roles; track role) {
+                    @for (role of roles; track role.name) {
                       <mat-option [value]="role.name">{{role.label}}</mat-option>
                     }
                   </mat-select>

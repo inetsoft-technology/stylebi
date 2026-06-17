@@ -88,7 +88,7 @@
                 [class.sort-ascending-icon]="setCycleNameSort === SortTypes.ASCENDING"></i>
               </div>
               <mat-option value="">_#(None)</mat-option>
-              @for (cyc of setCycle; track cyc) {
+              @for (cyc of setCycle; track cyc.name) {
                 <mat-option [value]="cyc.name">{{ cyc.label }}</mat-option>
               }
             </mat-select>

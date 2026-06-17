@@ -225,7 +225,7 @@
                 <th>_#(Active):</th>
                 <td>{{reverseProxyModel.active}}</td>
               </tr>
-              @for (header of reverseProxyModel.requestHeaders | keyvalue; track header) {
+              @for (header of reverseProxyModel.requestHeaders | keyvalue; track header.key) {
                 <tr>
                   <th>{{header.key}}:</th>
                   <td>{{header.value}}</td>

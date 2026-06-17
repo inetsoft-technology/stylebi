@@ -93,7 +93,7 @@
 | 待审核 | TreeNodeComponent | 506 | 3 | 5 | **multi-pass** | ✅ 推进 |  |  | P1: tree-node.component.interaction.tl.spec.ts<br>P2: tree-node.component.risk.tl.spec.ts<br>P3: tree-node.component.display.tl.spec.ts |
 | 待审核 | TreeComponent | 754 | 6 | 6 | **multi-pass** | ✅ 推进 | ⚠️ tree.spec.ts | Bug #17221 search field can not input string; (reading 'expanded')" after the fixture is destroyed.; Bug #17336 should show infomation when no result  | P1: tree.component.interaction.tl.spec.ts<br>P2: tree.component.risk.tl.spec.ts<br>P3: tree.component.display.tl.spec.ts |
 | 待审核 | AiAssistantDialogComponent | 35 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | AiAssistantPanelComponent | 177 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
+| ✅已测试 | AiAssistantPanelComponent | 177 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 
 ## 多 pass 组件详情
 
@@ -458,7 +458,7 @@
 | 待审核 | ScheduleTabComponent | 20 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | ActionAccordionComponent | 861 | 0 | 6 | **multi-pass** | ✅ 推进 | ⚠️ action-accordion.spec.ts | test: check clear all parameters; test: should get correct highlight name for alert | P1: action-accordion.component.interaction.tl.spec.ts<br>P2: action-accordion.component.risk.tl.spec.ts |
 | 待审核 | ScheduleTaskDialogComponent | 57 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ schedule-task-dialog.spec.ts | Bug #21217 task name control (broken test) | single pass |
-| 待审核 | AddParameterDialogComponent | 265 | 0 | 2 | **single-pass** | ✅ 推进 | ⚠️ add-parameter-dialog.component.spec.ts | test: should pop confirm dialog when create duplicate parameter; broken test: check can create parameter; test: check can edit parameter | single pass (+内存泄漏) |
+| ✅已测试 | AddParameterDialogComponent | 265 | 0 | 2 | **single-pass** | ✅ 推进 | ⚠️ add-parameter-dialog.component.spec.ts | test: should pop confirm dialog when create duplicate parameter; broken test: check can create parameter; test: check can edit parameter | single pass (+内存泄漏) |
 | 待审核 | EditableTableComponent | 45 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | ParameterTableComponent | 55 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ parameter-table.component.spec.ts | test: should show confirm when to delete parameter; test: check can edit parameter; test: should display timeinstant/array parameter correctly | single pass |
 | 待审核 | CreateTaskFolderDialogComponent | 73 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |

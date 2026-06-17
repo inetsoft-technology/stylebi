@@ -539,7 +539,7 @@
         <vs-hidden-annotation [annotations]="model.assemblyAnnotationModels"></vs-hidden-annotation>
       </div>
       <div class="annotation-container">
-        @for (annotationModel of model.assemblyAnnotationModels; track annotationModel) {
+        @for (annotationModel of model.assemblyAnnotationModels; track annotationModel.absoluteName) {
           <vs-annotation
             [model]="annotationModel"
             [actions]="actions"
@@ -554,7 +554,7 @@
     }
     @if (enableAnnotation) {
       <div class="annotation-container">
-        @for (annotationModel of model.leftTopAnnotations; track annotationModel) {
+        @for (annotationModel of model.leftTopAnnotations; track annotationModel.absoluteName) {
           @if (annotationModel.cellOffset) {
             <div
               class="annotation-cell-container"
@@ -578,7 +578,7 @@
     @if (enableAnnotation) {
       <div class="annotation-container"
         [style.left.px]="-scrollX">
-        @for (annotationModel of model.rightTopAnnotations; track annotationModel) {
+        @for (annotationModel of model.rightTopAnnotations; track annotationModel.absoluteName) {
           @if (annotationModel.cellOffset) {
             <div
               class="annotation-cell-container"
@@ -605,7 +605,7 @@
       <div class="annotation-container"
         [style.top.px]="-scrollY"
         [style.left.px]="isFullHorizontalWrapper ? -scrollX : 'unset'">
-        @for (annotationModel of model.leftBottomAnnotations; track annotationModel) {
+        @for (annotationModel of model.leftBottomAnnotations; track annotationModel.absoluteName) {
           @if (annotationModel.cellOffset && isCellLoaded(annotationModel)) {
             <div
               class="annotation-cell-container"
@@ -634,7 +634,7 @@
         class="annotation-container"
         [style.top.px]="-scrollY"
         [style.left.px]="-scrollX">
-        @for (annotationModel of model.rightBottomAnnotations; track annotationModel) {
+        @for (annotationModel of model.rightBottomAnnotations; track annotationModel.absoluteName) {
           @if (annotationModel.cellOffset && isCellLoaded(annotationModel)) {
             <div
               class="annotation-cell-container"
