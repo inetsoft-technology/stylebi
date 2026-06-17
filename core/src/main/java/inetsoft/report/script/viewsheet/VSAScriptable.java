@@ -1038,6 +1038,22 @@ public class VSAScriptable
    protected ViewsheetSandbox box;
    protected String assembly;
 
+   /**
+    * Set the parent scope of this scriptable in the lookup chain.
+    */
+   public void setParentScope(ScriptScope parent) {
+      this.parent = parent;
+   }
+
+   /**
+    * Get the parent scope of this scriptable in the lookup chain.
+    */
+   @Override
+   public ScriptScope getParentScope() {
+      return parent;
+   }
+
+   private ScriptScope parent;
    private ViewsheetScope scope;
    private VSAScriptable vsproto; // vs prototype
    private final Map<String, Object> map;

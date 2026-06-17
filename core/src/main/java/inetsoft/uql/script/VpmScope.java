@@ -17,28 +17,16 @@
  */
 package inetsoft.uql.script;
 
-import inetsoft.report.LibManager;
-import inetsoft.report.LibManagerProvider;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.XUtil;
-import inetsoft.util.ConfigurationContext;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptScope;
-// NOTE (Feature #75423): the static root-scope plumbing below (Context,
-// Scriptable, Function, FunctionObject, ScriptableObject root, standard
-// objects) is Rhino script-engine substrate, replaced by the native-binding
-// mechanism at the Milestone 4 cutover. Only the instance scope surface has
-// been converted to ScriptScope; the static execute/getRoot/createRoot logic
-// is preserved as-is.
-import org.mozilla.javascript.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.security.Principal;
 import java.util.*;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * VpmScope, the scriptable object to execute vpm script.
@@ -58,10 +46,8 @@ public class VpmScope implements ScriptScope {
    {
       Object script = null;
       ScriptEnv senv = ScriptEnvRepository.getScriptEnv();
-      Context cx = SecureClassShutter.createSecureContext();
-      Scriptable root = getRoot();
-      root.put("vpm", root, scope);
-      scope.setParentScope(root);
+      senv.init();
+      senv.put("vpm", new inetsoft.util.script.graal.ScopeProxy(scope));
 
       // compile the script statement
       try {
@@ -83,11 +69,6 @@ public class VpmScope implements ScriptScope {
 
          throw ex;
       }
-      finally {
-         cx.exit();
-      }
-
-      cx = SecureClassShutter.createSecureContext();
 
       // execute the script object
       try {
@@ -99,115 +80,6 @@ public class VpmScope implements ScriptScope {
             ex.getMessage(), XUtil.numbering(statement)));
          throw ex;
       }
-      finally {
-         cx.exit();
-      }
-   }
-
-   /**
-    * Get the root scope.
-    * @return the root scope.
-    */
-   @SuppressWarnings("unchecked")
-   private static Scriptable getRoot() {
-      Scriptable root = null;
-      ROOT_LOCK.readLock().lock();
-
-      try {
-         root = ConfigurationContext.getContext().get(ROOT_KEY);
-      }
-      finally {
-         ROOT_LOCK.readLock().unlock();
-      }
-
-      if(root == null) {
-         ROOT_LOCK.writeLock().lock();
-
-         try {
-            root = ConfigurationContext.getContext().get(ROOT_KEY);
-
-            if(root == null) {
-               root = createRoot();
-               ConfigurationContext.getContext().put(ROOT_KEY, root);
-            }
-         }
-         finally {
-            ROOT_LOCK.writeLock().unlock();
-         }
-      }
-
-      return root;
-   }
-
-   /**
-    * Create a root scope.
-    * @return the created root scope.
-    */
-   private static Scriptable createRoot() {
-      Context cx = Context.getCurrentContext();
-      Scriptable root = cx.initStandardObjects(new RootScope());
-
-      LibManager mgr = LibManagerProvider.getInstance().getManager();
-      Enumeration names = mgr.getScripts();
-
-      while(names.hasMoreElements()) {
-         String fname = (String) names.nextElement();
-         String source = mgr.getScript(fname);
-
-         try {
-            addFunction(fname, source, root);
-         }
-         catch(Exception ex) {
-            LOG.warn("Failed to add function " + fname + ": " +
-                        source, ex);
-         }
-      }
-
-      // get a script env, and let global function available
-      ScriptEnv senv = ScriptEnvRepository.getScriptEnv();
-      senv.init();
-      senv.put("vpm", root);
-
-      return root;
-   }
-
-   /**
-    * Clear the root scope.
-    */
-   private static void clearRoot() {
-      ROOT_LOCK.writeLock().lock();
-
-      try {
-         ConfigurationContext.getContext().remove(ROOT_KEY);
-      }
-      finally {
-         ROOT_LOCK.writeLock().unlock();
-      }
-   }
-
-   /**
-    * Add one function to the scope.
-    * @param fname the specified function name.
-    * @param source the specified source code.
-    * @param script the specified script object to add function on.
-    */
-   private static void addFunction(String fname, String source,
-                                   Scriptable script)
-      throws Exception
-   {
-      if(source == null || source.length() == 0) {
-         return;
-      }
-
-      Context cx = TimeoutContext.enter();
-      Function function =
-         cx.compileFunction(script, source, "<" + fname + ">", 1, null);
-
-      if(function != null) {
-         script.put(fname, script, function);
-      }
-
-      Context.exit();
    }
 
    /**
@@ -215,19 +87,10 @@ public class VpmScope implements ScriptScope {
     */
    public VpmScope() {
       super();
-
-      try {
-         // NOTE (Feature #75423): FunctionObject2 is a Rhino FunctionObject,
-         // replaced by the native-binding mechanism at the Milestone 4 cutover.
-         // VpmScope no longer extends Rhino's ScriptableObject, so 'this' can no
-         // longer be passed as the Rhino scope; pass null until the M4 cutover.
-         FunctionObject func = new FunctionObject2(null, getClass(), "runQuery",
-                                                   String.class, Object.class);
-         members.put("runQuery", func);
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to register functions", ex);
-      }
+      // runQuery is exposed via the runQuery() instance method, installed as a
+      // ScriptFunction so it is callable from scripts under GraalJS.
+      members.put("runQuery", new inetsoft.util.script.graal.ScriptFunction(
+         this, getClass(), "runQuery", String.class, Object.class));
    }
 
    /**
@@ -361,29 +224,10 @@ public class VpmScope implements ScriptScope {
       return "VpmScope";
    }
 
-   /**
-    * The top-most scope shared by vpm scopes.
-    */
-   private static class RootScope extends ScriptableObject {
-      @Override
-      public String getClassName() {
-         return "RootScope";
-      }
-
-      @Override
-      public Object[] getIds() {
-         return getAllIds();
-      }
-   }
-
-   private static Map roots = new HashMap();
    private Principal user;
    private VariableTable vars;
    private ScriptScope parent;
    private final Map<String, Object> members = new LinkedHashMap<>();
-
-   private static final String ROOT_KEY = VpmScope.class.getName() + ".rootScope";
-   private static final ReadWriteLock ROOT_LOCK = new ReentrantReadWriteLock(true);
 
    private static final Logger LOG =
       LoggerFactory.getLogger(VpmScope.class);
