@@ -22,6 +22,8 @@ import inetsoft.report.TableLens;
 import inetsoft.report.filter.*;
 import inetsoft.report.internal.Util;
 import inetsoft.report.script.PropertyDescriptor;
+import inetsoft.report.script.formula.CellRange;
+import inetsoft.report.script.formula.PositionalCellRange;
 import inetsoft.report.script.formula.TableRangeProcessor;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.schema.*;
@@ -92,9 +94,11 @@ public class ReportGraalJavaScriptEngine extends GraalJavaScriptEngine {
       bindings.putMember("runQuery", (ProxyExecutable) args ->
          runQueryGlobal(args.length > 0 ? args[0].asString() : null,
                         args.length > 1 ? ScriptValueConverter.toHost(args[1]) : null));
-      bindings.putMember("addParameter", (ProxyExecutable) args ->
+      bindings.putMember("addParameter", (ProxyExecutable) args -> {
          addParameterGlobal(arg(args, 0), ScriptValueConverter.toHost(at(args, 1)),
-                            argStr(args, 2), argStr(args, 3), argBool(args, 4)));
+                            argStr(args, 2), argStr(args, 3), argBool(args, 4));
+         return null;
+      });
 
       // aggregate functions: (lens, column, cond)
       bindings.putMember("none", agg("none", NoneFormula::new));
