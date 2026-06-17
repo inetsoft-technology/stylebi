@@ -2,6 +2,7 @@
 
 **日期**: 2026-06-08
 **候选组件数**: 80 | **建议推进**: 78 | **建议跳过**: 2 | **多 pass 组件**: 25
+**测试进度**: ✅已测试 60 / 80 | 待审核 20 / 80（含 SelectDataSourceDialog 跳过项 1 个）
 
 ## 状态说明
 - 第一列「状态」初始为「待审核」，人工审核后改为 ✅已测试 / ⏭已跳过
@@ -22,76 +23,76 @@
 | ✅已测试 | DownloadTargetComponent | 84 | 1 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | ✅已测试 P1P2P3 | ComposerMainComponent | 2512 | 8 | 34 | **multi-pass** | ✅ 推进 |  | Bug #16301 set embeddedId set if opening an embedded vs; Bug #18803 should disable format pane when select device layout; Bug #18805 should enable for | P1: composer-main.component.interaction.tl.spec.ts ✅<br>P2: composer-main.component.risk.tl.spec.ts ✅<br>P3: composer-main.component.display.tl.spec.ts ✅ |
 | ✅已测试 P1P2P3 | ComposerToolbarComponent | 1746 | 8 | 11 | **multi-pass** | ✅ 推进 |  | BUg #21103 should not show preview button on worksheet; Bug #17208 enable layout align when select multi object on layouts; Bug #16940 disbale move mo | P1: composer-toolbar.component.interaction.tl.spec.ts ✅<br>P2: composer-toolbar.component.risk.tl.spec.ts ✅<br>P3: composer-toolbar.component.display.tl.spec.ts ✅ |
-| 待审核 | SplitPane | 120 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试 | SplitPane | 120 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ split-pane.component.tl.spec.ts |
 | ✅已测试 P1P2 | AssetTreePane | 843 | 1 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: asset-tree-pane.component.interaction.tl.spec.ts ✅<br>P2: asset-tree-pane.component.risk.tl.spec.ts ✅ |
-| 待审核 | ToolboxPane | 144 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | ScriptTreePane | 74 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| ✅已测试 | ComponentsPane | 302 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核 | StyleTreePane | 97 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| ✅已测试 P1P3 | VSFormatsPane | 679 | 4 | 1 | **multi-pass** | ✅ 推进 | ⚠️ vs-formats-pane.spec.ts | Bug #16685, Bug #16689 check the aligment combox status; Bug #18597, BUg #18664 color,border, aligment status; Bug #18060, Bug #18342 for wrap text on | P1: vs-formats-pane.component.interaction.tl.spec.ts<br>P3: vs-formats-pane.component.display.tl.spec.ts |
+| ✅已测试 | ToolboxPane | 144 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) ✅ toolbox-pane.component.tl.spec.ts |
+| ✅已测试 | ScriptTreePane | 74 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ script-tree-pane.component.tl.spec.ts |
+| ✅已测试 | ComponentsPane | 302 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ components-pane.component.tl.spec.ts |
+| ✅已测试 | StyleTreePane | 97 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ style-tree-pane.component.tl.spec.ts |
+| ✅已测试 P1P3 | VSFormatsPane | 679 | 4 | 1 | **multi-pass** | ✅ 推进 | ⚠️ vs-formats-pane.spec.ts | Bug #16685, Bug #16689 check the aligment combox status; Bug #18597, BUg #18664 color,border, aligment status; Bug #18060, Bug #18342 for wrap text on | P1: vs-formats-pane.component.interaction.tl.spec.ts ✅<br>P3: vs-formats-pane.component.display.tl.spec.ts ✅ |
 | ✅已测试 | WSCompositeTableSidebarPane | 77 | 1 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) ✅ ws-composite-table-sidebar-pane.component.tl.spec.ts |
 | ✅已测试 P1P2P3 | WSPaneComponent | 944 | 5 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: ws-pane.component.interaction.tl.spec.ts ✅<br>P2: ws-pane.component.risk.tl.spec.ts ✅<br>P3: ws-pane.component.display.tl.spec.ts ✅ |
 | ✅已测试 P1P2P3 | VSPane | 2071 | 7 | 23 | **multi-pass** | ✅ 推进 | ⚠️ viewsheet-pane.component.spec.ts | Bug #10442 make sure to update send to back/front enabled after adding vs object to vs; Bug #16274 make sure to update send to back/front enabled afte | P1: viewsheet-pane.component.interaction.tl.spec.ts ✅<br>P2: viewsheet-pane.component.risk.tl.spec.ts ✅<br>P3: viewsheet-pane.component.display.tl.spec.ts ✅ |
-| 待审核 | ViewerAppComponent | 3363 | 10 | 53 | **multi-pass** | ✅ 推进 | ⚠️ viewer-app.spec.ts | Bug #16456 TODO, logica changed, can not get fixed dropdown pane; Bug #19176 hide full screen in preview; Bug #16961 should refresh scale to screen vs | P1: viewer-app.component.interaction.tl.spec.ts<br>P2: viewer-app.component.risk.tl.spec.ts<br>P3: viewer-app.component.display.tl.spec.ts |
+| ✅已测试 P1P2P3 | ViewerAppComponent | 3363 | 10 | 53 | **multi-pass** | ✅ 推进 | ⚠️ viewer-app.spec.ts | Bug #16456 TODO, logica changed, can not get fixed dropdown pane; Bug #19176 hide full screen in preview; Bug #16961 should refresh scale to screen vs | P1: viewer-app.component.interaction.tl.spec.ts ✅<br>P2: viewer-app.component.risk.tl.spec.ts ✅<br>P3: viewer-app.component.display.tl.spec.ts ✅ |
 | ✅已测试 | ScriptEditPaneComponent | 194 | 2 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) ✅ script-edit-pane.component.tl.spec.ts |
-| 待审核 | StylePaneComponent | 89 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核 | ComposerEmptyEditor | 95 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | SheetTabSelectorComponent | 87 | 1 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| ✅已测试 | VSBindingPane | 805 | 4 | 5 | **multi-pass** | ✅ 推进 |  |  | P1: vs-binding-pane.component.interaction.tl.spec.ts<br>P2: vs-binding-pane.component.risk.tl.spec.ts<br>P3: vs-binding-pane.component.display.tl.spec.ts |
-| 待审核 | VsWizardComponent | 371 | 0 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核 | NotificationsComponent | 65 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ notifications.component.spec.ts | 无 | single pass (+内存泄漏) |
-| 待审核 | SaveViewsheetDialog | 95 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ save-viewsheet-dialog.component.spec.ts | Bug #20421 check name for viewsheet | single pass (+内存泄漏) |
+| ✅已测试 | StylePaneComponent | 89 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ style-pane.component.tl.spec.ts |
+| ✅已测试 | ComposerEmptyEditor | 95 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) ✅ composer-empty-editor.component.tl.spec.ts |
+| ✅已测试 | SheetTabSelectorComponent | 87 | 1 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) ✅ sheet-tab-selector.component.tl.spec.ts |
+| ✅已测试 P1P2P3 | VSBindingPane | 805 | 4 | 5 | **multi-pass** | ✅ 推进 |  |  | P1: vs-binding-pane.component.interaction.tl.spec.ts ✅<br>P2: vs-binding-pane.component.risk.tl.spec.ts ✅<br>P3: vs-binding-pane.component.display.tl.spec.ts ✅ |
+| ✅已测试 | VsWizardComponent | 371 | 0 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) ✅ vs-wizard.component.tl.spec.ts |
+| ✅已测试 | NotificationsComponent | 65 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ notifications.component.spec.ts | 无 | single pass (+内存泄漏) |
+| ✅已测试 | SaveViewsheetDialog | 95 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ save-viewsheet-dialog.component.spec.ts | Bug #20421 check name for viewsheet | single pass (+内存泄漏) |
 | 待审核 | SaveTableStyleDialog | 96 | 0 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核 | SaveWorksheetDialog | 89 | 1 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅已测试 | SaveWorksheetDialog | 89 | 1 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | 待审核 | SaveScriptDialog | 95 | 0 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核 | EditCustomPatternsDialog | 86 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | ViewsheetPropertyDialog | 112 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核 | ToolbarGroup | 84 | 1 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅已测试 | ToolbarGroup | 84 | 1 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | ✅已测试 P1P2 | ImportCSVDialog  | 423 | 1 | 33 | **multi-pass** | ✅ 推进 | ⚠️ import-csv-dialog.component.spec.ts | test: should throw an error on empty file | P1: import-csv-dialog.component.interaction.tl.spec.ts ✅<br>P2: import-csv-dialog.component.risk.tl.spec.ts ✅ |
 | ✅已测试 P1P2 | SQLQueryDialog | 386 | 0 | 10 | **multi-pass** | ✅ 推进 |  |  | P1: sql-query-dialog.component.interaction.tl.spec.ts ✅<br>P2: sql-query-dialog.component.risk.tl.spec.ts ✅ |
 | ✅已测试 P1P2 | TabularQueryDialog | 374 | 0 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: tabular-query-dialog.component.interaction.tl.spec.ts ✅<br>P2: tabular-query-dialog.component.risk.tl.spec.ts ✅ |
 | ✅已测试 P1P2 | GroupingDialog | 346 | 0 | 52 | **multi-pass** | ✅ 推进 |  |  | P1: grouping-dialog.component.interaction.tl.spec.ts ✅<br>P2: grouping-dialog.component.risk.tl.spec.ts ✅ |
 | 待审核 | SelectDataSourceDialog | 46 | 0 | 0 | **single-pass** | ⏭ 跳过 |  |  | single pass |
-| 待审核 | EmbeddedTableDialog | 49 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ embedded-table-dialog.spec.ts | test: should not allow non-positive number of rows or columns; test: should not allow duplicate names | single pass (+内存泄漏) |
+| ✅已测试 | EmbeddedTableDialog | 49 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ embedded-table-dialog.spec.ts | test: should not allow non-positive number of rows or columns; test: should not allow duplicate names | single pass (+内存泄漏) |
 | ✅已测试 P1P2 | VariableAssemblyDialog | 334 | 0 | 26 | **multi-pass** | ✅ 推进 | ⚠️ variable-assembly-dialog.spec.ts | Bug #20319 should allow some characters for variable | P1: variable-assembly-dialog.component.interaction.tl.spec.ts ✅<br>P2: variable-assembly-dialog.component.risk.tl.spec.ts ✅ |
 | 待审核 | VariableInputDialog | 214 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ variable-input-dialog.spec.ts | Bug #16824 Make sure the default value of a boolean type is false | single pass |
 | ✅已测试 P1P2 | VPMPrincipalDialogComponent | 84 | 0 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: vpm-principal-dialog.component.interaction.tl.spec.ts ✅<br>P2: vpm-principal-dialog.component.risk.tl.spec.ts ✅ |
 | ✅已测试 P1P2 | AssetTreeComponent | 705 | 2 | 8 | **multi-pass** | ✅ 推进 | ⚠️ asset-tree.component.spec.ts | Bug 10264 make sure asset tree node remain expanded. | P1: asset-tree.component.interaction.tl.spec.ts ✅<br>P2: asset-tree.component.risk.tl.spec.ts ✅ |
 | 待审核 | FontPane | 129 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ font-pane.spec.ts | for Bug #19781 | single pass (+内存泄漏) |
-| 待审核 | DynamicComboBox | 323 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ dynamic-combo-box.spec.ts | Bug #17341  and Bug #17765 disbale variable when no variable list and can not select disabled variable irem; Bug #17341; Bug #17765 | single pass (+内存泄漏) |
+| ✅已测试 | DynamicComboBox | 323 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ dynamic-combo-box.spec.ts | Bug #17341  and Bug #17765 disbale variable when no variable list and can not select disabled variable irem; Bug #17341; Bug #17765 | single pass (+内存泄漏) ✅ dynamic-combo-box.component.tl.spec.ts |
 | 待审核 | AlphaDropdown | 42 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ alpha-dropdown.component.spec.ts | Bug #19399 should keep alpha value | single pass |
-| 待审核 | BindingBorderPane | 331 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ binding-border-pane.spec.ts | Bug #10699 and Bug #17594 make sure when setting border style and color to default; test: should set borders to null when default borders selected | single pass |
+| ✅已测试 | BindingBorderPane | 331 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ binding-border-pane.spec.ts | Bug #10699 and Bug #17594 make sure when setting border style and color to default; test: should set borders to null when default borders selected | single pass ✅ binding-border-pane.component.tl.spec.ts |
 | ✅已测试 P1P2 | RadiusDropdown | 74 | 0 | 10 | **multi-pass** | ✅ 推进 |  |  | P1: radius-dropdown.component.interaction.tl.spec.ts ✅<br>P2: radius-dropdown.component.risk.tl.spec.ts ✅ |
 | 待审核 | FormattingPane | 185 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ formatting-pane.spec.ts | test: empty decimal format should increase decimal | single pass |
 | 待审核 | FormatCSSPane | 58 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | PresenterPropertyDialog | 74 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | ✅已测试 P1P2 | WSAssemblyGraphPaneComponent | 1080 | 2 | 20 | **multi-pass** | ✅ 推进 | ⚠️ ws-assembly-graph-pane.spec.ts | test: should not open a confirm dialog for a non-primary assembly | P1: ws-assembly-graph-pane.component.interaction.tl.spec.ts ✅<br>P2: ws-assembly-graph-pane.component.risk.tl.spec.ts ✅ |
-| 待审核 | WSCompositeTableFocusPaneComponent | 89 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅已测试 | WSCompositeTableFocusPaneComponent | 89 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | ✅已测试 P1P2 | WSDetailsPaneComponent | 727 | 1 | 3 | **multi-pass** | ✅ 推进 |  |  | P1: ws-details-pane.component.interaction.tl.spec.ts ✅<br>P2: ws-details-pane.component.risk.tl.spec.ts ✅ |
-| 待审核 | VSLoadingDisplay | 71 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅已测试 | VSLoadingDisplay | 71 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | ✅已测试 P1P2P3 | EditableObjectContainer | 1592 | 10 | 4 | **multi-pass** | ✅ 推进 | ⚠️ editable-object-container.component.spec.ts | for Bug #9947; Bug #9817 ensure that when object is dropped the layout dialog is opened; Bug #19077 drag detail calcfield to form object the layout di | P1: editable-object-container.component.interaction.tl.spec.ts ✅<br>P2: editable-object-container.component.risk.tl.spec.ts ✅<br>P3: editable-object-container.component.display.tl.spec.ts ✅ |
-| 待审核 | ComposerSelectionContainerChildren | 512 | 1 | 4 | **multi-pass** | ✅ 推进 |  |  | P1: composer-selection-container-children.component.interaction.tl.spec.ts<br>P2: composer-selection-container-children.component.risk.tl.spec.ts |
+| ✅已测试 P1P2 | ComposerSelectionContainerChildren | 512 | 1 | 4 | **multi-pass** | ✅ 推进 |  |  | P1: composer-selection-container-children.component.interaction.tl.spec.ts ✅<br>P2: composer-selection-container-children.component.risk.tl.spec.ts ✅ |
 | ✅已测试 P1P2P3 | LayoutPane | 886 | 8 | 16 | **multi-pass** | ✅ 推进 |  |  | P1: layout-pane.component.interaction.tl.spec.ts ✅<br>P2: layout-pane.component.risk.tl.spec.ts ✅<br>P3: layout-pane.component.display.tl.spec.ts ✅ |
 | 待审核 | ConsoleDialogComponent | 88 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ console-dialog.component.spec.ts | callbacks queue dialog opens that NG0205 after the fixture is destroyed.; (after the fixture is destroyed) is a no-op instead of NG0205. | single pass (+内存泄漏) |
-| ✅已测试 | PagingControlComponent | 84 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| ✅已测试 | ViewerMobileToolbarComponent | 72 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| ✅已测试 | VsBookmarkPaneComponent | 97 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试 | PagingControlComponent | 84 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ paging-control.component.tl.spec.ts |
+| ✅已测试 | ViewerMobileToolbarComponent | 72 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ viewer-mobile-toolbar.component.tl.spec.ts |
+| ✅已测试 | VsBookmarkPaneComponent | 97 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ vs-bookmark-pane.component.tl.spec.ts |
 | ✅已测试 P1P2P3 | VSObjectContainer | 633 | 3 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: vs-object-container.component.interaction.tl.spec.ts ✅<br>P2: vs-object-container.component.risk.tl.spec.ts ✅<br>P3: vs-object-container.component.display.tl.spec.ts ✅ |
-| ✅已测试 | ExportDialog | 103 | 1 | 3 | **single-pass** | ✅ 推进 |  | Bug #17235 should not; test: should show error | single pass (+竞态+内存泄漏) |
-| ✅已测试 | EmailDialog | 103 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| ✅已测试 | ScheduleDialog | 106 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| ✅已测试 | BookmarkPropertyDialog | 58 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核 | ShareEmailDialogComponent | 79 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核 | ShareGoogleChatDialog | 52 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核 | ShareSlackDialog | 52 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| ✅已测试 | RemoveBookmarksDialog | 69 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | BindingEditor | 267 | 1 | 1 | **single-pass** | ✅ 推进 | ⚠️ binding-editor.spec.ts | Bug #20245; for Bug #20163; test: Crosstab should not have a percent by option | single pass (+内存泄漏) |
-| 待审核 | VSObjectView | 190 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | VsWizardPane | 901 | 1 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: vs-wizard-pane.component.interaction.tl.spec.ts<br>P2: vs-wizard-pane.component.risk.tl.spec.ts |
-| 待审核 | ObjectWizardPane | 556 | 1 | 3 | **multi-pass** | ✅ 推进 |  |  | P1: object-wizard-pane.component.interaction.tl.spec.ts<br>P2: object-wizard-pane.component.risk.tl.spec.ts |
-| 待审核 | ComponentTree | 86 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核 | ComposerBindingTree | 66 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | CodemirrorComponent | 417 | 1 | 8 | **multi-pass** | ✅ 推进 |  |  | P1: codemirror.component.interaction.tl.spec.ts<br>P2: codemirror.component.risk.tl.spec.ts |
+| ✅已测试 | ExportDialog | 103 | 1 | 3 | **single-pass** | ✅ 推进 |  | Bug #17235 should not; test: should show error | single pass (+竞态+内存泄漏) ✅ export-dialog.component.tl.spec.ts |
+| ✅已测试 | EmailDialog | 103 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) ✅ email-dialog.component.tl.spec.ts |
+| ✅已测试 | ScheduleDialog | 106 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) ✅ schedule-dialog.component.tl.spec.ts |
+| ✅已测试 | BookmarkPropertyDialog | 58 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ bookmark-property-dialog.component.tl.spec.ts |
+| ✅已测试 | ShareEmailDialogComponent | 79 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) ✅ share-email-dialog.component.tl.spec.ts |
+| ✅已测试 | ShareGoogleChatDialog | 52 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) ✅ share-google-chat-dialog.component.tl.spec.ts |
+| ✅已测试 | ShareSlackDialog | 52 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) ✅ share-slack-dialog.component.tl.spec.ts |
+| ✅已测试 | RemoveBookmarksDialog | 69 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) ✅ remove-bookmarks-dialog.component.tl.spec.ts |
+| ✅ 推进 | BindingEditor | 267 | 1 | 1 | **single-pass** | ✅ 推进 | ⚠️ binding-editor.spec.ts | Bug #20245; for Bug #20163; test: Crosstab should not have a percent by option | single pass (+内存泄漏) |
+| ✅ 推进 | VSObjectView | 190 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅已测试 P1P2 | VsWizardPane | 901 | 1 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: vs-wizard-pane.component.interaction.tl.spec.ts ✅<br>P2: vs-wizard-pane.component.risk.tl.spec.ts ✅ |
+| ✅已测试 P1P2 | ObjectWizardPane | 556 | 1 | 3 | **multi-pass** | ✅ 推进 |  |  | P1: object-wizard-pane.component.interaction.tl.spec.ts ✅<br>P2: object-wizard-pane.component.risk.tl.spec.ts ✅ |
+| ✅已测试 | ComponentTree | 86 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试 | ComposerBindingTree | 66 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅ 推进 | CodemirrorComponent | 417 | 1 | 8 | **multi-pass** | ✅ 推进 |  |  | P1: codemirror.component.interaction.tl.spec.ts<br>P2: codemirror.component.risk.tl.spec.ts |
 | 待审核 | ViewsheetOptionsPane | 131 | 0 | 5 | **single-pass** | ✅ 推进 | ⚠️ viewsheet-options-pane.spec.ts | #17036,the design mode data size should be disable when use worksheet; Bug #17303 Clear button should be enabled when has datasource; Bug #10157 Clear | single pass (+竞态+内存泄漏) |
 | 待审核 | FiltersPane | 119 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | ScreensPane | 160 | 0 | 2 | **single-pass** | ✅ 推进 | ⚠️ screens-pane.spec.ts | Bug #19354 Click device 'Delete' button, confirm dialog should pop up.; Bug #18417, clear button should be disabled when no print layout; Bug #19349,  | single pass (+内存泄漏) |
