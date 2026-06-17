@@ -53,12 +53,12 @@ import inetsoft.util.Catalog;
 import inetsoft.util.InetsoftUserDocumentation;
 import inetsoft.util.Tool;
 import inetsoft.util.script.JSObject;
-import inetsoft.util.script.TimeoutContext;
+import inetsoft.util.script.graal.ScriptFunction;
+import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.web.binding.handler.VSTreeHandler;
 import inetsoft.web.binding.model.ScriptTreeNodeData;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
-import org.mozilla.javascript.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -197,7 +197,7 @@ public class VSScriptableService {
 
       Viewsheet vs = rvs.getViewsheet();
       ViewsheetScope scope = box.getScope();
-      Object[] ids = scope.getIds();
+      Object[] ids = scope.getMemberKeys();
       Tool.qsort(ids, true);
 
       if(ids == null || ids.length == 0) {
@@ -233,7 +233,7 @@ public class VSScriptableService {
                                          VSAScriptable scriptable)
    {
       scriptable.setIncludeAllIDs(false);
-      Object[] ids = scriptable.getIds();
+      Object[] ids = scriptable.getMemberKeys();
       scriptable.setIncludeAllIDs(true);
 
       if(ids == null || ids.length == 0) {
@@ -371,7 +371,7 @@ public class VSScriptableService {
          vscriptable = new VariableScriptable(vtable);
       }
 
-      Object[] ids = vscriptable.getIds();
+      Object[] ids = vscriptable.getMemberKeys();
       Set<String> aids = new HashSet<>();
 
       if(ids != null) {
@@ -425,7 +425,7 @@ public class VSScriptableService {
          vscriptable = new VariableScriptable(vtable);
       }
 
-      Object[] ids = vscriptable.getIds();
+      Object[] ids = vscriptable.getMemberKeys();
       Set<String> aids = new HashSet<>();
 
       if(ids != null) {
@@ -611,7 +611,7 @@ public class VSScriptableService {
 
       try {
          ViewsheetScope scope = box.getScope();
-         Object[] ids = scope.getIds();
+         Object[] ids = scope.getMemberKeys();
          Tool.qsort(ids, true);
 
          if(ids == null || ids.length == 0) {
@@ -656,7 +656,7 @@ public class VSScriptableService {
                                               Object parentData)
    {
       scriptable.setIncludeAllIDs(false);
-      Object[] ids0 = scriptable.getIds();
+      Object[] ids0 = scriptable.getMemberKeys();
       scriptable.setIncludeAllIDs(true);
 
       if(ids0 == null || ids0.length == 0) {
@@ -713,7 +713,7 @@ public class VSScriptableService {
          ObjectNode child = mapper.createObjectNode();
          object.set("layoutInfo", child);
          VSTableLayoutInfo layoutInfo = ((CalcTableVSAScriptable) scriptable).getLayoutInfo();
-         Object[] ids = layoutInfo.getIds();
+         Object[] ids = layoutInfo.getMemberKeys();
          createProperties0(mapper, library, child, scriptable, ids, "CalcTable.layoutInfo.");
       }
       else if(writeBinding && "bindingInfo".equals(name)) {
@@ -861,7 +861,7 @@ public class VSScriptableService {
       }
 
       if(scriptable instanceof CalcTableVSAScriptable && "layoutInfo".equals(name)) {
-         Object[] ids = ((CalcTableVSAScriptable) scriptable).getLayoutInfo().getIds();
+         Object[] ids = ((CalcTableVSAScriptable) scriptable).getLayoutInfo().getMemberKeys();
          list = createNodes(ids, nodeName, nodeLabel, nodeData, "layoutInfo");
 
          if(list != null) {
@@ -904,7 +904,7 @@ public class VSScriptableService {
             children0.addAll(list);
          }
 
-         fields = getChartFields((Scriptable) scriptable.get("axis", scriptable));
+         fields = getChartFields((ScriptScope) scriptable.getMember("axis"));
       }
 
       if(writeBinding && "xTitle".equals(name)) {
@@ -978,7 +978,7 @@ public class VSScriptableService {
             children0.addAll(list);
          }
 
-         fields = getChartFields((Scriptable) scriptable.get("colorLegends", scriptable));
+         fields = getChartFields((ScriptScope) scriptable.getMember("colorLegends"));
       }
 
       if(writeBinding && "shapeLegends".equals(name)) {
@@ -989,7 +989,7 @@ public class VSScriptableService {
             children0.addAll(list);
          }
 
-         fields = getChartFields((Scriptable) scriptable.get("shapeLegends", scriptable));
+         fields = getChartFields((ScriptScope) scriptable.getMember("shapeLegends"));
       }
 
       if(writeBinding && "sizeLegends".equals(name)) {
@@ -1000,7 +1000,7 @@ public class VSScriptableService {
             children0.addAll(list);
          }
 
-         fields = getChartFields((Scriptable) scriptable.get("sizeLegends", scriptable));
+         fields = getChartFields((ScriptScope) scriptable.getMember("sizeLegends"));
       }
 
       if(writeBinding && "valueFormats".equals(name)) {
@@ -1011,7 +1011,7 @@ public class VSScriptableService {
             children0.addAll(list);
          }
 
-         fields = getChartFields((Scriptable) scriptable.get("valueFormats", scriptable));
+         fields = getChartFields((ScriptScope) scriptable.getMember("valueFormats"));
       }
 
       if(writeBinding && "graph".equals(name)) {
@@ -1037,7 +1037,7 @@ public class VSScriptableService {
    }
 
    private void createChartFieldDefinitions(ObjectMapper mapper, ObjectNode library,
-                                            ObjectNode object, Scriptable scriptable, String name,
+                                            ObjectNode object, ScriptScope scriptable, String name,
                                             Object[] ids)
    {
       ObjectNode child = mapper.createObjectNode();
@@ -1048,15 +1048,15 @@ public class VSScriptableService {
          return;
       }
 
-      Object obj = scriptable.get("axis", scriptable);
+      Object obj = scriptable.getMember("axis");
 
-      // fix Bug #35556, avoid get UniqueTag.NOT_FOUND.
-      if(obj instanceof UniqueTag) {
+      // fix Bug #35556, avoid getMember returning a non-scope sentinel/null.
+      if(!(obj instanceof ScriptScope)) {
          return;
       }
 
-      Scriptable fieldsScriptable = (Scriptable) obj;
-      Object[] fieldIds = fieldsScriptable.getIds();
+      ScriptScope fieldsScriptable = (ScriptScope) obj;
+      Object[] fieldIds = fieldsScriptable.getMemberKeys();
 
       if(fieldIds == null || fieldIds.length == 0) {
 
@@ -1067,7 +1067,7 @@ public class VSScriptableService {
 
       for(Object fieldId : fieldIds) {
          String field = (String) fieldId;
-         Scriptable fieldScriptable = (Scriptable) fieldsScriptable.get(field, fieldsScriptable);
+         ScriptScope fieldScriptable = (ScriptScope) fieldsScriptable.getMember(field);
          ObjectNode fieldNode = mapper.createObjectNode();
 
          if(!Tool.isValidIdentifier(field)) {
@@ -1140,8 +1140,12 @@ public class VSScriptableService {
       return null;
    }
 
-   private List<String> getChartFields(Scriptable sobj) {
-      Object[] ids = sobj.getIds();
+   private List<String> getChartFields(ScriptScope sobj) {
+      if(sobj == null) {
+         return null;
+      }
+
+      Object[] ids = sobj.getMemberKeys();
 
       if(ids == null || ids.length == 0) {
          return null;
@@ -1163,11 +1167,11 @@ public class VSScriptableService {
          ScriptPropertyTool.fixPropertyLink(scriptable, null, "highlighted", child);
          child.put("!type", "+Object");
          object.set("highlighted", child);
-         Object obj = scriptable.get("highlighted", scriptable);
+         Object obj = scriptable.getMember("highlighted");
 
-         if(obj instanceof Scriptable) {
-            Scriptable highlights = (Scriptable) obj;
-            Object[] ids = highlights.getIds();
+         if(obj instanceof ScriptScope) {
+            ScriptScope highlights = (ScriptScope) obj;
+            Object[] ids = highlights.getMemberKeys();
 
             if(ids != null && ids.length > 0) {
                for(int i = 0; i < ids.length; i++) {
@@ -1191,14 +1195,14 @@ public class VSScriptableService {
          scriptable instanceof DataVSAScriptable ||
          scriptable instanceof OutputVSAScriptable)
       {
-         Object obj = scriptable.get("highlighted", scriptable);
+         Object obj = scriptable.getMember("highlighted");
 
-         if(obj instanceof Scriptable) {
-            Scriptable  highlightes = (Scriptable) obj;
+         if(obj instanceof ScriptScope) {
+            ScriptScope highlightes = (ScriptScope) obj;
 
-            if(highlightes.getIds().length > 0) {
+            if(highlightes.getMemberKeys().length > 0) {
                return createNodes(
-                  highlightes.getIds(), parentName, parentLabel, parentData,
+                  highlightes.getMemberKeys(), parentName, parentLabel, parentData,
                   "highlighted");
             }
          }
@@ -1208,13 +1212,13 @@ public class VSScriptableService {
    }
 
    private void createProperties(ObjectMapper mapper, ObjectNode library, ObjectNode object,
-                                 Scriptable scriptable, Object[] ids)
+                                 ScriptScope scriptable, Object[] ids)
    {
       createProperties0(mapper, library, object, scriptable, ids, null);
    }
 
    private void createProperties0(ObjectMapper mapper, ObjectNode library, ObjectNode object,
-                                  Scriptable scriptable, Object[] ids, String prefix)
+                                  ScriptScope scriptable, Object[] ids, String prefix)
    {
       if(ids == null) {
          return;
@@ -1229,36 +1233,29 @@ public class VSScriptableService {
          return;
       }
 
-      TimeoutContext.enter();
+      for(Object id : ids) {
+         String property = String.valueOf(id);
+         Object value = null;
 
-      try {
-         for(Object id : ids) {
-            String property = String.valueOf(id);
-            Object value = null;
-
-            // optimization, get is expensive.
-            if("webMapStyle".equals(property)) {
-               value = "Basic";
-            }
-            else if(scriptable.has(property, scriptable)) {
-               try {
-                  value = scriptable.get(property, scriptable);
-               }
-               catch(Exception ex) {
-                  LOG.debug("Failed to get scriptable property: " + property, ex);
-               }
-            }
-
-            createProperty(mapper, library, object, property, value, prefix, scriptable);
+         // optimization, get is expensive.
+         if("webMapStyle".equals(property)) {
+            value = "Basic";
          }
-      }
-      finally {
-         Context.exit();
+         else if(scriptable.hasMember(property)) {
+            try {
+               value = scriptable.getMember(property);
+            }
+            catch(Exception ex) {
+               LOG.debug("Failed to get scriptable property: " + property, ex);
+            }
+         }
+
+         createProperty(mapper, library, object, property, value, prefix, scriptable);
       }
    }
 
    private void createProperty(ObjectMapper mapper, ObjectNode library, ObjectNode object,
-                               String property, Object value, String prefix, Scriptable scriptable)
+                               String property, Object value, String prefix, ScriptScope scriptable)
    {
       if(scriptable instanceof VariableScriptable) {
          createDefaultProperty(mapper, library, object, property, value);
@@ -1284,7 +1281,7 @@ public class VSScriptableService {
    private void createDefaultProperty(ObjectMapper mapper, ObjectNode library, ObjectNode object,
                                       String property, Object value)
    {
-      if(value instanceof FunctionObject) {
+      if(value instanceof ScriptFunction) {
          ObjectNode fnNode = mapper.createObjectNode();
          fnNode.put("!type", "fn() -> ?");
          object.set(property, fnNode);
@@ -1308,11 +1305,11 @@ public class VSScriptableService {
          row.set("length", field);
          field.put("!type", "number");
 
-         int length = (Integer) ((TableArray) value).get("length", (TableArray) value);
+         int length = ((Number) ((TableArray) value).getMember("length")).intValue();
 
          if(length > 1) {
-            TableRow tableRow = (TableRow) ((TableArray) value).get(1, (TableArray) value);
-            Object[] rowIds = tableRow.getIds();
+            TableRow tableRow = (TableRow) ((TableArray) value).getArrayElement(1);
+            Object[] rowIds = tableRow.getMemberKeys();
 
             for(Object rowId : rowIds) {
                if(!"length".equals(rowId)) {
@@ -1337,15 +1334,15 @@ public class VSScriptableService {
 
 
    private String getScriptType(ObjectMapper mapper, ObjectNode library, Object value) {
-      if(value instanceof Scriptable) {
+      if(value instanceof ScriptScope) {
          ObjectNode definitions = (ObjectNode) library.get("!define");
          String type = value.getClass().getSimpleName();
 
          if(!definitions.has(type)) {
             ObjectNode typeDefinition = mapper.createObjectNode();
             definitions.set(type, typeDefinition);
-            Object[] typeIds = ((Scriptable) value).getIds();
-            createProperties(mapper, library, typeDefinition, (Scriptable) value, typeIds);
+            Object[] typeIds = ((ScriptScope) value).getMemberKeys();
+            createProperties(mapper, library, typeDefinition, (ScriptScope) value, typeIds);
          }
 
          return type;
@@ -1374,7 +1371,7 @@ public class VSScriptableService {
          else if(String.class.isAssignableFrom(componentClass)) {
             return "[string]";
          }
-         else if(Scriptable.class.isAssignableFrom(componentClass)) {
+         else if(ScriptScope.class.isAssignableFrom(componentClass)) {
             if(Array.getLength(value) == 0) {
                return "[?]";
             }
@@ -1415,7 +1412,7 @@ public class VSScriptableService {
    private void createBindingInfoDefinition(ObjectMapper mapper, ObjectNode library,
                                             ObjectNode object, PropertyScriptable bindingScriptable)
    {
-      createProperties(mapper, library, object, bindingScriptable, bindingScriptable.getIds());
+      createProperties(mapper, library, object, bindingScriptable, bindingScriptable.getMemberKeys());
    }
 
    /**
@@ -1425,7 +1422,7 @@ public class VSScriptableService {
       PropertyScriptable bindingScriptable, String parentName, String parentLabel,
       Object parentData)
    {
-      Object[] ids = bindingScriptable.getIds();
+      Object[] ids = bindingScriptable.getMemberKeys();
 
       if(ids == null || ids.length == 0) {
          return null;
