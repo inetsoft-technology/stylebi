@@ -29,8 +29,8 @@ import inetsoft.uql.util.XTableDataSet;
 import inetsoft.uql.viewsheet.BorderColors;
 import inetsoft.uql.viewsheet.GradientColor;
 import inetsoft.util.script.*;
-import org.mozilla.javascript.NativeObject;
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptValueConverter;
+import org.graalvm.polyglot.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
@@ -219,11 +219,10 @@ public class PropertyDescriptor {
 
       try {
          if(type == Position.class) {
-            if(val instanceof NativeObject) {
-               Scriptable obj = (Scriptable) val;
+            if(JSObject.isObject(val)) {
                return new Position(
-                  ((Number) JSObject.get(obj, "x")).doubleValue(),
-                  ((Number) JSObject.get(obj, "y")).doubleValue());
+                  ((Number) JSObject.get(val, "x")).doubleValue(),
+                  ((Number) JSObject.get(val, "y")).doubleValue());
             }
 
             double[] arr = JSObject.splitN(val);
@@ -231,11 +230,10 @@ public class PropertyDescriptor {
             return new Position(arr[0], arr[1]);
          }
          else if(type == Size.class) {
-            if(val instanceof NativeObject) {
-               Scriptable obj = (Scriptable) val;
+            if(JSObject.isObject(val)) {
                return new Size(
-                  ((Number) JSObject.get(obj, "width")).doubleValue(),
-                  ((Number) JSObject.get(obj, "height")).doubleValue());
+                  ((Number) JSObject.get(val, "width")).doubleValue(),
+                  ((Number) JSObject.get(val, "height")).doubleValue());
             }
 
             double[] arr = JSObject.splitN(val);
@@ -284,23 +282,22 @@ public class PropertyDescriptor {
                   return link;
                }
             }
-            else if(val instanceof NativeObject) {
-               Scriptable obj = (Scriptable) val;
-               String link = (String) JSObject.get(obj, "link");
-               String target = (String) JSObject.get(obj, "target");
-               String tooltip = (String) JSObject.get(obj, "tooltip");
+            else if(JSObject.isObject(val)) {
+               String link = (String) JSObject.get(val, "link");
+               String target = (String) JSObject.get(val, "target");
+               String tooltip = (String) JSObject.get(val, "tooltip");
                // report, web, archive
-               String ltype = (String) JSObject.get(obj, "type");
+               String ltype = (String) JSObject.get(val, "type");
                Boolean sendParams = (Boolean)
-                  JSObject.get(obj, "sendReportParameters");
-               Object[] ids = obj.getIds();
+                  JSObject.get(val, "sendReportParameters");
+               Object[] ids = JSObject.getIds(val);
                Hyperlink hyper = new Hyperlink(link, true);
 
                for(int k = 0; k < ids.length; k++) {
                   if(ids[k] instanceof String) {
                      String name = (String) ids[k];
                      hyper.setParameterField(name,
-                                             (String) JSObject.get(obj, name));
+                                             (String) JSObject.get(val, name));
                   }
                }
 
@@ -369,22 +366,21 @@ public class PropertyDescriptor {
                   return link;
                }
             }
-            else if(val instanceof NativeObject) {
-               Scriptable obj = (Scriptable) val;
-               String link = (String) JSObject.get(obj, "link");
-               String target = (String) JSObject.get(obj, "target");
-               String tooltip = (String) JSObject.get(obj, "tooltip");
+            else if(JSObject.isObject(val)) {
+               String link = (String) JSObject.get(val, "link");
+               String target = (String) JSObject.get(val, "target");
+               String tooltip = (String) JSObject.get(val, "tooltip");
                // report, web, archive
-               String ltype = (String) JSObject.get(obj, "type");
+               String ltype = (String) JSObject.get(val, "type");
                Boolean sendParams = (Boolean)
-                  JSObject.get(obj, "sendReportParameters");
-               Object[] ids = obj.getIds();
+                  JSObject.get(val, "sendReportParameters");
+               Object[] ids = JSObject.getIds(val);
                Hyperlink.Ref hyper = new Hyperlink.Ref(link, true);
 
                for(int k = 0; k < ids.length; k++) {
                   if(ids[k] instanceof String) {
                      String name = (String) ids[k];
-                     hyper.setParameter(name, JSObject.get(obj, name));
+                     hyper.setParameter(name, JSObject.get(val, name));
                   }
                }
 

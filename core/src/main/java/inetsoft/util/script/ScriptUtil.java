@@ -17,41 +17,21 @@
  */
 package inetsoft.util.script;
 
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptValueConverter;
+import org.graalvm.polyglot.Value;
 
 import java.util.Date;
 
 public class ScriptUtil {
+   /**
+    * Unwrap a script value into its host (Java) representation. Under GraalJS,
+    * values handed back to host code are usually already converted; this
+    * method handles any stray polyglot {@link Value}, and preserves the legacy
+    * NaN/Infinity -> null behavior.
+    */
    public static Object unwrap(Object obj) {
-      if(obj instanceof ConsString) {
-         return obj.toString();
-      }
-      else if(obj instanceof Wrapper) {
-         return ((Wrapper) obj).unwrap();
-      }
-
-      // convert javascript date to java date
-      if(obj instanceof NativeArray) {
-         NativeArray narr = (NativeArray) obj;
-         Object[] arr = new Object[(int) narr.jsGet_length()];
-
-         for(int i = 0; i < arr.length; i++) {
-            arr[i] = unwrap(narr.get(i, narr));
-         }
-
-         obj = arr;
-      }
-      else if(obj instanceof ScriptableObject) {
-         ScriptableObject sobj = (ScriptableObject) obj;
-
-         if(sobj.getClassName().equals("Date")) {
-            Number num = (Number) sobj.getDefaultValue(Double.TYPE);
-            long dateNum = num.longValue();
-
-            // @by stephenwebster, For bug1426196456256
-            // Removed legacy code, expecting correct value from the NativeDate
-            obj = new Date(dateNum);
-         }
+      if(obj instanceof Value) {
+         obj = ScriptValueConverter.toHost((Value) obj);
       }
 
       // @by larryl, if a calculation generates an invalid result, show null
@@ -66,33 +46,14 @@ public class ScriptUtil {
          }
       }
 
-      return (obj instanceof Undefined) ? null : obj;
+      return obj;
    }
 
    public static Object getScriptValue(Object data) {
-      if(data instanceof ScriptableObject) {
-         TimeoutContext.enter();
-         ScriptableObject sobj = (ScriptableObject) data;
-
-         if(sobj.getClassName().equals("Date")) {
-            Number num = (Number) sobj.getDefaultValue(Double.TYPE);
-            long dateNum = num.longValue();
-
-            // @by stephenwebster, For bug1426196456256
-            // Removed legacy code, expecting correct value from the NativeDate
-            return new Date(dateNum);
-         }
+      if(data instanceof Value) {
+         return ScriptValueConverter.toHost((Value) data);
       }
 
       return data;
-   }
-
-   /**
-    * Wrap an object array as native JS array.
-    */
-   public static NativeArray getNativeArray(Object[] val, Scriptable parentScope) {
-      NativeArray arr = new NativeArray(val);
-      ScriptRuntime.setBuiltinProtoAndParent(arr, parentScope, TopLevel.Builtins.Array);
-      return arr;
    }
 }
