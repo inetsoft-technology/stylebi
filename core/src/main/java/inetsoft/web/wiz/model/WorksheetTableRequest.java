@@ -58,6 +58,16 @@ public class WorksheetTableRequest {
    /** Expression columns (only valid on non-aggregated mirror tables). */
    private List<ExpressionColumnInfo> expressionColumns;
 
+   // ─── SQL-query-table field ────────────────────────────────────────────────
+
+   /**
+    * Raw SQL SELECT for {@code tableType == "sql query table"}. Bound as a
+    * {@link inetsoft.uql.asset.SQLBoundTableAssembly} against
+    * {@code physicalSource.datasourcePath}, so window functions / CTEs / any
+    * dialect SQL execute directly on the database. Other tables can join/mirror it.
+    */
+   private String sqlExpression;
+
    // ─── Mirror / join base tables ────────────────────────────────────────────
 
    /** Names of already-created tables in this worksheet to use as bases. */
@@ -104,6 +114,9 @@ public class WorksheetTableRequest {
 
    public List<ExpressionColumnInfo> getExpressionColumns() { return expressionColumns; }
    public void setExpressionColumns(List<ExpressionColumnInfo> expressionColumns) { this.expressionColumns = expressionColumns; }
+
+   public String getSqlExpression() { return sqlExpression; }
+   public void setSqlExpression(String sqlExpression) { this.sqlExpression = sqlExpression; }
 
    public List<String> getBaseTables() { return baseTables; }
    public void setBaseTables(List<String> baseTables) { this.baseTables = baseTables; }
