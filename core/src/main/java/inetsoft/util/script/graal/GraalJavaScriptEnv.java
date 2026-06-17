@@ -125,8 +125,7 @@ public class GraalJavaScriptEnv implements ScriptEnv {
       ScriptScope scriptScope = (scope instanceof ScriptScope) ? (ScriptScope) scope : null;
 
       if(scriptScope != null) {
-         // TODO Task 5.1: push ScriptScope to FormulaContext
-         // FormulaContext.pushScope(scriptScope);
+         FormulaContext.pushScope(scriptScope);
       }
 
       try {
@@ -134,8 +133,7 @@ public class GraalJavaScriptEnv implements ScriptEnv {
       }
       finally {
          if(scriptScope != null) {
-            // TODO Task 5.1: pop ScriptScope from FormulaContext
-            // FormulaContext.popScope();
+            FormulaContext.popScope();
          }
       }
    }

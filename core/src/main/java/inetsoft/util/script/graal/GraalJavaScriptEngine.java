@@ -143,7 +143,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          ScriptScope root = (scope instanceof ScriptScope) ? (ScriptScope) scope : null;
          BindingRootProxy proxy =
             new BindingRootProxy(root != null ? root : EMPTY_SCOPE,
-                                 () -> null); // Task 5.1: wire FormulaContext::getExecScriptScope
+                                 inetsoft.util.script.FormulaContext::getExecScriptScope);
 
          context.getBindings("js").putMember("__scope__", proxy);
 
