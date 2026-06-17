@@ -73,7 +73,7 @@ public abstract class PropertyScriptable implements ScriptScope, Cloneable {
       }
    }
 
-   protected void addFunctionProperty(Class cls, String name, Class ...params) {
+   public void addFunctionProperty(Class cls, String name, Class ...params) {
       // NOTE (Feature #75423): FunctionObject2 is a Rhino FunctionObject and is
       // replaced by the native-binding mechanism in Milestone 4. PropertyScriptable
       // no longer implements Rhino's Scriptable, so 'this' can no longer be passed

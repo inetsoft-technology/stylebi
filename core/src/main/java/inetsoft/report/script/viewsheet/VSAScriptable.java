@@ -775,7 +775,7 @@ public class VSAScriptable
    /**
     * Register a native function property.
     */
-   protected void addFunctionProperty(Class cls, String name, Class ...params) {
+   public void addFunctionProperty(Class cls, String name, Class ...params) {
       // NOTE (Feature #75423): FunctionObject2 is a Rhino FunctionObject and is
       // replaced by the native-binding mechanism in Milestone 4. VSAScriptable
       // no longer extends Rhino's ScriptableObject, so 'this' can no longer be
