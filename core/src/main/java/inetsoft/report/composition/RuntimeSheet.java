@@ -1195,7 +1195,7 @@ public abstract class RuntimeSheet {
    private String lowner;           // user who locked it
    private boolean isLockProcessed; // unlocked flag
    private boolean disposed;        // disposed flag
-   long heartbeat = System.currentTimeMillis(); // heartbeat timestamp
+   volatile long heartbeat = System.currentTimeMillis(); // heartbeat timestamp
    private Map<String, Object> prop = new HashMap<>();
    private String previousURL;
 
