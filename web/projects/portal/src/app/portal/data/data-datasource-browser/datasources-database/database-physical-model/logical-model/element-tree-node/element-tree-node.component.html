@@ -75,7 +75,7 @@
         (onMoveUp)="moveAttributeUp(i)"
         (onDeleteEntity)="deleteAttribute(i)"
         (onShiftSelect)="onShiftSelect.emit($event)"
-        (onAttributeOrderChanged)="onAttributeOrderChanged.emit()">
+        (onAttributeOrderChanged)="onAttributeOrderChanged.emit($event)">
       </element-tree-node>
     }
   </div>

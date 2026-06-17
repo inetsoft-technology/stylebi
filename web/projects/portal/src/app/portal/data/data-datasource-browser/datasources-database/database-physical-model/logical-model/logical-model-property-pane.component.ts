@@ -120,7 +120,10 @@ export class LogicalModelPropertyPane implements OnInit {
       this.updateExistNames();
    }
 
-   attributeOrderChanged() {
+   attributeOrderChanged(event: {entityIndex: number, oldAttrIndex: number, newAttrIndex: number}) {
+      // _editingEle is the same object reference that element-tree-node mutates via
+      // selectedEles (movedItem.attribute-- / movedItem.attribute++), so the index
+      // is already correct by the time this handler runs — no further adjustment needed.
       this.updateExistNames();
    }
 
