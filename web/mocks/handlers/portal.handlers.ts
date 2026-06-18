@@ -568,16 +568,6 @@ export const portalHandlers = [
       return HttpResponse.json(null);
    }),
 
-   // PhysicalModelNetworkGraphComponent — delete join condition (POST)
-   http.post("*/api/data/physicalmodel/joins/delete", () => {
-      return HttpResponse.json(null);
-   }),
-
-   // PhysicalModelNetworkGraphComponent — move graph node (PUT)
-   http.put("*/api/data/physicalmodel/graph/move", () => {
-      return HttpResponse.json(null);
-   }),
-
    // PhysicalModelNetworkGraphComponent — open join edit pane (GET)
    http.get("*/api/data/physicalmodel/join-edit/open/*", () => {
       return HttpResponse.json("newRuntimeId");
