@@ -69,13 +69,13 @@ public class TextFormatArrayTest {
 
       textFormatArray = new TextFormatArray(mockChartInfo, mockPlotDescriptor);
 
-      assertArrayEquals(new Object[] { "sum(id)" }, textFormatArray.getIds());
+      assertArrayEquals(new Object[] { "sum(id)" }, textFormatArray.getMemberKeys());
       assertEquals("[index]", textFormatArray.getDisplaySuffix());
       assertEquals("[]", textFormatArray.getSuffix());
 
       assertEquals(TextFormatScriptable.class, textFormatArray.getType());
-      assertTrue(textFormatArray.has("sum(id)", null));
-      assertFalse(textFormatArray.has("sum(id1)", null));
+      assertTrue(textFormatArray.hasMember("sum(id)"));
+      assertFalse(textFormatArray.hasMember("sum(id1)"));
    }
 
    /**
@@ -95,7 +95,7 @@ public class TextFormatArrayTest {
       when(mockChartInfo.getTextField()).thenReturn(mockAestheticRef);
 
       textFormatArray = new TextFormatArray(mockChartInfo, mockPlotDescriptor);
-      assertInstanceOf(TextFormatScriptable.class, textFormatArray.get("state", null));
+      assertInstanceOf(TextFormatScriptable.class, textFormatArray.getMember("state"));
    }
 
    /**
@@ -110,6 +110,6 @@ public class TextFormatArrayTest {
       when(mockChartAggRef.getTextFormat()).thenReturn(aggTextFormat);
 
       textFormatArray = new TextFormatArray(mockChartInfo, mockPlotDescriptor);
-      assertInstanceOf(TextFormatScriptable.class, textFormatArray.get("sum(id)", null));
+      assertInstanceOf(TextFormatScriptable.class, textFormatArray.getMember("sum(id)"));
    }
 }
