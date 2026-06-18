@@ -50,7 +50,7 @@ import { BaseTableCellModel } from "../../../vsobjects/model/base-table-cell-mod
 
 const MODEL_SERVICE_MOCK = { getModel: vi.fn(), sendModel: vi.fn() };
 const FILE_UPLOAD_SERVICE_MOCK = { upload: vi.fn(), getObserver: vi.fn() };
-const HTTP_CLIENT_MOCK = { put: vi.fn() };
+const HTTP_CLIENT_MOCK = { put: vi.fn(), get: vi.fn() };
 const MODAL_SERVICE_MOCK = { open: vi.fn() };
 
 // ---------------------------------------------------------------------------
@@ -101,6 +101,7 @@ async function renderComponent(
 ) {
    FILE_UPLOAD_SERVICE_MOCK.getObserver.mockReturnValue(EMPTY);
    HTTP_CLIENT_MOCK.put.mockReturnValue(of(null));
+   HTTP_CLIENT_MOCK.get.mockReturnValue(of(null));
    MODEL_SERVICE_MOCK.getModel.mockReturnValue(of(makeModel(modelOverride)));
 
    const worksheet = worksheetOverride ?? makeWorksheet();
@@ -131,6 +132,7 @@ beforeEach(() => {
    FILE_UPLOAD_SERVICE_MOCK.upload.mockReset();
    FILE_UPLOAD_SERVICE_MOCK.getObserver.mockReset();
    HTTP_CLIENT_MOCK.put.mockReset();
+   HTTP_CLIENT_MOCK.get.mockReset();
    MODAL_SERVICE_MOCK.open.mockReset();
 });
 

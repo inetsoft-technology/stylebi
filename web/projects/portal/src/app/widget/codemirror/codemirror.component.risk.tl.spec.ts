@@ -94,7 +94,7 @@ const analyzerServiceMock = {
    syntaxAnalysis: vi.fn().mockReturnValue([]),
 };
 
-function makeHttpMock(getObservable = of(null)) {
+function makeHttpMock(getObservable: any = of(null)) {
    return {
       get: vi.fn().mockReturnValue(getObservable),
       post: vi.fn().mockReturnValue(of(null)),

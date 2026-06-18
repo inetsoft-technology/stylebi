@@ -80,7 +80,7 @@ async function renderComponent() {
             clearFocusedAssemblies: vi.fn(),
             selectAssembly: vi.fn(),
             isAssemblyFocused: vi.fn().mockReturnValue(false),
-         },
+         } as any,
       },
    });
    return fixture.componentInstance as ComposerSelectionContainerChildren;

@@ -438,6 +438,43 @@ export const portalHandlers = [
       return HttpResponse.json(true);
    }),
 
+   // LogicalModelComponent — datasource settings (fullDateSupport, etc.)
+   http.get("*/api/data/logicalmodel/settings", () => {
+      return HttpResponse.json({ fullDateSupport: true });
+   }),
+
+   // LogicalModelComponent — load model (edit mode)
+   http.get("*/api/data/logicalmodel/models", () => {
+      return HttpResponse.json({
+         name: "LM1", partition: "physModel", entities: [],
+         description: "", connection: null, parent: null, folder: "",
+      });
+   }),
+
+   // LogicalModelComponent — save model (edit)
+   http.put("*/api/data/logicalmodel/models", () => {
+      return HttpResponse.json({
+         name: "LM1", partition: "physModel", entities: [],
+         description: "", connection: null, parent: null, folder: "",
+      });
+   }),
+
+   // LogicalModelComponent — create model
+   http.post("*/api/data/logicalmodel/models", () => {
+      return HttpResponse.json({
+         name: "LM1", partition: "physModel", entities: [],
+         description: "", connection: null, parent: null, folder: "",
+      });
+   }),
+
+   // LogicalModelComponent — create extended model
+   http.post("*/api/data/logicalmodel/extended", () => {
+      return HttpResponse.json({
+         name: "LM1", partition: "physModel", entities: [],
+         description: "", connection: null, parent: "parentLM", folder: "",
+      });
+   }),
+
    // PhysicalGraphPaneComponent — load graph canvas model
    http.get("*/api/data/physicalmodel/graph", () => {
       return HttpResponse.json({
@@ -505,14 +542,72 @@ export const portalHandlers = [
       return new HttpResponse(null, { status: 200 });
    }),
 
-   // AutoDrillDialog — worksheet parameters for drill-through
-   http.get("*/api/portal/data/autodrill/worksheet/params", () => {
-      return HttpResponse.json({ params: [] });
+   // AutoDrillDialog — viewsheet repository tree (hyperlink picker)
+   http.get("*/api/composer/vs/hyperlink-dialog-model/tree", () => {
+      return HttpResponse.json({
+         label: "Root",
+         leaf: false,
+         expanded: false,
+         data: { path: "/" },
+         children: [],
+      });
    }),
 
-   // AutoDrillDialog — available worksheet fields
+   // PhysicalModelNetworkGraphComponent — remove tables (POST)
+   http.post("*/api/data/physicalmodel/tables/remove", () => {
+      return HttpResponse.json(null);
+   }),
+
+   // PhysicalModelNetworkGraphComponent — clear all tables (DELETE)
+   http.delete("*/api/data/physicalmodel/table/*", () => {
+      return HttpResponse.json(null);
+   }),
+
+   // PhysicalModelNetworkGraphComponent — clear all joins (DELETE)
+   http.delete("*/api/data/physicalmodel/join/*", () => {
+      return HttpResponse.json(null);
+   }),
+
+   // PhysicalModelNetworkGraphComponent — delete join condition (POST)
+   http.post("*/api/data/physicalmodel/joins/delete", () => {
+      return HttpResponse.json(null);
+   }),
+
+   // PhysicalModelNetworkGraphComponent — move graph node (PUT)
+   http.put("*/api/data/physicalmodel/graph/move", () => {
+      return HttpResponse.json(null);
+   }),
+
+   // PhysicalModelNetworkGraphComponent — open join edit pane (GET)
+   http.get("*/api/data/physicalmodel/join-edit/open/*", () => {
+      return HttpResponse.json("newRuntimeId");
+   }),
+
+   // LogicalModelExpressionDialog — column fields tree (POST)
+   http.post("*/api/data/logicalModel/tables/nodes", () => {
+      return HttpResponse.json({
+         label: "_#(js:Fields)", expanded: false, leaf: false, children: [],
+      });
+   }),
+
+   // LogicalModelExpressionDialog — validate expression (POST)
+   http.post("*/api/data/logicalModel/attribute/expression", () => {
+      return HttpResponse.json({});
+   }),
+
+   // AutoDrillDialog — viewsheet variable names for a given asset link
+   http.get("*/api/data/logicalModel/vs/autoDrill-parameters", () => {
+      return HttpResponse.json([]);
+   }),
+
+   // AutoDrillDialog — worksheet parameters for drill-through
+   http.get("*/api/portal/data/autodrill/worksheet/params", () => {
+      return HttpResponse.json([]);
+   }),
+
+   // AutoDrillDialog — available worksheet column fields (response is string[])
    http.get("*/api/portal/data/autodrill/worksheet/fields", () => {
-      return HttpResponse.json({ fields: [] });
+      return HttpResponse.json([]);
    }),
 
    // ─── 5. Query builder ────────────────────────────────────────────────────

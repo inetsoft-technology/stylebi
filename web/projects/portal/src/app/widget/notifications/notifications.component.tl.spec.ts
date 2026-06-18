@@ -113,7 +113,7 @@ describe("NotificationsComponent — closeAlert with destroyed CDR", () => {
       const comp = await renderComponent();
       comp.info("Test");
       const alert = comp.alerts[0];
-      (comp as any).changeDetectionRef["destroyed"] = true;
+      vi.spyOn((comp as any).changeDetectionRef, "destroyed", "get").mockReturnValue(true);
 
       expect(() => comp.closeAlert(alert)).not.toThrow();
    });
@@ -122,7 +122,7 @@ describe("NotificationsComponent — closeAlert with destroyed CDR", () => {
       const comp = await renderComponent();
       comp.info("Removable");
       const alert = comp.alerts[0];
-      (comp as any).changeDetectionRef["destroyed"] = true;
+      vi.spyOn((comp as any).changeDetectionRef, "destroyed", "get").mockReturnValue(true);
 
       comp.closeAlert(alert);
 

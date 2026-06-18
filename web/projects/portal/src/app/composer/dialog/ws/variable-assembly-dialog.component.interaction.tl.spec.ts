@@ -46,7 +46,7 @@
  *   cancelChanges
  */
 
-import { of } from "rxjs";
+import { firstValueFrom, of } from "rxjs";
 import { ConditionValueType } from "../../../common/data/condition/condition-value-type";
 import { ExpressionType } from "../../../common/data/condition/expression-type";
 import { XSchema } from "../../../common/data/xschema";
@@ -460,15 +460,12 @@ describe("Group 10 — initDefaultValueType: sets defaultValueType from model", 
 // ---------------------------------------------------------------------------
 
 describe("Group 11 — getVariableTree / getVariableTreeModel: variable tree structure", () => {
-   it("should return an Observable that resolves to a root node containing a Variables child", (done) => {
+   it("should return an Observable that resolves to a root node containing a Variables child", async () => {
       const { comp } = makeComponent({ presetModel: makeModel({ otherVariables: ["v1", "v2"] }) });
-
-      comp.getVariableTree({} as any).subscribe((root) => {
-         expect(root.children.length).toBe(1);
-         expect(root.children[0].label).toContain("Variables");
-         expect(root.children[0].expanded).toBe(true);
-         done();
-      });
+      const root = await firstValueFrom(comp.getVariableTree({} as any));
+      expect(root.children.length).toBe(1);
+      expect(root.children[0].label).toContain("Variables");
+      expect(root.children[0].expanded).toBe(true);
    });
 
    it("should return leaf nodes for each otherVariable in getVariableTreeModel", () => {
@@ -483,14 +480,10 @@ describe("Group 11 — getVariableTree / getVariableTreeModel: variable tree str
       expect(treeModel.children[1].label).toBe("beta");
    });
 
-   it("should return tree root with no children when otherVariables is empty", (done) => {
+   it("should return tree root with no children when otherVariables is empty", async () => {
       const { comp } = makeComponent({ presetModel: makeModel({ otherVariables: [] }) });
-
-      comp.getVariableTree({} as any).subscribe((root) => {
-         // root has one child (the Variables node) but Variables node has no children
-         expect(root.children[0].children.length).toBe(0);
-         done();
-      });
+      const root = await firstValueFrom(comp.getVariableTree({} as any));
+      expect(root.children[0].children.length).toBe(0);
    });
 });
 
