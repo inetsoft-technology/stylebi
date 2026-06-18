@@ -118,6 +118,10 @@ async function renderComponent(httpMock = makeHttpMock()) {
 beforeEach(() => {
    cmHandlers = {};
    vi.clearAllMocks();
+   // ngAfterViewInit schedules a 0ms timer (setTimeout(() => codemirrorInstance.refresh(), 0))
+   // when the editor element is hidden (always in jsdom). Fake timers prevent this timer from
+   // firing after ngOnDestroy sets codemirrorInstance=null, which would otherwise throw.
+   vi.useFakeTimers();
    codemirrorServiceMock.getEcmaScriptDefs.mockReturnValue([{ Date: { prototype: { toJSON: {} } } }]);
    codemirrorServiceMock.createTernServer.mockReturnValue(mockTernServer);
    codemirrorServiceMock.createCodeMirrorInstance.mockReturnValue(mockCmInstance);
@@ -129,7 +133,10 @@ beforeEach(() => {
    mockTernServer.options.typeTip = null;
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+   vi.restoreAllMocks();
+   vi.useRealTimers();
+});
 
 // ---------------------------------------------------------------------------
 // Group 1: 3000ms checkSyntax timer leak [Risk 3]
