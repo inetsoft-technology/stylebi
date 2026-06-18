@@ -480,17 +480,45 @@ public final class ChartRecommenderUtil {
          String refName = WizardRecommenderUtil.getRefName(ref);
 
          if(Tool.equals(columnValue, refName)) {
+            int cardinality;
+
             if(WizardRecommenderUtil.isDimension(entry) &&
                XSchema.isDateType(entry.getProperty("dtype"))) {
-               return getDateCardinality(ref, entry);
+               cardinality = getDateCardinality(ref, entry);
+            }
+            else {
+               cardinality = Integer.parseInt(
+                  Optional.ofNullable(entry.getProperty("cardinality")).orElse("0"));
             }
 
-            Optional<String> cardinality = Optional.ofNullable(entry.getProperty("cardinality"));
-            return Integer.parseInt(cardinality.orElse("0"));
+            // A dimension carrying a top-/bottom-N ranking only shows N values, so its effective
+            // cardinality for chart feasibility is min(distinct, N). The ranking is recorded on the
+            // entry (as "topN") before recommendation; honoring it here keeps a ranked high-
+            // cardinality dimension chartable instead of vetoing it down to a table.
+            return capByRanking(cardinality, entry);
          }
       }
 
       return 0;
+   }
+
+   private static int capByRanking(int cardinality, AssetEntry entry) {
+      String topN = entry.getProperty("topN");
+
+      if(topN != null) {
+         try {
+            int n = Integer.parseInt(topN);
+
+            if(n > 0 && n < cardinality) {
+               return n;
+            }
+         }
+         catch(NumberFormatException ignore) {
+            // not a valid count; fall through to the raw cardinality
+         }
+      }
+
+      return cardinality;
    }
 
    private static int getDateCardinality(ChartRef ref, AssetEntry entry) {
