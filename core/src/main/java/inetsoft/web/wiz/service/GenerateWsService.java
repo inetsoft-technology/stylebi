@@ -165,6 +165,14 @@ public class GenerateWsService {
       }
 
       Worksheet worksheet = originWs != null ? originWs : new Worksheet();
+
+      // #75456: wiz produces analytical charts that aggregate over the worksheet's output. The
+      // WorksheetInfo constructor seeds inputmax from the design-mode sample cap
+      // (asset.sample.maxrows, default 50000); when the underlying query returns more detail rows
+      // than that, the chart aggregates only the capped prefix and Sum/Count silently under-count
+      // (averages/proportions survive, so it hides). Wiz analytics default to full data — 0 =
+      // unlimited. (Sampled-preview mode will pass a non-zero cap here in a follow-up.)
+      worksheet.getWorksheetInfo().setDesignMaxRows(0);
       AbstractTableAssembly table = null;
       List<WorksheetConstructionModel.QueryField> fields = new ArrayList<>(model.getFields());
 

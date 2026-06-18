@@ -108,6 +108,12 @@ public class WorksheetTableService {
          worksheetEntry = null;
       }
 
+      // #75456: default wiz analytics to full data. The WorksheetInfo constructor seeds inputmax
+      // from the design-mode sample cap (asset.sample.maxrows, default 50000); a chart that
+      // aggregates a table whose query returns more detail rows than that silently under-counts
+      // Sum/Count. 0 = unlimited. (Sampled-preview mode will pass a non-zero cap here in a follow-up.)
+      worksheet.getWorksheetInfo().setDesignMaxRows(0);
+
       // 2. Build the table assembly.
       AbstractTableAssembly table = buildTable(worksheet, request, user);
 

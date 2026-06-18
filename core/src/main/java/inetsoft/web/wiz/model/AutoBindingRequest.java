@@ -127,6 +127,19 @@ public class AutoBindingRequest {
    }
 
    /**
+    * #75456: row cap for sampled-preview mode. Null or &lt;=0 = full data (default; the agent
+    * always omits this). &gt;0 = aggregate at most this many detail rows for a faster preview on
+    * heavy sources, at the cost of approximate Sum/Count.
+    */
+   public Integer getSampleMaxRows() {
+      return sampleMaxRows;
+   }
+
+   public void setSampleMaxRows(Integer sampleMaxRows) {
+      this.sampleMaxRows = sampleMaxRows;
+   }
+
+   /**
     * Recommendation-computation RVS ID. Null on first call; returned by the server
     * and passed back on subsequent calls to reuse the same RVS.
     */
@@ -151,4 +164,9 @@ public class AutoBindingRequest {
     * Specifies which table within the worksheet to bind.
     */
    private String wsTableName;
+
+   /**
+    * #75456: sampled-preview row cap; null/&lt;=0 = full data (default).
+    */
+   private Integer sampleMaxRows;
 }
