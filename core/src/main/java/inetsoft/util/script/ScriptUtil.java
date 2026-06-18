@@ -34,6 +34,13 @@ public class ScriptUtil {
          obj = ScriptValueConverter.toHost((Value) obj);
       }
 
+      // Restore the legacy Rhino Wrapper.unwrap() behavior: an XTableArray
+      // (the scriptable returned by XUtil.runQuery) unwraps to its underlying
+      // XTable so host code can detect/process it as a table. (#75423)
+      if(obj instanceof inetsoft.uql.script.XTableArray) {
+         return ((inetsoft.uql.script.XTableArray) obj).unwrap();
+      }
+
       // @by larryl, if a calculation generates an invalid result, show null
       // instead of NaN of Infinity. This can be caused by performing a time
       // series comparison and the result fo the first or last item would
