@@ -1065,6 +1065,133 @@ class SVGAnimationDOMInjectorTest {
          "a ghost-fill element must be inserted into the SVG root for a regular line");
    }
 
+   // -------------------------------------------------------------------------
+   // Line series stagger — multiple lines must draw one at a time
+   // -------------------------------------------------------------------------
+
+   /**
+    * Lines split from a single measure by a color dimension share the same {@code data-series}
+    * column index but carry distinct {@code data-color}s.  They must rank as separate series so
+    * each draws on its own staggered delay, matching area/stacked-area behavior — ranking by
+    * {@code data-series} alone would collapse them to one rank and draw them all at once.
+    */
+   @Test
+   void colorDimensionLines_drawStaggered() throws Exception {
+      Document doc = newDocument();
+      Element svg = doc.getDocumentElement();
+
+      Element l0 = addLineSeries(doc, svg, "34,211,238",  "0", "M0,50 L50,40 L100,30 L150,20");
+      Element l1 = addLineSeries(doc, svg, "167,139,250", "0", "M0,40 L50,30 L100,20 L150,10");
+      Element l2 = addLineSeries(doc, svg, "96,165,250",  "0", "M0,30 L50,20 L100,10 L150,5");
+
+      SVGAnimationDOMInjector.injectAnimation(svg, SVGSupport.ANIMATION_LINE);
+
+      double d0 = parseDelay(firstDescendantPathOf(l0).getAttribute("style"));
+      double d1 = parseDelay(firstDescendantPathOf(l1).getAttribute("style"));
+      double d2 = parseDelay(firstDescendantPathOf(l2).getAttribute("style"));
+
+      assertTrue(d0 < d1 && d1 < d2,
+         "color-dimension lines must draw on increasing staggered delays: " +
+         "d0=" + d0 + ", d1=" + d1 + ", d2=" + d2);
+      // Three series spread across STAGGER_WINDOW: last starts at the full window.
+      assertEquals(AnimationConstants.STAGGER_WINDOW, d2 - d0, 0.01,
+         "last series must start at STAGGER_WINDOW relative to the first");
+   }
+
+   /**
+    * Lines from distinct measures (distinct {@code data-series}) must remain separately ranked
+    * and staggered — confirms the composite-key ranking does not regress the multi-measure case.
+    */
+   @Test
+   void multiMeasureLines_drawStaggered() throws Exception {
+      Document doc = newDocument();
+      Element svg = doc.getDocumentElement();
+
+      Element l0 = addLineSeries(doc, svg, "34,211,238",  "0", "M0,50 L50,40 L100,30 L150,20");
+      Element l1 = addLineSeries(doc, svg, "167,139,250", "1", "M0,40 L50,30 L100,20 L150,10");
+
+      SVGAnimationDOMInjector.injectAnimation(svg, SVGSupport.ANIMATION_LINE);
+
+      double d0 = parseDelay(firstDescendantPathOf(l0).getAttribute("style"));
+      double d1 = parseDelay(firstDescendantPathOf(l1).getAttribute("style"));
+
+      assertEquals(AnimationConstants.STAGGER_WINDOW, d1 - d0, 0.01,
+         "second measure must be delayed by STAGGER_WINDOW relative to the first");
+   }
+
+   /** A single line is the only series, so it draws immediately with no stagger delay. */
+   @Test
+   void singleLine_drawsWithoutDelay() throws Exception {
+      Document doc = newDocument();
+      Element svg = doc.getDocumentElement();
+
+      Element l0 = addLineSeries(doc, svg, "34,211,238", "0", "M0,50 L50,40 L100,30 L150,20");
+
+      SVGAnimationDOMInjector.injectAnimation(svg, SVGSupport.ANIMATION_LINE);
+
+      assertEquals(0, parseDelay(firstDescendantPathOf(l0).getAttribute("style")), 0.01,
+         "a single line series must draw with no stagger delay");
+   }
+
+   /**
+    * In a facet chart the same series (same data-series + data-color) repeats across panels.
+    * Repeated keys must dedup to a stable rank so the series count is not inflated: same-key
+    * lines in different panels must share a delay, and the rank spacing must stay at the
+    * two-series spacing (STAGGER_WINDOW), not a four-series spacing.
+    */
+   @Test
+   void facetPanelsWithRepeatedSeries_dedupToStableRank() throws Exception {
+      Document doc = newDocument();
+      Element svg = doc.getDocumentElement();
+
+      // Panel 1: series A then series B.
+      Element p1a = addLineSeries(doc, svg, "34,211,238",  "0", "M0,50 L50,40 L100,30 L150,20");
+      Element p1b = addLineSeries(doc, svg, "167,139,250", "0", "M0,40 L50,30 L100,20 L150,10");
+      // Panel 2: same two series repeated.
+      Element p2a = addLineSeries(doc, svg, "34,211,238",  "0", "M200,50 L250,40 L300,30 L350,20");
+      Element p2b = addLineSeries(doc, svg, "167,139,250", "0", "M200,40 L250,30 L300,20 L350,10");
+
+      SVGAnimationDOMInjector.injectAnimation(svg, SVGSupport.ANIMATION_LINE);
+
+      double d1a = parseDelay(firstDescendantPathOf(p1a).getAttribute("style"));
+      double d1b = parseDelay(firstDescendantPathOf(p1b).getAttribute("style"));
+      double d2a = parseDelay(firstDescendantPathOf(p2a).getAttribute("style"));
+      double d2b = parseDelay(firstDescendantPathOf(p2b).getAttribute("style"));
+
+      assertEquals(d1a, d2a, 0.01, "same series across panels must share a delay (stable rank)");
+      assertEquals(d1b, d2b, 0.01, "same series across panels must share a delay (stable rank)");
+      // Two distinct series → spacing is the full STAGGER_WINDOW.  A dedup failure would inflate
+      // numSeries to 4 and shrink this spacing to STAGGER_WINDOW/3.
+      assertEquals(AnimationConstants.STAGGER_WINDOW, d1b - d1a, 0.01,
+         "series count must not be inflated by repeated facet keys");
+   }
+
+   /**
+    * Adds a standalone {@code inetsoft-line} annotation group (outer g → inner g → path) to the
+    * SVG root.  No paired area, modeling a pure line/stacked-line chart.
+    *
+    * @return the outer {@code inetsoft-line} annotation group
+    */
+   private static Element addLineSeries(Document doc, Element svg,
+                                        String color, String series, String lineD)
+   {
+      Element lineAnnot = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      lineAnnot.setAttribute("class", SVGSupport.ANNOTATION_LINE);
+      lineAnnot.setAttribute("data-" + SVGSupport.ATTR_COLOR, color);
+      lineAnnot.setAttribute("data-" + SVGSupport.ATTR_SERIES, series);
+
+      Element inner = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      Element linePath = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+      linePath.setAttribute("d", lineD);
+      linePath.setAttribute("fill", "none");
+
+      inner.appendChild(linePath);
+      lineAnnot.appendChild(inner);
+      svg.appendChild(lineAnnot);
+
+      return lineAnnot;
+   }
+
    /**
     * Count direct {@code <path>} children of {@code parent} that have a translucent rgba fill
     * (the signature of injected ghost fill polygons).
