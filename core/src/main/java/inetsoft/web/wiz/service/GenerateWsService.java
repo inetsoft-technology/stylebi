@@ -139,6 +139,7 @@ public class GenerateWsService {
          WsServiceHelper.layoutGraph(layoutGraphService, dashWS);
          viewsheetService.getAssetRepository().setSheet(existingEntry, dashWS, user, true);
          generateWsResponse.setWsId(existingEntry.toIdentifier());
+         generateWsResponse.setPrimaryTable(finalTableName);
          generateWsResponse.setPrimaryTableFields(extractPrimaryTableFields(dashWS, table, model));
       }
       else {
@@ -147,6 +148,7 @@ public class GenerateWsService {
          WsServiceHelper.layoutGraph(layoutGraphService, worksheet);
          AssetEntry assetEntry = WsServiceHelper.persistWorksheet(viewsheetService, worksheet, user);
          generateWsResponse.setWsId(assetEntry.toIdentifier());
+         generateWsResponse.setPrimaryTable(worksheet.getPrimaryAssemblyName());
          generateWsResponse.setPrimaryTableFields(extractPrimaryTableFields(worksheet, table, model));
       }
 
