@@ -95,7 +95,8 @@ public class CalcTableScopeTest {
       // Verify that the "field" property reflects the correct row
       TableRow field = (TableRow) calcTableScope.getMember("field");
       assertEquals("c", field.getMember("name"));
-      assertEquals(2.0, field.getMember("id"));
+      // field returns the native cell value (Integer) from the table. (#75423)
+      assertEquals(2, field.getMember("id"));
    }
 
    /**
@@ -107,9 +108,10 @@ public class CalcTableScopeTest {
 
       return Stream.of(
          // Test case 1: column is cell range, condition and group are useless
-         Arguments.of("[1,id]:[3,id]", null, null, 3.0),
+         // none returns the native cell value (Integer) from the table. (#75423)
+         Arguments.of("[1,id]:[3,id]", null, null, 3),
          // Test case 2: column is lens, condition and group are useless
-         Arguments.of(lens1, null, null, 1.0),
+         Arguments.of(lens1, null, null, 1),
          // Test case 3: test lens， it use for report script which didn't support, so only check simple usage
          Arguments.of(calcTableLens1, "name", "id=2", "b"),
          // Test case 4: The array is empty
@@ -287,8 +289,8 @@ public class CalcTableScopeTest {
 
    private static Stream<Arguments> provideModeTestCases() {
       return Stream.of(
-         Arguments.of("[1,id]:[3,id]", null, null, 1.0), // No mode, defaults to 1
-         Arguments.of(objData, "id", null, 2.0),   // One mode
+         Arguments.of("[1,id]:[3,id]", null, null, 1), // No mode, defaults to 1 (native Integer) (#75423)
+         Arguments.of(objData, "id", null, 2),   // One mode (native Integer) (#75423)
          Arguments.of(new Object[]{1, 1, 2, 2}, null, null, 1.0), // Multiple modes, returns first
          Arguments.of(null, null, null, null)         // Null mode
       );
@@ -351,8 +353,8 @@ public class CalcTableScopeTest {
       return Stream.of(
          //Arguments.of("[1,id]:[3,id]", null, null, null, 1.0, 2.0),
          Arguments.of(null, null, null, null, null, null),      // Null input
-         //for report script
-         Arguments.of(objData, "id", "name", "id>1", 3.0, 2.0), // Valid case
+         //for report script (native Integer cell values) (#75423)
+         Arguments.of(objData, "id", "name", "id>1", 3, 2), // Valid case
          Arguments.of(objData, "nonexistent", null, null, null, null) // Invalid column
       );
    }
@@ -366,16 +368,16 @@ public class CalcTableScopeTest {
 
    private static Stream<Arguments> providePthPercentileTestCases() {
       return Stream.of(
-         // Median for the range
-         Arguments.of(50, "[1,id]:[4,id]", null, null, 2.0),
-         // Minimum value in the range,
-         Arguments.of(0, "[1,id]:[4,id]", null, null, 1.0),
-         // median for the range with group
-         Arguments.of(50, "[1,id]:[4,id]", "name", "name='a'", 2.0),
+         // Median for the range (native Integer cell value) (#75423)
+         Arguments.of(50, "[1,id]:[4,id]", null, null, 2),
+         // Minimum value in the range (native Integer cell value) (#75423)
+         Arguments.of(0, "[1,id]:[4,id]", null, null, 1),
+         // median for the range with group (native Integer cell value) (#75423)
+         Arguments.of(50, "[1,id]:[4,id]", "name", "name='a'", 2),
          Arguments.of(50, "[1,name]:[4,name]", null, null, "a"),
          Arguments.of(0, null, null, null, null),
          Arguments.of(30, "[]", null, null, null),
-         Arguments.of(objData, 60, "id", "id>1", 2.0)
+         Arguments.of(objData, 60, "id", "id>1", 2)
       );
    }
 
@@ -390,13 +392,14 @@ public class CalcTableScopeTest {
       Date date_2025 = new Date(2025 - 1900, 11, 31);
 
       return Stream.of(
-         Arguments.of(1, "[1,id]:[4,id]", null, null, 3.0, 1.0),
+         // native Integer cell values (#75423)
+         Arguments.of(1, "[1,id]:[4,id]", null, null, 3, 1),
          Arguments.of(2, "[1,date]:[4,date]", null, "id>1", date_2025, date_2023),
-         Arguments.of(-1, "[1,id]:[4,id]", null, null, 3.0, 1.0), // Invalid N defaults to 1
+         Arguments.of(-1, "[1,id]:[4,id]", null, null, 3, 1), // Invalid N defaults to 1
          Arguments.of(1, "[]", null, null, null, null),
          Arguments.of(1, null, null, null, null, null),
-         //for report script
-         Arguments.of(objData, 2, "id", "id>1", 2.0, 3.0)
+         //for report script (native Integer cell values) (#75423)
+         Arguments.of(objData, 2, "id", "id>1", 2, 3)
       );
    }
 

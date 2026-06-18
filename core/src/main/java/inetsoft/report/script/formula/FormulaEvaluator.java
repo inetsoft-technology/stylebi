@@ -43,6 +43,21 @@ public class FormulaEvaluator {
          scope = FormulaContext.getScope();
       }
 
+      // when no outer scope is available (e.g. CALC aggregate functions invoked
+      // outside of a report/viewsheet script context), evaluate the expression
+      // using only the row scope so the row columns can still be resolved. (#75423)
+      if(scope == null) {
+         ScriptScope execScope = subscope;
+
+         if(subscope instanceof TableRow) {
+            TableRowScope tableRowScope = new TableRowScope((TableRow) subscope, null);
+            tableRowScope.setBuiltinDate(expr.contains("new Date("));
+            execScope = tableRowScope;
+         }
+
+         return exec(expr, execScope);
+      }
+
       Object ofield = scope.getMember(subname);
       boolean hadField = scope.hasMember(subname);
 
