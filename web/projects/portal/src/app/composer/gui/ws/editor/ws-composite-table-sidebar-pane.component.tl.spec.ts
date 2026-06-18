@@ -74,6 +74,9 @@ async function renderComponent() {
    const { fixture } = await render(WSCompositeTableSidebarPane, {
       schemas: [NO_ERRORS_SCHEMA],
       componentImports: [],
+      componentProperties: {
+         worksheet: makeWorksheet(),
+      },
       providers: [
          { provide: ModelService, useValue: MODEL_SERVICE_MOCK },
          { provide: DragService, useValue: DRAG_SERVICE_MOCK },

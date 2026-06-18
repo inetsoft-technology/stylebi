@@ -353,7 +353,7 @@ describe("WSPaneComponent — processWSFinishPasteWithCutCommand", () => {
       const spy = vi.fn();
       comp.onPasteWithCutFinish.subscribe(spy);
 
-      dispatchCommand("WsFinishPasteWithCutCommand", {
+      dispatchCommand("WSFinishPasteWithCutCommand", {
          sourceSheetId: "src-ws",
          assemblies: ["AssemblyA", "AssemblyB"],
       });

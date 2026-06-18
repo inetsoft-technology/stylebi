@@ -28,12 +28,28 @@
  *   Group 6 [Risk 1] — selectSubtables / selectBreadcrumb / notify: delegation contracts
  */
 
-import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { Component, NO_ERRORS_SCHEMA } from "@angular/core";
 import { render } from "@testing-library/angular";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { WSCompositeTableFocusPaneComponent } from "./ws-composite-table-focus-pane.component";
+import { WSCompositeTableBreadcrumbComponent } from "./ws-composite-table-breadcrumb.component";
+import { WSRelationalJoinEditorPaneComponent } from "./schema/ws-relational-join-editor-pane.component";
+import { WSMergeJoinEditorPaneComponent } from "./merge/ws-merge-join-editor-pane.component";
+import { WSConcatenationEditorPane } from "./concatenation/ws-concatenation-editor-pane.component";
 import { ComponentTool } from "../../../../common/util/component-tool";
 import { Notification } from "../../../../common/data/notification";
+
+@Component({ selector: "ws-composite-table-breadcrumb", template: "", standalone: true })
+class WSCompositeTableBreadcrumbComponentStub {}
+
+@Component({ selector: "ws-relational-join-editor-pane", template: "", standalone: true })
+class WSRelationalJoinEditorPaneComponentStub {}
+
+@Component({ selector: "ws-merge-join-editor-pane", template: "", standalone: true })
+class WSMergeJoinEditorPaneComponentStub {}
+
+@Component({ selector: "ws-concatenation-editor-pane", template: "", standalone: true })
+class WSConcatenationEditorPaneStub {}
 
 const MODAL_MOCK = {};
 
@@ -49,6 +65,12 @@ function makeWorksheet(selectedCompositeTable: any = null) {
 async function renderComponent(worksheet: any = makeWorksheet()) {
    const { fixture } = await render(WSCompositeTableFocusPaneComponent, {
       schemas: [NO_ERRORS_SCHEMA],
+      importOverrides: [
+         { replace: WSCompositeTableBreadcrumbComponent, with: WSCompositeTableBreadcrumbComponentStub },
+         { replace: WSRelationalJoinEditorPaneComponent, with: WSRelationalJoinEditorPaneComponentStub },
+         { replace: WSMergeJoinEditorPaneComponent, with: WSMergeJoinEditorPaneComponentStub },
+         { replace: WSConcatenationEditorPane, with: WSConcatenationEditorPaneStub },
+      ],
       providers: [{ provide: NgbModal, useValue: MODAL_MOCK }],
       componentProperties: { worksheet, crossJoinEnabled: true },
    });
