@@ -955,6 +955,7 @@ public class ContentRepositoryTreeService {
 
       boolean repositoryFolderExists = false;
       boolean worksheetFolderExists = false;
+      final List<String> allFolders = Arrays.asList(registry.getAllFolders(true));
 
       // add the folders from the replet registry
       for(Map.Entry<AssetEntry, List<AssetEntry>> parentEntry : parentEntries.entrySet()) {
@@ -966,7 +967,12 @@ public class ContentRepositoryTreeService {
                .map(AssetEntry::getPath)
                .collect(Collectors.toSet());
             final String path = parent.getPath();
-            Arrays.stream(registry.getFolders(path, true))
+            final boolean root = path == null || path.equals("/");
+            allFolders.stream()
+               .filter(folder -> {
+                  int index = folder.lastIndexOf('/');
+                  return index == -1 ? root : Tool.equals(path, folder.substring(0, index));
+               })
                .filter(folder -> !children.contains(folder))
                .map(folder -> new AssetEntry(AssetRepository.GLOBAL_SCOPE,
                                              AssetEntry.Type.REPOSITORY_FOLDER,

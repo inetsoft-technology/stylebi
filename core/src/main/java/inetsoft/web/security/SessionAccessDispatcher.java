@@ -44,17 +44,23 @@ public final class SessionAccessDispatcher {
                              Supplier<Map<String, Object>> sessionAttributes)
    {
       if(!listeners.isEmpty()) {
+         String id = sessionId.get();
+         boolean shouldFire = false;
+
          synchronized(lastAccess) {
-            String id = sessionId.get();
             long now = System.currentTimeMillis();
             Long last = lastAccess.get(id);
 
             if(last == null || now - last > 30000L) {
                lastAccess.put(id, now);
-               SessionAccessEvent event = new SessionAccessEvent(
-                  source, principal.get(), id, sessionAttributes.get());
-               queue.offer(event); // NOSONAR queue is unbounded
+               shouldFire = true;
             }
+         }
+
+         if(shouldFire) {
+            SessionAccessEvent event = new SessionAccessEvent(
+               source, principal.get(), id, sessionAttributes.get());
+            queue.offer(event); // NOSONAR queue is unbounded
          }
       }
    }
