@@ -149,6 +149,7 @@ public class GenerateWsService {
          generateWsResponse.setPrimaryTableFields(extractPrimaryTableFields(worksheet, table, model));
       }
 
+      generateWsResponse.setPrimaryTable(worksheet.getPrimaryAssemblyName());
       return generateWsResponse;
    }
 

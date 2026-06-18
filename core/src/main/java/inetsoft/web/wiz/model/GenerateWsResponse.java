@@ -37,6 +37,14 @@ public class GenerateWsResponse {
       this.errorMessage = errorMessage;
    }
 
+   public String getPrimaryTable() {
+      return primaryTable;
+   }
+
+   public void setPrimaryTable(String primaryTable) {
+      this.primaryTable = primaryTable;
+   }
+
    public List<WorksheetColumnInfo> getPrimaryTableFields() {
       return primaryTableFields;
    }
@@ -47,6 +55,7 @@ public class GenerateWsResponse {
 
    private String wsId;
    private String errorMessage;
+   private String primaryTable;
    /** All columns available in the primary worksheet table assembly. */
    private List<WorksheetColumnInfo> primaryTableFields;
 }
