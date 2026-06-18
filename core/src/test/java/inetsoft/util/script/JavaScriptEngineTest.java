@@ -284,7 +284,10 @@ class JavaScriptEngineTest {
                       new Object[] { "a", "b", "c" }), // List input (GraalJS arrays surface as List)
          Arguments.of(new Object[] { 1, 2, 3 }, new Object[] { 1, 2, 3 }), // Java array input
          Arguments.of("a,b,c", new Object[] { "a", "b", "c" }), // String input
-         Arguments.of(42, new Object[] { 42 }) // Single object input
+         // A non-array scalar is stringified and comma-split (Tool.split), so a
+         // single number surfaces as its String form. This is the long-standing
+         // JSObject.split behavior (also true under Rhino). (#75423)
+         Arguments.of(42, new Object[] { "42" }) // Single object input
       );
    }
 
