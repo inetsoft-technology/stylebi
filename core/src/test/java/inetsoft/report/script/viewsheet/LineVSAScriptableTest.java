@@ -80,10 +80,10 @@ public class LineVSAScriptableTest {
    @Test
    void testAddProperties() {
       lineVSAScriptable.addProperties();
-      assertEquals(StyleConstants.NO_BORDER, lineVSAScriptable.get("beginArrowStyle", null));
+      assertEquals(StyleConstants.NO_BORDER, lineVSAScriptable.getMember("beginArrowStyle"));
 
       lineVSAScriptable.setProperty("lineStyle", StyleConstants.THICK_LINE);
-      assertEquals(StyleConstants.THICK_LINE, lineVSAScriptable.get("lineStyle", null));
+      assertEquals(StyleConstants.THICK_LINE, lineVSAScriptable.getMember("lineStyle"));
    }
 
    @Test

@@ -78,45 +78,45 @@ public class ComboBoxVSAScriptableTest {
    @Test
    void testGet() {
       assertEquals(false,
-                   comboBoxVSAScriptable.get("serverTimeZone", comboBoxVSAScriptable));
+                   comboBoxVSAScriptable.getMember("serverTimeZone"));
       assertEquals(false,
-                   comboBoxVSAScriptable.get("queryDateFormat", comboBoxVSAScriptable));
+                   comboBoxVSAScriptable.getMember("queryDateFormat"));
       assertEquals("yyyy-MM-dd",
-                   comboBoxVSAScriptable.get("dateFormatPattern", comboBoxVSAScriptable));
+                   comboBoxVSAScriptable.getMember("dateFormatPattern"));
    }
 
    @Test
    void testHas() {
-      assertFalse(comboBoxVSAScriptable.has("property1", comboBoxVSAScriptable));
-      assertTrue(comboBoxVSAScriptable.has("serverTimeZone", comboBoxVSAScriptable));
-      assertTrue(comboBoxVSAScriptable.has("queryDateFormat", comboBoxVSAScriptable));
-      assertTrue(comboBoxVSAScriptable.has("dateFormatPattern", comboBoxVSAScriptable));
+      assertFalse(comboBoxVSAScriptable.hasMember("property1"));
+      assertTrue(comboBoxVSAScriptable.hasMember("serverTimeZone"));
+      assertTrue(comboBoxVSAScriptable.hasMember("queryDateFormat"));
+      assertTrue(comboBoxVSAScriptable.hasMember("dateFormatPattern"));
    }
 
    @Test
    void testAddProperties() {
       comboBoxVSAScriptable.addProperties();
       assertEquals(false,
-                   comboBoxVSAScriptable.get("serverTimeZone", comboBoxVSAScriptable));
+                   comboBoxVSAScriptable.getMember("serverTimeZone"));
    }
 
    @Test
    void testGetSetQueryDateFormat() {
       assertEquals(false,
-                   comboBoxVSAScriptable.get("queryDateFormat", comboBoxVSAScriptable));
-      comboBoxVSAScriptable.put("queryDateFormat", comboBoxVSAScriptable, true);
+                   comboBoxVSAScriptable.getMember("queryDateFormat"));
+      comboBoxVSAScriptable.putMember("queryDateFormat", true);
       assertEquals(true,
-                   comboBoxVSAScriptable.get("queryDateFormat", comboBoxVSAScriptable));
+                   comboBoxVSAScriptable.getMember("queryDateFormat"));
       assertTrue(comboBoxVSAssemblyInfo.isQueryDateFormat());
    }
 
    @Test
    void testGetSetDateFormatPattern() {
       assertEquals("yyyy-MM-dd",
-                   comboBoxVSAScriptable.get("dateFormatPattern", comboBoxVSAScriptable));
-      comboBoxVSAScriptable.put("dateFormatPattern", comboBoxVSAScriptable, "MM/dd/yyyy");
+                   comboBoxVSAScriptable.getMember("dateFormatPattern"));
+      comboBoxVSAScriptable.putMember("dateFormatPattern", "MM/dd/yyyy");
       assertEquals("MM/dd/yyyy",
-                   comboBoxVSAScriptable.get("dateFormatPattern", comboBoxVSAScriptable));
+                   comboBoxVSAScriptable.getMember("dateFormatPattern"));
       assertEquals("MM/dd/yyyy", comboBoxVSAssemblyInfo.getDateFormatPattern());
    }
 

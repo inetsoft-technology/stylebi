@@ -86,7 +86,7 @@ public class ImageVSAScriptableTest {
    @ValueSource(strings = {"maintainAspectRatio", "scaleImage", "animate", "tile"})
    void testAddProperties(String propertyName) {
       imageVSAScriptable.addProperties();
-      assert imageVSAScriptable.get(propertyName, imageVSAScriptable) instanceof Boolean;
+      assert imageVSAScriptable.getMember(propertyName) instanceof Boolean;
    }
 
    @ParameterizedTest
@@ -98,7 +98,7 @@ public class ImageVSAScriptableTest {
    })
    void testSetProperty(String propertyName, Object propertyValue, Object expectedValue) {
       imageVSAScriptable.setProperty(propertyName, propertyValue);
-      assertEquals(expectedValue, imageVSAScriptable.get(propertyName, imageVSAScriptable));
+      assertEquals(expectedValue, imageVSAScriptable.getMember(propertyName));
    }
 
    @Test

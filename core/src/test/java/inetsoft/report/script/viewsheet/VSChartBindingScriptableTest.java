@@ -597,15 +597,15 @@ public class VSChartBindingScriptableTest {
       chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_LINE);
       vsChartBindingScriptable = new VSChartBindingScriptable(chartVSAScriptable);
 
-      assertEquals(52,  vsChartBindingScriptable.getIds().length );
+      assertEquals(52,  vsChartBindingScriptable.getMemberKeys().length );
 
-      assertFalse(vsChartBindingScriptable.has("testPut", null));
-      vsChartBindingScriptable.put("testPut", null, "testValue");
+      assertFalse(vsChartBindingScriptable.hasMember("testPut"));
+      vsChartBindingScriptable.putMember("testPut", "testValue");
 
-      assertEquals("testValue", vsChartBindingScriptable.get("testPut", null));
-      assertTrue(vsChartBindingScriptable.has("testPut", null));
+      assertEquals("testValue", vsChartBindingScriptable.getMember("testPut"));
+      assertTrue(vsChartBindingScriptable.hasMember("testPut"));
 
-      assertNotNull(vsChartBindingScriptable.getType("shapeFrame", null), "The returned type should not be null.");
+      assertNotNull(vsChartBindingScriptable.getType("shapeFrame"), "The returned type should not be null.");
    }
 
    @Test

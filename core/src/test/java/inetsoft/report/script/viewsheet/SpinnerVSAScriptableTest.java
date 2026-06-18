@@ -80,11 +80,11 @@ public class SpinnerVSAScriptableTest {
       spinnerVSAScriptable.addProperties();
 
       assertEquals(Double.parseDouble("0.0"),
-                   spinnerVSAScriptable.get("min", spinnerVSAScriptable));
+                   spinnerVSAScriptable.getMember("min"));
       assertEquals(Double.parseDouble("100.0"),
-                   spinnerVSAScriptable.get("max", spinnerVSAScriptable));
+                   spinnerVSAScriptable.getMember("max"));
       assertEquals(Double.parseDouble("1.0"),
-                   spinnerVSAScriptable.get("increment", spinnerVSAScriptable));
+                   spinnerVSAScriptable.getMember("increment"));
    }
 
    @Test

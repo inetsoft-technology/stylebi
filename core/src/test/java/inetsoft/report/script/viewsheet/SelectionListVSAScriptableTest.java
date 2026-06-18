@@ -87,14 +87,14 @@ public class SelectionListVSAScriptableTest {
                        "quickSwitchAllowed"};
 
       for (String key : keys) {
-         assert selectionListVSAScriptable.get(key, selectionListVSAScriptable) instanceof Boolean;
+         assert selectionListVSAScriptable.getMember(key) instanceof Boolean;
       }
 
       assertEquals("SelectionList",
-                   selectionListVSAScriptable.get("title", selectionListVSAScriptable));
+                   selectionListVSAScriptable.getMember("title"));
       assertEquals(XConstants.SORT_SPECIFIC,
-                   selectionListVSAScriptable.get("sortType", selectionListVSAScriptable));
-      assertNull(selectionListVSAScriptable.get("value", selectionListVSAScriptable));
+                   selectionListVSAScriptable.getMember("sortType"));
+      assertNull(selectionListVSAScriptable.getMember("value"));
    }
 
    @Test
@@ -105,20 +105,20 @@ public class SelectionListVSAScriptableTest {
 
    @Test
    void testGet() {
-      assertNull(selectionListVSAScriptable.get("value", selectionListVSAScriptable));
+      assertNull(selectionListVSAScriptable.getMember("value"));
       selectionListVSAScriptable.setCellValue("value1");
       assertEquals("value1",
-                   selectionListVSAScriptable.get("value", selectionListVSAScriptable));
+                   selectionListVSAScriptable.getMember("value"));
       assertEquals("SelectionList",
-                   selectionListVSAScriptable.get("title", selectionListVSAScriptable));
+                   selectionListVSAScriptable.getMember("title"));
    }
 
    @Test
    void testHas() {
-      assertFalse(selectionListVSAScriptable.has("property1", selectionListVSAScriptable));
+      assertFalse(selectionListVSAScriptable.hasMember("property1"));
       selectionListVSAScriptable.setCellValue("value1");
-      assertTrue(selectionListVSAScriptable.has("value", selectionListVSAScriptable));
-      assertTrue(selectionListVSAScriptable.has("titleVisible", selectionListVSAScriptable));
+      assertTrue(selectionListVSAScriptable.hasMember("value"));
+      assertTrue(selectionListVSAScriptable.hasMember("titleVisible"));
    }
 
    @Test

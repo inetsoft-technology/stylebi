@@ -84,7 +84,7 @@ public class TextVSAScriptableTest {
    @ValueSource(strings = {"wrapping", "autoSize", "scaleVertical", "embedAsURL", "shadow", "tooltipVisible"})
    void testAddProperties(String propertyName) {
       textVSAScriptable.addProperties();
-      assert textVSAScriptable.get(propertyName, textVSAScriptable) instanceof Boolean;
+      assert textVSAScriptable.getMember(propertyName) instanceof Boolean;
    }
 
    @ParameterizedTest
@@ -98,7 +98,7 @@ public class TextVSAScriptableTest {
    })
    void testSetProperty(String propertyName, Object propertyValue, Object expectedValue) {
       textVSAScriptable.setProperty(propertyName, propertyValue);
-      assertEquals(expectedValue, textVSAScriptable.get(propertyName, textVSAScriptable));
+      assertEquals(expectedValue, textVSAScriptable.getMember(propertyName));
    }
 
    @Test
