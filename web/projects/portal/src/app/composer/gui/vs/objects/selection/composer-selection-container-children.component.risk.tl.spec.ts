@@ -81,6 +81,20 @@ async function renderComponent() {
             selectAssembly: vi.fn(),
             isAssemblyFocused: vi.fn().mockReturnValue(false),
          } as any,
+         // Required: template binds vsObject.objectFormat.left unconditionally on line 20 of the HTML.
+         vsObject: {
+            absoluteName: "Container1",
+            objectType: "VSSelectionContainer",
+            objectFormat: {
+               top: 10, left: 0, width: 200, height: 150,
+               border: { top: null, bottom: null, left: null, right: null },
+            },
+            titleFormat: { height: 30 },
+            outerSelections: [],
+            childObjects: [],
+            dataRowHeight: 20,
+            childrenNames: [],
+         } as any,
       },
    });
    return fixture.componentInstance as ComposerSelectionContainerChildren;

@@ -171,8 +171,12 @@ describe("EditableObjectContainer — onDragMove", () => {
       const { comp, mocks } = makeComponent();
       const dragObj = makeVsObjectModel("VSSelectionContainer", "SC1") as any;
       dragObj.objectFormat = { left: 0, top: 0 };
+      // onDragMove checks this.vsObject.objectType (not dragObj.objectType); must update vsObjectModel
+      // so that this.vsObject.objectType === "VSSelectionContainer" before the drag check runs.
+      comp.vsObjectModel = dragObj;
       (comp as any).dragObj = dragObj;
       (comp as any).dragPlaceholderElement = null;
+      mocks.changeDetectorRef.detectChanges.mockClear();
 
       comp.onDragMove({ dx: 5, dy: 5 });
 
