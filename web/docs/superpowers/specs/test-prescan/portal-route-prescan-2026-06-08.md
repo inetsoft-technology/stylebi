@@ -22,13 +22,13 @@
 | 待审核 | DashboardTabComponent | 215 | 3 | 9 | **multi-pass** | ✅ 推进 |  |  | P1: dashboard-tab.component.interaction.tl.spec.ts<br>P2: dashboard-tab.component.risk.tl.spec.ts<br>P3: dashboard-tab.component.display.tl.spec.ts |
 | 待审核 | DashboardLandingComponent | 50 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | 待审核 | AssetItemListViewComponent | 159 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| ✅已测试 | DataDatasourceBrowserComponent | 756 | 0 | 21 | **multi-pass** | ✅ 推进 | ⚠️ data-datasource-browser.component.tl.spec.ts | 🔁 Regression-sensitive: refresh combines route params, sorting, selection mapping and status fetch.; 🔁 Regression-sensitive: refreshed objects repla | P1: DataDatasourceBrowserComponent.interaction.tl.spec.ts<br>P2: DataDatasourceBrowserComponent.risk.tl.spec.ts |
-| 待审核 | DatasourceSelectionViewComponent | 127 | 0 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: DatasourceSelectionViewComponent.interaction.tl.spec.ts<br>P2: DatasourceSelectionViewComponent.risk.tl.spec.ts |
-| ✅已测试 P3 | DatabaseDataModelBrowserComponent | 723 | 0 | 8 | **multi-pass** | ✅ 推进 |  |  | P1: DatabaseDataModelBrowserComponent.interaction.tl.spec.ts<br>P2: DatabaseDataModelBrowserComponent.risk.tl.spec.ts |
+| 待审核 | DataDatasourceBrowserComponent | 756 | 0 | 21 | **multi-pass** | ✅ 推进 | ⚠️ data-datasource-browser.component.tl.spec.ts | 🔁 Regression-sensitive: refresh combines route params, sorting, selection mapping and status fetch.; 🔁 Regression-sensitive: refreshed objects repla | P1: data-datasource-browser.component.interaction.tl.spec.ts<br>P2: data-datasource-browser.component.risk.tl.spec.ts |
+| 待审核 | DatasourceSelectionViewComponent | 127 | 0 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: datasource-selection-view.component.interaction.tl.spec.ts<br>P2: datasource-selection-view.component.risk.tl.spec.ts |
+| 待审核 | DatabaseDataModelBrowserComponent | 723 | 0 | 8 | **multi-pass** | ✅ 推进 |  |  | P1: database-data-model-browser.component.interaction.tl.spec.ts<br>P2: database-data-model-browser.component.risk.tl.spec.ts |
 | 待审核 | DatabaseDataModelToolbarComponent | 126 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | 待审核 | DatabaseVPMBrowserComponent | 338 | 0 | 8 | **multi-pass** | ✅ 推进 |  |  | P1: database-vpm-browser.component.interaction.tl.spec.ts<br>P2: database-vpm-browser.component.risk.tl.spec.ts |
 | 待审核 | DataModelScriptPane | 247 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| ✅已测试 | DatabasePhysicalModelComponent | 1153 | 4 | 28 | **multi-pass** | ✅ 推进 |  |  | P1: DatabasePhysicalModelComponent.interaction.tl.spec.ts<br>P2: DatabasePhysicalModelComponent.risk.tl.spec.ts<br>P3: DatabasePhysicalModelComponent.display.tl.spec.ts |
+| 待审核 | DatabasePhysicalModelComponent | 1153 | 4 | 28 | **multi-pass** | ✅ 推进 |  |  | P1: database-physical-model.component.interaction.tl.spec.ts<br>P2: database-physical-model.component.risk.tl.spec.ts<br>P3: database-physical-model.component.display.tl.spec.ts |
 | 待审核 | LogicalModelAttributeDialog | 107 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核 | AutoDrillDialog | 531 | 0 | 15 | **multi-pass** | ✅ 推进 |  |  | P1: auto-drill-dialog.component.interaction.tl.spec.ts<br>P2: auto-drill-dialog.component.risk.tl.spec.ts |
 | 待审核 | ParameterDialog | 242 | 2 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
@@ -45,16 +45,16 @@
 | 待审核 | VPMConditionsComponent | 259 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | 待审核 | VPMHiddenColumnsComponent | 331 | 0 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: vpm-hidden-columns.component.interaction.tl.spec.ts<br>P2: vpm-hidden-columns.component.risk.tl.spec.ts |
 | 待审核 | VPMTestComponent | 63 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| ✅已测试 | DatasourcesDatabaseComponent | 662 | 0 | 12 | **multi-pass** | ✅ 推进 |  |  | P1: DatasourcesDatabaseComponent.interaction.tl.spec.ts<br>P2: DatasourcesDatabaseComponent.risk.tl.spec.ts |
-| 待审核 | DriverWizardComponent | 275 | 0 | 24 | **multi-pass** | ✅ 推进 |  |  | P1: DriverWizardComponent.interaction.tl.spec.ts<br>P2: DriverWizardComponent.risk.tl.spec.ts |
+| 待审核 | DatasourcesDatabaseComponent | 662 | 0 | 12 | **multi-pass** | ✅ 推进 |  |  | P1: datasources-database.component.interaction.tl.spec.ts<br>P2: datasources-database.component.risk.tl.spec.ts |
+| 待审核 | DriverWizardComponent | 275 | 0 | 24 | **multi-pass** | ✅ 推进 |  |  | P1: driver-wizard.component.interaction.tl.spec.ts<br>P2: driver-wizard.component.risk.tl.spec.ts |
 | 待审核 | EditPropertyDialogComponent | 50 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | DatasourcesDatasourceEditorComponent | 258 | 0 | 8 | **multi-pass** | ✅ 推进 |  |  | P1: DatasourcesDatasourceEditorComponent.interaction.tl.spec.ts<br>P2: DatasourcesDatasourceEditorComponent.risk.tl.spec.ts |
-| 待审核 | DatasourcesDatasourceComponent | 346 | 0 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: DatasourcesDatasourceComponent.interaction.tl.spec.ts<br>P2: DatasourcesDatasourceComponent.risk.tl.spec.ts |
-| 待审核 | DatasourcesXmlaComponent | 602 | 0 | 35 | **multi-pass** | ✅ 推进 |  |  | P1: DatasourcesXmlaComponent.interaction.tl.spec.ts<br>P2: DatasourcesXmlaComponent.risk.tl.spec.ts |
-| ✅已测试 | DataFolderBrowserComponent | 938 | 1 | 17 | **multi-pass** | ✅ 推进 | ⚠️ data-folder-browser.component.tl.spec.ts | Regression-sensitive: route scope, folder-first sorting, and selected-object remapping can; Regression-sensitive: failed search must not leave stale r | P1: DataFolderBrowserComponent.interaction.tl.spec.ts<br>P2: DataFolderBrowserComponent.risk.tl.spec.ts |
+| 待审核 | DatasourcesDatasourceEditorComponent | 258 | 0 | 8 | **multi-pass** | ✅ 推进 |  |  | P1: datasources-datasource-editor.component.interaction.tl.spec.ts<br>P2: datasources-datasource-editor.component.risk.tl.spec.ts |
+| 待审核 | DatasourcesDatasourceComponent | 346 | 0 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: datasources-datasource.component.interaction.tl.spec.ts<br>P2: datasources-datasource.component.risk.tl.spec.ts |
+| 待审核 | DatasourcesXmlaComponent | 602 | 0 | 35 | **multi-pass** | ✅ 推进 |  |  | P1: datasources-xmla.component.interaction.tl.spec.ts<br>P2: datasources-xmla.component.risk.tl.spec.ts |
+| 待审核 | DataFolderBrowserComponent | 938 | 1 | 17 | **multi-pass** | ✅ 推进 | ⚠️ data-folder-browser.component.tl.spec.ts | Regression-sensitive: route scope, folder-first sorting, and selected-object remapping can; Regression-sensitive: failed search must not leave stale r | P1: data-folder-browser.component.interaction.tl.spec.ts<br>P2: data-folder-browser.component.risk.tl.spec.ts |
 | 待审核 | DataFolderListViewComponent | 151 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | FilesBrowserComponent | 119 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| ✅已测试 | DataSourcesTreeViewComponent | 1463 | 7 | 19 | **multi-pass** | ✅ 推进 | ⚠️ data-sources-tree-view.component.tl.spec.ts | Group 1 — changeDataSourcesTree: always returns false [Risk 3] (confirmed bug); 🔁 Regression-sensitive: return false instead of found breaks the recu | P1: DataSourcesTreeViewComponent.interaction.tl.spec.ts<br>P2: DataSourcesTreeViewComponent.risk.tl.spec.ts<br>P3: DataSourcesTreeViewComponent.display.tl.spec.ts |
+| 待审核 | DataSourcesTreeViewComponent | 1463 | 7 | 19 | **multi-pass** | ✅ 推进 | ⚠️ data-sources-tree-view.component.tl.spec.ts | Group 1 — changeDataSourcesTree: always returns false [Risk 3] (confirmed bug); 🔁 Regression-sensitive: return false instead of found breaks the recu | P1: data-sources-tree-view.component.interaction.tl.spec.ts<br>P2: data-sources-tree-view.component.risk.tl.spec.ts<br>P3: data-sources-tree-view.component.display.tl.spec.ts |
 | 待审核 | DataTabComponent | 65 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | 待审核 | InputNameDescDialog | 113 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | 待审核 | MoveAssetDialogComponent | 121 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
@@ -74,15 +74,15 @@
 | 待审核 | ReportTabComponent | 280 | 2 | 9 | **multi-pass** | ✅ 推进 |  |  | P1: report-tab.component.interaction.tl.spec.ts<br>P2: report-tab.component.risk.tl.spec.ts |
 | 待审核 | PortalReportComponent | 93 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核 | WelcomePageComponent | 39 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| ✅已测试 | TaskActionPane | 464 | 0 | 8 | **multi-pass** | ✅ 推进 | ⚠️ task-action-pane.component.spec.ts | Bug #19890 should pop up warning when to delete action; test: should not copy when no action is selected; test: should not copy when multiple actions  | P1: TaskActionPane.interaction.tl.spec.ts<br>P2: TaskActionPane.risk.tl.spec.ts |
-| ✅已测试 | TaskConditionPane | 1073 | 3 | 3 | **multi-pass** | ✅ 推进 | ⚠️ task-condition-pane.spec.ts | Bug #19519 should show current date when not set; Bug #19687 should show set date; Bug #19517 select and deselect all function for weekly | P1: TaskConditionPane.interaction.tl.spec.ts<br>P2: TaskConditionPane.risk.tl.spec.ts<br>P3: TaskConditionPane.display.tl.spec.ts |
+| 待审核 | TaskActionPane | 464 | 0 | 8 | **multi-pass** | ✅ 推进 | ⚠️ task-action-pane.component.spec.ts | Bug #19890 should pop up warning when to delete action; test: should not copy when no action is selected; test: should not copy when multiple actions  | P1: task-action-pane.component.interaction.tl.spec.ts<br>P2: task-action-pane.component.risk.tl.spec.ts |
+| 待审核 | TaskConditionPane | 1073 | 3 | 3 | **multi-pass** | ✅ 推进 | ⚠️ task-condition-pane.spec.ts | Bug #19519 should show current date when not set; Bug #19687 should show set date; Bug #19517 select and deselect all function for weekly | P1: task-condition-pane.component.interaction.tl.spec.ts<br>P2: task-condition-pane.component.risk.tl.spec.ts<br>P3: task-condition-pane.component.display.tl.spec.ts |
 | 待审核 | ExecuteAsDialog | 190 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | TaskOptionsPane | 189 | 0 | 13 | **multi-pass** | ✅ 推进 | ⚠️ task-options-pane.component.spec.ts | Bug #19508; Bug #19745; Bug #21420 should get correct locale info when set 'Default' | P1: task-options-pane.component.interaction.tl.spec.ts<br>P2: task-options-pane.component.risk.tl.spec.ts |
 | 待审核 | ScheduleTaskEditorComponent | 192 | 0 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: schedule-task-editor.component.interaction.tl.spec.ts<br>P2: schedule-task-editor.component.risk.tl.spec.ts |
 | 待审核 | SelectDashboardDialog | 69 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | 待审核 | EditTaskFolderDialog | 69 | 0 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核 | MoveTaskDialogComponent | 97 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| ✅已测试 | ScheduleTaskListComponent | 844 | 1 | 58 | **multi-pass** | ✅ 推进 |  |  | P1: ScheduleTaskListComponent.interaction.tl.spec.ts<br>P2: ScheduleTaskListComponent.risk.tl.spec.ts |
+| 待审核 | ScheduleTaskListComponent | 844 | 1 | 58 | **multi-pass** | ✅ 推进 |  |  | P1: schedule-task-list.component.interaction.tl.spec.ts<br>P2: schedule-task-list.component.risk.tl.spec.ts |
 | 待审核 | InputNameDialog | 112 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ input-name-dialog.component.spec.ts | Bug #19762 Show the error message on the input; test: Show the error message on the input | single pass (+内存泄漏) |
 | 待审核 | ActionsContextmenuComponent | 154 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ actions-contextmenu.component.spec.ts | test: should not create a dropdown when there are no visible actions | single pass (+内存泄漏) |
 | 待审核 | NotificationsComponent | 65 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ notifications.component.spec.ts | 无 | single pass (+内存泄漏) |

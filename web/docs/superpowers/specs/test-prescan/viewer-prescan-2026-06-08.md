@@ -15,54 +15,54 @@
 
 ## 候选组件清单
 
-| 状态 | 组件 | logic_lines | dispatch | async_zones | 分类 | 建议 | 旧 spec | 旧 spec 备注 | Pass 计划 |
-|------|------|-------------|----------|-------------|------|------|---------|-------------|-----------|
-| ✅ 推进 | ViewerRootComponent | 32 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| ✅ 推进 | ViewerViewComponent | 261 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| ✅ 推进 | ViewerEditComponent | 188 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| ✅已测试 | AiAssistantPanelComponent | 177 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| ✅已测试 | DownloadTargetComponent | 84 | 1 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核 | PageTabComponent | 98 | 0 | 3 | **single-pass** | ✅ 推进 | ⚠️ page-tab.component.spec.ts | 无 | single pass (+竞态+内存泄漏) |
-| ✅已测试 | ViewerAppComponent | 3363 | 10 | 53 | **multi-pass** | ✅ 推进 | ⚠️ viewer-app.spec.ts | Bug #16456 TODO, logica changed, can not get fixed dropdown pane; Bug #19176 hide full screen in preview; Bug #16961 should refresh scale to screen vs | ✅ P1: viewer-app.component.interaction.tl.spec.ts (73 tests)<br>✅ P2: viewer-app.component.risk.tl.spec.ts (42 tests)<br>✅ P3: viewer-app.component.display.tl.spec.ts (61 tests) |
-| ✅已测试 | VSBindingPane | 805 | 4 | 5 | **multi-pass** | ✅ 推进 |  |  | P1: vs-binding-pane.component.interaction.tl.spec.ts (31+1xfail)<br>P2: vs-binding-pane.component.risk.tl.spec.ts (21)<br>P3: vs-binding-pane.component.display.tl.spec.ts (19) |
-| ✅已测试 | VsWizardComponent | 371 | 0 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| ✅已测试 | PagingControlComponent | 84 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| ✅已测试 | ViewerMobileToolbarComponent | 72 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| ✅已测试 | VsBookmarkPaneComponent | 97 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| ✅已测试 | ExportDialog | 103 | 1 | 3 | **single-pass** | ✅ 推进 | ⚠️ export-dialog.spec.ts | Bug #17235 should not; test: should show error | single pass (+竞态+内存泄漏) |
-| ✅已测试 | EmailDialog | 103 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| ✅已测试 | ScheduleDialog | 106 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| ✅已测试 | BookmarkPropertyDialog | 58 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| ✅已测试 | ProfilingDialog | 210 | 2 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| ✅已测试 | RemoveBookmarksDialog | 69 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| ✅已测试 | VSFormatsPane | 679 | 4 | 1 | **multi-pass** | ✅ 推进 | ⚠️ vs-formats-pane.spec.ts | Bug #16685, Bug #16689 check the aligment combox status; Bug #18597, BUg #18664 color,border, aligment status; Bug #18060, Bug #18342 for wrap text on | ✅ P1: vs-formats-pane.component.interaction.tl.spec.ts (40 tests)<br>✅ P3: vs-formats-pane.component.display.tl.spec.ts (27 tests) |
-| ✅已测试 | ShareEmailDialogComponent | 79 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| ✅已测试 | ShareGoogleChatDialog | 52 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| ✅已测试 | ShareSlackDialog | 52 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核 | NotificationsComponent | 65 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ notifications.component.spec.ts | 无 | single pass (+内存泄漏) |
-| ✅已测试 | VsWizardPane | 901 | 1 | 7 | **multi-pass** | ✅ 推进 |  |  | ✅ P1: vs-wizard-pane.component.interaction.tl.spec.ts (45 tests)<br>✅ P2: vs-wizard-pane.component.risk.tl.spec.ts (16 tests) |
-| ✅已测试 | ObjectWizardPane | 556 | 1 | 3 | **multi-pass** | ✅ 推进 |  |  | ✅ P1: object-wizard-pane.component.interaction.tl.spec.ts (51 tests)<br>✅ P2: object-wizard-pane.component.risk.tl.spec.ts (17 tests) |
-| 待审核 | ActionsContextmenuComponent | 154 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ actions-contextmenu.component.spec.ts | test: should not create a dropdown when there are no visible actions | single pass (+内存泄漏) |
-| 待审核 | VariableInputDialog | 214 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ variable-input-dialog.spec.ts | Bug #16824 Make sure the default value of a boolean type is false | single pass |
-| 待审核 | EditGeographicDialog | 47 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| 状态 | 组件 | logic_lines | dispatch | async_zones | 分类 | 建议 | 旧 spec                                                                               | 旧 spec 备注 | Pass 计划 |
+|------|------|-------------|----------|-------------|------|------|--------------------------------------------------------------------------------------|-------------|-----------|
+| ✅已测试 | ViewerRootComponent | 32 | 0 | 1 | **single-pass** | ✅ 推进 |                                                                                      |  | single pass (+内存泄漏) |
+| ✅已测试 | ViewerViewComponent | 261 | 0 | 3 | **single-pass** | ✅ 推进 |                                                                                      |  | single pass (+竞态+内存泄漏) |
+| ✅已测试 | ViewerEditComponent | 188 | 0 | 1 | **single-pass** | ✅ 推进 |                                                                                      |  | single pass (+内存泄漏) |
+| ✅已测试 | AiAssistantPanelComponent | 177 | 0 | 3 | **single-pass** | ✅ 推进 |                                                                                      |  | single pass (+竞态+内存泄漏) |
+| ✅已测试 | DownloadTargetComponent | 84 | 1 | 4 | **single-pass** | ✅ 推进 |                                                                                      |  | single pass (+竞态+内存泄漏) |
+| ✅已测试 | PageTabComponent | 98 | 0 | 3 | **single-pass** | ✅ 推进 |                                                                                      | 无 | ✅ page-tab.component.tl.spec.ts (33 tests) |
+| ✅已测试 | ViewerAppComponent | 3363 | 10 | 53 | **multi-pass** | ✅ 推进 | ⚠️ viewer-app.spec.ts                                                                | Bug #16456 TODO, logica changed, can not get fixed dropdown pane; Bug #19176 hide full screen in preview; Bug #16961 should refresh scale to screen vs | ✅ P1: viewer-app.component.interaction.tl.spec.ts (73 tests)<br>✅ P2: viewer-app.component.risk.tl.spec.ts (42 tests)<br>✅ P3: viewer-app.component.display.tl.spec.ts (61 tests) |
+| ✅已测试 | VSBindingPane | 805 | 4 | 5 | **multi-pass** | ✅ 推进 |                                                                                      |  | P1: vs-binding-pane.component.interaction.tl.spec.ts (31+1xfail)<br>P2: vs-binding-pane.component.risk.tl.spec.ts (21)<br>P3: vs-binding-pane.component.display.tl.spec.ts (19) |
+| ✅已测试 | VsWizardComponent | 371 | 0 | 4 | **single-pass** | ✅ 推进 |                                                                                      |  | single pass (+竞态+内存泄漏) |
+| ✅已测试 | PagingControlComponent | 84 | 0 | 0 | **single-pass** | ✅ 推进 |                                                                                      |  | single pass |
+| ✅已测试 | ViewerMobileToolbarComponent | 72 | 0 | 0 | **single-pass** | ✅ 推进 |                                                                                      |  | single pass |
+| ✅已测试 | VsBookmarkPaneComponent | 97 | 0 | 0 | **single-pass** | ✅ 推进 |                                                                                      |  | single pass |
+| ✅已测试 | ExportDialog | 103 | 1 | 3 | **single-pass** | ✅ 推进 | ~~⚠️ export-dialog.spec.ts~~                                                         | Bug #17235 should not; test: should show error | single pass (+竞态+内存泄漏) |
+| ✅已测试 | EmailDialog | 103 | 0 | 1 | **single-pass** | ✅ 推进 |                                                                                      |  | single pass (+内存泄漏) |
+| ✅已测试 | ScheduleDialog | 106 | 0 | 2 | **single-pass** | ✅ 推进 |                                                                                      |  | single pass (+内存泄漏) |
+| ✅已测试 | BookmarkPropertyDialog | 58 | 0 | 0 | **single-pass** | ✅ 推进 |                                                                                      |  | single pass |
+| ✅已测试 | ProfilingDialog | 210 | 2 | 2 | **single-pass** | ✅ 推进 |                                                                                      |  | single pass (+内存泄漏) |
+| ✅已测试 | RemoveBookmarksDialog | 69 | 0 | 2 | **single-pass** | ✅ 推进 |                                                                                      |  | single pass (+内存泄漏) |
+| ✅已测试 | VSFormatsPane | 679 | 4 | 1 | **multi-pass** | ✅ 推进 | ⚠️ vs-formats-pane.spec.ts                                                           | Bug #16685, Bug #16689 check the aligment combox status; Bug #18597, BUg #18664 color,border, aligment status; Bug #18060, Bug #18342 for wrap text on | ✅ P1: vs-formats-pane.component.interaction.tl.spec.ts (40 tests)<br>✅ P3: vs-formats-pane.component.display.tl.spec.ts (27 tests) |
+| ✅已测试 | ShareEmailDialogComponent | 79 | 0 | 3 | **single-pass** | ✅ 推进 |                                                                                      |  | single pass (+竞态+内存泄漏) |
+| ✅已测试 | ShareGoogleChatDialog | 52 | 0 | 3 | **single-pass** | ✅ 推进 |                                                                                      |  | single pass (+竞态+内存泄漏) |
+| ✅已测试 | ShareSlackDialog | 52 | 0 | 3 | **single-pass** | ✅ 推进 |                                                                                      |  | single pass (+竞态+内存泄漏) |
+| ✅已测试 | NotificationsComponent | 65 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ notifications.component.spec.ts                                                   | 无 | single pass (+内存泄漏) |
+| ✅已测试 | VsWizardPane | 901 | 1 | 7 | **multi-pass** | ✅ 推进 |                                                                                      |  | ✅ P1: vs-wizard-pane.component.interaction.tl.spec.ts (45 tests)<br>✅ P2: vs-wizard-pane.component.risk.tl.spec.ts (16 tests) |
+| ✅已测试 | ObjectWizardPane | 556 | 1 | 3 | **multi-pass** | ✅ 推进 |                                                                                      |  | ✅ P1: object-wizard-pane.component.interaction.tl.spec.ts (51 tests)<br>✅ P2: object-wizard-pane.component.risk.tl.spec.ts (17 tests) |
+| ✅已测试 | ActionsContextmenuComponent | 154 | 0 | 1 | **single-pass** | ✅ 推进 | ~~⚠️ actions-contextmenu.component.spec.ts~~ | test: should not create a dropdown when there are no visible actions | ✅ actions-contextmenu.component.tl.spec.ts (28 tests) |
+| ✅已测试 | VariableInputDialog | 214 | 0 | 0 | **single-pass** | ✅ 推进 | ~~⚠️ variable-input-dialog.spec.ts~~                                                     | Bug #16824 Make sure the default value of a boolean type is false | ✅ variable-input-dialog.component.tl.spec.ts (30 tests) |
+| ✅已测试 | EditGeographicDialog | 47 | 0 | 1 | **single-pass** | ✅ 推进 |                                                                                      |  | ✅ edit-geographic-dialog.component.tl.spec.ts (16 tests) |
 
 ---
 
 > **以下为 2026-06-10 补充扫描新增组件**
 
-| 状态 | 组件 | logic_lines | dispatch | async_zones | 分类 | 建议 | 旧 spec | 旧 spec 备注 | Pass 计划 |
-|------|------|-------------|----------|-------------|------|------|---------|-------------|-----------|
-| 待审核 | VSObjectContainer | 708 | 5 | 5 | **multi-pass** | ✅ 推进 |  |  | P1: vs-object-container.component.interaction.tl.spec.ts<br>P2: vs-object-container.component.risk.tl.spec.ts<br>P3: vs-object-container.component.display.tl.spec.ts |
-| 待审核 | ShareLinkDialog | 35 | 0 | 0 | **single-pass** | ⏭ 跳过 |  |  | single pass |
-| 待审核 | BindingEditor | 283 | 3 | 2 | **multi-pass** | ✅ 推进 |  |  | P1: binding-editor.component.interaction.tl.spec.ts<br>P3: binding-editor.component.display.tl.spec.ts |
-| 待审核 | VSObjectView | 206 | 1 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | WizardToolBarComponent | 110 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ wizard-tool-bar.component.spec.ts | Only a single "should create" smoke test; no coverage of cancel() modal dialog flow, done(), undo()/redo() dispatch, undoEnabled/redoEnabled getter logic, or hiddenNewBlockChanged() output emission. | single pass |
-| 待审核 | VsWizardObjectComponent | 324 | 3 | 1 | **multi-pass** | ✅ 推进 |  |  | P1: vs-wizard-object.component.interaction.tl.spec.ts<br>P3: vs-wizard-object.component.display.tl.spec.ts |
-| 待审核 | WizardNewObject | 83 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核 | ObjectWizardToolBarComponent | 96 | 1 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | WizardBindingTree | 421 | 2 | 4 | **single-pass** | ✅ 推进 | ⚠️ wizard-binding-tree.component.spec.ts | Only a single "should create" smoke test; no coverage of selectNodes, recommender, flatternTree, command processors, or context-menu flows — effectively empty. | P1: wizard-binding-tree.component.interaction.tl.spec.ts (+竞态+内存泄漏) |
-| 待审核 | VSWizardAggregatePane | 293 | 1 | 0 | **single-pass** | ✅ 推进 | ⚠️ wizard-aggregate-pane.component.spec.ts | Spec 是 stub，仅 'should create'，无方法覆盖。 | single pass |
-| 待审核 | VSWizardPreviewPane | 63 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ wizard-preview-pane.component.spec.ts | Only a single "should create" smoke test; does not cover changeDescription, setPreviewPaneSize, hasLegend, or processRefreshDescriptionCommand. | single pass |
+| 状态 | 组件 | logic_lines | dispatch | async_zones | 分类 | 建议 | 旧 spec | 旧 spec 备注 | Pass 计划                                                                                                                                                               |
+|------|------|-------------|----------|-------------|------|------|---------|-------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ✅已测试 | VSObjectContainer | 708 | 5 | 5 | **multi-pass** | ✅ 推进 |  |  | P1: vs-object-container.component.interaction.tl.spec.ts<br>P2: vs-object-container.component.risk.tl.spec.ts<br>P3: vs-object-container.component.display.tl.spec.ts |
+| ⏭ 跳过 | ShareLinkDialog | 35 | 0 | 0 | **single-pass** | ⏭ 跳过 |  |  | single pass                                                                                                                                                           |
+| ✅已测试 | BindingEditor | 283 | 3 | 2 | **multi-pass** | ✅ 推进 |  |  | ✅ P1: binding-editor.component.interaction.tl.spec.ts (47 tests)<br>✅ P3: binding-editor.component.display.tl.spec.ts (27 tests)                                       |
+| ✅已测试 | VSObjectView | 206 | 1 | 1 | **single-pass** | ✅ 推进 |  |  | ✅ vs-object-view.component.tl.spec.ts (23 tests)                                                                                                                      |
+| ✅已测试 | WizardToolBarComponent | 110 | 0 | 0 | **single-pass** | ✅ 推进 | ~~⚠️ wizard-tool-bar.component.spec.ts~~ | Only a single "should create" smoke test; no coverage of cancel() modal dialog flow, done(), undo()/redo() dispatch, undoEnabled/redoEnabled getter logic, or hiddenNewBlockChanged() output emission. | ✅ wizard-tool-bar.component.tl.spec.ts (23 tests)                                                                                                                     |
+| ✅已测试 | VsWizardObjectComponent | 324 | 3 | 1 | **multi-pass** | ✅ 推进 |  |  | ✅ P1: vs-wizard-object.component.interaction.tl.spec.ts (40 tests)<br>✅ P3: vs-wizard-object.component.display.tl.spec.ts (24 tests)                                  |
+| ✅已测试 | WizardNewObject | 83 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | ✅ wizard-new-object.component.tl.spec.ts (12 tests)                                                                                                                   |
+| ✅已测试 | ObjectWizardToolBarComponent | 96 | 1 | 2 | **single-pass** | ✅ 推进 |  |  | ✅ object-wizard-tool-bar.component.tl.spec.ts (20 tests)                                                                                                              |
+| ✅已测试 | WizardBindingTree | 421 | 2 | 4 | **single-pass** | ✅ 推进 | ~~⚠️ wizard-binding-tree.component.spec.ts~~ | Only a single "should create" smoke test; no coverage of selectNodes, recommender, flatternTree, command processors, or context-menu flows — effectively empty. | P1: wizard-binding-tree.component.interaction.tl.spec.ts (+竞态+内存泄漏)                                                                                                   |
+| ✅已测试 | VSWizardAggregatePane | 293 | 1 | 0 | **single-pass** | ✅ 推进 | ~~⚠️ wizard-aggregate-pane.component.spec.ts~~ | Spec 是 stub，仅 'should create'，无方法覆盖。 | single pass                                                                                                                                                           |
+| ✅已测试 | VSWizardPreviewPane | 63 | 0 | 0 | **single-pass** | ✅ 推进 | ~~⚠️ wizard-preview-pane.component.spec.ts~~ | Only a single "should create" smoke test; does not cover changeDescription, setPreviewPaneSize, hasLegend, or processRefreshDescriptionCommand. | single pass                                                                                                                                                           |
 
 ## 多 pass 组件详情
 

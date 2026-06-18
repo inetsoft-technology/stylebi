@@ -168,4 +168,9 @@ export const viewerHandlers = [
       return HttpResponse.json(false);
    }),
 
+   // ObjectWizardToolBarComponent.openFullEditor() — open binding in full editor mode
+   http.get("*/api/vswizard/object/toolbar/full-editor", () => {
+      return HttpResponse.json({});
+   }),
+
 ];
