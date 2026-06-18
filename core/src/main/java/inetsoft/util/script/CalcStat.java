@@ -241,16 +241,14 @@ public class CalcStat {
       double[] nos = CalcUtil.convertToDoubleArray(array, false);
 
       // ChrisS bug1403899061216 2014-6-27
-      // Compensate for any "empty" parameters in the list
-      // sparse-array holes / not-found elements arrive as null under GraalJS
-      int notFoundCount = 0;
-      for (int i=0; i<array.length; i++) {
-         if(array[i] == null) {
-            notFoundCount++;
-         }
-      }
-
-      return nos.length - notFoundCount;
+      // Under Rhino, sparse-array holes/empty parameters arrived as the
+      // sentinel UniqueTag.NOT_FOUND, which convertToDoubleArray converted to
+      // 0.0 (and thus inflated nos.length); those slots were compensated for
+      // here. Under GraalJS such holes simply arrive as null, which
+      // convertToDoubleArray already skips, so no compensation is needed.
+      // Subtracting null elements here would incorrectly drop genuine null
+      // values that were never added to nos. (#75423)
+      return nos.length;
    }
 
    /**
