@@ -495,13 +495,13 @@ public class UserEnv {
          if(space.exists(USER_DIR, userFile)) {
             space.delete(USER_DIR, userFile);
          }
+
+         synchronized(propmap) {
+            propmap.keySet().removeIf(k -> userIdentity.equals(getName(k)));
+         }
       }
       catch(Exception e) {
          LOG.warn("Failed to remove user properties for {}", userIdentity, e);
-      }
-
-      synchronized(propmap) {
-         propmap.keySet().removeIf(k -> userIdentity.equals(getName(k)));
       }
    }
 

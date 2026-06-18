@@ -2228,10 +2228,12 @@ public class IdentityService {
          return;
       }
 
+      removeUserEMFavorites(identityIDs);
+
       Map<String, Set<String>> userKeysByOrg = new HashMap<>();
 
       for(IdentityID id : identityIDs) {
-         if(id != null) {
+         if(id != null && id.getOrgID() != null) {
             userKeysByOrg.computeIfAbsent(id.getOrgID(), o -> new HashSet<>())
                .add(id.convertToKey());
          }
@@ -2269,6 +2271,25 @@ public class IdentityService {
             }
             catch(Exception ex) {
                LOG.warn("Failed to remove deleted-user favorites from {}", key, ex);
+            }
+         }
+      }
+   }
+
+   /**
+    * Remove the deleted users' EM admin-panel favorites, which are stored per
+    * identity key in the emFavorites store and would otherwise be orphaned.
+    */
+   private void removeUserEMFavorites(Collection<IdentityID> identityIDs) {
+      KeyValueStorage<FavoriteList> favorites = keyValueStorageManager.getStorage("emFavorites");
+
+      for(IdentityID id : identityIDs) {
+         if(id != null) {
+            try {
+               favorites.remove(id.convertToKey()).get(10L, TimeUnit.SECONDS);
+            }
+            catch(Exception e) {
+               LOG.warn("Failed to remove EM favorites for deleted user {}", id, e);
             }
          }
       }

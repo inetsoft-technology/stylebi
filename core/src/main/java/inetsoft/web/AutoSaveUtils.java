@@ -261,8 +261,10 @@ public final class AutoSaveUtils {
       }
    }
 
-   // Delete all auto save files (active and recycle bin) owned by the given user.
-   // Used when a user is deleted so their drafts are not left orphaned.
+   /**
+    * Delete all auto save files (active and recycle bin) owned by the given user.
+    * Used when a user is deleted so their drafts are not left orphaned.
+    */
    public static void deleteUserAutoSaveFiles(IdentityID user) {
       if(user == null) {
          return;
@@ -271,7 +273,7 @@ public final class AutoSaveUtils {
       try {
          // resolve the bucket from the deleted user's org, not the caller's,
          // so a site admin deleting a cross-org user still finds their drafts
-         BlobStorage<Metadata> blobStorage = getStorage(user.getOrgID());
+         BlobStorage<Metadata> blobStorage = getStorageForOrg(user.getOrgID());
 
          for(String file : blobStorage.paths().collect(Collectors.toList())) {
             String[] attrs = Tool.split(getName(file), '^');
@@ -369,10 +371,10 @@ public final class AutoSaveUtils {
          principal = ThreadContext.getContextPrincipal();
       }
 
-      return getStorage(OrganizationManager.getInstance().getCurrentOrgID(principal));
+      return getStorageForOrg(OrganizationManager.getInstance().getCurrentOrgID(principal));
    }
 
-   static BlobStorage<Metadata> getStorage(String orgId) {
+   static BlobStorage<Metadata> getStorageForOrg(String orgId) {
       if(orgId == null) {
          orgId = OrganizationManager.getInstance().getCurrentOrgID();
       }
