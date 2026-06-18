@@ -18,6 +18,7 @@
 package inetsoft.web.portal.controller.database;
 
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.util.Catalog;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.AssetEntry;
@@ -206,7 +207,6 @@ public class DatabaseTreeService {
          boolean isLeaf = loadColumns ? "column".equals(child.getType()) : !Folder.TYPE.equals(child.getType());
 
          TreeNodeModel.Builder  builder = TreeNodeModel.builder()
-            .label(child.getName())
             .data(child)
             .leaf(isLeaf)
             .type(child.getType())
@@ -223,14 +223,62 @@ public class DatabaseTreeService {
          }
 
          if(!isLeaf) {
-            builder.children(getFullDatabaseTree(
-               child.getPath(), child.getParr(), additional, loadColumns, ignoreVpm, principal));
+            List<TreeNodeModel> grandChildren = getFullDatabaseTree(
+               child.getPath(), child.getParr(), additional, loadColumns, ignoreVpm, principal);
+
+            if(isSchemaFolder(child)) {
+               child.setTableCount(getPhysicalTableChildCount(grandChildren));
+            }
+
+            builder.children(grandChildren);
+         }
+
+         builder.label(getNodeLabel(child));
+         String tooltip = getNodeTooltip(child);
+
+         if(tooltip != null) {
+            builder.tooltip(tooltip);
          }
 
          results.add(builder.build());
       }
 
       return results;
+   }
+
+   public String getNodeLabel(DatabaseTreeNode node) {
+      Integer tableCount = node.getTableCount();
+
+      if(tableCount != null && tableCount > 0) {
+         return node.getName() + " (" + tableCount + ")";
+      }
+
+      return node.getName();
+   }
+
+   public String getNodeTooltip(DatabaseTreeNode node) {
+      Integer tableCount = node.getTableCount();
+
+      if(tableCount != null && tableCount > 0) {
+         Catalog catalog = Catalog.getCatalog();
+         String word = catalog.getString(tableCount == 1
+            ? "data.physicalmodel.schemaTable"
+            : "data.physicalmodel.schemaTables");
+         return tableCount + " " + word;
+      }
+
+      return null;
+   }
+
+   private boolean isSchemaFolder(DatabaseTreeNode node) {
+      return DatabaseTreeNodeType.FOLDER.equals(node.getType()) &&
+         node.getSchema() != null && !node.getSchema().isEmpty();
+   }
+
+   private int getPhysicalTableChildCount(List<TreeNodeModel> children) {
+      return (int) children.stream()
+         .filter(child -> DatabaseTreeNodeType.TABLE.equals(child.type()))
+         .count();
    }
 
    public TreeNodeModel getAllAlias(String basePath, Principal principal) throws Exception {

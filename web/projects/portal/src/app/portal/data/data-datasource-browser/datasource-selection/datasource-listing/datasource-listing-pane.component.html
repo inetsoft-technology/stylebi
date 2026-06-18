@@ -15,7 +15,7 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
-<div class="row g-0">
+<div class="datasource-listing-grid">
   @for (_listing of listings; track _listing.name) {
     <datasource-listing
       class="datasource-listing-grid__item"
@@ -27,6 +27,6 @@
     (touchstart)="select(_listing)"></datasource-listing>
   }
   @if (listings.length === 0) {
-    <p>_#(No listings found).</p>
+    <p class="datasource-listing-grid__empty">_#(No listings found).</p>
   }
 </div>

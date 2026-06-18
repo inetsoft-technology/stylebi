@@ -184,14 +184,24 @@ public class PhysicalModelController {
             false, principal);
 
       return nodes.stream()
-         .map((node) ->TreeNodeModel.builder()
-            .label(node.getName())
-            .data(node)
-            .leaf(!node.getType().equals(DatabaseTreeNodeType.FOLDER))
-            .type(node.getType())
-            .cssClass("action-color")
-            .build())
+         .map(this::buildDatabaseTreeNode)
          .collect(Collectors.toList());
+   }
+
+   private TreeNodeModel buildDatabaseTreeNode(DatabaseTreeNode node) {
+      TreeNodeModel.Builder builder = TreeNodeModel.builder()
+         .label(databaseTreeService.getNodeLabel(node))
+         .data(node)
+         .leaf(!node.getType().equals(DatabaseTreeNodeType.FOLDER))
+         .type(node.getType())
+         .cssClass("action-color");
+      String tooltip = databaseTreeService.getNodeTooltip(node);
+
+      if(tooltip != null) {
+         builder.tooltip(tooltip);
+      }
+
+      return builder.build();
    }
 
    /**

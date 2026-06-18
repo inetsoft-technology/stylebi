@@ -30,11 +30,13 @@
     (click)="toggleNode()"></span>
   }
   <span class="logical-model-tree-node__icon tree-node-icon" [ngClass]="getIcon()"></span>
-  <label class="tree-node-label truncate-text" [class.disable-actions-fade]="node.baseElement">
+  <label class="logical-model-tree-node__label tree-node-label truncate-text"
+    [class.disable-actions-fade]="node.baseElement">
     <span [attr.title]="node.errorMessage || node.name"
     placement="bottom">{{ node.name }}</span>
   </label>
-  <div class="logical-toolbar" [style.visibility]="focusin && moveEnabled ? 'visible' : 'hidden'">
+  <div class="logical-model-tree-node__actions logical-toolbar"
+    [style.visibility]="focusin && moveEnabled ? 'visible' : 'hidden'">
     <button type="button"
       class="logical-model-tree-node__action btn btn-sm btn-light-no-bg"
       [disabled]="firstNode"

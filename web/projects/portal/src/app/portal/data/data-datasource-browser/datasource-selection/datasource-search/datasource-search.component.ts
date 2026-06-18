@@ -26,10 +26,26 @@ import { FormsModule } from "@angular/forms";
     imports: [FormsModule]
 })
 export class DatasourceSearchComponent {
-   @Input() searchString: string;
    @Output() searchStringChange = new EventEmitter<string>();
+   draftSearchString: string = "";
+   private _searchString: string = "";
+
+   @Input()
+   get searchString(): string {
+      return this._searchString;
+   }
+
+   set searchString(value: string) {
+      this._searchString = value || "";
+      this.draftSearchString = this._searchString;
+   }
 
    changeSearchString(searchString: string): void {
-      this.searchStringChange.emit(searchString);
+      this.draftSearchString = searchString;
+   }
+
+   search(): void {
+      this._searchString = this.draftSearchString || "";
+      this.searchStringChange.emit(this._searchString);
    }
 }

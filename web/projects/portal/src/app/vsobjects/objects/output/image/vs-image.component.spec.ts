@@ -218,19 +218,20 @@ describe("VSImage", () => {
       fixture.componentInstance.model = model;
       fixture.componentInstance.vsInfo = new ViewsheetInfo([], "/link/");
       fixture.detectChanges();
-      let debugElement = fixture.debugElement.query(By.directive(VSAnnotation));
+      const debugElement = fixture.debugElement.query(By.directive(VSAnnotation));
       expect(debugElement).not.toBeNull();
 
-      while(debugElement && debugElement.nativeElement) {
-         if(debugElement.nativeElement instanceof Element) {
-            const style = window.getComputedStyle(debugElement.nativeElement);
-
-            if(style != null && Object.keys(style).length > 0) {
-               expect(style.getPropertyValue("overflow")).not.toBe("hidden");
-            }
+      // Walk the real DOM parent chain (not Angular's debug-element tree, which
+      // may traverse internal template nodes in Angular 17+ control-flow blocks).
+      // Stop at the fixture root so only vs-image template ancestors are checked.
+      let el: Element | null = debugElement.nativeElement as Element;
+      while(el) {
+         const style = window.getComputedStyle(el);
+         expect(style.getPropertyValue("overflow")).not.toBe("hidden");
+         if(el === fixture.nativeElement) {
+            break;
          }
-
-         debugElement = debugElement.parent;
+         el = el.parentElement;
       }
    });
 

@@ -19,38 +19,51 @@
   <div class="d-flex flex-column align-items-stretch p-0 h-100"
     [class.col-12]="!showDetailsItem"
     [ngClass]="{'col-6 col-sm-8 col-md-9' : !!showDetailsItem}">
-    <database-data-model-toolbar [database]="databaseName" [model]="listModel"
-      [searchQuery]="searchQuery" [searchVisible]="searchVisible"
-      [isvpm]="false" [isRoot]="isRoot()"
-      [moveDisable]="moveDisable" [selectedItems]="selectedItems"
-      (onAddFolder)="addDataModelFolder()"
-      (onAddLM)="addLogicalModel()"
-      (onAddPhysicalView)="addPhysicalView()"
-      (onDeleteSelected)="deleteSelected()"
-      (onMoveSelected)="moveSelected()"
-      (onToggleSelection)="toggleSelectionState()" (onSearch)="search($event)">
-    </database-data-model-toolbar>
+    <div class="data-model-workspace-header">
+      <div class="data-model-workspace-heading">
+        <div class="data-model-workspace-eyebrow">_#(Data Model)</div>
+        <div class="data-model-workspace-title">
+          {{currentFolderPathString || rootLabel}}
+        </div>
+        <div class="data-model-workspace-subtitle">
+          _#(Browse and manage physical views and logical models for this data source.)
+        </div>
+      </div>
+      <database-data-model-toolbar [database]="databaseName" [model]="listModel"
+        [searchQuery]="searchQuery" [searchVisible]="searchVisible"
+        [isvpm]="false" [isRoot]="isRoot()"
+        [moveDisable]="moveDisable" [selectedItems]="selectedItems"
+        (onAddFolder)="addDataModelFolder()"
+        (onAddLM)="addLogicalModel()"
+        (onAddPhysicalView)="addPhysicalView()"
+        (onDeleteSelected)="deleteSelected()"
+        (onMoveSelected)="moveSelected()"
+        (onToggleSelection)="toggleSelectionState()" (onSearch)="search($event)">
+      </database-data-model-toolbar>
+    </div>
     @if (searchView) {
-      <div class="d-flex align-items-center ps-1 py-1">
+      <div class="data-model-search-banner">
         <i class="close-circle-icon icon-size-small action-style me-1" (click)="clearSearch()"></i>
         <span>
           <b>_#(data.datasets.searchResults):</b> {{currentSearchQuery}} <b>_#(data.datasets.searchIn)</b> {{currentFolderPathString || rootLabel}}
         </span>
       </div>
     }
-    <asset-item-list-view [assets]="models" [columns]="getListColumns()" [selectedItems]="selectedItems"
-      [sortOptions]="sortOptions" [selectionOn]="selectionOn"
-      [searchView]="searchView"
-      [getParentPath]="getParentPath"
-      [iconFunction]="getIcon()" [fetchChildrenFunc]="fetchChildren"
-      [dragSupportFunc]="dragSupportFun()"
-      [dragSupport]="true"
-      (onSelectedChanged)="changeSelectedItems($event)"
-      (sortChanged)="sortModels()" (onClickItem)="clickItem($event)"
-      (onContextmenu)="openContextmenu($event)"
-      (dragAssets)="dragAssetsItems($event)"
-      (assetsDroped)="dropAssetsItems($event)">
-    </asset-item-list-view>
+    <div class="flex-fixed-content">
+      <asset-item-list-view [assets]="models" [columns]="getListColumns()" [selectedItems]="selectedItems"
+        [sortOptions]="sortOptions" [selectionOn]="selectionOn"
+        [searchView]="searchView"
+        [getParentPath]="getParentPath"
+        [iconFunction]="getIcon()" [fetchChildrenFunc]="fetchChildren"
+        [dragSupportFunc]="dragSupportFun()"
+        [dragSupport]="true"
+        (onSelectedChanged)="changeSelectedItems($event)"
+        (sortChanged)="sortModels()" (onClickItem)="clickItem($event)"
+        (onContextmenu)="openContextmenu($event)"
+        (dragAssets)="dragAssetsItems($event)"
+        (assetsDroped)="dropAssetsItems($event)">
+      </asset-item-list-view>
+    </div>
   </div>
   @if (!!showDetailsItem) {
     <div class="flex h-100 col-6 col-sm-4 col-md-3 p-0">

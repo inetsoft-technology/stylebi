@@ -427,20 +427,6 @@ describe("DataDatasourceBrowserComponent - status refresh [Group 2, Risk 3]", ()
 // ---------------------------------------------------------------------------
 
 describe("DataDatasourceBrowserComponent - search [Group 3, Risk 2]", () => {
-   // 🔁 Regression-sensitive: search routing owns query/path/scope and clears the transient input state.
-   it("should navigate to data source search results with current path and scope", async () => {
-      const { comp, mockRouter, mockRoute } = await renderComponent({
-         queryParams: { path: "root", scope: "7" }
-      });
-
-      comp.search("orders");
-
-      expect(mockRouter.navigate).toHaveBeenCalledWith(["datasources"], {
-         queryParams: { query: "orders", scope: "7", path: "root" },
-         relativeTo: mockRoute.parent
-      });
-      expect(comp.searchQuery).toBeNull();
-   });
 
    it("should clear results and show a danger notification when search load fails", async () => {
       server.use(

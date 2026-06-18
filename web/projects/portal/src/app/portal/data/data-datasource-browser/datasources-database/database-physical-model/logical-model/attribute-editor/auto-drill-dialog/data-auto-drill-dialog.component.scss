@@ -23,6 +23,13 @@
   padding: var(--inet-space-5);
 }
 
+.min-height {
+  display: flex;
+  flex-direction: column;
+  min-height: 590px;
+  overflow: hidden;
+}
+
 .auto-drill-dialog__layout {
   display: grid;
   grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1.55fr);
@@ -201,6 +208,7 @@
     grid-template-columns: 1fr;
   }
 
+  .min-height,
   .auto-drill-panel {
     min-height: 420px;
   }

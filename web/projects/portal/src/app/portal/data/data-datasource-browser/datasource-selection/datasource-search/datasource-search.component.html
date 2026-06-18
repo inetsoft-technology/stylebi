@@ -15,9 +15,17 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<label class="datasource-search-field">
-  <span class="datasource-search-field__icon search-icon" aria-hidden="true"></span>
-  <input type="search" class="form-control search-input" name="_#(Data source name filter)"
+<div class="datasource-search-field">
+  <input type="search" class="form-control form-control-sm search-input"
+         name="_#(Data source name filter)"
          placeholder="_#(Search data sources)"
-         [ngModel]="searchString" (ngModelChange)="changeSearchString($event)">
-</label>
+         aria-label="_#(Search data sources)"
+         [ngModel]="draftSearchString"
+         (ngModelChange)="changeSearchString($event)"
+         (keyup.enter)="search()">
+  <button type="button" class="datasource-search-field__button"
+          title="_#(Search)" aria-label="_#(Search)"
+          (click)="search()">
+    <i class="search-icon icon-size-medium icon-color-default" aria-hidden="true"></i>
+  </button>
+</div>

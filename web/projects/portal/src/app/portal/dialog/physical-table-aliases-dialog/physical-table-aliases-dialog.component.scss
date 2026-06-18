@@ -26,3 +26,9 @@
    padding: 0 5px;
    background: white;
 }
+
+.auto-alias-toggle {
+   min-height: var(--inet-control-height-md);
+   display: flex;
+   align-items: center;
+}

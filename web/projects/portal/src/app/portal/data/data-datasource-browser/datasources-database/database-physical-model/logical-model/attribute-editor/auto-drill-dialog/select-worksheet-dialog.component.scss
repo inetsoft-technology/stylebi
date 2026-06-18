@@ -18,21 +18,33 @@
 .select-worksheet-dialog {
   --condition-row-control-height: 2.375rem;
   --custom-select-height: var(--condition-row-control-height);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 12rem);
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: var(--inet-space-5);
 }
 
 .select-worksheet-dialog__section {
+  display: flex;
+  flex-direction: column;
   margin: 0;
+  min-height: 0;
 }
 
 .tree-container {
-  height: 25em;
+  height: min(25em, calc(100vh - 20rem));
+  min-height: 12em;
 }
 
 .select-worksheet-dialog__tree-shell {
   border: 1px solid var(--inet-list-border-color);
   border-radius: var(--inet-radius-md);
   background-color: var(--inet-list-bg-color);
+  min-height: 0;
+  overflow: auto;
   padding: var(--inet-space-3);
 }
 

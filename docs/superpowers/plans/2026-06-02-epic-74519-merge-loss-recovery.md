@@ -964,13 +964,16 @@ Run a workflow to analyze all remaining files in the conflict zone. Tasks 1–8 
 
 - [ ] **Step 1: Save the conflict zone file lists**
 
+> ⚠️ **Updated after post-mortem** — use the full EPIC diff, not just the intersection with MAIN.
+> The original `comm -12` approach excluded files changed only on the EPIC side, which the merge
+> resolver could still have reverted. See the design spec post-mortem for full details.
+
 From `community/`:
 ```bash
 BASE=298d23f34; EPIC=19387c26c; MAIN=4e1a6d45e
-git diff --name-only $BASE..$EPIC | sort > /tmp/epic_files.txt
-git diff --name-only $BASE..$MAIN | sort > /tmp/main_files.txt
-comm -12 /tmp/epic_files.txt /tmp/main_files.txt | grep -E '\.(html|ts)$' | grep 'web/' > /tmp/conflict_zone.txt
-wc -l /tmp/conflict_zone.txt  # Should be 634
+# Audit ALL files EPIC changed (not just the intersection with MAIN)
+git diff --name-only $BASE..$EPIC | grep -E '\.(html|ts)$' | grep 'web/' | sort > /tmp/epic_files.txt
+wc -l /tmp/epic_files.txt
 ```
 
 - [ ] **Step 2: Run the audit workflow**
@@ -1028,7 +1031,9 @@ const LOSS_SCHEMA = {
 const auditResults = await pipeline(
   batches,
   (batch, _orig, idx) => agent(
-    `You are auditing Angular frontend files for lost merge changes.
+    `You are auditing Angular frontend files for lost merge changes. Your default assumption is
+that losses EXIST — your job is to find them, not explain them away.
+
 Working directory: /home/jasonshobe/work/stylebi/community
 
 Reference commits:
@@ -1036,23 +1041,32 @@ Reference commits:
 - EPIC (epic-74519 tip before merge): ${EPIC}
 - HEAD: current working tree
 
-For each file in this batch, do the following:
-1. Run: git show ${BASE}:<file> to get the BASE version
-2. Run: git show ${EPIC}:<file> to get the EPIC version
-3. Read the current file from disk
-4. Diff EPIC vs BASE to find what epic-74519 added/changed
-5. Check if those additions/changes are present in the current HEAD
+For each file in this batch:
 
-Skip files where EPIC == BASE (epic didn't change them).
-Skip files that were already fixed in the current session (if git log --oneline -3 shows a recent "Restore" commit touching that file).
+1. Run: git show ${EPIC}:<file> to get the EPIC version
+2. Run: git show ${BASE}:<file> to get the BASE version
+3. Read the current HEAD file from disk
+4. Skip the file entirely if EPIC == BASE (epic made no changes)
 
-Report ONLY genuine losses — content in the EPIC version that is absent from HEAD.
-Do NOT report:
-- NgModule files that were intentionally removed (standalone migration)
-- jest.* that were converted to vi.* (Vitest migration)  
-- *ngIf/*ngFor replaced by @if/@for (Angular 21 control flow migration)
+5. Use a PATTERN-COUNT approach to detect losses:
+   - Count occurrences of each design pattern in EPIC: shell-form-group, shell-form-row,
+     custom-select, number-stepper, landing-card, landing-shell, enterClick, form-row-float-label
+   - Count the same patterns in HEAD
+   - If HEAD count < EPIC count for ANY pattern, that is a confirmed loss — report it
+   - Also diff EPIC vs BASE to find any additions not covered by the pattern list
 
-Files to audit:
+6. For each loss, verify it is not an intentional removal by checking:
+   - NgModule declarations removed for standalone migration → skip
+   - jest.* converted to vi.* → skip
+   - *ngIf/*ngFor syntax replaced by @if/@for (same logic, different syntax) → skip
+   NOTE: These are HUNK-level filters. Do not skip an entire file because it has some
+   Angular migration changes — look for non-syntax losses in the same file.
+
+7. Mark a file CLEAN only if:
+   - Pattern counts match AND
+   - A spot-check of 3 EPIC-specific additions confirms they are present in HEAD
+
+Files to audit (batch of ${batch.length}):
 ${batch.join('\n')}`,
     { label: `audit-batch-${idx}`, phase: 'Audit', schema: LOSS_SCHEMA }
   )

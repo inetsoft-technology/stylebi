@@ -28,6 +28,9 @@ import { DataDetailsPaneService } from "./services/data-details-pane.service";
 import { DataPhysicalModelService } from "./services/data-physical-model.service";
 import { DataSourcesTreeViewComponent } from "./data-navigation-tree/data-sources-tree-view.component";
 
+const DATASOURCE_ROOT_SCOPE = "0";
+const WORKSHEET_ROOT_SCOPE = "1";
+
 @Component({
     selector: "p-data-tab",
     templateUrl: "./data-tab.component.html",
@@ -43,8 +46,6 @@ export class DataTabComponent implements AfterViewInit, OnInit, OnDestroy {
    treePaneCollapsed: boolean = false;
    private subscription: Subscription;
    public hiddenCollapsed: boolean = false;
-   currentUrl: string = "";
-   searchView: boolean = false;
 
    constructor(private readonly physicalModelService: DataPhysicalModelService,
                private aiAssistantSerivice: AiAssistantService,
@@ -64,12 +65,11 @@ export class DataTabComponent implements AfterViewInit, OnInit, OnDestroy {
    }
 
    ngOnInit(): void {
-      this.currentUrl = this.router.url;
-      this.updateSearchView();
+      this.normalizeLandingRoute(this.router.url);
+
       this.subscription.add(this.router.events.subscribe((event) => {
          if(event instanceof NavigationEnd) {
-            this.currentUrl = event.urlAfterRedirects;
-            this.updateSearchView();
+            this.normalizeLandingRoute(event.urlAfterRedirects);
 
             if(!event.urlAfterRedirects.startsWith("/portal/tab/data/folder") &&
                !event.urlAfterRedirects.startsWith("/portal/tab/data?") &&
@@ -86,18 +86,6 @@ export class DataTabComponent implements AfterViewInit, OnInit, OnDestroy {
          this.subscription.unsubscribe();
          this.subscription = null;
       }
-   }
-
-   get showSearchResults(): boolean {
-      return this.searchView;
-   }
-
-   get showMainPane(): boolean {
-      return !this.isEmptyLandingRoute() || this.showSearchResults;
-   }
-
-   get showEmptyState(): boolean {
-      return this.isEmptyLandingRoute() && !this.showSearchResults;
    }
 
    toggleDataTreePane(): void {
@@ -134,29 +122,35 @@ export class DataTabComponent implements AfterViewInit, OnInit, OnDestroy {
       }
    }
 
-   private updateSearchView(): void {
-      const [path, query = ""] = this.currentUrl.split("?");
-      this.searchView = path.startsWith("/portal/tab/data/folder") &&
-         new URLSearchParams(query).has("query");
+   private normalizeLandingRoute(url: string): void {
+      if(this.isLandingRoute(url, "/portal/tab/data/datasources")) {
+         this.router.navigate(["/portal/tab/data/datasources"], {
+            queryParams: {
+               path: "/",
+               scope: DATASOURCE_ROOT_SCOPE
+            },
+            replaceUrl: true
+         });
+      }
+      else if(this.isLandingRoute(url, "/portal/tab/data/folder")) {
+         this.router.navigate(["/portal/tab/data/folder"], {
+            queryParams: {
+               path: "/",
+               scope: WORKSHEET_ROOT_SCOPE
+            },
+            replaceUrl: true
+         });
+      }
    }
 
-   private isDatasourceLandingRoute(): boolean {
-      const [path, query = ""] = this.currentUrl.split("?");
+   private isLandingRoute(url: string, routePath: string): boolean {
+      const [path, query = ""] = url.split("?");
 
-      if(path !== "/portal/tab/data/datasources") {
+      if(path !== routePath) {
          return false;
       }
 
       const params = new URLSearchParams(query);
       return !params.has("path") && !params.has("scope") && !params.has("query");
-   }
-
-   private isEmptyLandingRoute(): boolean {
-      const [path, query = ""] = this.currentUrl.split("?");
-      const params = new URLSearchParams(query);
-      const isWorksheetLanding = path === "/portal/tab/data/folder" &&
-         !params.has("path") && !params.has("scope") && !params.has("query");
-
-      return isWorksheetLanding || this.isDatasourceLandingRoute();
    }
 }

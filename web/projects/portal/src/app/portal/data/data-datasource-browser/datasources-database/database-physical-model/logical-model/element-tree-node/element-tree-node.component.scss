@@ -50,6 +50,7 @@ tree-node:first-of-type > .logical-model-tree-node {
   line-height: normal;
   margin-bottom: 0;
   flex: 1 1 auto;
+  min-width: 0;
   justify-content: flex-start;
 }
 
@@ -57,7 +58,8 @@ tree-node:first-of-type > .logical-model-tree-node {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  margin-left: var(--inet-space-1);
+  margin-left: auto;
+  flex: 0 0 auto;
 }
 
 .logical-model-tree-node__action {

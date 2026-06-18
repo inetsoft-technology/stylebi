@@ -40,6 +40,7 @@ import { TreeNodeModel } from "../../tree/tree-node-model";
 import { AnalysisResult } from "./analysis-result";
 import { CodemirrorHighlightTextInfo } from "../codemirror-highlight-text-info";
 import { TreeTool } from "../../../common/util/tree-tool";
+import { GuiTool } from "../../../common/util/gui-tool";
 import { CodemirrorService } from "../../../../../../shared/util/codemirror/codemirror.service";
 import { ScriptSettingsService } from "./script-settings.service";
 import { OutOfZoneDirective } from "../../directive/out-of-zone.directive";
@@ -651,7 +652,13 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
          node.type === "field" || node.data && node.data.name == "COLUMN" ||
          node.data && node.data.name == "DATE_COLUMN")
       {
-         css += "column-icon";
+         css += GuiTool.getDataTypeIconClass(node.data?.dataType) ||
+            (node.data?.name == "DATE_COLUMN" ? "date-field-icon" : "column-icon");
+      }
+      else if(node.leaf && typeof node.data === "string" &&
+         ["+", "-", "*", "/", "<", "<=", ">", ">=", "=", "<>"].includes(node.data))
+      {
+         css += "formula-icon";
       }
       else if(node.children && node.children.length > 0) {
          if(node.expanded) {

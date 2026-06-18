@@ -67,7 +67,6 @@ import { PhysicalStatusBarComponent } from "./physical-status-bar.component";
 import { PhysicalGraphPane } from "./physical-graph-pane/physical-graph-pane.component";
 import { PhysicalModelEditTableComponent } from "./physical-model-edit-table/physical-model-edit-table.component";
 import { LoadingIndicatorPaneComponent } from "../common-components/loading-indicator-pane/loading-indicator-pane.component";
-import { AutoCollapseToolbarComponent } from "../../../../../widget/toolbar/auto-collapse-toolbar/auto-collapse-toolbar.component";
 
 
 const PHYSICAL_MODELS_INLINE_VIEW_URI: string = "../api/data/physicalmodel/inlineView/";
@@ -86,7 +85,7 @@ const HEARTBEAT_MODEL_URI: string = "../api/data/physicalmodel/heartbeat";
     selector: "database-physical-model",
     templateUrl: "database-physical-model.component.html",
     styleUrls: ["database-model-pane.scss", "database-physical-model.component.scss"],
-    imports: [SplitPane, AutoCollapseToolbarComponent, FormsModule, PhysicalModelTableTreeComponent, LoadingIndicatorPaneComponent, PhysicalModelEditTableComponent, PhysicalGraphPane, PhysicalStatusBarComponent, InputNameDialog, InlineViewDialog, AutoJoinTablesDialog, NotificationsComponent]
+    imports: [SplitPane, FormsModule, PhysicalModelTableTreeComponent, LoadingIndicatorPaneComponent, PhysicalModelEditTableComponent, PhysicalGraphPane, PhysicalStatusBarComponent, InputNameDialog, InlineViewDialog, AutoJoinTablesDialog, NotificationsComponent]
 })
 export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestroy, CanComponentDeactivate {
    @ViewChild("splitPane") splitPane: SplitPane;
@@ -952,8 +951,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
          this.openFolder(node)
             .subscribe(
                data => {
-                  node.children = data;
-                  node.childrenLoaded = true;
+                  this.setExpandedNodeChildren(node, data);
                },
                err => {
                }
@@ -1107,6 +1105,33 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
                }
             });
          }));
+   }
+
+   private setExpandedNodeChildren(node: TreeNodeModel, children: TreeNodeModel[]): void {
+      node.children = children;
+      node.childrenLoaded = true;
+      this.refreshExpandedSchemaTableCount(node);
+   }
+
+   // Label/tooltip format must match DatabaseTreeService.getNodeLabel() / getNodeTooltip() (Java).
+   // If the format changes, update both places.
+   private refreshExpandedSchemaTableCount(node: TreeNodeModel): void {
+      const data = <DatabaseTreeNodeModel> node?.data;
+
+      if(!data || data.type !== DatabaseTreeNodeType.FOLDER || !data.schema) {
+         return;
+      }
+
+      const tableCount = node.children
+         ?.filter(child => child.type === DatabaseTreeNodeType.TABLE)
+         .length ?? 0;
+      data.tableCount = tableCount;
+      node.label = tableCount > 0 ? data.name + " (" + tableCount + ")" : data.name;
+      node.tooltip = tableCount > 0
+         ? tableCount + " " + (tableCount === 1
+            ? "_#(js:data.physicalmodel.schemaTable)"
+            : "_#(js:data.physicalmodel.schemaTables)")
+         : undefined;
    }
 
    private loadDatabaseTree(): Observable<TreeNodeModel[]> {
@@ -1263,7 +1288,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
     */
    search(): void {
       if(!this.filterTablesString) {
-         this.searchMode = false;
+         this.resetSearchMode();
 
          return;
       }
@@ -1464,7 +1489,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
                this.openFolder(child)
                   .subscribe(
                      data => {
-                        child.children = data;
+                        this.setExpandedNodeChildren(child, data);
                         this.selectAndExpandToPath(paths, child);
                      });
             }

@@ -34,15 +34,35 @@
    height: 100%;
    display: flex;
    justify-content: space-between;
+   align-items: center;
    border-radius: 4px;
 
    .down-arrow-button {
      opacity: 0.3;
+     flex: 0 0 auto;
    }
 
    &:hover .down-arrow-button {
      opacity: 1;
    }
+}
+
+.physical-graph-node__header--auto-alias {
+   background-color: var(--inet-fourth-soft-color);
+   color: var(--inet-fourth-text-color);
+   box-shadow: inset 0 0 0 1px var(--inet-fourth-color);
+}
+
+.physical-graph-node__auto-alias-badge {
+   flex: 0 0 auto;
+   margin-left: 4px;
+   padding: 1px 5px;
+   border-radius: 999px;
+   background-color: var(--inet-fourth-color);
+   color: var(--inet-light-color);
+   font-size: 10px;
+   font-weight: 600;
+   line-height: 1.2;
 }
 
 .physical-graph-node-selected {
@@ -51,8 +71,9 @@
 
 .graph-label-text {
    margin-left: 15px;
-   margin-right: 10px;
-   display: inline-table; // force width to be integer to avoid right border missing
+   margin-right: 6px;
+   min-width: 0;
+   flex: 1 1 auto;
 }
 
 .graph-show-detail-icon {
