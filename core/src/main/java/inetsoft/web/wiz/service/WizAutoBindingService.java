@@ -171,7 +171,7 @@ public class WizAutoBindingService {
             selectBindColumns(worksheetColumns, configMap);
 
          AssetEntry[] entries = bindColumns.stream()
-            .map(col -> buildEntryFromColumn(col, worksheetId, tableNameFinal))
+            .map(col -> buildEntryFromColumn(col, worksheetId, tableNameFinal, configMap))
             .toArray(AssetEntry[]::new);
 
          bindingHandler.updateTemporaryFields(rvs, entries, tempInfo);
@@ -337,7 +337,8 @@ public class WizAutoBindingService {
 
    // ── AssetEntry building ──────────────────────────────────────────────────────
 
-   private AssetEntry buildEntryFromColumn(ColumnRef col, String wsPath, String tableName) {
+   private AssetEntry buildEntryFromColumn(ColumnRef col, String wsPath, String tableName,
+                                           Map<String, SimpleFieldInfo> configMap) {
       String alias = col.getAlias();
       String colName = (alias != null && !alias.isEmpty()) ? alias : col.getAttribute();
       String path = (wsPath != null && tableName != null)
@@ -351,7 +352,25 @@ public class WizAutoBindingService {
       String dtype = col.getDataType() != null ? col.getDataType() : XSchema.STRING;
       entry.setProperty("dtype", dtype);
 
-      boolean isMeasure = XSchema.isNumericType(dtype) && !XSchema.isDateType(dtype);
+      // The caller's fieldConfig is authoritative about dimension vs measure. Honor it: a declared
+      // measure (e.g. DistinctCount/Count over a string id) is a measure regardless of operand
+      // type — otherwise the recommender would classify it by dtype, treat the aggregated id as a
+      // high-cardinality dimension, and degrade the chart to a raw table. A declared dimension
+      // (e.g. a numeric year/code grouped as a category) is likewise kept a dimension. Fall back
+      // to the dtype heuristic only when the field has no explicit config.
+      SimpleFieldInfo fc = configMap != null ? configMap.get(colName) : null;
+      boolean isMeasure;
+
+      if(fc instanceof MeasureFieldInfo) {
+         isMeasure = true;
+      }
+      else if(fc instanceof DimensionFieldInfo) {
+         isMeasure = false;
+      }
+      else {
+         isMeasure = XSchema.isNumericType(dtype) && !XSchema.isDateType(dtype);
+      }
+
       setRefType(entry, isMeasure);
       return entry;
    }
