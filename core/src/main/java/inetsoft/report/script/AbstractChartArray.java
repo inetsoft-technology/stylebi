@@ -146,7 +146,12 @@ public abstract class AbstractChartArray
                   // ignore it
                }
 
-               return getMethod.invoke(info, new Object[0]);
+               Object result = getMethod.invoke(info, new Object[0]);
+
+               if(result != null) {
+                  return result;
+               }
+               // fall through to members map for non-field keys (#75423)
             }
             else {
                // @by davidd feature1336679288695, support non-precise field
@@ -164,7 +169,14 @@ public abstract class AbstractChartArray
                   }
                }
 
-               return ref == null ? null : getMethod.invoke(ref, new Object[0]);
+               if(ref != null) {
+                  Object result = getMethod.invoke(ref, new Object[0]);
+
+                  if(result != null) {
+                     return result;
+                  }
+               }
+               // fall through to members map for non-field keys (#75423)
             }
          }
          catch(Exception e) {
@@ -237,9 +249,13 @@ public abstract class AbstractChartArray
                "Failed to set property in chart array: " + id + "=" + value, e);
          }
       }
-      else {
-         LOG.error("Property cannot be modified: " + property);
-      }
+
+      // Under Rhino this scope extended ScriptableObject, which always retained
+      // arbitrary members in its own slots in addition to the reflective
+      // field-keyed set above. Preserve that behavior by storing the value in
+      // the members map as well, so member access (getMember/hasMember) can
+      // fall back to it for keys that are not bound chart fields. (#75423)
+      members.put(id, value);
    }
 
    /**
