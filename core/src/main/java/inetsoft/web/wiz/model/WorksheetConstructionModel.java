@@ -333,13 +333,36 @@ public class WorksheetConstructionModel {
       UNION, INTERSECT, EXCEPT
    }
 
+   @JsonIgnoreProperties(ignoreUnknown = true)
    public static class Condition {
       private String field;
-      private FilterOperator operator;
-      private Object value; // String or String[]
+      // #75457: the operation vocabulary used by the rest of the wiz condition API (apply_filter,
+      // preAggregateCondition): EQUAL_TO, GREATER_THAN, LESS_THAN, ONE_OF, BETWEEN, LIKE,
+      // STARTING_WITH, CONTAINS, NULL, DATE_IN. (Previously this model expected an `operator` enum
+      // of EQ/GT/... which the plugin never sends, so every filter 400'd on deserialization.)
+      private String operation;
+      // Inclusive bound for GREATER_THAN/LESS_THAN (>= / <=).
+      private Boolean equal;
+      private Object value; // String or List<String>
       private ConditionOperator conditionOperator;
       private int conditionLevel;
       private boolean negated;
+
+      public String getOperation() {
+         return operation;
+      }
+
+      public void setOperation(String operation) {
+         this.operation = operation;
+      }
+
+      public Boolean getEqual() {
+         return equal;
+      }
+
+      public void setEqual(Boolean equal) {
+         this.equal = equal;
+      }
 
       public boolean isNegated() {
          return negated;
@@ -355,14 +378,6 @@ public class WorksheetConstructionModel {
 
       public void setField(String field) {
          this.field = field;
-      }
-
-      public FilterOperator getOperator() {
-         return operator;
-      }
-
-      public void setOperator(FilterOperator operator) {
-         this.operator = operator;
       }
 
       public Object getValue() {
