@@ -41,6 +41,7 @@ import inetsoft.storage.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.service.XEngine;
@@ -238,7 +239,6 @@ public class IdentityService {
                }
 
                if(type == Identity.USER) {
-                  deleteUserIDs.add(identityId);
                   logoutSession(identityId);
                }
 
@@ -246,6 +246,12 @@ public class IdentityService {
 
                syncIdentity(provider, identityId != null ? new DefaultIdentity(identityId, type) :
                   new DefaultIdentity(), null);
+
+               // only mark as deleted after syncIdentity succeeds, so favorites
+               // aren't stripped for users whose deletion failed
+               if(type == Identity.USER) {
+                  deleteUserIDs.add(identityId);
+               }
             }
             catch(Exception ex) {
                actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
@@ -260,6 +266,9 @@ public class IdentityService {
                }
             }
          }
+
+         // sweep shared-asset favorites once for all deleted users (one scan per org)
+         removeUserFavorites(deleteUserIDs);
 
          if(!failedIdentities.isEmpty()) {
             String warning = String.format(
@@ -473,6 +482,8 @@ public class IdentityService {
             eprovider.removeUser(identityId);
             updateIdentityPermissions(type, identityId, null, identityId.orgID, identityId.orgID,true);
             removeUserScopedAssets(identity);
+            UserEnv.removeUser(identityId);
+            AutoSaveUtils.deleteUserAutoSaveFiles(identityId);
          }
          else {
             if(!identityId.equals(oID)) {
@@ -2204,6 +2215,63 @@ public class IdentityService {
       };
       Set<String> keys = indexedStorage.getKeys(filter, identityID.getOrgID());
       keys.stream().forEach(key -> indexedStorage.remove(key));
+   }
+
+   /**
+    * Remove deleted users from the favoritesUser lists of shared assets they had favorited,
+    * so no dangling references are left behind. Scans each affected organization's folders
+    * once for the whole batch, so a bulk delete costs one sweep per org rather than one per
+    * user.
+    */
+   private void removeUserFavorites(Collection<IdentityID> identityIDs) {
+      if(identityIDs == null || identityIDs.isEmpty()) {
+         return;
+      }
+
+      Map<String, Set<String>> userKeysByOrg = new HashMap<>();
+
+      for(IdentityID id : identityIDs) {
+         if(id != null) {
+            userKeysByOrg.computeIfAbsent(id.getOrgID(), o -> new HashSet<>())
+               .add(id.convertToKey());
+         }
+      }
+
+      IndexedStorage.Filter filter = key -> {
+         AssetEntry entry = AssetEntry.createAssetEntry(key);
+         return entry != null && entry.isFolder();
+      };
+
+      for(Map.Entry<String, Set<String>> e : userKeysByOrg.entrySet()) {
+         String orgID = e.getKey();
+         Set<String> userKeys = e.getValue();
+
+         for(String key : indexedStorage.getKeys(filter, orgID)) {
+            try {
+               XMLSerializable data = indexedStorage.getXMLSerializable(key, null, orgID);
+
+               if(data instanceof AssetFolder folder) {
+                  boolean changed = false;
+
+                  for(AssetEntry folderEntry : folder.getEntries()) {
+                     for(String userKey : userKeys) {
+                        if(folderEntry.getFavoritesUsers().contains(userKey)) {
+                           folderEntry.deleteFavoritesUser(userKey);
+                           changed = true;
+                        }
+                     }
+                  }
+
+                  if(changed) {
+                     indexedStorage.putXMLSerializable(key, folder);
+                  }
+               }
+            }
+            catch(Exception ex) {
+               LOG.warn("Failed to remove deleted-user favorites from {}", key, ex);
+            }
+         }
+      }
    }
 
 

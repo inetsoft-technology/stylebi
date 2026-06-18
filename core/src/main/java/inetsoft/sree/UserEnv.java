@@ -478,6 +478,34 @@ public class UserEnv {
    }
 
    /**
+    * Remove a user's saved properties file. Called when a user is deleted so the
+    * sreeUserData/{name}_{orgID}.xml file is not left orphaned.
+    */
+   public static void removeUser(IdentityID userIdentity) {
+      if(userIdentity == null) {
+         return;
+      }
+
+      String userFile = getUserFile(userIdentity.convertToKey());
+      DataSpace space = DataSpace.getDataSpace();
+
+      try {
+         removeChangeListener(space, userFile);
+
+         if(space.exists(USER_DIR, userFile)) {
+            space.delete(USER_DIR, userFile);
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to remove user properties for {}", userIdentity, e);
+      }
+
+      synchronized(propmap) {
+         propmap.keySet().removeIf(k -> userIdentity.equals(getName(k)));
+      }
+   }
+
+   /**
     * Get the user names containing a UserEnv file
     */
    public static Set<String> getUsersWithFile() {
