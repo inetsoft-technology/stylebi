@@ -32,6 +32,9 @@ import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.jdbc.util.SQLTypes;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.schema.XTypeNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
@@ -504,6 +507,13 @@ public class WorksheetTableService {
             dsName + "'.");
       }
 
+      // The parsed UniformSQL selection only carries types for base table columns it can resolve
+      // from catalog metadata; aggregates, window functions and subquery-passthrough columns get
+      // no type, so each would default to "string" (ColumnRef's fallback) and a numeric measure
+      // would be misread as a dimension by the chart recommender. Overlay the real result types
+      // from the query's output metadata (ResultSetMetaData).
+      applySqlResultTypes(columns, query, session);
+
       // StyleBI's SQL parser captures selection aliases with surrounding double-quotes (e.g.
       // "seller_state"). Expose a clean column name via an applied alias — this leaves each column's
       // underlying ref (which maps to the SQL result) untouched, so data still binds.
@@ -523,6 +533,56 @@ public class WorksheetTableService {
 
       worksheet.addAssembly(table);
       return table;
+   }
+
+   /**
+    * Overlay real column data types (from the query's ResultSetMetaData) onto a SQL-bound table's
+    * column selection. The SQL parser only types base catalog columns; without this, aggregates,
+    * window functions and subquery-passthrough columns default to "string" (ColumnRef's fallback)
+    * and a numeric measure binds as a dimension. Types are matched positionally — the parsed
+    * selection order equals the result-set order — with a name-based fallback when the counts differ.
+    */
+   private void applySqlResultTypes(ColumnSelection columns, JDBCQuery query, Object session) {
+      try {
+         XTypeNode meta = query.getOutputTypeForNonParseableSQL(
+            new XTypeNode("table"), new VariableTable(), session);
+
+         if(meta == null || meta.getChildCount() == 0) {
+            return;
+         }
+
+         int n = columns.getAttributeCount();
+         boolean byIndex = meta.getChildCount() == n;
+         Map<String, String> byName = new HashMap<>();
+
+         for(int i = 0; i < meta.getChildCount(); i++) {
+            XTypeNode node = (XTypeNode) meta.getChild(i);
+
+            if(node.getName() != null && node.getType() != null) {
+               byName.putIfAbsent(node.getName(), node.getType());
+            }
+         }
+
+         for(int i = 0; i < n; i++) {
+            if(!(columns.getAttribute(i) instanceof ColumnRef cr)) {
+               continue;
+            }
+
+            String type = byIndex ? ((XTypeNode) meta.getChild(i)).getType() : null;
+
+            if(type == null || type.isEmpty()) {
+               type = byName.get(cr.getName());
+            }
+
+            if(type != null && !type.isEmpty()) {
+               cr.setDataType(type);
+            }
+         }
+      }
+      catch(Exception ex) {
+         // Best-effort: a metadata failure leaves the parser-derived types (worst case "string").
+         LOG.debug("Failed to resolve SQL result types for sql query table", ex);
+      }
    }
 
    private AbstractTableAssembly buildMirrorTable(Worksheet worksheet,
@@ -1183,4 +1243,6 @@ public class WorksheetTableService {
    private final QueryManagerService queryManagerService;
    private final XRepository xrepository;
    private final ObjectMapper objectMapper;
+
+   private static final Logger LOG = LoggerFactory.getLogger(WorksheetTableService.class);
 }
