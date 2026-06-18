@@ -28,6 +28,7 @@ import { Subject, Subscription } from "rxjs";
 import { of } from "rxjs";
 import { VSObjectContainer } from "./vs-object-container.component";
 import { VSObjectModel } from "../model/vs-object-model";
+import { VSFormatModel } from "../model/vs-format-model";
 import { DataTipService } from "./data-tip/data-tip.service";
 import { MiniToolbarService } from "./mini-toolbar/mini-toolbar.service";
 
@@ -112,7 +113,7 @@ export function makeObjectFormat(overrides: Partial<{
       top: 10, left: 10, width: 200, height: 100, zIndex: 1,
       border: { top: null, bottom: null, left: null, right: null },
       ...overrides,
-   };
+   } as VSFormatModel;
 }
 
 export function makeVSObject(overrides: Partial<VSObjectModel> = {}): VSObjectModel {

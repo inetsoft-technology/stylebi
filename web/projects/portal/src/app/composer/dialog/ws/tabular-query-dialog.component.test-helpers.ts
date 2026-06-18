@@ -25,7 +25,7 @@
  * comp directly.
  */
 
-import { of } from "rxjs";
+import { of, Subject } from "rxjs";
 import { TabularQueryDialog } from "./tabular-query-dialog.component";
 import { TabularQueryDialogModel } from "../../data/ws/tabular-query-dialog-model";
 import { TabularView } from "../../../common/data/tabular/tabular-view";
@@ -94,10 +94,10 @@ export function makeChangeRef() {
 
 export function makeModal() {
    return {
-      open: vi.fn().mockReturnValue({
-         componentInstance: {},
+      open: vi.fn().mockImplementation(() => ({
+         componentInstance: { onCommit: new Subject<string>() },
          result: Promise.reject("dismissed"),
-      }),
+      })),
    };
 }
 

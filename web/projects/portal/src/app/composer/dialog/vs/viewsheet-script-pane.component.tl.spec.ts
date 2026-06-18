@@ -76,6 +76,10 @@ import { ScriptPaneTreeModel } from "../../../widget/dialog/script-pane/script-p
 const mockCmInstance: any = {
    getValue: vi.fn().mockReturnValue(""),
    setValue: vi.fn(),
+   focus: vi.fn(),
+   lineCount: vi.fn().mockReturnValue(10),
+   lastLine: vi.fn().mockReturnValue(9),
+   getLine: vi.fn().mockReturnValue(""),
    getCursor: vi.fn().mockReturnValue({ line: 0, ch: 0 }),
    setCursor: vi.fn(),
    on: vi.fn(),

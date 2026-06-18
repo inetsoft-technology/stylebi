@@ -39,16 +39,28 @@
  *   formValid — lambda derived directly from form.valid; covered implicitly by form control tests.
  */
 
-import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { Component, NO_ERRORS_SCHEMA } from "@angular/core";
 import { render } from "@testing-library/angular";
 import { of } from "rxjs";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { SaveViewsheetDialog } from "./save-viewsheet-dialog.component";
+import { AssetTreeComponent } from "../../../widget/asset-tree/asset-tree.component";
+import { ViewsheetOptionsPane } from "./viewsheet-options-pane.component";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 import { ModelService } from "../../../widget/services/model.service";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { SaveViewsheetDialogModel } from "../../data/vs/save-viewsheet-dialog-model";
 import { SaveViewsheetDialogModelValidator } from "../../data/vs/save-viewsheet-dialog-model-validator";
 import { HttpResponse } from "@angular/common/http";
+
+@Component({ selector: "asset-tree", template: "", standalone: true })
+class AssetTreeComponentStub {}
+
+@Component({ selector: "viewsheet-options-pane", template: "", standalone: true })
+class ViewsheetOptionsPaneStub {}
+
+@Component({ selector: "modal-header", template: "", standalone: true })
+class ModalHeaderComponentStub {}
 
 const MODEL_SERVICE_MOCK = { sendModel: vi.fn(), getModel: vi.fn() };
 const MODAL_SERVICE_MOCK = {};
@@ -64,6 +76,11 @@ function makeValidatorResponse(validator: SaveViewsheetDialogModelValidator) {
 async function renderComponent(model = makeModel()) {
    const { fixture } = await render(SaveViewsheetDialog, {
       schemas: [NO_ERRORS_SCHEMA],
+      importOverrides: [
+         { replace: AssetTreeComponent, with: AssetTreeComponentStub },
+         { replace: ViewsheetOptionsPane, with: ViewsheetOptionsPaneStub },
+         { replace: ModalHeaderComponent, with: ModalHeaderComponentStub },
+      ],
       providers: [
          { provide: ModelService, useValue: MODEL_SERVICE_MOCK },
          { provide: NgbModal, useValue: MODAL_SERVICE_MOCK },

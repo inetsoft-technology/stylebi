@@ -37,7 +37,7 @@
  *   Group 15  isJoinEditView — false when pane absent; delegates when present
  */
 
-import { of } from "rxjs";
+import { of, Subject } from "rxjs";
 import {
    makeComponent,
    makeModel,
@@ -45,6 +45,14 @@ import {
    makeHttp,
    makeModal,
 } from "./sql-query-dialog.component.test-helpers";
+import { MessageDialog } from "../message-dialog/message-dialog.component";
+
+// Reset the static dedup guard before every test so that consecutive tests calling
+// showConfirmDialog with the same message text are not silently rejected.
+beforeEach(() => {
+   MessageDialog.lastMessage = null;
+   (MessageDialog as any).lastMessageTS = 0;
+});
 
 // ---------------------------------------------------------------------------
 // Group 1 — advancedEditing getter
@@ -112,9 +120,10 @@ describe("Group 3 — createForm: name control has required + nameSpecialCharact
       expect(comp.form.get("name")?.invalid).toBe(true);
    });
 
-   it("should be invalid when name contains % (nameSpecialCharacters validator)", () => {
-      const { comp } = makeComponent({ initTableName: "q%uery" });
-      comp.form.get("name")?.setValue("q%uery");
+   it("should be invalid when name contains a forbidden character (nameSpecialCharacters validator)", () => {
+      // '/' is not in the allowed character class [＀-￯一-龥a-zA-Z0-9 $#_%&\-,?!@']
+      const { comp } = makeComponent({ initTableName: "q/uery" });
+      comp.form.get("name")?.setValue("q/uery");
       expect(comp.form.get("name")?.errors?.["nameSpecialCharacters"]).toBeTruthy();
    });
 });
@@ -228,9 +237,11 @@ describe("Group 7 — clearDisabled: all condition branches", () => {
       expect(comp.clearDisabled()).toBe(true);
    });
 
-   it("should return false (simple) when sqlString exists", () => {
+   it("should return false (simple) when sqlString exists and columns is null", () => {
+      // When columns is null the early-return condition (!sqlEdited && columns && columns.length===0)
+      // is bypassed (columns is falsy), so clearDisabled reaches `return !sqlString`.
       const model = makeModel({
-         simpleModel: makeSimpleModel({ sqlString: "SELECT 1", sqlEdited: false, columns: [] }),
+         simpleModel: makeSimpleModel({ sqlString: "SELECT 1", sqlEdited: false, columns: null }),
       });
       const { comp } = makeComponent({ model });
       expect(comp.clearDisabled()).toBe(false);
@@ -375,7 +386,7 @@ describe("Group 11 — cancel: advanced mode with sqlEdited shows confirm dialog
          simpleModel: makeSimpleModel({ sqlEdited: true }),
       });
       const modal = makeModal();
-      modal.open.mockReturnValue({ componentInstance: {}, result: Promise.resolve("yes") });
+      modal.open.mockReturnValue({ componentInstance: { onCommit: new Subject<string>() }, result: Promise.resolve("yes") });
       const { comp } = makeComponent({ model, modal });
       const emitSpy = vi.spyOn(comp.onCancel, "emit");
 

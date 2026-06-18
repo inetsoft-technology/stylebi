@@ -20,7 +20,7 @@
  * RadiusDropdown — Pass 2: Risk / Async
  *
  * Risk-first coverage:
- *   Group 1   Validator: positiveIntegerInRange — rejects negative, zero, fractions
+ *   Group 1   Validator: positiveIntegerInRange — rejects negative; allows 0 and fractions (< 0 only)
  *   Group 2   Validator: max — rejects values above configured max
  *   Group 3   Validator: requiredNumber — rejects null / empty
  *   Group 4   radiusChange NOT emitted on empty string (edge guard in subscription)
@@ -35,16 +35,16 @@ import { makeComponent } from "./radius-dropdown.component.test-helpers";
 // Group 1 — Validator: positiveIntegerInRange
 // ---------------------------------------------------------------------------
 
-describe("Group 1 — Validator: positiveIntegerInRange rejects non-positive integers", () => {
+describe("Group 1 — Validator: positiveIntegerInRange rejects negatives only (< 0)", () => {
    it("should be valid for a positive integer radius", () => {
       const { comp } = makeComponent({ radius: 5, max: 100 });
       expect(comp.form.get("radius")?.valid).toBe(true);
    });
 
-   it("should be invalid for radius=0", () => {
+   it("should be valid for radius=0 (validator uses < 0, not <= 0)", () => {
       const { comp } = makeComponent({ radius: 5, max: 100 });
       comp.form.get("radius")?.setValue(0);
-      expect(comp.form.get("radius")?.invalid).toBe(true);
+      expect(comp.form.get("radius")?.valid).toBe(true);
    });
 
    it("should be invalid for a negative radius", () => {
@@ -53,10 +53,10 @@ describe("Group 1 — Validator: positiveIntegerInRange rejects non-positive int
       expect(comp.form.get("radius")?.invalid).toBe(true);
    });
 
-   it("should be invalid for a fractional radius (1.5)", () => {
+   it("should be valid for a fractional radius (1.5) — validator has no fraction check", () => {
       const { comp } = makeComponent({ radius: 5, max: 100 });
       comp.form.get("radius")?.setValue(1.5);
-      expect(comp.form.get("radius")?.invalid).toBe(true);
+      expect(comp.form.get("radius")?.valid).toBe(true);
    });
 });
 

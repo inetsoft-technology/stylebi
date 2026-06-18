@@ -25,7 +25,7 @@
  * need them assign them directly on comp after makeComponent().
  */
 
-import { of } from "rxjs";
+import { of, Subject } from "rxjs";
 import { SQLQueryDialog } from "./sql-query-dialog.component";
 import { SqlQueryDialogModel } from "../../../composer/data/ws/sql-query-dialog-model";
 import { BasicSqlQueryModel } from "../../../composer/data/ws/basic-sql-query-model";
@@ -83,7 +83,7 @@ export function makeHttp() {
 export function makeModal() {
    return {
       open: vi.fn().mockReturnValue({
-         componentInstance: {},
+         componentInstance: { onCommit: new Subject<string>() },
          result: Promise.reject("dismissed"),
       }),
    };

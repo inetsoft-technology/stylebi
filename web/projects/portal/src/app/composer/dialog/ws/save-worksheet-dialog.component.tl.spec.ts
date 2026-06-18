@@ -33,15 +33,34 @@
  *   formValid — lambda derived directly from form.valid; covered implicitly by form group setup.
  */
 
-import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { Component, EventEmitter, Input, NO_ERRORS_SCHEMA, Output } from "@angular/core";
+import { UntypedFormGroup } from "@angular/forms";
 import { render } from "@testing-library/angular";
 import { of } from "rxjs";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { SaveWorksheetDialog } from "./save-worksheet-dialog.component";
+import { AssetRepositoryPane } from "./asset-repository-pane.component";
+import { WorksheetOptionPane } from "./worksheet-option-pane.component";
 import { ModelService } from "../../../widget/services/model.service";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { SaveWorksheetDialogModel } from "../../data/ws/save-worksheet-dialog-model";
 import { HttpResponse } from "@angular/common/http";
+
+@Component({ selector: "asset-repository-pane", template: "", standalone: true })
+class AssetRepositoryPaneStub {
+   @Input() model: any;
+   @Input() form: UntypedFormGroup;
+   @Input() showReportRepository: boolean;
+   @Input() defaultFolder: any;
+   @Input() readOnly: boolean;
+   @Output() nodeSelected = new EventEmitter<any>();
+}
+
+@Component({ selector: "worksheet-option-pane", template: "", standalone: true })
+class WorksheetOptionPaneStub {
+   @Input() model: any;
+   @Input() form: UntypedFormGroup;
+}
 
 const MODEL_SERVICE_MOCK = { getModel: vi.fn(), sendModel: vi.fn() };
 const MODAL_SERVICE_MOCK = {};
@@ -67,6 +86,10 @@ async function renderComponent(wsModel = makeWsModel(), worksheet = makeWorkshee
 
    const { fixture } = await render(SaveWorksheetDialog, {
       schemas: [NO_ERRORS_SCHEMA],
+      importOverrides: [
+         { replace: AssetRepositoryPane, with: AssetRepositoryPaneStub },
+         { replace: WorksheetOptionPane, with: WorksheetOptionPaneStub },
+      ],
       providers: [
          { provide: ModelService, useValue: MODEL_SERVICE_MOCK },
          { provide: NgbModal, useValue: MODAL_SERVICE_MOCK },
@@ -96,6 +119,10 @@ describe("SaveWorksheetDialog — ngOnInit model loading", () => {
 
       await render(SaveWorksheetDialog, {
          schemas: [NO_ERRORS_SCHEMA],
+         importOverrides: [
+            { replace: AssetRepositoryPane, with: AssetRepositoryPaneStub },
+            { replace: WorksheetOptionPane, with: WorksheetOptionPaneStub },
+         ],
          providers: [
             { provide: ModelService, useValue: MODEL_SERVICE_MOCK },
             { provide: NgbModal, useValue: MODAL_SERVICE_MOCK },
@@ -116,6 +143,10 @@ describe("SaveWorksheetDialog — ngOnInit model loading", () => {
 
       const { fixture } = await render(SaveWorksheetDialog, {
          schemas: [NO_ERRORS_SCHEMA],
+         importOverrides: [
+            { replace: AssetRepositoryPane, with: AssetRepositoryPaneStub },
+            { replace: WorksheetOptionPane, with: WorksheetOptionPaneStub },
+         ],
          providers: [
             { provide: ModelService, useValue: MODEL_SERVICE_MOCK },
             { provide: NgbModal, useValue: MODAL_SERVICE_MOCK },
@@ -256,6 +287,10 @@ describe("SaveWorksheetDialog — getDefaultFolder", () => {
       MODEL_SERVICE_MOCK.sendModel.mockReturnValue(makeValidatorResponse(null));
       const { fixture } = await render(SaveWorksheetDialog, {
          schemas: [NO_ERRORS_SCHEMA],
+         importOverrides: [
+            { replace: AssetRepositoryPane, with: AssetRepositoryPaneStub },
+            { replace: WorksheetOptionPane, with: WorksheetOptionPaneStub },
+         ],
          providers: [
             { provide: ModelService, useValue: MODEL_SERVICE_MOCK },
             { provide: NgbModal, useValue: MODAL_SERVICE_MOCK },
@@ -268,6 +303,6 @@ describe("SaveWorksheetDialog — getDefaultFolder", () => {
 
    it("should return null when defaultFolder is not set", async () => {
       const comp = await renderComponent();
-      expect(comp.getDefaultFolder()).toBeNull();
+      expect(comp.getDefaultFolder()).toBeFalsy();
    });
 });

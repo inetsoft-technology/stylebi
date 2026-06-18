@@ -35,7 +35,7 @@
  *   Group 13  checkIfNotSaved — stops escape when sqlEdited and not advanced
  */
 
-import { of } from "rxjs";
+import { of, Subject } from "rxjs";
 import {
    makeComponent,
    makeController,
@@ -45,6 +45,14 @@ import {
    makeHttp,
 } from "./sql-query-dialog.component.test-helpers";
 import { ComponentTool } from "../../../common/util/component-tool";
+import { MessageDialog } from "../message-dialog/message-dialog.component";
+
+// Reset the static dedup guard before every test so that consecutive tests calling
+// showConfirmDialog with the same message text are not silently rejected.
+beforeEach(() => {
+   MessageDialog.lastMessage = null;
+   (MessageDialog as any).lastMessageTS = 0;
+});
 
 // ---------------------------------------------------------------------------
 // Group 1 — ngOnInit
@@ -374,7 +382,7 @@ describe("Group 11 — onSwitchChange: switching to simple shows confirm dialog"
       const model = makeModel({ advancedEdit: true });
       const modal = makeModal();
       modal.open.mockReturnValue({
-         componentInstance: {},
+         componentInstance: { onCommit: new Subject<string>() },
          result: Promise.resolve("no"),
       });
       const { comp } = makeComponent({ model, modal });
@@ -398,12 +406,13 @@ describe("Group 12 — refreshModelOnModeChange: HTTP post updates model and rel
       const http = makeHttp();
       const { comp } = makeComponent({ http });
       http.post.mockClear();
+      const modelSnapshot = comp.model;
 
       comp.refreshModelOnModeChange(true);
 
       expect(http.post).toHaveBeenCalledWith(
          expect.stringContaining("change-edit-mode"),
-         comp.model,
+         modelSnapshot,
          expect.anything(),
       );
    });

@@ -389,6 +389,7 @@ describe("WSPaneComponent — processWSLoadTableDataCountCommand", () => {
          totalRows: 0,
          duration: 0,
          exceededMaximum: null,
+         colInfos: [],
          info: { live: false, runtime: false },
          isAssemblyFocused: vi.fn().mockReturnValue(false),
       } as any;

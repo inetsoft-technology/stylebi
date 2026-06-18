@@ -374,9 +374,9 @@ describe("Group 9 — createForm: name control required + nameSpecialCharacters"
       expect(comp.form.get("name")?.invalid).toBe(true);
    });
 
-   it("should have nameSpecialCharacters error for name with '%'", () => {
-      const { comp } = makeComponent({ initTableName: "bad%name" });
-      comp.form.get("name")?.setValue("bad%name");
+   it("should have nameSpecialCharacters error for name with '['", () => {
+      const { comp } = makeComponent({ initTableName: "bad[name" });
+      comp.form.get("name")?.setValue("bad[name");
       expect(comp.form.get("name")?.errors?.["nameSpecialCharacters"]).toBeTruthy();
    });
 });

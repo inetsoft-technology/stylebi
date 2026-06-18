@@ -294,6 +294,8 @@ describe("VSPane — changeSearchMode / isSearchMode / search", () => {
    it("search should set composerVsSearchService.searchString", async () => {
       const { comp } = await renderComponent();
       const searchService = (comp as any).composerVsSearchService;
+      // searchString setter guards on isSearchMode() — must enter search mode first
+      searchService.changeSearchMode();
       // scrollToMatchedAssembly uses setTimeout; spy on it to avoid side effects
       vi.spyOn(comp as any, "scrollToMatchedAssembly").mockImplementation(() => {});
 

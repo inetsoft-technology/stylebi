@@ -30,16 +30,6 @@
 import { NO_ERRORS_SCHEMA, SimpleChange } from "@angular/core";
 import { render } from "@testing-library/angular";
 import { SplitPane } from "./split-pane.component";
-import Split from "split.js";
-
-vi.mock("split.js", () => ({
-   default: vi.fn(() => ({
-      setSizes: vi.fn(),
-      getSizes: vi.fn(() => [50, 50]),
-      destroy: vi.fn(),
-      collapse: vi.fn(),
-   }))
-}));
 
 function makeMockInstance() {
    return {
@@ -51,15 +41,19 @@ function makeMockInstance() {
 }
 
 async function renderComponent(inputs: Partial<SplitPane> = {}) {
-   return render(SplitPane, {
+   // Prevent initializeSplitInstance from calling the real Split.js (which needs a live DOM).
+   // The mock still sets splitInstance to a fresh mock so that resetSplitInstance can call
+   // getSizes()/setSizes() on it without a null-reference crash.
+   const initSpy = vi.spyOn(SplitPane.prototype as any, "initializeSplitInstance")
+      .mockImplementation(function(this: any) {
+         this.splitInstance = makeMockInstance();
+      });
+   const result = await render(SplitPane, {
       schemas: [NO_ERRORS_SCHEMA],
       componentInputs: inputs,
    });
+   return { ...result, initSpy };
 }
-
-beforeEach(() => {
-   vi.mocked(Split).mockClear();
-});
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -67,28 +61,28 @@ describe("SplitPane — displayed false→true", () => {
    // 🔁 Regression-sensitive: resetting splitInstance on re-display is required to avoid
    // a stale Split.js instance pointing at detached DOM nodes after the panel was hidden.
    it("should call destroy and re-init splitInstance when displayed changes from false to true", async () => {
-      const { fixture } = await renderComponent({ displayed: true });
+      const { fixture, initSpy } = await renderComponent({ displayed: true });
       const comp = fixture.componentInstance;
 
       const mockInstance = makeMockInstance();
       comp.splitInstance = mockInstance as any;
-      vi.mocked(Split).mockClear();
+      initSpy.mockClear();
 
       comp.ngOnChanges({
          displayed: new SimpleChange(false, true, false),
       });
 
       expect(mockInstance.destroy).toHaveBeenCalledTimes(1);
-      expect(vi.mocked(Split)).toHaveBeenCalled();
+      expect(initSpy).toHaveBeenCalled();
    });
 
    it("should NOT destroy splitInstance when displayed changes from true to false", async () => {
-      const { fixture } = await renderComponent({ displayed: false });
+      const { fixture, initSpy } = await renderComponent({ displayed: false });
       const comp = fixture.componentInstance;
 
       const mockInstance = makeMockInstance();
       comp.splitInstance = mockInstance as any;
-      vi.mocked(Split).mockClear();
+      initSpy.mockClear();
 
       comp.ngOnChanges({
          displayed: new SimpleChange(true, false, false),
@@ -100,32 +94,32 @@ describe("SplitPane — displayed false→true", () => {
 
 describe("SplitPane — gutterSize change", () => {
    it("should call destroy and re-init when gutterSize changes and splitInstance exists", async () => {
-      const { fixture } = await renderComponent({});
+      const { fixture, initSpy } = await renderComponent({});
       const comp = fixture.componentInstance;
 
       const mockInstance = makeMockInstance();
       comp.splitInstance = mockInstance as any;
-      vi.mocked(Split).mockClear();
+      initSpy.mockClear();
 
       comp.ngOnChanges({
          gutterSize: new SimpleChange(6, 8, false),
       });
 
       expect(mockInstance.destroy).toHaveBeenCalledTimes(1);
-      expect(vi.mocked(Split)).toHaveBeenCalled();
+      expect(initSpy).toHaveBeenCalled();
    });
 
    it("should NOT call destroy when gutterSize changes but splitInstance is null", async () => {
-      const { fixture } = await renderComponent({});
+      const { fixture, initSpy } = await renderComponent({});
       const comp = fixture.componentInstance;
       comp.splitInstance = null;
-      vi.mocked(Split).mockClear();
+      initSpy.mockClear();
 
       comp.ngOnChanges({
          gutterSize: new SimpleChange(6, 8, false),
       });
 
-      expect(vi.mocked(Split)).not.toHaveBeenCalled();
+      expect(initSpy).not.toHaveBeenCalled();
    });
 });
 
@@ -161,33 +155,33 @@ describe("SplitPane — sizes change", () => {
 
 describe("SplitPane — displayed stays true or key absent", () => {
    it("should NOT call destroy when changes object has no displayed key", async () => {
-      const { fixture } = await renderComponent({ displayed: true });
+      const { fixture, initSpy } = await renderComponent({ displayed: true });
       const comp = fixture.componentInstance;
 
       const mockInstance = makeMockInstance();
       comp.splitInstance = mockInstance as any;
-      vi.mocked(Split).mockClear();
+      initSpy.mockClear();
 
       comp.ngOnChanges({});
 
       expect(mockInstance.destroy).not.toHaveBeenCalled();
-      expect(vi.mocked(Split)).not.toHaveBeenCalled();
+      expect(initSpy).not.toHaveBeenCalled();
    });
 
    it("should NOT call destroy when displayed was true and remains true", async () => {
-      const { fixture } = await renderComponent({ displayed: true });
+      const { fixture, initSpy } = await renderComponent({ displayed: true });
       const comp = fixture.componentInstance;
 
       const mockInstance = makeMockInstance();
       comp.splitInstance = mockInstance as any;
-      vi.mocked(Split).mockClear();
+      initSpy.mockClear();
 
       comp.ngOnChanges({
          displayed: new SimpleChange(true, true, false),
       });
 
       expect(mockInstance.destroy).not.toHaveBeenCalled();
-      expect(vi.mocked(Split)).not.toHaveBeenCalled();
+      expect(initSpy).not.toHaveBeenCalled();
    });
 });
 
