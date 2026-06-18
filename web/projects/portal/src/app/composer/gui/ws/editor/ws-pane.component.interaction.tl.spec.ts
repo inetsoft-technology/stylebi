@@ -58,6 +58,7 @@
 import { ComponentTool } from "../../../../common/util/component-tool";
 import {
    renderComponent,
+   dispatchCommand,
    makeMocks,
 } from "./ws-pane.component.test-helpers";
 
@@ -214,7 +215,7 @@ describe("WSPaneComponent — processWSInitCommand", () => {
       const mocks = makeMocks();
       const { comp } = await renderComponent(mocks);
 
-      mocks.dispatchCommand("WSInitCommand", {
+      dispatchCommand("WSInitCommand", {
          jdbcExists: true,
          sqlEnabled: false,
          freeFormSqlEnabled: true,
@@ -238,11 +239,11 @@ describe("WSPaneComponent — processCloseSheetCommand", () => {
    // 🔁 Regression-sensitive: onSheetClose must emit so the parent removes the tab;
    //    missing emit leaves an orphaned non-functional tab.
    it("should emit onSheetClose with the current worksheet", async () => {
-      const { comp, mocks } = await renderComponent();
+      const { comp } = await renderComponent();
       const spy = vi.fn();
       comp.onSheetClose.subscribe(spy);
 
-      mocks.dispatchCommand("CloseSheetCommand", {});
+      dispatchCommand("CloseSheetCommand", {});
 
       expect(spy).toHaveBeenCalledWith(comp.worksheet);
    });
@@ -257,18 +258,18 @@ describe("WSPaneComponent — processSaveSheetCommand", () => {
    // 🔁 Regression-sensitive: worksheet.newSheet must be cleared after first save so
    //    subsequent saves use PUT instead of POST.
    it("should set worksheet.newSheet=false on save", async () => {
-      const { comp, mocks } = await renderComponent();
+      const { comp } = await renderComponent();
       comp.worksheet.newSheet = true;
 
-      mocks.dispatchCommand("SaveSheetCommand", { savePoint: 5, id: "saved-ws" });
+      dispatchCommand("SaveSheetCommand", { savePoint: 5, id: "saved-ws" });
 
       expect(comp.worksheet.newSheet).toBe(false);
    });
 
    it("should update worksheet.id and savePoint from command", async () => {
-      const { comp, mocks } = await renderComponent();
+      const { comp } = await renderComponent();
 
-      mocks.dispatchCommand("SaveSheetCommand", { savePoint: 7, id: "new-ws-id" });
+      dispatchCommand("SaveSheetCommand", { savePoint: 7, id: "new-ws-id" });
 
       expect(comp.worksheet.savePoint).toBe(7);
       expect(comp.worksheet.id).toBe("new-ws-id");
@@ -278,7 +279,7 @@ describe("WSPaneComponent — processSaveSheetCommand", () => {
       const mocks = makeMocks();
       const { comp } = await renderComponent(mocks);
 
-      mocks.dispatchCommand("SaveSheetCommand", { savePoint: 1, id: "ws" });
+      dispatchCommand("SaveSheetCommand", { savePoint: 1, id: "ws" });
 
       expect(mocks.notifications.success).toHaveBeenCalledWith(
          "_#(js:common.worksheet.saveSuccess)",
@@ -286,11 +287,11 @@ describe("WSPaneComponent — processSaveSheetCommand", () => {
    });
 
    it("should emit onSaveWorksheetFinish", async () => {
-      const { comp, mocks } = await renderComponent();
+      const { comp } = await renderComponent();
       const spy = vi.fn();
       comp.onSaveWorksheetFinish.subscribe(spy);
 
-      mocks.dispatchCommand("SaveSheetCommand", { savePoint: 1, id: "ws" });
+      dispatchCommand("SaveSheetCommand", { savePoint: 1, id: "ws" });
 
       expect(spy).toHaveBeenCalledWith(comp.worksheet);
    });
@@ -303,10 +304,10 @@ describe("WSPaneComponent — processSaveSheetCommand", () => {
 describe("WSPaneComponent — processSetWorksheetInfoCommand", () => {
 
    it("should update worksheet.label from SetWorksheetInfoCommand", async () => {
-      const { comp, mocks } = await renderComponent();
+      const { comp } = await renderComponent();
       comp.worksheet.label = "Old Label";
 
-      mocks.dispatchCommand("SetWorksheetInfoCommand", { label: "New Label" });
+      dispatchCommand("SetWorksheetInfoCommand", { label: "New Label" });
 
       expect(comp.worksheet.label).toBe("New Label");
    });
@@ -321,19 +322,19 @@ describe("WSPaneComponent — processForceNotCloseWorksheetCommand", () => {
    // 🔁 Regression-sensitive: closeProhibited=true must prevent the tab close button from
    //    working; a stale false leaves the sheet closeable when it shouldn't be.
    it("should set worksheet.closeProhibited from ForceNotCloseWorksheetCommand", async () => {
-      const { comp, mocks } = await renderComponent();
+      const { comp } = await renderComponent();
       comp.worksheet.closeProhibited = false;
 
-      mocks.dispatchCommand("ForceNotCloseWorksheetCommand", { closeProhibited: true });
+      dispatchCommand("ForceNotCloseWorksheetCommand", { closeProhibited: true });
 
       expect(comp.worksheet.closeProhibited).toBe(true);
    });
 
    it("should clear worksheet.closeProhibited when command sets false", async () => {
-      const { comp, mocks } = await renderComponent();
+      const { comp } = await renderComponent();
       comp.worksheet.closeProhibited = true;
 
-      mocks.dispatchCommand("ForceNotCloseWorksheetCommand", { closeProhibited: false });
+      dispatchCommand("ForceNotCloseWorksheetCommand", { closeProhibited: false });
 
       expect(comp.worksheet.closeProhibited).toBe(false);
    });
@@ -348,11 +349,11 @@ describe("WSPaneComponent — processWSFinishPasteWithCutCommand", () => {
    // 🔁 Regression-sensitive: onPasteWithCutFinish must carry [sourceSheetId, assemblies]
    //    so the parent can remove the cut originals.
    it("should emit onPasteWithCutFinish with [sourceSheetId, assemblies]", async () => {
-      const { comp, mocks } = await renderComponent();
+      const { comp } = await renderComponent();
       const spy = vi.fn();
       comp.onPasteWithCutFinish.subscribe(spy);
 
-      mocks.dispatchCommand("WsFinishPasteWithCutCommand", {
+      dispatchCommand("WsFinishPasteWithCutCommand", {
          sourceSheetId: "src-ws",
          assemblies: ["AssemblyA", "AssemblyB"],
       });
@@ -368,11 +369,11 @@ describe("WSPaneComponent — processWSFinishPasteWithCutCommand", () => {
 describe("WSPaneComponent — processSaveWorksheetCommand", () => {
 
    it("should emit onSaveWorksheet with close=true when command.close=true", async () => {
-      const { comp, mocks } = await renderComponent();
+      const { comp } = await renderComponent();
       const spy = vi.fn();
       comp.onSaveWorksheet.subscribe(spy);
 
-      mocks.dispatchCommand("SaveWorksheetCommand", { close: true });
+      dispatchCommand("SaveWorksheetCommand", { close: true });
 
       expect(spy).toHaveBeenCalledWith(
          expect.objectContaining({ worksheet: comp.worksheet, close: true, updateDep: false }),
@@ -380,11 +381,11 @@ describe("WSPaneComponent — processSaveWorksheetCommand", () => {
    });
 
    it("should emit onSaveWorksheet with close=false when command.close=false", async () => {
-      const { comp, mocks } = await renderComponent();
+      const { comp } = await renderComponent();
       const spy = vi.fn();
       comp.onSaveWorksheet.subscribe(spy);
 
-      mocks.dispatchCommand("SaveWorksheetCommand", { close: false });
+      dispatchCommand("SaveWorksheetCommand", { close: false });
 
       expect(spy).toHaveBeenCalledWith(
          expect.objectContaining({ close: false }),
@@ -401,22 +402,22 @@ describe("WSPaneComponent — processWSFocusAssembliesCommand", () => {
    // 🔁 Regression-sensitive: currentFocusedAssemblies must reference the live objects from
    //    worksheet.assemblies(), not fresh instances, so that downstream pointer comparisons work.
    it("should map assemblyNames to existing assembly instances", async () => {
-      const { comp, mocks } = await renderComponent();
+      const { comp } = await renderComponent();
       const a1 = { name: "T1", classType: "TableAssembly" };
       const a2 = { name: "T2", classType: "TableAssembly" };
       comp.worksheet.assemblies = vi.fn().mockReturnValue([a1, a2]);
 
-      mocks.dispatchCommand("WSFocusAssembliesCommand", { assemblyNames: ["T1"] });
+      dispatchCommand("WSFocusAssembliesCommand", { assemblyNames: ["T1"] });
 
       expect(comp.worksheet.currentFocusedAssemblies).toHaveLength(1);
       expect(comp.worksheet.currentFocusedAssemblies[0]).toBe(a1);
    });
 
    it("should set undefined for assembly names not found", async () => {
-      const { comp, mocks } = await renderComponent();
+      const { comp } = await renderComponent();
       comp.worksheet.assemblies = vi.fn().mockReturnValue([]);
 
-      mocks.dispatchCommand("WSFocusAssembliesCommand", { assemblyNames: ["NotFound"] });
+      dispatchCommand("WSFocusAssembliesCommand", { assemblyNames: ["NotFound"] });
 
       expect(comp.worksheet.currentFocusedAssemblies[0]).toBeUndefined();
    });
@@ -429,9 +430,9 @@ describe("WSPaneComponent — processWSFocusAssembliesCommand", () => {
 describe("WSPaneComponent — processSetVPMPrincipalCommand", () => {
 
    it("should set worksheet.hasVPMPrincipal from SetVPMPrincipalCommand", async () => {
-      const { comp, mocks } = await renderComponent();
+      const { comp } = await renderComponent();
 
-      mocks.dispatchCommand("SetVPMPrincipalCommand", { hasVPMPrincipal: true });
+      dispatchCommand("SetVPMPrincipalCommand", { hasVPMPrincipal: true });
 
       expect(comp.worksheet.hasVPMPrincipal).toBe(true);
    });
@@ -444,10 +445,10 @@ describe("WSPaneComponent — processSetVPMPrincipalCommand", () => {
 describe("WSPaneComponent — processWSSetMessageLevelsCommand", () => {
 
    it("should set worksheet.messageLevels from WSSetMessageLevelsCommand", async () => {
-      const { comp, mocks } = await renderComponent();
+      const { comp } = await renderComponent();
       const levels = { INFO: true, WARNING: false };
 
-      mocks.dispatchCommand("WSSetMessageLevelsCommand", { messageLevels: levels });
+      dispatchCommand("WSSetMessageLevelsCommand", { messageLevels: levels });
 
       expect(comp.worksheet.messageLevels).toEqual(levels);
    });
@@ -473,22 +474,48 @@ describe("WSPaneComponent — getAssemblyName", () => {
 
 describe("WSPaneComponent — processNotification", () => {
 
-   it("should route notification type to the correct notifications method", async () => {
+   it("should call notifications.success for type=success", async () => {
       const mocks = makeMocks();
       const { comp } = await renderComponent(mocks);
 
-      const cases = [
-         { type: "success", message: "Done", method: "success" as const },
-         { type: "info", message: "FYI", method: "info" as const },
-         { type: "warning", message: "Caution", method: "warning" as const },
-         { type: "danger", message: "Error!", method: "danger" as const },
-         { type: "unknown", message: "Unhandled notification", method: "warning" as const },
-      ];
+      comp.processNotification({ type: "success", message: "Done" });
 
-      for(const { type, message, method } of cases) {
-         vi.mocked(mocks.notifications[method]).mockClear();
-         comp.processNotification({ type: type as any, message });
-         expect(mocks.notifications[method]).toHaveBeenCalledWith(message);
-      }
+      expect(mocks.notifications.success).toHaveBeenCalledWith("Done");
+   });
+
+   it("should call notifications.info for type=info", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+
+      comp.processNotification({ type: "info", message: "FYI" });
+
+      expect(mocks.notifications.info).toHaveBeenCalledWith("FYI");
+   });
+
+   it("should call notifications.warning for type=warning", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+
+      comp.processNotification({ type: "warning", message: "Caution" });
+
+      expect(mocks.notifications.warning).toHaveBeenCalledWith("Caution");
+   });
+
+   it("should call notifications.danger for type=danger", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+
+      comp.processNotification({ type: "danger", message: "Error!" });
+
+      expect(mocks.notifications.danger).toHaveBeenCalledWith("Error!");
+   });
+
+   it("should call notifications.warning for unknown type", async () => {
+      const mocks = makeMocks();
+      const { comp } = await renderComponent(mocks);
+
+      comp.processNotification({ type: "unknown" as any, message: "???" });
+
+      expect(mocks.notifications.warning).toHaveBeenCalledWith("???");
    });
 });

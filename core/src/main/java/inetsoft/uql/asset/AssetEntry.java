@@ -2065,7 +2065,11 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
       newEntry.hash = -1;
       newEntry.cachedName = null;
 
-      if(name.equals("")) {
+      if(newEntry.user != null) {
+         newEntry.user = new IdentityID(newEntry.user.name, orgID);
+      }
+
+      if(name.isEmpty()) {
          return newEntry;
       }
 

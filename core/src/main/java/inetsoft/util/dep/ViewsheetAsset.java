@@ -513,11 +513,12 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
             if(resolutions != null) {
                // Remove names where the admin chose to keep the existing (current) bookmark.
                for(String bName : new ArrayList<>(Arrays.asList(imported.getBookmarks()))) {
-                  String key = entry.getPath() + "|" + name + "|" + bName;
+                  String userKey = identityID.convertToKey();
+                  String key = entry.getPath() + "|" + userKey + "|" + bName;
                   boolean keepCurrent = Boolean.FALSE.equals(resolutions.get(key)) ||
                      // INITIAL_STATE follows the HOME_BOOKMARK resolution — no separate key.
                      (VSBookmark.INITIAL_STATE.equals(bName) &&
-                        Boolean.FALSE.equals(resolutions.get(entry.getPath() + "|" + name + "|" + VSBookmark.HOME_BOOKMARK)));
+                        Boolean.FALSE.equals(resolutions.get(entry.getPath() + "|" + userKey + "|" + VSBookmark.HOME_BOOKMARK)));
 
                   if(keepCurrent) {
                      imported.removeBookmark(bName);

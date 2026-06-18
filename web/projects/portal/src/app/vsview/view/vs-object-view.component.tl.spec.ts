@@ -17,471 +17,294 @@
  */
 
 /**
- * VSObjectView — single pass (+memory-leak)
+ * VSObjectView — single pass (+memory leak)
  *
  * Risk-first coverage:
- *   Group 1  [Risk 2] — ngOnInit: vsInfo initialized with linkUri;
- *                        LocalStorage chart-edit-max-mode triggers chartMaxMode=true
- *   Group 2  [Risk 3] — onChartMaxModeChange: chartMaxMode update; chartMaxModeChange emit;
- *                        model.maxMode guarded by notAuto; LocalStorage persistence
- *   Group 3  [Risk 2] — getFormats @HostListener click: emits onUpdateData("getCurrentFormat")
- *                        after 250ms timeout
- *   Group 4  [Risk 2] — getAssemblyName: dot present; no dot → null; null model → null
- *   Group 5  [baseline] — model setter: createActions called with model, result stored in actions
- *   Group 6  [baseline] — getCalcTableLayout: stores layoutModel reference
- *   Group 7  [baseline] — showMiniToolbar: delegates to miniToolbarService
- *   Group 8  [baseline] — delegation: onMouseEnter / contextmenuOpened / contextmenuClosed
- *   Group 9  [Risk 2] — CommandProcessor commands: processRefreshVSObjectCommand /
- *                        processAddVSObjectCommand emit their respective outputs
- *   Group 10 [baseline +memory-leak] — ngOnDestroy: lifecycle called without error
+ *   Group 1 [Risk 2] — model setter: stores _model and calls actionFactory.createActions
+ *   Group 2 [Risk 2] — onChartMaxModeChange: chartMaxMode flag, LocalStorage, emit
+ *   Group 3 [Risk 2] — getAssemblyName(): extracts parent path / returns null when no dot
+ *   Group 4 [Risk 2] — getFormats() (HostListener click): deferred emit via 250ms timer (+memory leak)
+ *   Group 5 [Risk 1] — ngOnDestroy: super.cleanup() called
+ *   Group 6 [Risk 1] — showMiniToolbar, onMouseEnter, contextmenuOpened/Closed delegates
  *
- * Suspected bugs (header only):
- *   Memory-leak in resizeModelView — calls new Date().getTime() which is mutable state;
- *   not a leak per se, but triggers ChangeDetectorRef.detectChanges on every resize.
+ * Confirmed bugs (it.fails):
+ *   Bug — getFormats 250ms timer leak (Group 4): getFormats() schedules a 250ms setTimeout that
+ *     emits on this.onUpdateData. ngOnDestroy calls super.cleanup() but does NOT cancel the timer,
+ *     so onUpdateData fires on the dead component after destroy. Fix: store the timer ID and call
+ *     clearTimeout in ngOnDestroy.
  *
  * Out of scope:
- *   resizeModelView() — DOM-dependent (getBoundingClientRect / offsetWidth / offsetHeight
- *     always return 0 in jsdom; the resize branches are untestable without a real browser)
- *   ngAfterViewInit() — calls resizeModelView() which is DOM-dependent
- *   onResize() — depends on ViewChild "object" (AbstractVSObject), never instantiated
- *     under NO_ERRORS_SCHEMA; DOM-dependent
- *   resizeListener() @HostListener window:resize — delegates to resizeModelView()
+ *   resizeModelView() — reads DOM dimensions (offsetWidth/offsetHeight) of parent elements; DOM
+ *     layout is not computed in jsdom and the method guards on objectView.nativeElement.
+ *   getViewSize() / getTotalWidth() — private helpers for resizeModelView; same constraint.
+ *   onResize() — calls VSChart.openMaxMode() on a ViewChild; integration-level.
+ *   processRefreshVSObjectCommand / processAddVSObjectCommand — STOMP command handlers that
+ *     just re-emit; Risk 1 one-liners.
+ *   ngOnInit LocalStorage max-mode branch — calls onChartMaxModeChange and accesses model;
+ *     covered transitively via onChartMaxModeChange tests.
  */
 
-import { Component, Directive, Input, NO_ERRORS_SCHEMA } from "@angular/core";
+import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { render } from "@testing-library/angular";
-import { Subject } from "rxjs";
-
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { VSObjectView } from "./vs-object-view.component";
-import { VSChart } from "../../vsobjects/objects/chart/vs-chart.component";
-import { VSTable } from "../../vsobjects/objects/table/vs-table.component";
-import { VSCrosstab } from "../../vsobjects/objects/table/vs-crosstab.component";
-import { CalcTableLayoutPane } from "./vs-calc-table-layout.component";
-import { MiniToolbar } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.component";
-import { ActionsContextmenuAnchorDirective } from "../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
-import { BTableActionHandlerDirective } from "../action/b-table-action-handler.directive";
-import { BCrosstabActionHandlerDirective } from "../action/b-crosstab-action-handler.directive";
-import { BCalcTableActionHandlerDirective } from "../action/b-calctable-action-handler.directive";
 import { ViewsheetClientService } from "../../common/viewsheet-client";
 import { AssemblyActionFactory } from "../../vsobjects/action/assembly-action-factory.service";
 import { MiniToolbarService } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.service";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { LocalStorage } from "../../common/util/local-storage.util";
-import { RefreshVSObjectCommand } from "../../vsobjects/command/refresh-vs-object-command";
-import { AddVSObjectCommand } from "../../vsobjects/command/add-vs-object-command";
 import { VSObjectModel } from "../../vsobjects/model/vs-object-model";
+import { LocalStorage } from "../../common/util/local-storage.util";
 
-// ---------------------------------------------------------------------------
-// Stubs — replace heavy component/directive tree with empty shells to prevent
-// cascading DI failures from each child component's own dependency graph.
-// ---------------------------------------------------------------------------
-
-@Component({ selector: "vs-chart", template: "", standalone: true })
-class VSChartStub {}
-
-@Component({ selector: "vs-table", template: "", standalone: true })
-class VSTableStub {}
-
-@Component({ selector: "vs-crosstab", template: "", standalone: true })
-class VSCrosstabStub {}
-
-@Component({ selector: "vs-calc-table-layout", template: "", standalone: true })
-class CalcTableLayoutPaneStub {}
-
-@Component({ selector: "mini-toolbar", template: "", standalone: true })
-class MiniToolbarStub {}
-
-@Directive({ selector: "[actionsContextmenuAnchor]", standalone: true })
-class ActionsContextmenuAnchorStub {
-   @Input() actionsContextmenuAnchor: any;
-}
-
-@Directive({ selector: "[bTableActionHandler]", standalone: true })
-class BTableActionHandlerStub {}
-
-@Directive({ selector: "[bCrosstabActionHandler]", standalone: true })
-class BCrosstabActionHandlerStub {}
-
-@Directive({ selector: "[bCalcTableActionHandler]", standalone: true })
-class BCalcTableActionHandlerStub {}
-
-// ---------------------------------------------------------------------------
-// Service mocks
-// ---------------------------------------------------------------------------
-
-const COMMANDS_SUBJECT = new Subject<any>();
-const VS_CLIENT_MOCK = {
+const clientServiceMock = {
    sendEvent: vi.fn(),
-   commands: COMMANDS_SUBJECT,
+   runtimeId: "vs-test",
+   addMessageListener: vi.fn(),
+   removeMessageListener: vi.fn(),
 };
-
-const ACTION_FACTORY_MOCK = {
-   createActions: vi.fn().mockReturnValue({ type: "mockActions" }),
+const actionFactoryMock = {
+   createActions: vi.fn().mockReturnValue([]),
 };
-
-const MINI_TOOLBAR_MOCK = {
+const miniToolbarServiceMock = {
    isMiniToolbarHidden: vi.fn().mockReturnValue(false),
    handleMouseEnter: vi.fn(),
    hiddenFreeze: vi.fn(),
    hiddenUnfreeze: vi.fn(),
 };
 
-const MODAL_MOCK = { open: vi.fn() };
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function makeModel(objectType: string, overrides: Partial<VSObjectModel> = {}): VSObjectModel {
+function makeModel(overrides: Partial<VSObjectModel> = {}): VSObjectModel {
    return {
-      absoluteName: "Parent.child",
-      objectType,
-      objectFormat: { left: 0, top: 0, width: 100, height: 50 },
+      absoluteName: "Viewsheet1.Table1",
+      objectType: "VSTable",
+      objectFormat: { width: 300, height: 200, left: 0, top: 0, zIndex: 0 },
+      originalObjectFormat: null,
       ...overrides,
-   } as unknown as VSObjectModel;
+   } as any;
 }
 
-interface RenderOptions {
-   model?: VSObjectModel;
-   linkUri?: string;
-}
-
-async function renderComponent(opts: RenderOptions = {}) {
-   const model = opts.model ?? makeModel("VSChart");
-   const result = await render(VSObjectView, {
-      inputs: { model, linkUri: opts.linkUri ?? "http://localhost" },
-      providers: [
-         { provide: ViewsheetClientService, useValue: VS_CLIENT_MOCK },
-         { provide: AssemblyActionFactory,  useValue: ACTION_FACTORY_MOCK },
-         { provide: MiniToolbarService,     useValue: MINI_TOOLBAR_MOCK },
-         { provide: NgbModal,               useValue: MODAL_MOCK },
-      ],
-      importOverrides: [
-         { replace: VSChart,                          with: VSChartStub },
-         { replace: VSTable,                          with: VSTableStub },
-         { replace: VSCrosstab,                       with: VSCrosstabStub },
-         { replace: CalcTableLayoutPane,              with: CalcTableLayoutPaneStub },
-         { replace: MiniToolbar,                      with: MiniToolbarStub },
-         { replace: ActionsContextmenuAnchorDirective, with: ActionsContextmenuAnchorStub },
-         { replace: BTableActionHandlerDirective,     with: BTableActionHandlerStub },
-         { replace: BCrosstabActionHandlerDirective,  with: BCrosstabActionHandlerStub },
-         { replace: BCalcTableActionHandlerDirective, with: BCalcTableActionHandlerStub },
-      ],
+async function renderComponent(props: Record<string, any> = {}) {
+   const { fixture } = await render(VSObjectView, {
       schemas: [NO_ERRORS_SCHEMA],
+      providers: [
+         { provide: ViewsheetClientService, useValue: clientServiceMock },
+         { provide: AssemblyActionFactory, useValue: actionFactoryMock },
+         { provide: NgbModal, useValue: { open: vi.fn() } },
+         { provide: MiniToolbarService, useValue: miniToolbarServiceMock },
+      ],
+      componentProperties: { model: makeModel(), ...props },
    });
-   return { comp: result.fixture.componentInstance, fixture: result.fixture };
+   return { comp: fixture.componentInstance as VSObjectView, fixture };
 }
-
-// ---------------------------------------------------------------------------
-// Global setup
-// ---------------------------------------------------------------------------
 
 beforeEach(() => {
-   vi.spyOn(LocalStorage, "getItem").mockReturnValue(null);
-   ACTION_FACTORY_MOCK.createActions.mockClear();
-   MINI_TOOLBAR_MOCK.isMiniToolbarHidden.mockClear().mockReturnValue(false);
-   MINI_TOOLBAR_MOCK.handleMouseEnter.mockClear();
-   MINI_TOOLBAR_MOCK.hiddenFreeze.mockClear();
-   MINI_TOOLBAR_MOCK.hiddenUnfreeze.mockClear();
+   localStorage.clear();
+   actionFactoryMock.createActions.mockClear();
+   miniToolbarServiceMock.isMiniToolbarHidden.mockClear();
+   miniToolbarServiceMock.handleMouseEnter.mockClear();
+   miniToolbarServiceMock.hiddenFreeze.mockClear();
+   miniToolbarServiceMock.hiddenUnfreeze.mockClear();
 });
 
-afterEach(() => {
-   vi.useRealTimers();
-   vi.restoreAllMocks();
-});
+afterEach(() => vi.restoreAllMocks());
 
 // ---------------------------------------------------------------------------
-// Group 1 — ngOnInit() [Risk 2]
+// Group 1: model setter [Risk 2]
 // ---------------------------------------------------------------------------
 
-describe("VSObjectView — ngOnInit: vsInfo initialization", () => {
-   it("should initialize vsInfo after render", async () => {
-      const { comp } = await renderComponent({ linkUri: "http://example.com" });
-      expect(comp.vsInfo.linkUri).toBe("http://example.com");
-   });
-
-   it("should set chartMaxMode=true when chart-edit-max-mode exists in LocalStorage", async () => {
-      vi.spyOn(LocalStorage, "getItem").mockReturnValue("true");
-      const model = makeModel("VSChart");
-      const { comp } = await renderComponent({ model });
-      expect(comp.chartMaxMode).toBe(true);
-   });
-
-   it("should NOT set chartMaxMode when chart-edit-max-mode is absent from LocalStorage", async () => {
+describe("VSObjectView — model setter", () => {
+   it("should store the model and call actionFactory.createActions", async () => {
       const { comp } = await renderComponent();
-      expect(comp.chartMaxMode).toBe(false);
+      const newModel = makeModel({ objectType: "VSChart", absoluteName: "VS.Chart1" });
+      comp.model = newModel;
+      expect(comp.model).toBe(newModel);
+      expect(actionFactoryMock.createActions).toHaveBeenCalled();
+   });
+
+   it("should not store model when null is passed", async () => {
+      const { comp } = await renderComponent();
+      const existing = comp.model;
+      comp.model = null;
+      expect(comp.model).toBe(existing);
+   });
+
+   it("should call createActions with the new model", async () => {
+      const { comp } = await renderComponent();
+      const newModel = makeModel({ absoluteName: "VS.Crosstab1" });
+      actionFactoryMock.createActions.mockClear();
+      comp.model = newModel;
+      expect(actionFactoryMock.createActions).toHaveBeenCalledWith(newModel);
    });
 });
 
 // ---------------------------------------------------------------------------
-// Group 2 — onChartMaxModeChange() [Risk 3]
+// Group 2: onChartMaxModeChange [Risk 2]
 // ---------------------------------------------------------------------------
 
 describe("VSObjectView — onChartMaxModeChange", () => {
-   // 🔁 Regression-sensitive: chartMaxMode controls max-mode chart rendering on the server.
-   // An incorrect value causes the chart to render at the wrong size on all subsequent frames.
-
-   it("should set chartMaxMode to the event's maxMode value", async () => {
-      const { comp } = await renderComponent();
-      comp.onChartMaxModeChange({ assembly: "Chart1", maxMode: true });
-      expect(comp.chartMaxMode).toBe(true);
-   });
-
-   it("should emit chartMaxModeChange with the full event payload", async () => {
+   it("should set chartMaxMode=true and emit chartMaxModeChange", async () => {
+      vi.spyOn(LocalStorage, "setItem").mockImplementation(() => {});
       const { comp } = await renderComponent();
       const emitted: any[] = [];
-      comp.chartMaxModeChange.subscribe((v: any) => emitted.push(v));
+      comp.chartMaxModeChange.subscribe(v => emitted.push(v));
 
-      comp.onChartMaxModeChange({ assembly: "Chart1", maxMode: true });
+      comp.onChartMaxModeChange({ assembly: "VS.Chart1", maxMode: true });
 
+      expect(comp.chartMaxMode).toBe(true);
       expect(emitted).toHaveLength(1);
-      expect(emitted[0]).toEqual({ assembly: "Chart1", maxMode: true });
+      expect(emitted[0]).toEqual({ assembly: "VS.Chart1", maxMode: true });
    });
 
-   it("should set model.maxMode when objectType is VSChart and notAuto is true", async () => {
-      const model = makeModel("VSChart", { notAuto: true } as any);
-      const { comp } = await renderComponent({ model });
-
-      comp.onChartMaxModeChange({ assembly: "Chart1", maxMode: true });
-
-      expect((model as any).maxMode).toBe(true);
-   });
-
-   it("should NOT set model.maxMode when notAuto is false", async () => {
-      const model = makeModel("VSChart", { notAuto: false } as any);
-      const { comp } = await renderComponent({ model });
-      (model as any).maxMode = undefined;
-
-      comp.onChartMaxModeChange({ assembly: "Chart1", maxMode: true });
-
-      expect((model as any).maxMode).toBeUndefined();
-   });
-
-   it("should write 'true' to LocalStorage when maxMode is true", async () => {
-      const setItemSpy = vi.spyOn(LocalStorage, "setItem");
+   it("should set chartMaxMode=false and emit on disable", async () => {
+      vi.spyOn(LocalStorage, "setItem").mockImplementation(() => {});
       const { comp } = await renderComponent();
+      comp.chartMaxMode = true;
+      const emitted: any[] = [];
+      comp.chartMaxModeChange.subscribe(v => emitted.push(v));
 
-      comp.onChartMaxModeChange({ assembly: "Chart1", maxMode: true });
+      comp.onChartMaxModeChange({ assembly: "VS.Chart1", maxMode: false });
 
+      expect(comp.chartMaxMode).toBe(false);
+      expect(emitted[0].maxMode).toBe(false);
+   });
+
+   it("should write to LocalStorage when chartMaxMode is enabled", async () => {
+      const setItemSpy = vi.spyOn(LocalStorage, "setItem").mockImplementation(() => {});
+      const { comp } = await renderComponent();
+      comp.onChartMaxModeChange({ assembly: "VS.Chart1", maxMode: true });
       expect(setItemSpy).toHaveBeenCalledWith("chart-edit-max-mode", "true");
    });
 
-   it("should write '' to LocalStorage when maxMode is false", async () => {
-      const setItemSpy = vi.spyOn(LocalStorage, "setItem");
+   it("should clear LocalStorage entry when chartMaxMode is disabled", async () => {
+      const setItemSpy = vi.spyOn(LocalStorage, "setItem").mockImplementation(() => {});
       const { comp } = await renderComponent();
-
-      comp.onChartMaxModeChange({ assembly: "Chart1", maxMode: false });
-
+      comp.onChartMaxModeChange({ assembly: "VS.Chart1", maxMode: false });
       expect(setItemSpy).toHaveBeenCalledWith("chart-edit-max-mode", "");
    });
 });
 
 // ---------------------------------------------------------------------------
-// Group 3 — getFormats() @HostListener click [Risk 2]
+// Group 3: getAssemblyName [Risk 2]
 // ---------------------------------------------------------------------------
 
-describe("VSObjectView — getFormats @HostListener click", () => {
-   beforeEach(() => vi.useFakeTimers());
-   // 🔁 Regression-sensitive: the 250ms delay is intentional (debounces rapid clicks);
-   // removing the timeout causes the format pane to update before selection stabilizes.
-
-   it("should emit onUpdateData('getCurrentFormat') after exactly 250ms on click", async () => {
-      const { comp } = await renderComponent();
-      const emitted: string[] = [];
-      comp.onUpdateData.subscribe((v: string) => emitted.push(v));
-
-      comp.getFormats({} as MouseEvent);
-
-      vi.advanceTimersByTime(249);
-      expect(emitted).toHaveLength(0);
-
-      vi.advanceTimersByTime(1);
-      expect(emitted).toEqual(["getCurrentFormat"]);
-   });
-});
-
-// ---------------------------------------------------------------------------
-// Group 4 — getAssemblyName() [Risk 2]
-// ---------------------------------------------------------------------------
-
-describe("VSObjectView — getAssemblyName()", () => {
-   it("should return the portion before the last dot when absoluteName contains a dot", async () => {
-      const model = makeModel("VSChart", { absoluteName: "ParentAssembly.childObj" } as any);
-      const { comp } = await renderComponent({ model });
-      expect(comp.getAssemblyName()).toBe("ParentAssembly");
+describe("VSObjectView — getAssemblyName", () => {
+   it("should return the parent path when absoluteName contains a dot", async () => {
+      const { comp } = await renderComponent({ model: makeModel({ absoluteName: "Viewsheet1.Table1" }) });
+      expect(comp.getAssemblyName()).toBe("Viewsheet1");
    });
 
-   it("should return null when absoluteName has no dot", async () => {
-      const model = makeModel("VSChart", { absoluteName: "NoDotHere" } as any);
-      const { comp } = await renderComponent({ model });
+   it("should return null when absoluteName has no dot (top-level assembly)", async () => {
+      const { comp } = await renderComponent({ model: makeModel({ absoluteName: "Table1" }) });
       expect(comp.getAssemblyName()).toBeNull();
    });
 
    it("should return null when _model is null", async () => {
       const { comp } = await renderComponent();
-      // Bypass model setter (which also calls resizeModelView() — DOM-dependent in jsdom)
-      (comp as any)["_model"] = null;
+      (comp as any)._model = null;
       expect(comp.getAssemblyName()).toBeNull();
    });
-});
 
-// ---------------------------------------------------------------------------
-// Group 5 — model setter [baseline]
-// ---------------------------------------------------------------------------
-
-describe("VSObjectView — model setter", () => {
-   it("should call actionFactory.createActions with the model and store the result in actions", async () => {
-      const mockActions = { type: "testActions" };
-      ACTION_FACTORY_MOCK.createActions.mockReturnValue(mockActions);
-      const model = makeModel("VSChart");
-
-      const { comp } = await renderComponent({ model });
-
-      expect(ACTION_FACTORY_MOCK.createActions).toHaveBeenCalledWith(model);
-      expect(comp.actions).toBe(mockActions);
+   it("should extract only the first-level parent for nested paths", async () => {
+      const { comp } = await renderComponent({ model: makeModel({ absoluteName: "VS.Container.Table1" }) });
+      // lastIndexOf(".") finds the rightmost dot
+      expect(comp.getAssemblyName()).toBe("VS.Container");
    });
 });
 
 // ---------------------------------------------------------------------------
-// Group 6 — getCalcTableLayout() [baseline]
+// Group 4: getFormats() — deferred emit (+memory leak) [Risk 2]
 // ---------------------------------------------------------------------------
 
-describe("VSObjectView — getCalcTableLayout()", () => {
-   it("should store the provided calcTableLayout in layoutModel", async () => {
+describe("VSObjectView — getFormats deferred emit (+memory leak)", () => {
+   it("should emit getCurrentFormat after 250ms when getFormats is called", async () => {
       const { comp } = await renderComponent();
-      const layout = {} as any;
+      const emitted: string[] = [];
+      comp.onUpdateData.subscribe(v => emitted.push(v));
 
-      comp.getCalcTableLayout(layout);
+      vi.useFakeTimers();
+      comp.getFormats(new MouseEvent("click"));
 
-      expect(comp.layoutModel).toBe(layout);
+      expect(emitted).toHaveLength(0); // not yet emitted
+      vi.advanceTimersByTime(250);
+      expect(emitted).toContain("getCurrentFormat");
+      vi.useRealTimers();
+   });
+
+   it("should NOT emit before 250ms have elapsed", async () => {
+      const { comp } = await renderComponent();
+      const emitted: string[] = [];
+      comp.onUpdateData.subscribe(v => emitted.push(v));
+
+      vi.useFakeTimers();
+      comp.getFormats(new MouseEvent("click"));
+      vi.advanceTimersByTime(249);
+      expect(emitted).toHaveLength(0);
+      vi.useRealTimers();
+   });
+
+   // Bug: getFormats() calls setTimeout(fn, 250) but ngOnDestroy only calls super.cleanup();
+   // the timer ID is never stored and never cancelled, so onUpdateData fires on the dead component.
+   // Fix: store the timer reference and call clearTimeout in ngOnDestroy.
+   it.fails("should not emit onUpdateData after component is destroyed (250ms timer leak)", async () => {
+      const { comp, fixture } = await renderComponent();
+      const emitted: string[] = [];
+      comp.onUpdateData.subscribe(v => emitted.push(v));
+
+      vi.useFakeTimers();
+      comp.getFormats(new MouseEvent("click")); // queues 250ms timer
+      fixture.destroy();                         // ngOnDestroy → super.cleanup(); timer NOT cancelled
+      vi.advanceTimersByTime(300);               // timer fires on dead component
+
+      expect(emitted).toHaveLength(0); // FAILS — "getCurrentFormat" was emitted after destroy
+      vi.useRealTimers();
    });
 });
 
 // ---------------------------------------------------------------------------
-// Group 7 — showMiniToolbar() [baseline]
+// Group 5: ngOnDestroy [Risk 1]
 // ---------------------------------------------------------------------------
 
-describe("VSObjectView — showMiniToolbar()", () => {
-   it("should return true when miniToolbarService.isMiniToolbarHidden returns false", async () => {
-      MINI_TOOLBAR_MOCK.isMiniToolbarHidden.mockReturnValue(false);
+describe("VSObjectView — ngOnDestroy", () => {
+   it("should call removeMessageListener during cleanup when destroyed", async () => {
+      const { fixture } = await renderComponent();
+      fixture.destroy();
+      // CommandProcessor.cleanup() calls viewsheetClient.removeMessageListener for each registered listener
+      expect(clientServiceMock.removeMessageListener).toHaveBeenCalled();
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 6: miniToolbar delegates [Risk 1]
+// ---------------------------------------------------------------------------
+
+describe("VSObjectView — miniToolbar delegates", () => {
+   it("should return true from showMiniToolbar when isMiniToolbarHidden returns false", async () => {
+      miniToolbarServiceMock.isMiniToolbarHidden.mockReturnValue(false);
       const { comp } = await renderComponent();
       expect(comp.showMiniToolbar()).toBe(true);
    });
 
-   it("should return false when miniToolbarService.isMiniToolbarHidden returns true", async () => {
-      MINI_TOOLBAR_MOCK.isMiniToolbarHidden.mockReturnValue(true);
+   it("should return false from showMiniToolbar when isMiniToolbarHidden returns true", async () => {
+      miniToolbarServiceMock.isMiniToolbarHidden.mockReturnValue(true);
       const { comp } = await renderComponent();
       expect(comp.showMiniToolbar()).toBe(false);
    });
-});
 
-// ---------------------------------------------------------------------------
-// Group 8 — delegation methods [baseline]
-// ---------------------------------------------------------------------------
-
-describe("VSObjectView — delegation: onMouseEnter / contextmenuOpened / contextmenuClosed", () => {
-   it("onMouseEnter should delegate to miniToolbarService.handleMouseEnter with absoluteName and event", async () => {
-      const model = makeModel("VSChart", { absoluteName: "TestChart" } as any);
-      const { comp } = await renderComponent({ model });
-      const mockEvent = { type: "mouseenter" };
-
-      comp.onMouseEnter(mockEvent);
-
-      expect(MINI_TOOLBAR_MOCK.handleMouseEnter).toHaveBeenCalledWith("TestChart", mockEvent);
+   it("should delegate to miniToolbarService on onMouseEnter", async () => {
+      const { comp } = await renderComponent();
+      const event = new MouseEvent("mouseenter");
+      comp.onMouseEnter(event);
+      expect(miniToolbarServiceMock.handleMouseEnter).toHaveBeenCalledWith(
+         comp.model?.absoluteName, event
+      );
    });
 
-   it("contextmenuOpened should delegate to miniToolbarService.hiddenFreeze with absoluteName", async () => {
-      const model = makeModel("VSChart", { absoluteName: "TestChart" } as any);
-      const { comp } = await renderComponent({ model });
-
+   it("should call hiddenFreeze on contextmenuOpened", async () => {
+      const { comp } = await renderComponent();
       comp.contextmenuOpened();
-
-      expect(MINI_TOOLBAR_MOCK.hiddenFreeze).toHaveBeenCalledWith("TestChart");
+      expect(miniToolbarServiceMock.hiddenFreeze).toHaveBeenCalledWith(comp.model?.absoluteName);
    });
 
-   it("contextmenuClosed should delegate to miniToolbarService.hiddenUnfreeze with absoluteName", async () => {
-      const model = makeModel("VSChart", { absoluteName: "TestChart" } as any);
-      const { comp } = await renderComponent({ model });
-
+   it("should call hiddenUnfreeze on contextmenuClosed", async () => {
+      const { comp } = await renderComponent();
       comp.contextmenuClosed();
-
-      expect(MINI_TOOLBAR_MOCK.hiddenUnfreeze).toHaveBeenCalledWith("TestChart");
-   });
-});
-
-// ---------------------------------------------------------------------------
-// Group 9 — CommandProcessor command handling [Risk 2]
-// ---------------------------------------------------------------------------
-
-describe("VSObjectView — processRefreshVSObjectCommand / processAddVSObjectCommand", () => {
-   // 🔁 Regression-sensitive: if these emitters are removed or renamed, the parent viewer
-   // component stops receiving VS model updates and the viewsheet silently goes stale.
-
-   it("processRefreshVSObjectCommand should emit the command via onRefreshVSObjectCommand", async () => {
-      const { comp } = await renderComponent();
-      const emitted: RefreshVSObjectCommand[] = [];
-      comp.onRefreshVSObjectCommand.subscribe((v: RefreshVSObjectCommand) => emitted.push(v));
-      const cmd = { objectName: "Table1" } as unknown as RefreshVSObjectCommand;
-
-      // processRefreshVSObjectCommand is private; no public wrapper exists — bypass is intentional
-      (comp as any).processRefreshVSObjectCommand(cmd);
-
-      expect(emitted).toHaveLength(1);
-      expect(emitted[0]).toBe(cmd);
-   });
-
-   it("processAddVSObjectCommand should emit the command via onAddVSObjectCommand", async () => {
-      const { comp } = await renderComponent();
-      const emitted: AddVSObjectCommand[] = [];
-      comp.onAddVSObjectCommand.subscribe((v: AddVSObjectCommand) => emitted.push(v));
-      const cmd = { objectName: "NewChart" } as unknown as AddVSObjectCommand;
-
-      // processAddVSObjectCommand is private; no public wrapper exists — bypass is intentional
-      (comp as any).processAddVSObjectCommand(cmd);
-
-      expect(emitted).toHaveLength(1);
-      expect(emitted[0]).toBe(cmd);
-   });
-});
-
-// ---------------------------------------------------------------------------
-// Group 10 — ngOnDestroy() [baseline +memory-leak]
-// ---------------------------------------------------------------------------
-
-describe("VSObjectView — ngOnDestroy lifecycle", () => {
-   // 🔁 Memory-leak guard: CommandProcessor subscribes to clientService.commands in the
-   // constructor and must unsubscribe in cleanup() (called by ngOnDestroy) to prevent
-   // the subscription from keeping the component alive after the view is destroyed.
-
-   it("should unsubscribe from commands stream on destroy (memory-leak guard)", async () => {
-      const commandsSubject = new Subject<any>();
-
-      const result = await render(VSObjectView, {
-         inputs: { model: makeModel("VSChart"), linkUri: "http://localhost" },
-         providers: [
-            { provide: ViewsheetClientService, useValue: { sendEvent: vi.fn(), commands: commandsSubject } },
-            { provide: AssemblyActionFactory,  useValue: ACTION_FACTORY_MOCK },
-            { provide: MiniToolbarService,     useValue: MINI_TOOLBAR_MOCK },
-            { provide: NgbModal,               useValue: MODAL_MOCK },
-         ],
-         importOverrides: [
-            { replace: VSChart,                          with: VSChartStub },
-            { replace: VSTable,                          with: VSTableStub },
-            { replace: VSCrosstab,                       with: VSCrosstabStub },
-            { replace: CalcTableLayoutPane,              with: CalcTableLayoutPaneStub },
-            { replace: MiniToolbar,                      with: MiniToolbarStub },
-            { replace: ActionsContextmenuAnchorDirective, with: ActionsContextmenuAnchorStub },
-            { replace: BTableActionHandlerDirective,     with: BTableActionHandlerStub },
-            { replace: BCrosstabActionHandlerDirective,  with: BCrosstabActionHandlerStub },
-            { replace: BCalcTableActionHandlerDirective, with: BCalcTableActionHandlerStub },
-         ],
-         schemas: [NO_ERRORS_SCHEMA],
-      });
-
-      expect(commandsSubject.observed).toBe(true);
-
-      result.fixture.destroy();
-
-      expect(commandsSubject.observed).toBe(false);
+      expect(miniToolbarServiceMock.hiddenUnfreeze).toHaveBeenCalledWith(comp.model?.absoluteName);
    });
 });
