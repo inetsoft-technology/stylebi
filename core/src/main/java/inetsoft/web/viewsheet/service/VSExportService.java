@@ -899,6 +899,21 @@ public class VSExportService {
       }
    }
 
+   // check whether ext maps to a known export format without throwing
+   public static boolean isSupportedExportType(String ext) {
+      if(ext == null) {
+         return false;
+      }
+
+      try {
+         getFormatNumberFromExtension(ext);
+         return true;
+      }
+      catch(RuntimeException ignore) {
+         return false;
+      }
+   }
+
    public static final int EXCEL_MAX_ROW = 50000;
    public static final int EXCEL_LIMIT_ROW = 5000;
    private final ViewsheetService viewsheetService;
