@@ -115,6 +115,10 @@ async function renderComponent(props: Record<string, any> = {}) {
 beforeEach(() => {
    cmHandlers = {};
    vi.clearAllMocks();
+   // ngAfterViewInit schedules a 0ms timer (setTimeout(() => codemirrorInstance.refresh(), 0))
+   // when the editor element is hidden (always in jsdom). Fake timers prevent this timer from
+   // firing after ngOnDestroy sets codemirrorInstance=null, which would otherwise throw.
+   vi.useFakeTimers();
    // Restore return values that clearAllMocks wipes out
    codemirrorServiceMock.getEcmaScriptDefs.mockReturnValue([{ Date: { prototype: { toJSON: {} } } }]);
    codemirrorServiceMock.createTernServer.mockReturnValue(mockTernServer);
@@ -129,7 +133,10 @@ beforeEach(() => {
    mockTernServer.options.typeTip = null;
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+   vi.restoreAllMocks();
+   vi.useRealTimers();
+});
 
 // ---------------------------------------------------------------------------
 // Group 1: expression setter [Risk 3]

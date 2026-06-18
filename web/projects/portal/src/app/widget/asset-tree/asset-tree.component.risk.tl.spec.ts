@@ -68,7 +68,9 @@ function makeNode(identifier: string, label: string, children: TreeNodeModel[] =
       label,
       leaf,
       children,
-      data: { identifier, type: type ?? "FOLDER", path: "/", scope: 0 } as any,
+      // properties:{} prevents getNodeByPath from throwing when it evaluates
+      // root.data.properties["prefix"] on nodes whose path doesn't match the search path.
+      data: { identifier, type: type ?? "FOLDER", path: "/", scope: 0, properties: {} } as any,
    };
 }
 
@@ -77,7 +79,7 @@ function makeDataSourceNode(): TreeNodeModel {
       label: "Data Sources",
       leaf: false,
       children: [],
-      data: { identifier: "ds-root", type: AssetType.DATA_SOURCE_FOLDER, path: "/" } as any,
+      data: { identifier: "ds-root", type: AssetType.DATA_SOURCE_FOLDER, path: "/", properties: {} } as any,
    };
 }
 
@@ -87,7 +89,7 @@ function makeTreeResponse(rootIdentifier = "root-id", extraChildren: TreeNodeMod
       label: "Root",
       leaf: false,
       children: [dsNode, ...extraChildren],
-      data: { identifier: rootIdentifier, type: "FOLDER", path: "/", scope: 0 } as any,
+      data: { identifier: rootIdentifier, type: "FOLDER", path: "/", scope: 0, properties: {} } as any,
    };
    return of({ treeNodeModel: rootNode, parameters: null });
 }

@@ -54,7 +54,7 @@ import { BaseTableCellModel } from "../../../vsobjects/model/base-table-cell-mod
 
 const MODEL_SERVICE_MOCK = { getModel: vi.fn(), sendModel: vi.fn() };
 const FILE_UPLOAD_SERVICE_MOCK = { upload: vi.fn(), getObserver: vi.fn() };
-const HTTP_CLIENT_MOCK = { put: vi.fn() };
+const HTTP_CLIENT_MOCK = { put: vi.fn(), get: vi.fn() };
 const MODAL_SERVICE_MOCK = { open: vi.fn() };
 
 // ---------------------------------------------------------------------------
@@ -107,6 +107,7 @@ async function renderComponent(
    modelOverride?: Partial<ImportCSVDialogModel>
 ) {
    FILE_UPLOAD_SERVICE_MOCK.getObserver.mockReturnValue(EMPTY);
+   HTTP_CLIENT_MOCK.get.mockReturnValue(of(null));
    MODEL_SERVICE_MOCK.getModel.mockReturnValue(of(makeModel(modelOverride)));
 
    const worksheet = worksheetOverride ?? makeWorksheet();
@@ -136,6 +137,7 @@ beforeEach(() => {
    FILE_UPLOAD_SERVICE_MOCK.upload.mockReset();
    FILE_UPLOAD_SERVICE_MOCK.getObserver.mockReset();
    HTTP_CLIENT_MOCK.put.mockReset();
+   HTTP_CLIENT_MOCK.get.mockReset();
    MODAL_SERVICE_MOCK.open.mockReset();
 });
 
@@ -217,7 +219,7 @@ describe("ImportCSVDialog — updateFile: valid file", () => {
       comp.updateFile({ target: { files: [makeFile("data.csv")] } });
 
       expect(FILE_UPLOAD_SERVICE_MOCK.upload).toHaveBeenCalledWith(
-         expect.stringContaining(worksheet.runtimeId.replace(/[^a-zA-Z0-9]/g, "")),
+         expect.stringContaining(worksheet.runtimeId),
          expect.any(Array)
       );
    });
@@ -492,13 +494,15 @@ describe("ImportCSVDialog — unpivotEnabled getter", () => {
    it("should return false when previewTable is null", async () => {
       const { comp } = await renderComponent();
       comp.previewTable = null;
-      expect(comp.unpivotEnabled).toBe(false);
+      // getter returns null (&&-short-circuit), not false — A2 pattern
+      expect(comp.unpivotEnabled).toBeFalsy();
    });
 
    it("should return false when previewTable is empty", async () => {
       const { comp } = await renderComponent();
       comp.previewTable = [];
-      expect(comp.unpivotEnabled).toBe(false);
+      // getter returns undefined ([][0] is undefined), not false — A2 pattern
+      expect(comp.unpivotEnabled).toBeFalsy();
    });
 });
 
@@ -509,7 +513,7 @@ describe("ImportCSVDialog — unpivotEnabled getter", () => {
 describe("ImportCSVDialog — ngAfterViewChecked", () => {
    it("should call updatePreviewTable when previewOutOfDate is true", async () => {
       const { comp } = await renderComponent();
-      const spy = vi.spyOn(comp as any, "updatePreviewTable");
+      const spy = vi.spyOn(comp as any, "updatePreviewTable").mockImplementation(() => {});
       (comp as any).previewOutOfDate = true;
       comp.fileUploaded = true;
 

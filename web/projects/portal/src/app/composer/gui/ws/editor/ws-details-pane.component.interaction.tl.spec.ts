@@ -43,7 +43,7 @@
  */
 
 import { SimpleChange } from "@angular/core";
-import { makeMocks, makeTable, makeWorksheet, renderComponent } from "./ws-details-pane.component.test-helpers";
+import { makeBoundTable, makeMocks, makeTable, makeWorksheet, renderComponent } from "./ws-details-pane.component.test-helpers";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -65,9 +65,11 @@ describe("WSDetailsPaneComponent — getTableStatus", () => {
 
    it("should append [viewName] when sourceInfo.view is set", async () => {
       const mocks = makeMocks();
-      mocks.table.tableClassType = "BoundTableAssembly";
-      mocks.table.info.editable = true;
-      mocks.table.info.sourceInfo = { view: "MY_VIEW" };
+      // getTableStatus() gates on `instanceof BoundTableAssembly`; use Object.create to
+      // satisfy the check without running the constructor.
+      mocks.table = makeBoundTable({
+         info: { editable: true, sourceInfo: { view: "MY_VIEW" } },
+      });
       const { comp } = await renderComponent(mocks);
 
       const status = comp.getTableStatus();

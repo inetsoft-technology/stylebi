@@ -34,16 +34,31 @@
  */
 
 import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { ComponentFixture } from "@angular/core/testing";
 import { render } from "@testing-library/angular";
 import { Subject } from "rxjs";
 import { ToolbarGroup } from "./toolbar-group.component";
 import { DropdownObserver } from "../../services/dropdown-observer.service";
 import { ToolbarAction } from "../toolbar-action";
+import { ToolbarActionGroup } from "../toolbar-action-group";
 
 const DROPDOWN_OBSERVER_MOCK = {
    onDropdownOpened: vi.fn(),
    onDropdownClosed: vi.fn(),
 };
+
+function makeActionGroup(): ToolbarActionGroup {
+   return {
+      label: "Group",
+      iconClass: "",
+      buttonClass: "",
+      enabled: () => true,
+      visible: () => true,
+      action: () => {},
+      tooltip: () => "",
+      actions: [],
+   };
+}
 
 function makeDropdownMock(isOpen = false) {
    const subject = new Subject<boolean>();
@@ -54,7 +69,10 @@ function makeDropdownMock(isOpen = false) {
    };
 }
 
-async function renderComponent(props: Partial<ToolbarGroup> = {}) {
+async function renderComponent(props: Partial<ToolbarGroup> = {}): Promise<{
+   comp: ToolbarGroup;
+   fixture: ComponentFixture<ToolbarGroup>;
+}> {
    const { fixture } = await render(ToolbarGroup, {
       schemas: [NO_ERRORS_SCHEMA],
       providers: [
@@ -66,10 +84,11 @@ async function renderComponent(props: Partial<ToolbarGroup> = {}) {
          placeOnRight: false,
          snapToGrid: false,
          snapToObjects: false,
+         actionGroup: makeActionGroup(),
          ...props,
       },
    });
-   return fixture.componentInstance as ToolbarGroup;
+   return { comp: fixture.componentInstance as ToolbarGroup, fixture };
 }
 
 beforeEach(() => {
@@ -86,7 +105,7 @@ describe("ToolbarGroup — ngAfterViewInit dropdown openChange", () => {
    // 🔁 Regression-sensitive: DropdownObserver.onDropdownOpened/Closed must fire when
    //    the toolbar dropdown opens/closes; breaking this breaks multi-dropdown close logic.
    it("should call onDropdownOpened when dropdown emits open=true", async () => {
-      const comp = await renderComponent();
+      const { comp } = await renderComponent();
       const dropdownMock = makeDropdownMock(false);
       comp.dropdown = dropdownMock as any;
 
@@ -97,7 +116,7 @@ describe("ToolbarGroup — ngAfterViewInit dropdown openChange", () => {
    });
 
    it("should call onDropdownClosed when dropdown emits open=false", async () => {
-      const comp = await renderComponent();
+      const { comp } = await renderComponent();
       const dropdownMock = makeDropdownMock(false);
       comp.dropdown = dropdownMock as any;
 
@@ -108,7 +127,7 @@ describe("ToolbarGroup — ngAfterViewInit dropdown openChange", () => {
    });
 
    it("should not call DropdownObserver when there is no dropdown ViewChild", async () => {
-      const comp = await renderComponent();
+      const { comp } = await renderComponent();
       comp.dropdown = undefined as any;
 
       comp.ngAfterViewInit();
@@ -126,14 +145,17 @@ describe("ToolbarGroup — ngOnDestroy memory leak", () => {
    // 🔁 Regression-sensitive: if destroy$ is not completed, the openChange subscription
    //    survives and calls DropdownObserver on a destroyed component.
    it("should not call DropdownObserver after destroy when dropdown emits", async () => {
-      const comp = await renderComponent();
+      const { comp, fixture } = await renderComponent();
       const dropdownMock = makeDropdownMock(false);
       comp.dropdown = dropdownMock as any;
       comp.ngAfterViewInit();
 
       DROPDOWN_OBSERVER_MOCK.onDropdownOpened.mockReset();
       DROPDOWN_OBSERVER_MOCK.onDropdownClosed.mockReset();
-      comp.ngOnDestroy();
+      // Use fixture.destroy() instead of comp.ngOnDestroy() directly:
+      // Angular's _isDestroyed flag prevents a second ngOnDestroy call when ATL
+      // auto-destroys the fixture in its global afterEach, avoiding ObjectUnsubscribedError.
+      fixture.destroy();
 
       dropdownMock._subject.next(true);
 
@@ -143,21 +165,21 @@ describe("ToolbarGroup — ngOnDestroy memory leak", () => {
    // 🔁 Regression-sensitive: if the dropdown is open when the component is destroyed
    //    (e.g., user navigates away), the observer must be notified so its open count stays correct.
    it("should call onDropdownClosed on destroy when the dropdown is currently open", async () => {
-      const comp = await renderComponent();
+      const { comp, fixture } = await renderComponent();
       const dropdownMock = makeDropdownMock(true); // isOpen() === true
       comp.dropdown = dropdownMock as any;
 
-      comp.ngOnDestroy();
+      fixture.destroy();
 
       expect(DROPDOWN_OBSERVER_MOCK.onDropdownClosed).toHaveBeenCalledTimes(1);
    });
 
    it("should NOT call onDropdownClosed on destroy when the dropdown is closed", async () => {
-      const comp = await renderComponent();
+      const { comp, fixture } = await renderComponent();
       const dropdownMock = makeDropdownMock(false); // isOpen() === false
       comp.dropdown = dropdownMock as any;
 
-      comp.ngOnDestroy();
+      fixture.destroy();
 
       expect(DROPDOWN_OBSERVER_MOCK.onDropdownClosed).not.toHaveBeenCalled();
    });
@@ -171,44 +193,44 @@ describe("ToolbarGroup — getStyle (non-childGroupToolbar)", () => {
    // 🔁 Regression-sensitive: getStyle drives CSS class on toolbar buttons; wrong class
    //    breaks button layout in the composer toolbar.
    it("should return toolbar button classes for secondLevelParent=0", async () => {
-      const comp = await renderComponent({ childGroupToolbar: false });
+      const { comp } = await renderComponent({ childGroupToolbar: false });
       expect(comp.getStyle(0)).toBe("btn composer-btn toolbar-btn pb-1 ps-1 pe-1");
    });
 
    it("should return bottomPlacement class for secondLevelParent=1", async () => {
-      const comp = await renderComponent({ childGroupToolbar: false, placeOnRight: false });
+      const { comp } = await renderComponent({ childGroupToolbar: false, placeOnRight: false });
       expect(comp.getStyle(1)).toBe("bottom-left");
    });
 
    it("should return 'dropdown-item' for secondLevelParent=2", async () => {
-      const comp = await renderComponent({ childGroupToolbar: false });
+      const { comp } = await renderComponent({ childGroupToolbar: false });
       expect(comp.getStyle(2)).toBe("dropdown-item");
    });
 
    it("should return 'item-label' for secondLevelParent=3", async () => {
-      const comp = await renderComponent({ childGroupToolbar: false });
+      const { comp } = await renderComponent({ childGroupToolbar: false });
       expect(comp.getStyle(3)).toBe("item-label");
    });
 });
 
 describe("ToolbarGroup — getStyle (childGroupToolbar=true)", () => {
    it("should return 'dropdown-item' for secondLevelParent=0", async () => {
-      const comp = await renderComponent({ childGroupToolbar: true });
+      const { comp } = await renderComponent({ childGroupToolbar: true });
       expect(comp.getStyle(0)).toBe("dropdown-item");
    });
 
    it("should return 'left' for secondLevelParent=1", async () => {
-      const comp = await renderComponent({ childGroupToolbar: true });
+      const { comp } = await renderComponent({ childGroupToolbar: true });
       expect(comp.getStyle(1)).toBe("left");
    });
 
    it("should return 'second-dropdown-item' for secondLevelParent=2", async () => {
-      const comp = await renderComponent({ childGroupToolbar: true });
+      const { comp } = await renderComponent({ childGroupToolbar: true });
       expect(comp.getStyle(2)).toBe("second-dropdown-item");
    });
 
    it("should return 'second-item-label' for secondLevelParent=3", async () => {
-      const comp = await renderComponent({ childGroupToolbar: true });
+      const { comp } = await renderComponent({ childGroupToolbar: true });
       expect(comp.getStyle(3)).toBe("second-item-label");
    });
 });
@@ -220,12 +242,12 @@ describe("ToolbarGroup — getStyle (childGroupToolbar=true)", () => {
 describe("ToolbarGroup — bottomPlacement", () => {
    // 🔁 Regression-sensitive: controls dropdown placement direction; wrong value misaligns menus.
    it("should return 'bottom-right' when placeOnRight=true", async () => {
-      const comp = await renderComponent({ placeOnRight: true });
+      const { comp } = await renderComponent({ placeOnRight: true });
       expect(comp.bottomPlacement).toBe("bottom-right");
    });
 
    it("should return 'bottom-left' when placeOnRight=false", async () => {
-      const comp = await renderComponent({ placeOnRight: false });
+      const { comp } = await renderComponent({ placeOnRight: false });
       expect(comp.bottomPlacement).toBe("bottom-left");
    });
 });
@@ -237,13 +259,13 @@ describe("ToolbarGroup — bottomPlacement", () => {
 describe("ToolbarGroup — getSnapToModel", () => {
    // 🔁 Regression-sensitive: wrong binding causes snap state to appear out of sync with actual grid.
    it("should return snapToGrid when action.label is 'Snap to grid'", async () => {
-      const comp = await renderComponent({ snapToGrid: true, snapToObjects: false });
+      const { comp } = await renderComponent({ snapToGrid: true, snapToObjects: false });
       const action = { label: "Snap to grid" } as ToolbarAction;
       expect(comp.getSnapToModel(action)).toBe(true);
    });
 
    it("should return snapToObjects when action.label is anything else", async () => {
-      const comp = await renderComponent({ snapToGrid: false, snapToObjects: true });
+      const { comp } = await renderComponent({ snapToGrid: false, snapToObjects: true });
       const action = { label: "Snap to objects" } as ToolbarAction;
       expect(comp.getSnapToModel(action)).toBe(true);
    });
@@ -255,13 +277,13 @@ describe("ToolbarGroup — getSnapToModel", () => {
 
 describe("ToolbarGroup — isCheckboxInput", () => {
    it("should return true when action.iconClass is 'form-check-input'", async () => {
-      const comp = await renderComponent();
+      const { comp } = await renderComponent();
       const action = { iconClass: "form-check-input" } as ToolbarAction;
       expect(comp.isCheckboxInput(action)).toBe(true);
    });
 
    it("should return false when action.iconClass is something else", async () => {
-      const comp = await renderComponent();
+      const { comp } = await renderComponent();
       const action = { iconClass: "delete-icon" } as ToolbarAction;
       expect(comp.isCheckboxInput(action)).toBe(false);
    });

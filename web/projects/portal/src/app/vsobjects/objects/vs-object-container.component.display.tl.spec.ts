@@ -222,10 +222,11 @@ describe("Group 7 — isChartAnnotationSelected: annotation name in selectedAnno
       expect(comp.isChartAnnotationSelected(ann, obj)).toBe(false);
    });
 
-   it("should return false when ann is null", () => {
+   it("should return falsy when ann is null", () => {
       const { comp } = makeComponent();
       const obj = makeVSObject({ selectedAnnotations: ["ann1"] });
-      expect(comp.isChartAnnotationSelected(null, obj)).toBe(false);
+      // ann && ... short-circuits to null (not false) when ann is null — use toBeFalsy()
+      expect(comp.isChartAnnotationSelected(null, obj)).toBeFalsy();
    });
 });
 

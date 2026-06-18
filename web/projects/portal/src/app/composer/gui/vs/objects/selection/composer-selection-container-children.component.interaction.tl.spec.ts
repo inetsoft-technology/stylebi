@@ -152,6 +152,9 @@ async function renderComponent(extraProps: any = {}) {
       ],
       componentProperties: {
          viewsheet: viewsheetMock,
+         // vsObject must be provided here: the template binds vsObject.objectFormat.left (etc.)
+         // unconditionally on line 20 of the HTML. Without it, initial change detection crashes.
+         vsObject: makeVsObject(),
          ...extraProps,
       },
    });

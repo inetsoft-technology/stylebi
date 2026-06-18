@@ -1952,8 +1952,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    private String treeLayout = TREE_LAYOUT_TOP_BOTTOM;
    private CompositeTextFormat errorFormat;
    private double pieRatio = 0;
-   // By design, new bar charts default to rounded corners; parseXML overrides to 0 for saved charts.
-   private static final double DEFAULT_BAR_CORNER_RADIUS = 0.3;
+   private static final double DEFAULT_BAR_CORNER_RADIUS = 0;
    private double barCornerRadius = DEFAULT_BAR_CORNER_RADIUS;
    private boolean barRoundAllCorners = false;
    // New tree charts default to rounded nodes; parseXML overrides to 0 for saved charts.

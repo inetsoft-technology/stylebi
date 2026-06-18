@@ -105,6 +105,8 @@ describe("DynamicComboBox — isVariableEnabled and selectType VARIABLE guard", 
       comp.typeChange.subscribe(t => emitted.push(t));
 
       comp.selectType(new MouseEvent("click"), ComboMode.VARIABLE);
+      // typeChange is EventEmitter(true) — async; emission delivered via setTimeout(0)
+      await new Promise(r => setTimeout(r, 0));
 
       expect(comp.type).toBe(ComboMode.VARIABLE);
       expect(emitted).toContain(ComboMode.VARIABLE);
@@ -173,7 +175,8 @@ describe("DynamicComboBox — selectType EXPRESSION deferred dialog (+memory lea
    });
 
    it("should NOT schedule showFormulaEditor when the type does not change", async () => {
-      const comp = await renderComponent({ type: ComboMode.EXPRESSION });
+      // ngOnInit calls updateType(this.value); set value="=expr" so type stays EXPRESSION
+      const comp = await renderComponent({ value: "=expr" });
       const showSpy = vi.spyOn(comp, "showFormulaEditor").mockImplementation(() => {});
 
       vi.useFakeTimers();

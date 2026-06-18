@@ -30,7 +30,7 @@ import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { provideHttpClient } from "@angular/common/http";
 import { render } from "@testing-library/angular";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { EMPTY, of } from "rxjs";
+import { EMPTY, of, Subject } from "rxjs";
 
 import { AiAssistantService } from "../../../../../../../shared/ai-assistant/ai-assistant.service";
 import { AiAssistantDialogService } from "../../../../common/services/ai-assistant-dialog.service";
@@ -40,6 +40,7 @@ import { ModelService } from "../../../../widget/services/model.service";
 import { DragService } from "../../../../widget/services/drag.service";
 import { DialogService } from "../../../../widget/slide-out/dialog-service.service";
 import { WSDetailsPaneComponent } from "./ws-details-pane.component";
+import { BoundTableAssembly } from "../../../data/ws/bound-table-assembly";
 
 // ---------------------------------------------------------------------------
 // Table mock factory
@@ -63,6 +64,15 @@ export function makeTable(overrides: Partial<any> = {}): any {
       isRuntime: vi.fn().mockReturnValue(false),
       ...overrides,
    };
+}
+
+/**
+ * Returns a plain-object table mock whose prototype chain satisfies
+ * `instanceof BoundTableAssembly`, bypassing the constructor so the
+ * BoundTableAssembly-only branches in getTableStatus() are reachable.
+ */
+export function makeBoundTable(overrides: Partial<any> = {}): any {
+   return Object.assign(Object.create(BoundTableAssembly.prototype), makeTable(overrides));
 }
 
 // ---------------------------------------------------------------------------
@@ -100,7 +110,7 @@ export function makeMocks() {
    const modalService = {
       open: vi.fn().mockReturnValue({
          result: new Promise<never>((_, reject) => reject("cancel")),
-         componentInstance: {},
+         componentInstance: { onCommit: new Subject<string>() },
       }),
    };
    const modelService = {

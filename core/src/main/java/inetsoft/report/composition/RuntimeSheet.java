@@ -75,6 +75,35 @@ public abstract class RuntimeSheet {
    }
 
    /**
+    * Get the heartbeat timeout in milliseconds. A runtime sheet is considered
+    * timed out if no heartbeat has been received within this window. Defaults
+    * to 180000 (3 minutes); configurable via the "viewsheet.heartbeat.timeout"
+    * property. Read on each call so it can be retuned without a restart.
+    */
+   public static long getHeartbeatTimeout() {
+      String property = SreeEnv.getProperty("viewsheet.heartbeat.timeout");
+
+      if(property != null) {
+         try {
+            return Math.max(180000L, Long.parseLong(property));
+         }
+         catch(NumberFormatException ex) {
+            LOG.warn("Invalid value for viewsheet.heartbeat.timeout: '{}', using default 180000ms",
+               property);
+         }
+      }
+
+      return 180000;
+   }
+
+   /**
+    * Check whether a heartbeat timestamp is older than the configured timeout.
+    */
+   static boolean isHeartbeatExpired(long heartbeat, long now) {
+      return heartbeat < now - getHeartbeatTimeout();
+   }
+
+   /**
     * Constructor.
     */
    public RuntimeSheet() {
@@ -162,8 +191,8 @@ public abstract class RuntimeSheet {
    public boolean isTimeout() {
       long now = System.currentTimeMillis();
 
-      // timeout if no heartbeat in 3 minutes
-      if(heartbeat < now - 180000) {
+      // timeout if no heartbeat within the configured window (default 3 minutes)
+      if(isHeartbeatExpired(heartbeat, now)) {
          return true;
       }
 
@@ -1166,7 +1195,7 @@ public abstract class RuntimeSheet {
    private String lowner;           // user who locked it
    private boolean isLockProcessed; // unlocked flag
    private boolean disposed;        // disposed flag
-   private long heartbeat = System.currentTimeMillis(); // heartbeat timestamp
+   volatile long heartbeat = System.currentTimeMillis(); // heartbeat timestamp
    private Map<String, Object> prop = new HashMap<>();
    private String previousURL;
 

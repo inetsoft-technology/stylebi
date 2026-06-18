@@ -41,6 +41,7 @@ import { AppInfoService } from "../../../../shared/util/app-info.service";
 import { AssetLoadingService } from "../common/services/asset-loading.service";
 import { BaseHrefService } from "../common/services/base-href.service";
 import { HeartbeatWorkerService } from "../common/services/heartbeat-worker.service";
+import { KeepAwakeService } from "../common/services/keep-awake.service";
 import { FirstDayOfWeekService } from "../common/services/first-day-of-week.service";
 import { FullScreenService } from "../common/services/full-screen.service";
 import { PagingControlService } from "../common/services/paging-control.service";
@@ -144,6 +145,7 @@ describe("ViewerApp Unit Tests", () => {
    let viewContainerRef: any;
    let baseHrefService: any;
    let heartbeatWorkerService: any;
+   let keepAwakeService: any;
    let timerService: any;
 
    beforeEach(waitForAsync(() => {
@@ -281,6 +283,10 @@ describe("ViewerApp Unit Tests", () => {
             subscribe: vi.fn().mockReturnValue({ unsubscribe: vi.fn() })
          })
       };
+      keepAwakeService = {
+         keepAwake: vi.fn(),
+         release: vi.fn()
+      };
       timerService = {
          defer: vi.fn((fn) => {
             fn();
@@ -343,6 +349,7 @@ describe("ViewerApp Unit Tests", () => {
             { provide: ViewContainerRef, useValue: viewContainerRef },
             { provide: BaseHrefService, useValue: baseHrefService },
             { provide: HeartbeatWorkerService, useValue: heartbeatWorkerService },
+            { provide: KeepAwakeService, useValue: keepAwakeService },
             AppInfoService,
             { provide: TimerService, useValue: timerService },
          ],
@@ -356,7 +363,8 @@ describe("ViewerApp Unit Tests", () => {
                {provide: AssemblyActionFactory, useValue: actionFactory},
                {provide: ViewsheetClientService, useValue: viewsheetClientService},
                DataTipService,
-               { provide: FullScreenService, useValue: fullScreenService }
+               { provide: FullScreenService, useValue: fullScreenService },
+               KeepAwakeService
             ]
          }
       });
@@ -494,6 +502,35 @@ describe("ViewerApp Unit Tests", () => {
    //   viewer-app.component.risk.tl.spec.ts — Group 5 "closeViewsheet() non-inTabs path"
    //   covers: confirm dialog when form tables exist, close on ok, no-close on cancel,
    //   direct close when checkFormTables returns false.
+
+   it("should keep the tab awake when the runtime id is set", () => {
+      const fixture = TestBed.createComponent(ViewerAppComponent);
+      const comp = fixture.componentInstance;
+      const keepAwakeSpy = vi.spyOn(
+         fixture.debugElement.injector.get(KeepAwakeService), "keepAwake");
+      // isolate the wiring from showBookmarks' HTTP call
+      vi.spyOn(comp as any, "showBookmarks").mockImplementation(() => {});
+
+      comp.processSetRuntimeIdCommand({ runtimeId: "rt-9", permissions: [] } as any);
+
+      expect(keepAwakeSpy).toHaveBeenCalledWith("rt-9");
+   });
+
+   it("should release the keep-awake lock on destroy", () => {
+      const fixture = TestBed.createComponent(ViewerAppComponent);
+      const releaseSpy = vi.spyOn(
+         fixture.debugElement.injector.get(KeepAwakeService), "release");
+      fixture.destroy();
+      expect(releaseSpy).toHaveBeenCalled();
+   });
+
+   it("should use a separate keep-awake instance per viewer-app (multi-tab safe)", () => {
+      const f1 = TestBed.createComponent(ViewerAppComponent);
+      const f2 = TestBed.createComponent(ViewerAppComponent);
+      const s1 = f1.debugElement.injector.get(KeepAwakeService);
+      const s2 = f2.debugElement.injector.get(KeepAwakeService);
+      expect(s1).not.toBe(s2);
+   });
 
    it("should send and receive viewer toolbar window messages", () => new Promise<void>((done) => {
       window["globalPostParams"] = null; // to resolve global var

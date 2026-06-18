@@ -18,7 +18,7 @@
 import { HttpClient, HttpParams } from "@angular/common/http";
 import {
    AfterViewInit, Component, ElementRef, EventEmitter, HostBinding, HostListener, Input,
-   Optional, Output, ViewChild,
+   OnChanges, Optional, Output, SimpleChanges, ViewChild,
 } from "@angular/core";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { AssemblyActionGroup } from "../../../../../../common/action/assembly-action-group";
@@ -56,7 +56,7 @@ const EDIT_QUERY_TABLE_PROPERTIES = "../api/data/datasource/query/table/properti
         "../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"],
     imports: [NgClass]
 })
-export class JoinNodeGraphComponent implements AfterViewInit {
+export class JoinNodeGraphComponent implements AfterViewInit, OnChanges {
    @Input() runtimeId: string;
    @Input() graph: GraphModel;
    @Input() graphEndpoints: any[];
@@ -83,6 +83,16 @@ export class JoinNodeGraphComponent implements AfterViewInit {
                @Optional() private physicalModelService: DataPhysicalModelService,
                private readonly fixedDropdownService: FixedDropdownService)
    {
+   }
+
+   // When the parent's ngOnChanges resets this.nodes/{} and deletes all jsPlumb endpoints,
+   // reused @for-tracked instances skip ngAfterViewInit. Re-register here so every node
+   // is back in the parent's lookup map and its endpoints are restored.
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["graph"] && !changes["graph"].isFirstChange() && this.nodeGraph) {
+         this.endPointsInit();
+         this.onRegisterNode.emit([this.graph, this.nodeGraph.nativeElement]);
+      }
    }
 
    ngAfterViewInit(): void {
