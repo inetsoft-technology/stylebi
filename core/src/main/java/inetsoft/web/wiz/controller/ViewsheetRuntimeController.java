@@ -62,6 +62,7 @@ public class ViewsheetRuntimeController {
     */
    @PostMapping(value = "/viewsheet/open", produces = MediaType.APPLICATION_JSON_VALUE)
    public OpenViewsheetResult openViewsheet(@RequestParam("identifier") String identifier,
+                                            @RequestParam(value = "sampleMaxRows", required = false) Integer sampleMaxRows,
                                             Principal user) throws Exception
    {
       AssetEntry entry = AssetEntry.createAssetEntry(identifier);
@@ -97,6 +98,36 @@ public class ViewsheetRuntimeController {
       if(assembly != null) {
          result.setAssemblyName(assembly.getName());
          result.setBinding(wizVsService.collectFlatBinding(assembly));
+      }
+
+      // #75456: sampled-preview mode for the live viewer. The reopened runtime renders on demand when
+      // the browser embeds it; set the source worksheet's design-max cap now (before that render) and
+      // drop any pre-rendered full-data result so the embed aggregates at most sampleMaxRows rows.
+      // null/<=0 = full data (the default; the persisted worksheet is already uncapped).
+      if(sampleMaxRows != null && sampleMaxRows > 0) {
+         try {
+            RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+            var bws = rvs != null && rvs.getViewsheet() != null
+               ? rvs.getViewsheet().getBaseWorksheet() : null;
+
+            if(bws != null) {
+               bws.getWorksheetInfo().setDesignMaxRows(sampleMaxRows);
+               rvs.getViewsheetSandbox().ifPresent(box -> {
+                  box.cancelAllQueries();
+
+                  if(assembly != null) {
+                     try {
+                        box.resetDataMap(assembly.getName());
+                     }
+                     catch(Exception ignore) {
+                     }
+                  }
+               });
+            }
+         }
+         catch(Exception ex) {
+            log.warn("Failed to apply sampled-preview cap on open: {}", ex.getMessage());
+         }
       }
 
       return result;
