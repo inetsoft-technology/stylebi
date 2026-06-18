@@ -35,8 +35,8 @@
  *   setRepaintTimer() is also spied before render (then restored) to prevent its zero-delay
  *   setTimeout from firing after ngOnDestroy sets this.jsp = null and crashing.
  *
- *   HTMLElement.prototype.scrollTo is stubbed once (jsdom doesn't implement it);
- *   ngAfterViewInit calls it on the graphPane div.
+ *   HTMLElement.prototype.scrollTo is stubbed in beforeAll/restored in afterAll (jsdom
+ *   doesn't implement it); ngAfterViewInit calls it on the graphPane div.
  */
 
 import { Component, Directive, EventEmitter, Input, NO_ERRORS_SCHEMA, Output } from "@angular/core";
@@ -94,6 +94,20 @@ export const jspMock = {
    getConnections: vi.fn().mockReturnValue([]),
    deleteConnection: vi.fn(),
 };
+
+// ---------------------------------------------------------------------------
+// HTMLElement.prototype.scrollTo stub — jsdom does not implement it;
+// ngAfterViewInit calls it on the graphPane div.
+// ---------------------------------------------------------------------------
+
+let _originalScrollTo: any;
+beforeAll(() => {
+   _originalScrollTo = (HTMLElement.prototype as any).scrollTo;
+   (HTMLElement.prototype as any).scrollTo = vi.fn();
+});
+afterAll(() => {
+   (HTMLElement.prototype as any).scrollTo = _originalScrollTo;
+});
 
 // ---------------------------------------------------------------------------
 // Stubs
@@ -224,11 +238,6 @@ export async function renderComp(opts: NetworkGraphRenderOpts = {}) {
    const domServiceMock = {
       requestRead: vi.fn().mockImplementation((fn: any) => fn()),
    };
-
-   // jsdom does not implement HTMLElement.scrollTo; stub it so ngAfterViewInit doesn't crash.
-   if(!(HTMLElement.prototype as any).scrollTo) {
-      (HTMLElement.prototype as any).scrollTo = vi.fn();
-   }
 
    // Intercept jspInitGraphMain()'s jsPlumbLib.jsPlumb.getInstance() call so the component
    // constructor receives jspMock instead of a real jsPlumb instance.  This is a runtime

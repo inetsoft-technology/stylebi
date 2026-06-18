@@ -46,6 +46,7 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { SaveViewsheetDialog } from "./save-viewsheet-dialog.component";
 import { AssetTreeComponent } from "../../../widget/asset-tree/asset-tree.component";
 import { ViewsheetOptionsPane } from "./viewsheet-options-pane.component";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 import { ModelService } from "../../../widget/services/model.service";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { SaveViewsheetDialogModel } from "../../data/vs/save-viewsheet-dialog-model";
@@ -57,6 +58,9 @@ class AssetTreeComponentStub {}
 
 @Component({ selector: "viewsheet-options-pane", template: "", standalone: true })
 class ViewsheetOptionsPaneStub {}
+
+@Component({ selector: "modal-header", template: "", standalone: true })
+class ModalHeaderComponentStub {}
 
 const MODEL_SERVICE_MOCK = { sendModel: vi.fn(), getModel: vi.fn() };
 const MODAL_SERVICE_MOCK = {};
@@ -75,6 +79,7 @@ async function renderComponent(model = makeModel()) {
       importOverrides: [
          { replace: AssetTreeComponent, with: AssetTreeComponentStub },
          { replace: ViewsheetOptionsPane, with: ViewsheetOptionsPaneStub },
+         { replace: ModalHeaderComponent, with: ModalHeaderComponentStub },
       ],
       providers: [
          { provide: ModelService, useValue: MODEL_SERVICE_MOCK },

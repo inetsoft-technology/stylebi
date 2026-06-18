@@ -38,10 +38,8 @@
 
 import { provideHttpClient } from "@angular/common/http";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { render } from "@testing-library/angular";
-import { waitFor } from "@testing-library/angular";
-import { convertToParamMap, Router } from "@angular/router";
-import { ActivatedRoute } from "@angular/router";
+import { render, waitFor } from "@testing-library/angular";
+import { ActivatedRoute, convertToParamMap, Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subject } from "rxjs";
 import { http, HttpResponse as MswHttpResponse } from "msw";
@@ -175,7 +173,12 @@ describe("LogicalModelComponent — refreshModel()", () => {
       expect(url.searchParams.get("parent")).toBe("baseLM");
    });
 
-   it("should leave loading=false and not throw on HTTP error", async () => {
+   // Expected failure: `expect(comp.loading).toBe(false)` fails because the error handler in
+   // refreshModel() is `err => {}` — it never resets the loading flag.
+   // Root cause: missing `this.loading = false` in the error callback.
+   // If the test fails for a reason other than this assertion (e.g. a render exception),
+   // verify the error is an AssertionError on comp.loading, not an unrelated exception.
+   it.fails("loading flag must be cleared after an HTTP error in refreshModel", async () => {
       server.use(
          http.get("*/api/data/logicalmodel/models", () =>
             MswHttpResponse.json({ error: "Not found" }, { status: 404 })
@@ -183,12 +186,7 @@ describe("LogicalModelComponent — refreshModel()", () => {
       );
 
       const { comp } = await renderComp({ route: makeEditRoute() });
-
-      // Error handler is `err => {}` — loading should remain false after the request finishes
-      await waitFor(() => expect(comp.loading).toBe(false), { timeout: 2000 }).catch(() => {
-         // It is a known limitation that loading stays true on error (empty error handler)
-         // The test documents this behavior without failing the suite
-      });
+      await waitFor(() => expect(comp.loading).toBe(false), { timeout: 2000 });
    });
 });
 
@@ -283,6 +281,28 @@ describe("LogicalModelComponent — getSettings()", () => {
    // 🔁 Regression-sensitive: if getSettings() doesn't pass the `ds` query param, the
    // server returns settings for the wrong database (or default), causing wrong date-support flags.
 
+   // renderComp() fixes the ActivatedRoute params at construction time; these tests need to
+   // emit multiple param sets after render, so a Subject-based route is required.
+   async function renderWithSubjectRoute() {
+      const routeParamMap = new Subject<any>();
+      const { fixture } = await render(LogicalModelComponent, {
+         schemas: [NO_ERRORS_SCHEMA],
+         providers: [
+            provideHttpClient(),
+            { provide: NgbModal, useValue: {} },
+            { provide: DataModelNameChangeService, useValue: { nameChangeObservable: new Subject().asObservable() } },
+            { provide: FolderChangeService, useValue: { emitFolderChange: vi.fn() } },
+            { provide: ActivatedRoute, useValue: { paramMap: routeParamMap.asObservable() } },
+            { provide: Router, useValue: { navigate: vi.fn() } },
+         ],
+         importOverrides: [
+            { replace: LogicalModelPropertyPane, with: LogicalModelPropertyPaneStub },
+            { replace: NotificationsComponent, with: NotificationsStub },
+         ],
+      });
+      return { fixture, routeParamMap, comp: fixture.componentInstance as LogicalModelComponent };
+   }
+
    it("should GET /settings with ds=databaseName and store result in lmService.settings", async () => {
       const settingsResponse = { fullDateSupport: false };
       let capturedUrl: string | undefined;
@@ -312,23 +332,7 @@ describe("LogicalModelComponent — getSettings()", () => {
          })
       );
 
-      const routeParamMap = new Subject<any>();
-      const { fixture } = await render(LogicalModelComponent, {
-         schemas: [NO_ERRORS_SCHEMA],
-         providers: [
-            provideHttpClient(),
-            { provide: NgbModal, useValue: {} },
-            { provide: DataModelNameChangeService, useValue: { nameChangeObservable: new Subject().asObservable() } },
-            { provide: FolderChangeService, useValue: { emitFolderChange: vi.fn() } },
-            { provide: ActivatedRoute, useValue: { paramMap: routeParamMap.asObservable() } },
-            { provide: Router, useValue: { navigate: vi.fn() } },
-         ],
-         importOverrides: [
-            { replace: LogicalModelPropertyPane, with: LogicalModelPropertyPaneStub },
-            { replace: NotificationsComponent, with: NotificationsStub },
-         ],
-      });
-      const comp = fixture.componentInstance as LogicalModelComponent;
+      const { routeParamMap, comp } = await renderWithSubjectRoute();
 
       // First database
       routeParamMap.next(convertToParamMap({
@@ -353,22 +357,7 @@ describe("LogicalModelComponent — getSettings()", () => {
          })
       );
 
-      const routeParamMap = new Subject<any>();
-      const { fixture } = await render(LogicalModelComponent, {
-         schemas: [NO_ERRORS_SCHEMA],
-         providers: [
-            provideHttpClient(),
-            { provide: NgbModal, useValue: {} },
-            { provide: DataModelNameChangeService, useValue: { nameChangeObservable: new Subject().asObservable() } },
-            { provide: FolderChangeService, useValue: { emitFolderChange: vi.fn() } },
-            { provide: ActivatedRoute, useValue: { paramMap: routeParamMap.asObservable() } },
-            { provide: Router, useValue: { navigate: vi.fn() } },
-         ],
-         importOverrides: [
-            { replace: LogicalModelPropertyPane, with: LogicalModelPropertyPaneStub },
-            { replace: NotificationsComponent, with: NotificationsStub },
-         ],
-      });
+      const { routeParamMap } = await renderWithSubjectRoute();
 
       // First emission
       routeParamMap.next(convertToParamMap({
