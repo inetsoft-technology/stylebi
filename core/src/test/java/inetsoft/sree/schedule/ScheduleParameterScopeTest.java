@@ -97,7 +97,8 @@ public class ScheduleParameterScopeTest {
 
       try(MockedConstruction<GregorianCalendar> ignored = mockCalendarAt(anchor)) {
          ScheduleParameterScope scheduleParameterScope = new ScheduleParameterScope();
-         Date actualDate = (Date) scheduleParameterScope.get(dynamicDate, null);
+
+         Date actualDate = (Date) scheduleParameterScope.getMember(dynamicDate);
          assertEquals(expected, sdf.format(actualDate));
       }
    }
@@ -160,7 +161,8 @@ public class ScheduleParameterScopeTest {
 
       try(MockedConstruction<GregorianCalendar> ignored = mockCalendarAt(anchor)) {
          ScheduleParameterScope scheduleParameterScope = new ScheduleParameterScope();
-         Date actualDate = (Date) scheduleParameterScope.get(dynamicDate, null);
+
+         Date actualDate = (Date) scheduleParameterScope.getMember(dynamicDate);
          assertEquals(expected, sdf.format(actualDate));
       }
    }
@@ -205,7 +207,7 @@ public class ScheduleParameterScopeTest {
          assertEquals("2024-02-29 00:00:00", sdf.format(actualDate));
 
          ScheduleParameterScope scheduleParameterScope = new ScheduleParameterScope();
-         assertEquals(25, scheduleParameterScope.getIds().length);
+         assertEquals(25, scheduleParameterScope.getMemberKeys().length);
       }
    }
 

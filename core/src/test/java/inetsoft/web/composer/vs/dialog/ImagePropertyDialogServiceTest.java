@@ -139,7 +139,7 @@ class ImagePropertyDialogServiceTest {
       when(viewsheetScope.getVSAScriptable(anyString())).thenReturn(null);
       when(viewsheetScope.getVariableScriptable()).thenReturn(variableScriptable);
       when(variableScriptable.unwrap()).thenReturn(new VariableTable());
-      when(variableScriptable.getIds()).thenReturn(null);
+      when(variableScriptable.getMemberKeys()).thenReturn(null);
       when(viewsheet.getUploadedImageNames()).thenReturn(new String[0]);
 
       ImageVSAssembly assembly = spy(new ImageVSAssembly(viewsheet, "Image1"));
