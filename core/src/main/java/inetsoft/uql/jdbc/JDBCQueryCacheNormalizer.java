@@ -66,6 +66,26 @@ public class JDBCQueryCacheNormalizer {
          return false;
       }
 
+      // Sorting the SELECT columns reorders them, which invalidates any positional GROUP BY
+      // <ordinal> reference (the parser keeps group-by ordinals literal — unlike ORDER BY
+      // ordinals, which are resolved to column names). Reordering "select a, count(*) ... group
+      // by 1" to "select count(*), a ... group by 1" makes the ordinal point at the aggregate
+      // and the database rejects it. Skip column-sort normalization for such queries so the
+      // original column order (and the ordinal it refers to) is preserved. An ordinal is held as
+      // an Integer in-memory but is deserialized as a numeric String when the worksheet is
+      // reloaded (UniformSQL.parseXML), so guard against both forms.
+      Object[] groupBy = usql.getGroupBy();
+
+      if(groupBy != null) {
+         for(Object g : groupBy) {
+            if(g instanceof Integer ||
+               g instanceof String && ((String) g).matches("\\d+"))
+            {
+               return false;
+            }
+         }
+      }
+
       if(StringUtils.isEmpty(sqlString)) {
          return true;
       }
