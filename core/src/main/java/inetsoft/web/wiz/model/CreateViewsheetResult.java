@@ -77,6 +77,22 @@ public class CreateViewsheetResult {
       this.truncated = truncated;
    }
 
+   public Boolean getSampled() {
+      return sampled;
+   }
+
+   public void setSampled(Boolean sampled) {
+      this.sampled = sampled;
+   }
+
+   public Integer getSampleMaxRows() {
+      return sampleMaxRows;
+   }
+
+   public void setSampleMaxRows(Integer sampleMaxRows) {
+      this.sampleMaxRows = sampleMaxRows;
+   }
+
    public String getRuntimeId() {
       return runtimeId;
    }
@@ -129,6 +145,11 @@ public class CreateViewsheetResult {
    private List<Map<String, Object>> rows;
    private FlatBinding binding;
    private Boolean truncated;
+   // #75456: true when the source worksheet had a finite design-mode sample cap in effect
+   // (sampled-preview mode), so aggregates were computed over at most sampleMaxRows detail
+   // rows and Sum/Count may be approximate. Null/absent in full-data mode (the default).
+   private Boolean sampled;
+   private Integer sampleMaxRows;
    private String runtimeId;
    private String assemblyName;
    private String viewsheetIdentifier;

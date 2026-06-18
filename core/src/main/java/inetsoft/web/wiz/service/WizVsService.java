@@ -284,7 +284,8 @@ public class WizVsService {
                result = new CreateViewsheetResult();
             }
             else {
-               result = executeAndExtract(rvs, assembly);
+               int sampleMaxRows = model.getSampleMaxRows() != null ? model.getSampleMaxRows() : 0;
+               result = executeAndExtract(rvs, assembly, sampleMaxRows);
                boolean metadataMode = rvs.getViewsheet().getViewsheetInfo().isMetadata();
                result.setHasData(computeHasData(metadataMode, result));
             }
@@ -432,7 +433,7 @@ public class WizVsService {
          rvs.setViewsheet(targetVs);
 
          // Execute to validate; result is not needed.
-         executeAndExtract(rvs, assembly);
+         executeAndExtract(rvs, assembly, model.getSampleMaxRows() != null ? model.getSampleMaxRows() : 0);
 
          return runtimeId;
       }
@@ -513,7 +514,8 @@ public class WizVsService {
     * Executes the sandbox view for {@code assembly} and extracts the result data.
     * Dispatches to the appropriate extract method based on assembly type.
     */
-   private CreateViewsheetResult executeAndExtract(RuntimeViewsheet rvs, VSAssembly assembly)
+   private CreateViewsheetResult executeAndExtract(RuntimeViewsheet rvs, VSAssembly assembly,
+                                                   int sampleMaxRows)
       throws Exception
    {
       Optional<ViewsheetSandbox> viewsheetSandbox = rvs.getViewsheetSandbox();
@@ -522,7 +524,29 @@ public class WizVsService {
          throw new IllegalStateException("ViewsheetSandbox is empty");
       }
 
-      viewsheetSandbox.get().executeView(assembly.getName(), true);
+      ViewsheetSandbox box = viewsheetSandbox.get();
+
+      // #75456: cancel + data-mode. Truly abort any in-flight query left over from a prior render
+      // (e.g. a slow full-data query the user is superseding by toggling to sampled) at the source
+      // — cancelAllQueries() -> QueryManager.cancel() -> Statement.cancel() — rather than leaving it
+      // running. Then apply the requested row cap to the source worksheet so the (re)render
+      // aggregates the chosen amount of data, dropping cached results so the new cap is honored.
+      // sampleMaxRows <= 0 = full data (the default and the agent path).
+      box.cancelAllQueries();
+      var bws = rvs.getViewsheet() != null ? rvs.getViewsheet().getBaseWorksheet() : null;
+
+      if(bws != null) {
+         bws.getWorksheetInfo().setDesignMaxRows(Math.max(sampleMaxRows, 0));
+
+         try {
+            box.resetDataMap(assembly.getName());
+            box.clearGraph(assembly.getName());
+         }
+         catch(Exception ignore) {
+         }
+      }
+
+      box.executeView(assembly.getName(), true);
 
       if(assembly instanceof ChartVSAssembly) {
          return extractChartData(rvs, assembly.getName());
@@ -559,7 +583,11 @@ public class WizVsService {
          return new CreateViewsheetResult();
       }
 
-      CreateViewsheetResult result = executeAndExtract(rvs, assembly);
+      // #75456: preserve the current data-mode on this lazy re-fetch path — pass the design-max
+      // already set on the source worksheet (no-op for full; keeps sampled mode sampled).
+      var fetchWs = vs.getBaseWorksheet();
+      int curMax = fetchWs != null ? fetchWs.getWorksheetInfo().getDesignMaxRows() : 0;
+      CreateViewsheetResult result = executeAndExtract(rvs, assembly, curMax);
 
       if(result != null) {
          // Order matters: executeAndExtract runs executeView above, which populates the
@@ -705,6 +733,22 @@ public class WizVsService {
 
          if(rowCount > MAX_ROWS) {
             result.setTruncated(true);
+         }
+
+         // #75456: if the source worksheet had a finite design-mode sample cap in effect
+         // (sampled-preview mode), the chart aggregated at most that many detail rows, so Sum/Count
+         // may be approximate. Flag it so the caller can warn. Full-data mode (the default) sets the
+         // worksheet design-max to 0 (unlimited) -> no flag. Best-effort; absence just means no warning.
+         try {
+            var bws = rvs.getViewsheet() != null ? rvs.getViewsheet().getBaseWorksheet() : null;
+            int dmax = bws != null ? bws.getWorksheetInfo().getDesignMaxRows() : 0;
+
+            if(dmax > 0) {
+               result.setSampled(true);
+               result.setSampleMaxRows(dmax);
+            }
+         }
+         catch(Exception ignore) {
          }
 
          return result;

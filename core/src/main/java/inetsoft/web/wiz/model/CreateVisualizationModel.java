@@ -83,11 +83,25 @@ public class CreateVisualizationModel {
       this.keepCondition = keepCondition;
    }
 
+   /**
+    * #75456: row cap for sampled-preview mode. Null or &lt;=0 = full data (the default and the
+    * agent path); &gt;0 = aggregate at most this many detail rows (faster on heavy/non-mergeable
+    * sources, but Sum/Count may be approximate).
+    */
+   public Integer getSampleMaxRows() {
+      return sampleMaxRows;
+   }
+
+   public void setSampleMaxRows(Integer sampleMaxRows) {
+      this.sampleMaxRows = sampleMaxRows;
+   }
+
    private String visualizationType;
    private VisualizationConfig config;
    private String runtimeId;
    private String viewsheetIdentifier;
    private VisualizationConditionModel conditionModel;
+   private Integer sampleMaxRows;
    private transient VSAssembly primaryAssembly;
    private transient boolean keepCondition;
 }
