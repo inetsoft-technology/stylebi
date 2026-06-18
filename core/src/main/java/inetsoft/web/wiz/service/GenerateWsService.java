@@ -27,6 +27,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.util.SQLTypes;
+import inetsoft.uql.XCondition;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.LayoutGraphService;
@@ -845,13 +846,17 @@ public class GenerateWsService {
          }
 
          AssetCondition assetCondition = new AssetCondition();
-         // addConditionValue adds every element of a list value, so a multi-value IN (-> ONE_OF)
-         // carries all values rather than only the first (the old IN -> CONTAINS mapping bug).
-         addConditionValue(assetCondition, filter.getValue());
+         String dataType = attributeRef.getDataType();
+         assetCondition.setType(dataType);
+         // #75457: the filter carries the operation vocabulary used across the wiz condition API
+         // (EQUAL_TO/GREATER_THAN/ONE_OF/BETWEEN/...) with an explicit `equal` inclusive-bound flag.
+         assetCondition.setOperation(filterOperation(filter.getOperation()));
+         assetCondition.setEqual(Boolean.TRUE.equals(filter.getEqual()));
          assetCondition.setNegated(filter.isNegated());
-         assetCondition.setOperation(WizFilterOperation.operation(filter.getOperator()));
-         assetCondition.setEqual(WizFilterOperation.isInclusiveBound(filter.getOperator()));
-         assetCondition.setType(attributeRef.getDataType());
+         // #75457: convert each value to the column's declared type (e.g. a date string -> Timestamp)
+         // rather than passing a raw string and relying on string-vs-typed coercion at SQL-gen time.
+         // A multi-value ONE_OF / BETWEEN carries every element.
+         addTypedConditionValue(assetCondition, filter.getValue(), dataType);
          conditionList.append(new ConditionItem(attributeRef, assetCondition, level));
          appended = true;
       }
@@ -1126,6 +1131,67 @@ public class GenerateWsService {
       }
       else {
          condition.addValue(value);
+      }
+   }
+
+   /**
+    * #75457: map the wiz filter operation vocabulary (shared with apply_filter / preAggregateCondition)
+    * to a StyleBI XCondition operation. The inclusive-bound (>= / <=) case is carried by the separate
+    * `equal` flag, not by a distinct operation.
+    */
+   private int filterOperation(String operation) {
+      if(operation == null) {
+         throw new IllegalArgumentException("filter operation is required");
+      }
+
+      return switch(operation) {
+         case "EQUAL_TO" -> XCondition.EQUAL_TO;
+         case "ONE_OF" -> XCondition.ONE_OF;
+         case "GREATER_THAN" -> XCondition.GREATER_THAN;
+         case "LESS_THAN" -> XCondition.LESS_THAN;
+         case "BETWEEN" -> XCondition.BETWEEN;
+         case "LIKE" -> XCondition.LIKE;
+         case "STARTING_WITH" -> XCondition.STARTING_WITH;
+         case "CONTAINS" -> XCondition.CONTAINS;
+         case "NULL" -> XCondition.NULL;
+         case "DATE_IN" -> XCondition.DATE_IN;
+         default -> throw new IllegalArgumentException("Unknown filter operation: " + operation);
+      };
+   }
+
+   /**
+    * #75457: add filter value(s) converted to the column's declared type. Every element of a list
+    * value is added (so ONE_OF / BETWEEN carry all values).
+    */
+   private void addTypedConditionValue(AssetCondition condition, Object value, String dataType) {
+      if(value instanceof List<?> list) {
+         for(Object v : list) {
+            condition.addValue(convertConditionValue(v, dataType));
+         }
+      }
+      else if(value != null) {
+         condition.addValue(convertConditionValue(value, dataType));
+      }
+   }
+
+   /**
+    * #75457: parse the JSON value (a String over the wire) into the column's declared type using
+    * StyleBI's own converter, so a date column gets a Date rather than a raw String — removing the
+    * string-vs-typed coercion guesswork at SQL-generation time. Falls back to the raw value when the
+    * string can't be parsed for that type (the query engine still coerces it), so this never
+    * regresses a value that previously round-tripped.
+    */
+   private Object convertConditionValue(Object value, String dataType) {
+      if(value == null || dataType == null) {
+         return value;
+      }
+
+      try {
+         Object converted = Tool.getData(dataType, value);
+         return converted != null ? converted : value;
+      }
+      catch(Exception ex) {
+         return value;
       }
    }
 
