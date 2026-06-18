@@ -482,6 +482,39 @@ public final class WizardRecommenderUtil {
     * @param tname      the table name.
     * @param dimEntries the selected dimension fields.
     */
+   /**
+    * #75460: a dimension carrying a top-/bottom-N ranking only ever shows N values, so its
+    * EFFECTIVE cardinality for chart feasibility is min(distinct, N) — not the full distinct count.
+    * The rank count is stamped on the entry as "topN" before recommendation
+    * ({@link inetsoft.web.wiz.service.WizAutoBindingService#buildEntryFromColumn}). Cap both the
+    * recorded cardinality and its percentage at the source so every feasibility gate (whichever
+    * property it reads) treats the ranked dimension as low-cardinality and keeps it chartable
+    * instead of vetoing the chart down to a table.
+    */
+   private static void capCardinalityByRanking(AssetEntry entry, CardinalityData data) {
+      String topN = entry.getProperty("topN");
+
+      if(topN == null) {
+         return;
+      }
+
+      try {
+         int n = Integer.parseInt(topN);
+
+         if(n <= 0 || n >= data.getCardinality()) {
+            return;
+         }
+
+         entry.setProperty("cardinality", String.valueOf(n));
+         int dataSetSize = Math.max(data.getDataSetSize(), n);
+         double pct = Math.min(data.getCardinalityPercentage(), (double) n / dataSetSize * 100.0);
+         entry.setProperty("cardinalityPercentage", String.valueOf(pct));
+      }
+      catch(NumberFormatException ignore) {
+         // not a valid count; leave the measured cardinality untouched
+      }
+   }
+
    private static List<AssetEntry> updateCardinalityInfo(ViewsheetSandbox box,
                                                          VSTemporaryInfo temporaryInfo,
                                                          String tname, List<AssetEntry> dimEntries)
@@ -497,6 +530,7 @@ public final class WizardRecommenderUtil {
             entry.setProperty("cardinality", data.getCardinality() + "");
             entry.setProperty("cardinalityPercentage", data.getCardinalityPercentage() + "");
             entry.setProperty("dataSetSize", data.getDataSetSize() + "");
+            capCardinalityByRanking(entry, data);
             list.add(entry);
          }
       }

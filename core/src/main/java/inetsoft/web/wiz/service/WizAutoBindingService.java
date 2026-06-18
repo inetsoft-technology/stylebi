@@ -19,6 +19,7 @@ package inetsoft.web.wiz.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.internal.graph.ChangeChartTypeProcessor;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
@@ -194,6 +195,9 @@ public class WizAutoBindingService {
          List<VSObjectRecommendation> recommendations = Collections.emptyList();
          VSObjectRecommendation selectedRec = null;
          VSAssembly primaryAssembly = null;
+         // #75460: set when an explicit chart type the recommender substituted away is force-applied,
+         // so the response reports the honored type and skips the "not feasible" substitution note.
+         String forcedTypeName = null;
 
          if(model != null) {
             recommendations = model.getRecommendationList().stream()
@@ -228,6 +232,16 @@ public class WizAutoBindingService {
                // The recommender rebuilds dimensions without the temp chart's ranking/aggregate
                // config, so re-apply fieldConfigs to the RENDERED binding before it executes.
                if(primaryAssembly instanceof ChartVSAssembly chartAsm && chartAsm.getVSChartInfo() != null) {
+                  // Honor an explicit chart type the recommender substituted away (no pins in play;
+                  // the pinned case is governed by the strict-pins guard above). Convert before
+                  // applying fieldConfigs so the aggregate/ranking/format land on the final binding.
+                  if(vizType != null && isChartVizType(vizType)
+                     && (explicitBindings == null || explicitBindings.isEmpty())
+                     && !requestedTypeAvailable(vizType, model, false))
+                  {
+                     forcedTypeName = applyForcedChartType(chartAsm, vizType);
+                  }
+
                   applyFieldConfigs(chartAsm.getVSChartInfo(), configMap);
                }
                // The crosstab recommender decides row/col header placement itself and ignores
@@ -291,6 +305,13 @@ public class WizAutoBindingService {
 
          // Phase 4: build response.
          RecommendedVisualization primary = recommendationToVisualization(selectedRec, entries, worksheetId);
+
+         // When we force-applied an explicit type (#75460), report the honored type, not the
+         // recommender's substitute that `primary` was derived from.
+         if(forcedTypeName != null && primary != null) {
+            primary.setVisualizationType(forcedTypeName);
+         }
+
          AutoBindingResponse resp = new AutoBindingResponse();
          resp.setRecommendations(recommendations);
          resp.setPrimary(primary);
@@ -303,7 +324,8 @@ public class WizAutoBindingService {
          // substitution to the user instead of the swap happening silently.
          boolean pinsPresent = explicitBindings != null && !explicitBindings.isEmpty();
 
-         if(vizType != null && primary != null && !requestedTypeAvailable(vizType, model, pinsPresent)) {
+         if(vizType != null && primary != null && forcedTypeName == null
+            && !requestedTypeAvailable(vizType, model, pinsPresent)) {
             resp.setSelectionNote(pinsPresent
                ? "Requested chart type '" + vizType + "' has no candidate honoring the explicit " +
                  "bindings; used '" + primary.getVisualizationType() + "' instead."
@@ -372,6 +394,20 @@ public class WizAutoBindingService {
       }
 
       setRefType(entry, isMeasure);
+
+      // A top-/bottom-N ranking on a dimension means only N values are shown, so its EFFECTIVE
+      // cardinality for chart-feasibility is N — not the full distinct count. The recommender runs
+      // before fieldConfigs are applied, so record the rank count on the entry; getCardinality caps
+      // by it (see ChartRecommenderUtil.getCardinality) so a ranked high-cardinality dimension stays
+      // chartable instead of being vetoed down to a table.
+      if(fc instanceof DimensionFieldInfo dimFc && dimFc.getRanking() != null) {
+         int n = dimFc.getRanking().getRankingN();
+
+         if(n > 0) {
+            entry.setProperty("topN", String.valueOf(n));
+         }
+      }
+
       return entry;
    }
 
@@ -1603,6 +1639,130 @@ public class WizAutoBindingService {
          case GraphTypes.CHART_MAP -> "map";
          default -> null;
       };
+   }
+
+   /** Inverse of {@link #getChartTypeString}: a frontend chart-type name → GraphTypes constant, or
+    *  -1 when the name is unknown or not a (non-geo) chart type. Map types are excluded because the
+    *  geo conversion is handled separately (see {@link WizGeoService}). */
+   private static int graphTypeForName(String vizType) {
+      if(vizType == null) {
+         return -1;
+      }
+
+      return switch(vizType) {
+         case "bar" -> GraphTypes.CHART_BAR;
+         case "bar_stack" -> GraphTypes.CHART_BAR_STACK;
+         case "3d_bar" -> GraphTypes.CHART_3D_BAR;
+         case "3d_bar_stack" -> GraphTypes.CHART_3D_BAR_STACK;
+         case "area" -> GraphTypes.CHART_AREA;
+         case "area_stack" -> GraphTypes.CHART_AREA_STACK;
+         case "point" -> GraphTypes.CHART_POINT;
+         case "point_stack" -> GraphTypes.CHART_POINT_STACK;
+         case "step_area" -> GraphTypes.CHART_STEP_AREA;
+         case "step_area_stack" -> GraphTypes.CHART_STEP_AREA_STACK;
+         case "interval" -> GraphTypes.CHART_INTERVAL;
+         case "line" -> GraphTypes.CHART_LINE;
+         case "line_stack" -> GraphTypes.CHART_LINE_STACK;
+         case "step_line" -> GraphTypes.CHART_STEP;
+         case "step_line_stack" -> GraphTypes.CHART_STEP_STACK;
+         case "jump_line" -> GraphTypes.CHART_JUMP;
+         case "pie" -> GraphTypes.CHART_PIE;
+         case "3d_pie" -> GraphTypes.CHART_3D_PIE;
+         case "donut" -> GraphTypes.CHART_DONUT;
+         case "radar" -> GraphTypes.CHART_RADAR;
+         case "filled_radar" -> GraphTypes.CHART_FILL_RADAR;
+         case "scatter_contour" -> GraphTypes.CHART_SCATTER_CONTOUR;
+         case "stock" -> GraphTypes.CHART_STOCK;
+         case "candle" -> GraphTypes.CHART_CANDLE;
+         case "boxplot" -> GraphTypes.CHART_BOXPLOT;
+         case "waterfall" -> GraphTypes.CHART_WATERFALL;
+         case "pareto" -> GraphTypes.CHART_PARETO;
+         case "treemap" -> GraphTypes.CHART_TREEMAP;
+         case "sunburst" -> GraphTypes.CHART_SUNBURST;
+         case "circle_packing" -> GraphTypes.CHART_CIRCLE_PACKING;
+         case "icircle" -> GraphTypes.CHART_ICICLE;
+         case "marimekko" -> GraphTypes.CHART_MEKKO;
+         case "gantt" -> GraphTypes.CHART_GANTT;
+         case "funnel" -> GraphTypes.CHART_FUNNEL;
+         case "tree" -> GraphTypes.CHART_TREE;
+         case "network" -> GraphTypes.CHART_NETWORK;
+         case "circular_network" -> GraphTypes.CHART_CIRCULAR;
+         default -> -1;
+      };
+   }
+
+   /**
+    * Honor an explicitly-requested chart type the recommender substituted away. The recommender
+    * only surfaces types it scores as a good fit; when the user explicitly asks for a renderable
+    * type it did not surface (e.g. a line over an ordered categorical axis, or a funnel), convert
+    * the built binding to it via the product's {@link ChangeChartTypeProcessor} so the explicit
+    * request wins instead of being silently swapped. Returns the applied chart-type name when a
+    * conversion happened, otherwise {@code null} (left as the recommender's choice).
+    */
+   private String applyForcedChartType(ChartVSAssembly chartAsm, String vizType) {
+      VSChartInfo cinfo = chartAsm.getVSChartInfo();
+
+      if(cinfo == null) {
+         return null;
+      }
+
+      int newType = graphTypeForName(vizType);
+
+      if(newType < 0 || GraphTypes.isGeo(newType)) {
+         return null;
+      }
+
+      int oldType = cinfo.getRTChartType() != 0 ? cinfo.getRTChartType() : cinfo.getChartType();
+
+      if(oldType == newType) {
+         return null;
+      }
+
+      try {
+         cinfo.clearRuntime();
+         VSChartInfo converted =
+            (VSChartInfo) new ChangeChartTypeProcessor(oldType, newType, null, cinfo).process();
+
+         // For line/area/point conversions, prefer the conventional vertical layout (dimension on
+         // x, measure on y). The substituted type the recommender built may have been a HORIZONTAL
+         // bar (measure on x, for a high-cardinality category), which after conversion reads as a
+         // sideways line/area. Only swap when x is all-measure and y is all-dimension.
+         if(GraphTypes.isLine(newType) || GraphTypes.isArea(newType) || GraphTypes.isPoint(newType)) {
+            normalizeVerticalAxes(converted);
+         }
+
+         chartAsm.setVSChartInfo(converted);
+         return getChartTypeString(newType);
+      }
+      catch(Exception e) {
+         LOG.warn("Could not force chart type '{}' (kept recommender choice): {}", vizType, e.getMessage());
+         LOG.debug("force chart type stack trace", e);
+         return null;
+      }
+   }
+
+   /** Swap x/y so a dimension-on-x, measure-on-y (vertical) layout is used — only when x holds
+    *  exclusively measures and y exclusively dimensions (the horizontal layout a high-cardinality
+    *  bar substitute produces). No-op otherwise. */
+   private static void normalizeVerticalAxes(VSChartInfo info) {
+      ChartRef[] x = info.getXFields();
+      ChartRef[] y = info.getYFields();
+
+      if(x.length == 0 || y.length == 0) {
+         return;
+      }
+
+      boolean xAllMeasure = Arrays.stream(x).allMatch(r -> r instanceof VSChartAggregateRef);
+      boolean yAllDim = Arrays.stream(y).allMatch(r -> r instanceof VSChartDimensionRef);
+
+      if(xAllMeasure && yAllDim) {
+         List<ChartRef> oldX = new ArrayList<>(Arrays.asList(x));
+         List<ChartRef> oldY = new ArrayList<>(Arrays.asList(y));
+         info.removeXFields();
+         info.removeYFields();
+         oldY.forEach(info::addXField);
+         oldX.forEach(info::addYField);
+      }
    }
 
    /**
