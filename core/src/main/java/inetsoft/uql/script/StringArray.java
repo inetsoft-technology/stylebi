@@ -82,6 +82,20 @@ public class StringArray implements ScriptArrayScope {
    }
 
    /**
+    * Set an indexed property in this object. Ported from the Rhino
+    * {@code put(int, Scriptable, Object)}: only set when the index is in
+    * range and the value is null or a String. (#75423)
+    */
+   @Override
+   public void setArrayElement(long index, Object value) {
+      if(index >= 0 && index < list.size() &&
+         (value == null || value instanceof String))
+      {
+         list.set((int) index, value);
+      }
+   }
+
+   /**
     * Indicate whether or not a named property is defined in an object.
     */
    @Override

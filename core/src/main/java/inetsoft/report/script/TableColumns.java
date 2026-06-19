@@ -178,6 +178,15 @@ public abstract class TableColumns implements ArrayObject, ScriptArrayScope {
       return Math.max(0, getLength());
    }
 
+   /**
+    * Set an indexed property in this object. Ported from the Rhino
+    * {@code put(int, Scriptable, Object)}. (#75423)
+    */
+   @Override
+   public void setArrayElement(long index, Object value) {
+      putIndexed((int) index, value);
+   }
+
    @Override
    public void putMember(String id, Object value) {
       init();

@@ -70,6 +70,35 @@ class StringArrayTest {
    }
 
    @Test
+   void testSetIndexedProperty() {
+      // indexed assignment (Rhino put(int,...)) must work and not throw (#75423)
+      stringArray.setArrayElement(0, "ONE");
+      assertEquals("ONE", stringArray.getArrayElement(0));
+
+      // null is allowed
+      stringArray.setArrayElement(1, null);
+      assertNull(stringArray.getArrayElement(1));
+
+      // out-of-range index is ignored (no exception, no change)
+      stringArray.setArrayElement(99, "x");
+      assertEquals(3, stringArray.getArraySize());
+
+      // non-String, non-null value is ignored
+      stringArray.setArrayElement(2, 42);
+      assertEquals("three", stringArray.getArrayElement(2));
+   }
+
+   @Test
+   void testSetIndexedPropertyThroughArrayProxy() {
+      // exercise the ArrayProxy.set -> setArrayElement bridge (#75423)
+      inetsoft.util.script.graal.ArrayProxy proxy =
+         new inetsoft.util.script.graal.ArrayProxy(stringArray);
+      assertDoesNotThrow(() ->
+         proxy.set(0, org.graalvm.polyglot.Value.asValue("ONE")));
+      assertEquals("ONE", stringArray.getArrayElement(0));
+   }
+
+   @Test
    void testHasNamedProperty() {
       assertTrue(stringArray.hasMember("length"));
       assertFalse(stringArray.hasMember("nonexistent"));

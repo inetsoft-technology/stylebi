@@ -86,6 +86,15 @@ public class XTableRow implements ScriptArrayScope {
    }
 
    /**
+    * Set an indexed property in this object. Ported from the Rhino
+    * {@code put(int, Scriptable, Object)}, which was a no-op. (#75423)
+    */
+   @Override
+   public void setArrayElement(long index, Object value) {
+      // do nothing
+   }
+
+   /**
     * Indicate whether or not a named property is defined in an object.
     */
    @Override

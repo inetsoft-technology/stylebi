@@ -236,6 +236,15 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
       return lens.getRowCount();
    }
 
+   /**
+    * Set an indexed property in this object. Ported from the Rhino
+    * {@code put(int, Scriptable, Object)}, which was a no-op. (#75423)
+    */
+   @Override
+   public void setArrayElement(long index, Object value) {
+      // do nothing
+   }
+
    @Override
    public void putMember(String id, Object value) {
       // Ignore assignments to "length"--it's readonly.

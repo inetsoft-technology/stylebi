@@ -54,7 +54,7 @@ public class ArrayProxy implements ProxyArray, ProxyObject {
 
    @Override
    public void set(long index, Value value) {
-      throw new UnsupportedOperationException("Array is read-only");
+      scope.setArrayElement(index, ScriptValueConverter.toHost(value));
    }
 
    // --- ProxyObject ---

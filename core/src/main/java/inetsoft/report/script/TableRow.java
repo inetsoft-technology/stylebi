@@ -382,6 +382,15 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
    }
 
    /**
+    * Set an indexed property in this object. Ported from the Rhino
+    * {@code put(int, Scriptable, Object)}. (#75423)
+    */
+   @Override
+   public void setArrayElement(long index, Object value) {
+      putIndexed((int) index, value);
+   }
+
+   /**
     * Get a cell value.
     */
    protected Object get(XTable table, Method getMethod, int row, int col) throws Exception {

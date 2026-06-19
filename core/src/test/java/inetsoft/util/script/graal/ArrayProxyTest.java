@@ -43,6 +43,13 @@ class ArrayProxyTest {
       public Object[] getMemberKeys() { return members.keySet().toArray(); }
    }
 
+   /** Array-shaped scope that accepts indexed writes (overrides setArrayElement). */
+   static class WritableListScope extends ListScope {
+      @Override public void setArrayElement(long index, Object value) {
+         elements.set((int) index, value);
+      }
+   }
+
    private Context ctx;
 
    @BeforeEach void setup() { ctx = Context.create("js"); }
@@ -75,11 +82,31 @@ class ArrayProxyTest {
       assertEquals("myArray", ctx.eval("js", "arr.label").asString());
    }
 
-   @Test void arrayIsReadOnly() {
+   @Test void indexedWriteDefaultsToNoOpAndDoesNotThrow() {
+      // Scopes that do not override setArrayElement stay read-only, but the
+      // write must be a silent no-op rather than throwing. (#75423)
       ListScope s = new ListScope();
       s.elements.add("x");
       ArrayProxy p = new ArrayProxy(s);
-      assertThrows(UnsupportedOperationException.class,
-                   () -> p.set(0, org.graalvm.polyglot.Value.asValue("y")));
+      assertDoesNotThrow(() -> p.set(0, org.graalvm.polyglot.Value.asValue("y")));
+      assertEquals("x", s.elements.get(0)); // unchanged
+   }
+
+   @Test void indexedWriteReachesOverridingScope() {
+      WritableListScope s = new WritableListScope();
+      s.elements.add("x");
+      ArrayProxy p = new ArrayProxy(s);
+      // direct ArrayProxy.set path
+      p.set(0, org.graalvm.polyglot.Value.asValue("y"));
+      assertEquals("y", s.elements.get(0));
+   }
+
+   @Test void indexedWriteFromScript() {
+      WritableListScope s = new WritableListScope();
+      s.elements.add("a");
+      s.elements.add("b");
+      ctx.getBindings("js").putMember("arr", new ArrayProxy(s));
+      ctx.eval("js", "arr[0] = 'Z';");
+      assertEquals("Z", s.elements.get(0));
    }
 }

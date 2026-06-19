@@ -31,4 +31,13 @@ public interface ScriptArrayScope extends ScriptScope {
 
    /** Get the indexed element at the given position. */
    Object getArrayElement(long index);
+
+   /**
+    * Set the indexed element at the given position. Replaces Rhino's indexed
+    * {@code put(int, Scriptable, Object)}. The default is a no-op so scopes
+    * that were read-only under Rhino stay read-only; scopes that accepted
+    * indexed writes override this. The {@code value} is already host-converted.
+    */
+   default void setArrayElement(long index, Object value) {
+   }
 }
