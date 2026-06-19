@@ -27,15 +27,44 @@ import inetsoft.web.wiz.model.WorksheetMeta;
 import inetsoft.web.wiz.model.osi.OsiDataset;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
 import inetsoft.web.wiz.service.MetadataApiService;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
+import java.rmi.RemoteException;
 import java.security.Principal;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/wiz")
 public class DatasourceMetaApiController {
-   public DatasourceMetaApiController(MetadataApiService metadataService) {
+   public DatasourceMetaApiController(MetadataApiService metadataService, XRepository xrepository) {
       this.metadataService = metadataService;
+      this.xrepository = xrepository;
+   }
+
+   /**
+    * Lists all data sources available in the repository.
+    * Used by the MCP plugin's list_datasources tool.
+    */
+   @GetMapping(value = "/v1/datasources", produces = MediaType.APPLICATION_JSON_VALUE)
+   public List<Map<String, String>> listDatasources() throws RemoteException {
+      String[] names = xrepository.getDataSourceNames();
+      return Arrays.stream(names)
+         .sorted()
+         .map(name -> {
+            Map<String, String> entry = new LinkedHashMap<>();
+            entry.put("name", name);
+            try {
+               XDataSource ds = xrepository.getDataSource(name);
+               entry.put("type", ds != null ? ds.getType() : "unknown");
+            }
+            catch(Exception e) {
+               entry.put("type", "unknown");
+            }
+            return entry;
+         })
+         .collect(Collectors.toList());
    }
 
    @PostMapping("/datasource/table/meta")
@@ -88,4 +117,5 @@ public class DatasourceMetaApiController {
    }
 
    private final MetadataApiService metadataService;
+   private final XRepository xrepository;
 }

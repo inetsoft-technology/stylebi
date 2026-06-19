@@ -29,6 +29,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 
 /**
  * REST controller that exposes worksheet editing capabilities to the wiz sheet agent.
@@ -47,7 +48,8 @@ public class WorksheetAgentController {
                                    SheetSessionService sessionService,
                                    WorksheetReadService readService,
                                    WorksheetEditService editService,
-                                   WorksheetService worksheetService)
+                                   WorksheetService worksheetService,
+                                   WorksheetPreviewService previewService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -55,6 +57,7 @@ public class WorksheetAgentController {
       this.readService = readService;
       this.editService = editService;
       this.worksheetService = worksheetService;
+      this.previewService = previewService;
    }
 
    // ---------------------------------------------------------------------------
@@ -112,6 +115,29 @@ public class WorksheetAgentController {
    {
       requireEnabled();
       editService.apply(sessionToken, user, editor -> dispatch(editor, req));
+   }
+
+   /**
+    * Return up to {@code limit} data rows from the named table in the live worksheet.
+    *
+    * @param sessionToken the token obtained at join time
+    * @param table        the table assembly name to query
+    * @param limit        maximum rows to return (capped at 200; defaults to 50)
+    * @param user         the authenticated agent principal
+    * @return list of row maps, each keyed by column name
+    * @throws PairingException if the session is invalid/expired, the sandbox is absent,
+    *                          or the query fails
+    */
+   @GetMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/preview")
+   public List<Map<String, Object>> preview(@PathVariable String sessionToken,
+                                             @RequestParam String table,
+                                             @RequestParam(defaultValue = "50") int limit,
+                                             Principal user)
+      throws PairingException
+   {
+      requireEnabled();
+      RuntimeWorksheet rws = editService.resolve(sessionToken, user);
+      return previewService.preview(rws, table, Math.min(limit, 200));
    }
 
    /**
@@ -194,6 +220,16 @@ public class WorksheetAgentController {
             editor.removeJoin(req.name());
          case "add_table" ->
             editor.addTable(req.table(), new String[0]);
+         case "edit_condition" ->
+            editor.editCondition(req.table(), req.field(), req.operation(),
+                                 req.values() != null
+                                    ? req.values().toArray(new String[0])
+                                    : new String[0]);
+         case "edit_expression" ->
+            editor.editExpression(req.table(), req.name(), req.expression(),
+                                  req.type(), req.sql());
+         case "edit_join" ->
+            editor.editJoin(req.name(), req.leftKey(), req.rightKey(), req.joinType());
          default ->
             throw new PairingException("Unknown op: " + req.op());
       }
@@ -222,4 +258,5 @@ public class WorksheetAgentController {
    private final WorksheetReadService readService;
    private final WorksheetEditService editService;
    private final WorksheetService worksheetService;
+   private final WorksheetPreviewService previewService;
 }

@@ -29,7 +29,7 @@ import java.security.Principal;
 /**
  * Provides endpoints for getting/setting organization application domains.
  */
-@RestController
+@RestController("wizAppDomainsController")
 @RequestMapping("/api/wiz")
 public class AppDomainsController {
    @GetMapping(value = "/appDomains", produces = MediaType.APPLICATION_JSON_VALUE)

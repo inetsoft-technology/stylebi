@@ -117,7 +117,7 @@ class ViewsheetScopeStructuredExecuteTest {
       // The same broken script via normal execute() should still throw ScriptException
       // (not silently return null from a poisoned cache)
       assertThrows(Exception.class,
-         () -> viewsheetScope.execute("function (", null, false));
+         () -> viewsheetScope.execute("function (", (String) null, false));
    }
 
    // -------------------------------------------------------------------------

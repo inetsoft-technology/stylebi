@@ -22,6 +22,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.web.wiz.pairing.*;
 import org.junit.jupiter.api.*;
 
@@ -255,6 +256,106 @@ class WorksheetEditServiceMutatorsTest {
       });
 
       assertNull(ws.getAssembly("J"), "join assembly 'J' should have been removed");
+   }
+
+   // =========================================================================
+   // Edit-in-place tests
+   // =========================================================================
+
+   @Test
+   void editConditionReplacesExistingFilter() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.addFilter("T", "a", "=", "old");
+         ed.editCondition("T", "a", "=", "new");
+      });
+
+      // After edit_condition, exactly one ConditionItem with value "new"
+      assertNotNull(t.getPreConditionList());
+      assertEquals(1, t.getPreConditionList().getConditionList().getSize());
+   }
+
+   @Test
+   void editExpressionUpdatesExistingColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.addExpressionColumn("T", "calc", "field['a'] * 1", "integer", false));
+
+      svc.apply("TOK", agent, ed ->
+         ed.editExpression("T", "calc", "field['a'] * 2", "integer", false));
+
+      ColumnSelection cs = t.getColumnSelection(false);
+      DataRef ref = cs.getAttribute("calc");
+      assertNotNull(ref, "'calc' column should still exist");
+      // Check the expression was updated
+      assertInstanceOf(ColumnRef.class, ref);
+      ColumnRef cr = (ColumnRef) ref;
+      assertInstanceOf(ExpressionRef.class, cr.getDataRef());
+      assertEquals("field['a'] * 2", ((ExpressionRef) cr.getDataRef()).getExpression());
+   }
+
+   @Test
+   void editExpressionAddsWhenNotFound() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editExpression("T", "newcalc", "field['a'] + 1", "integer", false));
+
+      assertNotNull(t.getColumnSelection(false).getAttribute("newcalc"),
+                    "'newcalc' should be added as a new expression column");
+   }
+
+   @Test
+   void editJoinUpdatesKeyColumns() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left  = TestWorksheets.tableWithColumns(ws, "L", "id", "altId");
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "R", "id", "altId");
+      ws.addAssembly(left);
+      ws.addAssembly(right);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addJoin("J", "L", "id", "R", "id", "INNER"));
+      svc.apply("TOK", agent, ed -> ed.editJoin("J", "altId", "altId", "LEFT"));
+
+      Assembly a = ws.getAssembly("J");
+      assertNotNull(a);
+      assertInstanceOf(RelationalJoinTableAssembly.class, a);
+      // Verify a LEFT join was set (the operator count stayed 1)
+      RelationalJoinTableAssembly join = (RelationalJoinTableAssembly) a;
+      @SuppressWarnings("unchecked")
+      java.util.Enumeration<TableAssemblyOperator> iter =
+         (java.util.Enumeration<TableAssemblyOperator>) join.getOperators();
+      assertTrue(iter.hasMoreElements());
+      TableAssemblyOperator top = iter.nextElement();
+      assertEquals(1, top.getOperatorCount());
+      assertEquals(TableAssemblyOperator.LEFT_JOIN, top.getOperator(0).getOperation());
+      assertEquals("altId", top.getOperator(0).getLeftAttribute().getAttribute());
+      assertEquals("altId", top.getOperator(0).getRightAttribute().getAttribute());
+   }
+
+   @Test
+   void editJoinThrowsWhenAssemblyNotFound() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.editJoin("NOPE", "a", "b", "INNER")));
    }
 
    // =========================================================================

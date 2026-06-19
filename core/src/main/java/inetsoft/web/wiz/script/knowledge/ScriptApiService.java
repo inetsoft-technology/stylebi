@@ -22,7 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.web.wiz.script.model.FunctionSignature;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct;
 import java.io.InputStream;
 import java.util.*;
 

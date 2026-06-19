@@ -39,6 +39,9 @@ import java.util.List;
  *   <li>{@code add_join} — {@code name}, {@code leftTable}, {@code leftKey}, {@code rightTable}, {@code rightKey}, {@code joinType}</li>
  *   <li>{@code remove_join} — {@code name}</li>
  *   <li>{@code add_table} — {@code table}</li>
+ *   <li>{@code edit_condition} — {@code table}, {@code field}, {@code operation}, {@code values}</li>
+ *   <li>{@code edit_expression} — {@code table}, {@code name}, {@code expression}, {@code type}, {@code sql}</li>
+ *   <li>{@code edit_join} — {@code name}, {@code leftKey}, {@code rightKey}, {@code joinType}</li>
  * </ul>
  */
 public record EditRequest(

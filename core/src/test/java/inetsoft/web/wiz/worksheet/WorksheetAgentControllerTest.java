@@ -54,7 +54,8 @@ class WorksheetAgentControllerTest {
                                                        WorksheetEditService edit,
                                                        WorksheetService ws)
    {
-      return new WorksheetAgentController(feature, join, sessions, read, edit, ws);
+      return new WorksheetAgentController(feature, join, sessions, read, edit, ws,
+                                          mock(WorksheetPreviewService.class));
    }
 
    private static SheetAgentFeature featureOn() {

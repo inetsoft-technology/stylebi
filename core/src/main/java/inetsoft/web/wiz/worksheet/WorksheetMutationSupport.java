@@ -229,6 +229,46 @@ public final class WorksheetMutationSupport {
       t.setColumnSelection(cs, false);
    }
 
+   /**
+    * Updates the expression and type of an existing expression column in the table's
+    * public column selection, identified by {@code name}.
+    *
+    * <p>If no expression column with that name exists, a new one is added (same
+    * behaviour as {@link #addExpressionColumn}).</p>
+    *
+    * @param t          the table assembly to mutate
+    * @param name       the column name to find and update
+    * @param expression the new expression body
+    * @param type       the new data type string, or {@code null} to leave unchanged
+    * @param sql        {@code true} if the expression is SQL rather than script
+    */
+   public static void editExpression(TableAssembly t, String name,
+                                     String expression, String type, boolean sql)
+   {
+      ColumnSelection cs = t.getColumnSelection(false);
+
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         DataRef ref = cs.getAttribute(i);
+
+         if(ref instanceof ColumnRef cr && cr.getDataRef() instanceof ExpressionRef er) {
+            if(name.equals(er.getName()) || name.equals(er.getAttribute())) {
+               er.setExpression(expression != null ? expression : "");
+               cr.setSQL(sql);
+
+               if(type != null) {
+                  cr.setDataType(type);
+               }
+
+               t.setColumnSelection(cs, false);
+               return;
+            }
+         }
+      }
+
+      // Not found — add as new expression column.
+      addExpressionColumn(t, name, expression, type, sql);
+   }
+
    // =========================================================================
    // Sort helpers
    // =========================================================================

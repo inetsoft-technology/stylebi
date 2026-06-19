@@ -104,6 +104,7 @@ import { GroupingDialog } from "../../dialog/ws/grouping-dialog.component";
 import { TabularQueryDialog } from "../../dialog/ws/tabular-query-dialog.component";
 import { SQLQueryDialog } from "../../../widget/dialog/sql-query-dialog/sql-query-dialog.component";
 import { ImportCSVDialog } from "../../dialog/ws/import-csv-dialog.component";
+import { ConnectToClaudeComponent } from "../wiz/connect-to-claude.component";
 import { FormsModule } from "@angular/forms";
 import { ToolbarGroup } from "../../../widget/toolbar/toolbar-group/toolbar-group.component";
 
@@ -142,7 +143,7 @@ const COMPOSER_WIZARD_STATUS_URI: string = "../api/composer/wizard/status";
     templateUrl: "composer-toolbar.component.html",
     styleUrls: ["composer-toolbar.component.scss"],
     providers: [FullScreenService, NgbTooltipConfig],
-    imports: [ToolbarGroup, NgbDropdown, NgbDropdownToggle, NgbTooltip, NgbDropdownMenu, FormsModule, ImportCSVDialog, SQLQueryDialog, TabularQueryDialog, GroupingDialog, SelectDataSourceDialog, EmbeddedTableDialog, WorksheetPropertyDialog, VariableAssemblyDialog, VariableInputDialog, VPMPrincipalDialogComponent, NewWorksheetDialog]
+    imports: [ToolbarGroup, NgbDropdown, NgbDropdownToggle, NgbTooltip, NgbDropdownMenu, FormsModule, ImportCSVDialog, SQLQueryDialog, TabularQueryDialog, GroupingDialog, SelectDataSourceDialog, EmbeddedTableDialog, WorksheetPropertyDialog, VariableAssemblyDialog, VariableInputDialog, VPMPrincipalDialogComponent, NewWorksheetDialog, ConnectToClaudeComponent]
 })
 export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestroy {
    _sheet: Sheet;

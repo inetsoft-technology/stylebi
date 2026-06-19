@@ -25,6 +25,7 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import java.util.Enumeration;
 import inetsoft.web.wiz.pairing.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -369,7 +370,109 @@ public class WorksheetEditService {
       // Helper
       // -----------------------------------------------------------------------
 
-      private static int parseJoinType(String joinType) {
+      // -----------------------------------------------------------------------
+      // Edit-in-place mutators
+      // -----------------------------------------------------------------------
+
+      /**
+       * Replaces the existing filter condition on {@code field} with a new one.
+       *
+       * <p>Implemented as remove-then-add so the old condition is fully cleared
+       * before the replacement is appended.</p>
+       *
+       * @param table     the assembly name
+       * @param field     the column name whose condition to replace
+       * @param operation new comparison operator
+       * @param values    new literal values
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists
+       */
+      public void editCondition(String table, String field,
+                                String operation, String... values)
+         throws PairingException
+      {
+         TableAssembly t = requireTable(table);
+         WorksheetMutationSupport.removeFilter(t, field);
+         WorksheetMutationSupport.addFilter(t, field, operation, values);
+      }
+
+      /**
+       * Updates the expression body and type of an existing expression column,
+       * or adds it if it does not exist yet.
+       *
+       * @param table      the assembly name
+       * @param name       the expression column name to find and update
+       * @param expression the new expression body
+       * @param type       the new data type string, or {@code null} to leave unchanged
+       * @param sql        {@code true} if the expression is SQL rather than script
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists
+       */
+      public void editExpression(String table, String name, String expression,
+                                 String type, boolean sql)
+         throws PairingException
+      {
+         WorksheetMutationSupport.editExpression(requireTable(table), name, expression, type, sql);
+      }
+
+      /**
+       * Replaces the key columns and join type of an existing two-table join assembly,
+       * keeping the same source tables.
+       *
+       * <p>Only the first key pair of the first operator is updated; multi-key joins
+       * are not supported by this method.</p>
+       *
+       * @param name      the join assembly name
+       * @param leftKey   the new left-side key column
+       * @param rightKey  the new right-side key column
+       * @param joinType  new join type — {@code "INNER"}, {@code "LEFT"}, {@code "RIGHT"},
+       *                  {@code "FULL"} (case-insensitive; defaults to {@code "INNER"})
+       * @throws PairingException if the assembly is not found or has no operators
+       */
+      public void editJoin(String name, String leftKey, String rightKey, String joinType)
+         throws PairingException
+      {
+         Assembly a = ws.getAssembly(name);
+
+         if(!(a instanceof RelationalJoinTableAssembly join)) {
+            throw new PairingException("Join assembly not found: " + name);
+         }
+
+         @SuppressWarnings("unchecked")
+         Enumeration<TableAssemblyOperator> iter =
+            (Enumeration<TableAssemblyOperator>) join.getOperators();
+
+         if(!iter.hasMoreElements()) {
+            throw new PairingException("Join assembly has no operators: " + name);
+         }
+
+         TableAssemblyOperator top = iter.nextElement();
+
+         if(top.getOperatorCount() == 0) {
+            throw new PairingException("Join assembly has no key pairs: " + name);
+         }
+
+         // Preserve the existing left/right table names.
+         TableAssemblyOperator.Operator existing = top.getOperator(0);
+         String leftTable  = existing.getLeftTable();
+         String rightTable = existing.getRightTable();
+
+         // Build a replacement operator with updated keys and join type.
+         TableAssemblyOperator newTop = new TableAssemblyOperator();
+         TableAssemblyOperator.Operator newOp = new TableAssemblyOperator.Operator();
+         newOp.setLeftTable(leftTable);
+         newOp.setRightTable(rightTable);
+         newOp.setLeftAttribute(new AttributeRef(null, leftKey));
+         newOp.setRightAttribute(new AttributeRef(null, rightKey));
+         newOp.setOperation(parseJoinType(joinType));
+         newTop.addOperator(newOp);
+
+         join.setOperator(leftTable, rightTable, newTop);
+      }
+
+      // -----------------------------------------------------------------------
+      // Helper
+      // -----------------------------------------------------------------------
+
+      static int parseJoinType(String joinType) {
          if(joinType == null) {
             return TableAssemblyOperator.INNER_JOIN;
          }
