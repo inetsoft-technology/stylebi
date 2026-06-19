@@ -146,12 +146,10 @@ public abstract class AbstractChartArray
                   // ignore it
                }
 
-               Object result = getMethod.invoke(info, new Object[0]);
-
-               if(result != null) {
-                  return result;
-               }
-               // fall through to members map for non-field keys (#75423)
+               // A bound chart-field getter exists for this key; return its
+               // result directly (even when null) so a legitimate null is not
+               // masked by a stale value in the members map. (#75423)
+               return getMethod.invoke(info, new Object[0]);
             }
             else {
                // @by davidd feature1336679288695, support non-precise field
@@ -167,16 +165,14 @@ public abstract class AbstractChartArray
                   catch(Exception ex) {
                      // ignore it
                   }
-               }
 
-               if(ref != null) {
-                  Object result = getMethod.invoke(ref, new Object[0]);
-
-                  if(result != null) {
-                     return result;
-                  }
+                  // A bound chart field exists for this key; return its getter
+                  // result directly (even when null) rather than masking a
+                  // legitimate null with a stale members-map value. (#75423)
+                  return getMethod.invoke(ref, new Object[0]);
                }
-               // fall through to members map for non-field keys (#75423)
+               // no bound chart field for this key: fall through to the
+               // members map for arbitrary metadata keys (#75423)
             }
          }
          catch(Exception e) {
