@@ -27,7 +27,7 @@ import {
    Output,
    ViewChild
 } from "@angular/core";
-import { CdkDragDrop, moveItemInArray, transferArrayItem } from "@angular/cdk/drag-drop";
+import { CdkDragDrop, moveItemInArray } from "@angular/cdk/drag-drop";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { TextLayoutModel, TextLayoutRowModel, TextLayoutItemModel } from "../../../../common/data/visual-frame-model";
 import { AestheticInfo } from "../../../data/chart/aesthetic-info";
@@ -66,11 +66,21 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
    selectedRowIndex: number = -1;
    selectedItemIndex: number = -1;
 
+   // Drop indicator for native HTML5 drags (binding-tree field, item reorder, palette
+   // insert): which row and insert position the green line is shown at. -1 = none.
+   dropRowIndex: number = -1;
+   dropItemIndex: number = -1;
+
+   // Active internal (within-designer) native drag — distinguishes an item reorder or
+   // palette insert from a binding-tree field drop (which has no internalDrag). null = none.
+   private internalDrag:
+      | { kind: "item"; rowIndex: number; itemIndex: number }
+      | { kind: "palette"; paletteType: number }
+      | null = null;
+
    readonly FIELD = 0;
    readonly STATIC = 1;
    readonly SPACING = 2;
-
-   readonly PALETTE_LIST_ID = "palette-list";
 
    paletteItems: { type: number; label: string }[] = [];
 
@@ -84,6 +94,7 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
    private gridDragoverHandler: (e: DragEvent) => void;
    private gridDragenterHandler: (e: DragEvent) => void;
    private gridDropHandler: (e: DragEvent) => void;
+   private gridDragleaveHandler: (e: DragEvent) => void;
 
    constructor(private ngZone: NgZone) {}
 
@@ -112,10 +123,39 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
       };
 
       this.gridDropHandler = (event: DragEvent) => {
-         const rowIndex = this.getRowIndexFromEvent(event);
-         if(rowIndex >= 0) {
-            this.ngZone.run(() => this.onBindingTreeDrop(event, rowIndex, true));
-         }
+         const drag = this.internalDrag;
+         const targetRow = this.dropRowIndex;
+         const targetIndex = this.dropItemIndex;
+
+         this.ngZone.run(() => {
+            if(drag) {
+               // Internal reorder / palette insert — needs a resolved insertion point.
+               if(targetRow >= 0 && targetIndex >= 0) {
+                  event.preventDefault();
+
+                  if(drag.kind === "palette") {
+                     this.insertPaletteItem(drag.paletteType, targetRow, targetIndex);
+                  }
+                  else {
+                     this.moveItem(drag.rowIndex, drag.itemIndex, targetRow, targetIndex);
+                  }
+               }
+            }
+            else {
+               // Field dragged in from the binding tree. Prefer the indicator position;
+               // fall back to the row under the cursor + append if no divider was entered.
+               const rowIndex = targetRow >= 0 ? targetRow : this.getRowIndexFromEvent(event);
+
+               if(rowIndex >= 0) {
+                  const insertIndex = targetRow >= 0 && targetIndex >= 0
+                     ? targetIndex : this.workingRows[rowIndex].items.length;
+                  this.onBindingTreeDrop(event, rowIndex, insertIndex);
+               }
+            }
+
+            this.internalDrag = null;
+            this.clearDropIndicator();
+         });
       };
 
       this.gridDragenterHandler = (event: DragEvent) => {
@@ -125,11 +165,21 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
          }
       };
 
+      // Clear the insertion line when the drag truly leaves the grid — not when the cursor
+      // merely moves between child elements inside it (relatedTarget still within the grid).
+      this.gridDragleaveHandler = (event: DragEvent) => {
+         const related = (event as any).relatedTarget as Node;
+         if(!related || !this.layoutGridRef.nativeElement.contains(related)) {
+            this.ngZone.run(() => this.clearDropIndicator());
+         }
+      };
+
       this.ngZone.runOutsideAngular(() => {
          const el = this.layoutGridRef.nativeElement;
          el.addEventListener("dragenter", this.gridDragenterHandler);
          el.addEventListener("dragover", this.gridDragoverHandler);
          el.addEventListener("drop", this.gridDropHandler);
+         el.addEventListener("dragleave", this.gridDragleaveHandler);
       });
    }
 
@@ -139,6 +189,7 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
          el.removeEventListener("dragenter", this.gridDragenterHandler);
          el.removeEventListener("dragover", this.gridDragoverHandler);
          el.removeEventListener("drop", this.gridDropHandler);
+         el.removeEventListener("dragleave", this.gridDragleaveHandler);
       }
    }
 
@@ -151,6 +202,24 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
          el = el.parentElement;
       }
       return -1;
+   }
+
+   // ── Drop insertion indicator (native binding-tree drag) ───────────────────
+
+   /** True when the green insertion line should show before item `k` of row `ri`. */
+   isDropTarget(ri: number, k: number): boolean {
+      return this.dropRowIndex === ri && this.dropItemIndex === k;
+   }
+
+   /** Record where a dragged binding-tree field would be inserted (drives the line). */
+   onDividerDragEnter(ri: number, k: number): void {
+      this.dropRowIndex = ri;
+      this.dropItemIndex = k;
+   }
+
+   private clearDropIndicator(): void {
+      this.dropRowIndex = -1;
+      this.dropItemIndex = -1;
    }
 
    /** Resolve the bound AestheticInfo for a FIELD item from its fieldIndex. */
@@ -209,46 +278,96 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
       return this.getSelectedRow()?.horizontalAlign ?? "left";
    }
 
-   // ── CDK drop-list IDs ────────────────────────────────────────────────────
+   // ── Native drag-and-drop: items + palette ─────────────────────────────────
+   // Items and palette chips use native HTML5 drag (not CDK) so existing chips never
+   // shift during a drag — only the thin insertion line moves between them, exactly
+   // like dragging a field in from the binding tree. (Rows still reorder via CDK from
+   // the hamburger handle; CDK only intercepts native drag from that handle, so item
+   // drags inside a row are unaffected.)
 
-   /** IDs of the row item lists only — palette is NOT included so row items can't drop onto it. */
-   get rowItemListIds(): string[] {
-      return this.workingRows.map((_, i) => `items-${i}`);
+   onItemDragStart(event: DragEvent, rowIndex: number, itemIndex: number): void {
+      this.internalDrag = { kind: "item", rowIndex, itemIndex };
+
+      if(event.dataTransfer) {
+         event.dataTransfer.effectAllowed = "move";
+         // Firefox requires data on the transfer for the drag to start.
+         event.dataTransfer.setData("text", "");
+      }
    }
 
-   // ── Drag-and-drop handlers ───────────────────────────────────────────────
+   onPaletteDragStart(event: DragEvent, chip: { type: number }): void {
+      this.internalDrag = { kind: "palette", paletteType: chip.type };
 
-   onItemDroppedInRow(event: CdkDragDrop<any[]>, rowIndex: number): void {
-      if(event.previousContainer.id === this.PALETTE_LIST_ID) {
-         // Palette drag: create a new item — do NOT transfer (palette chips stay)
-         const template = event.previousContainer.data[event.previousIndex];
-         const newItem: TextLayoutItemModel = template.type === this.STATIC
-            ? { type: this.STATIC, text: "", fontSize: 10, bold: false, italic: false }
-            : { type: this.SPACING, spacingAmount: 10 };
-         this.workingRows[rowIndex].items.splice(event.currentIndex, 0, newItem);
-         // Restore palette data (CDK may have moved it — reset to keep chips always present)
-         this.paletteItems = [
-            { type: this.STATIC, label: "_#(Text)" },
-            { type: this.SPACING, label: "_#(Spacer)" }
-         ];
-         if(newItem.type === this.STATIC) {
-            this.selectedRowIndex = rowIndex;
-            this.selectedItemIndex = event.currentIndex;
-         }
+      if(event.dataTransfer) {
+         event.dataTransfer.effectAllowed = "move";
+         event.dataTransfer.setData("text", "");
       }
-      else if(event.previousContainer === event.container) {
-         moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
+   }
+
+   onInternalDragEnd(): void {
+      this.internalDrag = null;
+      this.clearDropIndicator();
+   }
+
+   /** True while this item is the one being dragged (so the template can dim it). */
+   isDraggingItem(rowIndex: number, itemIndex: number): boolean {
+      return this.internalDrag?.kind === "item"
+         && this.internalDrag.rowIndex === rowIndex
+         && this.internalDrag.itemIndex === itemIndex;
+   }
+
+   /** Move an existing item to a new row/position (insert-before `toIndex`). */
+   private moveItem(fromRow: number, fromIndex: number, toRow: number, toIndex: number): void {
+      const src = this.workingRows[fromRow];
+      const dst = this.workingRows[toRow];   // capture before any row removal
+
+      if(!src || !dst) {
+         return;
       }
-      else {
-         transferArrayItem(
-            event.previousContainer.data,
-            event.container.data,
-            event.previousIndex,
-            event.currentIndex
-         );
-         this.workingRows = this.workingRows.filter(r => r.items.length > 0);
-         this.selectedRowIndex = -1;
-         this.selectedItemIndex = -1;
+
+      const [item] = src.items.splice(fromIndex, 1);
+
+      if(!item) {
+         return;
+      }
+
+      // Removing from earlier in the same row shifts the target position down by one.
+      let target = toIndex;
+
+      if(src === dst && fromIndex < toIndex) {
+         target = toIndex - 1;
+      }
+
+      target = Math.max(0, Math.min(target, dst.items.length));
+      dst.items.splice(target, 0, item);
+
+      // Drop an emptied source row (never the row we just inserted into).
+      if(src !== dst && src.items.length === 0) {
+         this.workingRows.splice(fromRow, 1);
+      }
+
+      this.selectedRowIndex = -1;
+      this.selectedItemIndex = -1;
+   }
+
+   /** Insert a new STATIC/SPACING item from the palette at `toIndex`. */
+   private insertPaletteItem(type: number, toRow: number, toIndex: number): void {
+      const row = this.workingRows[toRow];
+
+      if(!row) {
+         return;
+      }
+
+      const newItem: TextLayoutItemModel = type === this.STATIC
+         ? { type: this.STATIC, text: "", fontSize: 10, bold: false, italic: false }
+         : { type: this.SPACING, spacingAmount: 10 };
+
+      const idx = Math.max(0, Math.min(toIndex, row.items.length));
+      row.items.splice(idx, 0, newItem);
+
+      if(newItem.type === this.STATIC) {
+         this.selectedRowIndex = toRow;
+         this.selectedItemIndex = idx;
       }
    }
 
@@ -279,7 +398,7 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
       this.onCancel.emit();
    }
 
-   onBindingTreeDrop(event: DragEvent, rowIndex: number, insertAtEnd: boolean = true): void {
+   onBindingTreeDrop(event: DragEvent, rowIndex: number, insertIndex: number = 0): void {
       event.preventDefault();
       event.stopPropagation();
 
@@ -302,7 +421,9 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
          return;
       }
 
-      const insertIndex = insertAtEnd ? this.workingRows[rowIndex].items.length : 0;
+      // Clamp the requested insert position to the row's current item count.
+      const clampedIndex = Math.max(
+         0, Math.min(insertIndex, this.workingRows[rowIndex].items.length));
 
       // Build the field client-side and add it synchronously (the host appends it to textFields
       // and passes the new array back via [textFields]). No server round-trip, so the new field's
@@ -310,7 +431,7 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
       const newIndex = this.textFields?.length ?? 0;
 
       this.workingRows[rowIndex].items.splice(
-         insertIndex, 0, { type: this.FIELD, fieldIndex: newIndex });
+         clampedIndex, 0, { type: this.FIELD, fieldIndex: newIndex });
 
       // Optimistically reflect the append in our own [textFields] so a second rapid drop computes
       // the next index correctly — the host re-passes [textFields] only on the next change-detection
@@ -318,7 +439,7 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
       // appends this same field object, so the eventual @Input replacement is consistent.
       this.textFields = [...(this.textFields ?? []), field];
 
-      this.onAddField.emit({ field, insertRow: rowIndex, insertIndex });
+      this.onAddField.emit({ field, insertRow: rowIndex, insertIndex: clampedIndex });
    }
 
    /**

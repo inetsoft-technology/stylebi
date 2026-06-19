@@ -58,7 +58,7 @@ describe("TextLayoutDesignerComponent Unit Test", () => {
       component.textFields = [];               // no bound fields resolved yet
       component.workingRows = [{ items: [] }];
 
-      component.onBindingTreeDrop(dropEvent("state"), 0, true);
+      component.onBindingTreeDrop(dropEvent("state"), 0, 0);
 
       // host is told to append the real (aggregated) binding
       expect(spy).toHaveBeenCalledWith(
@@ -81,8 +81,8 @@ describe("TextLayoutDesignerComponent Unit Test", () => {
       component.textFields = [];
       component.workingRows = [{ items: [] }];
 
-      component.onBindingTreeDrop(dropEvent("a"), 0, true);
-      component.onBindingTreeDrop(dropEvent("b"), 0, true);
+      component.onBindingTreeDrop(dropEvent("a"), 0, 0);
+      component.onBindingTreeDrop(dropEvent("b"), 0, 1);
 
       expect(component.workingRows[0].items.map((i: any) => i.fieldIndex)).toEqual([0, 1]);
    });
@@ -104,6 +104,45 @@ describe("TextLayoutDesignerComponent Unit Test", () => {
       expect(removed).toHaveBeenCalledWith(1);
       expect(component.textFields.map((f: any) => f.fullName)).toEqual(["a", "c"]);
       expect(component.workingRows[0].items.map((i: any) => i.fieldIndex)).toEqual([0, 1]);
+   });
+
+   it("moves an item within a row, adjusting the target for the removal shift", () => {
+      component.workingRows = [{ items: [
+         { type: component.STATIC, text: "a" },
+         { type: component.STATIC, text: "b" },
+         { type: component.STATIC, text: "c" }
+      ] }];
+
+      // drag item 0 ("a") to the divider after "c" (insert-before index 3)
+      (component as any).moveItem(0, 0, 0, 3);
+
+      expect(component.workingRows[0].items.map((i: any) => i.text)).toEqual(["b", "c", "a"]);
+   });
+
+   it("moves an item to another row and drops the emptied source row", () => {
+      component.workingRows = [
+         { items: [{ type: component.STATIC, text: "a" }] },
+         { items: [{ type: component.STATIC, text: "b" }] }
+      ];
+
+      // drag the only item of row 0 to the front of row 1
+      (component as any).moveItem(0, 0, 1, 0);
+
+      // source row removed; surviving row has both items in order
+      expect(component.workingRows.length).toBe(1);
+      expect(component.workingRows[0].items.map((i: any) => i.text)).toEqual(["a", "b"]);
+   });
+
+   it("inserts a palette item at the indicated position", () => {
+      component.workingRows = [{ items: [
+         { type: component.STATIC, text: "a" },
+         { type: component.STATIC, text: "b" }
+      ] }];
+
+      (component as any).insertPaletteItem(component.SPACING, 0, 1);
+
+      const types = component.workingRows[0].items.map((i: any) => i.type);
+      expect(types).toEqual([component.STATIC, component.SPACING, component.STATIC]);
    });
 
    it("does not drop the textField when another item still references it", () => {
