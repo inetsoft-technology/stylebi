@@ -60,7 +60,11 @@ public final class ScriptHostAccess {
       "inetsoft.storage",
       "inetsoft.util.config",
       "inetsoft.util.health",
-      "inetsoft.util.log"
+      "inetsoft.util.log",
+      // the GraalJS engine internals themselves — the "inetsoft.util.script."
+      // allow-prefix would otherwise expose GraalJavaScriptEngine /
+      // ScriptTimeoutGuard / ScriptHostAccess etc. to Java.type(...)
+      "inetsoft.util.script.graal"
    );
 
    // Specific dangerous classes that are blocked by exact name.

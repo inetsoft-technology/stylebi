@@ -36,6 +36,15 @@ public final class ScriptValueConverter {
     * {@link ArrayProxy} (so it exposes JS array semantics), any other
     * {@link ScriptScope} as a {@link ScopeProxy}, and all other values are
     * returned unchanged (GraalJS auto-wraps them per the HostAccess policy).
+    *
+    * <p><b>Null contract:</b> a Java {@code null} is returned as-is, which
+    * GraalJS surfaces to script as {@code undefined}. This means a member
+    * holding a real {@code null} value is indistinguishable from an absent
+    * member at the script level — matching the long-standing Rhino behavior
+    * where a scope returning {@code null}/{@code NOT_FOUND}/{@code Undefined}
+    * all read as undefined. Scripts should use {@code == null} (loose), which
+    * treats {@code null} and {@code undefined} alike, rather than
+    * {@code === undefined}.
     */
    public static Object toGuest(Object value) {
       if(value instanceof ScriptArrayScope) {

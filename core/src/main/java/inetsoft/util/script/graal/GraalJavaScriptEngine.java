@@ -277,17 +277,27 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    }
 
    protected Duration currentTimeout() {
+      String val;
+
       try {
-         long secs = Long.parseLong(SreeEnv.getProperty("script.execution.timeout"));
-         return Duration.ofSeconds(secs);
-      }
-      catch(NumberFormatException ex) {
-         // FIX E: warn when the property is set but not a valid number
-         LOG.warn("Invalid script.execution.timeout value; script timeouts disabled", ex);
-         return Duration.ZERO;
+         val = SreeEnv.getProperty("script.execution.timeout");
       }
       catch(Exception ex) {
-         // SreeEnv unavailable in test context, or property not set → no timeout
+         // SreeEnv unavailable (e.g. test context) → no timeout
+         return Duration.ZERO;
+      }
+
+      // property unset is the normal "no timeout" case — not a warning
+      if(val == null || val.isEmpty()) {
+         return Duration.ZERO;
+      }
+
+      try {
+         return Duration.ofSeconds(Long.parseLong(val));
+      }
+      catch(NumberFormatException ex) {
+         // set but not a valid number — warn, then disable the timeout
+         LOG.warn("Invalid script.execution.timeout value '{}'; script timeouts disabled", val);
          return Duration.ZERO;
       }
    }

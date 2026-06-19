@@ -584,7 +584,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
    }
 
    /**
-    * Calculate weightedAverage result.
+    * Get the first value in the data, optionally ordered by a second column.
     */
    public Object first(Object data1, Object data2, Object column2, Object cond) {
       FirstFormula formula = new FirstFormula(findSecondColumn(data1, column2));
@@ -592,7 +592,7 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
    }
 
    /**
-    * Calculate weightedAverage result.
+    * Get the last value in the data, optionally ordered by a second column.
     */
    public Object last(Object data1, Object data2, Object column2, Object cond) {
       LastFormula formula = new LastFormula(findSecondColumn(data1, column2));

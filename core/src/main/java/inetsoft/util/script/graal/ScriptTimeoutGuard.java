@@ -20,6 +20,7 @@ package inetsoft.util.script.graal;
 import org.graalvm.polyglot.Context;
 import java.time.Duration;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Interrupts a long-running Context evaluation. Replaces TimeoutContext.
@@ -56,8 +57,21 @@ public class ScriptTimeoutGuard {
          return () -> { };
       }
 
+      // Per-guard one-shot liveness flag: whichever of close() or the interrupt
+      // task wins flips it false; the loser becomes a no-op. This greatly
+      // reduces (cannot fully eliminate without locking against the Context) a
+      // timeout that fired just as the eval finished from "bleeding" into the
+      // NEXT execution on the same Context — cancel(false) alone cannot stop an
+      // interrupt task already dispatched to INTERRUPT_POOL.
+      final AtomicBoolean active = new AtomicBoolean(true);
+
       ScheduledFuture<?> f = SCHED.schedule(() ->
          INTERRUPT_POOL.submit(() -> {
+            // claim the one-shot; if close() already ran, do nothing
+            if(!active.compareAndSet(true, false)) {
+               return;
+            }
+
             try {
                ctx.interrupt(Duration.ofSeconds(2));
             }
@@ -67,6 +81,9 @@ public class ScriptTimeoutGuard {
          }),
          timeout.toMillis(), TimeUnit.MILLISECONDS);
 
-      return () -> f.cancel(false);
+      return () -> {
+         active.set(false);
+         f.cancel(false);
+      };
    }
 }

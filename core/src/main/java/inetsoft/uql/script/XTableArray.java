@@ -116,13 +116,24 @@ public class XTableArray implements ScriptArrayScope {
          return Integer.valueOf(table.getColCount());
       }
 
+      return resolveRange(name);
+   }
+
+   /**
+    * Resolve a CellRange-expression member name to its value, or null if the
+    * name is not a valid range. Shared by {@link #getMember} and
+    * {@link #hasMember} so the two stay consistent — under GraalJS's
+    * ProxyObject contract hasMember is queried before getMember, so any name
+    * getMember can resolve must also be acknowledged by hasMember.
+    */
+   private Object resolveRange(String name) {
       try {
          CellRange range = CellRange.parse(name);
          Collection cells = range.getCells(getTable());
          return range.getCollectionValue(cells);
       }
       catch(Exception ex) {
-         LOG.warn("Failed to get property " + name + " from " + this, ex);
+         LOG.debug("Failed to get property " + name + " from " + this, ex);
       }
 
       return null;
@@ -136,6 +147,10 @@ public class XTableArray implements ScriptArrayScope {
       XTable table = getTable0();
 
       if(table == null){
+         return null;
+      }
+
+      if(index < 0 || index > Integer.MAX_VALUE) {
          return null;
       }
 
@@ -189,7 +204,11 @@ public class XTableArray implements ScriptArrayScope {
          return true;
       }
 
-      return false;
+      // mirror getMember: present when getMember would return a non-null value.
+      // (A syntactically valid but empty range resolves to null here and so
+      // reports absent — script-equivalent, since getMember's null also reads
+      // as undefined under GraalJS.)
+      return resolveRange(name) != null;
    }
 
    /**

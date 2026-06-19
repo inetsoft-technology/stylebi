@@ -241,7 +241,7 @@ public class ReportGraalJavaScriptEngine extends GraalJavaScriptEngine {
          report.addParameter(var);
       }
       catch(Exception ex) {
-         LOG.error("Failed to add parameter + " + name +
+         LOG.error("Failed to add parameter " + name +
             "[" + type + "] = " + value, ex);
       }
    }

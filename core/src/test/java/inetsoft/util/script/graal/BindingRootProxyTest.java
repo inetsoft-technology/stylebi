@@ -79,4 +79,20 @@ class BindingRootProxyTest {
       MapScope global = new MapScope(grandparent);
       assertEquals(5, evalWith(global, "gp"));
    }
+
+   // Rhino scope-chain write semantics: an unqualified assignment to a name that
+   // lives in a PARENT scope must write back to that parent, not shadow it on
+   // the root. (Regression guard for the BindingRootProxy.putMember fix.)
+   @Test void unqualifiedWriteGoesToOwningParentScope() {
+      MapScope parent = new MapScope(null);
+      parent.putMember("pv", "orig");
+      MapScope global = new MapScope(parent);   // root whose parent owns "pv"
+      BindingRootProxy root = new BindingRootProxy(global, () -> null);
+      ctx.getBindings("js").putMember("__scope__", root);
+
+      ctx.eval("js", "with(__scope__){ pv = 'updated'; }");
+
+      assertEquals("updated", parent.getMember("pv"));   // parent updated
+      assertNull(global.getMember("pv"));                // no stale shadow on root
+   }
 }

@@ -103,6 +103,28 @@ public class BindingRootProxy implements ProxyObject {
    @Override public boolean hasMember(String key) { return resolves(key); }
    @Override public Object getMemberKeys() { return enumerate().toArray(new String[0]); }
    @Override public void putMember(String key, Value value) {
-      global.putMember(key, ScriptValueConverter.toHost(value));
+      Object host = ScriptValueConverter.toHost(value);
+
+      // Rhino scope-chain write semantics: an unqualified assignment to a name
+      // that already exists in the chain writes to the scope that OWNS it
+      // (global scope, its parent chain, then the exec scope). Only a name that
+      // exists nowhere is created on the root scope. Writing unconditionally to
+      // `global` would shadow a parent/exec-scope variable, so a read from the
+      // owning scope (Java side or another script) would see a stale value.
+      for(ScriptScope s = global; s != null; s = s.getParentScope()) {
+         if(s.hasMember(key)) {
+            s.putMember(key, host);
+            return;
+         }
+      }
+
+      ScriptScope exec = execScopeSupplier.get();
+
+      if(exec != null && exec.hasMember(key)) {
+         exec.putMember(key, host);
+         return;
+      }
+
+      global.putMember(key, host);
    }
 }
