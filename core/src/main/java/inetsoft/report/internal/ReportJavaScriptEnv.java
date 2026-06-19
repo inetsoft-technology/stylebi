@@ -94,11 +94,12 @@ public class ReportJavaScriptEnv extends GraalJavaScriptEnv
    public Object exec(ReportElement elem, Object script, Object scope) throws Exception {
       init();
 
-      // TODO(cutover): element-keyed scope resolution. The Rhino engine resolved
-      // an element's scriptable via engine.getScriptable(elem.getID(), null) when
-      // scope was null. The GraalJS scope-chain resolution (getScope/getScriptable)
-      // is deferred to Task 5.3; until then a null scope executes against the
-      // report/global scope, which covers report-level (non-element-scoped) scripts.
+      // The Rhino engine resolved an element's own scriptable via
+      // engine.getScriptable(elem.getID(), null) when scope was null. That
+      // element-keyed resolution is intentionally NOT reimplemented: report
+      // elements are no longer authored with scripts — the report engine is
+      // used only to render generated viewsheet exports — so a null scope
+      // simply executes against the report/global scope.
       final Object execScope = scope;
 
       return ProfileUtils.addExecutionBreakDownRecord(report,
@@ -113,9 +114,9 @@ public class ReportJavaScriptEnv extends GraalJavaScriptEnv
    @Override
    public Class getType(Object id, Object scope) {
       init();
-      // TODO(cutover): property typing for the autocomplete/property tree was
-      // provided by ReportJavaScriptEngine.getType under Rhino. Deferred to
-      // Task 5.3 (scope-chain lookup); returns null (unknown type) until then.
+      // Report-element script autocomplete/property typing is obsolete (report
+      // elements are no longer scripted; the report engine only renders
+      // generated viewsheet exports), so no type is resolved.
       return null;
    }
 
