@@ -414,6 +414,47 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
       return best;
    }
 
+   // Rectangular bar (RECT or straight-line polygon); excludes ELLIPSE points and LINE marks
+   // so the stacked-column expansion never pulls in non-bar regions.
+   private isBarLikeRegion(region: ChartRegion): boolean {
+      const seg = region.segTypes && region.segTypes[0] ? region.segTypes[0][0] : -1;
+      return seg >= 0 && seg !== ChartTool.ELLIPSE && seg !== ChartTool.LINE;
+   }
+
+   // All bar regions stacked in the same X column as the given region: same X-extent within a
+   // 1.5px tolerance. Stacked segments share the column's left/right edges; grouped bars in
+   // adjacent columns and point/line marks do not. Returns at least the region itself.
+   private collectColumnRegions(region: ChartRegion): ChartRegion[] {
+      const base = this.ptsBoundsX(region);
+
+      if(!base) {
+         return [region];
+      }
+
+      const TOL = 1.5;
+      const minX = base.centerX - base.width / 2;
+      const maxX = base.centerX + base.width / 2;
+      const result: ChartRegion[] = [];
+
+      for(const r of this.chartObject.regions) {
+         if(!r || r.rowIdx < 0 || ChartTool.colIdx(this.model, r) < 0 ||
+            !this.isBarLikeRegion(r))
+         {
+            continue;
+         }
+
+         const b = this.ptsBoundsX(r);
+
+         if(b && Math.abs((b.centerX - b.width / 2) - minX) <= TOL &&
+            Math.abs((b.centerX + b.width / 2) - maxX) <= TOL)
+         {
+            result.push(r);
+         }
+      }
+
+      return result.length > 0 ? result : [region];
+   }
+
    private drawSnapGuideline(pixelX: number): void {
       if(!this.referenceLineCanvas) {
          return;
@@ -597,9 +638,24 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
                ? snapPrimary
                : regions?.find(r => r && r.rowIdx >= 0 &&
                   ChartTool.colIdx(this.model, r) >= 0);
-            const rowIdx = voRegion != null ? voRegion.rowIdx : null;
-            const colIdx = voRegion != null ? ChartTool.colIdx(this.model, voRegion) : null;
-            this.inlineSvgTiles?.forEach(d => d.highlightElement(rowIdx, colIdx));
+
+            // Snap buckets by rowIdx, but each segment of a stacked bar column is a distinct
+            // data row at the same X, so the snap primary is only the segment under the
+            // guideline. Activate every segment of that column so the whole stack stays
+            // undimmed rather than just the snapped one.
+            if(voRegion != null && this.model && this.model.snapTooltip &&
+               this.isBarLikeRegion(voRegion))
+            {
+               const pairs = this.collectColumnRegions(voRegion).map(r => ({
+                  row: r.rowIdx, col: ChartTool.colIdx(this.model, r)
+               }));
+               this.inlineSvgTiles?.forEach(d => d.highlightElements(pairs));
+            }
+            else {
+               const rowIdx = voRegion != null ? voRegion.rowIdx : null;
+               const colIdx = voRegion != null ? ChartTool.colIdx(this.model, voRegion) : null;
+               this.inlineSvgTiles?.forEach(d => d.highlightElement(rowIdx, colIdx));
+            }
          }
       }
       else if(!this.dataTip) {

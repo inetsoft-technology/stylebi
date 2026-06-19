@@ -17,10 +17,23 @@
  */
 package inetsoft.uql.viewsheet.graph;
 
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 class ChartInfoSnapSupportTest {
    @Test
    void lineChartWithDimensionOnX() {
@@ -70,7 +83,8 @@ class ChartInfoSnapSupportTest {
    @Test
    void unsupportedChartTypesAreRejected() {
       for(int type : new int[] { GraphTypes.CHART_PIE, GraphTypes.CHART_POINT,
-                                  GraphTypes.CHART_RADAR, GraphTypes.CHART_TREEMAP }) {
+                                  GraphTypes.CHART_RADAR, GraphTypes.CHART_TREEMAP,
+                                  GraphTypes.CHART_MEKKO }) {
          VSChartInfo info = new VSChartInfo();
          info.setChartType(type);
          info.addXField(new VSChartDimensionRef());
