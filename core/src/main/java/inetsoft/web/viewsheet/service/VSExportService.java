@@ -877,6 +877,10 @@ public class VSExportService {
    }
 
    public static int getFormatNumberFromExtension(String ext) {
+      if(ext == null) {
+         throw new RuntimeException("Unsupported output type: null");
+      }
+
       switch(ext.toLowerCase()) {
       case "xlsx":
       case "xls":
@@ -896,6 +900,28 @@ public class VSExportService {
          return FileFormatInfo.EXPORT_TYPE_CSV;
       default:
          throw new RuntimeException("Unsupported output type: " + ext);
+      }
+   }
+
+   // keep cases in sync with getFormatNumberFromExtension
+   public static boolean isSupportedExportType(String ext) {
+      if(ext == null) {
+         return false;
+      }
+
+      switch(ext.toLowerCase()) {
+      case "xlsx":
+      case "xls":
+      case "pptx":
+      case "ppt":
+      case "pdf":
+      case "vso":
+      case "html":
+      case "png":
+      case "csv":
+         return true;
+      default:
+         return false;
       }
    }
 
