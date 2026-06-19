@@ -90,6 +90,16 @@ public class RawDataService {
       throws Exception
    {
       String datasourcePath = requestData.getDatasourcePath();
+      AssetEntry tableEntry = requestData.getTable();
+
+      // Fail fast with a diagnosable message when the request carries no table asset entry.
+      // Callers (e.g. the WIZ annotation profiler) may omit it; without this guard setupTable
+      // dereferences a null AssetEntry and throws an opaque NullPointerException.
+      if(tableEntry == null) {
+         throw new IllegalArgumentException(
+            "Export request for data source \"" + datasourcePath + "\" is missing the table asset entry.");
+      }
+
       XDataSource dataSource = xrepository.getDataSource(datasourcePath);
 
       if(!(dataSource instanceof JDBCDataSource)) {
@@ -102,7 +112,6 @@ public class RawDataService {
       query.setDataSource(dataSource);
       query.setMaxRows(RAW_DATA_MAX_ROW);
 
-      AssetEntry tableEntry = requestData.getTable();
       setupTable(query, tableEntry, principal);
 
       AssetRepository assetRepository = AssetUtil.getAssetRepository(false);
