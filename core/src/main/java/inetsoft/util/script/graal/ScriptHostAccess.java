@@ -31,7 +31,8 @@ public final class ScriptHostAccess {
    private ScriptHostAccess() {
    }
 
-   // Deny-list ported verbatim from SecureClassShutter. Checked BEFORE the allow-list.
+   // Deny-list ported verbatim from SecureClassShutter. Checked AFTER the exact
+   // allow-list (ALLOWED_CLASSES) but BEFORE the allowed prefixes — see classFilter().
    // Dangerous packages — any class whose FQCN equals or starts with "<pkg>." is blocked.
    private static final Set<String> BLOCKED_PACKAGES = Set.of(
       "java.lang.reflect",
@@ -101,18 +102,32 @@ public final class ScriptHostAccess {
       "inetsoft.util.BlobIndexedStorage"
    );
 
-   // Tier 1: safe java.* utilities. Finalized by audit in Task 6.4.
+   // Tier 1: curated exact-match safe classes. Finalized by audit in Task 6.4,
+   // aligned with the proven SecureClassShutter baseline. Note some of these
+   // live in packages that appear in BLOCKED_PACKAGES (e.g. java.sql,
+   // inetsoft.sree.security) — the exact-allow check in classFilter() runs
+   // BEFORE the package deny check so these specific classes still load.
    private static final Set<String> ALLOWED_CLASSES = Set.of(
-      "java.lang.Math", "java.lang.String",
-      "java.lang.Integer", "java.lang.Long", "java.lang.Double", "java.lang.Boolean",
-      "java.text.SimpleDateFormat", "java.text.DecimalFormat",
-      "java.util.Date", "java.util.Calendar", "java.util.ArrayList",
-      "java.util.HashMap", "java.util.List", "java.util.Arrays"
+      "java.lang.Math", "java.lang.String", "java.lang.Integer", "java.lang.Long",
+      "java.lang.Double", "java.lang.Float", "java.lang.Boolean", "java.lang.Character",
+      "java.lang.Byte", "java.lang.Short", "java.lang.Number", "java.lang.Object",
+      "java.util.ArrayList", "java.util.HashMap", "java.util.HashSet", "java.util.LinkedList",
+      "java.util.TreeMap", "java.util.TreeSet", "java.util.List", "java.util.Arrays",
+      "java.util.Date", "java.util.Calendar", "java.util.GregorianCalendar", "java.util.TimeZone",
+      "java.util.Locale", "java.util.UUID", "java.util.regex.Pattern", "java.util.regex.Matcher",
+      "java.text.SimpleDateFormat", "java.text.DecimalFormat", "java.text.NumberFormat",
+      "java.math.BigDecimal", "java.math.BigInteger",
+      "java.sql.Date", "java.sql.Time", "java.sql.Timestamp",
+      "inetsoft.sree.web.HttpServiceRequest",
+      "inetsoft.sree.security.DestinationUserNameProviderPrincipal",
+      "inetsoft.util.XTimestamp"
    );
 
    // Tier 2: our own API package prefixes.
    private static final List<String> ALLOWED_PREFIXES = List.of(
-      "inetsoft.graph.", "inetsoft.report.", "inetsoft.uql."
+      "inetsoft.graph.", "inetsoft.report.", "inetsoft.uql.",
+      "inetsoft.sree.script.", "inetsoft.util.audit.templates.",
+      "inetsoft.util.script.", "inetsoft.analytic.composition.event."
    );
 
    private static volatile HostAccess hostAccess;
@@ -162,9 +177,18 @@ public final class ScriptHostAccess {
 
    /**
     * Returns a predicate that gates Java.type(...) class lookups.
-    * The deny-list (BLOCKED_PACKAGES / BLOCKED_CLASSES) is checked FIRST;
-    * a class that matches the deny-list is rejected even if it would otherwise
-    * satisfy the allow-list.
+    *
+    * <p>Precedence (Task 6.4, ported from the proven SecureClassShutter baseline):
+    * <ol>
+    *   <li><b>exact allow wins</b> — a class in ALLOWED_CLASSES (or the SreeEnv
+    *       extension) is permitted even if its package is in BLOCKED_PACKAGES
+    *       (e.g. java.sql.Date, inetsoft.sree.security.DestinationUserNameProviderPrincipal);</li>
+    *   <li><b>deny</b> — BLOCKED_CLASSES exact match, then BLOCKED_PACKAGES prefix match;</li>
+    *   <li><b>allowed prefixes</b> — ALLOWED_PREFIXES match;</li>
+    *   <li><b>default deny</b>.</li>
+    * </ol>
+    * Dangerous classes (System/Runtime/Class/ClassLoader, inetsoft.report.internal.license.*)
+    * are NOT in the exact allow-list, so they fall through to the deny step and stay blocked.
     */
    public static Predicate<String> classFilter() {
       // optional SreeEnv extension (off by default): comma-separated extra FQCNs
@@ -178,7 +202,13 @@ public final class ScriptHostAccess {
       Set<String> extra = parseExtra(extraProp);
 
       return fqcn -> {
-         // --- Deny-first check (FIX 1) ---
+         // --- 1. exact allow wins (Task 6.4 precedence) ---
+         // A curated exact safe class is permitted even if its package is denied.
+         if(ALLOWED_CLASSES.contains(fqcn) || extra.contains(fqcn)) {
+            return true;
+         }
+
+         // --- 2. deny: exact blocked classes, then blocked packages ---
          if(BLOCKED_CLASSES.contains(fqcn)) {
             return false;
          }
@@ -193,17 +223,14 @@ public final class ScriptHostAccess {
             }
          }
 
-         // --- Allow-list check ---
-         if(ALLOWED_CLASSES.contains(fqcn) || extra.contains(fqcn)) {
-            return true;
-         }
-
+         // --- 3. allowed prefixes ---
          for(String prefix : ALLOWED_PREFIXES) {
             if(fqcn.startsWith(prefix)) {
                return true;
             }
          }
 
+         // --- 4. default deny ---
          return false;
       };
    }

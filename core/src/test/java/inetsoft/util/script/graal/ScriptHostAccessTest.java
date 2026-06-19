@@ -76,6 +76,46 @@ class ScriptHostAccessTest {
       }
    }
 
+   /**
+    * Task 6.4: curated exact safe classes load even when their package is in the
+    * block list (java.sql, java.text). java.util.UUID is a plain curated class.
+    */
+   @Test void curatedExactClassOverBlockedPackage() {
+      try(Context ctx = newContext()) {
+         assertDoesNotThrow(() -> ctx.eval("js", "Java.type('java.sql.Date')"));
+         assertDoesNotThrow(() -> ctx.eval("js", "Java.type('java.text.NumberFormat')"));
+         assertDoesNotThrow(() -> ctx.eval("js", "Java.type('java.util.UUID')"));
+      }
+   }
+
+   /** Task 6.4: dangerous classes remain blocked (not in the exact allow-list). */
+   @Test void dangerousClassesStillBlocked() {
+      try(Context ctx = newContext()) {
+         assertThrows(PolyglotException.class,
+            () -> ctx.eval("js", "Java.type('java.lang.System')"));
+         assertThrows(PolyglotException.class,
+            () -> ctx.eval("js", "Java.type('java.lang.Runtime')"));
+         assertThrows(PolyglotException.class,
+            () -> ctx.eval("js", "Java.type('java.lang.Class')"));
+         assertThrows(PolyglotException.class,
+            () -> ctx.eval("js", "Java.type('java.io.File')"));
+         assertThrows(PolyglotException.class,
+            () -> ctx.eval("js",
+               "Java.type('inetsoft.report.internal.license.LicenseManager')"));
+      }
+   }
+
+   /**
+    * Task 6.4: a java.sql class that is NOT in the curated allow-list is still
+    * denied by the package block.
+    */
+   @Test void uncuratedBlockedPackageClassDenied() {
+      try(Context ctx = newContext()) {
+         assertThrows(PolyglotException.class,
+            () -> ctx.eval("js", "Java.type('java.sql.DriverManager')"));
+      }
+   }
+
    public static class Sample {
       @org.graalvm.polyglot.HostAccess.Export public String allowed() { return "ok"; }
       public String denied() { return "no"; }
