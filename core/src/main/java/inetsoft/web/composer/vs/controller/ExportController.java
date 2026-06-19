@@ -110,6 +110,17 @@ public class ExportController {
          path = Tool.byteDecode(path);
          int format = formatParam.orElse(FileFormatInfo.EXPORT_TYPE_PDF);
          String type = outtypeParam.orElse(null);
+
+         if(type != null && !VSExportService.isSupportedExportType(type)) {
+            LOG.warn("Rejected viewsheet export with unsupported output type \"{}\" for \"{}\" " +
+                        "(user={}, referer={})",
+                     type, path, principal == null ? null : principal.getName(),
+                     request.getHeader("referer"));
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            WebUtils.redirectToErrorPage(response, request, "Unsupported output type: " + type);
+            return;
+         }
+
          boolean exportAllTabbedTables = exportAllTabbedTablesParam.orElse(false);
          boolean expandSelections = expandSelectionsParam.orElse(false);
          boolean current = currentParam.orElse(true);
