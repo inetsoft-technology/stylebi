@@ -143,6 +143,37 @@ describe("TextLayoutDesignerComponent Unit Test", () => {
       expect(component.workingRows[0].items[0].fieldIndex).toBe(0);
    });
 
+   it("removeRow with only non-field items removes the row without touching textFields", () => {
+      const removed = vi.fn();
+      component.onRemoveField.subscribe(removed);
+      component.textFields = [{ fullName: "a" }] as any;
+      component.workingRows = [
+         { items: [{ type: component.STATIC, text: "hello" }] },
+         { items: [{ type: component.FIELD, fieldIndex: 0 }] }
+      ];
+
+      component.removeRow(0);
+
+      expect(removed).not.toHaveBeenCalled();
+      expect(component.textFields.length).toBe(1);
+      expect(component.workingRows.length).toBe(1);
+   });
+
+   it("removeRow on the last row empties workingRows and drops all fields", () => {
+      const removed = vi.fn();
+      component.onRemoveField.subscribe(removed);
+      component.textFields = [{ fullName: "a" }, { fullName: "b" }] as any;
+      component.workingRows = [
+         { items: [{ type: component.FIELD, fieldIndex: 0 }, { type: component.FIELD, fieldIndex: 1 }] }
+      ];
+
+      component.removeRow(0);
+
+      expect(component.workingRows.length).toBe(0);
+      expect(component.textFields.length).toBe(0);
+      expect(removed.mock.calls.map((c: any) => c[0])).toEqual([1, 0]);
+   });
+
    it("removeRow keeps a field still referenced by a surviving row", () => {
       const removed = vi.fn();
       component.onRemoveField.subscribe(removed);

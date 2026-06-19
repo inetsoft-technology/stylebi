@@ -380,22 +380,32 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
             r => r.items.some(it => it.type === this.FIELD && it.fieldIndex === fi));
 
          if(!stillReferenced) {
-            this.textFields = (this.textFields ?? []).filter((_, idx) => idx !== fi);
-
-            for(const row of this.workingRows) {
-               for(const it of row.items) {
-                  if(it.type === this.FIELD && it.fieldIndex > fi) {
-                     it.fieldIndex = it.fieldIndex - 1;
-                  }
-               }
-            }
-
-            this.onRemoveField.emit(fi);
+            this.removeOrphanedField(fi);
          }
       }
 
       this.selectedRowIndex = -1;
       this.selectedItemIndex = -1;
+   }
+
+   /**
+    * Drop the orphaned textFields entry at index fi: remove the binding, compact every higher
+    * FIELD item's fieldIndex down by one to match, and tell the host to drop the same index from
+    * its authoritative textFields list. Shared by removeFieldItem and removeRow so the orphan
+    * contract stays in one place.
+    */
+   private removeOrphanedField(fi: number): void {
+      this.textFields = (this.textFields ?? []).filter((_, idx) => idx !== fi);
+
+      for(const r of this.workingRows) {
+         for(const it of r.items) {
+            if(it.type === this.FIELD && it.fieldIndex > fi) {
+               it.fieldIndex = it.fieldIndex - 1;
+            }
+         }
+      }
+
+      this.onRemoveField.emit(fi);
    }
 
    /**
@@ -419,7 +429,7 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
       // Unique FIELD indices that were in the removed row, now orphaned only if no surviving row
       // still references them. Sort descending so removals don't invalidate pending indices.
       const orphaned = Array.from(new Set(
-         row.items
+         (row.items ?? [])
             .filter(it => it.type === this.FIELD && it.fieldIndex != null)
             .map(it => it.fieldIndex)))
          .filter(fi => !this.workingRows.some(
@@ -427,17 +437,7 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
          .sort((a, b) => b - a);
 
       for(const fi of orphaned) {
-         this.textFields = (this.textFields ?? []).filter((_, idx) => idx !== fi);
-
-         for(const r of this.workingRows) {
-            for(const it of r.items) {
-               if(it.type === this.FIELD && it.fieldIndex > fi) {
-                  it.fieldIndex = it.fieldIndex - 1;
-               }
-            }
-         }
-
-         this.onRemoveField.emit(fi);
+         this.removeOrphanedField(fi);
       }
 
       this.selectedRowIndex = -1;
