@@ -100,6 +100,53 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             bindings.putMember(e.getKey(), e.getValue());
          }
       }
+
+      installLibraryFunctions();
+   }
+
+   /**
+    * Install user-defined library script functions as callable JS globals.
+    *
+    * <p>Each library function is stored as a full JS function declaration (e.g.
+    * {@code function myFunc(a, b) { return a + b; }}). Evaluating that
+    * declaration at the top level of the Context defines {@code myFunc} as a
+    * global, so any subsequently compiled script/formula can call it by name.
+    * This replaces the Rhino {@code cx.compileFunction(globalscope, ...)}
+    * machinery.
+    *
+    * <p>A malformed library function must not abort engine init, so each
+    * function is compiled in its own try/catch (mirroring the old Rhino
+    * per-function guard). The whole step is guarded against {@code LibManager}
+    * being unavailable in minimal/test contexts.
+    */
+   private void installLibraryFunctions() {
+      try {
+         inetsoft.report.LibManager mgr =
+            inetsoft.report.LibManagerProvider.getInstance().getManager();
+         java.util.Enumeration<?> names = mgr.getScripts();
+
+         while(names.hasMoreElements()) {
+            String name = (String) names.nextElement();
+            String source = mgr.getScript(name);
+
+            if(source == null || source.isEmpty()) {
+               continue;
+            }
+
+            try {
+               context.eval(Source.newBuilder("js", source, "<lib:" + name + ">")
+                              .buildLiteral());
+            }
+            catch(PolyglotException ex) {
+               // don't let one bad library function break engine init
+               LOG.warn("Failed to compile library function " + name, ex);
+            }
+         }
+      }
+      catch(Throwable ex) {
+         // LibManager/provider unavailable (e.g. minimal/test contexts) — skip
+         LOG.debug("Library functions not installed; LibManager unavailable", ex);
+      }
    }
 
    public Object compile(String cmd) throws Exception {

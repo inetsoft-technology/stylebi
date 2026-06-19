@@ -90,11 +90,11 @@ public class LibScriptable implements ScriptScope {
 
    @Override
    public Object getMember(String name) {
-      // TODO(cutover): library script functions are stored as source. Under
-      // GraalJS a function is a guest value bound to a Context and cannot be
-      // precompiled to a host-shareable object as Rhino Functions were; library
-      // functions must be installed as engine global function definitions at
-      // engine init. This returns the source string so a member is present.
+      // Library script functions are now callable: GraalJavaScriptEngine.initScope
+      // installs each library function's source as a global function definition
+      // at engine init, so any script/formula can call it by name. This scriptable
+      // is retained only for member enumeration (autocomplete via getMemberKeys);
+      // getMember returns the function source string.
       return funcs.get(name);
    }
 
