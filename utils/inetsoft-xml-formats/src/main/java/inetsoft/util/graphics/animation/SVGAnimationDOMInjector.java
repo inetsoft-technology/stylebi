@@ -21,6 +21,8 @@ import inetsoft.util.graphics.SVGSupport;
 import org.w3c.dom.*;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -450,48 +452,155 @@ public class SVGAnimationDOMInjector {
          return;
       }
 
-      // Detect and reclassify the donut center-hole overlay; returns {cx,cy,innerR} or null.
-      double[] holeParams = preprocessDonutHole(svgRoot);
-
-      // Extract pie center from the first arc path's "L cx cy Z" hub point.
-      double[] pieCenter = null;
-
-      for(Element slice : slices) {
-         String d = slice.getAttribute("d");
-         if(d.contains("A")) {
-            pieCenter = extractPieCenter(d);
-            break;
-         }
-      }
-
-      // Each arc slice sweeps in by animating the CSS "d" property via per-slice @keyframes.
-      // This creates the wheel/clock effect: slices grow one at a time in angular (DOM) order.
-      //
-      // The from-state is the same path structure (M A L Z) but with the arc endpoint equal
-      // to the start point — a zero-length arc that encloses no area.  CSS path interpolation
-      // requires both from/to to share the same command sequence, so this matches exactly.
-      //
-      // One keyframe per ~5° keeps the leading arc edge on the outer circle at every frame.
-      // The large-arc flag is recomputed per keyframe so la=1 slices animate without artifacts.
-      //
-      // 3D pie faces: multiple arc-containing paths share the same startX (one per 3D face of
-      // each logical slice).  We deduplicate by startX so all faces of the same slice receive
-      // the same animation delay, keeping the 3D faces in sync during the sweep.
-      final double SLICE_DUR = AnimationConstants.PIE_SLICE_DURATION;
+      // Detect and reclassify donut center-hole overlays; a faceted donut has one per panel.
+      List<double[]> holes = preprocessDonutHoles(svgRoot);
 
       appendStyle(svgRoot, doc, "@keyframes inetsoft-pie-fade{from{opacity:0}to{opacity:1}}");
 
-      // groupKeys: unique arc startX values in DOM encounter order.
-      // Used for (a) arcIdx deduplication and (b) non-arc path delay matching.
-      List<Double> groupKeys  = new ArrayList<>();
-      // groupRefSY: M-point Y of the topmost (first-encountered) path in each group.
-      // For 3D pies the top-face is rendered first and has the smallest M-point Y.
-      // Used in Pass 2 to compute the per-face cy offset so each face's arc keypoints
-      // trace its own offset ellipse rather than the shared top-face ellipse.
-      List<Double> groupRefSY = new ArrayList<>();
+      // A faceted chart packs one pie per panel into one SVG.  Partition by center so each pie
+      // animates around its own center — a single global center mangles every other panel
+      // (the broken-after-first-pie symptom).
+      List<PiePanel> panels = partitionPiePanels(slices);
 
-      // Pass 1: compute deduplicated arcIdx for each slice.
-      // Multiple paths sharing the same startX (3D faces) all get the same arcIdx.
+      // The tile's drawable size (null if unknown).  Used per panel to detect a pie that is
+      // larger than the tile (split across tiles), which must fall back to the opacity fade.
+      double[] viewport = svgViewport(svgRoot);
+
+      // Shared across panels: a single keyframe-name counter (so @keyframes names stay unique)
+      // and one buffer flushed as a single <style> block after all panels are processed.
+      int[] kfCounter = { 0 };
+      StringBuilder cssKeyframes = new StringBuilder();
+      double maxEndTime = 0;
+
+      for(PiePanel panel : panels) {
+         // Match this panel to its donut hole (nearest hole center within the hole radius).
+         double[] hole = panel.center == null ? null : nearestHole(holes, panel.center);
+         // A pie that doesn't fit in its tile is clipped across tiles; the sweep can't survive
+         // that, so fall back to the opacity fade.  All panels begin at t=0 (facets in parallel).
+         boolean tiled = isPanelTiled(panel, viewport);
+         double endTime = animatePiePanel(panel.slices, panel.center, hole, tiled,
+                                          cssKeyframes, kfCounter);
+         maxEndTime = Math.max(maxEndTime, endTime);
+      }
+
+      if(!cssKeyframes.isEmpty()) {
+         appendStyle(svgRoot, doc, cssKeyframes.toString());
+      }
+
+      // Center text (donut label/value): fade in after every panel has finished sweeping.
+      double centerTextDelay = maxEndTime + 0.1;
+
+      for(Element textGroup : textGroups) {
+         mergeStyle(textGroup, String.format(java.util.Locale.US,
+            "opacity:0;animation:inetsoft-pie-fade %.2fs %s %.2fs both",
+            AnimationConstants.PIE_TEXT_DURATION, AnimationConstants.PIE_FADE_EASING, centerTextDelay));
+      }
+   }
+
+   /**
+    * The drawable size {@code {width,height}} of an SVG tile in user units, from its {@code
+    * viewBox} (preferred) or {@code width}/{@code height} attributes, or null if neither is set.
+    */
+   private static double[] svgViewport(Element svgRoot) {
+      String viewBox = svgRoot.getAttribute("viewBox");
+
+      if(viewBox != null && !viewBox.isEmpty()) {
+         Matcher m = Pattern.compile("-?[0-9]*\\.?[0-9]+").matcher(viewBox);
+         double[] n = new double[4];
+         int i = 0;
+         while(i < 4 && m.find()) n[i++] = Double.parseDouble(m.group());
+         if(i == 4 && n[2] > 0 && n[3] > 0) return new double[]{ n[2], n[3] };
+      }
+
+      double w = parseLength(svgRoot.getAttribute("width"));
+      double h = parseLength(svgRoot.getAttribute("height"));
+      return w > 0 && h > 0 ? new double[]{ w, h } : null;
+   }
+
+   /** Parse a leading numeric length (ignoring a unit suffix like {@code px}); 0 if absent. */
+   private static double parseLength(String s) {
+      if(s == null) return 0;
+      Matcher m = Pattern.compile("-?[0-9]*\\.?[0-9]+").matcher(s);
+      return m.find() ? Double.parseDouble(m.group()) : 0;
+   }
+
+   /**
+    * Returns true when this pie does not fully fit within the tile — it is split/clipped across
+    * SVG tiles (oversized, or straddling a tile seam), so the geometric sweep cannot be used.
+    * The pie circle (center ± radius) is mapped to the tile's coordinate space via the slice
+    * transform and tested for containment in the viewport.  A normal pie, and each panel of a
+    * non-tiled facet chart, sits inside its tile, so this stays false for them.
+    */
+   private static boolean isPanelTiled(PiePanel panel, double[] viewport) {
+      if(viewport == null || panel.center == null || panel.slices.isEmpty()) {
+         return false;
+      }
+
+      double cx = panel.center[0], cy = panel.center[1], r = panel.radius;
+      double[] ctm = elementCTM(panel.slices.get(0));
+      double[] box = { Double.MAX_VALUE, Double.MAX_VALUE, -Double.MAX_VALUE, -Double.MAX_VALUE };
+      expandBounds(box, ctm, cx - r, cy - r);
+      expandBounds(box, ctm, cx + r, cy - r);
+      expandBounds(box, ctm, cx - r, cy + r);
+      expandBounds(box, ctm, cx + r, cy + r);
+
+      // 2px tolerance absorbs the sub-pixel tile-translate offset; a tiled pie overflows far more.
+      return box[0] < -2 || box[1] < -2 || box[2] > viewport[0] + 2 || box[3] > viewport[1] + 2;
+   }
+
+   /** Affine matrix mapping {@code node}'s local coordinates to the SVG root, from ancestor transforms. */
+   private static double[] elementCTM(Node node) {
+      double[] ctm = IDENTITY_MATRIX.clone();
+
+      for(Node n = node; n instanceof Element e; n = n.getParentNode()) {
+         String tf = e.getAttribute("transform");
+
+         if(!tf.isEmpty()) {
+            ctm = composeMatrix(parseSVGTransform(tf), ctm);
+         }
+      }
+
+      return ctm;
+   }
+
+   /**
+    * Animate the slices of a single pie panel (one facet) around the given {@code pieCenter}.
+    *
+    * <p>Each arc slice sweeps in by animating its CSS "d" via per-slice @keyframes (the wheel
+    * effect: slices grow one at a time in angular order).  The from-state is the same M-A-L-Z
+    * structure with the arc endpoint equal to the start (a zero-length arc) — CSS path
+    * interpolation requires both ends to share the command sequence.  One keyframe per ~5° keeps
+    * the leading edge on the outer circle, with the large-arc flag recomputed per keyframe.
+    *
+    * <p>When {@code tiled} (the pie is clipped across SVG tiles), the sweep's rewritten "d" can't
+    * survive the per-tile clip, so we fall back to the staggered opacity fade — like donuts —
+    * which only animates opacity and leaves the (correctly clipped) wedge geometry intact.
+    *
+    * <p>@keyframes rules are appended to the shared {@code cssKeyframes} buffer (flushed once by
+    * the caller) and named via the shared {@code kfCounter} so names stay unique across panels.
+    *
+    * @return the time (seconds) at which this panel's last slice finishes animating.
+    */
+   private static double animatePiePanel(List<Element> slices, double[] pieCenter,
+                                         double[] holeParams, boolean tiled,
+                                         StringBuilder cssKeyframes, int[] kfCounter)
+   {
+      final double SLICE_DUR = AnimationConstants.PIE_SLICE_DURATION;
+      // Tolerance (radians, ~0.06°) for treating two arc start angles as the same logical slice.
+      // Large enough to absorb coordinate rounding between a slice's 3D faces, small enough not to
+      // merge distinct wedges (adjacent slice starts differ by the in-between slice's full sweep).
+      final double ANGLE_GROUP_EPS = 0.001;
+
+      // Group slices into logical slices by start angle (from each slice's own hub), which drives
+      // the one-at-a-time wheel via groupBegin.  Angle (not start x) keeps symmetric no-measure
+      // pies sequenced: two mirror-angle slices share a start x but have distinct angles.  A 3D
+      // slice's faces share the angle (each is the top face shifted down by the depth), so they
+      // merge into one group and stay in sync.  groupKeys keeps a representative start x per
+      // group for findDepthFaceDelay (non-arc depth quads).
+      List<Double> groupKeys   = new ArrayList<>();
+      List<Double> groupAngles = new ArrayList<>();
+
+      // Pass 1: compute the logical-slice arcIdx for each slice.
       int[] sliceArcIdx = new int[slices.size()];
       Arrays.fill(sliceArcIdx, -1);
 
@@ -500,21 +609,28 @@ public class SVGAnimationDOMInjector {
          if(!d.contains("A")) continue;
 
          double startX = extractMStartX(d);
-         double[] arcRef = extractArcParams(d);
-         double startY = arcRef != null ? arcRef[1] : 0.0;
+         double[] arc = extractArcParams(d);
+         double[] hub = extractPieCenter(d);
+         double angle = arc != null && hub != null
+            ? Math.atan2(arc[1] - hub[1], arc[0] - hub[0]) : 0;
 
          int existingIdx = -1;
-         for(int j = 0; j < groupKeys.size(); j++) {
-            if(Math.abs(groupKeys.get(j) - startX) <= 0.01) {
+         for(int j = 0; j < groupAngles.size(); j++) {
+            // Wrap-safe angular comparison so a start near ±π still matches its own faces.
+            double diff = angle - groupAngles.get(j);
+            while(diff > Math.PI) diff -= 2 * Math.PI;
+            while(diff < -Math.PI) diff += 2 * Math.PI;
+
+            if(Math.abs(diff) <= ANGLE_GROUP_EPS) {
                existingIdx = j;
                break;
             }
          }
 
          if(existingIdx < 0) {
-            existingIdx = groupKeys.size();
+            existingIdx = groupAngles.size();
+            groupAngles.add(angle);
             groupKeys.add(startX);
-            groupRefSY.add(startY);
          }
 
          sliceArcIdx[si] = existingIdx;
@@ -522,26 +638,17 @@ public class SVGAnimationDOMInjector {
 
       int numArcGroups = groupKeys.size();
 
-      // Fallback for donut/pie charts rendered with bezier curves (C/Q commands) instead of
-      // SVG arc commands (A).  Some renderers approximate arcs as cubic bezier splines, so
-      // d.contains("A") is false for every slice and groupKeys stays empty.  In that case
-      // we cannot do the SMIL arc-sweep animation, so apply staggered opacity fade instead.
-      if(numArcGroups == 0) {
+      // Staggered opacity fade (no "d" rewrite) instead of the arc-sweep when either the slices
+      // are bezier-approximated arcs (no "A", e.g. donut rings) so the sweep is impossible, or
+      // the pie is clipped across tiles where the sweep's rewritten "d" would not survive.
+      if(numArcGroups == 0 || tiled) {
          for(int si = 0; si < slices.size(); si++) {
             mergeStyle(slices.get(si), String.format(java.util.Locale.US,
                "opacity:0;animation:inetsoft-pie-fade %.2fs %s %.2fs both",
                AnimationConstants.PIE_FADE_DURATION, AnimationConstants.PIE_FADE_EASING, si * SLICE_DUR));
          }
 
-         double centerTextDelay = slices.size() * SLICE_DUR + 0.1;
-
-         for(Element textGroup : textGroups) {
-            mergeStyle(textGroup, String.format(java.util.Locale.US,
-               "opacity:0;animation:inetsoft-pie-fade %.2fs %s %.2fs both",
-               AnimationConstants.PIE_TEXT_DURATION, AnimationConstants.PIE_FADE_EASING, centerTextDelay));
-         }
-
-         return;
+         return slices.size() * SLICE_DUR;
       }
 
       // Pass 1.5: compute sweep angle (degrees) for each arc group so durations can be
@@ -602,12 +709,8 @@ public class SVGAnimationDOMInjector {
 
       double totalAnimEndTime = cumulativeBegin; // = sum of all groupDurations
 
-      // Pass 2: apply animations.
-      // Per-slice @keyframes rules are collected here and flushed in one <style> block after
-      // the loop to avoid one appendStyle call per slice.
-      int sliceKeyframeIdx = 0;
-      StringBuilder cssKeyframes = new StringBuilder();
-
+      // Pass 2: apply animations.  Per-slice @keyframes rules are appended to the shared
+      // cssKeyframes buffer (flushed once by the caller) and named via the shared kfCounter.
       for(int si = 0; si < slices.size(); si++) {
          Element slice = slices.get(si);
          String d = slice.getAttribute("d");
@@ -633,13 +736,17 @@ public class SVGAnimationDOMInjector {
             double[] arc = extractArcParams(d);
 
             if(arc != null) {
-               // For 3D pies there are multiple faces per logical slice: the top elliptical face
-               // (M-point Y ≈ groupRefSY) and one or more depth/side faces (M-point Y > refSY).
-               //
-               // Depth/side faces are left fully opaque with no animation — they remain visible
-               // throughout so the slice is never see-through.  Only the top face sweeps.
-               double sy_ref = groupRefSY.get(myArcIdx);
-               boolean isDepthFace = arc[1] > sy_ref + 1.0;
+               // Sweep around the slice's own hub (its "L cx cy Z" point): the pie center for a
+               // flat slice, the depth-offset center for a 3D face.  Per-slice (vs a center
+               // reconstructed from a sibling's Y) stays correct when two symmetric slices share a
+               // start x-coordinate — common in a no-measure pie.
+               double[] hub = extractPieCenter(d);
+               double cx = hub != null ? hub[0] : pieCenter[0];
+               double cy = hub != null ? hub[1] : pieCenter[1];
+
+               // A 3D depth/side face (hub below the pie center) stays opaque without sweeping, so
+               // the slice is never see-through; only the top face sweeps.
+               boolean isDepthFace = hub != null && hub[1] > pieCenter[1] + 1.0;
 
                if(isDepthFace) {
                   // Arc depth face: snap to full opacity when this slice's sweep begins.
@@ -666,13 +773,6 @@ public class SVGAnimationDOMInjector {
                double rx = arc[2], ry = arc[3];
                double xrot = arc[4], sw = arc[6];
                double exFull = arc[7], eyFull = arc[8];
-               double cx = pieCenter[0];
-               // Each 3D face is offset downward from the top face by the 3D depth.
-               // Using the top-face cy for all faces makes depth-face keypoints trace the
-               // top ellipse instead of their own offset ellipse, causing outer-edge misalignment.
-               // Per-face cy = topCenter_y + (this_face_M_y - topFace_M_y) places the arc
-               // keypoints on each face's own correctly offset ellipse.
-               double cy = pieCenter[1] + (sy - groupRefSY.get(myArcIdx));
 
                double startAngle = Math.atan2(sy - cy, sx - cx);
                double endAngle   = Math.atan2(eyFull - cy, exFull - cx);
@@ -728,7 +828,7 @@ public class SVGAnimationDOMInjector {
                // CSS d-property animation requires path() wrapper around each SVG path string.
                // Keyframe percentages are equally spaced in time (one per ~5° angular step),
                // and linear timing between keyframes traces the arc edge correctly.
-               String kfName = "inetsoft-pie-sweep-" + sliceKeyframeIdx++;
+               String kfName = "inetsoft-pie-sweep-" + kfCounter[0]++;
                String[] paths = values.toString().split(";");
                cssKeyframes.append("@keyframes ").append(kfName).append("{");
 
@@ -751,18 +851,227 @@ public class SVGAnimationDOMInjector {
             AnimationConstants.PIE_FADE_DURATION, AnimationConstants.PIE_FADE_EASING, delay));
       }
 
-      if(!cssKeyframes.isEmpty()) {
-         appendStyle(svgRoot, doc, cssKeyframes.toString());
+      return totalAnimEndTime;
+   }
+
+   /**
+    * A single pie within a (possibly faceted) chart: its hub center and the slice paths that
+    * converge to it.  {@code center} is null only when no arc hub could be found anywhere
+    * (e.g. a bezier-approximated pie), in which case the panel holds every slice and animates
+    * with the staggered opacity fallback.
+    */
+   private static final class PiePanel {
+      double[] center;
+      double radius;
+      final List<Element> slices = new ArrayList<>();
+   }
+
+   /**
+    * Partition pie slices into panels (one per facet) by each slice's pie center.
+    *
+    * <p>The center is the slice's own hub: for an arc wedge it is the {@code "L cx cy Z"} point
+    * (see {@link #extractPieCenter}); for a bezier donut ring it is the intersection of the two
+    * radial edges (see {@link #extractRingCenter}).  All slices of one pie share the same center,
+    * while distinct facet panels never overlap and so are more than one radius apart; clustering
+    * centers with a per-pie-radius threshold therefore groups each pie cleanly.  Facet position
+    * is baked into the slice coordinates (the chart transform is shared across facets), so the
+    * raw center separates facets directly.  DOM order is preserved within each panel — the wheel
+    * order and arc-group encounter order depend on it.
+    *
+    * <p>Slices with no recoverable center (3D side quads) are assigned in a second pass to the
+    * nearest panel by centroid.  If no center is found anywhere, one center-less panel holds all
+    * slices, preserving the legacy single-pie path.
+    */
+   private static List<PiePanel> partitionPiePanels(List<Element> slices) {
+      List<PiePanel> panels = new ArrayList<>();
+      boolean[] assigned = new boolean[slices.size()];
+
+      // Pass A: slices with a recoverable center establish or join panels, in DOM order.
+      for(int i = 0; i < slices.size(); i++) {
+         String d = slices.get(i).getAttribute("d");
+         double[] center;
+         double r;
+
+         if(d.contains("A")) {
+            center = extractPieCenter(d);
+            double[] arc = extractArcParams(d);
+            r = arc != null ? Math.max(Math.abs(arc[2]), Math.abs(arc[3])) : 0;
+         }
+         else {
+            center = extractRingCenter(d);
+            r = center != null ? ringRadius(d, center) : 0;
+         }
+
+         if(center == null) {
+            continue;
+         }
+
+         PiePanel best = null;
+         double bestDist = Double.MAX_VALUE;
+
+         for(PiePanel p : panels) {
+            double dist = Math.hypot(center[0] - p.center[0], center[1] - p.center[1]);
+            // Same pie when within the larger of the two radii: one pie's slices all share its
+            // center, while separate panels are more than a radius apart.
+            double thresh = Math.max(r, p.radius);
+
+            if(dist <= thresh && dist < bestDist) {
+               best = p;
+               bestDist = dist;
+            }
+         }
+
+         if(best == null) {
+            best = new PiePanel();
+            best.center = center;
+            best.radius = r;
+            panels.add(best);
+         }
+         else {
+            best.radius = Math.max(best.radius, r);
+         }
+
+         best.slices.add(slices.get(i));
+         assigned[i] = true;
       }
 
-      // Center text (donut label/value): fade in after ALL slices have finished sweeping.
-      double centerTextDelay = totalAnimEndTime + 0.1;
-
-      for(Element textGroup : textGroups) {
-         mergeStyle(textGroup, String.format(java.util.Locale.US,
-            "opacity:0;animation:inetsoft-pie-fade %.2fs %s %.2fs both",
-            AnimationConstants.PIE_TEXT_DURATION, AnimationConstants.PIE_FADE_EASING, centerTextDelay));
+      // No center anywhere: one center-less panel preserves the legacy single-pie path.
+      if(panels.isEmpty()) {
+         PiePanel only = new PiePanel();
+         only.slices.addAll(slices);
+         panels.add(only);
+         return panels;
       }
+
+      // Pass B: assign remaining slices (e.g. 3D depth quads) to the nearest panel by centroid.
+      for(int i = 0; i < slices.size(); i++) {
+         if(assigned[i]) {
+            continue;
+         }
+
+         double[] b = SVGAnimationInjector.parseBarBounds(slices.get(i).getAttribute("d"));
+         double cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2;
+         PiePanel best = panels.get(0);
+         double bestDist = Double.MAX_VALUE;
+
+         for(PiePanel p : panels) {
+            double dist = Math.hypot(cx - p.center[0], cy - p.center[1]);
+
+            if(dist < bestDist) {
+               best = p;
+               bestDist = dist;
+            }
+         }
+
+         best.slices.add(slices.get(i));
+      }
+
+      return panels;
+   }
+
+   /**
+    * Compute the center of a bezier donut ring slice.  Batik renders a donut slice as a filled
+    * {@link java.awt.geom.Area}: an outer arc (bezier), a radial line ({@code L}) inward to the
+    * inner radius, an inner arc (bezier), then a closing {@code Z} back to the start.  The two
+    * radial edges — the explicit {@code L} (outer end → inner start) and the closing {@code Z}
+    * (inner end → start) — both pass through the pie center, so their intersection is the center.
+    *
+    * @return {@code {cx, cy}}, or null when the path is not a ring (no {@code L}, parallel edges).
+    */
+   private static double[] extractRingCenter(String d) {
+      if(d == null) {
+         return null;
+      }
+
+      int li = d.indexOf('L');
+      int zi = d.lastIndexOf('Z');
+
+      if(li < 0 || zi < 0 || zi < li) {
+         return null;
+      }
+
+      double[] start    = firstPoint(d.substring(0, li));   // outer start (M point), angle 1
+      double[] outerEnd = lastPoint(d.substring(0, li));     // outer arc end, angle 2
+      double[] innerStart = firstPoint(d.substring(li + 1)); // inner start (L point), angle 2
+      double[] innerEnd = lastPoint(d.substring(0, zi));     // inner arc end, angle 1
+
+      if(start == null || outerEnd == null || innerStart == null || innerEnd == null) {
+         return null;
+      }
+
+      // Radial edge 1: start ↔ innerEnd (angle 1).  Radial edge 2: outerEnd ↔ innerStart (angle 2).
+      return lineIntersect(start, innerEnd, outerEnd, innerStart);
+   }
+
+   /** Outer radius of a ring slice: the largest distance from {@code center} to its endpoints. */
+   private static double ringRadius(String d, double[] center) {
+      double max = 0;
+      Matcher m = Pattern.compile("-?[0-9]*\\.?[0-9]+(?:[eE][-+]?[0-9]+)?")
+                         .matcher(d.replace(',', ' '));
+      List<Double> nums = new ArrayList<>();
+      while(m.find()) nums.add(Double.parseDouble(m.group()));
+
+      for(int i = 0; i + 1 < nums.size(); i += 2) {
+         max = Math.max(max, Math.hypot(nums.get(i) - center[0], nums.get(i + 1) - center[1]));
+      }
+
+      return max;
+   }
+
+   /** First (x,y) number pair in a path fragment, or null. */
+   private static double[] firstPoint(String s) {
+      Matcher m = Pattern.compile("-?[0-9]*\\.?[0-9]+(?:[eE][-+]?[0-9]+)?")
+                         .matcher(s.replace(',', ' '));
+      if(!m.find()) return null;
+      double x = Double.parseDouble(m.group());
+      if(!m.find()) return null;
+      return new double[]{ x, Double.parseDouble(m.group()) };
+   }
+
+   /** Last (x,y) number pair in a path fragment, or null. */
+   private static double[] lastPoint(String s) {
+      Matcher m = Pattern.compile("-?[0-9]*\\.?[0-9]+(?:[eE][-+]?[0-9]+)?")
+                         .matcher(s.replace(',', ' '));
+      List<Double> nums = new ArrayList<>();
+      while(m.find()) nums.add(Double.parseDouble(m.group()));
+      int n = nums.size();
+      return n >= 2 ? new double[]{ nums.get(n - 2), nums.get(n - 1) } : null;
+   }
+
+   /** Intersection of line (a,b) with line (c,e), or null if (near-)parallel. */
+   private static double[] lineIntersect(double[] a, double[] b, double[] c, double[] e) {
+      double x1 = a[0], y1 = a[1], x2 = b[0], y2 = b[1];
+      double x3 = c[0], y3 = c[1], x4 = e[0], y4 = e[1];
+      double den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+
+      if(Math.abs(den) < 1e-9) {
+         return null;
+      }
+
+      double pre = x1 * y2 - y1 * x2, post = x3 * y4 - y3 * x4;
+      double px = (pre * (x3 - x4) - (x1 - x2) * post) / den;
+      double py = (pre * (y3 - y4) - (y1 - y2) * post) / den;
+      return new double[]{ px, py };
+   }
+
+   /**
+    * Return the donut hole {@code {cx,cy,r}} whose center is nearest {@code center} and within
+    * its own radius, or null when no hole encloses the panel center (a flat, non-donut pie).
+    */
+   private static double[] nearestHole(List<double[]> holes, double[] center) {
+      double[] best = null;
+      double bestDist = Double.MAX_VALUE;
+
+      for(double[] h : holes) {
+         double dist = Math.hypot(h[0] - center[0], h[1] - center[1]);
+
+         if(dist <= h[2] && dist < bestDist) {
+            best = h;
+            bestDist = dist;
+         }
+      }
+
+      return best;
    }
 
    // -------------------------------------------------------------------------
@@ -2785,17 +3094,19 @@ public class SVGAnimationDOMInjector {
    // -------------------------------------------------------------------------
 
    /**
-    * Scan {@code inetsoft-bar} annotation groups for the donut center-hole overlay
-    * (an annotation whose only shape descendant is a {@code <circle>}).
+    * Scan {@code inetsoft-bar} annotation groups for donut center-hole overlays
+    * (an annotation whose only shape descendant is a {@code <circle>}).  A faceted donut chart
+    * has one such overlay per panel.
     *
-    * <p>When found, reclassifies the group to {@code inetsoft-bar-hole} and pins its opacity to 1
-    * via an inline {@code !important} style so it is immune to any class-based dim rule.
+    * <p>Each one found is reclassified to {@code inetsoft-bar-hole} and has its opacity pinned to
+    * 1 via an inline {@code !important} style so it is immune to any class-based dim rule.
     *
-    * @return {@code {cx, cy, innerR}} in the group's local coordinate system, or {@code null}
-    *         when the SVG is not a donut chart.
+    * @return one {@code {cx, cy, innerR}} (group-local coordinates) per hole found; empty when
+    *         the SVG is not a donut chart.
     */
-   private static double[] preprocessDonutHole(Element svgRoot) {
+   private static List<double[]> preprocessDonutHoles(Element svgRoot) {
       List<Element> annotBars = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_BAR);
+      List<double[]> holes = new ArrayList<>();
 
       for(Element g : annotBars) {
          Element circle = findDescendantCircle(g);
@@ -2804,7 +3115,7 @@ public class SVGAnimationDOMInjector {
             continue;
          }
 
-         // This is the donut center-hole overlay.
+         // This is a donut center-hole overlay.
          g.setAttribute("class", SVGSupport.ANNOTATION_DONUT_HOLE);
          String existing = g.getAttribute("style");
          String holeStyle = "opacity:1!important";
@@ -2816,11 +3127,11 @@ public class SVGAnimationDOMInjector {
          double r  = parseAttr(circle, "r");
 
          if(r > 0) {
-            return new double[]{ cx, cy, r };
+            holes.add(new double[]{ cx, cy, r });
          }
       }
 
-      return null;
+      return holes;
    }
 
    /**

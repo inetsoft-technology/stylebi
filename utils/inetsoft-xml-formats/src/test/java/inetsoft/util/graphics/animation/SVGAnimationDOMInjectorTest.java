@@ -1365,4 +1365,406 @@ class SVGAnimationDOMInjectorTest {
       assertTrue(pointStyle == null || pointStyle.isEmpty(),
                  "combo chart point overlay must not receive a fade without the gantt flag");
    }
+
+   // -------------------------------------------------------------------------
+   // Faceted pie animation tests
+   // -------------------------------------------------------------------------
+
+   /**
+    * Adds a pie slice as a Batik-style {@code <path stroke="none">} wedge of the form
+    * {@code M sx sy A rx ry 0 la sw ex ey L cx cy Z}, where (cx,cy) is the pie hub.
+    *
+    * @return the slice path element
+    */
+   private static Element addPieSlice(Document doc, double sx, double sy, double r,
+                                      int la, int sw, double ex, double ey,
+                                      double cx, double cy)
+   {
+      return addPieSliceTo(doc.getDocumentElement(), doc, sx, sy, r, la, sw, ex, ey, cx, cy);
+   }
+
+   /** As {@link #addPieSlice} but appends the slice to a given parent (e.g. a transformed group). */
+   private static Element addPieSliceTo(Element parent, Document doc, double sx, double sy, double r,
+                                        int la, int sw, double ex, double ey, double cx, double cy)
+   {
+      Element path = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+      path.setAttribute("stroke", "none");
+      path.setAttribute("d", String.format(Locale.US,
+         "M%.4f %.4f A%.4f %.4f 0 %d %d %.4f %.4f L%.4f %.4f Z",
+         sx, sy, r, r, la, sw, ex, ey, cx, cy));
+      parent.appendChild(path);
+      return path;
+   }
+
+   /**
+    * Adds a realistic bezier donut ring slice ({@code M …C… L …C… Z}, no arc command, no center
+    * hub) whose two radial edges intersect at (cx,cy) — the shape real donut slices take, since
+    * they are a filled Area serialized by Batik as cubic beziers.  The slice spans the given
+    * start angle to start+sweep (degrees) between innerR=10 and outerR=30, so different slices of
+    * the same donut share the center while the bezier control points differ.
+    */
+   private static Element addRingSlice(Document doc, double cx, double cy,
+                                       double startDeg, double sweepDeg)
+   {
+      double a1 = Math.toRadians(startDeg), a2 = Math.toRadians(startDeg + sweepDeg);
+      double oR = 30, iR = 10;
+      double oSx = cx + oR * Math.cos(a1), oSy = cy + oR * Math.sin(a1);   // outer start (a1)
+      double oEx = cx + oR * Math.cos(a2), oEy = cy + oR * Math.sin(a2);   // outer end   (a2)
+      double iSx = cx + iR * Math.cos(a2), iSy = cy + iR * Math.sin(a2);   // inner start (a2)
+      double iEx = cx + iR * Math.cos(a1), iEy = cy + iR * Math.sin(a1);   // inner end   (a1)
+      Element svg = doc.getDocumentElement();
+      Element path = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+      path.setAttribute("stroke", "none");
+      // The C control points are arbitrary (only endpoints feed center recovery); the L and Z
+      // edges are the two radials that intersect at (cx,cy).
+      path.setAttribute("d", String.format(Locale.US,
+         "M%.4f %.4f C%.4f %.4f %.4f %.4f %.4f %.4f L%.4f %.4f C%.4f %.4f %.4f %.4f %.4f %.4f Z",
+         oSx, oSy, oSx, oSy, oEx, oEy, oEx, oEy, iSx, iSy, iSx, iSy, iEx, iEy, iEx, iEy));
+      svg.appendChild(path);
+      return path;
+   }
+
+   /** Adds a donut center-hole overlay: a {@code <g class="inetsoft-bar">} wrapping a circle. */
+   private static Element addHoleOverlay(Document doc, double cx, double cy, double r) {
+      Element svg = doc.getDocumentElement();
+      Element g = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      g.setAttribute("class", SVGSupport.ANNOTATION_BAR);
+      Element circle = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "circle");
+      circle.setAttribute("cx", String.valueOf(cx));
+      circle.setAttribute("cy", String.valueOf(cy));
+      circle.setAttribute("r", String.valueOf(r));
+      g.appendChild(circle);
+      svg.appendChild(g);
+      return g;
+   }
+
+   /** Parses the final {@code "L cx cy Z"} hub point from a slice path. */
+   private static double[] parseHub(String d) {
+      Matcher m = Pattern.compile(
+         "L\\s*(-?\\d+\\.?\\d*)\\s+(-?\\d+\\.?\\d*)\\s*Z").matcher(d);
+      double[] hub = null;
+
+      while(m.find()) {
+         hub = new double[]{ Double.parseDouble(m.group(1)), Double.parseDouble(m.group(2)) };
+      }
+
+      return hub;
+   }
+
+   /** Extracts the {@code inetsoft-pie-sweep-N} keyframe name referenced by a slice's style. */
+   private static String sweepKeyframeName(String style) {
+      Matcher m = Pattern.compile("inetsoft-pie-sweep-\\d+").matcher(style);
+      return m.find() ? m.group() : null;
+   }
+
+   /** Asserts every arc endpoint in the named sweep keyframe lies on the circle (cx,cy,r). */
+   private static void assertSweepOnCircle(String css, String kfName,
+                                           double cx, double cy, double r)
+   {
+      String block = keyframeBlock(css, kfName);
+      Matcher pm = Pattern.compile("path\\('([^']*)'\\)").matcher(block);
+      int checked = 0;
+
+      while(pm.find()) {
+         String path = pm.group(1);
+         String arc = path.substring(path.indexOf('A'), path.indexOf('L'));
+         Matcher nm = Pattern.compile("-?\\d+\\.?\\d*").matcher(arc);
+         List<Double> nums = new ArrayList<>();
+         while(nm.find()) nums.add(Double.parseDouble(nm.group()));
+         double ex = nums.get(nums.size() - 2), ey = nums.get(nums.size() - 1);
+         assertEquals(r, Math.hypot(ex - cx, ey - cy), 0.5,
+                      kfName + " arc endpoint must stay on circle around (" + cx + "," + cy + ")");
+         checked++;
+      }
+
+      assertTrue(checked >= 2, "expected multiple sweep keyframes for " + kfName);
+   }
+
+   /** Returns the body of the named {@code @keyframes} rule via brace matching. */
+   private static String keyframeBlock(String css, String name) {
+      int header = css.indexOf("@keyframes " + name + "{");
+      assertTrue(header >= 0, "keyframes rule " + name + " must exist");
+      int open = css.indexOf('{', header);
+      int depth = 0;
+
+      for(int i = open; i < css.length(); i++) {
+         if(css.charAt(i) == '{') depth++;
+         else if(css.charAt(i) == '}' && --depth == 0) return css.substring(open + 1, i);
+      }
+
+      return "";
+   }
+
+   /**
+    * Two pie panels rendered into one SVG (a facet chart) must each sweep around their OWN hub.
+    * Pre-fix, a single global center was used for every slice, so the second panel's wedges
+    * collapsed/cut across the interior — this asserts each slice keeps its own hub center.
+    */
+   @Test
+   void facetedPie_eachPanelSweepsAroundOwnCenter() throws Exception {
+      Document doc = newDocument();
+      // Panel 1: center (100,100), r=80. Panel 2: center (400,100), r=80. Two slices each.
+      Element a = addPieSlice(doc, 180, 100, 80, 0, 1, 100, 180, 100, 100);
+      Element b = addPieSlice(doc, 100, 180, 80, 0, 1,  20, 100, 100, 100);
+      Element c = addPieSlice(doc, 480, 100, 80, 0, 1, 400, 180, 400, 100);
+      Element e = addPieSlice(doc, 400, 180, 80, 0, 1, 320, 100, 400, 100);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      // Each slice's rewritten from-state must retain its OWN panel center as the hub.
+      assertArrayEquals(new double[]{100, 100}, parseHub(a.getAttribute("d")), 0.01,
+                        "panel-1 slice must keep hub (100,100)");
+      assertArrayEquals(new double[]{400, 100}, parseHub(c.getAttribute("d")), 0.01,
+                        "panel-2 slice must keep hub (400,100), not the global first-pie center");
+
+      // Distinct keyframe names for all four arc slices (no cross-panel collision).
+      Set<String> names = new HashSet<>();
+      for(Element s : List.of(a, b, c, e)) {
+         names.add(sweepKeyframeName(s.getAttribute("style")));
+      }
+      assertEquals(4, names.size(), "each slice must reference a unique sweep keyframe");
+
+      // Panel-2 slice keyframe endpoints must lie on the circle around (400,100), radius 80.
+      String css = allStyleContent(doc.getDocumentElement());
+      String block = keyframeBlock(css, sweepKeyframeName(c.getAttribute("style")));
+      Matcher pm = Pattern.compile("path\\('([^']*)'\\)").matcher(block);
+      int checked = 0;
+
+      while(pm.find()) {
+         String path = pm.group(1);
+         String arc = path.substring(path.indexOf('A'), path.indexOf('L'));
+         Matcher nm = Pattern.compile("-?\\d+\\.?\\d*").matcher(arc);
+         List<Double> nums = new ArrayList<>();
+         while(nm.find()) nums.add(Double.parseDouble(nm.group()));
+         double ex = nums.get(nums.size() - 2), ey = nums.get(nums.size() - 1);
+         assertEquals(80.0, Math.hypot(ex - 400, ey - 100), 0.5,
+                      "panel-2 arc endpoint must stay on its own outer circle");
+         checked++;
+      }
+
+      assertTrue(checked >= 2, "expected multiple sweep keyframes for the panel-2 slice");
+   }
+
+   /** In a facet pie every panel begins sweeping at t=0 (panels animate in parallel). */
+   @Test
+   void facetedPie_panelsAnimateInParallel() throws Exception {
+      Document doc = newDocument();
+      Element a = addPieSlice(doc, 180, 100, 80, 0, 1, 100, 180, 100, 100);
+      addPieSlice(doc, 100, 180, 80, 0, 1, 20, 100, 100, 100);
+      Element c = addPieSlice(doc, 480, 100, 80, 0, 1, 400, 180, 400, 100);
+      addPieSlice(doc, 400, 180, 80, 0, 1, 320, 100, 400, 100);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      // The first slice of each panel (its first arc group) begins at delay 0.
+      assertEquals(0.0, parseDelay(a.getAttribute("style")), 0.001,
+                   "panel-1 first slice must begin at t=0");
+      assertEquals(0.0, parseDelay(c.getAttribute("style")), 0.001,
+                   "panel-2 first slice must also begin at t=0 (parallel, not after panel 1)");
+   }
+
+   /** A faceted donut: each panel must be matched to its OWN center-hole and animate as a ring. */
+   @Test
+   void facetedDonut_eachPanelMatchedToOwnHole() throws Exception {
+      Document doc = newDocument();
+      // Full wedges (hub = center) plus a separate hole overlay per panel (the donut pattern).
+      addPieSlice(doc, 180, 100, 80, 0, 1, 100, 180, 100, 100);
+      Element c = addPieSlice(doc, 480, 100, 80, 0, 1, 400, 180, 400, 100);
+      Element hole1 = addHoleOverlay(doc, 100, 100, 30);
+      Element hole2 = addHoleOverlay(doc, 400, 100, 30);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      // Both overlays reclassified to the donut-hole class.
+      assertEquals(SVGSupport.ANNOTATION_DONUT_HOLE, hole1.getAttribute("class"));
+      assertEquals(SVGSupport.ANNOTATION_DONUT_HOLE, hole2.getAttribute("class"));
+
+      // Panel-2 slice must animate as a ring (two arcs: outer + inner) — proving it was matched
+      // to hole2 rather than left as a center-spoke wedge (a single arc).
+      long arcCount = c.getAttribute("d").chars().filter(ch -> ch == 'A').count();
+      assertEquals(2, arcCount, "panel-2 donut slice must be a ring (outer + inner arc)");
+   }
+
+   /**
+    * A flat pie with symmetric slices (the no-measure case) has slices whose start points share
+    * an x-coordinate (mirror angles about the horizontal axis).  Each such slice must still sweep
+    * around the true pie center.  Pre-fix, the startX grouping merged them and reconstructed a
+    * bogus center from another slice's Y, collapsing the wedge into a gap.
+    */
+   @Test
+   void flatPie_symmetricSlicesSweepAroundOwnCenter() throws Exception {
+      Document doc = newDocument();
+      // Pie center (200,200), r=100. Slice B starts at +60deg, slice A at -60deg: both have
+      // start x = 250, so the startX grouping would merge them. B is added first.
+      Element b = addPieSlice(doc, 250, 286.60254, 100, 0, 1, 165.79799, 293.96926, 200, 200);
+      Element a = addPieSlice(doc, 250, 113.39746, 100, 0, 1, 298.48078, 182.63518, 200, 200);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      // Both slices keep the true pie center as their hub (not a borrowed Y from the other slice).
+      assertArrayEquals(new double[]{200, 200}, parseHub(a.getAttribute("d")), 0.01,
+                        "upper mirror slice must sweep around the true center, not a bogus one");
+      assertArrayEquals(new double[]{200, 200}, parseHub(b.getAttribute("d")), 0.01,
+                        "lower mirror slice must sweep around the true center");
+
+      // Both must actually sweep (neither misclassified as a 3D depth face), around (200,200).
+      String css = allStyleContent(doc.getDocumentElement());
+      String kfA = sweepKeyframeName(a.getAttribute("style"));
+      String kfB = sweepKeyframeName(b.getAttribute("style"));
+      assertNotNull(kfA, "upper mirror slice must receive a sweep animation");
+      assertNotNull(kfB, "lower mirror slice must receive a sweep animation");
+      assertSweepOnCircle(css, kfA, 200, 200, 100);
+      assertSweepOnCircle(css, kfB, 200, 200, 100);
+   }
+
+   /**
+    * Symmetric slices that share a start x-coordinate must still animate one-at-a-time: keying
+    * the wheel sequence on the start angle (not the start x) keeps mirror slices on distinct
+    * sequential delays.  Pre-fix the shared startX merged them onto one delay (simultaneous).
+    */
+   @Test
+   void flatPie_symmetricSlicesAnimateSequentially() throws Exception {
+      Document doc = newDocument();
+      // Both start at x=250 (mirror angles +/-60deg about the horizontal). B added first.
+      Element b = addPieSlice(doc, 250, 286.60254, 100, 0, 1, 165.79799, 293.96926, 200, 200);
+      Element a = addPieSlice(doc, 250, 113.39746, 100, 0, 1, 298.48078, 182.63518, 200, 200);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      double delayB = parseDelay(b.getAttribute("style"));
+      double delayA = parseDelay(a.getAttribute("style"));
+      assertEquals(0.0, delayB, 0.001, "first slice in DOM order begins the wheel at t=0");
+      assertTrue(delayA > delayB + 0.001,
+                 "the mirror slice must follow sequentially, not animate at the same time: " +
+                 "delayA=" + delayA + ", delayB=" + delayB);
+   }
+
+   /**
+    * Real donut slices are bezier rings (a filled Area) with no arc command, no center hub, and
+    * NO separate hole overlay — the hole is the empty ring center.  Facet position is baked into
+    * the absolute coordinates.  A faceted donut must animate its panels in parallel: each facet,
+    * identified by the intersection of its slices' radial edges, staggers from t=0.  Pre-fix, all
+    * ring slices fell into one global sequence, so later facets started only after earlier facets
+    * finished — the reported "each plot renders sequentially" symptom.
+    */
+   @Test
+   void facetedDonut_bezierRingsAnimatePanelsInParallel() throws Exception {
+      Document doc = newDocument();
+      // Facet 1 centered at (100,100); facet 2 at (400,100). Two ring slices each, no overlays.
+      Element f1s0 = addRingSlice(doc, 100, 100, 0, 90);
+      Element f1s1 = addRingSlice(doc, 100, 100, 90, 90);
+      Element f2s0 = addRingSlice(doc, 400, 100, 0, 90);
+      Element f2s1 = addRingSlice(doc, 400, 100, 90, 90);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      double step = AnimationConstants.PIE_SLICE_DURATION;
+      // Each facet restarts the stagger at 0 — both first slices begin together.
+      assertEquals(0.0, parseDelay(f1s0.getAttribute("style")), 0.001,
+                   "facet 1 first slice begins at t=0");
+      assertEquals(0.0, parseDelay(f2s0.getAttribute("style")), 0.001,
+                   "facet 2 first slice must also begin at t=0, not after facet 1");
+      // Within each facet the slices still stagger one after another.
+      assertEquals(step, parseDelay(f1s1.getAttribute("style")), 0.001,
+                   "facet 1 second slice staggers within its own panel");
+      assertEquals(step, parseDelay(f2s1.getAttribute("style")), 0.001,
+                   "facet 2 second slice staggers within its own panel");
+   }
+
+   /**
+    * A pie larger than the tile (split/clipped across SVG tiles) must fall back to the opacity
+    * fade and NOT rewrite slice geometry: the arc sweep's rewritten {@code d} does not survive
+    * per-tile clipping (the exploded/malformed-final-state bug), whereas a pure opacity fade
+    * leaves the correct (statically clipped) wedge intact.
+    */
+   @Test
+   void largePie_tiledFallsBackToFade() throws Exception {
+      Document doc = newDocument();   // viewBox 0 0 800 600
+      // Pie center (600,300), r=500 → bbox width 1000 > 800 (viewport): larger than the tile.
+      Element a = addPieSlice(doc, 1100, 300, 500, 0, 1, 600, 800, 600, 300);
+      Element b = addPieSlice(doc, 600, 800, 500, 0, 1, 100, 300, 600, 300);
+      String origA = a.getAttribute("d");
+      String origB = b.getAttribute("d");
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      for(Element s : List.of(a, b)) {
+         String style = s.getAttribute("style");
+         assertTrue(style.contains("inetsoft-pie-fade"), "tiled pie slice must use the opacity fade");
+         assertFalse(style.contains("inetsoft-pie-sweep"),
+                     "tiled pie slice must NOT use the geometric sweep");
+      }
+      // Geometry must be untouched (still the original full wedge, not a rewritten from-state).
+      assertEquals(origA, a.getAttribute("d"), "fade must not rewrite slice d");
+      assertEquals(origB, b.getAttribute("d"), "fade must not rewrite slice d");
+   }
+
+   /** A normal-size pie (fits within the tile viewport) must still use the wheel-sweep. */
+   @Test
+   void normalPie_usesSweep() throws Exception {
+      Document doc = newDocument();   // viewBox 0 0 800 600
+      // Pie center (400,300), r=100 → bbox width 200 < 800: fits in the tile.
+      Element a = addPieSlice(doc, 500, 300, 100, 0, 1, 400, 400, 400, 300);
+      Element b = addPieSlice(doc, 400, 400, 100, 0, 1, 300, 300, 400, 300);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      assertTrue(a.getAttribute("style").contains("inetsoft-pie-sweep"),
+                 "normal-size pie must keep the wheel-sweep");
+   }
+
+   /**
+    * A pie small enough to fit a tile by size but positioned (via its parent transform) so it
+    * straddles/exceeds the tile must also fall back to the fade: containment is tested in the
+    * tile's coordinate space, not just by extent.  Covers the faceted-and-tiled seam case.
+    */
+   @Test
+   void pieClippedByTileViaTransform_fallsBackToFade() throws Exception {
+      Document doc = newDocument();   // viewBox 0 0 800 600
+      // Small pie (center 100,100, r=80) inside a group translated so it spills past x=800.
+      Element g = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      g.setAttribute("transform", "translate(760,0)");
+      doc.getDocumentElement().appendChild(g);
+      Element a = addPieSliceTo(g, doc, 180, 100, 80, 0, 1, 100, 180, 100, 100);
+      Element b = addPieSliceTo(g, doc, 100, 180, 80, 0, 1, 20, 100, 100, 100);
+      String origA = a.getAttribute("d");
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      assertTrue(a.getAttribute("style").contains("inetsoft-pie-fade"),
+                 "pie straddling the tile edge must use the fade");
+      assertFalse(a.getAttribute("style").contains("inetsoft-pie-sweep"),
+                  "pie straddling the tile edge must NOT use the sweep");
+      assertEquals(origA, a.getAttribute("d"), "fade must not rewrite slice d");
+   }
+
+   /**
+    * A faceted 3D pie (top arc face + non-arc depth quad per panel) must animate every slice,
+    * with each top face sweeping around its own panel center.
+    */
+   @Test
+   void faceted3DPie_assignsDepthFacesAndSweepsPerPanel() throws Exception {
+      Document doc = newDocument();
+      Element top1 = addPieSlice(doc, 180, 100, 80, 0, 1, 100, 160, 100, 100);
+      Element top2 = addPieSlice(doc, 480, 100, 80, 0, 1, 400, 160, 400, 100);
+      // Depth quads (no arc) under each panel's footprint.
+      Element depth1 = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+      depth1.setAttribute("stroke", "none");
+      depth1.setAttribute("d", "M100 160 L180 100 L180 120 L100 180 Z");
+      doc.getDocumentElement().appendChild(depth1);
+      Element depth2 = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+      depth2.setAttribute("stroke", "none");
+      depth2.setAttribute("d", "M400 160 L480 100 L480 120 L400 180 Z");
+      doc.getDocumentElement().appendChild(depth2);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_PIE);
+
+      assertArrayEquals(new double[]{400, 100}, parseHub(top2.getAttribute("d")), 0.01,
+                        "panel-2 top face must sweep around its own center");
+      // Every slice (top faces and depth quads) must receive an animation.
+      for(Element s : List.of(top1, top2, depth1, depth2)) {
+         assertTrue(s.getAttribute("style").contains("animation:"),
+                    "every 3D pie face must receive an animation, including depth quads");
+      }
+   }
 }
