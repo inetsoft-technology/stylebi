@@ -220,10 +220,17 @@ export class ChartInlineSvgDirective implements OnDestroy {
 
          const keys = pairs.map(p => `${p.row}-${p.col}`);
 
-         if(!this.sameActiveKeys(keys)) {
+         // Area/line/radar tiles dim by series color (setExternalSeriesDim), not the
+         // inetsoft-active class; toggling active on their shared point markers would fight
+         // that, so honor only the primary when a multi-element (stacked) set arrives on such
+         // a tile. Trim here so _activeKeys is written once and sameActiveKeys compares the
+         // value that was actually applied.
+         const activeKeys = this.usesSeriesColorDim && keys.length > 1 ? keys.slice(0, 1) : keys;
+
+         if(!this.sameActiveKeys(activeKeys)) {
             this.deactivateCurrent();
-            this._activeKeys = keys;
-            this.activateKeys(keys);
+            this._activeKeys = activeKeys;
+            this.activateKeys(activeKeys);
          }
       }
       else {
@@ -237,30 +244,17 @@ export class ChartInlineSvgDirective implements OnDestroy {
       }
    }
 
-   /** True when keys match the current active set (same order, same values). */
+   /** True when keys match the current active set, order-independent. */
    private sameActiveKeys(keys: string[]): boolean {
       if(keys.length !== this._activeKeys.length) {
          return false;
       }
 
-      for(let i = 0; i < keys.length; i++) {
-         if(keys[i] !== this._activeKeys[i]) {
-            return false;
-         }
-      }
-
-      return true;
+      const active = new Set(this._activeKeys);
+      return keys.every(k => active.has(k));
    }
 
    private activateKeys(keys: string[]): void {
-      // Area/line/radar dim by series color (setExternalSeriesDim), not the inetsoft-active
-      // class; toggling active on their shared point markers would fight that, so honor only
-      // the primary element when a multi-element (stacked) set arrives on such a tile.
-      if(this.usesSeriesColorDim && keys.length > 1) {
-         keys = keys.slice(0, 1);
-         this._activeKeys = keys;
-      }
-
       let anyFound = false;
 
       for(const key of keys) {

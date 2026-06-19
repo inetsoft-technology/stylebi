@@ -260,6 +260,17 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
          expect(activeFlags(host, ".inetsoft-bar")).toEqual([false, false, true]);
       });
 
+      it("treats a reordered key set as unchanged (no deactivate/reactivate)", () => {
+         const { dir, host } = makeDirective(html);
+         (dir as any).afterSvgInjected();
+         dir.highlightElements([{ row: 0, col: 0 }, { row: 1, col: 0 }]);
+         const deactivateSpy = vi.spyOn(dir as any, "deactivateCurrent");
+         // Same set, different order — sameActiveKeys is order-independent so nothing re-runs.
+         dir.highlightElements([{ row: 1, col: 0 }, { row: 0, col: 0 }]);
+         expect(deactivateSpy).not.toHaveBeenCalled();
+         expect(activeFlags(host, ".inetsoft-bar")).toEqual([true, true, false]);
+      });
+
       it("honors only the primary on a series-color-dimmed (area/line) tile", () => {
          const { dir, host } = makeDirective(html);
          (dir as any).afterSvgInjected();
