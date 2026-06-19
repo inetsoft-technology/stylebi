@@ -101,9 +101,9 @@
       <div class="row-items">
 
         <ng-container *ngFor="let item of row.items; let ii = index; trackBy: trackByIndex">
-        <!-- Insertion line: green when a dragged binding-tree field would drop before this item -->
-        <div class="layout-divider" [class.bg-success]="isDropTarget(ri, ii)"
-             (dragenter)="onDividerDragEnter(ri, ii)"></div>
+          <!-- Insertion line: green when a dragged binding-tree field would drop before this item -->
+          <div class="layout-divider" [class.bg-success]="isDropTarget(ri, ii)"
+               (dragenter)="onDividerDragEnter(ri, ii)"></div>
 
         <div class="layout-item"
              draggable="true"

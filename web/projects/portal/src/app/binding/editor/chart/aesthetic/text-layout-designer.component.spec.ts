@@ -106,6 +106,25 @@ describe("TextLayoutDesignerComponent Unit Test", () => {
       expect(component.workingRows[0].items.map((i: any) => i.fieldIndex)).toEqual([0, 1]);
    });
 
+   it("sets the drop indicator when a divider is entered and clears on dragend", () => {
+      component.workingRows = [{ items: [{ type: component.STATIC, text: "a" }] }];
+
+      component.onDividerDragEnter(0, 1);
+      expect(component.isDropTarget(0, 1)).toBe(true);
+      expect(component.isDropTarget(0, 0)).toBe(false);
+
+      component.onInternalDragEnd();
+      expect(component.isDropTarget(0, 1)).toBe(false);
+   });
+
+   it("isDraggingItem matches only the active item drag", () => {
+      (component as any).internalDrag = { kind: "item", rowIndex: 0, itemIndex: 0 };
+
+      expect(component.isDraggingItem(0, 0)).toBe(true);
+      expect(component.isDraggingItem(0, 1)).toBe(false);
+      expect(component.isDraggingItem(1, 0)).toBe(false);
+   });
+
    it("moves an item within a row, adjusting the target for the removal shift", () => {
       component.workingRows = [{ items: [
          { type: component.STATIC, text: "a" },

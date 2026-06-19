@@ -129,15 +129,22 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
 
          this.ngZone.run(() => {
             if(drag) {
-               // Internal reorder / palette insert — needs a resolved insertion point.
-               if(targetRow >= 0 && targetIndex >= 0) {
+               // Internal reorder / palette insert. Prefer the indicator position; if the drop
+               // landed off every divider (e.g. directly on a chip), fall back to the row under
+               // the cursor + append — consistent with the binding-tree branch below, so the
+               // drop is never silently swallowed.
+               const rowIndex = targetRow >= 0 ? targetRow : this.getRowIndexFromEvent(event);
+
+               if(rowIndex >= 0) {
                   event.preventDefault();
+                  const insertIndex = targetIndex >= 0
+                     ? targetIndex : this.workingRows[rowIndex].items.length;
 
                   if(drag.kind === "palette") {
-                     this.insertPaletteItem(drag.paletteType, targetRow, targetIndex);
+                     this.insertPaletteItem(drag.paletteType, rowIndex, insertIndex);
                   }
                   else {
-                     this.moveItem(drag.rowIndex, drag.itemIndex, targetRow, targetIndex);
+                     this.moveItem(drag.rowIndex, drag.itemIndex, rowIndex, insertIndex);
                   }
                }
             }
@@ -168,7 +175,7 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
       // Clear the insertion line when the drag truly leaves the grid — not when the cursor
       // merely moves between child elements inside it (relatedTarget still within the grid).
       this.gridDragleaveHandler = (event: DragEvent) => {
-         const related = (event as any).relatedTarget as Node;
+         const related = event.relatedTarget as Node | null;
          if(!related || !this.layoutGridRef.nativeElement.contains(related)) {
             this.ngZone.run(() => this.clearDropIndicator());
          }
@@ -398,7 +405,7 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
       this.onCancel.emit();
    }
 
-   onBindingTreeDrop(event: DragEvent, rowIndex: number, insertIndex: number = 0): void {
+   onBindingTreeDrop(event: DragEvent, rowIndex: number, insertIndex: number = -1): void {
       event.preventDefault();
       event.stopPropagation();
 
@@ -421,9 +428,11 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
          return;
       }
 
-      // Clamp the requested insert position to the row's current item count.
+      // Clamp the requested insert position to the row's current item count. A negative
+      // insertIndex is the "append" sentinel (the default), preserving the original intent.
+      const itemCount = this.workingRows[rowIndex].items.length;
       const clampedIndex = Math.max(
-         0, Math.min(insertIndex, this.workingRows[rowIndex].items.length));
+         0, Math.min(insertIndex < 0 ? itemCount : insertIndex, itemCount));
 
       // Build the field client-side and add it synchronously (the host appends it to textFields
       // and passes the new array back via [textFields]). No server round-trip, so the new field's
