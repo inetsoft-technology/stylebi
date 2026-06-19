@@ -1101,8 +1101,11 @@ public class CalcTableLens extends DefaultTableLens {
                else if(fields.size() > 1) {
                   // multiple group field scopes: expose a composite that
                   // resolves members across the chain (replaces the old Rhino
-                  // prototype-chain merge).
-                  tableScope.putMember("field", new ChainedFieldScope(fields));
+                  // prototype-chain merge). The enclosing tableScope is passed
+                  // as the parent so names not defined by any field scope still
+                  // resolve up the enclosing scope, as Rhino did via the
+                  // prototype chain. (#75423)
+                  tableScope.putMember("field", new ChainedFieldScope(fields, tableScope));
                }
             }
          }
@@ -3389,9 +3392,11 @@ public class CalcTableLens extends DefaultTableLens {
     */
    private static final class ChainedFieldScope implements ScriptScope {
       private final java.util.List<ScriptScope> chain;
+      private final ScriptScope parentScope;
 
-      ChainedFieldScope(java.util.List<ScriptScope> chain) {
+      ChainedFieldScope(java.util.List<ScriptScope> chain, ScriptScope parentScope) {
          this.chain = chain;
+         this.parentScope = parentScope;
       }
 
       @Override
@@ -3436,6 +3441,17 @@ public class CalcTableLens extends DefaultTableLens {
          }
 
          return keys.toArray();
+      }
+
+      /**
+       * The enclosing scope (the calc tableScope on which this 'field' member
+       * is installed). Rhino linked this via the prototype chain; without it,
+       * names not defined by any group field scope fail to resolve for
+       * multi-group calc formulas. (#75423)
+       */
+      @Override
+      public ScriptScope getParentScope() {
+         return parentScope;
       }
    }
 }
