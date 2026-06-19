@@ -351,7 +351,13 @@ public class CalcTableScopeTest {
 
    private static Stream<Arguments> provideFirstLastTestCases() {
       return Stream.of(
-         //Arguments.of("[1,id]:[3,id]", null, null, null, 1.0, 2.0),
+         // Cell-range-only first()/last() returns null: unlike none()/sum()/etc,
+         // first()/last() route through ReportGraalJavaScriptEngine.summarize()
+         // (where the func arg is null and a range string is not a TableLens),
+         // not the cell-range summarize(). This matches main exactly -- the case
+         // was disabled on main with aspirational 1.0/2.0 values that never held.
+         // Restored and corrected to the actual (regression-free) behavior. (#75423)
+         Arguments.of("[1,id]:[3,id]", null, null, null, null, null),
          Arguments.of(null, null, null, null, null, null),      // Null input
          //for report script (native Integer cell values) (#75423)
          Arguments.of(objData, "id", "name", "id>1", 3, 2), // Valid case
