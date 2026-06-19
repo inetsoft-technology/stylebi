@@ -40,8 +40,12 @@ class ScriptValueConverterTest {
       assertEquals(42.0, (Double) v, 0.0);
    }
 
-   @Test void nanBecomesZero() {
-      assertEquals(0.0, (Double) toHost("0/0"), 0.0);
+   @Test void nanBecomesNull() {
+      assertNull(toHost("0/0"));
+   }
+
+   @Test void infinityBecomesNull() {
+      assertNull(toHost("1/0"));
    }
 
    @Test void stringStaysString() {

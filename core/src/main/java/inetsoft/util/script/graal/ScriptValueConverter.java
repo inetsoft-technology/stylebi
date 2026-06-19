@@ -69,8 +69,8 @@ public final class ScriptValueConverter {
 
       if(v.isNumber()) {
          double d = v.asDouble();
-         // preserve legacy behavior: NaN -> 0
-         return Double.isNaN(d) ? 0.0 : d;
+         // preserve legacy behavior: NaN/Infinity -> null (ScriptUtil.unwrap)
+         return (Double.isNaN(d) || Double.isInfinite(d)) ? null : d;
       }
 
       if(v.isDate() || v.isInstant()) {
