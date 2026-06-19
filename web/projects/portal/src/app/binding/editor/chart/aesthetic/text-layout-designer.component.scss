@@ -295,6 +295,21 @@
    &:hover { background: #dc3545; color: #fff; }
 }
 
+// Row-level remove button — pinned to the right edge to distinguish it from the
+// per-item remove buttons; matches the item remove button's red-hover affordance.
+.row-remove-btn {
+   margin-left: auto;
+   padding: 0 0.35rem;
+   line-height: 1;
+   font-weight: bold;
+   height: 20px;
+   font-size: 0.8rem;
+   flex-shrink: 0;
+   opacity: 0.6;
+
+   &:hover { background: #dc3545; color: #fff; opacity: 1; }
+}
+
 // ─── Formatting toggles (in properties panel) ───────────────────────────────
 // Fixed square size so B and I render identically — matches icon-button
 // conventions used throughout the binding editor (e.g. move-up/down buttons).

@@ -214,6 +214,11 @@
         </div>
 
       </div>
+
+      <!-- Row-level remove: deletes the entire row and its items (bindings dropped, rows shift up) -->
+      <button class="btn btn-xs row-remove-btn ms-1"
+              (click)="removeRow(ri); $event.stopPropagation()"
+              title="_#(Remove Row)">&#215;</button>
     </div>
 
     <div *ngIf="workingRows.length === 0" class="empty-grid-hint p-2 unhighlightable">

@@ -398,6 +398,52 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
       this.selectedItemIndex = -1;
    }
 
+   /**
+    * Delete an entire row and all of its items. Rows below shift up automatically. Each FIELD item
+    * in the row drops its backing textFields entry — unless another remaining row still references
+    * the same binding (e.g. the same column placed twice). Orphaned indices are processed highest
+    * first so each onRemoveField emit (which splices the host's authoritative textFields list) does
+    * not shift the indices still pending removal; the remaining FIELD items' fieldIndex is compacted
+    * to match. Mirrors removeFieldItem's single-item orphan/compaction logic.
+    */
+   removeRow(rowIndex: number): void {
+      const row = this.workingRows[rowIndex];
+
+      if(!row) {
+         return;
+      }
+
+      // Remove the row first; remaining rows shift up via splice.
+      this.workingRows.splice(rowIndex, 1);
+
+      // Unique FIELD indices that were in the removed row, now orphaned only if no surviving row
+      // still references them. Sort descending so removals don't invalidate pending indices.
+      const orphaned = Array.from(new Set(
+         row.items
+            .filter(it => it.type === this.FIELD && it.fieldIndex != null)
+            .map(it => it.fieldIndex)))
+         .filter(fi => !this.workingRows.some(
+            r => r.items.some(it => it.type === this.FIELD && it.fieldIndex === fi)))
+         .sort((a, b) => b - a);
+
+      for(const fi of orphaned) {
+         this.textFields = (this.textFields ?? []).filter((_, idx) => idx !== fi);
+
+         for(const r of this.workingRows) {
+            for(const it of r.items) {
+               if(it.type === this.FIELD && it.fieldIndex > fi) {
+                  it.fieldIndex = it.fieldIndex - 1;
+               }
+            }
+         }
+
+         this.onRemoveField.emit(fi);
+      }
+
+      this.selectedRowIndex = -1;
+      this.selectedItemIndex = -1;
+   }
+
    openFieldFormat(item: TextLayoutItemModel): void {
       const fullName = (this.getFieldRef(item)?.dataInfo as any)?.fullName;
 
