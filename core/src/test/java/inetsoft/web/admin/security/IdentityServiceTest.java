@@ -18,6 +18,7 @@
 package inetsoft.web.admin.security;
 
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.uql.asset.AssetEntry;
@@ -97,6 +98,36 @@ class IdentityServiceTest {
       assertTrue(theirs.getFavoritesUsers().contains(bob.convertToKey()),
                  "bob's favorite must be untouched");
       verify(indexedStorage).putXMLSerializable("folderKey", folder);
+   }
+
+   @Test
+   void removeUserFavorites_writeScopedToTargetOrg() throws Exception {
+      IdentityID alice = new IdentityID("alice", "org1");
+      AssetFolder folder = new AssetFolder();
+      folder.addEntry(entryWithFavorites(alice));
+
+      when(indexedStorage.getKeys(any(), eq("org1"))).thenReturn(Set.of("folderKey"));
+      when(indexedStorage.getXMLSerializable(eq("folderKey"), isNull(), eq("org1")))
+         .thenReturn(folder);
+
+      String[] orgAtWrite = new String[1];
+      doAnswer(inv -> {
+         orgAtWrite[0] = OrganizationContextHolder.getCurrentOrgId();
+         return null;
+      }).when(indexedStorage).putXMLSerializable(eq("folderKey"), any());
+
+      // simulate a caller whose thread context is a different org
+      OrganizationContextHolder.setCurrentOrgId("callerOrg");
+
+      try {
+         invokeRemoveUserFavorites(List.of(alice));
+      }
+      finally {
+         OrganizationContextHolder.setCurrentOrgId(null);
+      }
+
+      assertEquals("org1", orgAtWrite[0],
+                   "write must run in the target user's org, not the caller's");
    }
 
    @Test

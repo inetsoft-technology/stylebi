@@ -2265,7 +2265,10 @@ public class IdentityService {
                   }
 
                   if(changed) {
-                     indexedStorage.putXMLSerializable(key, folder);
+                     OrganizationManager.runInOrgScope(orgID, () -> {
+                        indexedStorage.putXMLSerializable(key, folder);
+                        return null;
+                     });
                   }
                }
             }
