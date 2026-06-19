@@ -22,7 +22,6 @@ import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
 import inetsoft.test.*;
 import inetsoft.util.script.graal.ScriptScope;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -43,9 +42,11 @@ public class LibScriptableTest {
    private ScriptScope mockScope;
 
    /**
-    * Verify that a registered library function is exposed as a member. Under
-    * GraalJS the value is currently the function source string (see the
-    * @Disabled testGetFunCallable below for the deferred callable behavior).
+    * Verify that a registered library function is exposed as a member.
+    * {@code LibScriptable} retains the function source string for member
+    * enumeration (autocomplete); callability from formulas is covered
+    * separately by {@code LibFunctionCallableTest}, which exercises the
+    * engine-global function installed at engine init.
     */
    @Test
    void testGetFunSource() {
@@ -57,16 +58,5 @@ public class LibScriptableTest {
       assertTrue(libScriptable.hasMember("script1"));
       Object member = libScriptable.getMember("script1");
       assertEquals("function testFunc() { return 'Hello, World!'; }", member);
-   }
-
-   @Test
-   @Disabled("Task 5.3: library script functions are stored as source strings under GraalJS " +
-      "and are not yet compiled into callable guest functions. LibScriptable.getMember(name) " +
-      "returns the function source (a String), not a callable function object with a 'name' " +
-      "member, so library functions are not yet callable on GraalJS.")
-   void testGetFunCallable() {
-      // Previously: ((Scriptable) libScriptable.get("script1", null)).get("name", null)
-      // returned the function name "testFunc". Deferred until lib functions are
-      // installed as engine global function definitions at engine init.
    }
 }
