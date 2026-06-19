@@ -259,13 +259,25 @@ public class GraalJavaScriptEnv implements ScriptEnv {
          return null;
       }
 
-      if(msg.contains("Cannot add a property to a sealed object")) {
+      // Each branch ORs the original Rhino phrasing with the GraalJS phrasing
+      // (captured empirically in Task 6.5) so the matcher is robust to both engines.
+      if(msg.contains("Cannot add a property to a sealed object") ||
+         // GraalJS: "TypeError: Cannot add property <x>, object is not extensible"
+         msg.contains("Cannot add property") ||
+         msg.contains("not extensible"))
+      {
          return "Use 'var' to declare the variable";
       }
-      else if(msg.contains("undefined is not a function")) {
+      else if(msg.contains("undefined is not a function") ||
+              // GraalJS: e.g. "TypeError: 5 is not a function"
+              msg.contains("is not a function"))
+      {
          return "Check if function name is correct, and whether it's global or object method";
       }
-      else if(msg.contains("undefined value has no properties")) {
+      else if(msg.contains("undefined value has no properties") ||
+              // GraalJS: e.g. "TypeError: Cannot read property 'foo' of undefined"
+              msg.contains("Cannot read") || msg.contains("of undefined"))
+      {
          return "Check if the object you are trying to reference exists";
       }
       else if(msg.contains("is not defined")) {
