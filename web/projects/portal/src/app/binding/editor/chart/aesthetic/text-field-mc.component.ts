@@ -43,6 +43,8 @@ import { DropHighlightDirective } from "../../../widget/drophighlight.directive"
 })
 export class TextFieldMc extends AestheticFieldMc implements OnChanges {
    @Input() chartModel: ChartModel;
+   // when a text layout is active, the text field is locked (dimmed, no drop/edit)
+   @Input() layoutActive: boolean = false;
    @Output() onUpdateData: EventEmitter<string> = new EventEmitter<string>();
    measures: string[] = [];
    currentIndex: number = 0;
@@ -142,6 +144,11 @@ export class TextFieldMc extends AestheticFieldMc implements OnChanges {
       }
 
       return !(<AllChartAggregateRef>(this.aggr)).visualPaneStatus.textFieldEditable;
+   }
+
+   // a text layout in use takes over the text field, so lock it out (dim + no drop/edit)
+   protected isEnabled(): boolean {
+      return super.isEnabled() && !this.layoutActive;
    }
 
    protected isEditEnabled(): boolean {

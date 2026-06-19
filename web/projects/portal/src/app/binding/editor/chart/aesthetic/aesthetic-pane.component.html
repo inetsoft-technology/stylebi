@@ -78,7 +78,7 @@
     <div class="unhighlightable aesthetic-row-label">_#(Text)</div>
     <text-field-mc class="fill-width" [bindingModel]="bindingModel" [aggr]="currAggregate"
       [assemblyName]="assemblyName" [objectType]="objectType"
-      [grayedOutValues]="grayedOutValues"
+      [grayedOutValues]="grayedOutValues" [layoutActive]="isLayoutDesignerActive"
       [chartModel]="chartModel" (onUpdateData)="updateData($event)">
     </text-field-mc>
     <ng-container *ngTemplateOutlet="layoutDesignerBtn"></ng-container>
@@ -114,6 +114,7 @@
       <text-field-mc class="fill-width" [bindingModel]="bindingModel" [aggr]="currAggregate"
         [assemblyName]="assemblyName" [objectType]="objectType"
         [grayedOutValues]="grayedOutValues" [assetId]="assetId"
+        [layoutActive]="isLayoutDesignerActive"
         [chartModel]="chartModel" (onUpdateData)="updateData($event)">
       </text-field-mc>
       <ng-container *ngTemplateOutlet="layoutDesignerBtn"></ng-container>
