@@ -194,6 +194,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
          context.getBindings("js").putMember("__scope__", proxy);
 
+         // mark this thread as inside script execution (drives isScriptThread()
+         // / getExecScriptable(), e.g. PropertiesEngine's env-modification guard).
+         // Scoped tightly to the eval and popped in finally so pooled threads are
+         // never left flagged. Use a non-null scope so the flag is reliably set.
+         inetsoft.util.script.JavaScriptEngine.pushExecScriptable(root != null ? root : EMPTY_SCOPE);
+
          Duration timeout = currentTimeout();
 
          try(ScriptTimeoutGuard.Guard ignored = timeoutGuard.guard(context, timeout)) {
@@ -230,6 +236,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             throw new ScriptException(ex.getMessage() + loc, ex);
          }
          finally {
+            // clear the script-execution flag for this thread (balanced with the
+            // pushExecScriptable above) so reused threads are not left flagged.
+            inetsoft.util.script.JavaScriptEngine.popExecScriptable();
+
             // FIX D: remove __scope__ binding to prevent cross-exec bleed and GC leak
             if(context != null) {
                context.getBindings("js").removeMember("__scope__");

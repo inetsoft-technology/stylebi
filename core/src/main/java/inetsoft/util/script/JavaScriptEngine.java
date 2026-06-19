@@ -57,11 +57,41 @@ public class JavaScriptEngine {
    }
 
    /**
-    * Get the scriptable executing the actual script. Delegates to the
-    * thread-local execution scope tracked by {@link FormulaContext}.
+    * Mark the current thread as executing a script by pushing the active
+    * scope. Must be balanced with {@link #popExecScriptable()} in a finally
+    * block. This is a dedicated per-thread stack scoped tightly to actual
+    * script evaluation (mirrors the pre-GraalJS engine), and is intentionally
+    * separate from {@link FormulaContext}'s scope stack (which is also pushed
+    * during non-script operations such as viewsheet data processing).
+    */
+   public static void pushExecScriptable(ScriptScope scope) {
+      getThreadLocals().execScriptable.get().push(scope);
+   }
+
+   /**
+    * Pop the active script scope. Removes the thread-local entirely once the
+    * stack is empty so reused (pooled) threads are not left flagged as script
+    * threads.
+    */
+   public static void popExecScriptable() {
+      Stack<ScriptScope> stack = getThreadLocals().execScriptable.get();
+
+      if(!stack.isEmpty()) {
+         stack.pop();
+      }
+
+      if(stack.isEmpty()) {
+         getThreadLocals().execScriptable.remove();
+      }
+   }
+
+   /**
+    * Get the scriptable executing the actual script, or null if the current
+    * thread is not inside script evaluation.
     */
    public static ScriptScope getExecScriptable() {
-      return FormulaContext.getExecScriptScope();
+      Stack<ScriptScope> stack = getThreadLocals().execScriptable.get();
+      return stack.isEmpty() ? null : stack.peek();
    }
 
    public static boolean isScriptThread() {
@@ -69,7 +99,7 @@ public class JavaScriptEngine {
    }
 
    public static void resetScriptThread() {
-      // exec scope is now tracked by FormulaContext; nothing to reset here.
+      getThreadLocals().execScriptable.remove();
    }
 
    /**
@@ -889,5 +919,10 @@ public class JavaScriptEngine {
       private final ThreadLocal<Map<String, DateFormat>> dateFormats =
          ThreadLocal.withInitial(ConcurrentHashMap::new);
       private final ThreadLocal<Boolean> onClickScript = ThreadLocal.withInitial(() -> Boolean.FALSE);
+      // dedicated stack of scopes for the actively-executing script; drives
+      // isScriptThread()/getExecScriptable(). Pushed/popped only around actual
+      // script evaluation (see GraalJavaScriptEngine.exec).
+      private final ThreadLocal<Stack<ScriptScope>> execScriptable =
+         ThreadLocal.withInitial(Stack::new);
    }
 }
