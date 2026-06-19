@@ -1412,14 +1412,19 @@ class SVGAnimationDOMInjectorTest {
       double oEx = cx + oR * Math.cos(a2), oEy = cy + oR * Math.sin(a2);   // outer end   (a2)
       double iSx = cx + iR * Math.cos(a2), iSy = cy + iR * Math.sin(a2);   // inner start (a2)
       double iEx = cx + iR * Math.cos(a1), iEy = cy + iR * Math.sin(a1);   // inner end   (a1)
+      // Cubic control points along the tangents (k = 4/3·tan(sweep/4)), the standard bezier arc
+      // approximation Batik emits — so the path is a real curved ring, not degenerate lines.
+      double ko = 4.0 / 3.0 * Math.tan((a2 - a1) / 4), ki = 4.0 / 3.0 * Math.tan((a1 - a2) / 4);
+      double oc1x = oSx - ko * oR * Math.sin(a1), oc1y = oSy + ko * oR * Math.cos(a1);
+      double oc2x = oEx + ko * oR * Math.sin(a2), oc2y = oEy - ko * oR * Math.cos(a2);
+      double ic1x = iSx - ki * iR * Math.sin(a2), ic1y = iSy + ki * iR * Math.cos(a2);
+      double ic2x = iEx + ki * iR * Math.sin(a1), ic2y = iEy - ki * iR * Math.cos(a1);
       Element svg = doc.getDocumentElement();
       Element path = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
       path.setAttribute("stroke", "none");
-      // The C control points are arbitrary (only endpoints feed center recovery); the L and Z
-      // edges are the two radials that intersect at (cx,cy).
       path.setAttribute("d", String.format(Locale.US,
          "M%.4f %.4f C%.4f %.4f %.4f %.4f %.4f %.4f L%.4f %.4f C%.4f %.4f %.4f %.4f %.4f %.4f Z",
-         oSx, oSy, oSx, oSy, oEx, oEy, oEx, oEy, iSx, iSy, iSx, iSy, iEx, iEy, iEx, iEy));
+         oSx, oSy, oc1x, oc1y, oc2x, oc2y, oEx, oEy, iSx, iSy, ic1x, ic1y, ic2x, ic2y, iEx, iEy));
       svg.appendChild(path);
       return path;
    }
@@ -1669,6 +1674,11 @@ class SVGAnimationDOMInjectorTest {
                    "facet 1 second slice staggers within its own panel");
       assertEquals(step, parseDelay(f2s1.getAttribute("style")), 0.001,
                    "facet 2 second slice staggers within its own panel");
+      // Bezier ring slices must take the opacity-fade path, never the arc sweep.
+      assertFalse(f1s0.getAttribute("style").contains("inetsoft-pie-sweep"),
+                  "bezier ring slice must not use the geometric sweep");
+      assertFalse(f2s0.getAttribute("style").contains("inetsoft-pie-sweep"),
+                  "bezier ring slice must not use the geometric sweep");
    }
 
    /**

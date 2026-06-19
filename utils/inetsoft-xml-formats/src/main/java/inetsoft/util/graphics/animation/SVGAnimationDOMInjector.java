@@ -468,6 +468,7 @@ public class SVGAnimationDOMInjector {
 
       // Shared across panels: a single keyframe-name counter (so @keyframes names stay unique)
       // and one buffer flushed as a single <style> block after all panels are processed.
+      // int[] is a one-element box so the counter can be mutated by reference inside the loop.
       int[] kfCounter = { 0 };
       StringBuilder cssKeyframes = new StringBuilder();
       double maxEndTime = 0;
@@ -498,8 +499,9 @@ public class SVGAnimationDOMInjector {
    }
 
    /**
-    * The drawable size {@code {width,height}} of an SVG tile in user units, from its {@code
-    * viewBox} (preferred) or {@code width}/{@code height} attributes, or null if neither is set.
+    * The drawable region {@code {minX,minY,width,height}} of an SVG tile in user units, from its
+    * {@code viewBox} (preferred, origin included) or {@code width}/{@code height} attributes
+    * (origin 0,0), or null if neither is set.
     */
    private static double[] svgViewport(Element svgRoot) {
       String viewBox = svgRoot.getAttribute("viewBox");
@@ -509,12 +511,12 @@ public class SVGAnimationDOMInjector {
          double[] n = new double[4];
          int i = 0;
          while(i < 4 && m.find()) n[i++] = Double.parseDouble(m.group());
-         if(i == 4 && n[2] > 0 && n[3] > 0) return new double[]{ n[2], n[3] };
+         if(i == 4 && n[2] > 0 && n[3] > 0) return new double[]{ n[0], n[1], n[2], n[3] };
       }
 
       double w = parseLength(svgRoot.getAttribute("width"));
       double h = parseLength(svgRoot.getAttribute("height"));
-      return w > 0 && h > 0 ? new double[]{ w, h } : null;
+      return w > 0 && h > 0 ? new double[]{ 0, 0, w, h } : null;
    }
 
    /** Parse a leading numeric length (ignoring a unit suffix like {@code px}); 0 if absent. */
@@ -537,6 +539,8 @@ public class SVGAnimationDOMInjector {
       }
 
       double cx = panel.center[0], cy = panel.center[1], r = panel.radius;
+      // All slices of one panel share the same ancestor transform (the chart-level flip/translate),
+      // so the first slice's CTM maps the whole pie into tile coordinates.
       double[] ctm = elementCTM(panel.slices.get(0));
       double[] box = { Double.MAX_VALUE, Double.MAX_VALUE, -Double.MAX_VALUE, -Double.MAX_VALUE };
       expandBounds(box, ctm, cx - r, cy - r);
@@ -544,8 +548,10 @@ public class SVGAnimationDOMInjector {
       expandBounds(box, ctm, cx - r, cy + r);
       expandBounds(box, ctm, cx + r, cy + r);
 
-      // 2px tolerance absorbs the sub-pixel tile-translate offset; a tiled pie overflows far more.
-      return box[0] < -2 || box[1] < -2 || box[2] > viewport[0] + 2 || box[3] > viewport[1] + 2;
+      // viewport = {minX, minY, width, height}.  2px tolerance absorbs the sub-pixel
+      // tile-translate offset; a tiled pie overflows the drawable region by far more.
+      double minX = viewport[0], minY = viewport[1], w = viewport[2], h = viewport[3];
+      return box[0] < minX - 2 || box[1] < minY - 2 || box[2] > minX + w + 2 || box[3] > minY + h + 2;
    }
 
    /** Affine matrix mapping {@code node}'s local coordinates to the SVG root, from ancestor transforms. */
@@ -875,12 +881,14 @@ public class SVGAnimationDOMInjector {
     * while distinct facet panels never overlap and so are more than one radius apart; clustering
     * centers with a per-pie-radius threshold therefore groups each pie cleanly.  Facet position
     * is baked into the slice coordinates (the chart transform is shared across facets), so the
-    * raw center separates facets directly.  DOM order is preserved within each panel — the wheel
-    * order and arc-group encounter order depend on it.
+    * raw center separates facets directly.  Arc slices keep DOM order within each panel — the
+    * wheel order and arc-group encounter order depend on it.
     *
     * <p>Slices with no recoverable center (3D side quads) are assigned in a second pass to the
-    * nearest panel by centroid.  If no center is found anywhere, one center-less panel holds all
-    * slices, preserving the legacy single-pie path.
+    * nearest panel by centroid, appended after the arc slices.  Their relative order does not
+    * affect the wheel sequence (they are snapped, not swept), so re-ordering them is harmless.
+    * If no center is found anywhere, one center-less panel holds all slices, preserving the
+    * legacy single-pie path.
     */
    private static List<PiePanel> partitionPiePanels(List<Element> slices) {
       List<PiePanel> panels = new ArrayList<>();
@@ -1003,7 +1011,12 @@ public class SVGAnimationDOMInjector {
       return lineIntersect(start, innerEnd, outerEnd, innerStart);
    }
 
-   /** Outer radius of a ring slice: the largest distance from {@code center} to its endpoints. */
+   /**
+    * Outer radius of a ring slice: the largest distance from {@code center} to any path number
+    * pair.  Bezier control points are included, so this is an upper bound on the true outer
+    * radius — safe here since it is only a panel-merge threshold (too large merges nothing extra
+    * given facet spacing far exceeds one radius).
+    */
    private static double ringRadius(String d, double[] center) {
       double max = 0;
       Matcher m = Pattern.compile("-?[0-9]*\\.?[0-9]+(?:[eE][-+]?[0-9]+)?")
@@ -1038,10 +1051,10 @@ public class SVGAnimationDOMInjector {
       return n >= 2 ? new double[]{ nums.get(n - 2), nums.get(n - 1) } : null;
    }
 
-   /** Intersection of line (a,b) with line (c,e), or null if (near-)parallel. */
-   private static double[] lineIntersect(double[] a, double[] b, double[] c, double[] e) {
-      double x1 = a[0], y1 = a[1], x2 = b[0], y2 = b[1];
-      double x3 = c[0], y3 = c[1], x4 = e[0], y4 = e[1];
+   /** Intersection of line (p1,p2) with line (p3,p4), or null if (near-)parallel. */
+   private static double[] lineIntersect(double[] p1, double[] p2, double[] p3, double[] p4) {
+      double x1 = p1[0], y1 = p1[1], x2 = p2[0], y2 = p2[1];
+      double x3 = p3[0], y3 = p3[1], x4 = p4[0], y4 = p4[1];
       double den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
 
       if(Math.abs(den) < 1e-9) {
@@ -1685,7 +1698,7 @@ public class SVGAnimationDOMInjector {
    /** Extract all numbers (including negatives and decimals) from a path data fragment. */
    private static double[] parsePathNumbers(String s) {
       java.util.regex.Matcher m =
-         java.util.regex.Pattern.compile("-?[0-9]+(?:\\.[0-9]+)?").matcher(s);
+         java.util.regex.Pattern.compile("-?[0-9]*\\.?[0-9]+(?:[eE][-+]?[0-9]+)?").matcher(s);
       List<Double> nums = new ArrayList<>();
       while(m.find()) nums.add(Double.parseDouble(m.group()));
       double[] arr = new double[nums.size()];
