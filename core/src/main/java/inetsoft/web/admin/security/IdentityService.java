@@ -2288,6 +2288,10 @@ public class IdentityService {
             try {
                favorites.remove(id.convertToKey()).get(10L, TimeUnit.SECONDS);
             }
+            catch(InterruptedException e) {
+               Thread.currentThread().interrupt();
+               LOG.warn("Interrupted while removing EM favorites for deleted user {}", id, e);
+            }
             catch(Exception e) {
                LOG.warn("Failed to remove EM favorites for deleted user {}", id, e);
             }
