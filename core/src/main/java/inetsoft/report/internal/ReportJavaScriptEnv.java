@@ -85,7 +85,9 @@ public class ReportJavaScriptEnv extends GraalJavaScriptEnv
 
    /**
     * Execute a script.
-    * @param elem element this script is attached to.
+    * @param elem element this script is attached to. Intentionally ignored —
+    * element-keyed scope resolution is obsolete (see the note in the method
+    * body); retained only for the {@link ReportScriptEnv} interface contract.
     * @param script script object.
     * @param scope scope this script should execute in. Using report
     * scope if the value is null.
