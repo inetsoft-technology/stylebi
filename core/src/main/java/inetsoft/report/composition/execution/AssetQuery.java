@@ -801,6 +801,7 @@ public abstract class AssetQuery extends PreAssetQuery {
                   }
 
                   base = getDesignTableLens(vars, true);
+                  setFailedQueryMessage(base, expressionException);
                }
                else {
                   throw ex;
@@ -837,6 +838,7 @@ public abstract class AssetQuery extends PreAssetQuery {
 
                   LOG.warn("Failed to get table data: " + ex.getMessage(), ex);
                   base = getDesignTableLens(vars, true);
+                  setFailedQueryMessage(base, ex);
                }
                else {
                   throw ex;
@@ -1031,6 +1033,29 @@ public abstract class AssetQuery extends PreAssetQuery {
    }
 
    /**
+    * Record the underlying failure cause on a failed-query design table so callers can surface
+    * the real error (e.g. the JDBC/SQL message) instead of a generic "query failed" message.
+    * Uses the root cause's message when available. No-op when the base is not a meta table.
+    */
+   private static void setFailedQueryMessage(TableLens base, Throwable cause) {
+      if(!(base instanceof XNodeMetaTable) || cause == null) {
+         return;
+      }
+
+      Throwable root = cause;
+
+      while(root.getCause() != null && root.getCause() != root) {
+         root = root.getCause();
+      }
+
+      String msg = root.getMessage();
+
+      if(msg != null && !msg.isBlank()) {
+         ((XNodeMetaTable) base).setFailedQueryMessage(msg.trim());
+      }
+   }
+
+   /**
     * Get the design mode table lens.
     * @param vars the specified variable table.
     */
@@ -1078,6 +1103,19 @@ public abstract class AssetQuery extends PreAssetQuery {
       XTypeNode output = getXTypeNode(columns);
 
       TableLens base = new XNodeMetaTable(output, failedQueryDefault);
+
+      // When this is a failed-query substitute, carry the underlying cause (captured where the
+      // live query failed, e.g. XSessionManager) so callers can surface the real error instead of
+      // a generic "query failed" message. Consume the thread-local so it is not reused.
+      if(failedQueryDefault) {
+         String cause = XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.get();
+
+         if(cause != null && !cause.isBlank()) {
+            ((XNodeMetaTable) base).setFailedQueryMessage(cause);
+            XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.remove();
+         }
+      }
+
       TableDataDescriptor desc = base.getDescriptor();
       XNodeMetaTable.TableDataDescriptor2 desc2 =
          desc instanceof XNodeMetaTable.TableDataDescriptor2

@@ -522,6 +522,10 @@ public class XSessionManager {
             qvars.copyParameters((XPrincipal) user);
          }
 
+         // Start each execution clean so a stale cause from a prior failed query on this
+         // (possibly pooled) thread is not mis-attributed to a later one.
+         inetsoft.report.internal.XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.remove();
+
          try {
             node = getXNode(qvars, query, user, queries, item);
             HashMap map = fixHintMaxRow(node, query);
@@ -553,6 +557,10 @@ public class XSessionManager {
                       query, qvars, user, ex);
             Tool.addUserWarning(Catalog.getCatalog().getString("common.table.getDataFailed") +
                                 ": " + ex.getMessage());
+            // Carry the real cause so the failed-query design table built downstream can surface
+            // it (e.g. the wiz auto-binding path) instead of a generic "query failed" message.
+            inetsoft.report.internal.XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.set(
+               rootCauseMessage(ex));
 
             if(Boolean.TRUE.equals(qvars.get("__is_scheduler__"))) {
                throw ex;
@@ -565,6 +573,25 @@ public class XSessionManager {
          removeQueryInfo(queryId);
          qvars.remove(XQuery.HINT_TOUCH_TIMESTAMP);
       }
+   }
+
+   /**
+    * The message of the deepest (root) cause of a throwable, used to surface the underlying
+    * data-source error (e.g. "column X does not exist") rather than a wrapper message.
+    */
+   private static String rootCauseMessage(Throwable t) {
+      if(t == null) {
+         return null;
+      }
+
+      Throwable root = t;
+
+      while(root.getCause() != null && root.getCause() != root) {
+         root = root.getCause();
+      }
+
+      String msg = root.getMessage();
+      return msg != null && !msg.isBlank() ? msg.trim() : null;
    }
 
    private TableLens buildXTable(XQuery query, XNode node, String queryId,
