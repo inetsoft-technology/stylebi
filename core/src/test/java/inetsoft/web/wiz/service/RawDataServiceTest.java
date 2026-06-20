@@ -22,9 +22,12 @@ import inetsoft.uql.asset.AssetRepository;
 import inetsoft.web.wiz.request.ExportDatabaseTableToCsvRequest;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.ByteArrayOutputStream;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -43,14 +46,16 @@ class RawDataServiceTest {
       request.setDatasourcePath("inventree");
       request.setTable(null); // the plugin/profiler can omit this — must fail cleanly, not NPE
 
-      IllegalArgumentException ex = assertThrows(
-         IllegalArgumentException.class,
+      ResponseStatusException ex = assertThrows(
+         ResponseStatusException.class,
          () -> service.writeDataSourceTableCsvStream(request, null, new ByteArrayOutputStream()));
 
-      // The message must name the data source so the failure is diagnosable (vs. an opaque NPE).
-      assertNotNull(ex.getMessage());
-      assertTrue(ex.getMessage().contains("inventree"),
-                 "exception message should name the data source: " + ex.getMessage());
+      // A missing table asset entry must surface as a clean 400 Bad Request (not an opaque 500 NPE).
+      assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+      // The reason must name the data source so the failure is diagnosable.
+      assertNotNull(ex.getReason());
+      assertTrue(ex.getReason().contains("inventree"),
+                 "exception reason should name the data source: " + ex.getReason());
 
       // The guard must run before any repository lookup.
       verifyNoInteractions(xrepository);
