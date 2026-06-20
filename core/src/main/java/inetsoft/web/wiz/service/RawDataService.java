@@ -35,7 +35,9 @@ import inetsoft.uql.util.XSourceInfo;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -92,11 +94,14 @@ public class RawDataService {
       String datasourcePath = requestData.getDatasourcePath();
       AssetEntry tableEntry = requestData.getTable();
 
-      // Fail fast with a diagnosable message when the request carries no table asset entry.
+      // Fail fast with a diagnosable 400 when the request carries no table asset entry.
       // Callers (e.g. the WIZ annotation profiler) may omit it; without this guard setupTable
-      // dereferences a null AssetEntry and throws an opaque NullPointerException.
+      // dereferences a null AssetEntry and throws an opaque NullPointerException (HTTP 500).
+      // The guard runs before any CSV bytes are written, so the response status is not yet
+      // committed and Spring can return a clean 400 Bad Request.
       if(tableEntry == null) {
-         throw new IllegalArgumentException(
+         throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
             "Export request for data source \"" + datasourcePath + "\" is missing the table asset entry.");
       }
 
