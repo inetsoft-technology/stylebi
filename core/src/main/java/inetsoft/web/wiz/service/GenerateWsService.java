@@ -216,7 +216,11 @@ public class GenerateWsService {
          }
          else {
             final TableAssemblyOperator noperator = new TableAssemblyOperator();
-            final Set<TableAssembly> tableAssemblies = new HashSet<>();
+            // LinkedHashSet (not HashSet): the base-table order must be deterministic and follow
+            // the join direction (left before right). The SQL generator (JoinQuery.mergeFrom) binds
+            // each operator attribute to a table by this array's position, so a non-deterministic
+            // order can pair a key with the wrong table.
+            final Set<TableAssembly> tableAssemblies = new LinkedHashSet<>();
 
             for(WorksheetConstructionModel.JoinPath joinPath : joinPaths) {
                noperator.addOperator(createJoinOperator(worksheet, joinPath, fields));
@@ -452,14 +456,45 @@ public class GenerateWsService {
       return alias != null ? alias : key;
    }
 
+   /**
+    * Resolve a join key to its column on a join base table.
+    *
+    * Uses the PRIVATE column selection on purpose: a synthesized join key (one not also
+    * selected as an output field) is added invisible by {@link #addJoinKeyField}, and
+    * {@code AbstractTableAssembly.setColumnSelection} drops invisible columns from the
+    * PUBLIC selection. Resolving against the public selection therefore returns null for
+    * such keys, yielding an operator with a null attribute that the join engine then
+    * mis-pairs to the wrong table. The private selection retains the hidden key.
+    */
+   static DataRef resolveJoinKeyAttribute(AbstractTableAssembly table, String key) {
+      if(table == null || key == null) {
+         return null;
+      }
+
+      return table.getColumnSelection(false).getAttribute(key);
+   }
+
    private TableAssemblyOperator.Operator createJoinOperator(Worksheet worksheet, WorksheetConstructionModel.JoinPath joinPath,
                                                              List<WorksheetConstructionModel.QueryField> allFields) throws Exception
    {
       AbstractTableAssembly leftTable = createJoinBaseTable(worksheet, allFields, joinPath.getLeftTable(), joinPath.getLeftKey(), new HashMap<>());
       AbstractTableAssembly rightTable = createJoinBaseTable(worksheet, allFields, joinPath.getRightTable(), joinPath.getRightKey(), new HashMap<>());
+      DataRef leftAttr = resolveJoinKeyAttribute(leftTable, joinPath.getLeftKey());
+      DataRef rightAttr = resolveJoinKeyAttribute(rightTable, joinPath.getRightKey());
+
+      if(leftAttr == null) {
+         throw new IllegalArgumentException(
+            "Left join key '" + joinPath.getLeftKey() + "' not found in table '" + leftTable.getName() + "'");
+      }
+
+      if(rightAttr == null) {
+         throw new IllegalArgumentException(
+            "Right join key '" + joinPath.getRightKey() + "' not found in table '" + rightTable.getName() + "'");
+      }
+
       TableAssemblyOperator.Operator operator = new TableAssemblyOperator.Operator();
-      operator.setLeftAttribute(leftTable.getColumnSelection(true).getAttribute(joinPath.getLeftKey()));
-      operator.setRightAttribute(rightTable.getColumnSelection(true).getAttribute(joinPath.getRightKey()));
+      operator.setLeftAttribute(leftAttr);
+      operator.setRightAttribute(rightAttr);
       operator.setLeftTable(leftTable.getName());
       operator.setRightTable(rightTable.getName());
       operator.setOperation(getJoinOperation(joinPath.getJoinType(), joinPath.getJoinOperator()));
@@ -501,9 +536,22 @@ public class GenerateWsService {
    {
       AbstractTableAssembly leftTable = createJoinBaseTable(worksheet, allFields, joinPath.getLeftTable(), joinPath.getLeftKey(), tableMapping);
       AbstractTableAssembly rightTable = createJoinBaseTable(worksheet, allFields, joinPath.getRightTable(), joinPath.getRightKey(), tableMapping);
+      DataRef leftAttr = resolveJoinKeyAttribute(leftTable, joinPath.getLeftKey());
+      DataRef rightAttr = resolveJoinKeyAttribute(rightTable, joinPath.getRightKey());
+
+      if(leftAttr == null) {
+         throw new IllegalArgumentException(
+            "Left join key '" + joinPath.getLeftKey() + "' not found in table '" + leftTable.getName() + "'");
+      }
+
+      if(rightAttr == null) {
+         throw new IllegalArgumentException(
+            "Right join key '" + joinPath.getRightKey() + "' not found in table '" + rightTable.getName() + "'");
+      }
+
       TableAssemblyOperator.Operator operator = new TableAssemblyOperator.Operator();
-      operator.setLeftAttribute(leftTable.getColumnSelection(true).getAttribute(joinPath.getLeftKey()));
-      operator.setRightAttribute(rightTable.getColumnSelection(true).getAttribute(joinPath.getRightKey()));
+      operator.setLeftAttribute(leftAttr);
+      operator.setRightAttribute(rightAttr);
       operator.setLeftTable(leftTable.getName());
       operator.setRightTable(rightTable.getName());
       operator.setOperation(getJoinOperation(joinPath.getJoinType(), joinPath.getJoinOperator()));
