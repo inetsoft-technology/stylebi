@@ -17,6 +17,10 @@
  */
 package inetsoft.web.wiz.service;
 
+import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.asset.AbstractTableAssembly;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.web.wiz.model.WorksheetConstructionModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -25,7 +29,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @Tag("core")
 class GenerateWsServiceFieldTest {
@@ -97,5 +105,37 @@ class GenerateWsServiceFieldTest {
 
       assertEquals(1, fields.size());            // not re-added
       assertEquals(Boolean.TRUE, fields.get(0).getVisible());  // untouched
+   }
+
+   /**
+    * Regression for the join key-swap bug: a synthesized join key is invisible
+    * (addJoinKeyField → setVisible(false)), and setColumnSelection excludes invisible
+    * columns from the PUBLIC selection. So resolving a join key against the public
+    * selection returns null — the operator then carries a null attribute and the join
+    * engine mis-pairs the keys to the wrong tables. The fix resolves keys against the
+    * PRIVATE selection, which retains the hidden key.
+    */
+   @Test
+   void hiddenJoinKeyResolvesAgainstPrivateSelection() {
+      // PRIVATE selection keeps the (invisible) join key; PUBLIC selection drops it.
+      ColumnSelection privateSel = new ColumnSelection();
+      privateSel.addAttribute(new ColumnRef(new AttributeRef(null, "total_price")));
+      privateSel.addAttribute(new ColumnRef(new AttributeRef(null, "supplier_id")));
+
+      ColumnSelection publicSel = new ColumnSelection();
+      publicSel.addAttribute(new ColumnRef(new AttributeRef(null, "total_price")));
+
+      AbstractTableAssembly table = mock(AbstractTableAssembly.class);
+      when(table.getColumnSelection(false)).thenReturn(privateSel);
+      when(table.getColumnSelection(true)).thenReturn(publicSel);
+
+      // The trap the bug fell into: resolving against the PUBLIC selection returns null.
+      assertNull(table.getColumnSelection(true).getAttribute("supplier_id"),
+                 "hidden join key must be excluded from the public selection");
+      // The fix: resolveJoinKeyAttribute reads the PRIVATE selection, which keeps it.
+      assertNotNull(GenerateWsService.resolveJoinKeyAttribute(table, "supplier_id"),
+                    "join key must resolve against the private selection");
+      // A visible column resolves regardless.
+      assertNotNull(GenerateWsService.resolveJoinKeyAttribute(table, "total_price"));
    }
 }
