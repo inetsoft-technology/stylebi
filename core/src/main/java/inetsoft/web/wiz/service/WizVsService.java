@@ -812,6 +812,62 @@ public class WizVsService {
       }
    }
 
+   /** Outcome of executing a chart assembly for verification: did it render data, and how many rows. */
+   public record VerifyResult(boolean hasData, int rowCount) {}
+
+   /**
+    * Execute a chart assembly's data to verify the saved visualization actually renders, without
+    * materializing the rows. Surfaces the real data-source error by throwing (via checkFailedQuery)
+    * when the underlying query failed and design sample data was substituted. Returns hasData=false
+    * with rowCount=0 when the sandbox/graph/dataset is simply unavailable.
+    */
+   public VerifyResult verifyChartData(RuntimeViewsheet rvs, String assemblyName) throws Exception {
+      Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
+
+      if(boxOpt.isEmpty()) {
+         return new VerifyResult(false, 0);
+      }
+
+      ViewsheetSandbox box = boxOpt.get();
+      VGraphPair pair = box.getVGraphPair(assemblyName, true);
+
+      if(pair == null) {
+         return new VerifyResult(false, 0);
+      }
+
+      DataSet dset = pair.getData();
+
+      if(dset == null) {
+         return new VerifyResult(false, 0);
+      }
+
+      // Unwrap dataset wrappers to reach the aggregated data (mirrors extractChartData).
+      DataSet unwrapped = dset;
+
+      while(true) {
+         if(unwrapped instanceof VSDataSet) {
+            break;
+         }
+         else if(unwrapped instanceof PairsDataSet) {
+            unwrapped = ((PairsDataSet) unwrapped).getDataSet();
+         }
+         else if(unwrapped instanceof DataSetFilter) {
+            unwrapped = ((DataSetFilter) unwrapped).getDataSet();
+         }
+         else {
+            break;
+         }
+      }
+
+      if(unwrapped instanceof VSDataSet vds) {
+         // Throws IllegalArgumentException carrying the real cause when the query failed.
+         checkFailedQuery(vds.getTable());
+      }
+
+      int rowCount = dset.getRowCount();
+      return new VerifyResult(rowCount > 0, rowCount);
+   }
+
    /**
     * Extracts tabular data from a Table or Crosstab assembly via its TableLens.
     * Row 0 through headerRowCount-1 are header rows; data begins at headerRowCount.
