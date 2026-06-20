@@ -16,23 +16,58 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <div class="portal-schedule-task-list">
-  <div class="d-flex align-items-center portal-task-tool-bar">
-    <button class="d-flex btn btn-sm btn-light-no-bg me-1"
-      (click)="changeShowType(!showTasksAsList)"
-      [title]="showTasksAsList ? '_#(schedule.task.toggle.toFolderView)' : '_#(schedule.task.toggle.toListView)'">
-      <i class="menu-sandwich-icon"></i>
-      <span class="visually-hidden">
-        {{showTasksAsList ? "_#(schedule.task.toggle.toFolderView)" : "_#(schedule.task.toggle.toListView)"}}
-      </span>
-    </button>
-    <h6 class="mb-0">_#(Tasks)</h6>
+  <div class="schedule-task-list-header">
+    @if (showSchedulerHealth) {
+      <div class="schedule-task-list-header__status">
+        <div class="schedule-task-list-header__status-label">_#(Scheduler Status)</div>
+        <div class="schedule-task-list-header__status-pill" [ngClass]="schedulerHealthPillClass">
+          {{ schedulerHealth?.statusLabel }}
+        </div>
+        <button type="button" class="btn btn-secondary schedule-task-list-header__status-action"
+                (click)="refreshSchedulerHealth()"
+                [disabled]="schedulerHealthLoading">
+          _#(Refresh Status)
+        </button>
+        @if (schedulerHealth?.detailMessage) {
+          <div class="schedule-task-list-header__status-message">
+            {{ schedulerHealth.detailMessage }}
+          </div>
+        }
+      </div>
+    }
+    <div class="schedule-task-list-header__actions" [class.disable-actions-fade]="loading">
+      <button type="button" class="btn btn-primary" (click)="newTask()" [disabled]="!isCreateTaskEnabled()">_#(New Task)</button>
+      <button type="button" class="btn btn-secondary" (click)="loadTasks(true)">_#(Refresh List)</button>
+      <button type="button" class="btn btn-secondary"
+              (click)="moveTasks()"
+              [disabled]="(showTasksAsList || !removeEnable())">
+        _#(Move)
+      </button>
+      <button type="button" class="btn btn-secondary"
+              (click)="removeItems()" [disabled]="!removeEnable()">
+        _#(Delete)
+      </button>
+    </div>
   </div>
   <div class="portal-task-list-container">
     <div class="portal-task-list-items">
       <split-pane [sizes]="[INIT_TREE_PANE_SIZE, 100 - INIT_TREE_PANE_SIZE]"
-        class="split-pane" [minSize]="0" [snapOffset]="0"
-        [gutterSize]="1" [fullWidth]="true">
+                  class="split-pane" [minSize]="0" [snapOffset]="0"
+                  [gutterSize]="22" (onDragEnd)="splitPaneDragEnd()" [fullWidth]="true">
         <div class="pane data-tree-pane" [style.height.px]="treeHeight">
+          <div class="schedule-view-toggle">
+            <button type="button"
+                    class="btn btn-secondary schedule-view-toggle__button"
+                    (click)="changeShowType(true)">
+              _#(Show as List)
+            </button>
+          </div>
+          <span class="collapse-pane-button icon-size-small" aria-hidden="true"
+                (click)="changeShowType(!showTasksAsList)">
+            <i aria-hidden="true"
+               [class.chevron-circle-arrow-left-icon]="!showTasksAsList"
+               [class.chevron-circle-arrow-right-icon]="showTasksAsList"></i>
+          </span>
           @if (rootNode && !showTasksAsList) {
             <tree #tree
               [root]="rootNode"
@@ -80,7 +115,7 @@
                 </thead>
                 <tbody [style.height.px]="tableHeight">
                   @for (task of tasks; track task.name) {
-                    <tr class="task-row" [class.selected]="selectedItems.includes(task.name)"
+                    <tr class="task-row" [class.task-row--selected]="selectedItems.includes(task.name)"
                       (dragstart)="dragTask($event, task)" [draggable]="true"
                       (dragover)="$event.preventDefault();"
                       (dragenter)="$event.preventDefault()">
@@ -137,18 +172,5 @@
         </div>
       </split-pane>
     </div>
-  </div>
-  <div class="schedule-task-list-actions m-2" [class.disable-actions-fade]="loading">
-    <button type="button" class="btn btn-primary" (click)="newTask()" [disabled]="!isCreateTaskEnabled()">_#(New Task)</button>
-    <button type="button" class="btn btn-default ms-2" (click)="loadTasks(true)">_#(Refresh List)</button>
-    <button type="button" class="btn btn-default ms-2"
-      (click)="moveTasks()"
-      [disabled]="(showTasksAsList || !removeEnable())">
-      _#(Move)
-    </button>
-    <button type="button" class="btn btn-default ms-2"
-      (click)="removeItems()" [disabled]="!removeEnable()">
-      _#(Delete)
-    </button>
   </div>
 </div>
