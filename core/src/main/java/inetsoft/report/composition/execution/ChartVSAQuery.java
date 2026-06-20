@@ -113,15 +113,21 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
 
          if(base instanceof XNodeMetaTable) {
             boolean failedQuery = ((XNodeMetaTable) base).isFailedQueryDefault();
+            // Capture the underlying failure cause before the meta table is replaced, so it
+            // can be surfaced to callers instead of a generic "query failed" message.
+            String failedQueryMessage = ((XNodeMetaTable) base).getFailedQueryMessage();
             ChartMetaTableGenerator gen = new ChartMetaTableGenerator((XNodeMetaTable) base);
             base = gen.generate(chart);
 
             // The generated sample data replaces the meta table, which would otherwise
             // erase the failed-query marker. Preserve it as a table property so callers
-            // that must not serve fabricated data can still detect the failed query.
+            // that must not serve fabricated data can still detect the failed query. Carry
+            // the real cause as the property value when known (else the legacy "true" flag).
             if(failedQuery && base instanceof AbstractTableLens) {
                ((AbstractTableLens) base).setProperty(
-                  XNodeMetaTable.FAILED_QUERY_PROPERTY, "true");
+                  XNodeMetaTable.FAILED_QUERY_PROPERTY,
+                  failedQueryMessage != null && !failedQueryMessage.isBlank()
+                     ? failedQueryMessage : "true");
             }
 
             ((TableFilter2) data).setTable(base);

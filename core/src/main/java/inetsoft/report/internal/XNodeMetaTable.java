@@ -288,12 +288,35 @@ public class XNodeMetaTable extends AbstractTableLens {
    }
 
    /**
+    * The underlying failure cause (e.g. the JDBC/SQL error message) captured when the live
+    * query failed and this design meta table was substituted in its place. May be null when
+    * no specific cause was available. Used to surface the real error to callers instead of a
+    * generic "query failed" message.
+    */
+   public String getFailedQueryMessage() {
+      return failedQueryMessage;
+   }
+
+   public void setFailedQueryMessage(String failedQueryMessage) {
+      this.failedQueryMessage = failedQueryMessage;
+   }
+
+   /**
     * Table property used to preserve the failed-query marker when this meta table is
     * replaced by generated sample data (e.g. ChartMetaTableGenerator), so callers that
     * must not serve fabricated data can still detect the failed query downstream.
     */
    public static final String FAILED_QUERY_PROPERTY =
       XNodeMetaTable.class.getName() + ".failedQueryDefault";
+
+   /**
+    * The underlying cause (JDBC/SQL message) of the most recent failed query on this thread.
+    * Set where the live query fails and is swallowed (e.g. XSessionManager), then consumed when
+    * the failed-query design table is built (AssetQuery.getDesignTableLens) so the real error can
+    * be surfaced instead of a generic "query failed" message. Short-lived: cleared on consume and
+    * at the start of each query execution.
+    */
+   public static final ThreadLocal<String> LAST_FAILED_QUERY_MESSAGE = new ThreadLocal<>();
 
    /**
     * Table data descriptor.
@@ -398,4 +421,5 @@ public class XNodeMetaTable extends AbstractTableLens {
    private Object[] examplers;
    private transient TableDataDescriptor descriptor;
    private boolean failedQueryDefault;
+   private String failedQueryMessage;
 }

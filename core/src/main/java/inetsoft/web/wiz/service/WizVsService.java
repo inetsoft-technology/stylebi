@@ -634,7 +634,8 @@ public class WizVsService {
     * that meta table with generated sample rows (name1/999.99). The wiz path must surface
     * the failure instead of returning fabricated rows as if they were real query results.
     */
-   private static void checkFailedQuery(XTable lens) {
+   // package-private for testing
+   static void checkFailedQuery(XTable lens) {
       if(lens == null) {
          return;
       }
@@ -643,19 +644,54 @@ public class WizVsService {
       Util.listNestedTable(lens, XTable.class, allTables);
 
       for(XTable t : allTables) {
-         // Two signals, depending on the path: the worksheet/table path surfaces the raw
-         // design meta table (isFailedQueryDefault); the chart path replaces it with
-         // generated sample data carrying FAILED_QUERY_PROPERTY (see ChartVSAQuery).
-         boolean failed = t instanceof XNodeMetaTable meta && meta.isFailedQueryDefault()
-            || t instanceof AbstractTableLens atl
-               && atl.getProperty(XNodeMetaTable.FAILED_QUERY_PROPERTY) != null;
+         String cause = failedQueryCause(t);
 
-         if(failed) {
-            throw new IllegalArgumentException(
-               "Worksheet query failed — a computed-column expression or filter is invalid " +
-               "for the data source. Check the worksheet's expression columns.");
+         if(cause != null) {
+            throw new IllegalArgumentException(failedQueryError(cause));
          }
       }
+   }
+
+   /**
+    * Detect a failed-query table and return its underlying cause. Two signals, depending on the
+    * path: the worksheet/table path surfaces the raw design meta table (isFailedQueryDefault);
+    * the chart path replaces it with generated sample data carrying FAILED_QUERY_PROPERTY (see
+    * ChartVSAQuery). Returns null when the table is not a failed query, an empty string when it
+    * failed but no specific cause was captured, or the cause message (e.g. the JDBC/SQL error).
+    */
+   static String failedQueryCause(XTable t) {
+      if(t instanceof XNodeMetaTable meta && meta.isFailedQueryDefault()) {
+         String cause = meta.getFailedQueryMessage();
+         return cause == null ? "" : cause;
+      }
+
+      if(t instanceof AbstractTableLens atl) {
+         Object prop = atl.getProperty(XNodeMetaTable.FAILED_QUERY_PROPERTY);
+
+         if(prop != null) {
+            // The property value carries the real cause; "true" is the legacy bare flag.
+            return prop instanceof String s && !"true".equals(s) && !s.isBlank() ? s : "";
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Compose the user-facing failed-query error, appending the underlying data-source cause
+    * (e.g. "column X does not exist") when known so the caller can fix the real problem instead
+    * of guessing at expression columns.
+    */
+   static String failedQueryError(String cause) {
+      String message =
+         "Worksheet query failed — a computed-column expression or filter is invalid " +
+         "for the data source. Check the worksheet's expression columns.";
+
+      if(cause != null && !cause.isBlank()) {
+         message += " (cause: " + cause + ")";
+      }
+
+      return message;
    }
 
    /**
