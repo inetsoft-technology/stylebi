@@ -82,4 +82,12 @@ class WizAutoBindingServiceValueSortTest {
       assertNull(s.order());
       assertNull(s.sortByCol());
    }
+
+   @Test
+   void explicitOrderAndExplicitSortByColBothKept() {
+      DimensionSort s = WizAutoBindingService.computeDimensionSort(
+         XConstants.SORT_DESC, "Max(amount)", ranking(9, "Sum(total_price)"), false);
+      assertEquals(XConstants.SORT_DESC, s.order());
+      assertEquals("Max(amount)", s.sortByCol());
+   }
 }
