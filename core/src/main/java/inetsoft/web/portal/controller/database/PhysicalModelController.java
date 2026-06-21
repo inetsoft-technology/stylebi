@@ -183,9 +183,29 @@ public class PhysicalModelController {
          databaseTreeService.getDatabaseNodes(parentPath, parr, additional, false,
             false, principal);
 
+      for(DatabaseTreeNode node : nodes) {
+         if(isSchemaFolderNode(node)) {
+            try {
+               List<DatabaseTreeNode> children = databaseTreeService.getDatabaseNodes(
+                  node.getPath(), node.getParr(), additional, false, false, principal);
+               long tableCount = children.stream()
+                  .filter(c -> DatabaseTreeNodeType.TABLE.equals(c.getType()))
+                  .count();
+               node.setTableCount((int) tableCount);
+            }
+            catch(Exception ignored) {
+            }
+         }
+      }
+
       return nodes.stream()
          .map(this::buildDatabaseTreeNode)
          .collect(Collectors.toList());
+   }
+
+   private boolean isSchemaFolderNode(DatabaseTreeNode node) {
+      return DatabaseTreeNodeType.FOLDER.equals(node.getType()) &&
+         node.getSchema() != null && !node.getSchema().isEmpty();
    }
 
    private TreeNodeModel buildDatabaseTreeNode(DatabaseTreeNode node) {

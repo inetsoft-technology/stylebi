@@ -1,166 +1,138 @@
 <!--
-~ This file is part of StyleBI.
-~ Copyright (C) 2024  InetSoft Technology
-~
-~ This program is free software: you can redistribute it and/or modify
-~ it under the terms of the GNU Affero General Public License as published by
-~ the Free Software Foundation, either version 3 of the License, or
-~ (at your option) any later version.
-~
-~ This program is distributed in the hope that it will be useful,
-~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-~ GNU Affero General Public License for more details.
-~
-~ You should have received a copy of the GNU Affero General Public License
-~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
--->
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2024  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
 <modal-header title="_#(em.data.databases.createDriver)" [cshid]="'AllDataSourcesPortal'"
   (onCancel)="cancel()">
 </modal-header>
 <div class="modal-body" blockMouse>
   <loading-indicator-pane [show]="loading"></loading-indicator-pane>
   @if (step === 'upload') {
-    <div class="container-fluid" [formGroup]="uploadForm">
-      <div class="container">
-        <div class="row mb-1">
-          <div class="driver-wizard__section driver-wizard__plugin-copy">
-            <div class="form-check">
-              <input type="radio" class="form-check-input" name="uploadType" value="upload" formControlName="uploadType" id="uploadTypeUpload" [disabled]="uploadForm.controls['uploadType']?.value !== 'upload'">
-              <label class="form-check-label" for="uploadTypeUpload">_#(Upload)</label>
-            </div>
-          </div>
+    <div class="driver-wizard driver-wizard--upload" [formGroup]="uploadForm">
+      <div class="driver-wizard__choice-row">
+        <div class="form-check driver-wizard__choice-toggle">
+          <input type="radio" class="form-check-input" name="uploadType" value="upload" formControlName="uploadType" id="uploadTypeUpload" [disabled]="uploadForm.controls['uploadType']?.value !== 'upload'">
+          <label class="form-check-label" for="uploadTypeUpload">_#(Upload)</label>
         </div>
-        <div class="row mb-1">
-          <div class="col-10 upload-files">
-            <div class="list-group">
-              @for (file of uploadForm.controls['uploadFiles']?.value; track $index; let i = $index) {
-                <a class="driver-wizard__list-item unhighlightable"
-                  [class.selected]="selectedDriverFiles.indexOf(i) >= 0"
-                  [attr.title]="file.name"
-                  (click)="selectDriverFile($event, i)">
-                  {{ file. name }}
-                </a>
-              }
-            </div>
-          </div>
-          <div class="driver-wizard__side-actions driver-wizard__upload-actions">
-            <input #uploadFileInput type="file" accept="application/java-archive" hidden multiple (change)="addDriverFiles($event)">
-            <button type="button" class="btn btn-secondary" (click)="uploadFileInput.value = null; uploadFileInput.click()" [disabled]="uploadForm.controls['uploadType']?.value !== 'upload'">_#(Add)</button>
-            <button type="button" class="btn btn-default" (click)="removeDriverFiles()" [disabled]="uploadForm.controls['uploadType']?.value !== 'upload' || selectedDriverFiles.length === 0">_#(Remove)</button>
-          </div>
-        </div>
-        @if (uploadForm.errors?.uploadFilesRequired) {
-          <div class="row mb-1">
-            <div class="driver-wizard__section driver-wizard__plugin-copy">
-              <span class="is-invalid"></span>
-              <span class="invalid-feedback">_#(em.data.databases.driver.uploadFilesRequired)</span>
-            </div>
-          </div>
-        }
-        <div class="driver-wizard__field form-floating">
-          <div class="driver-wizard__section driver-wizard__plugin-copy">
-            <div class="form-check">
-              <input type="radio" class="form-check-input" name="uploadType" value="maven" formControlName="uploadType" id="uploadTypeMaven">
-              <label class="form-check-label" for="uploadTypeMaven">_#(Maven)</label>
-            </div>
-          </div>
-        </div>
-        <div class="driver-wizard__field form-floating">
-          <div class="col form-floating">
-            <input class="form-control" type="text" formControlName="mavenCoord"
-              [class.is-invalid]="uploadForm.controls['mavenCoord'].invalid"
-              placeholder="_#(em.data.databases.driver.mavenCoord)"
-              [ngbTypeahead]="mavenSearch">
-            <label>_#(em.data.databases.driver.mavenCoord)</label>
-            @if (uploadForm.controls['mavenCoord']?.errors?.required) {
-              <span class="invalid-feedback">_#(em.data.databases.driver.mavenCoordRequired)</span>
-            }
-            @if (uploadForm.controls['mavenCoord']?.errors?.pattern) {
-              <span class="invalid-feedback">_#(em.data.databases.driver.mavenCoordInvalid)</span>
+        <div class="upload-files">
+          <div class="list-group">
+            @for (file of uploadForm.controls['uploadFiles']?.value; track $index; let i = $index) {
+              <a class="list-group-item unhighlightable"
+                 [class.selected]="selectedDriverFiles.indexOf(i) >= 0"
+                 (click)="selectDriverFile($event, i)">
+                {{ file.name }}
+              </a>
             }
           </div>
         </div>
-        @if (!uploadForm.controls['mavenCoord']?.errors?.required || uploadForm.controls['mavenCoord']?.pristine) {
-          <div class="driver-wizard__hint">_#(em.data.databases.driver.mavenCoordHint)</div>
-        }
+        <div class="driver-wizard__side-actions driver-wizard__upload-actions">
+          <input #uploadFileInput type="file" accept="application/java-archive" hidden multiple (change)="addDriverFiles($event)">
+          <button type="button" class="btn btn-secondary" (click)="uploadFileInput.value = null; uploadFileInput.click()" [disabled]="uploadForm.controls['uploadType']?.value !== 'upload'">_#(Add)</button>
+          <button type="button" class="btn btn-default" (click)="removeDriverFiles()" [disabled]="uploadForm.controls['uploadType']?.value !== 'upload' || selectedDriverFiles.length === 0">_#(Remove)</button>
+        </div>
       </div>
+      @if (uploadForm.errors?.uploadFilesRequired) {
+        <div class="driver-wizard__validation">
+          <span class="is-invalid"></span>
+          <span class="invalid-feedback">_#(em.data.databases.driver.uploadFilesRequired)</span>
+        </div>
+      }
+      <div class="driver-wizard__divider" role="separator" aria-hidden="true"></div>
+      <div class="driver-wizard__choice-row">
+        <div class="form-check driver-wizard__choice-toggle">
+          <input type="radio" class="form-check-input" name="uploadType" value="maven" formControlName="uploadType" id="uploadTypeMaven">
+          <label class="form-check-label" for="uploadTypeMaven">_#(Maven)</label>
+        </div>
+        <div class="driver-wizard__field form-floating">
+          <input class="form-control" type="text" formControlName="mavenCoord"
+                 [class.is-invalid]="uploadForm.controls['mavenCoord'].invalid"
+                 placeholder="_#(em.data.databases.driver.mavenCoord)"
+                 [ngbTypeahead]="mavenSearch">
+          <label>_#(em.data.databases.driver.mavenCoord)</label>
+          @if (uploadForm.controls['mavenCoord']?.errors?.required) {
+            <span class="invalid-feedback">_#(em.data.databases.driver.mavenCoordRequired)</span>
+          }
+          @if (uploadForm.controls['mavenCoord']?.errors?.pattern) {
+            <span class="invalid-feedback">_#(em.data.databases.driver.mavenCoordInvalid)</span>
+          }
+        </div>
+      </div>
+      @if (!uploadForm.controls['mavenCoord']?.errors?.required || uploadForm.controls['mavenCoord']?.pristine) {
+        <div class="driver-wizard__hint">_#(em.data.databases.driver.mavenCoordHint)</div>
+      }
     </div>
   }
   @if (step === 'drivers') {
-    <div class="container-fluid">
-      <div class="container">
-        <div class="row mb-1">
-          <div class="driver-wizard__section driver-wizard__plugin-copy">
-            <div class="list-group">
-              @for (driver of drivers; track trackByIdx(i, driver); let i = $index) {
-                <div class="list-group-item">
-                  <input type="checkbox" class="form-check-input checkbox" [(ngModel)]="selectedDrivers[i]" (ngModelChange)="selectDriver(i)">
-                  <span>{{ driver }}</span>
-                </div>
-              }
+    <div class="driver-wizard driver-wizard--drivers">
+      <div class="driver-wizard__section">
+        <div class="list-group">
+          @for (driver of drivers; track trackByIdx(i, driver); let i = $index) {
+            <div class="list-group-item">
+              <input type="checkbox" class="checkbox" [(ngModel)]="selectedDrivers[i]" (ngModelChange)="selectDriver(i)">
+              <span>{{ driver }}</span>
             </div>
-          </div>
+          }
         </div>
-        @if (driverForm.controls['drivers'].errors?.required) {
-          <div class="driver-wizard__validation">
-            <div class="driver-wizard__section driver-wizard__plugin-copy">
-              <span class="is-invalid"></span>
-              <span class="invalid-feedback">_#(em.data.databases.driver.driversRequired)</span>
-            </div>
-          </div>
-        }
       </div>
+      @if (driverForm.controls['drivers'].errors?.required) {
+        <div class="driver-wizard__validation">
+          <span class="is-invalid"></span>
+          <span class="invalid-feedback">_#(em.data.databases.driver.driversRequired)</span>
+        </div>
+      }
     </div>
   }
   @if (step === 'plugin') {
-    <div class="container-fluid" [formGroup]="pluginForm">
-      <div class="container">
-        <div class="row plugin-settings">
-          <div class="driver-wizard__section driver-wizard__plugin-copy">_#(em.data.databases.driver.pluginSettingsHelp)</div>
-        </div>
-        <div class="driver-wizard__field driver-wizard__field--plugin form-floating">
-          <div class="col form-floating">
-            <input class="form-control" type="text" formControlName="pluginId"
-              [class.is-invalid]="pluginForm.controls['pluginId'].invalid"
-              placeholder="_#(em.data.databases.driver.pluginId)">
-            <label>_#(em.data.databases.driver.pluginId)</label>
-            @if (pluginForm.controls['pluginId']?.errors?.required) {
-              <span class="invalid-feedback">_#(em.data.databases.driver.pluginIdRequired)</span>
-            }
-            @if (pluginForm.controls['pluginId']?.errors?.pluginExists) {
-              <span class="invalid-feedback">_#(em.data.databases.driver.pluginIdExists)</span>
-            }
-            <span class="plugin-settings-hint">_#(em.data.databases.driver.pluginIdHint)</span>
-          </div>
-        </div>
-        <div class="driver-wizard__field driver-wizard__field--plugin form-floating">
-          <div class="col form-floating">
-            <input class="form-control" type="text" formControlName="pluginName"
-              [class.is-invalid]="pluginForm.controls['pluginName'].invalid"
-              placeholder="_#(em.data.databases.driver.pluginName)">
-            <label>_#(em.data.databases.driver.pluginName)</label>
-            @if (pluginForm.controls['pluginName']?.errors?.required) {
-              <span class="invalid-feedback">_#(em.data.databases.driver.pluginNameRequired)</span>
-            }
-            <span class="plugin-settings-hint">_#(em.data.databases.driver.pluginNameHint)</span>
-          </div>
-        </div>
-        <div class="driver-wizard__field driver-wizard__field--plugin form-floating">
-          <div class="col form-floating">
-            <input class="form-control" type="text" formControlName="pluginVersion"
-              [class.is-invalid]="pluginForm.controls['pluginVersion'].invalid"
-              placeholder="_#(em.data.databases.driver.pluginVersion)">
-            <label>_#(em.data.databases.driver.pluginVersion)</label>
-            @if (pluginForm.controls['pluginVersion']?.errors?.required) {
-              <span class="invalid-feedback">_#(em.data.databases.driver.pluginVersionRequired)</span>
-            }
-            @if (pluginForm.controls['pluginVersion']?.errors?.pattern) {
-              <span class="invalid-feedback">_#(em.data.databases.driver.pluginVersionInvalid)</span>
-            }
-            <span class="plugin-settings-hint" [innerHTML]="'_#(em.data.databases.driver.pluginVersionHint)'"></span>
-          </div>
-        </div>
+    <div class="driver-wizard driver-wizard--plugin" [formGroup]="pluginForm">
+      <div class="driver-wizard__section driver-wizard__plugin-copy">_#(em.data.databases.driver.pluginSettingsHelp)</div>
+      <div class="driver-wizard__field driver-wizard__field--plugin form-floating">
+        <input class="form-control" type="text" formControlName="pluginId"
+               [class.is-invalid]="pluginForm.controls['pluginId'].invalid"
+               placeholder="_#(em.data.databases.driver.pluginId)">
+        <label>_#(em.data.databases.driver.pluginId)</label>
+        @if (pluginForm.controls['pluginId']?.errors?.required) {
+          <span class="invalid-feedback">_#(em.data.databases.driver.pluginIdRequired)</span>
+        }
+        @if (pluginForm.controls['pluginId']?.errors?.pluginExists) {
+          <span class="invalid-feedback">_#(em.data.databases.driver.pluginIdExists)</span>
+        }
+        <span class="plugin-settings-hint">_#(em.data.databases.driver.pluginIdHint)</span>
+      </div>
+      <div class="driver-wizard__field driver-wizard__field--plugin form-floating">
+        <input class="form-control" type="text" formControlName="pluginName"
+               [class.is-invalid]="pluginForm.controls['pluginName'].invalid"
+               placeholder="_#(em.data.databases.driver.pluginName)">
+        <label>_#(em.data.databases.driver.pluginName)</label>
+        @if (pluginForm.controls['pluginName']?.errors?.required) {
+          <span class="invalid-feedback">_#(em.data.databases.driver.pluginNameRequired)</span>
+        }
+        <span class="plugin-settings-hint">_#(em.data.databases.driver.pluginNameHint)</span>
+      </div>
+      <div class="driver-wizard__field driver-wizard__field--plugin form-floating">
+        <input class="form-control" type="text" formControlName="pluginVersion"
+               [class.is-invalid]="pluginForm.controls['pluginVersion'].invalid"
+               placeholder="_#(em.data.databases.driver.pluginVersion)">
+        <label>_#(em.data.databases.driver.pluginVersion)</label>
+        @if (pluginForm.controls['pluginVersion']?.errors?.required) {
+          <span class="invalid-feedback">_#(em.data.databases.driver.pluginVersionRequired)</span>
+        }
+        @if (pluginForm.controls['pluginVersion']?.errors?.pattern) {
+          <span class="invalid-feedback">_#(em.data.databases.driver.pluginVersionInvalid)</span>
+        }
+        <span class="plugin-settings-hint" [innerHTML]="'_#(em.data.databases.driver.pluginVersionHint)'"></span>
       </div>
     </div>
   }

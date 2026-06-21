@@ -1,53 +1,205 @@
 <!--
-~ This file is part of StyleBI.
-~ Copyright (C) 2024  InetSoft Technology
-~
-~ This program is free software: you can redistribute it and/or modify
-~ it under the terms of the GNU Affero General Public License as published by
-~ the Free Software Foundation, either version 3 of the License, or
-~ (at your option) any later version.
-~
-~ This program is distributed in the hope that it will be useful,
-~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-~ GNU Affero General Public License for more details.
-~
-~ You should have received a copy of the GNU Affero General Public License
-~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
--->
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2024  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
 @if (!!selectedFile) {
-  <div class="description-scroll-container container-fluid light-gray-bg h-100 asset-description-container bl-gray">
-    <div class="row justify-content-end g-0 py-1">
-      <button type="button" class="btn-close cursor-pointer" (click)="close()" aria-label="close">
-      </button>
-    </div>
-    <div class="form-group">
-      <h2>{{selectedFile.name}}</h2>
-    </div>
-    @let basedView = getBasedView();
-    @if (!!basedView) {
-      <div class="form-group">
-        <div class="overview-item__label">_#(data.datasources.basedView)</div>
-        <div>{{basedView}}</div>
-      </div>
-    }
-    <div class="form-group">
-      <div class="overview-item__label">_#(data.datasources.creationDate)</div>
-      <div>{{selectedFile.createdDateLabel}}</div>
-    </div>
-    <div class="form-group">
-      <div class="overview-item__label">_#(Creation By)</div>
-      <div>{{selectedFile.createdBy}}</div>
-    </div>
-    @if (isWorksheet) {
-      <div class="form-group">
-        <div class="overview-item__label">_#(Last Modified)</div>
-        <div>{{selectedFile.modifiedDateLabel}}</div>
-      </div>
-    }
-    <div class="form-group">
-      <div class="overview-item__label">_#(Description)</div>
-      <div>{{selectedFile.description}}</div>
+  <div class="description-scroll-container asset-description-shell">
+    <div class="asset-description-layout">
+      <section class="asset-hero">
+        <div class="asset-hero__copy">
+          <div class="asset-hero__eyebrow">
+            @if (isWorksheet) {
+              _#(Worksheet)
+            } @else {
+              _#(Details)
+            }
+          </div>
+          <h1 class="asset-hero__title">{{selectedFile.name}}</h1>
+          @if (selectedFile.description) {
+            <div class="asset-hero__description">
+              {{selectedFile.description}}
+            </div>
+          }
+        </div>
+        <button type="button" class="btn-close cursor-pointer asset-hero__close"
+                (click)="close()" aria-label="close">
+        </button>
+      </section>
+
+      <section class="info-section">
+        <div class="info-section__title">_#(Overview)</div>
+        <div class="overview-grid">
+          @let basedView = getBasedView();
+          @if (!!basedView) {
+            <div class="overview-item">
+              <div class="overview-item__label">_#(data.datasources.basedView)</div>
+              <div class="overview-item__value">{{basedView}}</div>
+            </div>
+          }
+          <div class="overview-item">
+            <div class="overview-item__label">_#(data.datasources.creationDate)</div>
+            <div class="overview-item__value">
+              @if (selectedFile.createdDateLabel) {
+                {{selectedFile.createdDateLabel}}
+              } @else {
+                _#(None)
+              }
+            </div>
+          </div>
+          <div class="overview-item">
+            <div class="overview-item__label">_#(Creation By)</div>
+            <div class="overview-item__value">
+              @if (selectedFile.createdBy) {
+                {{selectedFile.createdBy}}
+              } @else {
+                _#(None)
+              }
+            </div>
+          </div>
+          @if (isWorksheet) {
+            <div class="overview-item">
+              <div class="overview-item__label">_#(Last Modified)</div>
+              <div class="overview-item__value">
+                @if (selectedFile.modifiedDateLabel) {
+                  {{selectedFile.modifiedDateLabel}}
+                } @else {
+                  _#(None)
+                }
+              </div>
+            </div>
+            <div class="overview-item">
+              <div class="overview-item__label">_#(Primary Fields)</div>
+              <div class="overview-item__value">{{primaryTableAssembly?.fields?.length || 0}}</div>
+            </div>
+            <div class="overview-item">
+              <div class="overview-item__label">_#(Root Inputs)</div>
+              <div class="overview-item__value">{{rootTableAssemblies.length}}</div>
+            </div>
+            <div class="overview-item">
+              <div class="overview-item__label">_#(Used By)</div>
+              <div class="overview-item__value">{{usedBy.length}}</div>
+            </div>
+          }
+        </div>
+      </section>
+
+      @if (isWorksheet) {
+        <section class="info-section">
+          <div class="info-section__title">_#(Transformation Summary)</div>
+          @if (loadingRootTableAssemblies) {
+            <div class="section-empty">_#(Loading)</div>
+          }
+          @if (!loadingRootTableAssemblies && !transformationSummary) {
+            <div class="section-empty">_#(None)</div>
+          }
+          @if (transformationSummary) {
+            <div class="summary-callout">
+              {{transformationSummary}}
+            </div>
+          }
+        </section>
+      }
+
+      @if (isWorksheet) {
+        <div class="detail-grid">
+          <section class="info-section detail-card">
+            <div class="info-section__title">_#(Primary Table Assembly)</div>
+            @if (loadingRootTableAssemblies) {
+              <div class="section-empty">_#(Loading)</div>
+            }
+            @if (!loadingRootTableAssemblies && !primaryTableAssembly) {
+              <div class="section-empty">_#(None)</div>
+            }
+            @if (primaryTableAssembly) {
+              <div class="block-card block-card--primary">
+                <div class="block-card__header">
+                  <div class="block-card__title">{{primaryTableAssembly.name}}</div>
+                  <div class="block-card__badge">{{primaryTableAssembly.fields?.length || 0}} _#(Fields)</div>
+                </div>
+                @if (primaryTableAssembly.fields?.length) {
+                  <div class="field-chip-list">
+                    @for (field of primaryTableAssembly.fields; track field.name) {
+                      <div class="field-chip">
+                        <span class="field-chip__name">{{field.name}}</span>
+                        <span class="field-chip__type">{{getRootTableAssemblyFieldType(field)}}</span>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </section>
+
+          <section class="info-section detail-card">
+            <div class="info-section__title">_#(Used By)</div>
+            @if (loadingRootTableAssemblies) {
+              <div class="section-empty">_#(Loading)</div>
+            }
+            @if (!loadingRootTableAssemblies && usedBy.length === 0) {
+              <div class="section-empty">_#(None)</div>
+            }
+            @for (asset of usedBy; track asset.name) {
+              <div class="dependent-asset-item">
+                <div class="dependent-asset-item__header">
+                  <div class="dependent-asset-name">{{asset.name}}</div>
+                  <div class="dependent-asset-meta">{{getDependentAssetTypeLabel(asset)}}</div>
+                </div>
+                <div class="dependent-asset-path">{{asset.path}}</div>
+              </div>
+            }
+          </section>
+        </div>
+      }
+
+      @if (isWorksheet) {
+        <section class="info-section">
+          <div class="info-section__title">_#(Root Table Assemblies)</div>
+          @if (loadingRootTableAssemblies) {
+            <div class="section-empty">_#(Loading)</div>
+          }
+          @if (!loadingRootTableAssemblies && rootTableAssemblies.length === 0) {
+            <div class="section-empty">_#(None)</div>
+          }
+          @if (rootTableAssemblies.length > 0) {
+            <div class="root-block-grid">
+              @for (tableAssembly of rootTableAssemblies; track tableAssembly.name) {
+                <div class="block-card">
+                  <div class="block-card__header">
+                    <div>
+                      <div class="block-card__title">{{tableAssembly.name}}</div>
+                      <div class="block-card__subtitle">{{getRootTableAssemblyLabel(tableAssembly)}}</div>
+                    </div>
+                    <div class="block-card__pill">{{getRootTableAssemblyMeta(tableAssembly)}}</div>
+                  </div>
+                  @if (tableAssembly.fields?.length) {
+                    <div class="field-chip-list">
+                      @for (field of tableAssembly.fields; track field.name) {
+                        <div class="field-chip">
+                          <span class="field-chip__name">{{field.name}}</span>
+                          <span class="field-chip__type">{{getRootTableAssemblyFieldType(field)}}</span>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </section>
+      }
     </div>
   </div>
 }

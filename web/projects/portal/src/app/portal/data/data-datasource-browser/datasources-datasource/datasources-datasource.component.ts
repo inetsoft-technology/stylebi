@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
+import { NgClass } from "@angular/common";
 import { ChangeDetectorRef, Component, HostListener, NgZone, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { ActivatedRoute, ParamMap, Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
@@ -54,7 +55,7 @@ export interface AdditionalInfo {
     selector: "datasources-datasource",
     templateUrl: "datasources-datasource.component.html",
     styleUrls: ["datasources-datasource.component.scss"],
-    imports: [DatasourcesDatasourceEditorComponent, DataNotificationsComponent]
+    imports: [NgClass, DatasourcesDatasourceEditorComponent, DataNotificationsComponent]
 })
 export class DatasourcesDatasourceComponent implements OnInit, OnDestroy{
    @ViewChild("dataNotifications") dataNotifications: DataNotificationsComponent;
