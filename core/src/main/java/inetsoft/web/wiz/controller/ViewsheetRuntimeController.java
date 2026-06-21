@@ -28,6 +28,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.Tool;
 import inetsoft.web.wiz.model.CloseViewsheetRequest;
 import inetsoft.web.wiz.model.OpenViewsheetResult;
+import inetsoft.web.wiz.model.VerifyViewsheetResult;
 import inetsoft.web.wiz.service.WizVisualizationService;
 import inetsoft.web.wiz.service.WizVsService;
 import jakarta.validation.Valid;
@@ -131,6 +132,98 @@ public class ViewsheetRuntimeController {
       }
 
       return result;
+   }
+
+   /**
+    * Verify that a saved visualization actually renders: open it into a throwaway runtime,
+    * execute its chart server-side, and report whether it produced data (hasData + rowCount).
+    * When the underlying query failed, the real data-source cause is returned in {@code error}
+    * (hasData=false) rather than thrown — a failed render is the answer, not an exception.
+    * The runtime is always closed before returning, so this is non-destructive and does not
+    * affect the caller's active chart.
+    *
+    * @param identifier the asset entry identifier of the saved visualization
+    * @param user       the current principal
+    * @return the verification result (hasData, rowCount, optional error)
+    */
+   @PostMapping(value = "/viewsheet/verify", produces = MediaType.APPLICATION_JSON_VALUE)
+   public VerifyViewsheetResult verifyViewsheet(@RequestParam("identifier") String identifier,
+                                                @RequestParam(value = "sampleMaxRows", required = false) Integer sampleMaxRows,
+                                                Principal user) throws Exception
+   {
+      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+
+      if(entry == null) {
+         throw new IllegalArgumentException("Invalid viewsheet identifier: " + identifier);
+      }
+
+      String path = entry.getPath();
+
+      // Accept the same managed folders as openViewsheet (session + saved-components).
+      if(path == null ||
+         !(path.startsWith(WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/") ||
+           path.startsWith(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/")))
+      {
+         throw new IllegalArgumentException(
+            "Viewsheet is not in the managed visualizations folder: " + path);
+      }
+
+      VerifyViewsheetResult result = new VerifyViewsheetResult();
+      result.setViewsheetIdentifier(identifier);
+
+      String runtimeId = viewsheetService.openViewsheet(entry, user, true);
+
+      try {
+         VSAssembly assembly = findChartAssembly(runtimeId, user);
+
+         if(assembly == null) {
+            result.setError("No chart assembly found in the saved visualization");
+            return result;
+         }
+
+         result.setAssemblyName(assembly.getName());
+
+         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+
+         if(rvs == null) {
+            result.setError("Runtime viewsheet not found after open");
+            return result;
+         }
+
+         if(sampleMaxRows != null && sampleMaxRows > 0) {
+            try {
+               var bws = rvs.getViewsheet() != null ? rvs.getViewsheet().getBaseWorksheet() : null;
+
+               if(bws != null) {
+                  bws.getWorksheetInfo().setDesignMaxRows(sampleMaxRows);
+               }
+            }
+            catch(Exception ex) {
+               log.warn("Failed to apply sampled-preview cap on verify: {}", ex.getMessage());
+            }
+         }
+
+         try {
+            WizVsService.VerifyResult vr = wizVsService.verifyChartData(rvs, assembly.getName());
+            result.setHasData(vr.hasData());
+            result.setRowCount(vr.rowCount());
+         }
+         catch(IllegalArgumentException e) {
+            // Failed query: surface the real data-source cause instead of throwing.
+            result.setHasData(false);
+            result.setError(e.getMessage());
+         }
+
+         return result;
+      }
+      finally {
+         try {
+            viewsheetService.closeViewsheet(runtimeId, user);
+         }
+         catch(Exception ignore) {
+            log.warn("Failed to close runtime [{}] after verify", runtimeId);
+         }
+      }
    }
 
    /**
