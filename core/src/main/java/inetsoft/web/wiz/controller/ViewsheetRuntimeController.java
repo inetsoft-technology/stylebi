@@ -100,6 +100,30 @@ public class ViewsheetRuntimeController {
          result.setBinding(wizVsService.collectFlatBinding(assembly));
       }
 
+      // #75486: make a reopened saved viz re-bindable in place. Return its base worksheet
+      // identifier (update_binding re-runs autoBinding against this worksheet), and ensure the
+      // runtime carries WizInfo — a plain reopen does not configure it, so getValidatedViewsheet
+      // would otherwise reject the re-bind with "Runtime Viewsheet does not have WizInfo
+      // configured". These viewsheets live in the managed wiz folders (validated above), so marking
+      // the reopened runtime as a wiz visualization is correct. Idempotent: only set when missing.
+      try {
+         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+         Viewsheet vs = rvs != null ? rvs.getViewsheet() : null;
+
+         if(vs != null) {
+            if(vs.getBaseEntry() != null) {
+               result.setWorksheetIdentifier(vs.getBaseEntry().toIdentifier());
+            }
+
+            if(vs.getWizInfo() == null) {
+               vs.setWizInfo(new Viewsheet.WizInfo(true, null, null));
+            }
+         }
+      }
+      catch(Exception ex) {
+         log.warn("Could not configure reopened wiz runtime {} for re-binding: {}", runtimeId, ex.getMessage());
+      }
+
       // #75456: sampled-preview mode for the live viewer. The reopened runtime renders on demand when
       // the browser embeds it; set the source worksheet's design-max cap now (before that render) and
       // drop any pre-rendered full-data result so the embed aggregates at most sampleMaxRows rows.
