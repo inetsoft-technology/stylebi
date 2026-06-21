@@ -1358,8 +1358,13 @@ public class WizVsService {
 
          String existingPath = entry.getPath();
 
+         // Accept both managed folders: ROOT holds session viewsheets, COMPONENTS holds standalone
+         // saved visualizations (the Wiz Portal Visualizations tab). A reloaded saved viz being
+         // re-bound in place (#75486) lives in COMPONENTS, so restricting to ROOT alone rejected
+         // every saved-chart re-bind (mirrors the open endpoint's #3901 fix).
          if(existingPath == null ||
-            !existingPath.startsWith(WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/"))
+            !(existingPath.startsWith(WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/") ||
+              existingPath.startsWith(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/")))
          {
             throw new IllegalArgumentException(
                "viewsheetIdentifier points outside the managed visualizations folder: " + existingPath);

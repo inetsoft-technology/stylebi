@@ -51,7 +51,18 @@ public class OpenViewsheetResult {
       this.binding = binding;
    }
 
+   public String getWorksheetIdentifier() {
+      return worksheetIdentifier;
+   }
+
+   public void setWorksheetIdentifier(String worksheetIdentifier) {
+      this.worksheetIdentifier = worksheetIdentifier;
+   }
+
    private String runtimeId;
    private String assemblyName;
    private CreateViewsheetResult.FlatBinding binding;
+   // The reopened viewsheet's base worksheet identifier, so callers can re-bind in place
+   // (update_binding re-runs autoBinding against this worksheet) without rebuilding. See #75486.
+   private String worksheetIdentifier;
 }
