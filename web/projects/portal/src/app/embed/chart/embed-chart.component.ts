@@ -323,6 +323,15 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
 
       this.vsObjectActions = new EmbedChartActions(this.vsObject, null,
          this.contextProvider, false, null, null, this.miniToolbarService);
+
+      // As an Angular Elements custom element, this component's view is not refreshed by the
+      // zone tick that wraps websocket command processing. Without an explicit detectChanges,
+      // the template @if (vsObject && runtimeId) is never re-evaluated on a fresh open, so
+      // <vs-chart> is never created and its model setter never requests the chart areas
+      // (/events/vschart/areas) — leaving the plot null and the chart blank until some DOM
+      // event (e.g. a window resize) happens to trigger change detection. Force CD here so the
+      // chart mounts and renders on open.
+      this.cdRef.detectChanges();
    }
 
    // noinspection JSUnusedGlobalSymbols
@@ -341,6 +350,10 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       this.vsObject.active = true;
       this.vsObjectActions = new EmbedChartActions(this.vsObject, null,
          this.contextProvider, false, null, null, this.miniToolbarService);
+
+      // See processAddVSObjectCommand: force change detection so the embed view updates outside
+      // of a DOM event (custom-element views are not covered by the command-processing zone tick).
+      this.cdRef.detectChanges();
    }
 
    // noinspection JSUnusedGlobalSymbols
