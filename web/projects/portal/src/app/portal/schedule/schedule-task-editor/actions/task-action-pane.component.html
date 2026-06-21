@@ -70,11 +70,11 @@
       </button>
       <button type="button" class="btn btn-secondary" (click)="save(true)"
       [disabled]="!isValid()">_#(Save)</button>
-      <button type="button" class="btn btn-secondary ms-2" (click)="closeEditor.emit(model)">
+      <button type="button" class="btn btn-secondary" (click)="closeEditor.emit(model)">
         _#(Close)
       </button>
       @if (newTask) {
-        <button type="button" class="btn btn-secondary ms-2" (click)="cancelTask.emit()">
+        <button type="button" class="btn btn-secondary" (click)="cancelTask.emit()">
           _#(Cancel)
         </button>
       }
@@ -89,19 +89,19 @@
   </div>
   <div class="task-action-pane__list-footer">
     <button type="button" class="btn btn-secondary" (click)="addAction()">_#(Add)</button>
-    <button type="button" class="btn btn-secondary ms-2" (click)="copyAction()"
+    <button type="button" class="btn btn-secondary" (click)="copyAction()"
     [disabled]="selectedActions.length != 1 || model.actions.length < 1">_#(Copy)</button>
     <button type="button" class="btn btn-secondary delete-button-id" (click)="deleteAction()"
     [disabled]="selectedActions.length < 1 || model.actions.length < 1">_#(Delete)</button>
-    <button type="button" class="btn btn-secondary ms-2"
+    <button type="button" class="btn btn-secondary"
       [disabled]="selectedActions.length != 1 || model.actions.length < 1"
     (click)="editAction()">_#(Edit)</button>
-    <button type="button" class="btn btn-secondary ms-2"
+    <button type="button" class="btn btn-secondary"
     (click)="save(true)">_#(Save)</button>
-    <button type="button" class="btn btn-secondary ms-2"
+    <button type="button" class="btn btn-secondary"
     (click)="closeEditor.emit(model)">_#(Close)</button>
     @if (newTask) {
-      <button type="button" class="btn btn-secondary ms-2" (click)="cancelTask.emit()">
+      <button type="button" class="btn btn-secondary" (click)="cancelTask.emit()">
         _#(Cancel)
       </button>
     }
