@@ -111,6 +111,11 @@ export class VirtualScrollTreeDatasource {
       return this.dispatcher.asObservable();
    }
 
+   public cleanup(): void {
+      this._scrollCleanup?.();
+      this._scrollCleanup = null;
+   }
+
    /**
     * Super hack - unset then set the scroll top to work around scroll
     * anchoring type behavior

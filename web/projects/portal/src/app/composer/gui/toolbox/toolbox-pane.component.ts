@@ -98,6 +98,8 @@ export class ToolboxPane implements OnChanges, OnInit, OnDestroy {
    }
 
    ngOnDestroy(): void {
+      this.virtualScrollTreeDatasource.cleanup();
+
       if(this.vScrollSubscription) {
          this.vScrollSubscription.unsubscribe();
       }

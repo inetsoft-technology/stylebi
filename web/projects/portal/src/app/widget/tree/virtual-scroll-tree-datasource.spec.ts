@@ -98,4 +98,16 @@ describe("VirtualScrollTreeDatasource.registerScrollContainer()", () => {
       // BehaviorSubject emits 0 on subscribe, then emits e.target.scrollTop on scroll
       expect(scrollTops.length).toBe(2);
    });
+
+   it("re-registering removes the previous scroll listener", () => {
+      const zone = makeMockZone();
+      ds.registerScrollContainer(el, zone);
+      const el2 = document.createElement("div");
+      const obs = ds.registerScrollContainer(el2, zone);
+      let emitCount = 0;
+      obs.subscribe(() => emitCount++); // receives initial BehaviorSubject emit
+      emitCount = 0; // reset after initial emit
+      el.dispatchEvent(new Event("scroll")); // old element — listener should be gone
+      expect(emitCount).toBe(0);
+   });
 });
