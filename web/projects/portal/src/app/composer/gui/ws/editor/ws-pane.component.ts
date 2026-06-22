@@ -561,7 +561,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       };
 
       const onCancel = () => {
-         if(this.worksheet.singleQuery) {
+         if(this.worksheet.singleQuery && !table.sqlEdited) {
             this.onSheetClose.emit(this.worksheet);
          }
       };
