@@ -1053,17 +1053,17 @@ public class JDBCUtil {
       UniformSQL sql = new UniformSQL();
       sql.setDataSource(dataSource);
       sql.setSqlQuery(true);
-      String[] tables = JDBCUtil.getTableNames(tablesMap);
+      Map<String, String> tableNameAliasMap = JDBCUtil.getTableNameAliasMap(tablesMap);
 
-      for(String table : tables) {
-         SelectTable selectTable = sql.addTable(table);
-         AssetEntry tableEntry = tablesMap.get(table);
+      tableNameAliasMap.forEach((alias, name) ->{
+         SelectTable selectTable = sql.addTable(alias, name);
+         AssetEntry tableEntry = tablesMap.get(name);
 
          if(tableEntry != null) {
             selectTable.setCatalog(tableEntry.getProperty(XSourceInfo.CATALOG));
             selectTable.setSchema(tableEntry.getProperty(XSourceInfo.SCHEMA));
          }
-      }
+      });
 
       String quote = XUtil.getQuote(dataSource);
       JDBCSelection selection = new JDBCSelection();
@@ -1151,13 +1151,15 @@ public class JDBCUtil {
     *
     * @return the table names.
     */
-   public static String[] getTableNames(Map<String, AssetEntry> tablesMap) {
+   public static Map<String, String> getTableNameAliasMap(Map<String, AssetEntry> tablesMap) {
       ArrayList<AssetEntry> tables = new ArrayList<>(tablesMap.values());
-
-      String[] result = new String[tables.size()];
+      Map<String, String> result = new LinkedHashMap<>();
 
       for(int i = 0; i < tables.size(); i++) {
-         result[i] = tables.get(i).getProperty("source");
+         String name = tables.get(i).getProperty("source");
+         String alias = tables.get(i).getAlias();
+         alias = Tool.isEmptyString(alias) ? name : alias;
+         result.put(alias, name);
       }
 
       return result;

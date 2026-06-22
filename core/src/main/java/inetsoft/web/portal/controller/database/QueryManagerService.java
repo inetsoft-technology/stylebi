@@ -2390,7 +2390,14 @@ public class QueryManagerService {
          }
 
          String alias = selectTable.getAlias();
-         alias = alias == null ? tableName : alias;
+
+         if(!Tool.isEmptyString(alias)) {
+            entry.setAlias(alias);
+         }
+         else {
+            alias = tableName;
+         }
+
          runtimeQuery.addSelectedTable(alias, entry);
       }
    }
