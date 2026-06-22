@@ -510,18 +510,64 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
             r => r.items.some(it => it.type === this.FIELD && it.fieldIndex === fi));
 
          if(!stillReferenced) {
-            this.textFields = (this.textFields ?? []).filter((_, idx) => idx !== fi);
-
-            for(const row of this.workingRows) {
-               for(const it of row.items) {
-                  if(it.type === this.FIELD && it.fieldIndex > fi) {
-                     it.fieldIndex = it.fieldIndex - 1;
-                  }
-               }
-            }
-
-            this.onRemoveField.emit(fi);
+            this.removeOrphanedField(fi);
          }
+      }
+
+      this.selectedRowIndex = -1;
+      this.selectedItemIndex = -1;
+   }
+
+   /**
+    * Drop the orphaned textFields entry at index fi: remove the binding, compact every higher
+    * FIELD item's fieldIndex down by one to match, and tell the host to drop the same index from
+    * its authoritative textFields list. Shared by removeFieldItem and removeRow so the orphan
+    * contract stays in one place.
+    */
+   private removeOrphanedField(fi: number): void {
+      this.textFields = (this.textFields ?? []).filter((_, idx) => idx !== fi);
+
+      for(const r of this.workingRows) {
+         for(const it of r.items) {
+            if(it.type === this.FIELD && it.fieldIndex > fi) {
+               it.fieldIndex = it.fieldIndex - 1;
+            }
+         }
+      }
+
+      this.onRemoveField.emit(fi);
+   }
+
+   /**
+    * Delete an entire row and all of its items. Rows below shift up automatically. Each FIELD item
+    * in the row drops its backing textFields entry — unless another remaining row still references
+    * the same binding (e.g. the same column placed twice). Orphaned indices are processed highest
+    * first so each onRemoveField emit (which splices the host's authoritative textFields list) does
+    * not shift the indices still pending removal; the remaining FIELD items' fieldIndex is compacted
+    * to match. Mirrors removeFieldItem's single-item orphan/compaction logic.
+    */
+   removeRow(rowIndex: number): void {
+      const row = this.workingRows[rowIndex];
+
+      if(!row) {
+         return;
+      }
+
+      // Remove the row first; remaining rows shift up via splice.
+      this.workingRows.splice(rowIndex, 1);
+
+      // Unique FIELD indices that were in the removed row, now orphaned only if no surviving row
+      // still references them. Sort descending so removals don't invalidate pending indices.
+      const orphaned = Array.from(new Set(
+         (row.items ?? [])
+            .filter(it => it.type === this.FIELD && it.fieldIndex != null)
+            .map(it => it.fieldIndex)))
+         .filter(fi => !this.workingRows.some(
+            r => r.items.some(it => it.type === this.FIELD && it.fieldIndex === fi)))
+         .sort((a, b) => b - a);
+
+      for(const fi of orphaned) {
+         this.removeOrphanedField(fi);
       }
 
       this.selectedRowIndex = -1;

@@ -194,6 +194,10 @@
              (dragenter)="onDividerDragEnter(ri, row.items.length)"></div>
 
       </div>
+
+      <button class="btn btn-xs row-remove-btn ms-1"
+              (click)="removeRow(ri); $event.stopPropagation()"
+              title="_#(Remove Row)">&#215;</button>
     </div>
 
     <div *ngIf="workingRows.length === 0" class="empty-grid-hint p-2 unhighlightable">
