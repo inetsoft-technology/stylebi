@@ -420,7 +420,7 @@ _#(fl.action.newGroupDes)</div>
     (click)="aiAssistantDialogService.openAiAssistantDialog()">
   </button>
 }
-@if (isWorksheet && sheet) {
+@if (isWorksheet && sheet && wizService.sheetAgentPairingEnabled) {
   <div ngbDropdown #wizConnectDropdown="ngbDropdown" placement="bottom-end" container="body">
     <button type="button" class="btn-toolbar btn composer-btn" [ngbTooltip]="WizConnect"
             triggers="hover" container="body" ngbDropdownToggle>

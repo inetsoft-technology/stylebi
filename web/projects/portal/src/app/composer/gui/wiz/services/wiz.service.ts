@@ -1,3 +1,4 @@
+import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
 import { Observable, Subject } from "rxjs";
 import { WizDashboard } from "../../../data/vs/wizDashboard";
@@ -9,6 +10,7 @@ export class WizService {
    showingWiz: boolean = false;
    wizComposer: boolean = false;
    wizVizIds: string[] = [];
+   sheetAgentPairingEnabled: boolean = false;
    private _openVisualization = new Subject<{value?: string, standaloneVisualization?: boolean}>();
    private _showVisualization = new Subject<WizDashboard>();
    private _saveVisualization = new Subject<WizDashboard>();
@@ -16,7 +18,11 @@ export class WizService {
    private _refreshFilters = new Subject<void>();
    private _refreshTree = new Subject<void>();
 
-   constructor() {
+   constructor(private http: HttpClient) {
+      this.http.get<{enabled: boolean}>("../api/wiz/pairing/feature").subscribe({
+         next: (res) => this.sheetAgentPairingEnabled = res.enabled,
+         error: () => this.sheetAgentPairingEnabled = false,
+      });
    }
 
    get openVisualization(): Observable<{value?: string, standaloneVisualization?: boolean}> {

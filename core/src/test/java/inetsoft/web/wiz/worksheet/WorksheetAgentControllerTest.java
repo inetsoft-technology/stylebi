@@ -44,7 +44,7 @@ class WorksheetAgentControllerTest {
    private static JoinSession session(String token) {
       return new JoinSession(token, "Worksheet/ws-1", "alice~;~host-org",
                              SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
-                             JoinSession.ConnectionMode.PAIRED);
+                             JoinSession.ConnectionMode.PAIRED, null);
    }
 
    private static WorksheetAgentController controller(SheetAgentFeature feature,
@@ -86,7 +86,7 @@ class WorksheetAgentControllerTest {
          mock(SheetSessionService.class), mock(WorksheetReadService.class),
          mock(WorksheetEditService.class), mock(WorksheetService.class));
 
-      WorksheetAgentController.JoinResponse resp = ctrl.join("CODE", agent);
+      WorksheetAgentController.JoinResponse resp = ctrl.join(new WorksheetAgentController.JoinRequest("CODE"), agent);
 
       assertEquals("TOK-1", resp.sessionToken());
       assertEquals("Worksheet/ws-1", resp.runtimeId());
@@ -101,7 +101,7 @@ class WorksheetAgentControllerTest {
          mock(WorksheetService.class));
 
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-         () -> ctrl.join("CODE", TestPrincipals.user("alice", "host-org")));
+         () -> ctrl.join(new WorksheetAgentController.JoinRequest("CODE"), TestPrincipals.user("alice", "host-org")));
       assertEquals(403, ex.getStatusCode().value());
    }
 

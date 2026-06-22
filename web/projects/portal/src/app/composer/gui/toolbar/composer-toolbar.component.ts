@@ -305,7 +305,7 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
                private tooltipConfig: NgbTooltipConfig,
                private chatService: ChatService,
                private dropdownObserver: DropdownObserver,
-               private wizService: WizService)
+               protected wizService: WizService)
    {
       tooltipConfig.container = "body";
       this.wsSqlQueryController = new WsSqlQueryController(this.http, this.modelService, this.modalService);

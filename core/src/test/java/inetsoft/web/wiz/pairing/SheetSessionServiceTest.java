@@ -45,7 +45,7 @@ class SheetSessionServiceTest {
    @Test
    void openReturnsSessionWithToken() {
       SheetSessionService svc = serviceAt(FIXED_NOW);
-      JoinSession session = svc.open("rt-1", "alice~;~org", SheetType.WORKSHEET);
+      JoinSession session = svc.open("rt-1", "alice~;~org", SheetType.WORKSHEET, null);
       assertNotNull(session);
       assertNotNull(session.sessionToken());
       assertFalse(session.sessionToken().isEmpty());
@@ -54,7 +54,7 @@ class SheetSessionServiceTest {
    @Test
    void resolveReturnsSessionMultipleTimes() {
       SheetSessionService svc = serviceAt(FIXED_NOW);
-      JoinSession session = svc.open("rt-1", "alice~;~org", SheetType.WORKSHEET);
+      JoinSession session = svc.open("rt-1", "alice~;~org", SheetType.WORKSHEET, null);
       String token = session.sessionToken();
 
       JoinSession r1 = svc.resolve(token, "alice~;~org");
@@ -67,7 +67,7 @@ class SheetSessionServiceTest {
    @Test
    void resolveRejectsWrongUser() {
       SheetSessionService svc = serviceAt(FIXED_NOW);
-      JoinSession session = svc.open("rt-2", "alice~;~org", SheetType.WORKSHEET);
+      JoinSession session = svc.open("rt-2", "alice~;~org", SheetType.WORKSHEET, null);
       assertNull(svc.resolve(session.sessionToken(), "mallory~;~org"));
    }
 
@@ -80,7 +80,7 @@ class SheetSessionServiceTest {
    @Test
    void resolveExpiredSessionReturnsNull() {
       SheetSessionService svc = serviceAt(FIXED_NOW);
-      JoinSession session = svc.open("rt-3", "alice~;~org", SheetType.WORKSHEET);
+      JoinSession session = svc.open("rt-3", "alice~;~org", SheetType.WORKSHEET, null);
       String token = session.sessionToken();
 
       // advance clock past TTL
@@ -93,7 +93,7 @@ class SheetSessionServiceTest {
    void resolveRefreshesTtl() {
       long[] clock = { FIXED_NOW };
       SheetSessionService svc = new SheetSessionService(() -> clock[0]);
-      JoinSession session = svc.open("rt-4", "bob~;~org", SheetType.VIEWSHEET);
+      JoinSession session = svc.open("rt-4", "bob~;~org", SheetType.VIEWSHEET, null);
       String token = session.sessionToken();
 
       // advance to just before TTL
@@ -110,7 +110,7 @@ class SheetSessionServiceTest {
    @Test
    void closeInvalidatesToken() {
       SheetSessionService svc = serviceAt(FIXED_NOW);
-      JoinSession session = svc.open("rt-5", "carol~;~org", SheetType.WORKSHEET);
+      JoinSession session = svc.open("rt-5", "carol~;~org", SheetType.WORKSHEET, null);
       String token = session.sessionToken();
       svc.close(token);
       assertNull(svc.resolve(token, "carol~;~org"));

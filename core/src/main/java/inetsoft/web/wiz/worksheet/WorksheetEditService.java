@@ -27,6 +27,8 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import java.util.Enumeration;
 import inetsoft.web.wiz.pairing.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -74,11 +76,42 @@ public class WorksheetEditService {
 
       RuntimeWorksheet rws = (RuntimeWorksheet) runtimeAccess.getSheetForPairing(
          SheetType.WORKSHEET, session.runtimeId(), agent);
+      applySocketSession(rws, session);
 
       Editor editor = new Editor(rws.getWorksheet());
       mutation.accept(editor);
 
       broadcast.broadcastRefresh(rws, SheetType.WORKSHEET, session.runtimeId(), agent);
+   }
+
+   /**
+    * Resolve a session, provide the full {@link RuntimeWorksheet} to a mutation, then broadcast
+    * a refresh. Use this when the mutation needs more than the {@link Editor} provides (e.g.
+    * creating new assemblies that require AssetEventUtil.initColumnSelection).
+    */
+   public <T> T applyOnRuntime(String sessionToken, Principal agent,
+                               ThrowingFunction<RuntimeWorksheet, T> mutation)
+      throws PairingException
+   {
+      String agentKey = agentKey(agent);
+      JoinSession session = sessions.resolve(sessionToken, agentKey);
+
+      if(session == null) {
+         throw new PairingException("Invalid or expired session: " + sessionToken);
+      }
+
+      RuntimeWorksheet rws = (RuntimeWorksheet) runtimeAccess.getSheetForPairing(
+         SheetType.WORKSHEET, session.runtimeId(), agent);
+      applySocketSession(rws, session);
+
+      T result = mutation.apply(rws);
+      broadcast.broadcastRefresh(rws, SheetType.WORKSHEET, session.runtimeId(), agent);
+      return result;
+   }
+
+   @FunctionalInterface
+   public interface ThrowingFunction<A, R> {
+      R apply(A a) throws PairingException;
    }
 
    /**
@@ -106,6 +139,26 @@ public class WorksheetEditService {
    // Identity key helpers
    // -------------------------------------------------------------------------
 
+   /**
+    * Propagates the browser's socket session ID and user name from the pairing session
+    * to the RuntimeWorksheet so the broadcast can deliver the refresh command.
+    */
+   private void applySocketSession(RuntimeWorksheet rws, JoinSession session) {
+      if(session.socketSessionId() != null && rws.getSocketSessionId() == null) {
+         rws.setSocketSessionId(session.socketSessionId());
+      }
+
+      if(rws.getSocketUserName() == null) {
+         // ownerIdentity is "user~;~orgId" — extract the username portion
+         String ownerIdentity = session.ownerIdentity();
+         String userName = ownerIdentity != null && ownerIdentity.contains("~;~")
+            ? ownerIdentity.substring(0, ownerIdentity.indexOf("~;~"))
+            : ownerIdentity;
+         rws.setSocketUserName(userName);
+      }
+
+   }
+
    private String agentKey(Principal agent) {
       if(agent instanceof XPrincipal p) {
          IdentityID id = IdentityID.getIdentityIDFromKey(p.getName());
@@ -122,6 +175,7 @@ public class WorksheetEditService {
    private final SheetSessionService sessions;
    private final SheetRuntimeAccess runtimeAccess;
    private final SheetAgentBroadcastService broadcast;
+   private static final Logger LOG = LoggerFactory.getLogger(WorksheetEditService.class);
 
    // =========================================================================
    // Inner class: Editor

@@ -19,7 +19,12 @@ package inetsoft.web.wiz.worksheet;
 
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
+import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,9 +32,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.awt.*;
+import java.io.*;
 import java.security.Principal;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 
 /**
  * REST controller that exposes worksheet editing capabilities to the wiz sheet agent.
@@ -74,8 +81,11 @@ public class WorksheetAgentController {
     *                          or the feature flag is off (feature gate throws this first
     *                          via {@link SheetJoinService#join})
     */
+   public record JoinRequest(String code) {}
+
    @PostMapping("/api/wiz/v1/agent/worksheet/join")
-   public JoinResponse join(@RequestParam String code, Principal user) throws PairingException {
+   public JoinResponse join(@RequestBody JoinRequest body, Principal user) throws PairingException {
+      String code = body.code();
       requireEnabled();
       JoinSession session = joinService.join(code, user);
       return new JoinResponse(session.sessionToken(), session.runtimeId(), session.ownerIdentity());
@@ -159,6 +169,150 @@ public class WorksheetAgentController {
       catch(Exception e) {
          throw new PairingException("Failed to save worksheet: " + e.getMessage());
       }
+   }
+
+   /**
+    * Import CSV data as a new embedded table assembly in the worksheet.
+    *
+    * @param sessionToken the token obtained at join time
+    * @param body         name (optional) and csv string
+    * @param user         the authenticated agent principal
+    */
+   public record ImportCsvRequest(String name, String csv) {}
+   public record ImportCsvResponse(String tableName, int rows, int columns) {}
+
+   @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/import-csv")
+   public ImportCsvResponse importCsv(@PathVariable String sessionToken,
+                                      @RequestBody ImportCsvRequest body,
+                                      Principal user) throws PairingException
+   {
+      requireEnabled();
+
+      if(body.csv() == null || body.csv().isBlank()) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "csv is required");
+      }
+
+      List<String[]> rows = parseCsv(body.csv());
+      if(rows.size() < 1) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "CSV has no rows");
+      }
+
+      String[] headers = rows.get(0);
+      int ncols = headers.length;
+      int nrows = rows.size();
+
+      String[] types = new String[ncols];
+      for(int c = 0; c < ncols; c++) {
+         types[c] = inferType(rows, c);
+      }
+
+      Object[][] data = new Object[nrows][ncols];
+      for(int r = 0; r < nrows; r++) {
+         String[] srcRow = rows.get(r);
+         for(int c = 0; c < ncols; c++) {
+            String cell = c < srcRow.length ? srcRow[c] : "";
+            data[r][c] = r == 0 ? cell : convertCell(cell, types[c]);
+         }
+      }
+
+      return editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         String tableName = (body.name() != null && !body.name().isBlank())
+            ? body.name()
+            : AssetUtil.getNextName(ws, AbstractSheet.TABLE_ASSET);
+
+         EmbeddedTableAssembly assembly = new EmbeddedTableAssembly(ws, tableName);
+
+         Assembly[] existing = ws.getAssemblies();
+         int maxY = 0;
+         for(Assembly a : existing) {
+            if(a instanceof AbstractWSAssembly wa) {
+               maxY = Math.max(maxY, wa.getPixelOffset().y + wa.getPixelSize().height);
+            }
+         }
+         assembly.setPixelOffset(new Point(10, maxY + 10));
+         assembly.setPixelSize(new Dimension(AssetUtil.defw, nrows + 1));
+
+         XEmbeddedTable table = new XEmbeddedTable(types, data);
+         assembly.setEmbeddedData(table);
+         ws.addAssembly(assembly);
+
+         try {
+            AssetEventUtil.initColumnSelection(rws, assembly);
+         }
+         catch(Exception e) {
+            throw new PairingException("Failed to initialize column selection: " + e.getMessage());
+         }
+
+         return new ImportCsvResponse(tableName, nrows - 1, ncols);
+      });
+   }
+
+   /** Parse a CSV string into a list of string arrays (one per row). Handles quoted fields. */
+   private static List<String[]> parseCsv(String csv) {
+      List<String[]> result = new ArrayList<>();
+      try(BufferedReader reader = new BufferedReader(new StringReader(csv))) {
+         String line;
+         while((line = reader.readLine()) != null) {
+            if(line.isBlank()) continue;
+            result.add(parseCsvLine(line));
+         }
+      }
+      catch(IOException e) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to parse CSV: " + e.getMessage());
+      }
+      return result;
+   }
+
+   private static String[] parseCsvLine(String line) {
+      List<String> fields = new ArrayList<>();
+      StringBuilder sb = new StringBuilder();
+      boolean inQuotes = false;
+      for(int i = 0; i < line.length(); i++) {
+         char c = line.charAt(i);
+         if(c == '"') {
+            if(inQuotes && i + 1 < line.length() && line.charAt(i + 1) == '"') {
+               sb.append('"');
+               i++;
+            }
+            else {
+               inQuotes = !inQuotes;
+            }
+         }
+         else if(c == ',' && !inQuotes) {
+            fields.add(sb.toString());
+            sb.setLength(0);
+         }
+         else {
+            sb.append(c);
+         }
+      }
+      fields.add(sb.toString());
+      return fields.toArray(new String[0]);
+   }
+
+   /** Infer XSchema type for a column by scanning data rows (row 0 is header, skip it). */
+   private static String inferType(List<String[]> rows, int col) {
+      boolean allNumeric = true;
+      for(int r = 1; r < rows.size(); r++) {
+         String[] row = rows.get(r);
+         String cell = col < row.length ? row[col].trim() : "";
+         if(cell.isEmpty()) continue;
+         try { Double.parseDouble(cell); }
+         catch(NumberFormatException e) { allNumeric = false; break; }
+      }
+      return allNumeric ? XSchema.DOUBLE : XSchema.STRING;
+   }
+
+   private static Object convertCell(String cell, String type) {
+      if(cell == null || cell.isBlank()) return null;
+      if(XSchema.DOUBLE.equals(type) || XSchema.FLOAT.equals(type) ||
+         XSchema.INTEGER.equals(type) || XSchema.LONG.equals(type))
+      {
+         try { return Double.parseDouble(cell.trim()); }
+         catch(NumberFormatException e) { return cell; }
+      }
+      return cell;
    }
 
    /**

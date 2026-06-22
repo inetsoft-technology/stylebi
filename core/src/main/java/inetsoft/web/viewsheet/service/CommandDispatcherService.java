@@ -62,7 +62,11 @@ public class CommandDispatcherService
       String sessionId = SimpMessageHeaderAccessor.getSessionId(headers);
       String node = sessions.get(sessionId);
 
-      if(cluster.getLocalMember().equals(node)) {
+      if(node == null) {
+         LOG.warn("CommandDispatcherService: session not found, message dropped (sessionId={}, destination={})",
+                  sessionId, destination);
+      }
+      else if(cluster.getLocalMember().equals(node)) {
          template.convertAndSendToUser(user, destination, payload, headers);
       }
       else if(node != null) {

@@ -259,7 +259,10 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
       lock.lock();
 
       try {
-         String privateKeyProperty = SreeEnv.getPassword("sso.rsa.private.key");
+         // The private key is already AES-encrypted with the master key before storage,
+         // so setProperty (not setPassword) avoids a double-encryption layer that causes
+         // Base64 decode failures when the password-encryption secret key changes between restarts.
+         String privateKeyProperty = SreeEnv.getProperty("sso.rsa.private.key");
          String publicKeyProperty = SreeEnv.getProperty("sso.rsa.public.key");
 
          if(privateKeyProperty == null || publicKeyProperty == null) {
@@ -269,7 +272,7 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
             String encodedPublicKey = Base64.getEncoder().encodeToString(
                keyPair.getPublic().getEncoded());
 
-            SreeEnv.setPassword("sso.rsa.private.key", encodedPrivateKey);
+            SreeEnv.setProperty("sso.rsa.private.key", encodedPrivateKey);
             SreeEnv.setProperty("sso.rsa.public.key", encodedPublicKey);
             SreeEnv.save();
 

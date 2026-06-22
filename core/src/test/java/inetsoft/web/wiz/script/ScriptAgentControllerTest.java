@@ -46,7 +46,7 @@ class ScriptAgentControllerTest {
    private static JoinSession session(String token, String runtimeId) {
       return new JoinSession(token, runtimeId, "alice~;~host-org",
                              SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
-                             JoinSession.ConnectionMode.PAIRED);
+                             JoinSession.ConnectionMode.PAIRED, null);
    }
 
    private static SheetAgentFeature featureOn() {

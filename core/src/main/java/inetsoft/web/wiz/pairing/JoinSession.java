@@ -23,7 +23,7 @@ package inetsoft.web.wiz.pairing;
  */
 public record JoinSession(String sessionToken, String runtimeId, String ownerIdentity,
                           SheetType sheetType, long lastAccess, long ttlMillis,
-                          ConnectionMode connectionMode) {
+                          ConnectionMode connectionMode, String socketSessionId) {
    public boolean isExpired(long now) { return now - lastAccess > ttlMillis; }
 
    /** Forward-compat slot: PAIRED = browser owns + agent joins; AGENT_OWNED reserved for future viz. */

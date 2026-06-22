@@ -53,7 +53,7 @@ class WorksheetEditServiceTest {
       Principal agent = TestPrincipals.user("alice", "host-org");
       JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
                                      SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
-                                     JoinSession.ConnectionMode.PAIRED);
+                                     JoinSession.ConnectionMode.PAIRED, null);
       when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
       when(runtimeAccess.getSheetForPairing(eq(SheetType.WORKSHEET), eq("Worksheet/foo-7"), eq(agent)))
          .thenReturn(rws);
@@ -88,7 +88,7 @@ class WorksheetEditServiceTest {
       Principal agent = TestPrincipals.user("alice", "host-org");
       JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
                                      SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
-                                     JoinSession.ConnectionMode.PAIRED);
+                                     JoinSession.ConnectionMode.PAIRED, null);
       when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
@@ -112,7 +112,7 @@ class WorksheetEditServiceTest {
       Principal agent = TestPrincipals.user("alice", "host-org");
       JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
                                      SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
-                                     JoinSession.ConnectionMode.PAIRED);
+                                     JoinSession.ConnectionMode.PAIRED, null);
       when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 

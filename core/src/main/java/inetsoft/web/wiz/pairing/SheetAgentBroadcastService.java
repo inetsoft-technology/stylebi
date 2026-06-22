@@ -17,7 +17,14 @@
  */
 package inetsoft.web.wiz.pairing;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.report.composition.RuntimeSheet;
+import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.WSAssembly;
+import inetsoft.uql.asset.Worksheet;
+import inetsoft.web.composer.ws.assembly.WSAssemblyModel;
+import inetsoft.web.composer.ws.assembly.WSAssemblyModelFactory;
 import inetsoft.web.composer.ws.command.RefreshWorksheetCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CommandDispatcherService;
@@ -28,6 +35,8 @@ import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 public class SheetAgentBroadcastService {
@@ -54,7 +63,8 @@ public class SheetAgentBroadcastService {
       String sessionId = rs.getSocketSessionId();
 
       if(sessionId == null) {
-         LOG.debug("Pairing broadcast skipped — no socket session recorded (runtimeId={})", runtimeId);
+         LOG.warn("Pairing broadcast skipped — no socket session recorded (runtimeId={}, runtimeClass={})",
+                  runtimeId, rs.getClass().getSimpleName());
          return;
       }
 
@@ -64,13 +74,15 @@ public class SheetAgentBroadcastService {
          user = owner == null ? null : owner.getName();
       }
 
+      Object command = buildCommand(sheetType, rs, owner);
+
       SimpMessageHeaderAccessor headers = SimpMessageHeaderAccessor.create();
       headers.setSessionId(sessionId);
       headers.setLeaveMutable(true);
       headers.setNativeHeader(CommandDispatcher.RUNTIME_ID_ATTR, runtimeId);
+      headers.setNativeHeader(CommandDispatcher.COMMAND_TYPE_HEADER,
+                              resolveCommandType(command));
       // deliberately NO inetsoftClientId -> Angular re-renders on broadcast
-
-      Object command = buildCommand(sheetType);
       commandDispatcherService.convertAndSendToUser(
          user, CommandDispatcher.COMMANDS_TOPIC, command, headers.getMessageHeaders());
 
@@ -78,11 +90,37 @@ public class SheetAgentBroadcastService {
                sheetType, runtimeId, sessionId);
    }
 
-   private Object buildCommand(SheetType sheetType) {
+   private Object buildCommand(SheetType sheetType, RuntimeSheet rs, Principal owner) {
       return switch(sheetType) {
-         case WORKSHEET -> RefreshWorksheetCommand.builder().build();
+         case WORKSHEET -> buildWorksheetRefreshCommand((RuntimeWorksheet) rs, owner);
          case VIEWSHEET -> buildViewsheetRefreshCommand();
       };
+   }
+
+   private Object buildWorksheetRefreshCommand(RuntimeWorksheet rws, Principal principal) {
+      Worksheet ws = rws.getWorksheet();
+
+      if(ws == null) {
+         return RefreshWorksheetCommand.builder().build();
+      }
+
+      List<WSAssemblyModel> models = new ArrayList<>();
+
+      for(Assembly a : ws.getAssemblies()) {
+         if(!(a instanceof WSAssembly wsAssembly) || !wsAssembly.isVisible())
+         {
+            continue;
+         }
+
+         try {
+            models.add(WSAssemblyModelFactory.createModelFrom(wsAssembly, rws, principal));
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to build assembly model for broadcast (assembly={})", a.getName(), e);
+         }
+      }
+
+      return RefreshWorksheetCommand.builder().assemblies(models).build();
    }
 
    private Object buildViewsheetRefreshCommand() {
@@ -90,6 +128,26 @@ public class SheetAgentBroadcastService {
       // No dedicated RefreshViewsheetCommand exists in the codebase yet; using
       // RefreshWorksheetCommand as a placeholder until it is added.
       return RefreshWorksheetCommand.builder().build();
+   }
+
+   /**
+    * Mirrors CommandDispatcher's Immutable-stripping logic so Angular gets
+    * e.g. "RefreshWorksheetCommand" not "ImmutableRefreshWorksheetCommand".
+    */
+   private static String resolveCommandType(Object command) {
+      Class<?> cls = command.getClass();
+      String name = cls.getSimpleName();
+
+      if(name.startsWith("Immutable")) {
+         Class<?> base = cls.getSuperclass();
+         JsonSerialize ann = base == null ? null : base.getAnnotation(JsonSerialize.class);
+
+         if(ann != null && cls.equals(ann.as())) {
+            return base.getSimpleName();
+         }
+      }
+
+      return name;
    }
 
    private final CommandDispatcherService commandDispatcherService;

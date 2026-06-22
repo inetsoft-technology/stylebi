@@ -50,7 +50,7 @@ class WorksheetEditServiceMutatorsTest {
 
       JoinSession s = new JoinSession(token, runtimeId, "alice~;~host-org",
                                       SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
-                                      JoinSession.ConnectionMode.PAIRED);
+                                      JoinSession.ConnectionMode.PAIRED, null);
       when(sessions.resolve(eq(token), any())).thenReturn(s);
       when(runtimeAccess.getSheetForPairing(eq(SheetType.WORKSHEET), eq(runtimeId), eq(agent)))
          .thenReturn(rws);

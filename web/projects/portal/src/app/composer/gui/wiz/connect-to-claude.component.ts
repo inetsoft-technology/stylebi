@@ -49,7 +49,7 @@ export class ConnectToClaudeComponent implements OnDestroy {
       this.copied = false;
 
       this.socketConnection.whenConnected().pipe(take(1)).subscribe((conn: StompClientConnection) => {
-         const sub = conn.subscribe("/user/queue/wiz/pairing/mint", (msg: any) => {
+         const sub = conn.subscribe("/user/commands/wiz/pairing/mint", (msg: any) => {
             sub.unsubscribe();
             this.mintSubscription = null;
             const body = JSON.parse(msg.frame.body);
@@ -65,7 +65,7 @@ export class ConnectToClaudeComponent implements OnDestroy {
          });
          this.mintSubscription = sub;
 
-         conn.send("/app/wiz/pairing/mint", {}, JSON.stringify({
+         conn.send("/events/wiz/pairing/mint", {}, JSON.stringify({
             runtimeId: this.runtimeId,
             sheetType: this.sheetType
          }));

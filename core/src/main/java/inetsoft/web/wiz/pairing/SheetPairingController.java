@@ -49,11 +49,20 @@ public class SheetPairingController {
       this.feature = feature;
    }
 
-   /** Response DTO returned by both mint entry points. */
-   public record MintResponse(String code) {}
+   /** Response DTO returned by both mint entry points. {@code error} is non-null on failure. */
+   public record MintResponse(String code, String error) {
+      public static MintResponse ok(String code) { return new MintResponse(code, null); }
+      public static MintResponse err(String msg)  { return new MintResponse(null, msg); }
+   }
 
    /** Payload for the STOMP mint. */
    public record MintRequest(String runtimeId, SheetType sheetType) {}
+
+   /** Returns whether the sheet-agent pairing feature is enabled. */
+   @GetMapping("/api/wiz/pairing/feature")
+   public java.util.Map<String, Boolean> featureStatus() {
+      return java.util.Map.of("enabled", feature.isEnabled());
+   }
 
    /**
     * REST mint (testing / back-compat). {@code socketSessionId} is supplied by the caller.
@@ -66,7 +75,7 @@ public class SheetPairingController {
                             Principal owner)
    {
       requireFeature();
-      return new MintResponse(pairing.mint(runtimeId, ownerKey(owner), socketSessionId, sheetType));
+      return MintResponse.ok(pairing.mint(runtimeId, ownerKey(owner), socketSessionId, sheetType));
    }
 
    /**
@@ -77,14 +86,21 @@ public class SheetPairingController {
     * Reply arrives on: {@code /user/queue/wiz/pairing/mint}
     */
    @MessageMapping("/wiz/pairing/mint")
-   @SendToUser("/queue/wiz/pairing/mint")
+   @SendToUser("/commands/wiz/pairing/mint")
    public MintResponse mintViaSocket(@Payload MintRequest req,
                                      Principal owner,
                                      SimpMessageHeaderAccessor accessor)
    {
-      requireFeature();
-      String sessionId = accessor.getSessionId();
-      return new MintResponse(pairing.mint(req.runtimeId(), ownerKey(owner), sessionId, req.sheetType()));
+      if(!feature.isEnabled()) {
+         return MintResponse.err("Sheet agent pairing is disabled (set wiz.agent.pairing.enabled=true in sree.properties)");
+      }
+      try {
+         String sessionId = accessor.getSessionId();
+         return MintResponse.ok(pairing.mint(req.runtimeId(), ownerKey(owner), sessionId, req.sheetType()));
+      }
+      catch(Exception e) {
+         return MintResponse.err(e.getMessage() != null ? e.getMessage() : "Failed to generate pairing code");
+      }
    }
 
    private void requireFeature() {
