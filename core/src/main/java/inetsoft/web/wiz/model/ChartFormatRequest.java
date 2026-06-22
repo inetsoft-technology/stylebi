@@ -66,6 +66,18 @@ public class ChartFormatRequest {
    public String getLegendPosition() { return legendPosition; }
    public void setLegendPosition(String legendPosition) { this.legendPosition = legendPosition; }
 
+   /** Marker visibility override for point/line charts; null = no change. */
+   public Boolean getMarkerVisible() { return markerVisible; }
+   public void setMarkerVisible(Boolean markerVisible) { this.markerVisible = markerVisible; }
+
+   /** Marker shape override (e.g., "CIRCLE", "SQUARE", "TRIANGLE"); null = no change. */
+   public String getMarkerShape() { return markerShape; }
+   public void setMarkerShape(String markerShape) { this.markerShape = markerShape; }
+
+   /** Marker size override (1–10 recommended); null = no change. */
+   public Integer getMarkerSize() { return markerSize; }
+   public void setMarkerSize(Integer markerSize) { this.markerSize = markerSize; }
+
    /** The runtime viewsheet that holds the live chart (the plugin's active-chart runtimeId). */
    private String wizRuntimeId;
    /** The chart assembly name within that runtime. */
@@ -80,4 +92,7 @@ public class ChartFormatRequest {
    private Double yAxisIncrement;
    private Boolean yAxisLogarithmic;
    private String legendPosition;
+   private Boolean markerVisible;
+   private String markerShape;
+   private Integer markerSize;
 }
