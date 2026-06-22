@@ -152,7 +152,7 @@ describe("WSCompositeTableFocusPaneComponent — cross-join confirm dialog", () 
       vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
 
       comp.unfocusCompositeTable(false);
-      await new Promise(r => setTimeout(r, 0));
+      await Promise.resolve();
 
       expect(ComponentTool.showConfirmDialog).toHaveBeenCalled();
       expect(worksheet.exitCompositeView).toHaveBeenCalled();
@@ -166,7 +166,7 @@ describe("WSCompositeTableFocusPaneComponent — cross-join confirm dialog", () 
       vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("cancel");
 
       comp.unfocusCompositeTable(false);
-      await new Promise(r => setTimeout(r, 0));
+      await Promise.resolve();
 
       expect(worksheet.exitCompositeView).not.toHaveBeenCalled();
    });

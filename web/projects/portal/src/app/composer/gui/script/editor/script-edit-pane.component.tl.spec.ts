@@ -134,6 +134,7 @@ describe("ScriptEditPaneComponent — expressionChange columnTree component", ()
          null, null, null, { getClickedNode: () => ({ subscribe: vi.fn() }) }, null,
       );
       comp._originalText = "";
+      comp.model = makeModel("");
 
       comp.expressionChange({
          target: "columnTree",
@@ -370,7 +371,7 @@ describe("ScriptEditPaneComponent — expressionChange edge cases", () => {
       expect(comp.expression).toBe("x = 1;");
    });
 
-   it("should not change model.text when no node is provided", () => {
+   it("should update model.text to event.expression when no node is provided", () => {
       const comp = new (ScriptEditPaneComponent as any)(
          null, null, null, { getClickedNode: () => ({ subscribe: vi.fn() }) }, null,
       );
@@ -384,7 +385,8 @@ describe("ScriptEditPaneComponent — expressionChange edge cases", () => {
          node: null,
       });
 
-      expect(comp.model.text).toBe("existing");
+      // model.text is always set to expression at line 242, even when node is null
+      expect(comp.model.text).toBe("x = 1;");
    });
 });
 

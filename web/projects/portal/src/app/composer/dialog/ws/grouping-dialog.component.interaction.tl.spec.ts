@@ -274,10 +274,14 @@ describe("GroupingDialog — getCurrentSelectedNode (via initRoot)", () => {
             of({ treeNodeModel: { children: [rootChild] } })
          ),
       };
-      // Trigger nodeExpanded mock to provide children
+      // Trigger nodeExpanded mock to provide children.
+      // First sendModel call is the attribute-loading triggered by model.onlyFor in initForm
+      // (expects DataRef[]); subsequent calls are nodeExpanded (expects { children: [...] }).
       const modelService = {
          ...makeModelServiceMock(),
-         sendModel: vi.fn().mockReturnValue(of(new HttpResponse({ body: { children: [leafNode] } }))),
+         sendModel: vi.fn()
+            .mockReturnValueOnce(of(new HttpResponse({ body: [] })))
+            .mockReturnValue(of(new HttpResponse({ body: { children: [leafNode] } }))),
       };
 
       const { comp } = makeInitializedComponent({ onlyFor: entry }, { assetTreeService, modelService });
@@ -297,36 +301,36 @@ describe("GroupingDialog — matchNode", () => {
 
    it("should return false when label is null", () => {
       const { comp } = makeInitializedComponent();
-      expect((comp as any).matchNode(null, "1^64^__NULL__^DS/Q1")).toBe(false);
+      expect((comp as any).matchNode(null, "1^37^__NULL__^DS/Q1")).toBe(false);
    });
 
    it("should return false when id is null", () => {
       const { comp } = makeInitializedComponent();
-      expect((comp as any).matchNode("1^64^__NULL__^DS/Q1", null)).toBe(false);
+      expect((comp as any).matchNode("1^37^__NULL__^DS/Q1", null)).toBe(false);
    });
 
    it("should return true when both entries are QUERY type with matching db prefix and qname suffix", () => {
       const { comp } = makeInitializedComponent();
-      // Both reference DS/Q1 — label has same path
-      const label = "1^64^__NULL__^DS/Q1";
-      const id = "1^64^__NULL__^DS/Q1";
+      // Both reference DS/Q1 — label has same path; QUERY type ID is 37
+      const label = "1^37^__NULL__^DS/Q1";
+      const id = "1^37^__NULL__^DS/Q1";
       // matchNode uses createAssetEntry so both must be valid identifier strings
       expect((comp as any).matchNode(label, id)).toBe(true);
    });
 
    it("should return false for non-matching paths", () => {
       const { comp } = makeInitializedComponent();
-      const label = "1^64^__NULL__^DS/OtherQuery";
-      const id = "1^64^__NULL__^DS/Q1";
+      const label = "1^37^__NULL__^DS/OtherQuery";
+      const id = "1^37^__NULL__^DS/Q1";
       // Different qname suffix
       expect((comp as any).matchNode(label, id)).toBe(false);
    });
 
    it("should return false when entries are not QUERY type", () => {
       const { comp } = makeInitializedComponent();
-      // type 1 = FOLDER, not QUERY (64)
+      // type 1 = FOLDER, not QUERY (37)
       const label = "1^1^__NULL__^DS/Q1";
-      const id = "1^64^__NULL__^DS/Q1";
+      const id = "1^37^__NULL__^DS/Q1";
       expect((comp as any).matchNode(label, id)).toBe(false);
    });
 });

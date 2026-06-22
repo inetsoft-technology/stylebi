@@ -61,10 +61,13 @@ const DROPDOWN_SERVICE_MOCK = {
 // Shared factories
 // ---------------------------------------------------------------------------
 
-async function renderComponent() {
+async function renderComponent(tableStyle: TableStyleModel = makeTableStyle()) {
    const { fixture } = await render(StyleTreePane, {
       schemas: [NO_ERRORS_SCHEMA],
       componentImports: [],
+      componentProperties: {
+         tableStyle,
+      },
       providers: [
          { provide: HttpClient, useValue: HTTP_CLIENT_MOCK },
          { provide: FixedDropdownService, useValue: DROPDOWN_SERVICE_MOCK },

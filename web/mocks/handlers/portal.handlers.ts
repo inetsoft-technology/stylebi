@@ -374,6 +374,138 @@ export const portalHandlers = [
       return HttpResponse.json(null);
    }),
 
+   // ─── 3a. Data folder browser ──────────────────────────────────────────────
+
+   // DataFolderBrowserComponent.refreshFolderBrowser — root browser (no path)
+   http.get("*/api/portal/data/browser", () => {
+      return HttpResponse.json({
+         root: true,
+         worksheetAccess: true,
+         currentFolder: [],
+         folders: [],
+         files: [],
+      });
+   }),
+
+   // DataFolderBrowserComponent.refreshFolderBrowser — browser with path segment
+   http.get("*/api/portal/data/browser/*", () => {
+      return HttpResponse.json({
+         root: false,
+         worksheetAccess: true,
+         currentFolder: [],
+         folders: [],
+         files: [],
+      });
+   }),
+
+   // DataFolderBrowserComponent.refreshSearchBrowser — dataset search results
+   http.post("*/api/data/search/datasets", () => {
+      return HttpResponse.json({ assets: [], assetNames: [] });
+   }),
+
+   // DataFolderBrowserComponent.searchFunc — ngbTypeahead autocomplete suggestions
+   http.post("*/api/data/search/datasets/assetNames", () => {
+      return HttpResponse.json({ assetNames: [], assets: [] });
+   }),
+
+   // DataFolderBrowserComponent.deleteSelected — check which items are removable
+   http.post("*/api/data/removeableStatuses", () => {
+      return HttpResponse.json({ folderDependencies: [], datasetDependencies: [] });
+   }),
+
+   // DataFolderBrowserComponent.deleteSelected — bulk delete confirmed items
+   http.post("*/api/data/removeAll", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // DataFolderBrowserComponent.addFolder — create new worksheet folder
+   http.post("*/api/data/folders", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // DataFolderBrowserComponent.addFolder — duplicate name check for new folder
+   http.post("*/api/data/datasets/isDuplicate", () => {
+      return HttpResponse.json({ duplicate: false });
+   }),
+
+   // DataFolderBrowserComponent.moveAssets — bulk move folders
+   http.post("*/api/data/folders/moveFolders", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // DataFolderBrowserComponent.moveAssets — bulk move datasets
+   http.post("*/api/data/datasets/moveDatasets", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // DataFolderBrowserComponent.moveAsset (single) — move one folder
+   http.post("*/api/data/folders/move", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // DataFolderBrowserComponent.moveAsset (single) — move one dataset
+   http.post("*/api/data/datasets/move", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // ─── 3b. Data sources tree view ───────────────────────────────────────────
+
+   // DataSourcesTreeViewComponent.getDataNavigationTree — combined nav tree root
+   http.get("*/api/portal/data/tree", () => {
+      return HttpResponse.json({
+         label: "Root",
+         data: { path: "/", name: "root", scope: 0 },
+         children: [
+            {
+               label: "Data Sources",
+               data: { path: "/datasources", name: "datasources", scope: 0, type: "DATA_SOURCE_ROOT_FOLDER", properties: {} },
+               children: [],
+               leaf: false,
+               expanded: false,
+               type: "DATA_SOURCE_ROOT_FOLDER",
+            },
+         ],
+         leaf: false,
+         expanded: true,
+         type: "ROOT",
+      });
+   }),
+
+   // DataSourcesTreeViewComponent.openFolder — expand a worksheet folder node
+   http.get("*/api/data/folders/children/*", () => {
+      return HttpResponse.json([]);
+   }),
+
+   // DataSourcesTreeViewComponent.openDatasourcesFolder — expand datasource root node
+   http.get("*/api/data/datasources/nodes", () => {
+      return HttpResponse.json([]);
+   }),
+
+   // DataSourcesTreeViewComponent.checkDataFoldersDuplicate — folder move duplicate check
+   http.post("*/api/data/move/checkDuplicate", () => {
+      return HttpResponse.json(NO_DUPLICATE);
+   }),
+
+   // DataSourcesTreeViewComponent — physical/logical model duplicate check before move
+   http.post("*/api/data/logicalModel/checkDuplicate", () => {
+      return HttpResponse.json(NO_DUPLICATE);
+   }),
+
+   // DataSourcesTreeViewComponent — VPM duplicate check before move
+   http.post("*/api/data/vpm/checkDuplicate", () => {
+      return HttpResponse.json(NO_DUPLICATE);
+   }),
+
+   // AppInfoService.isEnterprise() — shared service, default community edition
+   http.get("*/api/enterprise", () => {
+      return HttpResponse.json(false);
+   }),
+
+   // AppInfoService constructor — org info for shared service
+   http.get("*/api/org/info", () => {
+      return HttpResponse.json({ key: "host_org", value: "Default" });
+   }),
+
    // ─── 4. Physical model / database ────────────────────────────────────────
 
    // DatasourcesDatabaseComponent — load database connection form

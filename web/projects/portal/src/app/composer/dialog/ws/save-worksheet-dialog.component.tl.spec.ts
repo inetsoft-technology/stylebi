@@ -175,7 +175,7 @@ describe("SaveWorksheetDialog — saveChanges alreadyExists overwritable", () =>
       comp.onCommit.subscribe(m => emitted.push(m));
 
       comp.saveChanges();
-      await new Promise(r => setTimeout(r, 0));
+      await Promise.resolve();
 
       expect(emitted).toHaveLength(1);
    });
@@ -190,7 +190,7 @@ describe("SaveWorksheetDialog — saveChanges alreadyExists overwritable", () =>
       comp.onCommit.subscribe(m => emitted.push(m));
 
       comp.saveChanges();
-      await new Promise(r => setTimeout(r, 0));
+      await Promise.resolve();
 
       expect(emitted).toHaveLength(0);
    });
@@ -213,7 +213,7 @@ describe("SaveWorksheetDialog — saveChanges Cannot overwrite opened asset", ()
       comp.onCommit.subscribe(m => emitted.push(m));
 
       comp.saveChanges();
-      await new Promise(r => setTimeout(r, 0));
+      await Promise.resolve();
 
       expect(emitted).toHaveLength(0);
    });
@@ -236,7 +236,7 @@ describe("SaveWorksheetDialog — saveChanges permissionDenied", () => {
       comp.onCommit.subscribe(m => emitted.push(m));
 
       comp.saveChanges();
-      await new Promise(r => setTimeout(r, 0));
+      await Promise.resolve();
 
       expect(emitted).toHaveLength(0);
    });
@@ -254,7 +254,7 @@ describe("SaveWorksheetDialog — saveChanges no validator body", () => {
       comp.onCommit.subscribe(m => emitted.push(m));
 
       comp.saveChanges();
-      await new Promise(r => setTimeout(r, 0));
+      await Promise.resolve();
 
       expect(emitted).toHaveLength(1);
    });

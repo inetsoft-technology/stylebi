@@ -51,6 +51,7 @@ function makeTreeServiceMock(subject = new Subject<TreeNodeModel>()) {
 async function renderComponent(treeServiceMock = makeTreeServiceMock()) {
    const { fixture } = await render(ComposerBindingTree, {
       schemas: [NO_ERRORS_SCHEMA],
+      componentImports: [],
       providers: [
          { provide: BindingTreeService, useValue: treeServiceMock },
          { provide: FixedDropdownService, useValue: { open: vi.fn() } },
