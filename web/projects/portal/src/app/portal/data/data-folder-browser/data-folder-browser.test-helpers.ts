@@ -221,4 +221,5 @@ export function clearMocks() {
    DOM_SERVICE_MOCK.addPortalContent.mockClear();
    DRAG_SERVICE_MOCK.put.mockClear();
    DRAG_SERVICE_MOCK.getDragData.mockClear();
+   DATASOURCES_TREE_ACTIONS_MOCK.showWSFolderDetailsSubject.mockClear();
 }

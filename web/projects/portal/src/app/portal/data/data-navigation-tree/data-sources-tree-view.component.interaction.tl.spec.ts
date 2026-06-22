@@ -58,6 +58,11 @@
  *   moveDatasourceAssets, moveDatasourceInfos, moveDataAssets, selectAndExpandToPath,
  *   deleteDataModelFolder, deleteFolder
  *
+ * Confirmed bugs (it.fails):
+ *   changeDataSourcesTree — data-sources-tree-view.component.ts:369: `return false` is
+ *     hard-coded at the end of the function instead of `return found`. The caller never
+ *     learns a node was found, so parent.expanded is never set from a recursive result.
+ *
  * Out of scope for Pass 1 (Pass 3):
  *   getEntryLabel, getIconFunction, getAssetIcon
  */
