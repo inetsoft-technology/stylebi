@@ -17,8 +17,10 @@
  */
 package inetsoft.util.script.graal;
 
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import org.graalvm.polyglot.HostAccess;
+import java.time.Instant;
 import java.util.*;
 import java.util.function.Predicate;
 
@@ -134,6 +136,18 @@ public final class ScriptHostAccess {
       "inetsoft.util.script.", "inetsoft.analytic.composition.event."
    );
 
+   // Tier 3: broad JDK package prefixes (ported from SecureClassShutter /
+   // JavaScriptEngine.initScope final stage). Reached only after the basic-class
+   // filters above; for java.util/java.text these catch the spi fall-throughs,
+   // while java.awt admits the full package (minus exact BLOCKED_CLASSES like
+   // java.awt.Desktop). This restores the main-branch Rhino allow-list that the
+   // initial GraalJS cutover narrowed away (e.g. java.awt.Color). (#75423)
+   private static final String[] DEFAULT_JAVA_PKGS = { "java.awt", "java.text", "java.util" };
+
+   private static final Set<String> PRIMITIVE_ARRAY_SIGNATURES = Set.of(
+      "[B", "[S", "[I", "[J", "[F", "[D", "[C", "[Z"
+   );
+
    private static volatile HostAccess hostAccess;
 
    public static HostAccess hostAccess() {
@@ -171,6 +185,14 @@ public final class ScriptHostAccess {
                   .targetTypeMapping(Double.class, Integer.class,
                                      d -> d != null && d == Math.floor(d) && !d.isInfinite(),
                                      Double::intValue)
+                  // Rhino parity: ToNumber(jsDate) yielded epoch millis, so scripts
+                  // pass a JS Date where a numeric coordinate is expected (e.g.
+                  // LabelForm.setTuple(double[]) with a date on a time axis). GraalJS
+                  // refuses Date->double by default; map a Date/Instant to its epoch
+                  // millis, matching TimeScale.map (Date -> getTime()). (#75423)
+                  .targetTypeMapping(Instant.class, Double.class,
+                                     inst -> inst != null,
+                                     inst -> (double) inst.toEpochMilli())
                   .build();
             }
          }
@@ -180,63 +202,222 @@ public final class ScriptHostAccess {
    }
 
    /**
-    * Returns a predicate that gates Java.type(...) class lookups.
+    * Returns a predicate that gates Java.type(...) class lookups (and the
+    * compatibility-shim package-root navigation, which resolves leaf classes
+    * through the same filter).
     *
-    * <p>Precedence (Task 6.4, ported from the proven SecureClassShutter baseline):
-    * <ol>
-    *   <li><b>exact allow wins</b> — a class in ALLOWED_CLASSES (or the SreeEnv
-    *       extension) is permitted even if its package is in BLOCKED_PACKAGES
-    *       (e.g. java.sql.Date, inetsoft.sree.security.DestinationUserNameProviderPrincipal);</li>
-    *   <li><b>deny</b> — BLOCKED_CLASSES exact match, then BLOCKED_PACKAGES prefix match;</li>
-    *   <li><b>allowed prefixes</b> — ALLOWED_PREFIXES match;</li>
-    *   <li><b>default deny</b>.</li>
-    * </ol>
-    * Dangerous classes (System/Runtime/Class/ClassLoader, inetsoft.report.internal.license.*)
-    * are NOT in the exact allow-list, so they fall through to the deny step and stay blocked.
+    * <p>Delegates to {@link #isVisibleToScripts}, a faithful port of the proven
+    * {@code SecureClassShutter.visibleToScripts} precedence from the main-branch
+    * Rhino baseline. Reads the {@code javascript.java.packages} and
+    * {@code javascript.java.com_org} properties once when the filter is built.
+    * Dangerous classes (System/Runtime/Class/ClassLoader, threading,
+    * inetsoft.report.internal.license.*, engine internals) are NOT on any allow
+    * path, so they stay blocked.
     */
    public static Predicate<String> classFilter() {
       // optional SreeEnv extension (off by default): comma-separated extra FQCNs
       String extraProp = null;
+
       try {
          extraProp = SreeEnv.getProperty("script.java.allowed.classes");
       }
       catch(Exception ignore) {
          // SreeEnv may be unavailable outside of a full server context
       }
-      Set<String> extra = parseExtra(extraProp);
 
-      return fqcn -> {
-         // --- 1. exact allow wins (Task 6.4 precedence) ---
-         // A curated exact safe class is permitted even if its package is denied.
-         if(ALLOWED_CLASSES.contains(fqcn) || extra.contains(fqcn)) {
-            return true;
-         }
+      final Set<String> extra = parseExtra(extraProp);
 
-         // --- 2. deny: exact blocked classes, then blocked packages ---
-         if(BLOCKED_CLASSES.contains(fqcn)) {
+      // custom package whitelist + com/org toggle, read once when the filter is
+      // built (mirrors JavaScriptEngine.initScope / SecureClassShutter).
+      String[] customPkgs;
+      boolean comOrg;
+
+      try {
+         String customPkgProp = SreeEnv.getProperty("javascript.java.packages", "");
+         customPkgs = customPkgProp.isEmpty() ? new String[0] : customPkgProp.split(",");
+         comOrg = !"false".equals(SreeEnv.getProperty("javascript.java.com_org", "true"));
+      }
+      catch(Exception ignore) {
+         customPkgs = new String[0];
+         comOrg = true;
+      }
+
+      final String[] customPkgsF = customPkgs;
+      final boolean comOrgF = comOrg;
+
+      return fqcn -> isVisibleToScripts(fqcn, extra, customPkgsF, comOrgF);
+   }
+
+   /**
+    * Faithful port of the proven {@code SecureClassShutter.visibleToScripts}
+    * precedence (the main-branch Rhino baseline). Restores the broad package
+    * allow-list (java.awt/text/util, com/org, custom packages, java.sql under a
+    * FORM license, the basic java.lang/util/math/text class families) that the
+    * initial GraalJS cutover narrowed away — e.g. {@code java.awt.Color}. The
+    * dangerous deny-lists (threading, reflection, IO, net, process, engine
+    * internals) are unchanged, so the sandbox boundary is preserved. (#75423)
+    */
+   private static boolean isVisibleToScripts(String fqcn, Set<String> extra,
+                                             String[] customPkgs, boolean comOrg)
+   {
+      if(fqcn == null || fqcn.isEmpty()) {
+         return false;
+      }
+
+      // java.sql is permitted only when the FORM component is licensed (matches main).
+      if(fqcn.startsWith("java.sql") && isFormLicensed()) {
+         return true;
+      }
+
+      // exact allow wins: curated classes, SreeEnv extras, primitive arrays, jdk proxies.
+      if(ALLOWED_CLASSES.contains(fqcn) || extra.contains(fqcn) ||
+         isPrimitiveArrayType(fqcn) || fqcn.startsWith("jdk.proxy"))
+      {
+         return true;
+      }
+
+      // deny: blocked packages, then blocked classes.
+      for(String blockedPkg : BLOCKED_PACKAGES) {
+         // Match exact package ("java.io") or sub-package/class ("java.io.File").
+         // The "sun." entry already contains a trailing dot, so handle both styles.
+         if(fqcn.equals(blockedPkg) ||
+            fqcn.startsWith(blockedPkg.endsWith(".") ? blockedPkg : blockedPkg + "."))
+         {
             return false;
          }
+      }
 
-         for(String blockedPkg : BLOCKED_PACKAGES) {
-            // Match exact package ("java.io") or sub-package/class ("java.io.File").
-            // The "sun." entry already contains a trailing dot, so handle both styles.
-            if(fqcn.equals(blockedPkg) ||
-               fqcn.startsWith(blockedPkg.endsWith(".") ? blockedPkg : blockedPkg + "."))
-            {
-               return false;
-            }
-         }
-
-         // --- 3. allowed prefixes ---
-         for(String prefix : ALLOWED_PREFIXES) {
-            if(fqcn.startsWith(prefix)) {
-               return true;
-            }
-         }
-
-         // --- 4. default deny ---
+      if(BLOCKED_CLASSES.contains(fqcn)) {
          return false;
-      };
+      }
+
+      // arrays of an allowed object type.
+      if(isAllowedObjectArray(fqcn, extra, customPkgs, comOrg)) {
+         return true;
+      }
+
+      // basic JDK class families (restrictive whitelists, ported from main).
+      if(fqcn.startsWith("java.lang.") && !fqcn.contains("$")) {
+         return isBasicJavaLangClass(fqcn);
+      }
+
+      if(fqcn.startsWith("java.util.") && !fqcn.contains("concurrent")) {
+         return isBasicUtilClass(fqcn);
+      }
+
+      if(fqcn.startsWith("java.math.")) {
+         return isBasicMathClass(fqcn);
+      }
+
+      if(fqcn.startsWith("java.text.") && !fqcn.contains("spi")) {
+         return isBasicTextClass(fqcn);
+      }
+
+      // our own API prefixes.
+      for(String prefix : ALLOWED_PREFIXES) {
+         if(fqcn.startsWith(prefix)) {
+            return true;
+         }
+      }
+
+      // broad package whitelist: java.awt/text/util + custom packages + com/org.
+      for(String pkg : DEFAULT_JAVA_PKGS) {
+         if(fqcn.startsWith(pkg)) {
+            return true;
+         }
+      }
+
+      for(String pkg : customPkgs) {
+         String t = pkg.trim();
+
+         if(!t.isEmpty() && fqcn.startsWith(t)) {
+            return true;
+         }
+      }
+
+      if(comOrg && (fqcn.startsWith("com.") || fqcn.startsWith("org."))) {
+         return true;
+      }
+
+      // default deny.
+      return false;
+   }
+
+   private static boolean isFormLicensed() {
+      try {
+         return LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM);
+      }
+      catch(Throwable ignore) {
+         // LicenseManager may be unavailable outside a full server context (tests).
+         return false;
+      }
+   }
+
+   private static boolean isPrimitiveArrayType(String className) {
+      if(PRIMITIVE_ARRAY_SIGNATURES.contains(className)) {
+         return true;
+      }
+
+      int dimension = 0;
+
+      while(dimension < className.length() && className.charAt(dimension) == '[') {
+         dimension++;
+      }
+
+      // multidimensional primitive array (e.g. "[[I").
+      if(dimension > 0 && className.length() == dimension + 1) {
+         return PRIMITIVE_ARRAY_SIGNATURES.contains(className.substring(dimension));
+      }
+
+      return false;
+   }
+
+   private static boolean isAllowedObjectArray(String className, Set<String> extra,
+                                               String[] customPkgs, boolean comOrg)
+   {
+      String componentType = className;
+      boolean objArray = false;
+
+      while(componentType.startsWith("[")) {
+         if(componentType.startsWith("[L")) {
+            componentType = componentType.substring(2);
+
+            if(!componentType.endsWith(";")) {
+               break;
+            }
+
+            objArray = true;
+            componentType = componentType.substring(0, componentType.length() - 1);
+
+            return objArray && isVisibleToScripts(componentType, extra, customPkgs, comOrg);
+         }
+
+         componentType = componentType.substring(1);
+      }
+
+      return false;
+   }
+
+   private static boolean isBasicJavaLangClass(String className) {
+      return className.matches("java\\.lang\\.(String|Integer|Long|Double|Float|Boolean|Character|Byte|Short|Number|Object|Math|StrictMath|StringBuilder|StringBuffer|Enum|Comparable|Iterable|CharSequence|Appendable|Readable|AutoCloseable|Exception|RuntimeException|Error|Throwable)");
+   }
+
+   private static boolean isBasicUtilClass(String className) {
+      return !className.contains("concurrent") &&
+         !className.contains("spi") &&
+         !className.contains("logging") &&
+         !className.contains("prefs") &&
+         !className.contains("jar") &&
+         !className.contains("zip") &&
+         !className.contains("ServiceLoader");
+   }
+
+   private static boolean isBasicMathClass(String className) {
+      return className.matches("java\\.math\\.(BigDecimal|BigInteger|MathContext|RoundingMode)");
+   }
+
+   private static boolean isBasicTextClass(String className) {
+      return className.matches("java\\.text\\.(DateFormat|SimpleDateFormat|NumberFormat|DecimalFormat|MessageFormat|FieldPosition|ParsePosition|Format|Collator|BreakIterator|Normalizer|AttributedString|AttributedCharacterIterator)");
    }
 
    private static Set<String> parseExtra(String prop) {

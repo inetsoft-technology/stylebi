@@ -116,6 +116,29 @@ class ScriptHostAccessTest {
       }
    }
 
+   /**
+    * Regression (#75423): the broad main-branch allow-list was narrowed away in
+    * the initial GraalJS cutover. java.awt.Color (and the java.awt/text/util,
+    * com/org families) must be reachable again via Java.type.
+    */
+   @Test void restoredPackageAllowListLoads() {
+      try(Context ctx = newContext()) {
+         assertDoesNotThrow(() -> ctx.eval("js", "Java.type('java.awt.Color')"));
+         assertDoesNotThrow(() -> ctx.eval("js", "Java.type('java.util.ArrayList')"));
+         assertDoesNotThrow(() -> ctx.eval("js", "Java.type('java.text.MessageFormat')"));
+      }
+   }
+
+   /** Threading stays blocked regardless of the restored package allow-list. */
+   @Test void threadingStaysBlocked() {
+      try(Context ctx = newContext()) {
+         assertThrows(PolyglotException.class,
+            () -> ctx.eval("js", "Java.type('java.lang.Thread')"));
+         assertThrows(PolyglotException.class,
+            () -> ctx.eval("js", "Java.type('java.util.concurrent.ConcurrentHashMap')"));
+      }
+   }
+
    public static class Sample {
       @org.graalvm.polyglot.HostAccess.Export public String allowed() { return "ok"; }
       public String denied() { return "no"; }

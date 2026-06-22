@@ -46,6 +46,13 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    protected boolean sql;
 
    /**
+    * The class-lookup allow-list, built once per init and shared by both the
+    * GraalJS Java.type host-class lookup and the legacy compatibility shim, so
+    * both honor exactly the same reachable-class policy.
+    */
+   protected java.util.function.Predicate<String> classFilter;
+
+   /**
     * Per-Source error counts. Keyed by compiled Source identity; WeakHashMap
     * allows entries to be GC'd when the Source is no longer referenced.
     * Must only be accessed while holding {@code lock}.
@@ -67,10 +74,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             context.close(true);
          }
 
+         classFilter = ScriptHostAccess.classFilter();
+
          context = Context.newBuilder("js")
             .engine(SHARED_ENGINE)
             .allowHostAccess(ScriptHostAccess.hostAccess())
-            .allowHostClassLookup(ScriptHostAccess.classFilter())
+            .allowHostClassLookup(classFilter)
             .allowIO(false)
             .allowCreateThread(false)
             .allowNativeAccess(false)
@@ -100,6 +109,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             bindings.putMember(e.getKey(), e.getValue());
          }
       }
+
+      // legacy Rhino-interop shim (package roots, importClass/importPackage).
+      // Installed before library functions so their bodies can navigate package
+      // roots; gated live by the javascript.legacy.compatibility property.
+      LegacyJavaShim.install(context, context.getBindings("js"), classFilter);
 
       installGlobalFunctions();
       installGlobalScope();
@@ -356,7 +370,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          ScriptScope root = (scope instanceof ScriptScope) ? (ScriptScope) scope : null;
          BindingRootProxy proxy =
             new BindingRootProxy(root != null ? root : EMPTY_SCOPE,
-                                 inetsoft.util.script.FormulaContext::getExecScriptScope);
+                                 inetsoft.util.script.FormulaContext::getExecScriptScope,
+                                 classFilter, context);
 
          context.getBindings("js").putMember("__scope__", proxy);
 

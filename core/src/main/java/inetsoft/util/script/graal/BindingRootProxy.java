@@ -17,9 +17,11 @@
  */
 package inetsoft.util.script.graal;
 
+import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyObject;
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -32,10 +34,35 @@ import java.util.function.Supplier;
 public class BindingRootProxy implements ProxyObject {
    private final ScriptScope global;
    private final Supplier<ScriptScope> execScopeSupplier;
+   private final Predicate<String> classFilter;
+   private final Context context;
+   private LegacyJavaShim.ImportScope imports;
 
    public BindingRootProxy(ScriptScope global, Supplier<ScriptScope> execScopeSupplier) {
+      this(global, execScopeSupplier, null, null);
+   }
+
+   public BindingRootProxy(ScriptScope global, Supplier<ScriptScope> execScopeSupplier,
+                           Predicate<String> classFilter, Context context)
+   {
       this.global = global;
       this.execScopeSupplier = execScopeSupplier;
+      this.classFilter = classFilter;
+      this.context = context;
+   }
+
+   /**
+    * Lazily-created per-exec import state for the legacy compatibility shim.
+    * Populated by {@code importClass}/{@code importPackage}; consulted as a
+    * last resort during unqualified name resolution. Never leaks across execs
+    * because a fresh {@code BindingRootProxy} is created per execution.
+    */
+   LegacyJavaShim.ImportScope imports() {
+      if(imports == null) {
+         imports = new LegacyJavaShim.ImportScope();
+      }
+
+      return imports;
    }
 
    /** Sentinel that distinguishes "present with null value" from "absent". */
@@ -58,6 +85,17 @@ public class BindingRootProxy implements ProxyObject {
 
       if(exec != null && exec.hasMember(name)) {
          return exec.getMember(name);
+      }
+
+      // last resort: unqualified names brought in by importClass/importPackage
+      // (legacy compatibility shim). Declared scope names always win; real JS
+      // globals/builtins are never shadowed (enforced in resolveImport).
+      if(imports != null) {
+         Object imp = LegacyJavaShim.resolveImport(imports, name, classFilter, context);
+
+         if(imp != null) {
+            return imp;
+         }
       }
 
       return NOT_FOUND;
