@@ -67,14 +67,17 @@ public class ChartFormatRequest {
    public void setLegendPosition(String legendPosition) { this.legendPosition = legendPosition; }
 
    /** Marker visibility override for point/line charts; null = no change. */
+   @JsonProperty("markerVisible")
    public Boolean getMarkerVisible() { return markerVisible; }
    public void setMarkerVisible(Boolean markerVisible) { this.markerVisible = markerVisible; }
 
    /** Marker shape override (e.g., "CIRCLE", "SQUARE", "TRIANGLE"); null = no change. */
+   @JsonProperty("markerShape")
    public String getMarkerShape() { return markerShape; }
    public void setMarkerShape(String markerShape) { this.markerShape = markerShape; }
 
    /** Marker size override (1–10 recommended); null = no change. */
+   @JsonProperty("markerSize")
    public Integer getMarkerSize() { return markerSize; }
    public void setMarkerSize(Integer markerSize) { this.markerSize = markerSize; }
 
