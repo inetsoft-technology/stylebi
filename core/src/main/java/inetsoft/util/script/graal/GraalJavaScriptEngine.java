@@ -101,7 +101,173 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          }
       }
 
+      installGlobalFunctions();
+      installGlobalScope();
       installLibraryFunctions();
+   }
+
+   /**
+    * Install the built-in global script functions that were registered by the
+    * Rhino {@code JavaScriptEngine.initFunction(Scriptable)} (e.g. {@code isNull},
+    * {@code dateAdd}, {@code datePart}, {@code formatDate}, the FormulaFunctions,
+    * etc.). Each is exposed as a callable JS global so unqualified
+    * formula/expression scripts can invoke them by name.
+    *
+    * <p>Each group is guarded so a single reflection/class-load failure does not
+    * abort engine init (mirroring {@link #installLibraryFunctions}).
+    */
+   private void installGlobalFunctions() {
+      Value bindings = context.getBindings("js");
+      Class<?> jse = inetsoft.util.script.JavaScriptEngine.class;
+
+      // (a) static utility functions on JavaScriptEngine. JS-name -> (method, params)
+      try {
+         putFunction(bindings, "newInstance", jse, "newInstance", String.class);
+         putFunction(bindings, "isNull", jse, "isNull", Object.class);
+         putFunction(bindings, "isArray", jse, "isArray", Object.class);
+         putFunction(bindings, "indexOf", jse, "indexOf", Object.class, Object.class);
+         putFunction(bindings, "getDate", jse, "getDate", Object.class);
+         putFunction(bindings, "isDate", jse, "isDate", Object.class);
+         putFunction(bindings, "isNumber", jse, "isNumber", Object.class);
+         putFunction(bindings, "formatDate", jse, "formatDate", Object.class, String.class);
+         putFunction(bindings, "formatNumber", jse, "formatNumber",
+                     double.class, String.class, Object.class);
+         putFunction(bindings, "parseDate", jse, "parseDate", String.class, Object.class);
+         putFunction(bindings, "dateAdd", jse, "dateAdd", String.class, int.class, Object.class);
+         putFunction(bindings, "dateDiff", jse, "dateDiff",
+                     String.class, Object.class, Object.class);
+         putFunction(bindings, "datePart", jse, "datePart",
+                     String.class, Object.class, boolean.class);
+         putFunction(bindings, "datePartForceWeekOfMonth", jse, "datePartForceWeekOfMonth",
+                     String.class, Object.class, boolean.class, int.class);
+         putFunction(bindings, "trim", jse, "trim", String.class);
+         putFunction(bindings, "ltrim", jse, "ltrim", String.class);
+         putFunction(bindings, "rtrim", jse, "rtrim", String.class);
+         putFunction(bindings, "split", jse, "split", String.class, Object.class, Object.class);
+         putFunction(bindings, "log", jse, "log", Object.class);
+         putFunction(bindings, "alert", jse, "alert", Object.class, Object.class);
+         putFunction(bindings, "confirm", jse, "confirm", String.class);
+         // JS name getImage -> method getImageJS
+         putFunction(bindings, "getImage", jse, "getImageJS", Object.class);
+         putFunction(bindings, "numberToString", jse, "numberToString", Object.class);
+      }
+      catch(Throwable ex) {
+         LOG.warn("Failed to install global utility functions", ex);
+      }
+
+      // setupGoogleMapsPlot (static on GoogleMapsFunctions)
+      try {
+         putFunction(bindings, "setupGoogleMapsPlot",
+                     inetsoft.util.script.GoogleMapsFunctions.class, "setupGoogleMapsPlot",
+                     Object.class, String.class, Object.class, String.class, String.class,
+                     int.class, int.class, int.class, int.class);
+      }
+      catch(Throwable ex) {
+         LOG.warn("Failed to install setupGoogleMapsPlot", ex);
+      }
+
+      // (b) FormulaFunctions: every public static method declared on the class
+      try {
+         addStaticFunctions(bindings, inetsoft.report.script.formula.FormulaFunctions.class);
+      }
+      catch(Throwable ex) {
+         LOG.warn("Failed to install FormulaFunctions", ex);
+      }
+   }
+
+   /**
+    * Install the CALC math/stat/date functions and the constant-holder objects
+    * (Chart, GLine, GTexture, GShape, SVGShape, StyleConstant) as JS globals.
+    * Mirrors the Rhino {@code initScope()} setup.
+    */
+   private void installGlobalScope() {
+      Value bindings = context.getBindings("js");
+
+      // (c) CALC: install the object as CALC, plus each function unqualified
+      // (Rhino set a Calc as the global prototype so functions resolve directly).
+      try {
+         inetsoft.util.script.Calc calc = new inetsoft.util.script.Calc();
+         bindings.putMember("CALC", ScriptValueConverter.toGuest(calc));
+
+         for(Object key : calc.getMemberKeys()) {
+            String name = String.valueOf(key);
+
+            // don't overwrite an explicit (a)/(b) registration on collision
+            if(!bindings.hasMember(name)) {
+               bindings.putMember(name, calc.getMember(name));
+            }
+         }
+      }
+      catch(Throwable ex) {
+         LOG.warn("Failed to install CALC functions", ex);
+      }
+
+      // (d) constant-holder objects (public static final fields reflected into scopes)
+      Class<?>[] chartcls = {
+         inetsoft.uql.viewsheet.graph.GraphTypes.class,
+         inetsoft.report.composition.region.ChartConstants.class,
+         inetsoft.uql.viewsheet.graph.GeographicOption.class
+      };
+
+      putConstantScope(bindings, "Chart", chartcls);
+      putConstantScope(bindings, "GLine", inetsoft.graph.aesthetic.GLine.class);
+      putConstantScope(bindings, "GTexture", inetsoft.graph.aesthetic.GTexture.class);
+      putConstantScope(bindings, "GShape", inetsoft.graph.aesthetic.GShape.class);
+      putConstantScope(bindings, "SVGShape", inetsoft.graph.aesthetic.SVGShape.class);
+
+      // StyleConstant: StyleConstants + ReportSheet + TableLens + VSFormat + TimeInfo
+      // + the chart constants (GLine/GTexture/GShape deliberately excluded — they
+      // shadow numeric constants in StyleConstants; see Rhino initScope()).
+      java.util.List<Class<?>> all = new java.util.ArrayList<>();
+      java.util.Collections.addAll(all, chartcls);
+      all.add(inetsoft.report.StyleConstants.class);
+      all.add(inetsoft.report.ReportSheet.class);
+      all.add(inetsoft.report.TableLens.class);
+      all.add(inetsoft.uql.viewsheet.VSFormat.class);
+      all.add(inetsoft.uql.viewsheet.TimeInfo.class);
+      putConstantScope(bindings, "StyleConstant", all.toArray(new Class<?>[0]));
+   }
+
+   /**
+    * Register a single Java method as a callable JS global under {@code jsName}.
+    */
+   private static void putFunction(Value bindings, String jsName, Class<?> cls,
+                                   String method, Class<?>... params)
+   {
+      bindings.putMember(jsName, new ScriptFunction(null, cls, method, params));
+   }
+
+   /**
+    * Register every {@code public static} method declared directly on {@code cls}
+    * as a callable JS global keyed by its method name. Mirrors the Rhino
+    * {@code addFunctions(Class, Scriptable)} enumeration.
+    */
+   private static void addStaticFunctions(Value bindings, Class<?> cls) {
+      for(java.lang.reflect.Method m : cls.getMethods()) {
+         if(m.getDeclaringClass() != cls ||
+            !java.lang.reflect.Modifier.isStatic(m.getModifiers()) ||
+            !java.lang.reflect.Modifier.isPublic(m.getModifiers()))
+         {
+            continue;
+         }
+
+         bindings.putMember(m.getName(), new ScriptFunction(null, m));
+      }
+   }
+
+   /**
+    * Build a read-only constant scope from the given classes' public static final
+    * fields and install it under {@code name}. Guarded per-group so a class-load
+    * failure doesn't abort engine init.
+    */
+   private void putConstantScope(Value bindings, String name, Class<?>... classes) {
+      try {
+         ConstantScope scope = new ConstantScope(classes);
+         bindings.putMember(name, ScriptValueConverter.toGuest(scope));
+      }
+      catch(Throwable ex) {
+         LOG.warn("Failed to install constant object " + name, ex);
+      }
    }
 
    /**

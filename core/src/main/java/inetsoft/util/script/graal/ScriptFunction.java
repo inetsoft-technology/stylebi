@@ -80,8 +80,9 @@ public class ScriptFunction implements ProxyExecutable {
          Object[] args = new Object[ptypes.length];
 
          for(int i = 0; i < ptypes.length; i++) {
-            args[i] = (i < arguments.length)
+            Object host = (i < arguments.length)
                ? ScriptValueConverter.toHost(arguments[i]) : null;
+            args[i] = coerce(host, ptypes[i]);
          }
 
          Object receiver = Modifier.isStatic(method.getModifiers()) ? null : target;
@@ -91,6 +92,41 @@ public class ScriptFunction implements ProxyExecutable {
       catch(Exception ex) {
          throw new RuntimeException("Failed to invoke script function: " + name, ex);
       }
+   }
+
+   /**
+    * Coerce a host argument to the declared parameter type. GraalJS surfaces all
+    * script numbers as {@code Double} (via {@link ScriptValueConverter#toHost}),
+    * so a method declaring a narrower primitive (e.g. {@code int}, {@code long},
+    * {@code float}) would otherwise fail reflective {@code Method.invoke} with an
+    * argument-type mismatch. This narrows a {@code Number} to the target numeric
+    * primitive/wrapper; other values are passed through unchanged.
+    */
+   private static Object coerce(Object value, Class<?> ptype) {
+      if(value instanceof Number) {
+         Number n = (Number) value;
+
+         if(ptype == int.class || ptype == Integer.class) {
+            return n.intValue();
+         }
+         else if(ptype == long.class || ptype == Long.class) {
+            return n.longValue();
+         }
+         else if(ptype == double.class || ptype == Double.class) {
+            return n.doubleValue();
+         }
+         else if(ptype == float.class || ptype == Float.class) {
+            return n.floatValue();
+         }
+         else if(ptype == short.class || ptype == Short.class) {
+            return n.shortValue();
+         }
+         else if(ptype == byte.class || ptype == Byte.class) {
+            return n.byteValue();
+         }
+      }
+
+      return value;
    }
 
    private final Object target;
