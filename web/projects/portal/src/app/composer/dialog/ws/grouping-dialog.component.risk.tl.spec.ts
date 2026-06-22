@@ -96,7 +96,6 @@ describe("GroupingDialog — updateOnlyFor", () => {
       modelService.sendModel.mockClear();
 
       const node = { label: "Q1", leaf: true, data: entry, children: [] } as any;
-      comp.form.get("onlyFor").enable();
       comp.updateOnlyFor(node);
 
       expect(modelService.sendModel).toHaveBeenCalled();
@@ -112,8 +111,6 @@ describe("GroupingDialog — updateOnlyFor", () => {
       };
       const { comp } = makeInitializedComponent({}, { modelService });
       const node = { label: "Q1", leaf: true, data: entry, children: [] } as any;
-      comp.form.get("attribute").enable();
-      comp.form.get("attributeIndex").enable();
 
       comp.updateOnlyFor(node);
 

@@ -45,7 +45,7 @@ export function makeAssetEntry(overrides: Partial<AssetEntry> = {}): AssetEntry 
       user: null,
       path: "Datasource/Query1",
       alias: null,
-      identifier: "1^64^__NULL__^Datasource/Query1",
+      identifier: "1^37^__NULL__^Datasource/Query1",
       properties: {},
       organization: null,
       ...overrides,

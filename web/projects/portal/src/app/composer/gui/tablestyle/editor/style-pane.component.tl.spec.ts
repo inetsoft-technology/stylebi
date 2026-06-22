@@ -110,6 +110,10 @@ function makeTableStyle(overrides: Partial<TableStyleModel> = {}): TableStyleMod
 async function renderComponent(tableStyle: TableStyleModel = makeTableStyle()) {
    const { fixture } = await render(StylePaneComponent, {
       schemas: [NO_ERRORS_SCHEMA],
+      // Prevent TableStylePreviewPaneComponent / TableStyleFormatPaneComponent from being
+      // instantiated — their DI chains reach ModelService which fires HTTP and calls
+      // NgbModal.open in handleError, triggering NG0205 after fixture teardown.
+      componentImports: [],
       componentProperties: {
          tableStyle,
       },
