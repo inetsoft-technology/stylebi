@@ -123,7 +123,7 @@ export class TableStyleUtil {
       if(!TableStyleUtil.isDefaultRegion(selectedRegion)) {
          let id = parseInt(selectedRegion, 10);
 
-         if(id > 0 || id < styleModel.styleFormat.specList.length) {
+         if(id >= 0 && id < styleModel.styleFormat.specList.length) {
             styleModel.selectedRegionLabel = styleModel.styleFormat.specList[id].label;
          }
       }

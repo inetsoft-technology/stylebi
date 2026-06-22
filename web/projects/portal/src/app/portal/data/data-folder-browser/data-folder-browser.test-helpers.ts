@@ -214,9 +214,11 @@ export function clearMocks() {
    DATA_BROWSER_MOCK.changeMV.mockClear();
    DATA_BROWSER_MOCK.deleteAsset.mockClear();
    VS_CLIENT_MOCK.connect.mockClear();
+   VS_CLIENT_MOCK.disconnect.mockClear();
    VS_CLIENT_MOCK.subscribe.mockClear();
    VS_CLIENT_MOCK.sendEvent.mockClear();
    REPO_CLIENT_MOCK.connect.mockClear();
+   REPO_CLIENT_MOCK.disconnect.mockClear();
    MODAL_MOCK.open.mockClear();
    DOM_SERVICE_MOCK.addPortalContent.mockClear();
    DRAG_SERVICE_MOCK.put.mockClear();
