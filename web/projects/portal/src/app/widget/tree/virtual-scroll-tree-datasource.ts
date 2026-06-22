@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { NgZone } from "@angular/core";
 import { BehaviorSubject, Observable, Subject } from "rxjs";
 import { TreeNodeModel } from "./tree-node-model";
 import { TreeSearchPipe } from "./tree-search.pipe";
@@ -87,13 +88,15 @@ export class VirtualScrollTreeDatasource {
       this.refreshByRoot0(root, undefined, true, this.searchMode, ignoreNodes);
    }
 
-   public registerScrollContainer(element: HTMLElement): Observable<any[]> {
-      element.addEventListener("scroll", e => {
-         this.dispatcher.next(this.dispatcher.value);
+   public registerScrollContainer(element: HTMLElement, ngZone: NgZone): Observable<any[]> {
+      ngZone.runOutsideAngular(() => {
+         element.addEventListener("scroll", e => {
+            this.dispatcher.next(this.dispatcher.value);
 
-         if(e.target instanceof HTMLElement) {
-            this.scrollTop.next(e.target.scrollTop);
-         }
+            if(e.target instanceof HTMLElement) {
+               this.scrollTop.next(e.target.scrollTop);
+            }
+         });
       });
 
       return this.dispatcher.asObservable();

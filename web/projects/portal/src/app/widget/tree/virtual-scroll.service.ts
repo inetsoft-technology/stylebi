@@ -24,6 +24,9 @@ import { SearchComparator } from "./search-comparator";
 
 @Injectable()
 export class VirtualScrollService {
+   constructor(private ngZone: NgZone) {
+   }
+
    private _virtualScroll = new Subject<TreeNodeModel[]>();
    private _virtualScrollNodes: TreeNodeModel[] = [];
    private _virtualScrollNodesParents: TreeNodeModel[] = [];
@@ -81,12 +84,14 @@ export class VirtualScrollService {
    }
 
    public registerScrollContainer(element: HTMLElement): Observable<any[]> {
-      element.addEventListener("scroll", e => {
-         this.dispatcher.next(this.dispatcher.value);
+      this.ngZone.runOutsideAngular(() => {
+         element.addEventListener("scroll", e => {
+            this.dispatcher.next(this.dispatcher.value);
 
-         if(e.target instanceof HTMLElement) {
-            this.scrollTop.next(e.target.scrollTop);
-         }
+            if(e.target instanceof HTMLElement) {
+               this.scrollTop.next(e.target.scrollTop);
+            }
+         });
       });
 
       return this.dispatcher.asObservable();
