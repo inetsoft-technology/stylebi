@@ -3523,6 +3523,25 @@ public abstract class GraphGenerator {
          }
 
          elements.add(area);
+
+         if(desc.getPlotDescriptor().isPointLine()) {
+            PointElement point = new PointElement();
+            String markerShape = desc.getPlotDescriptor().getMarkerShape();
+            int markerSize = desc.getPlotDescriptor().getMarkerSize();
+
+            if(markerShape != null) {
+               point.setShapeFrame(new StaticShapeFrame(mapMarkerShape(markerShape)));
+            }
+
+            if(markerSize > 0) {
+               point.setSizeFrame(new StaticSizeFrame(markerSize));
+            }
+
+            point.setHint("_show_point_", "true");
+            point.setHint(GraphElement.HINT_ALPHA, 1);
+            point.setHint(GraphElement.HINT_SHINE, "false");
+            elements.add(point);
+         }
       }
       else if(GraphTypes.isLine(chartType)) {
          LineElement line = new LineElement();
@@ -3571,7 +3590,7 @@ public abstract class GraphGenerator {
             elements.add(lastp);
          }
 
-         if(desc.getPlotDescriptor().isPointLine() || dateComparison != null) {
+         if((desc.getPlotDescriptor().isPointLine() && dateComparison == null) || dateComparison != null) {
             PointElement point = new PointElement();
             showPoint = true;
 
@@ -3589,7 +3608,10 @@ public abstract class GraphGenerator {
             if(desc.getPlotDescriptor().isPointLine()) {
                String markerShape = desc.getPlotDescriptor().getMarkerShape();
                int markerSize = desc.getPlotDescriptor().getMarkerSize();
-               point.setShapeFrame(new StaticShapeFrame(mapMarkerShape(markerShape)));
+
+               if(markerShape != null) {
+                  point.setShapeFrame(new StaticShapeFrame(mapMarkerShape(markerShape)));
+               }
 
                if(markerSize > 0) {
                   point.setSizeFrame(new StaticSizeFrame(markerSize));
