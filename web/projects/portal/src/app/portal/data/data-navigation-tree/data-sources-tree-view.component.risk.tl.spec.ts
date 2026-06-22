@@ -83,6 +83,9 @@ async function renderComponent(opts: {
    });
 
    const comp = result.fixture.componentInstance;
+   // Flush the initial getDataNavigationTree() HTTP request so no response
+   // arrives after fixture.destroy(), which would crash Angular change detection.
+   await waitFor(() => expect(comp.loading).toBe(false));
 
    return {
       comp,

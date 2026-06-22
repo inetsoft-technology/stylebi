@@ -51,8 +51,10 @@ import { Component, EventEmitter, Input, NO_ERRORS_SCHEMA, Output } from "@angul
 import { FormsModule } from "@angular/forms";
 import { ActivatedRoute, Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { render } from "@testing-library/angular";
+import { render, waitFor } from "@testing-library/angular";
+import { http, HttpResponse as MswHttpResponse } from "msw";
 import { EMPTY, Subject, of } from "rxjs";
+import { server } from "@test-mocks/server";
 import { ComponentTool } from "../../../../../common/util/component-tool";
 import { DataModelNameChangeService } from "../../../services/data-model-name-change.service";
 import { FolderChangeService } from "../../../services/folder-change.service";
@@ -312,15 +314,18 @@ describe("DatabasePhysicalModelComponent - refreshWarnings0 - warning confirmati
       const comp = fixture.componentInstance;
       const warning = { message: "Join warning", canContinue: true };
       const callback = vi.fn();
+      server.use(
+         http.get("*/api/data/physicalmodel/warnings/*", () =>
+            MswHttpResponse.json(warning)
+         )
+      );
       const confirmSpy = vi.spyOn(ComponentTool, "showConfirmDialog")
          .mockResolvedValue("ok" as any);
-      vi.spyOn(comp["httpClient"], "get").mockReturnValue(of(warning) as any);
 
       (comp as any).refreshWarnings0("runtime1", callback, true);
 
       try {
-         await Promise.resolve();
-         expect(callback).toHaveBeenCalledTimes(1);
+         await waitFor(() => expect(callback).toHaveBeenCalledTimes(1));
          expect(comp.warning).toEqual(warning);
       }
       finally {

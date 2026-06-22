@@ -170,39 +170,53 @@ describe("DataFolderBrowserComponent – refreshFolderBrowser [Group 1, Risk 3]"
       expect(requests[0].searchParams.get("scope")).toBe("4");
    });
 
-   // TODO: These two tests cause unhandled errors in vitest because handleBrowserRefreshError
-   // returns throwError(error) after handling the HTTP error, and the subscription has no error
-   // handler — zone.js re-throws asynchronously after the test ends, blaming the next test.
-   // Commented out until a suppression strategy is available.
-   // it("should set unauthorizedAccess=true and clear lists when browser returns 403", async () => {
-   //    server.use(
-   //       http.get("*/api/portal/data/browser", () =>
-   //          new HttpResponse(null, { status: 403 })
-   //       )
-   //    );
-   //
-   //    const { comp } = await renderComponent();
-   //    await waitFor(() => expect(comp.unauthorizedAccess).toBe(true));
-   //
-   //    expect(comp.folders).toEqual([]);
-   //    expect(comp.datasets).toEqual([]);
-   //    expect(comp.currentFolderPath).toEqual([]);
-   // });
-   //
-   // it("should set unauthorizedAccess=false and fire danger notification on non-403 browser error", async () => {
-   //    server.use(
-   //       http.get("*/api/portal/data/browser", () =>
-   //          new HttpResponse(null, { status: 500 })
-   //       )
-   //    );
-   //
-   //    const { comp } = await renderComponent();
-   //    await waitFor(() =>
-   //       expect((comp as any).dataNotifications.notifications.danger).toHaveBeenCalled()
-   //    );
-   //
-   //    expect(comp.unauthorizedAccess).toBe(false);
-   // });
+   it("should set unauthorizedAccess=true and clear lists when browser returns 403", async () => {
+      // zone.js re-throws the RxJS error asynchronously; suppress console noise
+      // without swallowing test-framework errors.
+      const origConsoleError = console.error;
+      console.error = vi.fn();
+      try {
+         server.use(
+            http.get("*/api/portal/data/browser", () =>
+               new HttpResponse(null, { status: 403 })
+            )
+         );
+
+         const { comp } = await renderComponent();
+         await waitFor(() => expect(comp.unauthorizedAccess).toBe(true));
+
+         expect(comp.folders).toEqual([]);
+         expect(comp.datasets).toEqual([]);
+         expect(comp.currentFolderPath).toEqual([]);
+      }
+      finally {
+         console.error = origConsoleError;
+      }
+   });
+
+   it("should set unauthorizedAccess=false and fire danger notification on non-403 browser error", async () => {
+      // zone.js re-throws the RxJS error asynchronously; suppress console noise
+      // without swallowing test-framework errors.
+      const origConsoleError = console.error;
+      console.error = vi.fn();
+      try {
+         server.use(
+            http.get("*/api/portal/data/browser", () =>
+               new HttpResponse(null, { status: 500 })
+            )
+         );
+
+         const { comp } = await renderComponent();
+         await waitFor(() =>
+            expect((comp as any).dataNotifications.notifications.danger).toHaveBeenCalled()
+         );
+
+         expect(comp.unauthorizedAccess).toBe(false);
+      }
+      finally {
+         console.error = origConsoleError;
+      }
+   });
 
    it("getAssemblyName should return null", async () => {
       const { comp } = await renderComponent();

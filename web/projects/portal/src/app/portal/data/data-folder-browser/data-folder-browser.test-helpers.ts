@@ -53,7 +53,7 @@ import { DataFolderListViewComponent } from "./data-folder-list-view/data-folder
 // and dataNotifications.notifications.info/success/danger work without real NotificationsComponent DI.
 @Component({ selector: "data-notifications", template: "", standalone: true })
 export class StubDataNotificationsComponent {
-   notifications = { info: vi.fn(), success: vi.fn(), danger: vi.fn() };
+   notifications = { info: vi.fn(), success: vi.fn(), danger: vi.fn(), warning: vi.fn() };
 }
 
 // DataFolderListViewComponent imports RouterLink which triggers Router APP_INITIALIZER → whenStable() hangs.

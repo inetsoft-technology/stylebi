@@ -35,7 +35,7 @@
 
 import { Component, EventEmitter, Input, NO_ERRORS_SCHEMA, Output } from "@angular/core";
 import { UntypedFormGroup } from "@angular/forms";
-import { render } from "@testing-library/angular";
+import { render, waitFor } from "@testing-library/angular";
 import { of } from "rxjs";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { SaveWorksheetDialog } from "./save-worksheet-dialog.component";
@@ -175,9 +175,7 @@ describe("SaveWorksheetDialog — saveChanges alreadyExists overwritable", () =>
       comp.onCommit.subscribe(m => emitted.push(m));
 
       comp.saveChanges();
-      await Promise.resolve();
-
-      expect(emitted).toHaveLength(1);
+      await waitFor(() => expect(emitted).toHaveLength(1));
    });
 
    it("should NOT emit onCommit when user declines overwrite (No)", async () => {
