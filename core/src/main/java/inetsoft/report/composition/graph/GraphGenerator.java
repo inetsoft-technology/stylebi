@@ -3243,6 +3243,23 @@ public abstract class GraphGenerator {
    }
 
    /**
+    * Maps a marker-shape name (from PlotDescriptor.getMarkerShape()) to the
+    * corresponding GShape constant.  Returns FILLED_CIRCLE for null / unknown names.
+    */
+   private static GShape mapMarkerShape(String name) {
+      switch(name == null ? "" : name.toLowerCase()) {
+      case "square":   return GShape.FILLED_SQUARE;
+      case "diamond":  return GShape.FILLED_DIAMOND;
+      case "triangle": return GShape.FILLED_TRIANGLE;
+      case "cross":    return GShape.CROSS;
+      case "x":        return GShape.XSHAPE;
+      case "star":     return GShape.STAR;
+      case "circle":
+      default:         return GShape.FILLED_CIRCLE;
+      }
+   }
+
+   /**
     * Set hint for data set ranges.
     */
    private void setRangeHint(GraphElement elem, int chartType, boolean all) {
@@ -3450,6 +3467,17 @@ public abstract class GraphGenerator {
                // make sure the point is on top and not seen through to line
                point.setHint(GraphElement.HINT_ALPHA, 1);
                point.setHint(GraphElement.HINT_SHINE, "false");
+
+               String markerShape = desc.getPlotDescriptor().getMarkerShape();
+               int markerSize = desc.getPlotDescriptor().getMarkerSize();
+
+               if(markerShape != null) {
+                  point.setShapeFrame(new StaticShapeFrame(mapMarkerShape(markerShape)));
+               }
+
+               if(markerSize > 0) {
+                  point.setSizeFrame(new StaticSizeFrame(markerSize));
+               }
             }
             // optimization, not need to sort scatter plot.
             // if point on map, more important to make the smaller point on top of larger one
@@ -3558,7 +3586,16 @@ public abstract class GraphGenerator {
                point.setSizeFrame(new StaticSizeFrame(1));
             }
 
-            point.setShapeFrame(new StaticShapeFrame(GShape.FILLED_CIRCLE));
+            if(desc.getPlotDescriptor().isPointLine()) {
+               String markerShape = desc.getPlotDescriptor().getMarkerShape();
+               int markerSize = desc.getPlotDescriptor().getMarkerSize();
+               point.setShapeFrame(new StaticShapeFrame(mapMarkerShape(markerShape)));
+
+               if(markerSize > 0) {
+                  point.setSizeFrame(new StaticSizeFrame(markerSize));
+               }
+            }
+
             point.setHint("_show_point_", "true");
             // make sure the point is on top and not seen through to line
             point.setHint(GraphElement.HINT_ALPHA, 1);
@@ -3630,6 +3667,17 @@ public abstract class GraphGenerator {
 
             if(desc.getPlotDescriptor().isPointLine()) {
                PointElement point = new PointElement();
+               String markerShape = desc.getPlotDescriptor().getMarkerShape();
+               int markerSize = desc.getPlotDescriptor().getMarkerSize();
+
+               if(markerShape != null) {
+                  point.setShapeFrame(new StaticShapeFrame(mapMarkerShape(markerShape)));
+               }
+
+               if(markerSize > 0) {
+                  point.setSizeFrame(new StaticSizeFrame(markerSize));
+               }
+
                point.setHint("_show_point_", "true");
                // make sure the point is on top and not seen through to line
                point.setHint(GraphElement.HINT_ALPHA, 1);
