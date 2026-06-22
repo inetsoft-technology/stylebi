@@ -2056,6 +2056,27 @@ public class WizAutoBindingService {
          }
       }
 
+      // Marker visibility, shape, and size
+      if((request.getMarkerVisible() != null || request.getMarkerShape() != null
+         || request.getMarkerSize() != null) && desc != null)
+      {
+         PlotDescriptor plot = desc.getPlotDescriptor();
+
+         if(plot != null) {
+            if(request.getMarkerVisible() != null) {
+               plot.setPointLine(request.getMarkerVisible());
+            }
+
+            if(request.getMarkerShape() != null) {
+               plot.setMarkerShape(request.getMarkerShape());
+            }
+
+            if(request.getMarkerSize() != null) {
+               plot.setMarkerSize(request.getMarkerSize());
+            }
+         }
+      }
+
       // Invalidate the cached runtime descriptor so the change regenerates on re-execute.
       info.setRTChartDescriptor(null);
 
