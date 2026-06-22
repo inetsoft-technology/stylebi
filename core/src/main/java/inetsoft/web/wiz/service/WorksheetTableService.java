@@ -529,7 +529,7 @@ public class WorksheetTableService {
       }
 
       table.setColumnSelection(columns);
-      table.setSQLEdited(false);
+      table.setAdvancedEditing(true);
 
       worksheet.addAssembly(table);
       return table;
