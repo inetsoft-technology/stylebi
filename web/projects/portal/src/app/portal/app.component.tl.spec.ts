@@ -177,7 +177,7 @@ describe("PortalAppComponent — ngOnDestroy: 'message' listener cleanup", () =>
 
       const addCount    = addSpy.mock.calls.filter(c => c[0] === "message").length;
       const removeBefore = removeSpy.mock.calls.filter(c => c[0] === "message").length;
-      expect(addCount).toBeGreaterThanOrEqual(1);
+      expect(addCount).toBe(1);
       expect(removeBefore).toBe(0);
 
       fixture.destroy();
@@ -209,6 +209,16 @@ describe("PortalAppComponent — ngOnDestroy: 'message' listener cleanup", () =>
       await renderComponent();
       const removeCount = removeSpy.mock.calls.filter(c => c[0] === "message").length;
       expect(removeCount).toBe(0);
+   });
+
+   it("should not call handleMessageEvent after the component is destroyed", async () => {
+      const { fixture, comp } = await renderComponent();
+      const handlerSpy = vi.spyOn(comp as any, "handleMessageEvent");
+
+      fixture.destroy();
+      window.dispatchEvent(new MessageEvent("message", { data: { event: "openDialog", dialogName: "preferences" } }));
+
+      expect(handlerSpy).not.toHaveBeenCalled();
    });
 });
 
