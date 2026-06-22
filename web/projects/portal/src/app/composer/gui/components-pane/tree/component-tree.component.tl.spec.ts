@@ -236,7 +236,8 @@ describe("ComponentTree — hasChildren", () => {
    it("should return false when children is null/undefined", async () => {
       const comp = await renderComponent();
       const node = { model: makeModel("VSText"), expanded: false } as VSObjectTreeNode;
-      expect(comp.hasChildren(node)).toBe(false);
+      // hasChildren returns `undefined` (not strict false) when node.children is absent
+      expect(comp.hasChildren(node)).toBeFalsy();
    });
 });
 

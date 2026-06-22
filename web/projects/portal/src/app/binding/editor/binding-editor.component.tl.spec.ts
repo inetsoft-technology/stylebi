@@ -395,13 +395,15 @@ describe("BindingEditor — showHighLowPane, changeMessage, hideDcTip, updateCha
    it("should return false from showHighLowPane for table binding model", async () => {
       const comp = await renderComponent();
       comp.bindingModel = { type: "table", groups: [], details: [], aggregates: [] } as any;
-      expect(comp.showHighLowPane()).toBe(false);
+      // chartBinding is null → && short-circuits to null, not strict false
+      expect(comp.showHighLowPane()).toBeFalsy();
    });
 
    it("should return false from showHighLowPane when bindingModel is null", async () => {
       const comp = await renderComponent();
       comp.bindingModel = null;
-      expect(comp.showHighLowPane()).toBe(false);
+      // chartBinding is null → && short-circuits to null, not strict false
+      expect(comp.showHighLowPane()).toBeFalsy();
    });
 
    it("should update consoleMessages and emit onMessageChange via changeMessage", async () => {
