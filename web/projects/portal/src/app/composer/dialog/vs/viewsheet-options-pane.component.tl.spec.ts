@@ -100,7 +100,7 @@ async function renderComponent(modelOverrides: Partial<ViewsheetOptionsPaneModel
    const { fixture } = await render(ViewsheetOptionsPane, {
       schemas: [NO_ERRORS_SCHEMA],
       providers: [
-         { provide: HttpClient, useValue: {} },
+         { provide: HttpClient, useValue: { get: vi.fn(), post: vi.fn() } },
          { provide: NgbModal, useValue: MODAL_SERVICE_MOCK },
          { provide: ModelService, useValue: MODEL_SERVICE_MOCK },
       ],

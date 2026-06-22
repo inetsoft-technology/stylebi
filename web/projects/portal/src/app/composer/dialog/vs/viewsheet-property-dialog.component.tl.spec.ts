@@ -315,3 +315,26 @@ describe("ViewsheetPropertyDialog — isDefaultOrgAsset", () => {
       expect(comp.isDefaultOrgAsset()).toBe(false);
    });
 });
+
+// ---------------------------------------------------------------------------
+// Constructor subscribe leak (it.fails — tracks unfixed bug)
+// ---------------------------------------------------------------------------
+
+describe("ViewsheetPropertyDialog — constructor subscribe leak", () => {
+   // Bug: constructor calls appInfoService.getCurrentOrgInfo().subscribe() without storing the
+   // Subscription. After component destruction the callback still runs and sets this.orgInfo.
+   // Fix: store the subscription and unsubscribe in ngOnDestroy.
+   it.fails("should not set orgInfo after component is destroyed (constructor subscribe leak)", async () => {
+      const subject = new Subject<{ key: string; value: string }>();
+      APP_INFO_MOCK.getCurrentOrgInfo.mockReturnValue(subject.asObservable());
+      const { comp, fixture } = await renderComponent();
+
+      fixture.destroy();
+      subject.next({ key: "org2", value: "Org 2" });
+      await Promise.resolve();
+
+      // With fix: orgInfo should remain null (subject emitted after destroy)
+      // Currently: FAILS — callback still runs and sets orgInfo
+      expect(comp["orgInfo"]).toBeNull();
+   });
+});

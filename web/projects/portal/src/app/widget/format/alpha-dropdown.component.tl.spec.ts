@@ -114,7 +114,7 @@ describe("AlphaDropdown — changeAlpha0", () => {
       expect(changeSpy).toHaveBeenCalledWith(100);
    });
 
-   it("should emit alphaInvalid(true) when alpha is clamped (out-of-range)", async () => {
+   it("should emit alphaInvalid(false) when a negative value is clamped to 0 (0 is in-range)", async () => {
       const { comp } = await renderComponent();
       const invalidSpy = vi.spyOn(comp.alphaInvalid, "emit");
       comp.changeAlpha0(-5);

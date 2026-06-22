@@ -414,10 +414,9 @@ describe("FormattingPane — getDecimalFormats", () => {
    });
 
    it("should not add duplicates if format is already in the list", () => {
-      pane.formatModel = makeModel({ decimalFmts: [".00", ".00"] } as any);
-      const before = pane.getDecimalFormats().length;
-      // calling again should not add duplicates
-      const after = pane.getDecimalFormats().length;
-      expect(after).toBe(before);
+      pane.formatModel = makeModel({ decimalFmts: [".00"] } as any);
+      const result = pane.getDecimalFormats();
+      const count = result.filter(f => f === "#,###.00").length;
+      expect(count).toBe(1);
    });
 });

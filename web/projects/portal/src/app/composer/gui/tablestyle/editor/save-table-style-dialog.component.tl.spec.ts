@@ -140,7 +140,7 @@ describe("SaveTableStyleDialog — ok()", () => {
       const emitSpy = vi.spyOn(comp.onCommit, "emit");
 
       comp.ok();
-      await Promise.resolve();
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
 
       expect(msgSpy).toHaveBeenCalled();
       expect(emitSpy).not.toHaveBeenCalled();
@@ -178,8 +178,7 @@ describe("SaveTableStyleDialog — ok()", () => {
       const emitSpy = vi.spyOn(comp.onCommit, "emit");
 
       comp.ok();
-      await Promise.resolve();
-      await Promise.resolve();
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
 
       expect(emitSpy).not.toHaveBeenCalled();
    });
@@ -191,8 +190,7 @@ describe("SaveTableStyleDialog — ok()", () => {
       const emitSpy = vi.spyOn(comp.onCommit, "emit");
 
       comp.ok();
-      await Promise.resolve();
-      await Promise.resolve();
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
 
       expect(emitSpy).not.toHaveBeenCalled();
    });

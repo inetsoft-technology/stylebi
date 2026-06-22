@@ -143,7 +143,7 @@ describe("SaveScriptDialog — ok()", () => {
       const emitSpy = vi.spyOn(comp.onCommit, "emit");
 
       comp.ok();
-      await Promise.resolve();
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
 
       expect(msgSpy).toHaveBeenCalled();
       expect(emitSpy).not.toHaveBeenCalled();

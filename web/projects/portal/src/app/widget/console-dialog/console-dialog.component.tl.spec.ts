@@ -29,7 +29,7 @@
  *     → clears; specific type + checked → adds; specific type + unchecked → removes; calls
  *     updateLevelButtonLabel after each change
  *   Group 4 [Risk 2] — ngOnInit(): clones messageLevels → selectedLevels; null messageLevels
- *     → defaults ["Error","Warning","Info"]; null messages → []; calls updateLevelButtonLabel
+ *     → defaults to levelOptions (i18n strings); null messages → []; calls updateLevelButtonLabel
  *   Group 5 [Risk 2] — getLevelButtonLabel(): all 3 selected → "All levels"; fewer → "Custom levels"
  *   Group 6 [Risk 1] — getLevelCounter(): counts messages matching given type (case-insensitive)
  *   Group 7 [Risk 1] — getLevelIcon(): Error→error icon; Warning→warning icon; other→annotation icon
@@ -253,9 +253,9 @@ describe("ConsoleDialogComponent — ngOnInit", () => {
       expect(comp.selectedLevels).not.toBe(levels);
    });
 
-   it("should default selectedLevels to [Error, Warning, Info] when messageLevels is null", async () => {
+   it("should default selectedLevels to levelOptions (i18n strings) when messageLevels is null", async () => {
       const { comp } = await renderComponent({ messageLevels: null });
-      expect(comp.selectedLevels).toEqual(["Error", "Warning", "Info"]);
+      expect(comp.selectedLevels).toEqual(["_#(js:Error)", "_#(js:Warning)", "_#(js:Info)"]);
    });
 
    it("should initialize messages to [] when messages input is null", async () => {

@@ -164,9 +164,11 @@ describe("FiltersPane — add", () => {
    it("should not move any filter when no filter is selected (isAddEnabled=false)", async () => {
       const f1 = makeFilter("colA");
       const { comp, model } = await renderComponent({ filters: [f1], sharedFilters: [] });
-      // Deselect by resizing
+      // Fragile: accesses private MultiSelectList API to clear selection without triggering DOM
+      // events. If FiltersPane renames filtersSelection or MultiSelectList removes setSize(),
+      // this will fail with a runtime TypeError rather than a compile-time error.
       comp["filtersSelection"].setSize(0);
-      comp["filtersSelection"].setSize(1); // clears selection
+      comp["filtersSelection"].setSize(1);
       comp.add();
 
       expect(model.filters).toHaveLength(1);
@@ -250,8 +252,9 @@ describe("FiltersPane — isAddEnabled / isRemoveEnabled", () => {
    it("should return false from isAddEnabled when no filter is selected", async () => {
       const f = makeFilter("colA");
       const { comp } = await renderComponent({ filters: [f], sharedFilters: [] });
+      // Fragile: see note in "should not move any filter" test above.
       comp["filtersSelection"].setSize(0);
-      comp["filtersSelection"].setSize(1); // reset without selecting
+      comp["filtersSelection"].setSize(1);
       expect(comp.isAddEnabled()).toBe(false);
    });
 
