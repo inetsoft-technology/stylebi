@@ -45,28 +45,40 @@
  * plain vi.fn() mock returning of(...), preventing any real HTTP traffic from reaching MSW.
  */
 
+/**
+ * PortalAppComponent — single pass
+ *
+ * Risk-first coverage:
+ *   Group 1 [Risk 3]  — ngOnDestroy: window.removeEventListener called for 'message' with same
+ *                        reference as addEventListener; not called before destroy
+ *
+ * Suspected bugs: none remaining after Bug #75490 fix.
+ *
+ * Out of scope this pass: full portal model loading, routing, UI rendering.
+ */
+
 import { DOCUMENT } from "@angular/common";
 import { HttpClient } from "@angular/common/http";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { Title } from "@angular/platform-browser";
 import { ActivatedRoute, Router } from "@angular/router";
-import { render } from "@testing-library/angular";
 import { NgbDatepickerConfig, NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { render } from "@testing-library/angular";
 import { of } from "rxjs";
-
 import { AiAssistantService } from "../../../../shared/ai-assistant/ai-assistant.service";
-import { AiAssistantDialogService } from "../common/services/ai-assistant-dialog.service";
-import { LicenseInfoService } from "../common/services/license-info.service";
-import { FirstDayOfWeekService } from "../common/services/first-day-of-week.service";
-import { OpenComposerService } from "../common/services/open-composer.service";
 import { LogoutService } from "../../../../shared/util/logout.service";
-import { HideNavService } from "./services/hide-nav.service";
-import { PortalModelService } from "./services/portal-model.service";
-import { HistoryBarService } from "./services/history-bar.service";
-import { PortalTabsService } from "./services/portal-tabs.service";
-import { CurrentRouteService } from "./services/current-route.service";
+import { AiAssistantDialogService } from "../common/services/ai-assistant-dialog.service";
+import { FirstDayOfWeekService } from "../common/services/first-day-of-week.service";
+import { LicenseInfoService } from "../common/services/license-info.service";
+import { OpenComposerService } from "../common/services/open-composer.service";
 import { GettingStartedService } from "../widget/dialog/getting-started-dialog/service/getting-started.service";
+
 import { PortalAppComponent } from "./app.component";
+import { CurrentRouteService } from "./services/current-route.service";
+import { HideNavService } from "./services/hide-nav.service";
+import { HistoryBarService } from "./services/history-bar.service";
+import { PortalModelService } from "./services/portal-model.service";
+import { PortalTabsService } from "./services/portal-tabs.service";
 
 // ── Minimal portal model stub — satisfies property access in the ngOnInit HTTP subscription ──
 
@@ -84,6 +96,9 @@ const PORTAL_MODEL_STUB = {
 };
 
 // ── Component-level provider mocks (replaces all constructor-injected services) ──────────────
+// ---------------------------------------------------------------------------
+// Shared fixtures
+// ---------------------------------------------------------------------------
 
 function makeProviders() {
    return [
@@ -130,14 +145,72 @@ function makeProviders() {
 }
 
 async function renderComponent() {
-   return render(PortalAppComponent, {
-      schemas:            [NO_ERRORS_SCHEMA],
-      componentImports:   [], // strips RouterOutlet/RouterLink/AiAssistantPanel etc. from imports;
-      componentProviders: makeProviders(), // NO_ERRORS_SCHEMA silences unknown-element errors
+   const result = await render(PortalAppComponent, {
+      schemas: [NO_ERRORS_SCHEMA],
+      componentImports: [],
+      providers: makeProviders(),
    });
+   return {
+      fixture: result.fixture,
+      comp: result.fixture.componentInstance as PortalAppComponent,
+   };
 }
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+   vi.restoreAllMocks();
+   document.body.className = document.body.className.replace(/\bapp-loaded\b/g, "").trim();
+});
+
+// ---------------------------------------------------------------------------
+// Group 1: ngOnDestroy — 'message' listener removed via stored reference
+// ---------------------------------------------------------------------------
+
+describe("PortalAppComponent — ngOnDestroy: 'message' listener cleanup", () => {
+   // 🔁 Regression-sensitive: Bug #75490 — without a stored reference, removeEventListener is
+   // a no-op and listeners accumulate across navigations, firing handleMessageEvent N times per
+   // postMessage and leaking component instances.
+   it("should call window.removeEventListener for 'message' on destroy", async () => {
+      const addSpy    = vi.spyOn(window, "addEventListener");
+      const removeSpy = vi.spyOn(window, "removeEventListener");
+
+      const { fixture } = await renderComponent();
+
+      const addCount    = addSpy.mock.calls.filter(c => c[0] === "message").length;
+      const removeBefore = removeSpy.mock.calls.filter(c => c[0] === "message").length;
+      expect(addCount).toBeGreaterThanOrEqual(1);
+      expect(removeBefore).toBe(0);
+
+      fixture.destroy();
+
+      const removeCount = removeSpy.mock.calls.filter(c => c[0] === "message").length;
+      expect(removeCount).toBe(addCount);
+   });
+
+   it("should pass the same function reference to removeEventListener as to addEventListener", async () => {
+      const addSpy    = vi.spyOn(window, "addEventListener");
+      const removeSpy = vi.spyOn(window, "removeEventListener");
+
+      for(let i = 0; i < 3; i++) {
+         const { fixture } = await renderComponent();
+         fixture.destroy();
+      }
+
+      const adds    = addSpy.mock.calls.filter(([type]) => type === "message").length;
+      const removes = removeSpy.mock.calls.filter(([type]) => type === "message").length;
+
+      const addedRef   = addSpy.mock.calls.find(c => c[0] === "message")?.[1];
+      const removedRef = removeSpy.mock.calls.find(c => c[0] === "message")?.[1];
+      expect(addedRef).toBeDefined();
+      expect(removedRef).toBe(addedRef);
+   });
+
+   it("should not remove the 'message' listener before the component is destroyed", async () => {
+      const removeSpy = vi.spyOn(window, "removeEventListener");
+      await renderComponent();
+      const removeCount = removeSpy.mock.calls.filter(c => c[0] === "message").length;
+      expect(removeCount).toBe(0);
+   });
+});
 
 // ── Baseline: verify ngOnInit registers the message listener ──────────────────
 
@@ -206,3 +279,4 @@ describe("PortalAppComponent — Bug C: window 'message' listener leak (app.comp
       }).not.toThrow();
    });
 });
+

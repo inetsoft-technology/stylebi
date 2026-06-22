@@ -86,6 +86,7 @@ export class PortalAppComponent implements OnInit, OnDestroy {
    private readonly ACCESSIBILITY_CLASS: string = "accessible";
    private destroy$ = new Subject<void>();
    private isGettingStartedShown: boolean = false;
+   private readonly _onMessage = (evt: MessageEvent) => this.handleMessageEvent(evt);
 
    get openComposerEnabled(): boolean {
       return this.model.composerEnabled;
@@ -182,7 +183,7 @@ export class PortalAppComponent implements OnInit, OnDestroy {
       });
 
       this.licenseInfoService.getLicenseInfo().subscribe(info => this.licenseInfo = info);
-      window.addEventListener("message", (evt) => this.handleMessageEvent(evt), false);
+      window.addEventListener("message", this._onMessage, false);
 
       this.firstDayOfWeekService.getFirstDay().subscribe((model) => {
          this.ngbDatepickerConfig.firstDayOfWeek = model.isoFirstDay;
@@ -198,6 +199,8 @@ export class PortalAppComponent implements OnInit, OnDestroy {
    }
 
    ngOnDestroy(): void {
+      window.removeEventListener("message", this._onMessage, false);
+
       if(this.routeSubscription) {
          this.routeSubscription.unsubscribe();
          this.routeSubscription = null;
