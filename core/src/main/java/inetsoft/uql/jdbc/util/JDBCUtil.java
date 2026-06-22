@@ -1055,11 +1055,11 @@ public class JDBCUtil {
       sql.setSqlQuery(true);
       Map<String, String> tableNameAliasMap = JDBCUtil.getTableNameAliasMap(tablesMap);
 
-      tableNameAliasMap.forEach((alias, name) ->{
+      tableNameAliasMap.forEach((alias, name) -> {
          SelectTable selectTable = sql.addTable(alias, name);
          AssetEntry tableEntry = tablesMap.get(name);
 
-         if(tableEntry != null) {
+         if(selectTable != null && tableEntry != null) {
             selectTable.setCatalog(tableEntry.getProperty(XSourceInfo.CATALOG));
             selectTable.setSchema(tableEntry.getProperty(XSourceInfo.SCHEMA));
          }
