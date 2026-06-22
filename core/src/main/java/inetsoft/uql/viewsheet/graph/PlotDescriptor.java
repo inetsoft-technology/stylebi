@@ -749,6 +749,38 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    }
 
    /**
+    * Get the marker shape name for point/line chart markers (e.g. "diamond", "circle").
+    * Returns null to use the StyleBI default shape.
+    */
+   public String getMarkerShape() {
+      return markerShape;
+   }
+
+   /**
+    * Set the marker shape name for point/line chart markers.
+    * Pass null to use the StyleBI default shape.
+    */
+   public void setMarkerShape(String markerShape) {
+      this.markerShape = markerShape;
+   }
+
+   /**
+    * Get the marker size for point/line chart markers.
+    * Returns 0 to use the StyleBI default size.
+    */
+   public int getMarkerSize() {
+      return markerSize;
+   }
+
+   /**
+    * Set the marker size for point/line chart markers.
+    * Pass 0 to use the StyleBI default size.
+    */
+   public void setMarkerSize(int markerSize) {
+      this.markerSize = markerSize;
+   }
+
+   /**
     * Check if a single line should be rendered instead of broken into one line per color/shape.
     */
    public boolean isOneLine() {
@@ -1383,6 +1415,14 @@ public class PlotDescriptor implements AssetObject, ContentObject {
          pointsVisible = "true".equals(val);
       }
 
+      if((val = Tool.getAttribute(node, "markerShape")) != null) {
+         markerShape = val;
+      }
+
+      if((val = Tool.getAttribute(node, "markerSize")) != null) {
+         markerSize = Integer.parseInt(val);
+      }
+
       if((val = Tool.getAttribute(node, "inPlot")) != null) {
          inPlot = "true".equals(val);
       }
@@ -1596,6 +1636,12 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       writer.print(" stackMeasures=\"" + stackMeasures + "\" ");
       writer.print(" webMap=\"" + webMap + "\" ");
       writer.print(" pointsVisible=\"" + pointsVisible + "\" ");
+
+      if(markerShape != null) {
+         writer.print(" markerShape=\"" + markerShape + "\" ");
+      }
+
+      writer.print(" markerSize=\"" + markerSize + "\" ");
       writer.print(" fillGap=\"" + fillGap + "\" ");
       writer.print(" fillZero=\"" + fillZero + "\" ");
       writer.print(" fillGapWithDash=\"" + fillGapWithDash + "\" ");
@@ -1768,7 +1814,9 @@ public class PlotDescriptor implements AssetObject, ContentObject {
          circleFormats.equals(desc.circleFormats) &&
          Tool.equals(errorFormat, desc.errorFormat) &&
          includeParentLabels == desc.includeParentLabels &&
-         oneLine == desc.oneLine;
+         oneLine == desc.oneLine &&
+         Tool.equals(markerShape, desc.markerShape) &&
+         markerSize == desc.markerSize;
    }
 
    public void resetCompositeValues(CompositeValue.Type type) {
@@ -1823,6 +1871,8 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    private boolean rLineVisible = false;
    private boolean valuesVisible = false;
    private boolean pointsVisible = false;
+   private String markerShape = null;   // null = StyleBI default
+   private int markerSize = 0;          // 0 = StyleBI default
    private boolean stackValue = false;
    private boolean inPlot = true;
    private boolean polygonColor = false;
