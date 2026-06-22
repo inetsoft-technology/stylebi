@@ -16,11 +16,10 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 @if (action && form) {
-  <div class="action-accordion-content">
-    <form [formGroup]="form">
+  <form [formGroup]="form" class="action-accordion-form">
       @if (isDashboard) {
-        <div class="card m-1">
-          <div class="card-body">
+        <div class="card action-accordion-card">
+          <div class="card-body action-accordion-card__body">
             <label class="form-check-label card-title">_#(Bookmarks)</label>
             <div class="action-accordion__row-start row">
               <div class="col form-floating">
@@ -37,7 +36,7 @@
               </div>
             </div>
             <div class="action-accordion__row-start row">
-              <div class="col-10">
+              <div class="col-10 action-accordion-bookmark-list-col">
                 <generic-selectable-list [itemList]="bookmarkList"
                   [selectedIndex]="selectedBookmarkListIndex"
                 (selectedIndexChange)="editBookmark($event)"></generic-selectable-list>
@@ -61,8 +60,8 @@
         </div>
       }
       @if (model.notificationEmailEnabled) {
-        <div class="card m-1">
-          <div class="card-body">
+        <div class="card action-accordion-card">
+          <div class="card-body action-accordion-card__body">
             <div class="form-check form-switch action-accordion__section-toggle">
               <input class="form-check-input" type="checkbox" role="switch" id="notification"
                 [ngModelOptions]="{standalone: true}"
@@ -144,8 +143,8 @@
         </div>
       }
       @if (model.emailDeliveryEnabled) {
-        <div class="card m-1">
-          <div class="card-body">
+        <div class="card action-accordion-card">
+          <div class="card-body action-accordion-card__body">
             <div class="form-check form-switch action-accordion__section-toggle">
               <input class="form-check-input" type="checkbox" role="switch" id="deliverEmail"
                 [ngModelOptions]="{standalone: true}"
@@ -424,7 +423,7 @@
                       !!form.controls['attachmentName'].errors['containsInvalidWindowsChars']) {
                       <span class="invalid-feedback"
                         >
-                        schedule.task.name.invalid)
+                        _#(schedule.task.name.invalid)
                       </span>
                     }
                   </div>
@@ -463,8 +462,8 @@
         </div>
       }
       @if (model.saveToDiskEnabled) {
-        <div class="card m-1">
-          <div class="card-body">
+        <div class="card action-accordion-card">
+          <div class="card-body action-accordion-card__body">
             <div class="form-check form-switch action-accordion__section-toggle">
               <input class="form-check-input" type="checkbox" role="switch" id="saveToServer"
                 [ngModelOptions]="{standalone: true}"
@@ -675,8 +674,8 @@
           </div>
         </div>
       }
-      <div class="card m-1">
-        <div class="card-body">
+      <div class="card action-accordion-card">
+        <div class="card-body action-accordion-card__body">
           <label class="form-check-label card-title">_#(Creation Parameters)</label>
           <parameter-table [(parameters)]="parameters"
             [parameterNames]="allParameters"
@@ -701,8 +700,8 @@
       </div>
     </div>
     @if (!!highlights && highlights.length > 0) {
-      <div class="card m-1">
-        <div class="card-body">
+      <div class="card action-accordion-card">
+        <div class="card-body action-accordion-card__body">
           <label class="form-check-label card-title">_#(Alert)</label>
           <div class="form-check form-switch action-accordion__section-toggle">
             <input class="form-check-input" type="checkbox" role="switch" name="underHighlightCondition"
@@ -758,7 +757,6 @@
       </div>
     }
   </form>
-</div>
 }
 <ng-template #emailAddrDialog let-close="close" let-dismiss="dismiss">
   <email-addr-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
