@@ -1147,9 +1147,11 @@ public class JDBCUtil {
    }
 
    /**
-    * Gets the names of the selected tables.
+    * Gets a map of alias → source-name for the selected tables.
+    * If a table has no alias, the source name is used as the key.
     *
-    * @return the table names.
+    * @param tablesMap the selected table (source-name → AssetEntry) map.
+    * @return a LinkedHashMap keyed by alias (or source name when no alias), mapping to source name.
     */
    public static Map<String, String> getTableNameAliasMap(Map<String, AssetEntry> tablesMap) {
       ArrayList<AssetEntry> tables = new ArrayList<>(tablesMap.values());
