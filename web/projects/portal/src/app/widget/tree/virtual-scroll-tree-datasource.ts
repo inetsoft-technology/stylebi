@@ -32,6 +32,7 @@ export class VirtualScrollTreeDatasource {
    private searchFilter: string;
    private searchCollapsedValues: any[] = [];
    private _searchEndNode: (node: TreeNodeModel) => boolean;
+   private _scrollCleanup: (() => void) | null = null;
 
    public setSearchEndNode(searchEndNode: (node: TreeNodeModel) => boolean): void {
       this._searchEndNode = searchEndNode;
@@ -89,16 +90,24 @@ export class VirtualScrollTreeDatasource {
    }
 
    public registerScrollContainer(element: HTMLElement, ngZone: NgZone): Observable<any[]> {
-      ngZone.runOutsideAngular(() => {
-         element.addEventListener("scroll", e => {
-            this.dispatcher.next(this.dispatcher.value);
+      if(this._scrollCleanup) {
+         this._scrollCleanup();
+         this._scrollCleanup = null;
+      }
 
-            if(e.target instanceof HTMLElement) {
-               this.scrollTop.next(e.target.scrollTop);
-            }
-         });
+      const handler = (e: Event) => {
+         this.dispatcher.next(this.dispatcher.value);
+
+         if(e.target instanceof HTMLElement) {
+            this.scrollTop.next(e.target.scrollTop);
+         }
+      };
+
+      ngZone.runOutsideAngular(() => {
+         element.addEventListener("scroll", handler);
       });
 
+      this._scrollCleanup = () => element.removeEventListener("scroll", handler);
       return this.dispatcher.asObservable();
    }
 

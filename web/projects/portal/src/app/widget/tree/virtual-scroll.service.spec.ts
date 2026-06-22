@@ -17,7 +17,7 @@
  */
 
 /**
- * VirtualScrollTreeDatasource — Zone CD regression tests (Bug #75489)
+ * VirtualScrollService — Zone CD regression tests (Bug #75489)
  *
  * Verifies that registerScrollContainer() registers the scroll listener outside
  * the Angular Zone so that scroll events do not trigger zone-based Change Detection.
@@ -30,7 +30,7 @@
 
 import { NgZone } from "@angular/core";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { VirtualScrollTreeDatasource } from "./virtual-scroll-tree-datasource";
+import { VirtualScrollService } from "./virtual-scroll.service";
 
 function makeMockZone(): NgZone {
    return {
@@ -47,31 +47,30 @@ function outsideCount(zone: NgZone): number {
    return (zone.runOutsideAngular as ReturnType<typeof vi.fn>).mock.calls.length;
 }
 
-describe("VirtualScrollTreeDatasource.registerScrollContainer()", () => {
-   let ds: VirtualScrollTreeDatasource;
+describe("VirtualScrollService.registerScrollContainer()", () => {
+   let service: VirtualScrollService;
    let el: HTMLElement;
+   let zone: NgZone;
 
    beforeEach(() => {
-      ds = new VirtualScrollTreeDatasource();
+      zone = makeMockZone();
+      service = new VirtualScrollService(zone);
       el = document.createElement("div");
    });
 
    it("registers the scroll listener outside the Angular Zone", () => {
-      const zone = makeMockZone();
-      ds.registerScrollContainer(el, zone);
+      service.registerScrollContainer(el);
       expect(outsideCount(zone)).toBe(1);
    });
 
    it("single scroll event must not call ngZone.run() — no zone re-entry on scroll", () => {
-      const zone = makeMockZone();
-      ds.registerScrollContainer(el, zone);
+      service.registerScrollContainer(el);
       el.dispatchEvent(new Event("scroll"));
       expect(runCount(zone)).toBe(0);
    });
 
    it("10 scroll events must not accumulate ngZone.run() calls", () => {
-      const zone = makeMockZone();
-      ds.registerScrollContainer(el, zone);
+      service.registerScrollContainer(el);
       for(let i = 0; i < 10; i++) {
          el.dispatchEvent(new Event("scroll"));
       }
@@ -79,9 +78,8 @@ describe("VirtualScrollTreeDatasource.registerScrollContainer()", () => {
    });
 
    it("dispatcher still emits on each scroll event (functional correctness)", () => {
-      const zone = makeMockZone();
       let emitCount = 0;
-      ds.registerScrollContainer(el, zone).subscribe(() => emitCount++);
+      service.registerScrollContainer(el).subscribe(() => emitCount++);
       el.dispatchEvent(new Event("scroll"));
       el.dispatchEvent(new Event("scroll"));
       // 1 initial BehaviorSubject emission + 2 scroll events
@@ -89,11 +87,11 @@ describe("VirtualScrollTreeDatasource.registerScrollContainer()", () => {
    });
 
    it("scrollTop emits on each scroll event (functional correctness)", () => {
-      const zone = makeMockZone();
       const scrollTops: number[] = [];
-      ds.scrollTop.subscribe(v => scrollTops.push(v));
-      ds.registerScrollContainer(el, zone);
+      service.scrollTop.subscribe(v => scrollTops.push(v));
+      service.registerScrollContainer(el);
       el.dispatchEvent(new Event("scroll"));
+      // Note: in JSDOM, scrollTop is always 0 — this verifies emission count, not actual scroll position.
       // BehaviorSubject emits 0 on subscribe, then emits e.target.scrollTop on scroll
       expect(scrollTops.length).toBe(2);
    });
