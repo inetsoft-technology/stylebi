@@ -214,6 +214,72 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
       });
    });
 
+   describe("highlightElements (stacked bar column)", () => {
+      const html = `
+         <svg>
+            <g class="inetsoft-bar" data-row="0" data-col="0"></g>
+            <g class="inetsoft-bar" data-row="1" data-col="0"></g>
+            <g class="inetsoft-bar" data-row="2" data-col="0"></g>
+            <g class="inetsoft-bar-label" data-row="0" data-col="0"></g>
+            <g class="inetsoft-bar-label" data-row="1" data-col="0"></g>
+         </svg>`;
+
+      function activeFlags(host: HTMLElement, sel: string): boolean[] {
+         return Array.from(host.querySelectorAll(sel)).map(e => e.classList.contains("inetsoft-active"));
+      }
+
+      it("activates every segment of the column and its labels", () => {
+         const { dir, host } = makeDirective(html);
+         (dir as any).afterSvgInjected();
+         dir.highlightElements([{ row: 0, col: 0 }, { row: 1, col: 0 }]);
+         // Both hovered segments are active; the third segment stays dimmable.
+         expect(activeFlags(host, ".inetsoft-bar")).toEqual([true, true, false]);
+         expect(activeFlags(host, ".inetsoft-bar-label")).toEqual([true, true]);
+      });
+
+      it("clears the whole active set when the hover ends", () => {
+         vi.useFakeTimers();
+         try {
+            const { dir, host } = makeDirective(html);
+            (dir as any).afterSvgInjected();
+            dir.highlightElements([{ row: 0, col: 0 }, { row: 1, col: 0 }]);
+            dir.highlightElements([]);
+            vi.advanceTimersByTime(ChartInlineSvgDirective["CLEAR_DELAY_MS"]);
+            expect(activeFlags(host, ".inetsoft-bar,.inetsoft-bar-label").some(Boolean)).toBe(false);
+         }
+         finally {
+            vi.useRealTimers();
+         }
+      });
+
+      it("re-targets the active set without leaving stale active segments", () => {
+         const { dir, host } = makeDirective(html);
+         (dir as any).afterSvgInjected();
+         dir.highlightElements([{ row: 0, col: 0 }, { row: 1, col: 0 }]);
+         dir.highlightElements([{ row: 2, col: 0 }]);
+         expect(activeFlags(host, ".inetsoft-bar")).toEqual([false, false, true]);
+      });
+
+      it("treats a reordered key set as unchanged (no deactivate/reactivate)", () => {
+         const { dir, host } = makeDirective(html);
+         (dir as any).afterSvgInjected();
+         dir.highlightElements([{ row: 0, col: 0 }, { row: 1, col: 0 }]);
+         const deactivateSpy = vi.spyOn(dir as any, "deactivateCurrent");
+         // Same set, different order — sameActiveKeys is order-independent so nothing re-runs.
+         dir.highlightElements([{ row: 1, col: 0 }, { row: 0, col: 0 }]);
+         expect(deactivateSpy).not.toHaveBeenCalled();
+         expect(activeFlags(host, ".inetsoft-bar")).toEqual([true, true, false]);
+      });
+
+      it("honors only the primary on a series-color-dimmed (area/line) tile", () => {
+         const { dir, host } = makeDirective(html);
+         (dir as any).afterSvgInjected();
+         (dir as any).usesSeriesColorDim = true;
+         dir.highlightElements([{ row: 0, col: 0 }, { row: 1, col: 0 }]);
+         expect(activeFlags(host, ".inetsoft-bar")).toEqual([true, false, false]);
+      });
+   });
+
    describe("getRelationEdges + emitRelationHover dedup", () => {
       it("returns this tile's edges as source/target pairs", () => {
          const { dir } = makeDirective("");

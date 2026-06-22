@@ -453,6 +453,38 @@ describe("ChartPlotArea Integration Tests", () => {
       expect(right.region.index).toBe(0);
    });
 
+   it("collects every stacked segment sharing the hovered bar's X column", () => {
+      const fixture = TestBed.createComponent(TestApp);
+      const debugEl = fixture.debugElement.query(By.css("chart-plot-area"));
+      const component: ChartPlotArea = debugEl.componentInstance;
+      vi.spyOn(component, "getSrc").mockImplementation(() => "");
+      fixture.detectChanges();
+      // All mock regions use metaIdx 0; a single meta entry resolves colIdx for every region.
+      (component as any).model = { regionMetaDictionary: [{ colIdx: 0 }] };
+
+      const regions: any[] = component.chartObject.regions;
+      // Indices 3 (rowIdx 1, y 8-75) and 4 (rowIdx 0, y 75-253) are the two segments
+      // of one stacked column (both x 228-247); no other region shares that X.
+      const column = (component as any).collectColumnRegions(regions[3]);
+      const rows = column.map((r: any) => r.rowIdx).sort();
+      expect(rows).toEqual([0, 1]);
+   });
+
+   it("does not expand a point/ellipse region into a bar column", () => {
+      const fixture = TestBed.createComponent(TestApp);
+      const debugEl = fixture.debugElement.query(By.css("chart-plot-area"));
+      const component: ChartPlotArea = debugEl.componentInstance;
+      vi.spyOn(component, "getSrc").mockImplementation(() => "");
+      fixture.detectChanges();
+      (component as any).model = { regionMetaDictionary: [{ colIdx: 0 }] };
+
+      const point = { segTypes: [[9]], pts: [[[[237, 100], [4, 4]]]], centroid: null,
+         index: 99, tipIdx: 30, rowIdx: 60, valIdx: -1, hyperlinks: [],
+         noselect: false, grouped: false, boundaryIdx: -1 };
+      expect((component as any).isBarLikeRegion(point)).toBe(false);
+      expect((component as any).collectColumnRegions(point)).toEqual([point]);
+   });
+
    it("skips wide area polygons when snapping to the nearest point", () => {
       const fixture = TestBed.createComponent(TestApp);
       const debugEl = fixture.debugElement.query(By.css("chart-plot-area"));

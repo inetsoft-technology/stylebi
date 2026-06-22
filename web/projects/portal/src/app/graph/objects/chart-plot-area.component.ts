@@ -154,6 +154,9 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
    // Snap: cached X ticks → region indices. Rebuilt on chartObject change.
    private snapXTicks: Array<{ pixelX: number, regionIndices: number[] }> = [];
    private snapXTicksFor: Plot = null;
+   // Snap: cached column key (rounded left/right X edge) → bar regions sharing that column.
+   // Rebuilt alongside snapXTicks so collectColumnRegions is an O(1) lookup, not a full scan.
+   private snapColumnMap = new Map<string, ChartRegion[]>();
 
    @HostBinding("style.cursor") hostCursor: string = "inherit";
    private cursorStyle: string = "inherit";
@@ -237,6 +240,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
    // representative so point markers beat wide area polygons.
    private rebuildSnapIndex(): void {
       this.snapXTicks = [];
+      this.snapColumnMap = new Map();
       this.snapXTicksFor = this.chartObject;
 
       if(!this.chartObject || !this.chartObject.regions) {
@@ -279,6 +283,26 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
       this.snapXTicks = Array.from(buckets.values())
          .map(b => ({ pixelX: Math.round(b.bestX), regionIndices: b.regionIndices }))
          .sort((a, b) => a.pixelX - b.pixelX);
+
+      // Group bar regions by column key so a stacked column can be resolved with one lookup.
+      // Same filter as collectColumnRegions (bar-like, valid row/col); keyed by ptsBoundsX so
+      // the key matches what collectColumnRegions computes for the hovered region.
+      for(const r of this.chartObject.regions) {
+         if(!r || r.rowIdx < 0 || !this.isBarLikeRegion(r) ||
+            ChartTool.colIdx(this.model, r) < 0)
+         {
+            continue;
+         }
+
+         const cb = this.ptsBoundsX(r);
+
+         if(cb) {
+            const key = this.columnKey(cb);
+            const arr = this.snapColumnMap.get(key);
+            if(arr) arr.push(r);
+            else this.snapColumnMap.set(key, [r]);
+         }
+      }
    }
 
    // Prefer server centroid; fall back to pts-derived bbox.
@@ -412,6 +436,40 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
       }
 
       return best;
+   }
+
+   // Rectangular bar (RECT or straight-line polygon); excludes ELLIPSE points and LINE marks
+   // so the stacked-column expansion never pulls in non-bar regions. Area fills also start with
+   // MOVETO (seg 0) and pass, but findPrimarySnapRegion's width filter keeps a wide area polygon
+   // from becoming the snap primary, and area tiles have an empty elementGroupMap, so this is benign.
+   private isBarLikeRegion(region: ChartRegion): boolean {
+      const seg = region.segTypes && region.segTypes[0] ? region.segTypes[0][0] : -1;
+      return seg >= 0 && seg !== ChartTool.ELLIPSE && seg !== ChartTool.LINE;
+   }
+
+   // Column identity key: rounded left/right X edge. Stacked segments share a column's edges
+   // (Batik emits identical x for them) so they collide on one key; grouped bars in adjacent
+   // columns get distinct keys.
+   private columnKey(bounds: { centerX: number, width: number }): string {
+      return `${Math.round(bounds.centerX - bounds.width / 2)}-` +
+             `${Math.round(bounds.centerX + bounds.width / 2)}`;
+   }
+
+   // All bar regions stacked in the same X column as the given region, via the prebuilt
+   // snapColumnMap. Falls back to just the region when its X bounds can't be resolved (no pts);
+   // callers pass a region with a valid col, so the fallback never yields a col<0 pair.
+   private collectColumnRegions(region: ChartRegion): ChartRegion[] {
+      if(this.snapXTicksFor !== this.chartObject) {
+         this.rebuildSnapIndex();
+      }
+
+      const base = this.ptsBoundsX(region);
+
+      if(!base) {
+         return [region];
+      }
+
+      return this.snapColumnMap.get(this.columnKey(base)) ?? [region];
    }
 
    private drawSnapGuideline(pixelX: number): void {
@@ -597,9 +655,24 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
                ? snapPrimary
                : regions?.find(r => r && r.rowIdx >= 0 &&
                   ChartTool.colIdx(this.model, r) >= 0);
-            const rowIdx = voRegion != null ? voRegion.rowIdx : null;
-            const colIdx = voRegion != null ? ChartTool.colIdx(this.model, voRegion) : null;
-            this.inlineSvgTiles?.forEach(d => d.highlightElement(rowIdx, colIdx));
+
+            // Snap buckets by rowIdx, but each segment of a stacked bar column is a distinct
+            // data row at the same X, so the snap primary is only the segment under the
+            // guideline. Activate every segment of that column so the whole stack stays
+            // undimmed rather than just the snapped one.
+            if(voRegion != null && this.model && this.model.snapTooltip &&
+               this.isBarLikeRegion(voRegion))
+            {
+               const pairs = this.collectColumnRegions(voRegion)
+                  .map(r => ({ row: r.rowIdx, col: ChartTool.colIdx(this.model, r) }))
+                  .filter(p => p.col >= 0);
+               this.inlineSvgTiles?.forEach(d => d.highlightElements(pairs));
+            }
+            else {
+               const rowIdx = voRegion != null ? voRegion.rowIdx : null;
+               const colIdx = voRegion != null ? ChartTool.colIdx(this.model, voRegion) : null;
+               this.inlineSvgTiles?.forEach(d => d.highlightElement(rowIdx, colIdx));
+            }
          }
       }
       else if(!this.dataTip) {

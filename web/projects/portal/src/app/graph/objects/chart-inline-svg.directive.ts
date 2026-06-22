@@ -27,7 +27,8 @@ import { takeUntil } from "rxjs/operators";
  *
  * Hover highlighting is handled entirely by server-injected CSS using the :has() selector.
  * JS only needs to toggle the "inetsoft-active" class on the hovered bar element.
- * Call activateKey(row, col) / deactivateKey() from the canvas overlay's mouse-event handler.
+ * Call highlightElement(row, col) / highlightElements(pairs) from the canvas overlay's
+ * mouse-event handler; pass null / an empty array to clear.
  */
 @Directive({
    selector: "[chartInlineSvg]"
@@ -80,8 +81,9 @@ export class ChartInlineSvgDirective implements OnDestroy {
     *  Batik renders each character as a separate <g text-rendering> element with the same
     *  data-row/data-col, so every glyph must be stored and toggled together. */
    private labelGroupMap = new Map<string, Element[]>();
-   /** Key of the currently active element, or null. */
-   private _activeKey: string | null = null;
+   /** Keys of the currently active elements; one for a plain hover, many for a stacked bar
+    *  column (every segment activated together so the whole stack stays undimmed). */
+   private _activeKeys: string[] = [];
    /** Cached SVG root of this tile, used to toggle the cross-tile inetsoft-dim-all class. */
    private svgRootEl: SVGSVGElement | null = null;
    /** Timer handle for debounced deactivation, so fast inter-bar moves don't flash. */
@@ -190,73 +192,108 @@ export class ChartInlineSvgDirective implements OnDestroy {
          this.element.nativeElement.innerHTML = "";
          this.elementGroupMap.clear();
          this.labelGroupMap.clear();
-         this._activeKey = null;
+         this._activeKeys = [];
       }
    }
 
    /**
-    * Highlight the bar at rowIdx+colIdx by toggling the "inetsoft-active" CSS class.
-    * The server-injected :has() rule dims all other bars/labels automatically.
-    * Pass null to clear the highlight. Clearing is debounced so rapid inter-bar moves
-    * don't cause a flash.
+    * Highlight a single data element by rowIdx+colIdx. Thin wrapper over
+    * {@link highlightElements}; pass null to clear.
     */
    highlightElement(rowIdx: number | null, colIdx: number | null): void {
-      const key = rowIdx != null ? `${rowIdx}-${colIdx}` : null;
+      this.highlightElements(rowIdx != null ? [{ row: rowIdx, col: colIdx }] : []);
+   }
 
-      if(key !== null) {
+   /**
+    * Highlight one or more data elements by toggling the "inetsoft-active" CSS class on each.
+    * The server-injected :has() rule dims every other bar/label automatically. A stacked bar
+    * column passes one pair per segment so the whole stack stays undimmed; a plain hover passes
+    * a single pair. Pass an empty array to clear. Clearing is debounced so rapid inter-bar
+    * moves don't cause a flash.
+    */
+   highlightElements(pairs: { row: number, col: number }[]): void {
+      if(pairs.length > 0) {
          if(this.clearHandle !== null) {
             clearTimeout(this.clearHandle);
             this.clearHandle = null;
          }
 
-         if(key !== this._activeKey) {
+         const keys = pairs.map(p => `${p.row}-${p.col}`);
+
+         // Area/line/radar tiles dim by series color (setExternalSeriesDim), not the
+         // inetsoft-active class; toggling active on their shared point markers would fight
+         // that, so honor only the primary when a multi-element (stacked) set arrives on such
+         // a tile. Trim here so _activeKeys is written once and sameActiveKeys compares the
+         // value that was actually applied.
+         const activeKeys = this.usesSeriesColorDim && keys.length > 1 ? keys.slice(0, 1) : keys;
+
+         if(!this.sameActiveKeys(activeKeys)) {
             this.deactivateCurrent();
-            this._activeKey = key;
-            this.activateKey(key);
+            this._activeKeys = activeKeys;
+            this.activateKeys(activeKeys);
          }
       }
       else {
-         if(this._activeKey !== null && this.clearHandle === null) {
+         if(this._activeKeys.length > 0 && this.clearHandle === null) {
             this.clearHandle = setTimeout(() => {
                this.clearHandle = null;
                this.deactivateCurrent();
-               this._activeKey = null;
+               this._activeKeys = [];
             }, ChartInlineSvgDirective.CLEAR_DELAY_MS);
          }
       }
    }
 
-   private activateKey(key: string): void {
-      const el = this.elementGroupMap.get(key);
-      if(el) {
-         // Relation in a split chart: the hovered node's neighbours may live in sibling tiles
-         // this tile's connectivity maps can't see. Emit the node id and let the parent resolve
-         // neighbours from the merged graph and drive every tile via setExternalRelationHighlight.
-         if(this.isRelationChart && this.crossTile) {
-            this.emitRelationHover(el.getAttribute("data-id"));
-            return;
-         }
-         el.classList.add("inetsoft-active");
-         if(el.classList.contains("inetsoft-relation")) {
-            this.activateRelationNeighbors(el);
-         }
+   /** True when keys match the current active set, order-independent. */
+   private sameActiveKeys(keys: string[]): boolean {
+      if(keys.length !== this._activeKeys.length) {
+         return false;
       }
+
+      const active = new Set(this._activeKeys);
+      return keys.every(k => active.has(k));
+   }
+
+   private activateKeys(keys: string[]): void {
+      let anyFound = false;
+
+      for(const key of keys) {
+         const el = this.elementGroupMap.get(key);
+
+         if(el) {
+            anyFound = true;
+            // Relation in a split chart: the hovered node's neighbours may live in sibling tiles
+            // this tile's connectivity maps can't see. Emit the node id and let the parent resolve
+            // neighbours from the merged graph and drive every tile via setExternalRelationHighlight.
+            // (Relation hover is always single-key, so returning here is safe.)
+            if(this.isRelationChart && this.crossTile) {
+               this.emitRelationHover(el.getAttribute("data-id"));
+               return;
+            }
+            el.classList.add("inetsoft-active");
+            if(el.classList.contains("inetsoft-relation")) {
+               this.activateRelationNeighbors(el);
+            }
+         }
+
+         const glyphs = this.labelGroupMap.get(key);
+         if(glyphs) glyphs.forEach(g => g.classList.add("inetsoft-active"));
+      }
+
       // A large chart is split into multiple SVG tiles. The hovered data point lives in
       // only one tile, so its inetsoft-active class (and the server's :has() dim rule, which
       // is scoped to a single SVG) never reaches sibling tiles. When this tile holds
-      // hover-managed elements but not the active one, flag its root so server CSS dims them.
+      // hover-managed elements but none of the active set, flag its root so server CSS dims them.
       // Skipped for area/line charts (they dim by series color) and cross-tile relation charts
       // (the parent drives per-tile highlight + dim via setExternalRelationHighlight).
-      else if(this.elementGroupMap.size > 0 && this.svgRootEl && !this.usesSeriesColorDim &&
-              !(this.isRelationChart && this.crossTile)) {
+      if(!anyFound && this.elementGroupMap.size > 0 && this.svgRootEl && !this.usesSeriesColorDim &&
+         !(this.isRelationChart && this.crossTile)) {
          this.svgRootEl.classList.add("inetsoft-dim-all");
       }
-      const glyphs = this.labelGroupMap.get(key);
-      if(glyphs) glyphs.forEach(g => g.classList.add("inetsoft-active"));
    }
 
    private deactivateCurrent(): void {
-      if(this._activeKey === null) return;
+      if(this._activeKeys.length === 0) return;
       // Cross-tile relation: the parent set inetsoft-active/dim-all across tiles, so clearing is
       // its job too — emit the clear and don't strip classes locally (that would fight the parent).
       if(this.isRelationChart && this.crossTile) {
@@ -264,18 +301,22 @@ export class ChartInlineSvgDirective implements OnDestroy {
          return;
       }
       if(this.svgRootEl) this.svgRootEl.classList.remove("inetsoft-dim-all");
-      const el = this.elementGroupMap.get(this._activeKey);
-      if(el) el.classList.remove("inetsoft-active");
+
+      for(const key of this._activeKeys) {
+         const el = this.elementGroupMap.get(key);
+         if(el) el.classList.remove("inetsoft-active");
+         const glyphs = this.labelGroupMap.get(key);
+         if(glyphs) glyphs.forEach(g => g.classList.remove("inetsoft-active"));
+      }
+
       for(const n of this.activeRelationNeighbors) {
          n.classList.remove("inetsoft-active");
       }
       this.activeRelationNeighbors = [];
-      const glyphs = this.labelGroupMap.get(this._activeKey);
-      if(glyphs) glyphs.forEach(g => g.classList.remove("inetsoft-active"));
    }
 
    // Activates neighbor nodes, their connecting edges, and neighbor labels.
-   // The hovered node's own label is activated separately by activateKey() via labelGroupMap,
+   // The hovered node's own label is activated separately by activateKeys() via labelGroupMap,
    // and cleared by deactivateCurrent(). Neighbor labels pushed into activeRelationNeighbors
    // are cleared by the activeRelationNeighbors loop in deactivateCurrent().
    private activateRelationNeighbors(nodeEl: Element): void {
@@ -376,7 +417,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
       this.relationNodeIdMap.clear();
       this.relationEdges = [];
       this.activeRelationNeighbors = [];
-      this._activeKey = null;
+      this._activeKeys = [];
       this.svgRootEl = this.element.nativeElement.querySelector("svg");
 
       // Populate the unified element map from all annotated VO groups.
@@ -441,7 +482,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
          }
       }
 
-      // Build relation connectivity maps so activateKey can highlight connected edges/neighbors.
+      // Build relation connectivity maps so activateKeys can highlight connected edges/neighbors.
       const relationNodes = Array.from(
          this.element.nativeElement.querySelectorAll(".inetsoft-relation") as NodeListOf<Element>);
       this.isRelationChart = relationNodes.length > 0;
