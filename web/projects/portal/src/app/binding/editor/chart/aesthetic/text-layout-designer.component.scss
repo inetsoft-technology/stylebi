@@ -48,11 +48,6 @@
 
 .palette-label { font-size: 0.8rem; opacity: 0.7; }
 
-.palette-chip-slot {
-   position: relative;      // needed so the overlay can be positioned absolutely
-   display: inline-flex;
-}
-
 .palette-chip {
    display: inline-flex;
    align-items: center;
@@ -61,17 +56,10 @@
    font-size: 0.85rem;
    user-select: none;
    border: 1px dashed #aaa;
+   cursor: grab;
 
    &.text-chip   { background: #fff3cd; }
    &.spacer-chip { background: #e2e3e5; }
-}
-
-// Transparent CDK drag overlay — sits on top of .palette-chip, handles drag.
-// CDK hides/moves this element during drag; the static .palette-chip beneath stays visible.
-.palette-drag-overlay {
-   position: absolute;
-   inset: 0;
-   cursor: grab;
 }
 
 // ─── Properties panel ───────────────────────────────────────────────────────
@@ -310,13 +298,31 @@
    &.active { background: var(--inet-primary-color, #0d6efd); color: #fff; }
 }
 
-// ─── CDK drag-and-drop visual cues ─────────────────────────────────────────
+// ─── Drop insertion indicator ────────────────────────────────────────────────
+// Every in-designer drag (binding-tree field, item reorder, palette insert) is a
+// native HTML5 drag, so existing chips never shift — only this thin green line moves
+// between them. A .layout-divider sits before each item and after the last; it is
+// transparent until it is the active drop target, when Bootstrap's .bg-success turns
+// it green. Bounded to chip height and centred within the row.
+.layout-divider {
+   align-self: center;
+   flex: 0 0 auto;
+   width: 3px;
+   height: 22px;
+   border-radius: 2px;
+}
+
+// The item being dragged is dimmed so it's clear what is moving.
+.layout-item.item-dragging { opacity: 0.4; }
+
+// ─── CDK drag-and-drop visual cues (whole-row reordering only) ───────────────
 
 .cdk-drag-preview {
    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
    opacity: 0.9;
 }
 
+// Faded clone of the row while it is being reordered.
 .cdk-drag-placeholder { opacity: 0.3; }
 
 .cdk-drop-list-dragging .layout-item:not(.cdk-drag-placeholder) {

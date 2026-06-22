@@ -13,45 +13,19 @@
         + _#(Add Row)
       </button>
 
-      <!-- Palette: only connects TO row lists; sorting disabled so chips can't be rearranged -->
-      <div class="element-palette"
-           cdkDropList
-           [id]="PALETTE_LIST_ID"
-           [cdkDropListData]="paletteItems"
-           [cdkDropListConnectedTo]="rowItemListIds"
-           [cdkDropListSortingDisabled]="true"
-           cdkDropListOrientation="horizontal">
+      <!-- Palette: native-draggable chips. Dropped into a row via the shared insertion
+           line; the chip stays put in the palette (native drag leaves the source DOM). -->
+      <div class="element-palette">
         <span class="palette-label unhighlightable me-1">_#(Elements):</span>
-        <!--
-          Each chip uses a two-layer pattern to keep the chip permanently visible:
-          1. Static display div — pure HTML, never touched by CDK, always visible.
-          2. Transparent overlay div — the actual cdkDrag element, positioned on top.
-             CDK hides/moves the overlay during drag; the static chip underneath
-             remains unaffected, so the palette never appears empty.
-        -->
-        <div *ngFor="let chip of paletteItems; trackBy: trackByIndex" class="palette-chip-slot">
-          <!-- Static chip: always visible in the palette -->
-          <div class="palette-chip"
-               [class.text-chip]="chip.type === STATIC"
-               [class.spacer-chip]="chip.type === SPACING">
-            <i *ngIf="chip.type === STATIC" class="text-icon icon-size-small me-1" aria-hidden="true"></i>
-            <span class="unhighlightable">{{ chip.label }}</span>
-          </div>
-          <!-- Transparent CDK drag overlay — covers the chip, handles dragging -->
-          <div class="palette-drag-overlay"
-               cdkDrag
-               [cdkDragData]="chip">
-            <ng-template cdkDragPreview>
-              <div class="palette-chip"
-                   [class.text-chip]="chip.type === STATIC"
-                   [class.spacer-chip]="chip.type === SPACING">
-                <i *ngIf="chip.type === STATIC" class="text-icon icon-size-small me-1" aria-hidden="true"></i>
-                <span>{{ chip.label }}</span>
-              </div>
-            </ng-template>
-            <!-- Empty placeholder: nothing replaces the overlay while dragging -->
-            <ng-template cdkDragPlaceholder></ng-template>
-          </div>
+        <div *ngFor="let chip of paletteItems; trackBy: trackByIndex"
+             class="palette-chip"
+             [class.text-chip]="chip.type === STATIC"
+             [class.spacer-chip]="chip.type === SPACING"
+             draggable="true"
+             (dragstart)="onPaletteDragStart($event, chip)"
+             (dragend)="onInternalDragEnd()">
+          <i *ngIf="chip.type === STATIC" class="text-icon icon-size-small me-1" aria-hidden="true"></i>
+          <span class="unhighlightable">{{ chip.label }}</span>
         </div>
       </div>
     </div>
@@ -123,33 +97,34 @@
       <!-- Row-level drag handle (hamburger ≡) -->
       <span class="row-drag-handle" cdkDragHandle title="_#(Drag to Reorder Row)">&#9776;</span>
 
-      <!-- Item list: connects to sibling rows only, NOT to palette -->
-      <div class="row-items"
-           cdkDropList
-           [id]="'items-' + ri"
-           [cdkDropListData]="row.items"
-           [cdkDropListConnectedTo]="rowItemListIds"
-           cdkDropListOrientation="horizontal"
-           (cdkDropListDropped)="onItemDroppedInRow($event, ri)">
+      <!-- Item list: native drag/drop; the green divider lines are the drop indicator -->
+      <div class="row-items">
 
-        <div *ngFor="let item of row.items; let ii = index; trackBy: trackByIndex"
-             class="layout-item"
-             cdkDrag
-             [cdkDragData]="item"
+        <ng-container *ngFor="let item of row.items; let ii = index; trackBy: trackByIndex">
+          <!-- Insertion line: green when a dragged binding-tree field would drop before this item -->
+          <div class="layout-divider" [class.bg-success]="isDropTarget(ri, ii)"
+               (dragenter)="onDividerDragEnter(ri, ii)"></div>
+
+        <div class="layout-item"
+             draggable="true"
+             (dragstart)="onItemDragStart($event, ri, ii)"
+             (dragend)="onInternalDragEnd()"
              [class.field-item]="item.type === FIELD"
              [class.static-item]="item.type === STATIC"
              [class.spacing-item]="item.type === SPACING"
              [class.item-selected]="isItemSelected(ri, ii)"
+             [class.item-dragging]="isDraggingItem(ri, ii)"
              (click)="selectItem(ri, ii); $event.stopPropagation()">
 
           <!-- FIELD bound to a real textFields entry: render as chart-fieldmc chip (like TextFieldMc).
                Layout is consistent with the other chips: [six-dot drag handle] [content] [format] [remove]. -->
           <ng-container *ngIf="item.type === FIELD && getFieldRef(item) as boundField">
-            <span class="item-drag-handle drag-dots" cdkDragHandle title="_#(Drag)">&#10303;</span>
+            <span class="item-drag-handle drag-dots" title="_#(Drag)">&#10303;</span>
             <!-- Use the canonical aesthetic chip (same as the Text well) so the field has the
-                 working edit menu (change aggregate / value type / convert). Suppress its native
-                 draggable so CDK row-drag stays in control. The allaggregate sentinel routes edits
-                 through onChangeAesthetic (not changeChartRef); the host round-trips the model. -->
+                 working edit menu (change aggregate / value type / convert). Suppress native drag
+                 within the chip so dragging it doesn't start an item move — the field is dragged
+                 via the six-dot handle instead. The allaggregate sentinel routes edits through
+                 onChangeAesthetic (not changeChartRef); the host round-trips the model. -->
             <div class="field-chip-wrap" (dragstart)="$event.stopPropagation(); $event.preventDefault()">
               <chart-aesthetic-mc
                 [field]="boundField"
@@ -174,7 +149,7 @@
 
           <!-- FIELD whose index can't be resolved (pending host round-trip): label + format + remove -->
           <ng-container *ngIf="item.type === FIELD && !getFieldRef(item)">
-            <span class="item-drag-handle drag-dots" cdkDragHandle title="_#(Drag)">&#10303;</span>
+            <span class="item-drag-handle drag-dots" title="_#(Drag)">&#10303;</span>
             <span class="item-label unhighlightable">{{ getFieldLabel(item) }}</span>
             <button class="btn btn-xs item-format-btn ms-1"
                     (click)="openFieldFormat(item); $event.stopPropagation()"
@@ -188,7 +163,7 @@
 
           <!-- STATIC: six-dot drag handle + text preview + format button -->
           <ng-container *ngIf="item.type === STATIC">
-            <span class="item-drag-handle drag-dots" cdkDragHandle title="_#(Drag)">&#10303;</span>
+            <span class="item-drag-handle drag-dots" title="_#(Drag)">&#10303;</span>
             <span class="item-label unhighlightable text-preview">{{ item.text || '...' }}</span>
             <button class="btn btn-xs item-format-btn ms-1"
                     (click)="openStaticItemFormat(item); $event.stopPropagation()"
@@ -199,7 +174,7 @@
 
           <!-- SPACING: six-dot drag handle + compact number input (no format icon) -->
           <ng-container *ngIf="item.type === SPACING">
-            <span class="item-drag-handle drag-dots" cdkDragHandle title="_#(Drag)">&#10303;</span>
+            <span class="item-drag-handle drag-dots" title="_#(Drag)">&#10303;</span>
             <input type="number" class="spacing-amount-input"
                    [(ngModel)]="item.spacingAmount" min="0" max="200" step="1"
                    title="_#(Spacing)"
@@ -212,6 +187,11 @@
                   (click)="removeItem(ri, ii); $event.stopPropagation()"
                   title="_#(Remove)">&#215;</button>
         </div>
+        </ng-container>
+
+        <!-- Trailing insertion line (and the only divider when the row is empty) -->
+        <div class="layout-divider" [class.bg-success]="isDropTarget(ri, row.items.length)"
+             (dragenter)="onDividerDragEnter(ri, row.items.length)"></div>
 
       </div>
     </div>
