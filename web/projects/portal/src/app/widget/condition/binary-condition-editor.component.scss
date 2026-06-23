@@ -16,7 +16,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 :host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+
+  .form-group-column {
+    gap: 0.375rem;
+  }
+
   .binary-and {
-    margin-top: -1rem;
+    font-size: 0.875rem;
+    color: var(--inet-text-muted-color, inherit);
   }
 }

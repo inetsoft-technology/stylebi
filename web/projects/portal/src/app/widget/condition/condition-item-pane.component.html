@@ -41,69 +41,79 @@
                        (selectionChange)="operationChanged()"
                        ariaLabel="_#(Condition Operation)">
         </custom-select>
-        <div *ngIf="condition.operation == ConditionOperation.LESS_THAN || condition.operation == ConditionOperation.GREATER_THAN" class="checkbox">
-          <div class="form-check">
-            <input type="checkbox" class="form-check-input" [(ngModel)]="condition.equal"
-                   id="equal"
-                   (ngModelChange)="conditionChanged()">
-            <label class="form-check-label" for="equal">
-              _#(or equal to)
-            </label>
+        @if (condition.operation == ConditionOperation.LESS_THAN || condition.operation == ConditionOperation.GREATER_THAN) {
+          <div class="checkbox">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" [(ngModel)]="condition.equal"
+                     id="equal"
+                     (ngModelChange)="conditionChanged()">
+              <label class="form-check-label" for="equal">
+                _#(or equal to)
+              </label>
+            </div>
           </div>
-        </div>
+        }
       </div>
     </div>
-    <div class="condition-edit-row__value shell-form-group value-editor-container"
-         *ngIf="condition.operation != ConditionOperation.NULL"
-         [ngSwitch]="condition.operation">
-      <one-of-condition-editor *ngSwitchCase="ConditionOperation.ONE_OF"
-                               [dataFunction]="dataFunction" [vsId]="vsId"
-                               [variablesFunction]="variablesFunction"
-                               [columnTreeFunction]="columnTreeFunction"
-                               [scriptDefinitionsFunction]="scriptDefinitionsFunction"
-                               [expressionTypes]="expressionTypes" [valueTypes]="valueTypes"
-                               [subqueryTables]="subqueryTables"
-                               [fieldsModel]="fieldsModel" [grayedOutFields]="getGrayedOutFields()"
-                               [field]="condition.field" [table]="table"
-                               [showUseList]="showUseList"
-                               [source]="getSource()" [isVSContext]="isVSContext"
-                               [(values)]="condition.values"
-                               [enableBrowseData]="isBrowseDataEnabled()"
-                               [showOriginalName]="showOriginalName"
-                               (valuesChange)="conditionChanged()"></one-of-condition-editor>
-      <binary-condition-editor *ngSwitchCase="ConditionOperation.BETWEEN"
-                               [dataFunction]="dataFunction" [vsId]="vsId"
-                               [variablesFunction]="variablesFunction"
-                               [columnTreeFunction]="columnTreeFunction"
-                               [scriptDefinitionsFunction]="scriptDefinitionsFunction"
-                               [expressionTypes]="expressionTypes" [valueTypes]="valueTypes"
-                               [subqueryTables]="subqueryTables"
-                               [fieldsModel]="fieldsModel" [grayedOutFields]="getGrayedOutFields()"
-                               [field]="condition.field" [table]="table"
-                               [showUseList]="showUseList"
-                               [source]="getSource()"
-                               [(values)]="condition.values"
-                               [enableBrowseData]="isBrowseDataEnabled()"
-                               [isVSContext]="isVSContext"
-                               [showOriginalName]="showOriginalName"
-                               (valuesChange)="conditionChanged()"></binary-condition-editor>
-      <condition-editor *ngSwitchDefault [operation]="condition.operation"
-                        [dataFunction]="dataFunction" [vsId]="vsId"
-                        [variablesFunction]="variablesFunction"
-                        [columnTreeFunction]="columnTreeFunction"
-                        [scriptDefinitionsFunction]="scriptDefinitionsFunction"
-                        [isHighlight]="isHighlight"
-                        [expressionTypes]="expressionTypes" [valueTypes]="valueTypes"
-                        [subqueryTables]="subqueryTables"
-                        [enableBrowseData]="isBrowseDataEnabled()"
-                        [fieldsModel]="fieldsModel" [grayedOutFields]="getGrayedOutFields()"
-                        [field]="condition.field" [table]="table"
-                        [source]="getSource()"
-                        [showUseList]="showUseList" [isVSContext]="isVSContext"
-                        [showOriginalName]="showOriginalName"
-                        [(value)]="condition.values == null ? null : condition.values[0]"
-                        (valueChange)="conditionChanged()"></condition-editor>
-    </div>
+    @if (condition.operation != ConditionOperation.NULL) {
+      <div class="condition-edit-row__value shell-form-group value-editor-container">
+        @switch (condition.operation) {
+          @case (ConditionOperation.ONE_OF) {
+            <one-of-condition-editor
+                                     [dataFunction]="dataFunction" [vsId]="vsId"
+                                     [variablesFunction]="variablesFunction"
+                                     [columnTreeFunction]="columnTreeFunction"
+                                     [scriptDefinitionsFunction]="scriptDefinitionsFunction"
+                                     [expressionTypes]="expressionTypes" [valueTypes]="valueTypes"
+                                     [subqueryTables]="subqueryTables"
+                                     [fieldsModel]="fieldsModel" [grayedOutFields]="getGrayedOutFields()"
+                                     [field]="condition.field" [table]="table"
+                                     [showUseList]="showUseList"
+                                     [source]="getSource()" [isVSContext]="isVSContext"
+                                     [(values)]="condition.values"
+                                     [enableBrowseData]="isBrowseDataEnabled()"
+                                     [showOriginalName]="showOriginalName"
+                                     (valuesChange)="conditionChanged()"></one-of-condition-editor>
+          }
+          @case (ConditionOperation.BETWEEN) {
+            <binary-condition-editor
+                                     [dataFunction]="dataFunction" [vsId]="vsId"
+                                     [variablesFunction]="variablesFunction"
+                                     [columnTreeFunction]="columnTreeFunction"
+                                     [scriptDefinitionsFunction]="scriptDefinitionsFunction"
+                                     [expressionTypes]="expressionTypes" [valueTypes]="valueTypes"
+                                     [subqueryTables]="subqueryTables"
+                                     [fieldsModel]="fieldsModel" [grayedOutFields]="getGrayedOutFields()"
+                                     [field]="condition.field" [table]="table"
+                                     [showUseList]="showUseList"
+                                     [source]="getSource()"
+                                     [(values)]="condition.values"
+                                     [enableBrowseData]="isBrowseDataEnabled()"
+                                     [isVSContext]="isVSContext"
+                                     [showOriginalName]="showOriginalName"
+                                     (valuesChange)="conditionChanged()"></binary-condition-editor>
+          }
+          @default {
+            <condition-editor [operation]="condition.operation"
+                              [dataFunction]="dataFunction" [vsId]="vsId"
+                              [variablesFunction]="variablesFunction"
+                              [columnTreeFunction]="columnTreeFunction"
+                              [scriptDefinitionsFunction]="scriptDefinitionsFunction"
+                              [isHighlight]="isHighlight"
+                              [expressionTypes]="expressionTypes" [valueTypes]="valueTypes"
+                              [subqueryTables]="subqueryTables"
+                              [enableBrowseData]="isBrowseDataEnabled()"
+                              [fieldsModel]="fieldsModel" [grayedOutFields]="getGrayedOutFields()"
+                              [field]="condition.field" [table]="table"
+                              [source]="getSource()"
+                              [showUseList]="showUseList" [isVSContext]="isVSContext"
+                              [showOriginalName]="showOriginalName"
+                              [value]="condition.values == null ? null : condition.values[0]"
+                              (valueChange)="onConditionValueChange($event)"></condition-editor>
+          }
+        }
+      </div>
+    }
   </div>
 </div>
 <ng-template #formulaEditorDialog let-close="close" let-dismiss="dismiss">

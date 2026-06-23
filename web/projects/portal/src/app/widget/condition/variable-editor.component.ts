@@ -47,7 +47,7 @@ export class VariableEditor implements OnChanges, AfterViewInit {
       //fix a problem for IE
       //in IE if a select in form only has one option, it will Selected it by default
       //but we needn't.
-      if(this.variableName == "" && this.variableList.length == 1) {
+      if(this.variableName == "" && this.variableList?.length == 1) {
          this.vform.controls["name"].setValue(this.variableName);
       }
    }

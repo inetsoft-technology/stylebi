@@ -19,12 +19,14 @@ import {
    AfterContentInit,
    Component,
    EventEmitter,
+   Inject,
    Input,
    OnInit,
    OnChanges,
    Output,
    SimpleChanges
 } from "@angular/core";
+import { DOCUMENT } from "@angular/common";
 import { Tool } from "../../../../../shared/util/tool";
 import { ColumnRef } from "../../binding/data/column-ref";
 import { DataRef } from "../../common/data/data-ref";
@@ -52,11 +54,18 @@ export class ConditionFieldComboListComponent implements OnInit, OnChanges, Afte
    visibleIndexRange: Range;
    listContainerHeight = 0;
    private readonly LIST_CONTAINER_MAX_HEIGHT = 300;
-   // LIST_ENTRY_HEIGHT = fontSize(--inet-font-size-base) * lineHeight(1.5)
-   private readonly LIST_ENTRY_HEIGHT = 13 * 1.5;
+   private listEntryHeight = 24; // resolved from --inet-control-height-sm in ngOnInit
    minWidth: number = 0;
 
+   constructor(@Inject(DOCUMENT) private document: Document) {}
+
    ngOnInit() {
+      const raw = getComputedStyle(this.document.documentElement)
+         .getPropertyValue("--inet-control-height-sm").trim();
+      const px = parseFloat(raw);
+      if(Number.isFinite(px) && px > 0) {
+         this.listEntryHeight = px;
+      }
       this.updateMinWidth();
    }
 
@@ -145,7 +154,7 @@ export class ConditionFieldComboListComponent implements OnInit, OnChanges, Afte
          return 0;
       }
 
-      return this.listModel.length * this.LIST_ENTRY_HEIGHT;
+      return this.listModel.length * this.listEntryHeight;
    }
 
    private updateVisibleIndexRange(): void {
@@ -153,8 +162,8 @@ export class ConditionFieldComboListComponent implements OnInit, OnChanges, Afte
          return;
       }
 
-      const maxVisibleEntries = this.LIST_CONTAINER_MAX_HEIGHT / this.LIST_ENTRY_HEIGHT;
-      const beginIndexExact = this.scrollTop / this.LIST_ENTRY_HEIGHT;
+      const maxVisibleEntries = this.LIST_CONTAINER_MAX_HEIGHT / this.listEntryHeight;
+      const beginIndexExact = this.scrollTop / this.listEntryHeight;
       const beginIndexLowerBound = Math.floor(beginIndexExact);
       const endRowUpperBound = Math.ceil(beginIndexExact + maxVisibleEntries);
       const endIndex = Math.min(endRowUpperBound, this.listModel.length - 1);
@@ -167,6 +176,6 @@ export class ConditionFieldComboListComponent implements OnInit, OnChanges, Afte
          return 0;
       }
 
-      return this.visibleIndexRange.start * this.LIST_ENTRY_HEIGHT;
+      return this.visibleIndexRange.start * this.listEntryHeight;
    }
 }

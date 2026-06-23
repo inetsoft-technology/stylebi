@@ -1,0 +1,79 @@
+/*!
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+:host {
+  display: block;
+}
+
+.cond-section {
+  border-top: 1px solid var(--inet-default-border-color);
+  margin-top: 14px;
+  padding-top: 14px;
+
+  &:first-child {
+    margin-top: 18px;
+  }
+}
+
+.cond-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--inet-space-4);
+}
+
+.cond-section__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--inet-text-strong-color);
+}
+
+.cond-section__actions {
+  display: flex;
+  flex: none;
+}
+
+.cond-section__btn {
+  height: var(--inet-pill-height); /* 26px */
+  font-size: 12px;
+  font-weight: 500;
+  padding: 0 var(--inet-space-5);
+  line-height: 1;
+  border-radius: var(--inet-radius-md);
+
+  &:disabled,
+  &[disabled] {
+    color: var(--inet-text-subtle-color);
+    cursor: not-allowed;
+    opacity: 1;
+    background: transparent;
+  }
+}
+
+.cond-section__body {
+  margin-top: var(--inet-space-3);
+
+  ::ng-deep .condition-list__empty-state {
+    color: var(--inet-text-subtle-color);
+    padding-left: 0;
+  }
+
+  ::ng-deep .condition-list__empty-icon {
+    display: none;
+  }
+}

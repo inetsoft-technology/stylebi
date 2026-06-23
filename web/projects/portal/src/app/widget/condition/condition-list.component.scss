@@ -15,12 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.condition-list__surface {
-  background-color: var(--inet-list-bg-color);
-  border-color: var(--inet-list-border-color);
-  padding: 0;
-  border-radius: var(--inet-radius-md);
-  overflow: auto;
+:host {
+  display: block;
 }
 
 .condition-list__item {
@@ -37,6 +33,27 @@
   &.selected {
     background-color: var(--inet-list-selected-bg-color);
   }
+}
+
+.condition-list__empty-state {
+  display: flex;
+  align-items: center;
+  gap: var(--inet-space-4);
+  padding: 0.875rem var(--inet-space-5);
+  font-size: var(--inet-font-size-base);
+  color: var(--inet-text-muted-color);
+}
+
+.condition-list__empty-icon {
+  flex: none;
+  color: var(--inet-text-muted-color);
+  opacity: 0.6;
+}
+
+.condition-list__empty-edit-hint {
+  color: var(--inet-primary-color);
+  font-style: normal;
+  font-weight: 500;
 }
 
 .condition-list__text {

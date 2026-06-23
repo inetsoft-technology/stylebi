@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
+import { FormsModule } from "@angular/forms";
 import { Condition } from "../../common/data/condition/condition";
 import { ConditionItemPaneProvider } from "../../common/data/condition/condition-item-pane-provider";
 import { ConditionOperation } from "../../common/data/condition/condition-operation";
@@ -24,126 +25,135 @@ import { JunctionOperatorType } from "../../common/data/condition/junction-opera
 import { SubqueryTable } from "../../common/data/condition/subquery-table";
 import { DataRef } from "../../common/data/data-ref";
 import { Tool } from "../../../../../shared/util/tool";
-import { JunctionOperatorPipe } from "./junction-operator.pipe";
-import { ConditionPipe } from "./condition.pipe";
 import { ConditionItemPane } from "./condition-item-pane.component";
+import { ConditionOperationPipe } from "./condition-operation.pipe";
+import { ConditionValuePipe } from "./condition-value.pipe";
 
+export interface ClauseRow {
+   conjLabel: string;
+   field: DataRef;
+   negated: boolean;
+   isEqualOp: boolean;
+   operation: ConditionOperation;
+   valueLabel: string;
+}
 
 @Component({
     selector: "simple-condition-pane",
     templateUrl: "simple-condition-pane.component.html",
     styleUrls: ["simple-condition-pane.component.scss"],
-    imports: [ConditionItemPane, ConditionPipe, JunctionOperatorPipe]
+    imports: [FormsModule, ConditionItemPane, ConditionOperationPipe]
 })
 export class SimpleConditionPane implements OnInit {
    public ConditionOperation = ConditionOperation;
+
    @Input() subqueryTables: SubqueryTable[];
    @Input() fields: DataRef[];
    @Input() provider: ConditionItemPaneProvider;
    @Input() isVSContext = true;
    @Input() variableNames: string[];
    @Output() conditionListChange = new EventEmitter<any[]>();
-   condition: Condition;
-   selectedIndex: number;
-   private _conditionList: any[]; // even indexes contain conditions, odd contain junctions
+
+   draftConj: "and" | "or" = "and";
+   draftCondition: Condition = null;
+
+   private _conditionList: any[] = [];
+   private readonly valPipe = new ConditionValuePipe();
 
    @Input()
-   set conditionList(conditionList: any[]) {
-      this._conditionList = Tool.clone(conditionList);
-
-      if(this.selectedIndex >= 0 && this.selectedIndex < this._conditionList.length) {
-         if(this.selectedIndex % 2 !== 0) {
-            this.condition = null;
-         }
-         else if(this.selectedIndex % 2 === 0) {
-            this.condition = Tool.clone(this.conditionList[this.selectedIndex]);
-         }
-      }
-      else {
-         this.condition = null;
-         this.selectedIndex = null;
-      }
+   set conditionList(list: any[]) {
+      this._conditionList = Tool.clone(list) ?? [];
    }
 
    get conditionList(): any[] {
       return this._conditionList;
    }
 
-   ngOnInit(): void {
-      if(this.conditionList == null) {
-         this.conditionList = [];
-      }
+   get clauseRows(): ClauseRow[] {
+      return this._conditionList
+         .filter((_, i) => i % 2 === 0)
+         .map((cond: Condition, ci: number) => {
+            const junction: JunctionOperator = ci > 0 ? this._conditionList[ci * 2 - 1] : null;
+            const conjLabel = ci === 0 ? "WHERE"
+               : junction?.type === JunctionOperatorType.OR ? "OR" : "AND";
+
+            const isEqualOp = cond.operation === ConditionOperation.EQUAL_TO
+               || cond.operation === ConditionOperation.NONE;
+
+            const rawVal = cond.values?.[0] ? this.valPipe.transform(cond.values[0]) : "";
+            const isNumeric = rawVal !== "" && !isNaN(Number(rawVal));
+            const valueLabel = !rawVal ? "" : isNumeric ? rawVal : `"${rawVal}"`;
+
+            return {
+               conjLabel,
+               field: cond.field,
+               negated: cond.negated,
+               isEqualOp,
+               operation: cond.operation,
+               valueLabel
+            };
+         });
    }
 
-   more(): void {
-      if(this.conditionList.length > 0) {
-         this.conditionList.push(<JunctionOperator> {
+   ngOnInit(): void {
+      if(!this._conditionList) {
+         this._conditionList = [];
+      }
+
+      this._initDraft();
+   }
+
+   addClause(): void {
+      if(!this.draftCondition) {
+         return;
+      }
+
+      const list = [...this._conditionList];
+
+      if(list.length > 0) {
+         list.push(<JunctionOperator>{
             jsonType: "junction",
-            type: JunctionOperatorType.AND,
+            type: this.draftConj === "or" ? JunctionOperatorType.OR : JunctionOperatorType.AND,
             level: 0
          });
       }
 
-      let newCondition: Condition = <Condition> {
+      list.push(Tool.clone(this.draftCondition));
+      this._conditionList = list;
+      this._initDraft();
+      this.conditionListChange.emit(list);
+   }
+
+   removeClause(clauseIndex: number): void {
+      const list = [...this._conditionList];
+      const pos = clauseIndex * 2;
+
+      if(pos === 0 && list.length > 1) {
+         list.splice(0, 2);
+      }
+      else if(pos > 0) {
+         list.splice(pos - 1, 2);
+      }
+      else {
+         list.splice(0, 1);
+      }
+
+      this._conditionList = list;
+      this.conditionListChange.emit(list);
+   }
+
+   private _initDraft(): void {
+      const firstField = this.fields?.[0] ?? null;
+      const probe = <Condition>{
          jsonType: "condition",
-         field: this.fields != null && this.fields.length > 0 ? this.fields[0] : null,
-         operation: this.provider.getConditionOperations(null)[0],
+         field: firstField,
+         operation: ConditionOperation.EQUAL_TO,
          values: [],
          level: 0,
          equal: false,
          negated: false
       };
-
-      this.conditionList.push(newCondition);
-      this.conditionItemSelected(this.conditionList.length - 1);
-      this.conditionListChange.emit(this.conditionList);
-   }
-
-   fewer(): void {
-      if(this.selectedIndex == null || this.selectedIndex % 2 != 0) {
-         return;
-      }
-
-      let selectedIndex = this.selectedIndex;
-      this.conditionList.splice(selectedIndex, 1);
-
-      if(this.selectedIndex < this.conditionList.length) {
-         this.conditionList.splice(selectedIndex, 1);
-      }
-      else if(this.conditionList.length > 0) {
-         this.conditionList.splice(selectedIndex - 1, 1);
-         selectedIndex -= 2;
-      }
-      else {
-         selectedIndex = null;
-      }
-
-      this.conditionItemSelected(selectedIndex);
-      this.conditionListChange.emit(this.conditionList);
-   }
-
-   modify(): void {
-      if(this.selectedIndex % 2 == 0) {
-         let updatedConditionList = [...this.conditionList];
-         updatedConditionList[this.selectedIndex] = Tool.clone(this.condition);
-         updatedConditionList[this.selectedIndex].level = 0;
-         this.conditionListChange.emit(updatedConditionList);
-      }
-   }
-
-   conditionItemSelected(index: number): void {
-      this.selectedIndex = index;
-
-      if(index == null || index % 2 != 0) {
-         this.condition = null;
-      }
-      else if(index % 2 == 0) {
-         this.condition = Tool.clone(this.conditionList[index]);
-      }
-   }
-
-   conditionChange(condition: Condition) {
-      this.condition = condition;
-      this.modify();
+      const ops = this.provider?.getConditionOperations(probe) ?? [ConditionOperation.EQUAL_TO];
+      this.draftCondition = { ...probe, operation: ops[0] ?? ConditionOperation.EQUAL_TO };
    }
 }

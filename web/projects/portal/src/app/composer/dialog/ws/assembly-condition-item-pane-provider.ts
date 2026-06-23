@@ -85,8 +85,12 @@ export abstract class AssemblyConditionItemPaneProvider extends AssetConditionIt
    }
 
    getColumnTree(value: ExpressionValue, variableNames?: string[]): Observable<TreeNodeModel> {
-      if(!!variableNames) {
-         this.variableNames = variableNames;
+      if(variableNames && variableNames.length > 0) {
+         // Merge with existing variable names so that server-provided variables (e.g. session
+         // variables set from model.variableNames) are never lost when the formula editor
+         // passes the client-side variableNames list here.
+         const merged = new Set<string>([...(this._variableNames || []), ...variableNames]);
+         this._variableNames = Array.from(merged);
       }
 
       return observableOf(this.getColumnTreeModel(value));

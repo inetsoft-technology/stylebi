@@ -27,8 +27,8 @@
         <ng-template ngbNavContent>
           <fieldset>
             <div class="shell-form-row--field">
-              <div class="form-check">
-                <input type="checkbox" class="form-check-input" [ngModel]="model.advanced"
+              <div class="form-check form-switch">
+                <input type="checkbox" class="form-check-input" role="switch" [ngModel]="model.advanced"
                   (ngModelChange)="advancedChange($event)" id="adv"/>
                 <label class="form-check-label" for="adv">
                   _#(Advanced Conditions)
@@ -52,7 +52,7 @@
                 [rankingConditionList]="model.rankingConditionList"
                 (rankingConditionListChange)="rankingConditionListChange($event)"
                 [expressionFields]="model.expressionFields"
-                [variableNames]="variableNames"
+                [variableNames]="model?.variableNames"
               [grayedOutFields]="grayedOutFields"></advanced-condition-pane>
             }
           </ng-template>

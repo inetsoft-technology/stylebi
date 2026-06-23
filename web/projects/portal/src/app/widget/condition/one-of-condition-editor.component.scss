@@ -15,6 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
 .one-of-condition-editor {
   width: 100%;
 }
@@ -37,11 +43,6 @@
   min-width: 0;
 }
 
-.one-of-condition-editor__add-button {
-  flex: 0 0 auto;
-  min-height: var(--condition-row-control-height, var(--inet-control-height-md));
-  align-self: flex-start;
-}
 
 .value-list-container {
   display: flex;

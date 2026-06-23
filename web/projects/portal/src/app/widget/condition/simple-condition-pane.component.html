@@ -15,47 +15,72 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
-<div class="container-fluid">
-  <div class="row">
-    <div class="selectable-list col-12 simple-condition-pane__list">
-      @for (item of conditionList; track $index; let even = $even; let i = $index) {
-        <div class="unhighlightable"
-          [class.selected]="selectedIndex == i" (click)="conditionItemSelected(i)">
-          @if (even) {
-            <div>
-              {{item | conditionToString}}
-            </div>
-          }
-          @if (!even) {
-            <div>
-              {{item | junctionOperatorToString}}
-            </div>
-          }
-        </div>
-      }
-    </div>
-  </div>
-  <div class="row">
-    <div class="col-12">
-      <div class="pull-right">
-        <button type="button" class="btn btn-secondary" (click)="more()">_#(More)</button>
-        <button type="button" class="btn btn-default ms-1" (click)="fewer()"
-        [disabled]="this.selectedIndex == null || this.selectedIndex % 2 != 0">_#(Fewer)</button>
-      </div>
-    </div>
-  </div>
+
+<!-- CONDITIONS section label + count pill -->
+<div class="simple-pane__section-head">
+  <span class="simple-pane__section-label">_#(Conditions)</span>
+  @if (clauseRows.length > 0) {
+    <span class="simple-pane__count-pill">{{ clauseRows.length }}</span>
+  }
 </div>
-<fieldset>
-  <legend>_#(Edit)</legend>
-  <div class="condition-item-container">
-    @if (condition != null) {
-      <condition-item-pane [provider]="provider" [variableNames]="variableNames"
-        [subqueryTables]="subqueryTables" [fields]="fields"
-        [condition]="condition" [isVSContext]="isVSContext"
-        [showOriginalName]="true"
-        (conditionChange)="conditionChange($event)"
-        [addNoneItem]="false">
-      </condition-item-pane>
+
+<!-- Empty state -->
+@if (clauseRows.length === 0) {
+  <div class="simple-pane__empty">
+    _#(No conditions defined yet) &mdash; _#(build one below and click)
+    <span class="simple-pane__empty-add-hint">_#(Add)</span>.
+  </div>
+}
+
+<!-- Clause list -->
+@if (clauseRows.length > 0) {
+  <div class="simple-pane__clause-list">
+    @for (clause of clauseRows; track $index; let i = $index) {
+      <div class="simple-pane__clause-row">
+        <span class="simple-pane__conj">{{ clause.conjLabel }}</span>
+        <div class="simple-pane__expr">
+          <span class="simple-pane__field-token">{{ clause.field?.view ?? clause.field?.name }}</span>
+          <span class="simple-pane__op">
+            @if (clause.negated) { _#(is not) } @else { _#(is) }
+            @if (!clause.isEqualOp) { {{ clause.operation | conditionOperationToString }} }
+          </span>
+          <span class="simple-pane__val">{{ clause.valueLabel }}</span>
+        </div>
+        <button type="button" class="simple-pane__remove" (click)="removeClause(i)"
+                title="_#(Remove)">&times;</button>
+      </div>
     }
   </div>
-</fieldset>
+}
+
+<!-- ADD CONDITION builder -->
+<div class="simple-pane__builder">
+  <div class="simple-pane__builder-label">_#(Add Condition)</div>
+
+  @if (draftCondition) {
+    <condition-item-pane
+      [provider]="provider"
+      [variableNames]="variableNames"
+      [subqueryTables]="subqueryTables"
+      [fields]="fields"
+      [condition]="draftCondition"
+      [isVSContext]="isVSContext"
+      [showOriginalName]="true"
+      [addNoneItem]="false"
+      (conditionChange)="draftCondition = $event">
+    </condition-item-pane>
+  }
+
+  <div class="simple-pane__builder-footer">
+    @if (clauseRows.length > 0) {
+      <div class="simple-pane__select-wrap">
+        <select class="simple-pane__join-ctrl" [(ngModel)]="draftConj">
+          <option value="and">_#(And)</option>
+          <option value="or">_#(Or)</option>
+        </select>
+        <span class="simple-pane__caret">&#9660;</span>
+      </div>
+    }
+    <button type="button" class="simple-pane__add-btn" (click)="addClause()">_#(Add)</button>
+  </div>
+</div>

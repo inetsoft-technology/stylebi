@@ -15,35 +15,27 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
-<div class="container">
-  <div class="row">
-    <div class="bordered-box col condition-list__surface">
-      @for (item of conditionList; track $index; let even = $even; let i = $index) {
-        <div
-          class="unhighlightable condition-list__item" [class.selected]="selectedIndex === i"
-          (click)="selectedIndex = i">
-          @if (even) {
-            <div>
-              {{item | conditionToString}}
-            </div>
-          }
-          @if (!even) {
-            <div>
-              {{item | junctionOperatorToString}}
-            </div>
-          }
-        </div>
+@if (!conditionList || conditionList.length === 0) {
+  <div class="condition-list__empty-state">
+    <svg class="condition-list__empty-icon" width="14" height="14" viewBox="0 0 16 16" fill="none"
+         aria-hidden="true">
+      <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </svg>
+    <span>_#(No conditions set) &mdash; click <span class="condition-list__empty-edit-hint">_#(Edit)</span> _#(to add one.)</span>
+  </div>
+} @else {
+  @for (item of conditionList; track $index; let even = $even; let i = $index) {
+    <div class="unhighlightable condition-list__item" [class.selected]="selectedIndex === i"
+         (click)="selectedIndex = i">
+      @if (even) {
+        <div>{{item | conditionToString}}</div>
+      }
+      @if (!even) {
+        <div>{{item | junctionOperatorToString}}</div>
       }
     </div>
-    @if (showDefaultButtons) {
-      <div class="col-auto btn-container-vertical">
-        <button type="button" class="btn btn-default" (click)="edit()">_#(Edit)</button>
-        <button type="button" class="btn btn-default" (click)="clear()"
-        [disabled]="conditionList == null || conditionList.length == 0">_#(Clear)</button>
-      </div>
-    }
-  </div>
-</div>
+  }
+}
 <ng-template #conditionDialog let-close="close" let-dismiss="dismiss">
   <condition-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
     [simplePane]="simplePane" [provider]="provider"

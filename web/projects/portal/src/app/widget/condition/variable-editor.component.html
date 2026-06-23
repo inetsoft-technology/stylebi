@@ -1,40 +1,36 @@
 <!--
-~ This file is part of StyleBI.
-~ Copyright (C) 2024  InetSoft Technology
-~
-~ This program is free software: you can redistribute it and/or modify
-~ it under the terms of the GNU Affero General Public License as published by
-~ the Free Software Foundation, either version 3 of the License, or
-~ (at your option) any later version.
-~
-~ This program is distributed in the hope that it will be useful,
-~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-~ GNU Affero General Public License for more details.
-~
-~ You should have received a copy of the GNU Affero General Public License
-~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
--->
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2024  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
 <form [formGroup]="vform">
-  <div class="variable-editor-field">
-    <input class="form-control variable-input" type="text" placeholder="_#(Variable Name)"
-             [ngClass]="{'input-transparent border-0': variableList && variableList.length > 0,
-                        'hideText' : variableList.includes(variableName)}"
-      [ngModel]="variableName" (ngModelChange)="variableNameChanged($event)"
-      formControlName="name"/>
-    <label>_#(Variable Name)</label>
-    @if (variableList && variableList.length > 0) {
-      <custom-select
-                     class="variable-picker"
-                     [options]="variableSelectOptions"
-                     [ngModel]="variableName"
-                     [ngModelOptions]="{standalone: true}"
-                     (selectionChange)="variableNameChanged($event)"
-                     ariaLabel="_#(Variable Name)"
-                     placeholder="_#(Variable Name)">
-      </custom-select>
-    }
-  </div>
+   <div class="variable-editor-field">
+      <input class="form-control variable-input" type="text" placeholder="_#(Variable Name)"
+             [ngModel]="variableName" (ngModelChange)="variableNameChanged($event)"
+             formControlName="name"/>
+      @if (variableList && variableList.length > 0) {
+        <custom-select class="variable-picker"
+                       [options]="variableSelectOptions"
+                       [ngModel]="variableName"
+                       [ngModelOptions]="{standalone: true}"
+                       (selectionChange)="variableNameChanged($event)"
+                       ariaLabel="_#(Variable Name)"
+                       placeholder="_#(Variable Name)">
+        </custom-select>
+      }
+   </div>
 </form>
 
 @if (showUseList) {

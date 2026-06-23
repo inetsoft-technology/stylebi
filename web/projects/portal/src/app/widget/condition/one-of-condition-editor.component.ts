@@ -93,8 +93,10 @@ export class OneOfConditionEditor implements OnInit, OnChanges {
             choiceQuery: this.values[0].choiceQuery
          };
       }
-      else if(this.value == null || (this.value.type != ConditionValueType.VALUE && this.values[0])) {
-         // set the type of the current editor to the last value that was added
+      else if(this.value == null ||
+         (this.value.type != ConditionValueType.VALUE && this.values[0] &&
+          this.values[0].type === ConditionValueType.VALUE))
+      {
          this.value = {
             value: this.getDefaultValue(),
             type: ConditionValueType.VALUE,
@@ -173,7 +175,9 @@ export class OneOfConditionEditor implements OnInit, OnChanges {
          }
          else {
             this.value = {
-               value: this.getDefaultValue(),
+               value: this.value.type === ConditionValueType.FIELD && this.fieldsModel?.list?.[0]
+                  ? this.fieldsModel.list[0]
+                  : this.getDefaultValue(),
                type: this.value.type,
                choiceQuery: this.value.choiceQuery
             };
@@ -217,17 +221,20 @@ export class OneOfConditionEditor implements OnInit, OnChanges {
       }
    }
 
-   valueChanged(): void {
-      let isSpecialType: boolean = this.isSpecialType(this.value.type);
+   valueChanged(newValue?: ConditionValue): void {
+      // Use the incoming event value directly to avoid racing with [(value)] assignment
+      const value = newValue ?? this.value;
+      this.value = value;
+      let isSpecialType: boolean = this.isSpecialType(value.type);
 
       // if the editor type is special type then propagate the value change
       if(isSpecialType) {
-         this.values = [this.value];
+         this.values = [value];
          this.valuesChange.emit(this.values);
       }
-      // if switching from a special type to some other then clear the values
-      else if(!isSpecialType && this.values[0] &&
-         this.isSpecialType(this.values[0].type))
+      // clear the list when the existing items are incompatible with the new type
+      else if(this.values[0] && (this.isSpecialType(this.values[0].type) ||
+              this.values[0].type !== value.type))
       {
          this.values = [];
          this.valuesChange.emit(this.values);
