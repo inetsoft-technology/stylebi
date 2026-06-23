@@ -757,6 +757,12 @@ public class WizAutoBindingService {
     * column (e.g. {@code growth_pct}) while its alias carries the output name (e.g.
     * {@code growth_rate}); matching on the attribute alone would reject the alias the caller
     * (correctly) supplies in fieldConfigs.
+    *
+    * <p>Prefix normalisation: physical-table columns are exposed as "Table.Column" but
+    * sql-query-table columns are bare "Column" names (no entity prefix). When a caller
+    * passes "GapQuery.COMPANY_NAME" and the worksheet only has bare "COMPANY_NAME", the
+    * prefix is stripped and the key in {@code configMap} is updated in-place so all
+    * downstream lookups (buildEntryFromColumn, applyFieldConfigs) see the correct key.
     */
    static List<ColumnRef> selectBindColumns(List<ColumnRef> worksheetColumns,
                                             Map<String, SimpleFieldInfo> configMap)
@@ -765,15 +771,43 @@ public class WizAutoBindingService {
          Set<String> available = worksheetColumns.stream()
             .map(ColumnRef::getDisplayName)
             .collect(Collectors.toCollection(LinkedHashSet::new));
-         List<String> missing = configMap.keySet().stream()
-            .filter(k -> !available.contains(k))
-            .sorted()
-            .collect(Collectors.toList());
+
+         // Index bare (no-dot) display names for sql query table columns.
+         // Physical-table columns contain a dot so they are excluded here.
+         Set<String> bareAvailable = available.stream()
+            .filter(n -> !n.contains("."))
+            .collect(Collectors.toSet());
+
+         List<String> toNormalize = new ArrayList<>();
+         List<String> missing     = new ArrayList<>();
+
+         for(String key : configMap.keySet()) {
+            if(available.contains(key)) {
+               continue; // exact match
+            }
+            int dot = key.lastIndexOf('.');
+            String bare = dot >= 0 ? key.substring(dot + 1) : null;
+            if(bare != null && bareAvailable.contains(bare)) {
+               toNormalize.add(key); // "GapQuery.COMPANY_NAME" → "COMPANY_NAME"
+            }
+            else {
+               missing.add(key);
+            }
+         }
 
          if(!missing.isEmpty()) {
             throw new IllegalArgumentException(
-               "Unknown field(s) in fieldConfigs: " + missing +
+               "Unknown field(s) in fieldConfigs: " + missing.stream().sorted().collect(Collectors.toList()) +
                ". Available worksheet columns: " + available);
+         }
+
+         // Rename prefixed keys to bare names in-place so buildEntryFromColumn /
+         // applyFieldConfigs see the same key form as getDisplayName() returns.
+         for(String prefixed : toNormalize) {
+            int dot = prefixed.lastIndexOf('.');
+            String bare = prefixed.substring(dot + 1);
+            SimpleFieldInfo fi = configMap.remove(prefixed);
+            configMap.put(bare, fi);
          }
 
          return worksheetColumns.stream()
