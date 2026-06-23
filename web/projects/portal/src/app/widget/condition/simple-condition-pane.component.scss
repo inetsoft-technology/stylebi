@@ -15,62 +15,225 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.simple-condition-pane__list {
-  background-color: var(--inet-list-bg-color);
-  border-color: var(--inet-list-border-color);
-  max-height: 14rem;
+
+:host {
+  display: block;
 }
 
-.simple-condition-pane__list-item {
-  align-items: center;
+/* ── Section label row ────────────────────────────────────────────────── */
+
+.simple-pane__section-head {
   display: flex;
-  min-height: var(--inet-control-height-md);
-  padding: 0 var(--inet-space-3);
+  align-items: center;
+  gap: var(--inet-space-4);
+  margin: 18px 0 8px;
+}
 
-  &:hover {
-    background-color: var(--inet-list-hover-bg-color);
-  }
+.simple-pane__section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--inet-text-subtle-color);
+}
 
-  &.selected {
-    background-color: var(--inet-list-selected-bg-color);
+.simple-pane__count-pill {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--inet-text-muted-color);
+  background: var(--inet-shell-surface-hover);
+  border-radius: var(--inet-radius-pill);
+  padding: 1px 7px;
+  line-height: 1.5;
+}
+
+/* ── Empty state ──────────────────────────────────────────────────────── */
+
+.simple-pane__empty {
+  font-size: var(--inet-font-size-base);
+  color: var(--inet-text-muted-color);
+  padding: 2px 0 6px;
+}
+
+.simple-pane__empty-add-hint {
+  color: var(--inet-text-color);
+  font-weight: 500;
+}
+
+/* ── Clause list ──────────────────────────────────────────────────────── */
+
+.simple-pane__clause-list {
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-lg); /* 4px */
+  overflow: hidden;
+}
+
+.simple-pane__clause-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--inet-row-height-md); /* 34px */
+  padding: 5px 8px 5px 12px;
+
+  & + & {
+    border-top: 1px solid var(--inet-shell-surface-hover);
   }
 }
 
-.simple-condition-pane__list-text {
+.simple-pane__conj {
+  width: 40px;
+  flex: none;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--inet-text-subtle-color);
+}
+
+.simple-pane__expr {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  font-size: var(--inet-font-size-base);
+  min-width: 0;
+}
+
+.simple-pane__field-token {
+  font-weight: 500;
+  color: var(--inet-text-color);
+  background: var(--inet-shell-surface-subtle);
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-md);
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+
+.simple-pane__op {
+  color: var(--inet-text-muted-color);
+  white-space: nowrap;
+}
+
+.simple-pane__val {
+  font-weight: 500;
+  color: var(--inet-text-strong-color);
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.condition-editor-header {
+.simple-pane__remove {
+  width: var(--inet-control-height-sm); /* 24px */
+  height: var(--inet-control-height-sm);
+  flex: none;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--inet-border-color, #d9d4cb);
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: var(--inet-radius-md);
+  color: var(--inet-text-subtle-color);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--inet-danger-color-light);
+    color: var(--inet-danger-color);
+  }
 }
 
-.condition-editor-header__title {
-  font-weight: 400;
-  color: var(--inet-text-color, #2f2f2f);
+/* ── ADD CONDITION builder ────────────────────────────────────────────── */
+
+.simple-pane__builder {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--inet-default-border-color);
+  /* Compact control height matches design spec 30 px; also moves field input
+     higher so the field-combo fixed dropdown has more viewport room below. */
+  --condition-row-control-height: var(--inet-control-height-md);
+  --condition-row-icon-size: 1.75rem;
 }
 
-.condition-editor-header__actions {
-  display: inline-flex;
+.simple-pane__builder-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--inet-text-subtle-color);
+  margin-bottom: 8px;
+}
+
+/* ── Builder footer: join select + Add button ─────────────────────────── */
+
+.simple-pane__builder-footer {
+  display: flex;
   align-items: center;
-  flex-shrink: 0;
+  gap: var(--inet-space-4);
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--inet-default-border-color);
 }
 
-.condition-editor-fieldset {
-  margin-top: 0.5rem;
+.simple-pane__select-wrap {
+  position: relative;
+  flex: none;
 }
 
-.condition-editor-fieldset legend {
-  display: none;
+.simple-pane__join-ctrl {
+  width: 72px;
+  height: var(--inet-control-height-md); /* 30px */
+  font-family: inherit;
+  font-size: var(--inet-font-size-base);
+  color: var(--inet-text-color);
+  background: var(--inet-shell-surface-default);
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-md);
+  padding: 0 24px 0 var(--inet-space-4);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  outline: none;
+
+  &:focus {
+    border-color: var(--inet-primary-color);
+    box-shadow: var(--inet-focus-ring);
+  }
 }
 
-.condition-item-container {
-  min-height: 300px;
+.simple-pane__caret {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--inet-text-subtle-color);
+  font-size: 8px;
+  line-height: 1;
+}
+
+.simple-pane__add-btn {
+  height: var(--inet-control-height-md); /* 30px */
+  font-size: var(--inet-font-size-base);
+  font-weight: 500;
+  color: var(--inet-text-muted-color);
+  background: transparent;
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-md);
+  padding: 0 14px;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover:not(:disabled) {
+    background: var(--inet-shell-surface-hover);
+    color: var(--inet-text-color);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
 }

@@ -85,8 +85,13 @@ export abstract class AssemblyConditionItemPaneProvider extends AssetConditionIt
    }
 
    getColumnTree(value: ExpressionValue, variableNames?: string[]): Observable<TreeNodeModel> {
-      if(!!variableNames) {
-         this.variableNames = variableNames;
+      if(variableNames && variableNames.length > 0) {
+         // Intentional merge (not overwrite): the server-provided list arrives via the
+         // variableNames setter before the formula editor calls getColumnTree(), so a plain
+         // overwrite would silently drop server names. Trade-off: deleted server variables
+         // persist for the lifetime of the provider (acceptable — provider is per-dialog).
+         const merged = new Set<string>([...(this._variableNames || []), ...variableNames]);
+         this._variableNames = Array.from(merged);
       }
 
       return observableOf(this.getColumnTreeModel(value));

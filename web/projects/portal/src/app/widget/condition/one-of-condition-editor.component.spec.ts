@@ -75,26 +75,26 @@ describe("One Of Condition Editor Unit Test", () => {
       oneOfEditor.value = {value: null, type: ConditionValueType.VALUE};
       fixture.detectChanges();
 
-      let valueList = fixture.nativeElement.querySelectorAll("div.sm-selectable-list div");
+      let valueList = fixture.nativeElement.querySelectorAll("div.value-list__element");
       expect(valueList.length).toBe(2);
       valueList[0].click();
       fixture.detectChanges();
 
-      let delBtn = fixture.nativeElement.querySelector("button.delete_id");
+      let delBtn = fixture.nativeElement.querySelector("[data-testid='delete-btn']");
       delBtn.click();
       fixture.detectChanges();
 
-      valueList = fixture.nativeElement.querySelectorAll("div.sm-selectable-list div");
+      valueList = fixture.nativeElement.querySelectorAll("div.value-list__element");
       expect(valueList.length).toBe(1);
       valueList[0].click();
       fixture.detectChanges();
 
-      delBtn = fixture.nativeElement.querySelector("button.delete_id");
+      delBtn = fixture.nativeElement.querySelector("[data-testid='delete-btn']");
       delBtn.click();
       fixture.detectChanges();
 
-      valueList = fixture.nativeElement.querySelector("div.sm-selectable-list div");
-      delBtn = fixture.nativeElement.querySelector("button.delete_id");
+      valueList = fixture.nativeElement.querySelector("div.value-list__element");
+      delBtn = fixture.nativeElement.querySelector("[data-testid='delete-btn']");
       expect(valueList).toBeNull();
       expect(delBtn.hasAttribute("disabled")).toBeTruthy();
    });

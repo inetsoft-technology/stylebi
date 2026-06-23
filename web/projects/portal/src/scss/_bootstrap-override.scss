@@ -572,6 +572,7 @@ a:not([href]) {
 
 .modal-footer {
   padding: var(--inet-modal-footer-padding);
+  background-color: var(--inet-shell-surface-subtle);
 }
 
 .form-control, .form-control[readonly], .form-control.input-group-btn-addon,

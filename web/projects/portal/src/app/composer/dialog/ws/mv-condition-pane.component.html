@@ -26,27 +26,75 @@
     </div>
   </div>
 </fieldset>
-<fieldset>
-  <legend>_#(Append Records Matching Pre-aggregate Conditions)</legend>
-  <condition-list [subqueryTables]="subqueryTables" [provider]="appendProvider"
-                  [fields]="model.preAggregateFields" [isVSContext]="false"
-                  [(conditionList)]="model.appendPreAggregateConditionList"></condition-list>
-</fieldset>
-<fieldset>
-  <legend>_#(Append Records Matching Post-aggregate Conditions)</legend>
-  <condition-list [subqueryTables]="subqueryTables" [provider]="appendProvider"
-                  [fields]="model.postAggregateFields" [isVSContext]="false"
-                  [(conditionList)]="model.appendPostAggregateConditionList"></condition-list>
-</fieldset>
-<fieldset>
-  <legend>_#(Delete Records Matching Pre-aggregate Conditions)</legend>
-  <condition-list [subqueryTables]="subqueryTables" [provider]="deleteProvider"
-                  [fields]="model.preAggregateFields" [isVSContext]="false"
-                  [(conditionList)]="model.deletePreAggregateConditionList"></condition-list>
-</fieldset>
-<fieldset>
-  <legend>_#(Delete Records Matching Post-aggregate Conditions)</legend>
-  <condition-list [subqueryTables]="subqueryTables" [provider]="deleteProvider"
-                  [fields]="model.postAggregateFields" [isVSContext]="false"
-                  [(conditionList)]="model.deletePostAggregateConditionList"></condition-list>
-</fieldset>
+
+<!-- Append Pre-aggregate Conditions -->
+<div class="cond-section">
+  <div class="cond-section__header">
+    <span class="cond-section__title">_#(Append Records Matching Pre-aggregate Conditions)</span>
+    <div class="cond-section__actions">
+      <button type="button" class="btn btn-default cond-section__btn" (click)="appendPreList.edit()">_#(Edit)</button>
+      <button type="button" class="btn btn-default cond-section__btn" (click)="appendPreList.clear()"
+              [disabled]="!model.appendPreAggregateConditionList?.length">_#(Clear)</button>
+    </div>
+  </div>
+  <div class="cond-section__body">
+    <condition-list #appendPreList [subqueryTables]="subqueryTables" [provider]="appendProvider"
+                    [fields]="model.preAggregateFields" [isVSContext]="false"
+                    [(conditionList)]="model.appendPreAggregateConditionList">
+    </condition-list>
+  </div>
+</div>
+
+<!-- Append Post-aggregate Conditions -->
+<div class="cond-section">
+  <div class="cond-section__header">
+    <span class="cond-section__title">_#(Append Records Matching Post-aggregate Conditions)</span>
+    <div class="cond-section__actions">
+      <button type="button" class="btn btn-default cond-section__btn" (click)="appendPostList.edit()">_#(Edit)</button>
+      <button type="button" class="btn btn-default cond-section__btn" (click)="appendPostList.clear()"
+              [disabled]="!model.appendPostAggregateConditionList?.length">_#(Clear)</button>
+    </div>
+  </div>
+  <div class="cond-section__body">
+    <condition-list #appendPostList [subqueryTables]="subqueryTables" [provider]="appendProvider"
+                    [fields]="model.postAggregateFields" [isVSContext]="false"
+                    [(conditionList)]="model.appendPostAggregateConditionList">
+    </condition-list>
+  </div>
+</div>
+
+<!-- Delete Pre-aggregate Conditions -->
+<div class="cond-section">
+  <div class="cond-section__header">
+    <span class="cond-section__title">_#(Delete Records Matching Pre-aggregate Conditions)</span>
+    <div class="cond-section__actions">
+      <button type="button" class="btn btn-default cond-section__btn" (click)="deletePreList.edit()">_#(Edit)</button>
+      <button type="button" class="btn btn-default cond-section__btn" (click)="deletePreList.clear()"
+              [disabled]="!model.deletePreAggregateConditionList?.length">_#(Clear)</button>
+    </div>
+  </div>
+  <div class="cond-section__body">
+    <condition-list #deletePreList [subqueryTables]="subqueryTables" [provider]="deleteProvider"
+                    [fields]="model.preAggregateFields" [isVSContext]="false"
+                    [(conditionList)]="model.deletePreAggregateConditionList">
+    </condition-list>
+  </div>
+</div>
+
+<!-- Delete Post-aggregate Conditions -->
+<div class="cond-section">
+  <div class="cond-section__header">
+    <span class="cond-section__title">_#(Delete Records Matching Post-aggregate Conditions)</span>
+    <div class="cond-section__actions">
+      <button type="button" class="btn btn-default cond-section__btn" (click)="deletePostList.edit()">_#(Edit)</button>
+      <button type="button" class="btn btn-default cond-section__btn" (click)="deletePostList.clear()"
+              [disabled]="!model.deletePostAggregateConditionList?.length">_#(Clear)</button>
+    </div>
+  </div>
+  <div class="cond-section__body">
+    <condition-list #deletePostList [subqueryTables]="subqueryTables" [provider]="deleteProvider"
+                    [fields]="model.postAggregateFields" [isVSContext]="false"
+                    [(conditionList)]="model.deletePostAggregateConditionList">
+    </condition-list>
+  </div>
+</div>

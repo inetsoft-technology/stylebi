@@ -16,7 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 @if (expressionTypes.length > 1) {
-  <button type="button" class="btn btn-outline-info btn-sm"
+  <button type="button" class="btn btn-light btn-sm"
     title="_#(Expression Type)" [style.align-self]="'center'"
     (click)="changeExpressionType()" [disabled]="isVSContext && !isHighlight">
     @switch (expressionType) {

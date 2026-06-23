@@ -195,6 +195,8 @@ public class SQLQueryDialogService {
          WorksheetEventUtil.refreshAssembly(rws, name, true, commandDispatcher, principal);
       }
 
+      boolean wasSingleQuery = ws.getWorksheetInfo().isSingleQueryMode();
+
       if(model.isMashUpData()) {
          ws.getWorksheetInfo().setMashupMode();
       }
@@ -207,7 +209,7 @@ public class SQLQueryDialogService {
       AssetEventUtil.refreshTableLastModified(ws, name, true);
       WorksheetEventUtil.refreshVariables(rws, wsEngine, name, commandDispatcher);
 
-      if(ws.getWorksheetInfo().isSingleQueryMode()) {
+      if(wasSingleQuery) {
          SaveWorksheetCommand command = new SaveWorksheetCommand();
          command.setClose(model.isCloseDialog());
          commandDispatcher.sendCommand(command);

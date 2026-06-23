@@ -15,29 +15,64 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<fieldset>
-  <legend>_#(Pre-aggregate Conditions)</legend>
-  <condition-list [subqueryTables]="subqueryTables" [provider]="prePostProvider"
-                  [fields]="preAggregateFields" [conditionList]="preAggregateConditionList"
-                  [isVSContext]="false"
-                  [showOriginalName]="true"
-                  (conditionListChange)="preAggregateConditionListChange.emit($event)">
-  </condition-list>
-</fieldset>
-<fieldset>
-  <legend>_#(Post-aggregate Conditions)</legend>
-  <condition-list [subqueryTables]="subqueryTables" [provider]="prePostProvider"
-                  [fields]="postAggregateFields" [conditionList]="postAggregateConditionList"
-                  [isVSContext]="false"
-                  [showOriginalName]="true"
-                  (conditionListChange)="postAggregateConditionListChange.emit($event)">
-  </condition-list>
-</fieldset>
-<fieldset>
-  <legend>_#(Ranking Conditions)</legend>
-  <condition-list [subqueryTables]="subqueryTables" [simplePane]="true"
-                  [provider]="rankingProvider" [fields]="rankingFields"
-                  [conditionList]="rankingConditionList" [isVSContext]="false"
-                  [showOriginalName]="true"
-                  (conditionListChange)="rankingConditionListChange.emit($event)"></condition-list>
-</fieldset>
+
+<!-- Pre-aggregate Conditions -->
+<div class="cond-section">
+  <div class="cond-section__header">
+    <span class="cond-section__title">_#(Pre-aggregate Conditions)</span>
+    <div class="cond-section__actions">
+      <button type="button" class="btn btn-default cond-section__btn" (click)="preList.edit()">_#(Edit)</button>
+      <button type="button" class="btn btn-default cond-section__btn" (click)="preList.clear()"
+              [disabled]="!(preAggregateConditionList?.length > 0)">_#(Clear)</button>
+    </div>
+  </div>
+  <div class="cond-section__body">
+    <condition-list #preList [subqueryTables]="subqueryTables" [provider]="prePostProvider"
+                    [fields]="preAggregateFields" [conditionList]="preAggregateConditionList"
+                    [isVSContext]="false"
+                    [showOriginalName]="true"
+                    (conditionListChange)="preAggregateConditionListChange.emit($event)">
+    </condition-list>
+  </div>
+</div>
+
+<!-- Post-aggregate Conditions -->
+<div class="cond-section">
+  <div class="cond-section__header">
+    <span class="cond-section__title">_#(Post-aggregate Conditions)</span>
+    <div class="cond-section__actions">
+      <button type="button" class="btn btn-default cond-section__btn" (click)="postList.edit()">_#(Edit)</button>
+      <button type="button" class="btn btn-default cond-section__btn" (click)="postList.clear()"
+              [disabled]="!(postAggregateConditionList?.length > 0)">_#(Clear)</button>
+    </div>
+  </div>
+  <div class="cond-section__body">
+    <condition-list #postList [subqueryTables]="subqueryTables" [provider]="prePostProvider"
+                    [fields]="postAggregateFields" [conditionList]="postAggregateConditionList"
+                    [isVSContext]="false"
+                    [showOriginalName]="true"
+                    (conditionListChange)="postAggregateConditionListChange.emit($event)">
+    </condition-list>
+  </div>
+</div>
+
+<!-- Ranking Conditions -->
+<div class="cond-section">
+  <div class="cond-section__header">
+    <span class="cond-section__title">_#(Ranking Conditions)</span>
+    <div class="cond-section__actions">
+      <button type="button" class="btn btn-default cond-section__btn" (click)="rankList.edit()">_#(Edit)</button>
+      <button type="button" class="btn btn-default cond-section__btn" (click)="rankList.clear()"
+              [disabled]="!(rankingConditionList?.length > 0)">_#(Clear)</button>
+    </div>
+  </div>
+  <div class="cond-section__body">
+    <condition-list #rankList [simplePane]="true"
+                    [subqueryTables]="subqueryTables" [provider]="rankingProvider"
+                    [fields]="rankingFields" [conditionList]="rankingConditionList"
+                    [isVSContext]="false"
+                    [showOriginalName]="true"
+                    (conditionListChange)="rankingConditionListChange.emit($event)">
+    </condition-list>
+  </div>
+</div>

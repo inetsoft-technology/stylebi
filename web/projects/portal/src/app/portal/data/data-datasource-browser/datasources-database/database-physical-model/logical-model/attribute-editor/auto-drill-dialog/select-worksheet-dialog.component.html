@@ -24,7 +24,7 @@
         _#(Select a Worksheet)
       </div>
     </legend>
-    <div class="select-worksheet-dialog__tree-shell tree-container">
+    <div class="select-worksheet-dialog__tree-shell bordered-box bd-gray tree-container">
       <asset-tree [datasources]="false" [columns]="false" [viewsheets]="false"
         [readOnly]="true"
         [dataSourcePath]="selectedEntry?.path"
@@ -76,7 +76,7 @@
   }
 </div>
 <div class="modal-footer">
-  <button type="button" class="btn btn-default" (click)="ok()" [disabled]="okDisabled()">_#(OK)</button>
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="okDisabled()">_#(OK)</button>
   <button type="button" class="btn btn-secondary" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>
   <button type="button" class="btn btn-default" (click)="clear()">_#(Clear)</button>
 </div>

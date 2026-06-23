@@ -28,6 +28,7 @@ import { FormsModule } from "@angular/forms";
 @Component({
     selector: "mv-condition-pane",
     templateUrl: "mv-condition-pane.component.html",
+    styleUrls: ["mv-condition-pane.component.scss"],
     imports: [FormsModule, ConditionList]
 })
 export class MVConditionPane implements OnInit {

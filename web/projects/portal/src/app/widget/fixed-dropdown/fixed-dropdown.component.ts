@@ -122,17 +122,19 @@ export class FixedDropdownComponent implements OnInit, AfterViewInit, OnDestroy 
 
    /**
     * Set the boundaries of the dropdown. If a container element defined then use those boundaries
-    * to calculate the position
+    * to calculate the position; otherwise fall back to viewport bounds so the dropdown is never
+    * clipped at the edge of the screen.
     */
    set dropdownBounds(dropdownBounds: Rectangle) {
       // set the position of the dropdown
       this.dropdownPosition = new Point(dropdownBounds.x, dropdownBounds.y);
       this.opacity = 1;
 
-      // adjust to the given container element
+      let restrictBounds: Rectangle;
+
       if(this.container) {
          const containerElement = this.container;
-         const restrictBounds = Rectangle.fromClientRect(containerElement.getBoundingClientRect());
+         restrictBounds = Rectangle.fromClientRect(containerElement.getBoundingClientRect());
 
          // Restricting to an empty rectangle (such as when the body size is 0) doesn't really
          // make sense so use the viewport size instead
@@ -146,19 +148,24 @@ export class FixedDropdownComponent implements OnInit, AfterViewInit, OnDestroy 
          if(GuiTool.isMobileDevice() && containerElement == document.body) {
             restrictBounds.height = window.innerHeight;
          }
+      }
+      else {
+         // No container supplied — clamp to the viewport so the dropdown is never cut off.
+         const [vw, vh] = GuiTool.getViewportSize();
+         restrictBounds = new Rectangle(0, 0, vw, vh);
+      }
 
-         const dropdownRight = dropdownBounds.x + dropdownBounds.width;
-         const dropdownBottom = dropdownBounds.y + dropdownBounds.height;
-         const restrictRight = restrictBounds.x + restrictBounds.width;
-         const restrictBottom = restrictBounds.y + restrictBounds.height;
+      const dropdownRight = dropdownBounds.x + dropdownBounds.width;
+      const dropdownBottom = dropdownBounds.y + dropdownBounds.height;
+      const restrictRight = restrictBounds.x + restrictBounds.width;
+      const restrictBottom = restrictBounds.y + restrictBounds.height;
 
-         if(dropdownRight > restrictRight) {
-            this.dropdownPosition.x = Math.max(0, restrictRight - dropdownBounds.width);
-         }
+      if(dropdownRight > restrictRight) {
+         this.dropdownPosition.x = Math.max(0, restrictRight - dropdownBounds.width);
+      }
 
-         if(dropdownBottom > restrictBottom) {
-            this.dropdownPosition.y = Math.max(0, restrictBottom - dropdownBounds.height);
-         }
+      if(dropdownBottom > restrictBottom) {
+         this.dropdownPosition.y = Math.max(0, restrictBottom - dropdownBounds.height);
       }
    }
 

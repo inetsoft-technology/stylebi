@@ -35,7 +35,6 @@ import { ConditionDialog } from "./condition-dialog.component";
 })
 export class ConditionList {
    public XSchema = XSchema;
-   @Input() showDefaultButtons: boolean = true;
    @Input() simplePane: boolean = false;
    @Input() provider: ConditionItemPaneProvider;
    @Input() fields: DataRef[];

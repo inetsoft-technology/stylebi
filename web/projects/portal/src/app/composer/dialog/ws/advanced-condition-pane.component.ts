@@ -34,6 +34,7 @@ import { ConditionList } from "../../../widget/condition/condition-list.componen
 @Component({
     selector: "advanced-condition-pane",
     templateUrl: "advanced-condition-pane.component.html",
+    styleUrls: ["advanced-condition-pane.component.scss"],
     imports: [ConditionList]
 })
 export class AdvancedConditionPane implements OnInit, OnChanges {
@@ -72,6 +73,18 @@ export class AdvancedConditionPane implements OnInit, OnChanges {
    }
 
    ngOnChanges(changes: SimpleChanges) {
+      if(changes.hasOwnProperty("variableNames")) {
+         // variableNames arrives asynchronously (after the parent's REST model loads),
+         // so push the updated list into providers if they already exist.
+         if(this.prePostProvider) {
+            this.prePostProvider.variableNames = this.variableNames;
+         }
+
+         if(this.rankingProvider) {
+            this.rankingProvider.variableNames = this.variableNames;
+         }
+      }
+
       if((changes.hasOwnProperty("preAggregateFields") ||
           changes.hasOwnProperty("postAggregateFields")) &&
          this.preAggregateFields && this.postAggregateFields)

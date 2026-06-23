@@ -30,6 +30,8 @@ import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.portal.model.database.*;
 import inetsoft.web.portal.model.database.events.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.util.StringUtils;
@@ -47,6 +49,8 @@ import java.util.stream.Collectors;
 @RestController
 @Lazy
 public class PhysicalModelController {
+
+   private static final Logger LOG = LoggerFactory.getLogger(PhysicalModelController.class);
 
    public PhysicalModelController(RuntimePartitionService runtimePartitionService,
                                   DatabaseTreeService databaseTreeService,
@@ -183,9 +187,30 @@ public class PhysicalModelController {
          databaseTreeService.getDatabaseNodes(parentPath, parr, additional, false,
             false, principal);
 
+      for(DatabaseTreeNode node : nodes) {
+         if(isSchemaFolderNode(node)) {
+            try {
+               List<DatabaseTreeNode> children = databaseTreeService.getDatabaseNodes(
+                  node.getPath(), node.getParr(), additional, false, false, principal);
+               long tableCount = children.stream()
+                  .filter(c -> DatabaseTreeNodeType.TABLE.equals(c.getType()))
+                  .count();
+               node.setTableCount((int) tableCount);
+            }
+            catch(Exception e) {
+               LOG.debug("Failed to count tables in schema folder '{}': {}", node.getPath(), e.getMessage());
+            }
+         }
+      }
+
       return nodes.stream()
          .map(this::buildDatabaseTreeNode)
          .collect(Collectors.toList());
+   }
+
+   private boolean isSchemaFolderNode(DatabaseTreeNode node) {
+      return DatabaseTreeNodeType.FOLDER.equals(node.getType()) &&
+         node.getSchema() != null && !node.getSchema().isEmpty();
    }
 
    private TreeNodeModel buildDatabaseTreeNode(DatabaseTreeNode node) {
