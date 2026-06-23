@@ -908,14 +908,20 @@ public class JDBCQuery extends XQuery {
    }
 
    /** Last exception caught by {@link #getOutputTypeForNonParseableSQL}; null on success. */
-   public Exception getLastQueryError() { return lastQueryError; }
-   public void setLastQueryError(Exception e) { lastQueryError = e; }
+   public Exception getLastQueryError() {
+      return lastQueryError;
+   }
+
+   public void setLastQueryError(Exception e) {
+      lastQueryError = e;
+   }
 
    private SQLDefinition sql;
    private boolean venabled;
    // this is set when query is generated at runtime so it's not persistent
    private boolean userQuery;
-   private Exception lastQueryError;
+   // transient: Exception may hold non-serializable thread-local state
+   private transient Exception lastQueryError;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(JDBCQuery.class);

@@ -1949,6 +1949,7 @@ public class QueryManagerService {
          cinfo.setMinOccurs(0);
          cinfo.setMaxOccurs(XTypeNode.STAR);
          JDBCQuery clone = query.clone();
+         clone.setLastQueryError(null);
          cinfo = clone.getOutputTypeForNonParseableSQL(cinfo, vars, session);
          // Propagate any JDBC failure from the clone so callers can surface the root cause.
          query.setLastQueryError(clone.getLastQueryError());

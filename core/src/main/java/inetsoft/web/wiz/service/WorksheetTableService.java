@@ -1253,7 +1253,9 @@ public class WorksheetTableService {
       while(root.getCause() != null) {
          root = root.getCause();
       }
-      return root.getMessage() != null ? root.getMessage() : root.getClass().getSimpleName();
+      String msg = root.getMessage() != null ? root.getMessage() : root.getClass().getSimpleName();
+      int nl = msg.indexOf('\n');
+      return nl > 0 ? msg.substring(0, nl) : msg;
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetTableService.class);
