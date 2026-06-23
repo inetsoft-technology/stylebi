@@ -21,9 +21,11 @@ import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.sree.security.IdentityID;
-import inetsoft.uql.XPrincipal;
+import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
+import inetsoft.uql.jdbc.*;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.web.wiz.pairing.*;
@@ -58,7 +60,8 @@ public class WorksheetAgentController {
                                    WorksheetEditService editService,
                                    WorksheetService worksheetService,
                                    WorksheetPreviewService previewService,
-                                   SheetAgentBroadcastService broadcast)
+                                   SheetAgentBroadcastService broadcast,
+                                   XRepository xrepository)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -68,6 +71,7 @@ public class WorksheetAgentController {
       this.worksheetService = worksheetService;
       this.previewService = previewService;
       this.broadcast = broadcast;
+      this.xrepository = xrepository;
    }
 
    // ---------------------------------------------------------------------------
@@ -436,9 +440,151 @@ public class WorksheetAgentController {
                                   req.type(), req.sql());
          case "edit_join" ->
             editor.editJoin(req.name(), req.leftKey(), req.rightKey(), req.joinType());
+         case "delete_table" ->
+            editor.deleteTable(req.table());
+         case "rename_table" ->
+            editor.renameTable(req.table(), req.newName());
+         case "set_column_visibility" ->
+            editor.setColumnVisibility(req.table(), req.column(),
+                                       req.visible() != null && req.visible());
+         case "change_column_type" ->
+            editor.changeColumnType(req.table(), req.column(), req.type());
+         case "add_concatenation" ->
+            editor.addConcatenation(req.name(), req.tables(), req.concatType());
+         case "add_mirror" ->
+            editor.addMirror(req.name(), req.source());
          default ->
             throw new PairingException("Unknown op: " + req.op());
       }
+   }
+
+   // ---------------------------------------------------------------------------
+   // SQL query table endpoint
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Request body for creating a SQL query table.
+    *
+    * @param datasource the JDBC datasource name (must already be configured in StyleBI)
+    * @param sql        the SQL query string
+    * @param name       optional assembly name (auto-generated if omitted)
+    */
+   public record SqlQueryRequest(String datasource, String sql, String name) {}
+
+   /**
+    * Response from creating a SQL query table.
+    *
+    * @param tableName the assembly name of the newly created table
+    */
+   public record SqlQueryResponse(String tableName) {}
+
+   /**
+    * Create a new SQL query table assembly in the worksheet.
+    *
+    * <p>The agent supplies a JDBC datasource name and a freeform SQL string. The endpoint
+    * creates a {@link SQLBoundTableAssembly} with a {@link JDBCQuery}, parses the SQL,
+    * initialises column selection, and positions the assembly on the canvas.</p>
+    *
+    * @param sessionToken the token obtained at join time
+    * @param body         datasource, sql, and optional name
+    * @param user         the authenticated agent principal
+    * @return the assembly name of the new table
+    * @throws PairingException if the session is invalid, the datasource is not found,
+    *                          or the SQL cannot be parsed
+    */
+   @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/sql-query")
+   public SqlQueryResponse addSqlQuery(@PathVariable String sessionToken,
+                                       @RequestBody SqlQueryRequest body,
+                                       Principal user) throws PairingException
+   {
+      requireEnabled();
+
+      if(body.datasource() == null || body.datasource().isBlank()) {
+         throw new PairingException("datasource is required.");
+      }
+
+      if(body.sql() == null || body.sql().isBlank()) {
+         throw new PairingException("sql is required.");
+      }
+
+      XDataSource xds;
+
+      try {
+         xds = xrepository.getDataSource(body.datasource());
+      }
+      catch(Exception e) {
+         throw new PairingException("Datasource not found: " + body.datasource());
+      }
+
+      if(xds == null) {
+         throw new PairingException("Datasource not found: " + body.datasource());
+      }
+
+      if(!(xds instanceof JDBCDataSource)) {
+         throw new PairingException(
+            "Datasource '" + body.datasource() + "' is not a JDBC datasource.");
+      }
+
+      return editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         String tableName = body.name() != null && !body.name().isBlank()
+            ? body.name()
+            : AssetUtil.getNextName(ws, AbstractSheet.TABLE_ASSET);
+
+         SQLBoundTableAssembly assembly = new SQLBoundTableAssembly(ws, tableName);
+
+         // Build the JDBCQuery with freeform SQL.
+         JDBCQuery query = new JDBCQuery();
+         query.setUserQuery(true);
+
+         try {
+            query.setDataSource(xrepository.getDataSource(body.datasource()));
+         }
+         catch(Exception e) {
+            throw new PairingException("Failed to load datasource: " + e.getMessage());
+         }
+
+         UniformSQL sql = new UniformSQL();
+         sql.setDataSource((JDBCDataSource) xds);
+
+         try {
+            synchronized(sql) {
+               sql.setParseSQL(true);
+               sql.setSQLString(body.sql(), true);
+               sql.wait(10_000);
+            }
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new PairingException("SQL parsing was interrupted.");
+         }
+
+         query.setSQLDefinition(sql);
+
+         SQLBoundTableAssemblyInfo info =
+            (SQLBoundTableAssemblyInfo) assembly.getInfo();
+         info.setQuery(query);
+         info.setSourceInfo(new SourceInfo(
+            SourceInfo.PHYSICAL_TABLE, body.datasource(), body.datasource()));
+
+         // Position below existing assemblies.
+         int maxY = 0;
+
+         for(Assembly a : ws.getAssemblies()) {
+            Point p = a.getPixelOffset();
+            Dimension d = ((WSAssembly) a).getPixelSize();
+
+            if(p != null && d != null) {
+               maxY = Math.max(maxY, p.y + d.height);
+            }
+         }
+
+         assembly.setPixelOffset(new Point(25, maxY + 40));
+         assembly.setSQLEdited(true);
+         ws.addAssembly(assembly);
+         AssetEventUtil.initColumnSelection(rws, assembly);
+         return new SqlQueryResponse(tableName);
+      });
    }
 
    // ---------------------------------------------------------------------------
@@ -466,4 +612,5 @@ public class WorksheetAgentController {
    private final WorksheetService worksheetService;
    private final WorksheetPreviewService previewService;
    private final SheetAgentBroadcastService broadcast;
+   private final XRepository xrepository;
 }

@@ -42,6 +42,12 @@ import java.util.List;
  *   <li>{@code edit_condition} — {@code table}, {@code field}, {@code operation}, {@code values}</li>
  *   <li>{@code edit_expression} — {@code table}, {@code name}, {@code expression}, {@code type}, {@code sql}</li>
  *   <li>{@code edit_join} — {@code name}, {@code leftKey}, {@code rightKey}, {@code joinType}</li>
+ *   <li>{@code delete_table} — {@code table}</li>
+ *   <li>{@code rename_table} — {@code table}, {@code newName}</li>
+ *   <li>{@code set_column_visibility} — {@code table}, {@code column}, {@code visible}</li>
+ *   <li>{@code change_column_type} — {@code table}, {@code column}, {@code type}</li>
+ *   <li>{@code add_concatenation} — {@code name}, {@code tables} (list), {@code concatType} (UNION|INTERSECT|MINUS)</li>
+ *   <li>{@code add_mirror} — {@code name}, {@code source}</li>
  * </ul>
  */
 public record EditRequest(
@@ -82,5 +88,13 @@ public record EditRequest(
    /** Join key column from the right table for add_join. */
    String rightKey,
    /** Join type for add_join — {@code "INNER"}, {@code "LEFT"}, {@code "RIGHT"}, {@code "FULL"}. */
-   String joinType
+   String joinType,
+   /** Column visibility for set_column_visibility ({@code true} = visible, {@code false} = hidden). */
+   Boolean visible,
+   /** Source table names for add_concatenation (at least two required). */
+   List<String> tables,
+   /** Source assembly name for add_mirror. */
+   String source,
+   /** Concatenation type for add_concatenation — {@code "UNION"}, {@code "INTERSECT"}, {@code "MINUS"}. */
+   String concatType
 ) {}

@@ -487,6 +487,162 @@ public class WorksheetEditService {
       // -----------------------------------------------------------------------
 
       // -----------------------------------------------------------------------
+      // Assembly creation mutators
+      // -----------------------------------------------------------------------
+
+      /**
+       * Creates a {@link ConcatenatedTableAssembly} from two or more existing tables
+       * and adds it to the worksheet.
+       *
+       * @param name      the name for the new concatenated assembly
+       * @param tables    the source table assembly names (at least two)
+       * @param opType    one of {@code "UNION"}, {@code "INTERSECT"}, {@code "MINUS"}
+       *                  (case-insensitive; defaults to {@code "UNION"})
+       * @throws PairingException if fewer than two tables are given or a source is not found
+       */
+      public void addConcatenation(String name, List<String> tables, String opType)
+         throws PairingException
+      {
+         if(tables == null || tables.size() < 2) {
+            throw new PairingException("Concatenation requires at least two tables.");
+         }
+
+         int operation = parseConcatType(opType);
+         TableAssembly[] sources = new TableAssembly[tables.size()];
+
+         for(int i = 0; i < tables.size(); i++) {
+            sources[i] = requireTable(tables.get(i));
+         }
+
+         // Build one operator per adjacent pair.
+         TableAssemblyOperator[] operators = new TableAssemblyOperator[sources.length - 1];
+
+         for(int i = 0; i < operators.length; i++) {
+            TableAssemblyOperator top = new TableAssemblyOperator();
+            TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+            op.setOperation(operation);
+            top.addOperator(op);
+            operators[i] = top;
+         }
+
+         ConcatenatedTableAssembly ctbl =
+            new ConcatenatedTableAssembly(ws, name, sources, operators);
+         ws.addAssembly(ctbl);
+      }
+
+      /**
+       * Creates a {@link MirrorTableAssembly} that references an existing table
+       * assembly in the worksheet.
+       *
+       * @param name   the name for the new mirror assembly
+       * @param source the name of the table assembly to mirror
+       * @throws PairingException if the source assembly is not found
+       */
+      public void addMirror(String name, String source) throws PairingException {
+         Assembly a = ws.getAssembly(source);
+
+         if(!(a instanceof WSAssembly wsa)) {
+            throw new PairingException("Source assembly not found: " + source);
+         }
+
+         MirrorTableAssembly mirror = new MirrorTableAssembly(ws, name, wsa);
+         ws.addAssembly(mirror);
+      }
+
+      // -----------------------------------------------------------------------
+      // Table-level mutators
+      // -----------------------------------------------------------------------
+
+      /**
+       * Removes a table assembly from the worksheet.
+       *
+       * @param table the assembly name to delete
+       * @throws PairingException if no assembly with {@code table} exists
+       */
+      public void deleteTable(String table) throws PairingException {
+         Assembly a = ws.getAssembly(table);
+
+         if(a == null) {
+            throw new PairingException("Table not found in worksheet: " + table);
+         }
+
+         ws.removeAssembly(table);
+      }
+
+      /**
+       * Renames a table assembly in the worksheet.  All internal references
+       * (joins, mirrors, etc.) are updated automatically by
+       * {@link Worksheet#renameAssembly}.
+       *
+       * @param oldName the current assembly name
+       * @param newName the desired new name
+       * @throws PairingException if no assembly with {@code oldName} exists or
+       *                          the rename fails
+       */
+      public void renameTable(String oldName, String newName) throws PairingException {
+         Assembly a = ws.getAssembly(oldName);
+
+         if(a == null) {
+            throw new PairingException("Table not found in worksheet: " + oldName);
+         }
+
+         if(!ws.renameAssembly(oldName, newName, true)) {
+            throw new PairingException(
+               "Failed to rename table '" + oldName + "' to '" + newName +
+               "' — the name may already be in use.");
+         }
+      }
+
+      // -----------------------------------------------------------------------
+      // Column property mutators
+      // -----------------------------------------------------------------------
+
+      /**
+       * Sets the visibility of a column in the table's public column selection.
+       *
+       * @param table   the assembly name
+       * @param col     the column attribute name
+       * @param visible {@code true} to show, {@code false} to hide
+       * @throws PairingException if the table or column is not found
+       */
+      public void setColumnVisibility(String table, String col, boolean visible)
+         throws PairingException
+      {
+         TableAssembly t = requireTable(table);
+         ColumnSelection cs = t.getColumnSelection(false);
+         DataRef ref = cs.getAttribute(col);
+
+         if(!(ref instanceof ColumnRef cr)) {
+            throw new PairingException("Column not found: " + col);
+         }
+
+         cr.setVisible(visible);
+      }
+
+      /**
+       * Changes the data type of a column in the table's public column selection.
+       *
+       * @param table the assembly name
+       * @param col   the column attribute name
+       * @param type  the new data type string (e.g. {@code "string"}, {@code "double"},
+       *              {@code "integer"}, {@code "date"}, {@code "boolean"})
+       * @throws PairingException if the table or column is not found
+       */
+      public void changeColumnType(String table, String col, String type)
+         throws PairingException
+      {
+         TableAssembly t = requireTable(table);
+         ColumnSelection cs = t.getColumnSelection(false);
+         DataRef ref = cs.getAttribute(col);
+
+         if(!(ref instanceof ColumnRef cr)) {
+            throw new PairingException("Column not found: " + col);
+         }
+
+         cr.setDataType(type);
+      }
+
+      // -----------------------------------------------------------------------
       // Edit-in-place mutators
       // -----------------------------------------------------------------------
 
@@ -587,6 +743,18 @@ public class WorksheetEditService {
       // -----------------------------------------------------------------------
       // Helper
       // -----------------------------------------------------------------------
+
+      static int parseConcatType(String opType) {
+         if(opType == null) {
+            return TableAssemblyOperator.UNION;
+         }
+
+         return switch(opType.toUpperCase()) {
+            case "INTERSECT" -> TableAssemblyOperator.INTERSECT;
+            case "MINUS"     -> TableAssemblyOperator.MINUS;
+            default          -> TableAssemblyOperator.UNION;
+         };
+      }
 
       static int parseJoinType(String joinType) {
          if(joinType == null) {
