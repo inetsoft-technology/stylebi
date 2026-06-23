@@ -20,6 +20,7 @@ package inetsoft.web.wiz.worksheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.event.AssetEventUtil;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -151,20 +152,58 @@ public class WorksheetAgentController {
    }
 
    /**
+    * Request body for the save endpoint.
+    *
+    * @param name optional name/path to save the worksheet as (e.g. {@code "agent_ws_1"} or
+    *             {@code "My Folder/agent_ws_1"}).  Required when the worksheet is untitled
+    *             (i.e. has not been saved before).  When omitted the worksheet is saved in-place.
+    */
+   public record SaveRequest(String name) {}
+
+   /**
     * Persist the current in-memory worksheet state back to the asset repository.
     *
+    * <p>When {@code body.name()} is provided (or the worksheet is still in temporary scope)
+    * a new user-scope {@link AssetEntry} is created from the supplied name and the worksheet
+    * is saved under that path ("Save As" semantics).  The session entry is updated so that
+    * subsequent plain saves work without repeating the name.</p>
+    *
     * @param sessionToken the token obtained at join time
+    * @param body         optional name for save-as
     * @param user         the authenticated agent principal
-    * @throws PairingException if the session is invalid/expired or the runtime is not found
+    * @throws PairingException if the session is invalid/expired, the runtime is not found,
+    *                          or the worksheet is untitled and no name was supplied
     */
    @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/save")
-   public void save(@PathVariable String sessionToken, Principal user) throws PairingException {
+   public void save(@PathVariable String sessionToken,
+                    @RequestBody SaveRequest body,
+                    Principal user) throws PairingException
+   {
       requireEnabled();
       RuntimeWorksheet rws = editService.resolve(sessionToken, user);
+      AssetEntry entry = rws.getEntry();
+
+      String name = body.name() != null ? body.name().trim() : null;
+
+      if(entry.getScope() == AssetRepository.TEMPORARY_SCOPE) {
+         if(name == null || name.isEmpty()) {
+            throw new PairingException(
+               "Worksheet is unsaved — provide a 'name' to save it (e.g. \"agent_ws_1\").");
+         }
+      }
+
+      if(name != null && !name.isEmpty()) {
+         IdentityID uname = IdentityID.getIdentityIDFromKey(user.getName());
+         entry = new AssetEntry(AssetRepository.USER_SCOPE,
+                                AssetEntry.Type.WORKSHEET, name, uname,
+                                uname.orgID);
+      }
 
       try {
-         worksheetService.setWorksheet(rws.getWorksheet(), rws.getEntry(),
+         worksheetService.setWorksheet(rws.getWorksheet(), entry,
                                        (XPrincipal) user, true, true);
+         rws.setEntry(entry);
+         rws.setEditable(true);
       }
       catch(Exception e) {
          throw new PairingException("Failed to save worksheet: " + e.getMessage());
