@@ -72,7 +72,6 @@ public class TreemapChartFilter extends ChartTypeFilter {
       addTField(info, comb, refs);
       addColor(info, comb);
       addInsideField(info, comb, refs);
-
       return getClassyInfo(info);
    }
 
