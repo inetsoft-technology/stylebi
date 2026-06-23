@@ -46,7 +46,7 @@ async function renderComponent(inputs: Partial<ToolboxPane> = {}) {
       componentProviders: [
          { provide: DomService, useValue: DOM_SERVICE_MOCK },
       ],
-      componentInputs: inputs,
+      componentProperties: inputs,
    });
 }
 

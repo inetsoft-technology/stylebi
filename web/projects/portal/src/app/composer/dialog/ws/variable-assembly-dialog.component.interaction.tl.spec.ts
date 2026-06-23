@@ -250,7 +250,7 @@ describe("Group 5 — showVariableListDialog: opens modal, resolves to embedded"
       modalSvc.open.mockReturnValue({ result: Promise.resolve(resolvedList) });
 
       comp.showVariableListDialog();
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await Promise.resolve();
 
       expect(comp.form.get("selectionList").value).toBe("embedded");
       expect(comp.model.variableListDialogModel).toBe(resolvedList);
@@ -261,7 +261,7 @@ describe("Group 5 — showVariableListDialog: opens modal, resolves to embedded"
       modalSvc.open.mockReturnValue({ result: Promise.reject("dismissed") });
 
       comp.showVariableListDialog();
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await Promise.resolve();
 
       expect(comp.form.get("selectionList").value).toBe("none");
    });
@@ -278,7 +278,7 @@ describe("Group 6 — showVariableTableListDialog: opens modal, resolves to quer
       modalSvc.open.mockReturnValue({ result: Promise.resolve(tableModel) });
 
       comp.showVariableTableListDialog();
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await Promise.resolve();
 
       expect(comp.form.get("selectionList").value).toBe("query");
       expect(comp.model.variableTableListDialogModel).toBe(tableModel);

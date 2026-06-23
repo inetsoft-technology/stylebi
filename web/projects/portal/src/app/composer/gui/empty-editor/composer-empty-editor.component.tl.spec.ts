@@ -46,7 +46,7 @@
 
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { render } from "@testing-library/angular";
-import { of } from "rxjs";
+import { Observable, of } from "rxjs";
 
 import { ComposerEmptyEditor } from "./composer-empty-editor.component";
 import { DragService } from "../../../widget/services/drag.service";
@@ -452,17 +452,23 @@ describe("ComposerEmptyEditor — ngOnInit subscription lifecycle", () => {
    it("should complete the subscription after the first emit (no persistent leak)", async () => {
       let completed = false;
       MODEL_SERVICE_MOCK.getModel.mockReturnValue(
-         new (class {
-            subscribe(observer: any) {
-               observer.next({ viewsheetCreateMessage: "x", viewsheetEditMessage: "", worksheetCreateMessage: "", worksheetEditMessage: "" });
-               observer.complete();
-               completed = true;
-               return { unsubscribe: vi.fn() };
-            }
-         })()
+         new Observable(subscriber => {
+            subscriber.next({ viewsheetCreateMessage: "x", viewsheetEditMessage: "", worksheetCreateMessage: "", worksheetEditMessage: "" });
+            subscriber.complete();
+            completed = true;
+         })
       );
 
-      await renderComponent(null);
+      // Cannot use renderComponent() here — it always overwrites MODEL_SERVICE_MOCK.getModel
+      // via mockReturnValue(of(customMessage)), which would discard the spy above.
+      await render(ComposerEmptyEditor, {
+         schemas: [NO_ERRORS_SCHEMA],
+         providers: [
+            { provide: DragService, useValue: DRAG_SERVICE_MOCK },
+            { provide: ModelService, useValue: MODEL_SERVICE_MOCK },
+            { provide: ComposerRecentService, useValue: RECENT_SERVICE_MOCK },
+         ],
+      });
 
       expect(completed).toBe(true);
    });

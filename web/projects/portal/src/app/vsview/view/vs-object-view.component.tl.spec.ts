@@ -47,6 +47,7 @@
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { render } from "@testing-library/angular";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { Subject } from "rxjs";
 import { VSObjectView } from "./vs-object-view.component";
 import { ViewsheetClientService } from "../../common/viewsheet-client";
 import { AssemblyActionFactory } from "../../vsobjects/action/assembly-action-factory.service";
@@ -54,9 +55,11 @@ import { MiniToolbarService } from "../../vsobjects/objects/mini-toolbar/mini-to
 import { VSObjectModel } from "../../vsobjects/model/vs-object-model";
 import { LocalStorage } from "../../common/util/local-storage.util";
 
+const commandsSubject = new Subject<any>();
 const clientServiceMock = {
    sendEvent: vi.fn(),
    runtimeId: "vs-test",
+   commands: commandsSubject,
    addMessageListener: vi.fn(),
    removeMessageListener: vi.fn(),
 };
@@ -81,8 +84,10 @@ function makeModel(overrides: Partial<VSObjectModel> = {}): VSObjectModel {
 }
 
 async function renderComponent(props: Record<string, any> = {}) {
+   vi.spyOn(VSObjectView.prototype as any, "resizeModelView").mockImplementation(() => {});
    const { fixture } = await render(VSObjectView, {
       schemas: [NO_ERRORS_SCHEMA],
+      componentImports: [],
       providers: [
          { provide: ViewsheetClientService, useValue: clientServiceMock },
          { provide: AssemblyActionFactory, useValue: actionFactoryMock },
@@ -248,12 +253,14 @@ describe("VSObjectView — getFormats deferred emit (+memory leak)", () => {
       comp.onUpdateData.subscribe(v => emitted.push(v));
 
       vi.useFakeTimers();
-      comp.getFormats(new MouseEvent("click")); // queues 250ms timer
-      fixture.destroy();                         // ngOnDestroy → super.cleanup(); timer NOT cancelled
-      vi.advanceTimersByTime(300);               // timer fires on dead component
-
-      expect(emitted).toHaveLength(0); // FAILS — "getCurrentFormat" was emitted after destroy
-      vi.useRealTimers();
+      try {
+         comp.getFormats(new MouseEvent("click")); // queues 250ms timer
+         fixture.destroy();                         // ngOnDestroy → super.cleanup(); timer NOT cancelled
+         vi.advanceTimersByTime(300);               // timer fires on dead component
+         expect(emitted).toHaveLength(0); // FAILS — "getCurrentFormat" was emitted after destroy
+      } finally {
+         vi.useRealTimers();
+      }
    });
 });
 
@@ -262,11 +269,14 @@ describe("VSObjectView — getFormats deferred emit (+memory leak)", () => {
 // ---------------------------------------------------------------------------
 
 describe("VSObjectView — ngOnDestroy", () => {
-   it("should call removeMessageListener during cleanup when destroyed", async () => {
-      const { fixture } = await renderComponent();
+   it("should unsubscribe from the command stream when destroyed", async () => {
+      const { comp, fixture } = await renderComponent();
+      // CommandProcessor.cleanup() calls subscription.unsubscribe() (not removeMessageListener)
+      const subscription = (comp as any).subscription;
+      expect(subscription).not.toBeNull();
+      const unsubscribeSpy = vi.spyOn(subscription, "unsubscribe");
       fixture.destroy();
-      // CommandProcessor.cleanup() calls viewsheetClient.removeMessageListener for each registered listener
-      expect(clientServiceMock.removeMessageListener).toHaveBeenCalled();
+      expect(unsubscribeSpy).toHaveBeenCalled();
    });
 });
 

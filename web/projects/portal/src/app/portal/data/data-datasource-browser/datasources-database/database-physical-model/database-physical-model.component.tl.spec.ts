@@ -54,7 +54,6 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 import { EMPTY, Subject, of } from "rxjs";
-
 import { server } from "@test-mocks/server";
 import { ComponentTool } from "../../../../../common/util/component-tool";
 import { DataModelNameChangeService } from "../../../services/data-model-name-change.service";
@@ -162,10 +161,6 @@ function keyEvent(ctrlKey: boolean, key: string): KeyboardEvent {
 }
 
 async function renderPhysical(model: PhysicalModelDefinition = createPhysicalModel()) {
-   server.use(
-      http.delete("*/api/data/physicalmodel/destroy", () => MswHttpResponse.json({}))
-   );
-
    const service = createPhysicalService(model);
    const router = { navigate: vi.fn() };
    const route = { paramMap: EMPTY };
@@ -319,13 +314,13 @@ describe("DatabasePhysicalModelComponent - refreshWarnings0 - warning confirmati
       const comp = fixture.componentInstance;
       const warning = { message: "Join warning", canContinue: true };
       const callback = vi.fn();
+      server.use(
+         http.get("*/api/data/physicalmodel/warnings/*", () =>
+            MswHttpResponse.json(warning)
+         )
+      );
       const confirmSpy = vi.spyOn(ComponentTool, "showConfirmDialog")
          .mockResolvedValue("ok" as any);
-
-      server.use(
-         http.get("*/api/data/physicalmodel/warnings/runtime1", () =>
-            MswHttpResponse.json(warning))
-      );
 
       (comp as any).refreshWarnings0("runtime1", callback, true);
 
