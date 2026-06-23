@@ -37,7 +37,7 @@ import { Tool } from "../../../../../shared/util/tool";
 import { GraphUtil } from "../util/graph-util";
 import { AestheticInfo } from "../data/chart/aesthetic-info";
 import { TextLayoutModel } from "../../common/data/visual-frame-model";
-import { TextLayoutDesignerComponent } from "./chart/aesthetic/text-layout-designer.component";
+import { TextLayoutDesignerComponent, LAYOUT_FIELD_PREFIX } from "./chart/aesthetic/text-layout-designer.component";
 import { ChartEditorService } from "../services/chart/chart-editor.service";
 import { ModelService } from "../../widget/services/model.service";
 import { StatusBar } from "../../status-bar/status-bar.component";
@@ -409,7 +409,7 @@ export class BindingEditor implements OnInit, AfterViewInit, OnDestroy {
       // For an index-based layout-field key, append the multi-style aggregate context so the backend
       // resolves the field against the correct per-aggregate textLayoutFields list. Chart-level
       // (no aggregate) and static (_static:) keys pass through unchanged.
-      if(key && key.startsWith("_layoutfield:") && this.layoutDesignerAggregateName) {
+      if(key && key.startsWith(LAYOUT_FIELD_PREFIX) && this.layoutDesignerAggregateName) {
          key = key + ":" + this.layoutDesignerAggregateName;
       }
 

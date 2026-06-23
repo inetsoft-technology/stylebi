@@ -2225,14 +2225,19 @@ public class FormatPainterService {
    // is stable: textLayoutFields are rebuilt in model order and removals compact indices in lockstep.
    private static final String LAYOUT_FIELD_PREFIX = "_layoutfield:";
 
-   private static boolean isLayoutFieldKey(String columnName) {
+   // Package-private for direct unit testing (FormatPainterServiceLayoutFieldTest).
+   static boolean isLayoutFieldKey(String columnName) {
       return columnName != null && columnName.startsWith(LAYOUT_FIELD_PREFIX);
    }
 
    // Resolve the ChartRef for an index key against the chart-level textLayoutFields, or against the
    // named aggregate's list when an aggregate full name is appended (multi-style). Returns null when
    // the key is malformed, the aggregate is not found, or the index is out of range.
-   private ChartRef resolveLayoutFieldByIndex(VSChartInfo chartInfo, String columnName) {
+   // static (no instance state) and package-private for direct unit testing
+   // (FormatPainterServiceLayoutFieldTest).
+   static ChartRef resolveLayoutFieldByIndex(VSChartInfo chartInfo, String columnName) {
+      // Re-check the prefix so this method is safe to call standalone (callers also guard); the
+      // duplicated check keeps it self-contained for tests that invoke it directly.
       if(!isLayoutFieldKey(columnName)) {
          return null;
       }

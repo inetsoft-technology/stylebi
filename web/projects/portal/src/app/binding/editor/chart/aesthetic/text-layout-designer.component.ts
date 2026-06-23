@@ -38,6 +38,11 @@ import { DragDropModule } from "@angular/cdk/drag-drop";
 import { ChartAestheticMc } from "./chart-aesthetic-mc.component";
 import { BlockMouseDirective } from "../../../../widget/mouse-event/block-mouse.directive";
 
+// Prefix for the index-based Format-panel key ("_layoutfield:<index>"). Keying by index (not the
+// client-side, not-yet-aggregated field name) is what fixes the "format reverts on first open" bug
+// (#75474). Must match LAYOUT_FIELD_PREFIX on the Java side (FormatPainterService).
+export const LAYOUT_FIELD_PREFIX = "_layoutfield:";
+
 @Component({
    selector: "text-layout-designer",
    templateUrl: "./text-layout-designer.component.html",
@@ -575,18 +580,14 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
    }
 
    openFieldFormat(item: TextLayoutItemModel): void {
-      // Key the Format panel by the field's INDEX, not its name. A field added in the designer is
-      // built client-side and its aggregated full name (e.g. "Sum(Sales)") is only assigned by the
-      // backend on the next round-trip — so a name key would not match the layout-field ref until a
-      // close/reopen, which is exactly the "format reverts on first open" bug (#75474). The index is
-      // stable end-to-end: the backend rebuilds textLayoutFields in model order and removals compact
-      // fieldIndex in lockstep. The host appends the multi-style aggregate context when present.
+      // Key the Format panel by field INDEX, not name — a designer-added field's aggregated name
+      // isn't known client-side until a round-trip, so a name key fails on first open (#75474).
       if(item?.fieldIndex == null) {
          return;
       }
 
       this.onPreSaveLayout.emit({ rows: this.workingRows });
-      this.onFormatField.emit("_layoutfield:" + item.fieldIndex);
+      this.onFormatField.emit(LAYOUT_FIELD_PREFIX + item.fieldIndex);
    }
 
    /**
