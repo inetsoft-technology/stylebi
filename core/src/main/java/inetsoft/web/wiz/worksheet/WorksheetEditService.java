@@ -140,6 +140,25 @@ public class WorksheetEditService {
          SheetType.WORKSHEET, session.runtimeId(), agent);
    }
 
+   /**
+    * Resolve a session and return both the runtime worksheet and the session's runtime ID.
+    */
+   public ResolvedSession resolveWithSession(String sessionToken, Principal agent) throws PairingException {
+      String agentKey = agentKey(agent);
+      JoinSession session = sessions.resolve(sessionToken, agentKey);
+
+      if(session == null) {
+         throw new PairingException("Invalid or expired session: " + sessionToken);
+      }
+
+      RuntimeWorksheet rws = (RuntimeWorksheet) runtimeAccess.getSheetForPairing(
+         SheetType.WORKSHEET, session.runtimeId(), agent);
+      applySocketSession(rws, session);
+      return new ResolvedSession(rws, session.runtimeId());
+   }
+
+   public record ResolvedSession(RuntimeWorksheet rws, String runtimeId) {}
+
    // -------------------------------------------------------------------------
    // Identity key helpers
    // -------------------------------------------------------------------------

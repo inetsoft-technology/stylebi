@@ -26,6 +26,8 @@ import inetsoft.uql.asset.Worksheet;
 import inetsoft.web.composer.ws.assembly.WSAssemblyModel;
 import inetsoft.web.composer.ws.assembly.WSAssemblyModelFactory;
 import inetsoft.web.composer.ws.command.RefreshWorksheetCommand;
+import inetsoft.web.composer.ws.command.SetWorksheetInfoCommand;
+import inetsoft.web.viewsheet.command.SaveSheetCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CommandDispatcherService;
 import org.slf4j.Logger;
@@ -88,6 +90,52 @@ public class SheetAgentBroadcastService {
 
       LOG.info("Pairing broadcast refresh sent (sheetType={}, runtimeId={}, sessionId={})",
                sheetType, runtimeId, sessionId);
+   }
+
+   /**
+    * Push a SetWorksheetInfoCommand (tab label) + SaveSheetCommand to the browser
+    * so the tab title, id, and save point update — mirrors the regular save flow
+    * in SaveWorksheetDialogService.
+    */
+   public void broadcastSave(RuntimeSheet rs, String runtimeId, Principal owner) {
+      String sessionId = rs.getSocketSessionId();
+
+      if(sessionId == null) {
+         return;
+      }
+
+      String user = rs.getSocketUserName();
+
+      if(user == null) {
+         user = owner == null ? null : owner.getName();
+      }
+
+      // 1. Send SetWorksheetInfoCommand to update the tab label
+      SetWorksheetInfoCommand labelCommand = SetWorksheetInfoCommand.builder()
+         .label(rs.getEntry().toView())
+         .build();
+
+      sendCommand(user, sessionId, runtimeId, labelCommand);
+
+      // 2. Send SaveSheetCommand to update savePoint, id, and newSheet flag
+      SaveSheetCommand saveCommand = SaveSheetCommand.builder()
+         .savePoint(rs.getSavePoint())
+         .id(rs.getEntry().toIdentifier())
+         .build();
+
+      sendCommand(user, sessionId, runtimeId, saveCommand);
+   }
+
+   private void sendCommand(String user, String sessionId, String runtimeId, Object command) {
+      SimpMessageHeaderAccessor headers = SimpMessageHeaderAccessor.create();
+      headers.setSessionId(sessionId);
+      headers.setLeaveMutable(true);
+      headers.setNativeHeader(CommandDispatcher.RUNTIME_ID_ATTR, runtimeId);
+      headers.setNativeHeader(CommandDispatcher.COMMAND_TYPE_HEADER,
+                              resolveCommandType(command));
+
+      commandDispatcherService.convertAndSendToUser(
+         user, CommandDispatcher.COMMANDS_TOPIC, command, headers.getMessageHeaders());
    }
 
    private Object buildCommand(SheetType sheetType, RuntimeSheet rs, Principal owner) {

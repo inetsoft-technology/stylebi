@@ -57,7 +57,8 @@ public class WorksheetAgentController {
                                    WorksheetReadService readService,
                                    WorksheetEditService editService,
                                    WorksheetService worksheetService,
-                                   WorksheetPreviewService previewService)
+                                   WorksheetPreviewService previewService,
+                                   SheetAgentBroadcastService broadcast)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -66,6 +67,7 @@ public class WorksheetAgentController {
       this.editService = editService;
       this.worksheetService = worksheetService;
       this.previewService = previewService;
+      this.broadcast = broadcast;
    }
 
    // ---------------------------------------------------------------------------
@@ -154,19 +156,22 @@ public class WorksheetAgentController {
    /**
     * Request body for the save endpoint.
     *
-    * @param name optional name/path to save the worksheet as (e.g. {@code "agent_ws_1"} or
-    *             {@code "My Folder/agent_ws_1"}).  Required when the worksheet is untitled
-    *             (i.e. has not been saved before).  When omitted the worksheet is saved in-place.
+    * @param name  optional name/path to save the worksheet as (e.g. {@code "agent_ws_1"} or
+    *              {@code "My Folder/agent_ws_1"}).  Required when the worksheet is untitled
+    *              (i.e. has not been saved before).  When omitted the worksheet is saved in-place.
+    * @param scope optional scope — {@code "global"} (default) for the shared repository,
+    *              {@code "user"} for the user's private folder.
     */
-   public record SaveRequest(String name) {}
+   public record SaveRequest(String name, String scope) {}
 
    /**
     * Persist the current in-memory worksheet state back to the asset repository.
     *
     * <p>When {@code body.name()} is provided (or the worksheet is still in temporary scope)
-    * a new user-scope {@link AssetEntry} is created from the supplied name and the worksheet
-    * is saved under that path ("Save As" semantics).  The session entry is updated so that
-    * subsequent plain saves work without repeating the name.</p>
+    * a new {@link AssetEntry} is created from the supplied name and scope (defaults to
+    * {@code GLOBAL_SCOPE}) and the worksheet is saved under that path ("Save As" semantics).
+    * The session entry is updated so that subsequent plain saves work without repeating
+    * the name.</p>
     *
     * @param sessionToken the token obtained at join time
     * @param body         optional name for save-as
@@ -180,7 +185,10 @@ public class WorksheetAgentController {
                     Principal user) throws PairingException
    {
       requireEnabled();
-      RuntimeWorksheet rws = editService.resolve(sessionToken, user);
+      WorksheetEditService.ResolvedSession resolved =
+         editService.resolveWithSession(sessionToken, user);
+      RuntimeWorksheet rws = resolved.rws();
+      String runtimeId = resolved.runtimeId();
       AssetEntry entry = rws.getEntry();
 
       String name = body.name() != null ? body.name().trim() : null;
@@ -194,9 +202,12 @@ public class WorksheetAgentController {
 
       if(name != null && !name.isEmpty()) {
          IdentityID uname = IdentityID.getIdentityIDFromKey(user.getName());
-         entry = new AssetEntry(AssetRepository.USER_SCOPE,
-                                AssetEntry.Type.WORKSHEET, name, uname,
-                                uname.orgID);
+         int assetScope = "user".equalsIgnoreCase(body.scope())
+            ? AssetRepository.USER_SCOPE
+            : AssetRepository.GLOBAL_SCOPE;
+         IdentityID owner = assetScope == AssetRepository.USER_SCOPE ? uname : null;
+         entry = new AssetEntry(assetScope, AssetEntry.Type.WORKSHEET, name,
+                                owner, uname.orgID);
       }
 
       try {
@@ -204,6 +215,8 @@ public class WorksheetAgentController {
                                        (XPrincipal) user, true, true);
          rws.setEntry(entry);
          rws.setEditable(true);
+         rws.setSavePoint(rws.getCurrent());
+         broadcast.broadcastSave(rws, runtimeId, user);
       }
       catch(Exception e) {
          throw new PairingException("Failed to save worksheet: " + e.getMessage());
@@ -452,4 +465,5 @@ public class WorksheetAgentController {
    private final WorksheetEditService editService;
    private final WorksheetService worksheetService;
    private final WorksheetPreviewService previewService;
+   private final SheetAgentBroadcastService broadcast;
 }
