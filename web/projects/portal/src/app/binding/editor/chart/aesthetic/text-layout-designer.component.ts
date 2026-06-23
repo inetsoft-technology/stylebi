@@ -49,7 +49,7 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
    @Input() textFields: AestheticInfo[] = []; // the real binding list FIELD items index into
    @Output() onCommit = new EventEmitter<TextLayoutModel>();
    @Output() onCancel = new EventEmitter<void>();
-   @Output() onFormatField = new EventEmitter<string>(); // emits stub key (fullName or "_static:text")
+   @Output() onFormatField = new EventEmitter<string>(); // emits format key ("_layoutfield:<index>" or "_static:text")
    @Output() onPreSaveLayout = new EventEmitter<TextLayoutModel>(); // pre-save to create stubs before Format panel
    @Output() onAddField = new EventEmitter<{ field: AestheticInfo; insertRow: number; insertIndex: number }>();
    // Emitted when a FIELD chip is removed and its binding is no longer referenced, so the host can
@@ -575,12 +575,18 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
    }
 
    openFieldFormat(item: TextLayoutItemModel): void {
-      const fullName = (this.getFieldRef(item)?.dataInfo as any)?.fullName;
-
-      if(fullName) {
-         this.onPreSaveLayout.emit({ rows: this.workingRows });
-         this.onFormatField.emit(fullName);
+      // Key the Format panel by the field's INDEX, not its name. A field added in the designer is
+      // built client-side and its aggregated full name (e.g. "Sum(Sales)") is only assigned by the
+      // backend on the next round-trip — so a name key would not match the layout-field ref until a
+      // close/reopen, which is exactly the "format reverts on first open" bug (#75474). The index is
+      // stable end-to-end: the backend rebuilds textLayoutFields in model order and removals compact
+      // fieldIndex in lockstep. The host appends the multi-style aggregate context when present.
+      if(item?.fieldIndex == null) {
+         return;
       }
+
+      this.onPreSaveLayout.emit({ rows: this.workingRows });
+      this.onFormatField.emit("_layoutfield:" + item.fieldIndex);
    }
 
    /**
