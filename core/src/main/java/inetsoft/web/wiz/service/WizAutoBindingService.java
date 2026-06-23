@@ -763,6 +763,9 @@ public class WizAutoBindingService {
     * passes "GapQuery.COMPANY_NAME" and the worksheet only has bare "COMPANY_NAME", the
     * prefix is stripped and the key in {@code configMap} is updated in-place so all
     * downstream lookups (buildEntryFromColumn, applyFieldConfigs) see the correct key.
+    *
+    * @param configMap mutable map of field name → config; keys may be rewritten in-place
+    *                  during prefix normalisation — must not be an unmodifiable map.
     */
    static List<ColumnRef> selectBindColumns(List<ColumnRef> worksheetColumns,
                                             Map<String, SimpleFieldInfo> configMap)
@@ -778,8 +781,9 @@ public class WizAutoBindingService {
             .filter(n -> !n.contains("."))
             .collect(Collectors.toSet());
 
-         List<String> toNormalize = new ArrayList<>();
-         List<String> missing     = new ArrayList<>();
+         // prefixed → bare: computed once, reused during the rename step (avoids re-scanning).
+         Map<String, String> toNormalize = new LinkedHashMap<>();
+         List<String> missing = new ArrayList<>();
 
          for(String key : configMap.keySet()) {
             if(available.contains(key)) {
@@ -788,7 +792,7 @@ public class WizAutoBindingService {
             int dot = key.lastIndexOf('.');
             String bare = dot >= 0 ? key.substring(dot + 1) : null;
             if(bare != null && bareAvailable.contains(bare)) {
-               toNormalize.add(key); // "GapQuery.COMPANY_NAME" → "COMPANY_NAME"
+               toNormalize.put(key, bare); // "GapQuery.COMPANY_NAME" → "COMPANY_NAME"
             }
             else {
                missing.add(key);
@@ -803,12 +807,19 @@ public class WizAutoBindingService {
 
          // Rename prefixed keys to bare names in-place so buildEntryFromColumn /
          // applyFieldConfigs see the same key form as getDisplayName() returns.
-         for(String prefixed : toNormalize) {
-            int dot = prefixed.lastIndexOf('.');
-            String bare = prefixed.substring(dot + 1);
-            SimpleFieldInfo fi = configMap.remove(prefixed);
-            configMap.put(bare, fi);
-         }
+         // If two prefixed keys strip to the same bare name (caller error), the first
+         // entry wins and a warning is logged rather than silently overwriting it.
+         toNormalize.forEach((prefixed, bare) -> {
+            if(configMap.containsKey(bare)) {
+               LOG.warn("fieldConfigs prefix normalisation collision: '{}' strips to '{}' which " +
+                        "is already present. The existing entry wins; '{}' is ignored.",
+                        prefixed, bare, prefixed);
+               configMap.remove(prefixed);
+            }
+            else {
+               configMap.put(bare, configMap.remove(prefixed));
+            }
+         });
 
          return worksheetColumns.stream()
             .filter(c -> configMap.containsKey(c.getDisplayName()))

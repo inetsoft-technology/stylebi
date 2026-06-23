@@ -23,10 +23,12 @@ import inetsoft.web.wiz.model.SimpleFieldInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -110,6 +112,43 @@ class WizAutoBindingServiceSelectBindColumnsTest {
          WizAutoBindingService.selectBindColumns(columns, Map.of());
 
       assertEquals(2, result.size());
+   }
+
+   @Test
+   void prefixedFieldConfigNormalisedForSqlQueryTable() {
+      // sql-query-table columns are bare; caller passes prefixed form "GapQuery.COMPANY_NAME"
+      List<ColumnRef> columns = List.of(col("COMPANY_NAME"), col("REVENUE"));
+
+      Map<String, SimpleFieldInfo> configMap = new HashMap<>();
+      configMap.put("GapQuery.COMPANY_NAME", config("GapQuery.COMPANY_NAME"));
+      configMap.put("GapQuery.REVENUE",      config("GapQuery.REVENUE"));
+
+      List<ColumnRef> result = WizAutoBindingService.selectBindColumns(columns, configMap);
+
+      assertEquals(2, result.size());
+      // after normalisation, configMap keys must be bare names so downstream lookups resolve
+      assertTrue(configMap.containsKey("COMPANY_NAME"));
+      assertTrue(configMap.containsKey("REVENUE"));
+      assertFalse(configMap.containsKey("GapQuery.COMPANY_NAME"));
+      assertFalse(configMap.containsKey("GapQuery.REVENUE"));
+   }
+
+   @Test
+   void prefixNormalisationCollisionFirstEntryWins() {
+      // Two prefixed keys strip to the same bare name — first entry wins, second is dropped.
+      List<ColumnRef> columns = List.of(col("FOO"));
+
+      Map<String, SimpleFieldInfo> configMap = new HashMap<>();
+      SimpleFieldInfo first  = config("TableA.FOO");
+      SimpleFieldInfo second = config("TableB.FOO");
+      configMap.put("TableA.FOO", first);
+      configMap.put("TableB.FOO", second);
+
+      List<ColumnRef> result = WizAutoBindingService.selectBindColumns(columns, configMap);
+
+      assertEquals(1, result.size());
+      assertTrue(configMap.containsKey("FOO"));
+      assertEquals(1, configMap.size()); // exactly one entry survived
    }
 
 }
