@@ -52,7 +52,7 @@ import static org.mockito.Mockito.mock;
  * <p>Does not cover {@code inetsoft.enterprise.web.api.schedule.TimeCondition} (REST DTO) or
  * {@code ScheduleApiService.convertCondition()} — see enterprise module for API mapping tests.
  *
- * <h2>Known production bugs (documented here; production source not changed)</h2>
+ * <h2>Known production bugs Issue #75498 (documented here; production source not changed)</h2>
  * <ul>
  *    <li><b>BUG-TC-1</b> — {@code AbstractConditionTrigger.getFireTimeAfter()} calls
  *       {@code getRetryTime(curr)} (single-arg), so {@code lastRun} defaults to {@code curr}
@@ -771,6 +771,291 @@ public class TimeConditionTest {
       return factory.newDocumentBuilder()
          .parse(new InputSource(new StringReader(xml)))
          .getDocumentElement();
+   }
+
+   // ─────────────────────────────────────────────────────────────────────────
+   // XML round-trip serialization
+   // ─────────────────────────────────────────────────────────────────────────
+
+   @Nested
+   @DisplayName("XML round-trip serialization")
+   class XmlRoundTrip {
+
+      private TimeCondition writeAndParse(TimeCondition condition) throws Exception {
+         StringWriter sw = new StringWriter();
+         condition.writeXML(new java.io.PrintWriter(sw));
+         TimeCondition loaded = new TimeCondition();
+         loaded.parseXML(parseConditionXml(sw.toString()));
+         return loaded;
+      }
+
+      @Test
+      void atRoundTrip() throws Exception {
+         Date date = toFixedDate("2025-06-15T14:30:00");
+         TimeCondition loaded = writeAndParse(TimeCondition.at(date));
+         assertEquals(TimeCondition.AT, loaded.getType());
+         assertEquals(date.getTime() / 1000, loaded.getDate().getTime() / 1000);
+      }
+
+      @Test
+      void everyDayRoundTrip() throws Exception {
+         TimeCondition original = TimeCondition.at(9, 30, 15);
+         original.setInterval(3);
+         TimeCondition loaded = writeAndParse(original);
+         assertEquals(TimeCondition.EVERY_DAY, loaded.getType());
+         assertEquals(9, loaded.getHour());
+         assertEquals(30, loaded.getMinute());
+         assertEquals(15, loaded.getSecond());
+         assertEquals(3, loaded.getInterval());
+         assertFalse(loaded.isWeekdayOnly());
+      }
+
+      @Test
+      void everyDayWeekdayOnlyRoundTrip() throws Exception {
+         TimeCondition original = TimeCondition.at(8, 0, 0);
+         original.setWeekdayOnly(true);
+         TimeCondition loaded = writeAndParse(original);
+         assertEquals(TimeCondition.EVERY_DAY, loaded.getType());
+         assertTrue(loaded.isWeekdayOnly());
+      }
+
+      @Test
+      void everyWeekRoundTrip() throws Exception {
+         TimeCondition original = TimeCondition.atDaysOfWeek(
+            new int[]{Calendar.MONDAY, Calendar.WEDNESDAY}, 10, 0, 0);
+         original.setInterval(2);
+         TimeCondition loaded = writeAndParse(original);
+         assertEquals(TimeCondition.EVERY_WEEK, loaded.getType());
+         assertArrayEquals(new int[]{Calendar.MONDAY, Calendar.WEDNESDAY}, loaded.getDaysOfWeek());
+         assertEquals(10, loaded.getHour());
+         assertEquals(2, loaded.getInterval());
+      }
+
+      @Test
+      void everyHourRoundTrip() throws Exception {
+         TimeCondition original = TimeCondition.atHours(
+            new int[]{Calendar.TUESDAY, Calendar.THURSDAY}, 8, 30, 0);
+         original.setHourlyInterval(2.5f);
+         original.setHourEnd(17);
+         original.setMinuteEnd(30);
+         original.setSecondEnd(0);
+         TimeCondition loaded = writeAndParse(original);
+         assertEquals(TimeCondition.EVERY_HOUR, loaded.getType());
+         assertArrayEquals(new int[]{Calendar.TUESDAY, Calendar.THURSDAY}, loaded.getDaysOfWeek());
+         assertEquals(8, loaded.getHour());
+         assertEquals(30, loaded.getMinute());
+         assertEquals(2.5f, loaded.getHourlyInterval(), 0.001f);
+         assertEquals(17, loaded.getHourEnd());
+         assertEquals(30, loaded.getMinuteEnd());
+      }
+
+      @Test
+      void everyMonthByDayOfMonthRoundTrip() throws Exception {
+         TimeCondition original = TimeCondition.atDayOfMonth(15, 9, 0, 0);
+         original.setMonthsOfYear(new int[]{Calendar.JANUARY, Calendar.JULY});
+         TimeCondition loaded = writeAndParse(original);
+         assertEquals(TimeCondition.EVERY_MONTH, loaded.getType());
+         assertEquals(15, loaded.getDayOfMonth());
+         assertArrayEquals(new int[]{Calendar.JANUARY, Calendar.JULY}, loaded.getMonthsOfYear());
+         assertEquals(9, loaded.getHour());
+      }
+
+      @Test
+      void everyMonthByWeekOfMonthRoundTrip() throws Exception {
+         TimeCondition original = TimeCondition.atWeekOfMonth(2, Calendar.FRIDAY, 14, 0, 0);
+         original.setMonthsOfYear(new int[]{Calendar.MARCH, Calendar.SEPTEMBER});
+         TimeCondition loaded = writeAndParse(original);
+         assertEquals(TimeCondition.EVERY_MONTH, loaded.getType());
+         assertEquals(2, loaded.getWeekOfMonth());
+         assertEquals(Calendar.FRIDAY, loaded.getDayOfWeek());
+         assertArrayEquals(new int[]{Calendar.MARCH, Calendar.SEPTEMBER}, loaded.getMonthsOfYear());
+         assertEquals(14, loaded.getHour());
+      }
+
+      @Test
+      void timezonePreservedAcrossRoundTrip() throws Exception {
+         TimeCondition original = TimeCondition.at(10, 0, 0);
+         original.setTimeZone(Asia_Shanghai);
+         TimeCondition loaded = writeAndParse(original);
+         assertEquals(Asia_Shanghai.getID(), loaded.getTimeZone().getID());
+      }
+   }
+
+   // ─────────────────────────────────────────────────────────────────────────
+   // equals()
+   // ─────────────────────────────────────────────────────────────────────────
+
+   @Nested
+   @DisplayName("equals()")
+   class EqualsTests {
+
+      @Test
+      void sameFieldsAreEqual() {
+         assertEquals(TimeCondition.at(10, 30, 0), TimeCondition.at(10, 30, 0));
+      }
+
+      @Test
+      void nullReturnsFalse() {
+         assertFalse(TimeCondition.at(10, 0, 0).equals(null));
+      }
+
+      @Test
+      void nonTimeConditionReturnsFalse() {
+         assertFalse(TimeCondition.at(10, 0, 0).equals("not a condition"));
+      }
+
+      @Test
+      void differentTypeNotEqual() {
+         assertNotEquals(TimeCondition.at(10, 0, 0),
+            TimeCondition.at(toFixedDate("2025-06-01T10:00:00")));
+      }
+
+      @Test
+      void differentHourNotEqual() {
+         assertNotEquals(TimeCondition.at(10, 0, 0), TimeCondition.at(11, 0, 0));
+      }
+
+      @Test
+      void differentMinuteNotEqual() {
+         assertNotEquals(TimeCondition.at(10, 30, 0), TimeCondition.at(10, 45, 0));
+      }
+
+      @Test
+      void differentIntervalNotEqual() {
+         TimeCondition a = TimeCondition.at(10, 0, 0);
+         a.setInterval(1);
+         TimeCondition b = TimeCondition.at(10, 0, 0);
+         b.setInterval(2);
+         assertNotEquals(a, b);
+      }
+
+      @Test
+      void differentDaysOfWeekNotEqual() {
+         assertNotEquals(
+            TimeCondition.atDaysOfWeek(new int[]{Calendar.MONDAY}, 10, 0, 0),
+            TimeCondition.atDaysOfWeek(new int[]{Calendar.TUESDAY}, 10, 0, 0));
+      }
+
+      @Test
+      void differentMonthsOfYearNotEqual() {
+         TimeCondition a = TimeCondition.atDayOfMonth(1, 9, 0, 0);
+         a.setMonthsOfYear(new int[]{Calendar.JANUARY});
+         TimeCondition b = TimeCondition.atDayOfMonth(1, 9, 0, 0);
+         b.setMonthsOfYear(new int[]{Calendar.FEBRUARY});
+         assertNotEquals(a, b);
+      }
+
+      @Test
+      void differentHourlyIntervalNotEqual() {
+         TimeCondition a = TimeCondition.atHours(new int[]{Calendar.MONDAY}, 8, 0, 0);
+         a.setHourlyInterval(1f);
+         TimeCondition b = TimeCondition.atHours(new int[]{Calendar.MONDAY}, 8, 0, 0);
+         b.setHourlyInterval(2f);
+         assertNotEquals(a, b);
+      }
+
+      @Test
+      void differentWeekdayOnlyNotEqual() {
+         TimeCondition a = TimeCondition.at(9, 0, 0);
+         a.setWeekdayOnly(true);
+         assertNotEquals(a, TimeCondition.at(9, 0, 0));
+      }
+
+      @Test
+      void differentTimeZoneLabelNotEqual() {
+         TimeCondition a = TimeCondition.at(9, 0, 0);
+         a.setTimeZoneLabel("Server Time");
+         TimeCondition b = TimeCondition.at(9, 0, 0);
+         b.setTimeZoneLabel("Local Time");
+         assertNotEquals(a, b);
+      }
+
+      @Test
+      void timezoneFieldNotIncludedInEquality() {
+         // equals() compares timeZoneLabel but NOT the TimeZone object itself
+         TimeCondition a = TimeCondition.at(9, 0, 0);
+         a.setTimeZone(TimeZone.getTimeZone("Asia/Shanghai"));
+         TimeCondition b = TimeCondition.at(9, 0, 0);
+         b.setTimeZone(TimeZone.getTimeZone("US/Eastern"));
+         assertEquals(a, b);
+      }
+   }
+
+   // ─────────────────────────────────────────────────────────────────────────
+   // writeAttributes with ajax=true
+   // ─────────────────────────────────────────────────────────────────────────
+
+   @Nested
+   @DisplayName("writeAttributes with ajax=true")
+   class AjaxAttributeTests {
+
+      private String toXml(TimeCondition condition) {
+         StringWriter sw = new StringWriter();
+         condition.writeXML(new java.io.PrintWriter(sw));
+         return sw.toString();
+      }
+
+      @Test
+      void everyDayAjaxFalseKeepsOriginalHour() {
+         TimeCondition condition = TimeCondition.at(15, 0, 0);
+         condition.setTimeZone(Asia_Shanghai);
+         condition.setAJAX(false);
+         assertTrue(toXml(condition).contains("hour=\"15\""));
+      }
+
+      @Test
+      void everyDayAjaxTrueOffsetsHourByTimezone() {
+         // Default timezone: US/Eastern (raw UTC-5); condition TZ: Asia/Shanghai (raw UTC+8)
+         // hoff = (-5h − (+8h)) = −13; getHour(15, −13) = 2
+         TimeCondition condition = TimeCondition.at(15, 0, 0);
+         condition.setTimeZone(Asia_Shanghai);
+         condition.setAJAX(true);
+         assertTrue(toXml(condition).contains("hour=\"2\""));
+      }
+
+      @Test
+      void atTypeAjaxTrueAddsTzoffsetAttribute() {
+         TimeCondition condition = TimeCondition.at(toFixedDate("2025-06-15T14:30:00"));
+         condition.setAJAX(true);
+         assertTrue(toXml(condition).contains("tzoffset=\""));
+      }
+   }
+
+   // ─────────────────────────────────────────────────────────────────────────
+   // EVERY_MONTH with weekOfMonth = 0 (edge-case ambiguity)
+   // ─────────────────────────────────────────────────────────────────────────
+
+   @Test
+   void everyMonthWeekOfMonthZeroXmlRoundTripLosesWeekOfMonth() {
+      // weekOfMonth=0: writeAttributes condition is `> 0`, so it writes dayOfMonth
+      // instead of weekOfMonth.  The round-tripped condition therefore has
+      // weekOfMonth=-1 (default), not 0 — the value is silently dropped.
+      TimeCondition condition = TimeCondition.atDayOfMonth(10, 9, 0, 0);
+      condition.setWeekOfMonth(0);
+      condition.setMonthsOfYear(new int[]{Calendar.JANUARY});
+
+      StringWriter sw = new StringWriter();
+      condition.writeXML(new java.io.PrintWriter(sw));
+      String xml = sw.toString();
+
+      assertTrue(xml.contains("dayOfMonth=\"10\""), "weekOfMonth=0 serialises as dayOfMonth");
+      assertFalse(xml.contains("weekOfMonth"), "weekOfMonth=0 must NOT appear in XML");
+   }
+
+   @Test
+   void everyMonthWeekOfMonthZeroSchedulingIgnoresDayOfMonth() {
+      // getRetryTime: weekOfMonth=0 satisfies >= 0, so enters the week-path.
+      // isNthSpecifiedDayOfMonth() returns true unconditionally when week_of_month <= 0,
+      // meaning dayOfMonth is not checked — any day in the selected month qualifies.
+      // toString() still shows "Day 10 of month …" because its branch is `week_of_month > 0`.
+      int thisMonth = Calendar.getInstance().get(Calendar.MONTH);
+      TimeCondition condition = TimeCondition.atDayOfMonth(10, 9, 0, 0);
+      condition.setWeekOfMonth(0);
+      condition.setMonthsOfYear(new int[]{thisMonth});
+
+      assertTrue(condition.toString().contains("Day 10 of month"));
+      long retry = condition.getRetryTime(todayAt(10, 30, 0), 0);
+      assertTrue(retry > 0, "should return a valid retry time without hanging");
    }
 
    @Nested
