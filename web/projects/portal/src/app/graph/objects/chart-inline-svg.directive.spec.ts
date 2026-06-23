@@ -373,6 +373,32 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
             vi.useRealTimers();
          }
       });
+
+      it("resolves the snap color from .inetsoft-line when the chart has no point markers", () => {
+         // Multi-measure line chart with no point markers. afterSvgInjected scrapes data-series
+         // (the colIdx) and data-color off the lines into seriesColorByCol, since seriesColorByKey
+         // stays empty without points. A snapped row-col with no exact match then resolves by col.
+         const lineHtml = `
+            <svg>
+               <g class="inetsoft-line" data-series="0" data-color="1,1,1"></g>
+               <g class="inetsoft-line" data-series="1" data-color="2,2,2"></g>
+            </svg>`;
+         const { dir, host } = makeDirective(lineHtml);
+         // setupLineSeriesHover wires abort-signal listeners jsdom can't attach; stub it to just
+         // set the flag. The .inetsoft-line scraping loop under test runs earlier in afterSvgInjected.
+         vi.spyOn(dir as any, "setupLineSeriesHover").mockImplementation(() => {
+            (dir as any).isLineSeriesHover = true;
+         });
+         (dir as any).afterSvgInjected();
+
+         expect((dir as any).isLineSeriesHover).toBe(true);
+         expect(Array.from((dir as any).seriesColorByCol.entries()))
+            .toEqual([["0", "1,1,1"], ["1", "2,2,2"]]);
+
+         dir.highlightSnapSeries([{ row: 9, col: 1 }]);
+         // Col 1 → series 2,2,2 stays full; the col-0 line dims.
+         expect(opacities(host, ".inetsoft-line")).toEqual(["0.2", ""]);
+      });
    });
 
    describe("getRelationEdges + emitRelationHover dedup", () => {
