@@ -817,7 +817,9 @@ public class WizAutoBindingService {
                configMap.remove(prefixed);
             }
             else {
-               configMap.put(bare, configMap.remove(prefixed));
+               SimpleFieldInfo fi = configMap.remove(prefixed);
+               fi.setField(bare); // keep fi.getField() consistent with the map key so log messages show the bare name
+               configMap.put(bare, fi);
             }
          });
 

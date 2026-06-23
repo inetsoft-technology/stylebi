@@ -126,11 +126,14 @@ class WizAutoBindingServiceSelectBindColumnsTest {
       List<ColumnRef> result = WizAutoBindingService.selectBindColumns(columns, configMap);
 
       assertEquals(2, result.size());
-      // after normalisation, configMap keys must be bare names so downstream lookups resolve
+      // after normalisation, map keys must be bare names so downstream lookups resolve
       assertTrue(configMap.containsKey("COMPANY_NAME"));
       assertTrue(configMap.containsKey("REVENUE"));
       assertFalse(configMap.containsKey("GapQuery.COMPANY_NAME"));
       assertFalse(configMap.containsKey("GapQuery.REVENUE"));
+      // fi.getField() must also be updated so log messages show the bare name
+      assertEquals("COMPANY_NAME", configMap.get("COMPANY_NAME").getField());
+      assertEquals("REVENUE",      configMap.get("REVENUE").getField());
    }
 
    @Test
