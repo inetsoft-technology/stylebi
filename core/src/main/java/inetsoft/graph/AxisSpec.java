@@ -340,7 +340,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Get the grid line color.
     */
-   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_getGridColor.htm")
+   @TernMethod(url = "#cshid=AxisSpecGetGridColor")
    public Color getGridColor() {
       return gridColor;
    }

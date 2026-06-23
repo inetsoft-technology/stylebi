@@ -512,7 +512,7 @@ public abstract class GraphElement extends Graphable {
    /**
     * Get the border line color.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=GraphElementGetBorderColor")
    public Color getBorderColor() {
       return borderColor;
    }

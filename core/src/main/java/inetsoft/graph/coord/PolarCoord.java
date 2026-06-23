@@ -1008,7 +1008,7 @@ public class PolarCoord extends Coordinate {
    /**
     * Get the center hole size as ratio of coord width/height for PLUS, between 0 and 1.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=PolarCoordGetHoleRatio")
    public double getHoleRatio() {
       return holeRatio;
    }
