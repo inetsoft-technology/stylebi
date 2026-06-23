@@ -98,6 +98,8 @@ export class ToolboxPane implements OnChanges, OnInit, OnDestroy {
    }
 
    ngOnDestroy(): void {
+      this.virtualScrollTreeDatasource.cleanup();
+
       if(this.vScrollSubscription) {
          this.vScrollSubscription.unsubscribe();
       }
@@ -173,7 +175,7 @@ export class ToolboxPane implements OnChanges, OnInit, OnDestroy {
          this.vScrollSubscription.unsubscribe();
       }
 
-      this.vScrollSubscription = this.virtualScrollTreeDatasource.registerScrollContainer(this.containerView)
+      this.vScrollSubscription = this.virtualScrollTreeDatasource.registerScrollContainer(this.containerView, this.zone)
          .pipe(map(nodes => this.calculateBounds(nodes)))
          .subscribe(nodes => {
             this.virtualScrollTreeDatasource.fireVirtualScroll(nodes);
