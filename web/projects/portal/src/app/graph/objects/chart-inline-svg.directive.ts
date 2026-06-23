@@ -304,7 +304,10 @@ export class ChartInlineSvgDirective implements OnDestroy {
       const color = this.resolveSnapSeriesColor(pairs);
 
       // Only the tile holding the snapped point resolves a color; a tile that can't leaves its dim
-      // untouched rather than clearing it, which would fight the resolving tile.
+      // untouched rather than clearing it, which would fight the resolving tile in cross-tile mode.
+      // Not stranding a dim on a single tile: one that dims at all resolves every column (markers
+      // fill seriesColorByKey, or multi-measure lines fill seriesColorByCol), and a marker-less
+      // single-measure chart resolves to null on every column, so it never sets a color to begin with.
       if(color == null || color === this._snapSeriesColor) {
          return;
       }
