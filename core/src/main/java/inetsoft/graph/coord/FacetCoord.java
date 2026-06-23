@@ -1194,7 +1194,7 @@ public class FacetCoord extends Coordinate {
     * @param grid true to draw the facet axis lines (if enabled) and
     * the outer border lines.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=PlotFacetGrid")
    public void setFacetGrid(boolean grid) {
       this.facetGrid = grid;
    }

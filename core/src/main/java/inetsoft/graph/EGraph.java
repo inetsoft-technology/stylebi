@@ -61,7 +61,7 @@ public class EGraph implements Cloneable, Serializable {
     * inetsoft.graph.element package. At least one graph element must be
     * added to a graph.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphAddElement")
    public void addElement(GraphElement elem) {
       elems.add(elem);
    }
@@ -69,7 +69,7 @@ public class EGraph implements Cloneable, Serializable {
    /**
     * Get the specified graph element.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphGetElement")
    public GraphElement getElement(int idx) {
       return elems.get(idx);
    }
@@ -77,7 +77,7 @@ public class EGraph implements Cloneable, Serializable {
    /**
     * Get the number of graph elements defined in this graph.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphGetElementCount")
    public int getElementCount() {
       return elems.size();
    }
@@ -85,7 +85,7 @@ public class EGraph implements Cloneable, Serializable {
    /**
     * Remove the graph element at the specified position.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphRemoveElement")
    public void removeElement(int idx) {
       elems.remove(idx);
    }
@@ -93,7 +93,7 @@ public class EGraph implements Cloneable, Serializable {
    /**
     * Remove all graph elements.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphClearElements")
    public void clearElements() {
       elems.clear();
    }
@@ -108,7 +108,7 @@ public class EGraph implements Cloneable, Serializable {
    /**
     * Set the coordinate to be used for this graph.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphSetCoordinate")
    public void setCoordinate(Coordinate coord) {
       this.coord = coord;
 
@@ -129,7 +129,7 @@ public class EGraph implements Cloneable, Serializable {
     * Get the coordinate to be used for this graph. If the coordinate is not
     * explicitly set, a default coordinate will be created.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphGetCoordinate")
    public Coordinate getCoordinate() {
       return coord;
    }
@@ -139,7 +139,7 @@ public class EGraph implements Cloneable, Serializable {
     * @param col the column identifier of a dataset.
     * @param scale the scale applied to the column.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphSetScale")
    public void setScale(String col, Scale scale) {
       scalemap.put(col, scale);
 
@@ -158,7 +158,7 @@ public class EGraph implements Cloneable, Serializable {
     * @param col the column identifier of a dataset.
     * @return scale the scale applied to the column.
     */
-   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_EGraph_getScale.htm?Highlight=getScale")
+   @TernMethod(url = "#cshid=EGraphGetScale")
    public Scale getScale(String col) {
       if(scalemap.containsKey(col)) {
          return scalemap.get(col);
@@ -181,7 +181,7 @@ public class EGraph implements Cloneable, Serializable {
     * Add a form guide to this graph. Form classes are defined in
     * inetsoft.graph.guide.form package.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphAddForm")
    public void addForm(GraphForm form) {
       forms.add(form);
    }
@@ -189,7 +189,7 @@ public class EGraph implements Cloneable, Serializable {
    /**
     * Get the specified form guide.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphGetForm")
    public GraphForm getForm(int idx) {
       return forms.get(idx);
    }
@@ -197,7 +197,7 @@ public class EGraph implements Cloneable, Serializable {
    /**
     * Get the number of forms defined in this graph.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphGetFormCount")
    public int getFormCount() {
       return forms.size();
    }
@@ -205,7 +205,7 @@ public class EGraph implements Cloneable, Serializable {
    /**
     * Remove the form at the specified position.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphRemoveForm")
    public void removeForm(int idx) {
       forms.remove(idx);
    }
@@ -213,7 +213,7 @@ public class EGraph implements Cloneable, Serializable {
    /**
     * Remove all form guides.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphClearForms")
    public void clearForms() {
       forms.clear();
    }
@@ -221,7 +221,7 @@ public class EGraph implements Cloneable, Serializable {
    /**
     * Get the layout position option of the legends.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphGetLegendLayout")
    public int getLegendLayout() {
       return legendLayout;
    }
@@ -230,7 +230,7 @@ public class EGraph implements Cloneable, Serializable {
     * Set the layout position option for the legends.
     * @param option one of GraphConstants.TOP, LEFT, BOTTOM, RIGHT, IN_PLACE.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphSetLegendLayout")
    public void setLegendLayout(int option) {
       this.legendLayout = option;
    }
@@ -238,7 +238,7 @@ public class EGraph implements Cloneable, Serializable {
    /**
     * Get the preferred width or height of the legends.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphGetLegendPreferredSize")
    public double getLegendPreferredSize() {
       return (legendPreferredSize == null) ? 0 : legendPreferredSize;
    }
@@ -246,7 +246,7 @@ public class EGraph implements Cloneable, Serializable {
    /**
     * Set the preferred size for the legends.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphSetLegendPreferredSize")
    public void setLegendPreferredSize(double preferredSize) {
       this.legendPreferredSize = preferredSize;
    }
@@ -254,7 +254,7 @@ public class EGraph implements Cloneable, Serializable {
    /**
     * Set the x title specification.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphSetXTitleSpec")
    public void setXTitleSpec(TitleSpec tspec) {
       this.xTitleSpec = tspec;
    }
@@ -262,7 +262,7 @@ public class EGraph implements Cloneable, Serializable {
    /**
     * Get the x title specification.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphGetXTitleSpec")
    public TitleSpec getXTitleSpec() {
       return xTitleSpec;
    }
@@ -270,7 +270,7 @@ public class EGraph implements Cloneable, Serializable {
    /**
     * Set the secondary x title specification.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphSetX2TitleSpec")
    public void setX2TitleSpec(TitleSpec tspec) {
       this.x2TitleSpec = tspec;
    }
@@ -278,7 +278,7 @@ public class EGraph implements Cloneable, Serializable {
    /**
     * Get the secondary x title specification.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphGetX2TitleSpec")
    public TitleSpec getX2TitleSpec() {
       return x2TitleSpec;
    }
@@ -286,7 +286,7 @@ public class EGraph implements Cloneable, Serializable {
    /**
     * Set the y title specification.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphSetYTitleSpec")
    public void setYTitleSpec(TitleSpec tspec) {
       this.yTitleSpec = tspec;
    }
@@ -294,7 +294,7 @@ public class EGraph implements Cloneable, Serializable {
    /**
     * Get the y title specification.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphGetYTitleSpec")
    public TitleSpec getYTitleSpec() {
       return yTitleSpec;
    }
@@ -302,7 +302,7 @@ public class EGraph implements Cloneable, Serializable {
    /**
     * Set the secondary y title specification.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphSetY2TitleSpec")
    public void setY2TitleSpec(TitleSpec tspec) {
       this.y2TitleSpec = tspec;
    }
@@ -310,7 +310,7 @@ public class EGraph implements Cloneable, Serializable {
    /**
     * Get the secondary y title specification.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphGetY2TitleSpec")
    public TitleSpec getY2TitleSpec() {
       return y2TitleSpec;
    }
@@ -361,7 +361,7 @@ public class EGraph implements Cloneable, Serializable {
    /**
     * Get all aesthetic frames in the graph that are candidates for legend.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=EGraphGetVisualFrames")
    public VisualFrame[] getVisualFrames() {
       // vector[frame, shared color frame] -> frame
       Map<Object, VisualFrame> vmap = new HashMap<>();

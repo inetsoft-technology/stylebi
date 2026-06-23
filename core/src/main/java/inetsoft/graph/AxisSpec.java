@@ -348,7 +348,7 @@ public class AxisSpec implements Cloneable, Serializable {
    /**
     * Set the grid line color.
     */
-   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_setGridColor.htm")
+   @TernMethod(url = "#cshid=AxisSpecSetGridColor")
    public void setGridColor(Color gridColor) {
       this.gridColor = gridColor;
    }
