@@ -24,6 +24,7 @@ import {
    Output,
    SimpleChanges
 } from "@angular/core";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable } from "rxjs";
 import { Tool } from "../../../../../shared/util/tool";
 import { SourceInfo } from "../../binding/data/source-info";
@@ -35,6 +36,7 @@ import { ExpressionValue } from "../../common/data/condition/expression-value";
 import { SubqueryTable } from "../../common/data/condition/subquery-table";
 import { DataRef } from "../../common/data/data-ref";
 import { XSchema } from "../../common/data/xschema";
+import { ComponentTool } from "../../common/util/component-tool";
 import { TreeNodeModel } from "../tree/tree-node-model";
 import { ConditionFieldComboModel } from "./condition-field-combo-model";
 import { ConditionValuePipe } from "./condition-value.pipe";
@@ -50,6 +52,9 @@ import { ConditionEditor } from "./condition-editor.component";
 export class OneOfConditionEditor implements OnInit, OnChanges {
    public XSchema = XSchema;
    public ConditionValueType = ConditionValueType;
+
+   constructor(private modalService: NgbModal) {}
+
    @Input() dataFunction: () => Observable<BrowseDataModel>;
    @Input() vsId: string;
    @Input() variablesFunction: () => Observable<any[]>;
@@ -232,12 +237,25 @@ export class OneOfConditionEditor implements OnInit, OnChanges {
          this.values = [value];
          this.valuesChange.emit(this.values);
       }
-      // clear the list when the existing items are incompatible with the new type
-      else if(this.values[0] && (this.isSpecialType(this.values[0].type) ||
-              this.values[0].type !== value.type))
-      {
+      // transitioning away from a special type — clear immediately (no list to preserve)
+      else if(this.values[0] && this.isSpecialType(this.values[0].type)) {
          this.values = [];
          this.valuesChange.emit(this.values);
+      }
+      // non-special type change (e.g. VALUE → FIELD) with an existing list — confirm first
+      else if(this.values[0] && this.values[0].type !== value.type) {
+         const revertTo = Tool.clone(this.values[this.values.length - 1]);
+         ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)",
+            "_#(js:Switching value type will clear the current value list. Continue?)")
+            .then(result => {
+               if(result === "ok") {
+                  this.values = [];
+                  this.valuesChange.emit(this.values);
+               }
+               else {
+                  this.value = revertTo;
+               }
+            });
       }
    }
 

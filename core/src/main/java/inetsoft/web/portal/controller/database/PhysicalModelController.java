@@ -33,6 +33,8 @@ import inetsoft.web.portal.model.database.events.*;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.util.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
@@ -193,7 +195,8 @@ public class PhysicalModelController {
                   .count();
                node.setTableCount((int) tableCount);
             }
-            catch(Exception ignored) {
+            catch(Exception e) {
+               LOG.debug("Failed to count tables in schema folder '{}': {}", node.getPath(), e.getMessage());
             }
          }
       }
@@ -819,5 +822,6 @@ public class PhysicalModelController {
    private final XRepository repository;
    private final PhysicalModelManagerService physicalModelManager;
    private final SecurityEngine securityEngine;
+   private static final Logger LOG = LoggerFactory.getLogger(PhysicalModelController.class);
 
 }

@@ -58,11 +58,13 @@ export class SimpleConditionPane implements OnInit {
    draftCondition: Condition = null;
 
    private _conditionList: any[] = [];
+   private _clauseRowsCache: ClauseRow[] | null = null;
    private readonly valPipe = new ConditionValuePipe();
 
    @Input()
    set conditionList(list: any[]) {
       this._conditionList = Tool.clone(list) ?? [];
+      this._clauseRowsCache = null;
    }
 
    get conditionList(): any[] {
@@ -70,6 +72,14 @@ export class SimpleConditionPane implements OnInit {
    }
 
    get clauseRows(): ClauseRow[] {
+      if(!this._clauseRowsCache) {
+         this._clauseRowsCache = this._buildClauseRows();
+      }
+
+      return this._clauseRowsCache;
+   }
+
+   private _buildClauseRows(): ClauseRow[] {
       return this._conditionList
          .filter((_, i) => i % 2 === 0)
          .map((cond: Condition, ci: number) => {
@@ -80,9 +90,14 @@ export class SimpleConditionPane implements OnInit {
             const isEqualOp = cond.operation === ConditionOperation.EQUAL_TO
                || cond.operation === ConditionOperation.NONE;
 
-            const rawVal = cond.values?.[0] ? this.valPipe.transform(cond.values[0]) : "";
-            const isNumeric = rawVal !== "" && !isNaN(Number(rawVal));
-            const valueLabel = !rawVal ? "" : isNumeric ? rawVal : `"${rawVal}"`;
+            const allLabels = (cond.values ?? [])
+               .map(v => this.valPipe.transform(v))
+               .filter(s => s !== "");
+            const isNumeric = (s: string) => s !== "" && !isNaN(Number(s));
+            const valueLabel = allLabels.length === 0 ? ""
+               : allLabels.length === 1
+                  ? (isNumeric(allLabels[0]) ? allLabels[0] : `"${allLabels[0]}"`)
+                  : `(${allLabels.slice(0, 3).map(s => isNumeric(s) ? s : `"${s}"`).join(", ")}${allLabels.length > 3 ? "…" : ""})`;
 
             return {
                conjLabel,
@@ -120,6 +135,7 @@ export class SimpleConditionPane implements OnInit {
 
       list.push(Tool.clone(this.draftCondition));
       this._conditionList = list;
+      this._clauseRowsCache = null;
       this._initDraft();
       this.conditionListChange.emit(list);
    }
@@ -139,6 +155,7 @@ export class SimpleConditionPane implements OnInit {
       }
 
       this._conditionList = list;
+      this._clauseRowsCache = null;
       this.conditionListChange.emit(list);
    }
 

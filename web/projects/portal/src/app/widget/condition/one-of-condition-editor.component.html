@@ -58,7 +58,7 @@
                   [disabled]="isEmpty(value)">_#(Add)</button>
           <button type="button" class="btn btn-default" (click)="modify()"
                   [disabled]="!(selectedIndex >= 0)">_#(Modify)</button>
-          <button type="button" class="btn btn-default delete_id" (click)="remove()"
+          <button type="button" class="btn btn-default" data-testid="delete-btn" (click)="remove()"
                   [disabled]="!(selectedIndex >= 0)">_#(Delete)</button>
         </div>
       </div>

@@ -23,7 +23,7 @@
     <div class="cond-section__actions">
       <button type="button" class="btn btn-default cond-section__btn" (click)="preList.edit()">_#(Edit)</button>
       <button type="button" class="btn btn-default cond-section__btn" (click)="preList.clear()"
-              [disabled]="!preAggregateConditionList?.length">_#(Clear)</button>
+              [disabled]="!(preAggregateConditionList?.length > 0)">_#(Clear)</button>
     </div>
   </div>
   <div class="cond-section__body">
@@ -43,7 +43,7 @@
     <div class="cond-section__actions">
       <button type="button" class="btn btn-default cond-section__btn" (click)="postList.edit()">_#(Edit)</button>
       <button type="button" class="btn btn-default cond-section__btn" (click)="postList.clear()"
-              [disabled]="!postAggregateConditionList?.length">_#(Clear)</button>
+              [disabled]="!(postAggregateConditionList?.length > 0)">_#(Clear)</button>
     </div>
   </div>
   <div class="cond-section__body">
@@ -63,7 +63,7 @@
     <div class="cond-section__actions">
       <button type="button" class="btn btn-default cond-section__btn" (click)="rankList.edit()">_#(Edit)</button>
       <button type="button" class="btn btn-default cond-section__btn" (click)="rankList.clear()"
-              [disabled]="!rankingConditionList?.length">_#(Clear)</button>
+              [disabled]="!(rankingConditionList?.length > 0)">_#(Clear)</button>
     </div>
   </div>
   <div class="cond-section__body">
