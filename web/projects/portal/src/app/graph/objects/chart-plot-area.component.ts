@@ -502,7 +502,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
    //  2. Stacked area — per-X regions are cumulative-top boundary points; the band is owned by the
    //     series whose boundary is immediately above the cursor.
    //  3. Nearest center — line points, or the cursor above the area stack.
-   private nearestSnapRegion(snapColumnX: number, eventY: number): ChartRegion {
+   private nearestSnapRegion(snapColumnX: number | null, eventY: number): ChartRegion {
       if(snapColumnX == null) {
          return null;
       }
@@ -547,7 +547,9 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
          return container.region;
       }
 
-      // Area band: its top edge is the lowest boundary still at or above the cursor.
+      // Area band: owned by the series whose boundary marker is the lowest still at or above the
+      // cursor. The marker center (its data point, the band's cumulative top) is the boundary; the
+      // tier filter has already dropped wide area-fill polygons whose center isn't a boundary.
       if(this.model && GraphTypes.isArea(this.model.chartType)) {
          let band: { region: ChartRegion, minY: number, maxY: number } = null;
          let bandY = -Infinity;

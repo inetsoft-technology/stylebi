@@ -349,6 +349,30 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
          dir.highlightSnapSeries([{ row: 1, col: 2 }]);
          expect(opacities(host, sel)).toEqual(["", "", "", ""]);
       });
+
+      it("emits seriesDimChange in cross-tile mode instead of dimming locally", () => {
+         vi.useFakeTimers();
+         try {
+            const { dir, host } = makeLineTile();
+            (dir as any).crossTile = true;
+            const emitted: (string | null)[] = [];
+            dir.seriesDimChange.subscribe(v => emitted.push(v));
+
+            // The parent applies the dim across tiles, so this tile emits the color and leaves its
+            // own opacity untouched.
+            dir.highlightSnapSeries([{ row: 1, col: 2 }]);
+            expect(emitted).toEqual(["2,2,2"]);
+            expect(opacities(host, sel)).toEqual(["", "", "", ""]);
+
+            // Clearing emits null once the debounce elapses.
+            dir.highlightSnapSeries([]);
+            vi.advanceTimersByTime(ChartInlineSvgDirective["CLEAR_DELAY_MS"]);
+            expect(emitted).toEqual(["2,2,2", null]);
+         }
+         finally {
+            vi.useRealTimers();
+         }
+      });
    });
 
    describe("getRelationEdges + emitRelationHover dedup", () => {

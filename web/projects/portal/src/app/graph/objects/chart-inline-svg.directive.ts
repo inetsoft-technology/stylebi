@@ -566,6 +566,21 @@ export class ChartInlineSvgDirective implements OnDestroy {
          }
       }
 
+      // Lines carry data-series (the colIdx) and data-color but no row/col, so they fill the col
+      // fallback for line charts drawn without point markers, where the loop above leaves both maps
+      // empty and the snap dim would otherwise find no color.
+      const lineColorEls = Array.from(
+         this.element.nativeElement.querySelectorAll(".inetsoft-line") as NodeListOf<Element>);
+
+      for(const l of lineColorEls) {
+         const color = l.getAttribute("data-color");
+         const col = l.getAttribute("data-series");
+
+         if(color != null && col != null && !this.seriesColorByCol.has(col)) {
+            this.seriesColorByCol.set(col, color);
+         }
+      }
+
       // Radar hover is driven entirely by CSS :hover on polygon groups (hit paths injected
       // server-side have pointer-events:all so the filled interior is reactive). Vertex points
       // intentionally produce no dim effect — no JS activation and no inetsoft-active toggling.
