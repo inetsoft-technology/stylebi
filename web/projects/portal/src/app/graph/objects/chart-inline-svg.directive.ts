@@ -63,6 +63,10 @@ export class ChartInlineSvgDirective implements OnDestroy {
     *  setExternalSeriesDim so every tile dims consistently (geometry-based local dim can't reach
     *  sibling SVGs). */
    @Input() crossTile = false;
+   /** Snap-to-nearest tooltip active. On line charts the snapped series drives the dim via
+    *  highlightSnapSeries, so setupLineSeriesHover's enter/leave suppress their own dim to avoid
+    *  fighting it. Area charts ignore it — their cursor-band hover already resolves a series. */
+   @Input() snapTooltip = false;
    private _url: string = null;
    /** Last color emitted via seriesDimChange, to suppress duplicate emits. */
    private _emittedSeriesColor: string | null = null;
@@ -121,6 +125,18 @@ export class ChartInlineSvgDirective implements OnDestroy {
    private lineSeriesAbortController: AbortController | null = null;
    /** Debounce timer for clearing line-series dim, so moving between elements of one series is flicker-free. */
    private lineSeriesClearTimer: ReturnType<typeof setTimeout> | null = null;
+   /** True for pure line charts (setupLineSeriesHover ran). Gates the snap-driven series dim so it
+    *  applies only to line charts; area/radar tiles keep their own hover mechanism. */
+   private isLineSeriesHover = false;
+   /** Maps "rowIdx-colIdx" → data-color for point markers, so a snapped data point resolves to its
+    *  series color for the snap-driven dim. Line groups carry data-color but not row/col. */
+   private seriesColorByKey = new Map<string, string>();
+   /** Maps colIdx → data-color, a fallback for a snapped point with no exact row-col match. */
+   private seriesColorByCol = new Map<string, string>();
+   /** data-color of the series currently undimmed by snap; suppresses redundant re-dims. */
+   private _snapSeriesColor: string | null = null;
+   /** Debounce timer for clearing the snap-driven series dim. */
+   private snapClearTimer: ReturnType<typeof setTimeout> | null = null;
    private static readonly CLEAR_DELAY_MS = 120;
    /** Milliseconds after SVG load before the .ready class is added (gates A1 hover CSS). */
    private static readonly READY_MS = 900;
@@ -146,6 +162,11 @@ export class ChartInlineSvgDirective implements OnDestroy {
       if(this.readyHandle !== null) {
          clearTimeout(this.readyHandle);
          this.readyHandle = null;
+      }
+
+      if(this.snapClearTimer !== null) {
+         clearTimeout(this.snapClearTimer);
+         this.snapClearTimer = null;
       }
 
       this.teardownAreaHover();
@@ -242,6 +263,81 @@ export class ChartInlineSvgDirective implements OnDestroy {
             }, ChartInlineSvgDirective.CLEAR_DELAY_MS);
          }
       }
+   }
+
+   /**
+    * Drive the per-series dim from a snapped data point so the hovered series stays undimmed
+    * regardless of cursor Y. Line charts only: geometry hover fires only when the cursor is exactly
+    * on a thin line/point, which rarely lines up with the snap guideline. No-op on area (keeps its
+    * cursor-band hover) and bar/radar (don't dim by series color). Cross-tile mode emits the color
+    * so the parent mirrors the dim onto sibling tiles holding the rest of the series. Pass an empty
+    * array to clear; clearing is debounced so moving between snap columns of one series doesn't flash.
+    */
+   highlightSnapSeries(pairs: { row: number, col: number }[]): void {
+      if(!this.isLineSeriesHover) {
+         return;
+      }
+
+      if(pairs.length === 0) {
+         if(this._snapSeriesColor !== null && this.snapClearTimer === null) {
+            this.snapClearTimer = setTimeout(() => {
+               this.snapClearTimer = null;
+               this._snapSeriesColor = null;
+
+               if(this.crossTile) {
+                  this.emitSeriesDim(null);
+               }
+               else {
+                  this.setExternalSeriesDim(null);
+               }
+            }, ChartInlineSvgDirective.CLEAR_DELAY_MS);
+         }
+
+         return;
+      }
+
+      if(this.snapClearTimer !== null) {
+         clearTimeout(this.snapClearTimer);
+         this.snapClearTimer = null;
+      }
+
+      const color = this.resolveSnapSeriesColor(pairs);
+
+      // Only the tile holding the snapped point resolves a color; a tile that can't leaves its dim
+      // untouched rather than clearing it, which would fight the resolving tile.
+      if(color == null || color === this._snapSeriesColor) {
+         return;
+      }
+
+      this._snapSeriesColor = color;
+
+      if(this.crossTile) {
+         this.emitSeriesDim(color);
+      }
+      else {
+         this.setExternalSeriesDim(color);
+      }
+   }
+
+   /**
+    * Resolve a snapped point to its series data-color: exact row-col first, then col. The col
+    * fallback is gated on map size > 1 (multi-measure); in a single-measure stacked chart every
+    * point shares one col, so it can't distinguish series and would dim to an arbitrary color.
+    */
+   private resolveSnapSeriesColor(pairs: { row: number, col: number }[]): string | null {
+      for(const p of pairs) {
+         const c = this.seriesColorByKey.get(`${p.row}-${p.col}`);
+         if(c != null) return c;
+      }
+
+      if(this.seriesColorByCol.size > 1) {
+         for(const p of pairs) {
+            const c = this.seriesColorByCol.get(String(p.col));
+            if(c != null) return c;
+         }
+      }
+
+      return null;
    }
 
    /** True when keys match the current active set, order-independent. */
@@ -406,11 +502,20 @@ export class ChartInlineSvgDirective implements OnDestroy {
       this.areaSeries = [];
       this.activeSeriesIdx = -1;
       this.usesSeriesColorDim = false;
+      this.isLineSeriesHover = false;
       this.dimKeyAttr = "data-color";
       this.dimTargetSelector = ".inetsoft-area,.inetsoft-line,.inetsoft-point";
       this._emittedSeriesColor = null;
       this.isRelationChart = false;
       this._emittedRelationId = null;
+      this.seriesColorByKey.clear();
+      this.seriesColorByCol.clear();
+      this._snapSeriesColor = null;
+
+      if(this.snapClearTimer !== null) {
+         clearTimeout(this.snapClearTimer);
+         this.snapClearTimer = null;
+      }
 
       this.elementGroupMap.clear();
       this.labelGroupMap.clear();
@@ -434,6 +539,30 @@ export class ChartInlineSvgDirective implements OnDestroy {
             if(row != null && col != null) {
                this.elementGroupMap.set(`${row}-${col}`, el);
             }
+         }
+      }
+
+      // Map each point marker's row/col → data-color for snap resolution. Built from .inetsoft-point,
+      // the only annotation carrying row, col and color together (line/area groups omit row/col).
+      const pointColorEls = Array.from(
+         this.element.nativeElement.querySelectorAll(".inetsoft-point") as NodeListOf<Element>);
+
+      for(const p of pointColorEls) {
+         const color = p.getAttribute("data-color");
+
+         if(color == null) {
+            continue;
+         }
+
+         const row = p.getAttribute("data-row");
+         const col = p.getAttribute("data-col");
+
+         if(row != null && col != null) {
+            this.seriesColorByKey.set(`${row}-${col}`, color);
+         }
+
+         if(col != null && !this.seriesColorByCol.has(col)) {
+            this.seriesColorByCol.set(col, color);
          }
       }
 
@@ -716,6 +845,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
       if(seriesMap.size === 0) return;
 
       this.usesSeriesColorDim = true;
+      this.isLineSeriesHover = true;
 
       // allElems intentionally spans the entire SVG (all panels). Hovering a series dims
       // every element outside that series, including sibling panels in a faceted chart.
@@ -748,6 +878,10 @@ export class ChartInlineSvgDirective implements OnDestroy {
             .map(e => e.getAttribute("data-color")).find(c => c) ?? null;
 
          const enterHandler = () => {
+            // Under snap, highlightSnapSeries drives the dim; this geometry hover would fight it.
+            if(this.snapTooltip) {
+               return;
+            }
             if(this.lineSeriesClearTimer !== null) {
                clearTimeout(this.lineSeriesClearTimer);
                this.lineSeriesClearTimer = null;
@@ -769,6 +903,9 @@ export class ChartInlineSvgDirective implements OnDestroy {
          };
 
          const leaveHandler = () => {
+            if(this.snapTooltip) {
+               return;
+            }
             if(this.lineSeriesClearTimer !== null) {
                clearTimeout(this.lineSeriesClearTimer);
             }

@@ -32,6 +32,7 @@ import { ScaleService } from "../../widget/services/scale/scale-service";
 import { ChartObject } from "../model/chart-object";
 import { Plot } from "../model/plot";
 import { ChartTool } from "../model/chart-tool";
+import { GraphTypes } from "../../common/graph-types";
 import { ChartService } from "../services/chart.service";
 import { ChartConfigService } from "../services/chart-config.service";
 import { ChartPlotArea } from "./chart-plot-area.component";
@@ -483,6 +484,102 @@ describe("ChartPlotArea Integration Tests", () => {
          noselect: false, grouped: false, boundaryIdx: -1 };
       expect((component as any).isBarLikeRegion(point)).toBe(false);
       expect((component as any).collectColumnRegions(point)).toEqual([point]);
+   });
+
+   // Two stacked-series points at one X (centerX 237): top at y~62, bottom at y~202. Distinct
+   // rowIdx (long format), so they land in separate snap buckets — snapSeriesByX re-unites them by
+   // X. centroid is null (as on real markers), so the choice must come from pts, not centroid.
+   const stackedTopPoint: any = { segTypes: [[9]], pts: [[[[235, 60], [4, 4]]]], centroid: null,
+      index: 70, tipIdx: 40, metaIdx: 0, rowIdx: 5, valIdx: -1, hyperlinks: [],
+      noselect: false, grouped: false, boundaryIdx: -1 };
+   const stackedBottomPoint: any = { segTypes: [[9]], pts: [[[[235, 200], [4, 4]]]], centroid: null,
+      index: 71, tipIdx: 41, metaIdx: 1, rowIdx: 6, valIdx: -1, hyperlinks: [],
+      noselect: false, grouped: false, boundaryIdx: -1 };
+
+   it("picks the stacked series whose point is vertically nearest the cursor", () => {
+      const fixture = TestBed.createComponent(TestApp);
+      const debugEl = fixture.debugElement.query(By.css("chart-plot-area"));
+      const component: ChartPlotArea = debugEl.componentInstance;
+      vi.spyOn(component, "getSrc").mockImplementation(() => "");
+      fixture.detectChanges();
+      (component as any).model = { regionMetaDictionary: [{ colIdx: 0 }, { colIdx: 1 }] };
+      (component as any).snapSeriesByX = new Map([[237, [stackedTopPoint, stackedBottomPoint]]]);
+
+      // Cursor near the top point → the top series; near the bottom → the bottom series.
+      expect((component as any).nearestSnapRegion(237, 64)).toBe(stackedTopPoint);
+      expect((component as any).nearestSnapRegion(237, 198)).toBe(stackedBottomPoint);
+   });
+
+   it("focuses the bar segment the cursor is inside, not the nearer-center neighbour", () => {
+      const fixture = TestBed.createComponent(TestApp);
+      const debugEl = fixture.debugElement.query(By.css("chart-plot-area"));
+      const component: ChartPlotArea = debugEl.componentInstance;
+      vi.spyOn(component, "getSrc").mockImplementation(() => "");
+      fixture.detectChanges();
+      (component as any).model = { regionMetaDictionary: [{ colIdx: 0 }, { colIdx: 1 }] };
+
+      // A tall segment [300,470] (center 385) and a short one below it [470,490] (center 480),
+      // both RECT (seg 8) at centerX 241. The cursor sits inside the tall segment near its lower
+      // edge, where the short segment's center is actually closer — containment must still win so
+      // focus does not flip to the neighbour before the cursor crosses the boundary.
+      const tall: any = { segTypes: [[8]], pts: [[[[235, 300], [12, 170]]]], centroid: null,
+         index: 80, tipIdx: 50, metaIdx: 0, rowIdx: 3, valIdx: -1, hyperlinks: [],
+         noselect: false, grouped: false, boundaryIdx: -1 };
+      const short: any = { segTypes: [[8]], pts: [[[[235, 470], [12, 20]]]], centroid: null,
+         index: 81, tipIdx: 51, metaIdx: 1, rowIdx: 4, valIdx: -1, hyperlinks: [],
+         noselect: false, grouped: false, boundaryIdx: -1 };
+      (component as any).snapSeriesByX = new Map([[241, [tall, short]]]);
+
+      expect((component as any).nearestSnapRegion(241, 460)).toBe(tall);
+   });
+
+   it("focuses the stacked-area band whose top boundary is just above the cursor", () => {
+      const fixture = TestBed.createComponent(TestApp);
+      const debugEl = fixture.debugElement.query(By.css("chart-plot-area"));
+      const component: ChartPlotArea = debugEl.componentInstance;
+      vi.spyOn(component, "getSrc").mockImplementation(() => "");
+      fixture.detectChanges();
+      (component as any).model = { chartType: GraphTypes.CHART_AREA_STACK,
+         regionMetaDictionary: [{ colIdx: 0 }, { colIdx: 1 }, { colIdx: 2 }] };
+
+      // Cumulative-top boundary points (screen Y): top series 100, middle 300, bottom 500 — the
+      // band polygons span every X so only these per-X boundary points are in snapSeriesByX. Bands:
+      // top [100,300], middle [300,500], bottom below 500. centroid null, as on real markers.
+      const topPt: any = { segTypes: [[9]], pts: [[[[235, 98], [4, 4]]]], centroid: null,
+         index: 90, tipIdx: 60, metaIdx: 0, rowIdx: 1, valIdx: -1, hyperlinks: [],
+         noselect: false, grouped: false, boundaryIdx: -1 };
+      const midPt: any = { segTypes: [[9]], pts: [[[[235, 298], [4, 4]]]], centroid: null,
+         index: 91, tipIdx: 61, metaIdx: 1, rowIdx: 2, valIdx: -1, hyperlinks: [],
+         noselect: false, grouped: false, boundaryIdx: -1 };
+      const botPt: any = { segTypes: [[9]], pts: [[[[235, 498], [4, 4]]]], centroid: null,
+         index: 92, tipIdx: 62, metaIdx: 2, rowIdx: 3, valIdx: -1, hyperlinks: [],
+         noselect: false, grouped: false, boundaryIdx: -1 };
+      (component as any).snapSeriesByX = new Map([[237, [topPt, midPt, botPt]]]);
+
+      // Cursor in the middle band → the middle series (its top boundary is the one just above 400).
+      expect((component as any).nearestSnapRegion(237, 400)).toBe(midPt);
+      // Cursor above the whole stack → nearest point, the topmost series.
+      expect((component as any).nearestSnapRegion(237, 50)).toBe(topPt);
+   });
+
+   it("groups every series' point region by rounded X in snapSeriesByX", () => {
+      const fixture = TestBed.createComponent(TestApp);
+      const debugEl = fixture.debugElement.query(By.css("chart-plot-area"));
+      const component: ChartPlotArea = debugEl.componentInstance;
+      vi.spyOn(component, "getSrc").mockImplementation(() => "");
+      fixture.detectChanges();
+      (component as any).model = { regionMetaDictionary: [{ colIdx: 0 }, { colIdx: 1 }] };
+
+      const otherX: any = { segTypes: [[9]], pts: [[[[400, 100], [4, 4]]]], centroid: null,
+         index: 72, tipIdx: 42, metaIdx: 0, rowIdx: 7, valIdx: -1, hyperlinks: [],
+         noselect: false, grouped: false, boundaryIdx: -1 };
+      component.chartObject.regions = [stackedTopPoint, stackedBottomPoint, otherX] as any;
+      (component as any).rebuildSnapIndex();
+
+      const map: Map<number, any[]> = (component as any).snapSeriesByX;
+      // Both series at X 237 group together (their separate rowIdx buckets re-united); X 402 alone.
+      expect(map.get(237)?.length).toBe(2);
+      expect(map.get(402)?.length).toBe(1);
    });
 
    it("skips wide area polygons when snapping to the nearest point", () => {
