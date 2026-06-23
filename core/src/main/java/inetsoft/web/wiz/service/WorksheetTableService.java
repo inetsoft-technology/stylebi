@@ -502,9 +502,13 @@ public class WorksheetTableService {
          queryManagerService.getColumnSelection(query, new VariableTable(), table, session, null);
 
       if(columns == null || columns.getAttributeCount() == 0) {
+         Exception cause = query.getLastQueryError();
+         String detail = cause != null
+            ? " Database reported: " + rootMessage(cause)
+            : "";
          throw new IllegalArgumentException(
             "Could not resolve any columns from sqlExpression — check the SQL is a valid SELECT for datasource '" +
-            dsName + "'.");
+            dsName + "'." + detail, cause);
       }
 
       // The parsed UniformSQL selection only carries types for base table columns it can resolve
@@ -1243,6 +1247,16 @@ public class WorksheetTableService {
    private final QueryManagerService queryManagerService;
    private final XRepository xrepository;
    private final ObjectMapper objectMapper;
+
+   private static String rootMessage(Throwable t) {
+      Throwable root = t;
+      while(root.getCause() != null) {
+         root = root.getCause();
+      }
+      String msg = root.getMessage() != null ? root.getMessage() : root.getClass().getSimpleName();
+      int nl = msg.indexOf('\n');
+      return nl > 0 ? msg.substring(0, nl) : msg;
+   }
 
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetTableService.class);
 }
