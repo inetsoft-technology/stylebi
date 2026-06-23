@@ -2168,17 +2168,23 @@ public class WizVsService {
          return;
       }
 
-      dataAssembly.setPreConditionList(buildConditionList(conditionModel));
+      // Resolve the assembly's candidate condition fields so condition values can be coerced
+      // to each field's data type (see buildConditionItem).
+      ColumnSelection columns = VSUtil.getBaseColumns(dataAssembly, true);
+      dataAssembly.setPreConditionList(buildConditionList(conditionModel, columns));
    }
 
    /**
     * Builds a ConditionList from the base conditions in the model.
     */
-   private ConditionList buildConditionList(VisualizationConditionModel wizModel) {
+   private ConditionList buildConditionList(VisualizationConditionModel wizModel,
+                                            ColumnSelection columns)
+   {
       ConditionList conditionList = new ConditionList();
 
       if(wizModel != null && wizModel.getBaseConditions() != null) {
-         appendConditionNodes(wizModel.getBaseConditions(), 0, conditionList, new boolean[]{ true }, null);
+         appendConditionNodes(wizModel.getBaseConditions(), 0, conditionList, new boolean[]{ true },
+                              null, columns);
       }
 
       return conditionList;
@@ -2194,12 +2200,15 @@ public class WizVsService {
     *                         appended yet at the current level (avoids a leading junction)
     * @param dimColumnMapping optional set of DateRangeRef column names that were pushed to worksheet;
     *                         used for validating dateGroupLevel to DateRangeRef column names
+    * @param columns          optional candidate condition fields used to resolve each field's data
+    *                         type so condition values are coerced correctly; may be null
     */
    private void appendConditionNodes(List<VisualizationConditionModel.ConditionNode> nodes,
                                      int depth,
                                      ConditionList result,
                                      boolean[] isFirst,
-                                     Set<String> dimColumnMapping)
+                                     Set<String> dimColumnMapping,
+                                     ColumnSelection columns)
    {
       for(VisualizationConditionModel.ConditionNode node : nodes) {
          if(node == null) {
@@ -2217,7 +2226,7 @@ public class WizVsService {
                result.append(new JunctionOperator(parseJunction(leaf.getJunction()), depth));
             }
 
-            result.append(buildConditionItem(spec, depth, dimColumnMapping));
+            result.append(buildConditionItem(spec, depth, dimColumnMapping, columns));
             isFirst[0] = false;
          }
          else if(node instanceof VisualizationConditionModel.ConditionGroup group) {
@@ -2230,7 +2239,8 @@ public class WizVsService {
             // Build the group's contents into a temporary list first so we can check
             // whether it produced any valid items before committing a junction.
             ConditionList groupContents = new ConditionList();
-            appendConditionNodes(items, depth + 1, groupContents, new boolean[]{ true }, dimColumnMapping);
+            appendConditionNodes(items, depth + 1, groupContents, new boolean[]{ true },
+                                 dimColumnMapping, columns);
 
             if(groupContents.isEmpty()) {
                continue;
@@ -2264,10 +2274,13 @@ public class WizVsService {
     * @param level            the nesting level for the condition item
     * @param dimColumnMapping optional set of DateRangeRef column names that were pushed to worksheet;
     *                         used for mapping dateGroupLevel to DateRangeRef column names
+    * @param columns          optional candidate condition fields used to resolve the field's data
+    *                         type; may be null
     */
    private ConditionItem buildConditionItem(VisualizationConditionModel.ConditionSpec spec,
                                             int level,
-                                            Set<String> dimColumnMapping)
+                                            Set<String> dimColumnMapping,
+                                            ColumnSelection columns)
    {
       Condition condition = new Condition();
       condition.setOperation(mapConditionOperation(spec.getOperation()));
@@ -2275,6 +2288,15 @@ public class WizVsService {
 
       if(spec.getEqual() != null) {
          condition.setEqual(spec.getEqual());
+      }
+
+      // Set the condition's data type before adding values so each value is coerced to the type
+      // the field expects (e.g. "100" -> 100.0, date strings -> Date). Without this the values
+      // stay as raw strings and numeric/date comparisons fail.
+      String dataType = resolveConditionType(spec, columns);
+
+      if(dataType != null) {
+         condition.setType(dataType);
       }
 
       if(spec.getValues() != null) {
@@ -2322,6 +2344,36 @@ public class WizVsService {
       }
 
       return new ConditionItem(new AttributeRef(null, fieldName), condition, level);
+   }
+
+   /**
+    * Resolves the data type that condition values should be coerced to for the given spec.
+    * For aggregate (HAVING) conditions the formula's result type takes precedence (e.g. Count
+    * always yields an integer regardless of the base field); a null formula result type means the
+    * result keeps the base field's type (e.g. Sum, Max), so it falls through to the column lookup.
+    *
+    * @return the resolved {@link XSchema} data type, or null if it cannot be determined.
+    */
+   private String resolveConditionType(VisualizationConditionModel.ConditionSpec spec,
+                                       ColumnSelection columns)
+   {
+      if(spec.getAggregateFormula() != null) {
+         AggregateFormula formula = AggregateFormula.getFormula(spec.getAggregateFormula());
+
+         if(formula != null && formula.getDataType() != null) {
+            return formula.getDataType();
+         }
+      }
+
+      if(columns != null && spec.getField() != null) {
+         DataRef ref = columns.getAttribute(spec.getField());
+
+         if(ref != null) {
+            return ref.getDataType();
+         }
+      }
+
+      return null;
    }
 
    private int parseJunction(String junction) {
@@ -2536,10 +2588,14 @@ public class WizVsService {
          return;
       }
 
+      // Candidate condition fields, used to coerce condition values to each field's data type.
+      ColumnSelection columns = table.getColumnSelection(false);
+
       // Apply base conditions as pre-conditions (WHERE equivalent)
       if(conditionModel.getBaseConditions() != null && !conditionModel.getBaseConditions().isEmpty()) {
          ConditionList preCondList = new ConditionList();
-         appendConditionNodes(conditionModel.getBaseConditions(), 0, preCondList, new boolean[]{ true }, null);
+         appendConditionNodes(conditionModel.getBaseConditions(), 0, preCondList,
+                              new boolean[]{ true }, null, columns);
 
          if(!preCondList.isEmpty()) {
             table.setPreConditionList(preCondList);
@@ -2552,7 +2608,8 @@ public class WizVsService {
       // Use dimColumnMapping to translate dimension field+dateGroupLevel to DateRangeRef column names
       if(conditionModel.getAggregateConditions() != null && !conditionModel.getAggregateConditions().isEmpty()) {
          ConditionList postCondList = new ConditionList();
-         appendConditionNodes(conditionModel.getAggregateConditions(), 0, postCondList, new boolean[]{ true }, dimColumnMapping);
+         appendConditionNodes(conditionModel.getAggregateConditions(), 0, postCondList,
+                              new boolean[]{ true }, dimColumnMapping, columns);
 
          if(!postCondList.isEmpty()) {
             table.setPostConditionList(postCondList);
