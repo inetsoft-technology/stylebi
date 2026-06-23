@@ -356,6 +356,23 @@ public class JDBCUtil {
       for(int i = 0; i < xselect.getColumnCount(); i++) {
          String path = xselect.getColumn(i);
          String alias = xselect.getAlias(i);
+
+         // A bare select-list identifier the parser could not resolve to a known table — e.g. a
+         // column passed through from a subquery in the FROM clause, or a window-function column —
+         // is captured wrapped in double-quotes (e.g. "role"). That quoted form becomes the column's
+         // identifier in the result lens, but the worksheet/viewsheet binding layer refers to it
+         // unquoted (role) and then cannot resolve it, so a chart bound to such a column silently
+         // renders no rows (and the column can't be renamed). Give it a clean alias — the unquoted
+         // name — which is exactly what an explicit AS alias does (those bind correctly), while
+         // leaving the quoted source path untouched for SQL generation.
+         if((alias == null || alias.isEmpty()) && path != null && path.length() >= 3 &&
+            path.charAt(0) == '"' && path.charAt(path.length() - 1) == '"' &&
+            path.indexOf('.') < 0 && path.indexOf('"', 1) == path.length() - 1)
+         {
+            alias = path.substring(1, path.length() - 1);
+            xselect.setAlias(i, alias);
+         }
+
          String fp = getFullPathOf(sql, path);
 
          if(fp != null) {
