@@ -164,7 +164,8 @@ class WorksheetAgentControllerTest {
 
       EditRequest req = new EditRequest("remove_column", "T", "x",
          null, null, null, null, null, null, null, null, null, null, false,
-         null, null, null, null, null);
+         null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null);
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),

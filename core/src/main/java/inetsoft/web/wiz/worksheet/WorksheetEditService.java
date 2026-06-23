@@ -26,6 +26,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XEmbeddedTable;
 import java.util.Enumeration;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
@@ -95,7 +96,7 @@ public class WorksheetEditService {
     */
    public <T> T applyOnRuntime(String sessionToken, Principal agent,
                                ThrowingFunction<RuntimeWorksheet, T> mutation)
-      throws PairingException
+      throws Exception
    {
       String agentKey = agentKey(agent);
       JoinSession session = sessions.resolve(sessionToken, agentKey);
@@ -116,7 +117,7 @@ public class WorksheetEditService {
 
    @FunctionalInterface
    public interface ThrowingFunction<A, R> {
-      R apply(A a) throws PairingException;
+      R apply(A a) throws Exception;
    }
 
    /**
@@ -485,6 +486,156 @@ public class WorksheetEditService {
       // -----------------------------------------------------------------------
       // Helper
       // -----------------------------------------------------------------------
+
+      // -----------------------------------------------------------------------
+      // Advanced condition mutators
+      // -----------------------------------------------------------------------
+
+      /**
+       * Replaces the pre-aggregate condition list on a table with a full condition tree.
+       */
+      public void setConditions(String table,
+                                List<WorksheetMutationSupport.ConditionNode> nodes)
+         throws PairingException
+      {
+         WorksheetMutationSupport.setConditions(requireTable(table), nodes, false);
+      }
+
+      /**
+       * Replaces the post-aggregate condition list (HAVING) on a table.
+       */
+      public void setPostConditions(String table,
+                                    List<WorksheetMutationSupport.ConditionNode> nodes)
+         throws PairingException
+      {
+         WorksheetMutationSupport.setConditions(requireTable(table), nodes, true);
+      }
+
+      /**
+       * Sets a ranking condition (TOP N / BOTTOM N) on a table.
+       */
+      public void setRanking(String table, WorksheetMutationSupport.RankingSpec spec)
+         throws PairingException
+      {
+         WorksheetMutationSupport.setRanking(requireTable(table), spec);
+      }
+
+      // -----------------------------------------------------------------------
+      // Rotate / Unpivot mutators
+      // -----------------------------------------------------------------------
+
+      /**
+       * Creates a {@link RotatedTableAssembly} (transpose) from an existing table.
+       */
+      public void addRotate(String name, String source) throws PairingException {
+         TableAssembly src = requireTable(source);
+         RotatedTableAssembly table = new RotatedTableAssembly(ws, name, src);
+         table.setLiveData(true);
+         ws.addAssembly(table);
+      }
+
+      /**
+       * Creates an {@link UnpivotTableAssembly} from an existing table.
+       *
+       * @param name          the name for the new unpivot assembly
+       * @param source        the source table to unpivot
+       * @param headerColumns number of left-most columns to keep as headers
+       */
+      public void addUnpivot(String name, String source, int headerColumns)
+         throws PairingException
+      {
+         TableAssembly src = requireTable(source);
+         UnpivotTableAssembly table = new UnpivotTableAssembly(ws, name, src);
+         table.setLiveData(true);
+         table.setHeaderColumns(headerColumns);
+         ws.addAssembly(table);
+      }
+
+      // -----------------------------------------------------------------------
+      // Date/numeric range column mutators
+      // -----------------------------------------------------------------------
+
+      /**
+       * Adds a date range column to the table's column selection.
+       *
+       * @param table      the assembly name
+       * @param column     the source date column name
+       * @param dateOption the grouping option string (e.g. "YEAR", "QUARTER", "MONTH",
+       *                   "WEEK", "DAY", "HOUR", "MINUTE", "SECOND")
+       */
+      public void addDateRangeColumn(String table, String column, String dateOption)
+         throws PairingException
+      {
+         TableAssembly t = requireTable(table);
+         ColumnSelection cs = t.getColumnSelection(false);
+         DataRef ref = cs.getAttribute(column);
+
+         if(ref == null) {
+            ref = new ColumnRef(new AttributeRef(null, column));
+         }
+
+         int option = parseDateOption(dateOption);
+         String rangeName = DateRangeRef.getName(column, option);
+         DateRangeRef dateRef = new DateRangeRef(rangeName, ref, option);
+         dateRef.setOriginalType(ref instanceof ColumnRef cr ? cr.getDataType() : XSchema.DATE);
+
+         ColumnRef colRef = new ColumnRef(dateRef);
+         colRef.setDataType(XSchema.STRING);
+         cs.addAttribute(colRef);
+         t.setColumnSelection(cs, false);
+      }
+
+      /**
+       * Adds a numeric range column to the table's column selection.
+       *
+       * @param table      the assembly name
+       * @param column     the source numeric column name
+       * @param boundaries the bucket boundary values (e.g. [0, 50, 100])
+       */
+      public void addNumericRangeColumn(String table, String column, double[] boundaries)
+         throws PairingException
+      {
+         TableAssembly t = requireTable(table);
+         ColumnSelection cs = t.getColumnSelection(false);
+         DataRef ref = cs.getAttribute(column);
+
+         if(ref == null) {
+            ref = new ColumnRef(new AttributeRef(null, column));
+         }
+
+         NumericRangeRef rangeRef = new NumericRangeRef(column + "_range", ref);
+         ValueRangeInfo info = new ValueRangeInfo();
+         info.setValues(boundaries);
+         rangeRef.setValueRangeInfo(info);
+
+         ColumnRef colRef = new ColumnRef(rangeRef);
+         colRef.setDataType(XSchema.STRING);
+         cs.addAttribute(colRef);
+         t.setColumnSelection(cs, false);
+      }
+
+      static int parseDateOption(String dateOption) {
+         if(dateOption == null) {
+            return DateRangeRef.YEAR_INTERVAL;
+         }
+
+         return switch(dateOption.toUpperCase()) {
+            case "QUARTER" -> DateRangeRef.QUARTER_INTERVAL;
+            case "MONTH"   -> DateRangeRef.MONTH_INTERVAL;
+            case "WEEK"    -> DateRangeRef.WEEK_INTERVAL;
+            case "DAY"     -> DateRangeRef.DAY_INTERVAL;
+            case "HOUR"    -> DateRangeRef.HOUR_INTERVAL;
+            case "MINUTE"  -> DateRangeRef.MINUTE_INTERVAL;
+            case "SECOND"  -> DateRangeRef.SECOND_INTERVAL;
+            case "QUARTER_OF_YEAR" -> DateRangeRef.QUARTER_OF_YEAR_PART;
+            case "MONTH_OF_YEAR"   -> DateRangeRef.MONTH_OF_YEAR_PART;
+            case "WEEK_OF_YEAR"    -> DateRangeRef.WEEK_OF_YEAR_PART;
+            case "DAY_OF_MONTH"    -> DateRangeRef.DAY_OF_MONTH_PART;
+            case "DAY_OF_WEEK"     -> DateRangeRef.DAY_OF_WEEK_PART;
+            case "HOUR_OF_DAY"     -> DateRangeRef.HOUR_OF_DAY_PART;
+            default -> DateRangeRef.YEAR_INTERVAL;
+         };
+      }
 
       // -----------------------------------------------------------------------
       // Assembly creation mutators

@@ -48,6 +48,13 @@ import java.util.List;
  *   <li>{@code change_column_type} — {@code table}, {@code column}, {@code type}</li>
  *   <li>{@code add_concatenation} — {@code name}, {@code tables} (list), {@code concatType} (UNION|INTERSECT|MINUS)</li>
  *   <li>{@code add_mirror} — {@code name}, {@code source}</li>
+ *   <li>{@code set_conditions} — {@code table}, {@code conditions} (condition tree)</li>
+ *   <li>{@code set_post_conditions} — {@code table}, {@code conditions} (condition tree, post-aggregate/HAVING)</li>
+ *   <li>{@code set_ranking} — {@code table}, {@code ranking}</li>
+ *   <li>{@code add_rotate} — {@code name}, {@code source}</li>
+ *   <li>{@code add_unpivot} — {@code name}, {@code source}, {@code headerColumns}</li>
+ *   <li>{@code add_date_range_column} — {@code table}, {@code column}, {@code dateOption}</li>
+ *   <li>{@code add_numeric_range_column} — {@code table}, {@code column}, {@code boundaries}</li>
  * </ul>
  */
 public record EditRequest(
@@ -96,5 +103,15 @@ public record EditRequest(
    /** Source assembly name for add_mirror. */
    String source,
    /** Concatenation type for add_concatenation — {@code "UNION"}, {@code "INTERSECT"}, {@code "MINUS"}. */
-   String concatType
+   String concatType,
+   /** Condition tree nodes for set_conditions / set_post_conditions. */
+   List<WorksheetMutationSupport.ConditionNode> conditions,
+   /** Ranking spec for set_ranking. */
+   WorksheetMutationSupport.RankingSpec ranking,
+   /** Number of header columns for add_unpivot. */
+   Integer headerColumns,
+   /** Date grouping option for add_date_range_column. */
+   String dateOption,
+   /** Numeric bucket boundaries for add_numeric_range_column. */
+   double[] boundaries
 ) {}

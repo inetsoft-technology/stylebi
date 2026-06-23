@@ -240,7 +240,7 @@ public class WorksheetAgentController {
    @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/import-csv")
    public ImportCsvResponse importCsv(@PathVariable String sessionToken,
                                       @RequestBody ImportCsvRequest body,
-                                      Principal user) throws PairingException
+                                      Principal user) throws Exception
    {
       requireEnabled();
 
@@ -453,9 +453,103 @@ public class WorksheetAgentController {
             editor.addConcatenation(req.name(), req.tables(), req.concatType());
          case "add_mirror" ->
             editor.addMirror(req.name(), req.source());
+         case "set_conditions" ->
+            editor.setConditions(req.table(), req.conditions());
+         case "set_post_conditions" ->
+            editor.setPostConditions(req.table(), req.conditions());
+         case "set_ranking" ->
+            editor.setRanking(req.table(), req.ranking());
+         case "add_rotate" ->
+            editor.addRotate(req.name(), req.source());
+         case "add_unpivot" ->
+            editor.addUnpivot(req.name(), req.source(),
+                              req.headerColumns() != null ? req.headerColumns() : 1);
+         case "add_date_range_column" ->
+            editor.addDateRangeColumn(req.table(), req.column(), req.dateOption());
+         case "add_numeric_range_column" ->
+            editor.addNumericRangeColumn(req.table(), req.column(), req.boundaries());
          default ->
             throw new PairingException("Unknown op: " + req.op());
       }
+   }
+
+   // ---------------------------------------------------------------------------
+   // SQL query table endpoint
+   // ---------------------------------------------------------------------------
+   // Worksheet properties endpoint
+   // ---------------------------------------------------------------------------
+
+   public record WorksheetPropertiesRequest(String alias, String description) {}
+
+   /**
+    * Update worksheet-level properties (alias and description).
+    */
+   @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/properties")
+   public void setProperties(@PathVariable String sessionToken,
+                             @RequestBody WorksheetPropertiesRequest body,
+                             Principal user) throws Exception
+   {
+      requireEnabled();
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         WorksheetInfo winfo = rws.getWorksheet().getWorksheetInfo();
+
+         if(body.alias() != null) {
+            winfo.setAlias(body.alias());
+         }
+
+         if(body.description() != null) {
+            winfo.setDescription(body.description());
+         }
+
+         return null;
+      });
+   }
+
+   // ---------------------------------------------------------------------------
+   // Variables endpoint
+   // ---------------------------------------------------------------------------
+
+   public record VariableRequest(String name, String type, String label,
+                                 String defaultValue) {}
+
+   /**
+    * Add a user variable to the worksheet.
+    */
+   @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/variable")
+   public void addVariable(@PathVariable String sessionToken,
+                           @RequestBody VariableRequest body,
+                           Principal user) throws Exception
+   {
+      requireEnabled();
+
+      if(body.name() == null || body.name().isBlank()) {
+         throw new PairingException("Variable name is required.");
+      }
+
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         AssetVariable var = new AssetVariable(body.name());
+
+         if(body.label() != null) {
+            var.setAlias(body.label());
+         }
+
+         if(body.type() != null) {
+            var.setTypeNode(XSchema.createPrimitiveType(body.type()));
+         }
+
+         if(body.defaultValue() != null) {
+            var.setValueNode(
+               inetsoft.uql.schema.XValueNode.createValueNode(
+                  body.defaultValue(), body.name()));
+         }
+
+         DefaultVariableAssembly assembly =
+            new DefaultVariableAssembly(ws, body.name());
+         assembly.setVariable(var);
+         ws.addAssembly(assembly);
+         return null;
+      });
    }
 
    // ---------------------------------------------------------------------------
@@ -495,7 +589,7 @@ public class WorksheetAgentController {
    @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/sql-query")
    public SqlQueryResponse addSqlQuery(@PathVariable String sessionToken,
                                        @RequestBody SqlQueryRequest body,
-                                       Principal user) throws PairingException
+                                       Principal user) throws Exception
    {
       requireEnabled();
 

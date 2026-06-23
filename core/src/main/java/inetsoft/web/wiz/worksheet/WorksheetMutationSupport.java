@@ -307,10 +307,143 @@ public final class WorksheetMutationSupport {
    }
 
    // =========================================================================
+   // Advanced conditions
+   // =========================================================================
+
+   /**
+    * Describes a single condition in a condition tree (for {@code set_conditions}
+    * and {@code set_post_conditions}).
+    *
+    * @param field     column name
+    * @param operation comparison operator string
+    * @param values    literal values
+    * @param negated   {@code true} to negate the condition
+    * @param type      optional data type (defaults to {@code "string"})
+    */
+   public record ConditionSpec(String field, String operation,
+                               List<String> values, boolean negated,
+                               String type) {}
+
+   /**
+    * Describes a junction (AND/OR) between conditions in a condition tree.
+    *
+    * @param junction {@code "AND"} or {@code "OR"}
+    * @param level    nesting level (0 = root)
+    */
+   public record JunctionSpec(String junction, int level) {}
+
+   /**
+    * A single node in a condition tree — either a condition or a junction.
+    * Exactly one of {@code condition} or {@code junction} should be non-null.
+    *
+    * @param condition non-null for a condition item
+    * @param junction  non-null for a junction operator
+    * @param level     nesting level for this node (0 = root)
+    */
+   public record ConditionNode(ConditionSpec condition, JunctionSpec junction,
+                               int level) {}
+
+   /**
+    * Builds a {@link ConditionList} from a flat list of alternating condition
+    * and junction nodes, then applies it to the table.
+    *
+    * <p>Nodes must alternate: condition, junction, condition, junction, ...
+    * (same structure as {@link ConditionList} internally).</p>
+    *
+    * @param t     the table assembly
+    * @param nodes the condition tree nodes
+    * @param post  {@code true} to set as post-aggregate conditions (HAVING),
+    *              {@code false} for pre-aggregate conditions (WHERE)
+    */
+   public static void setConditions(TableAssembly t, List<ConditionNode> nodes,
+                                    boolean post)
+   {
+      if(nodes == null || nodes.isEmpty()) {
+         if(post) {
+            t.setPostConditionList(null);
+         }
+         else {
+            t.setPreConditionList(null);
+         }
+
+         return;
+      }
+
+      ConditionList cl = new ConditionList();
+
+      for(ConditionNode node : nodes) {
+         if(node.condition() != null) {
+            ConditionSpec spec = node.condition();
+            int op = parseOperation(spec.operation());
+            boolean negate = spec.negated() || isNegatedOperation(spec.operation());
+            String dtype = spec.type() != null ? spec.type() : XSchema.STRING;
+
+            AttributeRef ref = new AttributeRef(null, spec.field());
+            Condition c = new Condition(dtype);
+            c.setOperation(op);
+
+            if(negate) {
+               c.setNegated(true);
+            }
+
+            if(spec.values() != null) {
+               for(String v : spec.values()) {
+                  c.addValue(v);
+               }
+            }
+
+            cl.append(new ConditionItem(ref, c, node.level()));
+         }
+         else if(node.junction() != null) {
+            JunctionSpec js = node.junction();
+            int jop = "OR".equalsIgnoreCase(js.junction())
+               ? JunctionOperator.OR : JunctionOperator.AND;
+            cl.append(new JunctionOperator(jop, js.level()));
+         }
+      }
+
+      if(post) {
+         t.setPostConditionList(cl.isEmpty() ? null : cl);
+      }
+      else {
+         t.setPreConditionList(cl.isEmpty() ? null : cl);
+      }
+   }
+
+   /**
+    * Describes a ranking condition.
+    *
+    * @param field     column to rank by
+    * @param n         number of rows (top/bottom N)
+    * @param operation {@code "TOP_N"} or {@code "BOTTOM_N"}
+    * @param groupOthers {@code true} to group remaining rows as "Others"
+    */
+   public record RankingSpec(String field, int n, String operation,
+                             boolean groupOthers) {}
+
+   /**
+    * Sets a ranking condition on the table.
+    */
+   public static void setRanking(TableAssembly t, RankingSpec spec) {
+      int op = "BOTTOM_N".equalsIgnoreCase(spec.operation())
+         ? XCondition.BOTTOM_N : XCondition.TOP_N;
+
+      AttributeRef ref = new AttributeRef(null, spec.field());
+      inetsoft.uql.asset.RankingCondition rc = new inetsoft.uql.asset.RankingCondition();
+      rc.setOperation(op);
+      rc.setN(spec.n());
+      rc.setGroupOthers(spec.groupOthers());
+
+      ConditionList cl = new ConditionList();
+      cl.append(new ConditionItem(ref, rc, 0));
+      t.setRankingConditionList(cl);
+   }
+
+   // =========================================================================
    // Internal helpers
    // =========================================================================
 
-   private static int parseOperation(String operation) {
+   static int parseOperation(String operation) {
       if(operation == null) {
          return XCondition.EQUAL_TO;
       }
@@ -319,6 +452,14 @@ public final class WorksheetMutationSupport {
          case "!=", "NOT_EQUAL_TO", "<>" -> XCondition.EQUAL_TO; // negated via setNegated
          case "<", "LESS_THAN"           -> XCondition.LESS_THAN;
          case ">", "GREATER_THAN"        -> XCondition.GREATER_THAN;
+         case "<=", "LESS_THAN_OR_EQUAL" -> XCondition.LESS_THAN;
+         case ">=", "GREATER_THAN_OR_EQUAL" -> XCondition.GREATER_THAN;
+         case "BETWEEN"                  -> XCondition.BETWEEN;
+         case "ONE_OF", "IN"             -> XCondition.ONE_OF;
+         case "STARTING_WITH"            -> XCondition.STARTING_WITH;
+         case "CONTAINS"                 -> XCondition.CONTAINS;
+         case "LIKE"                     -> XCondition.LIKE;
+         case "NULL", "IS_NULL"          -> XCondition.NULL;
          default                         -> XCondition.EQUAL_TO;
       };
    }
