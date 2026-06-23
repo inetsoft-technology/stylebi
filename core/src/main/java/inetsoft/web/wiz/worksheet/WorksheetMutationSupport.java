@@ -197,6 +197,7 @@ public final class WorksheetMutationSupport {
       }
 
       t.setAggregateInfo(ainfo);
+      t.setAggregate(!ainfo.isEmpty());
    }
 
    // =========================================================================
@@ -448,7 +449,7 @@ public final class WorksheetMutationSupport {
          return XCondition.EQUAL_TO;
       }
 
-      return switch(operation.toUpperCase()) {
+      return switch(operation.toUpperCase().replace(' ', '_')) {
          case "!=", "NOT_EQUAL_TO", "<>" -> XCondition.EQUAL_TO; // negated via setNegated
          case "<", "LESS_THAN"           -> XCondition.LESS_THAN;
          case ">", "GREATER_THAN"        -> XCondition.GREATER_THAN;
@@ -469,7 +470,7 @@ public final class WorksheetMutationSupport {
          return false;
       }
 
-      return switch(operation.toUpperCase()) {
+      return switch(operation.toUpperCase().replace(' ', '_')) {
          case "!=", "NOT_EQUAL_TO", "<>" -> true;
          default                         -> false;
       };

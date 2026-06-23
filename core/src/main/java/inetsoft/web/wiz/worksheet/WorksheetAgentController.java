@@ -128,10 +128,82 @@ public class WorksheetAgentController {
    public void edit(@PathVariable String sessionToken,
                     @RequestBody EditRequest req,
                     Principal user)
-      throws PairingException
+      throws Exception
    {
       requireEnabled();
+
+      // add_table with a datasource needs RuntimeWorksheet for initColumnSelection.
+      if("add_table".equals(req.op()) && req.datasource() != null
+         && !req.datasource().isBlank())
+      {
+         addBoundTable(sessionToken, req, user);
+         return;
+      }
+
       editService.apply(sessionToken, user, editor -> dispatch(editor, req));
+   }
+
+   /**
+    * Create a {@link PhysicalBoundTableAssembly} from a datasource table reference.
+    *
+    * <p>The {@code req.table()} field contains the physical table path (e.g.
+    * {@code "schema.tableName"} or just {@code "tableName"}), and {@code req.datasource()}
+    * contains the datasource name. A {@link SourceInfo} of type
+    * {@link SourceInfo#PHYSICAL_TABLE} is created, the assembly is added to the worksheet,
+    * and {@link AssetEventUtil#initColumnSelection} populates the column metadata.</p>
+    */
+   private void addBoundTable(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      String datasourceName = req.datasource();
+      String tablePath = req.table();
+
+      if(tablePath == null || tablePath.isBlank()) {
+         throw new PairingException("table is required for add_table.");
+      }
+
+      XDataSource xds;
+
+      try {
+         xds = xrepository.getDataSource(datasourceName);
+      }
+      catch(Exception e) {
+         throw new PairingException("Datasource not found: " + datasourceName);
+      }
+
+      if(xds == null) {
+         throw new PairingException("Datasource not found: " + datasourceName);
+      }
+
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         String assemblyName = AssetUtil.normalizeTable(tablePath);
+         assemblyName = AssetUtil.getNextName(ws, assemblyName);
+
+         PhysicalBoundTableAssembly assembly =
+            new PhysicalBoundTableAssembly(ws, assemblyName);
+
+         SourceInfo sinfo = new SourceInfo(
+            SourceInfo.PHYSICAL_TABLE, datasourceName, tablePath);
+         assembly.setSourceInfo(sinfo);
+
+         // Position below existing assemblies.
+         int maxY = 0;
+
+         for(Assembly a : ws.getAssemblies()) {
+            Point p = a.getPixelOffset();
+            Dimension d = ((WSAssembly) a).getPixelSize();
+
+            if(p != null && d != null) {
+               maxY = Math.max(maxY, p.y + d.height);
+            }
+         }
+
+         assembly.setPixelOffset(new Point(25, maxY + 40));
+         ws.addAssembly(assembly);
+         AssetEventUtil.initColumnSelection(rws, assembly);
+         return null;
+      });
    }
 
    /**
@@ -693,6 +765,16 @@ public class WorksheetAgentController {
     * @param ownerIdentity identity key of the browser user who owns the runtime
     */
    public record JoinResponse(String sessionToken, String runtimeId, String ownerIdentity) {}
+
+   // ---------------------------------------------------------------------------
+   // Exception handling
+   // ---------------------------------------------------------------------------
+
+   @ExceptionHandler(PairingException.class)
+   @ResponseStatus(HttpStatus.BAD_REQUEST)
+   public Map<String, String> handlePairingException(PairingException e) {
+      return Map.of("error", e.getMessage());
+   }
 
    // ---------------------------------------------------------------------------
    // Dependencies

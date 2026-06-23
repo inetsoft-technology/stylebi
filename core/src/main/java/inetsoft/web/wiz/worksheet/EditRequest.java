@@ -38,7 +38,7 @@ import java.util.List;
  *   <li>{@code set_sort} — {@code table}, {@code field}, {@code direction} ("ASC" | "DESC")</li>
  *   <li>{@code add_join} — {@code name}, {@code leftTable}, {@code leftKey}, {@code rightTable}, {@code rightKey}, {@code joinType}</li>
  *   <li>{@code remove_join} — {@code name}</li>
- *   <li>{@code add_table} — {@code table}</li>
+ *   <li>{@code add_table} — {@code table}, optional {@code datasource} (when provided, creates a bound table from the named datasource)</li>
  *   <li>{@code edit_condition} — {@code table}, {@code field}, {@code operation}, {@code values}</li>
  *   <li>{@code edit_expression} — {@code table}, {@code name}, {@code expression}, {@code type}, {@code sql}</li>
  *   <li>{@code edit_join} — {@code name}, {@code leftKey}, {@code rightKey}, {@code joinType}</li>
@@ -113,5 +113,7 @@ public record EditRequest(
    /** Date grouping option for add_date_range_column. */
    String dateOption,
    /** Numeric bucket boundaries for add_numeric_range_column. */
-   double[] boundaries
+   double[] boundaries,
+   /** Datasource name for add_table (when provided, creates a PhysicalBoundTableAssembly). */
+   String datasource
 ) {}

@@ -185,6 +185,7 @@ public class WorksheetEditService {
             String name = a.getName();
             WorksheetEventUtil.refreshColumnSelection(rws, name, true);
             WorksheetEventUtil.loadTableData(rws, name, true, true);
+            WorksheetEventUtil.fixAssemblyInfo(rws, (WSAssembly) a);
          }
       }
    }
