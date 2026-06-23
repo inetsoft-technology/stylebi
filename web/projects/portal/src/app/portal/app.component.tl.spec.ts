@@ -41,8 +41,10 @@
  *     - After the fix: the inner expect passes → it.fails is marked ❌ (remove .fails)
  *
  * MSW note: vitest-setup-tl.ts starts MSW with onUnhandledRequest:"error", so all HTTP
- * requests must be intercepted. This file replaces HttpClient via componentProviders with a
- * plain vi.fn() mock returning of(...), preventing any real HTTP traffic from reaching MSW.
+ * requests must be intercepted. This file replaces HttpClient via providers (module-level
+ * injector) with a plain vi.fn() mock returning of(...), preventing any real HTTP traffic from
+ * reaching MSW. Using providers (vs componentProviders) is safe here because every injected
+ * service is replaced with a mock — no real Angular DI scoping distinctions apply.
  */
 
 /**
@@ -195,13 +197,10 @@ describe("PortalAppComponent — ngOnDestroy: 'message' listener cleanup", () =>
          fixture.destroy();
       }
 
-      const adds    = addSpy.mock.calls.filter(([type]) => type === "message").length;
-      const removes = removeSpy.mock.calls.filter(([type]) => type === "message").length;
-
-      const addedRef   = addSpy.mock.calls.find(c => c[0] === "message")?.[1];
-      const removedRef = removeSpy.mock.calls.find(c => c[0] === "message")?.[1];
-      expect(addedRef).toBeDefined();
-      expect(removedRef).toBe(addedRef);
+      const addedRefs   = addSpy.mock.calls.filter(c => c[0] === "message").map(c => c[1]);
+      const removedRefs = removeSpy.mock.calls.filter(c => c[0] === "message").map(c => c[1]);
+      expect(addedRefs.length).toBe(3);
+      addedRefs.forEach((ref, i) => expect(removedRefs[i]).toBe(ref));
    });
 
    it("should not remove the 'message' listener before the component is destroyed", async () => {
@@ -220,6 +219,17 @@ describe("PortalAppComponent — ngOnDestroy: 'message' listener cleanup", () =>
 
       expect(handlerSpy).not.toHaveBeenCalled();
    });
+
+   it("handleMessageEvent does not throw on null or unknown data payloads", async () => {
+      const { fixture } = await renderComponent();
+      const comp = fixture.componentInstance;
+
+      expect(() => {
+         comp.handleMessageEvent({ data: null } as any);
+         comp.handleMessageEvent({ data: {} } as any);
+         comp.handleMessageEvent({ data: { event: "unknown" } } as any);
+      }).not.toThrow();
+   });
 });
 
 // ── Baseline: verify ngOnInit registers the message listener ──────────────────
@@ -233,60 +243,6 @@ describe("PortalAppComponent — Baseline: message listener registration", () =>
 
       const messageCalls = addSpy.mock.calls.filter(([type]) => type === "message");
       expect(messageCalls.length).toBe(1);
-   });
-});
-
-// ── Bug C: ngOnDestroy does not remove the message listener → memory leak ─────
-
-describe("PortalAppComponent — Bug C: window 'message' listener leak (app.component.ts:185)", () => {
-
-   // 🐛 single create/destroy: listener must be removed after destroy
-   it.fails("ngOnDestroy must call window.removeEventListener for 'message' (remove .fails after fix)", async () => {
-      const addSpy    = vi.spyOn(window, "addEventListener");
-      const removeSpy = vi.spyOn(window, "removeEventListener");
-
-      const { fixture } = await renderComponent();
-
-      const addCount = addSpy.mock.calls.filter(([type]) => type === "message").length;
-      expect(addCount).toBe(1); // ngOnInit registers exactly 1 listener
-
-      fixture.destroy(); // triggers ngOnDestroy
-
-      const removeCount = removeSpy.mock.calls.filter(([type]) => type === "message").length;
-
-      // Before fix: removeCount = 0 (ngOnDestroy never calls removeEventListener) → expect fails → it.fails ✅
-      // After fix:  removeCount = 1 → expect passes → it.fails ❌ remove it
-      expect(removeCount).toBe(addCount);
-   });
-
-   // 🐛 3 create/destroy cycles: listener count must not grow (simulates repeated navigation)
-   it.fails("repeated create/destroy cycles must not accumulate 'message' listeners (remove .fails after fix)", async () => {
-      const addSpy    = vi.spyOn(window, "addEventListener");
-      const removeSpy = vi.spyOn(window, "removeEventListener");
-
-      for(let i = 0; i < 3; i++) {
-         const { fixture } = await renderComponent();
-         fixture.destroy();
-      }
-
-      const adds    = addSpy.mock.calls.filter(([type]) => type === "message").length;
-      const removes = removeSpy.mock.calls.filter(([type]) => type === "message").length;
-
-      // Before fix: adds = 3, removes = 0 (each navigation leaks one listener) → expect fails → it.fails ✅
-      // After fix:  adds = removes = 3 → expect passes → it.fails ❌ remove it
-      expect(removes).toBe(adds);
-   });
-
-   // ✅ Regression guard: handleMessageEvent silently ignores non-openDialog messages
-   it("handleMessageEvent does not throw on null or unknown data payloads", async () => {
-      const { fixture } = await renderComponent();
-      const comp = fixture.componentInstance;
-
-      expect(() => {
-         comp.handleMessageEvent({ data: null } as any);
-         comp.handleMessageEvent({ data: {} } as any);
-         comp.handleMessageEvent({ data: { event: "unknown" } } as any);
-      }).not.toThrow();
    });
 });
 
