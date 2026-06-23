@@ -19,7 +19,8 @@ package inetsoft.web.wiz.pairing;
 
 /** A single-use authorization binding an agent pairing code to an open sheet runtime. */
 public record PairingGrant(String code, String runtimeId, String ownerIdentity,
-                           String socketSessionId, long createdAt, long ttlMillis,
+                           String socketSessionId, String socketUserName,
+                           long createdAt, long ttlMillis,
                            SheetType sheetType) {
    public boolean isExpired(long now) { return now - createdAt > ttlMillis; }
 }

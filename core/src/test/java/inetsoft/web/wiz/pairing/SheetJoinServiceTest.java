@@ -68,7 +68,7 @@ class SheetJoinServiceTest {
    @Test
    void validCodeSameLogicalUserGrantsSession() throws PairingException {
       when(feature.isEnabled()).thenReturn(true);
-      String code = pairing.mint("Worksheet/foo-7", ALICE_KEY, "sock-1", SheetType.WORKSHEET);
+      String code = pairing.mint("Worksheet/foo-7", ALICE_KEY, "sock-1", null, SheetType.WORKSHEET);
       Principal alice = TestPrincipals.user("alice", "host-org");
 
       JoinSession session = svc.join(code, alice);
@@ -95,7 +95,7 @@ class SheetJoinServiceTest {
    @Test
    void differentLogicalUserIsRejected() {
       when(feature.isEnabled()).thenReturn(true);
-      String code = pairing.mint("Worksheet/foo-8", ALICE_KEY, "sock-2", SheetType.WORKSHEET);
+      String code = pairing.mint("Worksheet/foo-8", ALICE_KEY, "sock-2", null, SheetType.WORKSHEET);
       Principal bob = TestPrincipals.user("bob", "host-org");
 
       assertThrows(PairingException.class, () -> svc.join(code, bob));
@@ -107,7 +107,7 @@ class SheetJoinServiceTest {
    @Test
    void codeIsConsumedAfterSuccessfulJoin() throws PairingException {
       when(feature.isEnabled()).thenReturn(true);
-      String code = pairing.mint("Worksheet/foo-9", ALICE_KEY, "sock-3", SheetType.WORKSHEET);
+      String code = pairing.mint("Worksheet/foo-9", ALICE_KEY, "sock-3", null, SheetType.WORKSHEET);
       Principal alice = TestPrincipals.user("alice", "host-org");
 
       svc.join(code, alice);
@@ -122,7 +122,7 @@ class SheetJoinServiceTest {
    @Test
    void featureFlagOffRejectsJoinAndDoesNotConsumeCode() {
       when(feature.isEnabled()).thenReturn(false);
-      String code = pairing.mint("Worksheet/foo-10", ALICE_KEY, "sock-4", SheetType.WORKSHEET);
+      String code = pairing.mint("Worksheet/foo-10", ALICE_KEY, "sock-4", null, SheetType.WORKSHEET);
       Principal alice = TestPrincipals.user("alice", "host-org");
 
       assertThrows(PairingException.class, () -> svc.join(code, alice));
@@ -137,7 +137,7 @@ class SheetJoinServiceTest {
    @Test
    void viewsheetCodeGrantsViewsheetSession() throws PairingException {
       when(feature.isEnabled()).thenReturn(true);
-      String code = pairing.mint("Viewsheet/bar-1", ALICE_KEY, "sock-5", SheetType.VIEWSHEET);
+      String code = pairing.mint("Viewsheet/bar-1", ALICE_KEY, "sock-5", null, SheetType.VIEWSHEET);
       Principal alice = TestPrincipals.user("alice", "host-org");
 
       JoinSession session = svc.join(code, alice);

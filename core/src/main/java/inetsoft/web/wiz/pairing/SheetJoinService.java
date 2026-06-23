@@ -78,7 +78,8 @@ public class SheetJoinService {
 
       // 4. Open a reusable session, carrying the browser's socket session ID for broadcast.
       JoinSession session = sessions.open(grant.runtimeId(), grant.ownerIdentity(),
-                                          grant.sheetType(), grant.socketSessionId());
+                                          grant.sheetType(), grant.socketSessionId(),
+                                          grant.socketUserName());
       LOG.info("Sheet agent pairing join granted (runtimeId={}, sheetType={}, agent={})",
                grant.runtimeId(), grant.sheetType(), agentUser.getName());
       return session;

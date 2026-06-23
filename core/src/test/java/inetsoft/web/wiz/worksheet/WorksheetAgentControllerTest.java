@@ -44,7 +44,7 @@ class WorksheetAgentControllerTest {
    private static JoinSession session(String token) {
       return new JoinSession(token, "Worksheet/ws-1", "alice~;~host-org",
                              SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
-                             JoinSession.ConnectionMode.PAIRED, null);
+                             JoinSession.ConnectionMode.PAIRED, null, null);
    }
 
    private static WorksheetAgentController controller(SheetAgentFeature feature,

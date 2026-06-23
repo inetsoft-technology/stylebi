@@ -46,7 +46,7 @@ class SheetPairingServiceTest {
    @Test
    void mintReturnsEightCharCode() {
       SheetPairingService svc = serviceAt(FIXED_NOW);
-      String code = svc.mint("rt-1", "alice~;~org", "sock-1", SheetType.WORKSHEET);
+      String code = svc.mint("rt-1", "alice~;~org", "sock-1", null, SheetType.WORKSHEET);
       assertNotNull(code);
       assertEquals(8, code.length());
    }
@@ -54,7 +54,7 @@ class SheetPairingServiceTest {
    @Test
    void mintedCodeUsesAllowedAlphabet() {
       SheetPairingService svc = serviceAt(FIXED_NOW);
-      String code = svc.mint("rt-1", "alice~;~org", "sock-1", SheetType.WORKSHEET);
+      String code = svc.mint("rt-1", "alice~;~org", "sock-1", null, SheetType.WORKSHEET);
       for (char c : code.toCharArray()) {
          assertTrue(SheetPairingService.ALPHABET.indexOf(c) >= 0,
                     "Unexpected char: " + c);
@@ -64,7 +64,7 @@ class SheetPairingServiceTest {
    @Test
    void peekReturnsGrantForValidCode() {
       SheetPairingService svc = serviceAt(FIXED_NOW);
-      String code = svc.mint("rt-2", "bob~;~org", "sock-2", SheetType.VIEWSHEET);
+      String code = svc.mint("rt-2", "bob~;~org", "sock-2", null, SheetType.VIEWSHEET);
       PairingGrant grant = svc.peek(code);
       assertNotNull(grant);
       assertEquals("rt-2", grant.runtimeId());
@@ -75,7 +75,7 @@ class SheetPairingServiceTest {
    @Test
    void peekDoesNotConsumeGrant() {
       SheetPairingService svc = serviceAt(FIXED_NOW);
-      String code = svc.mint("rt-3", "carol~;~org", "sock-3", SheetType.WORKSHEET);
+      String code = svc.mint("rt-3", "carol~;~org", "sock-3", null, SheetType.WORKSHEET);
       svc.peek(code);
       assertNotNull(svc.peek(code), "peek should be non-destructive");
    }
@@ -83,7 +83,7 @@ class SheetPairingServiceTest {
    @Test
    void consumeRemovesGrant() {
       SheetPairingService svc = serviceAt(FIXED_NOW);
-      String code = svc.mint("rt-4", "dave~;~org", "sock-4", SheetType.WORKSHEET);
+      String code = svc.mint("rt-4", "dave~;~org", "sock-4", null, SheetType.WORKSHEET);
       PairingGrant first = svc.consume(code);
       assertNotNull(first);
       assertNull(svc.consume(code), "second consume must return null (single-use)");
@@ -99,7 +99,7 @@ class SheetPairingServiceTest {
    void peekReturnsNullForExpiredGrant() {
       long mintTime = FIXED_NOW;
       SheetPairingService svc = serviceAt(mintTime);
-      String code = svc.mint("rt-5", "eve~;~org", "sock-5", SheetType.WORKSHEET);
+      String code = svc.mint("rt-5", "eve~;~org", "sock-5", null, SheetType.WORKSHEET);
       // advance clock beyond TTL
       SheetPairingService svcLater = new SheetPairingService(
          () -> mintTime + SheetPairingService.TTL_MILLIS + 1, svc);
@@ -110,7 +110,7 @@ class SheetPairingServiceTest {
    void consumeReturnsNullForExpiredGrant() {
       long mintTime = FIXED_NOW;
       SheetPairingService svc = serviceAt(mintTime);
-      String code = svc.mint("rt-6", "frank~;~org", "sock-6", SheetType.WORKSHEET);
+      String code = svc.mint("rt-6", "frank~;~org", "sock-6", null, SheetType.WORKSHEET);
       SheetPairingService svcLater = new SheetPairingService(
          () -> mintTime + SheetPairingService.TTL_MILLIS + 1, svc);
       assertNull(svcLater.consume(code));

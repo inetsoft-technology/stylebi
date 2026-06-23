@@ -46,12 +46,12 @@ public class SheetSessionService {
    }
 
    public JoinSession open(String runtimeId, String ownerIdentity, SheetType sheetType,
-                           String socketSessionId)
+                           String socketSessionId, String socketUserName)
    {
       String token = newToken();
       JoinSession s = new JoinSession(token, runtimeId, ownerIdentity, sheetType,
                                       clock.getAsLong(), TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
-                                      socketSessionId);
+                                      socketSessionId, socketUserName);
       sessions.put(token, s);
       return s;
    }
@@ -63,7 +63,8 @@ public class SheetSessionService {
       if (s == null || s.isExpired(clock.getAsLong()) || !s.ownerIdentity().equals(agentIdentity)) return null;
       JoinSession refreshed = new JoinSession(s.sessionToken(), s.runtimeId(), s.ownerIdentity(),
                                               s.sheetType(), clock.getAsLong(), s.ttlMillis(),
-                                              s.connectionMode(), s.socketSessionId());
+                                              s.connectionMode(), s.socketSessionId(),
+                                              s.socketUserName());
       sessions.put(token, refreshed);
       return refreshed;
    }

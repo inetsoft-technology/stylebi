@@ -36,11 +36,13 @@ class PairingGrantTest {
    void fieldsAreAccessible() {
       long now = System.currentTimeMillis();
       PairingGrant grant = new PairingGrant("CODE1", "rt-001", "alice~;~defaultOrg",
-                                             "sock-123", now, 5000L, SheetType.WORKSHEET);
+                                             "sock-123", "alice~;~defaultOrg[sec]@127.0.0.1",
+                                             now, 5000L, SheetType.WORKSHEET);
       assertEquals("CODE1", grant.code());
       assertEquals("rt-001", grant.runtimeId());
       assertEquals("alice~;~defaultOrg", grant.ownerIdentity());
       assertEquals("sock-123", grant.socketSessionId());
+      assertEquals("alice~;~defaultOrg[sec]@127.0.0.1", grant.socketUserName());
       assertEquals(now, grant.createdAt());
       assertEquals(5000L, grant.ttlMillis());
       assertEquals(SheetType.WORKSHEET, grant.sheetType());
@@ -49,14 +51,14 @@ class PairingGrantTest {
    @Test
    void isExpiredReturnsFalseBeforeTtl() {
       long now = 1_000_000L;
-      PairingGrant grant = new PairingGrant("C", "r", "o", "s", now, 5000L, SheetType.VIEWSHEET);
+      PairingGrant grant = new PairingGrant("C", "r", "o", "s", null, now, 5000L, SheetType.VIEWSHEET);
       assertFalse(grant.isExpired(now + 4999L));
    }
 
    @Test
    void isExpiredReturnsTrueAfterTtl() {
       long now = 1_000_000L;
-      PairingGrant grant = new PairingGrant("C", "r", "o", "s", now, 5000L, SheetType.VIEWSHEET);
+      PairingGrant grant = new PairingGrant("C", "r", "o", "s", null, now, 5000L, SheetType.VIEWSHEET);
       assertTrue(grant.isExpired(now + 5001L));
    }
 }

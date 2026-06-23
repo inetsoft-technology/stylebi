@@ -46,10 +46,12 @@ public class SheetPairingService {
       this.grants = source.grants;
    }
 
-   public String mint(String runtimeId, String ownerIdentity, String socketSessionId, SheetType sheetType) {
+   public String mint(String runtimeId, String ownerIdentity, String socketSessionId,
+                      String socketUserName, SheetType sheetType)
+   {
       String code = newCode();
       grants.put(code, new PairingGrant(code, runtimeId, ownerIdentity, socketSessionId,
-                                        clock.getAsLong(), TTL_MILLIS, sheetType));
+                                        socketUserName, clock.getAsLong(), TTL_MILLIS, sheetType));
       return code;
    }
 

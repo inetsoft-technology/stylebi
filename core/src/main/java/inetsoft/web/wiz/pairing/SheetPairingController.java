@@ -24,6 +24,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.annotation.SendToUser;
+import org.springframework.messaging.simp.user.DestinationUserNameProvider;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -75,7 +76,8 @@ public class SheetPairingController {
                             Principal owner)
    {
       requireFeature();
-      return MintResponse.ok(pairing.mint(runtimeId, ownerKey(owner), socketSessionId, sheetType));
+      return MintResponse.ok(pairing.mint(runtimeId, ownerKey(owner), socketSessionId,
+                                          destinationUserName(owner), sheetType));
    }
 
    /**
@@ -96,7 +98,8 @@ public class SheetPairingController {
       }
       try {
          String sessionId = accessor.getSessionId();
-         return MintResponse.ok(pairing.mint(req.runtimeId(), ownerKey(owner), sessionId, req.sheetType()));
+         return MintResponse.ok(pairing.mint(req.runtimeId(), ownerKey(owner), sessionId,
+                                             destinationUserName(owner), req.sheetType()));
       }
       catch(Exception e) {
          return MintResponse.err(e.getMessage() != null ? e.getMessage() : "Failed to generate pairing code");
@@ -107,6 +110,14 @@ public class SheetPairingController {
       if(!feature.isEnabled()) {
          throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Sheet agent pairing is disabled");
       }
+   }
+
+   private static String destinationUserName(Principal owner) {
+      if(owner instanceof DestinationUserNameProvider provider) {
+         return provider.getDestinationUserName();
+      }
+
+      return owner == null ? null : owner.getName();
    }
 
    private static String ownerKey(Principal owner) {

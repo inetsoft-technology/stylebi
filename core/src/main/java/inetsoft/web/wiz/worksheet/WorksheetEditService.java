@@ -23,9 +23,12 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.util.XEmbeddedTable;
 import java.util.Enumeration;
+import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.wiz.pairing.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -80,6 +83,7 @@ public class WorksheetEditService {
 
       Editor editor = new Editor(rws.getWorksheet());
       mutation.accept(editor);
+      refreshAssemblies(rws);
 
       broadcast.broadcastRefresh(rws, SheetType.WORKSHEET, session.runtimeId(), agent);
    }
@@ -105,6 +109,7 @@ public class WorksheetEditService {
       applySocketSession(rws, session);
 
       T result = mutation.apply(rws);
+      refreshAssemblies(rws);
       broadcast.broadcastRefresh(rws, SheetType.WORKSHEET, session.runtimeId(), agent);
       return result;
    }
@@ -143,20 +148,35 @@ public class WorksheetEditService {
     * Propagates the browser's socket session ID and user name from the pairing session
     * to the RuntimeWorksheet so the broadcast can deliver the refresh command.
     */
+   /**
+    * Refresh column selections and reload table data for all assemblies in the worksheet.
+    * Mirrors the UI's post-edit steps (InsertDataService calls refreshColumnSelection +
+    * loadTableData after column mutations).
+    */
+   private void refreshAssemblies(RuntimeWorksheet rws) {
+      Worksheet ws = rws.getWorksheet();
+
+      if(ws == null) {
+         return;
+      }
+
+      for(Assembly a : ws.getAssemblies()) {
+         if(a instanceof TableAssembly) {
+            String name = a.getName();
+            WorksheetEventUtil.refreshColumnSelection(rws, name, true);
+            WorksheetEventUtil.loadTableData(rws, name, true, true);
+         }
+      }
+   }
+
    private void applySocketSession(RuntimeWorksheet rws, JoinSession session) {
       if(session.socketSessionId() != null && rws.getSocketSessionId() == null) {
          rws.setSocketSessionId(session.socketSessionId());
       }
 
-      if(rws.getSocketUserName() == null) {
-         // ownerIdentity is "user~;~orgId" — extract the username portion
-         String ownerIdentity = session.ownerIdentity();
-         String userName = ownerIdentity != null && ownerIdentity.contains("~;~")
-            ? ownerIdentity.substring(0, ownerIdentity.indexOf("~;~"))
-            : ownerIdentity;
-         rws.setSocketUserName(userName);
+      if(rws.getSocketUserName() == null && session.socketUserName() != null) {
+         rws.setSocketUserName(session.socketUserName());
       }
-
    }
 
    private String agentKey(Principal agent) {
@@ -203,12 +223,22 @@ public class WorksheetEditService {
        */
       public void removeColumn(String table, String col) throws PairingException {
          TableAssembly t = requireTable(table);
-         ColumnSelection cs = t.getColumnSelection(false);
+         ColumnSelection cs = t.getColumnSelection();
          DataRef toRemove = cs.getAttribute(col);
 
          if(toRemove != null) {
+            // For embedded tables, also remove the data column from XEmbeddedTable
+            if(t instanceof EmbeddedTableAssembly embedded) {
+               XEmbeddedTable data = embedded.getEmbeddedData();
+               int index = AssetUtil.findColumn(data, toRemove);
+
+               if(index >= 0) {
+                  data.deleteCol(index);
+               }
+            }
+
             cs.removeAttribute(toRemove);
-            t.setColumnSelection(cs, false);
+            t.setColumnSelection(cs);
          }
       }
 
@@ -222,7 +252,18 @@ public class WorksheetEditService {
        */
       public void addColumn(String table, String name, String type) throws PairingException {
          TableAssembly t = requireTable(table);
-         ColumnSelection cs = t.getColumnSelection(false);
+         ColumnSelection cs = t.getColumnSelection();
+
+         // For embedded tables, also insert the data column into XEmbeddedTable
+         // (mirrors InsertDataService.insertData column path).
+         if(t instanceof EmbeddedTableAssembly embedded) {
+            XEmbeddedTable data = embedded.getEmbeddedData();
+            int newColIdx = data.getColCount();
+            data.insertCol(newColIdx);
+            data.setObject(0, newColIdx, name);
+            data.setColumnIdentifier(newColIdx, name);
+         }
+
          AttributeRef attr = new AttributeRef(null, name);
          ColumnRef ref = new ColumnRef(attr);
 
@@ -230,8 +271,10 @@ public class WorksheetEditService {
             ref.setDataType(type);
          }
 
+         String alias = AssetUtil.findAlias(cs, ref);
+         ref.setAlias(alias);
          cs.addAttribute(ref);
-         t.setColumnSelection(cs, false);
+         t.setColumnSelection(cs);
       }
 
       /**
