@@ -513,6 +513,9 @@ public final class XObjectColumn extends AbstractTableColumn {
             this.arr = new Object[pos];
          }
       }
+      finally {
+         XSwapUtil.releaseKryo(kryo);
+      }
    }
 
    @Override
@@ -541,6 +544,9 @@ public final class XObjectColumn extends AbstractTableColumn {
       }
       catch(Exception ex) {
          LOG.error("Failed to write data", ex);
+      }
+      finally {
+         XSwapUtil.releaseKryo(kryo);
       }
 
       return null;
