@@ -256,6 +256,7 @@ public class JDBCQuery extends XQuery {
       }
       catch(Exception ex) {
          LOG.debug("Failed to get meta-data from prepared statement", ex);
+         lastQueryError = ex;
       }
 
       // when failed, try overhead way second: executing sql and getting
@@ -281,9 +282,11 @@ public class JDBCQuery extends XQuery {
          }
 
          result.close();
+         lastQueryError = null;
       }
       catch(Exception ex) {
          LOG.debug("Failed to get output meta-data", ex);
+         lastQueryError = ex;
       }
 
       return output;
@@ -904,10 +907,15 @@ public class JDBCQuery extends XQuery {
       defmap.put(UniformSQL.XML_TAG, "inetsoft.uql.jdbc.UniformSQL");
    }
 
+   /** Last exception caught by {@link #getOutputTypeForNonParseableSQL}; null on success. */
+   public Exception getLastQueryError() { return lastQueryError; }
+   public void setLastQueryError(Exception e) { lastQueryError = e; }
+
    private SQLDefinition sql;
    private boolean venabled;
    // this is set when query is generated at runtime so it's not persistent
    private boolean userQuery;
+   private Exception lastQueryError;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(JDBCQuery.class);
