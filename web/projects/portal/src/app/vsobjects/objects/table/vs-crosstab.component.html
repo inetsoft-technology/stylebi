@@ -111,7 +111,7 @@
         [selectionBoxBannedSelector]="'input, .highlightable'"
         (onSelectionBox)="selectCells($event)"
         (mousedown)="onDown($event)"
-        (wheel)="wheelScrollHandler($event)">
+        outOfZone (onWheel)="wheelScrollHandler($event)">
         <div #leftTopDiv class="left-top-table"
           [style.left.px]="isFullHorizontalWrapper ? -scrollX : null">
           <table>
