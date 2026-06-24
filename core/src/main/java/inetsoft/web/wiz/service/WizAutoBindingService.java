@@ -677,6 +677,12 @@ public class WizAutoBindingService {
          if(fc.getOrder() != null) {
             dim.setOrder(fc.getOrder());
          }
+
+         if(fc instanceof DimensionFieldInfo dimFc2 && dimFc2.getManualOrder() != null &&
+            !dimFc2.getManualOrder().isEmpty())
+         {
+            dim.setManualOrderList(new java.util.ArrayList<>(dimFc2.getManualOrder()));
+         }
       }
       else if(ref instanceof VSChartAggregateRef agg) {
          if(fc instanceof MeasureFieldInfo meaFc) {

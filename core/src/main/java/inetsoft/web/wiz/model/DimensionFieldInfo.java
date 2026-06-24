@@ -19,6 +19,8 @@ package inetsoft.web.wiz.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.util.List;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class DimensionFieldInfo extends SimpleFieldInfo {
    public String getDateGroupLevel() {
@@ -53,8 +55,17 @@ public class DimensionFieldInfo extends SimpleFieldInfo {
       this.timeSeries = timeSeries;
    }
 
+   public List<String> getManualOrder() {
+      return manualOrder;
+   }
+
+   public void setManualOrder(List<String> manualOrder) {
+      this.manualOrder = manualOrder;
+   }
+
    private String dateGroupLevel;
    private Ranking ranking;
    private String fullName;
    private boolean timeSeries = false;
+   private List<String> manualOrder;
 }
