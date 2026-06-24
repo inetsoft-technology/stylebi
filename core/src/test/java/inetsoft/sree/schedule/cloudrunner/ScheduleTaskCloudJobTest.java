@@ -172,7 +172,7 @@ class ScheduleTaskCloudJobTest {
       return task;
    }
 
-   private ScheduleTask buildFailingTask(String name) {
+   private ScheduleTask buildFailingTask(String name) throws Throwable {
       ScheduleAction failingAction = mock(ScheduleAction.class);
       doThrow(new RuntimeException("simulated cloud failure")).when(failingAction).run(any());
 
