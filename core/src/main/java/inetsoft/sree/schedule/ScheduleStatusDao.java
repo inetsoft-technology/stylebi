@@ -102,7 +102,7 @@ public class ScheduleStatusDao implements AutoCloseable {
       }
       catch(InterruptedException ex) {
          Thread.currentThread().interrupt();
-         LOG.error("Failed to put schedule status {} for {}", status, taskName);
+         LOG.error("Failed to put schedule status {} for {}", status, taskName, ex);
       }
       catch(Exception ex) {
          LOG.error("Failed to put schedule status {} for {}", status, taskName);
