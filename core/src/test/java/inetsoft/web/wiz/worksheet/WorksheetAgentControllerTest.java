@@ -167,7 +167,8 @@ class WorksheetAgentControllerTest {
          null, null, null, null, null, null, null, null, null, null, false,
          null, null, null, null, null,
          null, null, null, null, null, null, null, null, null, null, null, null,
-         null, null, null, null, null, null, null, null, null, null);
+         null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null);
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),

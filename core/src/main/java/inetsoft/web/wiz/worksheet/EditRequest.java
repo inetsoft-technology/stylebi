@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.worksheet;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Union request body for all worksheet edit operations.
@@ -61,6 +62,12 @@ import java.util.List;
  *   <li>{@code set_table_properties} — {@code table}, {@code alias}, {@code description}, {@code maxRows}, {@code distinct}</li>
  *   <li>{@code add_cross_join} — {@code name}, {@code leftTable}, {@code rightTable}</li>
  *   <li>{@code add_merge_join} — {@code name}, {@code tables}</li>
+ *   <li>{@code reorder_columns} — {@code table}, {@code columnOrder}</li>
+ *   <li>{@code add_concat_subtable} — {@code table} (concat assembly), {@code name} (subtable to add)</li>
+ *   <li>{@code remove_concat_subtable} — {@code table} (concat assembly), {@code name} (subtable to remove)</li>
+ *   <li>{@code add_named_group} — {@code name}, {@code table}, {@code column}, {@code groupMappings}, {@code groupOthers}</li>
+ *   <li>{@code set_column_description} — {@code table}, {@code column}, {@code description}</li>
+ *   <li>{@code set_variable_values} — {@code variableValues} (map of variable name → value)</li>
  * </ul>
  */
 public record EditRequest(
@@ -145,5 +152,13 @@ public record EditRequest(
    /** Max rows for set_table_properties. */
    Integer maxRows,
    /** Distinct flag for set_table_properties. */
-   Boolean distinct
+   Boolean distinct,
+   /** Ordered list of column names for reorder_columns. */
+   List<String> columnOrder,
+   /** Group name → value list mappings for add_named_group. */
+   List<WorksheetMutationSupport.GroupMapping> groupMappings,
+   /** Whether to group unmapped values as "Others" for add_named_group. */
+   Boolean groupOthers,
+   /** Variable name → value mappings for set_variable_values. */
+   Map<String, String> variableValues
 ) {}

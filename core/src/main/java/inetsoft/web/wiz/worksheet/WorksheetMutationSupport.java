@@ -53,6 +53,11 @@ public final class WorksheetMutationSupport {
     */
    public record AggregateSpec(String field, String formula, String alias) {}
 
+   /**
+    * A named group mapping — group name to list of values that belong to that group.
+    */
+   public record GroupMapping(String name, java.util.List<String> values) {}
+
    // =========================================================================
    // Filter helpers
    // =========================================================================

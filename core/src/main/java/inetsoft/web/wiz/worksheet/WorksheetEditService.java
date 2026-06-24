@@ -19,9 +19,8 @@ package inetsoft.web.wiz.worksheet;
 
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.*;
 import inetsoft.uql.ColumnSelection;
-import inetsoft.uql.XConstants;
-import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
@@ -1161,6 +1160,200 @@ public class WorksheetEditService {
          MergeJoinTableAssembly mergeJoin =
             new MergeJoinTableAssembly(ws, name, tables, operators);
          ws.addAssembly(mergeJoin);
+      }
+
+      // -----------------------------------------------------------------------
+      // Column reordering
+      // -----------------------------------------------------------------------
+
+      /**
+       * Reorders the columns in a table's public column selection.
+       *
+       * @param table       the assembly name
+       * @param columnOrder ordered list of column names defining the new order.
+       *                    Columns not mentioned are appended at the end.
+       * @throws PairingException if the table is not found
+       */
+      public void reorderColumns(String table, List<String> columnOrder)
+         throws PairingException
+      {
+         TableAssembly t = requireTable(table);
+         ColumnSelection cs = t.getColumnSelection(false);
+
+         // Build a map of name → DataRef for fast lookup
+         java.util.LinkedHashMap<String, DataRef> byName = new java.util.LinkedHashMap<>();
+
+         for(int i = 0; i < cs.getAttributeCount(); i++) {
+            DataRef ref = cs.getAttribute(i);
+            String name = ref instanceof ColumnRef cr && cr.getAlias() != null
+                          && !cr.getAlias().isEmpty()
+                          ? cr.getAlias() : ref.getName();
+            byName.put(name, ref);
+         }
+
+         ColumnSelection newCs = new ColumnSelection();
+
+         // Add columns in the specified order
+         for(String name : columnOrder) {
+            DataRef ref = byName.remove(name);
+
+            if(ref != null) {
+               newCs.addAttribute(ref);
+            }
+         }
+
+         // Append any remaining columns not in the specified order
+         for(DataRef ref : byName.values()) {
+            newCs.addAttribute(ref);
+         }
+
+         t.setColumnSelection(newCs, false);
+      }
+
+      // -----------------------------------------------------------------------
+      // Concatenation sub-table management
+      // -----------------------------------------------------------------------
+
+      /**
+       * Adds a table to an existing concatenation assembly.
+       *
+       * @param concatName the concatenation assembly name
+       * @param tableName  the table to add
+       * @throws PairingException if the concat or source table is not found
+       */
+      public void addConcatSubtable(String concatName, String tableName)
+         throws PairingException
+      {
+         Assembly a = ws.getAssembly(concatName);
+
+         if(!(a instanceof ConcatenatedTableAssembly ctbl)) {
+            throw new PairingException("Concatenation not found: " + concatName);
+         }
+
+         TableAssembly newTable = requireTable(tableName);
+         TableAssembly[] existing = ctbl.getTableAssemblies();
+         TableAssembly[] updated = new TableAssembly[existing.length + 1];
+         System.arraycopy(existing, 0, updated, 0, existing.length);
+         updated[existing.length] = newTable;
+
+         // Preserve existing operators and add one for the new pair
+         TableAssemblyOperator op = ctbl.getOperator(0);
+         ctbl.setTableAssemblies(updated);
+
+         // Set operator between last existing and new table
+         ctbl.setOperator(existing[existing.length - 1].getName(),
+                          tableName, op);
+      }
+
+      /**
+       * Removes a table from an existing concatenation assembly.
+       * If fewer than 2 tables remain, the concatenation is deleted.
+       *
+       * @param concatName the concatenation assembly name
+       * @param tableName  the table to remove
+       * @throws PairingException if the concat is not found
+       */
+      public void removeConcatSubtable(String concatName, String tableName)
+         throws PairingException
+      {
+         Assembly a = ws.getAssembly(concatName);
+
+         if(!(a instanceof ConcatenatedTableAssembly ctbl)) {
+            throw new PairingException("Concatenation not found: " + concatName);
+         }
+
+         boolean invalid = ctbl.removeTable(tableName);
+
+         if(invalid) {
+            ws.removeAssembly(concatName);
+         }
+      }
+
+      // -----------------------------------------------------------------------
+      // Named group assembly
+      // -----------------------------------------------------------------------
+
+      /**
+       * Creates a {@link DefaultNamedGroupAssembly} with simple value-list mappings.
+       *
+       * @param name       the assembly name
+       * @param table      the table containing the column to group
+       * @param column     the column to attach the grouping to
+       * @param mappings   group name → value list mappings
+       * @param groupOthers whether to group unmapped values as "Others"
+       * @throws PairingException if the table or column is not found
+       */
+      public void addNamedGroup(String name, String table, String column,
+                                List<WorksheetMutationSupport.GroupMapping> mappings,
+                                boolean groupOthers) throws PairingException
+      {
+         TableAssembly t = requireTable(table);
+         ColumnSelection cs = t.getColumnSelection(false);
+         DataRef ref = cs.getAttribute(column);
+
+         if(ref == null) {
+            throw new PairingException("Column not found: " + column);
+         }
+
+         NamedGroupInfo ngi = new NamedGroupInfo();
+         ngi.setOthers(groupOthers
+            ? XConstants.GROUP_OTHERS
+            : XConstants.LEAVE_OTHERS);
+
+         // Build condition lists from simple value mappings.
+         // Each group maps to a ONE_OF condition on the column.
+         if(mappings != null) {
+            for(WorksheetMutationSupport.GroupMapping m : mappings) {
+               ConditionList conds = new ConditionList();
+
+               for(int i = 0; i < m.values().size(); i++) {
+                  if(i > 0) {
+                     JunctionOperator junc = new JunctionOperator(JunctionOperator.OR, 0);
+                     conds.append(junc);
+                  }
+
+                  Condition c = new Condition(ref.getDataType());
+                  c.setOperation(XCondition.EQUAL_TO);
+                  c.addValue(m.values().get(i));
+                  conds.append(new ConditionItem(ref, c, 0));
+               }
+
+               ngi.setGroupCondition(m.name(), conds);
+            }
+         }
+
+         DefaultNamedGroupAssembly assembly = new DefaultNamedGroupAssembly(ws, name);
+         assembly.setNamedGroupInfo(ngi);
+         assembly.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
+         assembly.setAttachedAttribute(ref);
+
+         ws.addAssembly(assembly);
+      }
+
+      // -----------------------------------------------------------------------
+      // Column description
+      // -----------------------------------------------------------------------
+
+      /**
+       * Sets the description on a column.
+       *
+       * @param table       the assembly name
+       * @param col         the column attribute name
+       * @param description the free-text description
+       * @throws PairingException if the table or column is not found
+       */
+      public void setColumnDescription(String table, String col, String description)
+         throws PairingException
+      {
+         TableAssembly t = requireTable(table);
+         ColumnSelection cs = t.getColumnSelection(false);
+         DataRef ref = cs.getAttribute(col);
+
+         if(!(ref instanceof ColumnRef cr)) {
+            throw new PairingException("Column not found: " + col);
+         }
+
+         cr.setDescription(description);
       }
 
       // -----------------------------------------------------------------------

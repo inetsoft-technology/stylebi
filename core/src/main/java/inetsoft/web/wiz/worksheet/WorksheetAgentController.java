@@ -143,6 +143,12 @@ public class WorksheetAgentController {
          return;
       }
 
+      // set_variable_values needs AssetQuerySandbox, not just Editor.
+      if("set_variable_values".equals(req.op())) {
+         setVariableValues(sessionToken, req, user);
+         return;
+      }
+
       editService.apply(sessionToken, user, editor -> dispatch(editor, req));
    }
 
@@ -583,13 +589,57 @@ public class WorksheetAgentController {
          case "add_merge_join" ->
             editor.addMergeJoin(req.name(),
                req.tables() != null ? req.tables().toArray(new String[0]) : null);
+         case "reorder_columns" ->
+            editor.reorderColumns(req.table(), req.columnOrder());
+         case "add_concat_subtable" ->
+            editor.addConcatSubtable(req.table(), req.name());
+         case "remove_concat_subtable" ->
+            editor.removeConcatSubtable(req.table(), req.name());
+         case "add_named_group" ->
+            editor.addNamedGroup(req.name(), req.table(), req.column(),
+               req.groupMappings(),
+               req.groupOthers() != null && req.groupOthers());
+         case "set_column_description" ->
+            editor.setColumnDescription(req.table(), req.column(), req.description());
          default ->
             throw new PairingException("Unknown op: " + req.op());
       }
    }
 
    // ---------------------------------------------------------------------------
-   // SQL query table endpoint
+   // Variable values endpoint
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Set runtime values for worksheet variables. Uses
+    * {@link inetsoft.report.composition.execution.AssetQuerySandbox#refreshVariableTable}
+    * to apply the values and refresh dependent assemblies.
+    */
+   private void setVariableValues(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         inetsoft.report.composition.execution.AssetQuerySandbox box =
+            rws.getAssetQuerySandbox();
+
+         if(box == null) {
+            throw new PairingException("No query sandbox available.");
+         }
+
+         inetsoft.uql.VariableTable vtable = new inetsoft.uql.VariableTable();
+
+         if(req.variableValues() != null) {
+            for(Map.Entry<String, String> entry : req.variableValues().entrySet()) {
+               vtable.put(entry.getKey(), entry.getValue());
+            }
+         }
+
+         box.refreshVariableTable(vtable);
+         box.reset();
+         return null;
+      });
+   }
+
    // ---------------------------------------------------------------------------
    // Worksheet properties endpoint
    // ---------------------------------------------------------------------------
