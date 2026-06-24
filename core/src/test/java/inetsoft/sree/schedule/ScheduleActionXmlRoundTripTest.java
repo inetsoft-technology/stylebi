@@ -224,8 +224,11 @@ class ScheduleActionXmlRoundTripTest {
       String wrapped = "<root>" + sw + "</root>";
 
       // Parse
-      Document doc = DocumentBuilderFactory.newInstance()
-         .newDocumentBuilder()
+      DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+      dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+      dbf.setFeature("http://xml.org/sax/features/external-general-entities", false);
+      dbf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+      Document doc = dbf.newDocumentBuilder()
          .parse(new ByteArrayInputStream(wrapped.getBytes(StandardCharsets.UTF_8)));
       Element taskElem = firstChildElement(doc.getDocumentElement());
 
@@ -253,8 +256,11 @@ class ScheduleActionXmlRoundTripTest {
       original.writeXML(new PrintWriter(sw));
       String wrapped = "<root>" + sw + "</root>";
 
-      Document doc = DocumentBuilderFactory.newInstance()
-         .newDocumentBuilder()
+      DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+      dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+      dbf.setFeature("http://xml.org/sax/features/external-general-entities", false);
+      dbf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+      Document doc = dbf.newDocumentBuilder()
          .parse(new ByteArrayInputStream(wrapped.getBytes(StandardCharsets.UTF_8)));
 
       Element first = firstChildElement(doc.getDocumentElement());

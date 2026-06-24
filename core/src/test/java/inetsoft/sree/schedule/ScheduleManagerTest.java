@@ -224,7 +224,8 @@ public class ScheduleManagerTest {
       Exception exception = assertThrows(Exception.class,
          () -> scheduleManager.removeScheduleTask(parent.getTaskId(), admin, true));
       assertNotNull(exception.getMessage());
-      assertTrue(scheduleManager.getScheduleTask(parent.getTaskId()) != null);
+      assertNotNull(scheduleManager.getScheduleTask(parent.getTaskId()),
+         "Parent task must still exist after blocked delete");
    }
 
    /**

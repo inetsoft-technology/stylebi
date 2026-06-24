@@ -154,11 +154,11 @@ public final class InMemoryKeyValueStorage<T extends Serializable> implements Ke
    }
 
    private final ConcurrentHashMap<String, T> values = new ConcurrentHashMap<>();
-   private final List<Listener<T>> listeners = new ArrayList<>();
-   private Exception nextPutFailure;
-   private Exception nextRemoveFailure;
-   private Exception nextCloseFailure;
-   private boolean closed;
+   private final List<Listener<T>> listeners = new CopyOnWriteArrayList<>();
+   private volatile Exception nextPutFailure;
+   private volatile Exception nextRemoveFailure;
+   private volatile Exception nextCloseFailure;
+   private volatile boolean closed;
 
    private static final class FailedFuture<T> implements Future<T> {
       private FailedFuture(Exception failure) {

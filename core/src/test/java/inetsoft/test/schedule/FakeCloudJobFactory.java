@@ -93,32 +93,32 @@ public class FakeCloudJobFactory implements CloudJobFactory {
       @Override
       public void start() {
          try {
-         executor.submit(() -> {
-            boolean success = true;
-            String message = "ok";
+            executor.submit(() -> {
+               boolean success = true;
+               String message = "ok";
 
-            try {
-               ScheduleTask task = TASK_REGISTRY.get(taskName);
+               try {
+                  ScheduleTask task = TASK_REGISTRY.get(taskName);
 
-               if(task != null) {
-                  task.run(null);
+                  if(task != null) {
+                     task.run(null);
+                  }
                }
-            }
-            catch(Throwable e) {
-               success = false;
-               message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-            }
+               catch(Throwable e) {
+                  success = false;
+                  message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+               }
 
-            try {
-               // Cluster mock in SchedulerTestHarness captures this in clusterMessages queue.
-               Cluster.getInstance().sendMessage(new CloudJobResult(taskName, success, message));
-            }
-            catch(Exception ignored) {
-               // If cluster is unavailable the result is lost; the test will time out.
-            }
+               try {
+                  // Cluster mock in SchedulerTestHarness captures this in clusterMessages queue.
+                  Cluster.getInstance().sendMessage(new CloudJobResult(taskName, success, message));
+               }
+               catch(Exception ignored) {
+                  // If cluster is unavailable the result is lost; the test will time out.
+               }
 
-            executor.shutdown();
-         });
+               executor.shutdown();
+            });
          }
          catch(java.util.concurrent.RejectedExecutionException ignored) {
             // stop() was called before start() — treat as a no-op.

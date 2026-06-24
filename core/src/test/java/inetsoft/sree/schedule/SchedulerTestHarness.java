@@ -30,6 +30,8 @@ import org.quartz.impl.StdSchedulerFactory;
 import org.springframework.context.ApplicationContext;
 
 import java.time.Duration;
+import java.time.Instant;
+import java.util.Date;
 import java.util.Properties;
 import java.util.concurrent.*;
 
@@ -74,13 +76,10 @@ public class SchedulerTestHarness implements AutoCloseable {
 
       // Mock Cluster — intercept sendMessage calls across threads
       Cluster mockCluster = mock(Cluster.class);
-      try {
-         doAnswer(inv -> {
-            clusterMessages.add(inv.getArgument(0));
-            return null;
-         }).when(mockCluster).sendMessage(any(java.io.Serializable.class));
-      }
-      catch(Exception ignored) {}
+      doAnswer(inv -> {
+         clusterMessages.add(inv.getArgument(0));
+         return null;
+      }).when(mockCluster).sendMessage(any(java.io.Serializable.class));
 
       // SRPrincipal constructor calls XSessionService.getService() to create a session ID.
       // If not stubbed, applicationContext.getBean(XSessionService.class) returns null and
@@ -161,7 +160,7 @@ public class SchedulerTestHarness implements AutoCloseable {
          .withSchedule(SimpleScheduleBuilder.simpleSchedule()
                           .withRepeatCount(0)
                           .withIntervalInMilliseconds(1))
-         .startAt(new java.util.Date(System.currentTimeMillis() + 365L * 24 * 3600 * 1000))
+         .startAt(Date.from(Instant.now().plus(Duration.ofDays(365))))
          .build();
 
       quartz.scheduleJob(job, parkTrigger);
@@ -252,7 +251,7 @@ public class SchedulerTestHarness implements AutoCloseable {
             throw new JobExecutionException(e);
          }
          catch(Throwable e) {
-            throw new JobExecutionException(new RuntimeException(e));
+            throw e;
          }
       }
    }

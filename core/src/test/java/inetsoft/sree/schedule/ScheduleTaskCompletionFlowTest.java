@@ -22,8 +22,11 @@ import org.junit.jupiter.api.*;
 import java.time.Duration;
 
 import static inetsoft.sree.schedule.Scheduler.Status.*;
+import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
 
 /**
  * Layer 1 — Quartz wiring tests.
@@ -37,7 +40,7 @@ import static org.mockito.Mockito.mock;
 @Tag("core")
 class ScheduleTaskCompletionFlowTest {
 
-   SchedulerTestHarness harness;
+   private SchedulerTestHarness harness;
 
    @BeforeEach
    void setUp() throws Exception {
@@ -79,11 +82,9 @@ class ScheduleTaskCompletionFlowTest {
 
       harness.waitForStatus(taskA.getTaskId(), FAILED, Duration.ofSeconds(5));
 
-      // Give the chain mechanism time to fire if it incorrectly triggers Task B
-      Thread.sleep(800);
-
-      ScheduleStatusDao.Status statusB = harness.getDao().getStatus(taskB.getTaskId());
-      assertNull(statusB, "Task B must not be triggered when Task A fails");
+      // Poll for 800ms: if the chain mechanism incorrectly triggers Task B the assertion fails fast
+      await().during(Duration.ofMillis(800)).atMost(Duration.ofSeconds(1))
+             .until(() -> harness.getDao().getStatus(taskB.getTaskId()) == null);
    }
 
    // P3 — Direct Quartz.triggerJob() bypasses the service-layer enabled check.
@@ -112,7 +113,7 @@ class ScheduleTaskCompletionFlowTest {
       harness.registerTask(task);
       harness.triggerNow(task.getTaskId());
 
-      harness.waitForStatus(task.getTaskId(), FINISHED, java.time.Duration.ofSeconds(5));
+      harness.waitForStatus(task.getTaskId(), FINISHED, Duration.ofSeconds(5));
    }
 
    // P3 — CompletionCondition does NOT trigger a disabled dependent task.
@@ -132,11 +133,9 @@ class ScheduleTaskCompletionFlowTest {
 
       harness.waitForStatus(taskA.getTaskId(), FINISHED, Duration.ofSeconds(5));
 
-      // Give the chain mechanism time to fire if it incorrectly triggers task B
-      Thread.sleep(800);
-
-      ScheduleStatusDao.Status statusB = harness.getDao().getStatus(taskB.getTaskId());
-      assertNull(statusB, "Disabled task B must not be triggered by CompletionCondition");
+      // Poll for 800ms: if the chain mechanism incorrectly triggers task B the assertion fails fast
+      await().during(Duration.ofMillis(800)).atMost(Duration.ofSeconds(1))
+             .until(() -> harness.getDao().getStatus(taskB.getTaskId()) == null);
    }
 
    // -----------------------------------------------------------------------
@@ -156,11 +155,7 @@ class ScheduleTaskCompletionFlowTest {
 
    private ScheduleTask buildFailingTask(String name) {
       ScheduleAction failingAction = mock(ScheduleAction.class);
-      try {
-         org.mockito.Mockito.doThrow(new RuntimeException("simulated failure"))
-                            .when(failingAction).run(org.mockito.ArgumentMatchers.any());
-      }
-      catch(Throwable ignored) {}
+      doThrow(new RuntimeException("simulated failure")).when(failingAction).run(any());
 
       ScheduleTask task = new ScheduleTask(name);
       task.setOwner(SchedulerTestHarness.TEST_OWNER);

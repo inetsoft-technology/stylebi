@@ -174,11 +174,7 @@ class ScheduleTaskCloudJobTest {
 
    private ScheduleTask buildFailingTask(String name) {
       ScheduleAction failingAction = mock(ScheduleAction.class);
-      try {
-         doThrow(new RuntimeException("simulated cloud failure"))
-            .when(failingAction).run(any());
-      }
-      catch(Throwable ignored) {}
+      doThrow(new RuntimeException("simulated cloud failure")).when(failingAction).run(any());
 
       ScheduleTask task = new ScheduleTask(name);
       task.setOwner(SchedulerTestHarness.TEST_OWNER);
