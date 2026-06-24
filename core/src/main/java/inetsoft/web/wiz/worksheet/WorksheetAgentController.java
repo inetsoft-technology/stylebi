@@ -828,6 +828,12 @@ public class WorksheetAgentController {
             (JDBCDataSource) info.getQuery().getDataSource());
          ColumnSelection columns = queryManagerService.getColumnSelection(
             info.getQuery(), new VariableTable(), sqlTable, metaSession, null);
+
+         if(columns == null || columns.getAttributeCount() == 0) {
+            throw new PairingException(
+               "SQL could not be parsed or no columns detected — check syntax and table references.");
+         }
+
          sqlTable.setColumnSelection(columns);
          WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
          return null;

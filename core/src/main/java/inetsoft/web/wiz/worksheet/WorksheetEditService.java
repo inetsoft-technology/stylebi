@@ -82,11 +82,11 @@ public class WorksheetEditService {
          SheetType.WORKSHEET, session.runtimeId(), agent);
       applySocketSession(rws, session);
 
-      // Create an undo checkpoint before applying the mutation.
-      rws.addCheckpoint(rws.getWorksheet().prepareCheckpoint());
-
       Editor editor = new Editor(rws.getWorksheet());
       mutation.accept(editor);
+      // Checkpoint saved after the mutation so redo restores the post-edit state,
+      // matching the @Undoable / makeUndoable pattern used by the standard WS controllers.
+      rws.addCheckpoint(rws.getWorksheet().prepareCheckpoint());
       refreshAssemblies(rws);
 
       broadcast.broadcastRefresh(rws, SheetType.WORKSHEET, session.runtimeId(), agent);
@@ -112,10 +112,9 @@ public class WorksheetEditService {
          SheetType.WORKSHEET, session.runtimeId(), agent);
       applySocketSession(rws, session);
 
-      // Create an undo checkpoint before applying the mutation.
-      rws.addCheckpoint(rws.getWorksheet().prepareCheckpoint());
-
       T result = mutation.apply(rws);
+      // Checkpoint saved after the mutation so redo restores the post-edit state.
+      rws.addCheckpoint(rws.getWorksheet().prepareCheckpoint());
       refreshAssemblies(rws);
       broadcast.broadcastRefresh(rws, SheetType.WORKSHEET, session.runtimeId(), agent);
       return result;
