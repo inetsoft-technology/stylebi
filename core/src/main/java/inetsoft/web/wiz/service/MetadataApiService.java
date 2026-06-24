@@ -1286,7 +1286,7 @@ public class MetadataApiService {
          }
       }
 
-      String[] dsNames = xrepository.getDataSourceNames();
+      String[] dsNames = xrepository.getDataSourceFullNames();
       List<SchemaSearchResponse.SchemaSearchResult> results = new ArrayList<>();
 
       for(String dsName : dsNames) {

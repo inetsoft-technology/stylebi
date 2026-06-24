@@ -57,7 +57,8 @@ class WorksheetAgentControllerTest {
       return new WorksheetAgentController(feature, join, sessions, read, edit, ws,
                                           mock(WorksheetPreviewService.class),
                                           mock(SheetAgentBroadcastService.class),
-                                          mock(inetsoft.uql.XRepository.class));
+                                          mock(inetsoft.uql.XRepository.class),
+                                          mock(inetsoft.web.wiz.service.MetadataApiService.class));
    }
 
    private static SheetAgentFeature featureOn() {
@@ -165,7 +166,8 @@ class WorksheetAgentControllerTest {
       EditRequest req = new EditRequest("remove_column", "T", "x",
          null, null, null, null, null, null, null, null, null, null, false,
          null, null, null, null, null,
-         null, null, null, null, null, null, null, null, null);
+         null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null);
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),

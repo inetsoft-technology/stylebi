@@ -27,6 +27,8 @@ import inetsoft.web.wiz.model.osi.OsiDataset;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
 import inetsoft.web.wiz.request.SchemaSearchRequest;
 import inetsoft.web.wiz.service.MetadataApiService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
@@ -49,7 +51,7 @@ public class DatasourceMetaApiController {
     */
    @GetMapping(value = "/v1/datasources", produces = MediaType.APPLICATION_JSON_VALUE)
    public List<Map<String, String>> listDatasources() throws RemoteException {
-      String[] names = xrepository.getDataSourceNames();
+      String[] names = xrepository.getDataSourceFullNames();
       return Arrays.stream(names)
          .sorted()
          .map(name -> {
@@ -127,11 +129,11 @@ public class DatasourceMetaApiController {
     * @param principal  the current user.
     * @return column metadata for the table.
     */
-   @GetMapping(value = "/v1/datasources/{datasource}/tables/{table}",
+   @GetMapping(value = "/v1/table-details",
                produces = MediaType.APPLICATION_JSON_VALUE)
    public DatabaseTableMeta getTableDetails(
-      @PathVariable("datasource") String datasource,
-      @PathVariable("table") String table,
+      @RequestParam("datasource") String datasource,
+      @RequestParam("table") String table,
       @RequestParam(value = "catalog", required = false) String catalog,
       @RequestParam(value = "schema", required = false) String schema,
       Principal principal)
@@ -156,6 +158,16 @@ public class DatasourceMetaApiController {
    {
       return metadataService.searchSchema(request, principal);
    }
+
+   @ExceptionHandler(Exception.class)
+   @ResponseStatus(org.springframework.http.HttpStatus.BAD_REQUEST)
+   @ResponseBody
+   public Map<String, String> handleException(Exception e) {
+      LOG.warn("DatasourceMetaApi error: {}", e.getMessage(), e);
+      return Map.of("error", e.getMessage() != null ? e.getMessage() : e.getClass().getName());
+   }
+
+   private static final Logger LOG = LoggerFactory.getLogger(DatasourceMetaApiController.class);
 
    private final MetadataApiService metadataService;
    private final XRepository xrepository;

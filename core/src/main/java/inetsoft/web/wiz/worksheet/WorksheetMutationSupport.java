@@ -84,6 +84,10 @@ public final class WorksheetMutationSupport {
       Condition c = new Condition(XSchema.STRING);
       c.setOperation(op);
 
+      if(isEqualInclusive(operation)) {
+         c.setEqual(true);
+      }
+
       if(negate) {
          c.setNegated(true);
       }
@@ -127,8 +131,9 @@ public final class WorksheetMutationSupport {
       }
 
       ConditionList src = existing.getConditionList();
-      ConditionList result = new ConditionList();
-      boolean first = true;
+
+      // Collect indices of conditions to remove.
+      java.util.Set<Integer> removeIdx = new java.util.HashSet<>();
 
       for(int i = 0; i < src.getSize(); i++) {
          HierarchyItem hi = src.getItem(i);
@@ -137,18 +142,45 @@ public final class WorksheetMutationSupport {
             DataRef attr = ci.getAttribute();
 
             if(field.equals(attr.getName()) || field.equals(attr.getAttribute())) {
-               // skip this condition
-               continue;
+               removeIdx.add(i);
             }
-
-            if(!first) {
-               result.append(new JunctionOperator(JunctionOperator.AND, 0));
-            }
-
-            result.append(ci);
-            first = false;
          }
-         // JunctionOperators are rebuilt above — skip originals
+      }
+
+      if(removeIdx.isEmpty()) {
+         return;
+      }
+
+      // Rebuild the list keeping surviving conditions with their original junctions.
+      ConditionList result = new ConditionList();
+
+      for(int i = 0; i < src.getSize(); i++) {
+         if(removeIdx.contains(i)) {
+            continue;
+         }
+
+         HierarchyItem hi = src.getItem(i);
+
+         if(hi instanceof JunctionOperator) {
+            // Only keep a junction if it sits between two surviving conditions.
+            boolean prevSurvived = result.getSize() > 0
+               && result.getItem(result.getSize() - 1) instanceof ConditionItem;
+            boolean nextSurvives = false;
+
+            for(int j = i + 1; j < src.getSize(); j++) {
+               if(src.getItem(j) instanceof ConditionItem && !removeIdx.contains(j)) {
+                  nextSurvives = true;
+                  break;
+               }
+            }
+
+            if(prevSurvived && nextSurvives) {
+               result.append(hi);
+            }
+         }
+         else {
+            result.append(hi);
+         }
       }
 
       t.setPreConditionList(result.isEmpty() ? null : result);
@@ -172,6 +204,14 @@ public final class WorksheetMutationSupport {
    public static void applyAggregateInfo(TableAssembly t, List<String> groups,
                                          List<AggregateSpec> aggregates)
    {
+      if((groups == null || groups.isEmpty()) &&
+         (aggregates == null || aggregates.isEmpty()))
+      {
+         t.setAggregateInfo(new AggregateInfo());
+         t.setAggregate(false);
+         return;
+      }
+
       AggregateInfo ainfo = new AggregateInfo();
 
       for(String group : groups) {
@@ -383,6 +423,10 @@ public final class WorksheetMutationSupport {
             Condition c = new Condition(dtype);
             c.setOperation(op);
 
+            if(isEqualInclusive(spec.operation())) {
+               c.setEqual(true);
+            }
+
             if(negate) {
                c.setNegated(true);
             }
@@ -426,6 +470,11 @@ public final class WorksheetMutationSupport {
     * Sets a ranking condition on the table.
     */
    public static void setRanking(TableAssembly t, RankingSpec spec) {
+      if(spec == null) {
+         t.setRankingConditionList(null);
+         return;
+      }
+
       int op = "BOTTOM_N".equalsIgnoreCase(spec.operation())
          ? XCondition.BOTTOM_N : XCondition.TOP_N;
 
@@ -462,6 +511,22 @@ public final class WorksheetMutationSupport {
          case "LIKE"                     -> XCondition.LIKE;
          case "NULL", "IS_NULL"          -> XCondition.NULL;
          default                         -> XCondition.EQUAL_TO;
+      };
+   }
+
+   /**
+    * Returns {@code true} if the operation string represents a "less-than-or-equal"
+    * or "greater-than-or-equal" comparison, which requires {@link Condition#setEqual(boolean)}
+    * to be set to {@code true} in addition to the base LESS_THAN / GREATER_THAN operation.
+    */
+   private static boolean isEqualInclusive(String operation) {
+      if(operation == null) {
+         return false;
+      }
+
+      return switch(operation.toUpperCase().replace(' ', '_')) {
+         case "<=", "LESS_THAN_OR_EQUAL", ">=", "GREATER_THAN_OR_EQUAL" -> true;
+         default -> false;
       };
    }
 

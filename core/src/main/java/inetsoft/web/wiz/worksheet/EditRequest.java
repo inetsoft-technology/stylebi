@@ -36,12 +36,12 @@ import java.util.List;
  *   <li>{@code set_group_aggregate} — {@code table}, {@code groups}, {@code aggregates}</li>
  *   <li>{@code add_expression_column} — {@code table}, {@code name}, {@code expression}, {@code type}, {@code sql}</li>
  *   <li>{@code set_sort} — {@code table}, {@code field}, {@code direction} ("ASC" | "DESC")</li>
- *   <li>{@code add_join} — {@code name}, {@code leftTable}, {@code leftKey}, {@code rightTable}, {@code rightKey}, {@code joinType}</li>
+ *   <li>{@code add_join} — {@code name}, {@code leftTable}, {@code leftKey}, {@code rightTable}, {@code rightKey}, {@code joinType}; for multi-key joins use {@code leftKeys}/{@code rightKeys} instead of single key fields</li>
  *   <li>{@code remove_join} — {@code name}</li>
  *   <li>{@code add_table} — {@code table}, optional {@code datasource} (when provided, creates a bound table from the named datasource)</li>
  *   <li>{@code edit_condition} — {@code table}, {@code field}, {@code operation}, {@code values}</li>
  *   <li>{@code edit_expression} — {@code table}, {@code name}, {@code expression}, {@code type}, {@code sql}</li>
- *   <li>{@code edit_join} — {@code name}, {@code leftKey}, {@code rightKey}, {@code joinType}</li>
+ *   <li>{@code edit_join} — {@code name}, {@code leftKey}, {@code rightKey}, {@code joinType}; for multi-key joins use {@code leftKeys}/{@code rightKeys}</li>
  *   <li>{@code delete_table} — {@code table}</li>
  *   <li>{@code rename_table} — {@code table}, {@code newName}</li>
  *   <li>{@code set_column_visibility} — {@code table}, {@code column}, {@code visible}</li>
@@ -55,6 +55,12 @@ import java.util.List;
  *   <li>{@code add_unpivot} — {@code name}, {@code source}, {@code headerColumns}</li>
  *   <li>{@code add_date_range_column} — {@code table}, {@code column}, {@code dateOption}</li>
  *   <li>{@code add_numeric_range_column} — {@code table}, {@code column}, {@code boundaries}</li>
+ *   <li>{@code edit_cell} — {@code table}, {@code row}, {@code col}, {@code value}</li>
+ *   <li>{@code insert_row} — {@code table}, {@code index}</li>
+ *   <li>{@code delete_row} — {@code table}, {@code index}</li>
+ *   <li>{@code set_table_properties} — {@code table}, {@code alias}, {@code description}, {@code maxRows}, {@code distinct}</li>
+ *   <li>{@code add_cross_join} — {@code name}, {@code leftTable}, {@code rightTable}</li>
+ *   <li>{@code add_merge_join} — {@code name}, {@code tables}</li>
  * </ul>
  */
 public record EditRequest(
@@ -115,5 +121,29 @@ public record EditRequest(
    /** Numeric bucket boundaries for add_numeric_range_column. */
    double[] boundaries,
    /** Datasource name for add_table (when provided, creates a PhysicalBoundTableAssembly). */
-   String datasource
+   String datasource,
+   /** Schema name for add_table (e.g. "SA", "dbo", "public"). */
+   String schema,
+   /** Catalog name for add_table. */
+   String catalog,
+   /** Multi-key join: left column names for add_join / edit_join. */
+   List<String> leftKeys,
+   /** Multi-key join: right column names for add_join / edit_join. */
+   List<String> rightKeys,
+   /** Row index for edit_cell (0-based data row). */
+   Integer row,
+   /** Column index for edit_cell (0-based). */
+   Integer col,
+   /** Cell value for edit_cell. */
+   String value,
+   /** Row index for insert_row / delete_row (0-based data row). */
+   Integer index,
+   /** Table alias for set_table_properties. */
+   String alias,
+   /** Table description for set_table_properties. */
+   String description,
+   /** Max rows for set_table_properties. */
+   Integer maxRows,
+   /** Distinct flag for set_table_properties. */
+   Boolean distinct
 ) {}

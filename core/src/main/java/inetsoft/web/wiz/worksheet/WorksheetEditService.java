@@ -421,27 +421,61 @@ public class WorksheetEditService {
        * @param rightTable the right source table assembly name
        * @param rightKey   the column name from the right table to join on
        * @param joinType   one of {@code "INNER"}, {@code "LEFT"}, {@code "RIGHT"},
-       *                   {@code "FULL"} (case-insensitive; defaults to {@code "INNER"})
+       *                   {@code "FULL"}, {@code "CROSS"}, {@code "MERGE"}
+       *                   (case-insensitive; defaults to {@code "INNER"}).
+       *                   {@code "CROSS"} delegates to {@link #addCrossJoin} (no keys).
+       *                   {@code "MERGE"} delegates to {@link #addMergeJoin}.
+       * @param leftKeys   optional multi-key list of left column names (overrides {@code leftKey})
+       * @param rightKeys  optional multi-key list of right column names (overrides {@code rightKey})
        * @throws PairingException if either source assembly is not found
        */
       public void addJoin(String name, String leftTable, String leftKey,
                           String rightTable, String rightKey,
-                          String joinType) throws PairingException
+                          String joinType,
+                          List<String> leftKeys, List<String> rightKeys)
+         throws PairingException
       {
+         if("CROSS".equalsIgnoreCase(joinType)) {
+            addCrossJoin(name, leftTable, rightTable);
+            return;
+         }
+
+         if("MERGE".equalsIgnoreCase(joinType)) {
+            addMergeJoin(name, new String[]{ leftTable, rightTable });
+            return;
+         }
+
          TableAssembly left  = requireTable(leftTable);
          TableAssembly right = requireTable(rightTable);
 
          int operation = parseJoinType(joinType);
 
-         // Build the operator for the single key-pair join.
          TableAssemblyOperator top = new TableAssemblyOperator();
-         TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
-         op.setLeftTable(leftTable);
-         op.setRightTable(rightTable);
-         op.setLeftAttribute(new AttributeRef(null, leftKey));
-         op.setRightAttribute(new AttributeRef(null, rightKey));
-         op.setOperation(operation);
-         top.addOperator(op);
+
+         // Use multi-key if provided, else fall back to single-key
+         if(leftKeys != null && rightKeys != null && !leftKeys.isEmpty()) {
+            int count = Math.min(leftKeys.size(), rightKeys.size());
+
+            for(int i = 0; i < count; i++) {
+               TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+               op.setLeftTable(leftTable);
+               op.setRightTable(rightTable);
+               op.setLeftAttribute(new AttributeRef(null, leftKeys.get(i)));
+               op.setRightAttribute(new AttributeRef(null, rightKeys.get(i)));
+               op.setOperation(operation);
+               top.addOperator(op);
+            }
+         }
+         else {
+            // Single-key fallback (backward compat)
+            TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+            op.setLeftTable(leftTable);
+            op.setRightTable(rightTable);
+            op.setLeftAttribute(new AttributeRef(null, leftKey));
+            op.setRightAttribute(new AttributeRef(null, rightKey));
+            op.setOperation(operation);
+            top.addOperator(op);
+         }
 
          RelationalJoinTableAssembly join =
             new RelationalJoinTableAssembly(ws, name,
@@ -851,7 +885,8 @@ public class WorksheetEditService {
        *                  {@code "FULL"} (case-insensitive; defaults to {@code "INNER"})
        * @throws PairingException if the assembly is not found or has no operators
        */
-      public void editJoin(String name, String leftKey, String rightKey, String joinType)
+      public void editJoin(String name, String leftKey, String rightKey, String joinType,
+                           List<String> leftKeys, List<String> rightKeys)
          throws PairingException
       {
          Assembly a = ws.getAssembly(name);
@@ -878,18 +913,254 @@ public class WorksheetEditService {
          TableAssemblyOperator.Operator existing = top.getOperator(0);
          String leftTable  = existing.getLeftTable();
          String rightTable = existing.getRightTable();
+         int operation = parseJoinType(joinType);
 
          // Build a replacement operator with updated keys and join type.
          TableAssemblyOperator newTop = new TableAssemblyOperator();
-         TableAssemblyOperator.Operator newOp = new TableAssemblyOperator.Operator();
-         newOp.setLeftTable(leftTable);
-         newOp.setRightTable(rightTable);
-         newOp.setLeftAttribute(new AttributeRef(null, leftKey));
-         newOp.setRightAttribute(new AttributeRef(null, rightKey));
-         newOp.setOperation(parseJoinType(joinType));
-         newTop.addOperator(newOp);
+
+         if(leftKeys != null && rightKeys != null && !leftKeys.isEmpty()) {
+            int count = Math.min(leftKeys.size(), rightKeys.size());
+
+            for(int i = 0; i < count; i++) {
+               TableAssemblyOperator.Operator newOp = new TableAssemblyOperator.Operator();
+               newOp.setLeftTable(leftTable);
+               newOp.setRightTable(rightTable);
+               newOp.setLeftAttribute(new AttributeRef(null, leftKeys.get(i)));
+               newOp.setRightAttribute(new AttributeRef(null, rightKeys.get(i)));
+               newOp.setOperation(operation);
+               newTop.addOperator(newOp);
+            }
+         }
+         else {
+            TableAssemblyOperator.Operator newOp = new TableAssemblyOperator.Operator();
+            newOp.setLeftTable(leftTable);
+            newOp.setRightTable(rightTable);
+            newOp.setLeftAttribute(new AttributeRef(null, leftKey));
+            newOp.setRightAttribute(new AttributeRef(null, rightKey));
+            newOp.setOperation(operation);
+            newTop.addOperator(newOp);
+         }
 
          join.setOperator(leftTable, rightTable, newTop);
+      }
+
+      // -----------------------------------------------------------------------
+      // Embedded table cell editing
+      // -----------------------------------------------------------------------
+
+      /**
+       * Edits a single cell in an embedded table.
+       *
+       * @param table the assembly name (must be an embedded table)
+       * @param row   the 0-based data row index
+       * @param col   the 0-based column index
+       * @param value the new cell value as a string (parsed according to column type)
+       * @throws PairingException if the table is not embedded or indices are out of range
+       */
+      public void editCell(String table, int row, int col, String value)
+         throws PairingException
+      {
+         TableAssembly t = requireTable(table);
+
+         if(!(t instanceof EmbeddedTableAssembly embedded)) {
+            throw new PairingException("edit_cell only works on embedded tables: " + table);
+         }
+
+         XEmbeddedTable data = (XEmbeddedTable) embedded.getData();
+
+         if(data == null) {
+            throw new PairingException("Table has no data: " + table);
+         }
+
+         ColumnSelection cs = t.getColumnSelection(false);
+
+         if(col < 0 || col >= cs.getAttributeCount()) {
+            throw new PairingException("Column index out of range: " + col);
+         }
+
+         int dataRow = row + 1; // row 0 in XEmbeddedTable is header
+
+         if(dataRow < 1 || dataRow >= data.getRowCount()) {
+            throw new PairingException("Row index out of range: " + row);
+         }
+
+         // Find the actual column index in the embedded table
+         DataRef attr = cs.getAttribute(col);
+         int dataCol = AssetUtil.findColumn(data, attr);
+
+         if(dataCol < 0) {
+            throw new PairingException("Column not found in data: " + attr.getName());
+         }
+
+         String dtype = attr instanceof ColumnRef ? ((ColumnRef) attr).getDataType() : null;
+         Object parsed = value != null ? AssetUtil.parse(dtype, value) : null;
+         data.setObject(dataRow, dataCol, parsed);
+      }
+
+      /**
+       * Inserts a new empty row into an embedded table.
+       *
+       * @param table the assembly name (must be an embedded table)
+       * @param index the 0-based data row index at which to insert
+       * @throws PairingException if the table is not embedded
+       */
+      public void insertRow(String table, int index) throws PairingException {
+         TableAssembly t = requireTable(table);
+
+         if(!(t instanceof EmbeddedTableAssembly embedded)) {
+            throw new PairingException("insert_row only works on embedded tables: " + table);
+         }
+
+         XEmbeddedTable data = (XEmbeddedTable) embedded.getData();
+
+         if(data == null) {
+            throw new PairingException("Table has no data: " + table);
+         }
+
+         int dataRow = index + 1; // +1 for header row
+
+         if(dataRow < 1) {
+            dataRow = 1;
+         }
+
+         if(dataRow > data.getRowCount()) {
+            dataRow = data.getRowCount();
+         }
+
+         data.insertRow(dataRow);
+      }
+
+      /**
+       * Deletes a row from an embedded table.
+       *
+       * @param table the assembly name (must be an embedded table)
+       * @param index the 0-based data row index to delete
+       * @throws PairingException if the table is not embedded or the index is out of range
+       */
+      public void deleteRow(String table, int index) throws PairingException {
+         TableAssembly t = requireTable(table);
+
+         if(!(t instanceof EmbeddedTableAssembly embedded)) {
+            throw new PairingException("delete_row only works on embedded tables: " + table);
+         }
+
+         XEmbeddedTable data = (XEmbeddedTable) embedded.getData();
+
+         if(data == null) {
+            throw new PairingException("Table has no data: " + table);
+         }
+
+         int dataRow = index + 1; // +1 for header row
+
+         if(dataRow < 1 || dataRow >= data.getRowCount()) {
+            throw new PairingException("Row index out of range: " + index);
+         }
+
+         data.deleteRow(dataRow);
+      }
+
+      // -----------------------------------------------------------------------
+      // Table-level properties
+      // -----------------------------------------------------------------------
+
+      /**
+       * Sets optional properties on a table assembly.
+       *
+       * @param table       the assembly name
+       * @param alias       table alias, or {@code null} to leave unchanged
+       * @param description table description, or {@code null} to leave unchanged
+       * @param maxRows     max rows limit, or {@code null} to leave unchanged
+       * @param distinct    distinct flag, or {@code null} to leave unchanged
+       * @throws PairingException if the table is not found
+       */
+      public void setTableProperties(String table, String alias, String description,
+                                      Integer maxRows, Boolean distinct)
+         throws PairingException
+      {
+         TableAssembly t = requireTable(table);
+
+         if(alias != null) {
+            ((inetsoft.uql.asset.internal.TableAssemblyInfo) t.getInfo()).setAlias(alias);
+         }
+
+         if(description != null) {
+            t.setDescription(description);
+         }
+
+         if(maxRows != null) {
+            t.setMaxRows(maxRows <= 0 ? -1 : maxRows);
+         }
+
+         if(distinct != null) {
+            t.setDistinct(distinct);
+         }
+      }
+
+      // -----------------------------------------------------------------------
+      // Cross join
+      // -----------------------------------------------------------------------
+
+      /**
+       * Creates a cross join (no key columns) between two tables.
+       *
+       * @param name      the name for the new join assembly
+       * @param leftTable the left source table name
+       * @param rightTable the right source table name
+       * @throws PairingException if either source assembly is not found
+       */
+      public void addCrossJoin(String name, String leftTable, String rightTable)
+         throws PairingException
+      {
+         TableAssembly left  = requireTable(leftTable);
+         TableAssembly right = requireTable(rightTable);
+
+         TableAssemblyOperator top = new TableAssemblyOperator();
+         TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+         op.setOperation(TableAssemblyOperator.CROSS_JOIN);
+         top.addOperator(op);
+
+         RelationalJoinTableAssembly join =
+            new RelationalJoinTableAssembly(ws, name,
+                                            new TableAssembly[]{ left, right },
+                                            new TableAssemblyOperator[]{ top });
+         ws.addAssembly(join);
+      }
+
+      // -----------------------------------------------------------------------
+      // Merge join
+      // -----------------------------------------------------------------------
+
+      /**
+       * Creates a merge join from two or more tables.
+       *
+       * @param name       the name for the new merge join assembly
+       * @param tableNames the source table names (at least two)
+       * @throws PairingException if fewer than two tables are given or a source is not found
+       */
+      public void addMergeJoin(String name, String[] tableNames) throws PairingException {
+         if(tableNames == null || tableNames.length < 2) {
+            throw new PairingException("Merge join requires at least 2 tables.");
+         }
+
+         TableAssembly[] tables = new TableAssembly[tableNames.length];
+
+         for(int i = 0; i < tableNames.length; i++) {
+            tables[i] = requireTable(tableNames[i]);
+         }
+
+         TableAssemblyOperator[] operators = new TableAssemblyOperator[tableNames.length - 1];
+
+         for(int i = 0; i < operators.length; i++) {
+            TableAssemblyOperator top = new TableAssemblyOperator();
+            TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+            op.setOperation(TableAssemblyOperator.MERGE_JOIN);
+            top.addOperator(op);
+            operators[i] = top;
+         }
+
+         MergeJoinTableAssembly mergeJoin =
+            new MergeJoinTableAssembly(ws, name, tables, operators);
+         ws.addAssembly(mergeJoin);
       }
 
       // -----------------------------------------------------------------------
@@ -917,6 +1188,8 @@ public class WorksheetEditService {
             case "LEFT"  -> TableAssemblyOperator.LEFT_JOIN;
             case "RIGHT" -> TableAssemblyOperator.RIGHT_JOIN;
             case "FULL"  -> TableAssemblyOperator.FULL_JOIN;
+            case "CROSS" -> TableAssemblyOperator.CROSS_JOIN;
+            case "MERGE" -> TableAssemblyOperator.MERGE_JOIN;
             default      -> TableAssemblyOperator.INNER_JOIN;
          };
       }

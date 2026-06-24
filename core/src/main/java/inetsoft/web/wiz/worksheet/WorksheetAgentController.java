@@ -24,6 +24,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.schema.XSchema;
@@ -61,7 +62,8 @@ public class WorksheetAgentController {
                                    WorksheetService worksheetService,
                                    WorksheetPreviewService previewService,
                                    SheetAgentBroadcastService broadcast,
-                                   XRepository xrepository)
+                                   XRepository xrepository,
+                                   inetsoft.web.wiz.service.MetadataApiService metadataApiService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -72,6 +74,7 @@ public class WorksheetAgentController {
       this.previewService = previewService;
       this.broadcast = broadcast;
       this.xrepository = xrepository;
+      this.metadataApiService = metadataApiService;
    }
 
    // ---------------------------------------------------------------------------
@@ -162,17 +165,38 @@ public class WorksheetAgentController {
          throw new PairingException("table is required for add_table.");
       }
 
-      XDataSource xds;
+      // Get the qualified table name via metadata lookup.
+      JDBCDataSource jdbcDs = metadataApiService.getJDBCDatasource(datasourceName);
+      XNode tableMetaData = metadataApiService.getTableMetaData(
+         jdbcDs, req.catalog(), req.schema(), tablePath);
 
-      try {
-         xds = xrepository.getDataSource(datasourceName);
-      }
-      catch(Exception e) {
-         throw new PairingException("Datasource not found: " + datasourceName);
+      if(tableMetaData == null) {
+         throw new PairingException("Table not found: " + tablePath +
+            " (datasource=" + datasourceName +
+            ", schema=" + req.schema() +
+            ", catalog=" + req.catalog() + ")");
       }
 
-      if(xds == null) {
-         throw new PairingException("Datasource not found: " + datasourceName);
+      String qname = inetsoft.uql.jdbc.util.SQLTypes.getSQLTypes(jdbcDs)
+         .getQualifiedName(tableMetaData, jdbcDs);
+      String tableType = (String) tableMetaData.getAttribute("type");
+
+      // Get column metadata via the table details endpoint (queries JDBC for columns).
+      inetsoft.web.wiz.model.DatabaseTableMeta tableMeta =
+         metadataApiService.getTableDetails(datasourceName, tablePath,
+            req.catalog(), req.schema(), user);
+
+      ColumnSelection columns = new ColumnSelection();
+
+      for(inetsoft.web.wiz.model.DatabaseTableMeta.ColumnMeta colMeta : tableMeta.getColumns()) {
+         AttributeRef attr = new AttributeRef(null, colMeta.getName());
+         ColumnRef ref = new ColumnRef(attr);
+
+         if(colMeta.getType() != null) {
+            ref.setDataType(colMeta.getType());
+         }
+
+         columns.addAttribute(ref);
       }
 
       editService.applyOnRuntime(sessionToken, user, rws -> {
@@ -184,8 +208,12 @@ public class WorksheetAgentController {
             new PhysicalBoundTableAssembly(ws, assemblyName);
 
          SourceInfo sinfo = new SourceInfo(
-            SourceInfo.PHYSICAL_TABLE, datasourceName, tablePath);
+            SourceInfo.PHYSICAL_TABLE, datasourceName, qname);
+         sinfo.setProperty(SourceInfo.SCHEMA, req.schema());
+         sinfo.setProperty(SourceInfo.CATALOG, req.catalog());
+         sinfo.setProperty(SourceInfo.TABLE_TYPE, tableType);
          assembly.setSourceInfo(sinfo);
+         assembly.setColumnSelection(columns);
 
          // Position below existing assemblies.
          int maxY = 0;
@@ -201,7 +229,6 @@ public class WorksheetAgentController {
 
          assembly.setPixelOffset(new Point(25, maxY + 40));
          ws.addAssembly(assembly);
-         AssetEventUtil.initColumnSelection(rws, assembly);
          return null;
       });
    }
@@ -497,7 +524,8 @@ public class WorksheetAgentController {
             editor.setSort(req.table(), req.field(), req.direction());
          case "add_join" ->
             editor.addJoin(req.name(), req.leftTable(), req.leftKey(),
-                           req.rightTable(), req.rightKey(), req.joinType());
+                           req.rightTable(), req.rightKey(), req.joinType(),
+                           req.leftKeys(), req.rightKeys());
          case "remove_join" ->
             editor.removeJoin(req.name());
          case "add_table" ->
@@ -511,7 +539,8 @@ public class WorksheetAgentController {
             editor.editExpression(req.table(), req.name(), req.expression(),
                                   req.type(), req.sql());
          case "edit_join" ->
-            editor.editJoin(req.name(), req.leftKey(), req.rightKey(), req.joinType());
+            editor.editJoin(req.name(), req.leftKey(), req.rightKey(), req.joinType(),
+                            req.leftKeys(), req.rightKeys());
          case "delete_table" ->
             editor.deleteTable(req.table());
          case "rename_table" ->
@@ -540,6 +569,20 @@ public class WorksheetAgentController {
             editor.addDateRangeColumn(req.table(), req.column(), req.dateOption());
          case "add_numeric_range_column" ->
             editor.addNumericRangeColumn(req.table(), req.column(), req.boundaries());
+         case "edit_cell" ->
+            editor.editCell(req.table(), req.row(), req.col(), req.value());
+         case "insert_row" ->
+            editor.insertRow(req.table(), req.index());
+         case "delete_row" ->
+            editor.deleteRow(req.table(), req.index());
+         case "set_table_properties" ->
+            editor.setTableProperties(
+               req.table(), req.alias(), req.description(), req.maxRows(), req.distinct());
+         case "add_cross_join" ->
+            editor.addCrossJoin(req.name(), req.leftTable(), req.rightTable());
+         case "add_merge_join" ->
+            editor.addMergeJoin(req.name(),
+               req.tables() != null ? req.tables().toArray(new String[0]) : null);
          default ->
             throw new PairingException("Unknown op: " + req.op());
       }
@@ -789,4 +832,5 @@ public class WorksheetAgentController {
    private final WorksheetPreviewService previewService;
    private final SheetAgentBroadcastService broadcast;
    private final XRepository xrepository;
+   private final inetsoft.web.wiz.service.MetadataApiService metadataApiService;
 }
