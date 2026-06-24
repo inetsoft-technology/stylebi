@@ -21,5 +21,5 @@ import inetsoft.web.wiz.pairing.PairingException;
 
 @FunctionalInterface
 public interface ThrowingConsumer<T> {
-   void accept(T value) throws PairingException;
+   void accept(T value) throws Exception;
 }

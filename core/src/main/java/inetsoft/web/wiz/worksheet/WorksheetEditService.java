@@ -68,7 +68,7 @@ public class WorksheetEditService {
     */
    public void apply(String sessionToken, Principal agent,
                      ThrowingConsumer<Editor> mutation)
-      throws PairingException
+      throws Exception
    {
       String agentKey = agentKey(agent);
       JoinSession session = sessions.resolve(sessionToken, agentKey);
@@ -957,7 +957,7 @@ public class WorksheetEditService {
        * @throws PairingException if the table is not embedded or indices are out of range
        */
       public void editCell(String table, int row, int col, String value)
-         throws PairingException
+         throws Exception
       {
          TableAssembly t = requireTable(table);
 
@@ -965,7 +965,7 @@ public class WorksheetEditService {
             throw new PairingException("edit_cell only works on embedded tables: " + table);
          }
 
-         XEmbeddedTable data = (XEmbeddedTable) embedded.getData();
+         XEmbeddedTable data = embedded.getEmbeddedData();
 
          if(data == null) {
             throw new PairingException("Table has no data: " + table);
@@ -1010,7 +1010,7 @@ public class WorksheetEditService {
             throw new PairingException("insert_row only works on embedded tables: " + table);
          }
 
-         XEmbeddedTable data = (XEmbeddedTable) embedded.getData();
+         XEmbeddedTable data = embedded.getEmbeddedData();
 
          if(data == null) {
             throw new PairingException("Table has no data: " + table);
@@ -1043,7 +1043,7 @@ public class WorksheetEditService {
             throw new PairingException("delete_row only works on embedded tables: " + table);
          }
 
-         XEmbeddedTable data = (XEmbeddedTable) embedded.getData();
+         XEmbeddedTable data = embedded.getEmbeddedData();
 
          if(data == null) {
             throw new PairingException("Table has no data: " + table);
@@ -1078,9 +1078,8 @@ public class WorksheetEditService {
       {
          TableAssembly t = requireTable(table);
 
-         if(alias != null) {
-            ((inetsoft.uql.asset.internal.TableAssemblyInfo) t.getInfo()).setAlias(alias);
-         }
+         // Table-level alias is not supported in the worksheet assembly model.
+         // Column-level aliases are set via rename_column instead.
 
          if(description != null) {
             t.setDescription(description);
@@ -1354,6 +1353,113 @@ public class WorksheetEditService {
          }
 
          cr.setDescription(description);
+      }
+
+      // -----------------------------------------------------------------------
+      // Mirror auto-update
+      // -----------------------------------------------------------------------
+
+      /**
+       * Toggles the auto-update flag on a mirror table assembly.
+       *
+       * @param table      the mirror assembly name
+       * @param autoUpdate {@code true} to enable auto-update, {@code false} to disable
+       * @throws PairingException if the assembly is not a mirror table
+       */
+      public void setMirrorAutoUpdate(String table, boolean autoUpdate)
+         throws PairingException
+      {
+         Assembly a = ws.getAssembly(table);
+
+         if(!(a instanceof MirrorTableAssembly mirror)) {
+            throw new PairingException("Not a mirror table: " + table);
+         }
+
+         mirror.setAutoUpdate(autoUpdate);
+      }
+
+      // -----------------------------------------------------------------------
+      // Assembly positioning
+      // -----------------------------------------------------------------------
+
+      /**
+       * Sets the pixel position of an assembly on the canvas.
+       *
+       * @param table the assembly name
+       * @param x     pixel X coordinate
+       * @param y     pixel Y coordinate
+       * @throws PairingException if the assembly is not found
+       */
+      public void setAssemblyPosition(String table, int x, int y)
+         throws PairingException
+      {
+         Assembly a = ws.getAssembly(table);
+
+         if(!(a instanceof AbstractWSAssembly wsa)) {
+            throw new PairingException("Assembly not found: " + table);
+         }
+
+         wsa.setPixelOffset(new java.awt.Point(Math.max(0, x), Math.max(0, y)));
+      }
+
+      // -----------------------------------------------------------------------
+      // Duplicate assembly
+      // -----------------------------------------------------------------------
+
+      /**
+       * Duplicates an assembly with a new name.
+       *
+       * @param sourceName the assembly to clone
+       * @param newName    the name for the clone
+       * @throws PairingException if the source assembly is not found
+       */
+      public void duplicateAssembly(String sourceName, String newName)
+         throws PairingException
+      {
+         Assembly a = ws.getAssembly(sourceName);
+
+         if(!(a instanceof WSAssembly wsa)) {
+            throw new PairingException("Assembly not found: " + sourceName);
+         }
+
+         try {
+            WSAssembly clone = (WSAssembly) wsa.clone();
+            clone.getWSAssemblyInfo().setName(newName);
+
+            // Offset the clone position slightly so it doesn't overlap
+            java.awt.Point pos = clone.getPixelOffset();
+
+            if(pos != null) {
+               clone.setPixelOffset(new java.awt.Point(pos.x + 40, pos.y + 40));
+            }
+
+            ws.addAssembly(clone);
+         }
+         catch(Exception e) {
+            throw new PairingException("Cannot duplicate assembly: " + sourceName);
+         }
+      }
+
+      // -----------------------------------------------------------------------
+      // Primary assembly
+      // -----------------------------------------------------------------------
+
+      /**
+       * Sets a table as the worksheet's primary assembly.
+       *
+       * @param table the assembly name to set as primary
+       * @throws PairingException if the assembly is not found
+       */
+      public void setPrimaryAssembly(String table) throws PairingException {
+         Assembly a = ws.getAssembly(table);
+
+         if(a == null) {
+            throw new PairingException("Assembly not found: " + table);
+         }
+
+         if(!ws.setPrimaryAssembly(table)) {
+            throw new PairingException("Failed to set primary assembly: " + table);
+         }
       }
 
       // -----------------------------------------------------------------------

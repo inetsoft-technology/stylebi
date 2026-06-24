@@ -27,8 +27,11 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
 import inetsoft.uql.jdbc.*;
+import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -63,7 +66,8 @@ public class WorksheetAgentController {
                                    WorksheetPreviewService previewService,
                                    SheetAgentBroadcastService broadcast,
                                    XRepository xrepository,
-                                   inetsoft.web.wiz.service.MetadataApiService metadataApiService)
+                                   inetsoft.web.wiz.service.MetadataApiService metadataApiService,
+                                   QueryManagerService queryManagerService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -75,6 +79,7 @@ public class WorksheetAgentController {
       this.broadcast = broadcast;
       this.xrepository = xrepository;
       this.metadataApiService = metadataApiService;
+      this.queryManagerService = queryManagerService;
    }
 
    // ---------------------------------------------------------------------------
@@ -146,6 +151,12 @@ public class WorksheetAgentController {
       // set_variable_values needs AssetQuerySandbox, not just Editor.
       if("set_variable_values".equals(req.op())) {
          setVariableValues(sessionToken, req, user);
+         return;
+      }
+
+      // convert_to_embedded needs AssetQuerySandbox for data population.
+      if("convert_to_embedded".equals(req.op())) {
+         convertToEmbedded(sessionToken, req, user);
          return;
       }
 
@@ -499,7 +510,7 @@ public class WorksheetAgentController {
    }
 
    private void dispatch(WorksheetEditService.Editor editor, EditRequest req)
-      throws PairingException
+      throws Exception
    {
       switch(req.op() == null ? "" : req.op()) {
          case "add_column" ->
@@ -601,6 +612,17 @@ public class WorksheetAgentController {
                req.groupOthers() != null && req.groupOthers());
          case "set_column_description" ->
             editor.setColumnDescription(req.table(), req.column(), req.description());
+         case "set_mirror_auto_update" ->
+            editor.setMirrorAutoUpdate(req.table(),
+                                       req.visible() != null && req.visible());
+         case "set_assembly_position" ->
+            editor.setAssemblyPosition(req.table(),
+                                       req.x() != null ? req.x() : 0,
+                                       req.y() != null ? req.y() : 0);
+         case "duplicate_assembly" ->
+            editor.duplicateAssembly(req.table(), req.name());
+         case "set_primary_assembly" ->
+            editor.setPrimaryAssembly(req.table());
          default ->
             throw new PairingException("Unknown op: " + req.op());
       }
@@ -638,6 +660,75 @@ public class WorksheetAgentController {
          box.reset();
          return null;
       });
+   }
+
+   // ---------------------------------------------------------------------------
+   // Convert bound table to embedded
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Converts a bound table assembly to an embedded table by executing the query
+    * and storing the result data inline.
+    */
+   private void convertToEmbedded(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      if(req.table() == null || req.table().isBlank()) {
+         throw new PairingException("table is required for convert_to_embedded.");
+      }
+
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         Assembly a = ws.getAssembly(req.table());
+
+         if(!(a instanceof BoundTableAssembly)) {
+            throw new PairingException("Not a bound table: " + req.table());
+         }
+
+         AssetEventUtil.convertEmbeddedTable(
+            rws.getAssetQuerySandbox(), (BoundTableAssembly) a,
+            true, false, false);
+         return null;
+      });
+   }
+
+   // ---------------------------------------------------------------------------
+   // Query execution plan (read-only)
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Returns the SQL query string for a SQL-bound table assembly.
+    *
+    * @param sessionToken the token obtained at join time
+    * @param table        the table assembly name
+    * @param user         the authenticated agent principal
+    * @return the SQL string, or an error message if the table is not SQL-bound
+    */
+   @GetMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/query-plan")
+   public Map<String, Object> getQueryPlan(@PathVariable String sessionToken,
+                                            @RequestParam String table,
+                                            Principal user)
+      throws PairingException
+   {
+      requireEnabled();
+      RuntimeWorksheet rws = editService.resolve(sessionToken, user);
+      Worksheet ws = rws.getWorksheet();
+      Assembly a = ws.getAssembly(table);
+
+      if(!(a instanceof SQLBoundTableAssembly sqlTable)) {
+         return Map.of("table", table, "sql", "",
+                        "message", "Not a SQL-bound table — no query plan available.");
+      }
+
+      SQLBoundTableAssemblyInfo info =
+         (SQLBoundTableAssemblyInfo) sqlTable.getInfo();
+      String sqlStr = "";
+
+      if(info.getQuery() != null && info.getQuery().getSQLDefinition() != null) {
+         sqlStr = info.getQuery().getSQLDefinition().getSQLString();
+      }
+
+      return Map.of("table", table, "sql", sqlStr != null ? sqlStr : "");
    }
 
    // ---------------------------------------------------------------------------
@@ -841,7 +932,20 @@ public class WorksheetAgentController {
          assembly.setPixelOffset(new Point(25, maxY + 40));
          assembly.setSQLEdited(true);
          ws.addAssembly(assembly);
-         AssetEventUtil.initColumnSelection(rws, assembly);
+
+         // Populate columns from the parsed SQL or by executing the query.
+         // initColumnSelection does NOT work for SQL-edited assemblies;
+         // we must use QueryManagerService.getColumnSelection() instead
+         // (same approach as SQLQueryDialogService.setUpTableWithSQLString).
+         Object metaSession =
+            new DefaultMetaDataProvider(xrepository).getSession();
+         JDBCUtil.fixUniformSQLInfo(
+            sql, xrepository, metaSession,
+            (JDBCDataSource) query.getDataSource());
+         ColumnSelection columns = queryManagerService.getColumnSelection(
+            query, new VariableTable(), assembly, metaSession, null);
+         assembly.setColumnSelection(columns);
+
          return new SqlQueryResponse(tableName);
       });
    }
@@ -883,4 +987,5 @@ public class WorksheetAgentController {
    private final SheetAgentBroadcastService broadcast;
    private final XRepository xrepository;
    private final inetsoft.web.wiz.service.MetadataApiService metadataApiService;
+   private final QueryManagerService queryManagerService;
 }

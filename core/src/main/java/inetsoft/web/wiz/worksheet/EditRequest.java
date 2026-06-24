@@ -68,6 +68,11 @@ import java.util.Map;
  *   <li>{@code add_named_group} — {@code name}, {@code table}, {@code column}, {@code groupMappings}, {@code groupOthers}</li>
  *   <li>{@code set_column_description} — {@code table}, {@code column}, {@code description}</li>
  *   <li>{@code set_variable_values} — {@code variableValues} (map of variable name → value)</li>
+ *   <li>{@code set_mirror_auto_update} — {@code table}, {@code visible} (true=auto-update on, false=off)</li>
+ *   <li>{@code convert_to_embedded} — {@code table}</li>
+ *   <li>{@code set_assembly_position} — {@code table}, {@code x}, {@code y}</li>
+ *   <li>{@code duplicate_assembly} — {@code table} (source), {@code name} (new name)</li>
+ *   <li>{@code set_primary_assembly} — {@code table}</li>
  * </ul>
  */
 public record EditRequest(
@@ -160,5 +165,9 @@ public record EditRequest(
    /** Whether to group unmapped values as "Others" for add_named_group. */
    Boolean groupOthers,
    /** Variable name → value mappings for set_variable_values. */
-   Map<String, String> variableValues
+   Map<String, String> variableValues,
+   /** X pixel coordinate for set_assembly_position. */
+   Integer x,
+   /** Y pixel coordinate for set_assembly_position. */
+   Integer y
 ) {}
