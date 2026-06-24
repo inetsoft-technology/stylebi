@@ -2860,6 +2860,48 @@ public class WizVsService {
    }
 
    /**
+    * Removes a single assembly from a live runtime viewsheet. Runtime-only: the
+    * persisted viewsheet asset is left untouched. Idempotent — a missing/expired
+    * runtime or an already-absent assembly is treated as success.
+    *
+    * @param runtimeId    the runtime viewsheet id (visualizationId on the wiz side)
+    * @param assemblyName the assembly to remove
+    * @param user         the current user
+    */
+   public void removeVisualization(String runtimeId, String assemblyName, Principal user)
+      throws Exception
+   {
+      if(runtimeId == null || runtimeId.isEmpty() || assemblyName == null || assemblyName.isEmpty()) {
+         throw new IllegalArgumentException("runtimeId and assemblyName are required");
+      }
+
+      RuntimeViewsheet rvs;
+
+      try {
+         rvs = viewsheetService.getViewsheet(runtimeId, user);
+      }
+      catch(Exception e) {
+         LOG.warn("Runtime viewsheet [{}] unavailable; skipping assembly removal: {}",
+                  runtimeId, e.getMessage());
+         return;
+      }
+
+      if(rvs == null) {
+         LOG.warn("Runtime viewsheet [{}] not found; skipping assembly removal", runtimeId);
+         return;
+      }
+
+      Viewsheet vs = rvs.getViewsheet();
+
+      if(vs == null || vs.getAssembly(assemblyName) == null) {
+         return; // idempotent: nothing to remove
+      }
+
+      vs.removeAssembly(assemblyName);
+      rvs.getViewsheetSandbox().ifPresent(box -> box.resetDataMap(assemblyName));
+   }
+
+   /**
     * Holds the mapping information from pushAggregationToWorksheet.
     *
     * @param dimColumnMapping       set of DateRangeRef column names (for date grouping) that were pushed to worksheet
