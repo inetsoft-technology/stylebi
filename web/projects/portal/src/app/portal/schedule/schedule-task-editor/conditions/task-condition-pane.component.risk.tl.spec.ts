@@ -42,7 +42,7 @@ import {
 // ---------------------------------------------------------------------------
 
 function mockModalOk(): void {
-   modalMock.open.mockImplementation(() => ({
+   modalMock.open.mockImplementationOnce(() => ({
       result: Promise.resolve("ok"),
       componentInstance: { onCommit: new Subject<string>(), onCancel: new Subject<void>() },
       close: vi.fn(),
@@ -51,7 +51,7 @@ function mockModalOk(): void {
 }
 
 function mockModalCancel(): void {
-   modalMock.open.mockImplementation(() => ({
+   modalMock.open.mockImplementationOnce(() => ({
       result: Promise.resolve("cancel"),
       componentInstance: { onCommit: new Subject<string>(), onCancel: new Subject<void>() },
       close: vi.fn(),

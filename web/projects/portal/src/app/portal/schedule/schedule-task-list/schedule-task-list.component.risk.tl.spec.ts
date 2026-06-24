@@ -241,6 +241,9 @@ describe("ScheduleTaskListComponent — risk tests", () => {
 
    // -------------------------------------------------------------------------
    // navigateToTaskEditor (private)
+   // Tested directly because the method encapsulates non-trivial routing logic
+   // (path extraction, flag passing) that is hard to verify transitively through
+   // newTask()/editTask() without coupling the assertion to their HTTP flows.
    // -------------------------------------------------------------------------
 
    describe("navigateToTaskEditor", () => {
@@ -331,14 +334,14 @@ describe("ScheduleTaskListComponent — risk tests", () => {
          comp.tasks = [makeTask({ name: "Task1", canDelete: true, removable: true })];
          comp.selectedItems = ["Task1"];
          // Bypass selectAll() which also modifies selectedItems — set flag directly.
-         comp["_selectAllChecked"] = true;
+         (comp as any)._selectAllChecked = true;
 
          mockConfirmOk();
          comp.removeItems();
 
          await waitFor(() => {
             expect(comp.selectedItems).toHaveLength(0);
-            expect(comp["_selectAllChecked"]).toBe(false);
+            expect((comp as any)._selectAllChecked).toBe(false);
          });
          // Drain loadTasks (POST scheduledTasks) + loadTaskFolderTree (GET tree) that fire
          // after the remove succeeds, so they complete before afterEach destroys the fixture.

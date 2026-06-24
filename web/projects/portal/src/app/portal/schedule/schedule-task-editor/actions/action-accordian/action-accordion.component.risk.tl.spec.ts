@@ -81,6 +81,10 @@ function mockModalEmail(emails: string): void {
 }
 
 function mockModalEmailCancel(): void {
+   // Promise.reject — not resolve — is intentional: openEmailDialog returns modal.result directly,
+   // and the caller uses .then(onCommit, onCancel). NgbModal dismissal rejects the result promise,
+   // so only a rejection triggers the cancellation branch. A resolved "cancel" string would
+   // erroneously invoke onCommit with result.emails === undefined, clearing the address field.
    modalMock.open.mockImplementationOnce(() => ({
       result: Promise.reject("cancel"),
       componentInstance: { onCommit: new Subject<string>(), onCancel: new Subject<void>() },

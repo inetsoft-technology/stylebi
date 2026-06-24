@@ -35,8 +35,7 @@ import { Component, EventEmitter, forwardRef, Input, NO_ERRORS_SCHEMA, Output } 
 import { ControlValueAccessor, NG_VALUE_ACCESSOR, UntypedFormGroup } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { render } from "@testing-library/angular";
-import { Subject } from "rxjs";
-import { of } from "rxjs";
+import { Subject, of } from "rxjs";
 import { vi } from "vitest";
 import { GeneralActionModel } from "../../../../../../../../shared/schedule/model/general-action-model";
 import { TaskActionPaneModel } from "../../../../../../../../shared/schedule/model/task-action-pane-model";
