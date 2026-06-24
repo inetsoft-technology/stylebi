@@ -1946,8 +1946,11 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
                   innerDim.getFullName().equals(refs[j].getFullName())))
                {
                   VSChartDimensionRef dim = (VSChartDimensionRef) refs[j];
-                  dim.setOrder(XConstants.SORT_VALUE_ASC);
-                  dim.setSortByColValue(sortBy);
+                  // respect explicit manual order (SORT_SPECIFIC) set by the caller
+                  if(dim.getOrder() != XConstants.SORT_SPECIFIC) {
+                     dim.setOrder(XConstants.SORT_VALUE_ASC);
+                     dim.setSortByColValue(sortBy);
+                  }
                   innerDim = dim;
                }
                /* sorting on aesthetics doesn't make much sense. the order for each bar
