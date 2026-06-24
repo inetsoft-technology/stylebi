@@ -23,6 +23,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.asset.internal.TableAssemblyInfo;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
@@ -81,6 +82,9 @@ public class WorksheetEditService {
          SheetType.WORKSHEET, session.runtimeId(), agent);
       applySocketSession(rws, session);
 
+      // Create an undo checkpoint before applying the mutation.
+      rws.addCheckpoint(rws.getWorksheet().prepareCheckpoint());
+
       Editor editor = new Editor(rws.getWorksheet());
       mutation.accept(editor);
       refreshAssemblies(rws);
@@ -108,6 +112,9 @@ public class WorksheetEditService {
          SheetType.WORKSHEET, session.runtimeId(), agent);
       applySocketSession(rws, session);
 
+      // Create an undo checkpoint before applying the mutation.
+      rws.addCheckpoint(rws.getWorksheet().prepareCheckpoint());
+
       T result = mutation.apply(rws);
       refreshAssemblies(rws);
       broadcast.broadcastRefresh(rws, SheetType.WORKSHEET, session.runtimeId(), agent);
@@ -117,6 +124,31 @@ public class WorksheetEditService {
    @FunctionalInterface
    public interface ThrowingFunction<A, R> {
       R apply(A a) throws Exception;
+   }
+
+   /**
+    * Like {@link #applyOnRuntime} but does NOT create an undo checkpoint.
+    * Use for operations that manipulate the checkpoint stack themselves (undo/redo).
+    */
+   public <T> T applyOnRuntimeNoCheckpoint(String sessionToken, Principal agent,
+                                            ThrowingFunction<RuntimeWorksheet, T> mutation)
+      throws Exception
+   {
+      String agentKey = agentKey(agent);
+      JoinSession session = sessions.resolve(sessionToken, agentKey);
+
+      if(session == null) {
+         throw new PairingException("Invalid or expired session: " + sessionToken);
+      }
+
+      RuntimeWorksheet rws = (RuntimeWorksheet) runtimeAccess.getSheetForPairing(
+         SheetType.WORKSHEET, session.runtimeId(), agent);
+      applySocketSession(rws, session);
+
+      T result = mutation.apply(rws);
+      refreshAssemblies(rws);
+      broadcast.broadcastRefresh(rws, SheetType.WORKSHEET, session.runtimeId(), agent);
+      return result;
    }
 
    /**
@@ -332,7 +364,9 @@ public class WorksheetEditService {
       public void addFilter(String table, String field,
                             String operation, String... values) throws PairingException
       {
-         WorksheetMutationSupport.addFilter(requireTable(table), field, operation, values);
+         TableAssembly t = requireTable(table);
+         requireColumn(t, field);
+         WorksheetMutationSupport.addFilter(t, field, operation, values);
       }
 
       /**
@@ -453,7 +487,13 @@ public class WorksheetEditService {
 
          // Use multi-key if provided, else fall back to single-key
          if(leftKeys != null && rightKeys != null && !leftKeys.isEmpty()) {
-            int count = Math.min(leftKeys.size(), rightKeys.size());
+            if(leftKeys.size() != rightKeys.size()) {
+               throw new PairingException(
+                  "leftKeys and rightKeys must have the same length: " +
+                  leftKeys.size() + " vs " + rightKeys.size());
+            }
+
+            int count = leftKeys.size();
 
             for(int i = 0; i < count; i++) {
                TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
@@ -579,6 +619,14 @@ public class WorksheetEditService {
          throws PairingException
       {
          TableAssembly src = requireTable(source);
+         int colCount = src.getColumnSelection(false).getAttributeCount();
+
+         if(headerColumns < 0 || headerColumns >= colCount) {
+            throw new PairingException(
+               "headerColumns (" + headerColumns + ") must be between 0 and " +
+               (colCount - 1) + " (table has " + colCount + " columns).");
+         }
+
          UnpivotTableAssembly table = new UnpivotTableAssembly(ws, name, src);
          table.setLiveData(true);
          table.setHeaderColumns(headerColumns);
@@ -605,13 +653,24 @@ public class WorksheetEditService {
          DataRef ref = cs.getAttribute(column);
 
          if(ref == null) {
-            ref = new ColumnRef(new AttributeRef(null, column));
+            throw new PairingException("Column not found: " + column);
          }
+
+         String origType = ref instanceof ColumnRef cr2 ? cr2.getDataType() : null;
+
+         if(!XSchema.isDateType(origType)) {
+            throw new PairingException(
+               "Column \"" + column + "\" is not a date type (type=" + origType +
+               "). date_range_column requires a date, time, or timeInstant column.");
+         }
+
+         // DateRangeRef needs the inner AttributeRef, not the ColumnRef wrapper.
+         DataRef baseRef = ref instanceof ColumnRef cr ? cr.getDataRef() : ref;
 
          int option = parseDateOption(dateOption);
          String rangeName = DateRangeRef.getName(column, option);
-         DateRangeRef dateRef = new DateRangeRef(rangeName, ref, option);
-         dateRef.setOriginalType(ref instanceof ColumnRef cr ? cr.getDataType() : XSchema.DATE);
+         DateRangeRef dateRef = new DateRangeRef(rangeName, baseRef, option);
+         dateRef.setOriginalType(origType);
 
          ColumnRef colRef = new ColumnRef(dateRef);
          colRef.setDataType(XSchema.STRING);
@@ -629,15 +688,22 @@ public class WorksheetEditService {
       public void addNumericRangeColumn(String table, String column, double[] boundaries)
          throws PairingException
       {
+         if(boundaries == null || boundaries.length == 0) {
+            throw new PairingException(
+               "boundaries must be a non-empty array of numbers (e.g. [0, 50, 100]).");
+         }
+
          TableAssembly t = requireTable(table);
          ColumnSelection cs = t.getColumnSelection(false);
          DataRef ref = cs.getAttribute(column);
 
          if(ref == null) {
-            ref = new ColumnRef(new AttributeRef(null, column));
+            throw new PairingException("Column not found: " + column);
          }
 
-         NumericRangeRef rangeRef = new NumericRangeRef(column + "_range", ref);
+         // NumericRangeRef needs the inner AttributeRef, not the ColumnRef wrapper.
+         DataRef baseRef = ref instanceof ColumnRef cr ? cr.getDataRef() : ref;
+         NumericRangeRef rangeRef = new NumericRangeRef(column + "_range", baseRef);
          ValueRangeInfo info = new ValueRangeInfo();
          info.setValues(boundaries);
          rangeRef.setValueRangeInfo(info);
@@ -816,6 +882,13 @@ public class WorksheetEditService {
       public void changeColumnType(String table, String col, String type)
          throws PairingException
       {
+         if(!XSchema.isPrimitiveType(type)) {
+            throw new PairingException(
+               "Invalid column type: \"" + type + "\". Valid types: " +
+               "string, boolean, float, double, integer, long, short, byte, " +
+               "char, date, time, timeInstant.");
+         }
+
          TableAssembly t = requireTable(table);
          ColumnSelection cs = t.getColumnSelection(false);
          DataRef ref = cs.getAttribute(col);
@@ -1422,6 +1495,10 @@ public class WorksheetEditService {
             throw new PairingException("Assembly not found: " + sourceName);
          }
 
+         if(ws.getAssembly(newName) != null) {
+            throw new PairingException("Assembly already exists: " + newName);
+         }
+
          try {
             WSAssembly clone = (WSAssembly) wsa.clone();
             clone.getWSAssemblyInfo().setName(newName);
@@ -1463,6 +1540,181 @@ public class WorksheetEditService {
       }
 
       // -----------------------------------------------------------------------
+      // Edit variable
+      // -----------------------------------------------------------------------
+
+      /**
+       * Edits an existing variable assembly's properties.
+       *
+       * @param name         the variable assembly name
+       * @param type         new data type, or {@code null} to leave unchanged
+       * @param label        new display label, or {@code null} to leave unchanged
+       * @param defaultValue new default value, or {@code null} to leave unchanged
+       * @throws PairingException if the assembly is not found or not a variable
+       */
+      public void editVariable(String name, String type, String label, String defaultValue)
+         throws PairingException
+      {
+         Assembly a = ws.getAssembly(name);
+
+         if(!(a instanceof DefaultVariableAssembly va)) {
+            throw new PairingException("Variable assembly not found: " + name);
+         }
+
+         AssetVariable var = va.getVariable();
+
+         if(var == null) {
+            throw new PairingException("Variable has no definition: " + name);
+         }
+
+         if(label != null) {
+            var.setAlias(label);
+         }
+
+         if(type != null) {
+            var.setTypeNode(XSchema.createPrimitiveType(type));
+         }
+
+         if(defaultValue != null) {
+            var.setValueNode(
+               inetsoft.uql.schema.XValueNode.createValueNode(defaultValue, name));
+         }
+      }
+
+      // -----------------------------------------------------------------------
+      // Edit named group
+      // -----------------------------------------------------------------------
+
+      /**
+       * Replaces the group mappings on an existing named group assembly.
+       *
+       * @param name        the named group assembly name
+       * @param mappings    new group name → value list mappings
+       * @param groupOthers whether to group unmapped values as "Others"
+       * @throws PairingException if the assembly is not found
+       */
+      public void editNamedGroup(String name,
+                                 List<WorksheetMutationSupport.GroupMapping> mappings,
+                                 boolean groupOthers) throws PairingException
+      {
+         Assembly a = ws.getAssembly(name);
+
+         if(!(a instanceof DefaultNamedGroupAssembly nga)) {
+            throw new PairingException("Named group assembly not found: " + name);
+         }
+
+         NamedGroupInfo ngi = new NamedGroupInfo();
+         ngi.setOthers(groupOthers
+            ? XConstants.GROUP_OTHERS
+            : XConstants.LEAVE_OTHERS);
+
+         if(mappings != null) {
+            DataRef ref = nga.getAttachedAttribute();
+
+            for(WorksheetMutationSupport.GroupMapping m : mappings) {
+               ConditionList conds = new ConditionList();
+
+               for(int i = 0; i < m.values().size(); i++) {
+                  if(i > 0) {
+                     JunctionOperator junc = new JunctionOperator(JunctionOperator.OR, 0);
+                     conds.append(junc);
+                  }
+
+                  Condition c = new Condition(ref != null ? ref.getDataType() : XSchema.STRING);
+                  c.setOperation(XCondition.EQUAL_TO);
+                  c.addValue(m.values().get(i));
+                  conds.append(new ConditionItem(ref, c, 0));
+               }
+
+               ngi.setGroupCondition(m.name(), conds);
+            }
+         }
+
+         nga.setNamedGroupInfo(ngi);
+      }
+
+      // -----------------------------------------------------------------------
+      // Set table mode
+      // -----------------------------------------------------------------------
+
+      /**
+       * Sets the live/metadata/detail/full/edit mode flags on a table assembly.
+       *
+       * <p>Supported modes:
+       * <ul>
+       *   <li>{@code "live"} — enables live data preview ({@code liveData=true})</li>
+       *   <li>{@code "default"} — metadata view (live for embedded, metadata for bound)</li>
+       *   <li>{@code "full"} — all-data view with aggregation disabled</li>
+       *   <li>{@code "detail"} — live detail view with aggregation disabled</li>
+       *   <li>{@code "edit"} — edit mode (liveData=false, editMode=true)</li>
+       * </ul>
+       */
+      public void setTableMode(String tableName, String mode) throws PairingException {
+         Assembly a = ws.getAssembly(tableName);
+
+         if(!(a instanceof TableAssembly table)) {
+            throw new PairingException("Table assembly not found: " + tableName);
+         }
+
+         switch(mode) {
+            case "live" -> {
+               table.setLiveData(true);
+               table.setRuntime(table.isRuntimeSelected());
+               table.setEditMode(false);
+            }
+            case "full" -> {
+               table.setLiveData(false);
+               table.setRuntime(false);
+               table.setEditMode(false);
+               ((TableAssemblyInfo) table.getTableInfo()).setAggregate(false);
+            }
+            case "detail" -> {
+               table.setLiveData(true);
+               table.setRuntime(false);
+               table.setEditMode(false);
+               ((TableAssemblyInfo) table.getTableInfo()).setAggregate(false);
+            }
+            case "edit" -> {
+               table.setLiveData(false);
+               table.setRuntime(false);
+               table.setEditMode(true);
+               ((TableAssemblyInfo) table.getTableInfo()).setAggregate(false);
+            }
+            default -> {
+               // "default" — metadata view for bound tables, live for embedded.
+               table.setLiveData(table instanceof EmbeddedTableAssembly);
+               table.setRuntime(false);
+               table.setEditMode(false);
+            }
+         }
+      }
+
+      // -----------------------------------------------------------------------
+      // Edit unpivot header columns
+      // -----------------------------------------------------------------------
+
+      /**
+       * Changes the header column count on an existing unpivot table assembly.
+       *
+       * @param tableName     the UnpivotTableAssembly name
+       * @param headerColumns new number of header columns (≥ 1)
+       * @throws PairingException if the assembly is not an UnpivotTableAssembly
+       */
+      public void editUnpivot(String tableName, int headerColumns) throws PairingException {
+         Assembly a = ws.getAssembly(tableName);
+
+         if(!(a instanceof UnpivotTableAssembly table)) {
+            throw new PairingException("Not an unpivot table assembly: " + tableName);
+         }
+
+         if(table.getHeaderColumns() == headerColumns) {
+            return; // no-op
+         }
+
+         table.setHeaderColumns(headerColumns);
+      }
+
+      // -----------------------------------------------------------------------
       // Helper
       // -----------------------------------------------------------------------
 
@@ -1501,6 +1753,14 @@ public class WorksheetEditService {
          }
 
          return t;
+      }
+
+      private void requireColumn(TableAssembly t, String column) throws PairingException {
+         ColumnSelection cs = t.getColumnSelection(false);
+
+         if(cs.getAttribute(column) == null) {
+            throw new PairingException("Column not found: " + column);
+         }
       }
 
       private final Worksheet ws;

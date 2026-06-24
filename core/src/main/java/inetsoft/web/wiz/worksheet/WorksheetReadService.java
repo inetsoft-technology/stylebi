@@ -48,12 +48,14 @@ public class WorksheetReadService {
    public WorksheetModel read(RuntimeWorksheet rws) {
       Worksheet ws = rws.getWorksheet();
       Assembly[] assemblies = ws.getAssemblies();
+      String primaryName = ws.getPrimaryAssemblyName();
 
       List<WorksheetModel.TableModel> tables = new ArrayList<>();
 
       for(Assembly assembly : assemblies) {
          if(assembly instanceof TableAssembly t) {
-            tables.add(readTable(t));
+            boolean primary = t.getName().equals(primaryName);
+            tables.add(readTable(t, primary));
          }
       }
 
@@ -64,7 +66,7 @@ public class WorksheetReadService {
    // Table
    // -------------------------------------------------------------------------
 
-   private WorksheetModel.TableModel readTable(TableAssembly t) {
+   private WorksheetModel.TableModel readTable(TableAssembly t, boolean primary) {
       String name = t.getName();
       String type = tableType(t);
       List<WorksheetModel.ColumnModel> columns = readColumns(t);
@@ -81,7 +83,7 @@ public class WorksheetReadService {
       return new WorksheetModel.TableModel(
          name, type, columns, joins,
          preConditions, postConditions, rankingConditions,
-         aggregates, sorts);
+         aggregates, sorts, primary);
    }
 
    private String tableType(TableAssembly t) {

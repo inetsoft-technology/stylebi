@@ -102,8 +102,10 @@ class SheetPairingControllerTest {
       SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
       accessor.setSessionId("stomp-x");
 
-      assertThrows(ResponseStatusException.class,
-         () -> c.mintViaSocket(new SheetPairingController.MintRequest("WS/1", SheetType.WORKSHEET),
-                               owner, accessor));
+      SheetPairingController.MintResponse resp =
+         c.mintViaSocket(new SheetPairingController.MintRequest("WS/1", SheetType.WORKSHEET),
+                         owner, accessor);
+      assertNull(resp.code(), "code should be null when feature is off");
+      assertNotNull(resp.error(), "error should be non-null when feature is off");
    }
 }

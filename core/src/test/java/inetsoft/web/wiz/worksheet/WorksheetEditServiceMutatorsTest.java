@@ -233,7 +233,7 @@ class WorksheetEditServiceMutatorsTest {
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
       svc.apply("TOK", agent,
-         ed -> ed.addJoin("J", "L", "id", "R", "id", "INNER"));
+         ed -> ed.addJoin("J", "L", "id", "R", "id", "INNER", null, null));
 
       Assembly a = ws.getAssembly("J");
       assertNotNull(a, "join assembly 'J' should be in the worksheet");
@@ -251,7 +251,7 @@ class WorksheetEditServiceMutatorsTest {
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
       svc.apply("TOK", agent, ed -> {
-         ed.addJoin("J", "L", "id", "R", "id", "LEFT");
+         ed.addJoin("J", "L", "id", "R", "id", "LEFT", null, null);
          ed.removeJoin("J");
       });
 
@@ -329,8 +329,8 @@ class WorksheetEditServiceMutatorsTest {
       Principal agent = TestPrincipals.user("alice", "host-org");
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
-      svc.apply("TOK", agent, ed -> ed.addJoin("J", "L", "id", "R", "id", "INNER"));
-      svc.apply("TOK", agent, ed -> ed.editJoin("J", "altId", "altId", "LEFT"));
+      svc.apply("TOK", agent, ed -> ed.addJoin("J", "L", "id", "R", "id", "INNER", null, null));
+      svc.apply("TOK", agent, ed -> ed.editJoin("J", "altId", "altId", "LEFT", null, null));
 
       Assembly a = ws.getAssembly("J");
       assertNotNull(a);
@@ -355,7 +355,7 @@ class WorksheetEditServiceMutatorsTest {
       WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
 
       assertThrows(PairingException.class,
-         () -> svc.apply("TOK", agent, ed -> ed.editJoin("NOPE", "a", "b", "INNER")));
+         () -> svc.apply("TOK", agent, ed -> ed.editJoin("NOPE", "a", "b", "INNER", null, null)));
    }
 
    // =========================================================================

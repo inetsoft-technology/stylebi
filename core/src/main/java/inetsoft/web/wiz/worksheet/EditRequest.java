@@ -73,6 +73,16 @@ import java.util.Map;
  *   <li>{@code set_assembly_position} — {@code table}, {@code x}, {@code y}</li>
  *   <li>{@code duplicate_assembly} — {@code table} (source), {@code name} (new name)</li>
  *   <li>{@code set_primary_assembly} — {@code table}</li>
+ *   <li>{@code edit_variable} — {@code name}, {@code type}, {@code label}, {@code defaultValue}</li>
+ *   <li>{@code edit_named_group} — {@code name}, {@code groupMappings}, {@code groupOthers}</li>
+ *   <li>{@code edit_sql_query} — {@code table}, {@code expression} (new SQL string)</li>
+ *   <li>{@code update_mirror} — {@code table}</li>
+ *   <li>{@code set_table_mode} — {@code table}, {@code mode} ({@code "live"}, {@code "default"}, {@code "full"}, {@code "detail"}, {@code "edit"})</li>
+ *   <li>{@code edit_unpivot} — {@code table}, {@code headerColumns}</li>
+ *   <li>{@code insert_column} — {@code table}, {@code index}, {@code insert} (true=before index, false=append after index)</li>
+ *   <li>{@code reorder_concat_subtables} — {@code table} (parent composite assembly), {@code subtables} (new order)</li>
+ *   <li>{@code auto_layout} — no required fields (lays out all assemblies)</li>
+ *   <li>{@code refresh_data} — {@code table} (optional, if omitted refreshes all)</li>
  * </ul>
  */
 public record EditRequest(
@@ -169,5 +179,15 @@ public record EditRequest(
    /** X pixel coordinate for set_assembly_position. */
    Integer x,
    /** Y pixel coordinate for set_assembly_position. */
-   Integer y
+   Integer y,
+   /** Display label for edit_variable. */
+   String label,
+   /** Default value for edit_variable. */
+   String defaultValue,
+   /** Table mode string for set_table_mode — {@code "live"}, {@code "default"}, {@code "full"}, {@code "detail"}, {@code "edit"}. */
+   String mode,
+   /** True = insert before index, false = append after index (insert_column). */
+   Boolean insert,
+   /** New order of subtable names for reorder_concat_subtables. */
+   List<String> subtables
 ) {}

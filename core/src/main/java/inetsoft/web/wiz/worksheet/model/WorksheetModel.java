@@ -42,6 +42,7 @@ public record WorksheetModel(List<TableModel> tables) {
     * @param rankingConditions  ranking / top-N conditions
     * @param aggregates         group-by / aggregate info; {@code null} when none is set
     * @param sorts              sort directives; empty when none
+    * @param primary            {@code true} if this is the worksheet's primary assembly
     */
    public record TableModel(
       String name,
@@ -52,7 +53,8 @@ public record WorksheetModel(List<TableModel> tables) {
       List<FilterModel> postConditions,
       List<FilterModel> rankingConditions,
       AggregateModel aggregates,
-      List<SortModel> sorts
+      List<SortModel> sorts,
+      boolean primary
    ) {}
 
    /**

@@ -58,8 +58,10 @@ class WorksheetAgentControllerTest {
                                           mock(WorksheetPreviewService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(inetsoft.uql.XRepository.class),
+                                          mock(inetsoft.uql.asset.AssetRepository.class),
                                           mock(inetsoft.web.wiz.service.MetadataApiService.class),
-                                          mock(inetsoft.web.portal.controller.database.QueryManagerService.class));
+                                          mock(inetsoft.web.portal.controller.database.QueryManagerService.class),
+                                          mock(inetsoft.web.composer.ws.LayoutGraphService.class));
    }
 
    private static SheetAgentFeature featureOn() {
@@ -170,7 +172,9 @@ class WorksheetAgentControllerTest {
          null, null, null, null, null, null, null, null, null, null, null, null,
          null, null, null, null, null, null, null, null, null, null,
          null, null, null, null,
-         null, null);
+         null, null,
+         null, null,
+         null, null, null);
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),

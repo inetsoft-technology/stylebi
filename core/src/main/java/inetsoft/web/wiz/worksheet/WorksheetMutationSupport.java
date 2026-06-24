@@ -476,7 +476,7 @@ public final class WorksheetMutationSupport {
     */
    public static void setRanking(TableAssembly t, RankingSpec spec) {
       if(spec == null) {
-         t.setRankingConditionList(null);
+         t.setRankingConditionList(new ConditionList());
          return;
       }
 

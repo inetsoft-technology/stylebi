@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.pairing;
 
 import inetsoft.report.composition.RuntimeSheet;
+import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CommandDispatcherService;
 import org.junit.jupiter.api.Tag;
@@ -39,7 +40,7 @@ class SheetAgentBroadcastServiceTest {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
       SheetAgentBroadcastService svc = new SheetAgentBroadcastService(dispatcher);
 
-      RuntimeSheet rs = mock(RuntimeSheet.class);
+      RuntimeWorksheet rs = mock(RuntimeWorksheet.class);
       when(rs.getSocketSessionId()).thenReturn("stomp-1");
       when(rs.getSocketUserName()).thenReturn("alice~;~host-org");
       Principal owner = TestPrincipals.user("alice", "host-org");
@@ -96,7 +97,7 @@ class SheetAgentBroadcastServiceTest {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
       SheetAgentBroadcastService svc = new SheetAgentBroadcastService(dispatcher);
 
-      RuntimeSheet rs = mock(RuntimeSheet.class);
+      RuntimeWorksheet rs = mock(RuntimeWorksheet.class);
       when(rs.getSocketSessionId()).thenReturn("stomp-2");
       when(rs.getSocketUserName()).thenReturn(null);  // no user recorded
       Principal owner = TestPrincipals.user("alice", "host-org");

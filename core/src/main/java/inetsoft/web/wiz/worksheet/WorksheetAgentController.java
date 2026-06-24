@@ -20,17 +20,22 @@ package inetsoft.web.wiz.worksheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.event.AssetEventUtil;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
-import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.web.composer.ws.LayoutGraphService;
+import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
+import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
@@ -66,8 +71,10 @@ public class WorksheetAgentController {
                                    WorksheetPreviewService previewService,
                                    SheetAgentBroadcastService broadcast,
                                    XRepository xrepository,
+                                   AssetRepository assetRepository,
                                    inetsoft.web.wiz.service.MetadataApiService metadataApiService,
-                                   QueryManagerService queryManagerService)
+                                   QueryManagerService queryManagerService,
+                                   LayoutGraphService layoutGraphService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -78,8 +85,10 @@ public class WorksheetAgentController {
       this.previewService = previewService;
       this.broadcast = broadcast;
       this.xrepository = xrepository;
+      this.assetRepository = assetRepository;
       this.metadataApiService = metadataApiService;
       this.queryManagerService = queryManagerService;
+      this.layoutGraphService = layoutGraphService;
    }
 
    // ---------------------------------------------------------------------------
@@ -157,6 +166,42 @@ public class WorksheetAgentController {
       // convert_to_embedded needs AssetQuerySandbox for data population.
       if("convert_to_embedded".equals(req.op())) {
          convertToEmbedded(sessionToken, req, user);
+         return;
+      }
+
+      // edit_sql_query needs RuntimeWorksheet for SQL parsing and column re-init.
+      if("edit_sql_query".equals(req.op())) {
+         editSqlQuery(sessionToken, req, user);
+         return;
+      }
+
+      // update_mirror needs AssetRepository + Principal for the refresh.
+      if("update_mirror".equals(req.op())) {
+         updateMirror(sessionToken, req, user);
+         return;
+      }
+
+      // auto_layout uses mxGraph — needs LayoutGraphService.
+      if("auto_layout".equals(req.op())) {
+         autoLayout(sessionToken, req, user);
+         return;
+      }
+
+      // refresh_data clears the query cache and forces re-execution.
+      if("refresh_data".equals(req.op())) {
+         refreshData(sessionToken, req, user);
+         return;
+      }
+
+      // insert_column manipulates XEmbeddedTable directly.
+      if("insert_column".equals(req.op())) {
+         insertColumn(sessionToken, req, user);
+         return;
+      }
+
+      // reorder_concat_subtables calls CompositeTableAssembly.reorderTableAssemblies.
+      if("reorder_concat_subtables".equals(req.op())) {
+         reorderConcatSubtables(sessionToken, req, user);
          return;
       }
 
@@ -623,6 +668,16 @@ public class WorksheetAgentController {
             editor.duplicateAssembly(req.table(), req.name());
          case "set_primary_assembly" ->
             editor.setPrimaryAssembly(req.table());
+         case "edit_variable" ->
+            editor.editVariable(req.name(), req.type(), req.label(), req.defaultValue());
+         case "edit_named_group" ->
+            editor.editNamedGroup(req.name(), req.groupMappings(),
+                                  req.groupOthers() != null && req.groupOthers());
+         case "set_table_mode" ->
+            editor.setTableMode(req.table(), req.mode() != null ? req.mode() : "default");
+         case "edit_unpivot" ->
+            editor.editUnpivot(req.table(),
+                               req.headerColumns() != null ? req.headerColumns() : 1);
          default ->
             throw new PairingException("Unknown op: " + req.op());
       }
@@ -658,6 +713,413 @@ public class WorksheetAgentController {
 
          box.refreshVariableTable(vtable);
          box.reset();
+         return null;
+      });
+   }
+
+   // ---------------------------------------------------------------------------
+   // Undo / Redo
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Undo the last edit operation.
+    *
+    * @param sessionToken the token obtained at join time
+    * @param user         the authenticated agent principal
+    * @return whether the undo was successful and the current checkpoint index
+    */
+   @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/undo")
+   public Map<String, Object> undo(@PathVariable String sessionToken, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return editService.applyOnRuntimeNoCheckpoint(sessionToken, user, rws -> {
+         boolean undone = rws.undo(null);
+         return Map.of("undone", undone, "checkpoint", rws.getCurrent(),
+                        "total", rws.size());
+      });
+   }
+
+   /**
+    * Redo the last undone operation.
+    *
+    * @param sessionToken the token obtained at join time
+    * @param user         the authenticated agent principal
+    * @return whether the redo was successful and the current checkpoint index
+    */
+   @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/redo")
+   public Map<String, Object> redo(@PathVariable String sessionToken, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return editService.applyOnRuntimeNoCheckpoint(sessionToken, user, rws -> {
+         boolean redone = rws.redo(null);
+         return Map.of("redone", redone, "checkpoint", rws.getCurrent(),
+                        "total", rws.size());
+      });
+   }
+
+   // ---------------------------------------------------------------------------
+   // Edit SQL query on existing table
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Replace the SQL on an existing {@link SQLBoundTableAssembly}.
+    */
+   private void editSqlQuery(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      if(req.table() == null || req.table().isBlank()) {
+         throw new PairingException("table is required for edit_sql_query.");
+      }
+
+      if(req.expression() == null || req.expression().isBlank()) {
+         throw new PairingException("expression (SQL string) is required for edit_sql_query.");
+      }
+
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         Assembly a = ws.getAssembly(req.table());
+
+         if(!(a instanceof SQLBoundTableAssembly sqlTable)) {
+            throw new PairingException("Not a SQL-bound table: " + req.table());
+         }
+
+         SQLBoundTableAssemblyInfo info =
+            (SQLBoundTableAssemblyInfo) sqlTable.getInfo();
+
+         if(info.getQuery() == null) {
+            throw new PairingException("Table has no query: " + req.table());
+         }
+
+         UniformSQL sql = (UniformSQL) info.getQuery().getSQLDefinition();
+
+         if(sql == null) {
+            sql = new UniformSQL();
+            JDBCDataSource ds = (JDBCDataSource) info.getQuery().getDataSource();
+
+            if(ds != null) {
+               sql.setDataSource(ds);
+            }
+         }
+
+         try {
+            synchronized(sql) {
+               sql.setParseSQL(true);
+               sql.setSQLString(req.expression(), true);
+               sql.wait(10_000);
+            }
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new PairingException("SQL parsing was interrupted.");
+         }
+
+         info.getQuery().setSQLDefinition(sql);
+         sqlTable.setSQLEdited(true);
+
+         AssetEventUtil.initColumnSelection(rws, sqlTable);
+         return null;
+      });
+   }
+
+   // ---------------------------------------------------------------------------
+   // Update mirror (manual refresh)
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Manually refresh a mirror table assembly by calling
+    * {@link inetsoft.uql.asset.MirrorAssembly#updateMirror}.
+    */
+   private void updateMirror(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      if(req.table() == null || req.table().isBlank()) {
+         throw new PairingException("table is required for update_mirror.");
+      }
+
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         Assembly a = ws.getAssembly(req.table());
+
+         if(!(a instanceof MirrorAssembly mirror)) {
+            throw new PairingException("Not a mirror assembly: " + req.table());
+         }
+
+         mirror.updateMirror(assetRepository, user);
+         return null;
+      });
+   }
+
+   // ---------------------------------------------------------------------------
+   // Auto layout (canvas arrangement via mxGraph)
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Runs the hierarchical graph layout algorithm on all (or specified) worksheet assemblies,
+    * updating their {@code pixelOffset} in-place. Uses the no-dispatcher overload of
+    * {@link LayoutGraphService#layoutGraph(Worksheet, WSLayoutGraphEvent)} so no
+    * WebSocket commands are needed — the subsequent {@code broadcastRefresh} sends the
+    * updated positions to the client.
+    */
+   private void autoLayout(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         Assembly[] assemblies = ws.getAssemblies();
+
+         // Collect the names to lay out — all assemblies if none specified.
+         List<String> names = new ArrayList<>();
+
+         for(Assembly a : assemblies) {
+            if(a instanceof AbstractWSAssembly) {
+               names.add(a.getName());
+            }
+         }
+
+         if(names.isEmpty()) {
+            return null;
+         }
+
+         // Use the assembly's existing pixelSize, or a sensible default.
+         int[] widths = new int[names.size()];
+         int[] heights = new int[names.size()];
+
+         for(int i = 0; i < names.size(); i++) {
+            AbstractWSAssembly a = (AbstractWSAssembly) ws.getAssembly(names.get(i));
+            Dimension size = a.getPixelSize();
+
+            if(size != null && size.width > 0 && size.height > 0) {
+               widths[i] = size.width;
+               heights[i] = size.height;
+            }
+            else {
+               widths[i] = 200;
+               heights[i] = 120;
+            }
+         }
+
+         WSLayoutGraphEvent event = new WSLayoutGraphEvent.Builder()
+            .names(names.toArray(new String[0]))
+            .widths(widths)
+            .heights(heights)
+            .build();
+
+         // The no-dispatcher overload applies setPixelOffset() directly on assemblies.
+         layoutGraphService.layoutGraph(ws, event);
+         return null;
+      });
+   }
+
+   // ---------------------------------------------------------------------------
+   // Refresh data (force query re-execution)
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Forces re-execution of worksheet queries by clearing the query-result cache and
+    * resetting the table lens. If {@code req.table()} is specified, only that assembly is
+    * refreshed; otherwise all table assemblies are refreshed.
+    */
+   private void refreshData(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      editService.applyOnRuntimeNoCheckpoint(sessionToken, user, rws -> {
+         AssetQuerySandbox box = rws.getAssetQuerySandbox();
+
+         if(box == null) {
+            return null;
+         }
+
+         Worksheet ws = rws.getWorksheet();
+
+         if(req.table() != null && !req.table().isBlank()) {
+            // Refresh a single assembly.
+            box.resetTableLens(req.table());
+            WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
+            WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
+         }
+         else {
+            // Refresh all table assemblies.
+            for(Assembly a : ws.getAssemblies()) {
+               if(a instanceof TableAssembly) {
+                  box.resetTableLens(a.getName());
+               }
+            }
+         }
+
+         return null;
+      });
+   }
+
+   // ---------------------------------------------------------------------------
+   // Insert column into embedded table
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Inserts a blank column into an embedded table at the specified position.
+    *
+    * @param req.table  the EmbeddedTableAssembly name
+    * @param req.index  0-based column position in the ColumnSelection
+    * @param req.insert {@code true} = insert before index; {@code false} = append after index
+    */
+   private void insertColumn(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      if(req.table() == null || req.table().isBlank()) {
+         throw new PairingException("table is required for insert_column.");
+      }
+
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         Assembly a = ws.getAssembly(req.table());
+
+         if(!(a instanceof EmbeddedTableAssembly assembly)) {
+            throw new PairingException("Not an embedded table: " + req.table());
+         }
+
+         XEmbeddedTable data = assembly.getEmbeddedData();
+         ColumnSelection columns = assembly.getColumnSelection();
+         boolean insertBefore = req.insert() == null || req.insert();
+         int index = req.index() != null ? req.index() : (insertBefore ? 0 : columns.getAttributeCount());
+
+         // Generate a unique column name (col1, col2, ...).
+         String colname;
+         int i = 1;
+
+         while(true) {
+            colname = "col" + i;
+
+            if(columns.getAttribute(colname) == null &&
+               AssetUtil.findColumnConflictingWithAlias(columns, null, colname, true) == null)
+            {
+               break;
+            }
+
+            i++;
+         }
+
+         // Capture existing column identifiers before insert.
+         List<String> identifiers = new ArrayList<>();
+
+         for(int c = 0; c < data.getColCount(); c++) {
+            identifiers.add(data.getColumnIdentifier(c));
+         }
+
+         // Map ColumnSelection index → XEmbeddedTable column index (skip expressions).
+         int dataIndex = findEmbeddedColIndex(data, columns, index, insertBefore);
+         int csIndex = insertBefore ? index : index + 1;
+
+         data.insertCol(dataIndex);
+         data.setObject(0, dataIndex, colname);
+         identifiers.add(dataIndex, colname);
+
+         for(int c = 0; c < data.getColCount(); c++) {
+            data.setColumnIdentifier(c, identifiers.get(c));
+         }
+
+         AttributeRef attr = new AttributeRef(null, colname);
+         ColumnRef column = new ColumnRef(attr);
+         String alias = AssetUtil.findAlias(columns, column);
+         column.setAlias(alias);
+         columns.addAttribute(csIndex, column);
+         assembly.setColumnSelection(columns);
+         WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
+         WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
+         AssetEventUtil.refreshTableLastModified(ws, req.table(), true);
+         return null;
+      });
+   }
+
+   /** Maps a ColumnSelection index to the corresponding XEmbeddedTable column index. */
+   private int findEmbeddedColIndex(XEmbeddedTable data, ColumnSelection columns,
+                                     int index, boolean insertBefore)
+   {
+      if(insertBefore) {
+         int idx = index;
+
+         while(idx < columns.getAttributeCount()) {
+            DataRef ref = columns.getAttribute(idx);
+
+            if(!ref.isExpression()) {
+               return AssetUtil.findColumn(data, ref);
+            }
+
+            idx++;
+         }
+
+         return data.getColCount();
+      }
+      else {
+         int idx = index;
+
+         while(idx > 0) {
+            DataRef ref = columns.getAttribute(idx);
+
+            if(!ref.isExpression()) {
+               return AssetUtil.findColumn(data, ref) + 1;
+            }
+
+            idx--;
+         }
+
+         return 0;
+      }
+   }
+
+   // ---------------------------------------------------------------------------
+   // Reorder concat subtables
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Reorders the subtables of a {@link ConcatenatedTableAssembly} (UNION/INTERSECT/MINUS).
+    * Operators are preserved after reordering by restoring them at their new positions.
+    *
+    * @param req.table    the ConcatenatedTableAssembly name
+    * @param req.subtables the subtable names in the desired new order
+    */
+   private void reorderConcatSubtables(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      if(req.table() == null || req.table().isBlank()) {
+         throw new PairingException("table is required for reorder_concat_subtables.");
+      }
+
+      if(req.subtables() == null || req.subtables().size() < 2) {
+         throw new PairingException("subtables must contain at least 2 entries.");
+      }
+
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         Assembly a = ws.getAssembly(req.table());
+
+         if(!(a instanceof ConcatenatedTableAssembly table)) {
+            throw new PairingException("Not a concatenated table assembly: " + req.table());
+         }
+
+         String[] subtables = req.subtables().toArray(new String[0]);
+
+         // Preserve existing operators (indexed by position) before reordering.
+         TableAssemblyOperator[] ops = new TableAssemblyOperator[subtables.length - 1];
+
+         for(int i = 0; i < ops.length; i++) {
+            ops[i] = table.getOperator(i);
+         }
+
+         table.reorderTableAssemblies(
+            Arrays.stream(subtables)
+               .map(name -> (TableAssembly) ws.getAssembly(name))
+               .toArray(TableAssembly[]::new));
+
+         // Restore operators at new positions.
+         for(int i = 0; i < ops.length; i++) {
+            if(ops[i] != null) {
+               table.setOperator(i, ops[i]);
+            }
+         }
+
+         WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
+         WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
          return null;
       });
    }
@@ -986,6 +1448,8 @@ public class WorksheetAgentController {
    private final WorksheetPreviewService previewService;
    private final SheetAgentBroadcastService broadcast;
    private final XRepository xrepository;
+   private final AssetRepository assetRepository;
    private final inetsoft.web.wiz.service.MetadataApiService metadataApiService;
    private final QueryManagerService queryManagerService;
+   private final LayoutGraphService layoutGraphService;
 }
