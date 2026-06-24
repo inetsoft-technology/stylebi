@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.worksheet;
 
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.*;
 import inetsoft.uql.ColumnSelection;
@@ -28,6 +29,7 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XEmbeddedTable;
+import java.awt.Point;
 import java.util.Enumeration;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.wiz.pairing.*;
@@ -519,7 +521,7 @@ public class WorksheetEditService {
             new RelationalJoinTableAssembly(ws, name,
                                             new TableAssembly[]{ left, right },
                                             new TableAssemblyOperator[]{ top });
-         ws.addAssembly(join);
+         placeAssembly(join);
       }
 
       /**
@@ -553,7 +555,7 @@ public class WorksheetEditService {
          }
 
          t.setColumnSelection(cs, false);
-         ws.addAssembly(t);
+         placeAssembly(t);
       }
 
       // -----------------------------------------------------------------------
@@ -604,7 +606,7 @@ public class WorksheetEditService {
          TableAssembly src = requireTable(source);
          RotatedTableAssembly table = new RotatedTableAssembly(ws, name, src);
          table.setLiveData(true);
-         ws.addAssembly(table);
+         placeAssembly(table);
       }
 
       /**
@@ -629,7 +631,7 @@ public class WorksheetEditService {
          UnpivotTableAssembly table = new UnpivotTableAssembly(ws, name, src);
          table.setLiveData(true);
          table.setHeaderColumns(headerColumns);
-         ws.addAssembly(table);
+         placeAssembly(table);
       }
 
       // -----------------------------------------------------------------------
@@ -777,7 +779,7 @@ public class WorksheetEditService {
 
          ConcatenatedTableAssembly ctbl =
             new ConcatenatedTableAssembly(ws, name, sources, operators);
-         ws.addAssembly(ctbl);
+         placeAssembly(ctbl);
       }
 
       /**
@@ -796,7 +798,7 @@ public class WorksheetEditService {
          }
 
          MirrorTableAssembly mirror = new MirrorTableAssembly(ws, name, wsa);
-         ws.addAssembly(mirror);
+         placeAssembly(mirror);
       }
 
       // -----------------------------------------------------------------------
@@ -1193,7 +1195,7 @@ public class WorksheetEditService {
             new RelationalJoinTableAssembly(ws, name,
                                             new TableAssembly[]{ left, right },
                                             new TableAssemblyOperator[]{ top });
-         ws.addAssembly(join);
+         placeAssembly(join);
       }
 
       // -----------------------------------------------------------------------
@@ -1230,7 +1232,7 @@ public class WorksheetEditService {
 
          MergeJoinTableAssembly mergeJoin =
             new MergeJoinTableAssembly(ws, name, tables, operators);
-         ws.addAssembly(mergeJoin);
+         placeAssembly(mergeJoin);
       }
 
       // -----------------------------------------------------------------------
@@ -1398,7 +1400,7 @@ public class WorksheetEditService {
          assembly.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
          assembly.setAttachedAttribute(ref);
 
-         ws.addAssembly(assembly);
+         placeAssembly(assembly);
       }
 
       // -----------------------------------------------------------------------
@@ -1742,6 +1744,18 @@ public class WorksheetEditService {
             case "MERGE" -> TableAssemblyOperator.MERGE_JOIN;
             default      -> TableAssemblyOperator.INNER_JOIN;
          };
+      }
+
+      /**
+       * Places {@code assembly} in an unoccupied area of the canvas and adds it to
+       * the worksheet. Uses the same strategy as the UI's
+       * {@link AssetEventUtil#adjustAssemblyPosition}: sets a starting position then
+       * shifts the assembly below the lowest existing assembly.
+       */
+      private void placeAssembly(WSAssembly assembly) {
+         assembly.setPixelOffset(new Point(25, 25));
+         AssetEventUtil.adjustAssemblyPosition(assembly, ws);
+         ws.addAssembly(assembly);
       }
 
       private TableAssembly requireTable(String name) throws PairingException {

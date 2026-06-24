@@ -1282,6 +1282,8 @@ public class WorksheetAgentController {
          DefaultVariableAssembly assembly =
             new DefaultVariableAssembly(ws, body.name());
          assembly.setVariable(var);
+         assembly.setPixelOffset(new Point(25, 25));
+         AssetEventUtil.adjustAssemblyPosition(assembly, ws);
          ws.addAssembly(assembly);
          return null;
       });

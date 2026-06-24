@@ -102,6 +102,9 @@ public class WorksheetReadService {
       else if(t instanceof RotatedTableAssembly) {
          return "ROTATED";
       }
+      else if(t instanceof ConcatenatedTableAssembly) {
+         return "CONCAT";
+      }
       else {
          return "TABLE";
       }
