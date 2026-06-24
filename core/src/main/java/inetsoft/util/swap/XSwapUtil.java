@@ -499,7 +499,6 @@ public final class XSwapUtil {
    public static com.esotericsoftware.kryo.kryo5.Kryo getKryo() {
       com.esotericsoftware.kryo.kryo5.Kryo kryo = kryoPool.obtain();
       kryo.setClassLoader(Thread.currentThread().getContextClassLoader());
-      kryo.setRegistrationRequired(false);
       return kryo;
    }
 
@@ -561,10 +560,11 @@ public final class XSwapUtil {
    // Thread-safe pool of Kryo instances. reset() is overridden so an instance
    // freed after a failed (de)serialization is cleaned before it is reused.
    private static final com.esotericsoftware.kryo.kryo5.util.Pool<com.esotericsoftware.kryo.kryo5.Kryo> kryoPool =
-      new com.esotericsoftware.kryo.kryo5.util.Pool<com.esotericsoftware.kryo.kryo5.Kryo>(true, false) {
+      new com.esotericsoftware.kryo.kryo5.util.Pool<com.esotericsoftware.kryo.kryo5.Kryo>(true, false, 16) {
          @Override
          protected com.esotericsoftware.kryo.kryo5.Kryo create() {
-            // class loader and registrationRequired are (re)set on every borrow in getKryo()
+            // class loader is (re)set on every borrow in getKryo(); registrationRequired
+            // is a config flag that reset() does not clear, so set it once here.
             com.esotericsoftware.kryo.kryo5.Kryo kryo = new com.esotericsoftware.kryo.kryo5.Kryo();
             kryo.setRegistrationRequired(false);
             return kryo;
