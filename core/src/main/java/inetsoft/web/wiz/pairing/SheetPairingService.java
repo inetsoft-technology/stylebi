@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.pairing;
 
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
@@ -65,6 +66,12 @@ public class SheetPairingService {
    public PairingGrant consume(String code) {
       PairingGrant g = grants.remove(code);
       return (g == null || g.isExpired(clock.getAsLong())) ? null : g;
+   }
+
+   @Scheduled(fixedDelay = 10 * 60_000)
+   void evictExpired() {
+      long now = clock.getAsLong();
+      grants.values().removeIf(g -> g.isExpired(now));
    }
 
    private String newCode() {

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input, NgZone, OnDestroy } from "@angular/core";
+import { Component, Input, NgZone, OnChanges, OnDestroy, SimpleChanges } from "@angular/core";
 import { NgIf } from "@angular/common";
 import { Subscription } from "rxjs";
 import { take } from "rxjs/operators";
@@ -28,7 +28,7 @@ import { ViewsheetClientService } from "../../../common/viewsheet-client";
    standalone: true,
    imports: [NgIf]
 })
-export class ConnectToClaudeComponent implements OnDestroy {
+export class ConnectToClaudeComponent implements OnChanges, OnDestroy {
    @Input() runtimeId!: string;
    @Input() sheetType!: "WORKSHEET" | "VIEWSHEET";
    @Input() socketConnection!: ViewsheetClientService;
@@ -41,6 +41,19 @@ export class ConnectToClaudeComponent implements OnDestroy {
    private mintSubscription: Subscription | null = null;
 
    constructor(private zone: NgZone) {}
+
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes["runtimeId"] && !changes["runtimeId"].firstChange) {
+         this.code = null;
+         this.error = null;
+         this.loading = false;
+         this.copied = false;
+         if(this.mintSubscription) {
+            this.mintSubscription.unsubscribe();
+            this.mintSubscription = null;
+         }
+      }
+   }
 
    requestCode(): void {
       this.loading = true;

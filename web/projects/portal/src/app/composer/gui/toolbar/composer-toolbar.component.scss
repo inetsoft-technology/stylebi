@@ -78,4 +78,10 @@
     flex-grow: 0;
     font-size: 24px;
   }
+
+  button.btn.wiz-connect-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
