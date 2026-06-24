@@ -164,7 +164,7 @@ public class WizAuthCallbackController {
       <body>
         <div class="card">
           <h1>&#10003; Authentication complete</h1>
-          <p>You can close this tab and return to Claude.</p>
+          <p>You can close this tab.</p>
         </div>
         <script>
           // Attempt to auto-close; browsers may block this if the tab was not opened by script.
