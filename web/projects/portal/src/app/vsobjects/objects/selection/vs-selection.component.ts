@@ -1586,6 +1586,10 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       this.updateSelectionValues();
    }
 
+   // Returns a stable key per row/item so Angular's @for reconciler avoids
+   // re-rendering unchanged cells. For array rows the first item's value is the
+   // key; this assumes selectionValues has no duplicate value strings (true for
+   // well-formed dimension data). Falls back to index when value is null/undefined.
    public override trackByIdx(index: number, item: any): any {
       if(Array.isArray(item)) {
          return item[0]?.value ?? index;

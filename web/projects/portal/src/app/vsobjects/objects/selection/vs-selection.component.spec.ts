@@ -18,10 +18,13 @@
 import { VSSelection } from "./vs-selection.component";
 
 // trackByIdx is a pure method — test it directly on the prototype.
+// NOTE: This assumes trackByIdx does not access `this`. If that ever changes,
+// migrate these tests to a TestBed fixture (otherwise they pass against a
+// broken implementation because `this` is bound to {}).
 const trackByIdx = VSSelection.prototype.trackByIdx.bind({});
 
 describe("VSSelection.trackByIdx", () => {
-   describe("performance - CD count", () => {
+   describe("stable tracking keys", () => {
       it("should return a stable value key for a SelectionValueModel item", () => {
          const item = { value: "California", label: "California", state: 1 };
          expect(trackByIdx(0, item)).toBe("California");
@@ -58,6 +61,10 @@ describe("VSSelection.trackByIdx", () => {
 
       it("should fall back to index for array row whose first element is null", () => {
          expect(trackByIdx(3, [null])).toBe(3);
+      });
+
+      it("should fall back to index for array row whose first element has null value property", () => {
+         expect(trackByIdx(5, [{ value: null, label: "Something" }])).toBe(5);
       });
 
       it("should fall back to index for item with null value property", () => {
