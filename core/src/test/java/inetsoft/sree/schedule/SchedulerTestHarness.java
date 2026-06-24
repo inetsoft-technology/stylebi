@@ -60,7 +60,7 @@ public class SchedulerTestHarness implements AutoCloseable {
    private final BlockingQueue<Object> clusterMessages = new LinkedBlockingQueue<>();
    private final ApplicationContext savedAppContext;
 
-   public SchedulerTestHarness() throws SchedulerException {
+   public SchedulerTestHarness() throws Exception {
       // Real DAO backed by in-memory storage — package-private constructor accessible here
       InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage = new InMemoryKeyValueStorage<>();
       dao = new ScheduleStatusDao(storage);
@@ -251,7 +251,7 @@ public class SchedulerTestHarness implements AutoCloseable {
             throw new JobExecutionException(e);
          }
          catch(Throwable e) {
-            throw e;
+            throw new JobExecutionException(new Exception(e));
          }
       }
    }
