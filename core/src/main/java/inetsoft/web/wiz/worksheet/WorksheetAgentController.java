@@ -818,7 +818,18 @@ public class WorksheetAgentController {
          info.getQuery().setSQLDefinition(sql);
          sqlTable.setSQLEdited(true);
 
-         AssetEventUtil.initColumnSelection(rws, sqlTable);
+         // initColumnSelection does NOT work for SQL-edited assemblies (returns empty
+         // selection). Use the same path as addSqlQuery / SQLQueryDialogService:
+         // fixUniformSQLInfo expands SELECT *, then getColumnSelection reads result metadata.
+         Object metaSession =
+            new DefaultMetaDataProvider(xrepository).getSession();
+         JDBCUtil.fixUniformSQLInfo(
+            sql, xrepository, metaSession,
+            (JDBCDataSource) info.getQuery().getDataSource());
+         ColumnSelection columns = queryManagerService.getColumnSelection(
+            info.getQuery(), new VariableTable(), sqlTable, metaSession, null);
+         sqlTable.setColumnSelection(columns);
+         WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
          return null;
       });
    }
