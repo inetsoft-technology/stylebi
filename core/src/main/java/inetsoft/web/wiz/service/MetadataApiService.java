@@ -129,8 +129,15 @@ public class MetadataApiService {
       dataset.setName(tableName);
       dataset.setSource(source);
       String datasourceType = SQLHelper.getProductName(jdbcDataSource);
-      SQLHelper sqlHelper = SQLHelper.getSQLHelper(jdbcDataSource, null, null);
-      String datasourceVersion = sqlHelper.getProductVersion();
+      String datasourceVersion = null;
+
+      try {
+         datasourceVersion = SQLHelper.getSQLHelper(jdbcDataSource).getProductVersion();
+      }
+      catch(Exception e) {
+         log.debug("Could not retrieve database product version for '{}': {}", dsName, e.getMessage());
+      }
+
       dataset.setCustomExtensions(List.of(buildDatasetExtension(dsName, catalog, schema, source, datasourceType, datasourceVersion)));
 
       Object synonyms = tableData.getAttribute("synonyms");
