@@ -239,29 +239,8 @@ describe("Action Accordion Unit Test", () => {
          "user name(:email address)[,user name(:email address)]");
    });
 
-   //Bug #21295 should get correct highlight name for alert
-   it("should get correct highlight name for alert", () => {
-      actionAccordion.highlights = [{
-         element: "TableView1",
-         highlight: "highlight1 (2)",
-         condition: "[STATE] [is] [equal to] [NJ]",
-         count: 1
-      }];
-      fixture.detectChanges()
+   // Bug #21295 "should get correct highlight name for alert" — removed from this file.
+   // Covered by action-accordion.component.interaction.tl.spec.ts:
+   //   "ActionAccordion — highlightSelectionChange > parses ' (' suffix from highlight name before storing"
 
-      let underHighlight = fixture.nativeElement.querySelector(
-         "input[name=underHighlightCondition]");
-      underHighlight.click();
-      underHighlight.dispatchEvent(new Event("change"));
-      actionAccordion.action.highlightsSelected = true;
-      fixture.detectChanges();
-
-      let highlightCheck = fixture.nativeElement.querySelector(
-         "tr td input[type=checkbox]");
-      highlightCheck.click();
-      fixture.detectChanges();
-
-      expect(actionAccordion.action.highlightAssemblies[0]).toBe("TableView1");
-      expect(actionAccordion.action.highlightNames[0]).toBe("highlight1");
-   });
 });

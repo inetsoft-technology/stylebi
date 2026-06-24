@@ -110,7 +110,7 @@ describe("VirtualScrollTreeDatasource — Bug A: registerScrollContainer registe
       const el = document.createElement("div");
 
       // tree.component.ts:960 calls registerScrollContainer inside Zone
-      zone.run(() => { ds.registerScrollContainer(el); });
+      zone.run(() => { ds.registerScrollContainer(el, zone); });
       reset(); // reset counter to exclude CD triggered during setup
 
       el.dispatchEvent(new Event("scroll", { bubbles: true }));
@@ -126,7 +126,7 @@ describe("VirtualScrollTreeDatasource — Bug A: registerScrollContainer registe
       const ds = new VirtualScrollTreeDatasource();
       const el = document.createElement("div");
 
-      zone.run(() => { ds.registerScrollContainer(el); });
+      zone.run(() => { ds.registerScrollContainer(el, zone); });
       reset();
 
       for(let i = 0; i < 10; i++) {
@@ -146,7 +146,7 @@ describe("VirtualScrollTreeDatasource — Bug A: registerScrollContainer registe
 
       const emits: unknown[] = [];
       zone.run(() => {
-         ds.registerScrollContainer(el).subscribe(val => emits.push(val));
+         ds.registerScrollContainer(el, zone).subscribe(val => emits.push(val));
       });
 
       const beforeCount = emits.length; // BehaviorSubject emits initial [] on subscribe
@@ -168,8 +168,8 @@ describe("VirtualScrollTreeDatasource — Bug A: registerScrollContainer registe
       const emits2: unknown[] = [];
 
       zone.run(() => {
-         ds1.registerScrollContainer(el).subscribe(v => emits1.push(v));
-         ds2.registerScrollContainer(el).subscribe(v => emits2.push(v));
+         ds1.registerScrollContainer(el, zone).subscribe(v => emits1.push(v));
+         ds2.registerScrollContainer(el, zone).subscribe(v => emits2.push(v));
       });
 
       const before1 = emits1.length;
