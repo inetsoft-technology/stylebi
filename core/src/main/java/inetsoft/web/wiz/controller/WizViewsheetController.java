@@ -91,6 +91,16 @@ public class WizViewsheetController {
       return run("geo apply", () -> wizGeoService.apply(request, user));
    }
 
+   @PostMapping(value = "/viewsheet/remove-visualization", produces = MediaType.APPLICATION_JSON_VALUE)
+   public ResponseEntity<?> removeVisualization(@Valid @RequestBody RemoveVisualizationRequest request,
+                                                Principal user)
+   {
+      return run("remove visualization", () -> {
+         wizVsService.removeVisualization(request.getRuntimeId(), request.getAssemblyName(), user);
+         return Map.of("success", true);
+      });
+   }
+
    @DeleteMapping("/viewsheet")
    public void deleteViewsheet(@RequestParam("identifier") String identifier,
                                Principal user) throws Exception
