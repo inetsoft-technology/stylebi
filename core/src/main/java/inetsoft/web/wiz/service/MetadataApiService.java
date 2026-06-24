@@ -129,7 +129,16 @@ public class MetadataApiService {
       dataset.setName(tableName);
       dataset.setSource(source);
       String datasourceType = SQLHelper.getProductName(jdbcDataSource);
-      dataset.setCustomExtensions(List.of(buildDatasetExtension(dsName, catalog, schema, source, datasourceType)));
+      String datasourceVersion = null;
+
+      try {
+         datasourceVersion = SQLHelper.getSQLHelper(jdbcDataSource).getProductVersion();
+      }
+      catch(Exception e) {
+         log.debug("Could not retrieve database product version for '{}': {}", dsName, e.getMessage());
+      }
+
+      dataset.setCustomExtensions(List.of(buildDatasetExtension(dsName, catalog, schema, source, datasourceType, datasourceVersion)));
 
       Object synonyms = tableData.getAttribute("synonyms");
       boolean hasSynonyms = synonyms instanceof String s ? !s.isEmpty()
@@ -215,7 +224,8 @@ public class MetadataApiService {
 
    private OsiCustomExtension buildDatasetExtension(String dsName, String catalog,
                                                      String schema, String path,
-                                                     String datasourceType)
+                                                     String datasourceType,
+                                                     String datasourceVersion)
    {
       try {
          Map<String, Object> extData = new LinkedHashMap<>();
@@ -234,6 +244,10 @@ public class MetadataApiService {
 
          if(!Tool.isEmptyString(datasourceType)) {
             extData.put("datasourceType", datasourceType);
+         }
+
+         if(!Tool.isEmptyString(datasourceVersion)) {
+            extData.put("datasourceVersion", datasourceVersion);
          }
 
          OsiCustomExtension ext = new OsiCustomExtension();
