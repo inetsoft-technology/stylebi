@@ -512,7 +512,7 @@ public abstract class GraphElement extends Graphable {
    /**
     * Get the border line color.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=GraphElementGetBorderColor")
    public Color getBorderColor() {
       return borderColor;
    }
@@ -522,7 +522,7 @@ public abstract class GraphElement extends Graphable {
     * if it supports it (e.g. bar). The border line style will be fetched from LineFrame, or
     * defaults to solid line if line frame is not set.
     */
-   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_GraphElement_setBorderColor.htm")
+   @TernMethod(url = "#cshid=GraphElementSetBorderColor")
    public void setBorderColor(Color borderColor) {
       this.borderColor = borderColor;
    }
