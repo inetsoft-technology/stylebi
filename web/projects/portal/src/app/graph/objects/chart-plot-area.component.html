@@ -63,6 +63,7 @@
             <div class="chart-plot-area__inline-svg"
               [chartInlineSvg]="getSrc(tile, container)"
               [crossTile]="chartObject.tiles.length > 1"
+              [snapTooltip]="!!(model && model.snapTooltip)"
               (seriesDimChange)="onSeriesDimChange($event, tile)"
               (relationHover)="onRelationHover($event, tile)"
               (onLoading)="loading(tile)"

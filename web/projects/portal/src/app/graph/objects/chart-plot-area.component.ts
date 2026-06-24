@@ -36,6 +36,7 @@ import {
 import { SafeStyle } from "@angular/platform-browser";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ComponentTool } from "../../common/util/component-tool";
+import { GraphTypes } from "../../common/graph-types";
 import { GuiTool } from "../../common/util/gui-tool";
 import { ContextProvider } from "../../vsobjects/context-provider.service";
 import { SelectionBoxEvent, SelectionBoxDirective } from "../../widget/directive/selection-box.directive";
@@ -157,6 +158,9 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
    // Snap: cached column key (rounded left/right X edge) → bar regions sharing that column.
    // Rebuilt alongside snapXTicks so collectColumnRegions is an O(1) lookup, not a full scan.
    private snapColumnMap = new Map<string, ChartRegion[]>();
+   // Snap: rounded centerX → every series' region at that X. Stacked series sit in separate rowIdx
+   // buckets, so this regroups them by X for nearestSnapRegion to choose among all series.
+   private snapSeriesByX = new Map<number, ChartRegion[]>();
 
    @HostBinding("style.cursor") hostCursor: string = "inherit";
    private cursorStyle: string = "inherit";
@@ -241,6 +245,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
    private rebuildSnapIndex(): void {
       this.snapXTicks = [];
       this.snapColumnMap = new Map();
+      this.snapSeriesByX = new Map();
       this.snapXTicksFor = this.chartObject;
 
       if(!this.chartObject || !this.chartObject.regions) {
@@ -283,6 +288,24 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
       this.snapXTicks = Array.from(buckets.values())
          .map(b => ({ pixelX: Math.round(b.bestX), regionIndices: b.regionIndices }))
          .sort((a, b) => a.pixelX - b.pixelX);
+
+      // Regroup every series' region by rounded centerX (stacked series sit in separate rowIdx
+      // buckets sharing one X). Keyed by the same regionBoundsX centerX as snapXTicks.pixelX so the
+      // snapped-X lookup matches.
+      for(const r of this.chartObject.regions) {
+         if(!r || r.tipIdx < 0 || r.rowIdx < 0 || ChartTool.colIdx(this.model, r) < 0) {
+            continue;
+         }
+
+         const bounds = this.regionBoundsX(r);
+
+         if(bounds) {
+            const key = Math.round(bounds.centerX);
+            const arr = this.snapSeriesByX.get(key);
+            if(arr) arr.push(r);
+            else this.snapSeriesByX.set(key, [r]);
+         }
+      }
 
       // Group bar regions by column key so a stacked column can be resolved with one lookup.
       // Same filter as collectColumnRegions (bar-like, valid row/col); keyed by ptsBoundsX so
@@ -472,6 +495,140 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
       return this.snapColumnMap.get(this.columnKey(base)) ?? [region];
    }
 
+   // The region at the snapped X the cursor is on — drives the tooltip header, guideline and
+   // highlight. Uses snapSeriesByX so it sees all stacked series (which sit in separate rowIdx
+   // buckets); narrowest tier only, so wide line-path regions don't skew it. Three cases, in order:
+   //  1. Containment — the shortest region whose extent encloses the cursor (a bar segment).
+   //  2. Stacked area — per-X regions are cumulative-top boundary points; the band is owned by the
+   //     series whose boundary is immediately above the cursor.
+   //  3. Nearest center — line points, or the cursor above the area stack.
+   private nearestSnapRegion(snapColumnX: number | null, eventY: number): ChartRegion {
+      if(snapColumnX == null) {
+         return null;
+      }
+
+      // Tolerate ±1px rounding between the snapped X and a series' centerX key.
+      const series = this.snapSeriesByX.get(snapColumnX) ??
+         this.snapSeriesByX.get(snapColumnX - 1) ?? this.snapSeriesByX.get(snapColumnX + 1);
+
+      if(!series || series.length === 0) {
+         return null;
+      }
+
+      const candidates: { region: ChartRegion, width: number, minY: number, maxY: number }[] = [];
+      let minWidth = Infinity;
+
+      for(const region of series) {
+         const bounds = this.ptsBoundsX(region);
+         const yb = this.regionYBounds(region);
+
+         if(ChartTool.colIdx(this.model, region) < 0 || !bounds || !yb) {
+            continue;
+         }
+
+         candidates.push({ region, width: bounds.width, minY: yb.minY, maxY: yb.maxY });
+         minWidth = Math.min(minWidth, bounds.width);
+      }
+
+      const tier = candidates.filter(c => c.width <= minWidth + 1);
+
+      // Shortest enclosing region wins, so a tall segment never shadows a thin one the cursor is in.
+      let container: { region: ChartRegion, minY: number, maxY: number } = null;
+
+      for(const c of tier) {
+         if(eventY >= c.minY && eventY <= c.maxY &&
+            (!container || (c.maxY - c.minY) < (container.maxY - container.minY)))
+         {
+            container = c;
+         }
+      }
+
+      if(container) {
+         return container.region;
+      }
+
+      // Area band: owned by the series whose boundary marker is the lowest still at or above the
+      // cursor. The marker center (its data point, the band's cumulative top) is the boundary; the
+      // tier filter has already dropped wide area-fill polygons whose center isn't a boundary.
+      if(this.model && GraphTypes.isArea(this.model.chartType)) {
+         let band: { region: ChartRegion, minY: number, maxY: number } = null;
+         let bandY = -Infinity;
+
+         for(const c of tier) {
+            const boundaryY = (c.minY + c.maxY) / 2;
+
+            if(boundaryY <= eventY && boundaryY > bandY) {
+               bandY = boundaryY;
+               band = c;
+            }
+         }
+
+         if(band) {
+            return band.region;
+         }
+      }
+
+      // Fallback: nearest center (line points, or the cursor above the area stack).
+      let best: ChartRegion = null;
+      let bestDy = Infinity;
+
+      for(const c of tier) {
+         const dy = Math.abs((c.minY + c.maxY) / 2 - eventY);
+
+         if(dy < bestDy) {
+            bestDy = dy;
+            best = c.region;
+         }
+      }
+
+      return best;
+   }
+
+   // Vertical extent of a region from its marker geometry. Prefers pts over centroid, which is
+   // absent on the point markers snap uses. RECT(8)/ELLIPSE(9) store pts as [[x,y],[w,h]]; others
+   // use the bbox.
+   private regionYBounds(region: ChartRegion): { minY: number, maxY: number } | null {
+      const pts = region.pts;
+
+      if(!pts || pts.length === 0) {
+         return region.centroid ? { minY: region.centroid.y, maxY: region.centroid.y } : null;
+      }
+
+      const seg = region.segTypes && region.segTypes[0] ? region.segTypes[0][0] : -1;
+
+      if((seg === 8 || seg === 9) && pts[0] && pts[0][0] && pts[0][0].length === 2) {
+         const origin = pts[0][0][0];
+         const size = pts[0][0][1];
+
+         if(origin && size) {
+            return { minY: origin[1], maxY: origin[1] + size[1] };
+         }
+      }
+
+      let minY = Infinity;
+      let maxY = -Infinity;
+
+      for(const polygon of pts) {
+         for(const sub of polygon) {
+            for(const pt of sub) {
+               if(pt[1] < minY) {
+                  minY = pt[1];
+               }
+
+               if(pt[1] > maxY) {
+                  maxY = pt[1];
+               }
+            }
+         }
+      }
+
+      if(minY === Infinity) {
+         return region.centroid ? { minY: region.centroid.y, maxY: region.centroid.y } : null;
+      }
+
+      return { minY, maxY };
+   }
+
    private drawSnapGuideline(pixelX: number): void {
       if(!this.referenceLineCanvas) {
          return;
@@ -577,8 +734,12 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
             if(snap) {
                regions = snap.regionIndices.map(i => this.chartObject.regions[i]);
                const primary = this.findPrimarySnapRegion(snap.regionIndices, eventX, eventY);
-               snapPrimary = primary ? primary.region : null;
-               this.drawSnapGuideline(primary ? Math.round(primary.centerX) : snap.pixelX);
+               // X (rounded) of the snapped column, shared by every series there.
+               const snapColumnX = primary ? Math.round(primary.centerX) : snap.pixelX;
+               // The series under the cursor across all of them; the snap bucket holds only one.
+               const nearest = this.nearestSnapRegion(snapColumnX, eventY);
+               snapPrimary = nearest ?? (primary ? primary.region : null);
+               this.drawSnapGuideline(snapColumnX);
             }
             else {
                this.clearSnapGuideline();
@@ -672,6 +833,14 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
                const rowIdx = voRegion != null ? voRegion.rowIdx : null;
                const colIdx = voRegion != null ? ChartTool.colIdx(this.model, voRegion) : null;
                this.inlineSvgTiles?.forEach(d => d.highlightElement(rowIdx, colIdx));
+
+               // Line tiles dim by series color (highlightElement is a no-op there); voRegion
+               // (snapPrimary) is the series under the cursor. No-op on area/bar tiles.
+               if(this.model && this.model.snapTooltip) {
+                  const pairs = (voRegion != null && colIdx >= 0)
+                     ? [{ row: rowIdx, col: colIdx }] : [];
+                  this.inlineSvgTiles?.forEach(d => d.highlightSnapSeries(pairs));
+               }
             }
          }
       }
@@ -865,7 +1034,10 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
       }
 
       if(this.inlineSvg) {
-         this.inlineSvgTiles?.forEach(d => d.highlightElement(null, null));
+         this.inlineSvgTiles?.forEach(d => {
+            d.highlightElement(null, null);
+            d.highlightSnapSeries([]);
+         });
       }
    }
 

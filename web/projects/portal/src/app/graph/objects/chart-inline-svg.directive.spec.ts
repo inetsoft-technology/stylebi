@@ -280,6 +280,127 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
       });
    });
 
+   describe("highlightSnapSeries (line chart snap dim)", () => {
+      // Stacked line chart: one measure (data-series 2) split into two color groups, each with a
+      // line and a point marker. Points carry row+col+color; the snapped point resolves to a color.
+      const html = `
+         <div class="inetsoft-line" data-color="1,1,1"></div>
+         <div class="inetsoft-line" data-color="2,2,2"></div>
+         <div class="inetsoft-point" data-row="0" data-col="2" data-color="1,1,1"></div>
+         <div class="inetsoft-point" data-row="1" data-col="2" data-color="2,2,2"></div>`;
+      const sel = ".inetsoft-line,.inetsoft-point";
+
+      // Configure the directive as a loaded line tile. afterSvgInjected wires the abort-signal
+      // hover listeners, which jsdom can't attach, so set the state it would have produced: the
+      // line-hover flag plus the point-marker color maps (built from the .inetsoft-point markers).
+      function makeLineTile(): { dir: ChartInlineSvgDirective, host: HTMLElement } {
+         const { dir, host } = makeDirective(html);
+         (dir as any).isLineSeriesHover = true;
+         (dir as any).seriesColorByKey = new Map([["0-2", "1,1,1"], ["1-2", "2,2,2"]]);
+         (dir as any).seriesColorByCol = new Map([["2", "1,1,1"]]);
+         return { dir, host };
+      }
+
+      it("undims only the snapped point's series, dimming the others", () => {
+         const { dir, host } = makeLineTile();
+         dir.highlightSnapSeries([{ row: 1, col: 2 }]);
+         // Series 2,2,2 (line + its point) stays full; series 1,1,1 dims.
+         expect(opacities(host, sel)).toEqual(["0.2", "", "0.2", ""]);
+      });
+
+      it("re-targets the undimmed series as the snap moves between series", () => {
+         const { dir, host } = makeLineTile();
+         dir.highlightSnapSeries([{ row: 1, col: 2 }]);
+         dir.highlightSnapSeries([{ row: 0, col: 2 }]);
+         expect(opacities(host, sel)).toEqual(["", "0.2", "", "0.2"]);
+      });
+
+      it("clears the dim when the snap ends (empty pairs)", () => {
+         vi.useFakeTimers();
+         try {
+            const { dir, host } = makeLineTile();
+            dir.highlightSnapSeries([{ row: 1, col: 2 }]);
+            dir.highlightSnapSeries([]);
+            vi.advanceTimersByTime(ChartInlineSvgDirective["CLEAR_DELAY_MS"]);
+            expect(opacities(host, sel)).toEqual(["", "", "", ""]);
+         }
+         finally {
+            vi.useRealTimers();
+         }
+      });
+
+      it("uses the col fallback only when cols distinguish series (multi-measure)", () => {
+         const { dir, host } = makeLineTile();
+         // Single-measure stack: one col, so the col map can't tell series apart — no fallback so
+         // an unknown row-col leaves everything undimmed rather than dimming to an arbitrary color.
+         dir.highlightSnapSeries([{ row: 9, col: 2 }]);
+         expect(opacities(host, sel)).toEqual(["", "", "", ""]);
+
+         // Multi-measure: distinct cols map to distinct colors, so an unknown row-col falls back
+         // by col (col 3 → 2,2,2), dimming the other series.
+         (dir as any).seriesColorByCol = new Map([["2", "1,1,1"], ["3", "2,2,2"]]);
+         dir.highlightSnapSeries([{ row: 9, col: 3 }]);
+         expect(opacities(host, sel)).toEqual(["0.2", "", "0.2", ""]);
+      });
+
+      it("is a no-op on a non-line tile (area keeps its own cursor-band hover)", () => {
+         const { dir, host } = makeLineTile();
+         (dir as any).isLineSeriesHover = false;
+         dir.highlightSnapSeries([{ row: 1, col: 2 }]);
+         expect(opacities(host, sel)).toEqual(["", "", "", ""]);
+      });
+
+      it("emits seriesDimChange in cross-tile mode instead of dimming locally", () => {
+         vi.useFakeTimers();
+         try {
+            const { dir, host } = makeLineTile();
+            (dir as any).crossTile = true;
+            const emitted: (string | null)[] = [];
+            dir.seriesDimChange.subscribe(v => emitted.push(v));
+
+            // The parent applies the dim across tiles, so this tile emits the color and leaves its
+            // own opacity untouched.
+            dir.highlightSnapSeries([{ row: 1, col: 2 }]);
+            expect(emitted).toEqual(["2,2,2"]);
+            expect(opacities(host, sel)).toEqual(["", "", "", ""]);
+
+            // Clearing emits null once the debounce elapses.
+            dir.highlightSnapSeries([]);
+            vi.advanceTimersByTime(ChartInlineSvgDirective["CLEAR_DELAY_MS"]);
+            expect(emitted).toEqual(["2,2,2", null]);
+         }
+         finally {
+            vi.useRealTimers();
+         }
+      });
+
+      it("resolves the snap color from .inetsoft-line when the chart has no point markers", () => {
+         // Multi-measure line chart with no point markers. afterSvgInjected scrapes data-series
+         // (the colIdx) and data-color off the lines into seriesColorByCol, since seriesColorByKey
+         // stays empty without points. A snapped row-col with no exact match then resolves by col.
+         const lineHtml = `
+            <svg>
+               <g class="inetsoft-line" data-series="0" data-color="1,1,1"></g>
+               <g class="inetsoft-line" data-series="1" data-color="2,2,2"></g>
+            </svg>`;
+         const { dir, host } = makeDirective(lineHtml);
+         // setupLineSeriesHover wires abort-signal listeners jsdom can't attach; stub it to just
+         // set the flag. The .inetsoft-line scraping loop under test runs earlier in afterSvgInjected.
+         vi.spyOn(dir as any, "setupLineSeriesHover").mockImplementation(() => {
+            (dir as any).isLineSeriesHover = true;
+         });
+         (dir as any).afterSvgInjected();
+
+         expect((dir as any).isLineSeriesHover).toBe(true);
+         expect(Array.from((dir as any).seriesColorByCol.entries()))
+            .toEqual([["0", "1,1,1"], ["1", "2,2,2"]]);
+
+         dir.highlightSnapSeries([{ row: 9, col: 1 }]);
+         // Col 1 → series 2,2,2 stays full; the col-0 line dims.
+         expect(opacities(host, ".inetsoft-line")).toEqual(["0.2", ""]);
+      });
+   });
+
    describe("getRelationEdges + emitRelationHover dedup", () => {
       it("returns this tile's edges as source/target pairs", () => {
          const { dir } = makeDirective("");
