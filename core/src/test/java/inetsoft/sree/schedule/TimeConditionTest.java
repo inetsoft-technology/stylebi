@@ -597,6 +597,19 @@ public class TimeConditionTest {
       return toFixedDate(localDateTime).getTime();
    }
 
+   @Test
+   void testGetRetryTimeOnWeek_Of_Year() {
+      // invalid config (default week_of_year=-1, day_of_week=-1) should return -1
+      TimeCondition condition = TimeCondition.atWeekOfYear(-1, -1, 20, 30, 30);
+      long currentTime = setCustomTimeInMillis(20, 35, 30);
+      assertEquals(-1, condition.getRetryTime(currentTime, 0));
+
+      // valid week+day should return a future time
+      condition = TimeCondition.atWeekOfYear(10, Calendar.WEDNESDAY, 20, 30, 30);
+      long retryTime = condition.getRetryTime(currentTime, 0);
+      assertTrue(retryTime > currentTime);
+   }
+
    private Date toDate(String localDateTime) {
       return toFixedDate(localDateTime);
    }

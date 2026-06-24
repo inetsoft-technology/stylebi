@@ -433,6 +433,10 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
 
          break;
       case WEEK_OF_YEAR:
+         if(week_of_year <= 0 || day_of_week <= 0) {
+            return -1;
+         }
+
          int weekMaxDays = 400;
 
          while((cal1.get(Calendar.WEEK_OF_YEAR) != week_of_year ||
@@ -442,7 +446,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
             cal1.add(Calendar.DATE, 1);
          }
 
-         if(weekMaxDays <= 0) {
+         if(weekMaxDays < 0) {
             return -1;
          }
 
