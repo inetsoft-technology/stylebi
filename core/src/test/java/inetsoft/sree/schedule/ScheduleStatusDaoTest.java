@@ -34,6 +34,7 @@ package inetsoft.sree.schedule;
 
 import inetsoft.test.schedule.InMemoryKeyValueStorage;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
@@ -45,6 +46,30 @@ import ch.qos.logback.classic.Logger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/*
+ * Intent vs implementation suspects Issue #75501 
+ *
+ * [Suspect 1] setStatus(task, ...) when storage.put() throws InterruptedException
+ *             -> intent: acknowledge failure and log
+ *             -> actual: InterruptedException is caught by the broad catch(Exception ex) at line 103;
+ *                the JVM clears the thread's interrupted flag when the exception is thrown, and the
+ *                catch block never calls Thread.currentThread().interrupt() to restore it.
+ *                The method then returns newStatus normally, so the caller has no way to detect
+ *                the interruption via isInterrupted().
+ *             -> trigger: a thread blocked in Future.get(10, SECONDS) while the storage backend
+ *                (e.g. Ignite under cluster node failover) is slow, and an external caller
+ *                (Spring executor shutdown or Quartz job-thread interrupt) fires thread.interrupt().
+ *             -> impact: low in local/MapDB deployments (futures complete near-instantly);
+ *                real in Ignite-backed clusters during graceful shutdown — Quartz or Spring may
+ *                fail to stop the thread, delaying shutdown or causing the job to re-enter.
+ *             -> fix: split the catch into InterruptedException (restore flag) + Exception (log only).
+ *
+ * [Suspect 2] clearStatus(task) when storage.remove() throws InterruptedException
+ *             -> actual: same interrupt-flag leak as Suspect 1, but the catch at line 122 makes it
+ *                more visible because InterruptedException is named explicitly yet the flag is still
+ *                not restored.
+ *             -> trigger/impact/fix: identical to Suspect 1.
+ */
 @Tag("core")
 public class ScheduleStatusDaoTest {
    private final Logger scheduleStatusDaoLogger =
@@ -94,12 +119,14 @@ public class ScheduleStatusDaoTest {
 
       assertFalse(storage.contains("__nightly__"));
       assertFalse(storage.contains("TASK^^nightly"));
+      assertTrue(storage.contains("TASK^^11:__nightly__")); // length-prefixed format
       assertEquals(1, storage.size());
       assertStatus(dao.getStatus("__nightly__"), Scheduler.Status.FAILED, 10L, 20L, "boom", 10L);
 
       dao.clearStatus("__nightly__");
 
       assertFalse(storage.contains("TASK^^nightly"));
+      assertFalse(storage.contains("TASK^^11:__nightly__"));
       assertEquals(0, storage.size());
       assertNull(dao.getStatus("__nightly__"));
    }
@@ -212,12 +239,14 @@ public class ScheduleStatusDaoTest {
       dao.setStatus("TASK^^foo", Scheduler.Status.FINISHED, 20L, 30L, null, false);
 
       assertEquals(2, storage.size());
+      assertTrue(storage.contains("TASK^^7:__foo__"));   // "__foo__" (len=7) encoded
+      assertTrue(storage.contains("TASK^^9:TASK^^foo")); // "TASK^^foo" (len=9) starts with prefix
       assertStatus(dao.getStatus("__foo__"), Scheduler.Status.STARTED, 10L, 0L, null, 10L);
       assertStatus(dao.getStatus("TASK^^foo"), Scheduler.Status.FINISHED, 20L, 30L, null, 20L);
    }
 
-   // "____" satisfies ^__.*__$ and encodes to "TASK^^" (empty suffix via substring(2,2)),
-   // colliding with a literal task named "TASK^^"; the two entries silently overwrite each other
+   // "____" satisfies ^__.*__$ and encodes to "TASK^^4:____"; "TASK^^" starts with ENCODE_PREFIX
+   // and encodes to "TASK^^6:TASK^^"; the length-prefixed format guarantees no collision
    @Test
    void setStatus_fourUnderscoreTaskName_shouldNotCollideWithEmptySuffixKey() {
       InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage = new InMemoryKeyValueStorage<>();
@@ -249,6 +278,48 @@ public class ScheduleStatusDaoTest {
       assertEquals("taskName must not be null", setException.getMessage());
       assertEquals("taskName must not be null", clearException.getMessage());
       assertEquals(0, storage.size());
+   }
+
+   // [Lifecycle: idempotency] clearStatus on a task that was never set does not throw
+   // Pre: storage empty; Op: clearStatus("no-such-task"); Post: no exception, storage stays empty
+   @Test
+   void clearStatus_nonExistentTask_doesNotThrow() {
+      InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage = new InMemoryKeyValueStorage<>();
+      ScheduleStatusDao dao = newDao(storage);
+
+      assertDoesNotThrow(() -> dao.clearStatus("no-such-task"));
+      assertEquals(0, storage.size());
+   }
+
+   @Disabled("Suspect 1: setStatus swallows InterruptedException without restoring the thread " +
+             "interrupted flag - ScheduleStatusDao:103; Fix: add Thread.currentThread().interrupt() " +
+             "in the catch block")
+   @Test
+   void setStatus_whenPutInterrupted_shouldRestoreInterruptFlag() {
+      scheduleStatusDaoLogger.setLevel(Level.OFF);
+      InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage = new InMemoryKeyValueStorage<>();
+      storage.failNextPut(new InterruptedException("simulated interrupt"));
+      ScheduleStatusDao dao = newDao(storage);
+
+      dao.setStatus("task", Scheduler.Status.STARTED, 1L, 0L, null, false);
+
+      assertTrue(Thread.interrupted()); // returns true and clears flag; currently FAILS
+   }
+
+   @Disabled("Suspect 2: clearStatus swallows InterruptedException without restoring the thread " +
+             "interrupted flag - ScheduleStatusDao:122; Fix: add Thread.currentThread().interrupt() " +
+             "in the catch block")
+   @Test
+   void clearStatus_whenRemoveInterrupted_shouldRestoreInterruptFlag() {
+      scheduleStatusDaoLogger.setLevel(Level.OFF);
+      InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage = new InMemoryKeyValueStorage<>();
+      ScheduleStatusDao dao = newDao(storage);
+      dao.setStatus("task", Scheduler.Status.STARTED, 1L, 0L, null, false);
+      storage.failNextRemove(new InterruptedException("simulated interrupt"));
+
+      dao.clearStatus("task");
+
+      assertTrue(Thread.interrupted()); // returns true and clears flag; currently FAILS
    }
 
    private static ScheduleStatusDao newDao(InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage) {

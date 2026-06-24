@@ -44,36 +44,37 @@ import java.io.StringReader;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
-/**
- * Tests for {@link inetsoft.sree.schedule.TimeCondition} (community scheduler engine).
+/*
+ * Intent vs implementation suspects: Bug #75498
  *
- * <p>Does not cover {@code inetsoft.enterprise.web.api.schedule.TimeCondition} (REST DTO) or
- * {@code ScheduleApiService.convertCondition()} — see enterprise module for API mapping tests.
+ * [BUG-TC-1] getRetryTime(curr) single-arg -> intent: uses real lastRun from scheduler
+ *            actual: AbstractConditionTrigger.getFireTimeAfter() passes curr as lastRun
+ *                    -> interval > 1 fires on wrong cadence on repeat
+ *            Fix: pass Scheduler.getLastScheduledRunTime() instead of curr
  *
- * <h2>Known production bugs Issue #75498 (documented here; production source not changed)</h2>
- * <ul>
- *    <li><b>BUG-TC-1</b> — {@code AbstractConditionTrigger.getFireTimeAfter()} calls
- *       {@code getRetryTime(curr)} (single-arg), so {@code lastRun} defaults to {@code curr}
- *       instead of {@code Scheduler.getLastScheduledRunTime()}. Breaks {@code interval &gt; 1}
- *       for {@code EVERY_DAY} / {@code EVERY_WEEK} on repeat fires. Covered by
- *       {@link KnownBugs#quartzSingleArgRetryIgnoresSchedulerLastRun()}.</li>
- *    <li><b>BUG-TC-2</b> — {@code EVERY_HOUR} with {@code hourlyInterval &lt;= 0} can infinite-loop
- *       in {@code getRetryTime}. Covered by {@link KnownBugs#everyHourZeroIntervalMustNotHang()}.</li>
- *    <li><b>BUG-TC-3</b> — {@code WEEK_OF_YEAR} (type=5): no {@code getRetryTime} switch branch.
- *       Covered by {@link KnownBugs#weekOfYearRetryIgnoresWeekOfYear()}.</li>
- *    <li><b>BUG-TC-4</b> — {@code parseXML} rejects legacy {@code timeType} 2/3/4/5; tasks saved
- *       with those types cannot be reloaded. Covered by {@link KnownBugs#parseXmlRejectsWeekOfYearType()}.</li>
- *    <li><b>BUG-TC-5</b> — {@code check()} only meaningful for {@code AT}; repeating types never
- *       update {@code scheduleTime}. Covered by {@link KnownBugs#checkAlwaysFalseForRepeatingTypes()}.</li>
- * </ul>
+ * [BUG-TC-2] getRetryTime() EVERY_HOUR with hourlyInterval <= 0 -> intent: return -1 (no valid slot)
+ *            actual: infinite loop in the hourly advancement loop
+ *            Fix: guard with hourlyInterval <= 0 -> return -1 before entering the loop
  *
- * <h2>Known-bug tests</h2>
- * <p>{@link KnownBugs} documents unfixed production issues. All cases are {@code @Disabled}
- * until fixed — remove {@code @Disabled} on the nested class (or individual methods) to verify.
- * Filter with {@code @Tag("known-bug")} when enabling selectively in CI.
+ * [BUG-TC-3] getRetryTime() WEEK_OF_YEAR type -> intent: finds next occurrence of the target week
+ *            actual: no switch branch for WEEK_OF_YEAR (type=5); weekOfYear is ignored
+ *            Fix: add WEEK_OF_YEAR case in getRetryTime switch  TimeCondition.java
+ *
+ * [BUG-TC-4] parseXML() -> intent: restores any saved timeType including WEEK_OF_YEAR (5)
+ *            actual: switch rejects timeType 5 -> throws or silently discards; saved tasks unloadable
+ *            Fix: add case 5 in parseXML switch  TimeCondition.java
+ *
+ * [BUG-TC-5] check() repeating types -> intent: returns true when scheduled time is reached
+ *            actual: scheduleTime updated only for AT type; check() always false for repeating types
+ *            Fix: update scheduleTime inside getRetryTime for all repeating types
  */
+
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -381,6 +382,97 @@ public class TimeConditionTest {
       void run();
    }
 
+   @Test
+   void everyDayWeekdayOnlySkipsWeekend() {
+      // today = 2025-03-07 (Friday); curr = Friday 12:00 (past 09:00 slot)
+      // algorithm skips Saturday (2025-03-08) and Sunday (2025-03-09) → Monday 2025-03-10 09:00
+      TimeCondition condition = TimeCondition.at(9, 0, 0);
+      condition.setWeekdayOnly(true);
+      long curr = toFixedMillis("2025-03-07T12:00:00");
+      long retry;
+      try(MockedStatic<Calendar> ignored = mockTodayAs("2025-03-07T00:00:00")) {
+         retry = condition.getRetryTime(curr, 0);
+      }
+      assertEquals(toFixedMillis("2025-03-10T09:00:00"), retry);
+   }
+
+   @Test
+   void everyWeekFindsNextSelectedWeekday() {
+      // today = 2025-03-04 (Tuesday); curr = 20:35:30 (past 20:30:30 slot)
+      // scans Tuesday-Saturday of current week: none in [SUN=1, MON=2]
+      // no extra weeks (interval=1) → advances to next Sunday: 2025-03-09 20:30:30
+      TimeCondition condition = TimeCondition.atDaysOfWeek(
+         new int[] {Calendar.SUNDAY, Calendar.MONDAY}, 20, 30, 30);
+      condition.setInterval(1);
+      long curr = toFixedMillis("2025-03-04T20:35:30");
+      long retry;
+      try(MockedStatic<Calendar> ignored = mockTodayAs("2025-03-04T00:00:00")) {
+         retry = condition.getRetryTime(curr, 0);
+      }
+      assertEquals(toFixedMillis("2025-03-09T20:30:30"), retry);
+   }
+
+   @Test
+   void everyWeekIntervalUsesLastRunAsAnchor() {
+      // interval=2 → cal1 is anchored to lastRun (not Calendar.getInstance()), so the result is deterministic.
+      // lastRun  = 2025-03-03 (Monday) 08:00 — base week
+      // curr     = 2025-03-12 (Wednesday) 09:00 — past the last Monday's slot
+      // Algorithm: scans Mon-Sat of lastRun's week (all < curr), adds (2-1)*7=7 days to Saturday → 2025-03-15,
+      //            then advances to next Monday: 2025-03-17 08:00.
+      TimeCondition condition = TimeCondition.atDaysOfWeek(new int[] {Calendar.MONDAY}, 8, 0, 0);
+      condition.setInterval(2);
+      long lastRun = toFixedMillis("2025-03-03T08:00:00"); // Monday
+      long curr    = toFixedMillis("2025-03-12T09:00:00"); // Wednesday, past the last Monday slot
+      assertEquals(toFixedMillis("2025-03-17T08:00:00"), condition.getRetryTime(curr, lastRun));
+   }
+
+   @Test
+   void everyHourFindsNextTickInsideWindow() {
+      // today = 2025-03-04 (Tuesday); window 08:00-14:00, hourlyInterval=2h; curr = 09:30
+      // start=08:00 < curr → advance 2h → 10:00 >= curr → return 2025-03-04T10:00:00
+      TimeCondition condition = TimeCondition.atHours(new int[] {Calendar.TUESDAY}, 8, 0, 0);
+      condition.setHourlyInterval(2f);
+      condition.setHourEnd(14);
+      condition.setMinuteEnd(0);
+      condition.setSecondEnd(0);
+      long curr = toFixedMillis("2025-03-04T09:30:00");
+      long retry;
+      try(MockedStatic<Calendar> ignored = mockTodayAs("2025-03-04T00:00:00")) {
+         retry = condition.getRetryTime(curr, 0);
+      }
+      assertEquals(toFixedMillis("2025-03-04T10:00:00"), retry);
+   }
+
+   @Test
+   void everyMonthFindsNextNthWeekdayOfSelectedMonth() {
+      // today = 2025-03-01 (Saturday); curr = Saturday 21:00 (past 20:30:30 slot)
+      // scan: 1st Tue=Mar 4, 2nd Tue=Mar 11, 3rd Tue=Mar 18 (date 18 ∈ [15,21]) → stop
+      TimeCondition condition = TimeCondition.atDayOfMonth(1, 20, 30, 30);
+      condition.setMonthsOfYear(new int[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11});
+      condition.setWeekOfMonth(3);
+      condition.setDayOfWeek(Calendar.TUESDAY);
+      long curr = toFixedMillis("2025-03-01T21:00:00");
+      long retry;
+      try(MockedStatic<Calendar> ignored = mockTodayAs("2025-03-01T00:00:00")) {
+         retry = condition.getRetryTime(curr, 0);
+      }
+      assertEquals(toFixedMillis("2025-03-18T20:30:30"), retry);
+   }
+
+   @Test
+   void everyMonthFindsNextFixedDayOfSelectedMonth() {
+      // today = 2025-03-01 (Saturday); curr = Saturday 10:00 (past 09:00 slot)
+      // scan: Mar 2..14 (day ≠ 15) → Mar 15 09:00 → stop
+      TimeCondition condition = TimeCondition.atDayOfMonth(15, 9, 0, 0);
+      condition.setMonthsOfYear(new int[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11});
+      long curr = toFixedMillis("2025-03-01T10:00:00");
+      long retry;
+      try(MockedStatic<Calendar> ignored = mockTodayAs("2025-03-01T00:00:00")) {
+         retry = condition.getRetryTime(curr, 0);
+      }
+      assertEquals(toFixedMillis("2025-03-15T09:00:00"), retry);
+   }
+
    private static void assertRetryTimeEquals(long expected, long actual) {
       assertEquals(expected / 1000, actual / 1000);
    }
@@ -435,280 +527,23 @@ public class TimeConditionTest {
                expected.add(Calendar.DATE, 2);
                assertRetryTimeEquals(expected.getTimeInMillis(), condition.getRetryTime(curr, 0));
             }),
-         arguments("EVERY_DAY weekdayOnly skips weekend and times before curr",
-            (RetryTimeCase) () -> {
-               TimeCondition condition = TimeCondition.at(9, 0, 0);
-               condition.setWeekdayOnly(true);
-               long curr = nextDayOfWeekAt(Calendar.SATURDAY, 12, 0, 0);
-               assertRetryTimeEquals(expectedWeekdayOnlyRetry(9, 0, 0, curr),
-                  condition.getRetryTime(curr, 0));
-            }),
          arguments("EVERY_WEEK returns -1 when no weekday is selected",
             (RetryTimeCase) () -> {
                TimeCondition condition = TimeCondition.atDaysOfWeek(new int[] {}, 20, 30, 30);
                assertEquals(-1, condition.getRetryTime(todayAt(20, 35, 30), 0));
-            }),
-         arguments("EVERY_WEEK finds next selected weekday at scheduled time",
-            (RetryTimeCase) () -> {
-               TimeCondition condition = TimeCondition.atDaysOfWeek(
-                  new int[] {Calendar.SUNDAY, Calendar.MONDAY}, 20, 30, 30);
-               condition.setInterval(1);
-               long curr = todayAt(20, 35, 30);
-               assertRetryTimeEquals(expectedEveryWeekRetry(condition, curr, 0),
-                  condition.getRetryTime(curr, 0));
-            }),
-         arguments("EVERY_WEEK interval uses lastRun as anchor when greater than 1",
-            (RetryTimeCase) () -> {
-               TimeCondition condition = TimeCondition.atDaysOfWeek(
-                  new int[] {Calendar.MONDAY}, 8, 0, 0);
-               condition.setInterval(2);
-               long lastRun = todayAt(8, 0, 0, -14);
-               long curr = todayAt(9, 0, 0);
-               assertRetryTimeEquals(expectedEveryWeekRetry(condition, curr, lastRun),
-                  condition.getRetryTime(curr, lastRun));
             }),
          arguments("EVERY_HOUR returns -1 when no weekday is selected",
             (RetryTimeCase) () -> {
                TimeCondition condition = TimeCondition.atHours(new int[] {}, 20, 30, 30);
                assertEquals(-1, condition.getRetryTime(todayAt(20, 35, 30), 0));
             }),
-         arguments("EVERY_HOUR finds next tick inside the hourly window",
-            (RetryTimeCase) () -> {
-               TimeCondition condition = TimeCondition.atHours(new int[] {todayDayOfWeek()}, 8, 0, 0);
-               condition.setHourlyInterval(2f);
-               condition.setHourEnd(14);
-               condition.setMinuteEnd(0);
-               condition.setSecondEnd(0);
-               long curr = todayAt(9, 30, 0);
-               assertRetryTimeEquals(expectedEveryHourRetry(condition, curr, 0),
-                  condition.getRetryTime(curr, 0));
-            }),
          arguments("EVERY_MONTH returns -1 when no month is selected",
             (RetryTimeCase) () -> {
                TimeCondition condition = TimeCondition.atDayOfMonth(5, 20, 30, 30);
                condition.setMonthsOfYear(new int[] {});
                assertEquals(-1, condition.getRetryTime(todayAt(20, 35, 30), 0));
-            }),
-         arguments("EVERY_MONTH finds next nth weekday of selected month",
-            (RetryTimeCase) () -> {
-               int month = Calendar.getInstance().get(Calendar.MONTH);
-               TimeCondition condition = TimeCondition.atDayOfMonth(1, 20, 30, 30);
-               condition.setMonthsOfYear(new int[] {month});
-               condition.setWeekOfMonth(3);
-               condition.setDayOfWeek(Calendar.TUESDAY);
-               long curr = todayAt(21, 0, 0);
-               assertRetryTimeEquals(expectedEveryMonthRetry(condition, curr, 0),
-                  condition.getRetryTime(curr, 0));
-            }),
-         arguments("EVERY_MONTH finds next fixed day of selected month",
-            (RetryTimeCase) () -> {
-               int month = Calendar.getInstance().get(Calendar.MONTH);
-               TimeCondition condition = TimeCondition.atDayOfMonth(15, 9, 0, 0);
-               condition.setMonthsOfYear(new int[] {month});
-               long curr = todayAt(10, 0, 0);
-               assertRetryTimeEquals(expectedEveryMonthByDayRetry(condition, curr, 0),
-                  condition.getRetryTime(curr, 0));
             })
       );
-   }
-
-   private static long expectedWeekdayOnlyRetry(int hour, int minute, int second, long curr) {
-      Calendar expected = calendarWithScheduledTime(hour, minute, second);
-
-      while(expected.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY ||
-         expected.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY ||
-         expected.getTimeInMillis() < curr)
-      {
-         expected.add(Calendar.DATE, 1);
-      }
-
-      return expected.getTimeInMillis();
-   }
-
-   private static long expectedEveryWeekRetry(TimeCondition condition, long curr, long lastRun) {
-      Calendar cal1 = Calendar.getInstance(condition.getTimeZone());
-
-      if(condition.getInterval() > 1 && lastRun > 0) {
-         cal1.setTimeInMillis(lastRun);
-      }
-
-      cal1.set(Calendar.HOUR_OF_DAY, condition.getHour());
-      cal1.set(Calendar.MINUTE, condition.getMinute());
-      cal1.set(Calendar.SECOND, condition.getSecond());
-
-      int[] daysOfWeek = condition.getDaysOfWeek();
-      boolean satisfied = false;
-
-      for(int day = cal1.get(Calendar.DAY_OF_WEEK); day < 8; day++) {
-         cal1.set(Calendar.DAY_OF_WEEK, day);
-
-         if(containsDay(daysOfWeek, day) && cal1.getTimeInMillis() >= curr) {
-            satisfied = true;
-            break;
-         }
-      }
-
-      if(!satisfied) {
-         if(condition.getInterval() > 1) {
-            cal1.add(Calendar.DATE, (condition.getInterval() - 1) * 7);
-         }
-
-         while(containsDay(daysOfWeek, cal1.get(Calendar.DAY_OF_WEEK)) &&
-            cal1.get(Calendar.DAY_OF_WEEK) != daysOfWeek[0])
-         {
-            cal1.add(Calendar.DATE, 1);
-         }
-
-         while(!containsDay(daysOfWeek, cal1.get(Calendar.DAY_OF_WEEK)) ||
-            cal1.getTimeInMillis() < curr)
-         {
-            cal1.add(Calendar.DATE, 1);
-         }
-      }
-
-      return cal1.getTimeInMillis();
-   }
-
-   private static long expectedEveryHourRetry(TimeCondition condition, long curr, long lastRun) {
-      Calendar cal1 = Calendar.getInstance(condition.getTimeZone());
-
-      if(condition.getInterval() > 1 && lastRun > 0) {
-         cal1.setTimeInMillis(lastRun);
-      }
-
-      cal1.set(Calendar.HOUR_OF_DAY, condition.getHour());
-      cal1.set(Calendar.MINUTE, condition.getMinute());
-      cal1.set(Calendar.SECOND, condition.getSecond());
-
-      int[] daysOfWeek = condition.getDaysOfWeek();
-      boolean found = false;
-      long start = cal1.getTimeInMillis();
-
-      if(containsDay(daysOfWeek, cal1.get(Calendar.DAY_OF_WEEK))) {
-         Calendar calEnd = Calendar.getInstance(condition.getTimeZone());
-         calEnd.setTime(new Date(curr));
-         calEnd.set(Calendar.HOUR_OF_DAY, condition.getHourEnd());
-         calEnd.set(Calendar.MINUTE, condition.getMinuteEnd());
-         calEnd.set(Calendar.SECOND, condition.getSecondEnd());
-         long end = calEnd.getTimeInMillis();
-         long interval = (long) (condition.getHourlyInterval() * 3600000);
-
-         while(start < end && end > curr) {
-            if(start >= curr) {
-               found = true;
-               break;
-            }
-
-            start += interval;
-         }
-      }
-
-      if(found) {
-         cal1.setTimeInMillis(start);
-      }
-      else {
-         while(true) {
-            cal1.add(Calendar.DATE, 1);
-
-            if(containsDay(daysOfWeek, cal1.get(Calendar.DAY_OF_WEEK))) {
-               break;
-            }
-         }
-      }
-
-      return cal1.getTimeInMillis();
-   }
-
-   private static long expectedEveryMonthRetry(TimeCondition condition, long curr, long lastRun) {
-      Calendar cal1 = Calendar.getInstance(condition.getTimeZone());
-
-      if(condition.getInterval() > 1 && lastRun > 0) {
-         cal1.setTimeInMillis(lastRun);
-      }
-
-      cal1.set(Calendar.HOUR_OF_DAY, condition.getHour());
-      cal1.set(Calendar.MINUTE, condition.getMinute());
-      cal1.set(Calendar.SECOND, condition.getSecond());
-
-      int maxDays = 2 * 365;
-
-      while(!isNthSpecifiedDayOfMonth(condition, cal1) ||
-         cal1.getTimeInMillis() < curr ||
-         !containsDay(condition.getMonthsOfYear(), cal1.get(Calendar.MONTH)))
-      {
-         cal1.add(Calendar.DATE, 1);
-
-         if(maxDays-- < 0) {
-            break;
-         }
-      }
-
-      return cal1.getTimeInMillis();
-   }
-
-   private static long expectedEveryMonthByDayRetry(TimeCondition condition, long curr, long lastRun) {
-      Calendar cal1 = Calendar.getInstance(condition.getTimeZone());
-
-      if(condition.getInterval() > 1 && lastRun > 0) {
-         cal1.setTimeInMillis(lastRun);
-      }
-
-      cal1.set(Calendar.HOUR_OF_DAY, condition.getHour());
-      cal1.set(Calendar.MINUTE, condition.getMinute());
-      cal1.set(Calendar.SECOND, condition.getSecond());
-
-      while(!containsDay(condition.getMonthsOfYear(), cal1.get(Calendar.MONTH)) ||
-         cal1.getTimeInMillis() < curr ||
-         condition.getDayOfMonth() < 0 &&
-            !isNthLastDayOfMonth(-condition.getDayOfMonth(), cal1) ||
-         condition.getDayOfMonth() > 0 &&
-            !isNthFirstDayOfMonth(condition.getDayOfMonth(), cal1))
-      {
-         cal1.add(Calendar.DATE, 1);
-      }
-
-      return cal1.getTimeInMillis();
-   }
-
-   private static boolean isNthSpecifiedDayOfMonth(TimeCondition condition, Calendar calendar) {
-      if(condition.getWeekOfMonth() <= 0) {
-         return true;
-      }
-
-      int date = calendar.get(Calendar.DATE);
-      boolean isInNthWeek = date <= 7 * condition.getWeekOfMonth() &&
-         date > 7 * (condition.getWeekOfMonth() - 1);
-
-      return isInNthWeek && calendar.get(Calendar.DAY_OF_WEEK) == condition.getDayOfWeek();
-   }
-
-   private static boolean isNthFirstDayOfMonth(int dayOfMonth, Calendar calendar) {
-      return dayOfMonth == calendar.get(Calendar.DATE);
-   }
-
-   private static boolean isNthLastDayOfMonth(int n, Calendar calendar) {
-      Calendar cal1 = Calendar.getInstance(calendar.getTimeZone());
-      Calendar cal2 = Calendar.getInstance(calendar.getTimeZone());
-      cal1.setTime(calendar.getTime());
-      cal2.setTime(calendar.getTime());
-
-      int month = calendar.get(Calendar.MONTH);
-      cal1.add(Calendar.DATE, n - 1);
-      int month1 = cal1.get(Calendar.MONTH);
-      cal2.add(Calendar.DATE, n);
-      int month2 = cal2.get(Calendar.MONTH);
-
-      return (month1 == month && month2 != month) || (month1 != month && month2 == month);
-   }
-
-   private static boolean containsDay(int[] values, int value) {
-      for(int candidate : values) {
-         if(candidate == value) {
-            return true;
-         }
-      }
-
-      return false;
    }
 
    private static int todayDayOfWeek() {
@@ -737,18 +572,19 @@ public class TimeConditionTest {
       return cal.getTimeInMillis();
    }
 
-   private static long nextDayOfWeekAt(int dayOfWeek, int hour, int minute, int second) {
-      Calendar cal = Calendar.getInstance();
-      cal.set(Calendar.HOUR_OF_DAY, hour);
-      cal.set(Calendar.MINUTE, minute);
-      cal.set(Calendar.SECOND, second);
-      cal.set(Calendar.MILLISECOND, 0);
-
-      while(cal.get(Calendar.DAY_OF_WEEK) != dayOfWeek) {
-         cal.add(Calendar.DATE, 1);
-      }
-
-      return cal.getTimeInMillis();
+   // Mocks Calendar.getInstance(TimeZone) to return a fresh GregorianCalendar anchored to the
+   // given local date-time string, making getRetryTime() results deterministic. The caller is
+   // responsible for closing the returned MockedStatic (use try-with-resources).
+   private static MockedStatic<Calendar> mockTodayAs(String localDateTime) {
+      long epoch = toFixedMillis(localDateTime);
+      MockedStatic<Calendar> mocked = mockStatic(Calendar.class, Mockito.CALLS_REAL_METHODS);
+      mocked.when(() -> Calendar.getInstance(any(TimeZone.class)))
+            .thenAnswer(inv -> {
+               GregorianCalendar cal = new GregorianCalendar((TimeZone) inv.getArgument(0));
+               cal.setTimeInMillis(epoch);
+               return cal;
+            });
+      return mocked;
    }
 
    private static Date toFixedDate(String localDateTime) {
@@ -1066,6 +902,9 @@ public class TimeConditionTest {
 
       @Test
       @DisplayName("BUG-TC-1: single-arg getRetryTime (Quartz path) ignores real lastRun")
+      // BUG-TC-1 | getRetryTime(curr) uses curr as lastRun instead of real scheduler lastRun
+      // Location : AbstractConditionTrigger.getFireTimeAfter()
+      // Fix      : pass Scheduler.getLastScheduledRunTime() as lastRun argument
       void quartzSingleArgRetryIgnoresSchedulerLastRun() {
          Calendar monday = Calendar.getInstance();
          monday.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY);
@@ -1096,6 +935,9 @@ public class TimeConditionTest {
       @Test
       @Timeout(2)
       @DisplayName("BUG-TC-2: EVERY_HOUR hourlyInterval=0 must not hang")
+      // BUG-TC-2 | hourlyInterval <= 0 causes infinite loop in getRetryTime EVERY_HOUR branch
+      // Location : TimeCondition.java getRetryTime() EVERY_HOUR case
+      // Fix      : guard with if (hourlyInterval <= 0) return -1 before the advancement loop
       void everyHourZeroIntervalMustNotHang() {
          TimeCondition condition = TimeCondition.atHours(new int[] {todayDayOfWeek()}, 8, 0, 0);
          condition.setHourlyInterval(0f);
@@ -1108,6 +950,9 @@ public class TimeConditionTest {
 
       @Test
       @DisplayName("BUG-TC-3: WEEK_OF_YEAR getRetryTime does not match target week")
+      // BUG-TC-3 | WEEK_OF_YEAR type has no switch branch in getRetryTime; weekOfYear is ignored
+      // Location : TimeCondition.java getRetryTime() switch statement
+      // Fix      : add case WEEK_OF_YEAR that advances to the correct week-of-year
       void weekOfYearRetryIgnoresWeekOfYear() {
          TimeCondition condition = TimeCondition.atWeekOfYear(20, Calendar.MONDAY, 9, 0, 0);
          long curr = toFixedMillis("2025-05-01T12:00:00");
@@ -1119,6 +964,9 @@ public class TimeConditionTest {
 
       @Test
       @DisplayName("BUG-TC-4: parseXML rejects timeType=WEEK_OF_YEAR (5)")
+      // BUG-TC-4 | parseXML switch has no case for timeType 5; tasks with WEEK_OF_YEAR type unloadable
+      // Location : TimeCondition.java parseXML() switch statement
+      // Fix      : add case 5 -> setType(WEEK_OF_YEAR) and restore weekOfYear attribute
       void parseXmlRejectsWeekOfYearType() throws Exception {
          TimeCondition written = TimeCondition.atWeekOfYear(1, Calendar.SUNDAY, 10, 0, 0);
          StringWriter writer = new StringWriter();
@@ -1131,6 +979,9 @@ public class TimeConditionTest {
 
       @Test
       @DisplayName("BUG-TC-5: check() stays false for repeating types after getRetryTime")
+      // BUG-TC-5 | check() always returns false for repeating types; scheduleTime never updated
+      // Location : TimeCondition.java check() — only AT type sets scheduleTime in getRetryTime
+      // Fix      : update scheduleTime inside getRetryTime for EVERY_DAY / EVERY_WEEK / EVERY_MONTH / EVERY_HOUR
       void checkAlwaysFalseForRepeatingTypes() {
          TimeCondition condition = TimeCondition.at(8, 0, 0);
          condition.setInterval(1);
