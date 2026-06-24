@@ -87,7 +87,8 @@ public class TextFormatArrayTest {
       when(mockChartInfo.isMultiAesthetic()).thenReturn(false);
 
       ChartRef mockChartRef = mock(ChartRef.class);
-      when(mockChartRef.getTextFormat()).thenReturn(new CompositeTextFormat());
+      CompositeTextFormat dimTextFormat = new CompositeTextFormat();
+      when(mockChartRef.getTextFormat()).thenReturn(dimTextFormat);
 
       AestheticRef mockAestheticRef = mock(AestheticRef.class);
       when(mockAestheticRef.getDataRef()).thenReturn(mockChartRef);
@@ -105,7 +106,8 @@ public class TextFormatArrayTest {
       when(mockChartInfo.getRTFieldByFullName("sum(id)")).thenReturn(mockChartAggRef);
       when(mockChartInfo.isMultiAesthetic()).thenReturn(true);
 
-      when(mockChartAggRef.getTextFormat()).thenReturn(new CompositeTextFormat());
+      CompositeTextFormat aggTextFormat = new CompositeTextFormat();
+      when(mockChartAggRef.getTextFormat()).thenReturn(aggTextFormat);
 
       textFormatArray = new TextFormatArray(mockChartInfo, mockPlotDescriptor);
       assertInstanceOf(TextFormatScriptable.class, textFormatArray.get("sum(id)", null));

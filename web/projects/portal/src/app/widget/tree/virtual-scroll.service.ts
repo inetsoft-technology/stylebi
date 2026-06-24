@@ -24,6 +24,9 @@ import { SearchComparator } from "./search-comparator";
 
 @Injectable()
 export class VirtualScrollService {
+   constructor(private ngZone: NgZone) {
+   }
+
    private _virtualScroll = new Subject<TreeNodeModel[]>();
    private _virtualScrollNodes: TreeNodeModel[] = [];
    private _virtualScrollNodesParents: TreeNodeModel[] = [];
@@ -32,6 +35,7 @@ export class VirtualScrollService {
    private originalDispatcherValues: any[] = [];
    private searchFilter: string;
    private searchCollapsedValues: any[] = [];
+   private _scrollCleanup: (() => void) | null = null;
 
    public refresh(items?: any[]) {
       this.dispatcher.next(items);
@@ -81,14 +85,24 @@ export class VirtualScrollService {
    }
 
    public registerScrollContainer(element: HTMLElement): Observable<any[]> {
-      element.addEventListener("scroll", e => {
+      if(this._scrollCleanup) {
+         this._scrollCleanup();
+         this._scrollCleanup = null;
+      }
+
+      const handler = (e: Event) => {
          this.dispatcher.next(this.dispatcher.value);
 
          if(e.target instanceof HTMLElement) {
             this.scrollTop.next(e.target.scrollTop);
          }
+      };
+
+      this.ngZone.runOutsideAngular(() => {
+         element.addEventListener("scroll", handler);
       });
 
+      this._scrollCleanup = () => element.removeEventListener("scroll", handler);
       return this.dispatcher.asObservable();
    }
 

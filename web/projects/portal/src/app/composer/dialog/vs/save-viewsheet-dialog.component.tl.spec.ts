@@ -101,12 +101,13 @@ afterEach(() => vi.restoreAllMocks());
 // ---------------------------------------------------------------------------
 
 describe("SaveViewsheetDialog — name validation", () => {
-   // 🔁 Regression-sensitive (Bug #20421): banned chars in viewsheet names cause server-side failures;
-   //    must be rejected client-side with a clear error.
-   it("should mark name as invalid when it contains banned characters (%^&*)", async () => {
+   // 🔁 Regression (Bug #20421): banned chars in viewsheet names cause server-side failures;
+   //    must be rejected client-side via the assetEntryBannedCharacters validator, which is what
+   //    triggers the "composer.sheet.checkSpeChar" error span in the template.
+   it("should set assetEntryBannedCharacters error when name contains banned characters (%^&*)", async () => {
       const comp = await renderComponent(makeModel(""));
       comp.form.controls["name"].setValue("autosize%^&&**((");
-      expect(comp.form.controls["name"].valid).toBe(false);
+      expect(comp.form.controls["name"].errors?.["assetEntryBannedCharacters"]).toBeTruthy();
    });
 
    it("should mark name as invalid when it is empty (required)", async () => {

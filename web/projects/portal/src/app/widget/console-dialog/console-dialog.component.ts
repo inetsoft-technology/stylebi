@@ -53,7 +53,7 @@ export class ConsoleDialogComponent implements OnInit {
       this.selectedLevels = Tool.clone(this.messageLevels);
 
       if(!this.selectedLevels) {
-         this.selectedLevels = ["Error", "Warning", "Info"];
+         this.selectedLevels = Tool.clone(this.levelOptions);
       }
 
       if(!this.messages) {

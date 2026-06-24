@@ -17,7 +17,7 @@
  */
 
 /**
- * ToolboxPane — single pass (+内存泄漏)
+ * ToolboxPane — single pass (+memory leak)
  *
  * Risk-first coverage:
  *   Group 1 [Risk 3] — ngOnInit: deployed=true → toolbox=toolboxDeployed; deployed=false → toolbox=toolbox
@@ -43,7 +43,7 @@ async function renderComponent(inputs: Partial<ToolboxPane> = {}) {
    return render(ToolboxPane, {
       schemas: [NO_ERRORS_SCHEMA],
       componentImports: [],
-      providers: [
+      componentProviders: [
          { provide: DomService, useValue: DOM_SERVICE_MOCK },
       ],
       componentProperties: inputs,
@@ -89,20 +89,16 @@ describe("ToolboxPane — ngOnChanges inactive=true", () => {
       vi.spyOn(TreeTool, "expandAllNodes").mockImplementation(() => {});
       const { fixture } = await renderComponent({ inactive: false });
       const comp = fixture.componentInstance;
-      const detachSpy = vi.spyOn(comp["cd"], "detach");
-      const reattachSpy = vi.spyOn(comp["cd"], "reattach");
-      try {
-         comp.inactive = true;
-         comp.ngOnChanges({
-            inactive: new SimpleChange(false, true, false),
-         });
+      const detachSpy = vi.spyOn((comp as any).cd, "detach");
+      const reattachSpy = vi.spyOn((comp as any).cd, "reattach");
 
-         expect(detachSpy).toHaveBeenCalled();
-         expect(reattachSpy).not.toHaveBeenCalled();
-      } finally {
-         detachSpy.mockRestore();
-         reattachSpy.mockRestore();
-      }
+      comp.inactive = true;
+      comp.ngOnChanges({
+         inactive: new SimpleChange(false, true, false),
+      });
+
+      expect(detachSpy).toHaveBeenCalled();
+      expect(reattachSpy).not.toHaveBeenCalled();
    });
 });
 
@@ -111,27 +107,23 @@ describe("ToolboxPane — ngOnChanges inactive=false", () => {
       vi.spyOn(TreeTool, "expandAllNodes").mockImplementation(() => {});
       const { fixture } = await renderComponent({ inactive: true });
       const comp = fixture.componentInstance;
-      const detachSpy = vi.spyOn(comp["cd"], "detach");
-      const reattachSpy = vi.spyOn(comp["cd"], "reattach");
-      try {
-         comp.inactive = false;
-         comp.ngOnChanges({
-            inactive: new SimpleChange(true, false, false),
-         });
+      const detachSpy = vi.spyOn((comp as any).cd, "detach");
+      const reattachSpy = vi.spyOn((comp as any).cd, "reattach");
 
-         expect(reattachSpy).toHaveBeenCalled();
-         expect(detachSpy).not.toHaveBeenCalled();
-      } finally {
-         detachSpy.mockRestore();
-         reattachSpy.mockRestore();
-      }
+      comp.inactive = false;
+      comp.ngOnChanges({
+         inactive: new SimpleChange(true, false, false),
+      });
+
+      expect(reattachSpy).toHaveBeenCalled();
+      expect(detachSpy).not.toHaveBeenCalled();
    });
 
    it("should call subscribeVScroll (via reattach path) when inactive key is present and inactive=false", async () => {
       vi.spyOn(TreeTool, "expandAllNodes").mockImplementation(() => {});
       const { fixture } = await renderComponent({ inactive: true });
       const comp = fixture.componentInstance;
-      const subscribeVScrollSpy = vi.spyOn(comp as any, "subscribeVScroll").mockImplementation(() => {});
+      const subscribeVScrollSpy = vi.spyOn(comp as any, "subscribeVScroll");
 
       comp.inactive = false;
       comp.ngOnChanges({
@@ -147,7 +139,8 @@ describe("ToolboxPane — ngOnChanges containerView set", () => {
       vi.spyOn(TreeTool, "expandAllNodes").mockImplementation(() => {});
       const { fixture } = await renderComponent({ inactive: false });
       const comp = fixture.componentInstance;
-      // suppress real subscribeVScroll — containerView is a plain object, not a DOM element
+      // mockImplementation prevents the real subscribeVScroll from running
+      // (the real impl calls element.addEventListener which requires a DOM node)
       const subscribeVScrollSpy = vi.spyOn(comp as any, "subscribeVScroll").mockImplementation(() => {});
 
       comp.containerView = { some: "view" };
@@ -160,11 +153,12 @@ describe("ToolboxPane — ngOnChanges containerView set", () => {
 
    it("should NOT call subscribeVScroll when containerView changes to null/undefined", async () => {
       vi.spyOn(TreeTool, "expandAllNodes").mockImplementation(() => {});
-      // Render without containerView to avoid triggering subscribeVScroll during render,
-      // then set it directly to simulate a pre-existing value before the null change.
+      // Do NOT pass containerView via componentInputs — that triggers ngOnChanges during
+      // rendering, before any spy exists, and crashes on element.addEventListener.
+      // Set it directly on the instance so ngOnChanges is only called manually below.
       const { fixture } = await renderComponent({ inactive: false });
       const comp = fixture.componentInstance;
-      comp.containerView = { some: "view" };
+      comp.containerView = { some: "view" } as any;
       const subscribeVScrollSpy = vi.spyOn(comp as any, "subscribeVScroll").mockImplementation(() => {});
 
       comp.containerView = null;
