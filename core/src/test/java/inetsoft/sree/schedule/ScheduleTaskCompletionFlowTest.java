@@ -71,7 +71,7 @@ class ScheduleTaskCompletionFlowTest {
    // P1 — Chain blocked: Task A fails → Task B must NOT fire
 
    @Test
-   void completionCondition_taskAFails_doesNotTriggerTaskB() throws Exception {
+   void completionCondition_taskAFails_doesNotTriggerTaskB() throws Throwable {
       ScheduleTask taskA = buildFailingTask("taskA-chain-fail");
       ScheduleTask taskB = buildTask("taskB-chain-fail");
       taskB.addCondition(new CompletionCondition(taskA.getTaskId()));
@@ -153,7 +153,7 @@ class ScheduleTaskCompletionFlowTest {
       return task;
    }
 
-   private ScheduleTask buildFailingTask(String name) {
+   private ScheduleTask buildFailingTask(String name) throws Throwable {
       ScheduleAction failingAction = mock(ScheduleAction.class);
       doThrow(new RuntimeException("simulated failure")).when(failingAction).run(any());
 
