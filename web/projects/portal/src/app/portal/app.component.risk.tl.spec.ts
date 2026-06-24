@@ -212,7 +212,7 @@ describe("PortalAppComponent — showPreferences", () => {
       let resolveModal!: (v: unknown) => void;
       // Override private modalService — the default mock's result never resolves;
       // a resolvable promise is required to trigger modal.result.then(onCommit) (E2).
-      (comp as any)["modalService"] = {
+      (comp as any).modalService = {
          open: vi.fn(() => ({
             result:            new Promise<unknown>(res => { resolveModal = res; }),
             componentInstance: { onCommit: new Subject<string>(), onCancel: new Subject<void>() },

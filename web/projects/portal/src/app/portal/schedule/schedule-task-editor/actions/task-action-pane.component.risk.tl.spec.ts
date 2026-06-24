@@ -328,6 +328,7 @@ describe("TaskActionPane (portal) — risk tests", () => {
          comp.action = newAction;
 
          expect(comp.model.actions).toHaveLength(4);
+         expect(comp.model.actions[0]).toEqual(makeAction()); // original preserved
          expect(comp.model.actions[1]).toBeNull();
          expect(comp.model.actions[2]).toBeNull();
          expect(comp.model.actions[3]).toBe(newAction);
