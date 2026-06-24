@@ -2898,7 +2898,14 @@ public class WizVsService {
       }
 
       vs.removeAssembly(assemblyName);
-      rvs.getViewsheetSandbox().ifPresent(box -> box.resetDataMap(assemblyName));
+      rvs.getViewsheetSandbox().ifPresent(box -> {
+         box.resetDataMap(assemblyName);
+
+         try {
+            box.clearGraph(assemblyName);
+         }
+         catch(Exception ignore) {}
+      });
    }
 
    /**
