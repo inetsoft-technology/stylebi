@@ -1586,6 +1586,14 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       this.updateSelectionValues();
    }
 
+   public override trackByIdx(index: number, item: any): any {
+      if(Array.isArray(item)) {
+         return item[0]?.value ?? index;
+      }
+
+      return item?.value ?? index;
+   }
+
    // force selected status to be updated in cells
    private selectedCellsChanged() {
       this.selectedCells = Tool.clone(this.selectedCells);
