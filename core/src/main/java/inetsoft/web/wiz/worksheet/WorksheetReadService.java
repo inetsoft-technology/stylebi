@@ -22,6 +22,8 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.schema.XValueNode;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import org.springframework.stereotype.Service;
 
@@ -51,15 +53,19 @@ public class WorksheetReadService {
       String primaryName = ws.getPrimaryAssemblyName();
 
       List<WorksheetModel.TableModel> tables = new ArrayList<>();
+      List<WorksheetModel.VariableModel> variables = new ArrayList<>();
 
       for(Assembly assembly : assemblies) {
          if(assembly instanceof TableAssembly t) {
             boolean primary = t.getName().equals(primaryName);
             tables.add(readTable(t, primary));
          }
+         else if(assembly instanceof DefaultVariableAssembly dva) {
+            variables.add(readVariable(dva));
+         }
       }
 
-      return new WorksheetModel(tables);
+      return new WorksheetModel(tables, variables);
    }
 
    // -------------------------------------------------------------------------
@@ -144,12 +150,34 @@ public class WorksheetReadService {
       String type = ref.getTypeNode() != null ? ref.getTypeNode().getType() : null;
       String alias = ref.getAlias();
       String expression = null;
+      String description = ref.getDescription();
 
       if(ref.isExpression() && ref.getDataRef() instanceof ExpressionRef exprRef) {
          expression = exprRef.getExpression();
       }
 
-      return new WorksheetModel.ColumnModel(name, type, alias, expression);
+      return new WorksheetModel.ColumnModel(name, type, alias, expression, description);
+   }
+
+   // -------------------------------------------------------------------------
+   // Variables
+   // -------------------------------------------------------------------------
+
+   private WorksheetModel.VariableModel readVariable(DefaultVariableAssembly dva) {
+      AssetVariable var = dva.getVariable();
+
+      if(var == null) {
+         return new WorksheetModel.VariableModel(dva.getName(), null, null, null);
+      }
+
+      String label = var.getAlias();
+      String type = var.getTypeNode() != null ? var.getTypeNode().getType() : null;
+      // AssetVariable extends UserVariable; getValueNode() holds the default value.
+      XValueNode valueNode = var.getValueNode();
+      String defaultValue = valueNode != null ? valueNode.getValue() != null
+         ? valueNode.getValue().toString() : null : null;
+
+      return new WorksheetModel.VariableModel(var.getName(), label, type, defaultValue);
    }
 
    // -------------------------------------------------------------------------

@@ -1090,11 +1090,11 @@ public class WorksheetEditService {
             throw new PairingException("Table has no data: " + table);
          }
 
-         int dataRow = index + 1; // +1 for header row
-
-         if(dataRow < 1) {
-            dataRow = 1;
+         if(index < 0) {
+            throw new PairingException("Row index must be >= 0, got: " + index);
          }
+
+         int dataRow = index + 1; // +1 for header row
 
          if(dataRow > data.getRowCount()) {
             dataRow = data.getRowCount();

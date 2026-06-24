@@ -22,6 +22,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 
 import java.util.List;
@@ -438,7 +439,13 @@ public final class WorksheetMutationSupport {
 
             if(spec.values() != null) {
                for(String v : spec.values()) {
-                  c.addValue(v);
+                  // $(varName) syntax maps to a UserVariable reference.
+                  if(v != null && v.startsWith("$(") && v.endsWith(")")) {
+                     c.addValue(new UserVariable(v.substring(2, v.length() - 1)));
+                  }
+                  else {
+                     c.addValue(v);
+                  }
                }
             }
 

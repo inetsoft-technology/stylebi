@@ -952,6 +952,10 @@ public class WorksheetAgentController {
 
          if(req.table() != null && !req.table().isBlank()) {
             // Refresh a single assembly.
+            if(ws.getAssembly(req.table()) == null) {
+               throw new PairingException("Table not found: " + req.table());
+            }
+
             box.resetTableLens(req.table());
             WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
             WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
@@ -1164,9 +1168,18 @@ public class WorksheetAgentController {
             throw new PairingException("Not a bound table: " + req.table());
          }
 
-         AssetEventUtil.convertEmbeddedTable(
+         // replace=true keeps the same name; the returned assembly must be
+         // explicitly added to replace the old bound table in the worksheet.
+         EmbeddedTableAssembly embedded = AssetEventUtil.convertEmbeddedTable(
             rws.getAssetQuerySandbox(), (BoundTableAssembly) a,
             true, false, false);
+
+         if(embedded == null) {
+            throw new PairingException(
+               "Could not convert '" + req.table() + "' — table may have no data yet.");
+         }
+
+         ws.addAssembly(embedded);
          return null;
       });
    }
@@ -1412,12 +1425,13 @@ public class WorksheetAgentController {
 
          assembly.setPixelOffset(new Point(25, maxY + 40));
          assembly.setSQLEdited(true);
-         ws.addAssembly(assembly);
 
          // Populate columns from the parsed SQL or by executing the query.
          // initColumnSelection does NOT work for SQL-edited assemblies;
          // we must use QueryManagerService.getColumnSelection() instead
          // (same approach as SQLQueryDialogService.setUpTableWithSQLString).
+         // Validate before adding to the worksheet so a broken assembly is
+         // never left in the model on failure.
          Object metaSession =
             new DefaultMetaDataProvider(xrepository).getSession();
          JDBCUtil.fixUniformSQLInfo(
@@ -1425,7 +1439,14 @@ public class WorksheetAgentController {
             (JDBCDataSource) query.getDataSource());
          ColumnSelection columns = queryManagerService.getColumnSelection(
             query, new VariableTable(), assembly, metaSession, null);
+
+         if(columns == null || columns.getAttributeCount() == 0) {
+            throw new PairingException(
+               "SQL could not be parsed or no columns detected — check syntax and table references.");
+         }
+
          assembly.setColumnSelection(columns);
+         ws.addAssembly(assembly);
 
          return new SqlQueryResponse(tableName);
       });

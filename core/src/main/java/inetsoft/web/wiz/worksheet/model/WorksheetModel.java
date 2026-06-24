@@ -26,7 +26,7 @@ import java.util.List;
  * class can be constructed anywhere (tests, service, controller) without a
  * container.</p>
  */
-public record WorksheetModel(List<TableModel> tables) {
+public record WorksheetModel(List<TableModel> tables, List<VariableModel> variables) {
 
    /**
     * A single table assembly inside the worksheet.
@@ -60,13 +60,15 @@ public record WorksheetModel(List<TableModel> tables) {
    /**
     * A single visible column in a table.
     *
-    * @param name       attribute (column) name
-    * @param type       XSchema data-type string (e.g. {@code "string"}, {@code "integer"})
-    * @param alias      display alias; may be {@code null} or empty
-    * @param expression script expression when the column is an expression column;
-    *                   {@code null} for plain attribute columns
+    * @param name        attribute (column) name
+    * @param type        XSchema data-type string (e.g. {@code "string"}, {@code "integer"})
+    * @param alias       display alias; may be {@code null} or empty
+    * @param expression  script expression when the column is an expression column;
+    *                    {@code null} for plain attribute columns
+    * @param description user-defined column description; may be {@code null}
     */
-   public record ColumnModel(String name, String type, String alias, String expression) {}
+   public record ColumnModel(String name, String type, String alias, String expression,
+                             String description) {}
 
    /**
     * A join predicate between two tables.
@@ -126,4 +128,14 @@ public record WorksheetModel(List<TableModel> tables) {
     * @param order {@code "ASC"} or {@code "DESC"}
     */
    public record SortModel(String field, String order) {}
+
+   /**
+    * A variable assembly in the worksheet.
+    *
+    * @param name         assembly (variable) name
+    * @param label        display label; may be {@code null}
+    * @param type         XSchema data-type string; may be {@code null}
+    * @param defaultValue stringified default value; may be {@code null}
+    */
+   public record VariableModel(String name, String label, String type, String defaultValue) {}
 }
