@@ -38,6 +38,11 @@ import { DragDropModule } from "@angular/cdk/drag-drop";
 import { ChartAestheticMc } from "./chart-aesthetic-mc.component";
 import { BlockMouseDirective } from "../../../../widget/mouse-event/block-mouse.directive";
 
+// Prefix for the index-based Format-panel key ("_layoutfield:<index>"). Keying by index (not the
+// client-side, not-yet-aggregated field name) is what fixes the "format reverts on first open" bug
+// (#75474). Must match LAYOUT_FIELD_PREFIX on the Java side (FormatPainterService).
+export const LAYOUT_FIELD_PREFIX = "_layoutfield:";
+
 @Component({
    selector: "text-layout-designer",
    templateUrl: "./text-layout-designer.component.html",
@@ -49,7 +54,7 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
    @Input() textFields: AestheticInfo[] = []; // the real binding list FIELD items index into
    @Output() onCommit = new EventEmitter<TextLayoutModel>();
    @Output() onCancel = new EventEmitter<void>();
-   @Output() onFormatField = new EventEmitter<string>(); // emits stub key (fullName or "_static:text")
+   @Output() onFormatField = new EventEmitter<string>(); // emits format key ("_layoutfield:<index>" or "_static:text")
    @Output() onPreSaveLayout = new EventEmitter<TextLayoutModel>(); // pre-save to create stubs before Format panel
    @Output() onAddField = new EventEmitter<{ field: AestheticInfo; insertRow: number; insertIndex: number }>();
    // Emitted when a FIELD chip is removed and its binding is no longer referenced, so the host can
@@ -575,12 +580,14 @@ export class TextLayoutDesignerComponent implements OnInit, AfterViewInit, OnDes
    }
 
    openFieldFormat(item: TextLayoutItemModel): void {
-      const fullName = (this.getFieldRef(item)?.dataInfo as any)?.fullName;
-
-      if(fullName) {
-         this.onPreSaveLayout.emit({ rows: this.workingRows });
-         this.onFormatField.emit(fullName);
+      // Key the Format panel by field INDEX, not name — a designer-added field's aggregated name
+      // isn't known client-side until a round-trip, so a name key fails on first open (#75474).
+      if(item?.fieldIndex == null) {
+         return;
       }
+
+      this.onPreSaveLayout.emit({ rows: this.workingRows });
+      this.onFormatField.emit(LAYOUT_FIELD_PREFIX + item.fieldIndex);
    }
 
    /**

@@ -37,7 +37,7 @@ import { Tool } from "../../../../../shared/util/tool";
 import { GraphUtil } from "../util/graph-util";
 import { AestheticInfo } from "../data/chart/aesthetic-info";
 import { TextLayoutModel } from "../../common/data/visual-frame-model";
-import { TextLayoutDesignerComponent } from "./chart/aesthetic/text-layout-designer.component";
+import { TextLayoutDesignerComponent, LAYOUT_FIELD_PREFIX } from "./chart/aesthetic/text-layout-designer.component";
 import { ChartEditorService } from "../services/chart/chart-editor.service";
 import { ModelService } from "../../widget/services/model.service";
 import { StatusBar } from "../../status-bar/status-bar.component";
@@ -391,6 +391,12 @@ export class BindingEditor implements OnInit, AfterViewInit, OnDestroy {
 
          if(target) {
             target.textLayout = layout;
+            // Apply the designer's WORKING field list too (same as commit). Without this, fields
+            // added on a first, not-yet-committed open never reach the backend, so the round-trip
+            // rebuilds an empty textLayoutFields and the per-field Format panel has no ref to write
+            // to — the color reverts immediately (Redmine #75474). Indices stay aligned: the backend
+            // rebuilds textLayoutFields in this list's order, which is what the index key resolves.
+            target.textFields = this.layoutDesignerTextFields.slice();
          }
       }
 
@@ -399,8 +405,15 @@ export class BindingEditor implements OnInit, AfterViewInit, OnDestroy {
       this.chartEditorService.changeChartAesthetic("text");
    }
 
-   onLayoutFieldFormat(fullName: string): void {
-      this.chartEditorService.measureName = fullName;
+   onLayoutFieldFormat(key: string): void {
+      // For an index-based layout-field key, append the multi-style aggregate context so the backend
+      // resolves the field against the correct per-aggregate textLayoutFields list. Chart-level
+      // (no aggregate) and static (_static:) keys pass through unchanged.
+      if(key && key.startsWith(LAYOUT_FIELD_PREFIX) && this.layoutDesignerAggregateName) {
+         key = key + ":" + this.layoutDesignerAggregateName;
+      }
+
+      this.chartEditorService.measureName = key;
       this.hideFormatPane = false;
       this.updateData("showTextFormat");
    }

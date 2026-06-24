@@ -1638,6 +1638,27 @@ public class FormatPainterService {
                format = staticItems.isEmpty() ? new CompositeTextFormat()
                                               : buildFormatFromStaticItem(staticItems.get(0));
             }
+            else if(isLayoutFieldKey(columnName)) {
+               // Index-based layout-field key (Redmine #75474): read the field's format from the
+               // resolved layout ref, creating an empty one on first open so panel edits attach to
+               // the same ref the SET path (writeToTextLayoutStubs) writes. Never fall through to the
+               // scalar path, which would read a different place than the panel writes.
+               ChartRef layoutRef = resolveLayoutFieldByIndex(chartInfo, columnName);
+
+               if(layoutRef != null) {
+                  CompositeTextFormat layoutFmt = layoutRef.getTextFormat();
+
+                  if(layoutFmt == null) {
+                     layoutFmt = new CompositeTextFormat();
+                     layoutRef.setTextFormat(layoutFmt);
+                  }
+
+                  format = layoutFmt;
+               }
+               else {
+                  format = new CompositeTextFormat();
+               }
+            }
             else {
                // Multi-field text layout: read the field's format from its layout-field ref
                // (symmetric with writeToTextLayoutStubs and with the render path), so the panel
@@ -2142,6 +2163,19 @@ public class FormatPainterService {
    private boolean writeToTextLayoutStubs(VSChartInfo chartInfo, String columnName,
                                           CompositeTextFormat format)
    {
+      // An index-based key ("_layoutfield:<i>[:<aggrName>]") addresses a designer field whose
+      // aggregated full name is not yet known on the client (Redmine #75474). Resolve by index and
+      // claim the key unconditionally so it never leaks to the scalar-textField fallback below.
+      if(isLayoutFieldKey(columnName)) {
+         ChartRef ref = resolveLayoutFieldByIndex(chartInfo, columnName);
+
+         if(ref != null) {
+            ref.setTextFormat(format);
+         }
+
+         return true;
+      }
+
       boolean found = false;
 
       for(AestheticRef aref : chartInfo.getTextLayoutFields()) {
@@ -2182,6 +2216,66 @@ public class FormatPainterService {
       }
 
       return null;
+   }
+
+   // ── Index-based text-layout field key ("_layoutfield:<i>[:<aggrFullName>]") ──────────
+   // A field added in the Layout Designer is built client-side; its aggregated full name (e.g.
+   // "Sum(Sales)") is assigned by the backend only on the next model round-trip, so the Format panel
+   // cannot key by name on first open (Redmine #75474). Instead it keys by the field's index, which
+   // is stable: textLayoutFields are rebuilt in model order and removals compact indices in lockstep.
+   private static final String LAYOUT_FIELD_PREFIX = "_layoutfield:";
+
+   // Package-private for direct unit testing (FormatPainterServiceLayoutFieldTest).
+   static boolean isLayoutFieldKey(String columnName) {
+      return columnName != null && columnName.startsWith(LAYOUT_FIELD_PREFIX);
+   }
+
+   // Resolve the ChartRef for an index key against the chart-level textLayoutFields, or against the
+   // named aggregate's list when an aggregate full name is appended (multi-style). Returns null when
+   // the key is malformed, the aggregate is not found, or the index is out of range.
+   // static (no instance state) and package-private for direct unit testing
+   // (FormatPainterServiceLayoutFieldTest).
+   static ChartRef resolveLayoutFieldByIndex(VSChartInfo chartInfo, String columnName) {
+      // Re-check the prefix so this method is safe to call standalone (callers also guard); the
+      // duplicated check keeps it self-contained for tests that invoke it directly.
+      if(!isLayoutFieldKey(columnName)) {
+         return null;
+      }
+
+      String rest = columnName.substring(LAYOUT_FIELD_PREFIX.length());
+      int sep = rest.indexOf(':');
+      String idxStr = sep < 0 ? rest : rest.substring(0, sep);
+      String aggrName = sep < 0 ? null : rest.substring(sep + 1);
+      int index;
+
+      try {
+         index = Integer.parseInt(idxStr);
+      }
+      catch(NumberFormatException ex) {
+         return null;
+      }
+
+      List<AestheticRef> fields = null;
+
+      if(aggrName == null || aggrName.isEmpty()) {
+         fields = chartInfo.getTextLayoutFields();
+      }
+      else {
+         for(ChartAggregateRef aggr : AllChartAggregateRef.getXYAggregateRefs(chartInfo, false)) {
+            if(Tool.equals(aggr.getFullName(), aggrName)) {
+               fields = aggr.getTextLayoutFields();
+               break;
+            }
+         }
+      }
+
+      if(fields == null || index < 0 || index >= fields.size()) {
+         return null;
+      }
+
+      AestheticRef aref = fields.get(index);
+      return aref != null && aref.getDataRef() instanceof ChartRef
+         ? (ChartRef) aref.getDataRef() : null;
    }
 
    // ── Static text-item formatting bridge (issue 1) ─────────────────────────────────────
