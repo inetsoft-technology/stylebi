@@ -97,6 +97,7 @@ export function makeMonthlyCondition(overrides: Partial<TimeConditionModel> = {}
       monthsOfYear: [0],
       monthlyDaySelected: true,
       dayOfMonth: 1,
+      interval: 1,
       date: 0,
       timeZoneOffset: 0,
       timeZone: null,
@@ -134,7 +135,7 @@ export function makeRunOnceCondition(overrides: Partial<TimeConditionModel> = {}
       daysOfWeek: [],
       monthsOfYear: [],
       monthlyDaySelected: true,
-      date: Date.now(),
+      date: 1_700_000_000_000, // fixed reference timestamp — avoids non-determinism across runs
       timeZoneOffset: 0,
       timeZone: null,
       ...overrides,

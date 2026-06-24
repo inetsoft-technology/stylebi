@@ -137,6 +137,9 @@ export function makeModel(overrides: Partial<TaskActionPaneModel> = {}): TaskAct
 // Shared mocks
 // ---------------------------------------------------------------------------
 
+// Do NOT reassign MODAL_MOCK.open = vi.fn(...). resetMocks() re-applies the default
+// implementation each beforeEach; a reassignment would bypass that reset.
+// Per-test overrides must use mockImplementationOnce() instead.
 export const MODAL_MOCK = {
    open: vi.fn().mockImplementation(() => ({
       result: new Promise<any>(() => {}),

@@ -29,6 +29,7 @@ import { Subject } from "rxjs";
 
 import { server } from "@test-mocks/server";
 import { ScheduleTaskChange } from "../../../../../../shared/schedule/model/schedule-task-change";
+import { ScheduleTaskListComponent } from "./schedule-task-list.component";
 import { MessageDialog } from "../../../widget/dialog/message-dialog/message-dialog.component";
 import {
    lastRenderedFixture,
@@ -44,9 +45,10 @@ import {
 // Per-test helpers
 // ---------------------------------------------------------------------------
 
-// Bypass private scheduleChangeService to emit changes directly, bypassing the WebSocket path.
-function emitChange(comp: any, change: ScheduleTaskChange): void {
-   (comp.scheduleChangeService as any).onChange.emit(change);
+// Bypass private scheduleChangeService to emit changes synchronously, avoiding the WebSocket path.
+// scheduleChangeService is a private DI field; (comp as any) is the only access route in tests.
+function emitChange(comp: ScheduleTaskListComponent, change: ScheduleTaskChange): void {
+   (comp as any).scheduleChangeService.onChange.emit(change);
 }
 
 function mockConfirmOk(): void {

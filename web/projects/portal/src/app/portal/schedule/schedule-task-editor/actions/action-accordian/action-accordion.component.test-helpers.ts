@@ -166,6 +166,10 @@ export function makeHighlight(element: string, highlight: string, condition = ""
 // Shared mocks
 // ---------------------------------------------------------------------------
 
+// Do NOT reassign properties of these mocks (e.g. scheduleUsersMock.getEmailUsers = vi.fn(...)).
+// resetMocks() calls mockClear() and re-applies the default implementation each beforeEach;
+// a property reassignment would bypass that reset and corrupt subsequent tests.
+// Per-test overrides must use mockReturnValueOnce() / mockImplementationOnce() instead.
 export const scheduleUsersMock = {
    getEmailUsers: vi.fn().mockReturnValue(of([])),
    getEmailGroups: vi.fn().mockReturnValue(of([])),

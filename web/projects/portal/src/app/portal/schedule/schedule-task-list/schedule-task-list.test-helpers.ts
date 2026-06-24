@@ -148,7 +148,15 @@ export const STOMP_CLIENT_MOCK = {
    connect: vi.fn().mockReturnValue(EMPTY),
 };
 
-export const USERS_SERVICE_MOCK = {};
+export const USERS_SERVICE_MOCK = {
+   getOwners:        vi.fn().mockReturnValue(EMPTY),
+   getGroups:        vi.fn().mockReturnValue(EMPTY),
+   getEmailGroups:   vi.fn().mockReturnValue(EMPTY),
+   getEmailUsers:    vi.fn().mockReturnValue(EMPTY),
+   getAdminName:     vi.fn().mockReturnValue(EMPTY),
+   getSSOEnable:     vi.fn().mockReturnValue(EMPTY),
+   loadScheduleUsers: vi.fn(),
+};
 
 /** Reset all shared mocks to clean state between tests. */
 export function resetMocks(): void {

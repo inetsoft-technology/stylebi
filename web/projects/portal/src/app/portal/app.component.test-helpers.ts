@@ -34,11 +34,12 @@ import { vi } from "vitest";
 import { DOCUMENT } from "@angular/common";
 import { HttpClient } from "@angular/common/http";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { ComponentFixture } from "@angular/core/testing";
 import { Title } from "@angular/platform-browser";
 import { ActivatedRoute, Router } from "@angular/router";
 import { render } from "@testing-library/angular";
 import { NgbDatepickerConfig, NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { of, Subject } from "rxjs";
+import { Observable, of, Subject } from "rxjs";
 
 import { AiAssistantService } from "../../../../shared/ai-assistant/ai-assistant.service";
 import { AiAssistantDialogService } from "../common/services/ai-assistant-dialog.service";
@@ -121,54 +122,37 @@ export interface RenderOpts {
 }
 
 export interface AppComponentMocks {
-   comp: PortalAppComponent;
-   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-   fixture: any;
-   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-   httpMock: any;
-   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-   gettingStartedSvc: any;
-   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-   logoutSvc: any;
-   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-   routerMock: any;
-   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-   titleMock: any;
-   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-   aiAssistantSvc: any;
-   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-   modalSvc: any;
-   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-   historyBarSvc: any;
+   comp:             PortalAppComponent;
+   fixture:          ComponentFixture<PortalAppComponent>;
+   httpMock:         { get: ReturnType<typeof vi.fn>; post: ReturnType<typeof vi.fn> };
+   gettingStartedSvc: { start: ReturnType<typeof vi.fn> };
+   logoutSvc:        { inGracePeriod: Observable<boolean>; setLogoutUrl: ReturnType<typeof vi.fn>; logout: ReturnType<typeof vi.fn> };
+   routerMock:       { navigate: ReturnType<typeof vi.fn>; events: Observable<never> };
+   titleMock:        { setTitle: ReturnType<typeof vi.fn> };
+   aiAssistantSvc:   { loadCurrentUser: ReturnType<typeof vi.fn>; aiAssistantVisible: boolean };
+   modalSvc:         { open: ReturnType<typeof vi.fn> };
+   historyBarSvc:    { refreshStatus: ReturnType<typeof vi.fn> };
 }
 
 export async function renderComponent(opts: RenderOpts = {}): Promise<AppComponentMocks> {
-   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-   const httpMock: any = {
+   const httpMock = {
       get:  vi.fn(() => of(makePortalModel())),
       post: vi.fn(() => of(null)),
    };
 
    if(opts.preInitHttpResponses) {
       for(const val of opts.preInitHttpResponses) {
-         httpMock.get.mockReturnValueOnce(of(val));
+         httpMock.get.mockReturnValueOnce(of(val as PortalModel));
       }
    }
 
-   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-   const gettingStartedSvc: any = { start: vi.fn() };
-   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-   const logoutSvc: any = { inGracePeriod: of(false), setLogoutUrl: vi.fn(), logout: vi.fn() };
-   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-   const routerMock: any = { navigate: vi.fn(), events: of() };
-   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-   const titleMock: any = { setTitle: vi.fn() };
-   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-   const aiAssistantSvc: any = { loadCurrentUser: vi.fn(), aiAssistantVisible: false };
-   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-   const historyBarSvc: any = { refreshStatus: vi.fn() };
-   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-   const modalSvc: any = {
+   const gettingStartedSvc = { start: vi.fn() };
+   const logoutSvc         = { inGracePeriod: of(false) as Observable<boolean>, setLogoutUrl: vi.fn(), logout: vi.fn() };
+   const routerMock        = { navigate: vi.fn(), events: of() as Observable<never> };
+   const titleMock         = { setTitle: vi.fn() };
+   const aiAssistantSvc    = { loadCurrentUser: vi.fn(), aiAssistantVisible: false };
+   const historyBarSvc     = { refreshStatus: vi.fn() };
+   const modalSvc = {
       open: vi.fn().mockImplementation(() => ({
          result:            new Promise<unknown>(() => {}),
          componentInstance: { onCommit: new Subject<string>(), onCancel: new Subject<void>() },
