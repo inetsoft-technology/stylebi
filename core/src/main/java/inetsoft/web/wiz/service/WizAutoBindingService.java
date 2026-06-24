@@ -428,19 +428,21 @@ public class WizAutoBindingService {
    // ── Apply fieldConfigs to generated ChartRefs ────────────────────────────────
 
    private void applyFieldConfigs(VSChartInfo chartInfo, Map<String, SimpleFieldInfo> configMap) {
+      int chartType = chartInfo.getChartType();
+
       for(ChartRef ref : chartInfo.getXFields()) {
-         applyFieldConfig(ref, configMap);
+         applyFieldConfig(ref, configMap, chartType);
       }
 
       for(ChartRef ref : chartInfo.getYFields()) {
-         applyFieldConfig(ref, configMap);
+         applyFieldConfig(ref, configMap, chartType);
       }
 
       // Aesthetics carry the same per-field config (title/format, ranking/aggregate) as x/y.
-      applyAestheticFieldConfig(chartInfo.getColorField(), configMap);
-      applyAestheticFieldConfig(chartInfo.getShapeField(), configMap);
-      applyAestheticFieldConfig(chartInfo.getSizeField(), configMap);
-      applyAestheticFieldConfig(chartInfo.getTextField(), configMap);
+      applyAestheticFieldConfig(chartInfo.getColorField(), configMap, chartType);
+      applyAestheticFieldConfig(chartInfo.getShapeField(), configMap, chartType);
+      applyAestheticFieldConfig(chartInfo.getSizeField(), configMap, chartType);
+      applyAestheticFieldConfig(chartInfo.getTextField(), configMap, chartType);
    }
 
    /**
@@ -574,10 +576,10 @@ public class WizAutoBindingService {
    }
 
    private void applyAestheticFieldConfig(AestheticRef aestheticRef,
-                                          Map<String, SimpleFieldInfo> configMap)
+                                          Map<String, SimpleFieldInfo> configMap, int chartType)
    {
       if(aestheticRef != null && aestheticRef.getDataRef() instanceof ChartRef ref) {
-         applyFieldConfig(ref, configMap);
+         applyFieldConfig(ref, configMap, chartType);
       }
    }
 
@@ -639,7 +641,8 @@ public class WizAutoBindingService {
       }
    }
 
-   private void applyFieldConfig(ChartRef ref, Map<String, SimpleFieldInfo> configMap) {
+   private void applyFieldConfig(ChartRef ref, Map<String, SimpleFieldInfo> configMap,
+                                  int chartType) {
       String fieldName = WizardRecommenderUtil.getChartRefFieldName(ref);
       SimpleFieldInfo fc = configMap.get(fieldName);
 
@@ -681,7 +684,14 @@ public class WizAutoBindingService {
          if(fc instanceof DimensionFieldInfo dimFc2 && dimFc2.getManualOrder() != null &&
             !dimFc2.getManualOrder().isEmpty())
          {
-            dim.setManualOrderList(new java.util.ArrayList<>(dimFc2.getManualOrder()));
+            java.util.List<String> orderedList =
+               new java.util.ArrayList<>(dimFc2.getManualOrder());
+            // Funnel Y-axis is inverted (index 0 renders at bottom, last at top).
+            // Reverse so the caller's intuitive top→bottom list displays correctly.
+            if(GraphTypes.isFunnel(chartType)) {
+               java.util.Collections.reverse(orderedList);
+            }
+            dim.setManualOrderList(orderedList);
          }
       }
       else if(ref instanceof VSChartAggregateRef agg) {
