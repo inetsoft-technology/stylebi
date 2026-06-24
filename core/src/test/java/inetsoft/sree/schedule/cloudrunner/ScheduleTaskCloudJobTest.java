@@ -113,7 +113,7 @@ class ScheduleTaskCloudJobTest {
    // -----------------------------------------------------------------------
 
    @Test
-   void cloudJob_failingTask_sendsFailureResult() throws Exception {
+   void cloudJob_failingTask_sendsFailureResult() throws Throwable {
       ScheduleTask task = buildFailingTask("cloud-failure");
       FakeCloudJobFactory.registerTask(task);
 
