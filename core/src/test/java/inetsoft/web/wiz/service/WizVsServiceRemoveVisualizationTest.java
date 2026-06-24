@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
@@ -62,7 +63,7 @@ class WizVsServiceRemoveVisualizationTest {
       when(vsService.getViewsheet("rt-1", null)).thenThrow(new RuntimeException("expired"));
 
       WizVsService service = new WizVsService(vsService, engine);
-      service.removeVisualization("rt-1", "Chart1", null); // must not throw
+      assertDoesNotThrow(() -> service.removeVisualization("rt-1", "Chart1", null));
    }
 
    @Test
@@ -75,5 +76,9 @@ class WizVsServiceRemoveVisualizationTest {
                    () -> service.removeVisualization("", "Chart1", null));
       assertThrows(IllegalArgumentException.class,
                    () -> service.removeVisualization("rt-1", "", null));
+      assertThrows(IllegalArgumentException.class,
+                   () -> service.removeVisualization(null, "Chart1", null));
+      assertThrows(IllegalArgumentException.class,
+                   () -> service.removeVisualization("rt-1", null, null));
    }
 }
