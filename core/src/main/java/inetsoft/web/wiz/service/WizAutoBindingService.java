@@ -639,6 +639,40 @@ public class WizAutoBindingService {
       }
    }
 
+   /** Effective sort applied to a dimension ref: (order, sortByCol). Either may be null. */
+   record DimensionSort(Integer order, String sortByCol) {}
+
+   /**
+    * Resolves the effective value-sort for a dimension. Explicit caller order always wins.
+    * When no explicit order is given, a top-N ranking derives value-descending sort and a
+    * bottom-N ranking derives value-ascending sort, both keyed by the ranking column (unless
+    * the caller supplied an explicit sortByCol). timeSeries dimensions get no auto-derive
+    * because createGroupRef discards value-sort for them.
+    */
+   static DimensionSort computeDimensionSort(Integer explicitOrder, String explicitSortByCol,
+                                             Ranking ranking, boolean timeSeries)
+   {
+      Integer order = explicitOrder;
+      String sortByCol = explicitSortByCol;
+
+      if(order == null && ranking != null && !timeSeries) {
+         int opt = ranking.getOptionValue();
+
+         if(opt == 9) {
+            order = XConstants.SORT_VALUE_DESC;
+         }
+         else if(opt == 10) {
+            order = XConstants.SORT_VALUE_ASC;
+         }
+
+         if(order != null && (sortByCol == null || sortByCol.isBlank())) {
+            sortByCol = ranking.getRankingCol();
+         }
+      }
+
+      return new DimensionSort(order, sortByCol);
+   }
+
    private void applyFieldConfig(ChartRef ref, Map<String, SimpleFieldInfo> configMap) {
       String fieldName = WizardRecommenderUtil.getChartRefFieldName(ref);
       SimpleFieldInfo fc = configMap.get(fieldName);
@@ -648,6 +682,10 @@ public class WizAutoBindingService {
       }
 
       if(ref instanceof VSChartDimensionRef dim) {
+         Ranking ranking = null;
+         String explicitSortByCol = null;
+         boolean timeSeries = false;
+
          if(fc instanceof DimensionFieldInfo dimFc) {
             if(dimFc.getRanking() != null) {
                Ranking r = dimFc.getRanking();
@@ -672,10 +710,21 @@ public class WizAutoBindingService {
                            dimFc.getDateGroupLevel(), dimFc.getField());
                }
             }
+
+            ranking = dimFc.getRanking();
+            explicitSortByCol = dimFc.getSortByCol();
+            timeSeries = dimFc.isTimeSeries();
          }
 
-         if(fc.getOrder() != null) {
-            dim.setOrder(fc.getOrder());
+         DimensionSort sort =
+            computeDimensionSort(fc.getOrder(), explicitSortByCol, ranking, timeSeries);
+
+         if(sort.sortByCol() != null && !sort.sortByCol().isBlank()) {
+            dim.setSortByColValue(sort.sortByCol());
+         }
+
+         if(sort.order() != null) {
+            dim.setOrder(sort.order());
          }
       }
       else if(ref instanceof VSChartAggregateRef agg) {

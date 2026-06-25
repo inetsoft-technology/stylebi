@@ -53,8 +53,17 @@ public class DimensionFieldInfo extends SimpleFieldInfo {
       this.timeSeries = timeSeries;
    }
 
+   public String getSortByCol() {
+      return sortByCol;
+   }
+
+   public void setSortByCol(String sortByCol) {
+      this.sortByCol = sortByCol;
+   }
+
    private String dateGroupLevel;
    private Ranking ranking;
    private String fullName;
    private boolean timeSeries = false;
+   private String sortByCol;
 }
