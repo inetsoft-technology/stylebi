@@ -26,7 +26,6 @@ import {
    Output,
    ViewChild
 } from "@angular/core";
-import { VirtualScrollService } from "../../../widget/tree/virtual-scroll.service";
 import { Subscription } from "rxjs";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { map } from "rxjs/operators";

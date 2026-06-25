@@ -58,7 +58,6 @@ import { FireRecommandCommand } from "../../model/command/fire-recommand-command
 import { FeatureMappingInfo } from "../../../binding/data/chart/feature-mapping-info";
 import { InitWizardBindingTreeCommand } from "../../model/command/init-wizard-binding-tree-command";
 import { VsWizardEditModes } from "../../model/vs-wizard-edit-modes";
-import { VirtualScrollService } from "../../../widget/tree/virtual-scroll.service";
 import { VirtualScrollTreeDatasource } from "../../../widget/tree/virtual-scroll-tree-datasource";
 
 
