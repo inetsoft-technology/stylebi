@@ -95,22 +95,22 @@ public class WorksheetTableController {
    }
 
    /**
-    * Get worksheet table metadata for a runtime worksheet/viewsheet or worksheet asset identifier.
+    * Get worksheet model metadata for a worksheet asset identifier.
     *
     * @param wsIdentifier the worksheet identifier
-    * @param user      the authenticated user
+    * @param user         the authenticated user
     * @return worksheet metadata and table metadata
     */
-   @GetMapping(value = "/ws/tables", produces = MediaType.APPLICATION_JSON_VALUE)
-   public WorksheetModel getTables(@RequestParam("wsIdentifier") String wsIdentifier,
-                                   Principal user)
+   @GetMapping(value = "/ws-model", produces = MediaType.APPLICATION_JSON_VALUE)
+   public WorksheetModel getWorksheetModel(@RequestParam("wsIdentifier") String wsIdentifier,
+                                           Principal user)
       throws Exception
    {
       try {
          return worksheetTableService.getWorksheetModel(wsIdentifier, user);
       }
       catch(Exception e) {
-         LOG.error("Failed to get worksheet tables for wsIdentifier '{}'", wsIdentifier, e);
+         LOG.error("Failed to get worksheet model for wsIdentifier '{}'", wsIdentifier, e);
          throw e;
       }
    }
