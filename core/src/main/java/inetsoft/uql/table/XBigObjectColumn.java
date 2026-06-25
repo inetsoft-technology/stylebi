@@ -361,6 +361,7 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
 
       File file = getFile(prefix + ".tdat");
       FileOutputStream fout = null;
+      com.esotericsoftware.kryo.kryo5.Kryo kryo = XSwapUtil.getKryo();
 
       try {
          fout = new FileOutputStream(file, true);
@@ -379,7 +380,7 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
             if(parr[i] == -1) {
                parr[i] = len;
                Output oout = new Output(bout);
-               XSwapUtil.getKryo().writeClassAndObject(
+               kryo.writeClassAndObject(
                   oout, image ? new ImageWrapper((Image) arr[i]) : arr[i]);
                oout.flush();
 
@@ -397,6 +398,8 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
          LOG.error("Failed to swap data", ex);
       }
       finally {
+         XSwapUtil.releaseKryo(kryo);
+
          if(fout != null) {
             try {
                fout.close();
@@ -426,6 +429,7 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
       File file = getFile(prefix + ".tdat");
       FileInputStream fin = null;
       Object obj = null;
+      com.esotericsoftware.kryo.kryo5.Kryo kryo = XSwapUtil.getKryo();
 
       try {
          fin = new FileInputStream(file);
@@ -435,7 +439,7 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
 
          Input oin = new Input(in);
          kryoInput = oin;
-         obj = XSwapUtil.getKryo().readClassAndObject(oin);
+         obj = kryo.readClassAndObject(oin);
 
          if(image) {
             obj = ((ImageWrapper) obj).unwrap();
@@ -447,6 +451,8 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
          LOG.error("Failed to read object [" + r + "]", e);
       }
       finally {
+         XSwapUtil.releaseKryo(kryo);
+
          if(fin != null) {
             try {
                fin.close();

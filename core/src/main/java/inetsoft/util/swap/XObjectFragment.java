@@ -549,6 +549,8 @@ public final class XObjectFragment<T> extends XSwappable {
     * @return next position if any, <tt>-1</tt> otherwise.
     */
    private int validate(ByteBuffer buf, ObjectArrayHolder holder) {
+      Kryo kryo = null;
+
       try {
          if(buf.capacity() - buf.position() < HEADER_LENGTH) {
             return spos;
@@ -567,7 +569,7 @@ public final class XObjectFragment<T> extends XSwappable {
          ByteArrayInputStream in = new ByteArrayInputStream(bytes);
 
          Input kin = kryoClass != null ? new Input(in) : null;
-         Kryo kryo = kryoClass != null ? XSwapUtil.getKryo() : null;
+         kryo = kryoClass != null ? XSwapUtil.getKryo() : null;
          ObjectInputStream oin = kryoClass == null ? new ObjectInputStream(in) : null;
 
          if(holder.arr == null) {
@@ -592,6 +594,9 @@ public final class XObjectFragment<T> extends XSwappable {
       }
       catch(Exception ex) {
          LOG.error("Failed to read swap buffer", ex);
+      }
+      finally {
+         XSwapUtil.releaseKryo(kryo);
       }
 
       return -1;
@@ -675,6 +680,8 @@ public final class XObjectFragment<T> extends XSwappable {
                else {
                   oout.close();
                }
+
+               XSwapUtil.releaseKryo(kryo);
             }
 
             writeBlock(bout.size(), pos, (char) (pos - spos), bout.toBytes(),
