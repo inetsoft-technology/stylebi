@@ -258,7 +258,7 @@ public class WorksheetReadService {
             String field = dataRef != null ? dataRef.getAttribute() : null;
 
             XCondition xc = item.getXCondition();
-            String operation = xc != null ? String.valueOf(xc.getOperation()) : null;
+            String operation = xc != null ? operationName(xc) : null;
             List<String> values = extractValues(xc);
 
             result.add(new WorksheetModel.FilterModel(field, operation, values, pendingJunction));
@@ -267,6 +267,28 @@ public class WorksheetReadService {
       }
 
       return result;
+   }
+
+   /**
+    * Converts an {@link XCondition} operation integer + negated/equal flags to the
+    * human-readable string that {@code WorksheetMutationSupport.parseOperation()} accepts.
+    * This keeps the read-model round-trippable: an agent can read a condition and
+    * reproduce or edit it using exactly the string it received.
+    */
+   private static String operationName(XCondition xc) {
+      boolean negated = xc.isNegated();
+      boolean equal   = xc.isEqual();
+      return switch(xc.getOperation()) {
+         case XCondition.EQUAL_TO      -> negated ? "!=" : "=";
+         case XCondition.LESS_THAN     -> equal ? "<=" : "<";
+         case XCondition.GREATER_THAN  -> equal ? ">=" : ">";
+         case XCondition.BETWEEN       -> "BETWEEN";
+         case XCondition.ONE_OF        -> negated ? "NOT_ONE_OF" : "ONE_OF";
+         case XCondition.STARTING_WITH -> "STARTING_WITH";
+         case XCondition.CONTAINS      -> "CONTAINS";
+         case XCondition.NULL          -> negated ? "NOT_NULL" : "NULL";
+         default                       -> String.valueOf(xc.getOperation());
+      };
    }
 
    private List<String> extractValues(XCondition xc) {

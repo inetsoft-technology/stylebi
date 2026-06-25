@@ -531,10 +531,12 @@ public final class WorksheetMutationSupport {
          case ">=", "GREATER_THAN_OR_EQUAL" -> XCondition.GREATER_THAN;
          case "BETWEEN"                  -> XCondition.BETWEEN;
          case "ONE_OF", "IN"             -> XCondition.ONE_OF;
+         case "NOT_ONE_OF"               -> XCondition.ONE_OF;  // negated via setNegated
          case "STARTING_WITH"            -> XCondition.STARTING_WITH;
          case "CONTAINS"                 -> XCondition.CONTAINS;
          case "LIKE"                     -> XCondition.LIKE;
          case "NULL", "IS_NULL"          -> XCondition.NULL;
+         case "NOT_NULL"                 -> XCondition.NULL;    // negated via setNegated
          default                         -> XCondition.EQUAL_TO;
       };
    }
@@ -561,8 +563,9 @@ public final class WorksheetMutationSupport {
       }
 
       return switch(operation.toUpperCase().replace(' ', '_')) {
-         case "!=", "NOT_EQUAL_TO", "<>" -> true;
-         default                         -> false;
+         case "!=", "NOT_EQUAL_TO", "<>",
+              "NOT_ONE_OF", "NOT_NULL"  -> true;
+         default                        -> false;
       };
    }
 }

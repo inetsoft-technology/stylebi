@@ -141,7 +141,8 @@ public class SheetAgentBroadcastService {
    private Object buildCommand(SheetType sheetType, RuntimeSheet rs, Principal owner) {
       return switch(sheetType) {
          case WORKSHEET -> buildWorksheetRefreshCommand((RuntimeWorksheet) rs, owner);
-         case VIEWSHEET -> buildViewsheetRefreshCommand();
+         case VIEWSHEET -> throw new UnsupportedOperationException(
+            "Viewsheet agent plugin is not yet implemented");
       };
    }
 
@@ -169,13 +170,6 @@ public class SheetAgentBroadcastService {
       }
 
       return RefreshWorksheetCommand.builder().assemblies(models).build();
-   }
-
-   private Object buildViewsheetRefreshCommand() {
-      // TODO: replace with the correct viewsheet refresh command once identified.
-      // No dedicated RefreshViewsheetCommand exists in the codebase yet; using
-      // RefreshWorksheetCommand as a placeholder until it is added.
-      return RefreshWorksheetCommand.builder().build();
    }
 
    /**

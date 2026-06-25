@@ -944,12 +944,13 @@ public class WorksheetEditService {
        * Replaces the key columns and join type of an existing two-table join assembly,
        * keeping the same source tables.
        *
-       * <p>Only the first key pair of the first operator is updated; multi-key joins
-       * are not supported by this method.</p>
+       * <p>Supports both single-key ({@code leftKey}/{@code rightKey}) and multi-key
+       * ({@code leftKeys}/{@code rightKeys}) joins. When the list parameters are provided
+       * they take precedence and fully replace all key pairs on the first operator.</p>
        *
        * @param name      the join assembly name
-       * @param leftKey   the new left-side key column
-       * @param rightKey  the new right-side key column
+       * @param leftKey   the new left-side key column (single-key fallback)
+       * @param rightKey  the new right-side key column (single-key fallback)
        * @param joinType  new join type — {@code "INNER"}, {@code "LEFT"}, {@code "RIGHT"},
        *                  {@code "FULL"} (case-insensitive; defaults to {@code "INNER"})
        * @throws PairingException if the assembly is not found or has no operators

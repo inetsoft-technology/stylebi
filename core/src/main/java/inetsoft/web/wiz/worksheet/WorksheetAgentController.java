@@ -281,8 +281,12 @@ public class WorksheetAgentController {
          int maxY = 0;
 
          for(Assembly a : ws.getAssemblies()) {
-            Point p = a.getPixelOffset();
-            Dimension d = ((WSAssembly) a).getPixelSize();
+            if(!(a instanceof AbstractWSAssembly wa)) {
+               continue;
+            }
+
+            Point p = wa.getPixelOffset();
+            Dimension d = wa.getPixelSize();
 
             if(p != null && d != null) {
                maxY = Math.max(maxY, p.y + d.height);
@@ -1439,8 +1443,12 @@ public class WorksheetAgentController {
          int maxY = 0;
 
          for(Assembly a : ws.getAssemblies()) {
-            Point p = a.getPixelOffset();
-            Dimension d = ((WSAssembly) a).getPixelSize();
+            if(!(a instanceof AbstractWSAssembly wa)) {
+               continue;
+            }
+
+            Point p = wa.getPixelOffset();
+            Dimension d = wa.getPixelSize();
 
             if(p != null && d != null) {
                maxY = Math.max(maxY, p.y + d.height);

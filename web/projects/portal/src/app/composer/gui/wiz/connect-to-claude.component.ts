@@ -102,6 +102,10 @@ export class ConnectToClaudeComponent implements OnChanges, OnDestroy {
                });
             }, 2000);
          });
+      }).catch(() => {
+         this.zone.run(() => {
+            this.error = "Could not copy to clipboard — please copy the code manually.";
+         });
       });
    }
 

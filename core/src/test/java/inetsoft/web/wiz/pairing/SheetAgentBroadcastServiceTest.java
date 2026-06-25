@@ -77,7 +77,7 @@ class SheetAgentBroadcastServiceTest {
    }
 
    @Test
-   void viewsheetBranchAlsoSendsRefresh() {
+   void viewsheetBranchThrowsUnsupported() {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
       SheetAgentBroadcastService svc = new SheetAgentBroadcastService(dispatcher);
 
@@ -85,11 +85,11 @@ class SheetAgentBroadcastServiceTest {
       when(rs.getSocketSessionId()).thenReturn("stomp-vs-1");
       when(rs.getSocketUserName()).thenReturn("alice~;~host-org");
 
-      svc.broadcastRefresh(rs, SheetType.VIEWSHEET, "ViewsheetRuntime/bar-9",
-                           TestPrincipals.user("alice", "host-org"));
+      assertThrows(UnsupportedOperationException.class, () ->
+         svc.broadcastRefresh(rs, SheetType.VIEWSHEET, "ViewsheetRuntime/bar-9",
+                              TestPrincipals.user("alice", "host-org")));
 
-      verify(dispatcher).convertAndSendToUser(
-         eq("alice~;~host-org"), eq(CommandDispatcher.COMMANDS_TOPIC), any(), any());
+      verifyNoInteractions(dispatcher);
    }
 
    @Test
