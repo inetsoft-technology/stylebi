@@ -41,6 +41,7 @@ import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -453,8 +454,15 @@ public class WorksheetAgentController {
          Assembly[] existing = ws.getAssemblies();
          int maxY = 0;
          for(Assembly a : existing) {
-            if(a instanceof AbstractWSAssembly wa) {
-               maxY = Math.max(maxY, wa.getPixelOffset().y + wa.getPixelSize().height);
+            if(!(a instanceof AbstractWSAssembly wa)) {
+               continue;
+            }
+
+            Point p = wa.getPixelOffset();
+            Dimension d = wa.getPixelSize();
+
+            if(p != null && d != null) {
+               maxY = Math.max(maxY, p.y + d.height);
             }
          }
          assembly.setPixelOffset(new Point(10, maxY + 10));
@@ -641,12 +649,24 @@ public class WorksheetAgentController {
             editor.addDateRangeColumn(req.table(), req.column(), req.dateOption());
          case "add_numeric_range_column" ->
             editor.addNumericRangeColumn(req.table(), req.column(), req.boundaries());
-         case "edit_cell" ->
+         case "edit_cell" -> {
+            if(req.row() == null || req.col() == null) {
+               throw new PairingException("edit_cell requires 'row' and 'col' fields");
+            }
             editor.editCell(req.table(), req.row(), req.col(), req.value());
-         case "insert_row" ->
+         }
+         case "insert_row" -> {
+            if(req.index() == null) {
+               throw new PairingException("insert_row requires an 'index' field");
+            }
             editor.insertRow(req.table(), req.index());
-         case "delete_row" ->
+         }
+         case "delete_row" -> {
+            if(req.index() == null) {
+               throw new PairingException("delete_row requires an 'index' field");
+            }
             editor.deleteRow(req.table(), req.index());
+         }
          case "set_table_properties" ->
             editor.setTableProperties(
                req.table(), req.alias(), req.description(), req.maxRows(), req.distinct());
@@ -710,7 +730,7 @@ public class WorksheetAgentController {
             rws.getAssetQuerySandbox();
 
          if(box == null) {
-            throw new PairingException("No query sandbox available.");
+            throw new PairingException(PairingException.Kind.INTERNAL, "No query sandbox available.");
          }
 
          inetsoft.uql.VariableTable vtable = new inetsoft.uql.VariableTable();
@@ -1502,9 +1522,18 @@ public class WorksheetAgentController {
    // ---------------------------------------------------------------------------
 
    @ExceptionHandler(PairingException.class)
-   @ResponseStatus(HttpStatus.BAD_REQUEST)
-   public Map<String, String> handlePairingException(PairingException e) {
-      return Map.of("error", e.getMessage());
+   public ResponseEntity<Map<String, String>> handlePairingException(PairingException e) {
+      HttpStatus status = switch(e.getKind()) {
+         case SESSION_EXPIRED  -> HttpStatus.NOT_FOUND;
+         case USER_MISMATCH,
+              FEATURE_DISABLED -> HttpStatus.FORBIDDEN;
+         case INTERNAL        -> HttpStatus.INTERNAL_SERVER_ERROR;
+         default              -> HttpStatus.BAD_REQUEST;
+      };
+      Map<String, String> body = new LinkedHashMap<>();
+      body.put("error", e.getMessage());
+      body.put("errorCode", e.getKind().name());
+      return ResponseEntity.status(status).body(body);
    }
 
    // ---------------------------------------------------------------------------

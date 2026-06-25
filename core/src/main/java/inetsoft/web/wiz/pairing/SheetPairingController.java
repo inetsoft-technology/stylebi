@@ -19,6 +19,8 @@ package inetsoft.web.wiz.pairing;
 
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XPrincipal;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.handler.annotation.*;
@@ -66,8 +68,13 @@ public class SheetPairingController {
    }
 
    /**
-    * REST mint (testing / back-compat). {@code socketSessionId} is supplied by the caller.
-    * Production should use the STOMP variant below.
+    * REST mint — for testing only. {@code socketSessionId} is supplied by the caller and is
+    * not verified server-side; any authenticated user could supply an arbitrary session ID and
+    * bind a pairing code to a browser session they do not own.
+    *
+    * <p><strong>WARNING:</strong> this endpoint must NOT be reachable in production. It is
+    * retained solely for integration tests that cannot drive a live STOMP connection. Secure
+    * deployments should firewall or remove this endpoint and use the STOMP variant instead.
     */
    @PostMapping("/api/wiz/pairing/mint")
    public MintResponse mint(@RequestParam String runtimeId,
@@ -76,6 +83,8 @@ public class SheetPairingController {
                             Principal owner)
    {
       requireFeature();
+      LOG.warn("REST mint used (socketSessionId not server-verified) — user={}, runtimeId={}",
+               owner != null ? owner.getName() : "null", runtimeId);
       return MintResponse.ok(pairing.mint(runtimeId, ownerKey(owner), socketSessionId,
                                           destinationUserName(owner), sheetType));
    }
@@ -133,4 +142,6 @@ public class SheetPairingController {
 
    private final SheetPairingService pairing;
    private final SheetAgentFeature feature;
+
+   private static final Logger LOG = LoggerFactory.getLogger(SheetPairingController.class);
 }

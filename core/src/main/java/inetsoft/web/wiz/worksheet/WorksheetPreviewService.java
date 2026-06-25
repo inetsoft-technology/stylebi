@@ -55,7 +55,7 @@ public class WorksheetPreviewService {
       AssetQuerySandbox box = rws.getAssetQuerySandbox();
 
       if(box == null) {
-         throw new PairingException("Worksheet query sandbox is not available");
+         throw new PairingException(PairingException.Kind.INTERNAL, "Worksheet query sandbox is not available");
       }
 
       TableLens lens;

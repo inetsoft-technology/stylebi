@@ -32,7 +32,7 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * A single table assembly inside the worksheet.
     *
     * @param name               assembly name
-    * @param type               one of {@code "EMBEDDED"}, {@code "JOIN"},
+    * @param type               one of {@code "EMBEDDED"}, {@code "JOIN"}, {@code "CONCAT"},
     *                           {@code "MIRROR"}, {@code "UNPIVOT"},
     *                           {@code "ROTATED"}, {@code "TABLE"}
     * @param columns            visible (public) columns
@@ -91,8 +91,13 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * A single filter condition item.
     *
     * @param field     attribute name the condition applies to
-    * @param operation numeric operation code from {@link inetsoft.uql.XCondition}
-    *                  formatted as a string (e.g. {@code "1"} for EQUAL_TO)
+    * @param operation human-readable operator string — one of {@code "="}, {@code "!="},
+    *                  {@code "<"}, {@code "<="}, {@code ">"}, {@code ">="},
+    *                  {@code "BETWEEN"}, {@code "ONE_OF"}, {@code "NOT_ONE_OF"},
+    *                  {@code "STARTING_WITH"}, {@code "CONTAINS"}, {@code "LIKE"},
+    *                  {@code "NULL"}, {@code "NOT_NULL"}.
+    *                  These are exactly the strings accepted by the {@code operation}
+    *                  parameter of {@code add_filter} / {@code edit_condition}.
     * @param values    literal value(s) used in the condition
     * @param junction  {@code "AND"} or {@code "OR"} — the junction that precedes
     *                  this condition in the list (may be {@code null} for the first item)

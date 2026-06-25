@@ -101,13 +101,13 @@ public class SheetRuntimeAccess {
       if(rs == null) {
          LOG.warn("Pairing runtime access: worksheet runtime not found (id={}, user={})",
                   runtimeId, agentUser.getName());
-         throw new PairingException("Worksheet runtime not found or expired: " + runtimeId);
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED, "Worksheet runtime not found or expired: " + runtimeId);
       }
 
       if(!(rs instanceof RuntimeWorksheet rws)) {
          LOG.warn("Pairing runtime access: not a worksheet runtime (id={}, user={})",
                   runtimeId, agentUser.getName());
-         throw new PairingException("Worksheet runtime not found or expired: " + runtimeId);
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED, "Worksheet runtime not found or expired: " + runtimeId);
       }
 
       rs.access(true);
@@ -124,13 +124,13 @@ public class SheetRuntimeAccess {
       if(rs == null) {
          LOG.warn("Pairing runtime access: viewsheet runtime not found (id={}, user={})",
                   runtimeId, agentUser.getName());
-         throw new PairingException("Viewsheet runtime not found or expired: " + runtimeId);
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED, "Viewsheet runtime not found or expired: " + runtimeId);
       }
 
       if(!(rs instanceof RuntimeViewsheet rvs)) {
          LOG.warn("Pairing runtime access: not a viewsheet runtime (id={}, user={})",
                   runtimeId, agentUser.getName());
-         throw new PairingException("Viewsheet runtime not found or expired: " + runtimeId);
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED, "Viewsheet runtime not found or expired: " + runtimeId);
       }
 
       rs.access(true);

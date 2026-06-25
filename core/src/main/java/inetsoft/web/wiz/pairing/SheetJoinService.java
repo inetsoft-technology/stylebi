@@ -58,7 +58,7 @@ public class SheetJoinService {
       if(!feature.isEnabled()) {
          LOG.warn("Sheet agent pairing join rejected: feature disabled (agent={})",
                   agentUser == null ? "?" : agentUser.getName());
-         throw new PairingException("Sheet agent pairing is disabled");
+         throw new PairingException(PairingException.Kind.FEATURE_DISABLED, "Sheet agent pairing is disabled");
       }
 
       // 2. Consume the code (single-use).
@@ -66,14 +66,14 @@ public class SheetJoinService {
       if(grant == null) {
          LOG.warn("Sheet agent pairing join rejected: invalid/expired code (agent={})",
                   agentUser == null ? "?" : agentUser.getName());
-         throw new PairingException("Invalid or expired pairing code");
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED, "Invalid or expired pairing code");
       }
 
       // 3. Same-logical-user check.
       if(!PairingUtil.sameLogicalUser(grant.ownerIdentity(), agentUser)) {
          LOG.warn("Sheet agent pairing join rejected: user mismatch (owner={}, agent={})",
                   grant.ownerIdentity(), agentUser == null ? "?" : agentUser.getName());
-         throw new PairingException("Pairing code does not belong to this user");
+         throw new PairingException(PairingException.Kind.USER_MISMATCH, "Pairing code does not belong to this user");
       }
 
       // 4. Open a reusable session, carrying the browser's socket session ID for broadcast.

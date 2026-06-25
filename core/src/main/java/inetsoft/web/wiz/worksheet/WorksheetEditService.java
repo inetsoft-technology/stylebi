@@ -77,7 +77,7 @@ public class WorksheetEditService {
       JoinSession session = sessions.resolve(sessionToken, agentKey);
 
       if(session == null) {
-         throw new PairingException("Invalid or expired session: " + sessionToken);
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED, "Invalid or expired session: " + sessionToken);
       }
 
       RuntimeWorksheet rws = (RuntimeWorksheet) runtimeAccess.getSheetForPairing(
@@ -107,7 +107,7 @@ public class WorksheetEditService {
       JoinSession session = sessions.resolve(sessionToken, agentKey);
 
       if(session == null) {
-         throw new PairingException("Invalid or expired session: " + sessionToken);
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED, "Invalid or expired session: " + sessionToken);
       }
 
       RuntimeWorksheet rws = (RuntimeWorksheet) runtimeAccess.getSheetForPairing(
@@ -139,7 +139,7 @@ public class WorksheetEditService {
       JoinSession session = sessions.resolve(sessionToken, agentKey);
 
       if(session == null) {
-         throw new PairingException("Invalid or expired session: " + sessionToken);
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED, "Invalid or expired session: " + sessionToken);
       }
 
       RuntimeWorksheet rws = (RuntimeWorksheet) runtimeAccess.getSheetForPairing(
@@ -166,7 +166,7 @@ public class WorksheetEditService {
       JoinSession session = sessions.resolve(sessionToken, agentKey);
 
       if(session == null) {
-         throw new PairingException("Invalid or expired session: " + sessionToken);
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED, "Invalid or expired session: " + sessionToken);
       }
 
       return (RuntimeWorksheet) runtimeAccess.getSheetForPairing(
@@ -181,7 +181,7 @@ public class WorksheetEditService {
       JoinSession session = sessions.resolve(sessionToken, agentKey);
 
       if(session == null) {
-         throw new PairingException("Invalid or expired session: " + sessionToken);
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED, "Invalid or expired session: " + sessionToken);
       }
 
       RuntimeWorksheet rws = (RuntimeWorksheet) runtimeAccess.getSheetForPairing(

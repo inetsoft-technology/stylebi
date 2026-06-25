@@ -286,6 +286,7 @@ public class WorksheetReadService {
          case XCondition.ONE_OF        -> negated ? "NOT_ONE_OF" : "ONE_OF";
          case XCondition.STARTING_WITH -> "STARTING_WITH";
          case XCondition.CONTAINS      -> "CONTAINS";
+         case XCondition.LIKE          -> "LIKE";
          case XCondition.NULL          -> negated ? "NOT_NULL" : "NULL";
          default                       -> String.valueOf(xc.getOperation());
       };
