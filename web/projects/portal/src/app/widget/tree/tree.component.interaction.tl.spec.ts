@@ -524,13 +524,15 @@ describe("Group 15 — deselectAllNodes", () => {
 
 // ===========================================================================
 // Group 16 — onKey (keyboard navigation)
+// Bypass: TreeComponent exposes no public setter for `focused` and focusedSubject is private.
+// All tests that need a pre-set focus state assign comp["focused"] directly; tests that assert
+// on navigation emission spy on comp["focusedSubject"].next.
 // ===========================================================================
 
 describe("Group 16 — onKey", () => {
    it("should focus root node on first down-arrow when nothing is focused", async () => {
       const root = makeFolder([makeNode()]);
       const { comp } = await renderTree({ root });
-      // Bypass: focusedSubject is private — spy required to assert keyboard-navigation emission.
       const spy = vi.spyOn(comp["focusedSubject"], "next");
 
       comp.onKey({ keyCode: 40 } as any); // down arrow
@@ -542,9 +544,7 @@ describe("Group 16 — onKey", () => {
       const child = makeNode({ label: "child" });
       const root = makeFolder([child], { expanded: true });
       const { comp } = await renderTree({ root, componentProperties: { showRoot: true } });
-      // Bypass: no public setter for focused — direct assignment is the only way to pre-set keyboard navigation state.
       comp["focused"] = root;
-      // Bypass: focusedSubject is private — spy required to assert keyboard-navigation emission.
       const spy = vi.spyOn(comp["focusedSubject"], "next");
 
       comp.onKey({ keyCode: 40 } as any); // down arrow
@@ -556,7 +556,6 @@ describe("Group 16 — onKey", () => {
       const folder = makeFolder([], { expanded: false });
       const root = makeFolder([folder]);
       const { comp } = await renderTree({ root });
-      // Bypass: no public setter for focused — direct assignment is the only way to pre-set keyboard navigation state.
       comp["focused"] = folder;
 
       comp.onKey({ keyCode: 39 } as any); // right arrow
@@ -568,7 +567,6 @@ describe("Group 16 — onKey", () => {
       const folder = makeFolder([], { expanded: false });
       const root = makeFolder([folder]);
       const { comp } = await renderTree({ root });
-      // Bypass: no public setter for focused — direct assignment is the only way to pre-set keyboard navigation state.
       comp["focused"] = folder;
       const expandSpy = vi.spyOn(comp.nodeExpanded, "emit");
 
@@ -581,7 +579,6 @@ describe("Group 16 — onKey", () => {
       const folder = makeFolder([], { expanded: true });
       const root = makeFolder([folder]);
       const { comp } = await renderTree({ root });
-      // Bypass: no public setter for focused — direct assignment is the only way to pre-set keyboard navigation state.
       comp["focused"] = folder;
 
       comp.onKey({ keyCode: 37 } as any); // left arrow
@@ -593,7 +590,6 @@ describe("Group 16 — onKey", () => {
       const folder = makeFolder([], { expanded: true });
       const root = makeFolder([folder]);
       const { comp } = await renderTree({ root });
-      // Bypass: no public setter for focused — direct assignment is the only way to pre-set keyboard navigation state.
       comp["focused"] = folder;
       const collapseSpy = vi.spyOn(comp.nodeCollapsed, "emit");
 

@@ -49,7 +49,7 @@ import { DataItem } from "../../../../model/datasources/database/vpm/test-data-m
 // Stubs
 // ---------------------------------------------------------------------------
 
-@Component({ selector: "tree", template: "" })
+@Component({ selector: "tree", template: "", standalone: true })
 export class TreeComponentStub {
    @Input() root: TreeNodeModel;
    @Input() selectedNodes: TreeNodeModel[] = [];
@@ -61,14 +61,14 @@ export class TreeComponentStub {
    @Input() searchStr: string;
 }
 
-@Component({ selector: "data-model-script-pane", template: "" })
+@Component({ selector: "data-model-script-pane", template: "", standalone: true })
 export class DataModelScriptPaneStub {
    @Input() script: string;
    @Input() sql: boolean;
    @Output() expressionChange = new EventEmitter<string>();
 }
 
-@Component({ selector: "loading-indicator-pane", template: "" })
+@Component({ selector: "loading-indicator-pane", template: "", standalone: true })
 export class LoadingIndicatorPaneStub {
    @Input() show: boolean;
 }

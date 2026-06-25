@@ -380,5 +380,6 @@ describe("DatabaseVPMComponent — isModified getter", () => {
 
       // but cached _isModified=true short-circuits the isEquals check
       expect(comp.isModified).toBe(true);
+      // Cache is cleared back to false by saveVPM() — see Group 1.
    });
 });

@@ -39,6 +39,7 @@ import {
    NO_ERRORS_SCHEMA,
    Output,
 } from "@angular/core";
+import { provideHttpClient } from "@angular/common/http";
 import { ReactiveFormsModule } from "@angular/forms";
 import { ActivatedRoute, Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
@@ -61,7 +62,10 @@ import { DatasourceXmlaDefinitionModel } from "../../model/datasources/database/
 import { DomainModel } from "../../model/datasources/database/cube/xmla/domain-model";
 import { XMetaInfoModel } from "../../model/datasources/database/cube/metaInfo-model";
 import { TreeNodeModel } from "../../../../widget/tree/tree-node-model";
+import { StubDataNotificationsComponent } from "../../data-notifications.stub";
 import { DatasourcesXmlaComponent } from "./datasources-xmla.component";
+
+export { StubDataNotificationsComponent as DataNotificationsStub };
 
 // ---------------------------------------------------------------------------
 // Child-component stubs
@@ -92,16 +96,6 @@ class AttributeFormattingPaneStub {
    @Input() formatModel: any;
    @Output() formatModelChange = new EventEmitter<any>();
    @Output() formatStringChange = new EventEmitter<string>();
-}
-
-@Component({ selector: "data-notifications", template: "", standalone: true })
-export class DataNotificationsStub {
-   notifications = {
-      danger: vi.fn(),
-      success: vi.fn(),
-      info: vi.fn(),
-      warning: vi.fn(),
-   };
 }
 
 @Directive({ selector: "[fixedDropdown]", standalone: true })
@@ -241,10 +235,12 @@ export const ROUTER_MOCK = {
    navigate: vi.fn(),
 };
 
-export const paramMap$ = new Subject<any>();
+// let so resetMocks() can recreate it; ROUTE_MOCK uses a getter so the
+// component always subscribes to the current Subject's observable.
+export let paramMap$ = new Subject<any>();
 
 export const ROUTE_MOCK = {
-   paramMap: paramMap$.asObservable(),
+   get paramMap() { return paramMap$.asObservable(); },
    snapshot: { paramMap: { get: vi.fn().mockReturnValue(null) } },
 };
 
@@ -263,9 +259,12 @@ export const GETTING_STARTED_MOCK = {
    continue: vi.fn(),
 };
 
+// Stable reference for afterEach cleanup: spec files call lastRenderedFixture?.destroy()
+// to ensure the fixture is torn down even when a test throws before returning.
 export let lastRenderedFixture: any = null;
 
 export function resetMocks(): void {
+   paramMap$ = new Subject<any>();
    Object.values(ROUTER_MOCK).forEach(m => typeof m.mockClear === "function" && m.mockClear());
    Object.values(MODAL_MOCK).forEach(m => typeof m.mockClear === "function" && m.mockClear());
    MODAL_MOCK.open.mockImplementation(() => ({
@@ -291,6 +290,7 @@ export async function renderXmla(opts: RenderOpts = {}) {
    const { fixture } = await render(DatasourcesXmlaComponent, {
       imports: [ReactiveFormsModule],
       providers: [
+         provideHttpClient(),
          { provide: Router, useValue: ROUTER_MOCK },
          { provide: ActivatedRoute, useValue: ROUTE_MOCK },
          { provide: NgbModal, useValue: MODAL_MOCK },
@@ -301,7 +301,7 @@ export async function renderXmla(opts: RenderOpts = {}) {
          { replace: LoadingIndicatorPaneComponent, with: LoadingIndicatorPaneStub },
          { replace: DropdownView, with: DropdownViewStub },
          { replace: AttributeFormattingPane, with: AttributeFormattingPaneStub },
-         { replace: DataNotificationsComponent, with: DataNotificationsStub },
+         { replace: DataNotificationsComponent, with: StubDataNotificationsComponent },
          { replace: FixedDropdownDirective, with: FixedDropdownDirectiveStub },
       ],
       schemas: [NO_ERRORS_SCHEMA],

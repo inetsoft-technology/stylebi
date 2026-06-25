@@ -31,6 +31,7 @@
  * HTTP calls are tested in the risk spec via MSW; this file sets up no HTTP handlers.
  */
 
+import { provideHttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, NO_ERRORS_SCHEMA, Output, ViewChild } from "@angular/core";
 import { ActivatedRoute, Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
@@ -41,6 +42,9 @@ import { AppInfoService } from "../../../../../../../shared/util/app-info.servic
 import { DataSourceDefinitionModel } from "../../../../../../../shared/util/model/data-source-definition-model";
 import { GettingStartedService } from "../../../../widget/dialog/getting-started-dialog/service/getting-started.service";
 import { DataNotificationsComponent } from "../../data-notifications.component";
+import { StubDataNotificationsComponent } from "../../data-notifications.stub";
+
+export { StubDataNotificationsComponent as DataNotificationsStub };
 import { DatasourcesDatasourceEditorComponent } from "./datasources-datasource-editor/datasources-datasource-editor.component";
 import { DatasourcesDatasourceComponent } from "./datasources-datasource.component";
 
@@ -56,16 +60,6 @@ class DatasourcesDatasourceEditorStub {
    @Output() datasourceValid = new EventEmitter<boolean>();
    @Output() onWarning = new EventEmitter<string>();
    @Output() onSuccess = new EventEmitter<string>();
-}
-
-@Component({ selector: "data-notifications", template: "", standalone: true })
-export class DataNotificationsStub {
-   notifications = {
-      danger: vi.fn(),
-      success: vi.fn(),
-      info: vi.fn(),
-      warning: vi.fn(),
-   };
 }
 
 // ---------------------------------------------------------------------------
@@ -95,11 +89,12 @@ export const ROUTER_MOCK = {
    navigate: vi.fn(),
 };
 
-// paramMap$ is a Subject so individual tests can emit route params to trigger ngOnInit branches.
-export const paramMap$ = new Subject<any>();
+// let so resetMocks() can recreate it; ROUTE_MOCK uses a getter so the
+// component always subscribes to the current Subject's observable.
+export let paramMap$ = new Subject<any>();
 
 export const ROUTE_MOCK = {
-   paramMap: paramMap$.asObservable(),
+   get paramMap() { return paramMap$.asObservable(); },
    snapshot: { paramMap: { get: vi.fn().mockReturnValue(null) } },
 };
 
@@ -122,10 +117,12 @@ export const GETTING_STARTED_MOCK = {
    continue: vi.fn(),
 };
 
-// Stable reference to the last rendered fixture for afterEach cleanup.
+// Stable reference for afterEach cleanup: spec files call lastRenderedFixture?.destroy()
+// to ensure the fixture is torn down even when a test throws before returning.
 export let lastRenderedFixture: any = null;
 
 export function resetMocks(): void {
+   paramMap$ = new Subject<any>();
    Object.values(ROUTER_MOCK).forEach(m => typeof m.mockClear === "function" && m.mockClear());
    Object.values(MODAL_MOCK).forEach(m => typeof m.mockClear === "function" && m.mockClear());
    MODAL_MOCK.open.mockImplementation(() => ({
@@ -156,6 +153,7 @@ export async function renderDatasource(opts: RenderOpts = {}) {
 
    const { fixture } = await render(DatasourcesDatasourceComponent, {
       providers: [
+         provideHttpClient(),
          { provide: Router, useValue: ROUTER_MOCK },
          { provide: ActivatedRoute, useValue: ROUTE_MOCK },
          { provide: NgbModal, useValue: MODAL_MOCK },
@@ -164,7 +162,7 @@ export async function renderDatasource(opts: RenderOpts = {}) {
       ],
       importOverrides: [
          { replace: DatasourcesDatasourceEditorComponent, with: DatasourcesDatasourceEditorStub },
-         { replace: DataNotificationsComponent, with: DataNotificationsStub },
+         { replace: DataNotificationsComponent, with: StubDataNotificationsComponent },
       ],
       schemas: [NO_ERRORS_SCHEMA],
    });

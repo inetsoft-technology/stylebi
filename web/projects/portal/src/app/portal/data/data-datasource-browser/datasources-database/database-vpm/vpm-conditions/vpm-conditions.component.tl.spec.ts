@@ -36,8 +36,8 @@
  *   Group 8 — editClauses: modal result updates editingCondition.clauses
  *   Group 9 — utility: expressionChanged, clearClauses, tableNameNull
  *
- * Note: VPMConditionsComponent has no ngOnDestroy — HTTP and modal subscriptions are never
- * unsubscribed (known memory leak).
+ * Note: Modal interactions use Promise (.result.then) which cannot be cancelled; they are
+ * short-lived and benign after destroy. HTTP subscriptions are guarded by takeUntil(destroy$).
  */
 
 import { Component, EventEmitter, Input, NO_ERRORS_SCHEMA, Output } from "@angular/core";
