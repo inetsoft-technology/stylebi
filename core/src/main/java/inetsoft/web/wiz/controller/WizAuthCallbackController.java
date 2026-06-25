@@ -17,15 +17,19 @@
  */
 package inetsoft.web.wiz.controller;
 
+import com.nimbusds.jose.*;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import inetsoft.util.PasswordEncryption;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
 
+import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.*;
@@ -49,8 +53,8 @@ public class WizAuthCallbackController {
    /**
     * POST /api/wiz/auth/callback?nonce=...
     * Called by StyleBI's /sso/authorize via an auto-submitting form POST.
-    * Stores the JWT under the nonce for one-time pickup, then renders a
-    * "you can close this tab" page.
+    * Verifies the JWT signature, stores it by nonce for one-time pickup,
+    * then renders a "you can close this tab" page.
     */
    @PostMapping(value = "/auth/callback")
    public void callback(
@@ -60,6 +64,13 @@ public class WizAuthCallbackController {
    {
       if(nonce == null || nonce.isBlank() || token == null || token.isBlank()) {
          response.sendError(HttpServletResponse.SC_BAD_REQUEST);
+         return;
+      }
+
+      if(!verifySignature(token)) {
+         LOG.warn("SSO callback received token with invalid signature (nonce length={})",
+                  nonce.length());
+         response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
          return;
       }
 
@@ -106,6 +117,17 @@ public class WizAuthCallbackController {
    }
 
    // -------------------------------------------------------------------------
+   // Eviction
+   // -------------------------------------------------------------------------
+
+   /** Removes expired tokens every 10 minutes to prevent unbounded map growth. */
+   @Scheduled(fixedDelay = 10 * 60_000)
+   void evictExpired() {
+      long now = System.currentTimeMillis();
+      pendingTokens.values().removeIf(t -> now > t.expiresAtMs());
+   }
+
+   // -------------------------------------------------------------------------
    // Helpers
    // -------------------------------------------------------------------------
 
@@ -113,6 +135,25 @@ public class WizAuthCallbackController {
       response.setContentType("text/html;charset=UTF-8");
       response.setStatus(HttpServletResponse.SC_OK);
       response.getWriter().write(html);
+   }
+
+   /**
+    * Verifies the JWT signature using the same shared signing key that
+    * {@code SSOTokenService} uses to mint tokens.
+    *
+    * @return {@code true} if the signature is valid, {@code false} otherwise
+    */
+   private static boolean verifySignature(String token) {
+      try {
+         SecretKey signingKey = PasswordEncryption.newInstance().getJwtSigningKey();
+         JWSVerifier verifier = PasswordEncryption.newInstance().createJwsVerifier(signingKey);
+         SignedJWT jws = SignedJWT.parse(token);
+         return jws.verify(verifier);
+      }
+      catch(JOSEException | ParseException | IOException e) {
+         LOG.warn("JWT signature verification failed: {}", e.getMessage());
+         return false;
+      }
    }
 
    private static long extractExpiration(String token) {
@@ -198,9 +239,7 @@ public class WizAuthCallbackController {
 
    private record PendingToken(String token, long expiresAtMs) {}
 
-   // Bounded map to prevent memory leaks; evicts oldest entries when full.
-   private static final Map<String, PendingToken> pendingTokens =
-      new ConcurrentHashMap<>(64);
+   private final Map<String, PendingToken> pendingTokens = new ConcurrentHashMap<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(WizAuthCallbackController.class);
 }

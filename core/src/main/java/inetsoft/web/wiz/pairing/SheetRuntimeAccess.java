@@ -49,6 +49,20 @@ public class SheetRuntimeAccess {
    public SheetRuntimeAccess(WorksheetService worksheetService,
                               ViewsheetService viewsheetService)
    {
+      if(!(worksheetService instanceof SheetDirectAccessor)) {
+         throw new IllegalStateException(
+            "WorksheetService (" + worksheetService.getClass().getName() +
+            ") does not implement SheetDirectAccessor — " +
+            "SheetRuntimeAccess cannot function without direct runtime access.");
+      }
+
+      if(!(viewsheetService instanceof SheetDirectAccessor)) {
+         throw new IllegalStateException(
+            "ViewsheetService (" + viewsheetService.getClass().getName() +
+            ") does not implement SheetDirectAccessor — " +
+            "SheetRuntimeAccess cannot function without direct runtime access.");
+      }
+
       this.worksheetAccessor = (SheetDirectAccessor) worksheetService;
       this.viewsheetAccessor = (SheetDirectAccessor) viewsheetService;
    }

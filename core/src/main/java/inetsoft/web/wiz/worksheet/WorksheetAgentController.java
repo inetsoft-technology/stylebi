@@ -809,6 +809,10 @@ public class WorksheetAgentController {
             }
          }
 
+         // setSQLString() with parseSQL=true fires an async parse on a background thread
+         // and notifies the monitor when done. We wait up to 10s — the same timeout used
+         // by SQLQueryDialogService. This does hold the HTTP thread for that duration, but
+         // SQL parsing is bounded by the JDBC metadata call and is not a hot path.
          try {
             synchronized(sql) {
                sql.setParseSQL(true);
@@ -1407,6 +1411,10 @@ public class WorksheetAgentController {
          UniformSQL sql = new UniformSQL();
          sql.setDataSource((JDBCDataSource) xds);
 
+         // setSQLString() with parseSQL=true fires an async parse on a background thread
+         // and notifies the monitor when done. We wait up to 10s — the same timeout used
+         // by SQLQueryDialogService. This does hold the HTTP thread for that duration, but
+         // SQL parsing is bounded by the JDBC metadata call and is not a hot path.
          try {
             synchronized(sql) {
                sql.setParseSQL(true);
