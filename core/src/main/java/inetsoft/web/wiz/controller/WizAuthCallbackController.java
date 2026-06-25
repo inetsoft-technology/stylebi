@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.controller;
 
 import com.nimbusds.jose.*;
+import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import inetsoft.util.PasswordEncryption;
@@ -29,7 +30,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
 
-import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.*;
@@ -145,9 +145,14 @@ public class WizAuthCallbackController {
     */
    private static boolean verifySignature(String token) {
       try {
-         PasswordEncryption enc = PasswordEncryption.newInstance();
-         SecretKey signingKey = enc.getJwtSigningKey();
-         JWSVerifier verifier = enc.createJwsVerifier(signingKey);
+         java.security.KeyPair kp = PasswordEncryption.newInstance().getSSOKeyPair();
+
+         if(kp == null) {
+            LOG.warn("SSO key pair not available — cannot verify callback token signature");
+            return false;
+         }
+
+         RSASSAVerifier verifier = new RSASSAVerifier((java.security.interfaces.RSAPublicKey) kp.getPublic());
          SignedJWT jws = SignedJWT.parse(token);
          return jws.verify(verifier);
       }

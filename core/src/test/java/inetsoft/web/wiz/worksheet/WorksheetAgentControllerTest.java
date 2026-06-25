@@ -195,6 +195,9 @@ class WorksheetAgentControllerTest {
    @Test
    void detachClosesSession() {
       SheetSessionService sessions = mock(SheetSessionService.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      // resolve must return a non-null session so the ownership check passes
+      when(sessions.resolve(eq("TOK-D"), any())).thenReturn(session("TOK-D"));
 
       // feature is OFF — detach must still work
       WorksheetAgentController ctrl = controller(featureOff(),
@@ -202,7 +205,7 @@ class WorksheetAgentControllerTest {
          mock(WorksheetReadService.class), mock(WorksheetEditService.class),
          mock(WorksheetService.class));
 
-      ctrl.detach("TOK-D");
+      ctrl.detach("TOK-D", agent);
 
       verify(sessions).close("TOK-D");
    }
