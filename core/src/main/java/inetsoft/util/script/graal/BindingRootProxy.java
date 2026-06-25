@@ -32,7 +32,7 @@ import java.util.function.Supplier;
  * current FormulaContext execution scope (supplied lazily, resolved live).
  */
 public class BindingRootProxy implements ProxyObject {
-   private final ScriptScope global;
+   private ScriptScope global;
    private final Supplier<ScriptScope> execScopeSupplier;
    private final Predicate<String> classFilter;
    private final Context context;
@@ -63,6 +63,28 @@ public class BindingRootProxy implements ProxyObject {
       }
 
       return imports;
+   }
+
+   /**
+    * Reuse support: this proxy is bound once as {@code __scope__} and its root
+    * scope is swapped per exec (rather than allocating a new proxy and
+    * re-binding __scope__ on every one of hundreds of thousands of per-row
+    * script evaluations). Swaps return the previous value so the caller can
+    * restore it in a finally — preserving correctness under reentrant exec
+    * (a script that triggers another script execution on the same thread).
+    * Single-threaded per engine (guarded by the engine lock). (#75423)
+    */
+   public ScriptScope swapGlobal(ScriptScope newGlobal) {
+      ScriptScope prev = global;
+      global = newGlobal;
+      return prev;
+   }
+
+   /** Swap the per-exec import state (reset to null for a fresh exec). */
+   public LegacyJavaShim.ImportScope swapImports(LegacyJavaShim.ImportScope newImports) {
+      LegacyJavaShim.ImportScope prev = imports;
+      imports = newImports;
+      return prev;
    }
 
    /** Sentinel that distinguishes "present with null value" from "absent". */

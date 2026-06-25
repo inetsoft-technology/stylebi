@@ -52,6 +52,21 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     */
    protected java.util.function.Predicate<String> classFilter;
 
+   // Reusable per-exec scope proxy, bound once as __scope__ and swapped per call
+   // (see exec). Recreated on (re)init because it is bound to the current context.
+   private BindingRootProxy scopeProxy;
+
+   // These config props are read on the per-script hot path (exec runs hundreds
+   // of thousands of times for data-driven worksheet formula columns), and a raw
+   // SreeEnv lookup per call is a measurable cost. SreeEnv.Value caches the value
+   // and only re-reads after the TTL — within the window get() is just a
+   // currentTimeMillis compare, so it stays cheap AND live (a property change
+   // takes effect within the TTL, no restart needed). (#75423)
+   private static final SreeEnv.Value TIMEOUT_PROP =
+      new SreeEnv.Value("script.execution.timeout", 10000);
+   private static final SreeEnv.Value MAX_ERRORS_PROP =
+      new SreeEnv.Value("script.max.errors", 10000);
+
    /**
     * Per-Source error counts. Keyed by compiled Source identity; WeakHashMap
     * allows entries to be GC'd when the Source is no longer referenced.
@@ -75,6 +90,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          }
 
          classFilter = ScriptHostAccess.classFilter();
+         scopeProxy = null; // rebound against the new context on next exec
 
          context = Context.newBuilder("js")
             .engine(SHARED_ENGINE)
@@ -368,18 +384,22 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          }
 
          ScriptScope root = (scope instanceof ScriptScope) ? (ScriptScope) scope : null;
-         BindingRootProxy proxy =
-            new BindingRootProxy(root != null ? root : EMPTY_SCOPE,
-                                 inetsoft.util.script.FormulaContext::getExecScriptScope,
-                                 classFilter, context);
+         ScriptScope rootScope = root != null ? root : EMPTY_SCOPE;
 
-         context.getBindings("js").putMember("__scope__", proxy);
+         // Reuse one proxy bound once as __scope__ (avoids a per-call alloc +
+         // putMember/removeMember on the hot per-row path). Swap its root scope
+         // and import state for this exec, restoring in finally so reentrant
+         // execution (a script that runs another script) is correct. (#75423)
+         ensureScopeProxy();
+
+         ScriptScope prevScope = scopeProxy.swapGlobal(rootScope);
+         LegacyJavaShim.ImportScope prevImports = scopeProxy.swapImports(null);
 
          // mark this thread as inside script execution (drives isScriptThread()
          // / getExecScriptable(), e.g. PropertiesEngine's env-modification guard).
          // Scoped tightly to the eval and popped in finally so pooled threads are
          // never left flagged. Use a non-null scope so the flag is reliably set.
-         inetsoft.util.script.JavaScriptEngine.pushExecScriptable(root != null ? root : EMPTY_SCOPE);
+         inetsoft.util.script.JavaScriptEngine.pushExecScriptable(rootScope);
 
          Duration timeout = currentTimeout();
 
@@ -421,14 +441,25 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             // pushExecScriptable above) so reused threads are not left flagged.
             inetsoft.util.script.JavaScriptEngine.popExecScriptable();
 
-            // FIX D: remove __scope__ binding to prevent cross-exec bleed and GC leak
-            if(context != null) {
-               context.getBindings("js").removeMember("__scope__");
-            }
+            // restore the prior scope/imports (FIX D: prevents cross-exec bleed;
+            // here via swap-restore rather than rebinding, and correct under
+            // reentrant exec). __scope__ stays bound to the reused proxy.
+            scopeProxy.swapGlobal(prevScope);
+            scopeProxy.swapImports(prevImports);
          }
       }
       finally {
          lock.unlock();
+      }
+   }
+
+   /** Lazily create the reusable __scope__ proxy and bind it once. Caller holds lock. */
+   private void ensureScopeProxy() {
+      if(scopeProxy == null) {
+         scopeProxy = new BindingRootProxy(EMPTY_SCOPE,
+                                           inetsoft.util.script.FormulaContext::getExecScriptScope,
+                                           classFilter, context);
+         context.getBindings("js").putMember("__scope__", scopeProxy);
       }
    }
 
@@ -438,7 +469,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     */
    private int maxErrors() {
       try {
-         String prop = SreeEnv.getProperty("script.max.errors");
+         String prop = MAX_ERRORS_PROP.get();
 
          if(prop == null || prop.isEmpty()) {
             return 30000;
@@ -461,7 +492,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       String val;
 
       try {
-         val = SreeEnv.getProperty("script.execution.timeout");
+         val = TIMEOUT_PROP.get();
       }
       catch(Exception ex) {
          // SreeEnv unavailable (e.g. test context) → no timeout
