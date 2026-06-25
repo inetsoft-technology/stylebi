@@ -484,12 +484,31 @@ public final class XSwapUtil {
    }
 
    /**
-    * Get a shared Kryo object.
+    * Borrow a Kryo object from the pool. The caller <b>must</b> return it with
+    * {@link #releaseKryo} (in a finally block) when finished.
+    * <p>
+    * A pool is used instead of a single shared/thread-local instance because a
+    * Kryo instance carries mutable per-operation state (depth, reference
+    * resolver, and the class-resolver name-id map). If a swap (de)serialization
+    * re-enters another swap operation on the same thread, sharing one instance
+    * corrupts that state and produces a stream with dangling class references
+    * (e.g. "Encountered unregistered class ID"). Each borrow returns an
+    * instance not currently in use, so nested/concurrent operations stay
+    * isolated.
     */
    public static com.esotericsoftware.kryo.kryo5.Kryo getKryo() {
-      com.esotericsoftware.kryo.kryo5.Kryo kryo = kryos.get();
-      kryo.setRegistrationRequired(false);
+      com.esotericsoftware.kryo.kryo5.Kryo kryo = kryoPool.obtain();
+      kryo.setClassLoader(Thread.currentThread().getContextClassLoader());
       return kryo;
+   }
+
+   /**
+    * Return a Kryo object previously obtained from {@link #getKryo} to the pool.
+    */
+   public static void releaseKryo(com.esotericsoftware.kryo.kryo5.Kryo kryo) {
+      if(kryo != null) {
+         kryoPool.free(kryo);
+      }
    }
 
    /**
@@ -538,14 +557,24 @@ public final class XSwapUtil {
       parallelGC = cmsGC || args.indexOf("-XX:+ExplicitGCInvokesConcurrent") >= 0;
    }
 
-   private static ThreadLocal<com.esotericsoftware.kryo.kryo5.Kryo> kryos = new ThreadLocal<com.esotericsoftware.kryo.kryo5.Kryo>() {
-      @Override
-      protected com.esotericsoftware.kryo.kryo5.Kryo initialValue() {
-         com.esotericsoftware.kryo.kryo5.Kryo kryo = new com.esotericsoftware.kryo.kryo5.Kryo();
-         kryo.setClassLoader(Thread.currentThread().getContextClassLoader());
-         return kryo;
-      }
-   };
+   // Thread-safe pool of Kryo instances. reset() is overridden so an instance
+   // freed after a failed (de)serialization is cleaned before it is reused.
+   private static final com.esotericsoftware.kryo.kryo5.util.Pool<com.esotericsoftware.kryo.kryo5.Kryo> kryoPool =
+      new com.esotericsoftware.kryo.kryo5.util.Pool<com.esotericsoftware.kryo.kryo5.Kryo>(true, false, 16) {
+         @Override
+         protected com.esotericsoftware.kryo.kryo5.Kryo create() {
+            // class loader is (re)set on every borrow in getKryo(); registrationRequired
+            // is a config flag that reset() does not clear, so set it once here.
+            com.esotericsoftware.kryo.kryo5.Kryo kryo = new com.esotericsoftware.kryo.kryo5.Kryo();
+            kryo.setRegistrationRequired(false);
+            return kryo;
+         }
+
+         @Override
+         protected void reset(com.esotericsoftware.kryo.kryo5.Kryo kryo) {
+            kryo.reset();
+         }
+      };
 
    private static final char MAX_CHAR = '\uffff';
    private static final Logger LOG = LoggerFactory.getLogger(XSwapUtil.class);

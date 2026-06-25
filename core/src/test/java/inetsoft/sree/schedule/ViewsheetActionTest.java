@@ -25,6 +25,7 @@ import inetsoft.sree.security.Organization;
 import inetsoft.test.*;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.*;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -38,10 +39,32 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- *  Only test some basic set and get methods.
- *  Due to too many dependencies, there is currently no suitable testing approach for the run method. We will handle it later. todo
- *  Perhaps we can use a spy for run method..
+/*
+ * Intent vs implementation suspects
+ *
+ * [Suspect 1] getFilePath(int) -> intent: "null if file will not be saved in the specified format" (Javadoc)
+ *             actual: filePaths.get(format).getPath() - NPE when format has never been registered (map returns null)
+ *             Fix: guard with null check before calling .getPath()
+ *
+ *             Production likelihood: LOW. Portal/EM schedule UI only offers formats from the server-provided
+ *             saveFileFormats list; users set a path per selected format via setFilePath before save. Normal UI
+ *             and ScheduleService/ScheduleApiService paths do not call getFilePath(int) for a format that was never
+ *             registered on the action. The @Disabled test getFilePath_unregisteredFormat_returnsNull documents
+ *             contract-vs-implementation for programmatic callers (tests, migration, direct API use) — not a
+ *             typical end-user schedule flow.
+ */
+
+/*
+ * Cases deferred - require integration context:
+ *
+ * [ViewsheetAction] run(Principal) - full orchestration through ScheduleViewsheetService
+ *             -> needs live RuntimeViewsheet, bookmarks, principal; NOT yet covered
+ * [ViewsheetAction] parseXML / writeXML - XML round-trip
+ *             -> needs DOM context and full Spring wiring; NOT yet covered
+ * [ViewsheetAction] cancel() - closes viewsheet via ScheduleViewsheetService
+ *             -> needs run() executing concurrently; NOT yet covered
+ * [ViewsheetAction] getPath(String, Object[]) - template substitution with {key} from RepletRequest
+ *             -> needs live RepletRequest with parameters; tested only via full run(); NOT yet covered
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, LibManagerTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -146,6 +169,64 @@ public class ViewsheetActionTest {
       when(viewsheetSandbox.getScheduleInfo()).thenReturn(scheduleInfo);
       assertEquals("1@1,2@2",
                    viewsheetAction.getScheduleEmails(viewsheetSandbox));
+   }
+
+   // --- isMatchLayout ---
+
+   @Test
+   void isMatchLayout_csvFormat_alwaysReturnsFalse() {
+      // CSV format unconditionally overrides the user-set match-layout preference.
+      ViewsheetAction action = new ViewsheetAction("1^128^__NULL__^vs1", null);
+      action.setFileFormat(FileFormatInfo.EXPORT_NAME_CSV);
+      action.setMatchLayout(true);
+      assertFalse(action.isMatchLayout());
+   }
+
+   // --- getFilePath ---
+
+   @Test
+   @Disabled("Suspect 1: getFilePath(format) throws NullPointerException when format was never registered - ViewsheetAction:1851; Fix: null-check filePaths.get(format) before calling getPath(). See class header: unlikely via Portal/EM UI (format list is server-constrained).")
+   void getFilePath_unregisteredFormat_returnsNull() {
+      ViewsheetAction action = new ViewsheetAction();
+      assertNull(action.getFilePath(FileFormatInfo.EXPORT_TYPE_PDF));
+   }
+
+   // --- setFilePath ---
+
+   @Test
+   void setFilePath_nullString_removesEntry() {
+      ViewsheetAction action = new ViewsheetAction();
+      action.setFilePath(FileFormatInfo.EXPORT_TYPE_PDF, "/some/path");
+      assertEquals(1, action.getSaveFormats().length);
+      action.setFilePath(FileFormatInfo.EXPORT_TYPE_PDF, (String) null);
+      assertEquals(0, action.getSaveFormats().length);
+   }
+
+   @Test
+   void setFilePath_nullServerPathInfo_removesEntry() {
+      ViewsheetAction action = new ViewsheetAction();
+      action.setFilePath(FileFormatInfo.EXPORT_TYPE_PDF, new ServerPathInfo("/path"));
+      assertEquals(1, action.getSaveFormats().length);
+      action.setFilePath(FileFormatInfo.EXPORT_TYPE_PDF, (ServerPathInfo) null);
+      assertEquals(0, action.getSaveFormats().length);
+   }
+
+   // --- getScope ---
+
+   @Test
+   void getScope_noViewsheet_returnsGlobalScope() {
+      // createAssetEntry(null) returns null -> GLOBAL_SCOPE fallback branch
+      ViewsheetAction action = new ViewsheetAction();
+      assertEquals(AssetRepository.GLOBAL_SCOPE, action.getScope());
+   }
+
+   // --- equals ---
+
+   @Test
+   void equals_nonViewsheetAction_returnsFalse() {
+      ViewsheetAction action = new ViewsheetAction("1^128^__NULL__^vs1", null);
+      assertFalse(action.equals("not-a-viewsheet-action"));
+      assertFalse(action.equals(null));
    }
 
    IdentityID adminID = new IdentityID("admin", Organization.getDefaultOrganizationID());

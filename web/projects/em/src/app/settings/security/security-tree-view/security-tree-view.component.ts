@@ -126,15 +126,16 @@ export class SecurityTreeViewComponent implements OnInit, OnChanges, OnDestroy,
    restoreExpandedState(nodes: FlatSecurityTreeNode[], selected: FlatSecurityTreeNode[]): void {
       this.treeControl.expansionModel.clear();
 
-      // Starting from the leftmost node expand the comparable node in the new list
-      selected.sort((a, b) => a.level - b.level)
-         .forEach((oldNode) => {
-            const newNode = nodes.find((node) => oldNode.equals(node));
+      // Collect all matching nodes first, then batch-select in one operation so that
+      // expansionModel.changed fires once instead of once per node.
+      const toExpand = selected
+         .sort((a, b) => a.level - b.level)
+         .map(oldNode => nodes.find(node => oldNode.equals(node)))
+         .filter((n): n is FlatSecurityTreeNode => n != null);
 
-            if(newNode != null) {
-               this.treeControl.expand(newNode);
-            }
-         });
+      if(toExpand.length > 0) {
+         this.treeControl.expansionModel.select(...toExpand);
+      }
    }
 
    sendSelection(): SecurityTreeNode[] {

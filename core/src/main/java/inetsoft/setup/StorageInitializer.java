@@ -413,7 +413,7 @@ public class StorageInitializer implements Callable<Integer> {
       }
    }
 
-   @Configuration
+   @Configuration(proxyBeanMethods = false)
    private static class ClusterConfig {
       @Bean
       public InetsoftConfig inetsoftConfig() {

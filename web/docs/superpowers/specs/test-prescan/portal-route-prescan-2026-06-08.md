@@ -1,8 +1,8 @@
 # portal Route Pre-scan Report
 
-**日期**: 2026-06-08（2026-06-12 补充扫描，新增 65 个组件）
-**候选组件数**: 142 | **建议推进**: 142 | **建议跳过**: 0 | **多 pass 组件**: 37
-**测试进度**: ✅已测试 21 / 142 | 待审核 121 / 142
+**日期**: 2026-06-08（2026-06-12 补充扫描，新增 65 个组件；2026-06-24 补充扫描，新增 6 个组件）
+**候选组件数**: 148（原 142，2026-06-24 新增 6）| **建议推进**: 82 | **建议跳过**: 0 | **建议暂缓**: 66 | **待审核**: 121 | **多 pass 组件**: 41
+**测试进度**: ✅已测试 30 / 148 | 待测 118 / 148 | ⏭ 跳过 0 / 148
 
 ## 状态说明
 - 第一列「状态」初始为「待审核」，人工审核后改为 ✅已测试 / ⏭已跳过
@@ -19,9 +19,9 @@
 | 状态 | 组件 | logic_lines | dispatch | async_zones | 分类 | 建议 | 旧 spec | 旧 spec 备注 | Pass 计划 |
 |------|------|-------------|----------|-------------|------|------|---------|-------------|-----------|
 | ✅已测试 | PortalAppComponent | 339 | 0 | 16 | **multi-pass** | ✅ 推进 |  |  | P1: app.component.interaction.tl.spec.ts ✅<br>P2: app.component.risk.tl.spec.ts ✅ |
-| 待审核 | CustomTabComponent | 34 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| 待审核 | CustomTabComponent | 34 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | 待审核 | DashboardTabComponent | 215 | 3 | 9 | **multi-pass** | ✅ 推进 |  |  | P1: dashboard-tab.component.interaction.tl.spec.ts<br>P2: dashboard-tab.component.risk.tl.spec.ts<br>P3: dashboard-tab.component.display.tl.spec.ts |
-| 待审核 | DashboardLandingComponent | 50 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| 待审核 | DashboardLandingComponent | 50 | 0 | 2 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | 待审核 | AssetItemListViewComponent | 159 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | ✅已测试 | DataDatasourceBrowserComponent | 756 | 0 | 21 | **multi-pass** | ✅ 推进 | ⚠️ data-datasource-browser.component.tl.spec.ts | 🔁 Regression-sensitive: refresh combines route params, sorting, selection mapping and status fetch.; 🔁 Regression-sensitive: refreshed objects repla | P1: data-datasource-browser.component.interaction.tl.spec.ts<br>P2: data-datasource-browser.component.risk.tl.spec.ts |
 | 待审核 | DatasourceSelectionViewComponent | 127 | 0 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: datasource-selection-view.component.interaction.tl.spec.ts<br>P2: datasource-selection-view.component.risk.tl.spec.ts |
@@ -35,65 +35,65 @@
 | ✅已测试 | ParameterDialog | 242 | 2 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核 | SelectWorksheetDialog | 131 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | 待审核 | AttributeFormattingPane | 232 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核 | LogicalModelEntityDialog | 59 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| 待审核 | LogicalModelEntityDialog | 59 | 0 | 2 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | LogicalModelExpressionDialog | 230 | 0 | 6 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | ✅已测试 | LogicalModelPropertyPane | 591 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | LogicalModelComponent | 275 | 2 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: logical-model.component.interaction.tl.spec.ts<br>P2: logical-model.component.risk.tl.spec.ts |
 | 待审核 | PhysicalGraphPane | 237 | 0 | 9 | **multi-pass** | ✅ 推进 |  |  | P1: physical-graph-pane.component.interaction.tl.spec.ts<br>P2: physical-graph-pane.component.risk.tl.spec.ts |
 | 待审核 | PhysicalJoinEditPane | 120 | 0 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: physical-join-edit-pane.component.interaction.tl.spec.ts<br>P2: physical-join-edit-pane.component.risk.tl.spec.ts |
 | ✅已测试P1 | PhysicalModelNetworkGraphComponent | 779 | 0 | 19 | **multi-pass** | ✅ 推进 |  |  | P1: physical-model-network-graph.component.interaction.tl.spec.ts (37/37 ✅)<br>P2: physical-model-network-graph.component.risk.tl.spec.ts (worker crash, 搁置) |
-| 待审核 | DatabaseVPMComponent | 270 | 1 | 8 | **multi-pass** | ✅ 推进 |  |  | P1: database-vpm.component.interaction.tl.spec.ts<br>P2: database-vpm.component.risk.tl.spec.ts |
-| 待审核 | VPMConditionsComponent | 259 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | VPMHiddenColumnsComponent | 331 | 0 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: vpm-hidden-columns.component.interaction.tl.spec.ts<br>P2: vpm-hidden-columns.component.risk.tl.spec.ts |
-| 待审核 | VPMTestComponent | 63 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅已测试 | DatabaseVPMComponent | 270 | 1 | 8 | **multi-pass** | ✅ 推进 |  |  | P1: database-vpm.component.interaction.tl.spec.ts (32/32 ✅)<br>P2: database-vpm.component.risk.tl.spec.ts (18/18 ✅) |
+| ✅已测试 | VPMConditionsComponent | 259 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | vpm-conditions.component.tl.spec.ts (37/37 ✅) |
+| ✅已测试 | VPMHiddenColumnsComponent | 331 | 0 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: vpm-hidden-columns.component.interaction.tl.spec.ts (29/29 ✅)<br>P2: vpm-hidden-columns.component.risk.tl.spec.ts (13/13 ✅) |
+| 待审核 | VPMTestComponent | 63 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | DatasourcesDatabaseComponent | 662 | 0 | 12 | **multi-pass** | ✅ 推进 |  |  | P1: datasources-database.component.interaction.tl.spec.ts<br>P2: datasources-database.component.risk.tl.spec.ts |
 | 待审核 | DriverWizardComponent | 275 | 0 | 24 | **multi-pass** | ✅ 推进 |  |  | P1: driver-wizard.component.interaction.tl.spec.ts<br>P2: driver-wizard.component.risk.tl.spec.ts |
-| 待审核 | EditPropertyDialogComponent | 50 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | DatasourcesDatasourceEditorComponent | 258 | 0 | 8 | **multi-pass** | ✅ 推进 |  |  | P1: datasources-datasource-editor.component.interaction.tl.spec.ts<br>P2: datasources-datasource-editor.component.risk.tl.spec.ts |
-| 待审核 | DatasourcesDatasourceComponent | 346 | 0 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: datasources-datasource.component.interaction.tl.spec.ts<br>P2: datasources-datasource.component.risk.tl.spec.ts |
-| 待审核 | DatasourcesXmlaComponent | 602 | 0 | 35 | **multi-pass** | ✅ 推进 |  |  | P1: datasources-xmla.component.interaction.tl.spec.ts<br>P2: datasources-xmla.component.risk.tl.spec.ts |
+| 待审核 | EditPropertyDialogComponent | 50 | 0 | 2 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
+| ✅已测试 | DatasourcesDatasourceEditorComponent | 258 | 0 | 8 | **multi-pass** | ✅ 推进 | ✅ datasources-datasource-editor.component.interaction.tl.spec.ts (35 tests)<br>✅ datasources-datasource-editor.component.risk.tl.spec.ts (10 tests) |  | P1: datasources-datasource-editor.component.interaction.tl.spec.ts<br>P2: datasources-datasource-editor.component.risk.tl.spec.ts |
+| ✅已测试 | DatasourcesDatasourceComponent | 346 | 0 | 7 | **multi-pass** | ✅ 推进 | ✅ datasources-datasource.component.interaction.tl.spec.ts (33 tests)<br>✅ datasources-datasource.component.risk.tl.spec.ts (10 tests) |  | P1: datasources-datasource.component.interaction.tl.spec.ts<br>P2: datasources-datasource.component.risk.tl.spec.ts |
+| ✅已测试 | DatasourcesXmlaComponent | 602 | 0 | 35 | **multi-pass** | ✅ 推进 | ✅ datasources-xmla.component.interaction.tl.spec.ts (47 tests)<br>✅ datasources-xmla.component.risk.tl.spec.ts (12 tests) |  | P1: datasources-xmla.component.interaction.tl.spec.ts<br>P2: datasources-xmla.component.risk.tl.spec.ts |
 | ✅已测试 | DataFolderBrowserComponent | 938 | 1 | 17 | **multi-pass** | ✅ 推进 | ⚠️ data-folder-browser.component.tl.spec.ts | Regression-sensitive: route scope, folder-first sorting, and selected-object remapping can; Regression-sensitive: failed search must not leave stale r | P1: data-folder-browser.component.interaction.tl.spec.ts<br>P2: data-folder-browser.component.risk.tl.spec.ts |
 | 待审核 | DataFolderListViewComponent | 151 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | FilesBrowserComponent | 119 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | DataSourcesTreeViewComponent | 1463 | 7 | 19 | **multi-pass** | ✅ 推进 | ⚠️ data-sources-tree-view.component.tl.spec.ts | Group 1 — changeDataSourcesTree: always returns false [Risk 3] (confirmed bug); 🔁 Regression-sensitive: return false instead of found breaks the recu | P1: data-sources-tree-view.component.interaction.tl.spec.ts<br>P2: data-sources-tree-view.component.risk.tl.spec.ts<br>P3: data-sources-tree-view.component.display.tl.spec.ts |
-| 待审核 | DataTabComponent | 65 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| 待审核 | DataTabComponent | 65 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | 待审核 | InputNameDescDialog | 113 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | 待审核 | MoveAssetDialogComponent | 121 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核 | AnalyzeMVDialog | 280 | 0 | 30 | **multi-pass** | ✅ 推进 |  |  | P1: analyze-mv-dialog.component.interaction.tl.spec.ts<br>P2: analyze-mv-dialog.component.risk.tl.spec.ts |
-| 待审核 | AnalyzeMVPane | 58 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核 | AnalyzeMVPane | 58 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | 待审核 | CreateMVPane | 112 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核 | ArrangeDashboardDialog | 94 | 0 | 2 | **single-pass** | ✅ 推进 | ⚠️ arrange-dashboard-dialog.spec.ts | Bug #18799 not enabled dashboard should display in list | single pass (+内存泄漏) |
+| 待审核 | ArrangeDashboardDialog | 94 | 0 | 2 | **single-pass** | 暂缓 | ⚠️ arrange-dashboard-dialog.spec.ts | Bug #18799 not enabled dashboard should display in list | single pass (+内存泄漏) |
 | 待审核 | AutoJoinTablesDialog | 144 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核 | ChooseTableDialog | 204 | 1 | 7 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核 | EditDashboardDialog | 179 | 0 | 7 | **multi-pass** | ✅ 推进 | ⚠️ edit-dashboard-dialog.spec.ts | Bug #18620 Don't allow special characters in the name; Bug #21678 should allow & -+ | P1: edit-dashboard-dialog.component.interaction.tl.spec.ts<br>P2: edit-dashboard-dialog.component.risk.tl.spec.ts |
-| 待审核 | InlineViewDialog | 66 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| 待审核 | InlineViewDialog | 66 | 0 | 2 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | 待审核 | PhysicalTableAliasesDialog | 101 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | PreferencesDialog | 81 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | VPMConditionDialog | 62 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核 | PortalRedirectComponent | 26 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | RepositoryDesktopViewComponent | 65 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核 | PreferencesDialog | 81 | 0 | 2 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
+| 待审核 | VPMConditionDialog | 62 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
+| 待审核 | PortalRedirectComponent | 26 | 0 | 2 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
+| 待审核 | RepositoryDesktopViewComponent | 65 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | 待审核 | ReportTabComponent | 280 | 2 | 9 | **multi-pass** | ✅ 推进 |  |  | P1: report-tab.component.interaction.tl.spec.ts<br>P2: report-tab.component.risk.tl.spec.ts |
-| 待审核 | PortalReportComponent | 93 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核 | WelcomePageComponent | 39 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| 待审核 | PortalReportComponent | 93 | 0 | 3 | **single-pass** | 暂缓 |  |  | single pass (+竞态+内存泄漏) |
+| 待审核 | WelcomePageComponent | 39 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | TaskActionPane | 464 | 0 | 8 | **multi-pass** | ✅ 推进 | ~~⚠️ task-action-pane.component.spec.ts~~ | Bug #19890 should pop up warning when to delete action; test: should not copy when no action is selected; test: should not copy when multiple actions  | P1: task-action-pane.component.interaction.tl.spec.ts<br>P2: task-action-pane.component.risk.tl.spec.ts |
 | ✅已测试 | TaskConditionPane | 1073 | 3 | 3 | **multi-pass** | ✅ 推进 | ~~⚠️ task-condition-pane.spec.ts~~ | Bug #19519 should show current date when not set; Bug #19687 should show set date; Bug #19517 select and deselect all function for weekly | P1: task-condition-pane.component.interaction.tl.spec.ts<br>P2: task-condition-pane.component.risk.tl.spec.ts<br>P3: task-condition-pane.component.display.tl.spec.ts |
 | 待审核 | ExecuteAsDialog | 190 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | TaskOptionsPane | 189 | 0 | 13 | **multi-pass** | ✅ 推进 | ⚠️ task-options-pane.component.spec.ts | Bug #19508; Bug #19745; Bug #21420 should get correct locale info when set 'Default' | P1: task-options-pane.component.interaction.tl.spec.ts<br>P2: task-options-pane.component.risk.tl.spec.ts |
 | 待审核 | ScheduleTaskEditorComponent | 192 | 0 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: schedule-task-editor.component.interaction.tl.spec.ts<br>P2: schedule-task-editor.component.risk.tl.spec.ts |
-| 待审核 | SelectDashboardDialog | 69 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | EditTaskFolderDialog | 69 | 0 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核 | MoveTaskDialogComponent | 97 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
+| 待审核 | SelectDashboardDialog | 69 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
+| 待审核 | EditTaskFolderDialog | 69 | 0 | 4 | **single-pass** | 暂缓 |  |  | single pass (+竞态+内存泄漏) |
+| 待审核 | MoveTaskDialogComponent | 97 | 0 | 3 | **single-pass** | 暂缓 |  |  | single pass (+竞态+内存泄漏) |
 | ✅已测试 | ScheduleTaskListComponent | 844 | 1 | 58 | **multi-pass** | ✅ 推进 |  |  | P1: schedule-task-list.component.interaction.tl.spec.ts<br>P2: schedule-task-list.component.risk.tl.spec.ts |
 | 待审核 | InputNameDialog | 112 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ input-name-dialog.component.spec.ts | Bug #19762 Show the error message on the input; test: Show the error message on the input | single pass (+内存泄漏) |
 | ✅已测试 | ActionsContextmenuComponent | 154 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ actions-contextmenu.component.spec.ts | test: should not create a dropdown when there are no visible actions | single pass (+内存泄漏) |
 | ✅已测试 | NotificationsComponent | 65 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ notifications.component.spec.ts | 无 | single pass (+内存泄漏) |
-| 待审核 | RepositoryTreeComponent | 461 | 0 | 5 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核 | ResponsiveTabsComponent | 80 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅已测试 | RepositoryTreeComponent | 461 | 0 | 5 | **single-pass** | ✅已测试 | 24/24✅ |  | single pass (+竞态+内存泄漏) |
+| 待审核 | ResponsiveTabsComponent | 80 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | SplitPane | 120 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核 | TabularViewComponent | 59 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核 | TreeNodeComponent | 506 | 3 | 5 | **multi-pass** | ✅ 推进 |  |  | P1: tree-node.component.interaction.tl.spec.ts<br>P2: tree-node.component.risk.tl.spec.ts<br>P3: tree-node.component.display.tl.spec.ts |
-| 待审核 | TreeComponent | 754 | 6 | 6 | **multi-pass** | ✅ 推进 | ⚠️ tree.spec.ts | Bug #17221 search field can not input string; (reading 'expanded')" after the fixture is destroyed.; Bug #17336 should show infomation when no result  | P1: tree.component.interaction.tl.spec.ts<br>P2: tree.component.risk.tl.spec.ts<br>P3: tree.component.display.tl.spec.ts |
-| 待审核 | AiAssistantDialogComponent | 35 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| 待审核 | TabularViewComponent | 59 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
+| ✅已测试 | TreeNodeComponent | 506 | 3 | 5 | **multi-pass** | ✅ 推进 |  |  | P1: tree-node.component.interaction.tl.spec.ts (74/74 ✅)<br>P2: tree-node.component.risk.tl.spec.ts (6/6 ✅)<br>P3: tree-node.component.display.tl.spec.ts (21/21 ✅) |
+| ✅已测试 | TreeComponent | 754 | 6 | 6 | **multi-pass** | ✅ 推进 | ~~⚠️ tree.spec.ts~~ | Bug #17221: P1 search() 覆盖；Bug #17336: P3 DOM 用例覆盖 — 旧 spec 已可安全删除 | P1: tree.component.interaction.tl.spec.ts (47/47 ✅)<br>P2: tree.component.risk.tl.spec.ts (8/8 ✅)<br>P3: tree.component.display.tl.spec.ts (8/8 ✅，含 Bug #17336 DOM 覆盖) |
+| 待审核 | AiAssistantDialogComponent | 35 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | AiAssistantPanelComponent | 177 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 
 ## 多 pass 组件详情
@@ -456,71 +456,71 @@
 
 | 状态    | 组件 | logic_lines | dispatch | async_zones | 分类 | 建议 | 旧 spec | 旧 spec 备注 | Pass 计划 |
 |-------|------|-------------|----------|-------------|------|------|---------|-------------|-----------|
-| 待审核   | ScheduleTabComponent | 20 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核   | ScheduleTabComponent | 20 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | ✅ 已测试 | ActionAccordionComponent | 861 | 0 | 6 | **multi-pass** | ✅ 推进 | ⚠️ action-accordion.spec.ts | test: check clear all parameters; test: should get correct highlight name for alert | P1: action-accordion.component.interaction.tl.spec.ts<br>P2: action-accordion.component.risk.tl.spec.ts |
-| 待审核   | ScheduleTaskDialogComponent | 57 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ schedule-task-dialog.spec.ts | Bug #21217 task name control (broken test) | single pass |
+| 待审核   | ScheduleTaskDialogComponent | 57 | 0 | 0 | **single-pass** | 暂缓 | ⚠️ schedule-task-dialog.spec.ts | Bug #21217 task name control (broken test) | single pass |
 | 待审核   | AddParameterDialogComponent | 265 | 0 | 2 | **single-pass** | ✅ 推进 | ⚠️ add-parameter-dialog.component.spec.ts | test: should pop confirm dialog when create duplicate parameter; broken test: check can create parameter; test: check can edit parameter | single pass (+内存泄漏) |
-| 待审核   | EditableTableComponent | 45 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核   | ParameterTableComponent | 55 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ parameter-table.component.spec.ts | test: should show confirm when to delete parameter; test: check can edit parameter; test: should display timeinstant/array parameter correctly | single pass |
-| 待审核   | CreateTaskFolderDialogComponent | 73 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核   | TaskFolderBrowserComponent | 82 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核   | RepositoryListViewComponent | 27 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核   | RepositoryMobileViewComponent | 45 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核   | EditableTableComponent | 45 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
+| 待审核   | ParameterTableComponent | 55 | 0 | 0 | **single-pass** | 暂缓 | ⚠️ parameter-table.component.spec.ts | test: should show confirm when to delete parameter; test: check can edit parameter; test: should display timeinstant/array parameter correctly | single pass |
+| 待审核   | CreateTaskFolderDialogComponent | 73 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
+| 待审核   | TaskFolderBrowserComponent | 82 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
+| 待审核   | RepositoryListViewComponent | 27 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
+| 待审核   | RepositoryMobileViewComponent | 45 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | 待审核   | RepositoryTreeViewComponent | 170 | 0 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核   | ChangePasswordDialogComponent | 62 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核   | MvExceptionsPortalDialogComponent | 29 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核   | DataNotificationsComponent | 19 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核   | MoveDataModelDialogComponent | 71 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核   | ChangePasswordDialogComponent | 62 | 0 | 2 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
+| 待审核   | MvExceptionsPortalDialogComponent | 29 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
+| 待审核   | DataNotificationsComponent | 19 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
+| 待审核   | MoveDataModelDialogComponent | 71 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | 待审核   | MoveDatasourceDialogComponent | 117 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核   | AssetDescriptionComponent | 28 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核   | AssetDescriptionComponent | 28 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | 待审核   | DataSourcesBrowserComponent | 157 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核   | DatasourceCategoryPaneComponent | 26 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核   | DatasourceListingPaneComponent | 25 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核   | DatasourceListingComponent | 32 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核   | DatasourceSearchComponent | 23 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核   | DatasourceCategoryPaneComponent | 26 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
+| 待审核   | DatasourceListingPaneComponent | 25 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
+| 待审核   | DatasourceListingComponent | 32 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
+| 待审核   | DatasourceSearchComponent | 23 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | 待审核   | LogicalModelAttributeEditorComponent | 304 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核   | LogicalModelColumnEditorComponent | 54 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核   | LogicalModelColumnEditorComponent | 54 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | 待审核   | ElementTreeNodeComponent | 205 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核   | LogicalModelEntityEditorComponent | 38 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核   | LogicalModelEntityPaneComponent | 97 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| 待审核   | LogicalModelEntityEditorComponent | 38 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
+| 待审核   | LogicalModelEntityPaneComponent | 97 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | 待审核   | LogicalModelExpressionEditorComponent | 182 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核   | PhysicalTableTreeNodeComponent | 58 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核   | PhysicalTableTreeNodeComponent | 58 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | 待审核   | PhysicalTableTreeComponent | 250 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核   | PhysicalModelTableTreeNodeComponent | 81 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核   | PhysicalModelTableTreeComponent | 44 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核   | PhysicalStatusBarComponent | 21 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核   | DataModelFolderBrowserComponent | 78 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核   | ChoseAdditionalConnectionDialogComponent | 74 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核   | ChosePhysicalViewDialogComponent | 41 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核   | SelectAttributePaneComponent | 73 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核   | SelectQueryFieldPaneComponent | 24 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核   | EditJoinTableColumnComponent | 81 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核   | EditJoinTableComponent | 79 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核   | PhysicalModelTableTreeNodeComponent | 81 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
+| 待审核   | PhysicalModelTableTreeComponent | 44 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
+| 待审核   | PhysicalStatusBarComponent | 21 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
+| 待审核   | DataModelFolderBrowserComponent | 78 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
+| 待审核   | ChoseAdditionalConnectionDialogComponent | 74 | 0 | 2 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
+| 待审核   | ChosePhysicalViewDialogComponent | 41 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
+| 待审核   | SelectAttributePaneComponent | 73 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
+| 待审核   | SelectQueryFieldPaneComponent | 24 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
+| 待审核   | EditJoinTableColumnComponent | 81 | 0 | 2 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
+| 待审核   | EditJoinTableComponent | 79 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | 待审核   | JoinNodeGraphComponent | 268 | 0 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核   | LoadingIndicatorPaneComponent | 22 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核   | PhysicalModelEditTableComponent | 36 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核   | LoadingIndicatorPaneComponent | 22 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
+| 待审核   | PhysicalModelEditTableComponent | 36 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | 待审核   | AddJoinDialogComponent | 119 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核   | EditJoinDialogComponent | 81 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核   | EditJoinDialogComponent | 81 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | 待审核   | PhysicalTableJoinsComponent | 319 | 0 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核   | DatasourcesDatasourceDialogComponent | 37 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核   | ViewSampleDataDialogComponent | 24 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核   | DatasourcesDatasourceDialogComponent | 37 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
+| 待审核   | ViewSampleDataDialogComponent | 24 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | 待审核   | DatabaseQueryComponent | 217 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核   | FieldsPaneComponent | 305 | 0 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核   | QueryConditionsPaneComponent | 79 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核   | BrowseFieldValuesDialogComponent | 26 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核   | EditDataTypeDialogComponent | 28 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核   | EditFieldDialogComponent | 97 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| 待审核   | QueryConditionsPaneComponent | 79 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
+| 待审核   | BrowseFieldValuesDialogComponent | 26 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
+| 待审核   | EditDataTypeDialogComponent | 28 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
+| 待审核   | EditFieldDialogComponent | 97 | 0 | 2 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | 待审核   | QueryFieldsPaneComponent | 462 | 0 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: query-fields-pane.component.interaction.tl.spec.ts<br>P2: query-fields-pane.component.risk.tl.spec.ts |
-| 待审核   | QueryGroupingPaneComponent | 53 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核   | QueryGroupingPaneComponent | 53 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | 待审核   | QueryJoinEditPaneComponent | 124 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核   | QueryLinkGraphPaneComponent | 113 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核   | QueryLinkPaneComponent | 117 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核   | QueryNetworkGraphPaneComponent | 713 | 0 | 10 | **multi-pass** | ✅ 推进 |  |  | P1: query-network-graph-pane.component.interaction.tl.spec.ts<br>P2: query-network-graph-pane.component.risk.tl.spec.ts |
-| 待审核   | QueryTablePropertiesDialogComponent | 57 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核   | QuerySortPaneComponent | 22 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核   | QueryTablePropertiesDialogComponent | 57 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
+| 待审核   | QuerySortPaneComponent | 22 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | 待审核   | QueryPreviewTableComponent | 245 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核   | SqlQueryPreviewPaneComponent | 79 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核   | FreeFormSqlPaneComponent | 73 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| 待审核   | SqlQueryPreviewPaneComponent | 79 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
+| 待审核   | FreeFormSqlPaneComponent | 73 | 0 | 2 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 
 ---
 
@@ -555,3 +555,70 @@
 **Pass 2** (`query-network-graph-pane.component.risk.tl.spec.ts`)
 - Methods: connectionDeletable, removeJoinCondition, deleteNode, clearJoin, clearTable, clearTableEnabled, clearJoinEnabled, refreshAnchors, setDraggable, moveNodes, contextMenu, createActions, keydown, removeSelectTables, doRemove, selectAll, clearSelection, refreshDragSelection, isColumnExist, convertToHTMLCharacterEntity
 - Reason: async>5 (10 subscriptions)：竞态 / destructive operations / state inconsistency
+
+---
+
+> **以下为 2026-06-24 补充扫描新增组件（6 个）**
+> 来源：系统性缺口分析，portal 路由下的调度对话框、Email 编辑、参数页面及时间选择器。
+> `logic_lines / dispatch / async_zones` 均为 `—`（待 prescan workflow 精确扫描）。
+
+| 状态 | 组件 | logic_lines | dispatch | async_zones | 分类 | 建议 | 旧 spec | 旧 spec 备注 | Pass 计划 |
+|------|------|-------------|----------|-------------|------|------|---------|-------------|-----------|
+| 待审核 | SimpleScheduleDialog | 540 | 3 | 5 | **multi-pass** | ✅ 推进 | ⚠️ simple-schedule-dialog.component.spec.ts | Both test cases are marked it.skip, giving zero effective coverage; no core functionality (form init, history restore, timezone conversion, export visibility logic, okDisabled guard) is tested. | P1: SimpleScheduleDialog.interaction.tl.spec.ts<br>P2: SimpleScheduleDialog.risk.tl.spec.ts<br>P3: SimpleScheduleDialog.display.tl.spec.ts |
+| 待审核 | StartTimeEditor | 173 | 1 | 1 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核 | EmbeddedEmailPane | 469 | 4 | 5 | **multi-pass** | ✅ 推进 | ⚠️ email-addr-dialog.spec.ts | Covers add-user dedup and remove-user via DOM clicks on EmailAddrDialog host and direct EmbeddedEmailPane; does NOT cover select() multi-key logic, addressChange() format branches, reset() colon-delimited non-embeddedOnly parsing, searchUsers() mode toggle, moveFocus() keyboard dispatch, addIdentity() group path deduplication, or currentUser/usersNode async ordering. | P1: EmbeddedEmailPane.interaction.tl.spec.ts<br>P2: EmbeddedEmailPane.risk.tl.spec.ts<br>P3: EmbeddedEmailPane.display.tl.spec.ts |
+| 待审核 | EmailPane | 135 | 1 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: email-pane.interaction.tl.spec.ts<br>P2: email-pane.risk.tl.spec.ts |
+| 待审核 | ParameterPage | 283 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核 | TimepickerComponent | 202 | 4 | 0 | **multi-pass** | ✅ 推进 |  |  | P1: timepicker.interaction.tl.spec.ts<br>P3: timepicker.display.tl.spec.ts |
+
+---
+
+## 2026-06-24 补充扫描 Multi-Pass 详情（4 个）
+
+### SimpleScheduleDialog
+
+**Pass 1** (`SimpleScheduleDialog.interaction.tl.spec.ts`)
+- Methods: ngOnInit, ngOnDestroy, initForm, addEmail, addCCEmail, addBCCEmail, openEmailDialog, ok, cancel, changeStartTimeModel, selectConditionType, selectDayOfWeek, selectDaysOfWeek, changeEveryDay, formatChange, updateOnlyDataComponents
+- Reason: User-triggered flows, lifecycle hooks, HTTP loading on ok(), and modal dialog interactions
+
+**Pass 2** (`SimpleScheduleDialog.risk.tl.spec.ts`)
+- Methods: ok (HTTP subscribe — OK vs error branch, addressHistory update, onCommit emit), initForm (valueChanges subscriptions for emails/cc/bcc), search (debounce observable)
+- Reason: asyncZones = 5: email validation HTTP race, subscribe-driven form sync, and debounced typeahead observable
+
+**Pass 3** (`SimpleScheduleDialog.display.tl.spec.ts`)
+- Methods: okDisabled, dataSizeOptionVisible, showMeridian, isEmptyTable, setTimeZone, convertTimeZone, getTimezoneOffset, getHistoryModel, fixMonthCondition, getEmailUsers
+- Reason: dispatchPoints = 3: pure conditional/label computations including timezone conversion math, export format visibility flags, and form disable guard
+
+### EmbeddedEmailPane
+
+**Pass 1** (`EmbeddedEmailPane.interaction.tl.spec.ts`)
+- Methods: ngOnInit, ngOnDestroy, constructor (HTTP usersNode fetch + currentUser subscribe), initForm (form control + Subject subscribes), addIdentities, addIdentity, removeIdentities, nodeSelected, updateOtherEmail, updateSearchText, updateSearchIdentityText, searchUsers, reset, addressChange, changeEmail
+- Reason: HTTP loading, lifecycle hooks, user-triggered add/remove/search flows, and address serialization are the primary integration surface
+
+**Pass 2** (`EmbeddedEmailPane.risk.tl.spec.ts`)
+- Methods: constructor subscribe ordering (usersNode arrives after reset), ngOnDestroy Subject unsubscribe, searchTextchanges$ debounce/distinctUntilChanged behaviour, searchIdentitychanges$ debounce, addresses setter initialAddresses null-guard, getUserAlias when usersNode empty vs populated
+- Reason: asyncZones = 5; concurrent subscribe ordering and Subject cleanup on destroy are race/state-inconsistency risks
+
+**Pass 3** (`EmbeddedEmailPane.display.tl.spec.ts`)
+- Methods: select (ctrl/meta, shiftKey-empty, shiftKey-range, plain click), moveFocus (ArrowDown/ArrowUp/Backspace key dispatch), removeIdentities (USER vs GROUP vs other branch), addressChange (embeddedOnly vs non-embeddedOnly format), addDisable, getIdentityIcon, isSelectedIdentity, searchAllIdentities, sortIdentities, getGroupPath, trackByIndex, findNextNode, findIdentityIndex
+- Reason: dispatchPoints = 4; label/icon computation and multi-key selection branches are pure conditional display logic
+
+### EmailPane
+
+**Pass 1** (`email-pane.interaction.tl.spec.ts`)
+- Methods: ngOnInit, initForm (form control creation, validators, fromAddr enable/disable branch, isIE branch), ngOnDestroy (subscription teardown), getAddress (switch: to/cc/bcc/unknown), selectEmails (address lookup, modal open, result→form setValue, reject/cancel), model getter/setter, message getter/setter
+- Reason: Covers component lifecycle, form initialization, fromAddressEnabled enable/disable conditional, and the modal open→result user flow — all directly user-triggered or lifecycle-driven interactions.
+
+**Pass 2** (`email-pane.risk.tl.spec.ts`)
+- Methods: initForm valueChanges subscriptions (toAddress/ccAddress/bccAddress/fromAddr/message → model sync), modalService.open().result.then resolve and reject paths, addressSearch debounce observable (term present with historyEmails, term absent, historyEmails absent)
+- Reason: asyncZones = 6 triggers a risk pass. Tests the 5 subscribe-based form→model sync handlers for correctness and the Promise-based modal result chain (resolve updates form control; reject is silently swallowed), plus the debounce-filtered typeahead observable edge cases.
+
+### TimepickerComponent
+
+**Pass 1** (`timepicker.interaction.tl.spec.ts`)
+- Methods: ngOnInit, model setter/getter, changeHour, handleHour, changeMinute, handleMinute, changeSecond, handleSecond, updateHour, updateMinute, updateSecond, toggleMeridian, propogateTimeChange, initForm
+- Reason: User-triggered flows: keyboard arrow-key handlers, spinner step changes, direct input updates, meridian toggle, timeChange EventEmitter emission, form control synchronization, and ngOnInit wiring
+
+**Pass 3** (`timepicker.display.tl.spec.ts`)
+- Methods: setControlSize, formatTime, getTimeStruct, padNumber, toInteger, isNumber, NgbTime (all methods)
+- Reason: Pure conditional/display logic: 3-way size switch (small/large/default), meridian vs 24h hour formatting, NaN/invalid handling in padNumber and NgbTime arithmetic helpers, getTimeStruct null guard

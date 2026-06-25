@@ -32,31 +32,44 @@ package inetsoft.sree.schedule;
  *  [Lifecycle: close-error] storage.close() throws                                -> DAO propagates the exception
  */
 
-import inetsoft.storage.KeyValuePair;
-import inetsoft.storage.KeyValueStorage;
+import inetsoft.test.schedule.InMemoryKeyValueStorage;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.TimeoutException;
+
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.stream.Stream;
-
 import static org.junit.jupiter.api.Assertions.*;
 
+/*
+ * Intent vs implementation suspects Issue #75501 
+ *
+ * [Suspect 1] setStatus(task, ...) when storage.put() throws InterruptedException
+ *             -> intent: acknowledge failure and log
+ *             -> actual: InterruptedException is caught by the broad catch(Exception ex) at line 103;
+ *                the JVM clears the thread's interrupted flag when the exception is thrown, and the
+ *                catch block never calls Thread.currentThread().interrupt() to restore it.
+ *                The method then returns newStatus normally, so the caller has no way to detect
+ *                the interruption via isInterrupted().
+ *             -> trigger: a thread blocked in Future.get(10, SECONDS) while the storage backend
+ *                (e.g. Ignite under cluster node failover) is slow, and an external caller
+ *                (Spring executor shutdown or Quartz job-thread interrupt) fires thread.interrupt().
+ *             -> impact: low in local/MapDB deployments (futures complete near-instantly);
+ *                real in Ignite-backed clusters during graceful shutdown — Quartz or Spring may
+ *                fail to stop the thread, delaying shutdown or causing the job to re-enter.
+ *             -> fix: split the catch into InterruptedException (restore flag) + Exception (log only).
+ *
+ * [Suspect 2] clearStatus(task) when storage.remove() throws InterruptedException
+ *             -> actual: same interrupt-flag leak as Suspect 1, but the catch at line 122 makes it
+ *                more visible because InterruptedException is named explicitly yet the flag is still
+ *                not restored.
+ *             -> trigger/impact/fix: identical to Suspect 1.
+ */
 @Tag("core")
 public class ScheduleStatusDaoTest {
    private final Logger scheduleStatusDaoLogger =
@@ -106,12 +119,14 @@ public class ScheduleStatusDaoTest {
 
       assertFalse(storage.contains("__nightly__"));
       assertFalse(storage.contains("TASK^^nightly"));
+      assertTrue(storage.contains("TASK^^11:__nightly__")); // length-prefixed format
       assertEquals(1, storage.size());
       assertStatus(dao.getStatus("__nightly__"), Scheduler.Status.FAILED, 10L, 20L, "boom", 10L);
 
       dao.clearStatus("__nightly__");
 
       assertFalse(storage.contains("TASK^^nightly"));
+      assertFalse(storage.contains("TASK^^11:__nightly__"));
       assertEquals(0, storage.size());
       assertNull(dao.getStatus("__nightly__"));
    }
@@ -224,12 +239,14 @@ public class ScheduleStatusDaoTest {
       dao.setStatus("TASK^^foo", Scheduler.Status.FINISHED, 20L, 30L, null, false);
 
       assertEquals(2, storage.size());
+      assertTrue(storage.contains("TASK^^7:__foo__"));   // "__foo__" (len=7) encoded
+      assertTrue(storage.contains("TASK^^9:TASK^^foo")); // "TASK^^foo" (len=9) starts with prefix
       assertStatus(dao.getStatus("__foo__"), Scheduler.Status.STARTED, 10L, 0L, null, 10L);
       assertStatus(dao.getStatus("TASK^^foo"), Scheduler.Status.FINISHED, 20L, 30L, null, 20L);
    }
 
-   // "____" satisfies ^__.*__$ and encodes to "TASK^^" (empty suffix via substring(2,2)),
-   // colliding with a literal task named "TASK^^"; the two entries silently overwrite each other
+   // "____" satisfies ^__.*__$ and encodes to "TASK^^4:____"; "TASK^^" starts with ENCODE_PREFIX
+   // and encodes to "TASK^^6:TASK^^"; the length-prefixed format guarantees no collision
    @Test
    void setStatus_fourUnderscoreTaskName_shouldNotCollideWithEmptySuffixKey() {
       InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage = new InMemoryKeyValueStorage<>();
@@ -263,6 +280,48 @@ public class ScheduleStatusDaoTest {
       assertEquals(0, storage.size());
    }
 
+   // [Lifecycle: idempotency] clearStatus on a task that was never set does not throw
+   // Pre: storage empty; Op: clearStatus("no-such-task"); Post: no exception, storage stays empty
+   @Test
+   void clearStatus_nonExistentTask_doesNotThrow() {
+      InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage = new InMemoryKeyValueStorage<>();
+      ScheduleStatusDao dao = newDao(storage);
+
+      assertDoesNotThrow(() -> dao.clearStatus("no-such-task"));
+      assertEquals(0, storage.size());
+   }
+
+   @Disabled("Suspect 1: setStatus swallows InterruptedException without restoring the thread " +
+             "interrupted flag - ScheduleStatusDao:103; Fix: add Thread.currentThread().interrupt() " +
+             "in the catch block")
+   @Test
+   void setStatus_whenPutInterrupted_shouldRestoreInterruptFlag() {
+      scheduleStatusDaoLogger.setLevel(Level.OFF);
+      InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage = new InMemoryKeyValueStorage<>();
+      storage.failNextPut(new InterruptedException("simulated interrupt"));
+      ScheduleStatusDao dao = newDao(storage);
+
+      dao.setStatus("task", Scheduler.Status.STARTED, 1L, 0L, null, false);
+
+      assertTrue(Thread.interrupted()); // returns true and clears flag; currently FAILS
+   }
+
+   @Disabled("Suspect 2: clearStatus swallows InterruptedException without restoring the thread " +
+             "interrupted flag - ScheduleStatusDao:122; Fix: add Thread.currentThread().interrupt() " +
+             "in the catch block")
+   @Test
+   void clearStatus_whenRemoveInterrupted_shouldRestoreInterruptFlag() {
+      scheduleStatusDaoLogger.setLevel(Level.OFF);
+      InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage = new InMemoryKeyValueStorage<>();
+      ScheduleStatusDao dao = newDao(storage);
+      dao.setStatus("task", Scheduler.Status.STARTED, 1L, 0L, null, false);
+      storage.failNextRemove(new InterruptedException("simulated interrupt"));
+
+      dao.clearStatus("task");
+
+      assertTrue(Thread.interrupted()); // returns true and clears flag; currently FAILS
+   }
+
    private static ScheduleStatusDao newDao(InMemoryKeyValueStorage<ScheduleStatusDao.Status> storage) {
       return new ScheduleStatusDao(storage);
    }
@@ -279,191 +338,4 @@ public class ScheduleStatusDaoTest {
       assertEquals(scheduledStartTime, actual.getLastScheduledStartTime());
    }
 
-   private static final class InMemoryKeyValueStorage<T extends Serializable>
-      implements KeyValueStorage<T>
-   {
-      @Override
-      public boolean contains(String key) {
-         return values.containsKey(key);
-      }
-
-      @Override
-      public T get(String key) {
-         return values.get(key);
-      }
-
-      @Override
-      public Future<T> put(String key, T value) {
-         if(nextPutFailure != null) {
-            Exception failure = nextPutFailure;
-            nextPutFailure = null;
-            return new FailedFuture<>(failure);
-         }
-
-         values.put(key, value);
-         return CompletableFuture.completedFuture(value);
-      }
-
-      @Override
-      public Future<?> putAll(SortedMap<String, T> values) {
-         this.values.putAll(values);
-         return CompletableFuture.completedFuture(null);
-      }
-
-      @Override
-      public Future<T> remove(String key) {
-         if(nextRemoveFailure != null) {
-            Exception failure = nextRemoveFailure;
-            nextRemoveFailure = null;
-            return new FailedFuture<>(failure);
-         }
-
-         T removed = values.remove(key);
-         return CompletableFuture.completedFuture(removed);
-      }
-
-      @Override
-      public Future<?> removeAll(Set<String> keys) {
-         keys.forEach(values::remove);
-         return CompletableFuture.completedFuture(null);
-      }
-
-      @Override
-      public Future<T> rename(String oldKey, String newKey, T value) {
-         T renamedValue = value != null ? value : values.get(oldKey);
-         values.remove(oldKey);
-         T previous = values.put(newKey, renamedValue);
-         return CompletableFuture.completedFuture(previous);
-      }
-
-      @Override
-      public Future<?> replaceAll(SortedMap<String, T> values) {
-         this.values.clear();
-         this.values.putAll(values);
-         return CompletableFuture.completedFuture(null);
-      }
-
-      @Override
-      public Future<?> deleteStore() {
-         values.clear();
-         closed = true;
-         return CompletableFuture.completedFuture(null);
-      }
-
-      @Override
-      public Stream<KeyValuePair<T>> stream() {
-         return values.entrySet().stream()
-            .map(entry -> new KeyValuePair<>(entry.getKey(), entry.getValue()));
-      }
-
-      @Override
-      public Stream<String> keys() {
-         return values.keySet().stream();
-      }
-
-      @Override
-      public int size() {
-         return values.size();
-      }
-
-      @Override
-      public void addListener(Listener<T> listener) {
-         listeners.add(listener);
-      }
-
-      @Override
-      public void removeListener(Listener<T> listener) {
-         listeners.remove(listener);
-      }
-
-      @Override
-      public boolean isClosed() {
-         return closed;
-      }
-
-      @Override
-      public void close() throws Exception {
-         if(nextCloseFailure != null) {
-            Exception failure = nextCloseFailure;
-            nextCloseFailure = null;
-            throw failure;
-         }
-
-         closed = true;
-      }
-
-      void failNextPut(Exception failure) {
-         nextPutFailure = failure;
-      }
-
-      void failNextRemove(Exception failure) {
-         nextRemoveFailure = failure;
-      }
-
-      void failOnClose(Exception failure) {
-         nextCloseFailure = failure;
-      }
-
-      private final LinkedHashMap<String, T> values = new LinkedHashMap<>();
-      private final List<Listener<T>> listeners = new ArrayList<>();
-      private Exception nextPutFailure;
-      private Exception nextRemoveFailure;
-      private Exception nextCloseFailure;
-      private boolean closed;
-   }
-
-   private static final class FailedFuture<T> implements Future<T> {
-      private FailedFuture(Exception failure) {
-         this.failure = failure;
-      }
-
-      @Override
-      public boolean cancel(boolean mayInterruptIfRunning) {
-         return false;
-      }
-
-      @Override
-      public boolean isCancelled() {
-         return false;
-      }
-
-      @Override
-      public boolean isDone() {
-         return true;
-      }
-
-      @Override
-      public T get() throws InterruptedException, ExecutionException {
-         if(failure instanceof InterruptedException interrupted) {
-            throw interrupted;
-         }
-
-         if(failure instanceof ExecutionException execution) {
-            throw execution;
-         }
-
-         throw new ExecutionException(failure);
-      }
-
-      @Override
-      public T get(long timeout, TimeUnit unit)
-         throws InterruptedException, ExecutionException, TimeoutException
-      {
-         if(failure instanceof InterruptedException interrupted) {
-            throw interrupted;
-         }
-
-         if(failure instanceof TimeoutException timeoutFailure) {
-            throw timeoutFailure;
-         }
-
-         if(failure instanceof ExecutionException execution) {
-            throw execution;
-         }
-
-         throw new ExecutionException(failure);
-      }
-
-      private final Exception failure;
-   }
 }

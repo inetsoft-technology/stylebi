@@ -104,7 +104,6 @@ import { BAggregateRef } from "../../binding/data/b-aggregate-ref";
 import { ChartBindingModel } from "../../binding/data/chart/chart-binding-model";
 import { ChartRef } from "../../common/data/chart-ref";
 import { AestheticInfo } from "../../binding/data/chart/aesthetic-info";
-import { VirtualScrollService } from "../../widget/tree/virtual-scroll.service";
 import { VSBindingTreeService } from "../../binding/widget/binding-tree/vs-binding-tree.service";
 import { ConsoleMessage } from "../../widget/console-dialog/console-message";
 import { VSLoadingDisplay } from "../../vsobjects/objects/vs-loading-display/vs-loading-display.component";

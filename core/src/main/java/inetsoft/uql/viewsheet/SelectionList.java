@@ -859,8 +859,9 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
       };
 
       // don't reuse swap data. since selection values are mutable, need to write them out.
+      Kryo kryo = XSwapUtil.getKryo();
+
       try(Output objout = new Output(new FileOutputStream(swapFile))) {
-         Kryo kryo = XSwapUtil.getKryo();
          ArrayList<SelectionValue> list2 = new ArrayList<>();
 
          for(int i = 0; i < this.list.size(); i++) {
@@ -881,6 +882,9 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
       catch(Exception ex) {
          LOG.warn("Swapping failed for selection list: " + swapFile, ex);
       }
+      finally {
+         XSwapUtil.releaseKryo(kryo);
+      }
 
       return true;
    }
@@ -896,9 +900,9 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
                Function<Integer, Format> defFmtMapper = idx -> defFmtDict.get(idx);
                Function<Integer, VSCompositeFormat> fmtMapper = idx -> fmtDict.get(idx);
 
-               try(Input inp = new Input(new FileInputStream(swapFile))) {
-                  Kryo kryo = XSwapUtil.getKryo();
+               Kryo kryo = XSwapUtil.getKryo();
 
+               try(Input inp = new Input(new FileInputStream(swapFile))) {
                   for(int i = 0; i < this.list.size(); i++) {
                      SelectionValue val = this.list.get(i);
 
@@ -917,6 +921,9 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
                }
                catch(Exception ex) {
                   LOG.warn("Restore failed for selection list: " + swapFile, ex);
+               }
+               finally {
+                  XSwapUtil.releaseKryo(kryo);
                }
             }
          }

@@ -34,7 +34,6 @@ import { DomService } from "../../../widget/dom-service/dom.service";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { Viewsheet } from "../../data/vs/viewsheet";
 import { toolbox, toolboxDeployed } from "./toolbox.config";
-import { VirtualScrollService } from "../../../widget/tree/virtual-scroll.service";
 import { map } from "rxjs/operators";
 import { Subscription } from "rxjs";
 import { TreeTool } from "../../../common/util/tree-tool";

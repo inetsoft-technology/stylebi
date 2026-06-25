@@ -50,23 +50,36 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 public class TaskBalancerTest {
    /*
-    * TaskBalancer decision tree
-    *  [A] isInRange() on a regular range                   -> start <= time < end
-    *  [B] isInRange() on an overnight range                -> time >= start || time < end
-    *  [C] getDuration() on a regular range                 -> direct minute delta
-    *  [D] getDuration() on an overnight range              -> wrap across midnight
-    *  [E] getInterval() finds a 5-minute multiple          -> maximize interval within concurrency
-    *  [F] getInterval() cannot find a 5-minute multiple    -> clamp to 1 minute
-    *  [G] getSlot(TimeCondition) for EVERY_HOUR same end   -> single slot
-    *  [H] getSlot(TimeCondition) for EVERY_HOUR range      -> multiple slots
-    *  [I] distribute() finds a free slot                   -> assign slot and mutate condition
-    *  [J] distribute() finds no free slot in sub-range     -> return remaining condition indexes
-    *  [K] isMatchingTimeRange() exact existing range       -> direct equality
-    *  [L] isMatchingTimeRange() stale range definition     -> best-match lookup
-    *  [M] roundUp()/roundDown() already aligned            -> unchanged
-    *  [N] roundUp()/roundDown() not aligned                -> move to nearest 5-minute boundary
-    *  [O] roundUp() near midnight                          -> wraps to 00:00 without date context
-    *  [P] getStartTime(AT)                                 -> uses condition time zone
+    * Tier: [unit] — pure algorithm tests via reflection on private helpers; no ScheduleManager mock.
+    *
+    * Intent vs implementation suspects: none confirmed for TaskBalancer at this time.
+    *
+    * Decision tree (paths exercised):
+    *  [A] isInRange() regular range                   -> start <= time < end
+    *  [B] isInRange() overnight range                 -> time >= start || time < end
+    *  [C] getDuration() regular range                 -> direct minute delta
+    *  [D] getDuration() overnight range               -> wrap across midnight
+    *  [E] getInterval() finds a 5-minute multiple     -> maximize interval within concurrency
+    *  [F] getInterval() cannot find a 5-minute multiple -> clamp to 1 minute
+    *  [G] getSlot(TimeCondition) EVERY_HOUR same end   -> single slot
+    *  [H] getSlot(TimeCondition) EVERY_HOUR range    -> multiple slots
+    *  [I] distribute() finds a free slot             -> assign slot and mutate condition
+    *  [J] distribute() blocked slot in sub-range     -> return remaining condition indexes
+    *  [K] isMatchingTimeRange() exact existing range  -> direct equality
+    *  [L] isMatchingTimeRange() stale range definition -> best-match lookup
+    *  [M] roundUp()/roundDown() already aligned      -> unchanged
+    *  [N] roundUp()/roundDown() not aligned           -> nearest 5-minute boundary
+    *  [O] roundUp() near midnight                     -> wraps to 00:00 without date context
+    *  [P] getStartTime(AT)                            -> uses condition time zone
+    */
+
+   /*
+    * Cases deferred - require integration context:
+    *
+    * [TaskBalancer] balanceTasks() / updateTask() / refreshTaskBalancerTriggers()
+    *             -> needs ScheduleManager, SreeEnv schedule.concurrency, ThreadContext; NOT yet covered
+    * [TaskBalancer] balanceTasks(TimeRange) full pipeline with hard-coded AT slots
+    *             -> partially covered via isolated distribute/fillSlots helpers; end-to-end NOT duplicated
     */
 
    private final TaskBalancer taskBalancer = new TaskBalancer();
@@ -257,28 +270,74 @@ public class TaskBalancerTest {
    // [Path K/L] matching uses direct equality for known ranges and closest match for stale ranges.
    @Test
    void isMatchingTimeRange_existingAndChangedRanges_matchExpectedRange() throws Exception {
+      List<TimeRange> originalRanges = new ArrayList<>(TimeRange.getTimeRanges());
+
+      try {
+         TimeRange morning = new TimeRange("morning", "09:00:00", "12:00:00", true);
+         TimeRange afternoon = new TimeRange("afternoon", "12:00:00", "18:00:00", false);
+         Set<TimeRange> ranges = new HashSet<>(Arrays.asList(morning, afternoon));
+         TimeRange.setTimeRanges(Arrays.asList(morning, afternoon));
+
+         TimeCondition exact = TimeCondition.at(9, 0, 0);
+         exact.setTimeRange(morning);
+
+         boolean exactMatch = invoke("isMatchingTimeRange",
+            new Class<?>[] { TimeCondition.class, TimeRange.class, Set.class },
+            exact, morning, ranges);
+
+         assertTrue(exactMatch);
+
+         TimeCondition stale = TimeCondition.at(9, 0, 0);
+         stale.setTimeRange(new TimeRange("legacy", "09:05:00", "12:05:00", false));
+
+         boolean staleMatch = invoke("isMatchingTimeRange",
+            new Class<?>[] { TimeCondition.class, TimeRange.class, Set.class },
+            stale, morning, ranges);
+
+         assertTrue(staleMatch);
+      }
+      finally {
+         TimeRange.setTimeRanges(originalRanges);
+      }
+   }
+
+   // [Path K] null condition time range never matches.
+   @Test
+   void isMatchingTimeRange_nullConditionTimeRange_returnsFalse() {
       TimeRange morning = new TimeRange("morning", "09:00:00", "12:00:00", true);
-      TimeRange afternoon = new TimeRange("afternoon", "12:00:00", "18:00:00", false);
-      Set<TimeRange> ranges = new HashSet<>(Arrays.asList(morning, afternoon));
-      TimeRange.setTimeRanges(Arrays.asList(morning, afternoon));
+      Set<TimeRange> ranges = new HashSet<>(Collections.singleton(morning));
+      TimeCondition condition = TimeCondition.at(9, 0, 0);
 
-      TimeCondition exact = TimeCondition.at(9, 0, 0);
-      exact.setTimeRange(morning);
-
-      boolean exactMatch = invoke("isMatchingTimeRange",
+      boolean match = invoke("isMatchingTimeRange",
          new Class<?>[] { TimeCondition.class, TimeRange.class, Set.class },
-         exact, morning, ranges);
+         condition, morning, ranges);
 
-      assertTrue(exactMatch);
+      assertFalse(match);
+   }
 
-      TimeCondition stale = TimeCondition.at(9, 0, 0);
-      stale.setTimeRange(new TimeRange("legacy", "09:05:00", "12:05:00", false));
+   // [Path K] condition bound to a different registered range does not match the target range.
+   @Test
+   void isMatchingTimeRange_wrongRegisteredRange_returnsFalse() throws Exception {
+      List<TimeRange> originalRanges = new ArrayList<>(TimeRange.getTimeRanges());
 
-      boolean staleMatch = invoke("isMatchingTimeRange",
-         new Class<?>[] { TimeCondition.class, TimeRange.class, Set.class },
-         stale, morning, ranges);
+      try {
+         TimeRange morning = new TimeRange("morning", "09:00:00", "12:00:00", true);
+         TimeRange afternoon = new TimeRange("afternoon", "12:00:00", "18:00:00", false);
+         Set<TimeRange> ranges = new HashSet<>(Arrays.asList(morning, afternoon));
+         TimeRange.setTimeRanges(Arrays.asList(morning, afternoon));
 
-      assertTrue(staleMatch);
+         TimeCondition condition = TimeCondition.at(9, 0, 0);
+         condition.setTimeRange(morning);
+
+         boolean match = invoke("isMatchingTimeRange",
+            new Class<?>[] { TimeCondition.class, TimeRange.class, Set.class },
+            condition, afternoon, ranges);
+
+         assertFalse(match);
+      }
+      finally {
+         TimeRange.setTimeRanges(originalRanges);
+      }
    }
 
    // [Path N] updateCondition mutates all time fields and marks the slot as occupied.
@@ -394,10 +453,10 @@ public class TaskBalancerTest {
       assertEquals(LocalTime.of(8, 0, 0), dayStart);
    }
 
-   // [Path P] AT conditions are interpreted in the condition time zone.
+   // AT instant is converted using the condition time zone (UTC wall-clock -> Asia/Shanghai local time).
    @Execution(ExecutionMode.SAME_THREAD)
    @Test
-   void getStartTime_atCondition_usesConditionTimeZone() {
+   void getStartTime_atCondition_convertsUtcInstantToConditionZone() {
       TimeZone original = TimeZone.getDefault();
 
       try {
@@ -452,9 +511,26 @@ public class TaskBalancerTest {
          exception.getMessage());
    }
 
-   // AT conditions use TimeCondition.getTimeZone(), not the server default zone.
+   // EVERY_HOUR with end before start on the clock produces negative duration; no slots are emitted.
    @Test
-   void getStartTime_atCondition_shouldUseConditionTimeZoneInsteadOfSystemDefault() {
+   void getSlot_everyHour_endBeforeStart_returnsEmptySlots() {
+      TimeCondition overnight = TimeCondition.atHours(new int[] { Calendar.MONDAY }, 22, 0, 0);
+      overnight.setHourEnd(2);
+      overnight.setMinuteEnd(0);
+      overnight.setSecondEnd(0);
+      overnight.setHourlyInterval(1);
+
+      List<Integer> slots = invoke("getSlot",
+         new Class<?>[] { TimeCondition.class, LocalTime.class, LocalTime.class, int.class },
+         overnight, LocalTime.of(21, 0), LocalTime.of(23, 0), 30);
+
+      assertTrue(slots.isEmpty());
+   }
+
+   // AT instant stored with zone-aligned local fields uses condition time zone, not server default.
+   @Execution(ExecutionMode.SAME_THREAD)
+   @Test
+   void getStartTime_atCondition_usesConditionZoneNotSystemDefault() {
       TimeZone original = TimeZone.getDefault();
 
       try {

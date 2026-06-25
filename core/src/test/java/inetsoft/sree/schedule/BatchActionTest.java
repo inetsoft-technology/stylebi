@@ -23,17 +23,18 @@ import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.sree.DynamicParameterValue;
 import inetsoft.sree.security.*;
-import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.Tool;
+import inetsoft.test.*;
 import inetsoft.web.composer.model.vs.DynamicValueModel;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.Tag;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -42,163 +43,360 @@ import java.lang.reflect.Method;
 import java.security.Principal;
 import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+/*
+ * Tier: [mockStatic] — AssetUtil, AssetQuery, ScheduleTask.copyScheduleTask, ScheduleManager.
+ * Spring (@SreeHome) is required only to construct SRPrincipal; parameter-dispatch logic is
+ * exercised with static mocks, not a live ScheduleManager or worksheet runtime.
+ *
+ * Intent vs implementation suspects: none confirmed for BatchAction at this time.
+ */
+
+/*
+ * Cases deferred - require integration context or covered elsewhere:
+ *
+ * [BatchAction] writeXML / parseXML
+ *             -> covered by ScheduleActionXmlRoundTripTest; NOT duplicated here
+ * [BatchAction] run(Principal) full path with live ScheduleManager + real child task execution
+ *             -> partial coverage via ScheduleTaskCompletionFlowTest harness; NOT duplicated here
+ */
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class },
+   initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-@SreeHome()
+@SreeHome
 @Tag("core")
-public class BatchActionTest {
+class BatchActionTest {
 
-   /**
-    * because didn't run task actually, so only test the method be execute.
-    */
-   @Test
-   void testRunScheduleTaskWithEmbeddedParameters() throws Throwable {
-      BatchAction batchAction = spy(BatchAction.class);
-      batchAction.setTaskId("Test Batch Action");
+   private SRPrincipal admin;
 
-      List<Map<String, Object>> embeddedParameters = createEMParameters();
-      batchAction.setEmbeddedParameters(embeddedParameters);
-      assertEquals(embeddedParameters, batchAction.getEmbeddedParameters());
-
-      ScheduleTask tk1 = createScheduleTask("Test Batch Action", batchAction);
-      ScheduleTask spyTask = spy(ScheduleTask.class);
-
-      try(MockedStatic<ScheduleTask> mockedStatic = Mockito.mockStatic(ScheduleTask.class)) {
-         mockedStatic.when(() -> ScheduleTask.copyScheduleTask(spyTask)).thenReturn(tk1);
-         doNothing().when(tk1).run(admin);
-
-         //  Use reflection to access the private method
-         Method method = BatchAction.class.getDeclaredMethod("runScheduleTaskWithEmbeddedParameters",
-                                                             ScheduleTask.class, Principal.class);
-         method.setAccessible(true);
-         method.invoke(batchAction, spyTask, admin);
-
-         verify(tk1, atLeastOnce()).run(admin);
-      }
-   }
-
-   /**
-    * because didn't run task actually, so only test the method be execute.
-    */
-   @Test
-   void testRunScheduleTaskWithQueryParameters() throws Throwable {
-      BatchAction batchAction = spy(BatchAction.class);
-      batchAction.setTaskId("Test Query Batch Action");
-
-      AssetEntry queryEntry = AssetEntry.createAssetEntry("1^2^__NULL__^ws1^host-org");
-      batchAction.setQueryEntry(queryEntry);
-      assertEquals(queryEntry, batchAction.getQueryEntry());
-      Map<String, Object> queryParameters = createQueryParameters();
-      batchAction.setQueryParameters(queryParameters);
-      assertEquals(queryParameters, batchAction.getQueryParameters());
-
-      // mock AssetRepository and Worksheet to get the Worksheet from AssetEntry
-      MockedStatic<AssetUtil> mockedAssetUtil = Mockito.mockStatic(AssetUtil.class);
-      AssetRepository mockAssetRepository = mock(AssetRepository.class);
-      Worksheet mockWorksheet = mock(Worksheet.class);
-      mockedAssetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(mockAssetRepository);
-
-      TableAssembly mockTableAssembly = mock(TableAssembly.class);
-      when(mockWorksheet.getPrimaryAssembly()).thenReturn(mockTableAssembly);
-      when(mockAssetRepository.getSheet(any(AssetEntry.class), eq(admin), eq(true), eq(AssetContent.ALL)))
-         .thenReturn(mockWorksheet);
-
-       //  Mock AssetQuery.createAssetQuery
-      AssetQuery mockAssetQuery = mock(AssetQuery.class);
-      MockedStatic<AssetQuery> mockedAssetQuery = Mockito.mockStatic(AssetQuery.class);
-      mockedAssetQuery.when(() -> AssetQuery.createAssetQuery(
-            eq(mockTableAssembly), eq(AssetQuerySandbox.RUNTIME_MODE), any(AssetQuerySandbox.class),
-            eq(false), eq(-1L), eq(true), eq(false)
-         )).thenReturn(mockAssetQuery);
-
-      when(mockAssetQuery.getTableLens(any(VariableTable.class))).thenReturn(tableLens);
-
-      //  Use reflection to access the private method
-      ScheduleTask tk1 = createScheduleTask("Test Query Batch Action", batchAction);
-      ScheduleTask spyTask = spy(ScheduleTask.class);
-
-      try (MockedStatic<ScheduleTask> mockedStatic = Mockito.mockStatic(ScheduleTask.class)) {
-         mockedStatic.when(() -> ScheduleTask.copyScheduleTask(spyTask)).thenReturn(tk1);
-         doNothing().when(tk1).run(admin);
-
-         //  Use reflection to access the private method, check is Query
-         Method method = BatchAction.class.getDeclaredMethod("runScheduleTaskWithQueryParameters",
-                                                             ScheduleTask.class, Principal.class);
-         method.setAccessible(true);
-         method.invoke(batchAction, spyTask, admin);
-
-         verify(tk1, atLeastOnce()).run(admin);
-
-         //check is Table
-         AssetEntry tableEntry = mock(AssetEntry .class);
-         when(tableEntry.isTable()).thenReturn(true);
-         when(tableEntry.getName()).thenReturn("table1");
-         when(mockWorksheet.getAssembly(tableEntry.getName())).thenReturn(mockTableAssembly);
-         batchAction.setQueryEntry(tableEntry);
-
-         method.invoke(batchAction, spyTask, admin);
-         verify(tk1, atLeastOnce()).run(admin);
-      } catch(Throwable e) {
-         e.printStackTrace();
-      } finally {
-         mockedAssetUtil.close();
-         mockedAssetQuery.close();
-      }
-   }
-
-   private List<Map<String, Object>> createEMParameters() {
-      List<Map<String, Object>> embeddedParameters = new ArrayList<>();
-      Map<String, Object> param1 = new HashMap<>();
-      param1.put("col1", "value1");
-      param1.put("key2", 123);
-
-      DynamicParameterValue dynamicParam1 = new DynamicParameterValue(2,
-                                                                      DynamicValueModel.VALUE, "integer");
-      param1.put("key3", dynamicParam1);
-      embeddedParameters.add(param1);
-
-      return embeddedParameters;
-   }
-
-   private Map<String, Object> createQueryParameters() {
-      Map<String, Object> queryParameters = new HashMap<>();
-      queryParameters.put("key1", "col1");
-
-      return queryParameters;
-   }
-
-   private ScheduleTask createScheduleTask(String taskName, BatchAction batchAction) {
-      TimeCondition condition = TimeCondition.at(10,35,59);
-
-      ScheduleTask vstk1 = spy(ScheduleTask.class);
-      vstk1.setName(taskName);
-      vstk1.setOwner(new IdentityID("admin", "host-org"));
-      vstk1.addCondition(condition);
-      vstk1.setCondition(0, condition);
-
-      ViewsheetAction viewsheetAction = spy(ViewsheetAction.class);
-      viewsheetAction.setViewsheetName("vsActions");
-      vstk1.addAction(viewsheetAction);
-      vstk1.setAction(0, viewsheetAction);
-
-      vstk1.addAction(batchAction );
-      vstk1.setAction(1, batchAction);
-
-      return vstk1;
-   }
-   SRPrincipal admin = new SRPrincipal(new IdentityID("admin", Organization.getDefaultOrganizationID()),
-                                       new IdentityID[] { new IdentityID("Administrator", null)},
-                                       new String[] {"g0"}, "host-org",
-                                       Tool.getSecureRandom().nextLong());
-   DefaultTableLens tableLens = new DefaultTableLens(new Object[][] {
-      {"col1", "col2", "col3"},
-      {"a", 1, 5.0},
-      {"b", 3, 10.0},
-      {"b", 1, 2.5},
-      {"c", 1, 3.0}
+   private final DefaultTableLens tableLens = new DefaultTableLens(new Object[][] {
+      { "col1", "col2", "col3" },
+      { "a", 1, 5.0 },
+      { "b", 3, 10.0 }
    });
+
+   @BeforeEach
+   void setUpPrincipal() {
+      admin = new SRPrincipal(
+         new IdentityID("admin", Organization.getDefaultOrganizationID()),
+         new IdentityID[] { new IdentityID("Administrator", null) },
+         new String[] { "g0" },
+         "host-org",
+         Tool.getSecureRandom().nextLong());
+   }
+
+   // -------------------------------------------------------------------------
+   // run(Principal) entry
+   // -------------------------------------------------------------------------
+
+   @Nested
+   class RunEntryPoint {
+
+      @Test
+      void run_missingScheduleTask_doesNotThrow() throws Throwable {
+         BatchAction action = new BatchAction();
+         action.setTaskId("missing-task");
+
+         try(MockedStatic<ScheduleManager> scheduleManager = mockStatic(ScheduleManager.class)) {
+            ScheduleManager manager = mock(ScheduleManager.class);
+            scheduleManager.when(ScheduleManager::getScheduleManager).thenReturn(manager);
+            when(manager.getScheduleTask("missing-task")).thenReturn(null);
+
+            assertDoesNotThrow(() -> action.run(admin));
+            verify(manager).getScheduleTask("missing-task");
+            verifyNoMoreInteractions(manager);
+         }
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // via: run() -> runScheduleTaskWithEmbeddedParameters(...)
+   // -------------------------------------------------------------------------
+
+   @Nested
+   class EmbeddedParameterDispatch {
+
+      // via: runScheduleTaskWithEmbeddedParameters -> replaceVariablesInScheduleAction
+      @Test
+      void embeddedParameters_appliedToViewsheetRepletRequest() throws Throwable {
+         BatchAction batchAction = new BatchAction();
+         batchAction.setEmbeddedParameters(createEmbeddedParameters());
+
+         ScheduleTask sourceTask = buildTaskWithViewsheetAction("embedded-task");
+         ScheduleTask clonedTask = spy(buildTaskWithViewsheetAction("embedded-task"));
+
+         try(MockedStatic<ScheduleTask> copyMock = mockStatic(ScheduleTask.class)) {
+            copyMock.when(() -> ScheduleTask.copyScheduleTask(sourceTask)).thenReturn(clonedTask);
+            doNothing().when(clonedTask).run(admin);
+
+            invokeEmbedded(batchAction, sourceTask, admin);
+
+            ViewsheetAction vsAction = (ViewsheetAction) clonedTask.getAction(0);
+            assertEquals("value1", vsAction.getViewsheetRequest().getParameter("col1"));
+            assertEquals(123, vsAction.getViewsheetRequest().getParameter("key2"));
+            verify(clonedTask).run(admin);
+         }
+      }
+
+      // via: runScheduleTaskWithEmbeddedParameters -> replaceVariablesInScheduleAction
+      @Test
+      void embeddedParameters_replaceEmailVariables() throws Throwable {
+         BatchAction batchAction = new BatchAction();
+         batchAction.setEmbeddedParameters(List.of(Map.of("col1", "north")));
+
+         ScheduleTask sourceTask = buildTaskWithViewsheetAction("embedded-vars");
+         ScheduleTask clonedTask = spy(buildTaskWithViewsheetAction("embedded-vars"));
+         ViewsheetAction vsAction = (ViewsheetAction) clonedTask.getAction(0);
+         vsAction.setEmails("region=$(col1)@example.com");
+
+         try(MockedStatic<ScheduleTask> copyMock = mockStatic(ScheduleTask.class)) {
+            copyMock.when(() -> ScheduleTask.copyScheduleTask(sourceTask)).thenReturn(clonedTask);
+            doNothing().when(clonedTask).run(admin);
+
+            invokeEmbedded(batchAction, sourceTask, admin);
+
+            assertEquals("region=north@example.com", vsAction.getEmails());
+         }
+      }
+
+      @Test
+      void embeddedParameters_nullList_skipsCloneAndRun() throws Throwable {
+         BatchAction batchAction = new BatchAction();
+         batchAction.setEmbeddedParameters(null);
+
+         ScheduleTask sourceTask = buildTaskWithViewsheetAction("embedded-null");
+
+         try(MockedStatic<ScheduleTask> copyMock = mockStatic(ScheduleTask.class)) {
+            invokeEmbedded(batchAction, sourceTask, admin);
+
+            copyMock.verifyNoInteractions();
+         }
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // via: run() -> runScheduleTaskWithQueryParameters(...)
+   // -------------------------------------------------------------------------
+
+   @Nested
+   class QueryParameterDispatch {
+
+      @Test
+      void queryParameters_worksheetEntry_mapsFirstDataRowToRepletRequest() throws Throwable {
+         BatchAction batchAction = new BatchAction();
+         batchAction.setQueryEntry(AssetEntry.createAssetEntry("1^2^__NULL__^ws1^host-org"));
+         batchAction.setQueryParameters(Map.of("key1", "col1"));
+
+         ScheduleTask sourceTask = buildTaskWithViewsheetAction("query-ws");
+         ScheduleTask clonedTask = spy(buildTaskWithViewsheetAction("query-ws"));
+
+         try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class);
+             MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class);
+             MockedStatic<ScheduleTask> copyMock = mockStatic(ScheduleTask.class))
+         {
+            stubWorksheetQuery(assetUtil, assetQuery);
+            copyMock.when(() -> ScheduleTask.copyScheduleTask(sourceTask)).thenReturn(clonedTask);
+            doNothing().when(clonedTask).run(admin);
+
+            invokeQuery(batchAction, sourceTask, admin);
+
+            ViewsheetAction vsAction = (ViewsheetAction) clonedTask.getAction(0);
+            // One clonedTask.run() per data row; RepletRequest keeps the last row's values.
+            assertEquals("b", vsAction.getViewsheetRequest().getParameter("key1"));
+            verify(clonedTask, times(2)).run(admin);
+         }
+      }
+
+      @Test
+      void queryParameters_tableEntry_resolvesAssemblyAndRuns() throws Throwable {
+         BatchAction batchAction = new BatchAction();
+
+         AssetEntry tableEntry = mock(AssetEntry.class);
+         when(tableEntry.isTable()).thenReturn(true);
+         when(tableEntry.isWorksheet()).thenReturn(false);
+         when(tableEntry.getScope()).thenReturn(AssetRepository.USER_SCOPE);
+         when(tableEntry.getParentPath()).thenReturn("folder");
+         when(tableEntry.getUser()).thenReturn(new IdentityID("admin", "host-org"));
+         when(tableEntry.getName()).thenReturn("table1");
+
+         batchAction.setQueryEntry(tableEntry);
+         batchAction.setQueryParameters(Map.of("key1", "col1"));
+
+         ScheduleTask sourceTask = buildTaskWithViewsheetAction("query-table");
+         ScheduleTask clonedTask = spy(buildTaskWithViewsheetAction("query-table"));
+
+         try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class);
+             MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class);
+             MockedStatic<ScheduleTask> copyMock = mockStatic(ScheduleTask.class))
+         {
+            AssetRepository repository = mock(AssetRepository.class);
+            Worksheet worksheet = mock(Worksheet.class);
+            TableAssembly tableAssembly = mock(TableAssembly.class);
+
+            assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(repository);
+            when(repository.getSheet(any(AssetEntry.class), eq(admin), eq(true), eq(AssetContent.ALL)))
+               .thenReturn(worksheet);
+            when(worksheet.getAssembly("table1")).thenReturn(tableAssembly);
+            when(tableAssembly.getName()).thenReturn("table1");
+
+            AssetQuery query = mock(AssetQuery.class);
+            assetQuery.when(() -> AssetQuery.createAssetQuery(
+                  eq(tableAssembly), eq(AssetQuerySandbox.RUNTIME_MODE), any(AssetQuerySandbox.class),
+                  eq(false), eq(-1L), eq(true), eq(false)))
+               .thenReturn(query);
+            when(query.getTableLens(any(VariableTable.class))).thenReturn(tableLens);
+
+            copyMock.when(() -> ScheduleTask.copyScheduleTask(sourceTask)).thenReturn(clonedTask);
+            doNothing().when(clonedTask).run(admin);
+
+            invokeQuery(batchAction, sourceTask, admin);
+
+            verify(clonedTask, atLeastOnce()).run(admin);
+         }
+      }
+
+      @Test
+      void queryParameters_nullQueryEntry_skipsCloneAndRun() throws Throwable {
+         BatchAction batchAction = new BatchAction();
+         batchAction.setQueryEntry(null);
+         batchAction.setQueryParameters(Map.of("key1", "col1"));
+
+         ScheduleTask sourceTask = buildTaskWithViewsheetAction("query-null-entry");
+
+         try(MockedStatic<ScheduleTask> copyMock = mockStatic(ScheduleTask.class)) {
+            invokeQuery(batchAction, sourceTask, admin);
+
+            copyMock.verifyNoInteractions();
+         }
+      }
+
+      @Test
+      void queryParameters_emptyMap_skipsCloneAndRun() throws Throwable {
+         BatchAction batchAction = new BatchAction();
+         batchAction.setQueryEntry(AssetEntry.createAssetEntry("1^2^__NULL__^ws1^host-org"));
+         batchAction.setQueryParameters(Collections.emptyMap());
+
+         ScheduleTask sourceTask = buildTaskWithViewsheetAction("query-empty-map");
+
+         try(MockedStatic<ScheduleTask> copyMock = mockStatic(ScheduleTask.class)) {
+            invokeQuery(batchAction, sourceTask, admin);
+
+            copyMock.verifyNoInteractions();
+         }
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // equals contract
+   // -------------------------------------------------------------------------
+
+   @Nested
+   class EqualsContract {
+
+      @Test
+      void equals_sameFields_returnsTrue() {
+         BatchAction left = new BatchAction();
+         left.setTaskId("admin~;~host-org:child");
+         left.setQueryParameters(Map.of("p", "v"));
+         left.setEmbeddedParameters(List.of(Map.of("k", "v")));
+
+         BatchAction right = new BatchAction();
+         right.setTaskId("admin~;~host-org:child");
+         right.setQueryParameters(Map.of("p", "v"));
+         right.setEmbeddedParameters(List.of(Map.of("k", "v")));
+
+         assertEquals(left, right);
+      }
+
+      @Test
+      void equals_differentTaskId_returnsFalse() {
+         BatchAction left = new BatchAction();
+         left.setTaskId("task-a");
+
+         BatchAction right = new BatchAction();
+         right.setTaskId("task-b");
+
+         assertNotEquals(left, right);
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // Helpers
+   // -------------------------------------------------------------------------
+
+   private static List<Map<String, Object>> createEmbeddedParameters() {
+      Map<String, Object> row = new LinkedHashMap<>();
+      row.put("col1", "value1");
+      row.put("key2", 123);
+      row.put("key3", new DynamicParameterValue(2, DynamicValueModel.VALUE, "integer"));
+      return List.of(row);
+   }
+
+   private ScheduleTask buildTaskWithViewsheetAction(String taskName) {
+      ScheduleTask task = new ScheduleTask(taskName);
+      task.setOwner(new IdentityID("admin", "host-org"));
+
+      ViewsheetAction viewsheetAction = new ViewsheetAction();
+      viewsheetAction.setViewsheetName("vsActions");
+      task.addAction(viewsheetAction);
+
+      return task;
+   }
+
+   private void stubWorksheetQuery(MockedStatic<AssetUtil> assetUtil,
+                                   MockedStatic<AssetQuery> assetQuery) throws Exception
+   {
+      AssetRepository repository = mock(AssetRepository.class);
+      Worksheet worksheet = mock(Worksheet.class);
+      TableAssembly tableAssembly = mock(TableAssembly.class);
+
+      assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(repository);
+      when(repository.getSheet(any(AssetEntry.class), eq(admin), eq(true), eq(AssetContent.ALL)))
+         .thenReturn(worksheet);
+      when(worksheet.getPrimaryAssembly()).thenReturn(tableAssembly);
+      when(tableAssembly.getName()).thenReturn("ws1");
+
+      AssetQuery query = mock(AssetQuery.class);
+      assetQuery.when(() -> AssetQuery.createAssetQuery(
+            eq(tableAssembly), eq(AssetQuerySandbox.RUNTIME_MODE), any(AssetQuerySandbox.class),
+            eq(false), eq(-1L), eq(true), eq(false)))
+         .thenReturn(query);
+      when(query.getTableLens(any(VariableTable.class))).thenReturn(tableLens);
+   }
+
+   // via: run() -> runScheduleTaskWithEmbeddedParameters
+   private static void invokeEmbedded(BatchAction action, ScheduleTask task, Principal principal)
+      throws Throwable
+   {
+      Method method = BatchAction.class.getDeclaredMethod(
+         "runScheduleTaskWithEmbeddedParameters", ScheduleTask.class, Principal.class);
+      method.setAccessible(true);
+
+      try {
+         method.invoke(action, task, principal);
+      }
+      catch(java.lang.reflect.InvocationTargetException e) {
+         throw e.getCause();
+      }
+   }
+
+   // via: run() -> runScheduleTaskWithQueryParameters
+   private static void invokeQuery(BatchAction action, ScheduleTask task, Principal principal)
+      throws Throwable
+   {
+      Method method = BatchAction.class.getDeclaredMethod(
+         "runScheduleTaskWithQueryParameters", ScheduleTask.class, Principal.class);
+      method.setAccessible(true);
+
+      try {
+         method.invoke(action, task, principal);
+      }
+      catch(java.lang.reflect.InvocationTargetException e) {
+         throw e.getCause();
+      }
+   }
 }

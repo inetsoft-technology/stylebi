@@ -41,6 +41,7 @@ import { DataSourcesTreeActionsService } from "../data-navigation-tree/data-sour
 import { WorksheetBrowserInfo } from "../model/worksheet-browser-info";
 import { SsoHeartbeatService } from "../../../../../../shared/sso/sso-heartbeat.service";
 import { DataNotificationsComponent } from "../data-notifications.component";
+import { StubDataNotificationsComponent } from "../data-notifications.stub";
 import { DataBrowserService } from "./data-browser.service";
 import { DataFolderBrowserComponent } from "./data-folder-browser.component";
 import { DataFolderListViewComponent } from "./data-folder-list-view/data-folder-list-view.component";
@@ -48,13 +49,6 @@ import { DataFolderListViewComponent } from "./data-folder-list-view/data-folder
 // ---------------------------------------------------------------------------
 // Stub components
 // ---------------------------------------------------------------------------
-
-// Stub for DataNotificationsComponent so @ViewChild("dataNotifications") resolves correctly
-// and dataNotifications.notifications.info/success/danger work without real NotificationsComponent DI.
-@Component({ selector: "data-notifications", template: "", standalone: true })
-export class StubDataNotificationsComponent {
-   notifications = { info: vi.fn(), success: vi.fn(), danger: vi.fn(), warning: vi.fn() };
-}
 
 // DataFolderListViewComponent imports RouterLink which triggers Router APP_INITIALIZER → whenStable() hangs.
 @Component({ selector: "data-folder-list-view", template: "", standalone: true })
