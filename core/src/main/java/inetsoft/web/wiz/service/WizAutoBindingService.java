@@ -658,10 +658,10 @@ public class WizAutoBindingService {
       if(order == null && ranking != null && !timeSeries) {
          int opt = ranking.getOptionValue();
 
-         if(opt == 9) {
+         if(opt == XCondition.TOP_N) {
             order = XConstants.SORT_VALUE_DESC;
          }
-         else if(opt == 10) {
+         else if(opt == XCondition.BOTTOM_N) {
             order = XConstants.SORT_VALUE_ASC;
          }
 
