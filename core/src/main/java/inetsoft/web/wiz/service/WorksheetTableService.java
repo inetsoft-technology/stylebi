@@ -20,6 +20,8 @@ package inetsoft.web.wiz.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.cluster.*;
+import inetsoft.report.composition.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -64,6 +66,7 @@ import static inetsoft.web.wiz.service.WizDateLevelUtil.getDateGroupLevel;
  * </ul>
  */
 @Service
+@ClusterProxy
 public class WorksheetTableService {
 
    public WorksheetTableService(ViewsheetService viewsheetService,
@@ -175,7 +178,34 @@ public class WorksheetTableService {
       return response;
    }
 
-   // ─── Delete tables ────────────────────────────────────────────────────────
+   // Get worksheet table metadata.
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public WorksheetModel getWorksheetModel(@ClusterProxyKey String runtimeId, Principal user)
+      throws Exception
+   {
+      if(Tool.isEmptyString(runtimeId)) {
+         throw new IllegalArgumentException("runtimeId is required");
+      }
+
+      WorksheetSource source = resolveWorksheet(runtimeId, user);
+      Worksheet worksheet = source.worksheet();
+      List<WorksheetTableModel> tables = new ArrayList<>();
+
+      for(Assembly assembly : worksheet.getAssemblies()) {
+         if(assembly instanceof AbstractTableAssembly table) {
+            tables.add(buildWorksheetTableModel(worksheet, table));
+         }
+      }
+
+      return WorksheetModel.builder()
+         .identifier(source.identifier())
+         .primaryTable(worksheet.getPrimaryAssemblyName())
+         .tables(tables)
+         .build();
+   }
+
+   // Delete tables.
 
    public DeleteWorksheetTablesResponse deleteTables(DeleteWorksheetTablesRequest request,
                                                      Principal user)
@@ -1199,6 +1229,11 @@ public class WorksheetTableService {
       AbstractTableAssembly table)
    {
       ColumnSelection cs = table.getColumnSelection(true);
+
+      if(cs == null) {
+         return Collections.emptyList();
+      }
+
       List<WorksheetTableResponse.ColumnData> result = new ArrayList<>(cs.getAttributeCount());
 
       for(int i = 0; i < cs.getAttributeCount(); i++) {
@@ -1214,7 +1249,151 @@ public class WorksheetTableService {
       return result;
    }
 
-   // ─── Join operation mapping ───────────────────────────────────────────────
+   // Worksheet model helpers.
+
+   private WorksheetTableModel buildWorksheetTableModel(Worksheet worksheet,
+                                                        AbstractTableAssembly table)
+   {
+      return WorksheetTableModel.builder()
+         .tableName(table.getName())
+         .baseTables(getBaseTables(table))
+         .tableType(getTableType(table))
+         .columns(extractColumnsFromSelection(table))
+         .primaryColumnMetas(WsServiceHelper.extractPrimaryTableFields(
+            worksheet, table, getPhysicalTableName(table)))
+         .hasAggregate(hasAggregate(table))
+         .hasCondition(hasCondition(table))
+         .build();
+   }
+
+   private WorksheetSource resolveWorksheet(String runtimeId, Principal user)
+      throws Exception
+   {
+      try {
+         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+
+         if(rvs != null) {
+            RuntimeWorksheet rws = rvs.getRuntimeWorksheet();
+
+            if(rws != null && rws.getWorksheet() != null) {
+               return new WorksheetSource(
+                  rws.getWorksheet(), getIdentifier(rws.getEntry(), runtimeId));
+            }
+
+            inetsoft.uql.viewsheet.Viewsheet vs = rvs.getViewsheet();
+            AssetEntry baseEntry = vs != null ? vs.getBaseEntry() : null;
+
+            if(baseEntry != null && baseEntry.isWorksheet()) {
+               AbstractSheet sheet = viewsheetService.getAssetRepository()
+                  .getSheet(baseEntry, user, false, AssetContent.ALL);
+
+               if(sheet instanceof Worksheet worksheet) {
+                  return new WorksheetSource(worksheet, getIdentifier(baseEntry, runtimeId));
+               }
+            }
+         }
+      }
+      catch(ExpiredSheetException | ClassCastException ex) {
+         // The id may be a worksheet runtime id or a persisted worksheet identifier.
+      }
+
+      try {
+         RuntimeWorksheet rws = viewsheetService.getWorksheet(runtimeId, user);
+
+         if(rws != null && rws.getWorksheet() != null) {
+            return new WorksheetSource(
+               rws.getWorksheet(), getIdentifier(rws.getEntry(), runtimeId));
+         }
+      }
+      catch(ExpiredSheetException | ClassCastException ex) {
+         // Fall through to persisted worksheet identifier lookup.
+      }
+
+      AssetEntry worksheetEntry = AssetEntry.createAssetEntry(runtimeId);
+      AbstractSheet sheet = viewsheetService.getAssetRepository()
+         .getSheet(worksheetEntry, user, false, AssetContent.ALL);
+
+      if(!(sheet instanceof Worksheet worksheet)) {
+         throw new IllegalArgumentException("runtimeId does not reference a worksheet: " + runtimeId);
+      }
+
+      return new WorksheetSource(worksheet, getIdentifier(worksheetEntry, runtimeId));
+   }
+
+   private List<String> getBaseTables(AbstractTableAssembly table) {
+      if(table instanceof ComposedTableAssembly composed) {
+         String[] names = composed.getTableNames();
+         return names == null ? Collections.emptyList() : Arrays.asList(names);
+      }
+
+      return Collections.emptyList();
+   }
+
+   private String getTableType(AbstractTableAssembly table) {
+      if(table instanceof PhysicalBoundTableAssembly) {
+         return "physical table";
+      }
+      else if(table instanceof MirrorTableAssembly) {
+         return "mirror table";
+      }
+      else if(table instanceof RelationalJoinTableAssembly) {
+         return "relational join table";
+      }
+      else if(table instanceof SQLBoundTableAssembly) {
+         return "sql query table";
+      }
+
+      return table.getClass().getSimpleName();
+   }
+
+   private String getPhysicalTableName(AbstractTableAssembly table) {
+      if(!(table instanceof PhysicalBoundTableAssembly physicalTable)) {
+         return null;
+      }
+
+      SourceInfo sourceInfo = physicalTable.getSourceInfo();
+      String tableName = sourceInfo != null ? sourceInfo.getSource() : null;
+
+      if(Tool.isEmptyString(tableName)) {
+         return physicalTable.getName();
+      }
+
+      int index = tableName.lastIndexOf('.');
+
+      if(index >= 0 && index + 1 < tableName.length()) {
+         tableName = tableName.substring(index + 1);
+      }
+
+      return tableName.replace("\"", "")
+         .replace("`", "")
+         .replace("[", "")
+         .replace("]", "");
+   }
+
+   private boolean hasAggregate(AbstractTableAssembly table) {
+      AggregateInfo aggregateInfo = table.getAggregateInfo();
+      return table.isAggregate() || aggregateInfo != null && !aggregateInfo.isEmpty();
+   }
+
+   private boolean hasCondition(AbstractTableAssembly table) {
+      return !isEmpty(table.getPreConditionList()) ||
+         !isEmpty(table.getPostConditionList()) ||
+         !isEmpty(table.getRankingConditionList());
+   }
+
+   private boolean isEmpty(ConditionListWrapper conditionList) {
+      return conditionList == null || conditionList.isEmpty();
+   }
+
+   private String getIdentifier(AssetEntry entry, String fallback) {
+      String identifier = entry != null ? entry.toIdentifier() : null;
+      return Tool.isEmptyString(identifier) ? fallback : identifier;
+   }
+
+   private record WorksheetSource(Worksheet worksheet, String identifier) {
+   }
+
+   // Join operation mapping.
 
    private int getJoinOperation(String joinType, String joinOp) {
       if(joinType == null) {
