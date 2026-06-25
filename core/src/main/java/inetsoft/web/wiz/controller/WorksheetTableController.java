@@ -101,7 +101,7 @@ public class WorksheetTableController {
     * @param user         the authenticated user
     * @return worksheet metadata and table metadata
     */
-   @GetMapping(value = "/ws-model", produces = MediaType.APPLICATION_JSON_VALUE)
+   @GetMapping(value = "/ws/worksheet-model", produces = MediaType.APPLICATION_JSON_VALUE)
    public WorksheetModel getWorksheetModel(@RequestParam("wsIdentifier") String wsIdentifier,
                                            Principal user)
       throws Exception
