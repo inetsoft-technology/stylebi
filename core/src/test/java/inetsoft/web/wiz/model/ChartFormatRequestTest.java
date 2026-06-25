@@ -41,13 +41,14 @@ class ChartFormatRequestTest {
       ChartFormatRequest req = mapper.readValue(
          """
          { "wizRuntimeId": "rt-1", "assemblyName": "Chart1",
-           "xAxisTitle": "Gross", "yAxisTitle": "Actor",
+           "chartTitle": "Contacts per Account", "xAxisTitle": "Gross", "yAxisTitle": "Actor",
            "yAxisMin": 0.5, "yAxisMax": 100.0, "yAxisIncrement": 10.0,
            "yAxisLogarithmic": true, "legendPosition": "top" }
          """,
          ChartFormatRequest.class);
 
       assertEquals("rt-1", req.getWizRuntimeId());
+      assertEquals("Contacts per Account", req.getChartTitle());
       assertEquals("Gross", req.getXAxisTitle());
       assertEquals("Actor", req.getYAxisTitle());
       assertEquals(0.5, req.getYAxisMin());
