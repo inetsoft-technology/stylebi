@@ -36,7 +36,7 @@ class SheetPairingControllerTest {
       SheetPairingService pairing = new SheetPairingService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(true);
-      SheetPairingController c = new SheetPairingController(pairing, feature);
+      SheetPairingController c = new SheetPairingController(pairing, feature, true);
       Principal owner = TestPrincipals.user("alice", "host-org");
 
       String code = c.mint("Worksheet/foo-7", "stomp-1", SheetType.WORKSHEET, owner).code();
@@ -54,7 +54,7 @@ class SheetPairingControllerTest {
       SheetPairingService pairing = new SheetPairingService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(false);
-      SheetPairingController c = new SheetPairingController(pairing, feature);
+      SheetPairingController c = new SheetPairingController(pairing, feature, true);
       Principal owner = TestPrincipals.user("alice", "host-org");
 
       assertThrows(ResponseStatusException.class,
@@ -66,7 +66,7 @@ class SheetPairingControllerTest {
       SheetPairingService pairing = new SheetPairingService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(true);
-      SheetPairingController c = new SheetPairingController(pairing, feature);
+      SheetPairingController c = new SheetPairingController(pairing, feature, true);
 
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
          () -> c.mint("Worksheet/foo-7", "stomp-1", SheetType.WORKSHEET, null));
@@ -78,7 +78,7 @@ class SheetPairingControllerTest {
       SheetPairingService pairing = new SheetPairingService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(true);
-      SheetPairingController c = new SheetPairingController(pairing, feature);
+      SheetPairingController c = new SheetPairingController(pairing, feature, true);
       Principal owner = TestPrincipals.user("alice", "host-org");
 
       // Build a SimpMessageHeaderAccessor with a known session id
@@ -97,7 +97,7 @@ class SheetPairingControllerTest {
       SheetPairingService pairing = new SheetPairingService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(false);
-      SheetPairingController c = new SheetPairingController(pairing, feature);
+      SheetPairingController c = new SheetPairingController(pairing, feature, true);
       Principal owner = TestPrincipals.user("alice", "host-org");
       SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
       accessor.setSessionId("stomp-x");
