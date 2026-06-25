@@ -428,3 +428,18 @@ projects/portal/src/app/portal/data/data-datasource-browser/datasources-database
 
 # depth=2 logic_lines≈73
 projects/portal/src/app/portal/data/data-datasource-browser/datasources-database/database-query/query-sql/free-form-sql-pane.component.ts
+
+# ── 2026-06-24 补充扫描：调度 / Email / 参数 widget ───────────────────────────
+# portal 路由使用的共享 widget，系统性扫描新增。共 6 个。
+
+# 调度（schedule）
+projects/portal/src/app/widget/schedule/simple-schedule-dialog.component.ts
+projects/portal/src/app/widget/schedule/start-time-editor.component.ts
+
+# Email 对话框
+projects/portal/src/app/widget/email-dialog/embedded-email-pane.component.ts
+projects/portal/src/app/widget/email-dialog/email-pane.component.ts
+
+# 参数页 / 日期时间选择器
+projects/portal/src/app/widget/parameter/parameter-page/parameter-page.component.ts
+projects/portal/src/app/widget/date-type-editor/timepicker.component.ts

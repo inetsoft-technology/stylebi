@@ -717,6 +717,56 @@ export const portalHandlers = [
       return HttpResponse.json({});
    }),
 
+   // ─── VPM (Virtual Private Model) ─────────────────────────────────────────
+
+   // DatabaseVPMComponent.ngOnInit — users and roles for the Test tab
+   http.get("*/api/data/vpm/usersRoles", () => {
+      return HttpResponse.json({ users: [], roles: [] });
+   }),
+
+   // DatabaseVPMComponent.ngOnInit — available clause operators for condition editor
+   http.get("*/api/data/vpm/operations", () => {
+      return HttpResponse.json([]);
+   }),
+
+   // DatabaseVPMComponent.refreshVPM() — load VPM definition in edit mode
+   http.get("*/api/data/vpm/models", () => {
+      return HttpResponse.json({
+         name: "myVPM",
+         conditions: [],
+         hidden: { roles: [], hiddens: [], name: null, script: null },
+         lookup: "",
+         description: "",
+      });
+   }),
+
+   // DatabaseVPMComponent.saveVPM() — update VPM (edit mode, responseType: "text")
+   http.put("*/api/data/vpm/models", () => {
+      return new HttpResponse("", { status: 200, headers: { "Content-Type": "text/plain" } });
+   }),
+
+   // DatabaseVPMComponent.saveVPM() — create VPM (create mode, responseType: "text")
+   http.post("*/api/data/vpm/models", () => {
+      return new HttpResponse("", { status: 200, headers: { "Content-Type": "text/plain" } });
+   }),
+
+   // VPMTestComponent — run VPM test query
+   http.post("*/api/data/vpm/test", () => {
+      return HttpResponse.json({ rows: [] });
+   }),
+   http.post("*/api/data/vpm/columns/*", () => {
+      return HttpResponse.json([]);
+   }),
+   http.get("*/api/data/vpm/physicalModel/tables", () => {
+      return HttpResponse.json([]);
+   }),
+   http.post("*/api/data/vpm/hiddenColumn/tree", () => {
+      return HttpResponse.json([]);
+   }),
+   http.get("*/api/data/vpm/hiddenColumn/fullTree/*", () => {
+      return HttpResponse.json({ nodes: [], timeOut: false });
+   }),
+
    // AutoDrillDialog — viewsheet variable names for a given asset link
    http.get("*/api/data/logicalModel/vs/autoDrill-parameters", () => {
       return HttpResponse.json([]);

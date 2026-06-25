@@ -1,8 +1,8 @@
 # composer Route Pre-scan Report
 
-**日期**: 2026-06-08
-**候选组件数**: 80 | **建议推进**: 78 | **建议跳过**: 2 | **多 pass 组件**: 25
-**测试进度**: ✅已测试 80 / 80 | 待审核 0 / 80
+**日期**: 2026-06-08（2026-06-24 补充扫描，新增 30 个组件）
+**候选组件数**: 110（原 80，2026-06-24 新增 30）| **建议推进**: 102 | **建议跳过**: 8 | **待审核**: 0 | **多 pass 组件**: 32
+**测试进度**: ✅已测试 80 / 110 | 待测 24 / 110 | ⏭ 跳过 6 / 110
 
 ## 状态说明
 - 第一列「状态」初始为「待审核」，人工审核后改为 ✅已测试 / ⏭已跳过
@@ -386,3 +386,128 @@
 **Pass 2** (`codemirror.component.risk.tl.spec.ts`)
 - Methods: analysisResults, expression, cursor, functionTreeRoot, ngAfterViewChecked, triggerSyntaxAnalyzer, function, destroyCodeMirror, isEditorElementDisplayed
 - Reason: async≥3：竞态 / destructive / state inconsistency
+
+---
+
+> **以下为 2026-06-24 补充扫描新增组件（30 个）**
+> 来源：系统性缺口分析，composer 路由下高频使用的 widget/ 共享组件（条件编辑器、公式/脚本、SQL 查询、日期编辑器等）及 format/ 边框组件。
+> `logic_lines / dispatch / async_zones` 均为 `—`（待 prescan workflow 精确扫描）。
+
+| 状态 | 组件 | logic_lines | dispatch | async_zones | 分类 | 建议 | 旧 spec | 旧 spec 备注 | Pass 计划 |
+|------|------|-------------|----------|-------------|------|------|---------|-------------|-----------|
+| 待审核 | FormulaEditorDialog | 1105 | 4 | 9 | **multi-pass** | ✅ 推进 | ⚠️ formula-editor-dialog.component.spec.ts | Covers SQL-type warning dialogs, formula name character validation, duplicate-name guard in ok(), and 4 expressionChange node cases; does NOT cover isCycle/checkExpression cycle detection, showAggregateDialog modal flow, deleteAggregate, all HTTP subscribe paths in populateTrees, ngOnDestroy cleanup, validExpression getter, or getGrayedOutValues branching. | P1: FormulaEditorDialog.interaction.tl.spec.ts<br>P2: FormulaEditorDialog.risk.tl.spec.ts<br>P3: FormulaEditorDialog.display.tl.spec.ts |
+| 待审核 | ScriptPane | 632 | 3 | 6 | **multi-pass** | ✅ 推进 | ⚠️ script-pane.component.spec.ts | Only 1 trivial smoke test (null defs init); all functional paths (itemClicked, getCSSIcon, insertText, isGrayedOutField, blockKeys, async subscribe flows, cursor guards, analysis results, destroyCodeMirror) are uncovered. | P1: script-pane.component.interaction.tl.spec.ts<br>P2: script-pane.component.risk.tl.spec.ts<br>P3: script-pane.component.display.tl.spec.ts |
+| 待审核 | VSAssemblyScriptPane | 139 | 1 | 0 | **single-pass** | ✅ 推进 | ⚠️ vsassembly-script-pane.spec.ts | Covers only the data.name==="field" branch of onExpressionChange (1 of 8+ branches); component/parameter/COLUMN-TABLE/highlighted/axis-legend/colorLegend-title-axis/component-with-space branches and both private helpers are untested. | P1: vsassembly-script-pane.interaction.tl.spec.ts |
+| 待审核 | SimpleQueryPaneComponent | 537 | 3 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: simple-query-pane.component.interaction.tl.spec.ts<br>P2: simple-query-pane.component.risk.tl.spec.ts<br>P3: simple-query-pane.component.display.tl.spec.ts |
+| 待审核 | SQLQueryJoinDialog | 208 | 1 | 5 | **single-pass** | ✅ 推进 |  |  | P1: sql-query-join-dialog.component.interaction.tl.spec.ts |
+| 待审核 | SQLQueryDialogListComponent | 160 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核 | AdditionalTableSelectionPaneComponent | 179 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | P1: AdditionalTableSelectionPaneComponent.interaction.tl.spec.ts |
+| 待审核 | ConditionItemPane | 351 | 3 | 1 | **multi-pass** | ✅ 推进 |  |  | P1: ConditionItemPane.interaction.tl.spec.ts<br>P3: ConditionItemPane.display.tl.spec.ts |
+| 待审核 | ConditionPane | 320 | 3 | 0 | **multi-pass** | ✅ 推进 | ⚠️ condition-pane.component.spec.ts | Covers only 4 cases (clear, delete, indent, insert-field-required-warning); leaves untested: modify, save/saveOption return values, up/down swap logic, canMoveUp/Down/Unindent guards, expressionRenamed field remapping, conditionItemSelected junction propagation, updateDirtyJunction emit, conditionList setter edge cases, availableFields setter field-exist check. | P1: condition-pane.interaction.tl.spec.ts<br>P3: condition-pane.display.tl.spec.ts |
+| 待审核 | ConditionFieldComboComponent | 269 | 1 | 1 | **single-pass** | ⏭ 跳过 | ⚠️ condition-field-combo.spec.ts | getTooltip() 4-branch classType dispatch (GroupRef/AggregateRef/ColumnRef/else) and the startSearch()/closeSearch() search flow with setTimeout focus are not covered by existing tests. | single pass |
+| 待审核 | ConditionEditor | 139 | 3 | 0 | **multi-pass** | ✅ 推进 |  |  | P1: condition-editor.component.interaction.tl.spec.ts<br>P3: condition-editor.component.display.tl.spec.ts |
+| 待审核 | ValueEditor | 165 | 1 | 1 | **single-pass** | ✅ 推进 | ⚠️ value-editor.spec.ts | Covers template rendering by type and isBrowseEnabled CalculateRef guard only; does not test browseData() subscribe flow, getBrowseDataList() label mapping, selectValues() toggle, isSelected() date-transform matching, or ngOnChanges default date/boolean emission. | single pass |
+| 待审核 | OneOfConditionEditor | 185 | 2 | 0 | **single-pass** | ✅ 推进 | ⚠️ one-of-condition-editor.component.spec.ts | Only one test (Bug #18994): delete button disabled after removing all items via DOM clicks; add(), modify(), valueChanged() special-type propagation, initValue() branching, and multi-select (ctrl/shift) are entirely untested. | single pass |
+| 待审核 | SubqueryDialog | 111 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ subquery-dialog.component.spec.ts | Covers only Bug #9968 regression (single currentTable entry with empty columns does not crash); ngOnInit else-branch, changeSelectedTable, isValid permutations, ok/cancel emits, getTooltip branching, and dataRefsEqual are all untested. | single pass |
+| 待审核 | ExpressionEditor | 127 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核 | HighlightPane | 148 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核 | DateValueEditorComponent | 155 | 1 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核 | DynamicValueEditorComponent | 156 | 4 | 0 | **multi-pass** | ✅ 推进 |  |  | P1: dynamic-value-editor.interaction.tl.spec.ts<br>P3: dynamic-value-editor.display.tl.spec.ts |
+| 待审核 | AutoCompleteText | 269 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核 | ImagePreviewPane | 190 | 2 | 4 | **single-pass** | ✅ 推进 | ⚠️ image-preview-pane.spec.ts | Covers upload HTTP URL, alpha opacity rendering, layoutObject disabling animate-GIF checkbox, and clear button reset — but omits deleteUpload() confirm+HTTP-delete+tree mutation, selectImage() current-type branching, imageSrc getter fallback to emptyimage.gif, and initCurrentNode() dynamic-image ($,=) path. | single pass |
+| 待审核 | VariableListEditor | 79 | 1 | 0 | **single-pass** | ⏭ 跳过 | ⚠️ variable-list-editor.component.spec.ts | swap() and clear() not tested; DATE placeholder branch and CHARACTER maxlength omitted. | single pass |
+| 待审核 | SimpleTableComponent | 109 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核 | FixedDropdownComponent | 165 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核 | SlideOutComponent | 113 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| 待审核 | BandPanel | 52 | 0 | 0 | **single-pass** | ⏭ 跳过 | ⚠️ band-panel.component.spec.ts | Uses fragile ng-reflect-is-disabled attribute assertions and a DOM query for .entriChart-cb_id CSS class; field-filtering test checks rendered option count which is non-trivially derivable from source alone. | single pass |
+| 待审核 | StatPanel | 38 | 0 | 0 | **single-pass** | ⏭ 跳过 | ⚠️ stat-panel.component.spec.ts | ngOnInit auto-selection of first non-empty-label field into model.measure is not explicitly asserted, and changeAlphaWarning is untested; otherwise core paths covered. | single pass |
+| 待审核 | ColorMap | 42 | 0 | 0 | **single-pass** | ⏭ 跳过 | ⚠️ color-map.component.spec.ts | Covers all computed properties and both EventEmitter outputs via a 22-entry color table; no gaps notable. | single pass |
+| 待审核 | FormatPresenterPane | 43 | 0 | 1 | **single-pass** | ⏭ 跳过 | ⚠️ format-presenter-pane.component.spec.ts | selectPresenter() emitter and getIcon() leaf/non-leaf paths are untested; only isPresenterDialogEnabled() and init mock are covered. | single pass |
+| 待审核 | Ruler | 145 | 1 | 0 | **single-pass** | ✅ 推进 | ⚠️ ruler.component.spec.ts | Covers component creation and horizontal/vertical orientation positional styles only; guide styles (guideTopStyle/guideLeftStyle/guideWidthStyle/guideHeightStyle), scale setter normalization, updateRulerSize canvas tick-drawing paths, and the offsetParent===null early-exit guard are all untested. | single pass |
+| 待审核 | BorderStylePane | 144 | 1 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+
+---
+
+## 2026-06-24 补充扫描 Multi-Pass 详情（7 个）
+
+### FormulaEditorDialog
+
+**Pass 1** (`FormulaEditorDialog.interaction.tl.spec.ts`)
+- Methods: ngOnInit, ngOnDestroy, ngAfterViewInit, initForm, ok, cancel, showAggregateDialog, deleteAggregate, showContextMenu, createActions, isCycle, checkExpression, isDuplicateFormulaName, isDuplicateName
+- Reason: User-triggered flows, lifecycle hooks, modal open/result handling, and destructive aggregate delete
+
+**Pass 2** (`FormulaEditorDialog.risk.tl.spec.ts`)
+- Methods: populateColumnTree (subscribe), populateFunctionTree (subscribe), populateOperatorTree (subscribe), populateScriptDefinitions (dual subscribe), initForm calcType.valueChanges subscribe, initForm formulaType.valueChanges forEach, ngAfterViewInit Promise.resolve microtask, showAggregateDialog modal result.then, subscriptions.unsubscribe on destroy
+- Reason: 9 asyncZones require dedicated race/state-consistency testing: concurrent HTTP responses, valueChanges side-effects, modal promise resolution, and subscription teardown
+
+**Pass 3** (`FormulaEditorDialog.display.tl.spec.ts`)
+- Methods: expressionChange (all 15+ scriptData.data.name branches), checkValid (aggregateOnly vs sqlMergeable paths), populateColumnTree branch logic (isCube/vsId/isSqlType), populateFunctionTree (isCube/isSqlType/script branches), populateOperatorTree (isSqlType||isCube vs else), getGrayedOutValues (isModel vs attribute), validExpression, validFunctionRoot, title getter, aggregateOnly getter, scriptDefinitions getter, isSqlType, getFullName, getAggrExpression, hasMenu
+- Reason: 4 dispatchPoints with 15+ branches in expressionChange alone, plus pure conditional label/expression-building methods covering all formula type and node-type permutations
+
+### ScriptPane
+
+**Pass 1** (`script-pane.component.interaction.tl.spec.ts`)
+- Methods: ngOnInit, ngOnDestroy, ngOnChanges, ngAfterViewInit, itemClicked, onKeyUp, blockKeys, rightClick, expression setter, scriptDefinitions setter, sql setter, functionTreeRoot setter, operatorTreeRoot setter, cursor setter
+- Reason: Lifecycle hooks, user-triggered flows, and input setters that wire together the CodeMirror instance and emit events
+
+**Pass 2** (`script-pane.component.risk.tl.spec.ts`)
+- Methods: subscribe callbacks in ngOnInit (helpURL, isCursorTop), setTimeout in ngAfterViewInit/ngAfterViewChecked, delayAutocomplete (cancel-and-restart race, clearTimeout), applyCursorPosition (cursorTopLoaded/cursorPositionApplied guard flags), destroyCodeMirror (ternServer.destroy, toTextArea, cancelAutocomplete cleanup)
+- Reason: asyncZones=6 creates race-prone paths: competing subscribe+setTimeout sequences, debounce cancel races, and one-shot guard flags that misfire if ordering changes
+
+**Pass 3** (`script-pane.component.display.tl.spec.ts`)
+- Methods: getCSSIcon (6-branch if-else on node.data), functionOperatorTreeRoot getter (combined/single-root paths), expressionMissing getter, returnError getter, isGrayedOutField, ScriptPane.insertText (static, single-line and multi-line selection cases)
+- Reason: dispatchPoints=3; pure display/computation methods with multiple branches that need dedicated coverage without CodeMirror side-effects
+
+### SimpleQueryPaneComponent
+
+**Pass 1** (`simple-query-pane.component.interaction.tl.spec.ts`)
+- Methods: model setter (columnCache init, updateNumTables), nodeExpanded, columnsChange, deleteColumn, joinsChange, deleteJoin, newJoin, editJoin, getSQLString, getSqlParseResult, editSQLDirectly, nodeClicked, editConditions (dialog open/close), updateQueryTab (tab switching), goBackToPreviousTab
+- Reason: Router/HTTP loading flows, ngOnInit-equivalent model setter, user-triggered dialog and tab flows
+
+**Pass 2** (`simple-query-pane.component.risk.tl.spec.ts`)
+- Methods: editConditions observable chain ordering (positions[] splice logic), droppedIntoColumnList (tableColumnsObs subscribe + complete handler), getTableColumns (observableConcat ordering), updateQueryTab HTTP error branch, columnCache race between multiple table subscriptions
+- Reason: asyncZones=7 — async races, ordering invariants in observable chains, destructive state mutations under concurrent subscriptions
+
+**Pass 3** (`simple-query-pane.component.display.tl.spec.ts`)
+- Methods: addColumns (oldIndex < 0 / < index / > index / == index branches), deleteConditions (value1/value2/value3 table matching), joinToString, columnToString, isParseFailed, textChanged, supportsFullOuterJoin getter, setUpConditionDialogModel, iconFunction, tableCount getter
+- Reason: dispatchPoints=3 — pure conditional/label-computation logic with 3+ branching paths needing coverage
+
+### ConditionItemPane
+
+**Pass 1** (`ConditionItemPane.interaction.tl.spec.ts`)
+- Methods: ngOnInit, ngOnChanges, fieldChanged, operationChanged, onConditionValueChange, conditionChanged, updateCondition, openFormulaEdit (getColumnTree subscribe + dialogService.open modal result), getData/getVariables/getColumnTree/getScriptDefinitions provider delegation, fields setter (tree-building from DataRef array)
+- Reason: Covers lifecycle hooks, user-triggered mutations, the single async subscribe inside openFormulaEdit, and the modal result promise chain
+
+**Pass 3** (`ConditionItemPane.display.tl.spec.ts`)
+- Methods: showUseList getter (3 branching conditions: DATE_IN, ColumnRef/DateRangeRef, isHighlight+isDateRange), isDateRange (6 isGroupRef name checks + dateType+grouped branch), getDefaultConditionValues switch (7 operation cases + TOP_N/BOTTOM_N guard), getDefaultConditionValue (string vs non-string type), formulaExpression getter, formulaType getter (isReportWorksheetSource path), isFormulaField, isReportWorksheetSource, getGrayedOutFields, isBrowseDataEnabled
+- Reason: dispatchPoints=3 warrants a dedicated pass for pure conditional/label logic: showUseList branching, isDateRange groupRef pattern matching, and the operation-to-default-values switch
+
+### ConditionPane
+
+**Pass 1** (`condition-pane.interaction.tl.spec.ts`)
+- Methods: ngOnInit, conditionList setter (all branches), availableFields setter, condition setter, selectCondition, conditionItemSelected, updateDirtyJunction, insert, modify, save, saveOption, delete, clear, up, down, indent, unindent, expressionRenamed
+- Reason: User-triggered mutation flows, lifecycle initialization, and all EventEmitter outputs — the primary behavioral surface of the component
+
+**Pass 3** (`condition-pane.display.tl.spec.ts`)
+- Methods: canMoveUp, canMoveDown, canIndent, canUnindent, listPaneHeight, buttonText, emptyCondition, isConditionValid
+- Reason: Pure conditional/guard computations driven by selectedIndex and conditionList state — dispatchPoints threshold met; these are display/predicate methods with no async or side effects
+
+### ConditionEditor
+
+**Pass 1** (`condition-editor.component.interaction.tl.spec.ts`)
+- Methods: ngOnChanges, openChange, selectType, valueChanged, conditionValueChanged, conditionValuesChanged, updateChoiceQuery, closeDropDown, getSelectValues
+- Reason: Covers all user-triggered flows, lifecycle hooks, and output emissions that require component rendering and interaction
+
+**Pass 3** (`condition-editor.component.display.tl.spec.ts`)
+- Methods: selectType (5-branch type-to-default-value dispatch), getChoiceQuery (3-branch MODEL/ASSET/other source.type dispatch), updateChoiceQuery (3-branch useList+source.type dispatch)
+- Reason: Three dispatch points drive complex conditional label/value computation; pure branch coverage for each path without async concerns
+
+### DynamicValueEditorComponent
+
+**Pass 1** (`dynamic-value-editor.interaction.tl.spec.ts`)
+- Methods: ngOnInit, ngOnChanges (today/forceToDefault/defaultValue branches), updateValue, updateType, dateChange, isCalendarVisible, isCalendarDisable, getType
+- Reason: Covers lifecycle initialization (date fallback logic), input-driven change handling, user-triggered value/type/date mutations, and calendar visibility/disable state driven by valueModel.type and XSchema.isDateType
+
+**Pass 3** (`dynamic-value-editor.display.tl.spec.ts`)
+- Methods: getDateValueTypeNumber, getDateValueTypeStr, getPromptString, format (getter), mode (getter), isDate (getter)
+- Reason: Covers the four 3+-branch dispatch methods: ComboMode↔ValueTypes bidirectional mapping, prompt-string selection by XSchema type, format string selection (DATE/TIME/TIME_INSTANT), and numeric/text mode computation
