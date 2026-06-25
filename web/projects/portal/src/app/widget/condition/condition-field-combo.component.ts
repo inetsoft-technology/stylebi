@@ -36,7 +36,6 @@ import { ConditionFieldComboModel } from "./condition-field-combo-model";
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 import { ColumnRef } from "../../binding/data/column-ref";
 import { AggregateRef } from "../../common/data/aggregate-ref";
-import {VirtualScrollService} from "../tree/virtual-scroll.service";
 import { TreeTool } from "../../common/util/tree-tool";
 import { VirtualScrollTreeDatasource } from "../tree/virtual-scroll-tree-datasource";
 import { SearchDataRefPipe } from "../pipe/search-data-ref.pipe";
