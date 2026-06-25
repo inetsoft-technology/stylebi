@@ -21,6 +21,7 @@ import inetsoft.report.*;
 import inetsoft.report.internal.*;
 import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.report.lens.SubTableLens;
+import inetsoft.report.internal.Util;
 import inetsoft.report.script.formula.CellRange;
 import inetsoft.uql.XTable;
 import inetsoft.util.Tool;
@@ -73,7 +74,34 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
 
    @Override
    public boolean hasMember(String id) {
-      return id.equals("length") || id.equals("size") || members.containsKey(id);
+      if(id == null) {
+         return false;
+      }
+
+      if(id.equals("length") || id.equals("size") || members.containsKey(id)) {
+         return true;
+      }
+
+      XTable lens = getTable();
+
+      if(lens == null) {
+         return false;
+      }
+
+      // Unlike Rhino (whose get() was always invoked on read), GraalJS only
+      // calls getMember when hasMember reports the member present. A calc cell
+      // formula reads columns dynamically as data['Col'] (and data['Col@grp?cond'],
+      // data['*@...']) which are resolved lazily in getMember. Report those as
+      // present so the read is dispatched — otherwise data['Col'] reads as
+      // undefined and group expansion collapses to zero rows. Mirrors the
+      // column-existence check in TableRow.hasMember. (#75423)
+      if(id.indexOf('@') >= 0 || id.indexOf('?') >= 0 || id.indexOf(':') >= 0 ||
+         id.indexOf("^_^") >= 0 || id.startsWith("*"))
+      {
+         return true;
+      }
+
+      return Util.findColumn(lens, id) >= 0;
    }
 
    /**
