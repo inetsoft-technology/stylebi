@@ -91,6 +91,14 @@ public class WorksheetColumnInfo {
       this.path = path;
    }
 
+   public String getDescription() {
+      return description;
+   }
+
+   public void setDescription(String description) {
+      this.description = description;
+   }
+
    private String name;
    private String alias;
    private String type;
@@ -98,4 +106,5 @@ public class WorksheetColumnInfo {
    private String schema;
    private String catalog;
    private String path;
+   private String description;
 }

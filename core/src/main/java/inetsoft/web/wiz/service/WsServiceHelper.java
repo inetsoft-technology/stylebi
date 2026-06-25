@@ -122,10 +122,12 @@ final class WsServiceHelper {
             String colRefAlias = attr instanceof ColumnRef cr && !Tool.isEmptyString(cr.getAlias())
                ? cr.getAlias() : null;
             String alias = colRefAlias != null && !colRefAlias.equals(name) ? colRefAlias : null;
-
+            String description = attr instanceof ColumnRef cr && !Tool.isEmptyString(cr.getDescription())
+               ? cr.getDescription() : null;
             WorksheetColumnInfo info = new WorksheetColumnInfo();
             info.setName(name);
             info.setAlias(alias);
+            info.setDescription(description);
             info.setType(attr.getDataType());
             info.setTable(dbTableName);
             info.setSchema(schema);
@@ -153,6 +155,8 @@ final class WsServiceHelper {
             String path = "";
             String schema = "";
             String catalog = "";
+            String description = attr instanceof ColumnRef cr && !Tool.isEmptyString(cr.getDescription())
+               ? cr.getDescription() : null;
 
             // worksheet may be null only if a caller passes a composite primary table without its
             // owning worksheet; treat the sub-table as unresolvable and fall back to the column name.
@@ -186,6 +190,7 @@ final class WsServiceHelper {
             WorksheetColumnInfo info = new WorksheetColumnInfo();
             info.setName(dbColumnName);
             info.setAlias(alias);
+            info.setDescription(description);
             info.setType(attr.getDataType());
             info.setTable(subTableName);
             info.setSchema(schema);

@@ -747,6 +747,10 @@ public class WorksheetTableService {
             colRef.setAlias(col.getAlias());
          }
 
+         if(col.getDescription() != null) {
+            colRef.setDescription(col.getDescription());
+         }
+
          if(Boolean.FALSE.equals(col.getVisible())) {
             colRef.setVisible(false);
          }
@@ -796,6 +800,10 @@ public class WorksheetTableService {
 
          if(col.getAlias() != null) {
             colRef.setAlias(col.getAlias());
+         }
+
+         if(col.getDescription() != null) {
+            colRef.setDescription(col.getDescription());
          }
 
          if(Boolean.FALSE.equals(col.getVisible())) {
