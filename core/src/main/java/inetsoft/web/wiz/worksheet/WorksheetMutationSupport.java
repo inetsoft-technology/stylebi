@@ -378,7 +378,11 @@ public final class WorksheetMutationSupport {
     * @param operation comparison operator string
     * @param values    literal values
     * @param negated   {@code true} to negate the condition
-    * @param type      optional data type (defaults to {@code "string"})
+    * @param type      optional XSchema data type (e.g. {@code "integer"}, {@code "double"},
+    *                  {@code "date"}).  When {@code null}, the type is inferred from the
+    *                  column's declared type in the table's column selection; falls back to
+    *                  {@code "string"} if the column is unknown.  Agents should set this
+    *                  explicitly for numeric or date fields to avoid lexicographic comparisons.
     */
    public record ConditionSpec(String field, String operation,
                                List<String> values, boolean negated,
@@ -436,7 +440,7 @@ public final class WorksheetMutationSupport {
             ConditionSpec spec = node.condition();
             int op = parseOperation(spec.operation());
             boolean negate = spec.negated() || isNegatedOperation(spec.operation());
-            String dtype = spec.type() != null ? spec.type() : XSchema.STRING;
+            String dtype = spec.type() != null ? spec.type() : inferColumnType(t, spec.field());
 
             AttributeRef ref = new AttributeRef(null, spec.field());
             Condition c = new Condition(dtype);
@@ -517,6 +521,24 @@ public final class WorksheetMutationSupport {
    // =========================================================================
    // Internal helpers
    // =========================================================================
+
+   /**
+    * Looks up the XSchema data type for {@code field} in the table's column selection.
+    * Falls back to {@link XSchema#STRING} when the column is not found or has no type.
+    */
+   private static String inferColumnType(TableAssembly t, String field) {
+      ColumnSelection cs = t.getColumnSelection(false);
+
+      if(cs != null && field != null) {
+         DataRef col = cs.getAttribute(field);
+
+         if(col != null && col.getDataType() != null && !col.getDataType().isBlank()) {
+            return col.getDataType();
+         }
+      }
+
+      return XSchema.STRING;
+   }
 
    static int parseOperation(String operation) {
       if(operation == null) {

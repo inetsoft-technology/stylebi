@@ -22,6 +22,7 @@ import inetsoft.uql.XPrincipal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
@@ -47,9 +48,12 @@ import java.security.Principal;
 @RestController
 public class SheetPairingController {
    @Autowired
-   public SheetPairingController(SheetPairingService pairing, SheetAgentFeature feature) {
+   public SheetPairingController(SheetPairingService pairing, SheetAgentFeature feature,
+                                 @Value("${wiz.agent.rest-mint.enabled:false}") boolean restMintEnabled)
+   {
       this.pairing = pairing;
       this.feature = feature;
+      this.restMintEnabled = restMintEnabled;
    }
 
    /** Response DTO returned by both mint entry points. {@code error} is non-null on failure. */
@@ -72,9 +76,9 @@ public class SheetPairingController {
     * not verified server-side; any authenticated user could supply an arbitrary session ID and
     * bind a pairing code to a browser session they do not own.
     *
-    * <p><strong>WARNING:</strong> this endpoint must NOT be reachable in production. It is
-    * retained solely for integration tests that cannot drive a live STOMP connection. Secure
-    * deployments should firewall or remove this endpoint and use the STOMP variant instead.
+    * <p>Disabled by default ({@code wiz.agent.rest-mint.enabled=false}). Must be explicitly
+    * enabled in test environments. Production deployments should leave this off and use the
+    * STOMP variant instead.</p>
     */
    @PostMapping("/api/wiz/pairing/mint")
    public MintResponse mint(@RequestParam String runtimeId,
@@ -82,6 +86,10 @@ public class SheetPairingController {
                             @RequestParam SheetType sheetType,
                             Principal owner)
    {
+      if(!restMintEnabled) {
+         throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+      }
+
       requireFeature();
       LOG.warn("REST mint used (socketSessionId not server-verified) — user={}, runtimeId={}",
                owner != null ? owner.getName() : "null", runtimeId);
@@ -111,6 +119,9 @@ public class SheetPairingController {
                                              destinationUserName(owner), req.sheetType()));
       }
       catch(Exception e) {
+         LOG.error("STOMP mint failed (runtimeId={}, sheetType={})",
+                   req != null ? req.runtimeId() : "null",
+                   req != null ? req.sheetType() : "null", e);
          return MintResponse.err(e.getMessage() != null ? e.getMessage() : "Failed to generate pairing code");
       }
    }
@@ -142,6 +153,7 @@ public class SheetPairingController {
 
    private final SheetPairingService pairing;
    private final SheetAgentFeature feature;
+   private final boolean restMintEnabled;
 
    private static final Logger LOG = LoggerFactory.getLogger(SheetPairingController.class);
 }

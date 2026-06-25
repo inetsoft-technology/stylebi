@@ -534,7 +534,14 @@ public class WorksheetAgentController {
       return fields.toArray(new String[0]);
    }
 
-   /** Infer XSchema type for a column by scanning data rows (row 0 is header, skip it). */
+   /**
+    * Infer XSchema type for a column by scanning data rows (row 0 is header, skip it).
+    *
+    * <p>Known limitation: only DOUBLE and STRING are returned. Integer columns become DOUBLE
+    * (acceptable for most comparisons but loses integer-precision semantics), and
+    * date/boolean columns become STRING (may affect sort order and aggregate operations).
+    * This is sufficient for CSV import but is not a general type-inference solution.</p>
+    */
    private static String inferType(List<String[]> rows, int col) {
       boolean allNumeric = true;
       for(int r = 1; r < rows.size(); r++) {

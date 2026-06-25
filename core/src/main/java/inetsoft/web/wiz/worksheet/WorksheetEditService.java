@@ -234,7 +234,7 @@ public class WorksheetEditService {
          return id != null ? id.convertToKey() : p.getName();
       }
 
-      return agent.getName();
+      return agent != null ? agent.getName() : null;
    }
 
    // -------------------------------------------------------------------------
@@ -1306,8 +1306,11 @@ public class WorksheetEditService {
          System.arraycopy(existing, 0, updated, 0, existing.length);
          updated[existing.length] = newTable;
 
-         // Preserve existing operators and add one for the new pair
-         TableAssemblyOperator op = ctbl.getOperator(0);
+         // Preserve existing operators and add one for the new pair.
+         // Copy the last-pair operator (between existing[n-2] and existing[n-1]) so that
+         // the new table inherits the same UNION/INTERSECT/MINUS as the most recent pair
+         // rather than always defaulting to whatever operator 0 happens to be.
+         TableAssemblyOperator op = ctbl.getOperator(existing.length - 1);
          ctbl.setTableAssemblies(updated);
 
          // Set operator between last existing and new table
@@ -1511,7 +1514,7 @@ public class WorksheetEditService {
             ws.addAssembly(clone);
          }
          catch(Exception e) {
-            throw new PairingException("Cannot duplicate assembly: " + sourceName);
+            throw new PairingException("Cannot duplicate assembly: " + sourceName, e);
          }
       }
 

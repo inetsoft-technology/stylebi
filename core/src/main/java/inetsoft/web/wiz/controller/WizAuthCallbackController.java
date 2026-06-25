@@ -62,7 +62,7 @@ public class WizAuthCallbackController {
       @RequestParam("token") String token,
       HttpServletResponse response) throws IOException
    {
-      if(nonce == null || nonce.isBlank() || token == null || token.isBlank()) {
+      if(nonce.isBlank() || token.isBlank()) {
          response.sendError(HttpServletResponse.SC_BAD_REQUEST);
          return;
       }
@@ -99,7 +99,7 @@ public class WizAuthCallbackController {
     */
    @GetMapping(value = "/v1/auth/pickup", produces = MediaType.APPLICATION_JSON_VALUE)
    public ResponseEntity<Map<String, Object>> pickup(@RequestParam("nonce") String nonce) {
-      if(nonce == null || nonce.isBlank()) {
+      if(nonce.isBlank()) {
          return ResponseEntity.badRequest().build();
       }
 
@@ -145,8 +145,9 @@ public class WizAuthCallbackController {
     */
    private static boolean verifySignature(String token) {
       try {
-         SecretKey signingKey = PasswordEncryption.newInstance().getJwtSigningKey();
-         JWSVerifier verifier = PasswordEncryption.newInstance().createJwsVerifier(signingKey);
+         PasswordEncryption enc = PasswordEncryption.newInstance();
+         SecretKey signingKey = enc.getJwtSigningKey();
+         JWSVerifier verifier = enc.createJwsVerifier(signingKey);
          SignedJWT jws = SignedJWT.parse(token);
          return jws.verify(verifier);
       }
