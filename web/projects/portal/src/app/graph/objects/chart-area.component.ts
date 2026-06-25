@@ -21,6 +21,7 @@ import {
    ElementRef,
    EventEmitter,
    Input,
+   NgZone,
    OnChanges,
    OnDestroy, OnInit,
    Output,
@@ -325,7 +326,8 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
                private scaleService: ScaleService,
                private changeDetectorRef: ChangeDetectorRef,
                private pagingControlService: PagingControlService,
-               protected renderer: Renderer2)
+               protected renderer: Renderer2,
+               private ngZone: NgZone)
    {
    }
 
@@ -349,10 +351,12 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
    }
 
    ngOnInit() {
-      window.addEventListener("resize", this.onResize);
+      this.ngZone.runOutsideAngular(() => {
+         window.addEventListener("resize", this.onResize);
 
-      this.devicePixelRatioMedia = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-      this.devicePixelRatioMedia.addEventListener("change", this.onDevicePixelRatioChange);
+         this.devicePixelRatioMedia = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+         this.devicePixelRatioMedia.addEventListener("change", this.onDevicePixelRatioChange);
+      });
    }
 
    private onResize = (): void => {

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { AfterViewInit, ElementRef, HostBinding, Input, OnDestroy, ViewChild, Directive } from "@angular/core";
+import { AfterViewInit, Directive, ElementRef, HostBinding, inject, Input, NgZone, OnDestroy, ViewChild } from "@angular/core";
 import { SafeStyle } from "@angular/platform-browser";
 import { fromEvent, Subscription } from "rxjs";
 import { GuiTool } from "../../common/util/gui-tool";
@@ -125,10 +125,11 @@ export abstract class ChartObjectAreaBase<T extends ChartObject>
          scaleService.getScale().subscribe((scale) => this.viewsheetScale = scale)
       );
 
-      this.addSubscription(fromEvent(window, "resize")
-         .subscribe((event) => this.drawSelectedRegions())
-
-      );
+      inject(NgZone).runOutsideAngular(() => {
+         this.addSubscription(fromEvent(window, "resize")
+            .subscribe(() => this.drawSelectedRegions())
+         );
+      });
    }
 
    ngAfterViewInit() {
