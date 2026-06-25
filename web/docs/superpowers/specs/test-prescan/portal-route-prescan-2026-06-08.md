@@ -2,7 +2,7 @@
 
 **日期**: 2026-06-08（2026-06-12 补充扫描，新增 65 个组件；2026-06-24 补充扫描，新增 6 个组件）
 **候选组件数**: 148（原 142，2026-06-24 新增 6）| **建议推进**: 82 | **建议跳过**: 0 | **建议暂缓**: 66 | **待审核**: 121 | **多 pass 组件**: 41
-**测试进度**: ✅已测试 27 / 148 | 待测 121 / 148 | ⏭ 跳过 0 / 148
+**测试进度**: ✅已测试 30 / 148 | 待测 118 / 148 | ⏭ 跳过 0 / 148
 
 ## 状态说明
 - 第一列「状态」初始为「待审核」，人工审核后改为 ✅已测试 / ⏭已跳过
@@ -87,12 +87,12 @@
 | 待审核 | InputNameDialog | 112 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ input-name-dialog.component.spec.ts | Bug #19762 Show the error message on the input; test: Show the error message on the input | single pass (+内存泄漏) |
 | ✅已测试 | ActionsContextmenuComponent | 154 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ actions-contextmenu.component.spec.ts | test: should not create a dropdown when there are no visible actions | single pass (+内存泄漏) |
 | ✅已测试 | NotificationsComponent | 65 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ notifications.component.spec.ts | 无 | single pass (+内存泄漏) |
-| 待审核 | RepositoryTreeComponent | 461 | 0 | 5 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
+| ✅已测试 | RepositoryTreeComponent | 461 | 0 | 5 | **single-pass** | ✅已测试 | 24/24✅ |  | single pass (+竞态+内存泄漏) |
 | 待审核 | ResponsiveTabsComponent | 80 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | SplitPane | 120 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | TabularViewComponent | 59 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
-| ✅ 推进 | TreeNodeComponent | 506 | 3 | 5 | **multi-pass** | ✅ 推进 |  |  | P1: tree-node.component.interaction.tl.spec.ts<br>P2: tree-node.component.risk.tl.spec.ts<br>P3: tree-node.component.display.tl.spec.ts |
-| ✅ 推进 | TreeComponent | 754 | 6 | 6 | **multi-pass** | ✅ 推进 | ⚠️ tree.spec.ts | Bug #17221 search field can not input string; (reading 'expanded')" after the fixture is destroyed.; Bug #17336 should show infomation when no result  | P1: tree.component.interaction.tl.spec.ts<br>P2: tree.component.risk.tl.spec.ts<br>P3: tree.component.display.tl.spec.ts |
+| ✅已测试 | TreeNodeComponent | 506 | 3 | 5 | **multi-pass** | ✅ 推进 |  |  | P1: tree-node.component.interaction.tl.spec.ts (74/74 ✅)<br>P2: tree-node.component.risk.tl.spec.ts (6/6 ✅)<br>P3: tree-node.component.display.tl.spec.ts (21/21 ✅) |
+| ✅已测试 | TreeComponent | 754 | 6 | 6 | **multi-pass** | ✅ 推进 | ~~⚠️ tree.spec.ts~~ | Bug #17221: P1 search() 覆盖；Bug #17336: P3 DOM 用例覆盖 — 旧 spec 已可安全删除 | P1: tree.component.interaction.tl.spec.ts (47/47 ✅)<br>P2: tree.component.risk.tl.spec.ts (8/8 ✅)<br>P3: tree.component.display.tl.spec.ts (8/8 ✅，含 Bug #17336 DOM 覆盖) |
 | 待审核 | AiAssistantDialogComponent | 35 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | AiAssistantPanelComponent | 177 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 
