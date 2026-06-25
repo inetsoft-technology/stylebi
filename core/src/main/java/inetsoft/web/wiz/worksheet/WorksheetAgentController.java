@@ -415,13 +415,9 @@ public class WorksheetAgentController {
 
       List<String[]> rows = parseCsv(body.csv());
 
-      if(rows.size() < 1) {
-         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "CSV has no rows");
-      }
-
       if(rows.size() < 2) {
          throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                                           "CSV must have at least one data row (header only)");
+                                           "CSV must have a header row and at least one data row");
       }
 
       String[] headers = rows.get(0);
