@@ -52,17 +52,20 @@ function makeZoneAndCounter() {
 }
 
 /**
- * Minimal NgZone mock that records how many times runOutsideAngular() is called.
- * Used only to assert the API is invoked — not for CD-cycle measurement.
+ * Minimal NgZone mock that records how many times each Zone re-entry method is called.
+ * - outsideCount() — how many times runOutsideAngular() was called (registration guard)
+ * - runCount()     — how many times run() was called from inside the scroll handler (re-entry guard)
  */
 function makeMockZone() {
    let _outsideCount = 0;
+   let _runCount = 0;
    const mock = {
       runOutsideAngular<T>(fn: () => T): T { _outsideCount++; return fn(); },
-      run<T>(fn: () => T): T { return fn(); },
+      run<T>(fn: () => T): T { _runCount++; return fn(); },
       outsideCount: () => _outsideCount,
+      runCount:     () => _runCount,
    };
-   return mock as unknown as NgZone & { outsideCount(): number };
+   return mock as unknown as NgZone & { outsideCount(): number; runCount(): number };
 }
 
 function makeNode(label: string, parent?: TreeNodeModel): TreeNodeModel {
@@ -149,6 +152,21 @@ describe("VirtualScrollTreeDatasource — Zone isolation: registerScrollContaine
 
       expect(getCount()).toBe(0);
    });
+
+   it("scroll handler never calls ngZone.run() — no zone re-entry on scroll", () => {
+      const zone = makeMockZone();
+      const ds   = new VirtualScrollTreeDatasource();
+      const el   = document.createElement("div");
+
+      ds.registerScrollContainer(el, zone as unknown as NgZone);
+      // reset() not needed: zone.run() is unrelated to registration
+      el.dispatchEvent(new Event("scroll"));
+
+      // The handler (virtual-scroll-tree-datasource.ts:98-104) must never call
+      // ngZone.run(). If a future change wraps dispatcher.next() or scrollTop.next()
+      // inside zone.run(), this test catches the regression before it reaches prod.
+      expect(zone.runCount()).toBe(0);
+   });
 });
 
 // ── 2. Dispatcher: emit on scroll and refresh ─────────────────────────────────
@@ -229,19 +247,26 @@ describe("VirtualScrollTreeDatasource — scrollTop tracking", () => {
 
 describe("VirtualScrollTreeDatasource — cleanup and listener lifecycle", () => {
 
-   it("cleanup() stops further scroll emits", () => {
-      const zone  = new NgZone({ enableLongStackTrace: false });
-      const ds    = new VirtualScrollTreeDatasource();
-      const el    = document.createElement("div");
+   it("cleanup() removes the scroll listener — dispatcher emits and scrollTop both stop updating", () => {
+      const zone      = new NgZone({ enableLongStackTrace: false });
+      const ds        = new VirtualScrollTreeDatasource();
+      const container = document.createElement("div");
       const emits: unknown[] = [];
 
-      ds.registerScrollContainer(el, zone).subscribe(v => emits.push(v));
+      ds.registerScrollContainer(container, zone).subscribe(v => emits.push(v));
       ds.cleanup();
-      const countAfterCleanup = emits.length;
 
-      el.dispatchEvent(new Event("scroll"));
+      const emitCountAfterCleanup  = emits.length;
+      const scrollTopAfterCleanup  = ds.scrollTop.value;
 
-      expect(emits.length).toBe(countAfterCleanup);
+      // Simulate a scroll with a non-zero scrollTop to make the assertion meaningful
+      Object.defineProperty(container, "scrollTop", { value: 99, writable: true, configurable: true });
+      container.dispatchEvent(new Event("scroll"));
+
+      // Both effects of the handler must be suppressed — confirming the listener was
+      // physically removed, not merely that the observable subscriber was torn down.
+      expect(emits.length).toBe(emitCountAfterCleanup);          // dispatcher.next() not called
+      expect(ds.scrollTop.value).toBe(scrollTopAfterCleanup);    // scrollTop.next()  not called
    });
 
    it("cleanup() is idempotent — calling twice does not throw", () => {
