@@ -19,4 +19,5 @@ package inetsoft.web.wiz.pairing;
 
 public class PairingException extends Exception {
    public PairingException(String message) { super(message); }
+   public PairingException(String message, Throwable cause) { super(message, cause); }
 }

@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.pairing;
 
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
@@ -70,6 +71,12 @@ public class SheetSessionService {
    }
 
    public void close(String token) { if (token != null) sessions.remove(token); }
+
+   @Scheduled(fixedDelay = 10 * 60_000)
+   void evictExpired() {
+      long now = clock.getAsLong();
+      sessions.values().removeIf(s -> s.isExpired(now));
+   }
 
    private String newToken() {
       StringBuilder sb = new StringBuilder(24);

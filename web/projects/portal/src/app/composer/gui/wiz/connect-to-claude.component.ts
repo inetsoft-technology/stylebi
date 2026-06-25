@@ -65,14 +65,21 @@ export class ConnectToClaudeComponent implements OnChanges, OnDestroy {
          const sub = conn.subscribe("/user/commands/wiz/pairing/mint", (msg: any) => {
             sub.unsubscribe();
             this.mintSubscription = null;
-            const body = JSON.parse(msg.frame.body);
             this.zone.run(() => {
                this.loading = false;
-               if(body.code) {
-                  this.code = body.code;
+
+               try {
+                  const body = JSON.parse(msg.frame.body);
+
+                  if(body.code) {
+                     this.code = body.code;
+                  }
+                  else {
+                     this.error = body.error ?? "Failed to generate pairing code";
+                  }
                }
-               else {
-                  this.error = body.error ?? "Failed to generate pairing code";
+               catch(e) {
+                  this.error = "Failed to generate pairing code";
                }
             });
          });

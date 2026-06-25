@@ -197,10 +197,6 @@ public class WorksheetEditService {
    // -------------------------------------------------------------------------
 
    /**
-    * Propagates the browser's socket session ID and user name from the pairing session
-    * to the RuntimeWorksheet so the broadcast can deliver the refresh command.
-    */
-   /**
     * Refresh column selections and reload table data for all assemblies in the worksheet.
     * Mirrors the UI's post-edit steps (InsertDataService calls refreshColumnSelection +
     * loadTableData after column mutations).

@@ -21,6 +21,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
@@ -87,7 +88,19 @@ public final class WorksheetMutationSupport {
       boolean negate = isNegatedOperation(operation);
       int op = parseOperation(operation);
       AttributeRef ref = new AttributeRef(null, field);
-      Condition c = new Condition(XSchema.STRING);
+      // Infer type from the column selection so numeric comparisons work correctly.
+      String dtype = XSchema.STRING;
+      ColumnSelection cs = t.getColumnSelection(false);
+
+      if(cs != null) {
+         DataRef col = cs.getAttribute(field);
+
+         if(col != null && col.getDataType() != null && !col.getDataType().isBlank()) {
+            dtype = col.getDataType();
+         }
+      }
+
+      Condition c = new Condition(dtype);
       c.setOperation(op);
 
       if(isEqualInclusive(operation)) {

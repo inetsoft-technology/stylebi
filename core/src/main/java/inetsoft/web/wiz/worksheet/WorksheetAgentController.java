@@ -375,16 +375,20 @@ public class WorksheetAgentController {
                                 owner, uname.orgID);
       }
 
+      if(!(user instanceof XPrincipal xp)) {
+         throw new PairingException("Cannot save: agent principal is not an XPrincipal (" +
+                                    user.getClass().getName() + ")");
+      }
+
       try {
-         worksheetService.setWorksheet(rws.getWorksheet(), entry,
-                                       (XPrincipal) user, true, true);
+         worksheetService.setWorksheet(rws.getWorksheet(), entry, xp, true, true);
          rws.setEntry(entry);
          rws.setEditable(true);
          rws.setSavePoint(rws.getCurrent());
          broadcast.broadcastSave(rws, runtimeId, user);
       }
       catch(Exception e) {
-         throw new PairingException("Failed to save worksheet: " + e.getMessage());
+         throw new PairingException("Failed to save worksheet: " + e.getMessage(), e);
       }
    }
 
@@ -410,8 +414,14 @@ public class WorksheetAgentController {
       }
 
       List<String[]> rows = parseCsv(body.csv());
+
       if(rows.size() < 1) {
          throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "CSV has no rows");
+      }
+
+      if(rows.size() < 2) {
+         throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                           "CSV must have at least one data row (header only)");
       }
 
       String[] headers = rows.get(0);
@@ -1127,10 +1137,20 @@ public class WorksheetAgentController {
             ops[i] = table.getOperator(i);
          }
 
-         table.reorderTableAssemblies(
-            Arrays.stream(subtables)
-               .map(name -> (TableAssembly) ws.getAssembly(name))
-               .toArray(TableAssembly[]::new));
+         TableAssembly[] reordered = new TableAssembly[subtables.length];
+
+         for(int i = 0; i < subtables.length; i++) {
+            Assembly sub = ws.getAssembly(subtables[i]);
+
+            if(!(sub instanceof TableAssembly)) {
+               throw new PairingException(
+                  "Subtable not found in worksheet: " + subtables[i]);
+            }
+
+            reordered[i] = (TableAssembly) sub;
+         }
+
+         table.reorderTableAssemblies(reordered);
 
          // Restore operators at new positions.
          for(int i = 0; i < ops.length; i++) {
