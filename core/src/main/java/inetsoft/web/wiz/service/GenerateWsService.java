@@ -271,6 +271,13 @@ public class GenerateWsService {
       // Apply HAVING conditions (stored in postconds)
       if(model.getAggregates() != null && model.getHaving() != null) {
          applyAggregateInfo(table, model.getGroupBy(), model.getAggregates(), model.getHaving());
+         // The PUBLIC column selection (which the chart recommender/autoBinding reads) is generated
+         // when the pre-aggregation private selection is set — BEFORE aggregateInfo exists. So each
+         // aggregate output (e.g. Count(id)) keeps the base column's "string" type and is misread as
+         // a string DIMENSION: the chart binds no measure and silently renders 0 rows. Regenerate the
+         // public selection now that aggregateInfo is set, so AbstractTableAssembly types each
+         // aggregate column from its formula result type (Count → numeric) and each group from its own.
+         table.resetColumnSelection();
          applyHavingCondition(table, model.getHaving());
       }
 
