@@ -22,20 +22,51 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.web.composer.model.*;
 import inetsoft.web.wiz.WizUtil;
-import inetsoft.web.wiz.model.DatasourceTablesResponse;
-import inetsoft.web.wiz.model.WorksheetMeta;
+import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.osi.OsiDataset;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
+import inetsoft.web.wiz.request.SchemaSearchRequest;
 import inetsoft.web.wiz.service.MetadataApiService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
+import java.rmi.RemoteException;
 import java.security.Principal;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/wiz")
 public class DatasourceMetaApiController {
-   public DatasourceMetaApiController(MetadataApiService metadataService) {
+   public DatasourceMetaApiController(MetadataApiService metadataService, XRepository xrepository) {
       this.metadataService = metadataService;
+      this.xrepository = xrepository;
+   }
+
+   /**
+    * Lists all data sources available in the repository.
+    * Used by the MCP plugin's list_datasources tool.
+    */
+   @GetMapping(value = "/v1/datasources", produces = MediaType.APPLICATION_JSON_VALUE)
+   public List<Map<String, String>> listDatasources() throws RemoteException {
+      String[] names = xrepository.getDataSourceFullNames();
+      return Arrays.stream(names)
+         .sorted()
+         .map(name -> {
+            Map<String, String> entry = new LinkedHashMap<>();
+            entry.put("name", name);
+            try {
+               XDataSource ds = xrepository.getDataSource(name);
+               entry.put("type", ds != null ? ds.getType() : "unknown");
+            }
+            catch(Exception e) {
+               entry.put("type", "unknown");
+            }
+            return entry;
+         })
+         .collect(Collectors.toList());
    }
 
    @PostMapping("/datasource/table/meta")
@@ -87,5 +118,57 @@ public class DatasourceMetaApiController {
       return metadataService.getNodes(event, principal).treeNodeModel();
    }
 
+   /**
+    * Gets column metadata for a specific table in a datasource.
+    * Used by the MCP plugin's get_table_details tool.
+    *
+    * @param datasource the datasource name.
+    * @param table      the table name.
+    * @param catalog    optional catalog name.
+    * @param schema     optional schema name.
+    * @param principal  the current user.
+    * @return column metadata for the table.
+    */
+   @GetMapping(value = "/v1/table-details",
+               produces = MediaType.APPLICATION_JSON_VALUE)
+   public DatabaseTableMeta getTableDetails(
+      @RequestParam("datasource") String datasource,
+      @RequestParam("table") String table,
+      @RequestParam(value = "catalog", required = false) String catalog,
+      @RequestParam(value = "schema", required = false) String schema,
+      Principal principal)
+      throws Exception
+   {
+      return metadataService.getTableDetails(datasource, table, catalog, schema, principal);
+   }
+
+   /**
+    * Searches for tables and columns matching a keyword across all datasources.
+    * Used by the MCP plugin's search_schema tool.
+    *
+    * @param request   the search request containing query and optional field names.
+    * @param principal the current user.
+    * @return matching tables with their matched columns.
+    */
+   @PostMapping(value = "/v1/schema/search", produces = MediaType.APPLICATION_JSON_VALUE)
+   public SchemaSearchResponse searchSchema(
+      @RequestBody SchemaSearchRequest request,
+      Principal principal)
+      throws Exception
+   {
+      return metadataService.searchSchema(request, principal);
+   }
+
+   @ExceptionHandler(Exception.class)
+   @ResponseStatus(org.springframework.http.HttpStatus.BAD_REQUEST)
+   @ResponseBody
+   public Map<String, String> handleException(Exception e) {
+      LOG.warn("DatasourceMetaApi error: {}", e.getMessage(), e);
+      return Map.of("error", e.getMessage() != null ? e.getMessage() : e.getClass().getName());
+   }
+
+   private static final Logger LOG = LoggerFactory.getLogger(DatasourceMetaApiController.class);
+
    private final MetadataApiService metadataService;
+   private final XRepository xrepository;
 }

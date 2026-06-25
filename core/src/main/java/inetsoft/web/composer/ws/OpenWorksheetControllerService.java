@@ -46,6 +46,8 @@ public class OpenWorksheetControllerService {
                                    CommandDispatcher commandDispatcher) throws Exception
    {
       RuntimeWorksheet rws = engine.getWorksheet(runtimeId, principal);
+      rws.setSocketSessionId(commandDispatcher.getSessionId());
+      rws.setSocketUserName(commandDispatcher.getUserName());
       AssetEntry entry = rws.getEntry();
 
       WorksheetModel worksheet = new WorksheetModel();

@@ -420,9 +420,27 @@ _#(fl.action.newGroupDes)</div>
     (click)="aiAssistantDialogService.openAiAssistantDialog()">
   </button>
 }
+@if (isWorksheet && sheet && wizService.sheetAgentPairingEnabled) {
+  <div ngbDropdown #wizConnectDropdown="ngbDropdown" placement="bottom-end" container="body">
+    <button type="button" class="btn-toolbar btn composer-btn wiz-connect-toggle" [ngbTooltip]="WizConnect"
+            triggers="hover" container="body" ngbDropdownToggle>
+      <i class="share-link-icon icon-size-medium"></i>
+    </button>
+    <div ngbDropdownMenu class="wiz-connect-dropdown p-2">
+      <wiz-connect-to-claude
+        [runtimeId]="sheet.runtimeId"
+        sheetType="WORKSHEET"
+        [socketConnection]="sheet.socketConnection">
+      </wiz-connect-to-claude>
+    </div>
+  </div>
+}
 </div>
 <ng-template #Assistant>
   <div class="composer-tooltip"><b>_#(Assistant)</b></div>
+</ng-template>
+<ng-template #WizConnect>
+  <div class="composer-tooltip"><b>_#(Connect Agent)</b></div>
 </ng-template>
 
 <ng-template #importCsvDialog let-close="close" let-dismiss="dismiss">

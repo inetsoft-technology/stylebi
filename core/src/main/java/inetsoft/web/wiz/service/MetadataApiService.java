@@ -45,6 +45,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import inetsoft.web.wiz.request.SchemaSearchRequest;
+
 import java.security.Principal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -1169,6 +1171,219 @@ public class MetadataApiService {
       return isPartitionChild(parts[2], parts[3], partitions);
    }
 
+   /**
+    * Gets column metadata for a specific table in a datasource.
+    *
+    * @param dsName    the datasource name.
+    * @param tableName the fully qualified table name (may include catalog.schema.table).
+    * @param catalog   optional catalog name.
+    * @param schema    optional schema name.
+    * @param principal the current user.
+    * @return column metadata for the table.
+    */
+   public DatabaseTableMeta getTableDetails(String dsName, String tableName,
+                                            String catalog, String schema,
+                                            Principal principal)
+      throws Exception
+   {
+      if(!dataSourceService.checkPermission(dsName, ResourceAction.READ, principal)) {
+         throw new SecurityException("Access denied to data source: " + dsName);
+      }
+
+      JDBCDataSource jdbcDataSource = getJDBCDatasource(dsName);
+      DefaultMetaDataProvider metaDataProvider = getMetaDataProvider(dsName);
+
+      if(metaDataProvider == null) {
+         throw new Exception("No meta data provider found for data source " + dsName);
+      }
+
+      XNode rootMetaData = metaDataProvider.getRootMetaData(XUtil.OUTER_MOSE_LAYER_DATABASE);
+
+      if(rootMetaData == null) {
+         throw new Exception("No meta data found for data source " + dsName);
+      }
+
+      SQLTypes sqlTypes = SQLTypes.getSQLTypes(jdbcDataSource);
+      XNode node = sqlTypes.getQualifiedTableNode(tableName,
+         "true".equals(rootMetaData.getAttribute("hasCatalog")),
+         "true".equals(rootMetaData.getAttribute("hasSchema")),
+         (String) rootMetaData.getAttribute("catalogSep"), jdbcDataSource,
+         catalog, schema);
+
+      if(rootMetaData.getAttribute("supportCatalog") != null) {
+         node.setAttribute("supportCatalog", rootMetaData.getAttribute("supportCatalog"));
+      }
+
+      XNode tableData = metaDataProvider.getMetaData(node, true);
+      XNode tableNode = tableData != null ? tableData.getChild(0) : null;
+
+      if(tableNode == null) {
+         throw new Exception(
+            Tool.buildString("Table ", tableName, " not found in data source ", dsName));
+      }
+
+      DatabaseTableMeta meta = new DatabaseTableMeta();
+      meta.setName(tableName);
+      meta.setCatalog(Tool.isEmptyString(catalog) ? null : catalog);
+      meta.setSchema(Tool.isEmptyString(schema) ? null : schema);
+
+      List<DatabaseTableMeta.ColumnMeta> columns = new ArrayList<>();
+
+      for(int i = 0; i < tableNode.getChildCount(); i++) {
+         XNode columnNode = tableNode.getChild(i);
+
+         if(columnNode == null) {
+            continue;
+         }
+
+         DatabaseTableMeta.ColumnMeta col = new DatabaseTableMeta.ColumnMeta();
+         col.setName(columnNode.getName());
+         col.setType(columnNode instanceof XTypeNode typeNode ? typeNode.getType() : null);
+         col.setPrimaryKey("true".equals(columnNode.getAttribute("PrimaryKey")));
+
+         Integer length = (Integer) columnNode.getAttribute("length");
+         col.setLength(length != null ? length : 0);
+
+         String comment = (String) columnNode.getAttribute("comment");
+         col.setComment(Tool.isEmptyString(comment) ? null : comment);
+
+         List<String[]> foreignKeys = extractForeignKeys(columnNode);
+         col.setForeignKeys(foreignKeys.isEmpty() ? null : foreignKeys);
+
+         columns.add(col);
+      }
+
+      meta.setColumns(columns);
+      return meta;
+   }
+
+   /**
+    * Searches for tables and columns matching a keyword across all datasources.
+    *
+    * @param request   the search request containing query and optional field names.
+    * @param principal the current user.
+    * @return matching tables with their matched columns.
+    */
+   public SchemaSearchResponse searchSchema(SchemaSearchRequest request, Principal principal)
+      throws Exception
+   {
+      String query = request.getQuery();
+
+      if(Tool.isEmptyString(query)) {
+         SchemaSearchResponse response = new SchemaSearchResponse();
+         response.setResults(Collections.emptyList());
+         return response;
+      }
+
+      String queryLower = query.toLowerCase(Locale.ROOT);
+      List<String> fields = request.getFields();
+      boolean searchColumns = fields != null && !fields.isEmpty();
+      Set<String> fieldNamesLower = new HashSet<>();
+
+      if(searchColumns) {
+         for(String f : fields) {
+            fieldNamesLower.add(f.toLowerCase(Locale.ROOT));
+         }
+      }
+
+      String[] dsNames = xrepository.getDataSourceFullNames();
+      List<SchemaSearchResponse.SchemaSearchResult> results = new ArrayList<>();
+
+      for(String dsName : dsNames) {
+         try {
+            if(!dataSourceService.checkPermission(dsName, ResourceAction.READ, principal)) {
+               continue;
+            }
+
+            XDataSource dataSource = xrepository.getDataSource(dsName);
+
+            if(!(dataSource instanceof JDBCDataSource)) {
+               continue;
+            }
+
+            DatasourceTablesResponse tablesResponse = getDatabaseTables(dsName, principal);
+
+            for(DatabaseTableInfo tableInfo : tablesResponse.getTables()) {
+               boolean tableMatches = tableInfo.getTable().toLowerCase(Locale.ROOT)
+                  .contains(queryLower);
+
+               // If searching by field names, look for column matches
+               List<SchemaSearchResponse.ColumnMatch> columnMatches = null;
+
+               if(searchColumns) {
+                  columnMatches = findColumnMatches(
+                     dsName, tableInfo, fieldNamesLower, principal);
+               }
+
+               // Include table if its name matches the query, or if any requested columns match
+               if(tableMatches || (columnMatches != null && !columnMatches.isEmpty())) {
+                  SchemaSearchResponse.SchemaSearchResult result =
+                     new SchemaSearchResponse.SchemaSearchResult();
+                  result.setDatasource(dsName);
+                  result.setCatalog(tableInfo.getCatalog());
+                  result.setSchema(tableInfo.getSchema());
+                  result.setTable(tableInfo.getTable());
+                  result.setType(tableInfo.getType());
+                  result.setMatchedColumns(columnMatches);
+                  results.add(result);
+               }
+
+               if(results.size() >= MAX_SEARCH_RESULTS) {
+                  break;
+               }
+            }
+         }
+         catch(Exception e) {
+            log.debug("Skipping datasource '{}' during schema search: {}", dsName, e.getMessage());
+         }
+
+         if(results.size() >= MAX_SEARCH_RESULTS) {
+            break;
+         }
+      }
+
+      SchemaSearchResponse response = new SchemaSearchResponse();
+      response.setResults(results);
+      return response;
+   }
+
+   /**
+    * Finds columns in a table that match the given field name set.
+    */
+   private List<SchemaSearchResponse.ColumnMatch> findColumnMatches(
+      String dsName, DatabaseTableInfo tableInfo, Set<String> fieldNamesLower,
+      Principal principal)
+   {
+      try {
+         DatabaseTableMeta meta = getTableDetails(
+            dsName, tableInfo.getTable(), tableInfo.getCatalog(),
+            tableInfo.getSchema(), principal);
+
+         List<SchemaSearchResponse.ColumnMatch> matches = new ArrayList<>();
+
+         for(DatabaseTableMeta.ColumnMeta col : meta.getColumns()) {
+            String colNameLower = col.getName().toLowerCase(Locale.ROOT);
+
+            for(String fieldName : fieldNamesLower) {
+               if(colNameLower.contains(fieldName) || fieldName.contains(colNameLower)) {
+                  SchemaSearchResponse.ColumnMatch match = new SchemaSearchResponse.ColumnMatch();
+                  match.setName(col.getName());
+                  match.setType(col.getType());
+                  matches.add(match);
+                  break;
+               }
+            }
+         }
+
+         return matches.isEmpty() ? null : matches;
+      }
+      catch(Exception e) {
+         log.debug("Failed to get columns for table '{}' in '{}': {}",
+            tableInfo.getTable(), dsName, e.getMessage());
+         return null;
+      }
+   }
+
    private final XRepository xrepository;
    private final DataSourceService dataSourceService;
    private final AssetRepository assetRepository;
@@ -1177,5 +1392,6 @@ public class MetadataApiService {
    // Only TABLE and VIEW are meaningful for data modelling; other types (PROCEDURE, SYNONYM,
    // ALIAS, GLOBAL TEMPORARY, etc.) are excluded.
    private static final Set<String> SUPPORTED_TABLE_TYPES = Set.of("TABLE", "VIEW");
+   private static final int MAX_SEARCH_RESULTS = 100;
    private static final Logger log = LoggerFactory.getLogger(MetadataApiService.class);
 }

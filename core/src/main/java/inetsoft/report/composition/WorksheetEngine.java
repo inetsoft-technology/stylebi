@@ -51,7 +51,7 @@ import java.util.concurrent.*;
  * @version 8.0
  * @author InetSoft Technology Corp
  */
-public abstract class WorksheetEngine extends SheetLibraryEngine implements WorksheetService {
+public abstract class WorksheetEngine extends SheetLibraryEngine implements WorksheetService, SheetDirectAccessor {
    /**
     * Constructor.
     * throws RemoteException
@@ -586,6 +586,15 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
    @Override
    public boolean sheetExists(String id) {
       return amap.containsKey(id);
+   }
+
+   /**
+    * Direct runtime access for the agent pairing path. Bypasses the per-session matches()
+    * check. The caller must have already authorized the agent via a valid PairingGrant.
+    * Returns null if the runtimeId is not in this node's cache.
+    */
+   public RuntimeSheet getSheetDirect(String runtimeId) {
+      return amap.get(runtimeId);
    }
 
    /**

@@ -67,6 +67,8 @@ public class WorksheetEventService {
                                CommandDispatcher commandDispatcher) throws Exception
    {
       RuntimeWorksheet rws = engine.getWorksheet(id, user);
+      rws.setSocketSessionId(commandDispatcher.getSessionId());
+      rws.setSocketUserName(commandDispatcher.getUserName());
       fixWorksheetMode(rws);
       clearGettingStatedRuntimeWs(rws, gettingStartedCreateQuery);
 

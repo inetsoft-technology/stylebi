@@ -787,6 +787,8 @@ public abstract class AbstractSecurityFilter
       "/webjars/**",
       "/sso/jwks",
       "/robots.txt",
+      // WIZ MCP plugin polls this unauthenticated endpoint to pick up SSO tokens after login.
+      "/api/wiz/v1/auth/pickup",
    };
    protected static final String ORG_COOKIE = "X-INETSOFT-ORGID";
    /**
