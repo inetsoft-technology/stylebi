@@ -40,6 +40,7 @@ import inetsoft.uql.viewsheet.graph.GeoRef;
 import inetsoft.uql.viewsheet.graph.GeographicOption;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSAestheticRef;
+import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartGeoRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -340,6 +341,20 @@ public class WizGeoService {
          mapInfo.setColorField(color);
       }
 
+      // No category dimension to color by → shade the choropleth by the MEASURE instead (mirrors
+      // MapChartFilter.putInside: on a polygon map the aggregate drives the fill color). Move the
+      // first aggregate left on an axis onto color so the regions reflect the value (e.g. account
+      // count per state) instead of rendering a single flat shade.
+      if(mapInfo.getColorField() == null && !hasPointField(mapInfo)) {
+         VSChartAggregateRef measure = takeFirstAxisAggregate(mapInfo);
+
+         if(measure != null) {
+            VSAestheticRef color = new VSAestheticRef();
+            color.setDataRef(measure);
+            mapInfo.setColorField(color);
+         }
+      }
+
       // Render filled polygons (a choropleth) rather than point markers: with no point-layer geo
       // field and no size field, set a NIL static shape frame so the regions fill instead of
       // drawing a shape at each centroid. Mirrors MapChartFilter.createChartInfo.
@@ -385,8 +400,12 @@ public class WizGeoService {
       for(int i = fields.length - 1; i >= 0; i--) {
          ChartRef ref = fields[i];
 
-         if(ref instanceof XDimensionRef && !geoColumn.equals(ref.getName())) {
-            if(category == null) {
+         if(ref instanceof XDimensionRef) {
+            // A non-geo dimension becomes the fill-color category. The geo column itself must ALSO be
+            // removed from the axis — otherwise it both draws the polygons (as the geo field) and
+            // facets the map into one panel per value (the small-multiples bug). Only the
+            // category-assignment is guarded by name; the axis removal applies to both.
+            if(!geoColumn.equals(ref.getName()) && category == null) {
                category = ref;
             }
 
@@ -399,6 +418,29 @@ public class WizGeoService {
       }
 
       return category;
+   }
+
+   /** Removes and returns the first aggregate (measure) found on the X or Y axis, or null. */
+   private VSChartAggregateRef takeFirstAxisAggregate(VSMapInfo mapInfo) {
+      ChartRef[] xfields = mapInfo.getXFields();
+
+      for(int i = xfields.length - 1; i >= 0; i--) {
+         if(xfields[i] instanceof VSChartAggregateRef agg) {
+            mapInfo.removeXField(i);
+            return agg;
+         }
+      }
+
+      ChartRef[] yfields = mapInfo.getYFields();
+
+      for(int i = yfields.length - 1; i >= 0; i--) {
+         if(yfields[i] instanceof VSChartAggregateRef agg) {
+            mapInfo.removeYField(i);
+            return agg;
+         }
+      }
+
+      return null;
    }
 
    private RuntimeViewsheet getRuntimeViewsheet(String runtimeId, Principal user) throws Exception {
