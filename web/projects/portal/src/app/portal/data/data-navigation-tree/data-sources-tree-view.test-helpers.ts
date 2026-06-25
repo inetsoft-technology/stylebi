@@ -23,7 +23,6 @@
  * display and interaction spec files.
  */
 
-import { Component } from "@angular/core";
 import { convertToParamMap } from "@angular/router";
 import { provideHttpClient } from "@angular/common/http";
 import { Subject, Subscription, of } from "rxjs";
@@ -43,6 +42,7 @@ import { DomService } from "../../../widget/dom-service/dom.service";
 import { GettingStartedService } from "../../../widget/dialog/getting-started-dialog/service/getting-started.service";
 import { SsoHeartbeatService } from "../../../../../../shared/sso/sso-heartbeat.service";
 import { DataNotificationsComponent } from "../data-notifications.component";
+import { StubDataNotificationsComponent } from "../data-notifications.stub";
 import { DataBrowserService } from "../data-folder-browser/data-browser.service";
 import { DatasourceBrowserService } from "../data-datasource-browser/datasource-browser.service";
 import {
@@ -51,15 +51,6 @@ import {
 import { DataSourcesTreeActionsService } from "./data-sources-tree-actions.service";
 import { PortalDataType } from "./portal-data-type";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
-
-// ---------------------------------------------------------------------------
-// Stub component
-// ---------------------------------------------------------------------------
-
-@Component({ selector: "data-notifications", template: "", standalone: true })
-export class StubDataNotificationsComponent {
-   notifications = { info: vi.fn(), success: vi.fn(), danger: vi.fn(), warning: vi.fn() };
-}
 
 // ---------------------------------------------------------------------------
 // Subjects factory

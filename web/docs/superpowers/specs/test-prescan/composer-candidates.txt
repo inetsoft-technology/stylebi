@@ -129,3 +129,52 @@ projects/portal/src/app/composer/dialog/vs/filters-pane.component.ts
 projects/portal/src/app/composer/dialog/vs/screens-pane.component.ts
 projects/portal/src/app/composer/dialog/vs/localization-pane.component.ts
 projects/portal/src/app/composer/dialog/vs/viewsheet-script-pane.component.ts
+
+# ── 2026-06-24 补充扫描：widget 共享组件 + format ──────────────────────────────
+# 系统性扫描发现的未覆盖 widget 组件（composer 路由优先使用的部分）。共 30 个。
+
+# 公式编辑器 / 脚本
+projects/portal/src/app/widget/formula-editor/formula-editor-dialog.component.ts
+projects/portal/src/app/widget/dialog/script-pane/script-pane.component.ts
+projects/portal/src/app/widget/dialog/vsassembly-script-pane/vsassembly-script-pane.component.ts
+
+# SQL 查询对话框
+projects/portal/src/app/widget/dialog/sql-query-dialog/simple-query-pane.component.ts
+projects/portal/src/app/widget/dialog/sql-query-dialog/sql-query-join-dialog.component.ts
+projects/portal/src/app/widget/dialog/sql-query-dialog/sql-query-dialog-list.component.ts
+projects/portal/src/app/widget/dialog/additional-table-selection-pane/additional-table-selection-pane.component.ts
+
+# 条件编辑器
+projects/portal/src/app/widget/condition/condition-item-pane.component.ts
+projects/portal/src/app/widget/condition/condition-pane.component.ts
+projects/portal/src/app/widget/condition/condition-field-combo.component.ts
+projects/portal/src/app/widget/condition/condition-editor.component.ts
+projects/portal/src/app/widget/condition/value-editor.component.ts
+projects/portal/src/app/widget/condition/one-of-condition-editor.component.ts
+projects/portal/src/app/widget/condition/subquery-dialog.component.ts
+projects/portal/src/app/widget/condition/expression-editor.component.ts
+projects/portal/src/app/widget/highlight/highlight-pane.component.ts
+
+# 日期/时间编辑器（条件值输入）
+projects/portal/src/app/widget/date-type-editor/date-value-editor.component.ts
+projects/portal/src/app/widget/date-type-editor/dynamic-value-editor.component.ts
+
+# 自动补全 / 图像 / 变量列表
+projects/portal/src/app/widget/auto-complete/auto-complete-text.component.ts
+projects/portal/src/app/widget/image-editor/image-preview-pane.component.ts
+projects/portal/src/app/widget/dialog/variable-list-dialog/variable-list-editor/variable-list-editor.component.ts
+
+# 通用 UI（表格、下拉、侧滑）
+projects/portal/src/app/widget/simple-table/simple-table.component.ts
+projects/portal/src/app/widget/fixed-dropdown/fixed-dropdown.component.ts
+projects/portal/src/app/widget/slide-out/slide-out.component.ts
+
+# 图表 target / 颜色 / Presenter / 标尺
+projects/portal/src/app/widget/target/band-panel.component.ts
+projects/portal/src/app/widget/target/stat-panel.component.ts
+projects/portal/src/app/widget/color-picker/color-map.component.ts
+projects/portal/src/app/widget/presenter/format-presenter-pane.component.ts
+projects/portal/src/app/widget/rulers/ruler.component.ts
+
+# format
+projects/portal/src/app/format/objects/border-style-pane.component.ts
