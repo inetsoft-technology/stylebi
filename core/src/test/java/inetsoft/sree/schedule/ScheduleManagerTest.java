@@ -40,10 +40,23 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-/**
- *  For some rename or remove functions that are not or only used in ReplitEngine, there is no need to add unit cases, such as:
- *  repletRemoved, assetRemoved,  assetRenamed, only RepletEngine used, ignore
- *  archiveRenamed: useless, ignore
+/*
+ * Tier: [integration] — real ScheduleManager bean, SecurityEngine, and in-memory task maps.
+ *
+ * Intent vs implementation suspects: none confirmed at this time.
+ * Regression: checkIdentityRenamedWithSystemTaskCondition (Bug #74651).
+ *
+ * Intentionally out of scope (RepletEngine-only or unused):
+ * repletRemoved, assetRemoved, assetRenamed, archiveRenamed.
+ */
+
+/*
+ * Cases deferred - require broader integration context:
+ *
+ * [ScheduleManager] initialize() / reloadExtensions() / cluster message broadcast
+ *             -> extension reload and cross-node sync; NOT duplicated here
+ * [ScheduleManager] identityRemoved() user/group/org teardown
+ *             -> needs EditableAuthenticationProvider fixture; NOT yet covered
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -78,11 +91,13 @@ public class ScheduleManagerTest {
 
    @AfterEach
    void clearEnv() {
+      SreeEnv.setProperty("schedule.options.shareTaskInGroup", "false");
+      SreeEnv.setProperty("schedule.options.deleteTaskOnlyByOwner", "false");
       clearAllTask("host-org");
    }
 
    @Test
-   void testStaticFunctions() {
+   void staticHelpers_internalTaskIdsAndPermissions() {
       // check isInternalTask
       assertFalse(ScheduleManager.isInternalTask("tk1"));
       assertTrue(ScheduleManager.isInternalTask("__balance tasks__"));
@@ -130,11 +145,34 @@ public class ScheduleManagerTest {
                                               new IdentityID("test1", "host-org")));
    }
 
+   @Test
+   void getTaskMetaData_qualifiedAndBareIds_splitOwnerAndName() {
+      ScheduleTaskMetaData qualified =
+         ScheduleManager.getTaskMetaData("admin~;~host-org:sales-report");
+      assertEquals("sales-report", qualified.getTaskName());
+      assertEquals("admin~;~host-org", qualified.getTaskOwnerId());
+
+      ScheduleTaskMetaData bare = ScheduleManager.getTaskMetaData("__balance tasks__");
+      assertEquals("__balance tasks__", bare.getTaskName());
+      assertNull(bare.getTaskOwnerId());
+   }
+
+   @Test
+   void isDeleteOnlyByOwner_shareDisabled_returnsTrue() {
+      SreeEnv.setProperty("security.enabled", "true");
+      SreeEnv.setProperty("schedule.options.shareTaskInGroup", "false");
+
+      ScheduleTask task = new ScheduleTask("owner-only");
+      task.setOwner(identityID_tuser0);
+
+      assertTrue(scheduleManager.isDeleteOnlyByOwner(task, tuser0));
+   }
+
    /**
     * check save and remove  task
     */
    @Test
-   void testSaveTask() throws Exception {
+   void saveAndRemoveTask_enforcesDeletePermissionAndRemovableFlag() throws Exception {
       ScheduleTask tk1 = new ScheduleTask("tk1");
       tk1.setOwner(identityID_tuser0);
       ScheduleTask mvtk2  = new ScheduleTask("mvtk2");
@@ -165,6 +203,29 @@ public class ScheduleManagerTest {
          () -> scheduleManager.removeScheduleTask("tuser0~;~host-org:mvtk2", admin)
       );
       assertTrue(exception.getMessage().contains("Task is not removable:"));
+   }
+
+   @Test
+   void removeScheduleTask_dependencyCheck_blocksDeleteWhenReferenced() throws Exception {
+      ScheduleTask parent = new ScheduleTask("parent-dep");
+      parent.setOwner(identityID_admin);
+      parent.addCondition(TimeCondition.at(10, 0, 0));
+
+      ScheduleTask child = new ScheduleTask("child-dep");
+      child.setOwner(identityID_admin);
+      child.addCondition(new CompletionCondition(parent.getTaskId()));
+
+      scheduleManager.setScheduleTask(parent.getTaskId(), parent, admin);
+      scheduleManager.setScheduleTask(child.getTaskId(), child, admin);
+
+      Vector<ScheduleTask> allTasks = new Vector<>(scheduleManager.getScheduleTasks());
+      assertTrue(scheduleManager.hasDependency(allTasks, parent.getTaskId()));
+
+      Exception exception = assertThrows(Exception.class,
+         () -> scheduleManager.removeScheduleTask(parent.getTaskId(), admin, true));
+      assertNotNull(exception.getMessage());
+      assertNotNull(scheduleManager.getScheduleTask(parent.getTaskId()),
+         "Parent task must still exist after blocked delete");
    }
 
    /**
