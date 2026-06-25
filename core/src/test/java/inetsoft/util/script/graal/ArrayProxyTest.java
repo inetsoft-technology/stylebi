@@ -109,4 +109,26 @@ class ArrayProxyTest {
       ctx.eval("js", "arr[0] = 'Z';");
       assertEquals("Z", s.elements.get(0));
    }
+
+   /** A scope whose negative indices resolve (like TableRow's previous-row access). */
+   static class RelativeScope extends ListScope {
+      @Override public Object getArrayElement(long index) {
+         // mimic TableRow: a negative index returns a relative-element marker
+         return index < 0 ? ("rel" + index) : super.getArrayElement(index);
+      }
+   }
+
+   // field[-1] (previous row) arrives as member key "-1" under GraalJS, not an
+   // array-element read. ArrayProxy must route negative keys to getArrayElement,
+   // matching Rhino's get(int) which accepted negative indices. (#75423)
+   @Test void negativeIndexFromScriptRoutesToArrayElement() {
+      RelativeScope s = new RelativeScope();
+      s.elements.add("a");
+      s.elements.add("b");
+      ctx.getBindings("js").putMember("arr", new ArrayProxy(s));
+      assertEquals("rel-1", ctx.eval("js", "arr[-1]").asString());
+      assertEquals("rel-2", ctx.eval("js", "arr[-2]").asString());
+      // positive in-range still uses normal element access
+      assertEquals("b", ctx.eval("js", "arr[1]").asString());
+   }
 }

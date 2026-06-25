@@ -61,6 +61,17 @@ public class ArrayProxy implements ProxyArray, ProxyObject {
 
    @Override
    public Object getMember(String key) {
+      // Negative indices (e.g. field[-1] for the previous row) arrive as the
+      // string member key "-1": JS arrays have no negative indices, and GraalJS
+      // only dispatches readArrayElement for 0 <= i < size, so it falls back to
+      // readMember. Rhino called get(int) for any index, including negative, so
+      // route negative integer keys to getArrayElement to preserve that. (#75423)
+      long idx = negativeIndex(key);
+
+      if(idx != NOT_INDEX) {
+         return ScriptValueConverter.toGuest(scope.getArrayElement(idx));
+      }
+
       return ScriptValueConverter.toGuest(scope.getMember(key));
    }
 
@@ -71,7 +82,26 @@ public class ArrayProxy implements ProxyArray, ProxyObject {
 
    @Override
    public boolean hasMember(String key) {
-      return scope.hasMember(key);
+      // report negative integer keys present so GraalJS dispatches the read to
+      // getMember (which routes to getArrayElement). (#75423)
+      return negativeIndex(key) != NOT_INDEX || scope.hasMember(key);
+   }
+
+   private static final long NOT_INDEX = Long.MIN_VALUE;
+
+   /** Parse a negative integer member key, or {@link #NOT_INDEX} if not one. */
+   private static long negativeIndex(String key) {
+      if(key == null || key.length() < 2 || key.charAt(0) != '-') {
+         return NOT_INDEX;
+      }
+
+      try {
+         long v = Long.parseLong(key);
+         return v < 0 ? v : NOT_INDEX;
+      }
+      catch(NumberFormatException ex) {
+         return NOT_INDEX;
+      }
    }
 
    @Override
