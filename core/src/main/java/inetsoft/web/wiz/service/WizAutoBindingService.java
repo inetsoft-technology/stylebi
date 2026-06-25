@@ -25,6 +25,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.graph.aesthetic.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.ColorPalettes;
@@ -2014,6 +2015,16 @@ public class WizAutoBindingService {
       ChartDescriptor desc = info.getChartDescriptor();
       VSChartInfo vsChartInfo = info.getVSChartInfo();
 
+      // Chart (assembly-level) title — the heading shown above the plot. Setting a value also makes
+      // the title visible, so a chart that defaulted to the generic "Chart" heading shows the
+      // caller's text instead.
+      if(request.getChartTitle() != null &&
+         chart.getVSAssemblyInfo() instanceof ChartVSAssemblyInfo cinfo)
+      {
+         cinfo.setTitleValue(request.getChartTitle());
+         cinfo.setTitleVisible(true);
+      }
+
       // Axis titles
       if(desc != null && desc.getTitlesDescriptor() != null) {
          TitlesDescriptor titles = desc.getTitlesDescriptor();
@@ -2101,6 +2112,14 @@ public class WizAutoBindingService {
       // above. Clear the cached graph explicitly — mirroring VSChartDataHandler — or every
       // subsequent render (including brand-new embed connections) serves the stale graph.
       rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(request.getAssemblyName()));
+
+      // Commit the in-place mutation to the backing asset. save_viewsheet clones the assembly from
+      // the PERSISTED viewsheet (not this live runtime), so a format/color change left only on the
+      // runtime — the chart title above the plot in particular — is silently dropped on save.
+      // Mirrors how create/changeType call persistViewsheet so their changes survive a save.
+      if(request.getViewsheetIdentifier() != null) {
+         wizVsService.persistViewsheet(rvs.getViewsheet(), request.getViewsheetIdentifier(), user);
+      }
 
       CreateViewsheetResult result =
          wizVsService.fetchAssemblyData(request.getWizRuntimeId(), request.getAssemblyName(), user);
@@ -2196,6 +2215,14 @@ public class WizAutoBindingService {
       // above. Clear the cached graph explicitly — mirroring VSChartDataHandler — or every
       // subsequent render (including brand-new embed connections) serves the stale graph.
       rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(request.getAssemblyName()));
+
+      // Commit the in-place mutation to the backing asset. save_viewsheet clones the assembly from
+      // the PERSISTED viewsheet (not this live runtime), so a format/color change left only on the
+      // runtime — the chart title above the plot in particular — is silently dropped on save.
+      // Mirrors how create/changeType call persistViewsheet so their changes survive a save.
+      if(request.getViewsheetIdentifier() != null) {
+         wizVsService.persistViewsheet(rvs.getViewsheet(), request.getViewsheetIdentifier(), user);
+      }
 
       CreateViewsheetResult result =
          wizVsService.fetchAssemblyData(request.getWizRuntimeId(), request.getAssemblyName(), user);

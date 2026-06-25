@@ -38,6 +38,11 @@ public class ChartFormatRequest {
    public String getViewsheetIdentifier() { return viewsheetIdentifier; }
    public void setViewsheetIdentifier(String viewsheetIdentifier) { this.viewsheetIdentifier = viewsheetIdentifier; }
 
+   /** The chart's overall (assembly-level) title — the heading shown above the plot; null = no change. */
+   @JsonProperty("chartTitle")
+   public String getChartTitle() { return chartTitle; }
+   public void setChartTitle(String chartTitle) { this.chartTitle = chartTitle; }
+
    @JsonProperty("xAxisTitle")
    public String getXAxisTitle() { return xAxisTitle; }
    public void setXAxisTitle(String xAxisTitle) { this.xAxisTitle = xAxisTitle; }
@@ -88,6 +93,7 @@ public class ChartFormatRequest {
    /** Optional — carried back on the result so a subsequent save keeps the same identifier. */
    private String viewsheetIdentifier;
 
+   private String chartTitle;
    private String xAxisTitle;
    private String yAxisTitle;
    private Double yAxisMin;

@@ -1343,8 +1343,13 @@ public class WizVsService {
     * @return the {@link AssetEntry#toIdentifier() identifier} of the saved entry
     *
     * @throws Exception if the entry identifier is invalid or the repository save fails
+    *
+    * <p>Public so the in-place chart edits in {@link WizAutoBindingService} (set chart format /
+    * colors) can commit their runtime mutation to the backing asset — {@code save_viewsheet}
+    * reads the PERSISTED viewsheet, so an unpersisted runtime change (e.g. the chart title) is
+    * otherwise silently dropped on save.
     */
-   private String persistViewsheet(Viewsheet vs, String existingIdentifier, Principal user)
+   public String persistViewsheet(Viewsheet vs, String existingIdentifier, Principal user)
       throws Exception
    {
       final AssetEntry entry;
