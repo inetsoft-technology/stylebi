@@ -20,8 +20,6 @@ package inetsoft.web.wiz.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.cluster.*;
-import inetsoft.report.composition.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -66,7 +64,6 @@ import static inetsoft.web.wiz.service.WizDateLevelUtil.getDateGroupLevel;
  * </ul>
  */
 @Service
-@ClusterProxy
 public class WorksheetTableService {
 
    public WorksheetTableService(ViewsheetService viewsheetService,
@@ -160,7 +157,7 @@ public class WorksheetTableService {
       }
 
       // 8. Extract column info for the response.
-      List<WorksheetTableResponse.ColumnData> columns = extractColumnsFromSelection(table);
+      List<WorksheetColumnData> columns = extractColumnsFromSelection(table);
 
       WorksheetTableResponse response = new WorksheetTableResponse();
       response.setWsId(worksheetEntry.toIdentifier());
@@ -180,15 +177,14 @@ public class WorksheetTableService {
 
    // Get worksheet table metadata.
 
-   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public WorksheetModel getWorksheetModel(@ClusterProxyKey String runtimeId, Principal user)
+   public WorksheetModel getWorksheetModel(String wsIdentifier, Principal user)
       throws Exception
    {
-      if(Tool.isEmptyString(runtimeId)) {
-         throw new IllegalArgumentException("runtimeId is required");
+      if(Tool.isEmptyString(wsIdentifier)) {
+         throw new IllegalArgumentException("wsIdentifier is required");
       }
 
-      WorksheetSource source = resolveWorksheet(runtimeId, user);
+      WorksheetSource source = resolveWorksheet(wsIdentifier, user);
       Worksheet worksheet = source.worksheet();
       List<WorksheetTableModel> tables = new ArrayList<>();
 
@@ -1225,7 +1221,7 @@ public class WorksheetTableService {
    }
 
    // ─── Column extraction for response ──────────────────────────────────────
-   private List<WorksheetTableResponse.ColumnData> extractColumnsFromSelection(
+   private List<WorksheetColumnData> extractColumnsFromSelection(
       AbstractTableAssembly table)
    {
       ColumnSelection cs = table.getColumnSelection(true);
@@ -1234,7 +1230,7 @@ public class WorksheetTableService {
          return Collections.emptyList();
       }
 
-      List<WorksheetTableResponse.ColumnData> result = new ArrayList<>(cs.getAttributeCount());
+      List<WorksheetColumnData> result = new ArrayList<>(cs.getAttributeCount());
 
       for(int i = 0; i < cs.getAttributeCount(); i++) {
          DataRef attr = cs.getAttribute(i);
@@ -1242,7 +1238,7 @@ public class WorksheetTableService {
          if(attr instanceof ColumnRef cr && cr.isVisible()) {
             String name = cr.getName();
             String type = cr.getDataType();
-            result.add(new WorksheetTableResponse.ColumnData(name, type));
+            result.add(new WorksheetColumnData(name, type));
          }
       }
 
@@ -1254,70 +1250,34 @@ public class WorksheetTableService {
    private WorksheetTableModel buildWorksheetTableModel(Worksheet worksheet,
                                                         AbstractTableAssembly table)
    {
+      boolean primaryTable = Tool.equals(table.getName(), worksheet.getPrimaryAssemblyName());
+
       return WorksheetTableModel.builder()
          .tableName(table.getName())
          .baseTables(getBaseTables(table))
          .tableType(getTableType(table))
          .columns(extractColumnsFromSelection(table))
-         .primaryColumnMetas(WsServiceHelper.extractPrimaryTableFields(
-            worksheet, table, getPhysicalTableName(table)))
+         .primaryColumnMetas(primaryTable
+            ? WsServiceHelper.extractPrimaryTableFields(worksheet, table, getPhysicalTableName(table))
+            : Collections.emptyList())
          .hasAggregate(hasAggregate(table))
          .hasCondition(hasCondition(table))
          .build();
    }
 
-   private WorksheetSource resolveWorksheet(String runtimeId, Principal user)
+   private WorksheetSource resolveWorksheet(String wsIdentifier, Principal user)
       throws Exception
    {
-      try {
-         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
-
-         if(rvs != null) {
-            RuntimeWorksheet rws = rvs.getRuntimeWorksheet();
-
-            if(rws != null && rws.getWorksheet() != null) {
-               return new WorksheetSource(
-                  rws.getWorksheet(), getIdentifier(rws.getEntry(), runtimeId));
-            }
-
-            inetsoft.uql.viewsheet.Viewsheet vs = rvs.getViewsheet();
-            AssetEntry baseEntry = vs != null ? vs.getBaseEntry() : null;
-
-            if(baseEntry != null && baseEntry.isWorksheet()) {
-               AbstractSheet sheet = viewsheetService.getAssetRepository()
-                  .getSheet(baseEntry, user, false, AssetContent.ALL);
-
-               if(sheet instanceof Worksheet worksheet) {
-                  return new WorksheetSource(worksheet, getIdentifier(baseEntry, runtimeId));
-               }
-            }
-         }
-      }
-      catch(ExpiredSheetException | ClassCastException ex) {
-         // The id may be a worksheet runtime id or a persisted worksheet identifier.
-      }
-
-      try {
-         RuntimeWorksheet rws = viewsheetService.getWorksheet(runtimeId, user);
-
-         if(rws != null && rws.getWorksheet() != null) {
-            return new WorksheetSource(
-               rws.getWorksheet(), getIdentifier(rws.getEntry(), runtimeId));
-         }
-      }
-      catch(ExpiredSheetException | ClassCastException ex) {
-         // Fall through to persisted worksheet identifier lookup.
-      }
-
-      AssetEntry worksheetEntry = AssetEntry.createAssetEntry(runtimeId);
+      AssetEntry worksheetEntry = AssetEntry.createAssetEntry(wsIdentifier);
       AbstractSheet sheet = viewsheetService.getAssetRepository()
          .getSheet(worksheetEntry, user, false, AssetContent.ALL);
 
       if(!(sheet instanceof Worksheet worksheet)) {
-         throw new IllegalArgumentException("runtimeId does not reference a worksheet: " + runtimeId);
+         throw new IllegalArgumentException(
+            "wsIdentifier does not reference a worksheet: " + wsIdentifier);
       }
 
-      return new WorksheetSource(worksheet, getIdentifier(worksheetEntry, runtimeId));
+      return new WorksheetSource(worksheet, getIdentifier(worksheetEntry, wsIdentifier));
    }
 
    private List<String> getBaseTables(AbstractTableAssembly table) {

@@ -20,7 +20,6 @@ package inetsoft.web.wiz.model;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import inetsoft.web.wiz.model.WorksheetTableResponse.ColumnData;
 import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
@@ -41,7 +40,7 @@ public interface WorksheetTableModel extends Serializable {
     */
    String tableType();
 
-   List<ColumnData> columns();
+   List<WorksheetColumnData> columns();
 
    /**
     * Rich metadata used by wiz services, including column lineage.

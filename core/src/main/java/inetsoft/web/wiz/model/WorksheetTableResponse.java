@@ -38,7 +38,7 @@ public class WorksheetTableResponse {
    private String tableName;
 
    /** Columns exposed by the newly created table. */
-   private List<ColumnData> columns;
+   private List<WorksheetColumnData> columns;
 
    /**
     * Primary-table fields (name, alias, type, source) StyleBI exposes for visualization binding.
@@ -55,8 +55,8 @@ public class WorksheetTableResponse {
    public String getTableName() { return tableName; }
    public void setTableName(String tableName) { this.tableName = tableName; }
 
-   public List<ColumnData> getColumns() { return columns; }
-   public void setColumns(List<ColumnData> columns) { this.columns = columns; }
+   public List<WorksheetColumnData> getColumns() { return columns; }
+   public void setColumns(List<WorksheetColumnData> columns) { this.columns = columns; }
 
    public List<WorksheetColumnInfo> getPrimaryTableFields() { return primaryTableFields; }
    public void setPrimaryTableFields(List<WorksheetColumnInfo> primaryTableFields) {
@@ -69,20 +69,4 @@ public class WorksheetTableResponse {
    public String getErrorMessage() { return errorMessage; }
    public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
 
-   public static class ColumnData {
-      private String name;
-      private String type;
-
-      public ColumnData() {}
-
-      public ColumnData(String name, String type) {
-         this.name = name;
-         this.type = type;
-      }
-
-      public String getName() { return name; }
-      public void setName(String name) { this.name = name; }
-      public String getType() { return type; }
-      public void setType(String type) { this.type = type; }
-   }
 }
