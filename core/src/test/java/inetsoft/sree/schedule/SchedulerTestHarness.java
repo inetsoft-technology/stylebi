@@ -247,10 +247,18 @@ public class SchedulerTestHarness implements AutoCloseable {
          try {
             task.run(null);
          }
+         catch(JobExecutionException e) {
+            throw e;
+         }
          catch(Exception e) {
             throw new JobExecutionException(e);
          }
+         catch(Error e) {
+            throw e;
+         }
          catch(Throwable e) {
+            // ScheduleTask.run() declares throws Throwable; this branch is unreachable in practice
+            // (Throwable subclasses are Exception or Error) but required by the compiler.
             throw new JobExecutionException(new Exception(e));
          }
       }
