@@ -24,7 +24,9 @@
  *                       filter() rebuilds the visible node objects.
  *   Group 2 [Risk 3] - selectNode() Shift+click: the component must handle an anchor that
  *                       is no longer present in flattenTree.
- *   Group 3 [Risk 2] - dragStart(): folder-name checks must exclude all root folders from
+ *   Group 3 [Performance] - restoreExpandedState(): must batch-select expanded nodes after
+ *                           a data reload to avoid N redundant expandFlattenedNodes() passes.
+ *   Group 4 [Risk 2] - dragStart(): folder-name checks must exclude all root folders from
  *                       the drag payload.
  *
  * Key contracts:
@@ -262,7 +264,74 @@ describe("SecurityTreeViewComponent - selectNode() Shift+click: crash when ancho
 });
 
 // =============================================================================
-// Group 3 [Risk 2] - dragStart(): isIdentityFolder folder-name completeness
+// Group 3 [Performance] - restoreExpandedState(): batch expansion after reload
+// =============================================================================
+
+describe("SecurityTreeViewComponent - restoreExpandedState(): batch expansion after reload", () => {
+   // After a data reload, restoreExpandedState() must use a single batch
+   // expansionModel.select(...nodes) instead of calling treeControl.expand() once
+   // per node. The per-node approach fires expansionModel.changed N times, each
+   // triggering an expandFlattenedNodes() pass. The batch approach fires it once.
+   it("should not call treeControl.expand() when restoring expanded nodes after data reload", async () => {
+      const usersFolder  = makeNode("Users",  IdentityType.USERS, [makeNode("alice", IdentityType.USER)]);
+      const groupsFolder = makeNode("Groups", IdentityType.GROUP, [makeNode("bob",   IdentityType.GROUP)]);
+      const rolesFolder  = makeNode("Roles",  IdentityType.ROLE,  [makeNode("admin", IdentityType.ROLE)]);
+      const { comp, fixture } = await renderComponent([usersFolder, groupsFolder, rolesFolder]);
+
+      // Expand all three root folders before the reload.
+      const usersFlat  = flatTree(comp).find(n => n.getData().identityID.name === "Users");
+      const groupsFlat = flatTree(comp).find(n => n.getData().identityID.name === "Groups");
+      const rolesFlat  = flatTree(comp).find(n => n.getData().identityID.name === "Roles");
+      comp.treeControl.expand(usersFlat);
+      comp.treeControl.expand(groupsFlat);
+      comp.treeControl.expand(rolesFlat);
+
+      // Spy on expand after the pre-reload setup so setup calls aren't counted.
+      const expandSpy = vi.spyOn(comp.treeControl, "expand");
+
+      // Simulate a data reload with new object references (as after a CRUD operation).
+      const newUsersFolder  = makeNode("Users",  IdentityType.USERS, [makeNode("alice", IdentityType.USER)]);
+      const newGroupsFolder = makeNode("Groups", IdentityType.GROUP, [makeNode("bob",   IdentityType.GROUP)]);
+      const newRolesFolder  = makeNode("Roles",  IdentityType.ROLE,  [makeNode("admin", IdentityType.ROLE)]);
+      fixture.componentRef.setInput("treeData", [newUsersFolder, newGroupsFolder, newRolesFolder]);
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      // After the fix: expand() must never be called — the batch select() path is used.
+      expect(expandSpy).not.toHaveBeenCalled();
+
+      // Expanded state must be correctly restored for all three folders.
+      const newFlatTree    = flatTree(comp);
+      const newUsersFlat   = newFlatTree.find(n => n.getData().identityID.name === "Users");
+      const newGroupsFlat  = newFlatTree.find(n => n.getData().identityID.name === "Groups");
+      const newRolesFlat   = newFlatTree.find(n => n.getData().identityID.name === "Roles");
+      expect(comp.treeControl.isExpanded(newUsersFlat)).toBe(true);
+      expect(comp.treeControl.isExpanded(newGroupsFlat)).toBe(true);
+      expect(comp.treeControl.isExpanded(newRolesFlat)).toBe(true);
+   });
+
+   // Baseline: when no nodes were expanded before a reload, no expansion should be
+   // attempted and the tree should render correctly.
+   it("should leave all nodes collapsed when no nodes were expanded before reload", async () => {
+      const usersFolder = makeNode("Users", IdentityType.USERS, [makeNode("alice", IdentityType.USER)]);
+      const { comp, fixture } = await renderComponent([usersFolder]);
+
+      const expandSpy = vi.spyOn(comp.treeControl, "expand");
+
+      const newUsersFolder = makeNode("Users", IdentityType.USERS, [makeNode("alice", IdentityType.USER)]);
+      fixture.componentRef.setInput("treeData", [newUsersFolder]);
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(expandSpy).not.toHaveBeenCalled();
+
+      const newUsersFlat = flatTree(comp).find(n => n.getData().identityID.name === "Users");
+      expect(comp.treeControl.isExpanded(newUsersFlat)).toBe(false);
+   });
+});
+
+// =============================================================================
+// Group 4 [Risk 2] - dragStart(): isIdentityFolder folder-name completeness
 // =============================================================================
 
 // Drag path: users-settings-view hosts this tree on the left and
