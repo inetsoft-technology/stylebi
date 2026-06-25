@@ -483,7 +483,15 @@ public class WorksheetAgentController {
       });
    }
 
-   /** Parse a CSV string into a list of string arrays (one per row). Handles quoted fields. */
+   /**
+    * Parse a CSV string into a list of string arrays (one per row).
+    * Handles quoted fields and escaped double-quotes per RFC 4180.
+    *
+    * <p><strong>Limitation:</strong> embedded newlines inside quoted fields are not
+    * supported — the parser reads line-by-line, so a newline inside a quoted value
+    * will be treated as a row boundary.  Callers should ensure cell values do not
+    * contain newlines.</p>
+    */
    private static List<String[]> parseCsv(String csv) {
       List<String[]> result = new ArrayList<>();
       try(BufferedReader reader = new BufferedReader(new StringReader(csv))) {
@@ -554,11 +562,19 @@ public class WorksheetAgentController {
     * Close the agent session.  Always succeeds (no feature-gate check) so the agent can
     * clean up even when the flag is toggled off mid-session.
     *
+    * <p>The session is only closed when the calling principal owns it.  Unknown or
+    * foreign tokens are silently ignored (no error — idempotent cleanup).</p>
+    *
     * @param sessionToken the token to invalidate
+    * @param user         the authenticated agent principal
     */
    @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/detach")
-   public void detach(@PathVariable String sessionToken) {
-      sessionService.close(sessionToken);
+   public void detach(@PathVariable String sessionToken, Principal user) {
+      JoinSession s = sessionService.resolve(sessionToken, agentKey(user));
+
+      if(s != null) {
+         sessionService.close(sessionToken);
+      }
    }
 
    // ---------------------------------------------------------------------------
@@ -570,6 +586,16 @@ public class WorksheetAgentController {
          throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                                            "Sheet agent pairing is disabled");
       }
+   }
+
+   /** Derives the agent identity key used by SheetSessionService. */
+   private static String agentKey(Principal agent) {
+      if(agent instanceof XPrincipal p) {
+         IdentityID id = IdentityID.getIdentityIDFromKey(p.getName());
+         return id != null ? id.convertToKey() : p.getName();
+      }
+
+      return agent != null ? agent.getName() : null;
    }
 
    private void dispatch(WorksheetEditService.Editor editor, EditRequest req)
@@ -837,6 +863,12 @@ public class WorksheetAgentController {
          // and notifies the monitor when done. We wait up to 10s — the same timeout used
          // by SQLQueryDialogService. This does hold the HTTP thread for that duration, but
          // SQL parsing is bounded by the JDBC metadata call and is not a hot path.
+         //
+         // Known race: if the background thread completes and calls notify() before this
+         // thread reaches wait(), the notification is silently lost and the wait() runs
+         // for the full 10s. Under normal load this is rare (background parse takes at
+         // least a round-trip to the JDBC driver). The subsequent empty-column check
+         // will surface a timeout as a descriptive error rather than silently succeeding.
          try {
             synchronized(sql) {
                sql.setParseSQL(true);
@@ -1425,12 +1457,7 @@ public class WorksheetAgentController {
          JDBCQuery query = new JDBCQuery();
          query.setUserQuery(true);
 
-         try {
-            query.setDataSource(xrepository.getDataSource(body.datasource()));
-         }
-         catch(Exception e) {
-            throw new PairingException("Failed to load datasource: " + e.getMessage());
-         }
+         query.setDataSource(xds);
 
          UniformSQL sql = new UniformSQL();
          sql.setDataSource((JDBCDataSource) xds);
@@ -1439,6 +1466,12 @@ public class WorksheetAgentController {
          // and notifies the monitor when done. We wait up to 10s — the same timeout used
          // by SQLQueryDialogService. This does hold the HTTP thread for that duration, but
          // SQL parsing is bounded by the JDBC metadata call and is not a hot path.
+         //
+         // Known race: if the background thread completes and calls notify() before this
+         // thread reaches wait(), the notification is silently lost and the wait() runs
+         // for the full 10s. Under normal load this is rare (background parse takes at
+         // least a round-trip to the JDBC driver). The subsequent empty-column check
+         // will surface a timeout as a descriptive error rather than silently succeeding.
          try {
             synchronized(sql) {
                sql.setParseSQL(true);

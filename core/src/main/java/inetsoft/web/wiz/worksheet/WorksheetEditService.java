@@ -209,11 +209,11 @@ public class WorksheetEditService {
       }
 
       for(Assembly a : ws.getAssemblies()) {
-         if(a instanceof TableAssembly) {
-            String name = a.getName();
+         if(a instanceof TableAssembly ta) {
+            String name = ta.getName();
             WorksheetEventUtil.refreshColumnSelection(rws, name, true);
             WorksheetEventUtil.loadTableData(rws, name, true, true);
-            WorksheetEventUtil.fixAssemblyInfo(rws, (WSAssembly) a);
+            WorksheetEventUtil.fixAssemblyInfo(rws, ta);
          }
       }
    }

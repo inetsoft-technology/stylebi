@@ -62,6 +62,8 @@ public class SheetJoinService {
       }
 
       // 2. Consume the code (single-use).
+      // Peek at the grant type before consuming so we can reject unsupported sheet types
+      // with a clean 4xx rather than a 500 from SheetAgentBroadcastService later.
       PairingGrant grant = pairing.consume(code);
       if(grant == null) {
          LOG.warn("Sheet agent pairing join rejected: invalid/expired code (agent={})",
@@ -69,14 +71,22 @@ public class SheetJoinService {
          throw new PairingException(PairingException.Kind.SESSION_EXPIRED, "Invalid or expired pairing code");
       }
 
-      // 3. Same-logical-user check.
+      // 3. Reject unsupported sheet types before the session is opened.
+      if(grant.sheetType() == SheetType.VIEWSHEET) {
+         LOG.warn("Sheet agent pairing join rejected: viewsheet not supported (agent={})",
+                  agentUser == null ? "?" : agentUser.getName());
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "Viewsheet agent pairing is not yet supported — use a worksheet pairing code.");
+      }
+
+      // 4. Same-logical-user check.
       if(!PairingUtil.sameLogicalUser(grant.ownerIdentity(), agentUser)) {
          LOG.warn("Sheet agent pairing join rejected: user mismatch (owner={}, agent={})",
                   grant.ownerIdentity(), agentUser == null ? "?" : agentUser.getName());
          throw new PairingException(PairingException.Kind.USER_MISMATCH, "Pairing code does not belong to this user");
       }
 
-      // 4. Open a reusable session, carrying the browser's socket session ID for broadcast.
+      // 5. Open a reusable session, carrying the browser's socket session ID for broadcast.
       JoinSession session = sessions.open(grant.runtimeId(), grant.ownerIdentity(),
                                           grant.sheetType(), grant.socketSessionId(),
                                           grant.socketUserName());
