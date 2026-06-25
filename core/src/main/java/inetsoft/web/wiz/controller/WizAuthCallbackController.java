@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.controller;
 
 import com.nimbusds.jose.*;
+import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import inetsoft.util.PasswordEncryption;
@@ -29,8 +30,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
 
-import javax.crypto.SecretKey;
 import java.io.IOException;
+import java.security.KeyPair;
+import java.security.interfaces.RSAPublicKey;
 import java.text.ParseException;
 import java.util.*;
 import java.util.concurrent.*;
@@ -138,16 +140,28 @@ public class WizAuthCallbackController {
    }
 
    /**
-    * Verifies the JWT signature using the same shared signing key that
-    * {@code SSOTokenService} uses to mint tokens.
+    * Verifies the JWT signature using the RSA public key from the SSO key pair.
+    * The {@code /sso/authorize} page signs tokens with RS256; this method validates
+    * the signature using the same key pair that {@link
+    * inetsoft.web.wiz.security.WizServiceAuthenticationFilter} uses.
     *
     * @return {@code true} if the signature is valid, {@code false} otherwise
     */
    private static boolean verifySignature(String token) {
       try {
-         PasswordEncryption enc = PasswordEncryption.newInstance();
-         SecretKey signingKey = enc.getJwtSigningKey();
-         JWSVerifier verifier = enc.createJwsVerifier(signingKey);
+         KeyPair kp = PasswordEncryption.newInstance().getSSOKeyPair();
+
+         if(kp == null) {
+            LOG.warn("SSO key pair not available — cannot verify callback token signature");
+            return false;
+         }
+
+         if(!(kp.getPublic() instanceof RSAPublicKey rsaPub)) {
+            LOG.warn("SSO public key is not RSA — cannot verify callback token signature");
+            return false;
+         }
+
+         RSASSAVerifier verifier = new RSASSAVerifier(rsaPub);
          SignedJWT jws = SignedJWT.parse(token);
          return jws.verify(verifier);
       }
