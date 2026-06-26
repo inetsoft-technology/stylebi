@@ -241,10 +241,11 @@ public class VisualizationConditionModel {
       private List<ValueSpec> values;
    }
 
+   @JsonInclude(JsonInclude.Include.NON_NULL)
    @JsonIgnoreProperties(ignoreUnknown = true)
    public static class ValueSpec {
       /**
-       * VALUE | EXPRESSION | FIELD | SESSION_DATA
+       * VALUE | EXPRESSION | FIELD | SESSION_DATA | SUBQUERY
        */
       public String getType() {
          return type;
@@ -254,6 +255,7 @@ public class VisualizationConditionModel {
          this.type = type;
       }
 
+      /** Operand for VALUE, EXPRESSION, FIELD, SESSION_DATA. */
       public Object getValue() {
          return value;
       }
@@ -262,7 +264,80 @@ public class VisualizationConditionModel {
          this.value = value;
       }
 
+      /** Operand for SUBQUERY: value(s) drawn from another worksheet table's column. */
+      public SubQuery getSubQuery() {
+         return subQuery;
+      }
+
+      public void setSubQuery(SubQuery subQuery) {
+         this.subQuery = subQuery;
+      }
+
       private String type;
       private Object value;
+      private SubQuery subQuery;
+   }
+
+   /**
+    * SUBQUERY operand, mirroring the TypeScript {@code SubQueryValue} shape: a value drawn
+    * from another worksheet table's column, optionally correlated per-row via {@code where}.
+    */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   @JsonIgnoreProperties(ignoreUnknown = true)
+   public static class SubQuery {
+      /** Name of an already-created worksheet table. */
+      public String getSubQueryName() {
+         return subQueryName;
+      }
+
+      public void setSubQueryName(String subQueryName) {
+         this.subQueryName = subQueryName;
+      }
+
+      /** Column in that table whose value serves as the operand. */
+      public String getInSubQueryColumn() {
+         return inSubQueryColumn;
+      }
+
+      public void setInSubQueryColumn(String inSubQueryColumn) {
+         this.inSubQueryColumn = inSubQueryColumn;
+      }
+
+      /** Correlated match; null for a global scalar subquery (single-row result). */
+      public Where getWhere() {
+         return where;
+      }
+
+      public void setWhere(Where where) {
+         this.where = where;
+      }
+
+      private String subQueryName;
+      private String inSubQueryColumn;
+      private Where where;
+   }
+
+   /** Correlated subquery filter: subQueryColumn = currentTableColumn. */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   @JsonIgnoreProperties(ignoreUnknown = true)
+   public static class Where {
+      public String getSubQueryColumn() {
+         return subQueryColumn;
+      }
+
+      public void setSubQueryColumn(String subQueryColumn) {
+         this.subQueryColumn = subQueryColumn;
+      }
+
+      public String getCurrentTableColumn() {
+         return currentTableColumn;
+      }
+
+      public void setCurrentTableColumn(String currentTableColumn) {
+         this.currentTableColumn = currentTableColumn;
+      }
+
+      private String subQueryColumn;
+      private String currentTableColumn;
    }
 }

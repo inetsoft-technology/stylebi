@@ -19,35 +19,35 @@
 package inetsoft.web.wiz.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import org.immutables.serial.Serial;
-import org.immutables.value.Value;
 
-import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.List;
 
-@Value.Immutable
-@Serial.Structural
+/**
+ * The GROUP BY / aggregate specification of a worksheet table, mirroring the inline
+ * {@code aggregateInfo} object of the TypeScript {@code WorksheetTableModel}.
+ */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonSerialize(as = ImmutableWorksheetModel.class)
-@JsonDeserialize(as = ImmutableWorksheetModel.class)
-public interface WorksheetModel extends Serializable {
-   String identifier();
-   @Nullable String description();
-   @Nullable List<WorksheetTableModel> tables();
-
-   /**
-    * Column metadata of the worksheet's primary (binding) table, as StyleBI exposes it for
-    * visualization binding. Present only when the worksheet has a primary table; null otherwise.
-    */
-   @Nullable List<WorksheetColumnInfo> primaryColumnMetas();
-
-   static Builder builder() {
-      return new Builder();
+public class WorksheetAggregateInfo implements Serializable {
+   public WorksheetAggregateInfo() {
    }
 
-   final class Builder extends ImmutableWorksheetModel.Builder {
+   public List<GroupByField> getGroups() {
+      return groups;
    }
+
+   public void setGroups(List<GroupByField> groups) {
+      this.groups = groups;
+   }
+
+   public List<AggregateField> getAggregates() {
+      return aggregates;
+   }
+
+   public void setAggregates(List<AggregateField> aggregates) {
+      this.aggregates = aggregates;
+   }
+
+   private List<GroupByField> groups;
+   private List<AggregateField> aggregates;
 }

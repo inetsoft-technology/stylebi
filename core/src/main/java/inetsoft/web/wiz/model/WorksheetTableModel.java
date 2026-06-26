@@ -18,44 +18,54 @@
 
 package inetsoft.web.wiz.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.List;
 
+/**
+ * One worksheet table, mirroring the TypeScript {@code WorksheetTableModel} shape consumed
+ * by the Wiz AI service. Produced by {@code WorksheetTableService.getWorksheetModel}.
+ */
 @Value.Immutable
 @Serial.Structural
+@JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonSerialize(as = ImmutableWorksheetTableModel.class)
 @JsonDeserialize(as = ImmutableWorksheetTableModel.class)
 public interface WorksheetTableModel extends Serializable {
-   String tableName();
-   List<String> baseTables();
+   String name();
+
+   @Nullable String description();
+
+   @Nullable List<String> baseTables();
 
    /**
-    * "physical table" | "mirror table" | "relational join table"
+    * "physical table" | "mirror table" | "relational join table" | "sql query table"
     * (constant strings from StyleBI's TableType enum)
     */
    String tableType();
 
    List<WorksheetColumnData> columns();
 
-   /**
-    * Rich metadata used by wiz services, including column lineage.
-    */
-   List<WorksheetColumnInfo> primaryColumnMetas();
+   /** Join definitions; present only for relational join tables. */
+   @Nullable List<JoinPath> joinPaths();
 
-   /**
-    * True when the table has GROUP BY and aggregate information.
-    */
-   boolean hasAggregate();
+   /** GROUP BY + aggregate specification; null when the table is not aggregated. */
+   @Nullable WorksheetAggregateInfo aggregateInfo();
 
-   /**
-    * True when the table has pre-aggregate, post-aggregate, or ranking conditions.
-    */
-   boolean hasCondition();
+   /** WHERE-equivalent conditions, applied before GROUP BY. */
+   @Nullable List<VisualizationConditionModel.ConditionNode> preAggregateCondition();
+
+   /** HAVING-equivalent conditions, applied after GROUP BY. */
+   @Nullable List<VisualizationConditionModel.ConditionNode> postAggregateCondition();
+
+   /** Top / bottom-N ranking filter, applied last. */
+   @Nullable List<VisualizationConditionModel.ConditionNode> rankingCondition();
 
    static Builder builder() {
       return new Builder();
