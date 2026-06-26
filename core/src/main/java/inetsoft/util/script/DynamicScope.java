@@ -23,4 +23,13 @@ import inetsoft.util.script.graal.ScriptScope;
  * Mark a scriptable that should be treated as dynamic scope for script function.
  */
 public interface DynamicScope extends ScriptScope {
+   /**
+    * Set the next scope in the lookup chain. Used by
+    * {@link inetsoft.util.script.JavaScriptEngine#addToPrototype} to chain
+    * cooperating dynamic scopes (e.g. a viewsheet scope to its worksheet
+    * scope). The default is a no-op; implementations that participate in
+    * scope chaining override this together with {@link #getParentScope()}.
+    */
+   default void setParentScope(ScriptScope parent) {
+   }
 }

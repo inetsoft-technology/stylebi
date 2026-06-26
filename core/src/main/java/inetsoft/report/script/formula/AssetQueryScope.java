@@ -24,6 +24,7 @@ import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.script.VariableScriptable;
 import inetsoft.util.script.DynamicScope;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -163,6 +164,16 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
       return members.keySet().toArray(new Object[0]);
    }
 
+   @Override
+   public ScriptScope getParentScope() {
+      return parentScope;
+   }
+
+   @Override
+   public void setParentScope(ScriptScope parent) {
+      this.parentScope = parent;
+   }
+
    /**
     * Get the name of this scriptable.
     */
@@ -191,6 +202,7 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
    private AssetQuerySandbox box;
    private Map tablemap = new HashMap();
    private final Map<String, Object> members = new LinkedHashMap<>();
+   private ScriptScope parentScope;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(AssetQueryScope.class);

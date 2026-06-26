@@ -401,6 +401,16 @@ public class ViewsheetScope implements Cloneable, DynamicScope {
       propmap.put(name, value);
    }
 
+   @Override
+   public ScriptScope getParentScope() {
+      return parentScope;
+   }
+
+   @Override
+   public void setParentScope(ScriptScope parent) {
+      this.parentScope = parent;
+   }
+
    /**
     * Add a variable.
     */
@@ -1044,6 +1054,7 @@ public class ViewsheetScope implements Cloneable, DynamicScope {
    private Map<String, Object> propmap = Collections.synchronizedMap(new HashMap<>());
    private final Map<String, Object> members = new LinkedHashMap<>();
    private Vector<String> oldAssemblies = new Vector<>();
+   private ScriptScope parentScope;
    private DBScriptable db;
    private long executeStart = System.currentTimeMillis();
 
