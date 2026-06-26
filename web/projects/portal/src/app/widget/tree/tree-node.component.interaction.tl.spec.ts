@@ -945,19 +945,19 @@ describe("Group 21 — hasMenu", () => {
    it("should return true when contextmenu enabled and not on a mobile device", async () => {
       vi.spyOn(GuiTool, "isMobileDevice").mockReturnValue(false);
       const { comp } = await renderTreeNode({ componentProperties: { contextmenu: true } });
-      expect(comp.hasMenu()).toBe(true);
+      expect(comp.hasMenu).toBe(true);
    });
 
    it("should return false when contextmenu is disabled", async () => {
       vi.spyOn(GuiTool, "isMobileDevice").mockReturnValue(false);
       const { comp } = await renderTreeNode({ componentProperties: { contextmenu: false } });
-      expect(comp.hasMenu()).toBe(false);
+      expect(comp.hasMenu).toBe(false);
    });
 
    it("should return false on a mobile device even when contextmenu is enabled", async () => {
       vi.spyOn(GuiTool, "isMobileDevice").mockReturnValue(true);
       const { comp } = await renderTreeNode({ componentProperties: { contextmenu: true } });
-      expect(comp.hasMenu()).toBe(false);
+      expect(comp.hasMenu).toBe(false);
    });
 
    it("should return false when hasMenuFunction returns false for this node", async () => {
@@ -965,7 +965,7 @@ describe("Group 21 — hasMenu", () => {
       const tree = makeTreeMock();
       (tree as any).hasMenuFunction = () => false;
       const { comp } = await renderTreeNode({ tree, componentProperties: { contextmenu: true } });
-      expect(comp.hasMenu()).toBe(false);
+      expect(comp.hasMenu).toBe(false);
    });
 
    it("should return true when hasMenuFunction returns true", async () => {
@@ -973,6 +973,6 @@ describe("Group 21 — hasMenu", () => {
       const tree = makeTreeMock();
       (tree as any).hasMenuFunction = () => true;
       const { comp } = await renderTreeNode({ tree, componentProperties: { contextmenu: true } });
-      expect(comp.hasMenu()).toBe(true);
+      expect(comp.hasMenu).toBe(true);
    });
 });

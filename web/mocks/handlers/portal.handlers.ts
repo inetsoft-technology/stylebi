@@ -878,4 +878,82 @@ export const portalHandlers = [
    http.post("*/api/data/datasource/query/groupby/check", () => {
       return HttpResponse.json({ valid: true });
    }),
+
+   // QueryFieldsPaneComponent — get sample format string for a field
+   http.post("*/api/data/datasource/query/field/format", () => {
+      return HttpResponse.json("");
+   }),
+
+   // QueryFieldsPaneComponent — add columns to the query
+   http.post("*/api/data/datasource/query/column/add", () => {
+      return HttpResponse.json({ limitMessage: null, columnMap: {} });
+   }),
+
+   // QueryFieldsPaneComponent — remove columns from the query
+   http.post("*/api/data/datasource/query/column/remove", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // QueryFieldsPaneComponent — update a column's properties (alias, dataType, format, drill)
+   http.post("*/api/data/datasource/query/column/update", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // QueryFieldsPaneComponent — browse column distinct values
+   http.get("*/api/data/datasource/query/column/browse", () => {
+      return HttpResponse.json([]);
+   }),
+
+   // QueryFieldsPaneComponent — save an expression column
+   http.post("*/api/data/datasource/query/expression/save", () => {
+      return HttpResponse.json(null);
+   }),
+
+   // SimpleScheduleDialog.ok() — email address validation before submit
+   http.get("*/api/vs/check-email-valid", () => {
+      return HttpResponse.json({
+         messageCommand: { type: "OK", message: "", events: null },
+         addressHistory: [],
+      });
+   }),
+
+   // EmbeddedEmailPane constructor — fetch users node tree for identity selection
+   http.get("*/api/vs/expand-identity-node", () => {
+      return HttpResponse.json([]);
+   }),
+
+   // QueryNetworkGraphPaneComponent — open join edit pane (returns new runtimeId)
+   http.get("*/api/data/datasource/query/join-edit/open/*", () => {
+      return HttpResponse.json("rt-join-edit");
+   }),
+
+   // QueryNetworkGraphPaneComponent — add tables to the query graph
+   http.post("*/api/data/datasource/query/table/add", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // QueryNetworkGraphPaneComponent — remove tables from the query graph
+   http.post("*/api/data/datasource/query/table/remove", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // QueryNetworkGraphPaneComponent — move table position
+   http.put("*/api/data/datasource/query/table/move", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // QueryNetworkGraphPaneComponent — clear all tables from graph (DELETE)
+   http.delete("*/api/data/datasource/query/table/*", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // QueryNetworkGraphPaneComponent — clear all joins from graph (DELETE)
+   http.delete("*/api/data/datasource/query/joins/*", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // QueryNetworkGraphPaneComponent — delete selected join condition
+   http.post("*/api/data/datasource/query/joins/delete", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
 ];
