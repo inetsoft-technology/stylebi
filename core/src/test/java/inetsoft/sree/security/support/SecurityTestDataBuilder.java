@@ -42,7 +42,7 @@ import java.util.*;
  *     .addUser("alice", "alpha_id", "pass")
  *     .addUserToRole("alice", "viewer", "alpha_id")
  *     .grantPermission(ResourceType.VIEWSHEET, "reports/vs1", ResourceAction.READ,
- *                      "viewer", "alpha_id")
+ *                      "viewer", Identity.ROLE, "alpha_id")
  *     .setup();
  * SRPrincipal alice = builder.principalOf("alice", "alpha_id");
  * // ... assertions ...
@@ -59,9 +59,6 @@ public class SecurityTestDataBuilder {
    private final List<RoleSpec> roles = new ArrayList<>();
    private final List<UserRoleAssignment> userRoles = new ArrayList<>();
    private final List<PermissionSpec> permissions = new ArrayList<>();
-
-   // Tracks role identities so grantPermission() can auto-detect Identity.ROLE vs Identity.USER
-   private final Set<IdentityID> registeredRoles = new HashSet<>();
 
    private FileAuthenticationProvider authcProvider;
    private FileAuthorizationProvider authzProvider;
@@ -98,7 +95,6 @@ public class SecurityTestDataBuilder {
 
    public SecurityTestDataBuilder addRole(String roleName, String orgId) {
       roles.add(new RoleSpec(roleName, orgId));
-      registeredRoles.add(new IdentityID(roleName, orgId));
       return this;
    }
 
@@ -109,14 +105,16 @@ public class SecurityTestDataBuilder {
 
    /**
     * Grants {@code action} on {@code resource} of {@code type} to {@code granteeId} in {@code orgId}.
-    * Identity type is auto-detected: if granteeId+orgId was registered via {@link #addRole} →
-    * {@link Identity#ROLE}; otherwise → {@link Identity#USER}.
+    *
+    * @param identityType one of {@link Identity#USER}, {@link Identity#ROLE},
+    *                     {@link Identity#GROUP}, {@link Identity#ORGANIZATION}
     */
    public SecurityTestDataBuilder grantPermission(ResourceType type, String resource,
                                                    ResourceAction action,
-                                                   String granteeId, String orgId)
+                                                   String granteeId, int identityType,
+                                                   String orgId)
    {
-      permissions.add(new PermissionSpec(type, resource, action, granteeId, orgId));
+      permissions.add(new PermissionSpec(type, resource, action, granteeId, identityType, orgId));
       return this;
    }
 
@@ -184,9 +182,6 @@ public class SecurityTestDataBuilder {
 
       // Write permissions
       for(PermissionSpec ps : permissions) {
-         IdentityID grantee = new IdentityID(ps.granteeId(), ps.orgId());
-         int identityType = registeredRoles.contains(grantee) ? Identity.ROLE : Identity.USER;
-
          Permission perm = authzProvider.getPermission(ps.type(), ps.resource(), ps.orgId());
 
          if(perm == null) {
@@ -194,9 +189,9 @@ public class SecurityTestDataBuilder {
          }
 
          Set<Permission.PermissionIdentity> grants =
-            new HashSet<>(perm.getGrants(ps.action(), identityType, null));
+            new HashSet<>(perm.getGrants(ps.action(), ps.identityType(), null));
          grants.add(new Permission.PermissionIdentity(ps.granteeId(), ps.orgId()));
-         perm.setGrants(ps.action(), identityType, grants);
+         perm.setGrants(ps.action(), ps.identityType(), grants);
 
          authzProvider.setPermission(ps.type(), ps.resource(), perm, ps.orgId());
       }
@@ -264,6 +259,6 @@ public class SecurityTestDataBuilder {
    private record UserSpec(String userName, String orgId, String password) {}
    private record RoleSpec(String roleName, String orgId) {}
    private record UserRoleAssignment(String userName, String roleName, String orgId) {}
-   private record PermissionSpec(ResourceType type, String resource,
-                                  ResourceAction action, String granteeId, String orgId) {}
+   private record PermissionSpec(ResourceType type, String resource, ResourceAction action,
+                                  String granteeId, int identityType, String orgId) {}
 }
