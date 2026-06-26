@@ -28,6 +28,7 @@
      </legend>
       <div class="bordered-box bd-gray tree-container">
          <asset-tree [datasources]="true"  [columns]="false"  [viewsheets]="false"
+                     [includeModel]="true"
                      [readOnly]="true"  [dataSourcePath]="null"
                      [searchEnabled]="true" [stickySearch]="true"
                      (nodeSelected)="changeSource($event)"

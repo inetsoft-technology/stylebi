@@ -24,6 +24,7 @@
     <legend>_#(Select a Worksheet) (<i class="worksheet-icon icon-size-small"></i>) _#(or Data Table) (<i class="db-table-icon icon-size-small"></i>)</legend>
     <div class="bordered-box bd-gray bordered-box-lg">
       <asset-tree [datasources]="true" [columns]="false" [viewsheets]="false"
+                  [includeModel]="true"
                   [dataSourcePath]="model.dataSource?.path"
                   [dataSourceScope]="model.dataSource?.scope"
                   [readOnly]="true"

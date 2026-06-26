@@ -18,6 +18,7 @@
 <asset-tree tabindex="0" class="h-100"
             [datasources]="!wizComposer && focusedSheet?.type === 'worksheet'"
             [columns]="!wizComposer && focusedSheet?.type === 'worksheet'"
+            [includeModel]="!wizComposer && focusedSheet?.type === 'worksheet'"
             [viewsheets]="true" [worksheets]="!wizComposer && !deployed"
             [scripts]="!wizComposer" [tableStyles]="!wizComposer"
             [library]="!wizComposer"
