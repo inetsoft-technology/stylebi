@@ -244,8 +244,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       putConstantScope(bindings, "Chart", chartcls);
       putConstantScope(bindings, "GLine", inetsoft.graph.aesthetic.GLine.class);
       putConstantScope(bindings, "GTexture", inetsoft.graph.aesthetic.GTexture.class);
-      putConstantScope(bindings, "GShape", inetsoft.graph.aesthetic.GShape.class);
+      // GShape upgraded to JavaClassProxy so GShape.ImageShape (a public static
+      // nested class) is accessible in chart scripts alongside the static constants.
+      putClassProxy(bindings, "GShape", "inetsoft.graph.aesthetic.GShape");
       putConstantScope(bindings, "SVGShape", inetsoft.graph.aesthetic.SVGShape.class);
+
+      installChartClasses(bindings);
 
       // StyleConstant: StyleConstants + ReportSheet + TableLens + VSFormat + TimeInfo
       // + the chart constants (GLine/GTexture/GShape deliberately excluded — they
@@ -603,6 +607,159 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       finally {
          lock.unlock();
       }
+   }
+
+   /**
+    * Register a Java class as a callable/instantiable JS global under {@code jsName}.
+    * Exposes static fields, static methods, nested types, and allows {@code new}.
+    * Guarded so a class-load failure does not abort engine init.
+    */
+   private void putClassProxy(Value bindings, String jsName, String fqcn) {
+      try {
+         Value java = bindings.getMember("Java");
+         Value hostType = java.getMember("type").execute(fqcn);
+         bindings.putMember(jsName, new JavaClassProxy(hostType, fqcn));
+      }
+      catch(Throwable ex) {
+         LOG.warn("Failed to install class proxy {}", jsName, ex);
+      }
+   }
+
+   /**
+    * Register all chart scripting classes that are advertised in
+    * {@code VSScriptableController.CHART_CLASSES} but not covered by the
+    * constant-scope registrations above. This restores the Rhino behavior
+    * where {@code inetsoft.graph.*} classes were reachable by simple name
+    * via the package tree (Bug #75524).
+    */
+   private void installChartClasses(Value bindings) {
+      // inetsoft.graph top-level
+      putClassProxy(bindings, "EGraph",          "inetsoft.graph.EGraph");
+      putClassProxy(bindings, "GraphConstants",   "inetsoft.graph.GraphConstants");
+      putClassProxy(bindings, "LegendSpec", "inetsoft.graph.LegendSpec");
+      putClassProxy(bindings, "TitleSpec",  "inetsoft.graph.TitleSpec");
+      putClassProxy(bindings, "TextSpec",   "inetsoft.graph.TextSpec");
+      putClassProxy(bindings, "AxisSpec",   "inetsoft.graph.AxisSpec");
+      putClassProxy(bindings, "PlotSpec",   "inetsoft.graph.PlotSpec");
+
+      // elements
+      putClassProxy(bindings, "IntervalElement", "inetsoft.graph.element.IntervalElement");
+      putClassProxy(bindings, "LineElement",     "inetsoft.graph.element.LineElement");
+      putClassProxy(bindings, "SchemaElement",   "inetsoft.graph.element.SchemaElement");
+      putClassProxy(bindings, "PointElement",    "inetsoft.graph.element.PointElement");
+      putClassProxy(bindings, "AreaElement",     "inetsoft.graph.element.AreaElement");
+
+      // coords
+      putClassProxy(bindings, "PolarCoord",    "inetsoft.graph.coord.PolarCoord");
+      putClassProxy(bindings, "RectCoord",     "inetsoft.graph.coord.RectCoord");
+      putClassProxy(bindings, "Rect25Coord",   "inetsoft.graph.coord.Rect25Coord");
+      putClassProxy(bindings, "ParallelCoord", "inetsoft.graph.coord.ParallelCoord");
+      putClassProxy(bindings, "TriCoord",      "inetsoft.graph.coord.TriCoord");
+      putClassProxy(bindings, "FacetCoord",    "inetsoft.graph.coord.FacetCoord");
+
+      // scales / ranges
+      putClassProxy(bindings, "LinearScale",      "inetsoft.graph.scale.LinearScale");
+      putClassProxy(bindings, "LogScale",          "inetsoft.graph.scale.LogScale");
+      putClassProxy(bindings, "PowerScale",        "inetsoft.graph.scale.PowerScale");
+      putClassProxy(bindings, "TimeScale",         "inetsoft.graph.scale.TimeScale");
+      putClassProxy(bindings, "CategoricalScale",  "inetsoft.graph.scale.CategoricalScale");
+      putClassProxy(bindings, "LinearRange",       "inetsoft.graph.scale.LinearRange");
+      putClassProxy(bindings, "StackRange",        "inetsoft.graph.scale.StackRange");
+
+      // aesthetic frames
+      putClassProxy(bindings, "MultiTextFrame",        "inetsoft.graph.aesthetic.MultiTextFrame");
+      putClassProxy(bindings, "PieShapeFrame",         "inetsoft.graph.aesthetic.PieShapeFrame");
+      putClassProxy(bindings, "BrightnessColorFrame",  "inetsoft.graph.aesthetic.BrightnessColorFrame");
+      putClassProxy(bindings, "SaturationColorFrame",  "inetsoft.graph.aesthetic.SaturationColorFrame");
+      putClassProxy(bindings, "BipolarColorFrame",     "inetsoft.graph.aesthetic.BipolarColorFrame");
+      putClassProxy(bindings, "StaticColorFrame",      "inetsoft.graph.aesthetic.StaticColorFrame");
+      putClassProxy(bindings, "CircularColorFrame",    "inetsoft.graph.aesthetic.CircularColorFrame");
+      putClassProxy(bindings, "GradientColorFrame",    "inetsoft.graph.aesthetic.GradientColorFrame");
+      putClassProxy(bindings, "HeatColorFrame",        "inetsoft.graph.aesthetic.HeatColorFrame");
+      putClassProxy(bindings, "RainbowColorFrame",     "inetsoft.graph.aesthetic.RainbowColorFrame");
+      putClassProxy(bindings, "CategoricalColorFrame", "inetsoft.graph.aesthetic.CategoricalColorFrame");
+      putClassProxy(bindings, "StaticSizeFrame",       "inetsoft.graph.aesthetic.StaticSizeFrame");
+      putClassProxy(bindings, "LinearSizeFrame",       "inetsoft.graph.aesthetic.LinearSizeFrame");
+      putClassProxy(bindings, "CategoricalSizeFrame",  "inetsoft.graph.aesthetic.CategoricalSizeFrame");
+      putClassProxy(bindings, "StaticTextureFrame",    "inetsoft.graph.aesthetic.StaticTextureFrame");
+      putClassProxy(bindings, "LeftTiltTextureFrame",  "inetsoft.graph.aesthetic.LeftTiltTextureFrame");
+      putClassProxy(bindings, "RGBCubeColorFrame",     "inetsoft.graph.aesthetic.RGBCubeColorFrame");
+      putClassProxy(bindings, "StackTextFrame",        "inetsoft.graph.aesthetic.StackTextFrame");
+      putClassProxy(bindings, "OrientationTextureFrame",  "inetsoft.graph.aesthetic.OrientationTextureFrame");
+      putClassProxy(bindings, "RightTiltTextureFrame",    "inetsoft.graph.aesthetic.RightTiltTextureFrame");
+      putClassProxy(bindings, "GridTextureFrame",         "inetsoft.graph.aesthetic.GridTextureFrame");
+      putClassProxy(bindings, "CategoricalTextureFrame",  "inetsoft.graph.aesthetic.CategoricalTextureFrame");
+      putClassProxy(bindings, "OvalShapeFrame",        "inetsoft.graph.aesthetic.OvalShapeFrame");
+      putClassProxy(bindings, "FillShapeFrame",        "inetsoft.graph.aesthetic.FillShapeFrame");
+      putClassProxy(bindings, "OrientationShapeFrame", "inetsoft.graph.aesthetic.OrientationShapeFrame");
+      putClassProxy(bindings, "PolygonShapeFrame",     "inetsoft.graph.aesthetic.PolygonShapeFrame");
+      putClassProxy(bindings, "TriangleShapeFrame",    "inetsoft.graph.aesthetic.TriangleShapeFrame");
+      putClassProxy(bindings, "CategoricalShapeFrame", "inetsoft.graph.aesthetic.CategoricalShapeFrame");
+      putClassProxy(bindings, "StaticShapeFrame",      "inetsoft.graph.aesthetic.StaticShapeFrame");
+      putClassProxy(bindings, "VineShapeFrame",        "inetsoft.graph.aesthetic.VineShapeFrame");
+      putClassProxy(bindings, "ThermoShapeFrame",      "inetsoft.graph.aesthetic.ThermoShapeFrame");
+      putClassProxy(bindings, "StarShapeFrame",        "inetsoft.graph.aesthetic.StarShapeFrame");
+      putClassProxy(bindings, "SunShapeFrame",         "inetsoft.graph.aesthetic.SunShapeFrame");
+      putClassProxy(bindings, "BarShapeFrame",         "inetsoft.graph.aesthetic.BarShapeFrame");
+      putClassProxy(bindings, "ProfileShapeFrame",     "inetsoft.graph.aesthetic.ProfileShapeFrame");
+      putClassProxy(bindings, "DefaultTextFrame",      "inetsoft.graph.aesthetic.DefaultTextFrame");
+      putClassProxy(bindings, "StaticLineFrame",       "inetsoft.graph.aesthetic.StaticLineFrame");
+      putClassProxy(bindings, "LinearLineFrame",       "inetsoft.graph.aesthetic.LinearLineFrame");
+      putClassProxy(bindings, "CategoricalLineFrame",  "inetsoft.graph.aesthetic.CategoricalLineFrame");
+
+      // color palettes
+      putClassProxy(bindings, "BluesColorFrame",    "inetsoft.graph.aesthetic.BluesColorFrame");
+      putClassProxy(bindings, "BrBGColorFrame",     "inetsoft.graph.aesthetic.BrBGColorFrame");
+      putClassProxy(bindings, "BuGnColorFrame",     "inetsoft.graph.aesthetic.BuGnColorFrame");
+      putClassProxy(bindings, "BuPuColorFrame",     "inetsoft.graph.aesthetic.BuPuColorFrame");
+      putClassProxy(bindings, "GnBuColorFrame",     "inetsoft.graph.aesthetic.GnBuColorFrame");
+      putClassProxy(bindings, "GreensColorFrame",   "inetsoft.graph.aesthetic.GreensColorFrame");
+      putClassProxy(bindings, "GreysColorFrame",    "inetsoft.graph.aesthetic.GreysColorFrame");
+      putClassProxy(bindings, "OrangesColorFrame",  "inetsoft.graph.aesthetic.OrangesColorFrame");
+      putClassProxy(bindings, "OrRdColorFrame",     "inetsoft.graph.aesthetic.OrRdColorFrame");
+      putClassProxy(bindings, "PiYGColorFrame",     "inetsoft.graph.aesthetic.PiYGColorFrame");
+      putClassProxy(bindings, "PRGnColorFrame",     "inetsoft.graph.aesthetic.PRGnColorFrame");
+      putClassProxy(bindings, "PuBuColorFrame",     "inetsoft.graph.aesthetic.PuBuColorFrame");
+      putClassProxy(bindings, "PuBuGnColorFrame",   "inetsoft.graph.aesthetic.PuBuGnColorFrame");
+      putClassProxy(bindings, "PuOrColorFrame",     "inetsoft.graph.aesthetic.PuOrColorFrame");
+      putClassProxy(bindings, "PuRdColorFrame",     "inetsoft.graph.aesthetic.PuRdColorFrame");
+      putClassProxy(bindings, "PurplesColorFrame",  "inetsoft.graph.aesthetic.PurplesColorFrame");
+      putClassProxy(bindings, "RdBuColorFrame",     "inetsoft.graph.aesthetic.RdBuColorFrame");
+      putClassProxy(bindings, "RdGyColorFrame",     "inetsoft.graph.aesthetic.RdGyColorFrame");
+      putClassProxy(bindings, "RdPuColorFrame",     "inetsoft.graph.aesthetic.RdPuColorFrame");
+      putClassProxy(bindings, "RdYlGnColorFrame",   "inetsoft.graph.aesthetic.RdYlGnColorFrame");
+      putClassProxy(bindings, "RedsColorFrame",     "inetsoft.graph.aesthetic.RedsColorFrame");
+      putClassProxy(bindings, "SpectralColorFrame", "inetsoft.graph.aesthetic.SpectralColorFrame");
+      putClassProxy(bindings, "RdYlBuColorFrame",   "inetsoft.graph.aesthetic.RdYlBuColorFrame");
+      putClassProxy(bindings, "YlGnBuColorFrame",   "inetsoft.graph.aesthetic.YlGnBuColorFrame");
+      putClassProxy(bindings, "YlGnColorFrame",     "inetsoft.graph.aesthetic.YlGnColorFrame");
+      putClassProxy(bindings, "YlOrBrColorFrame",   "inetsoft.graph.aesthetic.YlOrBrColorFrame");
+      putClassProxy(bindings, "YlOrRdColorFrame",   "inetsoft.graph.aesthetic.YlOrRdColorFrame");
+
+      // data
+      putClassProxy(bindings, "DefaultDataSet", "inetsoft.graph.data.DefaultDataSet");
+
+      // schema painters
+      putClassProxy(bindings, "BoxPainter",    "inetsoft.graph.schema.BoxPainter");
+      putClassProxy(bindings, "CandlePainter", "inetsoft.graph.schema.CandlePainter");
+      putClassProxy(bindings, "StockPainter",  "inetsoft.graph.schema.StockPainter");
+
+      // guide
+      putClassProxy(bindings, "VLabel", "inetsoft.graph.guide.VLabel");
+
+      // forms and equations; PolynomialLineEquation covers .Linear/.Quadratic/.Cubic
+      // via static nested-class access on the proxy
+      putClassProxy(bindings, "DefaultForm",               "inetsoft.graph.guide.form.DefaultForm");
+      putClassProxy(bindings, "ExponentialLineEquation",   "inetsoft.graph.guide.form.ExponentialLineEquation");
+      putClassProxy(bindings, "LineEquation",              "inetsoft.graph.guide.form.LineEquation");
+      putClassProxy(bindings, "LogarithmicLineEquation",   "inetsoft.graph.guide.form.LogarithmicLineEquation");
+      putClassProxy(bindings, "PolynomialLineEquation",    "inetsoft.graph.guide.form.PolynomialLineEquation");
+      putClassProxy(bindings, "PowerLineEquation",         "inetsoft.graph.guide.form.PowerLineEquation");
+      putClassProxy(bindings, "LineForm",  "inetsoft.graph.guide.form.LineForm");
+      putClassProxy(bindings, "RectForm",  "inetsoft.graph.guide.form.RectForm");
+      putClassProxy(bindings, "LabelForm", "inetsoft.graph.guide.form.LabelForm");
+      putClassProxy(bindings, "TagForm",   "inetsoft.graph.guide.form.TagForm");
+      putClassProxy(bindings, "ShapeForm", "inetsoft.graph.guide.form.ShapeForm");
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(GraalJavaScriptEngine.class);
