@@ -20,7 +20,9 @@ package inetsoft.web.wiz.controller;
 
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
+import inetsoft.uql.erm.*;
 import inetsoft.web.composer.model.*;
+import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.osi.OsiDataset;
@@ -40,9 +42,13 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/wiz")
 public class DatasourceMetaApiController {
-   public DatasourceMetaApiController(MetadataApiService metadataService, XRepository xrepository) {
+   public DatasourceMetaApiController(MetadataApiService metadataService,
+                                      XRepository xrepository,
+                                      DataSourceService dataSourceService)
+   {
       this.metadataService = metadataService;
       this.xrepository = xrepository;
+      this.dataSourceService = dataSourceService;
    }
 
    /**
@@ -159,6 +165,64 @@ public class DatasourceMetaApiController {
       return metadataService.searchSchema(request, principal);
    }
 
+   /**
+    * Lists all logical models and their entities/attributes for a given datasource.
+    * Used by the MCP plugin's list_logical_models tool.
+    *
+    * @param datasource the datasource name (e.g. "Examples/Orders")
+    * @return list of logical models, each with entity names and attribute metadata
+    */
+   @GetMapping(value = "/v1/logical-models", produces = MediaType.APPLICATION_JSON_VALUE)
+   public List<Map<String, Object>> listLogicalModels(
+      @RequestParam("datasource") String datasource)
+      throws Exception
+   {
+      XDataModel dataModel = dataSourceService.getDataModel(datasource);
+
+      if(dataModel == null) {
+         return Collections.emptyList();
+      }
+
+      List<Map<String, Object>> result = new ArrayList<>();
+
+      for(String modelName : dataModel.getLogicalModelNames()) {
+         XLogicalModel lm = dataModel.getLogicalModel(modelName);
+
+         if(lm == null) {
+            continue;
+         }
+
+         List<Map<String, Object>> entities = new ArrayList<>();
+         Enumeration<XEntity> entityEnum = lm.getEntities();
+
+         while(entityEnum.hasMoreElements()) {
+            XEntity entity = entityEnum.nextElement();
+            List<Map<String, String>> attributes = new ArrayList<>();
+            Enumeration<XAttribute> attrEnum = entity.getAttributes();
+
+            while(attrEnum.hasMoreElements()) {
+               XAttribute attr = attrEnum.nextElement();
+               Map<String, String> attrMap = new LinkedHashMap<>();
+               attrMap.put("name", attr.getName());
+               attrMap.put("type", attr.getDataType());
+               attributes.add(attrMap);
+            }
+
+            Map<String, Object> entityMap = new LinkedHashMap<>();
+            entityMap.put("name", entity.getName());
+            entityMap.put("attributes", attributes);
+            entities.add(entityMap);
+         }
+
+         Map<String, Object> modelMap = new LinkedHashMap<>();
+         modelMap.put("name", modelName);
+         modelMap.put("entities", entities);
+         result.add(modelMap);
+      }
+
+      return result;
+   }
+
    @ExceptionHandler(Exception.class)
    @ResponseStatus(org.springframework.http.HttpStatus.BAD_REQUEST)
    @ResponseBody
@@ -171,4 +235,5 @@ public class DatasourceMetaApiController {
 
    private final MetadataApiService metadataService;
    private final XRepository xrepository;
+   private final DataSourceService dataSourceService;
 }

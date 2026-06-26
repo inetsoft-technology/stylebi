@@ -25,8 +25,8 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.uql.erm.AttributeRef;
-import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.erm.*;
+import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.JDBCUtil;
@@ -75,7 +75,8 @@ public class WorksheetAgentController {
                                    AssetRepository assetRepository,
                                    inetsoft.web.wiz.service.MetadataApiService metadataApiService,
                                    QueryManagerService queryManagerService,
-                                   LayoutGraphService layoutGraphService)
+                                   LayoutGraphService layoutGraphService,
+                                   DataSourceService dataSourceService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -90,6 +91,7 @@ public class WorksheetAgentController {
       this.metadataApiService = metadataApiService;
       this.queryManagerService = queryManagerService;
       this.layoutGraphService = layoutGraphService;
+      this.dataSourceService = dataSourceService;
    }
 
    // ---------------------------------------------------------------------------
@@ -154,7 +156,12 @@ public class WorksheetAgentController {
       if("add_table".equals(req.op()) && req.datasource() != null
          && !req.datasource().isBlank())
       {
-         addBoundTable(sessionToken, req, user);
+         if(req.logicalModel() != null && !req.logicalModel().isBlank()) {
+            addLogicalModelTable(sessionToken, req, user);
+         }
+         else {
+            addBoundTable(sessionToken, req, user);
+         }
          return;
       }
 
@@ -285,6 +292,93 @@ public class WorksheetAgentController {
          assembly.setColumnSelection(columns);
 
          // Position below existing assemblies.
+         int maxY = 0;
+
+         for(Assembly a : ws.getAssemblies()) {
+            if(!(a instanceof AbstractWSAssembly wa)) {
+               continue;
+            }
+
+            Point p = wa.getPixelOffset();
+            Dimension d = wa.getPixelSize();
+
+            if(p != null && d != null) {
+               maxY = Math.max(maxY, p.y + d.height);
+            }
+         }
+
+         assembly.setPixelOffset(new Point(25, maxY + 40));
+         ws.addAssembly(assembly);
+         return null;
+      });
+   }
+
+   /**
+    * Create a {@link BoundTableAssembly} from a logical model entity.
+    *
+    * <p>{@code req.datasource()} is the datasource name, {@code req.logicalModel()} is the
+    * logical model name, and {@code req.table()} is the entity name within that model.
+    * A {@link SourceInfo} of type {@link SourceInfo#MODEL} is created and the column
+    * selection is populated from the entity's attributes.</p>
+    */
+   private void addLogicalModelTable(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      String datasourceName = req.datasource();
+      String logicalModelName = req.logicalModel();
+      String entityName = req.table();
+
+      if(entityName == null || entityName.isBlank()) {
+         throw new PairingException("table (entity name) is required for add_table with a logical model.");
+      }
+
+      XDataModel dataModel = dataSourceService.getDataModel(datasourceName);
+
+      if(dataModel == null) {
+         throw new PairingException("No data model found for datasource: " + datasourceName);
+      }
+
+      XLogicalModel lm = dataModel.getLogicalModel(logicalModelName);
+
+      if(lm == null) {
+         throw new PairingException("Logical model not found: " + logicalModelName
+            + " (datasource=" + datasourceName + ")");
+      }
+
+      XEntity entity = lm.getEntity(entityName);
+
+      if(entity == null) {
+         throw new PairingException("Entity not found: " + entityName
+            + " (logicalModel=" + logicalModelName + ", datasource=" + datasourceName + ")");
+      }
+
+      ColumnSelection columns = new ColumnSelection();
+      Enumeration<XAttribute> attrEnum = entity.getAttributes();
+
+      while(attrEnum.hasMoreElements()) {
+         XAttribute attr = attrEnum.nextElement();
+         AttributeRef attributeRef = new AttributeRef(entityName, attr.getName());
+         ColumnRef ref = new ColumnRef(attributeRef);
+
+         if(attr.getDataType() != null) {
+            ref.setDataType(attr.getDataType());
+         }
+
+         columns.addAttribute(ref);
+      }
+
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         String assemblyName = AssetUtil.normalizeTable(entityName);
+         assemblyName = AssetUtil.getNextName(ws, assemblyName);
+
+         BoundTableAssembly assembly = new BoundTableAssembly(ws, assemblyName);
+
+         SourceInfo sinfo = new SourceInfo(
+            SourceInfo.MODEL, datasourceName, logicalModelName);
+         assembly.setSourceInfo(sinfo);
+         assembly.setColumnSelection(columns);
+
          int maxY = 0;
 
          for(Assembly a : ws.getAssemblies()) {
@@ -1651,4 +1745,5 @@ public class WorksheetAgentController {
    private final inetsoft.web.wiz.service.MetadataApiService metadataApiService;
    private final QueryManagerService queryManagerService;
    private final LayoutGraphService layoutGraphService;
+   private final DataSourceService dataSourceService;
 }
