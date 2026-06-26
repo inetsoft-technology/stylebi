@@ -148,7 +148,9 @@ npx vitest run projects/portal/src/app/viewer/path/to/ComponentName.tl.spec.ts
 rm projects/portal/src/app/viewer/path/to/ComponentName.spec.ts
 ```
 
-**4f. 更新报告状态**：将该组件「状态」列改为 `✅已测试`，提交，进入下一个组件。
+**4f. 更新报告状态**：
+1. 将该组件「状态」列改为 `✅已测试`，提交，进入下一个组件。
+2. 更新 `viewer-prescan-2026-06-08.md` 文件头的**测试进度**行（`✅已测试 39 / 142 | 待测 82 / 142 | ⏭ 已跳过 1 / 142`）中的计数。
 
 ---
 

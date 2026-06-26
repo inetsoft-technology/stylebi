@@ -367,3 +367,34 @@ updateItem(item: Item) {
 不要追求**穷举**。
 
 而应：**在每条用例上最大化「发现真实缺陷」的概率**。
+
+---
+
+## 八、Critical Implementation Rules
+
+违反以下规则会导致测试挂起、静默污染或根本不运行，每条用例都必须遵守。
+
+| # | 规则 | 违规后果 |
+|---|------|----------|
+| **R1** | 运行单文件用 `npx ng run portal:test-tl --include="**/<file>.tl.spec.ts"`，**不用** `npx vitest run` | ATL 环境初始化错误，测试不执行 |
+| **R2** | 文件级必须有 `afterEach(() => vi.restoreAllMocks())` | spy 跨 test 污染，报错方向错乱 |
+| **R3** | **正向** async 断言用 `waitFor`；**负向**（`not.toHaveBeenCalled`）才允许 `await Promise.resolve()` | 用 `setTimeout` 偶发挂起 5 s |
+| **R4** | 共享 mock 的单次覆盖用 `mockReturnValueOnce()`，**禁止**直接属性重赋值 `MOCK.fn = vi.fn(...)` | `beforeEach` 的 `mockClear` 清旧引用，静默污染后续 test |
+| **R5** | `vi.spyOn` 不自动屏蔽原实现——若不需要原方法执行，必须加 `.mockImplementation(() => {})` | 原方法内的依赖未 setup → 抛错 |
+| **R6** | 组件构造函数直接注入 `HttpClient` 时，`render()` 的 `providers` 必须含 `provideHttpClient()` | 运行时 "No provider for HttpClient" |
+| **R7** | HTTP → `.subscribe(cb)` → spy 链**不能用 `waitFor`**，应 stub 私有 HTTP 方法使 subscribe 同步执行 | `waitFor` 永久挂住，不超时失败 |
+
+```typescript
+// R3 ✅ 正向用 waitFor
+comp.save();
+await waitFor(() => expect(ROUTER_MOCK.navigate).toHaveBeenCalled());
+
+// R4 ✅ 单次覆盖
+MODEL_MOCK.getModel.mockReturnValueOnce(of(updatedModel)); // ✅
+MODEL_MOCK.getModel = vi.fn().mockReturnValue(of(updatedModel)); // ❌
+
+// R7 ✅ stub 私有方法使 subscribe 同步
+vi.spyOn(comp as any, "callHttpEndpoint").mockReturnValue(of(response));
+comp.submit();
+expect(spy).toHaveBeenCalled(); // 同步断言，无需 waitFor
+```
