@@ -13,14 +13,15 @@
  */
 
 import { HttpClient } from "@angular/common/http";
-import { Directive, ElementRef, EventEmitter, Input, Output, Renderer2 } from "@angular/core";
+import { Directive, ElementRef, EventEmitter, Input, OnDestroy, Output, Renderer2 } from "@angular/core";
 import { SafeValue } from "@angular/platform-browser";
+import { Subscription } from "rxjs";
 
 @Directive({
     selector: "[chartImage]",
     standalone: true
 })
-export class ChartImageDirective {
+export class ChartImageDirective implements OnDestroy {
    @Input()
    get chartImage(): string | SafeValue {
       return this._chartImage;
@@ -37,11 +38,26 @@ export class ChartImageDirective {
    @Output() onLoaded = new EventEmitter<void>();
    @Output() onError = new EventEmitter<void>();
    private _chartImage: string | SafeValue = null;
+   private currentBlobUrl: string = null;
+   private loadSubscription: Subscription = null;
 
    constructor(private element: ElementRef, private http: HttpClient, private renderer: Renderer2) {
    }
 
+   ngOnDestroy(): void {
+      this.loadSubscription?.unsubscribe();
+      this.loadSubscription = null;
+
+      if(this.currentBlobUrl) {
+         URL.revokeObjectURL(this.currentBlobUrl);
+         this.currentBlobUrl = null;
+      }
+   }
+
    private loadImage(reloading = false): void {
+      this.loadSubscription?.unsubscribe();
+      this.loadSubscription = null;
+
       if(!!this.chartImage) {
          if(!reloading) {
             this.onLoading.emit();
@@ -49,7 +65,7 @@ export class ChartImageDirective {
 
          const requestedImage = this._chartImage;
 
-         this.http.get(this.chartImage as string, { observe: "response", responseType: "blob" }).subscribe(
+         this.loadSubscription = this.http.get(this.chartImage as string, { observe: "response", responseType: "blob" }).subscribe(
             response => {
                if(response.headers?.has("Retry-After")) {
                   const interval = parseInt(response.headers.get("Retry-After"), 10) * 1000;
@@ -57,7 +73,12 @@ export class ChartImageDirective {
                }
                else if(requestedImage == this.chartImage) {
                   // Do not set if image address changed before the request returned
-                  this.renderer.setAttribute(this.element.nativeElement, "src", URL.createObjectURL(response.body));
+                  if(this.currentBlobUrl) {
+                     URL.revokeObjectURL(this.currentBlobUrl);
+                  }
+
+                  this.currentBlobUrl = URL.createObjectURL(response.body);
+                  this.renderer.setAttribute(this.element.nativeElement, "src", this.currentBlobUrl);
                   this.onLoaded.emit();
                }
             },
