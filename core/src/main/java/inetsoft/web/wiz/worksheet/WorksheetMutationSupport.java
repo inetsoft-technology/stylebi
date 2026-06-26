@@ -26,7 +26,7 @@ import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 
-import java.util.List;
+import java.util.*;
 
 /**
  * Static helpers that implement the low-level structural mutations used by
@@ -238,6 +238,8 @@ public final class WorksheetMutationSupport {
          ainfo.addGroup(gr);
       }
 
+      ColumnSelection cs = t.getColumnSelection(false);
+
       for(AggregateSpec spec : aggregates) {
          AggregateFormula formula = AggregateFormula.getFormula(spec.formula());
 
@@ -250,9 +252,75 @@ public final class WorksheetMutationSupport {
 
          if(spec.alias() != null) {
             colRef.setAlias(spec.alias());
+
+            // Set the alias on the matching column in the table's column
+            // selection so that AssetUtil.applyAlias() renames the output header.
+            if(cs != null) {
+               DataRef csCol = cs.getAttribute(spec.field());
+
+               if(csCol instanceof ColumnRef csCr) {
+                  csCr.setAlias(spec.alias());
+               }
+            }
          }
 
-         ainfo.addAggregate(ar);
+         // If the aggregate info already contains an aggregate for this column
+         // (same column, different formula), add it as a secondary aggregate.
+         // This matches the standard UI pattern (AggregateDialogService) where
+         // the first aggregate goes into the primary list and subsequent ones
+         // for the same column go into the secondary list.
+         if(ainfo.containsAggregate(ar)) {
+            ainfo.addSecondaryAggregate(ar);
+         }
+         else {
+            ainfo.addAggregate(ar, false);
+         }
+      }
+
+      // Convert secondary aggregates into expression columns + primary aggregates.
+      // This matches the standard UI pattern (AggregateDialogService.updateAggregateInfo):
+      // each secondary aggregate gets a new expression column (field['Amount']) added to
+      // the column selection with a unique name, then a new primary aggregate is created
+      // on that expression column so the query engine produces a separate output column.
+      AggregateRef[] secondaryAggs = ainfo.getSecondaryAggregates();
+
+      if(secondaryAggs.length > 0) {
+         ColumnSelection cs2 = t.getColumnSelection();
+
+         for(AggregateRef sref : secondaryAggs) {
+            ColumnRef cref = (ColumnRef) sref.getDataRef();
+            String base = cref.getAttribute();
+
+            // Generate a unique column name (e.g. Amount_1, Amount_2).
+            int suffix = 1;
+            String exprName = base + "_1";
+
+            while(cs2.getAttribute(exprName) != null) {
+               exprName = base + "_" + (++suffix);
+            }
+
+            // Create an expression column that references the original column.
+            ExpressionRef exp = new ExpressionRef(null, exprName);
+            String fieldRef = cref.isEntityBlank() ? cref.getAttribute()
+               : cref.getEntity() + "." + cref.getAttribute();
+            exp.setExpression("field['" + fieldRef + "']");
+            ColumnRef exprCol = new ColumnRef(exp);
+            exprCol.setDataType(cref.getDataType());
+
+            // Carry over the alias from the secondary aggregate.
+            if(cref.getAlias() != null) {
+               exprCol.setAlias(cref.getAlias());
+            }
+
+            cs2.addAttribute(exprCol);
+
+            // Create a new primary aggregate on the expression column.
+            AggregateRef newAgg = new AggregateRef(exprCol, sref.getFormula());
+            ainfo.addAggregate(newAgg, false);
+         }
+
+         ainfo.removeSecondaryAggregates();
+         t.setColumnSelection(cs2);
       }
 
       t.setAggregateInfo(ainfo);

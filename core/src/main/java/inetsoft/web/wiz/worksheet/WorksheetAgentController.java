@@ -206,6 +206,12 @@ public class WorksheetAgentController {
          return;
       }
 
+      // add_variable needs RuntimeWorksheet to add the assembly.
+      if("add_variable".equals(req.op())) {
+         addVariableFromEdit(sessionToken, req, user);
+         return;
+      }
+
       editService.apply(sessionToken, user, editor -> dispatch(editor, req));
    }
 
@@ -1268,6 +1274,79 @@ public class WorksheetAgentController {
    }
 
    // ---------------------------------------------------------------------------
+   // Add variable from edit endpoint
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Handles {@code add_variable} dispatched through the edit endpoint.
+    */
+   private void addVariableFromEdit(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      String varName = req.name();
+
+      if(varName == null || varName.isBlank()) {
+         throw new PairingException("name is required for add_variable.");
+      }
+
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         createVariable(ws, varName, req.type(), req.label(), req.defaultValue());
+         return null;
+      });
+   }
+
+   /**
+    * Shared helper that creates a {@link DefaultVariableAssembly} with the given
+    * name, type, label, and default value.
+    */
+   private void createVariable(Worksheet ws, String name, String type,
+                               String label, String defaultValue)
+   {
+      AssetVariable var = new AssetVariable(name);
+
+      if(label != null) {
+         var.setAlias(label);
+      }
+
+      if(type != null) {
+         var.setTypeNode(XSchema.createPrimitiveType(type));
+      }
+
+      if(defaultValue != null) {
+         // Determine the effective type for the value node.  When a type is specified,
+         // use the typed factory so the value node matches the variable type (e.g.
+         // IntegerValue for "integer") and the value is parsed correctly through
+         // XValueNode.parse0().  Without this, createValueNode(Object, String) always
+         // creates a StringValue regardless of the variable type, and the stored
+         // default value can be silently lost on serialization round-trips.
+         String effectiveType = type != null
+            ? type : (var.getTypeNode() != null ? var.getTypeNode().getType() : null);
+         inetsoft.uql.schema.XValueNode valueNode =
+            inetsoft.uql.schema.XValueNode.createValueNode(name, effectiveType);
+
+         if(valueNode != null) {
+            try {
+               valueNode.parse0(defaultValue);
+            }
+            catch(Exception e) {
+               // Fall back to storing the raw string value if parsing fails
+               // (e.g. non-numeric string for an integer variable).
+               valueNode.setValue(defaultValue);
+            }
+
+            var.setValueNode(valueNode);
+         }
+      }
+
+      DefaultVariableAssembly assembly = new DefaultVariableAssembly(ws, name);
+      assembly.setVariable(var);
+      assembly.setPixelOffset(new Point(25, 25));
+      AssetEventUtil.adjustAssemblyPosition(assembly, ws);
+      ws.addAssembly(assembly);
+   }
+
+   // ---------------------------------------------------------------------------
    // Query execution plan (read-only)
    // ---------------------------------------------------------------------------
 
@@ -1359,28 +1438,7 @@ public class WorksheetAgentController {
 
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
-         AssetVariable var = new AssetVariable(body.name());
-
-         if(body.label() != null) {
-            var.setAlias(body.label());
-         }
-
-         if(body.type() != null) {
-            var.setTypeNode(XSchema.createPrimitiveType(body.type()));
-         }
-
-         if(body.defaultValue() != null) {
-            var.setValueNode(
-               inetsoft.uql.schema.XValueNode.createValueNode(
-                  body.defaultValue(), body.name()));
-         }
-
-         DefaultVariableAssembly assembly =
-            new DefaultVariableAssembly(ws, body.name());
-         assembly.setVariable(var);
-         assembly.setPixelOffset(new Point(25, 25));
-         AssetEventUtil.adjustAssemblyPosition(assembly, ws);
-         ws.addAssembly(assembly);
+         createVariable(ws, body.name(), body.type(), body.label(), body.defaultValue());
          return null;
       });
    }

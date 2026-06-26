@@ -211,9 +211,15 @@ public class WorksheetEditService {
       for(Assembly a : ws.getAssemblies()) {
          if(a instanceof TableAssembly ta) {
             String name = ta.getName();
-            WorksheetEventUtil.refreshColumnSelection(rws, name, true);
-            WorksheetEventUtil.loadTableData(rws, name, true, true);
-            WorksheetEventUtil.fixAssemblyInfo(rws, ta);
+
+            try {
+               WorksheetEventUtil.refreshColumnSelection(rws, name, true);
+               WorksheetEventUtil.loadTableData(rws, name, true, true);
+               WorksheetEventUtil.fixAssemblyInfo(rws, ta);
+            }
+            catch(Exception ex) {
+               LOG.warn("Failed to refresh assembly: " + name, ex);
+            }
          }
       }
    }
@@ -599,6 +605,10 @@ public class WorksheetEditService {
        * Creates a {@link RotatedTableAssembly} (transpose) from an existing table.
        */
       public void addRotate(String name, String source) throws PairingException {
+         if(name == null || name.isBlank()) {
+            name = AssetUtil.getNextName(ws, AbstractSheet.TABLE_ASSET);
+         }
+
          TableAssembly src = requireTable(source);
          RotatedTableAssembly table = new RotatedTableAssembly(ws, name, src);
          table.setLiveData(true);
@@ -615,6 +625,10 @@ public class WorksheetEditService {
       public void addUnpivot(String name, String source, int headerColumns)
          throws PairingException
       {
+         if(name == null || name.isBlank()) {
+            name = AssetUtil.getNextName(ws, AbstractSheet.TABLE_ASSET);
+         }
+
          TableAssembly src = requireTable(source);
          int colCount = src.getColumnSelection(false).getAttributeCount();
 
@@ -751,6 +765,10 @@ public class WorksheetEditService {
       public void addConcatenation(String name, List<String> tables, String opType)
          throws PairingException
       {
+         if(name == null || name.isBlank()) {
+            name = AssetUtil.getNextName(ws, AbstractSheet.TABLE_ASSET);
+         }
+
          if(tables == null || tables.size() < 2) {
             throw new PairingException("Concatenation requires at least two tables.");
          }
@@ -787,6 +805,10 @@ public class WorksheetEditService {
        * @throws PairingException if the source assembly is not found
        */
       public void addMirror(String name, String source) throws PairingException {
+         if(name == null || name.isBlank()) {
+            name = AssetUtil.getNextName(ws, AbstractSheet.TABLE_ASSET);
+         }
+
          Assembly a = ws.getAssembly(source);
 
          if(!(a instanceof WSAssembly wsa)) {
@@ -877,7 +899,7 @@ public class WorksheetEditService {
        * @throws PairingException if the table or column is not found
        */
       public void changeColumnType(String table, String col, String type)
-         throws PairingException
+         throws Exception
       {
          if(!XSchema.isPrimitiveType(type)) {
             throw new PairingException(
@@ -887,14 +909,48 @@ public class WorksheetEditService {
          }
 
          TableAssembly t = requireTable(table);
-         ColumnSelection cs = t.getColumnSelection(false);
+
+         // Use the public column selection (matching the UI's ColumnTypeDialogService
+         // approach) so that AssetUtil.findColumn can match against the embedded data.
+         ColumnSelection cs = t.getColumnSelection();
          DataRef ref = cs.getAttribute(col);
+
+         if(ref == null) {
+            // Fall back to private column selection.
+            cs = t.getColumnSelection(false);
+            ref = cs.getAttribute(col);
+         }
 
          if(!(ref instanceof ColumnRef cr)) {
             throw new PairingException("Column not found: " + col);
          }
 
-         cr.setDataType(type);
+         // Also update the matching ref from findAttribute (same approach as
+         // ColumnTypeDialogService) to ensure the canonical ref is updated.
+         ColumnRef cr2 = (ColumnRef) cs.findAttribute(cr);
+
+         if(cr2 != null) {
+            cr2.setDataType(type);
+         }
+         else {
+            cr.setDataType(type);
+         }
+
+         // For embedded tables, also update the underlying XEmbeddedTable data type.
+         // Without this, refreshColumnSelection rebuilds the column selection from
+         // the data and resets the type back to the original.
+         if(t instanceof EmbeddedTableAssembly embedded) {
+            XEmbeddedTable data = embedded.getEmbeddedData();
+
+            if(data != null) {
+               int index = AssetUtil.findColumn(data, cr2 != null ? cr2 : cr);
+
+               if(index >= 0) {
+                  data.setDataType(index, type, null, null, true);
+                  embedded.setEmbeddedData(data);
+               }
+            }
+         }
       }
 
       // -----------------------------------------------------------------------
@@ -1398,6 +1454,7 @@ public class WorksheetEditService {
          DefaultNamedGroupAssembly assembly = new DefaultNamedGroupAssembly(ws, name);
          assembly.setNamedGroupInfo(ngi);
          assembly.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
+         assembly.setAttachedSource(new SourceInfo(SourceInfo.ASSET, null, table));
          assembly.setAttachedAttribute(ref);
 
          placeAssembly(assembly);
@@ -1577,8 +1634,24 @@ public class WorksheetEditService {
          }
 
          if(defaultValue != null) {
-            var.setValueNode(
-               inetsoft.uql.schema.XValueNode.createValueNode(defaultValue, name));
+            // Use the variable's type to create the correct value node subclass
+            // (e.g. IntegerValue for "integer") so the default value survives
+            // serialization round-trips.
+            String effectiveType = type != null
+               ? type : (var.getTypeNode() != null ? var.getTypeNode().getType() : null);
+            inetsoft.uql.schema.XValueNode valueNode =
+               inetsoft.uql.schema.XValueNode.createValueNode(name, effectiveType);
+
+            if(valueNode != null) {
+               try {
+                  valueNode.parse0(defaultValue);
+               }
+               catch(Exception e) {
+                  valueNode.setValue(defaultValue);
+               }
+
+               var.setValueNode(valueNode);
+            }
          }
       }
 

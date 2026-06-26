@@ -54,6 +54,7 @@ public class WorksheetReadService {
 
       List<WorksheetModel.TableModel> tables = new ArrayList<>();
       List<WorksheetModel.VariableModel> variables = new ArrayList<>();
+      List<WorksheetModel.NamedGroupModel> namedGroups = new ArrayList<>();
 
       for(Assembly assembly : assemblies) {
          if(assembly instanceof TableAssembly t) {
@@ -63,9 +64,12 @@ public class WorksheetReadService {
          else if(assembly instanceof DefaultVariableAssembly dva) {
             variables.add(readVariable(dva));
          }
+         else if(assembly instanceof DefaultNamedGroupAssembly nga) {
+            namedGroups.add(readNamedGroup(nga));
+         }
       }
 
-      return new WorksheetModel(tables, variables);
+      return new WorksheetModel(tables, variables, namedGroups);
    }
 
    // -------------------------------------------------------------------------
@@ -178,6 +182,62 @@ public class WorksheetReadService {
          ? valueNode.getValue().toString() : null : null;
 
       return new WorksheetModel.VariableModel(var.getName(), label, type, defaultValue);
+   }
+
+   // -------------------------------------------------------------------------
+   // Named groups
+   // -------------------------------------------------------------------------
+
+   private WorksheetModel.NamedGroupModel readNamedGroup(DefaultNamedGroupAssembly nga) {
+      String name = nga.getName();
+
+      DataRef attachedAttr = nga.getAttachedAttribute();
+      SourceInfo attachedSource = nga.getAttachedSource();
+      String table = attachedSource != null ? attachedSource.getSource() : null;
+      String column = attachedAttr != null ? attachedAttr.getAttribute() : null;
+
+      NamedGroupInfo ngi = nga.getNamedGroupInfo();
+      boolean groupOthers = ngi != null && ngi.getOthers() == XConstants.GROUP_OTHERS;
+
+      List<WorksheetModel.GroupMappingModel> mappings = new ArrayList<>();
+
+      if(ngi != null) {
+         String[] groups = ngi.getGroups(false);
+
+         for(String group : groups) {
+            ConditionList conds = ngi.getGroupCondition(group);
+            List<String> values = new ArrayList<>();
+
+            if(conds != null) {
+               int size = conds.getConditionSize();
+
+               for(int i = 0; i < size; i++) {
+                  if(!conds.isConditionItem(i)) {
+                     continue;
+                  }
+
+                  ConditionItem item = conds.getConditionItem(i);
+
+                  if(item == null) {
+                     continue;
+                  }
+
+                  XCondition xc = item.getXCondition();
+
+                  if(xc instanceof Condition c) {
+                     for(int v = 0; v < c.getValueCount(); v++) {
+                        Object val = c.getValue(v);
+                        values.add(val != null ? val.toString() : null);
+                     }
+                  }
+               }
+            }
+
+            mappings.add(new WorksheetModel.GroupMappingModel(group, values));
+         }
+      }
+
+      return new WorksheetModel.NamedGroupModel(name, table, column, mappings, groupOthers);
    }
 
    // -------------------------------------------------------------------------
@@ -327,19 +387,34 @@ public class WorksheetReadService {
          groups.add(gr.getName());
       }
 
-      // Aggregates
+      // Aggregates (primary + secondary)
       AggregateRef[] aggRefs = info.getAggregates();
+      AggregateRef[] secondaryRefs = info.getSecondaryAggregates();
       List<WorksheetModel.AggregateModel.AggregateRefModel> aggregates =
-         new ArrayList<>(aggRefs.length);
+         new ArrayList<>(aggRefs.length + secondaryRefs.length);
 
       for(AggregateRef ar : aggRefs) {
-         String column = ar.getAttribute();
-         AggregateFormula formula = ar.getFormula();
-         String formulaName = formula != null ? formula.getName() : null;
-         aggregates.add(new WorksheetModel.AggregateModel.AggregateRefModel(column, formulaName));
+         aggregates.add(readAggregateRef(ar));
+      }
+
+      for(AggregateRef ar : secondaryRefs) {
+         aggregates.add(readAggregateRef(ar));
       }
 
       return new WorksheetModel.AggregateModel(groups, aggregates);
+   }
+
+   private WorksheetModel.AggregateModel.AggregateRefModel readAggregateRef(AggregateRef ar) {
+      String column = ar.getAttribute();
+      AggregateFormula formula = ar.getFormula();
+      String formulaName = formula != null ? formula.getName() : null;
+      String alias = null;
+
+      if(ar.getDataRef() instanceof ColumnRef cr) {
+         alias = cr.getAlias();
+      }
+
+      return new WorksheetModel.AggregateModel.AggregateRefModel(column, formulaName, alias);
    }
 
    // -------------------------------------------------------------------------
