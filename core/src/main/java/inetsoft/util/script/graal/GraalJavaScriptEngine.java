@@ -196,7 +196,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          LOG.warn("Failed to install setupGoogleMapsPlot", ex);
       }
 
-      // (b) FormulaFunctions: every public static method declared on the class
+      // (b) FormulaFunctions: every public static method declared on the class.
+      // These intentionally overwrite any (a)-group registration with the same name —
+      // FormulaFunctions implementations take priority over the JavaScriptEngine equivalents.
       try {
          addStaticFunctions(bindings, inetsoft.report.script.formula.FormulaFunctions.class);
       }

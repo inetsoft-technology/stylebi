@@ -54,10 +54,9 @@ public final class JavaPackageProxy implements ProxyObject {
 
    @Override
    public boolean hasMember(String name) {
-      // Packages are open-ended; an actual non-class/non-package path surfaces
-      // as a deferred error on use, matching Rhino. JS-internal probes (then,
-      // toString, ...) resolve to null via navigate() and read as undefined.
-      return LegacyJavaShim.isEnabled();
+      // Exclude JS-intrinsic names (then, toString, constructor, etc.) so package
+      // proxies are not mistaken for thenables by GraalJS's Promise machinery.
+      return LegacyJavaShim.isEnabled() && LegacyJavaShim.isResolvableName(name);
    }
 
    @Override

@@ -217,24 +217,31 @@ public final class LegacyJavaShim {
    }
 
    static Class<?> tryLoad(String fqcn) {
-      return CLASS_CACHE.computeIfAbsent(fqcn, key -> {
-         ClassLoader cl = Thread.currentThread().getContextClassLoader();
+      Optional<Class<?>> cached = CLASS_CACHE.get(fqcn);
 
-         if(cl == null) {
-            cl = LegacyJavaShim.class.getClassLoader();
-         }
+      if(cached != null) {
+         return cached.orElse(null);
+      }
 
-         try {
-            // initialize=false: navigation must not run static initializers.
-            return Optional.of(Class.forName(key, false, cl));
-         }
-         catch(ClassNotFoundException | LinkageError ex) {
-            return Optional.empty();
-         }
-      }).orElse(null);
+      ClassLoader cl = Thread.currentThread().getContextClassLoader();
+
+      if(cl == null) {
+         cl = LegacyJavaShim.class.getClassLoader();
+      }
+
+      try {
+         // initialize=false: navigation must not run static initializers.
+         Class<?> cls = Class.forName(fqcn, false, cl);
+         CLASS_CACHE.put(fqcn, Optional.of(cls));
+         return cls;
+      }
+      catch(ClassNotFoundException | LinkageError ex) {
+         // don't cache misses — avoids unbounded growth from exploratory package navigation
+         return null;
+      }
    }
 
-   private static boolean isResolvableName(String name) {
+   static boolean isResolvableName(String name) {
       return name != null && !JS_META.contains(name) && IDENTIFIER.matcher(name).matches();
    }
 

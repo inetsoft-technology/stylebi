@@ -124,6 +124,9 @@ public class ScriptFunction implements ProxyExecutable {
          else if(ptype == byte.class || ptype == Byte.class) {
             return n.byteValue();
          }
+         else if(ptype == char.class || ptype == Character.class) {
+            return (char) n.intValue();
+         }
       }
 
       return value;

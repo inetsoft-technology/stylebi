@@ -36,10 +36,8 @@ public final class ConstantScope implements ScriptScope {
 
    /**
     * Build a constant scope from the {@code public static final} fields of the
-    * given classes. Later classes do not overwrite names already contributed by
-    * earlier classes is NOT enforced here (Rhino's addFields let later classes
-    * overwrite); to preserve that behavior, fields are added in class order and
-    * the last writer wins, matching {@code addFields}.
+    * given classes. Fields are added in class order; later classes overwrite
+    * names from earlier classes, matching Rhino's {@code addFields} behavior.
     */
    public ConstantScope(Class<?>... classes) {
       for(Class<?> cls : classes) {

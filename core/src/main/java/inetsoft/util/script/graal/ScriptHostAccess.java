@@ -66,7 +66,12 @@ public final class ScriptHostAccess {
       // the GraalJS engine internals themselves — the "inetsoft.util.script."
       // allow-prefix would otherwise expose GraalJavaScriptEngine /
       // ScriptTimeoutGuard / ScriptHostAccess etc. to Java.type(...)
-      "inetsoft.util.script.graal"
+      "inetsoft.util.script.graal",
+      // GraalVM/Truffle engine internals — comOrg=true would otherwise permit
+      // Java.type('org.graalvm.polyglot.Context'), enabling sandbox escape via
+      // Context.create().eval(unrestricted script).
+      "org.graalvm",
+      "com.oracle"
    );
 
    // Specific dangerous classes that are blocked by exact name.
@@ -309,7 +314,10 @@ public final class ScriptHostAccess {
          return isBasicMathClass(fqcn);
       }
 
-      if(fqcn.startsWith("java.text.") && !fqcn.contains("spi")) {
+      if(fqcn.startsWith("java.text.")) {
+         if(fqcn.contains("spi")) {
+            return false;
+         }
          return isBasicTextClass(fqcn);
       }
 
