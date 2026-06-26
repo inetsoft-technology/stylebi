@@ -384,7 +384,7 @@ public final class AnnotationVSUtil {
                });
 
                box.getScope().execute(script, scriptable);
-               data = (DataSet) scriptable.get("dataset", scriptable);
+               data = (DataSet) scriptable.getMember("dataset");
                box.getScope().resetChartScriptable(ass);
             }
          }

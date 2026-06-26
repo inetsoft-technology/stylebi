@@ -30,7 +30,6 @@ import inetsoft.uql.viewsheet.internal.ViewsheetVSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.util.script.JavaScriptEngine;
 import org.apache.commons.lang3.StringUtils;
-import org.mozilla.javascript.Scriptable;
 
 import java.util.*;
 
@@ -116,7 +115,7 @@ public class ViewsheetVSAScriptable extends VSAScriptable {
     * Get a property value.
     */
    @Override
-   public Object get(String id, Scriptable start) {
+   public Object getMember(String id) {
       if("updateTime".equals(id)) {
          return getUpdateTime();
       }
@@ -132,13 +131,13 @@ public class ViewsheetVSAScriptable extends VSAScriptable {
       else if("taskName".equals(id)) {
          String taskName = getTaskName();
 
-         return StringUtils.isEmpty(taskName) ? super.get(id, start) : taskName;
+         return StringUtils.isEmpty(taskName) ? super.getMember(id) : taskName;
       }
       else if("currentBookmark".equals(id)) {
          return getCurrentBookmark();
       }
 
-      return super.get(id, start);
+      return super.getMember(id);
    }
 
    /**

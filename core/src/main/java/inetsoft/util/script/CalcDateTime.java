@@ -19,7 +19,6 @@ package inetsoft.util.script;
 
 import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
-import org.mozilla.javascript.Undefined;
 
 import java.text.DateFormat;
 import java.time.LocalDate;
@@ -1310,7 +1309,7 @@ public class CalcDateTime {
    private static Calendar createCalendar(Object timeZone) {
       Calendar calendar = Calendar.getInstance();
 
-      if(timeZone != null && !(timeZone instanceof Undefined)) {
+      if(timeZone != null) {
          calendar.setTimeZone(TimeZone.getTimeZone((String) timeZone));
       }
 
@@ -1335,8 +1334,7 @@ public class CalcDateTime {
    {
       int startMonthValue = ((Number) startMonth).intValue();
       Integer startDateValue =
-         startDay == null || (startDay instanceof Undefined) ?
-         null : ((Number) startDay).intValue();
+         startDay == null ? null : ((Number) startDay).intValue();
 
       Calendar calendar = createCalendar(timeZone);
       calendar.clear();

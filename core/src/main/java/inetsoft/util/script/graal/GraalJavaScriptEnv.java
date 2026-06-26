@@ -15,31 +15,32 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.util.script;
+package inetsoft.util.script.graal;
 
 import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
-import org.mozilla.javascript.Script;
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.FormulaContext;
+import inetsoft.util.script.ScriptEnv;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Hashtable;
-import java.util.regex.Pattern;
 
 /**
- * Encapsulate a script engine.
+ * GraalJS-based ScriptEnv implementation. Replaces JavaScriptEnv (Rhino).
+ * Delegates to {@link GraalJavaScriptEngine} and pushes/pops
+ * {@link FormulaContext} scope around each exec call.
  *
- * @version 5.1, 9/20/2003
- * @author InetSoft Technology Corp
+ * <p>Note: getSuggestion(Exception, String, Scriptable) accepts the Rhino type
+ * for now because the ScriptEnv interface still declares it (Task 5.2 flips
+ * both the interface and this method together).
  */
-public class JavaScriptEnv implements ScriptEnv {
+public class GraalJavaScriptEnv implements ScriptEnv {
    /**
-    * Create a script engine. The setReport() method must be called
-    * before it's used.
+    * Create a GraalJS-backed script environment.
     */
-   public JavaScriptEnv() {
+   public GraalJavaScriptEnv() {
    }
 
    /**
@@ -52,7 +53,7 @@ public class JavaScriptEnv implements ScriptEnv {
             engine.init(vars);
          }
          catch(Exception ex) {
-            LOG.error("Failed to reset JavaScript Engine", ex);
+            LOG.error("Failed to reset GraalJavaScriptEngine", ex);
          }
       }
    }
@@ -60,20 +61,22 @@ public class JavaScriptEnv implements ScriptEnv {
    /**
     * Set the parent scripting environment of this script engine. All objects
     * in the parent engine are accessible in this environment.
+    * Not yet wired — no-op until Task 5.3 wires scope chaining.
     */
    @Override
    public synchronized void setParent(Object scope) {
       init();
-      engine.setParent((Scriptable) scope);
+      // TODO wired in Task 5.3: scope chaining via ScriptScope.getParentScope()
    }
 
    /**
     * {@inheritDoc}
+    * Not yet wired — no-op until Task 5.3.
     */
    @Override
    public void addTopLevelParentScope(Object child) {
       init();
-      engine.addTopLevelParentScope((Scriptable) child);
+      // TODO wired in Task 5.3: scope chaining via ScriptScope.getParentScope()
    }
 
    /**
@@ -95,12 +98,16 @@ public class JavaScriptEnv implements ScriptEnv {
 
    /**
     * Execute a script.
+    *
     * @param script script object.
-    * @param scope scope this script should execute in.
-    * @param target report/viewsheet scope.
+    * @param scope  scope this script should execute in.
+    * @param rscope the top report/viewsheet scope.
+    * @param target the target object (report/vs) for profiling.
     */
    @Override
-   public Object exec(Object script, Object scope, Object rscope, Object target) throws Exception {
+   public Object exec(Object script, Object scope, Object rscope, Object target)
+      throws Exception
+   {
       // for Feature #26586, add javascript execution time record for current report.
       return ProfileUtils.addExecutionBreakDownRecord(target,
          ExecutionBreakDownRecord.JAVASCRIPT_PROCESSING_CYCLE, args -> {
@@ -109,24 +116,22 @@ public class JavaScriptEnv implements ScriptEnv {
    }
 
    /**
-    * Execute a script.
-    * @param script script object.
-    * @param scope scope this script should execute in.
+    * Execute a script with FormulaContext scope push/pop.
     */
    private Object doExec(Object script, Object scope, Object rscope) throws Exception {
       init();
 
-      Scriptable scriptable = (scope instanceof Scriptable) ? (Scriptable) scope : null;
+      ScriptScope scriptScope = (scope instanceof ScriptScope) ? (ScriptScope) scope : null;
 
-      if(scriptable != null) {
-         FormulaContext.pushScope(scriptable);
+      if(scriptScope != null) {
+         FormulaContext.pushScope(scriptScope);
       }
 
       try {
-         return engine.exec((Script) script, scope, (Scriptable) rscope);
+         return engine.exec(script, scope, rscope);
       }
       finally {
-         if(scriptable != null) {
+         if(scriptScope != null) {
             FormulaContext.popScope();
          }
       }
@@ -137,75 +142,60 @@ public class JavaScriptEnv implements ScriptEnv {
     * script syntax.
     */
    @Override
-   public synchronized void checkFunction(String name, String cmd)
-      throws Exception
-   {
+   public synchronized void checkFunction(String name, String cmd) throws Exception {
       init();
       engine.checkFunction(name, cmd);
    }
 
    /**
-    * Get all property ids of an element. If the element does not exist
-    * in the scope, get all ids in the report.
-    * @param id element id.
-    * @param scope script scope.
-    * @param parent true to include all ids in the parents.
-    * @return a list of object ids in the scope. Function objects are
-    * added '()' at the end.
+    * Get all property ids of an element.
+    * TODO wired in Task 5.3 — returns engine global member keys for now.
     */
    @Override
    public Object[] getIds(Object id, Object scope, boolean parent) {
       init();
-      return engine.getIds(id, (Scriptable) scope, parent);
+      // TODO wired in Task 5.3: full scope-chain traversal
+      return engine.getMemberKeys();
    }
 
    /**
-    * Get all property display names of an element for property tree. If the
-    * element does not exist in the scope, get all display names in the report.
-    * @param id element id.
-    * @param scope script scope.
-    * @param parent true to include all display names in the parents.
-    * @return a list of object display names in the scope. Function objects are
-    * added '()' at the end.
+    * Get all property display names of an element.
+    * TODO wired in Task 5.3.
     */
    @Override
    public Object[] getDisplayNames(Object id, Object scope, boolean parent) {
-      init();
-      return engine.getDisplayNames(id, (Scriptable) scope, parent);
+      return getIds(id, scope, parent);
    }
 
    /**
-    * Get all property names of an element for property tree. If the
-    * element does not exist in the scope, get all names in the report.
-    * @param id element id.
-    * @param scope script scope.
-    * @param parent true to include all names in the parents.
-    * @return a list of object names in the scope. Function objects are
-    * added '()' at the end.
+    * Get all property names of an element.
+    * TODO wired in Task 5.3.
     */
    @Override
    public Object[] getNames(Object id, Object scope, boolean parent) {
-      init();
-      return engine.getNames(id, (Scriptable) scope, parent);
+      return getIds(id, scope, parent);
    }
 
    /**
     * Find the scope of the specified object.
+    * TODO wired in Task 5.3.
     */
    @Override
    public Object getScope(Object id, Object scope) {
       init();
-
-      return engine.getScriptable(id, (Scriptable) scope);
+      // TODO wired in Task 5.3: scope-chain lookup
+      return null;
    }
 
    /**
     * Define a variable in the report scope.
+    *
     * @param name variable name.
-    * @param obj variable value.
+    * @param obj  variable value.
     */
+   // FIX C: synchronized to close the reset()/put() race on the engine reference
    @Override
-   public void put(String name, Object obj) {
+   public synchronized void put(String name, Object obj) {
       init();
       vars.put(name, obj);
       engine.put(name, obj);
@@ -213,6 +203,7 @@ public class JavaScriptEnv implements ScriptEnv {
 
    /**
     * Get the variable set using put().
+    *
     * @param name variable name.
     */
    @Override
@@ -228,6 +219,7 @@ public class JavaScriptEnv implements ScriptEnv {
 
    /**
     * Remove a variable from the scripting environment.
+    *
     * @param name variable name.
     */
    @Override
@@ -242,12 +234,13 @@ public class JavaScriptEnv implements ScriptEnv {
    }
 
    @Override
-   public String getSuggestion(Exception ex, String fieldName, Scriptable scope) {
+   public String getSuggestion(Exception ex, String fieldName, ScriptScope scope) {
       return getSuggestion0(ex, fieldName, scope);
    }
 
    /**
     * Get a suggested fix for a script error.
+    *
     * @return suggestion text, or null if no suggestion is available.
     */
    @Override
@@ -255,20 +248,36 @@ public class JavaScriptEnv implements ScriptEnv {
       return getSuggestion0(ex, fieldName, null);
    }
 
-   public String getSuggestion0(Exception ex, String fieldName, Scriptable scope) {
+   /**
+    * Copied verbatim from JavaScriptEnv.getSuggestion0 (message-match strings
+    * updated in Task 6.5).
+    */
+   public String getSuggestion0(Exception ex, String fieldName, ScriptScope scope) {
       String msg = ex.getMessage();
 
       if(msg == null) {
          return null;
       }
 
-      if(msg.contains("Cannot add a property to a sealed object")) {
+      // Each branch ORs the original Rhino phrasing with the GraalJS phrasing
+      // (captured empirically in Task 6.5) so the matcher is robust to both engines.
+      if(msg.contains("Cannot add a property to a sealed object") ||
+         // GraalJS: "TypeError: Cannot add property <x>, object is not extensible"
+         msg.contains("Cannot add property") ||
+         msg.contains("not extensible"))
+      {
          return "Use 'var' to declare the variable";
       }
-      else if(msg.contains("undefined is not a function")) {
+      else if(msg.contains("undefined is not a function") ||
+              // GraalJS: e.g. "TypeError: 5 is not a function"
+              msg.contains("is not a function"))
+      {
          return "Check if function name is correct, and whether it's global or object method";
       }
-      else if(msg.contains("undefined value has no properties")) {
+      else if(msg.contains("undefined value has no properties") ||
+              // GraalJS: e.g. "TypeError: Cannot read property 'foo' of undefined"
+              msg.contains("Cannot read") || msg.contains("of undefined"))
+      {
          return "Check if the object you are trying to reference exists";
       }
       else if(msg.contains("is not defined")) {
@@ -303,7 +312,7 @@ public class JavaScriptEnv implements ScriptEnv {
             engine.init(vars);
          }
          catch(Exception e) {
-            LOG.error("Failed to init JavaScript Engine", e);
+            LOG.error("Failed to init GraalJavaScriptEngine", e);
          }
       }
    }
@@ -311,8 +320,8 @@ public class JavaScriptEnv implements ScriptEnv {
    /**
     * Create a script engine instance.
     */
-   protected JavaScriptEngine createScriptEngine() {
-      return new JavaScriptEngine();
+   protected GraalJavaScriptEngine createScriptEngine() {
+      return new GraalJavaScriptEngine();
    }
 
    /**
@@ -335,12 +344,10 @@ public class JavaScriptEnv implements ScriptEnv {
       return sql;
    }
 
-   protected JavaScriptEngine engine;
+   // FIX C: volatile so unsynchronized readers (e.g. get()) see the latest value
+   protected volatile GraalJavaScriptEngine engine;
    protected Hashtable vars = new Hashtable();
    protected boolean sql;
 
-   private static Pattern pattern =
-      Pattern.compile("[\\s\\S]*[\"]([^\"]+)[\"] is not defined[\\s\\S]*");
-   private static final Logger LOG =
-      LoggerFactory.getLogger(JavaScriptEnv.class);
+   private static final Logger LOG = LoggerFactory.getLogger(GraalJavaScriptEnv.class);
 }

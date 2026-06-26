@@ -213,8 +213,8 @@ public class OnClickService {
       String script = getScript(assembly);
 
       if(xstr != null && ystr != null) {
-         scope.put("mouseX", scope, xstr);
-         scope.put("mouseY", scope, ystr);
+         scope.putMember("mouseX", xstr);
+         scope.putMember("mouseY", ystr);
       }
 
       // after onClick event, the viewsheet will be refreshed, which reset

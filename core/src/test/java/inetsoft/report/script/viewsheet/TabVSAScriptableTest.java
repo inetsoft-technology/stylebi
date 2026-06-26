@@ -76,7 +76,7 @@ public class TabVSAScriptableTest {
    @Test
    void testAddProperties() {
       tabVSAScriptable.addProperties();
-      assertEquals(true, tabVSAScriptable.get("visible", tabVSAScriptable));
+      assertEquals(true, tabVSAScriptable.getMember("visible"));
    }
 
    @Test

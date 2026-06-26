@@ -27,7 +27,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.MockedConstruction;
 import org.mockito.Mockito;
-import org.mozilla.javascript.Scriptable;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -35,8 +34,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
@@ -97,7 +95,8 @@ public class ScheduleParameterScopeTest {
 
       try(MockedConstruction<GregorianCalendar> ignored = mockCalendarAt(anchor)) {
          ScheduleParameterScope scheduleParameterScope = new ScheduleParameterScope();
-         Date actualDate = (Date) scheduleParameterScope.get(dynamicDate, null);
+
+         Date actualDate = (Date) scheduleParameterScope.getMember(dynamicDate);
          assertEquals(expected, sdf.format(actualDate));
       }
    }
@@ -109,7 +108,7 @@ public class ScheduleParameterScopeTest {
       try(MockedConstruction<Date> mockedDate = Mockito.mockConstruction(Date.class, (mock, context) ->
          when(mock.getTime()).thenReturn(fixedMillis))) {
          ScheduleParameterScope scheduleParameterScope = new ScheduleParameterScope();
-         Date actualDate = (Date) scheduleParameterScope.get(DynamicDate.NOW, null);
+         Date actualDate = (Date) scheduleParameterScope.getMember(DynamicDate.NOW);
          assertEquals("2024-02-29 23:59:59", sdf.format(actualDate));
          assertEquals(1, mockedDate.constructed().size());
       }
@@ -139,7 +138,7 @@ public class ScheduleParameterScopeTest {
 
       try(MockedConstruction<GregorianCalendar> ignored = mockCalendarAt(fixedCalendar)) {
          ScheduleParameterScope scheduleParameterScope = new ScheduleParameterScope();
-         Date actualDate = (Date) scheduleParameterScope.get(dynamicDate, null);
+         Date actualDate = (Date) scheduleParameterScope.getMember(dynamicDate);
          assertEquals(expected, sdf.format(actualDate));
       }
    }
@@ -160,7 +159,8 @@ public class ScheduleParameterScopeTest {
 
       try(MockedConstruction<GregorianCalendar> ignored = mockCalendarAt(anchor)) {
          ScheduleParameterScope scheduleParameterScope = new ScheduleParameterScope();
-         Date actualDate = (Date) scheduleParameterScope.get(dynamicDate, null);
+
+         Date actualDate = (Date) scheduleParameterScope.getMember(dynamicDate);
          assertEquals(expected, sdf.format(actualDate));
       }
    }
@@ -168,8 +168,8 @@ public class ScheduleParameterScopeTest {
    @Test
    void testUnknownDynamicDateDelegatesToSuper() {
       ScheduleParameterScope scheduleParameterScope = new ScheduleParameterScope();
-      Object actual = scheduleParameterScope.get("_UNKNOWN_DYNAMIC_DATE", null);
-      assertSame(Scriptable.NOT_FOUND, actual);
+      Object actual = scheduleParameterScope.getMember("_UNKNOWN_DYNAMIC_DATE");
+      assertNull(actual);
    }
 
    @Test
@@ -205,7 +205,7 @@ public class ScheduleParameterScopeTest {
          assertEquals("2024-02-29 00:00:00", sdf.format(actualDate));
 
          ScheduleParameterScope scheduleParameterScope = new ScheduleParameterScope();
-         assertEquals(25, scheduleParameterScope.getIds().length);
+         assertEquals(25, scheduleParameterScope.getMemberKeys().length);
       }
    }
 
@@ -216,6 +216,7 @@ public class ScheduleParameterScopeTest {
       });
    }
 
+   @SuppressWarnings("MagicConstant")
    private void mockCalendarMethod(GregorianCalendar mock, Calendar fixedCalendar) {
       // set the mock calendar to a fixed time
       mock.setTime(fixedCalendar.getTime());
@@ -236,7 +237,7 @@ public class ScheduleParameterScopeTest {
          return null;
       }).when(mock).add(anyInt(), anyInt());
 
-      // mock  get operation and obtain from real calendar
+      // mock get operation and obtain from real calendar
       doAnswer(inv -> {
          int field = inv.getArgument(0);
          return fixedCalendar.get(field);
@@ -251,6 +252,7 @@ public class ScheduleParameterScopeTest {
       when(mock.getTime()).thenAnswer(inv -> fixedCalendar.getTime());
    }
 
+   @SuppressWarnings("MagicConstant")
    private static Calendar createCalendar(int year, int month, int day, int hour, int minute, int second) {
       Calendar calendar = new GregorianCalendar(year, month , day, hour, minute, second);
       calendar.set(Calendar.MILLISECOND, 0);

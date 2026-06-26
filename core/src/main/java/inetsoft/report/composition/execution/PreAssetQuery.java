@@ -42,7 +42,7 @@ import inetsoft.util.*;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -3922,7 +3922,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
    {
       ScriptEnv senv = box.getScriptEnv();
       Object val = null;
-      Scriptable scope = null;
+      ScriptScope scope = null;
 
       try {
          ViewsheetSandbox vbox = box.getViewsheetSandbox();

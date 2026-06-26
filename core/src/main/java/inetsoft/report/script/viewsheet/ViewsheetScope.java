@@ -36,9 +36,10 @@ import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
 import inetsoft.util.script.*;
+import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.vswizard.model.VSWizardConstants;
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,7 +56,7 @@ import java.util.function.Consumer;
  * @version 8.5
  * @author InetSoft Technology Corp
  */
-public class ViewsheetScope extends ScriptableObject implements Cloneable, DynamicScope {
+public class ViewsheetScope implements Cloneable, DynamicScope {
    /**
     * Viewsheet scope scriptable.
     */
@@ -69,8 +70,6 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
     * Create a scope for a viewsheet.
     */
    public ViewsheetScope(ViewsheetSandbox box, boolean withWS) {
-      super();
-
       this.box = box;
 
       addProperties();
@@ -86,42 +85,26 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
     * Add user defined functions to the scope.
     */
    private void addFunctions() {
+      // Native functions are exposed as ScriptFunction (ProxyExecutable) bound
+      // to this scope object (replaces the Rhino FunctionObject mechanism).
       try {
-         FunctionObject func = new FunctionObject2(this, getClass(), "runQuery",
-            String.class, Object.class);
-         propmap.put("runQuery", func);
-         func = new FunctionObject2(this, getClass(), "toList", Object.class, String.class);
-         propmap.put("toList", func);
-         func = new FunctionObject2(this, getClass(), "addImage", String.class, Object.class);
-         propmap.put("addImage", func);
-         func = new FunctionObject2(this, getClass(), "createConnection",
-            String.class, String.class, String.class);
-         propmap.put("createConnection", func);
-         /* not supported in 13.1
-         func = new FunctionObject("addAction",
-            getClass().getMethod("addAction",
-            new Class[] {String.class, String.class, String.class}), this);
-         propmap.put("addAction", func);
-         */
-         func = new FunctionObject2(this, getClass(), "refreshData");
-         propmap.put("refreshData", func);
-         func = new FunctionObject2(this, getClass(), "isCancelled");
-         propmap.put("isCancelled", func);
-
-         func = new FunctionObject("appendRow", getClass().getMethod("appendRow",
-            new Class[] {String.class, Object.class}), this);
-         propmap.put("appendRow", func);
-
-         func = new FunctionObject("setCellValue", getClass().getMethod("setCellValue",
-            new Class[] {String.class, int.class, int.class, Object.class}), this);
-         propmap.put("setCellValue", func);
-
-         func = new FunctionObject("saveWorksheet",
-            getClass().getMethod("saveWorksheet"), this);
-         propmap.put("saveWorksheet", func);
-
-         func = new FunctionObject2(this, getClass(), "delayVisibility", int.class, Object.class);
-         propmap.put("delayVisibility", func);
+         propmap.put("runQuery", new ScriptFunction(this, getClass(), "runQuery",
+            String.class, Object.class));
+         propmap.put("toList", new ScriptFunction(this, getClass(), "toList",
+            Object.class, String.class));
+         propmap.put("addImage", new ScriptFunction(this, getClass(), "addImage",
+            String.class, Object.class));
+         propmap.put("createConnection", new ScriptFunction(this, getClass(),
+            "createConnection", String.class, String.class, String.class));
+         propmap.put("refreshData", new ScriptFunction(this, getClass(), "refreshData"));
+         propmap.put("isCancelled", new ScriptFunction(this, getClass(), "isCancelled"));
+         propmap.put("appendRow", new ScriptFunction(this, getClass(), "appendRow",
+            String.class, Object.class));
+         propmap.put("setCellValue", new ScriptFunction(this, getClass(), "setCellValue",
+            String.class, int.class, int.class, Object.class));
+         propmap.put("saveWorksheet", new ScriptFunction(this, getClass(), "saveWorksheet"));
+         propmap.put("delayVisibility", new ScriptFunction(this, getClass(),
+            "delayVisibility", int.class, Object.class));
       }
       catch(Exception ex) {
          LOG.error("Failed to register viewsheet functions", ex);
@@ -381,7 +364,7 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
     * Get a property value.
     */
    @Override
-   public Object get(String id, Scriptable start) {
+   public Object getMember(String id) {
       if("event".equals(id)) {
          ScriptEvent event = (ScriptEvent) vmap.get("event");
 
@@ -408,24 +391,13 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
          return propmap.get(id);
       }
 
-      Object val = super.get(id, start);
-
-      if(val == NOT_FOUND) {
-         // this is to simulate dynamic scope for function. the execScriptable is the
-         // scope actually executing the script. if var is not found until this point,
-         // we look at the executing scope to see if it's there
-         Scriptable execScriptable = JavaScriptEngine.getExecScriptable();
-
-         if(execScriptable != null && execScriptable != this) {
-            val = execScriptable.get(id, this);
-         }
-      }
-
-      return val;
+      // the dynamic-scope fallback (executing scope) is now provided centrally
+      // by BindingRootProxy
+      return members.get(id);
    }
 
    @Override
-   public void put(String name, Scriptable start, Object value) {
+   public void putMember(String name, Object value) {
       propmap.put(name, value);
    }
 
@@ -447,26 +419,28 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
     * Indicate whether or not a named property is defined in an object.
     */
    @Override
-   public boolean has(String name, Scriptable start) {
+   public boolean hasMember(String name) {
       if(propmap != null && propmap.containsKey(name)) {
          return true;
       }
 
-      return super.has(name, start);
+      if("event".equals(name) || "OLD".equals(name) || "CHANGED".equals(name) ||
+         "ADDED".equals(name) || "DELETED".equals(name))
+      {
+         return true;
+      }
+
+      return members.containsKey(name);
    }
 
    /**
     * Get an array of property ids.
     */
    @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       Set ids = new HashSet();
 
-      Object[] pids = super.getIds();
-
-      for(Object id : pids) {
-         ids.add(id);
-      }
+      ids.addAll(members.keySet());
 
       if(propmap != null) {
          for(Object id : propmap.keySet()) {
@@ -712,7 +686,7 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
             data instanceof TableLens ? (TableLens) data : null;
 
          if(lens != null) {
-            Scriptable scriptable = new CubeTableAssemblyScriptable(
+            CubeTableAssemblyScriptable scriptable = new CubeTableAssemblyScriptable(
                tname, box.getAssetQuerySandbox(), mode, lens);
             propmap.put(tname0, scriptable);
          }
@@ -845,7 +819,6 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
    /**
     * Get the name of this scriptable.
     */
-   @Override
    public String getClassName() {
       return "ViewsheetScope";
    }
@@ -974,7 +947,7 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
             return;
          }
 
-         String suggestion = senv.getSuggestion(ex, null, this);
+         String suggestion = senv.getSuggestion(ex, null);
          String msg = "Script compilation error: " + ex.getMessage() +
             (suggestion != null ? "\nTo fix: " + suggestion : "") +
             "\nScript failed:\n" + XUtil.numbering(statement);
@@ -994,7 +967,7 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
          // compile the script
          script = scriptCache.get(statement, senv, handler);
          FormulaContext.setRestricted(true);
-         Scriptable scope;
+         ScriptScope scope;
 
          if(scriptable != null) {
             scope = scriptable;
@@ -1010,7 +983,7 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
             return null;
          }
 
-         String suggestion = senv.getSuggestion(ex, null, this);
+         String suggestion = senv.getSuggestion(ex, null);
          String msg = "Script execution error: " + ex.getMessage() +
             (suggestion != null ? "\nTo fix: " + suggestion : "") +
             "\nScript failed:\n" + XUtil.numbering(statement);
@@ -1069,6 +1042,7 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
    private VariableTable vtable;
    private Map<String, Object> vmap = Collections.synchronizedMap(new HashMap<>());
    private Map<String, Object> propmap = Collections.synchronizedMap(new HashMap<>());
+   private final Map<String, Object> members = new LinkedHashMap<>();
    private Vector<String> oldAssemblies = new Vector<>();
    private DBScriptable db;
    private long executeStart = System.currentTimeMillis();

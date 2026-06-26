@@ -18,8 +18,8 @@
 package inetsoft.report.script.formula;
 
 import inetsoft.report.filter.CrossTabFilter;
+import inetsoft.util.script.graal.ScriptScope;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import org.mozilla.javascript.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,7 +29,7 @@ import java.util.Map;
  * This array represents a cell in a crosstab. It is used to execute a formula
  * in the crosstab scope (for condition evaluation).
  */
-public class CrosstabCellScope extends ScriptableObject {
+public class CrosstabCellScope implements ScriptScope {
    /**
     */
    public CrosstabCellScope(CrossTabFilter table, int row, int col) {
@@ -48,72 +48,39 @@ public class CrosstabCellScope extends ScriptableObject {
       propmap = table.getKeyValuePairs(row, col, new Object2ObjectOpenHashMap<>());
    }
 
-   @Override
    public String getClassName() {
       return "CrosstabCell";
    }
 
    @Override
-   public boolean has(String id, Scriptable start) {
-      return propmap.get(id) != null || super.has(id, start);
+   public boolean hasMember(String id) {
+      return propmap.get(id) != null;
    }
 
    @Override
-   public boolean has(int index, Scriptable start) {
-      return false;
-   }
-
-   @Override
-   public Object get(String id, Scriptable start) {
+   public Object getMember(String id) {
       Object val = propmap.get(id);
 
       if(val != null) {
          return val;
       }
 
-      return super.get(id, start);
+      return null;
    }
 
    @Override
-   public Object get(int index, Scriptable start) {
-      return Undefined.instance;
-   }
-
-   @Override
-   public void put(String id, Scriptable start, Object value) {
+   public void putMember(String id, Object value) {
       // values can't be set in a crosstab cell formula scope
       LOG.error("Property can not be modified: " + id);
    }
 
    @Override
-   public void put(int index, Scriptable start, Object value) {
-      LOG.error("Property can not be modified: " + index);
-   }
-
-   @Override
-   public Object getDefaultValue(Class hint) {
-      if(hint == ScriptRuntime.BooleanClass) {
-         return Boolean.TRUE;
-      }
-      else if(hint == ScriptRuntime.NumberClass) {
-         return ScriptRuntime.NaNobj;
-      }
-
-      return this;
-   }
-
-   @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       return propmap.keySet().toArray();
    }
 
-   @Override
-   public boolean hasInstance(Scriptable value) {
-      return false;
-   }
-
    public String toString() {
-      return super.toString() + propmap.toString();
+      return getClassName() + propmap.toString();
    }
 
    private CrossTabFilter table;

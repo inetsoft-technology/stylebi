@@ -98,8 +98,8 @@ public class LocalMVIncremental extends MVIncremental {
          MVScriptable script = new MVScriptable(mvdef, column);
          String prefix =
             "MV." + column.getName().replaceAll("[^\\p{Alnum}]", "_");
-         vars.put(prefix + ".Min", script.get("MinValue", null));
-         vars.put(prefix + ".Max", script.get("MaxValue", null));
+         vars.put(prefix + ".Min", script.getMember("MinValue"));
+         vars.put(prefix + ".Max", script.getMember("MaxValue"));
       }
 
       MVConditionListHandler handler = new MVConditionListHandler(assembly, mv, vars, mvdef);

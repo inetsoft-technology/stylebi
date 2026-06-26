@@ -68,12 +68,12 @@ public class CalcRefTest {
       // Test case for id = "#"
       when(mockRuntimeCalcTableLens.getCellContext(0, 0)).thenReturn(mockContext);
       calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
-      assertEquals(5, calcRef.get("#", mockCalcTableVSAScriptable));
+      assertEquals(5, calcRef.getMember("#"));
 
       // Test case for id = "#", but context is null
       when(mockRuntimeCalcTableLens.getCellContext(0, 0)).thenReturn(null);
       calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
-      assertEquals(0, calcRef.get("#", mockCalcTableVSAScriptable));
+      assertEquals(0, calcRef.getMember("#"));
    }
 
    /**
@@ -84,7 +84,7 @@ public class CalcRefTest {
       provideMockCalcCellMap("cell1", new Point[] {point0});
 
       calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
-      assertArrayEquals(new Object[] {null}, (Object[])(calcRef.get("**", mockCalcTableVSAScriptable)));
+      assertArrayEquals(new Object[] {null}, (Object[])(calcRef.getMember("**")));
    }
 
    /**
@@ -96,7 +96,7 @@ public class CalcRefTest {
 
       // test when context is null
       calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
-      Object result = calcRef.get("*", mockCalcTableVSAScriptable);
+      Object result = calcRef.getMember("*");
       assertArrayEquals(new Object[0], (Object[])result);
 
       // test when context is not null
@@ -105,7 +105,7 @@ public class CalcRefTest {
       when(mockContext.getGroup("cell1")).thenReturn(mockGroup);
 
       calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
-      Object result2 = calcRef.get("*", mockCalcTableVSAScriptable);
+      Object result2 = calcRef.getMember("*");
       assertNull(result2);
    }
 
@@ -120,7 +120,7 @@ public class CalcRefTest {
       provideMockCalcCellMap("cell1", new Point[] {point0});
 
       calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
-      assertArrayEquals(new Object[] {null}, (Object[])(calcRef.get("+", mockCalcTableVSAScriptable)));
+      assertArrayEquals(new Object[] {null}, (Object[])(calcRef.getMember("+")));
    }
 
    /**
@@ -135,7 +135,7 @@ public class CalcRefTest {
       provideMockGroup(mockContext, "cell1", 1, "value1");
 
       calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
-      Object result = calcRef.get(".", mockCalcTableVSAScriptable);
+      Object result = calcRef.getMember(".");
       assertEquals("value1", result);
 
       //check group == null and location length is 1
@@ -144,14 +144,14 @@ public class CalcRefTest {
       when(mockRuntimeCalcTableLens.getObject(0, 0)).thenReturn(1);
 
       calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
-      Object result1 = calcRef.get(".", mockCalcTableVSAScriptable);
+      Object result1 = calcRef.getMember(".");
       assertEquals(1, result1);
 
       //check group == null and location length > 1
       when(mockCalcCellMap.getLocations("cell1", mockContext)).thenReturn(new Point[] {point0, point1});
       when(mockRuntimeCalcTableLens.getObject(0, 0)).thenReturn(1);
 
-      Object result2 = calcRef.get(".", mockCalcTableVSAScriptable);
+      Object result2 = calcRef.getMember(".");
       assertArrayEquals(new Object[] {1, null}, (Object[])result2);
    }
 
@@ -167,13 +167,13 @@ public class CalcRefTest {
 
       // Test positive positional reference
       calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
-      Object result = calcRef.get("+1", mockCalcTableVSAScriptable);
+      Object result = calcRef.getMember("+1");
       assertNull(result);
 
       // Test negative positional reference
       when(mockRuntimeCalcTableLens.getCellContext(0, 0)).thenReturn(null);
       provideMockCalcCellMap("cell1", new Point[] {point0});
-      Object result2 = calcRef.get("2", mockCalcTableVSAScriptable);
+      Object result2 = calcRef.getMember("2");
       assertNull(result2);
    }
 
@@ -187,7 +187,7 @@ public class CalcRefTest {
       provideMockCalcCellMap("cell1", new Point[] {point0});
 
       calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
-      assertNull(calcRef.get(0, mockCalcTableVSAScriptable));
+      assertNull(calcRef.getArrayElement(0L));
    }
 
 

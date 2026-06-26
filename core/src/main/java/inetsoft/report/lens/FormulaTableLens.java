@@ -35,7 +35,8 @@ import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.GraalJavaScriptEnv;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -369,7 +370,6 @@ public class FormulaTableLens extends AbstractTableLens
          }
 
          boolean first = true;
-         JSFactory.startCache();
          // advance at least 10 to avoid going through this once per row
          final int advance = Math.min(Math.max(r / 100, 10), 100);
          final int maxr = Math.max(r, nrows + hrows + advance);
@@ -382,8 +382,8 @@ public class FormulaTableLens extends AbstractTableLens
                // this must be called after put() so the parent scope is not set
                // to the top scope
                if(scope != null) {
-                  iterator.setParentScope((Scriptable) scope);
-                  tableRow.setParentScope(iterator);
+                  iterator.setParentScope((ScriptScope) scope);
+                  tableRow.thisScope.setParentScope(iterator);
                }
 
                first = false;
@@ -421,12 +421,6 @@ public class FormulaTableLens extends AbstractTableLens
                   currExec = new Point(ncols + j, i);
                   tableRow.getResult(j);
                }
-
-               JSFactory.resetCache();
-            }
-            catch(RhinoException ex) {
-               String colName = getColName(j + ncols);
-               throw new ExpressionFailedException(ncols + j, colName, null, ex);
             }
             catch(ScriptException ex) {
                String colName = getColName(j + ncols);
@@ -465,7 +459,6 @@ public class FormulaTableLens extends AbstractTableLens
 
       }
 
-      JSFactory.stopCache();
       return more;
    }
 
@@ -1116,7 +1109,7 @@ public class FormulaTableLens extends AbstractTableLens
          }
 
          try {
-            Scriptable scope0 = (scope != null) ? thisScope : iterator;
+            ScriptScope scope0 = (scope != null) ? thisScope : iterator;
 
             // for Feature #26586, add javascript execution time record for current report.
             row[col] = FormulaTableLens.exec(scripts[col], senv, scope0,
@@ -1232,7 +1225,7 @@ public class FormulaTableLens extends AbstractTableLens
       private TableDataDescriptor descriptor;
    }
 
-   private final class TableIteratorScriptable extends ScriptableObject implements DynamicScope {
+   private final class TableIteratorScriptable implements DynamicScope {
       public TableIteratorScriptable() {
       }
 
@@ -1241,17 +1234,12 @@ public class FormulaTableLens extends AbstractTableLens
       }
 
       @Override
-      public String getClassName() {
-         return "TableIterator";
-      }
-
-      @Override
-      public Object[] getIds() {
+      public Object[] getMemberKeys() {
          return new String[] { "field", "row" };
       }
 
       @Override
-      public Object get(String name, Scriptable start) {
+      public Object getMember(String name) {
          if("field".equals(name)) {
             return tableRow;
          }
@@ -1259,19 +1247,36 @@ public class FormulaTableLens extends AbstractTableLens
             return row;
          }
 
-         return super.get(name, start);
+         return parent != null ? parent.getMember(name) : null;
       }
 
       @Override
-      public boolean has(String name, Scriptable start) {
+      public boolean hasMember(String name) {
          if("field".equals(name) || "row".equals(name)) {
             return true;
          }
 
-         return super.has(name, start);
+         return parent != null && parent.hasMember(name);
+      }
+
+      @Override
+      public void putMember(String name, Object value) {
+         if(parent != null) {
+            parent.putMember(name, value);
+         }
+      }
+
+      public void setParentScope(ScriptScope parent) {
+         this.parent = parent;
+      }
+
+      @Override
+      public ScriptScope getParentScope() {
+         return parent;
       }
 
       private Integer row = null;
+      private ScriptScope parent = null;
    }
 
    /**
@@ -1426,7 +1431,7 @@ public class FormulaTableLens extends AbstractTableLens
       in.defaultReadObject();
       cancelLock = new ReentrantLock();
       lock = new ReentrantLock();
-      senv = new JavaScriptEnv();
+      senv = new GraalJavaScriptEnv();
    }
 
    private TableLens table;

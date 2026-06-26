@@ -15,18 +15,25 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.util.script;
+package inetsoft.util.script.graal;
 
-import org.mozilla.javascript.FunctionObject;
-import org.mozilla.javascript.Scriptable;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * This is the wrapper for FunctionObject that use shared method objects.
- */
-public class FunctionObject2 extends FunctionObject {
-   public FunctionObject2(Scriptable scope, Class cls, String name, Class ...params) {
-      super(name, methods.getMethod(cls, name, params), scope);
+@Tag("core")
+class GraalJavaScriptEnvTest {
+   @Test void compileAndExec() throws Exception {
+      GraalJavaScriptEnv env = new GraalJavaScriptEnv();
+      env.init();
+      Object script = env.compile("10 * 5");
+      assertEquals(50.0, env.exec(script, null, null, null));
    }
 
-   private final static MethodCache methods = new MethodCache();
+   @Test void suggestionForNotDefined() throws Exception {
+      GraalJavaScriptEnv env = new GraalJavaScriptEnv();
+      String s = env.getSuggestion(new RuntimeException("\"foo\" is not defined"), null);
+      assertNotNull(s);
+      assertTrue(s.toLowerCase().contains("var") || s.toLowerCase().contains("defined"));
+   }
 }

@@ -70,13 +70,13 @@ public class ChartHighlightedArrayTest {
       mockCommonChartScriptable(eGraph);
 
       chartHighlightedArray = new ChartHighlightedArray(mockChartVSAScriptable);
-      assertTrue(chartHighlightedArray.has("highlight1", null));
+      assertTrue(chartHighlightedArray.hasMember("highlight1"));
       //hcolor no highlight
-      assertFalse((boolean)chartHighlightedArray.get("highlight1", null));
+      assertFalse((boolean)chartHighlightedArray.getMember("highlight1"));
 
       assertEquals("[highlightname]", chartHighlightedArray.getDisplaySuffix());
       assertEquals("[]", chartHighlightedArray.getSuffix());
-      assertArrayEquals(new Object[] {"highlight1"}, chartHighlightedArray.getIds());
+      assertArrayEquals(new Object[] {"highlight1"}, chartHighlightedArray.getMemberKeys());
    }
 
    /**
@@ -106,8 +106,8 @@ public class ChartHighlightedArrayTest {
 
       chartHighlightedArray = new ChartHighlightedArray(mockChartVSAScriptable);
 
-      assertTrue(chartHighlightedArray.has("hightlight2", null));
-      assertFalse((boolean)chartHighlightedArray.get("hightlight2", null));
+      assertTrue(chartHighlightedArray.hasMember("hightlight2"));
+      assertFalse((boolean)chartHighlightedArray.getMember("hightlight2"));
    }
 
    private void mockCommonChartScriptable(EGraph eGraph) {

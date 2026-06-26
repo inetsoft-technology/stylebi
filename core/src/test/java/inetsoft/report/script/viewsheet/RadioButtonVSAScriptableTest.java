@@ -86,27 +86,27 @@ public class RadioButtonVSAScriptableTest {
 
    @Test
    void testGet() {
-      assertNull(radioButtonVSAScriptable.get("value", radioButtonVSAScriptable));
+      assertNull(radioButtonVSAScriptable.getMember("value"));
       radioButtonVSAScriptable.setCellValue("value1");
-      assertEquals("value1", radioButtonVSAScriptable.get("value", radioButtonVSAScriptable));
-      assertEquals("RadioButton", radioButtonVSAScriptable.get("title", radioButtonVSAScriptable));
+      assertEquals("value1", radioButtonVSAScriptable.getMember("value"));
+      assertEquals("RadioButton", radioButtonVSAScriptable.getMember("title"));
    }
 
    @Test
    void testHas() {
-      assertFalse(radioButtonVSAScriptable.has("property1", radioButtonVSAScriptable));
+      assertFalse(radioButtonVSAScriptable.hasMember("property1"));
       radioButtonVSAScriptable.setCellValue("value1");
-      assertTrue(radioButtonVSAScriptable.has("value", radioButtonVSAScriptable));
-      assertTrue(radioButtonVSAScriptable.has("titleVisible", radioButtonVSAScriptable));
+      assertTrue(radioButtonVSAScriptable.hasMember("value"));
+      assertTrue(radioButtonVSAScriptable.hasMember("titleVisible"));
    }
 
    @Test
    void testAddProperties() {
       radioButtonVSAScriptable.addProperties();
 
-      assertEquals("RadioButton", radioButtonVSAScriptable.get("title", radioButtonVSAScriptable));
-      assertEquals(true, radioButtonVSAScriptable.get("titleVisible", radioButtonVSAScriptable));
-      assertNull(radioButtonVSAScriptable.get("value", radioButtonVSAScriptable));
+      assertEquals("RadioButton", radioButtonVSAScriptable.getMember("title"));
+      assertEquals(true, radioButtonVSAScriptable.getMember("titleVisible"));
+      assertNull(radioButtonVSAScriptable.getMember("value"));
    }
 
    @Test
@@ -158,14 +158,14 @@ public class RadioButtonVSAScriptableTest {
 
    @Test
    void testGetDefaultValue() {
-      assertNull(radioButtonVSAScriptable.getDefaultValue(String.class));
+      assertNull(radioButtonVSAScriptable.getSelectedObject());
       radioButtonVSAScriptable.setSelectedObject("value1");
-      assertEquals("value1", radioButtonVSAScriptable.getDefaultValue(String.class));
+      assertEquals("value1", radioButtonVSAScriptable.getSelectedObject());
 
       //set default value with Date type
       radioButtonVSAScriptable.setDataType("Date");
       radioButtonVSAScriptable.setSelectedObject(new Date(125, 1, 20));
       assertEquals("2025-02-20",
-                   simpleDateFormat.format(radioButtonVSAScriptable.getDefaultValue(String.class)));
+                   simpleDateFormat.format(radioButtonVSAScriptable.getSelectedObject()));
    }
 }

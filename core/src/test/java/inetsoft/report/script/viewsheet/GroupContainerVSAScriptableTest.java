@@ -82,7 +82,7 @@ public class GroupContainerVSAScriptableTest {
    @ValueSource(strings = { "maintainAspectRatio", "scaleImage", "animate", "tile"})
    void testAddProperties(String propertyName) {
       groupContainerVSAScriptable.addProperties();
-      assert groupContainerVSAScriptable.get(propertyName, null) instanceof Boolean;
+      assert groupContainerVSAScriptable.getMember(propertyName) instanceof Boolean;
    }
 
    @ParameterizedTest
@@ -95,7 +95,7 @@ public class GroupContainerVSAScriptableTest {
    })
    void testSetProperty(String propertyName, Object propertyValue, Object expectedValue) {
       groupContainerVSAScriptable.setProperty(propertyName, propertyValue);
-      assertEquals(expectedValue, groupContainerVSAScriptable.get(propertyName, null));
+      assertEquals(expectedValue, groupContainerVSAScriptable.getMember(propertyName));
    }
 
    @ParameterizedTest

@@ -77,13 +77,13 @@ public class RectangleVSAScriptableTest {
    @Test
    void testAddProperties() {
       rectangleVSAScriptable.addProperties();
-      assertEquals(0, rectangleVSAScriptable.get("roundCorner", null));
+      assertEquals(0, rectangleVSAScriptable.getMember("roundCorner"));
 
       rectangleVSAScriptable.setProperty("lineStyle", StyleConstants.THICK_LINE);
-      assertEquals(StyleConstants.THICK_LINE, rectangleVSAScriptable.get("lineStyle", null));
+      assertEquals(StyleConstants.THICK_LINE, rectangleVSAScriptable.getMember("lineStyle"));
 
       rectangleVSAScriptable.setProperty("shadow", true);
-      assertEquals(true, rectangleVSAScriptable.get("shadow", null));
+      assertEquals(true, rectangleVSAScriptable.getMember("shadow"));
    }
 
    @Test

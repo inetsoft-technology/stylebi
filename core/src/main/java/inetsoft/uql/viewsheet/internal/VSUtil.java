@@ -38,8 +38,8 @@ import inetsoft.report.internal.png.PNGEncoder;
 import inetsoft.report.internal.table.*;
 import inetsoft.report.io.viewsheet.CoordinateHelper;
 import inetsoft.report.painter.PresenterPainter;
-import inetsoft.report.script.ReportJavaScriptEngine;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
+import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.report.style.TableStyle;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
@@ -1146,7 +1146,7 @@ public final class VSUtil {
             rimg = Tool.getImage(vs, path);
 
             if(rimg == null) {
-               rimg = ReportJavaScriptEngine.getImage(path);
+               rimg = JavaScriptEngine.getImage(path);
             }
          }
       }
@@ -1235,7 +1235,7 @@ public final class VSUtil {
             Image image = Tool.getImage(vs, path);
 
             if(image == null) {
-               image = ReportJavaScriptEngine.getImage(path);
+               image = JavaScriptEngine.getImage(path);
             }
 
             Tool.waitForImage(image);

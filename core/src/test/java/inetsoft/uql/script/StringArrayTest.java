@@ -18,17 +18,14 @@
 package inetsoft.uql.script;
 
 import inetsoft.test.*;
+import inetsoft.util.script.graal.ScriptScope;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.Undefined;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
-
-import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -55,94 +52,90 @@ class StringArrayTest {
 
    @Test
    void testGetNamedProperty() {
-      assertEquals(3, stringArray.get("length", null));
-      assertEquals(Undefined.instance, stringArray.get("nonexistent", null));
+      assertEquals(3, stringArray.getMember("length"));
+      assertNull(stringArray.getMember("nonexistent"));
    }
 
    @Test
    void testGetIndexedProperty() {
-      assertEquals("one", stringArray.get(0, null));
-      assertEquals("two", stringArray.get(1, null));
-      assertEquals("three", stringArray.get(2, null));
-      assertEquals(Undefined.instance, stringArray.get(3, null));
+      assertEquals("one", stringArray.getArrayElement(0));
+      assertEquals("two", stringArray.getArrayElement(1));
+      assertEquals("three", stringArray.getArrayElement(2));
+      assertNull(stringArray.getArrayElement(3));
+   }
+
+   @Test
+   void testGetArraySize() {
+      assertEquals(3, stringArray.getArraySize());
+   }
+
+   @Test
+   void testSetIndexedProperty() {
+      // indexed assignment (Rhino put(int,...)) must work and not throw (#75423)
+      stringArray.setArrayElement(0, "ONE");
+      assertEquals("ONE", stringArray.getArrayElement(0));
+
+      // null is allowed
+      stringArray.setArrayElement(1, null);
+      assertNull(stringArray.getArrayElement(1));
+
+      // out-of-range index is ignored (no exception, no change)
+      stringArray.setArrayElement(99, "x");
+      assertEquals(3, stringArray.getArraySize());
+
+      // non-String, non-null value is ignored
+      stringArray.setArrayElement(2, 42);
+      assertEquals("three", stringArray.getArrayElement(2));
+   }
+
+   @Test
+   void testSetIndexedPropertyThroughArrayProxy() {
+      // exercise the ArrayProxy.set -> setArrayElement bridge (#75423)
+      inetsoft.util.script.graal.ArrayProxy proxy =
+         new inetsoft.util.script.graal.ArrayProxy(stringArray);
+      assertDoesNotThrow(() ->
+         proxy.set(0, org.graalvm.polyglot.Value.asValue("ONE")));
+      assertEquals("ONE", stringArray.getArrayElement(0));
    }
 
    @Test
    void testHasNamedProperty() {
-      assertTrue(stringArray.has("length", null));
-      assertFalse(stringArray.has("nonexistent", null));
-   }
-
-   @Test
-   void testHasIndexedProperty() {
-      assertTrue(stringArray.has(0, null));
-      assertTrue(stringArray.has(2, null));
-      assertFalse(stringArray.has(3, null));
+      assertTrue(stringArray.hasMember("length"));
+      assertFalse(stringArray.hasMember("nonexistent"));
    }
 
    @Test
    void testPutNamedProperty() {
-      stringArray.put("length", null, 2);
-      assertEquals(2, stringArray.get("length", null));
-      assertEquals(2, stringArray.getIds().length - 1); // Verify size reduction
+      stringArray.putMember("length", 2);
+      assertEquals(2, stringArray.getMember("length"));
+      assertEquals(2, stringArray.getMemberKeys().length - 1); // Verify size reduction
 
-      stringArray.put("length", null, 5);
-      assertEquals(5, stringArray.get("length", null));
-      assertEquals(5, stringArray.getIds().length - 1); // Verify size increase
+      stringArray.putMember("length", 5);
+      assertEquals(5, stringArray.getMember("length"));
+      assertEquals(5, stringArray.getMemberKeys().length - 1); // Verify size increase
    }
 
    @Test
-   void testPutIndexedProperty() {
-      stringArray.put(1, null, "updated");
-      assertEquals("updated", stringArray.get(1, null));
-
-      stringArray.put(3, null, "new");
-      assertEquals(Undefined.instance, stringArray.get(3, null)); // Out of bounds
+   void testRemoveNamedProperty() {
+      // "length" cannot be removed; removeMember always returns false (no-op)
+      assertFalse(stringArray.removeMember("length"));
+      assertTrue(stringArray.hasMember("length"));
    }
 
    @Test
-   void testDeleteNamedProperty() {
-      stringArray.delete("length");
-      assertTrue(stringArray.has("length", null)); // "length" cannot be deleted
-   }
-
-   @Test
-   void testDeleteIndexedProperty() {
-      stringArray.delete(1);
-      stringArray.delete(4); // Out of bounds
-      assertEquals("three", stringArray.get(1, null));
-      assertEquals(2, stringArray.get("length", null)); // Verify size reduction
-   }
-
-   @Test
-   void testGetPrototypeAndParentScope() {
-      assertNull(stringArray.getPrototype());
+   void testGetAndSetParentScope() {
       assertNull(stringArray.getParentScope());
 
-      Scriptable mockScriptable = mock(Scriptable.class);
-
-      stringArray.setPrototype(mockScriptable);
-      stringArray.setParentScope(mockScriptable);
-
-      assertEquals(mockScriptable, stringArray.getPrototype());
-      assertEquals(mockScriptable, stringArray.getParentScope());
+      ScriptScope mockScope = mock(ScriptScope.class);
+      stringArray.setParentScope(mockScope);
+      assertEquals(mockScope, stringArray.getParentScope());
    }
 
    @Test
-   void testGetIds() {
-      Object[] ids = stringArray.getIds();
+   void testGetMemberKeys() {
+      Object[] ids = stringArray.getMemberKeys();
       assertEquals(4, ids.length); // 3 elements + "length"
       assertEquals("length", ids[3]);
-   }
-
-   @Test
-   void testGetDefaultValue() {
-      assertEquals(Arrays.asList("one", "two", "three"), stringArray.getDefaultValue(null));
-   }
-
-   @Test
-   void testHasInstance() {
-      assertFalse(stringArray.hasInstance(null));
    }
 
    @Test

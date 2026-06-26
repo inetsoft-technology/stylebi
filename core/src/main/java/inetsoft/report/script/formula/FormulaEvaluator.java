@@ -20,11 +20,10 @@ package inetsoft.report.script.formula;
 import inetsoft.report.script.TableRow;
 import inetsoft.report.script.TableRowScope;
 import inetsoft.util.script.*;
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.StringReader;
 import java.util.Hashtable;
 
 /**
@@ -38,17 +37,17 @@ public class FormulaEvaluator {
     * Execute a script in the given scope. If scope is not specified, the
     * current formula scope is used.
     */
-   public static Object exec(String expr, Scriptable scope,
-                             String subname, Scriptable subscope) {
+   public static Object exec(String expr, ScriptScope scope,
+                             String subname, ScriptScope subscope) {
       if(scope == null) {
          scope = FormulaContext.getScope();
       }
 
-      Object ofield = scope.get(subname, scope);
-
-      try {
-         scope.put(subname, scope, subscope);
-         Scriptable execScope = subscope;
+      // when no outer scope is available (e.g. CALC aggregate functions invoked
+      // outside of a report/viewsheet script context), evaluate the expression
+      // using only the row scope so the row columns can still be resolved. (#75423)
+      if(scope == null) {
+         ScriptScope execScope = subscope;
 
          if(subscope instanceof TableRow) {
             TableRowScope tableRowScope = new TableRowScope((TableRow) subscope, null);
@@ -56,15 +55,34 @@ public class FormulaEvaluator {
             execScope = tableRowScope;
          }
 
-         execScope.setParentScope(scope);
+         return exec(expr, execScope);
+      }
+
+      Object ofield = scope.getMember(subname);
+      boolean hadField = scope.hasMember(subname);
+
+      try {
+         scope.putMember(subname, subscope);
+         ScriptScope execScope = subscope;
+
+         if(subscope instanceof TableRow) {
+            TableRowScope tableRowScope = new TableRowScope((TableRow) subscope, null);
+            tableRowScope.setBuiltinDate(expr.contains("new Date("));
+            execScope = tableRowScope;
+         }
+
+         if(execScope instanceof TableRowScope) {
+            ((TableRowScope) execScope).setParentScope(scope);
+         }
+
          return exec(expr, execScope);
       }
       finally {
-         if(ofield != null) {
-            scope.put(subname, scope, ofield);
+         if(hadField) {
+            scope.putMember(subname, ofield);
          }
          else {
-            scope.delete(subname);
+            scope.removeMember(subname);
          }
       }
    }
@@ -73,60 +91,32 @@ public class FormulaEvaluator {
     * Execute a script in the given scope. If scope is not specified, the
     * current formula scope is used.
     */
-   public static Object exec(String expr, Scriptable scope) {
+   public static Object exec(String expr, ScriptScope scope) {
       if(scope == null) {
          scope = FormulaContext.getScope();
       }
 
-      Script script = getScript(expr, scope);
-      Context cx = TimeoutContext.enter();
-      TimeoutContext.startClock(cx);
-
       try {
-         Object rc = script.exec(cx, scope);
+         ScriptEnv senv = ScriptEnvRepository.getScriptEnv();
+         Object script = scriptcache.get(expr);
 
-         rc = JavaScriptEngine.unwrap(rc);
-         return rc;
+         if(script == null) {
+            if(scriptcache.size() > 100) {
+               scriptcache.clear();
+            }
+
+            script = senv.compile(expr);
+            scriptcache.put(expr, script);
+         }
+
+         Object rc = senv.exec(script, scope, scope, null);
+         return JavaScriptEngine.unwrap(rc);
       }
       catch(Exception ex) {
          LOG.error("Failed to execute formula script: " + expr, ex);
       }
-      finally {
-         TimeoutContext.stopClock(cx);
-         Context.exit();
-      }
 
       return null;
-   }
-
-   /**
-    * Get a compiled script for an expression.
-    */
-   private static Script getScript(String expr, Scriptable scope) {
-      Script script = (Script) scriptcache.get(expr);
-
-      if(script == null) {
-         Context cx = TimeoutContext.enter();
-
-         if(scriptcache.size() > 100) {
-            scriptcache.clear();
-         }
-
-         try {
-            script = cx.compileReader(scope, new StringReader(expr),
-                                      "<expression>", 1, null);
-            scriptcache.put(expr, script);
-         }
-         catch(Exception ex) {
-            LOG.error("Syntax error: " + expr);
-            throw new RuntimeException("Compilation failed: " + ex);
-         }
-         finally {
-            Context.exit();
-         }
-      }
-
-      return script;
    }
 
    private static Hashtable scriptcache = new Hashtable(); // expr -> script

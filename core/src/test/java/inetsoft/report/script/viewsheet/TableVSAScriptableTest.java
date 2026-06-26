@@ -99,7 +99,7 @@ public class TableVSAScriptableTest {
                            "titleVisible", "flyOnClick", "tipOnClick", "keepRowHeightOnPrint"})
    void testAddProperties(String propertyName) {
       tableVSAScriptable.addProperties();
-      assert tableVSAScriptable.get(propertyName, tableVSAScriptable) instanceof Boolean;
+      assert tableVSAScriptable.getMember(propertyName) instanceof Boolean;
    }
 
    @ParameterizedTest
@@ -116,7 +116,7 @@ public class TableVSAScriptableTest {
    })
    void testSetProperty(String propertyName, Object propertyValue, Object expectedValue) {
       tableVSAScriptable.setProperty(propertyName, propertyValue);
-      assertEquals(expectedValue, tableVSAScriptable.get(propertyName, tableVSAScriptable));
+      assertEquals(expectedValue, tableVSAScriptable.getMember(propertyName));
    }
 
    @Test
@@ -236,7 +236,7 @@ public class TableVSAScriptableTest {
       tableVSAScriptable2.setHyperlink(1, 1, "http://www.inetsoft.com");
       tableVSAScriptable2.setHyperlink(1, 2, vsLink);
 
-      AttributeTableLens tableLens = (AttributeTableLens)tableVSAScriptable2.get("tablelens", tableVSAScriptable2);
+      AttributeTableLens tableLens = (AttributeTableLens)tableVSAScriptable2.getMember("tablelens");
       assertEquals("http://www.inetsoft.com", tableLens.getHyperlink(1, 1).getLink());
       assertEquals(Hyperlink.WEB_LINK, tableLens.getHyperlink(1, 1).getLinkType());
       assertEquals("1^128^__NULL__^test", tableLens.getHyperlink(1, 2).getLink());
@@ -264,25 +264,24 @@ public class TableVSAScriptableTest {
       processAssembly("TableView1");
 
       //test get actions
-      assertNull(tableVSAScriptable2.get("value", tableVSAScriptable2));
+      assertNull(tableVSAScriptable2.getMember("value"));
       assertEquals("CONTACT_ID",
-                   ((TableRow) tableVSAScriptable2.get("field", tableVSAScriptable2)).get(0, null));
-      assertEquals(36, tableVSAScriptable2.get("row", tableVSAScriptable2));
-      assertEquals(4, tableVSAScriptable2.get("col", tableVSAScriptable2));
+                   ((TableRow) tableVSAScriptable2.getMember("field")).getArrayElement(0L));
+      assertEquals(36, tableVSAScriptable2.getMember("row"));
+      assertEquals(4, tableVSAScriptable2.getMember("col"));
       assertEquals(1,
-                   ((TableArray)tableVSAScriptable2.get("data", tableVSAScriptable2)).getTable().getObject(1, 1));
+                   ((TableArray)tableVSAScriptable2.getMember("data")).getTable().getObject(1, 1));
       assertEquals(1,
-                   ((TableArray)tableVSAScriptable2.get("table", tableVSAScriptable2)).getTable().getObject(1, 1));
-      assertEquals(36, tableVSAScriptable2.get("data.length", tableVSAScriptable2));
-      assertEquals(4, tableVSAScriptable2.get("data.size", tableVSAScriptable2));
-      assertNull(tableVSAScriptable2.get("dataConditions", tableVSAScriptable2));
+                   ((TableArray)tableVSAScriptable2.getMember("table")).getTable().getObject(1, 1));
+      assertEquals(36, tableVSAScriptable2.getMember("data.length"));
+      assertEquals(4, tableVSAScriptable2.getMember("data.size"));
+      assertNull(tableVSAScriptable2.getMember("dataConditions"));
 
       //for non-form table, can't append/insert/delete row, keep original row count
       tableVSAScriptable2.appendRow(1);
       tableVSAScriptable2.insertRow(3);
       tableVSAScriptable2.deleteRow(30);
-      AttributeTableLens tableLens1 = (AttributeTableLens)tableVSAScriptable2.get(
-         "tablelens", tableVSAScriptable2);
+      AttributeTableLens tableLens1 = (AttributeTableLens)tableVSAScriptable2.getMember("tablelens");
       assertEquals(36, tableLens1.getRowCount());
    }
 
@@ -306,8 +305,7 @@ public class TableVSAScriptableTest {
       //set presenter by column header
       tableVSAScriptable2.setPresenter("CONTACT_ID", barPresenter, null);
 
-      AttributeTableLens tableLens1 = (AttributeTableLens)tableVSAScriptable2.get(
-         "tablelens", tableVSAScriptable2);
+      AttributeTableLens tableLens1 = (AttributeTableLens)tableVSAScriptable2.getMember("tablelens");
       assertEquals(qrCodePresenter.getDisplayName(),
                    tableLens1.getPresenter(2, 2).getDisplayName());
       assertEquals(bar2Presenter.getDisplayName(), tableLens1.getPresenter(1).getDisplayName());
@@ -336,8 +334,7 @@ public class TableVSAScriptableTest {
       //form table has 36 rows, append 1 row and insert 1 row
       tableVSAScriptable2.appendRow(1);
       tableVSAScriptable2.insertRow(3);
-      AttributeTableLens tableLens2 = (AttributeTableLens)tableVSAScriptable2.get(
-         "tablelens", tableVSAScriptable2);
+      AttributeTableLens tableLens2 = (AttributeTableLens)tableVSAScriptable2.getMember("tablelens");
       assertEquals(38, tableLens2.getRowCount());
       //delete row 35
       tableVSAScriptable2.deleteRow(35);

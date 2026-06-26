@@ -42,7 +42,7 @@ import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1326,7 +1326,7 @@ public abstract class VSAQuery {
       AssetQuerySandbox box = vbox.getAssetQuerySandbox();
       Viewsheet vs = vbox == null ? null : vbox.getViewsheet();
       ScriptEnv senv = box.getScriptEnv();
-      Scriptable scope = null;
+      ScriptScope scope = null;
 
       try {
          val = senv.exec(senv.compile(exp), scope = box.getScope(), null, vs);

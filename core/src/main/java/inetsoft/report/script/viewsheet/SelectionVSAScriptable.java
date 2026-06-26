@@ -20,8 +20,6 @@ package inetsoft.report.script.viewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.internal.*;
-import inetsoft.util.script.NativeJavaArray2;
-import org.mozilla.javascript.NativeJavaArray;
 
 import java.awt.*;
 import java.util.Arrays;
@@ -189,9 +187,10 @@ public class SelectionVSAScriptable extends VSAScriptable {
     * Return a JS native array of the selectedObjects(). The Array.includes() doesn't work
     * when called on Java array when it's converted to JS array at runtime. (64335)
     */
-   public NativeJavaArray getSelectedObjectsArray() {
-      Object[] arr = getSelectedObjects();
-      return new NativeJavaArray2(arr, getParentScope());
+   public Object[] getSelectedObjectsArray() {
+      // GraalJS exposes Java arrays as JS arrays with working Array.includes(),
+      // so the old Rhino NativeJavaArray2 workaround is no longer needed.
+      return getSelectedObjects();
    }
 
     /**

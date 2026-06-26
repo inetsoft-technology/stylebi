@@ -90,14 +90,14 @@ public class SelectionTreeVSAScriptableTest {
                        "submitOnChange", "wrapping", "suppressBlank", "expandAll"};
 
       for (String key : keys) {
-         assert selectionTreeVSAScriptable.get(key, selectionTreeVSAScriptable) instanceof Boolean;
+         assert selectionTreeVSAScriptable.getMember(key) instanceof Boolean;
       }
 
       assertEquals("SelectionTree",
-                   selectionTreeVSAScriptable.get("title", selectionTreeVSAScriptable));
+                   selectionTreeVSAScriptable.getMember("title"));
       assertEquals(XConstants.SORT_SPECIFIC,
-                   selectionTreeVSAScriptable.get("sortType", selectionTreeVSAScriptable));
-      assertNull(selectionTreeVSAScriptable.get("value", selectionTreeVSAScriptable));
+                   selectionTreeVSAScriptable.getMember("sortType"));
+      assertNull(selectionTreeVSAScriptable.getMember("value"));
    }
 
    @Test
@@ -108,22 +108,22 @@ public class SelectionTreeVSAScriptableTest {
 
    @Test
    void testGet() {
-      assertNull(selectionTreeVSAScriptable.get("value", selectionTreeVSAScriptable));
+      assertNull(selectionTreeVSAScriptable.getMember("value"));
       selectionTreeVSAScriptable.setCellValue("value1");
       assertEquals("value1",
-                   selectionTreeVSAScriptable.get("value", selectionTreeVSAScriptable));
+                   selectionTreeVSAScriptable.getMember("value"));
       assertEquals("SelectionTree",
-                   selectionTreeVSAScriptable.get("title", selectionTreeVSAScriptable));
-      assertNull(selectionTreeVSAScriptable.get("drillMember", selectionTreeVSAScriptable));
-      assertNull(selectionTreeVSAScriptable.get("drillMembers", selectionTreeVSAScriptable));
+                   selectionTreeVSAScriptable.getMember("title"));
+      assertNull(selectionTreeVSAScriptable.getMember("drillMember"));
+      assertNull(selectionTreeVSAScriptable.getMember("drillMembers"));
    }
 
    @Test
    void testHas() {
-      assertFalse(selectionTreeVSAScriptable.has("property1", selectionTreeVSAScriptable));
+      assertFalse(selectionTreeVSAScriptable.hasMember("property1"));
       selectionTreeVSAScriptable.setCellValue("value1");
-      assertTrue(selectionTreeVSAScriptable.has("value", selectionTreeVSAScriptable));
-      assertTrue(selectionTreeVSAScriptable.has("titleVisible", selectionTreeVSAScriptable));
+      assertTrue(selectionTreeVSAScriptable.hasMember("value"));
+      assertTrue(selectionTreeVSAScriptable.hasMember("titleVisible"));
    }
 
    @Test

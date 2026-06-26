@@ -32,8 +32,6 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameWrapper;
 import inetsoft.util.script.JSObject;
 import inetsoft.util.script.JavaScriptEngine;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.ScriptableObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,7 +45,7 @@ import java.util.*;
  * @version 10.3
  * @author InetSoft Technology Corp
  */
-public class ChartProcessor extends ScriptableObject {
+public class ChartProcessor {
    /**
     * Create a processor for adding properties to the scriptable.
     */
@@ -55,7 +53,6 @@ public class ChartProcessor extends ScriptableObject {
       this.scriptable = scriptable;
    }
 
-   @Override
    public String getClassName() {
       return "ChartProcessor";
    }
@@ -425,40 +422,39 @@ public class ChartProcessor extends ScriptableObject {
       PlotDescriptor plot = desc.getPlotDescriptor();
 
       try {
-         Scriptable script = (Scriptable) scriptable;
          Class[] params = {String.class, String.class};
 
-         scriptable.addFunctionProperty(script.getClass(), "addTargetLine",
+         scriptable.addFunctionProperty(scriptable.getClass(), "addTargetLine",
            Object.class, Object.class, Object.class, Object.class);
-         scriptable.addFunctionProperty(script.getClass(), "addTargetBand",
+         scriptable.addFunctionProperty(scriptable.getClass(), "addTargetBand",
                Object.class, Object.class, Object.class, Object.class);
-         scriptable.addFunctionProperty(script.getClass(), "setHyperlink",
+         scriptable.addFunctionProperty(scriptable.getClass(), "setHyperlink",
             new Class[]{ int.class, Object.class });
-         scriptable.addFunctionProperty(script.getClass(), "addPercentageTarget",
+         scriptable.addFunctionProperty(scriptable.getClass(), "addPercentageTarget",
                Object.class, Object.class, Object.class, Object.class);
-         scriptable.addFunctionProperty(script.getClass(), "addPercentileTarget",
+         scriptable.addFunctionProperty(scriptable.getClass(), "addPercentileTarget",
                Object.class, Object.class, Object.class, Object.class);
-         scriptable.addFunctionProperty(script.getClass(), "addQuantileTarget",
+         scriptable.addFunctionProperty(scriptable.getClass(), "addQuantileTarget",
                Object.class, Object.class, Object.class, Object.class);
-         scriptable.addFunctionProperty(script.getClass(), "addStandardDeviationTarget",
+         scriptable.addFunctionProperty(scriptable.getClass(), "addStandardDeviationTarget",
                Object.class, Object.class, Object.class, Object.class);
-         scriptable.addFunctionProperty(script.getClass(), "addConfidenceIntervalTarget",
+         scriptable.addFunctionProperty(scriptable.getClass(), "addConfidenceIntervalTarget",
                Object.class, Object.class, Object.class, Object.class);
-         scriptable.addFunctionProperty(script.getClass(), "setTextID", params);
-         scriptable.addFunctionProperty(script.getClass(), "getTextID", String.class);
-         scriptable.addFunctionProperty(script.getClass(), "clearTargets");
+         scriptable.addFunctionProperty(scriptable.getClass(), "setTextID", params);
+         scriptable.addFunctionProperty(scriptable.getClass(), "getTextID", String.class);
+         scriptable.addFunctionProperty(scriptable.getClass(), "clearTargets");
 
-         scriptable.addFunctionProperty(script.getClass(), "setTrendLineExcludedMeasures",
+         scriptable.addFunctionProperty(scriptable.getClass(), "setTrendLineExcludedMeasures",
                                         Object.class);
 
          // **************************************************************************
          // Backwards compatibility
          // **************************************************************************
-         scriptable.addFunctionProperty(script.getClass(), "addTarget",
+         scriptable.addFunctionProperty(scriptable.getClass(), "addTarget",
             String.class, String.class, Object.class, Object.class, Object.class);
-         scriptable.addFunctionProperty(script.getClass(), "setLabelAliasOfColorLegend", params);
-         scriptable.addFunctionProperty(script.getClass(), "setLabelAliasOfShapeLegend", params);
-         scriptable.addFunctionProperty(script.getClass(), "setLabelAliasOfSizeLegend", params);
+         scriptable.addFunctionProperty(scriptable.getClass(), "setLabelAliasOfColorLegend", params);
+         scriptable.addFunctionProperty(scriptable.getClass(), "setLabelAliasOfShapeLegend", params);
+         scriptable.addFunctionProperty(scriptable.getClass(), "setLabelAliasOfSizeLegend", params);
       }
       catch(Throwable ex) {
          LOG.error("Failed to register chart properties and functions", ex);
@@ -638,7 +634,7 @@ public class ChartProcessor extends ScriptableObject {
     * @param multiValue true if there are multiple values so there needs to be multiple labels.
     */
    private void addOptions(GraphTarget target, Object options, boolean multiValue) {
-      if(!(options instanceof Scriptable)) {
+      if(!JSObject.isObject(options)) {
          if(options != null) {
             LOG.error("Invalid target option: " + options);
          }
@@ -646,7 +642,7 @@ public class ChartProcessor extends ScriptableObject {
          return;
       }
 
-      Scriptable opts = (Scriptable) options;
+      Object opts = options;
       Color fillAbove = (Color)
          PropertyDescriptor.convert(JSObject.get(opts, "fillAbove"), Color.class);
       Color fillBelow = (Color)
