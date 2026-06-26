@@ -17,6 +17,7 @@
  */
 import { HttpParams } from "@angular/common/http";
 import {
+   ChangeDetectionStrategy,
    ChangeDetectorRef,
    Component,
    ElementRef,
@@ -127,6 +128,7 @@ const CHART_WIZARD_CHANGE_TITLE_URL = "/events/vswizard/preview/changeDescriptio
     selector: "vs-chart",
     templateUrl: "vs-chart.component.html",
     styleUrls: ["vs-chart.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [VSDataTipDirective, VSPopComponentDirective, TooltipDirective, VSTitle, ChartArea, OutOfZoneDirective, VSHiddenAnnotation, VSPreviewTable, VSAnnotation, VSLoadingDisplay]
 })
 export class VSChart extends AbstractVSObject<VSChartModel>
@@ -1277,7 +1279,11 @@ export class VSChart extends AbstractVSObject<VSChartModel>
 
       if(this.mobileDevice) {
          this.showHints = true;
-         setTimeout(() => this.showHints = false, 1000);
+         this.detectChanges();
+         setTimeout(() => {
+            this.showHints = false;
+            this.detectChanges();
+         }, 1000);
       }
    }
 
