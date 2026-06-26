@@ -18,7 +18,9 @@
 
 package inetsoft.web.wiz.model;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Describes one column in the primary worksheet table assembly.
@@ -32,70 +34,71 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * schema  – DB schema (may be empty)
  * catalog – DB catalog (may be empty)
  * path    – datasource path (used to match against FieldInfo.source.path)
+ * <p>
+ * Immutable: this type ends up inside the {@code @Serial.Structural} {@link WorksheetModel}, which is
+ * eligible for cluster-level caching, so it carries no setters. The {@code @JsonCreator} constructor
+ * keeps it deserializable on the inbound side.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class WorksheetColumnInfo {
-   public String getName() {
-      return name;
+   @JsonCreator
+   public WorksheetColumnInfo(@JsonProperty("name") String name,
+                              @JsonProperty("alias") String alias,
+                              @JsonProperty("type") String type,
+                              @JsonProperty("table") String table,
+                              @JsonProperty("schema") String schema,
+                              @JsonProperty("catalog") String catalog,
+                              @JsonProperty("path") String path,
+                              @JsonProperty("description") String description)
+   {
+      this.name = name;
+      this.alias = alias;
+      this.type = type;
+      this.table = table;
+      this.schema = schema;
+      this.catalog = catalog;
+      this.path = path;
+      this.description = description;
    }
 
-   public void setName(String name) {
-      this.name = name;
+   public String getName() {
+      return name;
    }
 
    public String getAlias() {
       return alias;
    }
 
-   public void setAlias(String alias) {
-      this.alias = alias;
-   }
-
    public String getType() {
       return type;
-   }
-
-   public void setType(String type) {
-      this.type = type;
    }
 
    public String getTable() {
       return table;
    }
 
-   public void setTable(String table) {
-      this.table = table;
-   }
-
    public String getSchema() {
       return schema;
-   }
-
-   public void setSchema(String schema) {
-      this.schema = schema;
    }
 
    public String getCatalog() {
       return catalog;
    }
 
-   public void setCatalog(String catalog) {
-      this.catalog = catalog;
-   }
-
    public String getPath() {
       return path;
    }
 
-   public void setPath(String path) {
-      this.path = path;
+   public String getDescription() {
+      return description;
    }
 
-   private String name;
-   private String alias;
-   private String type;
-   private String table;
-   private String schema;
-   private String catalog;
-   private String path;
+   private final String name;
+   private final String alias;
+   private final String type;
+   private final String table;
+   private final String schema;
+   private final String catalog;
+   private final String path;
+   private final String description;
 }

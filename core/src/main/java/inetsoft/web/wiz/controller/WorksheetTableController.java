@@ -94,6 +94,21 @@ public class WorksheetTableController {
       }
    }
 
+   /**
+    * Get worksheet model metadata for a worksheet asset identifier.
+    *
+    * @param wsIdentifier the worksheet identifier
+    * @param user         the authenticated user
+    * @return worksheet metadata and table metadata
+    */
+   @GetMapping(value = "/ws/worksheet-model", produces = MediaType.APPLICATION_JSON_VALUE)
+   public WorksheetModel getWorksheetModel(@RequestParam("wsIdentifier") String wsIdentifier,
+                                           Principal user)
+      throws Exception
+   {
+      return worksheetTableService.getWorksheetModel(wsIdentifier, user);
+   }
+
    private final WorksheetTableService worksheetTableService;
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetTableController.class);
 }

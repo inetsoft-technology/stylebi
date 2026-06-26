@@ -2865,9 +2865,9 @@ public class WizVsService {
    }
 
    /**
-    * Removes a single assembly from a live runtime viewsheet. Runtime-only: the
-    * persisted viewsheet asset is left untouched. Idempotent — a missing/expired
-    * runtime or an already-absent assembly is treated as success.
+    * Removes a single assembly from a live runtime viewsheet and persists the change
+    * back to the managed visualization asset so it survives runtime expiry. Idempotent —
+    * a missing/expired runtime or an already-absent assembly is treated as success.
     *
     * @param runtimeId    the runtime viewsheet id (visualizationId on the wiz side)
     * @param assemblyName the assembly to remove
@@ -2911,6 +2911,19 @@ public class WizVsService {
          }
          catch(Exception ignore) {}
       });
+
+      // Persist the removal so it survives runtime expiry. Only write back when the runtime
+      // is backed by a managed visualization entry (mirrors deleteViewsheet's folder guard);
+      // a transient/unsaved runtime has no persistent entry and is left runtime-only.
+      AssetEntry entry = rvs.getEntry();
+      String path = entry != null ? entry.getPath() : null;
+
+      if(path != null &&
+         (path.startsWith(WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/") ||
+          path.startsWith(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/")))
+      {
+         engine.setSheet(entry, vs, user, true);
+      }
    }
 
    /**

@@ -157,7 +157,7 @@ public class WorksheetTableService {
       }
 
       // 8. Extract column info for the response.
-      List<WorksheetTableResponse.ColumnData> columns = extractColumnsFromSelection(table);
+      List<WorksheetColumnData> columns = extractColumnsFromSelection(table);
 
       WorksheetTableResponse response = new WorksheetTableResponse();
       response.setWsId(worksheetEntry.toIdentifier());
@@ -175,7 +175,89 @@ public class WorksheetTableService {
       return response;
    }
 
-   // ─── Delete tables ────────────────────────────────────────────────────────
+   // Get worksheet table metadata.
+
+   public WorksheetModel getWorksheetModel(String wsIdentifier, Principal user)
+      throws Exception
+   {
+      if(Tool.isEmptyString(wsIdentifier)) {
+         throw new IllegalArgumentException("wsIdentifier is required");
+      }
+
+      WorksheetSource source = resolveWorksheet(wsIdentifier, user);
+      Worksheet worksheet = source.worksheet();
+      List<WorksheetTableModel> tables = new ArrayList<>();
+
+      for(Assembly assembly : worksheet.getAssemblies()) {
+         if(assembly instanceof AbstractTableAssembly table) {
+            tables.add(buildWorksheetTableModel(worksheet, table));
+         }
+      }
+
+      WorksheetModel.Builder builder = WorksheetModel.builder()
+         .identifier(source.identifier())
+         .description(worksheet.getDescription())
+         .tables(tables);
+
+      String primaryTable = worksheet.getPrimaryAssemblyName();
+
+      if(!Tool.isEmptyString(primaryTable)) {
+         builder.primaryTable(primaryTable);
+      }
+
+      List<WorksheetColumnInfo> primaryColumnMetas = extractPrimaryColumnMetas(worksheet);
+
+      if(primaryColumnMetas != null && !primaryColumnMetas.isEmpty()) {
+         builder.primaryColumnMetas(primaryColumnMetas);
+      }
+
+      return builder.build();
+   }
+
+   /**
+    * Column metadata of the worksheet's primary (binding) table for the visualization layer,
+    * or null when the worksheet has no primary table assembly.
+    */
+   private List<WorksheetColumnInfo> extractPrimaryColumnMetas(Worksheet worksheet) {
+      String primaryName = worksheet.getPrimaryAssemblyName();
+
+      if(Tool.isEmptyString(primaryName)) {
+         return null;
+      }
+
+      if(!(worksheet.getAssembly(primaryName) instanceof AbstractTableAssembly primaryTable)) {
+         return null;
+      }
+
+      return WsServiceHelper.extractPrimaryTableFields(
+         worksheet, primaryTable, getPhysicalTableName(primaryTable));
+   }
+
+   private String getPhysicalTableName(AbstractTableAssembly table) {
+      if(!(table instanceof PhysicalBoundTableAssembly physicalTable)) {
+         return null;
+      }
+
+      SourceInfo sourceInfo = physicalTable.getSourceInfo();
+      String tableName = sourceInfo != null ? sourceInfo.getSource() : null;
+
+      if(Tool.isEmptyString(tableName)) {
+         return physicalTable.getName();
+      }
+
+      int index = tableName.lastIndexOf('.');
+
+      if(index >= 0 && index + 1 < tableName.length()) {
+         tableName = tableName.substring(index + 1);
+      }
+
+      return tableName.replace("\"", "")
+         .replace("`", "")
+         .replace("[", "")
+         .replace("]", "");
+   }
+
+   // Delete tables.
 
    public DeleteWorksheetTablesResponse deleteTables(DeleteWorksheetTablesRequest request,
                                                      Principal user)
@@ -721,6 +803,10 @@ public class WorksheetTableService {
             colRef.setAlias(col.getAlias());
          }
 
+         if(col.getDescription() != null) {
+            colRef.setDescription(col.getDescription());
+         }
+
          if(Boolean.FALSE.equals(col.getVisible())) {
             colRef.setVisible(false);
          }
@@ -770,6 +856,10 @@ public class WorksheetTableService {
 
          if(col.getAlias() != null) {
             colRef.setAlias(col.getAlias());
+         }
+
+         if(col.getDescription() != null) {
+            colRef.setDescription(col.getDescription());
          }
 
          if(Boolean.FALSE.equals(col.getVisible())) {
@@ -1195,11 +1285,16 @@ public class WorksheetTableService {
    }
 
    // ─── Column extraction for response ──────────────────────────────────────
-   private List<WorksheetTableResponse.ColumnData> extractColumnsFromSelection(
+   private List<WorksheetColumnData> extractColumnsFromSelection(
       AbstractTableAssembly table)
    {
       ColumnSelection cs = table.getColumnSelection(true);
-      List<WorksheetTableResponse.ColumnData> result = new ArrayList<>(cs.getAttributeCount());
+
+      if(cs == null) {
+         return Collections.emptyList();
+      }
+
+      List<WorksheetColumnData> result = new ArrayList<>(cs.getAttributeCount());
 
       for(int i = 0; i < cs.getAttributeCount(); i++) {
          DataRef attr = cs.getAttribute(i);
@@ -1207,14 +1302,539 @@ public class WorksheetTableService {
          if(attr instanceof ColumnRef cr && cr.isVisible()) {
             String name = cr.getName();
             String type = cr.getDataType();
-            result.add(new WorksheetTableResponse.ColumnData(name, type));
+            result.add(new WorksheetColumnData(name, type));
          }
       }
 
       return result;
    }
 
-   // ─── Join operation mapping ───────────────────────────────────────────────
+   // Worksheet model helpers.
+
+   private WorksheetTableModel buildWorksheetTableModel(Worksheet worksheet,
+                                                        AbstractTableAssembly table)
+   {
+      WorksheetTableModel.Builder builder = WorksheetTableModel.builder()
+         .name(table.getName())
+         .tableType(getTableType(table))
+         .columns(extractModelColumns(table));
+
+      String description = table.getDescription();
+
+      if(!Tool.isEmptyString(description)) {
+         builder.description(description);
+      }
+
+      List<String> baseTables = getBaseTables(table);
+
+      if(!baseTables.isEmpty()) {
+         builder.baseTables(baseTables);
+      }
+
+      List<JoinPath> joinPaths = extractJoinPaths(table);
+
+      if(!joinPaths.isEmpty()) {
+         builder.joinPaths(joinPaths);
+      }
+
+      WorksheetAggregateInfo aggregateInfo = extractAggregateInfo(table);
+
+      if(aggregateInfo != null) {
+         builder.aggregateInfo(aggregateInfo);
+      }
+
+      List<VisualizationConditionModel.ConditionNode> pre =
+         buildConditionNodes(table.getPreConditionList());
+
+      if(pre != null) {
+         builder.preAggregateCondition(pre);
+      }
+
+      List<VisualizationConditionModel.ConditionNode> post =
+         buildConditionNodes(table.getPostConditionList());
+
+      if(post != null) {
+         builder.postAggregateCondition(post);
+      }
+
+      List<VisualizationConditionModel.ConditionNode> ranking =
+         buildConditionNodes(table.getRankingConditionList());
+
+      if(ranking != null) {
+         builder.rankingCondition(ranking);
+      }
+
+      return builder.build();
+   }
+
+   /**
+    * Extract the visible columns of a table mirroring the TypeScript {@code TableColumn} shape
+    * (name + optional alias/description + type). Inverse of {@link #buildColumnSelection}.
+    */
+   private List<WorksheetColumnData> extractModelColumns(AbstractTableAssembly table) {
+      ColumnSelection cs = table.getColumnSelection(true);
+
+      if(cs == null) {
+         return Collections.emptyList();
+      }
+
+      List<WorksheetColumnData> result = new ArrayList<>(cs.getAttributeCount());
+
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         DataRef attr = cs.getAttribute(i);
+
+         if(attr instanceof ColumnRef cr && cr.isVisible()) {
+            DataRef underlying = cr.getDataRef() != null ? cr.getDataRef() : cr;
+            String dbName = underlying.getAttribute();
+            String aliasRaw = !Tool.isEmptyString(cr.getAlias()) ? cr.getAlias() : null;
+            String alias = aliasRaw != null && !aliasRaw.equals(dbName) ? aliasRaw : null;
+            String description = !Tool.isEmptyString(cr.getDescription()) ? cr.getDescription() : null;
+            result.add(new WorksheetColumnData(cr.getName(), alias, description, cr.getDataType()));
+         }
+      }
+
+      return result;
+   }
+
+   // ─── Join path reconstruction ─────────────────────────────────────────────
+
+   /**
+    * Reconstruct the {@link JoinPath} list of a relational join table from its operators
+    * (inverse of {@link #buildJoinTable}). Returns an empty list for non-join tables.
+    */
+   private List<JoinPath> extractJoinPaths(AbstractTableAssembly table) {
+      if(!(table instanceof RelationalJoinTableAssembly join)) {
+         return Collections.emptyList();
+      }
+
+      List<JoinPath> paths = new ArrayList<>();
+      Enumeration<TableAssemblyOperator> ops = join.getOperators();
+
+      while(ops.hasMoreElements()) {
+         for(TableAssemblyOperator.Operator op : ops.nextElement().getOperators()) {
+            paths.add(reverseJoinPath(op));
+         }
+      }
+
+      return paths;
+   }
+
+   /** Map a {@link TableAssemblyOperator.Operator} back to a {@link JoinPath}. */
+   private JoinPath reverseJoinPath(TableAssemblyOperator.Operator op) {
+      int operation = op.getOperation();
+      String type = WorksheetConstructionModel.JoinType.INNER;
+      String operator = WorksheetConstructionModel.JoinOperator.EQUALS;
+
+      if(operation == TableAssemblyOperator.LEFT_JOIN) {
+         type = WorksheetConstructionModel.JoinType.LEFT;
+      }
+      else if(operation == TableAssemblyOperator.RIGHT_JOIN) {
+         type = WorksheetConstructionModel.JoinType.RIGHT;
+      }
+      else if(operation == TableAssemblyOperator.FULL_JOIN) {
+         type = WorksheetConstructionModel.JoinType.FULL;
+      }
+      else if(operation == TableAssemblyOperator.CROSS_JOIN) {
+         type = WorksheetConstructionModel.JoinType.CROSS;
+      }
+      else if(operation == TableAssemblyOperator.NOT_EQUAL_JOIN) {
+         operator = WorksheetConstructionModel.JoinOperator.NOT_EQUALS;
+      }
+      else if(operation == TableAssemblyOperator.GREATER_JOIN) {
+         operator = WorksheetConstructionModel.JoinOperator.GREATER;
+      }
+      else if(operation == TableAssemblyOperator.GREATER_EQUAL_JOIN) {
+         operator = WorksheetConstructionModel.JoinOperator.GREATER_EQUALS;
+      }
+      else if(operation == TableAssemblyOperator.LESS_JOIN) {
+         operator = WorksheetConstructionModel.JoinOperator.LESS;
+      }
+      else if(operation == TableAssemblyOperator.LESS_EQUAL_JOIN) {
+         operator = WorksheetConstructionModel.JoinOperator.LESS_EQUALS;
+      }
+      // else INNER_JOIN → inner / "="
+
+      return new JoinPath(op.getLeftTable(), refName(op.getLeftAttribute()),
+                          op.getRightTable(), refName(op.getRightAttribute()), type, operator);
+   }
+
+   // ─── Aggregate info reconstruction ────────────────────────────────────────
+
+   /**
+    * Reconstruct the {@link WorksheetAggregateInfo} of a table (inverse of
+    * {@link #applyAggregateInfo}). Returns null when the table is not aggregated.
+    */
+   private WorksheetAggregateInfo extractAggregateInfo(AbstractTableAssembly table) {
+      AggregateInfo info = table.getAggregateInfo();
+
+      if(info == null || info.isEmpty()) {
+         return null;
+      }
+
+      List<GroupByField> groups = new ArrayList<>();
+
+      for(GroupRef group : info.getGroups()) {
+         groups.add(reverseGroup(group));
+      }
+
+      List<AggregateField> aggregates = new ArrayList<>();
+
+      for(AggregateRef agg : info.getAggregates()) {
+         aggregates.add(reverseAggregate(agg));
+      }
+
+      return new WorksheetAggregateInfo(groups.isEmpty() ? null : List.copyOf(groups),
+                                        aggregates.isEmpty() ? null : List.copyOf(aggregates));
+   }
+
+   private GroupByField reverseGroup(GroupRef group) {
+      DateRangeRef dateRange = findDateRangeRef(group.getDataRef());
+
+      if(dateRange != null) {
+         String level = WizDateLevelUtil.getDateGroupLevelName(dateRange.getDateOption());
+         DataRef base = dateRange.getDataRef();
+         return new GroupByField(base != null ? refName(base) : refName(group), level);
+      }
+
+      return new GroupByField(refName(group), null);
+   }
+
+   private AggregateField reverseAggregate(AggregateRef agg) {
+      DataRef base = agg.getDataRef();
+      String fieldName;
+      String alias = null;
+
+      if(base instanceof ColumnRef cr) {
+         DataRef underlying = cr.getDataRef() != null ? cr.getDataRef() : cr;
+         fieldName = refName(underlying);
+
+         if(!Tool.isEmptyString(cr.getAlias()) && !cr.getAlias().equals(fieldName)) {
+            alias = cr.getAlias();
+         }
+      }
+      else {
+         fieldName = base != null ? refName(base) : refName(agg);
+      }
+
+      AggregateFormula formula = agg.getFormula();
+      String formulaName = formula != null ? formula.getName() : null;
+
+      DataRef secondary = agg.getSecondaryColumn();
+      String secondaryField = secondary != null ? refName(secondary) : null;
+
+      Integer n = formula != null && formula.hasN() && agg.getN() != 0 ? agg.getN() : null;
+
+      return new AggregateField(fieldName, formulaName, alias, secondaryField, n);
+   }
+
+   /** Unwrap a {@link DateRangeRef} from a ref or its wrapping {@link ColumnRef}; null if none. */
+   private DateRangeRef findDateRangeRef(DataRef ref) {
+      if(ref instanceof DateRangeRef dr) {
+         return dr;
+      }
+
+      if(ref instanceof ColumnRef cr && cr.getDataRef() instanceof DateRangeRef dr) {
+         return dr;
+      }
+
+      return null;
+   }
+
+   // ─── Condition tree reconstruction ────────────────────────────────────────
+
+   /**
+    * Reconstruct a nested {@link VisualizationConditionModel.ConditionNode} tree from a flat
+    * {@link ConditionList} (inverse of {@link #buildConditionList}). The nesting is driven solely
+    * by junction-operator levels: the lowest-level junctions split the top-level siblings, deeper
+    * junctions form parenthesized groups (recursively).
+    * <p>
+    * Note: reconstruction is best-effort and not guaranteed to round-trip byte-for-byte. In
+    * particular the forward {@code equal=true} expansion of {@code <}/{@code >} into two ops joined
+    * by OR cannot be collapsed back, and FIELD/EXPRESSION operands (both stored as
+    * {@link ExpressionValue}) are reported as EXPRESSION.
+    *
+    * @return the node list, or null when there are no conditions.
+    */
+   private List<VisualizationConditionModel.ConditionNode> buildConditionNodes(
+      ConditionListWrapper wrapper)
+   {
+      if(wrapper == null || wrapper.isEmpty()) {
+         return null;
+      }
+
+      ConditionList list = wrapper.getConditionList();
+
+      if(list == null || list.getSize() == 0) {
+         return null;
+      }
+
+      List<ConditionItem> items = new ArrayList<>();
+      List<JunctionOperator> junctions = new ArrayList<>();
+
+      for(int i = 0; i < list.getSize(); i++) {
+         if(i % 2 == 0) {
+            ConditionItem ci = list.getConditionItem(i);
+
+            if(ci != null) {
+               items.add(ci);
+            }
+         }
+         else {
+            JunctionOperator jo = list.getJunctionOperator(i);
+
+            if(jo != null) {
+               junctions.add(jo);
+            }
+         }
+      }
+
+      if(items.isEmpty()) {
+         return null;
+      }
+
+      return nestNodes(items, junctions, 0, items.size() - 1);
+   }
+
+   private List<VisualizationConditionModel.ConditionNode> nestNodes(
+      List<ConditionItem> items, List<JunctionOperator> junctions, int lo, int hi)
+   {
+      List<VisualizationConditionModel.ConditionNode> nodes = new ArrayList<>();
+
+      if(lo == hi) {
+         nodes.add(makeLeaf(items.get(lo), null));
+         return nodes;
+      }
+
+      // The minimum junction level in [lo, hi-1] drives the top-level split.
+      int minLevel = Integer.MAX_VALUE;
+
+      for(int j = lo; j < hi; j++) {
+         minLevel = Math.min(minLevel, junctions.get(j).getLevel());
+      }
+
+      int segLo = lo;
+      String pendingJunction = null;
+
+      for(int j = lo; j < hi; j++) {
+         if(junctions.get(j).getLevel() == minLevel) {
+            nodes.add(buildSegment(items, junctions, segLo, j, pendingJunction));
+            pendingJunction = junctionName(junctions.get(j));
+            segLo = j + 1;
+         }
+      }
+
+      nodes.add(buildSegment(items, junctions, segLo, hi, pendingJunction));
+      return nodes;
+   }
+
+   private VisualizationConditionModel.ConditionNode buildSegment(
+      List<ConditionItem> items, List<JunctionOperator> junctions, int lo, int hi, String junction)
+   {
+      if(lo == hi) {
+         return makeLeaf(items.get(lo), junction);
+      }
+
+      return new VisualizationConditionModel.ConditionGroup(
+         junction, List.copyOf(nestNodes(items, junctions, lo, hi)));
+   }
+
+   private String junctionName(JunctionOperator jo) {
+      return jo.getJunction() == JunctionOperator.OR ? "or" : "and";
+   }
+
+   private VisualizationConditionModel.ConditionLeaf makeLeaf(ConditionItem item, String junction) {
+      DataRef attr = item.getAttribute();
+      XCondition xc = item.getXCondition();
+
+      String field;
+      String aggregateFormula = null;
+      String secondaryField = null;
+      Integer nOrP = null;
+      String dateGroupLevel = null;
+
+      // Field + aggregate / date-group metadata.
+      if(attr instanceof AggregateRef agg) {
+         DataRef base = agg.getDataRef();
+         field = base != null ? refName(base) : refName(agg);
+         AggregateFormula formula = agg.getFormula();
+
+         if(formula != null) {
+            aggregateFormula = formula.getName();
+         }
+
+         DataRef secondary = agg.getSecondaryColumn();
+
+         if(secondary != null) {
+            secondaryField = refName(secondary);
+         }
+
+         if(formula != null && formula.hasN() && agg.getN() != 0) {
+            nOrP = agg.getN();
+         }
+      }
+      else {
+         DateRangeRef dateRange = findDateRangeRef(attr);
+
+         if(dateRange != null) {
+            dateGroupLevel = WizDateLevelUtil.getDateGroupLevelName(dateRange.getDateOption());
+            DataRef base = dateRange.getDataRef();
+            field = base != null ? refName(base) : refName(attr);
+         }
+         else {
+            field = refName(attr);
+         }
+      }
+
+      // Operation + negated + equal + values.
+      String operation = null;
+      boolean negated = false;
+      Boolean equal = null;
+      List<VisualizationConditionModel.ValueSpec> values = null;
+
+      if(xc instanceof RankingCondition rc) {
+         operation = reverseOperation(rc.getOperation());
+         negated = rc.isNegated();
+         values = List.of(new VisualizationConditionModel.ValueSpec("VALUE", rc.getN(), null));
+      }
+      else if(xc != null) {
+         int op = xc.getOperation();
+         operation = reverseOperation(op);
+         negated = xc.isNegated();
+
+         // equal only carries meaning for <= / >= (LESS_THAN / GREATER_THAN).
+         if(op == XCondition.LESS_THAN || op == XCondition.GREATER_THAN) {
+            equal = xc.isEqual();
+         }
+
+         if(xc instanceof Condition cond) {
+            List<VisualizationConditionModel.ValueSpec> vals = new ArrayList<>();
+
+            for(int i = 0; i < cond.getValueCount(); i++) {
+               vals.add(reverseValue(cond.getValue(i)));
+            }
+
+            if(!vals.isEmpty()) {
+               values = List.copyOf(vals);
+            }
+         }
+      }
+
+      VisualizationConditionModel.ConditionSpec spec = new VisualizationConditionModel.ConditionSpec(
+         field, aggregateFormula, secondaryField, nOrP, dateGroupLevel, negated, operation, equal, values);
+
+      return new VisualizationConditionModel.ConditionLeaf(junction, spec);
+   }
+
+   private String reverseOperation(int op) {
+      return switch(op) {
+         case XCondition.EQUAL_TO -> "EQUAL_TO";
+         case XCondition.ONE_OF -> "ONE_OF";
+         case XCondition.LESS_THAN -> "LESS_THAN";
+         case XCondition.GREATER_THAN -> "GREATER_THAN";
+         case XCondition.BETWEEN -> "BETWEEN";
+         case XCondition.STARTING_WITH -> "STARTING_WITH";
+         case XCondition.CONTAINS -> "CONTAINS";
+         case XCondition.LIKE -> "LIKE";
+         case XCondition.NULL -> "NULL";
+         case XCondition.DATE_IN -> "DATE_IN";
+         case XCondition.TOP_N -> "TOP_N";
+         case XCondition.BOTTOM_N -> "BOTTOM_N";
+         default -> {
+            LOG.warn("Unrecognized XCondition operation code '{}', omitting from condition spec", op);
+            yield null;
+         }
+      };
+   }
+
+   private VisualizationConditionModel.ValueSpec reverseValue(Object value) {
+      if(value instanceof SubQueryValue sq) {
+         VisualizationConditionModel.Where where = null;
+
+         if(sq.getSubAttribute() != null || sq.getMainAttribute() != null) {
+            where = new VisualizationConditionModel.Where(
+               refName(sq.getSubAttribute()), refName(sq.getMainAttribute()));
+         }
+
+         VisualizationConditionModel.SubQuery sub = new VisualizationConditionModel.SubQuery(
+            sq.getQuery(), refName(sq.getAttribute()), where);
+         return new VisualizationConditionModel.ValueSpec("SUBQUERY", null, sub);
+      }
+      else if(value instanceof ExpressionValue ev) {
+         return new VisualizationConditionModel.ValueSpec("EXPRESSION", ev.getExpression(), null);
+      }
+      else if(value instanceof UserVariable uv) {
+         return new VisualizationConditionModel.ValueSpec("SESSION_DATA", uv.getName(), null);
+      }
+      else if(value instanceof DataRef ref) {
+         return new VisualizationConditionModel.ValueSpec("FIELD", refName(ref), null);
+      }
+      else {
+         return new VisualizationConditionModel.ValueSpec("VALUE", value, null);
+      }
+   }
+
+   private String refName(DataRef ref) {
+      if(ref == null) {
+         return null;
+      }
+
+      String name = ref.getName();
+      return !Tool.isEmptyString(name) ? name : ref.getAttribute();
+   }
+
+   private WorksheetSource resolveWorksheet(String wsIdentifier, Principal user)
+      throws Exception
+   {
+      AssetEntry worksheetEntry = AssetEntry.createAssetEntry(wsIdentifier);
+      AbstractSheet sheet = viewsheetService.getAssetRepository()
+         .getSheet(worksheetEntry, user, false, AssetContent.ALL);
+
+      if(!(sheet instanceof Worksheet worksheet)) {
+         throw new IllegalArgumentException(
+            "wsIdentifier does not reference a worksheet: " + wsIdentifier);
+      }
+
+      return new WorksheetSource(worksheet, getIdentifier(worksheetEntry, wsIdentifier));
+   }
+
+   private List<String> getBaseTables(AbstractTableAssembly table) {
+      if(table instanceof ComposedTableAssembly composed) {
+         String[] names = composed.getTableNames();
+         return names == null ? Collections.emptyList() : Arrays.asList(names);
+      }
+
+      return Collections.emptyList();
+   }
+
+   private String getTableType(AbstractTableAssembly table) {
+      if(table instanceof PhysicalBoundTableAssembly) {
+         return "physical table";
+      }
+      else if(table instanceof MirrorTableAssembly) {
+         return "mirror table";
+      }
+      else if(table instanceof RelationalJoinTableAssembly) {
+         return "relational join table";
+      }
+      else if(table instanceof SQLBoundTableAssembly) {
+         return "sql query table";
+      }
+
+      String fallback = table.getClass().getSimpleName();
+      LOG.warn("Unrecognized worksheet table type for table '{}', falling back to '{}'",
+               table.getName(), fallback);
+      return fallback;
+   }
+
+   private String getIdentifier(AssetEntry entry, String fallback) {
+      String identifier = entry != null ? entry.toIdentifier() : null;
+      return Tool.isEmptyString(identifier) ? fallback : identifier;
+   }
+
+   private record WorksheetSource(Worksheet worksheet, String identifier) {
+   }
+
+   // Join operation mapping.
 
    private int getJoinOperation(String joinType, String joinOp) {
       if(joinType == null) {

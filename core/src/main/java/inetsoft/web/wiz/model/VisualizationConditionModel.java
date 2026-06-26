@@ -88,25 +88,25 @@ public class VisualizationConditionModel {
     */
    @JsonIgnoreProperties(ignoreUnknown = true)
    public static class ConditionLeaf implements ConditionNode {
+      @JsonCreator
+      public ConditionLeaf(@JsonProperty("junction") String junction,
+                           @JsonProperty("condition") ConditionSpec condition)
+      {
+         this.junction = junction;
+         this.condition = condition;
+      }
+
       @Override
       public String getJunction() {
          return junction;
-      }
-
-      public void setJunction(String junction) {
-         this.junction = junction;
       }
 
       public ConditionSpec getCondition() {
          return condition;
       }
 
-      public void setCondition(ConditionSpec condition) {
-         this.condition = condition;
-      }
-
-      private String junction;
-      private ConditionSpec condition;
+      private final String junction;
+      private final ConditionSpec condition;
    }
 
    /**
@@ -115,36 +115,56 @@ public class VisualizationConditionModel {
     */
    @JsonIgnoreProperties(ignoreUnknown = true)
    public static class ConditionGroup implements ConditionNode {
+      @JsonCreator
+      public ConditionGroup(@JsonProperty("junction") String junction,
+                            @JsonProperty("items") List<ConditionNode> items)
+      {
+         this.junction = junction;
+         this.items = items;
+      }
+
       @Override
       public String getJunction() {
          return junction;
-      }
-
-      public void setJunction(String junction) {
-         this.junction = junction;
       }
 
       public List<ConditionNode> getItems() {
          return items;
       }
 
-      public void setItems(List<ConditionNode> items) {
-         this.items = items;
-      }
-
-      private String junction;
-      private List<ConditionNode> items;
+      private final String junction;
+      private final List<ConditionNode> items;
    }
 
 
    @JsonIgnoreProperties(ignoreUnknown = true)
    public static class ConditionSpec {
-      public String getField() {
-         return field;
+      @JsonCreator
+      public ConditionSpec(@JsonProperty("field") String field,
+                           @JsonProperty("aggregateFormula") String aggregateFormula,
+                           @JsonProperty("secondaryField") String secondaryField,
+                           // "norP" (not "nOrP") preserves the property name Jackson derives from
+                           // getNOrP(); changing it would alter the existing wire contract.
+                           @JsonProperty("norP") Integer nOrP,
+                           @JsonProperty("dateGroupLevel") String dateGroupLevel,
+                           @JsonProperty("negated") boolean negated,
+                           @JsonProperty("operation") String operation,
+                           @JsonProperty("equal") Boolean equal,
+                           @JsonProperty("values") List<ValueSpec> values)
+      {
+         this.field = field;
+         this.aggregateFormula = aggregateFormula;
+         this.secondaryField = secondaryField;
+         this.nOrP = nOrP;
+         this.dateGroupLevel = dateGroupLevel;
+         this.negated = negated;
+         this.operation = operation;
+         this.equal = equal;
+         this.values = values;
       }
 
-      public void setField(String field) {
-         this.field = field;
+      public String getField() {
+         return field;
       }
 
       /**
@@ -154,19 +174,11 @@ public class VisualizationConditionModel {
          return aggregateFormula;
       }
 
-      public void setAggregateFormula(String aggregateFormula) {
-         this.aggregateFormula = aggregateFormula;
-      }
-
       /**
        * Secondary field for two-column formulas: Correlation, Covariance, WeightedAverage, SumWT.
        */
       public String getSecondaryField() {
          return secondaryField;
-      }
-
-      public void setSecondaryField(String secondaryField) {
-         this.secondaryField = secondaryField;
       }
 
       /**
@@ -176,10 +188,6 @@ public class VisualizationConditionModel {
          return nOrP;
       }
 
-      public void setNOrP(Integer nOrP) {
-         this.nOrP = nOrP;
-      }
-
       /**
        * Date grouping level for date-level conditions (e.g., Year, Quarter, Month, Week, Day).
        */
@@ -187,16 +195,8 @@ public class VisualizationConditionModel {
          return dateGroupLevel;
       }
 
-      public void setDateGroupLevel(String dateGroupLevel) {
-         this.dateGroupLevel = dateGroupLevel;
-      }
-
       public boolean isNegated() {
          return negated;
-      }
-
-      public void setNegated(boolean negated) {
-         this.negated = negated;
       }
 
       /**
@@ -207,10 +207,6 @@ public class VisualizationConditionModel {
          return operation;
       }
 
-      public void setOperation(String operation) {
-         this.operation = operation;
-      }
-
       /**
        * True means &lt;= or &gt;= (applies to LESS_THAN / GREATER_THAN only).
        */
@@ -218,51 +214,114 @@ public class VisualizationConditionModel {
          return equal;
       }
 
-      public void setEqual(Boolean equal) {
-         this.equal = equal;
-      }
-
       public List<ValueSpec> getValues() {
          return values;
       }
 
-      public void setValues(List<ValueSpec> values) {
-         this.values = values;
-      }
-
-      private String field;
-      private String aggregateFormula;
-      private String secondaryField;
-      private Integer nOrP;
-      private String dateGroupLevel;
-      private boolean negated;
-      private String operation;
-      private Boolean equal;
-      private List<ValueSpec> values;
+      private final String field;
+      private final String aggregateFormula;
+      private final String secondaryField;
+      private final Integer nOrP;
+      private final String dateGroupLevel;
+      private final boolean negated;
+      private final String operation;
+      private final Boolean equal;
+      private final List<ValueSpec> values;
    }
 
+   @JsonInclude(JsonInclude.Include.NON_NULL)
    @JsonIgnoreProperties(ignoreUnknown = true)
    public static class ValueSpec {
+      @JsonCreator
+      public ValueSpec(@JsonProperty("type") String type,
+                       @JsonProperty("value") Object value,
+                       @JsonProperty("subQuery") SubQuery subQuery)
+      {
+         this.type = type;
+         this.value = value;
+         this.subQuery = subQuery;
+      }
+
       /**
-       * VALUE | EXPRESSION | FIELD | SESSION_DATA
+       * VALUE | EXPRESSION | FIELD | SESSION_DATA | SUBQUERY
        */
       public String getType() {
          return type;
       }
 
-      public void setType(String type) {
-         this.type = type;
-      }
-
+      /** Operand for VALUE, EXPRESSION, FIELD, SESSION_DATA. */
       public Object getValue() {
          return value;
       }
 
-      public void setValue(Object value) {
-         this.value = value;
+      /** Operand for SUBQUERY: value(s) drawn from another worksheet table's column. */
+      public SubQuery getSubQuery() {
+         return subQuery;
       }
 
-      private String type;
-      private Object value;
+      private final String type;
+      private final Object value;
+      private final SubQuery subQuery;
+   }
+
+   /**
+    * SUBQUERY operand, mirroring the TypeScript {@code SubQueryValue} shape: a value drawn
+    * from another worksheet table's column, optionally correlated per-row via {@code where}.
+    */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   @JsonIgnoreProperties(ignoreUnknown = true)
+   public static class SubQuery {
+      @JsonCreator
+      public SubQuery(@JsonProperty("subQueryName") String subQueryName,
+                      @JsonProperty("inSubQueryColumn") String inSubQueryColumn,
+                      @JsonProperty("where") Where where)
+      {
+         this.subQueryName = subQueryName;
+         this.inSubQueryColumn = inSubQueryColumn;
+         this.where = where;
+      }
+
+      /** Name of an already-created worksheet table. */
+      public String getSubQueryName() {
+         return subQueryName;
+      }
+
+      /** Column in that table whose value serves as the operand. */
+      public String getInSubQueryColumn() {
+         return inSubQueryColumn;
+      }
+
+      /** Correlated match; null for a global scalar subquery (single-row result). */
+      public Where getWhere() {
+         return where;
+      }
+
+      private final String subQueryName;
+      private final String inSubQueryColumn;
+      private final Where where;
+   }
+
+   /** Correlated subquery filter: subQueryColumn = currentTableColumn. */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   @JsonIgnoreProperties(ignoreUnknown = true)
+   public static class Where {
+      @JsonCreator
+      public Where(@JsonProperty("subQueryColumn") String subQueryColumn,
+                   @JsonProperty("currentTableColumn") String currentTableColumn)
+      {
+         this.subQueryColumn = subQueryColumn;
+         this.currentTableColumn = currentTableColumn;
+      }
+
+      public String getSubQueryColumn() {
+         return subQueryColumn;
+      }
+
+      public String getCurrentTableColumn() {
+         return currentTableColumn;
+      }
+
+      private final String subQueryColumn;
+      private final String currentTableColumn;
    }
 }
