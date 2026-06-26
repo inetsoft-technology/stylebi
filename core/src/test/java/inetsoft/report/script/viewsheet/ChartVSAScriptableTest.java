@@ -151,13 +151,13 @@ public class ChartVSAScriptableTest {
          PlotDescriptor.TREE_LAYOUT_LEFT_RIGHT,
          PlotDescriptor.TREE_LAYOUT_RIGHT_LEFT })
       {
-         chartVSAScriptable.put("treeLayout", null, layout);
+         chartVSAScriptable.putMember("treeLayout", layout);
          assertEquals(layout, plot.getTreeLayout());
-         assertEquals(layout, chartVSAScriptable.get("treeLayout", null));
+         assertEquals(layout, chartVSAScriptable.getMember("treeLayout"));
       }
 
       // unknown values fall back to TOP_BOTTOM
-      chartVSAScriptable.put("treeLayout", null, "BOGUS");
+      chartVSAScriptable.putMember("treeLayout", "BOGUS");
       assertEquals(PlotDescriptor.TREE_LAYOUT_TOP_BOTTOM, plot.getTreeLayout());
    }
 
@@ -255,13 +255,13 @@ public class ChartVSAScriptableTest {
       VSChartInfo info = chartVSAssemblyInfo.getVSChartInfo();
       info.setSnapTooltipValue(false);
 
-      chartVSAScriptable.put("snapTooltip", null, true);
+      chartVSAScriptable.putMember("snapTooltip", true);
 
-      assertTrue((boolean) chartVSAScriptable.get("snapTooltip", null));
+      assertTrue((boolean) chartVSAScriptable.getMember("snapTooltip"));
       assertTrue(info.isSnapTooltip());
       assertFalse(info.getSnapTooltipValue(), "script put must not mutate dvalue");
 
-      chartVSAScriptable.put("snapTooltip", null, false);
+      chartVSAScriptable.putMember("snapTooltip", false);
       assertFalse(info.isSnapTooltip());
       assertFalse(info.getSnapTooltipValue());
    }
@@ -272,19 +272,19 @@ public class ChartVSAScriptableTest {
       VSChartInfo info = chartVSAssemblyInfo.getVSChartInfo();
       info.setTooltipStyleValue(ChartInfo.TooltipStyle.DEFAULT);
 
-      chartVSAScriptable.put("tooltipStyle", null, "CARD");
+      chartVSAScriptable.putMember("tooltipStyle", "CARD");
 
-      assertEquals("CARD", chartVSAScriptable.get("tooltipStyle", null));
+      assertEquals("CARD", chartVSAScriptable.getMember("tooltipStyle"));
       assertEquals(ChartInfo.TooltipStyle.CARD, info.getTooltipStyle());
       assertEquals(ChartInfo.TooltipStyle.DEFAULT, info.getTooltipStyleValue(),
                    "script put must not mutate dvalue");
 
       // case-insensitive
-      chartVSAScriptable.put("tooltipStyle", null, "default");
+      chartVSAScriptable.putMember("tooltipStyle", "default");
       assertEquals(ChartInfo.TooltipStyle.DEFAULT, info.getTooltipStyle());
 
       // unknown values fall back to DEFAULT
-      chartVSAScriptable.put("tooltipStyle", null, "BOGUS");
+      chartVSAScriptable.putMember("tooltipStyle", "BOGUS");
       assertEquals(ChartInfo.TooltipStyle.DEFAULT, info.getTooltipStyle());
    }
 
