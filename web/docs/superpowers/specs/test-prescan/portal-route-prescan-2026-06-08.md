@@ -30,7 +30,7 @@
 | 待审核 | DatabaseVPMBrowserComponent | 338 | 0 | 8 | **multi-pass** | ✅ 推进 |  |  | P1: database-vpm-browser.component.interaction.tl.spec.ts<br>P2: database-vpm-browser.component.risk.tl.spec.ts |
 | 待审核 | DataModelScriptPane | 247 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | data-model-script-pane.component.tl.spec.ts (21/21 ✅) |
 | ✅已测试 | DatabasePhysicalModelComponent | 1153 | 4 | 28 | **multi-pass** | ✅ 推进 |  |  | P1: database-physical-model.component.interaction.tl.spec.ts<br>P2: database-physical-model.component.risk.tl.spec.ts<br>P3: database-physical-model.component.display.tl.spec.ts |
-| 待审核 | LogicalModelAttributeDialo<br/>g | 107 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
+| 待审核 | LogicalModelAttributeDialog | 107 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | ✅已测试 | AutoDrillDialog | 531 | 0 | 15 | **multi-pass** | ✅ 推进 |  |  | P1: auto-drill-dialog.component.interaction.tl.spec.ts<br>P2: auto-drill-dialog.component.risk.tl.spec.ts |
 | ✅已测试 | ParameterDialog | 242 | 2 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核 | SelectWorksheetDialog | 131 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
