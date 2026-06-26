@@ -100,6 +100,10 @@ public class ScheduleStatusDao implements AutoCloseable {
       try {
          storage.put(encodedTaskName, newStatus).get(10L, TimeUnit.SECONDS);
       }
+      catch(InterruptedException ex) {
+         Thread.currentThread().interrupt();
+         LOG.error("Failed to put schedule status {} for {}", status, taskName, ex);
+      }
       catch(Exception ex) {
          LOG.error("Failed to put schedule status {} for {}", status, taskName);
       }
@@ -119,7 +123,11 @@ public class ScheduleStatusDao implements AutoCloseable {
       try {
          storage.remove(encodedTaskName).get(10L, TimeUnit.SECONDS);
       }
-      catch(InterruptedException | ExecutionException | TimeoutException e) {
+      catch(InterruptedException e) {
+         Thread.currentThread().interrupt();
+         LOG.error("Failed to clear status for task: {}", taskName, e);
+      }
+      catch(ExecutionException | TimeoutException e) {
          LOG.error("Failed to clear status for task: {}", taskName, e);
       }
    }
