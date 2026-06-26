@@ -94,7 +94,12 @@ public class SecurityTestDataBuilder {
    }
 
    public SecurityTestDataBuilder addRole(String roleName, String orgId) {
-      roles.add(new RoleSpec(roleName, orgId));
+      roles.add(new RoleSpec(roleName, orgId, false, false));
+      return this;
+   }
+
+   public SecurityTestDataBuilder addSysAdminRole(String roleName, String orgId) {
+      roles.add(new RoleSpec(roleName, orgId, true, false));
       return this;
    }
 
@@ -152,7 +157,10 @@ public class SecurityTestDataBuilder {
 
       // Write roles
       for(RoleSpec rs : roles) {
-         authcProvider.addRole(new FSRole(new IdentityID(rs.roleName(), rs.orgId())));
+         FSRole role = new FSRole(new IdentityID(rs.roleName(), rs.orgId()));
+         role.setSysAdmin(rs.sysAdmin());
+         role.setOrgAdmin(rs.orgAdmin());
+         authcProvider.addRole(role);
       }
 
       // Build user→roles map before writing users
@@ -257,7 +265,7 @@ public class SecurityTestDataBuilder {
    // ── internal value types ──────────────────────────────────────────────────
 
    private record UserSpec(String userName, String orgId, String password) {}
-   private record RoleSpec(String roleName, String orgId) {}
+   private record RoleSpec(String roleName, String orgId, boolean sysAdmin, boolean orgAdmin) {}
    private record UserRoleAssignment(String userName, String roleName, String orgId) {}
    private record PermissionSpec(ResourceType type, String resource, ResourceAction action,
                                   String granteeId, int identityType, String orgId) {}
