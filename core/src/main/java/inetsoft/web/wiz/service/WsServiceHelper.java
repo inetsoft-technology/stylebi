@@ -124,15 +124,8 @@ final class WsServiceHelper {
             String alias = colRefAlias != null && !colRefAlias.equals(name) ? colRefAlias : null;
             String description = attr instanceof ColumnRef cr && !Tool.isEmptyString(cr.getDescription())
                ? cr.getDescription() : null;
-            WorksheetColumnInfo info = new WorksheetColumnInfo();
-            info.setName(name);
-            info.setAlias(alias);
-            info.setDescription(description);
-            info.setType(attr.getDataType());
-            info.setTable(dbTableName);
-            info.setSchema(schema);
-            info.setCatalog(catalog);
-            info.setPath(path);
+            WorksheetColumnInfo info = new WorksheetColumnInfo(
+               name, alias, attr.getDataType(), dbTableName, schema, catalog, path, description);
             result.add(info);
          }
       }
@@ -187,15 +180,8 @@ final class WsServiceHelper {
 
             String alias = dbColumnName.equals(worksheetColName) ? null : worksheetColName;
 
-            WorksheetColumnInfo info = new WorksheetColumnInfo();
-            info.setName(dbColumnName);
-            info.setAlias(alias);
-            info.setDescription(description);
-            info.setType(attr.getDataType());
-            info.setTable(subTableName);
-            info.setSchema(schema);
-            info.setCatalog(catalog);
-            info.setPath(path);
+            WorksheetColumnInfo info = new WorksheetColumnInfo(
+               dbColumnName, alias, attr.getDataType(), subTableName, schema, catalog, path, description);
             result.add(info);
          }
       }

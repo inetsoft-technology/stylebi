@@ -20,8 +20,6 @@ package inetsoft.web.wiz.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
-import java.io.Serializable;
-
 /**
  * One join condition between two worksheet tables, mirroring the TypeScript {@code JoinPath} shape.
  * <ul>
@@ -30,62 +28,7 @@ import java.io.Serializable;
  * </ul>
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class JoinPath implements Serializable {
-   public JoinPath() {
-   }
-
-   public String getLeftTable() {
-      return leftTable;
-   }
-
-   public void setLeftTable(String leftTable) {
-      this.leftTable = leftTable;
-   }
-
-   public String getLeftKey() {
-      return leftKey;
-   }
-
-   public void setLeftKey(String leftKey) {
-      this.leftKey = leftKey;
-   }
-
-   public String getRightTable() {
-      return rightTable;
-   }
-
-   public void setRightTable(String rightTable) {
-      this.rightTable = rightTable;
-   }
-
-   public String getRightKey() {
-      return rightKey;
-   }
-
-   public void setRightKey(String rightKey) {
-      this.rightKey = rightKey;
-   }
-
-   public String getJoinType() {
-      return joinType;
-   }
-
-   public void setJoinType(String joinType) {
-      this.joinType = joinType;
-   }
-
-   public String getJoinOperator() {
-      return joinOperator;
-   }
-
-   public void setJoinOperator(String joinOperator) {
-      this.joinOperator = joinOperator;
-   }
-
-   private String leftTable;
-   private String leftKey;
-   private String rightTable;
-   private String rightKey;
-   private String joinType;
-   private String joinOperator;
+public record JoinPath(String leftTable, String leftKey, String rightTable, String rightKey,
+                       String joinType, String joinOperator)
+{
 }

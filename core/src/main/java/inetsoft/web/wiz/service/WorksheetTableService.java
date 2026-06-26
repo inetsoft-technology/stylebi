@@ -1412,21 +1412,16 @@ public class WorksheetTableService {
 
       while(ops.hasMoreElements()) {
          for(TableAssemblyOperator.Operator op : ops.nextElement().getOperators()) {
-            JoinPath path = new JoinPath();
-            path.setLeftTable(op.getLeftTable());
-            path.setRightTable(op.getRightTable());
-            path.setLeftKey(refName(op.getLeftAttribute()));
-            path.setRightKey(refName(op.getRightAttribute()));
-            applyJoinOperation(path, op.getOperation());
-            paths.add(path);
+            paths.add(reverseJoinPath(op));
          }
       }
 
       return paths;
    }
 
-   /** Map a {@link TableAssemblyOperator} operation code back to joinType + joinOperator. */
-   private void applyJoinOperation(JoinPath path, int operation) {
+   /** Map a {@link TableAssemblyOperator.Operator} back to a {@link JoinPath}. */
+   private JoinPath reverseJoinPath(TableAssemblyOperator.Operator op) {
+      int operation = op.getOperation();
       String type = WorksheetConstructionModel.JoinType.INNER;
       String operator = WorksheetConstructionModel.JoinOperator.EQUALS;
 
@@ -1459,8 +1454,8 @@ public class WorksheetTableService {
       }
       // else INNER_JOIN → inner / "="
 
-      path.setJoinType(type);
-      path.setJoinOperator(operator);
+      return new JoinPath(op.getLeftTable(), refName(op.getLeftAttribute()),
+                          op.getRightTable(), refName(op.getRightAttribute()), type, operator);
    }
 
    // ─── Aggregate info reconstruction ────────────────────────────────────────
@@ -1488,17 +1483,8 @@ public class WorksheetTableService {
          aggregates.add(reverseAggregate(agg));
       }
 
-      WorksheetAggregateInfo result = new WorksheetAggregateInfo();
-
-      if(!groups.isEmpty()) {
-         result.setGroups(groups);
-      }
-
-      if(!aggregates.isEmpty()) {
-         result.setAggregates(aggregates);
-      }
-
-      return result;
+      return new WorksheetAggregateInfo(groups.isEmpty() ? null : groups,
+                                        aggregates.isEmpty() ? null : aggregates);
    }
 
    private GroupByField reverseGroup(GroupRef group) {
@@ -1514,39 +1500,31 @@ public class WorksheetTableService {
    }
 
    private AggregateField reverseAggregate(AggregateRef agg) {
-      AggregateField field = new AggregateField();
       DataRef base = agg.getDataRef();
+      String fieldName;
+      String alias = null;
 
       if(base instanceof ColumnRef cr) {
          DataRef underlying = cr.getDataRef() != null ? cr.getDataRef() : cr;
-         String fieldName = refName(underlying);
-         field.setFieldName(fieldName);
+         fieldName = refName(underlying);
 
          if(!Tool.isEmptyString(cr.getAlias()) && !cr.getAlias().equals(fieldName)) {
-            field.setAlias(cr.getAlias());
+            alias = cr.getAlias();
          }
       }
       else {
-         field.setFieldName(base != null ? refName(base) : refName(agg));
+         fieldName = base != null ? refName(base) : refName(agg);
       }
 
       AggregateFormula formula = agg.getFormula();
-
-      if(formula != null) {
-         field.setFormula(formula.getName());
-      }
+      String formulaName = formula != null ? formula.getName() : null;
 
       DataRef secondary = agg.getSecondaryColumn();
+      String secondaryField = secondary != null ? refName(secondary) : null;
 
-      if(secondary != null) {
-         field.setSecondaryField(refName(secondary));
-      }
+      Integer n = formula != null && formula.hasN() && agg.getN() != 0 ? agg.getN() : null;
 
-      if(formula != null && formula.hasN() && agg.getN() != 0) {
-         field.setN(agg.getN());
-      }
-
-      return field;
+      return new AggregateField(fieldName, formulaName, alias, secondaryField, n);
    }
 
    /** Unwrap a {@link DateRangeRef} from a ref or its wrapping {@link ColumnRef}; null if none. */
@@ -1754,7 +1732,10 @@ public class WorksheetTableService {
          case XCondition.DATE_IN -> "DATE_IN";
          case XCondition.TOP_N -> "TOP_N";
          case XCondition.BOTTOM_N -> "BOTTOM_N";
-         default -> null;
+         default -> {
+            LOG.warn("Unrecognized XCondition operation code '{}', omitting from condition spec", op);
+            yield null;
+         }
       };
    }
 

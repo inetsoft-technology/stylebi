@@ -20,39 +20,11 @@ package inetsoft.web.wiz.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
-import java.io.Serializable;
-
 /**
  * One GROUP BY field of a worksheet table, mirroring the TypeScript {@code GroupByField} shape.
  * {@code dateGroupLevel} is the date grouping name (e.g. "year", "month") when the group is a
  * date-range grouping; null otherwise.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class GroupByField implements Serializable {
-   public GroupByField() {
-   }
-
-   public GroupByField(String fieldName, String dateGroupLevel) {
-      this.fieldName = fieldName;
-      this.dateGroupLevel = dateGroupLevel;
-   }
-
-   public String getFieldName() {
-      return fieldName;
-   }
-
-   public void setFieldName(String fieldName) {
-      this.fieldName = fieldName;
-   }
-
-   public String getDateGroupLevel() {
-      return dateGroupLevel;
-   }
-
-   public void setDateGroupLevel(String dateGroupLevel) {
-      this.dateGroupLevel = dateGroupLevel;
-   }
-
-   private String fieldName;
-   private String dateGroupLevel;
+public record GroupByField(String fieldName, String dateGroupLevel) {
 }

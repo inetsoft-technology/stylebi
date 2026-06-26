@@ -20,7 +20,6 @@ package inetsoft.web.wiz.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
-import java.io.Serializable;
 import java.util.List;
 
 /**
@@ -28,26 +27,5 @@ import java.util.List;
  * {@code aggregateInfo} object of the TypeScript {@code WorksheetTableModel}.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class WorksheetAggregateInfo implements Serializable {
-   public WorksheetAggregateInfo() {
-   }
-
-   public List<GroupByField> getGroups() {
-      return groups;
-   }
-
-   public void setGroups(List<GroupByField> groups) {
-      this.groups = groups;
-   }
-
-   public List<AggregateField> getAggregates() {
-      return aggregates;
-   }
-
-   public void setAggregates(List<AggregateField> aggregates) {
-      this.aggregates = aggregates;
-   }
-
-   private List<GroupByField> groups;
-   private List<AggregateField> aggregates;
+public record WorksheetAggregateInfo(List<GroupByField> groups, List<AggregateField> aggregates) {
 }

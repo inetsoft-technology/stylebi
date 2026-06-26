@@ -20,8 +20,6 @@ package inetsoft.web.wiz.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
-import java.io.Serializable;
-
 /**
  * One aggregate field of a worksheet table, mirroring the TypeScript {@code AggregateField} shape.
  * <ul>
@@ -32,53 +30,7 @@ import java.io.Serializable;
  * </ul>
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class AggregateField implements Serializable {
-   public AggregateField() {
-   }
-
-   public String getFieldName() {
-      return fieldName;
-   }
-
-   public void setFieldName(String fieldName) {
-      this.fieldName = fieldName;
-   }
-
-   public String getFormula() {
-      return formula;
-   }
-
-   public void setFormula(String formula) {
-      this.formula = formula;
-   }
-
-   public String getAlias() {
-      return alias;
-   }
-
-   public void setAlias(String alias) {
-      this.alias = alias;
-   }
-
-   public String getSecondaryField() {
-      return secondaryField;
-   }
-
-   public void setSecondaryField(String secondaryField) {
-      this.secondaryField = secondaryField;
-   }
-
-   public Integer getN() {
-      return n;
-   }
-
-   public void setN(Integer n) {
-      this.n = n;
-   }
-
-   private String fieldName;
-   private String formula;
-   private String alias;
-   private String secondaryField;
-   private Integer n;
+public record AggregateField(String fieldName, String formula, String alias,
+                             String secondaryField, Integer n)
+{
 }
