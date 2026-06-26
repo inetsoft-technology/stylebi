@@ -76,9 +76,9 @@ public class CalcTableVSAScriptableTest {
    void testAddProperties() {
       calcTableVSAScriptable.addProperties();
 
-      assert calcTableVSAScriptable.get("layoutInfo") instanceof VSTableLayoutInfo;
-      assert calcTableVSAScriptable.get("fillBlankWithZero") instanceof Boolean;
-      assert calcTableVSAScriptable.get("sortOthersLast") instanceof Boolean;
+      assert calcTableVSAScriptable.getMember("layoutInfo") instanceof VSTableLayoutInfo;
+      assert calcTableVSAScriptable.getMember("fillBlankWithZero") instanceof Boolean;
+      assert calcTableVSAScriptable.getMember("sortOthersLast") instanceof Boolean;
    }
 
    @Test

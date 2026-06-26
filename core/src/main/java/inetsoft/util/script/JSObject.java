@@ -22,7 +22,8 @@ import inetsoft.report.internal.table.TableFormat;
 import inetsoft.uql.VariableTable;
 import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptValueConverter;
+import org.graalvm.polyglot.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,89 +34,12 @@ import java.text.*;
 import java.util.*;
 
 /**
- * This is the wrapper for native java objects.
+ * Static helpers for converting script (GraalJS guest) values to host Java
+ * types. Previously this class also wrapped native Java objects for Rhino
+ * (extends NativeJavaObject); under GraalJS the HostAccess layer auto-wraps
+ * host objects, so only the conversion helpers remain.
  */
-public class JSObject extends NativeJavaObject {
-   public JSObject(Scriptable scope, Object javaObject, Class staticType) {
-      super(scope, javaObject, staticType);
-
-      if(javaObject instanceof java.lang.Runtime || java.lang.Runtime.class.equals(staticType)) {
-         throw new RuntimeException("Java Runtime is prohibited.");
-      }
-
-      if(javaObject != null) {
-         cls = javaObject.getClass();
-      }
-   }
-
-   /**
-    * Replace the java object in wrapper. This is used for optimization and should
-    * not be used unless from a cache.
-    */
-   void setJavaObject(Object javaObject) {
-      this.javaObject = javaObject;
-   }
-
-   /**
-    * Remember the properties and type.
-    */
-   private void initProperties() {
-      typemap = new HashMap<>();
-
-      try {
-         Method[] funcs = cls.getMethods();
-
-         for(int i = 0; i < funcs.length; i++) {
-            String name = funcs[i].getName();
-
-            if(name.startsWith("set")) {
-               Class[] args = funcs[i].getParameterTypes();
-               name = name.substring(3);
-
-               if(args.length == 1) {
-                  typemap.put(name.toLowerCase(), args[0]);
-               }
-            }
-         }
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to init properties: " + cls, ex);
-      }
-   }
-
-   @Override
-   public Object get(String name, Scriptable start) {
-      if(name.equals("getClass") || name.equals("getClassLoader") ||
-         name.equals("class") || name.equals("classLoader"))
-      {
-         throw new RuntimeException(name + " is prohibited");
-      }
-
-      Object value = super.get(name, start);
-
-      // fix for CategoricalShapeFrame.init() ambiguity
-      if(value instanceof NativeJavaMethod && "init".equals(name)) {
-         return new JSMethod((NativeJavaMethod) value);
-      }
-
-      return value;
-   }
-
-   @Override
-   public void put(String name, Scriptable start, Object value) {
-      if(typemap == null && cls != null) {
-         initProperties();
-      }
-
-      Class type = typemap.get(name.toLowerCase());
-
-      if(type != null) {
-         value = convert(value, type);
-      }
-
-      super.put(name, start, value);
-   }
-
+public class JSObject {
    /**
     * Convert a javascript object to the specified type.
     */
@@ -129,7 +53,7 @@ public class JSObject extends NativeJavaObject {
       Class vtype = val.getClass();
 
       if(type.isAssignableFrom(vtype)) {
-         if(val instanceof NativeArray) {
+         if(isArray(val)) {
             return split(val);
          }
 
@@ -145,9 +69,7 @@ public class JSObject extends NativeJavaObject {
             return val.toString();
          }
          else if(type == Color.class) {
-            if((val instanceof String) && "".equals(((String) val).trim()) ||
-               val instanceof UniqueTag)
-            {
+            if((val instanceof String) && "".equals(((String) val).trim())) {
                return null;
             }
 
@@ -174,12 +96,11 @@ public class JSObject extends NativeJavaObject {
             return StyleFont.decode(val.toString());
          }
          else if(type == Insets.class) {
-            if(val instanceof NativeObject) {
-               Scriptable obj = (Scriptable) val;
-               return new Insets(((Number) get(obj, "top")).intValue(),
-                                 ((Number) get(obj, "left")).intValue(),
-                                 ((Number) get(obj, "bottom")).intValue(),
-                                 ((Number) get(obj, "right")).intValue());
+            if(isObject(val)) {
+               return new Insets(((Number) get(val, "top")).intValue(),
+                                 ((Number) get(val, "left")).intValue(),
+                                 ((Number) get(val, "bottom")).intValue(),
+                                 ((Number) get(val, "right")).intValue());
             }
 
             double[] arr = splitN(val);
@@ -188,10 +109,9 @@ public class JSObject extends NativeJavaObject {
                (int) arr[3]);
          }
          else if(type == Dimension.class) {
-            if(val instanceof NativeObject) {
-               Scriptable obj = (Scriptable) val;
-               return new Dimension(((Number) get(obj, "width")).intValue(),
-                                    ((Number) get(obj, "height")).intValue());
+            if(isObject(val)) {
+               return new Dimension(((Number) get(val, "width")).intValue(),
+                                    ((Number) get(val, "height")).intValue());
             }
 
             double[] arr = splitN(val);
@@ -199,12 +119,11 @@ public class JSObject extends NativeJavaObject {
             return new Dimension((int) arr[0], (int) arr[1]);
          }
          else if(type == Point.class) {
-            if(val instanceof NativeObject) {
-               Scriptable obj = (Scriptable) val;
-               Number x = (Number) get(obj, "x");
-               Number y = (Number) get(obj, "y");
-               Number row = (Number) get(obj, "row");
-               Number column = (Number) get(obj, "column");
+            if(isObject(val)) {
+               Number x = (Number) get(val, "x");
+               Number y = (Number) get(val, "y");
+               Number row = (Number) get(val, "row");
+               Number column = (Number) get(val, "column");
 
                if(x != null && y != null) {
                   return new Point(x.intValue(), y.intValue());
@@ -249,13 +168,12 @@ public class JSObject extends NativeJavaObject {
             return Double.valueOf(val.toString());
          }
          else if(type == Shape.class) {
-            if(val instanceof NativeObject) {
-               Scriptable obj = (Scriptable) val;
-               String stype = (String) get(obj, "type");
-               Number x = (Number) get(obj, "x");
-               Number y = (Number) get(obj, "y");
-               Number width = (Number) get(obj, "width");
-               Number height = (Number) get(obj, "height");
+            if(isObject(val)) {
+               String stype = (String) get(val, "type");
+               Number x = (Number) get(val, "x");
+               Number y = (Number) get(val, "y");
+               Number width = (Number) get(val, "width");
+               Number height = (Number) get(val, "height");
 
                if(stype != null && stype.equals("ellipse")) {
                   return new Ellipse2D.Double(x.intValue(), y.intValue(),
@@ -363,21 +281,19 @@ public class JSObject extends NativeJavaObject {
       if(JavaScriptEngine.unwrap(val) instanceof VariableTable) {
          vars = (VariableTable) JavaScriptEngine.unwrap(val);
       }
-      else if(val instanceof Scriptable) {
+      else if(isArray(val)) {
          // @by larryl, we should create a new VariableTable here to be the
          // same as passing in the VariableTable directly. keep it this way
          // in 12.2 for backward compatibility. Consider changing in 12.3 or later.
-         Scriptable arr = (Scriptable) val;
+         Object[] arr = split(val);
 
-         for(int i = 0; arr.has(i, arr); i++) {
-            Object item = arr.get(i, arr);
+         for(Object item : arr) {
+            if(isArray(item)) {
+               Object[] pair = split(item);
 
-            if(item instanceof Scriptable) {
-               Scriptable pair = (Scriptable) item;
-
-               if(pair.has(1, pair)) {
-                  Object key = JavaScriptEngine.unwrap(pair.get(0, pair));
-                  Object value = JavaScriptEngine.unwrap(pair.get(1, pair));
+               if(pair.length >= 2) {
+                  Object key = JavaScriptEngine.unwrap(pair[0]);
+                  Object value = JavaScriptEngine.unwrap(pair[1]);
 
                   if(key != null && (keepNull || value != null)) {
                      vars.put(key.toString(), value);
@@ -413,11 +329,10 @@ public class JSObject extends NativeJavaObject {
       else if(val instanceof Number) {
          return new Color(((Number) val).intValue());
       }
-      else if(val instanceof NativeObject) {
-         Scriptable obj = (Scriptable) val;
-         return new Color(((Number) get(obj, "r")).intValue(),
-                          ((Number) get(obj, "g")).intValue(),
-                          ((Number) get(obj, "b")).intValue());
+      else if(isObject(val)) {
+         return new Color(((Number) get(val, "r")).intValue(),
+                          ((Number) get(val, "g")).intValue(),
+                          ((Number) get(val, "b")).intValue());
       }
 
       double[] arr = splitN(val);
@@ -433,39 +348,57 @@ public class JSObject extends NativeJavaObject {
     * Split an object into an array.
     */
    public static Object[] split(Object str) {
-      Object[] arr = null;
+      str = JavaScriptEngine.unwrap(str);
 
-      if(str instanceof NativeArray) {
-         NativeArray narr = (NativeArray) str;
-         Object[] arr2 = new Object[(int) narr.jsGet_length()];
+      if(str == null) {
+         return new Object[0];
+      }
 
-         for(int i = 0; i < arr2.length; i++) {
-            arr2[i] = JavaScriptEngine.unwrap(narr.get(i, narr));
-         }
-
-         arr = arr2;
+      if(str instanceof Object[]) {
+         return (Object[]) str;
       }
       else if(str.getClass().isArray()) {
-         arr = (Object[]) str;
+         int len = Array.getLength(str);
+         Object[] arr = new Object[len];
+
+         for(int i = 0; i < len; i++) {
+            arr[i] = Array.get(str, i);
+         }
+
+         return arr;
       }
-      else {
-         arr = Tool.split(str.toString(), ',');
+      else if(str instanceof java.util.List) {
+         return ((java.util.List<?>) str).toArray();
       }
 
-      return arr;
+      return Tool.split(str.toString(), ',');
    }
 
    /**
     * Get the value of a javascript object property.
     */
-   public static Object get(Scriptable jobj, String name) {
-      Object val = jobj.get(name, jobj);
+   public static Object get(Object jobj, String name) {
+      jobj = JavaScriptEngine.unwrap(jobj);
 
-      if(val == Undefined.instance || val == Scriptable.NOT_FOUND) {
+      if(jobj == null) {
          return null;
       }
 
-      return JavaScriptEngine.unwrap(val);
+      if(jobj instanceof Value) {
+         Value v = (Value) jobj;
+
+         if(v.hasMember(name)) {
+            return ScriptValueConverter.toHost(v.getMember(name));
+         }
+
+         return null;
+      }
+
+      if(jobj instanceof Map) {
+         return ((Map<?, ?>) jobj).get(name);
+      }
+
+      return null;
    }
 
    /**
@@ -486,29 +419,11 @@ public class JSObject extends NativeJavaObject {
     * Split string into number array.
     */
    public static double[] splitN(Object str) {
-      Object arr = null;
-
-      if(str instanceof NativeArray) {
-         NativeArray narr = (NativeArray) str;
-         Object[] arr2 = new Object[(int) narr.jsGet_length()];
-
-         for(int i = 0; i < arr2.length; i++) {
-            arr2[i] = narr.get(i, narr);
-         }
-
-         arr = arr2;
-      }
-      else if(str.getClass().isArray()) {
-         arr = str;
-      }
-      else {
-         arr = Tool.split(str.toString(), ',');
-      }
-
-      double[] ns = new double[Array.getLength(arr)];
+      Object[] arr = split(str);
+      double[] ns = new double[arr.length];
 
       for(int i = 0; i < ns.length; i++) {
-         Object item = Array.get(arr, i);
+         Object item = arr[i];
 
          try {
             ns[i] = (item instanceof Number) ?
@@ -526,11 +441,11 @@ public class JSObject extends NativeJavaObject {
     * Split string into string array.
     */
    public static String[] splitStr(Object str) {
-      Object arr = split(str);
-      String[] ns = new String[Array.getLength(arr)];
+      Object[] arr = split(str);
+      String[] ns = new String[arr.length];
 
       for(int i = 0; i < ns.length; i++) {
-         Object item = Array.get(arr, i);
+         Object item = arr[i];
 
          if(item != null) {
             try {
@@ -549,12 +464,57 @@ public class JSObject extends NativeJavaObject {
     * Check if a value is an array.
     */
    public static boolean isArray(Object val) {
-      return (val instanceof NativeArray) ||
+      val = unwrapValue(val);
+
+      if(val instanceof Value) {
+         return ((Value) val).hasArrayElements();
+      }
+
+      return (val instanceof java.util.List) ||
          val != null && val.getClass().isArray();
    }
 
-   private Map<String, Class> typemap = null;
-   private Class cls; // java object class
+   /**
+    * Check if a value is a script object with named members (a JS object
+    * literal), as opposed to an array or primitive.
+    */
+   public static boolean isObject(Object val) {
+      if(val instanceof Value) {
+         Value v = (Value) val;
+         return v.hasMembers() && !v.hasArrayElements();
+      }
+
+      return val instanceof Map;
+   }
+
+   /**
+    * Get the member names of a script object.
+    */
+   public static Object[] getIds(Object jobj) {
+      jobj = JavaScriptEngine.unwrap(jobj);
+
+      if(jobj instanceof Value) {
+         return ((Value) jobj).getMemberKeys().toArray();
+      }
+
+      if(jobj instanceof Map) {
+         return ((Map<?, ?>) jobj).keySet().toArray();
+      }
+
+      return new Object[0];
+   }
+
+   private static Object unwrapValue(Object val) {
+      if(val instanceof Value) {
+         Value v = (Value) val;
+
+         if(v.isHostObject()) {
+            return v.asHostObject();
+         }
+      }
+
+      return val;
+   }
 
    private static final Logger LOG = LoggerFactory.getLogger(JSObject.class);
 }

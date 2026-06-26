@@ -373,18 +373,18 @@ public class VirtualPrivateModel extends VpmObject {
 
       StringArray tarray = new StringArray("table", tables);
       StringArray carray = new StringArray("column", columns);
-      scope.put("tables", scope, tarray);
-      scope.put("columns", scope, carray);
+      scope.putMember("tables", tarray);
+      scope.putMember("columns", carray);
 
       if(WSExecution.getAssetQuerySandbox() != null) {
-         scope.put("creatingMV", scope, WSExecution.getAssetQuerySandbox().isCreatingMV());
+         scope.putMember("creatingMV", WSExecution.getAssetQuerySandbox().isCreatingMV());
       }
       else {
-         scope.put("creatingMV", scope, false);
+         scope.putMember("creatingMV", false);
       }
 
       if(partition != null) {
-         scope.put("partition", scope, partition);
+         scope.putMember("partition", partition);
       }
 
       Object result;

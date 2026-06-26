@@ -19,18 +19,16 @@ package inetsoft.uql.script;
 
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
+import inetsoft.util.script.graal.ScriptScope;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.Undefined;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -68,85 +66,62 @@ class XTableRowTest {
 
    @Test
    void testGetNamedProperty() {
-      assertEquals("value1", xTableRow.get("column1", xTableRow));
-      assertEquals("value2", xTableRow.get("column2", xTableRow));
-      assertEquals(Undefined.instance, xTableRow.get("nonexistent", xTableRow));
-      assertEquals(2, xTableRow.get("length", xTableRow));
+      assertEquals("value1", xTableRow.getMember("column1"));
+      assertEquals("value2", xTableRow.getMember("column2"));
+      assertNull(xTableRow.getMember("nonexistent"));
+      assertEquals(2, xTableRow.getMember("length"));
    }
 
    @Test
    void testGetIndexedProperty() {
-      assertEquals("value1", xTableRow.get(0, xTableRow));
-      assertEquals("value2", xTableRow.get(1, xTableRow));
-      assertEquals(Undefined.instance, xTableRow.get(2, xTableRow));
-      assertEquals(Undefined.instance, xTableRow.get(-1, xTableRow));
+      assertEquals("value1", xTableRow.getArrayElement(0));
+      assertEquals("value2", xTableRow.getArrayElement(1));
+      assertNull(xTableRow.getArrayElement(2));
+      assertNull(xTableRow.getArrayElement(-1));
+   }
+
+   @Test
+   void testGetArraySize() {
+      assertEquals(2, xTableRow.getArraySize());
    }
 
    @Test
    void testHasNamedProperty() {
-      assertTrue(xTableRow.has("column1", xTableRow));
-      assertTrue(xTableRow.has("column2", xTableRow));
-      assertTrue(xTableRow.has("length", xTableRow));
-      assertFalse(xTableRow.has("nonexistent", xTableRow));
-   }
-
-   @Test
-   void testHasIndexedProperty() {
-      assertTrue(xTableRow.has(0, xTableRow));
-      assertTrue(xTableRow.has(1, xTableRow));
-      assertFalse(xTableRow.has(2, xTableRow));
-      assertFalse(xTableRow.has(-1, xTableRow));
+      assertTrue(xTableRow.hasMember("column1"));
+      assertTrue(xTableRow.hasMember("column2"));
+      assertTrue(xTableRow.hasMember("length"));
+      assertFalse(xTableRow.hasMember("nonexistent"));
    }
 
    @Test
    void testPutNamedProperty() {
-      xTableRow.put("column1", xTableRow, "newValue");
-      assertEquals("value1", xTableRow.get("column1", xTableRow)); // No change expected
+      xTableRow.putMember("column1", "newValue");
+      assertEquals("value1", xTableRow.getMember("column1")); // No change expected
    }
 
    @Test
-   void testPutIndexedProperty() {
-      xTableRow.put(0, xTableRow, "newValue");
-      assertEquals("value1", xTableRow.get(0, xTableRow)); // No change expected
+   void testRemoveNamedProperty() {
+      assertFalse(xTableRow.removeMember("column1"));
+      assertTrue(xTableRow.hasMember("column1")); // No deletion expected
    }
 
    @Test
-   void testDeleteNamedProperty() {
-      xTableRow.delete("column1");
-      assertTrue(xTableRow.has("column1", xTableRow)); // No deletion expected
-   }
+   void testGetAndSetParentScope() {
+      ScriptScope parent = mock(ScriptScope.class);
 
-   @Test
-   void testDeleteIndexedProperty() {
-      xTableRow.delete(0);
-      assertTrue(xTableRow.has(0, xTableRow)); // No deletion expected
-   }
-
-   @Test
-   void testGetPrototypeAndParentScope() {
-      Scriptable prototype = mock(Scriptable.class);
-      Scriptable parent = mock(Scriptable.class);
-
-      xTableRow.setPrototype(prototype);
       xTableRow.setParentScope(parent);
-
-      assertEquals(prototype, xTableRow.getPrototype());
       assertEquals(parent, xTableRow.getParentScope());
    }
 
    @Test
-   void testGetIds() {
-      Object[] ids = xTableRow.getIds();
-      assertArrayEquals(new Object[]{ 0, 1, "column1", "column2", "length" }, ids);
-   }
-
-   @Test
-   void testGetDefaultValue() {
-      assertEquals(xTableRow, xTableRow.getDefaultValue(null));
-   }
-
-   @Test
-   void testHasInstance() {
-      assertFalse(xTableRow.hasInstance(mock(Scriptable.class)));
+   void testGetMemberKeys() {
+      Object[] ids = xTableRow.getMemberKeys();
+      // indices 0,1 first, then the map keys (HashMap iteration order), then "length"
+      assertEquals(5, ids.length);
+      assertEquals(0, ids[0]);
+      assertEquals(1, ids[1]);
+      assertEquals("length", ids[4]);
+      List<Object> middle = Arrays.asList(ids[2], ids[3]);
+      assertTrue(middle.containsAll(Arrays.asList("column1", "column2")));
    }
 }

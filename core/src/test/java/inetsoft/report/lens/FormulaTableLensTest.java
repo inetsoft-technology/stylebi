@@ -23,7 +23,7 @@ import inetsoft.report.internal.binding.FormulaHeaderInfo;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
-import inetsoft.util.script.JavaScriptEnv;
+import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -78,7 +78,7 @@ class FormulaTableLensTest {
                                                                   null);
       formulaHeaderInfoList.add(formulaHeaderInfo);
       FormulaTableLens originalTable = new FormulaTableLens(XTableUtil.getDefaultTableLens(),
-                                                            headers, formulas, new JavaScriptEnv(),
+                                                            headers, formulas, new GraalJavaScriptEnv(),
                                                             null);
       originalTable.setFormulaHeaderInfo(formulaHeaderInfoList);
       XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);

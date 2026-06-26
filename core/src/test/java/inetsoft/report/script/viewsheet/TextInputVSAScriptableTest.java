@@ -79,6 +79,6 @@ public class TextInputVSAScriptableTest {
    void testAddProperties() {
       textInputVSAScriptable.addProperties();
 
-      assertNull(textInputVSAScriptable.get("value", textInputVSAScriptable));
+      assertNull(textInputVSAScriptable.getMember("value"));
    }
 }

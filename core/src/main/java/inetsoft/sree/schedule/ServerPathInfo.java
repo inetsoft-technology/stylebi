@@ -77,6 +77,7 @@ public class ServerPathInfo implements Cloneable, Serializable, HttpXMLSerializa
 
    public void setUseCredential(boolean useCredential) {
       this.useCredential = useCredential;
+      checkFTP();
    }
 
    public String getSecretId() {
@@ -85,6 +86,7 @@ public class ServerPathInfo implements Cloneable, Serializable, HttpXMLSerializa
 
    public void setSecretId(String secretId) {
       this.secretId = secretId;
+      checkFTP();
    }
 
    public String getUsername() {

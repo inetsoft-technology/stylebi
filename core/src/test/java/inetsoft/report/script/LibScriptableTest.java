@@ -21,16 +21,15 @@ package inetsoft.report.script;
 import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
 import inetsoft.test.*;
+import inetsoft.util.script.graal.ScriptScope;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
-import org.mozilla.javascript.Scriptable;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 
 @ExtendWith(SpringExtension.class)
@@ -40,17 +39,24 @@ import static org.mockito.Mockito.mock;
 @Tag("core")
 public class LibScriptableTest {
    private LibScriptable libScriptable;
-   private Scriptable mockScriptable;
+   private ScriptScope mockScope;
 
+   /**
+    * Verify that a registered library function is exposed as a member.
+    * {@code LibScriptable} retains the function source string for member
+    * enumeration (autocomplete); callability from formulas is covered
+    * separately by {@code LibFunctionCallableTest}, which exercises the
+    * engine-global function installed at engine init.
+    */
    @Test
-   void testGetFun() {
-      mockScriptable = mock(Scriptable.class);
+   void testGetFunSource() {
+      mockScope = mock(ScriptScope.class);
       LibManager manager = LibManagerProvider.getInstance().getManager();
       manager.setScript("script1", "function testFunc() { return 'Hello, World!'; }");
-      libScriptable = new LibScriptable(mockScriptable);
+      libScriptable = new LibScriptable(mockScope);
 
-      assertArrayEquals(new Object[]{}, libScriptable.getIds());
-      Scriptable myscript = (Scriptable) libScriptable.get("script1", null);
-      assertEquals("testFunc",  myscript.get("name", null));
+      assertTrue(libScriptable.hasMember("script1"));
+      Object member = libScriptable.getMember("script1");
+      assertEquals("function testFunc() { return 'Hello, World!'; }", member);
    }
- }
+}

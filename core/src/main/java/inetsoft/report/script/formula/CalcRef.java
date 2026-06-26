@@ -19,7 +19,7 @@ package inetsoft.report.script.formula;
 
 import inetsoft.report.internal.table.*;
 import inetsoft.util.script.FormulaContext;
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptArrayScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,7 +30,7 @@ import java.util.*;
 /**
  * This class provides the named cell reference support for calc table.
  */
-public class CalcRef extends ScriptableObject implements Wrapper {
+public class CalcRef implements ScriptArrayScope {
    /**
     * Create a calc name reference.
     */
@@ -39,24 +39,24 @@ public class CalcRef extends ScriptableObject implements Wrapper {
       this.cellname = name;
    }
 
-   @Override
    public String getClassName() {
       return "CalcRef";
    }
 
    /**
-    * No numeric indexing.
+    * The reference resolves named cell specifications dynamically, so any
+    * member name is considered present.
     */
    @Override
-   public boolean has(int index, Scriptable start) {
-      return false;
+   public boolean hasMember(String id) {
+      return true;
    }
 
    /**
     * Get cells according to the CellRange specification.
     */
    @Override
-   public Object get(String id, Scriptable start) {
+   public Object getMember(String id) {
       try {
          // returns the sequence number in the group
          if("#".equals(id)) {
@@ -67,7 +67,7 @@ public class CalcRef extends ScriptableObject implements Wrapper {
                CalcCellContext.Group group = context.getGroup(cellname);
 
                if(group != null) {
-                  // position is 0 based to sync with get(int, Scriptable)
+                  // position is 0 based to sync with getArrayElement(long)
                   return group.getPosition();
                }
             }
@@ -117,7 +117,7 @@ public class CalcRef extends ScriptableObject implements Wrapper {
          LOG.warn("Failed to get reference property: " + id, ex);
       }
 
-      return super.get(id, start);
+      return null;
    }
 
    /**
@@ -203,16 +203,18 @@ public class CalcRef extends ScriptableObject implements Wrapper {
    }
 
    /**
-    * No numeric indexing.
+    * Indexed access into the reference (e.g. $name[0], $name[-1]).
     */
    @Override
-   public Object get(int index, Scriptable start) {
+   public Object getArrayElement(long index) {
       try {
-         if(index < 0) {
-            return getByPosition(index, true);
+         int idx = (int) index;
+
+         if(idx < 0) {
+            return getByPosition(idx, true);
          }
 
-         return getByPosition(index, false);
+         return getByPosition(idx, false);
       }
       catch(Exception ex) {
          LOG.warn("Failed to get indexed property: " + index, ex);
@@ -221,30 +223,29 @@ public class CalcRef extends ScriptableObject implements Wrapper {
       return null;
    }
 
+   @Override
+   public long getArraySize() {
+      Object val = unwrap();
+
+      if(val instanceof Object[]) {
+         return ((Object[]) val).length;
+      }
+
+      return val == null ? 0 : 1;
+   }
+
    /**
     * The named references are readonly.
     */
    @Override
-   public void put(String id, Scriptable start, Object value) {
+   public void putMember(String id, Object value) {
       // values can't be set in a crosstab cell formula scope
       LOG.error("Property can not be modified: {}", id);
    }
 
-   /**
-    * The named references are readonly.
-    */
    @Override
-   public void put(int index, Scriptable start, Object value) {
-      LOG.error("Property can not be modified: {}", index);
-   }
-
-   /**
-    * This function is called if the referenced is used without any indexing,
-    * e.g. $name + 2
-    */
-   @Override
-   public Object getDefaultValue(Class hint) {
-      return unwrap();
+   public Object[] getMemberKeys() {
+      return new Object[0];
    }
 
    /**
@@ -286,7 +287,6 @@ public class CalcRef extends ScriptableObject implements Wrapper {
     * Use the wrapper to allow $name to be used both as a scalar value, and
     * supports the $name[reference] syntax.
     */
-   @Override
    public Object unwrap() {
       // if $name is referenced from a cell, it's most likely a parent cell
       // or a cell in the same group, we check the cell context here without
@@ -322,17 +322,7 @@ public class CalcRef extends ScriptableObject implements Wrapper {
          }
       }
 
-      return get("", this);
-   }
-
-   @Override
-   public Object[] getIds() {
-      return new Object[0];
-   }
-
-   @Override
-   public boolean hasInstance(Scriptable value) {
-      return false;
+      return getMember("");
    }
 
    private RuntimeCalcTableLens table;

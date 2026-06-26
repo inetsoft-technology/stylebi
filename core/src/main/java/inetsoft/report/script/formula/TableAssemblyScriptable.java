@@ -26,7 +26,6 @@ import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.script.ScriptUtil;
-import org.mozilla.javascript.Scriptable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,7 +44,7 @@ public class TableAssemblyScriptable extends TableArray {
    }
 
    @Override
-   public void put(String id, Scriptable start, Object value) {
+   public void putMember(String id, Object value) {
       if("table".equals(id)) {
          Worksheet worksheet = box.getWorksheet();
          Assembly assembly = worksheet.getAssembly(tname);
@@ -110,7 +109,7 @@ public class TableAssemblyScriptable extends TableArray {
          tableAssembly.setEmbeddedData(data);
       }
       else {
-         super.put(id, start, value);
+         super.putMember(id, value);
       }
    }
 

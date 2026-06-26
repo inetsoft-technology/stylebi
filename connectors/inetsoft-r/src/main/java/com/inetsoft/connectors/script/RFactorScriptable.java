@@ -17,33 +17,26 @@
  */
 package com.inetsoft.connectors.script;
 
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.ScriptableObject;
+import inetsoft.util.script.graal.ScriptArrayScope;
 import org.rosuda.REngine.RFactor;
 
-public class RFactorScriptable extends ScriptableObject {
+public class RFactorScriptable implements ScriptArrayScope {
    public RFactorScriptable(RFactor factor) {
       this.levels = factor.levels();
       this.values = factor.asStrings();
    }
 
-   @Override
    public String getClassName() {
       return "RFactor";
    }
 
    @Override
-   public boolean has(String name, Scriptable start) {
-      return "levels".equals(name) || "length".equals(name) || super.has(name, start);
+   public boolean hasMember(String name) {
+      return "levels".equals(name) || "length".equals(name);
    }
 
    @Override
-   public boolean has(int index, Scriptable start) {
-      return index < values.length;
-   }
-
-   @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       if("levels".equals(name)) {
          return levels;
       }
@@ -51,12 +44,27 @@ public class RFactorScriptable extends ScriptableObject {
          return values.length;
       }
 
-      return super.get(name, start);
+      return null;
    }
 
    @Override
-   public Object get(int index, Scriptable start) {
-      return index < values.length ? values[index] : Scriptable.NOT_FOUND;
+   public void putMember(String name, Object value) {
+      // factor members are read-only
+   }
+
+   @Override
+   public Object[] getMemberKeys() {
+      return new Object[] { "levels", "length" };
+   }
+
+   @Override
+   public long getArraySize() {
+      return values.length;
+   }
+
+   @Override
+   public Object getArrayElement(long index) {
+      return index >= 0 && index < values.length ? values[(int) index] : null;
    }
 
    private final String[] values;

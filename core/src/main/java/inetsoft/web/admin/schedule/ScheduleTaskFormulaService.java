@@ -67,7 +67,7 @@ public class ScheduleTaskFormulaService {
 
    private void createTaskScopeScriptDefinition(ObjectMapper mapper, ObjectNode root) {
       ScheduleParameterScope scheduleParameterScope = new ScheduleParameterScope();
-      Object[] ids = scheduleParameterScope.getIds();
+      Object[] ids = scheduleParameterScope.getMemberKeys();
 
       if(ids != null) {
          for(Object id : ids) {

@@ -80,7 +80,7 @@ public class CalendarVSAScriptableTest {
                        "yearView", "dropdown", "doubleCalendar"};
 
       for (String key : keys) {
-         assert calendarVSAScriptable.get(key, null) instanceof Boolean;
+         assert calendarVSAScriptable.getMember(key) instanceof Boolean;
       }
    }
 

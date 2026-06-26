@@ -19,7 +19,6 @@ package inetsoft.report.script;
 
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.util.Tool;
-import org.mozilla.javascript.ScriptRuntime;
 
 /**
  * This represents an array of chart styles, axises, or aesthetic frames in
@@ -89,21 +88,6 @@ public abstract class ChartArray extends AbstractChartArray {
    @Override
    public String getClassName() {
       return "ChartArray";
-   }
-
-   /**
-    * Get the default value of the object with a given hint.
-    */
-   @Override
-   public Object getDefaultValue(Class hint) {
-      if(hint == ScriptRuntime.BooleanClass) {
-         return Boolean.TRUE;
-      }
-      else if(hint == ScriptRuntime.NumberClass) {
-         return ScriptRuntime.NaNobj;
-      }
-
-      return this;
    }
 
    /**

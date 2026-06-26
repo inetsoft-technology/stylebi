@@ -18,8 +18,6 @@
 package inetsoft.report.internal;
 
 import inetsoft.report.ReportSheet;
-import inetsoft.sree.SreeEnv;
-import inetsoft.util.script.TimeoutContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,19 +34,7 @@ public class ReportScriptEnvRepository {
    
    static {
       try {
-         try {
-            int timeout = Integer.parseInt(
-               SreeEnv.getProperty("script.execution.timeout"));
-            TimeoutContext.setTimeout(timeout);
-            int maxiStackDepth = Integer.parseInt(
-               SreeEnv.getProperty("script.execution.stackdepth"));
-            TimeoutContext.setStackDepth(maxiStackDepth);
-         }
-         catch(NumberFormatException ex) {
-            // ign
-         }
-
-         Class.forName("inetsoft.report.script.ReportJavaScriptEngine");
+         Class.forName("inetsoft.report.script.graal.ReportGraalJavaScriptEngine");
          found = true;
       }
       catch(Throwable e) {

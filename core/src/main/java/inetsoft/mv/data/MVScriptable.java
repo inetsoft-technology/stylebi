@@ -21,8 +21,7 @@ import inetsoft.mv.MVColumn;
 import inetsoft.mv.MVDef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.Tool;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.ScriptableObject;
+import inetsoft.util.script.graal.ScriptScope;
 
 import java.sql.*;
 
@@ -32,7 +31,7 @@ import java.sql.*;
  * @version 11.2
  * @author InetSoft Technology Corp
  */
-public class MVScriptable extends ScriptableObject {
+public class MVScriptable implements ScriptScope {
    public MVScriptable(MVDef mvdef, MVColumn mvcol) {
       this.mvdef = mvdef;
       this.mvcol = mvcol;
@@ -55,7 +54,6 @@ public class MVScriptable extends ScriptableObject {
    /**
     * Get the name of the set of objects implemented by this Java class.
     */
-   @Override
    public String getClassName() {
       return "MVScriptable";
    }
@@ -64,7 +62,7 @@ public class MVScriptable extends ScriptableObject {
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       if("LastUpdateTime".equals(name)) {
          return new Timestamp(mvdef.getLastUpdateTime());
       }
@@ -75,14 +73,25 @@ public class MVScriptable extends ScriptableObject {
          return min();
       }
 
-      return super.get(name, start);
+      return null;
+   }
+
+   @Override
+   public boolean hasMember(String name) {
+      return "LastUpdateTime".equals(name) || "MaxValue".equals(name) ||
+         "MinValue".equals(name);
+   }
+
+   @Override
+   public void putMember(String name, Object value) {
+      // read-only
    }
 
    /**
     * Get an array of property ids.
     */
    @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       return props;
    }
 

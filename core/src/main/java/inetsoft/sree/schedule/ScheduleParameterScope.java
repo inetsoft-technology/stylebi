@@ -19,12 +19,11 @@ package inetsoft.sree.schedule;
 
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.script.*;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.ScriptableObject;
+import inetsoft.util.script.graal.ScriptScope;
 
 import java.util.*;
 
-public class ScheduleParameterScope extends ScriptableObject implements Cloneable, DynamicScope {
+public class ScheduleParameterScope implements Cloneable, DynamicScope {
    public ScheduleParameterScope() {
       addDynamicDates();
       senv = ScriptEnvRepository.getScriptEnv();
@@ -67,7 +66,7 @@ public class ScheduleParameterScope extends ScriptableObject implements Cloneabl
    }
 
    @Override
-   public Object get(String id, Scriptable start) {
+   public Object getMember(String id) {
       if(DynamicDate.BEGINNING_OF_THIS_YEAR.equals(id)) {
          return getBeginningOfThisYear();
       }
@@ -144,17 +143,37 @@ public class ScheduleParameterScope extends ScriptableObject implements Cloneabl
          return getNextMinute();
       }
 
-      return super.get(id, start);
+      return members.get(id);
+   }
+
+   @Override
+   public boolean hasMember(String id) {
+      synchronized(propmap) {
+         if(propmap.containsKey(id)) {
+            return true;
+         }
+      }
+
+      return members.containsKey(id);
+   }
+
+   @Override
+   public void putMember(String id, Object value) {
+      members.put(id, value);
+   }
+
+   @Override
+   public boolean removeMember(String id) {
+      return members.remove(id) != null;
    }
 
    /**
     * Get an array of property ids.
     */
    @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       Set<Object> ids = new HashSet<>();
-      Object[] sids = super.getIds();
-      ids.addAll(Arrays.asList(sids));
+      ids.addAll(members.keySet());
 
       synchronized(propmap) {
          for(Object id : propmap.keySet()) {
@@ -436,11 +455,11 @@ public class ScheduleParameterScope extends ScriptableObject implements Cloneabl
       }
    }
 
-   @Override
    public String getClassName() {
       return "ScheduleParameterScope";
    }
 
    private ScriptEnv senv;
    private Map<String, Object> propmap = Collections.synchronizedMap(new HashMap<>());
+   private final Map<String, Object> members = new LinkedHashMap<>();
 }

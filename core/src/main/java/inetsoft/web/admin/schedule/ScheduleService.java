@@ -1286,7 +1286,12 @@ public class ScheduleService {
                   }
 
                   if(pModel.ftp()) {
-                     info = new ServerPathInfo(pModel.path(), pModel.username(), password);
+                     if(pModel.useCredential()) {
+                        info = new ServerPathInfo(pModel);
+                     }
+                     else {
+                        info = new ServerPathInfo(pModel.path(), pModel.username(), password);
+                     }
                   }
                   else {
                      info = new ServerPathInfo(pModel.path(), null, null);

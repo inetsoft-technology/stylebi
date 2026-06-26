@@ -19,8 +19,9 @@ package inetsoft.web.binding;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.report.script.viewsheet.SelectionVSAScriptable;
+import inetsoft.report.script.viewsheet.VSAScriptable;
 import inetsoft.util.Tool;
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,7 +30,7 @@ import java.io.InputStream;
 import java.util.*;
 
 public class ScriptPropertyTool {
-   public static void fixPropertyLink(Scriptable scriptable, String prefix, String name,
+   public static void fixPropertyLink(ScriptScope scriptable, String prefix, String name,
                                       ObjectNode node)
    {
       if(getPropertyLink(scriptable, prefix, name) != null) {
@@ -41,7 +42,7 @@ public class ScriptPropertyTool {
       }
    }
 
-   public static String getPropertyLink(Scriptable scriptable, String prefix, String property) {
+   public static String getPropertyLink(ScriptScope scriptable, String prefix, String property) {
       init();
       String cshid = null;
 
@@ -79,7 +80,7 @@ public class ScriptPropertyTool {
       return startUrl + cshid;
    }
 
-   public static String getPropertyType(Scriptable scriptable, String prefix, String property) {
+   public static String getPropertyType(ScriptScope scriptable, String prefix, String property) {
       init();
 
       if(property.endsWith("()")) {
@@ -194,14 +195,15 @@ public class ScriptPropertyTool {
       return COMMON_PROPERTIES.contains(property);
    }
 
-   public static String getPropertyPrefix(Scriptable scriptable) {
+   public static String getPropertyPrefix(ScriptScope scriptable) {
       if(scriptable == null) {
          return null;
       }
 
-      String cls = scriptable.getClassName();
+      String cls = scriptable instanceof VSAScriptable ?
+         ((VSAScriptable) scriptable).getClassName() : null;
 
-      if(ASSEMBLY_NAMES.get(cls) != null) {
+      if(cls != null && ASSEMBLY_NAMES.get(cls) != null) {
          return ASSEMBLY_NAMES.get(cls);
       }
 

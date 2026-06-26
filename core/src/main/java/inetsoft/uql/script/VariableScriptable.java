@@ -19,8 +19,7 @@ package inetsoft.uql.script;
 
 import inetsoft.uql.VariableTable;
 import inetsoft.util.script.JavaScriptEngine;
-import inetsoft.util.script.ScriptUtil;
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,7 +31,7 @@ import java.util.*;
  * @version 8.0
  * @author InetSoft Technology Corp
  */
-public class VariableScriptable implements Scriptable, Wrapper {
+public class VariableScriptable implements ScriptScope {
    /**
     * Constructor.
     */
@@ -43,7 +42,6 @@ public class VariableScriptable implements Scriptable, Wrapper {
    /**
     * Get the name of the set of objects implemented by this Java class.
     */
-   @Override
    public String getClassName() {
       return "Variable";
    }
@@ -52,33 +50,13 @@ public class VariableScriptable implements Scriptable, Wrapper {
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       try {
          Object val = vars.get(name);
 
          if(val != null) {
-            // @by stephenwebster, For bug1431461209990
-            // Prevent Rhino warnings.
-            // RHINO USAGE WARNING: Missed Context.javaToJS() conversion:
-            // I reviewed the Rhino source and this will basically wrap any
-            // non String, Number, Boolean into a Scriptable (NativeJavaObject).
-            // From what I can see all the methods and properties of the java
-            // objects will be available in script, so it should be safe to do.
-            // @by stephenwebster, For bug1434039282803
-            // safe guard against null parent scope since Context.javaToJS will
-            // throw a NullPointer
-            try {
-               // NativeJavaArray's concat() doesn't work in 1.7.10.
-               // this can be removed if it's fixed in later versions.
-               if(val instanceof Object[]) {
-                  return ScriptUtil.getNativeArray((Object[]) val, getParentScope());
-               }
-
-               return Context.javaToJS(val, getParentScope());
-            }
-            catch(Throwable ex) {
-               return val;
-            }
+            // the ScopeProxy/HostAccess layer now handles wrapping
+            return val;
          }
 
          if(name.equals("length")) {
@@ -97,7 +75,7 @@ public class VariableScriptable implements Scriptable, Wrapper {
          }
       }
       catch(Exception e) {
-         LOG.error("Failed to get property " + name + " from " + start, e);
+         LOG.error("Failed to get property " + name, e);
       }
 
       // do not return undefined for undefined is an object. In java script,
@@ -107,18 +85,10 @@ public class VariableScriptable implements Scriptable, Wrapper {
    }
 
    /**
-    * Get a property from the object selected by an integral index.
-    */
-   @Override
-   public Object get(int index, Scriptable start) {
-      return Undefined.instance;
-   }
-
-   /**
     * Indicate whether or not a named property is defined in an object.
     */
    @Override
-   public boolean has(String name, Scriptable start) {
+   public boolean hasMember(String name) {
       try {
          return vars.get(name) != null ||
             name.equals("length") || name.equals("parameterNames");
@@ -130,75 +100,43 @@ public class VariableScriptable implements Scriptable, Wrapper {
    }
 
    /**
-    * Indicate whether or not an indexed  property is defined in an object.
-    */
-   @Override
-   public boolean has(int index, Scriptable start) {
-      return false;
-   }
-
-   /**
     * Set a named property in this object.
     */
    @Override
-   public void put(String name, Scriptable start, Object value) {
+   public void putMember(String name, Object value) {
       vars.put(name, JavaScriptEngine.unwrap(value));
       vars.setAsIs(name, true);
    }
 
    /**
-    * Set an indexed property in this object.
-    */
-   @Override
-   public void put(int index, Scriptable start, Object value) {
-      // do nothing
-   }
-
-   /**
     * Remove a property from this object.
     */
    @Override
-   public void delete(String name) {
+   public boolean removeMember(String name) {
+      boolean had = false;
+
+      try {
+         had = vars.get(name) != null;
+      }
+      catch(Exception ignore) {
+      }
+
       vars.remove(name);
-   }
-
-   /**
-    * Remove a property from this object.
-    */
-   @Override
-   public void delete(int index) {
-      // do nothing
-   }
-
-   /**
-    * Get the prototype of the object.
-    */
-   @Override
-   public Scriptable getPrototype() {
-      return prototype;
-   }
-
-   /**
-    * Set the prototype of the object.
-    */
-   @Override
-   public void setPrototype(Scriptable prototype) {
-      this.prototype = prototype;
+      return had;
    }
 
    /**
     * Get the parent scope of the object.
     */
    @Override
-   public Scriptable getParentScope() {
+   public ScriptScope getParentScope() {
       return parent;
    }
 
    /**
     * Set the parent scope of the object.
     */
-   @Override
-   public void setParentScope(Scriptable parent) {
+   public void setParentScope(ScriptScope parent) {
       this.parent = parent;
    }
 
@@ -206,7 +144,7 @@ public class VariableScriptable implements Scriptable, Wrapper {
     * Get an array of property ids.
     */
    @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       Set<Object> vec = new LinkedHashSet<>();
       Enumeration keys = vars.keys();
 
@@ -239,25 +177,8 @@ public class VariableScriptable implements Scriptable, Wrapper {
    }
 
    /**
-    * Get the default value of the object with a given hint.
-    */
-   @Override
-   public Object getDefaultValue(Class hint) {
-      return vars.toString();
-   }
-
-   /**
-    * Implement the instanceof operator.
-    */
-   @Override
-   public boolean hasInstance(Scriptable instance) {
-      return false;
-   }
-
-   /**
     * Expose wrapped variable table.
     */
-   @Override
    public Object unwrap() {
       return vars;
    }
@@ -269,8 +190,7 @@ public class VariableScriptable implements Scriptable, Wrapper {
       return vars.toString();
    }
 
-   private Scriptable parent;
-   private Scriptable prototype;
+   private ScriptScope parent;
    private VariableTable vars;
 
    private static final Logger LOG = LoggerFactory.getLogger(VariableScriptable.class);

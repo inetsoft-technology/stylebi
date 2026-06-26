@@ -86,17 +86,17 @@ public class RangeSliderVSAScriptableTest {
                        "tickVisible", "logScale", "upperInclusive", "composite"};
 
       for (String key : keys) {
-         assert rangeSliderVSAScriptable.get(key, rangeSliderVSAScriptable) instanceof Boolean;
+         assert rangeSliderVSAScriptable.getMember(key) instanceof Boolean;
       }
    }
 
    @Test
    void testPut() {
       assertEquals(true,
-                   rangeSliderVSAScriptable.get("minVisible", rangeSliderVSAScriptable));
-      rangeSliderVSAScriptable.put("minVisible", rangeSliderVSAScriptable, false);
+                   rangeSliderVSAScriptable.getMember("minVisible"));
+      rangeSliderVSAScriptable.putMember("minVisible", false);
       assertEquals(false,
-                   rangeSliderVSAScriptable.get("minVisible", rangeSliderVSAScriptable));
+                   rangeSliderVSAScriptable.getMember("minVisible"));
    }
 
    @Test

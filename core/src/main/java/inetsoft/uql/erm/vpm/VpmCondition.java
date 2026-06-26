@@ -274,17 +274,17 @@ public class VpmCondition extends VpmObject {
       StringArray tarray = new StringArray("table", tables);
       StringArray tsarray = new StringArray("talias", taliases);
       StringArray carray = new StringArray("column", columns);
-      scope.put("tables", scope, tarray);
-      scope.put("taliases", scope, tsarray);
-      scope.put("columns", scope, carray);
-      scope.put("condition", scope, condition);
-      scope.put("partition", scope, partition);
+      scope.putMember("tables", tarray);
+      scope.putMember("taliases", tsarray);
+      scope.putMember("columns", carray);
+      scope.putMember("condition", condition);
+      scope.putMember("partition", partition);
 
       if(WSExecution.getAssetQuerySandbox() != null) {
-         scope.put("creatingMV", scope, WSExecution.getAssetQuerySandbox().isCreatingMV());
+         scope.putMember("creatingMV", WSExecution.getAssetQuerySandbox().isCreatingMV());
       }
       else {
-         scope.put("creatingMV", scope, false);
+         scope.putMember("creatingMV", false);
       }
 
       Object result;

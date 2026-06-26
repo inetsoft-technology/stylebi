@@ -22,8 +22,7 @@ import inetsoft.uql.XConstants;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.script.*;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.ScriptableObject;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,7 +44,7 @@ public class CalcFieldFormula implements PercentageFormula, Formula2 {
     */
    public CalcFieldFormula(String expression, String[] aggs,
                            Formula[] sub, int[] secondColumns,
-                           ScriptEnv senv, Scriptable scope)
+                           ScriptEnv senv, ScriptScope scope)
    {
       this.expression = expression;
       this.used = aggs;
@@ -269,7 +268,7 @@ public class CalcFieldFormula implements PercentageFormula, Formula2 {
 
    private Object getResult0() {
       Object result;
-      Scriptable scope = null;
+      ScriptScope scope = null;
 
       // execute the script object
       try {
@@ -424,7 +423,7 @@ public class CalcFieldFormula implements PercentageFormula, Formula2 {
    /**
     * Update the children formula value to parameter.
     */
-   private Scriptable updateParameter() {
+   private ScriptScope updateParameter() {
       if(values == null) {
          values = new ConcurrentHashMap<>();
       }
@@ -546,9 +545,9 @@ public class CalcFieldFormula implements PercentageFormula, Formula2 {
       out.defaultWriteObject();
    }
 
-   private class ValuesScriptable extends ScriptableObject implements DynamicScope {
+   private class ValuesScriptable implements DynamicScope {
       @Override
-      public Object get(String name, Scriptable scope) {
+      public Object getMember(String name) {
          String key = name == null ? NULL_VALUE_KEY : name;
 
          if(values != null && values.containsKey(key)) {
@@ -556,13 +555,35 @@ public class CalcFieldFormula implements PercentageFormula, Formula2 {
             return value == NULL_VALUE_VAL ? null : value;
          }
 
-         return super.get(name, scope);
+         return null;
       }
 
       @Override
-      public String getClassName() {
-         return "fieldValues";
+      public boolean hasMember(String name) {
+         String key = name == null ? NULL_VALUE_KEY : name;
+         return values != null && values.containsKey(key);
       }
+
+      @Override
+      public void putMember(String name, Object value) {
+         // values are populated by updateParameter(); no-op for script writes
+      }
+
+      @Override
+      public Object[] getMemberKeys() {
+         return values == null ? new Object[0] : values.keySet().toArray();
+      }
+
+      @Override
+      public ScriptScope getParentScope() {
+         return parent;
+      }
+
+      public void setParentScope(ScriptScope parent) {
+         this.parent = parent;
+      }
+
+      private ScriptScope parent;
    }
 
    private String expression;
@@ -585,8 +606,8 @@ public class CalcFieldFormula implements PercentageFormula, Formula2 {
 
    // script runtime
    private Object[] result; // result holder
-   private transient Scriptable scope;
-   private transient Scriptable valuesScriptable;
+   private transient ScriptScope scope;
+   private transient ValuesScriptable valuesScriptable;
    private transient ScriptEnv senv;
    private transient Object script;
    private transient String runtimeFormula;

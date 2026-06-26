@@ -19,12 +19,11 @@ package inetsoft.uql.script;
 
 import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
+import inetsoft.util.script.graal.ScriptScope;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
-import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.Undefined;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -58,21 +57,21 @@ class VariableScriptableTest {
    @Test
    void testGetNamedPropertyExists() throws Exception {
       when(mockVariableTable.get("testKey")).thenReturn("testValue");
-      Object result = variableScriptable.get("testKey", variableScriptable);
+      Object result = variableScriptable.getMember("testKey");
       assertEquals("testValue", result);
    }
 
    @Test
    void testGetNamedPropertyDoesNotExist() throws Exception {
       when(mockVariableTable.get("nonExistentKey")).thenReturn(null);
-      Object result = variableScriptable.get("nonExistentKey", variableScriptable);
+      Object result = variableScriptable.getMember("nonExistentKey");
       assertNull(result);
    }
 
    @Test
    void testGetNamedPropertySpecialKeys() {
       when(mockVariableTable.size()).thenReturn(5);
-      Object lengthResult = variableScriptable.get("length", variableScriptable);
+      Object lengthResult = variableScriptable.getMember("length");
       assertEquals(5, lengthResult);
 
       Enumeration<String> mockKeys = mock(Enumeration.class);
@@ -80,82 +79,57 @@ class VariableScriptableTest {
       when(mockKeys.nextElement()).thenReturn("param1");
       when(mockVariableTable.keys()).thenReturn(mockKeys);
 
-      Object parameterNamesResult = variableScriptable.get("parameterNames", variableScriptable);
+      Object parameterNamesResult = variableScriptable.getMember("parameterNames");
       assertArrayEquals(new String[]{ "param1" }, (String[]) parameterNamesResult);
-   }
-
-   @Test
-   void testGetIndexedProperty() {
-      Object result = variableScriptable.get(0, variableScriptable);
-      assertEquals(Undefined.instance, result);
    }
 
    @Test
    void testHasNamedPropertyExists() throws Exception {
       when(mockVariableTable.get("testKey")).thenReturn("testValue");
-      assertTrue(variableScriptable.has("testKey", variableScriptable));
+      assertTrue(variableScriptable.hasMember("testKey"));
    }
 
    @Test
    void testHasNamedPropertyNotExists() throws Exception {
       when(mockVariableTable.get("invalidKey")).thenReturn(null);
-      assertFalse(variableScriptable.has("invalidKey", variableScriptable));
+      assertFalse(variableScriptable.hasMember("invalidKey"));
    }
 
    @Test
    void testHasNamedPropertySpecialKeys() {
-      assertTrue(variableScriptable.has("length", variableScriptable));
-      assertTrue(variableScriptable.has("parameterNames", variableScriptable));
-   }
-
-   @Test
-   void testHasIndexedProperty() {
-      assertFalse(variableScriptable.has(0, variableScriptable));
+      assertTrue(variableScriptable.hasMember("length"));
+      assertTrue(variableScriptable.hasMember("parameterNames"));
    }
 
    @Test
    void testPutNamedProperty() {
-      variableScriptable.put("testKey", variableScriptable, "testValue");
+      variableScriptable.putMember("testKey", "testValue");
       verify(mockVariableTable).put("testKey", "testValue");
       verify(mockVariableTable).setAsIs("testKey", true);
    }
 
    @Test
-   void testDeleteNamedProperty() {
-      variableScriptable.delete("testKey");
+   void testRemoveNamedProperty() {
+      variableScriptable.removeMember("testKey");
       verify(mockVariableTable).remove("testKey");
    }
 
    @Test
-   void testSetGetPrototype() {
-      Scriptable mockPrototype = mock(Scriptable.class);
-      variableScriptable.setPrototype(mockPrototype);
-      assertEquals(mockPrototype, variableScriptable.getPrototype());
-   }
-
-   @Test
    void testSetGetParentScope() {
-      Scriptable mockParentScope = mock(Scriptable.class);
+      ScriptScope mockParentScope = mock(ScriptScope.class);
       variableScriptable.setParentScope(mockParentScope);
       assertEquals(mockParentScope, variableScriptable.getParentScope());
    }
 
    @Test
-   void testGetIds() {
+   void testGetMemberKeys() {
       Enumeration<String> mockKeys = mock(Enumeration.class);
       when(mockKeys.hasMoreElements()).thenReturn(true, false);
       when(mockKeys.nextElement()).thenReturn("key1");
       when(mockVariableTable.keys()).thenReturn(mockKeys);
 
-      Object[] ids = variableScriptable.getIds();
+      Object[] ids = variableScriptable.getMemberKeys();
       assertArrayEquals(new Object[]{ "key1", "length", "parameterNames", "_USER_", "_ROLES_", "_GROUPS_", "__principal__" }, ids);
-   }
-
-   @Test
-   void testGetDefaultValue() {
-      when(mockVariableTable.toString()).thenReturn("VariableTableString");
-      Object result = variableScriptable.getDefaultValue(String.class);
-      assertEquals("VariableTableString", result);
    }
 
    @Test

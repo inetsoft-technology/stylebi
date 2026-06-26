@@ -84,7 +84,7 @@ public class SelectionContainerVSAScriptableTest {
    @ValueSource(strings = { "titleVisible", "showCurrentSelection", "adhocEnabled", "empty"})
    void testAddProperties(String propertyName) {
       selectionContainerVSAScriptable.addProperties();
-      assert selectionContainerVSAScriptable.get(propertyName, null) instanceof Boolean;
+      assert selectionContainerVSAScriptable.getMember(propertyName) instanceof Boolean;
    }
 
    @ParameterizedTest
@@ -96,7 +96,7 @@ public class SelectionContainerVSAScriptableTest {
    })
    void testSetProperty(String propertyName, Object propertyValue, Object expectedValue) {
       selectionContainerVSAScriptable.setProperty(propertyName, propertyValue);
-      assertEquals(expectedValue, selectionContainerVSAScriptable.get(propertyName, null));
+      assertEquals(expectedValue, selectionContainerVSAScriptable.getMember(propertyName));
    }
 
    @Test
