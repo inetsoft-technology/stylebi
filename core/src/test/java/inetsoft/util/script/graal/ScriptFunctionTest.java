@@ -34,6 +34,8 @@ class ScriptFunctionTest {
       public String name;
       public boolean visible = true; // non-default so we can detect "false was passed"
       public int count = -1;
+      public double ratio = -1.0;
+      public char ch = 'X';
       public boolean called;
 
       public void setActionVisible(String name, boolean visible) {
@@ -45,6 +47,16 @@ class ScriptFunctionTest {
       public void setCount(int count) {
          this.called = true;
          this.count = count;
+      }
+
+      public void setRatio(double ratio) {
+         this.called = true;
+         this.ratio = ratio;
+      }
+
+      public void setChar(char ch) {
+         this.called = true;
+         this.ch = ch;
       }
    }
 
@@ -99,5 +111,29 @@ class ScriptFunctionTest {
       ctx.eval("js", "setCount(42)");
 
       assertEquals(42, t.count);
+   }
+
+   @Test
+   void omittedDoubleArgDefaultsToZero() {
+      Target t = new Target();
+      ctx.getBindings("js").putMember(
+         "setRatio", new ScriptFunction(t, Target.class, "setRatio", double.class));
+
+      ctx.eval("js", "setRatio()");
+
+      assertTrue(t.called);
+      assertEquals(0.0, t.ratio, 0.0, "omitted double argument should default to 0.0");
+   }
+
+   @Test
+   void omittedCharArgDefaultsToNul() {
+      Target t = new Target();
+      ctx.getBindings("js").putMember(
+         "setChar", new ScriptFunction(t, Target.class, "setChar", char.class));
+
+      ctx.eval("js", "setChar()");
+
+      assertTrue(t.called);
+      assertEquals('\0', t.ch, "omitted char argument should default to '\\0'");
    }
 }

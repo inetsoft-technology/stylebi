@@ -342,8 +342,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             }
 
             try {
+               // Strip "use strict" directives — strict mode forbids with statements,
+               // so the wrapper would cause a SyntaxError and the function would be
+               // silently dropped.
+               String wrapped = stripStrictDirectives(source);
                context.eval(Source.newBuilder(
-                  "js", "with(__scope__){\n" + source + "\n}", "<lib:" + name + ">")
+                  "js", "with(__scope__){\n" + wrapped + "\n}", "<lib:" + name + ">")
                               .buildLiteral());
             }
             catch(PolyglotException ex) {
@@ -480,6 +484,31 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * Read the script.max.errors limit from SreeEnv. Returns 0 to mean "no limit".
     * Must be called while holding {@code lock} (result used inline in exec).
     */
+   /**
+    * Removes leading ECMAScript Directive Prologue entries for {@code "use strict"} so
+    * that the source can be wrapped in a {@code with(__scope__){...}} block without
+    * triggering a SyntaxError (strict mode forbids {@code with}).
+    */
+   private static String stripStrictDirectives(String src) {
+      String s = src;
+
+      while(true) {
+         String t = s.stripLeading();
+
+         if(t.startsWith("\"use strict\";")) {
+            s = t.substring("\"use strict\";".length());
+         }
+         else if(t.startsWith("'use strict';")) {
+            s = t.substring("'use strict';".length());
+         }
+         else {
+            break;
+         }
+      }
+
+      return s;
+   }
+
    private int maxErrors() {
       try {
          String prop = MAX_ERRORS_PROP.get();
