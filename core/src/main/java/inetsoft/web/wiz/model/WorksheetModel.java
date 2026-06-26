@@ -38,6 +38,9 @@ public interface WorksheetModel extends Serializable {
    @Nullable String description();
    @Nullable List<WorksheetTableModel> tables();
 
+   /** Name of the worksheet's primary (binding) table; null when none is set. */
+   @Nullable String primaryTable();
+
    /**
     * Column metadata of the worksheet's primary (binding) table, as StyleBI exposes it for
     * visualization binding. Present only when the worksheet has a primary table; null otherwise.

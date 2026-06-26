@@ -199,6 +199,12 @@ public class WorksheetTableService {
          .description(worksheet.getDescription())
          .tables(tables);
 
+      String primaryTable = worksheet.getPrimaryAssemblyName();
+
+      if(!Tool.isEmptyString(primaryTable)) {
+         builder.primaryTable(primaryTable);
+      }
+
       List<WorksheetColumnInfo> primaryColumnMetas = extractPrimaryColumnMetas(worksheet);
 
       if(primaryColumnMetas != null && !primaryColumnMetas.isEmpty()) {
@@ -1837,7 +1843,10 @@ public class WorksheetTableService {
          return "sql query table";
       }
 
-      return table.getClass().getSimpleName();
+      String fallback = table.getClass().getSimpleName();
+      LOG.warn("Unrecognized worksheet table type for table '{}', falling back to '{}'",
+               table.getName(), fallback);
+      return fallback;
    }
 
    private String getIdentifier(AssetEntry entry, String fallback) {

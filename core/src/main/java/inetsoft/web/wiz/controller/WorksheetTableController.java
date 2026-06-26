@@ -106,13 +106,7 @@ public class WorksheetTableController {
                                            Principal user)
       throws Exception
    {
-      try {
-         return worksheetTableService.getWorksheetModel(wsIdentifier, user);
-      }
-      catch(Exception e) {
-         LOG.error("Failed to get worksheet model for wsIdentifier '{}'", wsIdentifier, e);
-         throw e;
-      }
+      return worksheetTableService.getWorksheetModel(wsIdentifier, user);
    }
 
    private final WorksheetTableService worksheetTableService;

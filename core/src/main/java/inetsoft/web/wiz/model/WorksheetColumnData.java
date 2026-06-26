@@ -31,56 +31,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * {@code alias} and {@code description} are omitted from the JSON when null (NON_NULL).
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class WorksheetColumnData {
-   public WorksheetColumnData() {
-   }
-
+public record WorksheetColumnData(String name, String alias, String description, String type) {
    public WorksheetColumnData(String name, String type) {
-      this.name = name;
-      this.type = type;
+      this(name, null, null, type);
    }
-
-   public WorksheetColumnData(String name, String alias, String description, String type) {
-      this.name = name;
-      this.alias = alias;
-      this.description = description;
-      this.type = type;
-   }
-
-   public String getName() {
-      return name;
-   }
-
-   public void setName(String name) {
-      this.name = name;
-   }
-
-   public String getAlias() {
-      return alias;
-   }
-
-   public void setAlias(String alias) {
-      this.alias = alias;
-   }
-
-   public String getDescription() {
-      return description;
-   }
-
-   public void setDescription(String description) {
-      this.description = description;
-   }
-
-   public String getType() {
-      return type;
-   }
-
-   public void setType(String type) {
-      this.type = type;
-   }
-
-   private String name;
-   private String alias;
-   private String description;
-   private String type;
 }
