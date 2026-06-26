@@ -1634,11 +1634,8 @@ public class WorksheetTableService {
          return makeLeaf(items.get(lo), junction);
       }
 
-      VisualizationConditionModel.ConditionGroup group =
-         new VisualizationConditionModel.ConditionGroup();
-      group.setJunction(junction);
-      group.setItems(nestNodes(items, junctions, lo, hi));
-      return group;
+      return new VisualizationConditionModel.ConditionGroup(
+         junction, nestNodes(items, junctions, lo, hi));
    }
 
    private String junctionName(JunctionOperator jo) {
@@ -1646,76 +1643,79 @@ public class WorksheetTableService {
    }
 
    private VisualizationConditionModel.ConditionLeaf makeLeaf(ConditionItem item, String junction) {
-      VisualizationConditionModel.ConditionSpec spec =
-         new VisualizationConditionModel.ConditionSpec();
       DataRef attr = item.getAttribute();
       XCondition xc = item.getXCondition();
+
+      String field;
+      String aggregateFormula = null;
+      String secondaryField = null;
+      Integer nOrP = null;
+      String dateGroupLevel = null;
 
       // Field + aggregate / date-group metadata.
       if(attr instanceof AggregateRef agg) {
          DataRef base = agg.getDataRef();
-         spec.setField(base != null ? refName(base) : refName(agg));
+         field = base != null ? refName(base) : refName(agg);
          AggregateFormula formula = agg.getFormula();
 
          if(formula != null) {
-            spec.setAggregateFormula(formula.getName());
+            aggregateFormula = formula.getName();
          }
 
          DataRef secondary = agg.getSecondaryColumn();
 
          if(secondary != null) {
-            spec.setSecondaryField(refName(secondary));
+            secondaryField = refName(secondary);
          }
 
          if(formula != null && formula.hasN() && agg.getN() != 0) {
-            spec.setNOrP(agg.getN());
+            nOrP = agg.getN();
          }
       }
       else {
          DateRangeRef dateRange = findDateRangeRef(attr);
 
          if(dateRange != null) {
-            spec.setDateGroupLevel(
-               WizDateLevelUtil.getDateGroupLevelName(dateRange.getDateOption()));
+            dateGroupLevel = WizDateLevelUtil.getDateGroupLevelName(dateRange.getDateOption());
             DataRef base = dateRange.getDataRef();
-            spec.setField(base != null ? refName(base) : refName(attr));
+            field = base != null ? refName(base) : refName(attr);
          }
          else {
-            spec.setField(refName(attr));
+            field = refName(attr);
          }
       }
 
       // Operation + negated + values.
+      String operation = null;
+      boolean negated = false;
+      List<VisualizationConditionModel.ValueSpec> values = null;
+
       if(xc instanceof RankingCondition rc) {
-         spec.setOperation(reverseOperation(rc.getOperation()));
-         spec.setNegated(rc.isNegated());
-         VisualizationConditionModel.ValueSpec v = new VisualizationConditionModel.ValueSpec();
-         v.setType("VALUE");
-         v.setValue(rc.getN());
-         spec.setValues(List.of(v));
+         operation = reverseOperation(rc.getOperation());
+         negated = rc.isNegated();
+         values = List.of(new VisualizationConditionModel.ValueSpec("VALUE", rc.getN(), null));
       }
       else if(xc != null) {
-         spec.setOperation(reverseOperation(xc.getOperation()));
-         spec.setNegated(xc.isNegated());
+         operation = reverseOperation(xc.getOperation());
+         negated = xc.isNegated();
 
          if(xc instanceof Condition cond) {
-            List<VisualizationConditionModel.ValueSpec> values = new ArrayList<>();
+            List<VisualizationConditionModel.ValueSpec> vals = new ArrayList<>();
 
             for(int i = 0; i < cond.getValueCount(); i++) {
-               values.add(reverseValue(cond.getValue(i)));
+               vals.add(reverseValue(cond.getValue(i)));
             }
 
-            if(!values.isEmpty()) {
-               spec.setValues(values);
+            if(!vals.isEmpty()) {
+               values = vals;
             }
          }
       }
 
-      VisualizationConditionModel.ConditionLeaf leaf =
-         new VisualizationConditionModel.ConditionLeaf();
-      leaf.setJunction(junction);
-      leaf.setCondition(spec);
-      return leaf;
+      VisualizationConditionModel.ConditionSpec spec = new VisualizationConditionModel.ConditionSpec(
+         field, aggregateFormula, secondaryField, nOrP, dateGroupLevel, negated, operation, null, values);
+
+      return new VisualizationConditionModel.ConditionLeaf(junction, spec);
    }
 
    private String reverseOperation(int op) {
@@ -1740,41 +1740,30 @@ public class WorksheetTableService {
    }
 
    private VisualizationConditionModel.ValueSpec reverseValue(Object value) {
-      VisualizationConditionModel.ValueSpec spec = new VisualizationConditionModel.ValueSpec();
-
       if(value instanceof SubQueryValue sq) {
-         spec.setType("SUBQUERY");
-         VisualizationConditionModel.SubQuery sub = new VisualizationConditionModel.SubQuery();
-         sub.setSubQueryName(sq.getQuery());
-         sub.setInSubQueryColumn(refName(sq.getAttribute()));
+         VisualizationConditionModel.Where where = null;
 
          if(sq.getSubAttribute() != null || sq.getMainAttribute() != null) {
-            VisualizationConditionModel.Where where = new VisualizationConditionModel.Where();
-            where.setSubQueryColumn(refName(sq.getSubAttribute()));
-            where.setCurrentTableColumn(refName(sq.getMainAttribute()));
-            sub.setWhere(where);
+            where = new VisualizationConditionModel.Where(
+               refName(sq.getSubAttribute()), refName(sq.getMainAttribute()));
          }
 
-         spec.setSubQuery(sub);
+         VisualizationConditionModel.SubQuery sub = new VisualizationConditionModel.SubQuery(
+            sq.getQuery(), refName(sq.getAttribute()), where);
+         return new VisualizationConditionModel.ValueSpec("SUBQUERY", null, sub);
       }
       else if(value instanceof ExpressionValue ev) {
-         spec.setType("EXPRESSION");
-         spec.setValue(ev.getExpression());
+         return new VisualizationConditionModel.ValueSpec("EXPRESSION", ev.getExpression(), null);
       }
       else if(value instanceof UserVariable uv) {
-         spec.setType("SESSION_DATA");
-         spec.setValue(uv.getName());
+         return new VisualizationConditionModel.ValueSpec("SESSION_DATA", uv.getName(), null);
       }
       else if(value instanceof DataRef ref) {
-         spec.setType("FIELD");
-         spec.setValue(refName(ref));
+         return new VisualizationConditionModel.ValueSpec("FIELD", refName(ref), null);
       }
       else {
-         spec.setType("VALUE");
-         spec.setValue(value);
+         return new VisualizationConditionModel.ValueSpec("VALUE", value, null);
       }
-
-      return spec;
    }
 
    private String refName(DataRef ref) {
