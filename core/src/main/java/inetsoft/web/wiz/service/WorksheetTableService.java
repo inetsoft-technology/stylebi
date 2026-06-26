@@ -1483,8 +1483,8 @@ public class WorksheetTableService {
          aggregates.add(reverseAggregate(agg));
       }
 
-      return new WorksheetAggregateInfo(groups.isEmpty() ? null : groups,
-                                        aggregates.isEmpty() ? null : aggregates);
+      return new WorksheetAggregateInfo(groups.isEmpty() ? null : List.copyOf(groups),
+                                        aggregates.isEmpty() ? null : List.copyOf(aggregates));
    }
 
    private GroupByField reverseGroup(GroupRef group) {
@@ -1635,7 +1635,7 @@ public class WorksheetTableService {
       }
 
       return new VisualizationConditionModel.ConditionGroup(
-         junction, nestNodes(items, junctions, lo, hi));
+         junction, List.copyOf(nestNodes(items, junctions, lo, hi)));
    }
 
    private String junctionName(JunctionOperator jo) {
@@ -1685,9 +1685,10 @@ public class WorksheetTableService {
          }
       }
 
-      // Operation + negated + values.
+      // Operation + negated + equal + values.
       String operation = null;
       boolean negated = false;
+      Boolean equal = null;
       List<VisualizationConditionModel.ValueSpec> values = null;
 
       if(xc instanceof RankingCondition rc) {
@@ -1696,8 +1697,14 @@ public class WorksheetTableService {
          values = List.of(new VisualizationConditionModel.ValueSpec("VALUE", rc.getN(), null));
       }
       else if(xc != null) {
-         operation = reverseOperation(xc.getOperation());
+         int op = xc.getOperation();
+         operation = reverseOperation(op);
          negated = xc.isNegated();
+
+         // equal only carries meaning for <= / >= (LESS_THAN / GREATER_THAN).
+         if(op == XCondition.LESS_THAN || op == XCondition.GREATER_THAN) {
+            equal = xc.isEqual();
+         }
 
          if(xc instanceof Condition cond) {
             List<VisualizationConditionModel.ValueSpec> vals = new ArrayList<>();
@@ -1707,13 +1714,13 @@ public class WorksheetTableService {
             }
 
             if(!vals.isEmpty()) {
-               values = vals;
+               values = List.copyOf(vals);
             }
          }
       }
 
       VisualizationConditionModel.ConditionSpec spec = new VisualizationConditionModel.ConditionSpec(
-         field, aggregateFormula, secondaryField, nOrP, dateGroupLevel, negated, operation, null, values);
+         field, aggregateFormula, secondaryField, nOrP, dateGroupLevel, negated, operation, equal, values);
 
       return new VisualizationConditionModel.ConditionLeaf(junction, spec);
    }
