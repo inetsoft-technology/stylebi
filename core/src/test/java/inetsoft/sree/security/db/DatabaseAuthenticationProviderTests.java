@@ -18,7 +18,9 @@
 
 package inetsoft.sree.security.db;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.test.*;
@@ -519,6 +521,149 @@ class DatabaseAuthenticationProviderTests {
       }
 
       return args.stream();
+   }
+
+   // ==================== Missing-scenario tests appended for Task 5 ====================
+
+   @Test
+   void authenticateShouldReturnFalseWhenCredentialIsNull() {
+      assertFalse(provider.authenticate(new IdentityID("anyUser", "anyOrg"), null));
+   }
+
+   @Test
+   void authenticateShouldReturnFalseWhenUsernameIsEmpty() {
+      IdentityID id = new IdentityID("", "anyOrg");
+      assertFalse(provider.authenticate(id, new DefaultTicket(id, "anyPassword")));
+   }
+
+   @Test
+   void authenticateShouldReturnFalseWhenPasswordIsWrong() {
+      waitForCache();
+      TestOrganization org = expectedData.get(0);
+      TestUser user = org.users().get(0);
+      IdentityID id = new IdentityID(user.name(), org.id());
+      assertFalse(provider.authenticate(id, new DefaultTicket(id, "wrong-password-xyz")));
+   }
+
+   @Test
+   void getUserShouldReturnNullWhenIdentityIsNull() {
+      assertNull(provider.getUser(null));
+   }
+
+   @Test
+   void getUserShouldReturnNullForUnknownUser() {
+      waitForCache();
+      assertNull(provider.getUser(new IdentityID("nosuchuser99", expectedData.get(0).id())));
+   }
+
+   @Test
+   void getOrganizationShouldReturnNullForNullId() {
+      assertNull(provider.getOrganization(null));
+   }
+
+   @Test
+   void getRolesShouldReturnEmptyArrayWhenOrgIdIsNotKnown() {
+      waitForCache();
+      IdentityID id = new IdentityID("anyUser", "nonexistent-org-9999");
+      IdentityID[] actual = provider.getRoles(id);
+      assertNotNull(actual);
+      assertEquals(0, actual.length);
+   }
+
+   @Test
+   void isSystemAdministratorRoleShouldReturnTrueForConfiguredRole() {
+      assertTrue(provider.isSystemAdministratorRole(new IdentityID("Site Admin", null)));
+   }
+
+   @Test
+   void isSystemAdministratorRoleShouldReturnFalseForUnknownRole() {
+      assertFalse(provider.isSystemAdministratorRole(new IdentityID("Unknown Role", null)));
+   }
+
+   @Test
+   void isOrgAdministratorRoleShouldReturnTrueForValidRoleAndExistingOrg() {
+      waitForCache();
+      String existingOrgId = expectedData.get(0).id();
+      assertTrue(provider.isOrgAdministratorRole(new IdentityID("Org Admin", existingOrgId)));
+   }
+
+   @Test
+   void isOrgAdministratorRoleShouldReturnFalseWhenOrgDoesNotExist() {
+      waitForCache();
+      // "Org Admin" is configured, but the org ID does not exist in the provider
+      assertFalse(provider.isOrgAdministratorRole(new IdentityID("Org Admin", "nonexistent-org-9999")));
+   }
+
+   @Test
+   void isAdminRoleShouldCoverSysAdminOrgAdminAndNeitherBranch() {
+      assertTrue(provider.isAdminRole("Site Admin"));   // sysAdmin → true
+      assertTrue(provider.isAdminRole("Org Admin"));    // orgAdmin → true
+      assertFalse(provider.isAdminRole("RegularRole")); // neither → false
+   }
+
+   @Test
+   void setHashAlgorithmShouldNormalizeNullAndEmptyStringToNone() {
+      provider.setHashAlgorithm(null);
+      assertEquals("None", provider.getHashAlgorithm());
+
+      provider.setHashAlgorithm("");
+      assertEquals("None", provider.getHashAlgorithm());
+   }
+
+   @Test
+   void readConfigurationShouldDefaultUserRoleListQueryToEmptyWhenFieldIsAbsent() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+      ObjectNode config = mapper.createObjectNode();
+      config.put("driver", DRIVER);
+      config.put("url", URL);
+      config.put("useCredential", false);
+      config.putNull("credential");
+      config.put("hashAlgorithm", "bcrypt");
+      config.put("appendSalt", true);
+      config.put("requiresLogin", false);
+      config.put("userQuery", "");
+      config.put("groupListQuery", "");
+      config.put("userListQuery", "");
+      config.put("groupUsersQuery", "");
+      config.put("organizationListQuery", "");
+      config.put("roleListQuery", "");
+      config.put("userRolesQuery", "");
+      // userRoleListQuery intentionally omitted — exercises the config.has() guard
+      config.put("userEmailsQuery", "");
+      config.put("organizationNameQuery", "");
+      config.put("organizationMembersQuery", "");
+      config.put("organizationRolesQuery", "");
+      config.set("sysAdminRoles", mapper.createArrayNode());
+      config.set("orgAdminRoles", mapper.createArrayNode());
+
+      DatabaseAuthenticationProvider fresh = new DatabaseAuthenticationProvider();
+      fresh.readConfiguration(config);
+      assertEquals("", fresh.getUserRoleListQuery());
+      fresh.tearDown();
+   }
+
+   @Test
+   void writeAndReadConfigurationShouldRoundTripAllQueryFieldsAndRoles() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+      JsonNode config = provider.writeConfiguration(mapper);
+
+      DatabaseAuthenticationProvider fresh = new DatabaseAuthenticationProvider();
+      fresh.readConfiguration(config);
+
+      assertEquals(provider.getUserQuery(), fresh.getUserQuery());
+      assertEquals(provider.getUserListQuery(), fresh.getUserListQuery());
+      assertEquals(provider.getGroupListQuery(), fresh.getGroupListQuery());
+      assertEquals(provider.getGroupUsersQuery(), fresh.getGroupUsersQuery());
+      assertEquals(provider.getOrganizationListQuery(), fresh.getOrganizationListQuery());
+      assertEquals(provider.getRoleListQuery(), fresh.getRoleListQuery());
+      assertEquals(provider.getUserRolesQuery(), fresh.getUserRolesQuery());
+      assertEquals(provider.getUserRoleListQuery(), fresh.getUserRoleListQuery());
+      assertEquals(provider.getUserEmailsQuery(), fresh.getUserEmailsQuery());
+      assertEquals(provider.getHashAlgorithm(), fresh.getHashAlgorithm());
+      assertEquals(provider.isAppendSalt(), fresh.isAppendSalt());
+      assertArrayEquals(provider.getSystemAdministratorRoles(), fresh.getSystemAdministratorRoles());
+      assertArrayEquals(provider.getOrgAdministratorRoles(), fresh.getOrgAdministratorRoles());
+      fresh.tearDown();
    }
 
    private void waitForCache() {
