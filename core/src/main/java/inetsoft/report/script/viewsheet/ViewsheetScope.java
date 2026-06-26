@@ -1054,7 +1054,9 @@ public class ViewsheetScope implements Cloneable, DynamicScope {
    private Map<String, Object> propmap = Collections.synchronizedMap(new HashMap<>());
    private final Map<String, Object> members = new LinkedHashMap<>();
    private Vector<String> oldAssemblies = new Vector<>();
-   private ScriptScope parentScope;
+   // volatile for safe publication: ViewsheetSandbox.getScope() has an
+   // unsynchronized fast-path read of the published scope
+   private volatile ScriptScope parentScope;
    private DBScriptable db;
    private long executeStart = System.currentTimeMillis();
 

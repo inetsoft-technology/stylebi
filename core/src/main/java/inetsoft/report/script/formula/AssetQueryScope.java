@@ -202,7 +202,8 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
    private AssetQuerySandbox box;
    private Map tablemap = new HashMap();
    private final Map<String, Object> members = new LinkedHashMap<>();
-   private ScriptScope parentScope;
+   // volatile for safe publication (see ViewsheetScope.parentScope)
+   private volatile ScriptScope parentScope;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(AssetQueryScope.class);

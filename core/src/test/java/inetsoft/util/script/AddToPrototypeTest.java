@@ -42,6 +42,14 @@ class AddToPrototypeTest {
       public void setParentScope(ScriptScope p) { this.parent = p; }
    }
 
+   /** A plain ScriptScope that is NOT a DynamicScope (no settable parent). */
+   static class LeafScope implements ScriptScope {
+      public Object getMember(String n) { return null; }
+      public boolean hasMember(String n) { return false; }
+      public void putMember(String n, Object v) { }
+      public Object[] getMemberKeys() { return new Object[0]; }
+   }
+
    @Test void appendsParentWhenChainEmpty() {
       ChainScope a = new ChainScope();
       ChainScope b = new ChainScope();
@@ -73,6 +81,33 @@ class AddToPrototypeTest {
 
       assertSame(b, a.getParentScope());
       assertNull(b.getParentScope());
+   }
+
+   @Test void doesNothingWhenAlreadyPresentDeeper() {
+      ChainScope a = new ChainScope();
+      ChainScope b = new ChainScope();
+      ChainScope c = new ChainScope();
+      a.setParentScope(b);
+      b.setParentScope(c);
+
+      // c already sits two hops away; the walk must detect it at depth > 1
+      JavaScriptEngine.addToPrototype(a, c);
+
+      assertSame(b, a.getParentScope());
+      assertSame(c, b.getParentScope());
+      assertNull(c.getParentScope());
+   }
+
+   @Test void doesNothingWhenTerminalIsNotDynamicScope() {
+      ChainScope a = new ChainScope();
+      LeafScope b = new LeafScope();   // not a DynamicScope -> no settable parent
+      ChainScope c = new ChainScope();
+      a.setParentScope(b);
+
+      // the chain tail (b) cannot accept a parent; append is silently skipped
+      JavaScriptEngine.addToPrototype(a, c);
+
+      assertSame(b, a.getParentScope());
    }
 
    @Test void doesNothingWhenScopeEqualsObject() {
