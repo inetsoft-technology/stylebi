@@ -32,13 +32,13 @@ public class LegendScriptableTest {
       LegendDescriptor legend = new LegendDescriptor();
       LegendScriptable scriptable = new LegendScriptable(legend);
 
-      assertEquals(Boolean.TRUE, scriptable.get("symbolRoundCorners", null));
+      assertEquals(Boolean.TRUE, scriptable.getMember("symbolRoundCorners"));
 
-      scriptable.put("symbolRoundCorners", null, Boolean.FALSE);
+      scriptable.putMember("symbolRoundCorners", Boolean.FALSE);
       assertFalse(legend.isSymbolRoundCorners());
 
       legend.setSymbolRoundCorners(true);
-      assertEquals(Boolean.TRUE, scriptable.get("symbolRoundCorners", null));
+      assertEquals(Boolean.TRUE, scriptable.getMember("symbolRoundCorners"));
    }
 
    @Test
@@ -48,7 +48,7 @@ public class LegendScriptableTest {
       AllLegendDescriptor all = new AllLegendDescriptor(List.of(a, b));
       LegendScriptable scriptable = new LegendScriptable(all);
 
-      scriptable.put("symbolRoundCorners", null, Boolean.FALSE);
+      scriptable.putMember("symbolRoundCorners", Boolean.FALSE);
 
       assertFalse(a.isSymbolRoundCorners());
       assertFalse(b.isSymbolRoundCorners());
