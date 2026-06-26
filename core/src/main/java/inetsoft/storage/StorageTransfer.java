@@ -17,6 +17,8 @@
  */
 package inetsoft.storage;
 
+import inetsoft.util.config.InetsoftConfig;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Path;
@@ -26,6 +28,24 @@ import java.nio.file.Path;
  * and blob stores.
  */
 public interface StorageTransfer {
+   /**
+    * Creates a {@code StorageTransfer} appropriate for the configured key-value engine. The mapdb
+    * engine is node-local, so its contents are transferred through the cluster; every other engine
+    * is shared and is read from and written to directly. Going through the cluster on a non-mapdb
+    * backend would fire the live storage change-listeners during a bulk import and fail on
+    * not-yet-imported parent folders.
+    *
+    * @param keyValueEngine the key-value storage engine.
+    * @param blobEngine     the blob storage engine.
+    *
+    * @return the storage transfer implementation to use.
+    */
+   static StorageTransfer create(KeyValueEngine keyValueEngine, BlobEngine blobEngine) {
+      boolean mapdb = "mapdb".equals(InetsoftConfig.getInstance().getKeyValue().getType());
+      return mapdb ? new ClusterStorageTransfer()
+         : new DirectStorageTransfer(keyValueEngine, blobEngine);
+   }
+
    /**
     * Exports the contents of the key-value and blob stores.
     *
