@@ -30,8 +30,7 @@
  *   Group 8   addEmail / addCCEmail / addBCCEmail — sets editingEmails, opens modal
  */
 
-import { Subject } from "rxjs";
-import { of } from "rxjs";
+import { Subject, of } from "rxjs";
 import {
    makeComponent,
    makeModel,

@@ -29,11 +29,10 @@
  *   Group 7  — ngDoCheck / updateForeignTables: detects join array changes via IterableDiffer
  */
 
-import { HttpClientTestingModule } from "@angular/common/http/testing";
+import { provideHttpClient } from "@angular/common/http";
 import { Component, NO_ERRORS_SCHEMA } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { render } from "@testing-library/angular";
-import { vi } from "vitest";
 
 import { HighlightInfo, DataPhysicalModelService } from "../../../../../services/data-physical-model.service";
 import { JoinModel } from "../../../../../model/datasources/database/physical-model/join-model";
@@ -52,7 +51,7 @@ import { PhysicalTableJoinsComponent } from "./physical-table-joins.component";
 // Stubs — prevent heavy DI chains of child components
 // ---------------------------------------------------------------------------
 
-@Component({ selector: "tree-component", template: "", standalone: true })
+@Component({ selector: "tree", template: "", standalone: true })
 class TreeComponentStub {}
 
 @Component({ selector: "add-join-dialog", template: "", standalone: true })
@@ -140,8 +139,8 @@ async function renderJoins(
          databaseName: "testDb",
          ...componentInputs,
       },
-      imports: [HttpClientTestingModule],
       providers: [
+         provideHttpClient(),
          { provide: DataPhysicalModelService, useValue: physicalModelServiceMock },
          { provide: NgbModal, useValue: { open: vi.fn() } },
       ],

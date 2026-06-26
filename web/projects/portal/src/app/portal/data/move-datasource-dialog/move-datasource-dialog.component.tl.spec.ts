@@ -17,7 +17,7 @@
  */
 
 /**
- * MoveDataSourceDialogComponent — single pass (+内存泄漏)
+ * MoveDataSourceDialogComponent — single pass (+memory leak)
  *
  * Risk-first coverage:
  *   Group 1 [Risk 3] — ok(): duplicate name found → shows error dialog; no duplicate → emits onCommit

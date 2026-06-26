@@ -712,6 +712,11 @@ export const portalHandlers = [
       });
    }),
 
+   // LogicalModelAttributeEditor — attribute format string preview (POST)
+   http.post("*/api/data/logicalModel/attribute/format", () => {
+      return HttpResponse.json(null);
+   }),
+
    // LogicalModelExpressionDialog — validate expression (POST)
    http.post("*/api/data/logicalModel/attribute/expression", () => {
       return HttpResponse.json({});

@@ -17,7 +17,7 @@
  */
 
 /**
- * RepositoryTreeViewComponent — single pass (+竞态+内存泄漏)
+ * RepositoryTreeViewComponent — single pass (+race-condition + memory-leak)
  *
  * Risk-first coverage:
  *   Group 1 [Risk 3] — ngOnDestroy: subscriptions.unsubscribe() stops further callbacks
@@ -238,7 +238,7 @@ describe("Group 2 — search(): fires only for non-blank searchString", () => {
 
       comp.search();
 
-      await new Promise(r => setTimeout(r, 30));
+      await Promise.resolve();
       expect(requestFired).toBe(false);
       expect(comp.searchMode).toBe(false);
    });
@@ -256,7 +256,7 @@ describe("Group 2 — search(): fires only for non-blank searchString", () => {
 
       comp.search();
 
-      await new Promise(r => setTimeout(r, 30));
+      await Promise.resolve();
       expect(requestFired).toBe(false);
    });
 

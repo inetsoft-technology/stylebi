@@ -30,16 +30,21 @@
  *   Group 8  — iconFunction: correct icon class per dataType
  *   Group 9  — selectPhysicalColumn: updates attribute fields and selectedNode
  *   Group 10 — onAttributeChanged: form valueChanges triggers emit
+ *
+ * Mocking strategy: provideHttpClient() + MSW (server.use()).
+ *   HttpClientTestingModule is not used — this file aligns with the MSW-first pattern
+ *   used across all other spec files in this PR. Default handlers for both HTTP endpoints
+ *   (logicalModel/tables/nodes, logicalModel/attribute/format) live in portal.handlers.ts.
  */
 
-import { HttpClientTestingModule, HttpTestingController } from "@angular/common/http/testing";
-import { Component, NO_ERRORS_SCHEMA } from "@angular/core";
-import { TestBed } from "@angular/core/testing";
+import { NO_ERRORS_SCHEMA, Component } from "@angular/core";
+import { provideHttpClient } from "@angular/common/http";
 import { FormsModule, ReactiveFormsModule, UntypedFormGroup } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { render } from "@testing-library/angular";
-import { vi } from "vitest";
+import { render, waitFor } from "@testing-library/angular";
+import { http, HttpResponse as MswHttpResponse } from "msw";
 
+import { server } from "@test-mocks/server";
 import { XSchema } from "../../../../../../../common/data/xschema";
 import { AttributeModel } from "../../../../../model/datasources/database/physical-model/logical-model/attribute-model";
 import { TreeNodeModel } from "../../../../../../../widget/tree/tree-node-model";
@@ -116,22 +121,18 @@ function makeColumnsTree(): TreeNodeModel {
 }
 
 // ---------------------------------------------------------------------------
-// Render helper — returns httpMock so tests control HTTP flushing
+// Render helper
 // ---------------------------------------------------------------------------
 
-let httpMock: HttpTestingController;
-
-async function renderEditor(
-   attributeOverrides: Partial<AttributeModel> = {},
-   formOverrides: UntypedFormGroup = null
-) {
+async function renderEditor(attributeOverrides: Partial<AttributeModel> = {}) {
    const attribute = makeAttribute(attributeOverrides);
-   const form = formOverrides ?? new UntypedFormGroup({});
+   const form = new UntypedFormGroup({});
 
    const result = await render(LogicalModelAttributeEditor, {
       inputs: { form, attribute, databaseName: "testDb", physicalModelName: "pm", logicalModelName: "lm" },
-      imports: [HttpClientTestingModule, FormsModule, ReactiveFormsModule],
+      imports: [FormsModule, ReactiveFormsModule],
       providers: [
+         provideHttpClient(),
          { provide: NgbModal, useValue: { open: vi.fn() } },
       ],
       importOverrides: [
@@ -142,64 +143,56 @@ async function renderEditor(
       schemas: [NO_ERRORS_SCHEMA],
    });
 
-   httpMock = TestBed.inject(HttpTestingController);
-
-   return {
-      comp: result.fixture.componentInstance as LogicalModelAttributeEditor,
-      fixture: result.fixture,
-   };
-}
-
-/** Flush the two HTTP requests created on every render. */
-function flushInitHttp() {
-   httpMock.expectOne(req => req.url.includes("logicalModel/attribute/format")).flush(null);
-   httpMock.expectOne(req => req.url.includes("logicalModel/tables/nodes")).flush(makeColumnsTree());
+   const comp = result.fixture.componentInstance as LogicalModelAttributeEditor;
+   // Wait for ngOnInit getColumns() to settle — columnsTree is set to a tree (success) or null (error).
+   // This prevents HTTP responses from arriving after fixture.destroy() in afterEach.
+   await waitFor(() => expect(comp.columnsTree).not.toBeUndefined());
+   return { comp, fixture: result.fixture };
 }
 
 // ---------------------------------------------------------------------------
 // Lifecycle
 // ---------------------------------------------------------------------------
 
-afterEach(() => {
-   vi.restoreAllMocks();
-   httpMock?.verify();
-});
+afterEach(() => vi.restoreAllMocks());
 
 // ===========================================================================
 // Group 1 — ngOnInit
 // ===========================================================================
 
 describe("Group 1 — ngOnInit", () => {
-   it("should POST to COLUMNS_URI on init", async () => {
-      await renderEditor();
-      httpMock.expectOne(req => req.url.includes("logicalModel/attribute/format")).flush(null);
-      const req = httpMock.expectOne(req => req.url.includes("logicalModel/tables/nodes"));
-      expect(req.request.method).toBe("POST");
-      req.flush(null);
+   it("should send a POST request to COLUMNS_URI on init and set columnsTree from the response", async () => {
+      // http.post() only matches POST requests; renderEditor() returning confirms the POST was made.
+      server.use(
+         http.post("*/logicalModel/tables/nodes", () => MswHttpResponse.json(makeColumnsTree()))
+      );
+      const { comp } = await renderEditor();
+      expect(comp.columnsTree?.children?.[0]?.label).toBe("TestTable");
    });
 
    it("should add name, dataType, refType controls to the form after ngOnInit", async () => {
+      // resetFormControl() runs synchronously in the attribute setter and ngOnInit — controls
+      // are present before HTTP completes, but we still await renderEditor() to prevent
+      // the columns HTTP response from arriving after fixture.destroy().
       const { comp } = await renderEditor();
-      flushInitHttp();
       expect(comp.form.contains("name")).toBe(true);
       expect(comp.form.contains("dataType")).toBe(true);
       expect(comp.form.contains("refType")).toBe(true);
    });
 
    it("should set columnsTree when COLUMNS_URI response arrives", async () => {
-      const { comp, fixture } = await renderEditor();
-      httpMock.expectOne(req => req.url.includes("logicalModel/attribute/format")).flush(null);
-      httpMock.expectOne(req => req.url.includes("logicalModel/tables/nodes")).flush(makeColumnsTree());
-      fixture.detectChanges();
+      server.use(
+         http.post("*/logicalModel/tables/nodes", () => MswHttpResponse.json(makeColumnsTree()))
+      );
+      const { comp } = await renderEditor();
       expect(comp.columnsTree?.children?.[0]?.label).toBe("TestTable");
    });
 
    it("should set columnsTree to null when COLUMNS_URI errors", async () => {
-      const { comp, fixture } = await renderEditor();
-      httpMock.expectOne(req => req.url.includes("logicalModel/attribute/format")).flush(null);
-      httpMock.expectOne(req => req.url.includes("logicalModel/tables/nodes"))
-         .flush("error", { status: 500, statusText: "Server Error" });
-      fixture.detectChanges();
+      server.use(
+         http.post("*/logicalModel/tables/nodes", () => MswHttpResponse.error())
+      );
+      const { comp } = await renderEditor();
       expect(comp.columnsTree).toBeNull();
    });
 });
@@ -213,7 +206,6 @@ describe("Group 1 — ngOnInit", () => {
 describe("Group 2 — ngOnDestroy / memory-leak", () => {
    it("should cancel pending scheduleReset timer on destroy so resetFormControl does not fire after", async () => {
       const { comp, fixture } = await renderEditor();
-      flushInitHttp();
 
       vi.useFakeTimers();
       try {
@@ -233,7 +225,6 @@ describe("Group 2 — ngOnDestroy / memory-leak", () => {
 
    it("should unsubscribe from form valueChanges on destroy so onAttributeChanged is not emitted", async () => {
       const { comp, fixture } = await renderEditor();
-      flushInitHttp();
 
       fixture.destroy(); // ngOnDestroy → unsubscribeForm()
 
@@ -256,7 +247,6 @@ describe("Group 2 — ngOnDestroy / memory-leak", () => {
 describe("Group 3 — existNames setter post-init (scheduleReset)", () => {
    it("should defer resetFormControl via setTimeout when existNames is set after init", async () => {
       const { comp } = await renderEditor();
-      flushInitHttp();
       // At this point inited=true
 
       vi.useFakeTimers();
@@ -277,7 +267,6 @@ describe("Group 3 — existNames setter post-init (scheduleReset)", () => {
 
    it("should coalesce multiple rapid existNames sets into a single resetFormControl call", async () => {
       const { comp } = await renderEditor();
-      flushInitHttp();
 
       vi.useFakeTimers();
       try {
@@ -304,7 +293,6 @@ describe("Group 3 — existNames setter post-init (scheduleReset)", () => {
 describe("Group 4 — updateFormulas via attribute dataType", () => {
    it("should set dateFormulas for DATE dataType", async () => {
       const { comp } = await renderEditor({ dataType: XSchema.DATE });
-      flushInitHttp();
       // dateFormulas contains None/Max/Min/Count/DistinctCount
       expect(comp.currentFormulas.some(f => f.label.includes("Max"))).toBe(true);
       expect(comp.currentFormulas.some(f => f.label.includes("Sum"))).toBe(false);
@@ -312,14 +300,12 @@ describe("Group 4 — updateFormulas via attribute dataType", () => {
 
    it("should set stringFormulas for STRING dataType", async () => {
       const { comp } = await renderEditor({ dataType: XSchema.STRING });
-      flushInitHttp();
       // stringFormulas includes Concat
       expect(comp.currentFormulas.some(f => f.label.includes("Concat"))).toBe(true);
    });
 
    it("should set boolFormulas for BOOLEAN dataType", async () => {
       const { comp } = await renderEditor({ dataType: XSchema.BOOLEAN });
-      flushInitHttp();
       // boolFormulas only has None/Count/DistinctCount
       expect(comp.currentFormulas.length).toBe(3);
       expect(comp.currentFormulas.some(f => f.label.includes("Sum"))).toBe(false);
@@ -327,7 +313,6 @@ describe("Group 4 — updateFormulas via attribute dataType", () => {
 
    it("should set numberFormulas for numeric (DOUBLE) dataType", async () => {
       const { comp } = await renderEditor({ dataType: XSchema.DOUBLE });
-      flushInitHttp();
       // numberFormulas includes Sum/Average/StandardDeviation etc.
       expect(comp.currentFormulas.some(f => f.label.includes("Sum"))).toBe(true);
       expect(comp.currentFormulas.some(f => f.label.includes("StandardDeviation"))).toBe(true);
@@ -341,7 +326,6 @@ describe("Group 4 — updateFormulas via attribute dataType", () => {
 describe("Group 5 — findSelectFormula", () => {
    it("should find a formula in currentFormulas when dataType matches", async () => {
       const { comp } = await renderEditor({ dataType: XSchema.DOUBLE });
-      flushInitHttp();
       const sumData = { formula: "Sum", type: 2 };
       const result = comp.findSelectFormula(sumData);
       expect(result.label).toContain("Sum");
@@ -349,7 +333,6 @@ describe("Group 5 — findSelectFormula", () => {
 
    it("should fall back to defaultRefTypes when not in currentFormulas", async () => {
       const { comp } = await renderEditor({ dataType: XSchema.STRING });
-      flushInitHttp();
       const noneData = { formula: "None", type: 0 };
       const result = comp.findSelectFormula(noneData);
       // { formula: "None", type: 0 } is in defaultRefTypes (not currentFormulas for strings)
@@ -358,7 +341,6 @@ describe("Group 5 — findSelectFormula", () => {
 
    it("should return defaultRefTypes[0] when not found anywhere", async () => {
       const { comp } = await renderEditor();
-      flushInitHttp();
       const unknownData = { formula: "Unknown", type: 999 };
       const result = comp.findSelectFormula(unknownData);
       // Bypass: defaultRefTypes is private; referenced here to avoid hard-coding the fallback value.
@@ -373,7 +355,6 @@ describe("Group 5 — findSelectFormula", () => {
 describe("Group 6 — selectFormula", () => {
    it("should set selectedFormula and attribute.refType to ref.data", async () => {
       const { comp } = await renderEditor({ dataType: XSchema.DOUBLE });
-      flushInitHttp();
       const sumRef = { label: "_#(js:Sum)", data: { formula: "Sum", type: 2 } };
       comp.selectFormula(sumRef);
       expect(comp.selectedFormula).toBe(sumRef.data);
@@ -382,7 +363,6 @@ describe("Group 6 — selectFormula", () => {
 
    it("should include 'Measure' i18n token prefix in selectedFormulaLabel for non-default ref types", async () => {
       const { comp } = await renderEditor({ dataType: XSchema.DOUBLE });
-      flushInitHttp();
       const sumRef = { label: "_#(js:Sum)", data: { formula: "Sum", type: 2 } };
       comp.selectFormula(sumRef);
       // The template i18n token for "Measure:" is preserved literally in test environment
@@ -391,7 +371,6 @@ describe("Group 6 — selectFormula", () => {
 
    it("should NOT include 'Measure:' prefix for default ref types like None", async () => {
       const { comp } = await renderEditor();
-      flushInitHttp();
       const noneRef = { label: "_#(js:None)", data: { formula: "None", type: 0 } };
       comp.selectFormula(noneRef);
       expect(comp.selectedFormulaLabel).not.toContain("Measure:");
@@ -399,7 +378,6 @@ describe("Group 6 — selectFormula", () => {
 
    it("should call dropdown.close() when dropdown is provided", async () => {
       const { comp } = await renderEditor();
-      flushInitHttp();
       const dropdown = { close: vi.fn() } as any;
       comp.selectFormula(comp["defaultRefTypes"][0], dropdown);
       expect(dropdown.close).toHaveBeenCalledTimes(1);
@@ -413,13 +391,11 @@ describe("Group 6 — selectFormula", () => {
 describe("Group 7 — drillString getter", () => {
    it("should return 'None' when drillInfo is null", async () => {
       const { comp } = await renderEditor({ drillInfo: null });
-      flushInitHttp();
       expect(comp.drillString).toBe("None");
    });
 
    it("should return 'None' when drillInfo.paths is empty", async () => {
       const { comp } = await renderEditor({ drillInfo: { paths: [] } as any });
-      flushInitHttp();
       expect(comp.drillString).toBe("None");
    });
 
@@ -429,7 +405,6 @@ describe("Group 7 — drillString getter", () => {
             paths: [{ name: "PathA" }, { name: "PathB" }],
          } as any,
       });
-      flushInitHttp();
       expect(comp.drillString).toBe("PathA, PathB");
    });
 });
@@ -441,47 +416,40 @@ describe("Group 7 — drillString getter", () => {
 describe("Group 8 — iconFunction", () => {
    it("should return data-table-icon for null node", async () => {
       const { comp } = await renderEditor();
-      flushInitHttp();
       expect(comp.iconFunction(null)).toBe("data-table-icon");
    });
 
    it("should return data-table-icon for node with no data", async () => {
       const { comp } = await renderEditor();
-      flushInitHttp();
       expect(comp.iconFunction({ data: null } as TreeNodeModel)).toBe("data-table-icon");
    });
 
    it("should return date-field-icon for DATE dataType", async () => {
       const { comp } = await renderEditor();
-      flushInitHttp();
       expect(comp.iconFunction({ data: { dataType: XSchema.DATE } } as TreeNodeModel))
          .toBe("date-field-icon");
    });
 
    it("should return datetime-field-icon for TIME_INSTANT dataType", async () => {
       const { comp } = await renderEditor();
-      flushInitHttp();
       expect(comp.iconFunction({ data: { dataType: XSchema.TIME_INSTANT } } as TreeNodeModel))
          .toContain("datetime-field-icon");
    });
 
    it("should return text-field-icon for STRING dataType", async () => {
       const { comp } = await renderEditor();
-      flushInitHttp();
       expect(comp.iconFunction({ data: { dataType: XSchema.STRING } } as TreeNodeModel))
          .toContain("text-field-icon");
    });
 
    it("should return number-field-icon for DOUBLE dataType", async () => {
       const { comp } = await renderEditor();
-      flushInitHttp();
       expect(comp.iconFunction({ data: { dataType: XSchema.DOUBLE } } as TreeNodeModel))
          .toContain("number-field-icon");
    });
 
    it("should return boolean-field-icon for BOOLEAN dataType", async () => {
       const { comp } = await renderEditor();
-      flushInitHttp();
       expect(comp.iconFunction({ data: { dataType: XSchema.BOOLEAN } } as TreeNodeModel))
          .toContain("boolean-field-icon");
    });
@@ -493,10 +461,10 @@ describe("Group 8 — iconFunction", () => {
 
 describe("Group 9 — selectPhysicalColumn", () => {
    it("should update attribute qualifiedName, table, and column from node data", async () => {
-      const { comp, fixture } = await renderEditor();
-      httpMock.expectOne(req => req.url.includes("logicalModel/attribute/format")).flush(null);
-      httpMock.expectOne(req => req.url.includes("logicalModel/tables/nodes")).flush(makeColumnsTree());
-      fixture.detectChanges();
+      server.use(
+         http.post("*/logicalModel/tables/nodes", () => MswHttpResponse.json(makeColumnsTree()))
+      );
+      const { comp } = await renderEditor();
 
       const targetNode: TreeNodeModel = {
          label: "colB",
@@ -518,10 +486,10 @@ describe("Group 9 — selectPhysicalColumn", () => {
    });
 
    it("should set selectedNode to the target node", async () => {
-      const { comp, fixture } = await renderEditor();
-      httpMock.expectOne(req => req.url.includes("logicalModel/attribute/format")).flush(null);
-      httpMock.expectOne(req => req.url.includes("logicalModel/tables/nodes")).flush(makeColumnsTree());
-      fixture.detectChanges();
+      server.use(
+         http.post("*/logicalModel/tables/nodes", () => MswHttpResponse.json(makeColumnsTree()))
+      );
+      const { comp } = await renderEditor();
 
       const targetNode: TreeNodeModel = {
          label: "colB",
@@ -535,10 +503,10 @@ describe("Group 9 — selectPhysicalColumn", () => {
    });
 
    it("should call updateDataType with the node dataType when a matching type is found", async () => {
-      const { comp, fixture } = await renderEditor();
-      httpMock.expectOne(req => req.url.includes("logicalModel/attribute/format")).flush(null);
-      httpMock.expectOne(req => req.url.includes("logicalModel/tables/nodes")).flush(makeColumnsTree());
-      fixture.detectChanges();
+      server.use(
+         http.post("*/logicalModel/tables/nodes", () => MswHttpResponse.json(makeColumnsTree()))
+      );
+      const { comp } = await renderEditor();
 
       const targetNode: TreeNodeModel = {
          label: "colB",
@@ -558,9 +526,7 @@ describe("Group 9 — selectPhysicalColumn", () => {
 
 describe("Group 10 — onAttributeChanged emission via form valueChanges", () => {
    it("should emit onAttributeChanged when a form control value changes", async () => {
-      const { comp, fixture } = await renderEditor();
-      flushInitHttp();
-      fixture.detectChanges();
+      const { comp } = await renderEditor();
 
       const emitSpy = vi.spyOn(comp.onAttributeChanged, "emit");
       try {
