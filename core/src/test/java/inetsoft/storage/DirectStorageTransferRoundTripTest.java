@@ -60,6 +60,10 @@ class DirectStorageTransferRoundTripTest {
       assertEquals("valueA", tgtKv.get("sreeProperties", "a.prop"));
       assertEquals("valueB", tgtKv.get("sreeProperties", "b.prop"));
       assertEquals("1", tgtKv.get("otherStore", "x"));
+
+      // no spurious entries beyond what was exported
+      assertEquals(2, tgtKv.size("sreeProperties"));
+      assertEquals(1, tgtKv.size("otherStore"));
    }
 
    @Test

@@ -41,16 +41,22 @@ class StorageTransferTest {
       assertTransferType(keyValueType, DirectStorageTransfer.class);
    }
 
+   @Test
+   void createReturnsDirectTransferForNullType() {
+      // unconfigured type falls through to the shared backend via "mapdb".equals(null) == false
+      assertTransferType(null, DirectStorageTransfer.class);
+   }
+
    private void assertTransferType(String keyValueType,
                                    Class<? extends StorageTransfer> expected)
    {
       KeyValueEngine keyValueEngine = mock(KeyValueEngine.class);
       BlobEngine blobEngine = mock(BlobEngine.class);
 
-      KeyValueConfig keyValueConfig = new KeyValueConfig();
-      keyValueConfig.setType(keyValueType);
-      InetsoftConfig config = new InetsoftConfig();
-      config.setKeyValue(keyValueConfig);
+      KeyValueConfig keyValueConfig = mock(KeyValueConfig.class);
+      when(keyValueConfig.getType()).thenReturn(keyValueType);
+      InetsoftConfig config = mock(InetsoftConfig.class);
+      when(config.getKeyValue()).thenReturn(keyValueConfig);
 
       try(MockedStatic<InetsoftConfig> mocked = mockStatic(InetsoftConfig.class)) {
          mocked.when(InetsoftConfig::getInstance).thenReturn(config);

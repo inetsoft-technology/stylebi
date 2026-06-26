@@ -35,6 +35,9 @@ public interface StorageTransfer {
     * backend would fire the live storage change-listeners during a bulk import and fail on
     * not-yet-imported parent folders.
     *
+    * <p>For the mapdb backend the provided engines are not used; {@code ClusterStorageTransfer}
+    * routes all I/O through the cluster singletons.</p>
+    *
     * @param keyValueEngine the key-value storage engine.
     * @param blobEngine     the blob storage engine.
     *
