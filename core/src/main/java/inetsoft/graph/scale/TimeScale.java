@@ -521,7 +521,7 @@ public class TimeScale extends Scale {
          boolean hasDup = isFormattedToHigherInterval() && !getAxisSpec().isAllTicks();
 
          // make sure the number of ticks is not too large (out of memory)
-         if(!hasDup) {
+         if(!hasDup && !getAxisSpec().isAllTicks()) {
             while((max - min) / (incLen * n) > maxTicks) {
                n++;
             }
