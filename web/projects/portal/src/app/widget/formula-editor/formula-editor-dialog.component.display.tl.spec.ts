@@ -55,13 +55,13 @@ describe("FormulaEditorDialog — expressionChange VS context [Group 1, Risk 2]"
          node: leafNode({
             data: "_ROLES_",
             name: "param",
-            parentData: "paramter",
+            parentData: "parameter",
             parentLabel: "Parameter",
             parentName: "parameter",
          }, "_ROLES_"),
       }));
 
-      expect(comp.expression).toBe("paramter._ROLES_");
+      expect(comp.expression).toBe("parameter._ROLES_");
    });
 
    // 🔁 Regression-sensitive: Bug #18631 component property with suffix

@@ -33,65 +33,15 @@
  * Direct instantiation — ScriptPane / CodeMirror not rendered.
  */
 
-import { ElementRef, Renderer2, TemplateRef } from "@angular/core";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { of } from "rxjs";
+import { ElementRef, TemplateRef } from "@angular/core";
 import { ComponentTool } from "../../common/util/component-tool";
 import { AggregateRef } from "../../common/data/aggregate-ref";
 import { FormulaField } from "../../common/data/formula-field";
 import { FormulaType } from "../../common/data/formula-type";
 import { ActionsContextmenuComponent } from "../fixed-dropdown/actions-contextmenu.component";
-import { FixedDropdownService } from "../fixed-dropdown/fixed-dropdown.service";
 import { TreeNodeModel } from "../tree/tree-node-model";
-import { FormulaEditorDialog } from "./formula-editor-dialog.component";
 import { FormulaEditorService } from "./formula-editor.service";
-
-function flushPromises(): Promise<void> {
-   return new Promise(resolve => setTimeout(resolve, 0));
-}
-
-function createDialog() {
-   const editorService = {
-      getColumnTreeNode: vi.fn(() => of({ children: [] } as TreeNodeModel)),
-      getFunctionTreeNode: vi.fn(() => of({ children: [] } as TreeNodeModel)),
-      getOperationTreeNode: vi.fn(() => of({ children: [] } as TreeNodeModel)),
-      getScriptDefinitions: vi.fn(() => of({})),
-      getTaskScriptDefinitions: vi.fn(() => of({})),
-   };
-   const modalService = { open: vi.fn() };
-   const dropdownService = {
-      open: vi.fn(() => ({
-         componentInstance: {} as ActionsContextmenuComponent,
-      })),
-   };
-   const renderer = {
-      createElement: vi.fn(() => document.createElement("div")),
-      addClass: vi.fn(),
-      appendChild: vi.fn(),
-      listen: vi.fn(() => vi.fn()),
-   };
-   const comp = new FormulaEditorDialog(
-      editorService as unknown as FormulaEditorService,
-      modalService as unknown as NgbModal,
-      renderer as unknown as Renderer2,
-      { nativeElement: document.createElement("form") } as ElementRef,
-      dropdownService as unknown as FixedDropdownService,
-   );
-   comp.formulaName = "CalcField1";
-   comp.formulaType = FormulaType.SCRIPT;
-   comp.dataType = "string";
-   comp.expression = "1 + 1";
-   comp.columnTreeRoot = {
-      label: "Fields",
-      children: [
-         { label: "State", leaf: true },
-         { label: "Total", leaf: true },
-      ],
-      leaf: false,
-   };
-   comp.submitCallback = () => Promise.resolve(true);
-   return { comp, editorService, modalService, dropdownService };
-}
+import { createDialog, flushPromises } from "./formula-editor-dialog.component.test-helpers";
 
 describe("FormulaEditorDialog — ok and cancel [Group 1, Risk 3]", () => {
 

@@ -24,8 +24,10 @@
  *   Group 2 [Risk 2] — toggle/setExpanded: dropdown observer open/close pairing
  *   Group 3 [Risk 2] — ngOnDestroy: closes dropdown observer when still open
  *   Group 4 [Risk 1] — z-index, renameTitle, actualWidth, sizeClass getters
+ *   Group 5 [Risk 3] — startResize: document listener cleanup (mousemove/mouseup unlisten called)
  *
- * Out of scope: startResize when component destroyed mid-drag (ngOnDestroy does not remove listeners)
+ * Out of scope: startResize with component destroyed before mouseup fires (ngOnDestroy does not
+ *   remove the in-flight mousemove/mouseup listeners, so they leak until the next pointer event)
  */
 
 import { NO_ERRORS_SCHEMA } from "@angular/core";

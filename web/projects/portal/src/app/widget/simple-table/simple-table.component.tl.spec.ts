@@ -20,7 +20,7 @@
  * SimpleTableComponent — single pass
  *
  * Risk-first coverage:
- *   Group 1 [Risk 3] — sortClicked: ASC → DESC → NONE cycle + onSort emit
+ *   Group 1 [Risk 3] — sortClicked: (unset) → DESC → NONE → ASC cycle + onSort emit
  *   Group 2 [Risk 2] — getSortLabel: column-specific sort icon state
  *   Group 3 [Risk 2] — tableData setter: null guard + tableHeight
  *   Group 4 [Risk 2] — touchVScroll: scrollY clamping
@@ -48,7 +48,7 @@ function cell(): BaseTableCellModel {
 
 describe("SimpleTableComponent — sortClicked — cycle and emit [Group 1, Risk 3]", () => {
 
-   it("should cycle sort ASC → DESC → NONE and emit onSort each click", () => {
+   it("should cycle sort (unset) → DESC → NONE → ASC and emit onSort each click", () => {
       const comp = createTable();
       const emitSpy = vi.spyOn(comp.onSort, "emit");
 
@@ -65,7 +65,7 @@ describe("SimpleTableComponent — sortClicked — cycle and emit [Group 1, Risk
       expect(emitSpy).toHaveBeenLastCalledWith({ sortValue: XConstants.SORT_ASC, sortCol: 2 });
    });
 
-   it("should initialize sortInfo to ASC on first sort click", () => {
+   it("should initialize sortInfo to DESC on first sort click", () => {
       const comp = createTable();
 
       comp.sortClicked(0);

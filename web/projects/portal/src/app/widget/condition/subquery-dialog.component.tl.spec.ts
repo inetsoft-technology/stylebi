@@ -25,6 +25,7 @@
  *   Group 3 [Risk 2] — isValid: paired sub/main attributes required together
  *   Group 4 [Risk 2] — getAvailableTables / getCurrentTableColumns filtering
  *   Group 5 [Risk 1] — ok/cancel emits; dataRefsEqual; getTooltip branching
+ *   Group 6 [Risk 3] — ngOnChanges: table cache refresh on tables input change
  *
  * 🔁 Regression-sensitive: Bug #9968 — single currentTable with empty columns must not crash init
  */
@@ -65,7 +66,7 @@ async function renderDialog(props: {
    return result.fixture.componentInstance;
 }
 
-describe("SubqueryDialog — ngOnChanges — table cache refresh [Group 1, Risk 3]", () => {
+describe("SubqueryDialog — ngOnChanges — table cache refresh [Group 6, Risk 3]", () => {
 
    it("should refresh availableTables when subqueryTables input changes", async () => {
       const comp = await renderDialog({

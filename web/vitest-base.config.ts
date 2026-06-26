@@ -70,5 +70,8 @@ export default defineConfig({
       // Spec files that contain only it.skip tests (all tests disabled) should not
       // cause a build failure. These files document known-broken tests.
       passWithNoTests: true,
+      // Automatically restore vi.spyOn mocks after each test so static-method
+      // spies (e.g. ComponentTool.showMessageDialog) cannot bleed between tests.
+      restoreMocks: true,
    },
 });
