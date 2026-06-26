@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { TestBed } from "@angular/core/testing";
 import { BehaviorSubject } from "rxjs";
 import { Rectangle } from "../../common/data/rectangle";
 import { Legend } from "../model/legend";
@@ -28,7 +29,8 @@ describe("ChartLegendArea canvas offsets", () => {
    beforeEach(() => {
       const chartService = new ChartService();
       const scaleService = <ScaleService> <unknown> { getScale: () => new BehaviorSubject(1) };
-      area = new ChartLegendArea(chartService, scaleService);
+      area = TestBed.runInInjectionContext(
+         () => new ChartLegendArea(chartService, scaleService));
    });
 
    function makeChartObject(areaName: string, scalar: boolean): Legend {
