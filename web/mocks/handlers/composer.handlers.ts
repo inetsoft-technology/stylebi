@@ -84,4 +84,9 @@ export const composerHandlers = [
    http.post("*/api/dataset/recyclebin/remove-asset", () => {
       return new HttpResponse(null, { status: 200 });
    }),
+
+   // Font list (used by FontPane in highlight/format panes)
+   http.get("*/api/format/fonts", () => {
+      return HttpResponse.json([]);
+   }),
 ];
