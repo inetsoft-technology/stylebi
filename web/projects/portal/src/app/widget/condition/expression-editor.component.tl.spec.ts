@@ -17,7 +17,7 @@
  */
 
 /**
- * ExpressionEditor — single pass (+内存泄漏)
+ * ExpressionEditor — single pass (subscription leak coverage included)
  *
  * Risk-first coverage:
  *   Group 1 [Risk 3] — ngOnChanges: default value init; type change re-fetches column tree
