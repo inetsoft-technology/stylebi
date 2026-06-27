@@ -559,14 +559,16 @@ public class WorksheetTableService {
       UniformSQL sql = new UniformSQL();
       sql.setDataSource(ds);
 
-      // Block until the SQL string is parsed; SQLProcessor calls notifyAll() in its parse finally
-      // block. Bounded wait so a parse that never notifies can't hang the request thread — the
-      // column resolution below falls back to executing the query for output metadata.
-      synchronized(sql) {
-         sql.setParseSQL(true);
-         sql.setSQLString(sqlString, true);
-         sql.wait(30000);
-      }
+      // Do NOT parse: the sqlExpression is authored to run verbatim. StyleBI's SQL parser builds a
+      // structured representation and REGENERATES the query at execution, which silently drops
+      // clauses it can't round-trip — notably a GROUP BY / ORDER BY whose expression isn't identical
+      // to a SELECT column (e.g. GROUP BY DATE_TRUNC('month', d) under SELECT TO_CHAR(DATE_TRUNC(...))),
+      // producing an aggregate-without-GROUP-BY error against the database. With parsing off the raw
+      // string is sent to the database unchanged (honoring GROUP BY/ORDER BY/HAVING/CTEs/window
+      // functions), and column metadata is resolved from the result set (the non-parsed branch of
+      // QueryManagerService.getColumnSelection → JDBCQuery.getOutputTypeForNonParseableSQL).
+      sql.setParseSQL(false);
+      sql.setSQLString(sqlString, false);
 
       JDBCQuery query = new JDBCQuery();
       query.setUserQuery(true);
