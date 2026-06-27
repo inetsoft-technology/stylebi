@@ -133,6 +133,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
       installGlobalFunctions();
       installGlobalScope();
+
+      // Bind the __scope__ proxy before installing library functions: their
+      // bodies are wrapped in with(__scope__){...} so unqualified names resolve
+      // through the proxy at call time (see installLibraryFunctions).
+      ensureScopeProxy();
       installLibraryFunctions();
    }
 
@@ -310,11 +315,16 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * Install user-defined library script functions as callable JS globals.
     *
     * <p>Each library function is stored as a full JS function declaration (e.g.
-    * {@code function myFunc(a, b) { return a + b; }}). Evaluating that
-    * declaration at the top level of the Context defines {@code myFunc} as a
-    * global, so any subsequently compiled script/formula can call it by name.
-    * This replaces the Rhino {@code cx.compileFunction(globalscope, ...)}
-    * machinery.
+    * {@code function myFunc(a, b) { return a + b; }}). The declaration is
+    * evaluated wrapped in {@code with(__scope__){ ... }}: in sloppy mode the
+    * function declaration is still hoisted to a global (so any subsequently
+    * compiled script/formula can call it by name), but its closure now captures
+    * the {@code __scope__} object-environment. This restores the Rhino behavior
+    * where a library function's unqualified names (e.g. {@code setActionVisible},
+    * {@code drillEnabled}) resolve dynamically against the currently executing
+    * assembly scope at call time — without the wrapper such names would be
+    * unresolvable and throw a ReferenceError (Bug #75525). This replaces the
+    * Rhino {@code cx.compileFunction(globalscope, ...)} machinery.
     *
     * <p>A malformed library function must not abort engine init, so each
     * function is compiled in its own try/catch (mirroring the old Rhino
@@ -336,7 +346,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             }
 
             try {
-               context.eval(Source.newBuilder("js", source, "<lib:" + name + ">")
+               // Strip "use strict" directives — strict mode forbids with statements,
+               // so the wrapper would cause a SyntaxError and the function would be
+               // silently dropped.
+               String wrapped = stripStrictDirectives(source);
+               context.eval(Source.newBuilder(
+                  "js", "with(__scope__){\n" + wrapped + "\n}", "<lib:" + name + ">")
                               .buildLiteral());
             }
             catch(PolyglotException ex) {
@@ -473,6 +488,31 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * Read the script.max.errors limit from SreeEnv. Returns 0 to mean "no limit".
     * Must be called while holding {@code lock} (result used inline in exec).
     */
+   /**
+    * Removes leading ECMAScript Directive Prologue entries for {@code "use strict"} so
+    * that the source can be wrapped in a {@code with(__scope__){...}} block without
+    * triggering a SyntaxError (strict mode forbids {@code with}).
+    */
+   private static String stripStrictDirectives(String src) {
+      String s = src;
+
+      while(true) {
+         String t = s.stripLeading();
+
+         if(t.startsWith("\"use strict\";")) {
+            s = t.substring("\"use strict\";".length());
+         }
+         else if(t.startsWith("'use strict';")) {
+            s = t.substring("'use strict';".length());
+         }
+         else {
+            break;
+         }
+      }
+
+      return s;
+   }
+
    private int maxErrors() {
       try {
          String prop = MAX_ERRORS_PROP.get();
