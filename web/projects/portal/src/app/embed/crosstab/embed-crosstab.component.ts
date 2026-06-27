@@ -185,7 +185,6 @@ export class EmbedCrosstabComponent extends CommandProcessor implements OnInit, 
          this.assemblyName = result.posParams?.assemblyName?.path;
          this.inputRuntimeId = result.posParams?.runtimeId?.path;
          this.queryParams = tree.queryParams;
-
          this.subscriptions.add(
             (window.inetsoftConnected as BehaviorSubject<boolean>).subscribe((connected) => {
                if(!this.connected && connected) {
@@ -317,6 +316,8 @@ export class EmbedCrosstabComponent extends CommandProcessor implements OnInit, 
 
       this.vsObjectActions = new EmbedCrosstabActions(this.vsObject, this.contextProvider,
          false, null, null, null, this.miniToolbarService);
+      // Force change detection: as an Angular Elements custom element, this view is not refreshed by the zone tick that wraps websocket command processing, so the embedded object would otherwise never render on open.
+      this.cdRef.detectChanges();
    }
 
    // noinspection JSUnusedGlobalSymbols
@@ -335,6 +336,8 @@ export class EmbedCrosstabComponent extends CommandProcessor implements OnInit, 
       this.vsObject.active = true;
       this.vsObjectActions = new EmbedCrosstabActions(this.vsObject, this.contextProvider,
          false, null, null, null, this.miniToolbarService);
+      // Force change detection: as an Angular Elements custom element, this view is not refreshed by the zone tick that wraps websocket command processing, so the embedded object would otherwise never render on open.
+      this.cdRef.detectChanges();
    }
 
    // noinspection JSUnusedGlobalSymbols
