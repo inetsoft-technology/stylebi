@@ -660,22 +660,7 @@ public class WizAutoBindingService {
                dim.setRankingColValue(r.getRankingCol());
             }
 
-            if(dimFc.getDateGroupLevel() != null) {
-               try {
-                  int level =
-                     WizDateLevelUtil.getDateGroupLevel(dimFc.getDateGroupLevel());
-
-                  if(level != XConstants.NONE_DATE_GROUP) {
-                     dim.setDateLevelValue(String.valueOf(level));
-                  }
-
-                  dim.setTimeSeries(dimFc.isTimeSeries());
-               }
-               catch(IllegalArgumentException e) {
-                  LOG.warn("Ignoring unsupported dateGroupLevel '{}' for field '{}'",
-                           dimFc.getDateGroupLevel(), dimFc.getField());
-               }
-            }
+            applyDateGroup(dim, dimFc);
          }
 
          if(fc.getOrder() != null) {
@@ -714,6 +699,40 @@ public class WizAutoBindingService {
       // Common to dimensions and measures: a display title (axis/legend/series label) and a
       // number/date display format. Applies to whichever ref kind matched above.
       applyTitleAndFormat(ref, fc);
+   }
+
+   /**
+    * Apply a dimension fieldConfig's requested date-group level to the dimension.
+    *
+    * <p>The caller's level is authoritative and ALWAYS overrides whatever level the recommender
+    * picked (it defaults a date-typed dimension to YEAR). In particular an explicit {@code "none"}
+    * must reset the dimension to {@link XConstants#NONE_DATE_GROUP}. Previously a {@code "none"} was
+    * silently ignored — the guard only applied non-NONE levels — so a column that the worksheet had
+    * already bucketed (e.g. {@code Month(date_entered)}) was re-grouped by year at the chart layer,
+    * collapsing the intended monthly series. The caller's intent was dropped with no error.
+    *
+    * <p>No-ops when the fieldConfig requests no level ({@code getDateGroupLevel() == null}). An
+    * unsupported level string is logged and ignored rather than thrown, preserving the previous
+    * lenient behavior.
+    *
+    * <p>Package-private and static so it can be unit-tested directly with a mocked dimension ref.
+    */
+   static void applyDateGroup(VSDimensionRef dim, DimensionFieldInfo dimFc) {
+      if(dimFc.getDateGroupLevel() == null) {
+         return;
+      }
+
+      try {
+         int level = WizDateLevelUtil.getDateGroupLevel(dimFc.getDateGroupLevel());
+         // Always apply — an explicit "none" (NONE_DATE_GROUP) must override the recommender's
+         // default level, not be silently skipped.
+         dim.setDateLevelValue(String.valueOf(level));
+         dim.setTimeSeries(dimFc.isTimeSeries());
+      }
+      catch(IllegalArgumentException e) {
+         LOG.warn("Ignoring unsupported dateGroupLevel '{}' for field '{}'",
+                  dimFc.getDateGroupLevel(), dimFc.getField());
+      }
    }
 
    /**
