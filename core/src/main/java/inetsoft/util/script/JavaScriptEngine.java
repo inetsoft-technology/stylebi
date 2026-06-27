@@ -884,15 +884,52 @@ public class JavaScriptEngine {
    }
 
    /**
-    * Add a JS object to a scope's prototype chain.
+    * Add a JS object to the end of a scope's lookup chain.
     *
-    * <p>TODO(cutover): Rhino prototype-chain injection is obsolete under
-    * GraalJS, which resolves names through the FormulaContext scope chain
-    * (see BindingRootProxy). This is now a no-op; the dynamic-library and
-    * worksheet scope members are exposed through the scope objects directly.
+    * <p>Under GraalJS, unqualified name resolution walks the
+    * {@link ScriptScope#getParentScope()} chain (see BindingRootProxy), which
+    * replaces the Rhino prototype chain. This appends {@code jsobj} at the end
+    * of {@code scope}'s parent chain so the two cooperating scopes (e.g. a
+    * viewsheet scope and its worksheet {@code AssetQueryScope}) resolve each
+    * other's members. The terminal scope must be a {@link DynamicScope}
+    * (the only scopes chained this way); otherwise this is a no-op. A
+    * duplicate/cycle guard prevents re-adding {@code jsobj} or forming a loop.
     */
    public static void addToPrototype(Object scope, Object jsobj) {
-      // no-op (see javadoc)
+      if(!(scope instanceof ScriptScope) || !(jsobj instanceof ScriptScope)) {
+         return;
+      }
+
+      ScriptScope start = (ScriptScope) scope;
+      ScriptScope obj = (ScriptScope) jsobj;
+
+      if(start == obj) {
+         return;
+      }
+
+      // if jsobj's own chain already leads back to scope, appending scope -> jsobj
+      // would close a loop; bail out
+      for(ScriptScope s = obj; s != null; s = s.getParentScope()) {
+         if(s == start) {
+            return;
+         }
+      }
+
+      // walk to the end of the parent chain, bailing out if jsobj is already
+      // present (already added, or would create a cycle)
+      ScriptScope target = start;
+
+      while(target.getParentScope() != null) {
+         if(target.getParentScope() == obj) {
+            return;
+         }
+
+         target = target.getParentScope();
+      }
+
+      if(target instanceof DynamicScope) {
+         ((DynamicScope) target).setParentScope(obj);
+      }
    }
 
    public static void setOnClickScript(boolean value) {
