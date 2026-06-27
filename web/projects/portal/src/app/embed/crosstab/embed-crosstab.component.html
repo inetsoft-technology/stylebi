@@ -22,32 +22,40 @@
      [attr.runtime-id]="runtimeId"
      (mouseenter)="onMouseEnter($event)"
      (resized)="onResize()">
-  <vs-crosstab *ngIf="vsObject && runtimeId && !timeoutError"
+  @if (vsObject && runtimeId && !timeoutError) {
+    <vs-crosstab
                [vsInfo]="vsInfo" [model]="vsObject" [actions]="vsObjectActions"
                [appSize]="appSize"
                [container]="viewerRoot"
                [variableValues]="variableValuesFunction"
                (contextmenu)="onOpenContextMenu($event)">
-  </vs-crosstab>
-  <div *ngIf="showError" class="error-crosstab txt-danger">
-    <span class="error-label">
-      _#(Failed to generate crosstab)
-    </span>
-  </div>
-  <div *ngIf="!showError && timeoutError" class="error-crosstab txt-danger">
-    <span class="error-label">
-      _#(vs.viewsheet.crosstab.timeout)
-    </span>
-  </div>
+    </vs-crosstab>
+  }
+  @if (showError) {
+    <div class="error-crosstab txt-danger">
+      <span class="error-label">
+        _#(Failed to generate crosstab)
+      </span>
+    </div>
+  }
+  @if (!showError && timeoutError) {
+    <div class="error-crosstab txt-danger">
+      <span class="error-label">
+        _#(vs.viewsheet.crosstab.timeout)
+      </span>
+    </div>
+  }
 
-  <mini-toolbar *ngIf="isMiniToolbarVisible()"
+  @if (isMiniToolbarVisible()) {
+    <mini-toolbar
                 [actions]="vsObjectActions"
                 [top]="getToolbarTop(vsObject)"
                 [left]="getToolbarLeft(vsObject)"
                 [width]="getToolbarWidth(vsObject)"
                 [assembly]="vsObject.absoluteName"
                 [forceHide]="!showMiniToolbar()">
-  </mini-toolbar>
+    </mini-toolbar>
+  }
 </div>
 
 <dl-download-target

@@ -22,28 +22,36 @@
      [attr.runtime-id]="runtimeId"
      (mouseenter)="onMouseEnter($event)"
      (resized)="onResize()">
-  <vs-gauge *ngIf="vsObject && runtimeId && !timeoutError"
+  @if (vsObject && runtimeId && !timeoutError) {
+    <vs-gauge
             [vsInfo]="vsInfo" [model]="vsObject" [actions]="vsObjectActions"
             [container]="viewerRoot"
             (contextmenu)="onOpenContextMenu($event)">
-  </vs-gauge>
-  <div *ngIf="showError" class="error-gauge txt-danger">
-    <span class="error-label">
-      _#(Failed to generate gauge)
-    </span>
-  </div>
-  <div *ngIf="!showError && timeoutError" class="error-gauge txt-danger">
-    <span class="error-label">
-      _#(vs.viewsheet.timeout)
-    </span>
-  </div>
+    </vs-gauge>
+  }
+  @if (showError) {
+    <div class="error-gauge txt-danger">
+      <span class="error-label">
+        _#(Failed to generate gauge)
+      </span>
+    </div>
+  }
+  @if (!showError && timeoutError) {
+    <div class="error-gauge txt-danger">
+      <span class="error-label">
+        _#(vs.viewsheet.timeout)
+      </span>
+    </div>
+  }
 
-  <mini-toolbar *ngIf="isMiniToolbarVisible()"
+  @if (isMiniToolbarVisible()) {
+    <mini-toolbar
                 [actions]="vsObjectActions"
                 [top]="getToolbarTop(vsObject)"
                 [left]="getToolbarLeft(vsObject)"
                 [width]="getToolbarWidth(vsObject)"
                 [assembly]="vsObject.absoluteName"
                 [forceHide]="!showMiniToolbar()">
-  </mini-toolbar>
+    </mini-toolbar>
+  }
 </div>

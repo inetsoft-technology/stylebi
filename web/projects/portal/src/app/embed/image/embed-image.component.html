@@ -22,28 +22,36 @@
      [attr.runtime-id]="runtimeId"
      (mouseenter)="onMouseEnter($event)"
      (resized)="onResize()">
-  <vs-image *ngIf="vsObject && runtimeId && !timeoutError"
+  @if (vsObject && runtimeId && !timeoutError) {
+    <vs-image
             [vsInfo]="vsInfo" [model]="vsObject" [actions]="vsObjectActions"
             [container]="viewerRoot"
             (contextmenu)="onOpenContextMenu($event)">
-  </vs-image>
-  <div *ngIf="showError" class="error-image txt-danger">
-    <span class="error-label">
-      _#(Failed to generate image)
-    </span>
-  </div>
-  <div *ngIf="!showError && timeoutError" class="error-image txt-danger">
-    <span class="error-label">
-      _#(vs.viewsheet.timeout)
-    </span>
-  </div>
+    </vs-image>
+  }
+  @if (showError) {
+    <div class="error-image txt-danger">
+      <span class="error-label">
+        _#(Failed to generate image)
+      </span>
+    </div>
+  }
+  @if (!showError && timeoutError) {
+    <div class="error-image txt-danger">
+      <span class="error-label">
+        _#(vs.viewsheet.timeout)
+      </span>
+    </div>
+  }
 
-  <mini-toolbar *ngIf="isMiniToolbarVisible()"
+  @if (isMiniToolbarVisible()) {
+    <mini-toolbar
                 [actions]="vsObjectActions"
                 [top]="getToolbarTop(vsObject)"
                 [left]="getToolbarLeft(vsObject)"
                 [width]="getToolbarWidth(vsObject)"
                 [assembly]="vsObject.absoluteName"
                 [forceHide]="!showMiniToolbar()">
-  </mini-toolbar>
+    </mini-toolbar>
+  }
 </div>

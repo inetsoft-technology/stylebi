@@ -289,6 +289,8 @@ export class EmbedTextComponent extends CommandProcessor implements OnInit, OnDe
 
       this.vsObjectActions = new EmbedTextActions(this.vsObject,
          this.contextProvider, false, null, null, null, this.miniToolbarService);
+      // Force change detection: as an Angular Elements custom element, this view is not refreshed by the zone tick that wraps websocket command processing, so the embedded object would otherwise never render on open.
+      this.cdRef.detectChanges();
    }
 
    processRefreshVSObjectCommand(command: RefreshVSObjectCommand): void {
@@ -306,6 +308,8 @@ export class EmbedTextComponent extends CommandProcessor implements OnInit, OnDe
       this.vsObject.active = true;
       this.vsObjectActions = new EmbedTextActions(this.vsObject,
          this.contextProvider, false, null, null, null, this.miniToolbarService);
+      // Force change detection: as an Angular Elements custom element, this view is not refreshed by the zone tick that wraps websocket command processing, so the embedded object would otherwise never render on open.
+      this.cdRef.detectChanges();
    }
 
    processCollectParametersCommand(command: CollectParametersCommand): void {

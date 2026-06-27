@@ -22,32 +22,40 @@
      [attr.runtime-id]="runtimeId"
      (mouseenter)="onMouseEnter($event)"
      (resized)="onResize()">
-  <vs-table *ngIf="vsObject && runtimeId && !timeoutError"
+  @if (vsObject && runtimeId && !timeoutError) {
+    <vs-table
             [vsInfo]="vsInfo" [model]="vsObject" [actions]="vsObjectActions"
             [appSize]="appSize"
             [container]="viewerRoot"
             [variableValues]="variableValuesFunction"
             (contextmenu)="onOpenContextMenu($event)">
-  </vs-table>
-  <div *ngIf="showError" class="error-table txt-danger">
-    <span class="error-label">
-      _#(Failed to generate table)
-    </span>
-  </div>
-  <div *ngIf="!showError && timeoutError" class="error-table txt-danger">
-    <span class="error-label">
-      _#(vs.viewsheet.table.timeout)
-    </span>
-  </div>
+    </vs-table>
+  }
+  @if (showError) {
+    <div class="error-table txt-danger">
+      <span class="error-label">
+        _#(Failed to generate table)
+      </span>
+    </div>
+  }
+  @if (!showError && timeoutError) {
+    <div class="error-table txt-danger">
+      <span class="error-label">
+        _#(vs.viewsheet.table.timeout)
+      </span>
+    </div>
+  }
 
-  <mini-toolbar *ngIf="isMiniToolbarVisible()"
+  @if (isMiniToolbarVisible()) {
+    <mini-toolbar
                 [actions]="vsObjectActions"
                 [top]="getToolbarTop(vsObject)"
                 [left]="getToolbarLeft(vsObject)"
                 [width]="getToolbarWidth(vsObject)"
                 [assembly]="vsObject.absoluteName"
                 [forceHide]="!showMiniToolbar()">
-  </mini-toolbar>
+    </mini-toolbar>
+  }
 </div>
 
 <dl-download-target
