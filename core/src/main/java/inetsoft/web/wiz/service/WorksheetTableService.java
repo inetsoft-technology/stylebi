@@ -1046,10 +1046,11 @@ public class WorksheetTableService {
     * @param isHaving  true when building a HAVING (post-aggregate) condition list;
     *                  fields with {@code aggregateFormula} are wrapped in {@link AggregateRef}
     */
-   private ConditionList buildConditionList(ColumnSelection columns,
-                                            List<WorksheetTableRequest.ConditionItem> items,
-                                            Worksheet worksheet,
-                                            boolean isHaving)
+   // Package-private for unit testing (WorksheetTableServiceConditionTest).
+   ConditionList buildConditionList(ColumnSelection columns,
+                                    List<WorksheetTableRequest.ConditionItem> items,
+                                    Worksheet worksheet,
+                                    boolean isHaving)
    {
       ConditionList list = new ConditionList();
 
@@ -1130,15 +1131,26 @@ public class WorksheetTableService {
                                     Worksheet worksheet,
                                     boolean isHaving)
    {
+      // Fail loud rather than silently skipping. A skipped item leaves a dangling JunctionOperator
+      // in the ConditionList (the operator for this item was already appended by buildConditionList),
+      // which breaks the list's required item/operator alternation and later throws an opaque
+      // "JunctionOperator cannot be cast to ConditionItem". With a single condition the silent skip
+      // instead dropped the filter outright (wrong results, no error). Either way the caller's intent
+      // was lost without a signal — so reject the bad condition with a clear, actionable message.
       if(item.getField() == null || item.getOperation() == null) {
-         return;
+         throw new IllegalArgumentException(
+            "Condition is missing a field or operation (field=" + item.getField() +
+            ", operation=" + item.getOperation() + ").");
       }
 
       // Resolve the column reference.
       DataRef ref = columns.getAttribute(item.getField());
 
       if(ref == null) {
-         return;
+         throw new IllegalArgumentException(
+            "Condition references column \"" + item.getField() + "\" which is not in the table's " +
+            "column selection. Add it to the table's columns (or omit columns to select all), " +
+            "and reference it exactly as it appears in the selection.");
       }
 
       // For HAVING conditions, wrap the column in an AggregateRef when a formula is present.
