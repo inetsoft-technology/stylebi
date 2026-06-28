@@ -2123,6 +2123,29 @@ public class WizAutoBindingService {
          }
       }
 
+      // Time-gap fill for line/area charts. fillTimeGap completes missing date periods (paired with
+      // the date dimension's timeSeries); fillZero=false fills with null (vs 0); fillGapWithDash
+      // chooses a dashed connector (true) vs a hard line break (false) across the null gap.
+      if((request.getFillTimeGap() != null || request.getFillZero() != null
+         || request.getFillGapWithDash() != null) && desc != null)
+      {
+         PlotDescriptor plot = desc.getPlotDescriptor();
+
+         if(plot != null) {
+            if(request.getFillTimeGap() != null) {
+               plot.setFillTimeGap(request.getFillTimeGap());
+            }
+
+            if(request.getFillZero() != null) {
+               plot.setFillZero(request.getFillZero());
+            }
+
+            if(request.getFillGapWithDash() != null) {
+               plot.setFillGapWithDash(request.getFillGapWithDash());
+            }
+         }
+      }
+
       // Invalidate the cached runtime descriptor so the change regenerates on re-execute.
       info.setRTChartDescriptor(null);
 

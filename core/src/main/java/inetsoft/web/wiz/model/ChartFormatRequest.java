@@ -86,6 +86,23 @@ public class ChartFormatRequest {
    public Integer getMarkerSize() { return markerSize; }
    public void setMarkerSize(Integer markerSize) { this.markerSize = markerSize; }
 
+   /** Line/area time-gap fill: complete missing date periods so the line reflects no-data months
+    *  (requires the date dimension's timeSeries to be on); null = no change. */
+   @JsonProperty("fillTimeGap")
+   public Boolean getFillTimeGap() { return fillTimeGap; }
+   public void setFillTimeGap(Boolean fillTimeGap) { this.fillTimeGap = fillTimeGap; }
+
+   /** When filling time gaps, fill with 0 (true) instead of null (false). Null fill leaves the line
+    *  broken/dashed at the gap; 0 fill drops it to the axis. Null = no change. */
+   @JsonProperty("fillZero")
+   public Boolean getFillZero() { return fillZero; }
+   public void setFillZero(Boolean fillZero) { this.fillZero = fillZero; }
+
+   /** Draw a dashed connector across a null-filled gap (true) vs a hard line break (false); null = no change. */
+   @JsonProperty("fillGapWithDash")
+   public Boolean getFillGapWithDash() { return fillGapWithDash; }
+   public void setFillGapWithDash(Boolean fillGapWithDash) { this.fillGapWithDash = fillGapWithDash; }
+
    /** The runtime viewsheet that holds the live chart (the plugin's active-chart runtimeId). */
    private String wizRuntimeId;
    /** The chart assembly name within that runtime. */
@@ -104,4 +121,7 @@ public class ChartFormatRequest {
    private Boolean markerVisible;
    private String markerShape;
    private Integer markerSize;
+   private Boolean fillTimeGap;
+   private Boolean fillZero;
+   private Boolean fillGapWithDash;
 }
