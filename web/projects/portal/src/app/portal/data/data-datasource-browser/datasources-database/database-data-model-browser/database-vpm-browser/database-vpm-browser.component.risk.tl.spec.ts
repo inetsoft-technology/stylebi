@@ -296,7 +296,6 @@ describe("DatabaseVPMBrowserComponent — deleteModel", () => {
          vi.useFakeTimers();
          comp.deleteModel([comp.models[0]]);
          await vi.runAllTimersAsync();
-         vi.useRealTimers();
 
          expect(postSpy).not.toHaveBeenCalled();
          expect(comp.models).toHaveLength(1);
