@@ -98,7 +98,7 @@ public class WorksheetEditService {
             throw me;
          }
 
-         LOG.warn("Auto-confirmed cross join in agent edit: {}", me.getMessage());
+         LOG.info("Auto-confirmed cross join in agent edit: {}", me.getMessage());
       }
 
       // Checkpoint saved after the mutation so redo restores the post-edit state,
