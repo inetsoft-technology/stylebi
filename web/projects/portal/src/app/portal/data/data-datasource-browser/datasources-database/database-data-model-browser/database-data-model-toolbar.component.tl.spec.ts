@@ -44,7 +44,7 @@
  */
 
 import { NO_ERRORS_SCHEMA, Renderer2 } from "@angular/core";
-import { render, waitFor } from "@testing-library/angular";
+import { render } from "@testing-library/angular";
 import { HttpClient } from "@angular/common/http";
 import { of } from "rxjs";
 
@@ -57,10 +57,6 @@ import { AssetListBrowseModel } from "../../../model/datasources/database/asset-
 
 const EDITABLE_MODEL = new AssetListBrowseModel(true, true, [], [], "yyyy-MM-dd", 2);
 const READ_ONLY_MODEL = new AssetListBrowseModel(false, false, [], [], "yyyy-MM-dd", 0);
-
-const httpMock = {
-   post: vi.fn().mockReturnValue(of([])),
-};
 
 // ── Render helper ────────────────────────────────────────────────────────────
 
@@ -76,6 +72,10 @@ interface ToolbarRenderOpts {
 }
 
 async function renderComp(opts: ToolbarRenderOpts = {}) {
+   const httpMock = {
+      post: vi.fn().mockReturnValue(of([])),
+   };
+
    const { fixture } = await render(DatabaseDataModelToolbarComponent, {
       schemas: [NO_ERRORS_SCHEMA],
       providers: [
@@ -94,7 +94,23 @@ async function renderComp(opts: ToolbarRenderOpts = {}) {
    });
 
    const comp = fixture.componentInstance as DatabaseDataModelToolbarComponent;
+   comp.searchInput = {
+      nativeElement: {
+         focus: vi.fn(),
+      },
+   } as any;
+
    return { comp, fixture };
+}
+
+async function withFakeTimers(run: () => void | Promise<void>) {
+   vi.useFakeTimers();
+   try {
+      await run();
+   }
+   finally {
+      vi.useRealTimers();
+   }
 }
 
 // ── Global lifecycle ─────────────────────────────────────────────────────────
@@ -253,15 +269,15 @@ describe("DatabaseDataModelToolbarComponent — toggleSearch() sync behavior", (
    it("should set searchVisible to true when called while closed", async () => {
       const { comp, fixture } = await renderComp({ searchVisible: false });
       const renderer = (comp as any).renderer as Renderer2;
-      const listenSpy = vi.spyOn(renderer, "listen").mockReturnValue(vi.fn());
-      try {
+      vi.spyOn(renderer, "listen").mockReturnValue(vi.fn());
+
+      await withFakeTimers(async () => {
          comp.toggleSearch(new MouseEvent("click"));
          fixture.detectChanges();
+         vi.runOnlyPendingTimers();
 
          expect(comp.searchVisible).toBe(true);
-      } finally {
-         listenSpy.mockRestore();
-      }
+      });
    });
 
    it("should set searchVisible to false when called while open (no pending query)", async () => {
@@ -313,21 +329,18 @@ describe("DatabaseDataModelToolbarComponent — document click listener (memory 
       const { comp, fixture } = await renderComp({ searchVisible: false });
       const renderer = (comp as any).renderer as Renderer2;
       const allCalls: { target: any; event: string }[] = [];
-      const listenSpy = vi.spyOn(renderer, "listen").mockImplementation((target, event) => {
+      vi.spyOn(renderer, "listen").mockImplementation((target, event) => {
          allCalls.push({ target, event });
          return vi.fn();
       });
-      try {
-         comp.toggleSearch(new MouseEvent("click"));
-         fixture.detectChanges();
 
-         expect(allCalls).toEqual(
-            expect.arrayContaining([expect.objectContaining({ target: "document", event: "click" })]),
-         );
-         expect(comp.searchVisible).toBe(true);
-      } finally {
-         listenSpy.mockRestore();
-      }
+      comp.toggleSearch(new MouseEvent("click"));
+      fixture.detectChanges();
+
+      expect(allCalls).toEqual(
+         expect.arrayContaining([expect.objectContaining({ target: "document", event: "click" })]),
+      );
+      expect(comp.searchVisible).toBe(true);
    });
 
    it("should close search on a new document click that lands outside the search input", async () => {
@@ -337,18 +350,20 @@ describe("DatabaseDataModelToolbarComponent — document click listener (memory 
       // needed for the listener to set searchVisible=false.
       const { comp, fixture } = await renderComp({ searchVisible: false });
 
-      const toggleEvent = new MouseEvent("click");
-      comp.toggleSearch(toggleEvent);
-      fixture.detectChanges();
-      await waitFor(() => expect(comp.searchVisible).toBe(true)); // wait for toggleSearch to settle
+      await withFakeTimers(async () => {
+         const toggleEvent = new MouseEvent("click");
+         comp.toggleSearch(toggleEvent);
+         fixture.detectChanges();
+         vi.runOnlyPendingTimers();
 
-      expect(comp.searchVisible).toBe(true);
+         expect(comp.searchVisible).toBe(true);
 
-      // Dispatch a distinct document click (different object → event !== targetEvent)
-      document.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-      fixture.detectChanges();
+         // Dispatch a distinct document click (different object → event !== targetEvent)
+         document.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+         fixture.detectChanges();
 
-      expect(comp.searchVisible).toBe(false);
+         expect(comp.searchVisible).toBe(false);
+      });
    });
 
    it("should NOT close search when the same event object bubbles to document", async () => {
@@ -356,15 +371,18 @@ describe("DatabaseDataModelToolbarComponent — document click listener (memory 
       // by checking `event !== targetEvent` before closing the search.
       const { comp, fixture } = await renderComp({ searchVisible: false });
 
-      const toggleEvent = new MouseEvent("click", { bubbles: true });
-      comp.toggleSearch(toggleEvent);
-      fixture.detectChanges();
+      await withFakeTimers(async () => {
+         const toggleEvent = new MouseEvent("click", { bubbles: true });
+         comp.toggleSearch(toggleEvent);
+         fixture.detectChanges();
+         vi.runOnlyPendingTimers();
 
-      // Re-dispatch the SAME event object (same reference) to document
-      document.dispatchEvent(toggleEvent);
-      fixture.detectChanges();
+         // Re-dispatch the SAME event object (same reference) to document
+         document.dispatchEvent(toggleEvent);
+         fixture.detectChanges();
 
-      expect(comp.searchVisible).toBe(true); // NOT closed — same event reference
+         expect(comp.searchVisible).toBe(true); // NOT closed — same event reference
+      });
    });
 });
 

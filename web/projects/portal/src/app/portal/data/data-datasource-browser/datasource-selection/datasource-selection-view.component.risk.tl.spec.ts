@@ -103,10 +103,6 @@ describe("DatasourceSelectionViewComponent — ngOnDestroy", () => {
 
       expect(unsubSpy).toHaveBeenCalledTimes(1);
       expect((comp as any).subscriptions).toBeNull();
-
-      // Restore a stub so ATL's afterEach cleanup (which calls ngOnDestroy again) does not
-      // crash on null.unsubscribe().
-      (comp as any).subscriptions = { unsubscribe: vi.fn() };
    });
 });
 

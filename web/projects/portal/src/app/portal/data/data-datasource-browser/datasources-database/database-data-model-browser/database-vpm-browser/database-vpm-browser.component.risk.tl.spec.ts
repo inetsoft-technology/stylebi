@@ -34,7 +34,7 @@
  *   Group 6 [Risk 3] — deleteSelected: delegates to deleteModel; selectedItems cleared on success
  *   Group 7 [Risk 2] — editable / deletable: both false when model is null; correct values
  *                        when model is set
- *   Group 8 [Risk 2] — crrentSearchFolderLabel: "/" or null → rootLabel; non-root → path string
+ *   Group 8 [Risk 2] — currentSearchFolderLabel: "/" or null → rootLabel; non-root → path string
  *   Group 9 [Risk 2] — reSearch: restores searchQuery to currentSearchQuery and calls search
  *   Group 10 [Risk 2] — clearSearch: clears query/visible/view and triggers refreshModels
  *
@@ -104,8 +104,6 @@ describe("DatabaseVPMBrowserComponent — ngOnDestroy", () => {
       fixture.destroy();
 
       expect((comp as any).routeParamSubscription).toBeNull();
-      // Restore a stub so ATL's afterEach cleanup does not crash if ngOnDestroy is called again.
-      (comp as any).routeParamSubscription = { unsubscribe: vi.fn() };
    });
 });
 
@@ -295,13 +293,15 @@ describe("DatabaseVPMBrowserComponent — deleteModel", () => {
       const postSpy = vi.fn();
       server.use(http.post("*/api/data/vpm/remove", () => { postSpy(); return MswHttpResponse.json({}); }));
       try {
+         vi.useFakeTimers();
          comp.deleteModel([comp.models[0]]);
+         await vi.runAllTimersAsync();
+         vi.useRealTimers();
 
-         // showConfirmDialog resolves with "cancel" in a microtask; flush before asserting no HTTP.
-         await Promise.resolve(); await Promise.resolve();
          expect(postSpy).not.toHaveBeenCalled();
          expect(comp.models).toHaveLength(1);
       } finally {
+         vi.useRealTimers();
          confirmSpy.mockRestore();
       }
    });
@@ -356,21 +356,21 @@ describe("DatabaseVPMBrowserComponent — editable / deletable", () => {
    });
 });
 
-// ── Group 8 — crrentSearchFolderLabel [Risk 2] ───────────────────────────────
+// ── Group 8 — currentSearchFolderLabel [Risk 2] ───────────────────────────────
 
-describe("DatabaseVPMBrowserComponent — crrentSearchFolderLabel", () => {
+describe("DatabaseVPMBrowserComponent — currentSearchFolderLabel", () => {
    it("should return the rootLabel when currentFolderPathString is '/'", async () => {
       const { comp } = await renderComp();
       comp.currentFolderPathString = "/";
 
-      expect(comp.crrentSearchFolderLabel).toBe(comp.rootLabel);
+      expect(comp.currentSearchFolderLabel).toBe(comp.rootLabel);
    });
 
    it("should return the folder path when currentFolderPathString is a non-root path", async () => {
       const { comp } = await renderComp();
       comp.currentFolderPathString = "/Finance";
 
-      expect(comp.crrentSearchFolderLabel).toBe("/Finance");
+      expect(comp.currentSearchFolderLabel).toBe("/Finance");
    });
 });
 

@@ -292,7 +292,8 @@ describe("Group 2 - loadQueryParameters", () => {
 
       comp.loadQueryParameters(entry);
 
-      await waitFor(() => expect(requestCount).toBe(0));
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(requestCount).toBe(0);
    });
 });
 
