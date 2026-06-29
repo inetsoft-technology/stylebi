@@ -98,7 +98,7 @@ public class WorksheetEditService {
             throw me;
          }
 
-         LOG.debug("Auto-confirmed cross join in agent edit: {}", me.getMessage());
+         LOG.warn("Auto-confirmed cross join in agent edit: {}", me.getMessage());
       }
 
       // Checkpoint saved after the mutation so redo restores the post-edit state,
@@ -233,7 +233,7 @@ public class WorksheetEditService {
                WorksheetEventUtil.fixAssemblyInfo(rws, ta);
             }
             catch(Exception ex) {
-               LOG.warn("Failed to refresh assembly: " + name, ex);
+               LOG.warn("Failed to refresh assembly: {}", name, ex);
             }
          }
       }

@@ -22,6 +22,7 @@ import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -341,6 +342,12 @@ public class WorksheetAgentController {
          throw new PairingException("table (entity name) is required for add_table with a logical model.");
       }
 
+      // Verify READ permission on the datasource and logical model,
+      // mirroring the checks in DatasourceMetaApiController.listLogicalModels().
+      if(!dataSourceService.checkPermission(datasourceName, ResourceAction.READ, user)) {
+         throw new PairingException("Access denied: no READ permission on datasource " + datasourceName);
+      }
+
       XDataModel dataModel = dataSourceService.getDataModel(datasourceName);
 
       if(dataModel == null) {
@@ -352,6 +359,17 @@ public class WorksheetAgentController {
       if(lm == null) {
          throw new PairingException("Logical model not found: " + logicalModelName
             + " (datasource=" + datasourceName + ")");
+      }
+
+      AssetEntry modelEntry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+         AssetEntry.Type.LOGIC_MODEL, datasourceName + "/" + logicalModelName, null);
+      modelEntry = dataSourceService.getModelAssetEntry(modelEntry);
+
+      if(modelEntry == null ||
+         !dataSourceService.checkPermission(modelEntry, ResourceAction.READ, user))
+      {
+         throw new PairingException("Access denied: no READ permission on logical model "
+            + logicalModelName + " (datasource=" + datasourceName + ")");
       }
 
       XEntity entity = lm.getEntity(entityName);
