@@ -17,9 +17,14 @@
  */
 package inetsoft.sree.security.ldap;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.test.*;
+import inetsoft.uql.util.Identity;
+import static org.mockito.Mockito.*;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,6 +34,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import javax.naming.directory.*;
 import javax.naming.ldap.LdapContext;
+import javax.net.ssl.SSLSession;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
@@ -492,6 +498,62 @@ class GenericLdapAuthenticationProviderTest {
          SRSecurityException.class, () -> provider.checkParameters());
       assertTrue(ex.getMessage().toLowerCase().contains("host"),
                  "expected a host-required message but got: " + ex.getMessage());
+   }
+
+   // ==================== Missing-scenario tests appended for Task 5 ====================
+
+   @Test
+   @Order(18)
+   void testContextShouldReturnFalseForExpiredStartTlsSession() {
+      SSLSession expiredSession = mock(SSLSession.class);
+      when(expiredSession.isValid()).thenReturn(false);
+
+      // Mock a LdapContext that also implements the package-private StartTlsContext interface
+      LdapContext tlsContext = mock(
+         LdapContext.class,
+         withSettings().extraInterfaces(GenericLdapAuthenticationProvider.StartTlsContext.class));
+      when(((GenericLdapAuthenticationProvider.StartTlsContext) tlsContext).getSslSession())
+         .thenReturn(expiredSession);
+
+      assertFalse(provider.testContext(tlsContext));
+   }
+
+   @Test
+   @Order(19)
+   void writeConfigurationShouldSerializeStartTlsFlag() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+
+      provider.setStartTls(false);
+      ObjectNode configFalse = (ObjectNode) provider.writeConfiguration(mapper);
+      assertFalse(configFalse.get("startTls").asBoolean(true));
+
+      provider.setStartTls(true);
+      ObjectNode configTrue = (ObjectNode) provider.writeConfiguration(mapper);
+      assertTrue(configTrue.get("startTls").asBoolean(false));
+
+      provider.setStartTls(false); // restore
+   }
+
+   @Test
+   @Order(20)
+   void readConfigurationShouldDeserializeStartTlsFlag() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+      // Use the existing provider config as a valid base, then override startTls
+      ObjectNode config = (ObjectNode) provider.writeConfiguration(mapper);
+      config.put("startTls", true);
+
+      GenericLdapAuthenticationProvider fresh = new GenericLdapAuthenticationProvider();
+      fresh.readConfiguration(config);
+      assertTrue(fresh.isStartTls());
+      fresh.tearDown();
+   }
+
+   @Test
+   @Order(21)
+   void getUserCommonNameShouldReturnNameUnchangedForNonUserType() {
+      // via: getUserCommonName(String, int) -> short-circuits when type != Identity.USER
+      assertEquals("testGroup", provider.getUserCommonName("testGroup", Identity.GROUP));
+      assertEquals("testRole", provider.getUserCommonName("testRole", Identity.ROLE));
    }
 
    private void waitForCache() {
