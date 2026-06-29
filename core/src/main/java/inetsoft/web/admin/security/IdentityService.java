@@ -307,8 +307,9 @@ public class IdentityService {
                                                                   String providerName,
                                                                   Principal principal)
    {
-      Set<String> ownedTasks = new LinkedHashSet<>();
-      Set<String> executeAsTasks = new LinkedHashSet<>();
+      // track (org, task name) so distinct tasks that share a name across orgs aren't merged
+      Set<TaskRef> ownedTasks = new LinkedHashSet<>();
+      Set<TaskRef> executeAsTasks = new LinkedHashSet<>();
       AuthenticationProvider authcProvider = this.getProvider(providerName);
 
       if(authcProvider instanceof EditableAuthenticationProvider provider) {
@@ -345,8 +346,8 @@ public class IdentityService {
                   ? scheduleManager.getIdentityRemovalImpact(identity, provider)
                   : OrganizationManager.runInOrgScope(
                      targetOrg, () -> scheduleManager.getIdentityRemovalImpact(identity, provider));
-               ownedTasks.addAll(impact.ownedTasks());
-               executeAsTasks.addAll(impact.executeAsTasks());
+               impact.ownedTasks().forEach(name -> ownedTasks.add(new TaskRef(targetOrg, name)));
+               impact.executeAsTasks().forEach(name -> executeAsTasks.add(new TaskRef(targetOrg, name)));
             }
             catch(Exception ex) {
                LOG.warn("Failed to compute schedule task impact for {}", model.identityID(), ex);
@@ -358,9 +359,37 @@ public class IdentityService {
       executeAsTasks.removeAll(ownedTasks);
 
       return DeleteIdentitiesTaskImpactResponse.builder()
-         .ownedTasks(new ArrayList<>(ownedTasks))
-         .executeAsTasks(new ArrayList<>(executeAsTasks))
+         .ownedTasks(toDisplayNames(ownedTasks))
+         .executeAsTasks(toDisplayNames(executeAsTasks))
          .build();
+   }
+
+   /**
+    * Render task refs for display, qualifying a name with its org only when the same name
+    * appears under more than one org so cross-org duplicates stay distinct.
+    */
+   private static List<String> toDisplayNames(Set<TaskRef> refs) {
+      Map<String, Set<String>> orgsByName = new LinkedHashMap<>();
+
+      for(TaskRef ref : refs) {
+         orgsByName.computeIfAbsent(ref.name(), k -> new LinkedHashSet<>()).add(ref.org());
+      }
+
+      List<String> names = new ArrayList<>();
+
+      for(TaskRef ref : refs) {
+         if(ref.org() != null && orgsByName.get(ref.name()).size() > 1) {
+            names.add(ref.name() + " (" + ref.org() + ")");
+         }
+         else {
+            names.add(ref.name());
+         }
+      }
+
+      return names;
+   }
+
+   private record TaskRef(String org, String name) {
    }
 
    private void logoutSession(IdentityID user) {

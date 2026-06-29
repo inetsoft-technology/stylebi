@@ -1123,12 +1123,13 @@ public class ScheduleManager {
 
    /**
     * Compute, without modifying anything, which scheduled tasks would be affected if the
-    * given identity were removed. Mirrors the task handling in
-    * {@link #identityRemoved(Identity, EditableAuthenticationProvider)} so the two stay in sync:
-    * tasks owned by a user are deleted, and a matching "execute as" identity is reset.
+    * given identity were removed: tasks owned by a user (which
+    * {@link #identityRemoved(Identity, EditableAuthenticationProvider)} deletes) and tasks where
+    * the identity is the "execute as" (which it resets). The notification-list cleanup that
+    * identityRemoved also performs is not reported here.
     */
-   public IdentityTaskImpact getIdentityRemovalImpact(Identity identity,
-                                                      EditableAuthenticationProvider eprovider)
+   public synchronized IdentityTaskImpact getIdentityRemovalImpact(Identity identity,
+                                                                   EditableAuthenticationProvider eprovider)
    {
       List<String> ownedTasks = new ArrayList<>();
       List<String> executeAsTasks = new ArrayList<>();
