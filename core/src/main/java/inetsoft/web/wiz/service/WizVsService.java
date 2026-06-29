@@ -300,6 +300,19 @@ public class WizVsService {
                      {
                         WizardRecommenderUtil.createRangeDimension(
                            vdim, rvs, rangeChart.getVSChartInfo().getAggregateInfo(), rangeSrc, rangeSrc.getSource());
+
+                        // A Range@ binding is a histogram: the binned bars represent a continuous
+                        // distribution, so they must read as one contiguous band, not discrete
+                        // category bars. The full-band width is set on the size frame in
+                        // HistogramChartFilter; here we also drop the rounded corners (default 0.3)
+                        // and the bar border so adjacent bins butt cleanly together.
+                        ChartDescriptor cdesc = rangeChart.getChartDescriptor();
+
+                        if(cdesc != null && cdesc.getPlotDescriptor() != null) {
+                           PlotDescriptor plot = cdesc.getPlotDescriptor();
+                           plot.setBarCornerRadius(0);
+                           plot.setBorderColor(null);
+                        }
                      }
                   }
                }

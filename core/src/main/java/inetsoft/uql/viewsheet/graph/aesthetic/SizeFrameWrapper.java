@@ -88,6 +88,10 @@ public abstract class SizeFrameWrapper extends VisualFrameWrapper {
 
       writer.print(" largestSize=\"" + frame.getLargest() + "\"");
       writer.print(" smallestSize=\"" + frame.getSmallest() + "\"");
+      // max is the denominator in BarVO.getBarSize (width = minwidth + w*size/max); without
+      // persisting it, a non-default max (e.g. set for full-width histogram bars) reverts to the
+      // default 30 on save/reopen and the bar width is wrong.
+      writer.print(" maxSize=\"" + frame.getMax() + "\"");
    }
 
    /**
@@ -106,6 +110,10 @@ public abstract class SizeFrameWrapper extends VisualFrameWrapper {
 
       if((val = Tool.getAttribute(tag, "smallestSize")) != null) {
          frame.setSmallest(Double.parseDouble(val));
+      }
+
+      if((val = Tool.getAttribute(tag, "maxSize")) != null) {
+         frame.setMax(Double.parseDouble(val));
       }
    }
 }
