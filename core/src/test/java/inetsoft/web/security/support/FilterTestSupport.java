@@ -52,7 +52,7 @@ import static org.mockito.Mockito.*;
 public class FilterTestSupport implements AutoCloseable {
 
    /** Mirrors the private constant {@code CSRFFilter.SESSION_ATTRIBUTE_NAME}. */
-   static final String CSRF_SESSION_ATTR = "__private_inetsoft.web.security.CSRFFilter.TOKEN";
+   public static final String CSRF_SESSION_ATTR = "__private_inetsoft.web.security.CSRFFilter.TOKEN";
 
    private final List<Filter> filters = new ArrayList<>();
    private MockedStatic<SecurityEngine> securityEngineMock;

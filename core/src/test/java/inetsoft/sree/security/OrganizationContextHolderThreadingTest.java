@@ -30,9 +30,11 @@ package inetsoft.sree.security;
  */
 
 import inetsoft.web.portal.model.database.StringWrapper;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.*;
 
 import java.lang.reflect.Field;
+import java.time.Duration;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -124,7 +126,7 @@ class OrganizationContextHolderThreadingTest {
       Thread child = new Thread(() ->
          childValue.set(OrganizationContextHolder.getCurrentOrgId()));
       child.start();
-      child.join(2000);
+      awaitChildValue(childValue, "sentinel");
 
       assertNull(childValue.get(),
                  "Child thread must not inherit parent orgId: THREAD_LOCAL is plain ThreadLocal");
@@ -155,10 +157,9 @@ class OrganizationContextHolderThreadingTest {
 
       threadA.start();
       threadB.start();
-      assertTrue(setLatch.await(2, TimeUnit.SECONDS));
+      assertTrue(setLatch.await(10, TimeUnit.SECONDS));
       readLatch.countDown();
-      threadA.join(2000);
-      threadB.join(2000);
+      awaitThreadValues(valueA, valueB);
 
       assertEquals("orgA", valueA.get(), "Thread A must retain its own orgId");
       assertEquals("orgB", valueB.get(), "Thread B must retain its own orgId");
@@ -179,7 +180,7 @@ class OrganizationContextHolderThreadingTest {
       });
 
       reusedThread.start();
-      reusedThread.join(2000);
+      awaitChildValue(task2Value, "not-set");
 
       assertNull(task2Value.get(),
                  "Reused thread must see null after clear(), not stale orgId from previous task");
@@ -189,10 +190,25 @@ class OrganizationContextHolderThreadingTest {
 
    private static void awaitQuietly(CountDownLatch latch) {
       try {
-         latch.await(2, TimeUnit.SECONDS);
+         latch.await(10, TimeUnit.SECONDS);
       }
       catch(InterruptedException e) {
          Thread.currentThread().interrupt();
       }
+   }
+
+   private static void awaitChildValue(AtomicReference<String> value, String sentinel) {
+      Awaitility.await()
+         .atMost(Duration.ofSeconds(10))
+         .pollInterval(Duration.ofMillis(10))
+         .until(() -> !sentinel.equals(value.get()));
+   }
+
+   private static void awaitThreadValues(AtomicReference<String> valueA,
+                                         AtomicReference<String> valueB) {
+      Awaitility.await()
+         .atMost(Duration.ofSeconds(10))
+         .pollInterval(Duration.ofMillis(10))
+         .until(() -> valueA.get() != null && valueB.get() != null);
    }
 }

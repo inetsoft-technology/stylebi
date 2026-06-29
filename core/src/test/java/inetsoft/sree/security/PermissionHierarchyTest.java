@@ -18,7 +18,7 @@
 package inetsoft.sree.security;
 
 /*
- * Covers permission-test-architecture-design.md scenarios 19A-20C.
+ * Covers permission-test-architecture-design.md scenarios 19A-20B.
  *
  * The test uses real FileAuthenticationProvider / FileAuthorizationProvider instances through
  * SecurityTestDataBuilder and verifies decisions through SecurityEngine.checkPermission().

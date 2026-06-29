@@ -136,6 +136,12 @@ public class SecurityTestDataBuilder {
       authzProvider = new FileAuthorizationProvider();
       authzProvider.setProviderName("Primary");
 
+      AuthenticationChain authcChain = new AuthenticationChain();
+      authcChain.setProviders(Collections.singletonList(authcProvider));
+
+      AuthorizationChain authzChain = new AuthorizationChain();
+      authzChain.setProviders(Collections.singletonList(authzProvider));
+
       SreeEnv.setProperty("security.enabled", securityEnabled);
       SreeEnv.setProperty("security.users.multiTenant", multiTenant);
       SreeEnv.save();
