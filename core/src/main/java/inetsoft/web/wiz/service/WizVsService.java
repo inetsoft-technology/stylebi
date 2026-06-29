@@ -348,6 +348,52 @@ public class WizVsService {
 
                applyGridTitle(tblAssembly, buildGridTitle(null, null, detailRefs));
             }
+            else if(assembly instanceof ChartVSAssembly titleChart
+               && titleChart.getVSChartInfo() != null)
+            {
+               // Charts default to the generic "Chart" title (ChartVSAssemblyInfo's
+               // new TitleInfo("Chart")); replace it with a binding-derived one, e.g.
+               // "Sum(amount) by sales_stage". applyGridTitle only sets the value (not visibility),
+               // so a chart whose title isn't shown is unaffected. Gather refs the same way
+               // collectChartFlatBinding does — x/y/group PLUS aesthetics — because for some types
+               // (e.g. treemap) the measure lives on the size aesthetic, not in getBindingRefs.
+               VSChartInfo titleInfo = titleChart.getVSChartInfo();
+               List<DataRef> titleCandidates = new ArrayList<>();
+               ChartRef[] titleRefs = titleInfo.getBindingRefs(false);
+
+               if(titleRefs != null) {
+                  Collections.addAll(titleCandidates, titleRefs);
+               }
+
+               for(AestheticRef aref : new AestheticRef[]{
+                  titleInfo.getColorField(), titleInfo.getShapeField(),
+                  titleInfo.getSizeField(), titleInfo.getTextField()
+               }) {
+                  if(aref != null && aref.getDataRef() != null) {
+                     titleCandidates.add(aref.getDataRef());
+                  }
+               }
+
+               List<DataRef> chartMeasures = new ArrayList<>();
+               List<DataRef> chartDims = new ArrayList<>();
+               Set<String> titleSeen = new HashSet<>();
+
+               for(DataRef cr : titleCandidates) {
+                  if(cr == null) {
+                     continue;
+                  }
+
+                  if(cr instanceof VSAggregateRef && titleSeen.add("m:" + cr.getName())) {
+                     chartMeasures.add(cr);
+                  }
+                  else if(cr instanceof VSDimensionRef && titleSeen.add("d:" + cr.getName())) {
+                     chartDims.add(cr);
+                  }
+               }
+
+               applyGridTitle(titleChart, buildGridTitle(
+                  chartMeasures.toArray(new DataRef[0]), null, chartDims.toArray(new DataRef[0])));
+            }
 
             CreateViewsheetResult result;
 
