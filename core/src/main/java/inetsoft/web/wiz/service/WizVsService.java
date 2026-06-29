@@ -318,6 +318,37 @@ public class WizVsService {
                }
             }
 
+            // Title crosstab/table assemblies with a binding-derived heading instead of StyleBI's
+            // bland default "Table". The plugin recommender path (create_viewsheet) doesn't run the
+            // interactive wizard's title logic (VSWizardBindingHandler), so derive it here on the
+            // finalized assembly — design headers if present, else the runtime headers.
+            if(assembly instanceof CrosstabVSAssembly ctAssembly
+               && ctAssembly.getVSCrosstabInfo() != null)
+            {
+               VSCrosstabInfo ci = ctAssembly.getVSCrosstabInfo();
+               String gridTitle = buildGridTitle(
+                  ci.getDesignAggregates(), ci.getDesignColHeaders(), ci.getDesignRowHeaders());
+
+               if(gridTitle == null) {
+                  gridTitle = buildGridTitle(
+                     ci.getRuntimeAggregates(), ci.getRuntimeColHeaders(), ci.getRuntimeRowHeaders());
+               }
+
+               applyGridTitle(ctAssembly, gridTitle);
+            }
+            else if(assembly instanceof TableVSAssembly tblAssembly
+               && tblAssembly.getColumnSelection() != null)
+            {
+               ColumnSelection sel = tblAssembly.getColumnSelection();
+               DataRef[] detailRefs = new DataRef[sel.getAttributeCount()];
+
+               for(int i = 0; i < sel.getAttributeCount(); i++) {
+                  detailRefs[i] = sel.getAttribute(i);
+               }
+
+               applyGridTitle(tblAssembly, buildGridTitle(null, null, detailRefs));
+            }
+
             CreateViewsheetResult result;
 
             if(skipExecution) {
@@ -1944,9 +1975,69 @@ public class WizVsService {
          }
 
          table.setColumnSelection(columns);
+
+         // A detail table's columns ARE its content, so title it with them rather than "Table".
+         DataRef[] details = new DataRef[columns.getAttributeCount()];
+
+         for(int i = 0; i < columns.getAttributeCount(); i++) {
+            details[i] = columns.getAttribute(i);
+         }
+
+         applyGridTitle(table, buildGridTitle(null, null, details));
       }
 
       return table;
+   }
+
+   /**
+    * Build a human-readable title like "Sum(amount) by sales_stage, name" from a grid binding's
+    * measures + dimensions, so a crosstab/table reads like a real visualization instead of showing
+    * StyleBI's bland default "Table". The plugin create path (unlike the interactive wizard's
+    * VSWizardBindingHandler) does not otherwise title these assemblies. Returns null when there's
+    * nothing to build from (caller then leaves the default).
+    */
+   private static String buildGridTitle(DataRef[] measures, DataRef[] cols, DataRef[] rows) {
+      StringBuilder meas = new StringBuilder();
+
+      if(measures != null) {
+         for(DataRef m : measures) {
+            String v = m == null ? null : m.toView();
+
+            if(v != null && !v.isEmpty()) {
+               if(meas.length() > 0) { meas.append(", "); }
+               meas.append(v);
+            }
+         }
+      }
+
+      StringBuilder dims = new StringBuilder();
+
+      for(DataRef[] group : new DataRef[][]{ cols, rows }) {
+         if(group == null) { continue; }
+
+         for(DataRef d : group) {
+            String v = d == null ? null : d.toView();
+
+            if(v != null && !v.isEmpty()) {
+               if(dims.length() > 0) { dims.append(", "); }
+               dims.append(v);
+            }
+         }
+      }
+
+      if(meas.length() > 0 && dims.length() > 0) { return meas + " by " + dims; }
+      if(meas.length() > 0) { return meas.toString(); }
+      if(dims.length() > 0) { return dims.toString(); }
+      return null;
+   }
+
+   /** Set a derived display title on a titled assembly (crosstab/table); no-op on blank input. */
+   private void applyGridTitle(VSAssembly assembly, String title) {
+      if(title != null && !title.isEmpty()
+         && assembly.getVSAssemblyInfo() instanceof inetsoft.uql.viewsheet.internal.TitledVSAssemblyInfo ti)
+      {
+         ti.setTitleValue(title);
+      }
    }
 
    private CrosstabVSAssembly createCrosstabAssembly(Viewsheet vs, String name,
@@ -1956,29 +2047,34 @@ public class WizVsService {
 
       if(config != null && config.getBindingInfo() instanceof CrosstabBinding binding) {
          VSCrosstabInfo cinfo = crosstab.getVSCrosstabInfo();
+         DataRef[] rows = null, cols = null, aggrs = null;
 
          if(binding.getRows() != null) {
-            DataRef[] rows = binding.getRows().stream()
+            rows = binding.getRows().stream()
                .map(this::createVSDimensionRef)
                .toArray(DataRef[]::new);
             cinfo.setDesignRowHeaders(rows);
          }
 
          if(binding.getCols() != null) {
-            DataRef[] cols = binding.getCols().stream()
+            cols = binding.getCols().stream()
                .map(this::createVSDimensionRef)
                .toArray(DataRef[]::new);
             cinfo.setDesignColHeaders(cols);
          }
 
          if(binding.getAggregates() != null) {
-            DataRef[] aggrs = binding.getAggregates().stream()
+            aggrs = binding.getAggregates().stream()
                .map(this::createVSAggregateRef)
                .toArray(DataRef[]::new);
             cinfo.setDesignAggregates(aggrs);
          }
 
          crosstab.setVSCrosstabInfo(cinfo);
+
+         // Replace the bland default "Table" title with a binding-derived one (e.g.
+         // "Sum(amount) by sales_stage, name") so the crosstab reads like a real visualization.
+         applyGridTitle(crosstab, buildGridTitle(aggrs, cols, rows));
       }
 
       return crosstab;
