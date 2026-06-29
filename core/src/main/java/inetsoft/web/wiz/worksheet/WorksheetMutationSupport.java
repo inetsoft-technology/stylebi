@@ -87,18 +87,10 @@ public final class WorksheetMutationSupport {
    {
       boolean negate = isNegatedOperation(operation);
       int op = parseOperation(operation);
-      AttributeRef ref = new AttributeRef(null, field);
-      // Infer type from the column selection so numeric comparisons work correctly.
-      String dtype = XSchema.STRING;
-      ColumnSelection cs = t.getColumnSelection(false);
-
-      if(cs != null) {
-         DataRef col = cs.getAttribute(field);
-
-         if(col != null && col.getDataType() != null && !col.getDataType().isBlank()) {
-            dtype = col.getDataType();
-         }
-      }
+      DataRef ref = resolveField(t, field);
+      // Infer type from the resolved column so numeric comparisons work correctly.
+      String dtype = ref.getDataType() != null && !ref.getDataType().isBlank()
+         ? ref.getDataType() : XSchema.STRING;
 
       Condition c = new Condition(dtype);
       c.setOperation(op);
@@ -232,13 +224,39 @@ public final class WorksheetMutationSupport {
       }
 
       AggregateInfo ainfo = new AggregateInfo();
+      ColumnSelection cs = t.getColumnSelection(false);
 
-      for(String group : groups) {
-         GroupRef gr = new GroupRef(new ColumnRef(new AttributeRef(null, group)));
-         ainfo.addGroup(gr);
+      // Build a lookup map of available columns keyed by both raw name and alias,
+      // matching the pattern used by AggregateDialogService.getAggregateInfo().
+      Map<String, ColumnRef> availableColumns = new LinkedHashMap<>();
+
+      if(cs != null) {
+         for(int i = 0; i < cs.getAttributeCount(); i++) {
+            DataRef ref = cs.getAttribute(i);
+
+            if(ref instanceof ColumnRef cr) {
+               availableColumns.put(cr.getName(), cr);
+
+               if(cr.getAlias() != null && !cr.getAlias().isEmpty()) {
+                  availableColumns.putIfAbsent(cr.getAlias(), cr);
+               }
+
+               // Also index by raw attribute name (without entity prefix)
+               availableColumns.putIfAbsent(cr.getAttribute(), cr);
+            }
+         }
       }
 
-      ColumnSelection cs = t.getColumnSelection(false);
+      for(String group : groups) {
+         ColumnRef resolved = availableColumns.get(group);
+
+         if(resolved == null) {
+            resolved = new ColumnRef(new AttributeRef(null, group));
+         }
+
+         GroupRef gr = new GroupRef(resolved);
+         ainfo.addGroup(gr);
+      }
 
       for(AggregateSpec spec : aggregates) {
          AggregateFormula formula = AggregateFormula.getFormula(spec.formula());
@@ -247,28 +265,18 @@ public final class WorksheetMutationSupport {
             formula = AggregateFormula.SUM;
          }
 
-         ColumnRef colRef = new ColumnRef(new AttributeRef(null, spec.field()));
+         ColumnRef colRef = availableColumns.get(spec.field());
+
+         if(colRef == null) {
+            colRef = new ColumnRef(new AttributeRef(null, spec.field()));
+         }
+
          AggregateRef ar = new AggregateRef(colRef, formula);
 
          if(spec.alias() != null) {
             colRef.setAlias(spec.alias());
-
-            // Set the alias on the matching column in the table's column
-            // selection so that AssetUtil.applyAlias() renames the output header.
-            if(cs != null) {
-               DataRef csCol = cs.getAttribute(spec.field());
-
-               if(csCol instanceof ColumnRef csCr) {
-                  csCr.setAlias(spec.alias());
-               }
-            }
          }
 
-         // If the aggregate info already contains an aggregate for this column
-         // (same column, different formula), add it as a secondary aggregate.
-         // This matches the standard UI pattern (AggregateDialogService) where
-         // the first aggregate goes into the primary list and subsequent ones
-         // for the same column go into the secondary list.
          if(ainfo.containsAggregate(ar)) {
             ainfo.addSecondaryAggregate(ar);
          }
@@ -427,7 +435,7 @@ public final class WorksheetMutationSupport {
          }
       }
 
-      AttributeRef ref = new AttributeRef(null, field);
+      DataRef ref = resolveField(t, field);
       SortRef sr = new SortRef(ref);
       sr.setOrder("DESC".equalsIgnoreCase(direction) ? XConstants.SORT_DESC : XConstants.SORT_ASC);
       si.addSort(sr);
@@ -510,7 +518,7 @@ public final class WorksheetMutationSupport {
             boolean negate = spec.negated() || isNegatedOperation(spec.operation());
             String dtype = spec.type() != null ? spec.type() : inferColumnType(t, spec.field());
 
-            AttributeRef ref = new AttributeRef(null, spec.field());
+            DataRef ref = resolveField(t, spec.field());
             Condition c = new Condition(dtype);
             c.setOperation(op);
 
@@ -575,7 +583,7 @@ public final class WorksheetMutationSupport {
       int op = "BOTTOM_N".equalsIgnoreCase(spec.operation())
          ? XCondition.BOTTOM_N : XCondition.TOP_N;
 
-      AttributeRef ref = new AttributeRef(null, spec.field());
+      DataRef ref = resolveField(t, spec.field());
       inetsoft.uql.asset.RankingCondition rc = new inetsoft.uql.asset.RankingCondition();
       rc.setOperation(op);
       rc.setN(spec.n());
@@ -591,18 +599,47 @@ public final class WorksheetMutationSupport {
    // =========================================================================
 
    /**
+    * Resolves a field name (which may be a column name or alias) against the table's
+    * column selection.  Returns the matching {@link DataRef} from the selection, or
+    * a new {@link AttributeRef} as fallback.  This mirrors the lookup pattern used by
+    * {@code AggregateDialogService.getAggregateInfo()} so that conditions, ranking,
+    * and aggregates reference the real column objects.
+    */
+   static DataRef resolveField(TableAssembly t, String field) {
+      ColumnSelection cs = t.getColumnSelection(false);
+
+      if(cs != null && field != null) {
+         // Try direct lookup first (handles both raw name and alias via ColumnSelection).
+         DataRef col = cs.getAttribute(field);
+
+         if(col != null) {
+            return col;
+         }
+
+         // Fallback: scan for alias match (getAttribute may not check aliases on all paths).
+         for(int i = 0; i < cs.getAttributeCount(); i++) {
+            DataRef ref = cs.getAttribute(i);
+
+            if(ref instanceof ColumnRef cr &&
+               field.equals(cr.getAlias()))
+            {
+               return cr;
+            }
+         }
+      }
+
+      return new AttributeRef(null, field);
+   }
+
+   /**
     * Looks up the XSchema data type for {@code field} in the table's column selection.
     * Falls back to {@link XSchema#STRING} when the column is not found or has no type.
     */
    private static String inferColumnType(TableAssembly t, String field) {
-      ColumnSelection cs = t.getColumnSelection(false);
+      DataRef col = resolveField(t, field);
 
-      if(cs != null && field != null) {
-         DataRef col = cs.getAttribute(field);
-
-         if(col != null && col.getDataType() != null && !col.getDataType().isBlank()) {
-            return col.getDataType();
-         }
+      if(col.getDataType() != null && !col.getDataType().isBlank()) {
+         return col.getDataType();
       }
 
       return XSchema.STRING;

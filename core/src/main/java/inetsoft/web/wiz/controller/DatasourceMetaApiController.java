@@ -20,6 +20,7 @@ package inetsoft.web.wiz.controller;
 
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
+import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.*;
 import inetsoft.web.composer.model.*;
 import inetsoft.web.portal.controller.database.DataSourceService;
@@ -37,7 +38,6 @@ import org.springframework.web.bind.annotation.*;
 import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/wiz")
@@ -52,27 +52,32 @@ public class DatasourceMetaApiController {
    }
 
    /**
-    * Lists all data sources available in the repository.
+    * Lists all data sources available in the repository that the user has READ permission for.
     * Used by the MCP plugin's list_datasources tool.
     */
    @GetMapping(value = "/v1/datasources", produces = MediaType.APPLICATION_JSON_VALUE)
-   public List<Map<String, String>> listDatasources() throws RemoteException {
+   public List<Map<String, String>> listDatasources(Principal principal) throws Exception {
       String[] names = xrepository.getDataSourceFullNames();
-      return Arrays.stream(names)
-         .sorted()
-         .map(name -> {
+      List<Map<String, String>> result = new ArrayList<>();
+
+      for(String name : Arrays.stream(names).sorted().toArray(String[]::new)) {
+         try {
+            if(!dataSourceService.checkPermission(name, ResourceAction.READ, principal)) {
+               continue;
+            }
+
+            XDataSource ds = xrepository.getDataSource(name);
             Map<String, String> entry = new LinkedHashMap<>();
             entry.put("name", name);
-            try {
-               XDataSource ds = xrepository.getDataSource(name);
-               entry.put("type", ds != null ? ds.getType() : "unknown");
-            }
-            catch(Exception e) {
-               entry.put("type", "unknown");
-            }
-            return entry;
-         })
-         .collect(Collectors.toList());
+            entry.put("type", ds != null ? ds.getType() : "unknown");
+            result.add(entry);
+         }
+         catch(Exception e) {
+            LOG.debug("Skipping datasource {} due to error: {}", name, e.getMessage());
+         }
+      }
+
+      return result;
    }
 
    @PostMapping("/datasource/table/meta")
@@ -166,17 +171,24 @@ public class DatasourceMetaApiController {
    }
 
    /**
-    * Lists all logical models and their entities/attributes for a given datasource.
+    * Lists logical models (with entities/attributes) for a given datasource that the user has
+    * READ permission for. Checks both datasource-level and per-model permissions.
     * Used by the MCP plugin's list_logical_models tool.
     *
     * @param datasource the datasource name (e.g. "Examples/Orders")
+    * @param principal  the current user
     * @return list of logical models, each with entity names and attribute metadata
     */
    @GetMapping(value = "/v1/logical-models", produces = MediaType.APPLICATION_JSON_VALUE)
    public List<Map<String, Object>> listLogicalModels(
-      @RequestParam("datasource") String datasource)
+      @RequestParam("datasource") String datasource,
+      Principal principal)
       throws Exception
    {
+      if(!dataSourceService.checkPermission(datasource, ResourceAction.READ, principal)) {
+         return Collections.emptyList();
+      }
+
       XDataModel dataModel = dataSourceService.getDataModel(datasource);
 
       if(dataModel == null) {
@@ -189,6 +201,16 @@ public class DatasourceMetaApiController {
          XLogicalModel lm = dataModel.getLogicalModel(modelName);
 
          if(lm == null) {
+            continue;
+         }
+
+         AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+            AssetEntry.Type.LOGIC_MODEL, datasource + "/" + modelName, null);
+         entry = dataSourceService.getModelAssetEntry(entry);
+
+         if(entry == null ||
+            !dataSourceService.checkPermission(entry, ResourceAction.READ, principal))
+         {
             continue;
          }
 
@@ -214,9 +236,34 @@ public class DatasourceMetaApiController {
             entities.add(entityMap);
          }
 
+         // Include physical view join relationships so agents know how entities relate.
+         List<Map<String, String>> joins = new ArrayList<>();
+         String partitionName = lm.getPartition();
+
+         if(partitionName != null) {
+            XPartition partition = dataModel.getPartition(partitionName);
+
+            if(partition != null) {
+               Enumeration<XRelationship> relEnum = partition.getRelationships();
+
+               while(relEnum.hasMoreElements()) {
+                  XRelationship rel = relEnum.nextElement();
+                  Map<String, String> joinMap = new LinkedHashMap<>();
+                  joinMap.put("table", rel.getDependentTable());
+                  joinMap.put("column", rel.getDependentColumn());
+                  joinMap.put("foreignTable", rel.getIndependentTable());
+                  joinMap.put("foreignColumn", rel.getIndependentColumn());
+                  joinMap.put("joinType", rel.getJoinType());
+                  joins.add(joinMap);
+               }
+            }
+         }
+
          Map<String, Object> modelMap = new LinkedHashMap<>();
          modelMap.put("name", modelName);
+         modelMap.put("physicalView", partitionName);
          modelMap.put("entities", entities);
+         modelMap.put("joins", joins);
          result.add(modelMap);
       }
 

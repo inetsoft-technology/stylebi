@@ -25,6 +25,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.TableAssemblyInfo;
+import inetsoft.util.MessageException;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
@@ -85,7 +86,21 @@ public class WorksheetEditService {
       applySocketSession(rws, session);
 
       Editor editor = new Editor(rws.getWorksheet());
-      mutation.accept(editor);
+
+      try {
+         mutation.accept(editor);
+      }
+      catch(MessageException me) {
+         // Auto-confirm cross-join: the column selection change has already been applied
+         // in memory before AbstractJoinTableAssembly.setColumnSelection throws.  In the
+         // browser UI this would surface as a confirmation dialog — here we just accept it.
+         if(!(me.getCause() instanceof CrossJoinException)) {
+            throw me;
+         }
+
+         LOG.debug("Auto-confirmed cross join in agent edit: {}", me.getMessage());
+      }
+
       // Checkpoint saved after the mutation so redo restores the post-edit state,
       // matching the @Undoable / makeUndoable pattern used by the standard WS controllers.
       rws.addCheckpoint(rws.getWorksheet().prepareCheckpoint());
@@ -780,6 +795,20 @@ public class WorksheetEditService {
             sources[i] = requireTable(tables.get(i));
          }
 
+         // Validate that all tables have the same number of columns.
+         int colCount = sources[0].getColumnSelection(true).getAttributeCount();
+
+         for(int i = 1; i < sources.length; i++) {
+            int otherCount = sources[i].getColumnSelection(true).getAttributeCount();
+
+            if(otherCount != colCount) {
+               throw new PairingException(
+                  "Data blocks that do not have the same number of columns cannot be " +
+                  "concatenated. \"" + sources[0].getName() + "\" has " + colCount +
+                  " columns but \"" + sources[i].getName() + "\" has " + otherCount + ".");
+            }
+         }
+
          // Build one operator per adjacent pair.
          TableAssemblyOperator[] operators = new TableAssemblyOperator[sources.length - 1];
 
@@ -1057,7 +1086,7 @@ public class WorksheetEditService {
                newTop.addOperator(newOp);
             }
          }
-         else {
+         else if(leftKey != null && rightKey != null) {
             TableAssemblyOperator.Operator newOp = new TableAssemblyOperator.Operator();
             newOp.setLeftTable(leftTable);
             newOp.setRightTable(rightTable);
@@ -1065,6 +1094,19 @@ public class WorksheetEditService {
             newOp.setRightAttribute(new AttributeRef(null, rightKey));
             newOp.setOperation(operation);
             newTop.addOperator(newOp);
+         }
+         else {
+            // No new keys provided — preserve existing key pairs, only update join type.
+            for(int i = 0; i < top.getOperatorCount(); i++) {
+               TableAssemblyOperator.Operator orig = top.getOperator(i);
+               TableAssemblyOperator.Operator newOp = new TableAssemblyOperator.Operator();
+               newOp.setLeftTable(orig.getLeftTable());
+               newOp.setRightTable(orig.getRightTable());
+               newOp.setLeftAttribute(orig.getLeftAttribute());
+               newOp.setRightAttribute(orig.getRightAttribute());
+               newOp.setOperation(operation);
+               newTop.addOperator(newOp);
+            }
          }
 
          join.setOperator(leftTable, rightTable, newTop);
@@ -1358,6 +1400,18 @@ public class WorksheetEditService {
 
          TableAssembly newTable = requireTable(tableName);
          TableAssembly[] existing = ctbl.getTableAssemblies();
+
+         // Validate column count matches existing subtables.
+         int colCount = existing[0].getColumnSelection(true).getAttributeCount();
+         int newCount = newTable.getColumnSelection(true).getAttributeCount();
+
+         if(newCount != colCount) {
+            throw new PairingException(
+               "Data blocks that do not have the same number of columns cannot be " +
+               "concatenated. Existing subtables have " + colCount +
+               " columns but \"" + tableName + "\" has " + newCount + ".");
+         }
+
          TableAssembly[] updated = new TableAssembly[existing.length + 1];
          System.arraycopy(existing, 0, updated, 0, existing.length);
          updated[existing.length] = newTable;
@@ -1366,7 +1420,7 @@ public class WorksheetEditService {
          // Copy the last-pair operator (between existing[n-2] and existing[n-1]) so that
          // the new table inherits the same UNION/INTERSECT/MINUS as the most recent pair
          // rather than always defaulting to whatever operator 0 happens to be.
-         TableAssemblyOperator op = ctbl.getOperator(existing.length - 1);
+         TableAssemblyOperator op = ctbl.getOperator(existing.length - 2);
          ctbl.setTableAssemblies(updated);
 
          // Set operator between last existing and new table

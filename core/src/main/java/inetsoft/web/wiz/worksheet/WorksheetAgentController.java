@@ -152,6 +152,15 @@ public class WorksheetAgentController {
    {
       requireEnabled();
 
+      // add_table with logicalModel requires datasource.
+      if("add_table".equals(req.op()) && req.logicalModel() != null
+         && !req.logicalModel().isBlank()
+         && (req.datasource() == null || req.datasource().isBlank()))
+      {
+         throw new PairingException(
+            "datasource is required when logicalModel is specified.");
+      }
+
       // add_table with a datasource needs RuntimeWorksheet for initColumnSelection.
       if("add_table".equals(req.op()) && req.datasource() != null
          && !req.datasource().isBlank())
