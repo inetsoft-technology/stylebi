@@ -2079,8 +2079,19 @@ public class WizVsService {
 
    /** Set a derived display title on a titled assembly (crosstab/table); no-op on blank input. */
    private void applyGridTitle(VSAssembly assembly, String title) {
-      if(title != null && !title.isEmpty()
-         && assembly.getVSAssemblyInfo() instanceof inetsoft.uql.viewsheet.internal.TitledVSAssemblyInfo ti)
+      if(title == null || title.isEmpty()
+         || !(assembly.getVSAssemblyInfo() instanceof inetsoft.uql.viewsheet.internal.TitledVSAssemblyInfo ti))
+      {
+         return;
+      }
+
+      // Only fill in StyleBI's bland placeholder titles ("Chart"/"Table") or a blank — never
+      // override a title that was already set to something meaningful (e.g. a chart the recommender
+      // titled). This keeps the fix to genuinely-untitled assemblies (treemap, crosstab, table).
+      String current = ti.getTitleValue();
+
+      if(current == null || current.isEmpty()
+         || "Chart".equals(current) || "Table".equals(current))
       {
          ti.setTitleValue(title);
       }
