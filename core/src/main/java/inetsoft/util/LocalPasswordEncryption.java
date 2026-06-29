@@ -265,31 +265,37 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
          String privateKeyProperty = SreeEnv.getProperty("sso.rsa.private.key");
          String publicKeyProperty = SreeEnv.getProperty("sso.rsa.public.key");
 
-         if(privateKeyProperty == null || publicKeyProperty == null) {
-            KeyPair keyPair = createSSOKeyPair();
-            byte[] encryptedPrivateKey = encryptSSOPrivateKey(keyPair.getPrivate(), getMasterKey());
-            String encodedPrivateKey = Base64.getEncoder().encodeToString(encryptedPrivateKey);
-            String encodedPublicKey = Base64.getEncoder().encodeToString(
-               keyPair.getPublic().getEncoded());
+         if(privateKeyProperty != null && publicKeyProperty != null) {
+            try {
+               PrivateKey privateKey = decryptSSOPrivateKey(privateKeyProperty, getMasterKey());
+               byte[] publicKeyBytes = Base64.getDecoder().decode(publicKeyProperty);
+               X509EncodedKeySpec pubSpec = new X509EncodedKeySpec(publicKeyBytes);
+               KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+               PublicKey publicKey = keyFactory.generatePublic(pubSpec);
 
-            SreeEnv.setProperty("sso.rsa.private.key", encodedPrivateKey);
-            SreeEnv.setProperty("sso.rsa.public.key", encodedPublicKey);
-            SreeEnv.save();
-
-            return keyPair;
+               return new KeyPair(publicKey, privateKey);
+            }
+            catch(GeneralSecurityException | RuntimeException e) {
+               // A stored SSO key that can't be decoded/decrypted — a corrupted value (e.g. a stray
+               // Base64 character) or the master key changing between restarts — must NOT brick the
+               // server: the SSO auth filter bean fails, Tomcat won't start, and the whole instance
+               // crash-loops. Fall through to regenerate + overwrite the bad value instead. (JWTs
+               // signed by the old key become invalid, so clients simply re-authenticate.)
+               LOG.warn("Stored SSO key pair is unreadable ({}); regenerating.", e.getMessage());
+            }
          }
-         else {
-            PrivateKey privateKey = decryptSSOPrivateKey(privateKeyProperty, getMasterKey());
-            byte[] publicKeyBytes = Base64.getDecoder().decode(publicKeyProperty);
-            X509EncodedKeySpec pubSpec = new X509EncodedKeySpec(publicKeyBytes);
-            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-            PublicKey publicKey = keyFactory.generatePublic(pubSpec);
 
-            return new KeyPair(publicKey, privateKey);
-         }
-      }
-      catch(GeneralSecurityException e) {
-         throw new IOException("Failed to get SSO key pair", e);
+         KeyPair keyPair = createSSOKeyPair();
+         byte[] encryptedPrivateKey = encryptSSOPrivateKey(keyPair.getPrivate(), getMasterKey());
+         String encodedPrivateKey = Base64.getEncoder().encodeToString(encryptedPrivateKey);
+         String encodedPublicKey = Base64.getEncoder().encodeToString(
+            keyPair.getPublic().getEncoded());
+
+         SreeEnv.setProperty("sso.rsa.private.key", encodedPrivateKey);
+         SreeEnv.setProperty("sso.rsa.public.key", encodedPublicKey);
+         SreeEnv.save();
+
+         return keyPair;
       }
       finally {
          lock.unlock();
