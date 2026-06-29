@@ -75,9 +75,10 @@ public abstract class AbstractLogoutFilter extends AbstractSecurityFilter {
 
       boolean securityEnabled = getSecurityEngine().isSecurityEnabled();
 
-      // SSO need login in login page of sso.
-      // When security is not enabled, don't redirect to the login page — just go back to portal.
-      if(securityEnabled && (guestLogin || fromEm) && !isSSO()) {
+      // SSO needs login at the SSO provider's login page.
+      // showLogin=true means the user explicitly clicked "Log In" as a guest, so redirect to the
+      // login page even when security is not formally enabled — the login page always exists.
+      if((securityEnabled || showLogin) && (guestLogin || fromEm) && !isSSO()) {
          redirectUri = LinkUriArgumentResolver.getLinkUri(request) +
             DefaultAuthorizationFilter.LOGIN_PAGE +
             "?requestedUrl=" + URLEncoder.encode(redirectUri, "UTF-8");
@@ -107,7 +108,7 @@ public abstract class AbstractLogoutFilter extends AbstractSecurityFilter {
          if(principal != null && XPrincipal.ANONYMOUS.equals(currUser.getName())) {
             SecurityEngine engine = getSecurityEngine();
 
-            if(engine != null && engine.containsAnonymous() || showLogin) {
+            if((engine != null && engine.containsAnonymous()) || showLogin) {
                // guest log in, redirect to the login page
                guestLogin = true;
             }
