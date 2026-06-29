@@ -2,7 +2,7 @@
 
 **日期**: 2026-06-08（2026-06-12 补充扫描，新增 65 个组件；2026-06-24 补充扫描，新增 6 个组件）
 **候选组件数**: 148（原 142，2026-06-24 新增 6）| **建议推进**: 82 | **建议跳过**: 0 | **建议暂缓**: 66 | **待审核**: 121 | **多 pass 组件**: 41
-**测试进度**: ✅已测试 42 / 148 | 待测 40 / 148 | ⏭ 跳过 0 / 148 | ⏸️暂缓 66 / 148
+**测试进度**: ✅已测试 50 / 148 | 待测 32 / 148 | ⏭ 跳过 0 / 148 | ⏸️暂缓 66 / 148
 
 ## 状态说明
 - 第一列「状态」初始为「待审核」，人工审核后改为 ✅已测试 / ⏭已跳过 / ⏸️暂缓
@@ -24,17 +24,17 @@
 | ⏸️暂缓 | DashboardLandingComponent | 50 | 0 | 2 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | AssetItemListViewComponent | 159 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | ✅已测试 | DataDatasourceBrowserComponent | 756 | 0 | 21 | **multi-pass** | ✅ 推进 | ⚠️ data-datasource-browser.component.tl.spec.ts | 🔁 Regression-sensitive: refresh combines route params, sorting, selection mapping and status fetch.; 🔁 Regression-sensitive: refreshed objects repla | P1: data-datasource-browser.component.interaction.tl.spec.ts<br>P2: data-datasource-browser.component.risk.tl.spec.ts |
-| 待审核 | DatasourceSelectionViewComponent | 127 | 0 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: datasource-selection-view.component.interaction.tl.spec.ts<br>P2: datasource-selection-view.component.risk.tl.spec.ts |
+| ✅已测试 | DatasourceSelectionViewComponent | 127 | 0 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: datasource-selection-view.component.interaction.tl.spec.ts<br>P2: datasource-selection-view.component.risk.tl.spec.ts |
 | ✅已测试 | DatabaseDataModelBrowserComponent | 723 | 0 | 8 | **multi-pass** | ✅ 推进 |  |  | P1: database-data-model-browser.component.interaction.tl.spec.ts<br>P2: database-data-model-browser.component.risk.tl.spec.ts |
-| 待审核 | DatabaseDataModelToolbarComponent | 126 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | database-data-model-toolbar.component.tl.spec.ts (31/31 ✅) |
-| 待审核 | DatabaseVPMBrowserComponent | 338 | 0 | 8 | **multi-pass** | ✅ 推进 |  |  | P1: database-vpm-browser.component.interaction.tl.spec.ts<br>P2: database-vpm-browser.component.risk.tl.spec.ts |
-| 待审核 | DataModelScriptPane | 247 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | data-model-script-pane.component.tl.spec.ts (21/21 ✅) |
+| ✅已测试 | DatabaseDataModelToolbarComponent | 126 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | database-data-model-toolbar.component.tl.spec.ts (31/31 ✅) |
+| ✅已测试 | DatabaseVPMBrowserComponent | 338 | 0 | 8 | **multi-pass** | ✅ 推进 |  |  | P1: database-vpm-browser.component.interaction.tl.spec.ts<br>P2: database-vpm-browser.component.risk.tl.spec.ts |
+| ✅已测试 | DataModelScriptPane | 247 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | data-model-script-pane.component.tl.spec.ts (21/21 ✅) |
 | ✅已测试 | DatabasePhysicalModelComponent | 1153 | 4 | 28 | **multi-pass** | ✅ 推进 |  |  | P1: database-physical-model.component.interaction.tl.spec.ts<br>P2: database-physical-model.component.risk.tl.spec.ts<br>P3: database-physical-model.component.display.tl.spec.ts |
-| 待审核 | LogicalModelAttributeDialog | 107 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
+| ✅已测试 | LogicalModelAttributeDialog | 107 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | ✅已测试 | AutoDrillDialog | 531 | 0 | 15 | **multi-pass** | ✅ 推进 |  |  | P1: auto-drill-dialog.component.interaction.tl.spec.ts<br>P2: auto-drill-dialog.component.risk.tl.spec.ts |
 | ✅已测试 | ParameterDialog | 242 | 2 | 4 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核 | SelectWorksheetDialog | 131 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | AttributeFormattingPane | 232 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试 | SelectWorksheetDialog | 131 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅已测试 | AttributeFormattingPane | 232 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | ⏸️暂缓 | LogicalModelEntityDialog | 59 | 0 | 2 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | LogicalModelExpressionDialog | 230 | 0 | 6 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | ✅已测试 | LogicalModelPropertyPane | 591 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
@@ -53,8 +53,8 @@
 | ✅已测试 | DatasourcesDatasourceComponent | 346 | 0 | 7 | **multi-pass** | ✅ 推进 | ✅ datasources-datasource.component.interaction.tl.spec.ts (33 tests)<br>✅ datasources-datasource.component.risk.tl.spec.ts (10 tests) |  | P1: datasources-datasource.component.interaction.tl.spec.ts<br>P2: datasources-datasource.component.risk.tl.spec.ts |
 | ✅已测试 | DatasourcesXmlaComponent | 602 | 0 | 35 | **multi-pass** | ✅ 推进 | ✅ datasources-xmla.component.interaction.tl.spec.ts (47 tests)<br>✅ datasources-xmla.component.risk.tl.spec.ts (12 tests) |  | P1: datasources-xmla.component.interaction.tl.spec.ts<br>P2: datasources-xmla.component.risk.tl.spec.ts |
 | ✅已测试 | DataFolderBrowserComponent | 938 | 1 | 17 | **multi-pass** | ✅ 推进 | ⚠️ data-folder-browser.component.tl.spec.ts | Regression-sensitive: route scope, folder-first sorting, and selected-object remapping can; Regression-sensitive: failed search must not leave stale r | P1: data-folder-browser.component.interaction.tl.spec.ts<br>P2: data-folder-browser.component.risk.tl.spec.ts |
-| 待审核 | DataFolderListViewComponent | 151 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核 | FilesBrowserComponent | 119 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅已测试 | DataFolderListViewComponent | 151 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | data-folder-list-view.component.tl.spec.ts (18/18 ✅) |
+| ✅ 推进 | FilesBrowserComponent | 119 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | DataSourcesTreeViewComponent | 1463 | 7 | 19 | **multi-pass** | ✅ 推进 | ⚠️ data-sources-tree-view.component.tl.spec.ts | Group 1 — changeDataSourcesTree: always returns false [Risk 3] (confirmed bug); 🔁 Regression-sensitive: return false instead of found breaks the recu | P1: data-sources-tree-view.component.interaction.tl.spec.ts<br>P2: data-sources-tree-view.component.risk.tl.spec.ts<br>P3: data-sources-tree-view.component.display.tl.spec.ts |
 | ⏸️暂缓 | DataTabComponent | 65 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | 待审核 | InputNameDescDialog | 113 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
