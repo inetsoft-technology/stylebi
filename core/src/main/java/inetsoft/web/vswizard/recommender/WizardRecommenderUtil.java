@@ -815,9 +815,41 @@ public final class WizardRecommenderUtil {
          return;
       }
 
+      IntervalData interval = IntervalExecutor.getData(box.get(), tempInfo, dim, tname, XSchema.DOUBLE);
+      buildRangeDimension(dim, rvs, tname, interval);
+   }
+
+   /**
+    * Same as {@link #createRangeDimension(VSDimensionRef, RuntimeViewsheet, String, VSTemporaryInfo)}
+    * but for the non-wizard create/save path, which has no {@link VSTemporaryInfo}: bins are computed
+    * from the chart's {@link SourceInfo} via the source-based {@code IntervalExecutor.getData} overload.
+    * Materializes a histogram's {@code Range@<measure>} dimension into a real range calc field so a
+    * SAVED chart reopens — the {@code Range@} shorthand is only understood by the wizard executor; a
+    * saved viewsheet executes the normal path and would fail with ColumnNotFoundException: Range@&lt;col&gt;.
+    */
+   public static void createRangeDimension(VSDimensionRef dim, RuntimeViewsheet rvs,
+                                           AggregateInfo ainfo, SourceInfo source, String tname)
+      throws Exception
+   {
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
+      IntervalData interval = IntervalExecutor.getData(box.get(), ainfo, source, dim, tname, XSchema.DOUBLE);
+      buildRangeDimension(dim, rvs, tname, interval);
+   }
+
+   // Build the range calc field (binned expression) for a Range@ dimension from the computed interval,
+   // register it on the viewsheet, and re-point the dimension at it. Shared by both createRangeDimension
+   // overloads (wizard tempInfo path and non-wizard SourceInfo path).
+   private static void buildRangeDimension(VSDimensionRef dim, RuntimeViewsheet rvs, String tname,
+                                           IntervalData interval)
+      throws Exception
+   {
       String refValue = dim.getGroupColumnValue();
       String field = refValue.substring(6); // strip off Range@
-      IntervalData interval = IntervalExecutor.getData(box.get(), tempInfo, dim, tname, XSchema.DOUBLE);
 
       double min = interval != null ? interval.getMin() : 0;
       double max = interval != null ? interval.getMax() : 100;
