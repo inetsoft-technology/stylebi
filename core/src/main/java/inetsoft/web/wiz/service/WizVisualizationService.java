@@ -178,6 +178,21 @@ public class WizVisualizationService {
       cloned.setPixelOffset(new Point(24, 24));
       newVs.addAssembly(cloned);
 
+      // Carry over the source viewsheet's calc fields for this chart's source (e.g. a histogram's
+      // materialized "Range@<measure>" range field) so the cloned chart's calc-field-backed bindings
+      // still resolve when the saved viz is reopened. Without this the new single-assembly viewsheet
+      // has no such calc field and reopen fails with ColumnNotFoundException: Range@<col>.
+      if(assembly instanceof DataVSAssembly dataAsm && dataAsm.getSourceInfo() != null) {
+         String calcSrc = dataAsm.getSourceInfo().getSource();
+         CalculateRef[] srcCalcs = calcSrc != null ? sourceVs.getCalcFields(calcSrc) : null;
+
+         if(srcCalcs != null) {
+            for(CalculateRef calc : srcCalcs) {
+               newVs.addCalcField(calcSrc, calc);
+            }
+         }
+      }
+
       // ── Step 6: Ensure target ViewSheet folder exists ─────────────────────────
       AssetEntry targetFolder = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,

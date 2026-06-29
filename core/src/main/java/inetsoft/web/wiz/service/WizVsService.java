@@ -278,6 +278,33 @@ public class WizVsService {
                hook.apply(rvs, assembly);
             }
 
+            // Materialize any auto-binned "Range@<measure>" histogram dimension into a real range calc
+            // field on the output viewsheet, so a SAVED chart reopens. Range@ is a wizard-only shorthand
+            // (the wizard executor strips it and bins the base column at preview time); a saved viewsheet
+            // executes the normal path and would fail with ColumnNotFoundException: Range@<col>. This is
+            // done here — not in the wizard recommender — because the create/save path rebuilds the chart
+            // on a fresh output viewsheet that has no VSTemporaryInfo, so bins are computed from the
+            // chart's SourceInfo. rvs.getViewsheet() == targetVs here (set above), so the calc field lands
+            // on the viewsheet that save_viewsheet persists. Runs before execution so the chart executes
+            // (and saves) against the materialized binding.
+            if(assembly instanceof ChartVSAssembly rangeChart && rangeChart.getVSChartInfo() != null
+               && rangeChart.getSourceInfo() != null)
+            {
+               SourceInfo rangeSrc = rangeChart.getSourceInfo();
+               ChartRef[] rangeRefs = rangeChart.getVSChartInfo().getBindingRefs(false);
+
+               if(rangeRefs != null) {
+                  for(ChartRef cr : rangeRefs) {
+                     if(cr instanceof VSDimensionRef vdim && vdim.getGroupColumnValue() != null
+                        && vdim.getGroupColumnValue().startsWith("Range@"))
+                     {
+                        WizardRecommenderUtil.createRangeDimension(
+                           vdim, rvs, rangeChart.getVSChartInfo().getAggregateInfo(), rangeSrc, rangeSrc.getSource());
+                     }
+                  }
+               }
+            }
+
             CreateViewsheetResult result;
 
             if(skipExecution) {
