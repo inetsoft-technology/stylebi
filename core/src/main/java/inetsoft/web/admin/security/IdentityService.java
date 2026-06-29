@@ -298,6 +298,71 @@ public class IdentityService {
       return warnings;
    }
 
+   /**
+    * Compute, without deleting anything, which scheduled tasks would be affected if the given
+    * identities were deleted: tasks owned by a user (deleted) and tasks where a user/group is
+    * the "execute as" (reset to the task owner). Only user/group deletions affect tasks.
+    */
+   public DeleteIdentitiesTaskImpactResponse getDeleteTaskImpacts(IdentityModel[] models,
+                                                                  String providerName,
+                                                                  Principal principal)
+   {
+      Set<String> ownedTasks = new LinkedHashSet<>();
+      Set<String> executeAsTasks = new LinkedHashSet<>();
+      AuthenticationProvider authcProvider = this.getProvider(providerName);
+
+      if(authcProvider instanceof EditableAuthenticationProvider provider) {
+         for(IdentityModel model : models) {
+            int type = model.type();
+
+            if(type != Identity.USER && type != Identity.GROUP) {
+               continue;
+            }
+
+            ResourceType resourceType = type == Identity.GROUP ?
+               ResourceType.SECURITY_GROUP : ResourceType.SECURITY_USER;
+
+            // gate by the same admin permission the delete enforces, so an admin can't enumerate
+            // another org's task names by posting identities they aren't allowed to administer
+            try {
+               if(!securityEngine.checkPermission(principal, resourceType,
+                  model.identityID().convertToKey(), ResourceAction.ADMIN))
+               {
+                  continue;
+               }
+            }
+            catch(Exception ignore) {
+               continue;
+            }
+
+            Identity identity = new DefaultIdentity(model.identityID(), type);
+            String targetOrg = model.identityID() == null ? null : model.identityID().orgID;
+
+            try {
+               // resolve the impact in the target identity's org so a site/host admin deleting a
+               // user in another org (e.g. the self org) still sees that org's affected tasks
+               ScheduleManager.IdentityTaskImpact impact = targetOrg == null
+                  ? scheduleManager.getIdentityRemovalImpact(identity, provider)
+                  : OrganizationManager.runInOrgScope(
+                     targetOrg, () -> scheduleManager.getIdentityRemovalImpact(identity, provider));
+               ownedTasks.addAll(impact.ownedTasks());
+               executeAsTasks.addAll(impact.executeAsTasks());
+            }
+            catch(Exception ex) {
+               LOG.warn("Failed to compute schedule task impact for {}", model.identityID(), ex);
+            }
+         }
+      }
+
+      // a task whose owner is being deleted is removed entirely, so don't also report it as a reset
+      executeAsTasks.removeAll(ownedTasks);
+
+      return DeleteIdentitiesTaskImpactResponse.builder()
+         .ownedTasks(new ArrayList<>(ownedTasks))
+         .executeAsTasks(new ArrayList<>(executeAsTasks))
+         .build();
+   }
+
    private void logoutSession(IdentityID user) {
       SessionLicenseManager sessionLicenseManager =
          sessionLicenseServiceProvider.getSessionLicenseManager();

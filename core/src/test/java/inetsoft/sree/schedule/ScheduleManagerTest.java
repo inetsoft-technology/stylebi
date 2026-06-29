@@ -431,6 +431,36 @@ public class ScheduleManagerTest {
       assertEquals("__balance tasks__", cond.getTaskName());
    }
 
+   /**
+    * getIdentityRemovalImpact() must report tasks owned by the deleted user and resolve the task
+    * map from the identity's own org, without modifying any task. (The "execute as" path is
+    * re-resolved from the security provider on load and is exercised via the EM/UI and manual
+    * multi-tenant tests rather than this provider-less fixture.)
+    */
+   @Test
+   void getIdentityRemovalImpact_reportsOwnedTasksWithoutMutating() throws Exception {
+      ScheduleTask owned = new ScheduleTask("impact_owned");
+      owned.setOwner(identityID_tuser0);
+
+      ScheduleTask other = new ScheduleTask("impact_other");
+      other.setOwner(identityID_admin);
+
+      scheduleManager.setScheduleTask("tuser0~;~host-org:impact_owned", owned, admin);
+      scheduleManager.setScheduleTask("admin~;~host-org:impact_other", other, admin);
+
+      EditableAuthenticationProvider provider = mock(EditableAuthenticationProvider.class);
+
+      // org is taken from the identity itself (identityID.orgID), so no provider lookup is needed
+      ScheduleManager.IdentityTaskImpact impact =
+         scheduleManager.getIdentityRemovalImpact(new User(identityID_tuser0), provider);
+
+      assertTrue(impact.ownedTasks().contains("impact_owned"));
+      assertFalse(impact.ownedTasks().contains("impact_other"));
+
+      // the read-only impact check must not delete the owned task
+      assertNotNull(scheduleManager.getScheduleTask("tuser0~;~host-org:impact_owned"));
+   }
+
    private ScheduleTask createScheduleTask(String taskName) {
       ViewsheetAction spyVSAction = spy(ViewsheetAction.class);
       spyVSAction.setViewsheet("1^128^__NULL__^f1/vs1^host-org");

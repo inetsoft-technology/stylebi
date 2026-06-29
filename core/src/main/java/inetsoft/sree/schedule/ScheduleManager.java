@@ -1122,6 +1122,70 @@ public class ScheduleManager {
    }
 
    /**
+    * Compute, without modifying anything, which scheduled tasks would be affected if the
+    * given identity were removed. Mirrors the task handling in
+    * {@link #identityRemoved(Identity, EditableAuthenticationProvider)} so the two stay in sync:
+    * tasks owned by a user are deleted, and a matching "execute as" identity is reset.
+    */
+   public IdentityTaskImpact getIdentityRemovalImpact(Identity identity,
+                                                      EditableAuthenticationProvider eprovider)
+   {
+      List<String> ownedTasks = new ArrayList<>();
+      List<String> executeAsTasks = new ArrayList<>();
+      int type = identity.getType();
+      IdentityID identityID = identity.getIdentityID();
+      // the identity carries its own org; prefer it so a site/host admin deleting a user in a
+      // different org (e.g. the self org) still resolves that org's task map
+      String orgID = identityID == null ? null : identityID.orgID;
+
+      if(orgID == null) {
+         switch(type) {
+            case Identity.USER:
+               User user = eprovider.getUser(identityID);
+               orgID = user == null ? null : user.getOrganizationID();
+               break;
+            case Identity.GROUP:
+               Group group = eprovider.getGroup(identityID);
+               orgID = group == null ? null : group.getOrganizationID();
+               break;
+            default:
+               orgID = Organization.getDefaultOrganizationID();
+               break;
+         }
+      }
+
+      if(orgID == null) {
+         return new IdentityTaskImpact(ownedTasks, executeAsTasks);
+      }
+
+      for(ScheduleTask task : getOrgTaskMap(orgID).values()) {
+         if(task == null) {
+            continue;
+         }
+
+         if(type == Identity.USER && identityID.equals(task.getOwner())) {
+            ownedTasks.add(task.getName());
+            continue;
+         }
+
+         Identity iden = task.getIdentity();
+
+         if(iden != null && type == iden.getType() && identityID.equals(iden.getIdentityID())) {
+            executeAsTasks.add(task.getName());
+         }
+      }
+
+      return new IdentityTaskImpact(ownedTasks, executeAsTasks);
+   }
+
+   /**
+    * The scheduled tasks affected by removing an identity: tasks the identity owns
+    * (which are deleted) and tasks where the identity is the "execute as" (which is reset).
+    */
+   public record IdentityTaskImpact(List<String> ownedTasks, List<String> executeAsTasks) {
+   }
+
+   /**
     * Method will be invoked when a user is renamed.
     */
    public synchronized void identityRenamed(IdentityID oname, Identity identity) {
