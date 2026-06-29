@@ -79,6 +79,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    @Input() library: boolean = false;
    @Input() draggable: boolean = false;
    @Input() physical: boolean = true;
+   @Input() includeModel: boolean = false;
    @Input() multiSelect: boolean = false;
    @Input() showContextmenu: boolean = false;
    @Input() hasMenuFunction: (node: TreeNodeModel) => boolean;
@@ -176,7 +177,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
                                              this.columns, this.worksheets, this.viewsheets,
                                              this.tableStyles, this.scripts, this.library,
                                              this.reportRepositoryEnabled,
-                                             this.readOnly, this.physical)
+                                             this.readOnly, this.physical, this.includeModel)
          .subscribe((res) => {
             this.root = res.treeNodeModel;
             this.activeRoot = this.root;
@@ -269,7 +270,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
       this.setLoadingIndicator(this.root, true);
       const obs = this.assetTreeService.getAssetTreeNode(rootEvent, this.datasources,
          this.columns, this.worksheets, this.viewsheets, this.tableStyles, this.scripts, this.library, false,
-         this.readOnly, this.physical);
+         this.readOnly, this.physical, this.includeModel);
 
       obs.subscribe(
          (res) => {
@@ -408,7 +409,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
                                                          this.columns, this.worksheets, this.viewsheets,
                                                          this.tableStyles, this.scripts, this.library,
                                                          this.reportRepositoryEnabled,
-                                                         this.readOnly, this.physical);
+                                                         this.readOnly, this.physical, this.includeModel);
 
       obs.pipe(
          catchError((error) => {

@@ -22,11 +22,12 @@ import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.uql.erm.AttributeRef;
-import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.erm.*;
+import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.JDBCUtil;
@@ -75,7 +76,8 @@ public class WorksheetAgentController {
                                    AssetRepository assetRepository,
                                    inetsoft.web.wiz.service.MetadataApiService metadataApiService,
                                    QueryManagerService queryManagerService,
-                                   LayoutGraphService layoutGraphService)
+                                   LayoutGraphService layoutGraphService,
+                                   DataSourceService dataSourceService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -90,6 +92,7 @@ public class WorksheetAgentController {
       this.metadataApiService = metadataApiService;
       this.queryManagerService = queryManagerService;
       this.layoutGraphService = layoutGraphService;
+      this.dataSourceService = dataSourceService;
    }
 
    // ---------------------------------------------------------------------------
@@ -150,11 +153,25 @@ public class WorksheetAgentController {
    {
       requireEnabled();
 
+      // add_table with logicalModel requires datasource.
+      if("add_table".equals(req.op()) && req.logicalModel() != null
+         && !req.logicalModel().isBlank()
+         && (req.datasource() == null || req.datasource().isBlank()))
+      {
+         throw new PairingException(
+            "datasource is required when logicalModel is specified.");
+      }
+
       // add_table with a datasource needs RuntimeWorksheet for initColumnSelection.
       if("add_table".equals(req.op()) && req.datasource() != null
          && !req.datasource().isBlank())
       {
-         addBoundTable(sessionToken, req, user);
+         if(req.logicalModel() != null && !req.logicalModel().isBlank()) {
+            addLogicalModelTable(sessionToken, req, user);
+         }
+         else {
+            addBoundTable(sessionToken, req, user);
+         }
          return;
       }
 
@@ -203,6 +220,12 @@ public class WorksheetAgentController {
       // reorder_concat_subtables calls CompositeTableAssembly.reorderTableAssemblies.
       if("reorder_concat_subtables".equals(req.op())) {
          reorderConcatSubtables(sessionToken, req, user);
+         return;
+      }
+
+      // add_variable needs RuntimeWorksheet to add the assembly.
+      if("add_variable".equals(req.op())) {
+         addVariableFromEdit(sessionToken, req, user);
          return;
       }
 
@@ -279,6 +302,110 @@ public class WorksheetAgentController {
          assembly.setColumnSelection(columns);
 
          // Position below existing assemblies.
+         int maxY = 0;
+
+         for(Assembly a : ws.getAssemblies()) {
+            if(!(a instanceof AbstractWSAssembly wa)) {
+               continue;
+            }
+
+            Point p = wa.getPixelOffset();
+            Dimension d = wa.getPixelSize();
+
+            if(p != null && d != null) {
+               maxY = Math.max(maxY, p.y + d.height);
+            }
+         }
+
+         assembly.setPixelOffset(new Point(25, maxY + 40));
+         ws.addAssembly(assembly);
+         return null;
+      });
+   }
+
+   /**
+    * Create a {@link BoundTableAssembly} from a logical model entity.
+    *
+    * <p>{@code req.datasource()} is the datasource name, {@code req.logicalModel()} is the
+    * logical model name, and {@code req.table()} is the entity name within that model.
+    * A {@link SourceInfo} of type {@link SourceInfo#MODEL} is created and the column
+    * selection is populated from the entity's attributes.</p>
+    */
+   private void addLogicalModelTable(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      String datasourceName = req.datasource();
+      String logicalModelName = req.logicalModel();
+      String entityName = req.table();
+
+      if(entityName == null || entityName.isBlank()) {
+         throw new PairingException("table (entity name) is required for add_table with a logical model.");
+      }
+
+      // Verify READ permission on the datasource and logical model,
+      // mirroring the checks in DatasourceMetaApiController.listLogicalModels().
+      if(!dataSourceService.checkPermission(datasourceName, ResourceAction.READ, user)) {
+         throw new PairingException("Access denied: no READ permission on datasource " + datasourceName);
+      }
+
+      XDataModel dataModel = dataSourceService.getDataModel(datasourceName);
+
+      if(dataModel == null) {
+         throw new PairingException("No data model found for datasource: " + datasourceName);
+      }
+
+      XLogicalModel lm = dataModel.getLogicalModel(logicalModelName);
+
+      if(lm == null) {
+         throw new PairingException("Logical model not found: " + logicalModelName
+            + " (datasource=" + datasourceName + ")");
+      }
+
+      AssetEntry modelEntry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+         AssetEntry.Type.LOGIC_MODEL, datasourceName + "/" + logicalModelName, null);
+      modelEntry = dataSourceService.getModelAssetEntry(modelEntry);
+
+      if(modelEntry == null ||
+         !dataSourceService.checkPermission(modelEntry, ResourceAction.READ, user))
+      {
+         throw new PairingException("Access denied: no READ permission on logical model "
+            + logicalModelName + " (datasource=" + datasourceName + ")");
+      }
+
+      XEntity entity = lm.getEntity(entityName);
+
+      if(entity == null) {
+         throw new PairingException("Entity not found: " + entityName
+            + " (logicalModel=" + logicalModelName + ", datasource=" + datasourceName + ")");
+      }
+
+      ColumnSelection columns = new ColumnSelection();
+      Enumeration<XAttribute> attrEnum = entity.getAttributes();
+
+      while(attrEnum.hasMoreElements()) {
+         XAttribute attr = attrEnum.nextElement();
+         AttributeRef attributeRef = new AttributeRef(entityName, attr.getName());
+         ColumnRef ref = new ColumnRef(attributeRef);
+
+         if(attr.getDataType() != null) {
+            ref.setDataType(attr.getDataType());
+         }
+
+         columns.addAttribute(ref);
+      }
+
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         String assemblyName = AssetUtil.normalizeTable(entityName);
+         assemblyName = AssetUtil.getNextName(ws, assemblyName);
+
+         BoundTableAssembly assembly = new BoundTableAssembly(ws, assemblyName);
+
+         SourceInfo sinfo = new SourceInfo(
+            SourceInfo.MODEL, datasourceName, logicalModelName);
+         assembly.setSourceInfo(sinfo);
+         assembly.setColumnSelection(columns);
+
          int maxY = 0;
 
          for(Assembly a : ws.getAssemblies()) {
@@ -1268,6 +1395,79 @@ public class WorksheetAgentController {
    }
 
    // ---------------------------------------------------------------------------
+   // Add variable from edit endpoint
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Handles {@code add_variable} dispatched through the edit endpoint.
+    */
+   private void addVariableFromEdit(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      String varName = req.name();
+
+      if(varName == null || varName.isBlank()) {
+         throw new PairingException("name is required for add_variable.");
+      }
+
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         createVariable(ws, varName, req.type(), req.label(), req.defaultValue());
+         return null;
+      });
+   }
+
+   /**
+    * Shared helper that creates a {@link DefaultVariableAssembly} with the given
+    * name, type, label, and default value.
+    */
+   private void createVariable(Worksheet ws, String name, String type,
+                               String label, String defaultValue)
+   {
+      AssetVariable var = new AssetVariable(name);
+
+      if(label != null) {
+         var.setAlias(label);
+      }
+
+      if(type != null) {
+         var.setTypeNode(XSchema.createPrimitiveType(type));
+      }
+
+      if(defaultValue != null) {
+         // Determine the effective type for the value node.  When a type is specified,
+         // use the typed factory so the value node matches the variable type (e.g.
+         // IntegerValue for "integer") and the value is parsed correctly through
+         // XValueNode.parse0().  Without this, createValueNode(Object, String) always
+         // creates a StringValue regardless of the variable type, and the stored
+         // default value can be silently lost on serialization round-trips.
+         String effectiveType = type != null
+            ? type : (var.getTypeNode() != null ? var.getTypeNode().getType() : null);
+         inetsoft.uql.schema.XValueNode valueNode =
+            inetsoft.uql.schema.XValueNode.createValueNode(name, effectiveType);
+
+         if(valueNode != null) {
+            try {
+               valueNode.parse0(defaultValue);
+            }
+            catch(Exception e) {
+               // Fall back to storing the raw string value if parsing fails
+               // (e.g. non-numeric string for an integer variable).
+               valueNode.setValue(defaultValue);
+            }
+
+            var.setValueNode(valueNode);
+         }
+      }
+
+      DefaultVariableAssembly assembly = new DefaultVariableAssembly(ws, name);
+      assembly.setVariable(var);
+      assembly.setPixelOffset(new Point(25, 25));
+      AssetEventUtil.adjustAssemblyPosition(assembly, ws);
+      ws.addAssembly(assembly);
+   }
+
+   // ---------------------------------------------------------------------------
    // Query execution plan (read-only)
    // ---------------------------------------------------------------------------
 
@@ -1359,28 +1559,7 @@ public class WorksheetAgentController {
 
       editService.applyOnRuntime(sessionToken, user, rws -> {
          Worksheet ws = rws.getWorksheet();
-         AssetVariable var = new AssetVariable(body.name());
-
-         if(body.label() != null) {
-            var.setAlias(body.label());
-         }
-
-         if(body.type() != null) {
-            var.setTypeNode(XSchema.createPrimitiveType(body.type()));
-         }
-
-         if(body.defaultValue() != null) {
-            var.setValueNode(
-               inetsoft.uql.schema.XValueNode.createValueNode(
-                  body.defaultValue(), body.name()));
-         }
-
-         DefaultVariableAssembly assembly =
-            new DefaultVariableAssembly(ws, body.name());
-         assembly.setVariable(var);
-         assembly.setPixelOffset(new Point(25, 25));
-         AssetEventUtil.adjustAssemblyPosition(assembly, ws);
-         ws.addAssembly(assembly);
+         createVariable(ws, body.name(), body.type(), body.label(), body.defaultValue());
          return null;
       });
    }
@@ -1593,4 +1772,5 @@ public class WorksheetAgentController {
    private final inetsoft.web.wiz.service.MetadataApiService metadataApiService;
    private final QueryManagerService queryManagerService;
    private final LayoutGraphService layoutGraphService;
+   private final DataSourceService dataSourceService;
 }

@@ -39,7 +39,7 @@ import java.util.Map;
  *   <li>{@code set_sort} — {@code table}, {@code field}, {@code direction} ("ASC" | "DESC")</li>
  *   <li>{@code add_join} — {@code name}, {@code leftTable}, {@code leftKey}, {@code rightTable}, {@code rightKey}, {@code joinType}; for multi-key joins use {@code leftKeys}/{@code rightKeys} instead of single key fields</li>
  *   <li>{@code remove_join} — {@code name}</li>
- *   <li>{@code add_table} — {@code table}, optional {@code datasource} (when provided, creates a bound table from the named datasource)</li>
+ *   <li>{@code add_table} — {@code table}, optional {@code datasource} (when provided, creates a bound table from the named datasource); optional {@code logicalModel} (when provided alongside datasource, {@code table} is an entity name within that logical model)</li>
  *   <li>{@code edit_condition} — {@code table}, {@code field}, {@code operation}, {@code values}</li>
  *   <li>{@code edit_expression} — {@code table}, {@code name}, {@code expression}, {@code type}, {@code sql}</li>
  *   <li>{@code edit_join} — {@code name}, {@code leftKey}, {@code rightKey}, {@code joinType}; for multi-key joins use {@code leftKeys}/{@code rightKeys}</li>
@@ -148,6 +148,8 @@ public record EditRequest(
    String schema,
    /** Catalog name for add_table. */
    String catalog,
+   /** Logical model name for add_table (when provided alongside datasource, creates a BoundTableAssembly from the logical model entity). */
+   String logicalModel,
    /** Multi-key join: left column names for add_join / edit_join. */
    List<String> leftKeys,
    /** Multi-key join: right column names for add_join / edit_join. */

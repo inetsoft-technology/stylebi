@@ -20,7 +20,10 @@ package inetsoft.web.wiz.controller;
 
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.*;
 import inetsoft.web.composer.model.*;
+import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.osi.OsiDataset;
@@ -35,38 +38,46 @@ import org.springframework.web.bind.annotation.*;
 import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/wiz")
 public class DatasourceMetaApiController {
-   public DatasourceMetaApiController(MetadataApiService metadataService, XRepository xrepository) {
+   public DatasourceMetaApiController(MetadataApiService metadataService,
+                                      XRepository xrepository,
+                                      DataSourceService dataSourceService)
+   {
       this.metadataService = metadataService;
       this.xrepository = xrepository;
+      this.dataSourceService = dataSourceService;
    }
 
    /**
-    * Lists all data sources available in the repository.
+    * Lists all data sources available in the repository that the user has READ permission for.
     * Used by the MCP plugin's list_datasources tool.
     */
    @GetMapping(value = "/v1/datasources", produces = MediaType.APPLICATION_JSON_VALUE)
-   public List<Map<String, String>> listDatasources() throws RemoteException {
+   public List<Map<String, String>> listDatasources(Principal principal) throws Exception {
       String[] names = xrepository.getDataSourceFullNames();
-      return Arrays.stream(names)
-         .sorted()
-         .map(name -> {
+      List<Map<String, String>> result = new ArrayList<>();
+
+      for(String name : Arrays.stream(names).sorted().toArray(String[]::new)) {
+         try {
+            if(!dataSourceService.checkPermission(name, ResourceAction.READ, principal)) {
+               continue;
+            }
+
+            XDataSource ds = xrepository.getDataSource(name);
             Map<String, String> entry = new LinkedHashMap<>();
             entry.put("name", name);
-            try {
-               XDataSource ds = xrepository.getDataSource(name);
-               entry.put("type", ds != null ? ds.getType() : "unknown");
-            }
-            catch(Exception e) {
-               entry.put("type", "unknown");
-            }
-            return entry;
-         })
-         .collect(Collectors.toList());
+            entry.put("type", ds != null ? ds.getType() : "unknown");
+            result.add(entry);
+         }
+         catch(Exception e) {
+            LOG.debug("Skipping datasource {} due to error: {}", name, e.getMessage());
+         }
+      }
+
+      return result;
    }
 
    @PostMapping("/datasource/table/meta")
@@ -159,6 +170,106 @@ public class DatasourceMetaApiController {
       return metadataService.searchSchema(request, principal);
    }
 
+   /**
+    * Lists logical models (with entities/attributes) for a given datasource that the user has
+    * READ permission for. Checks both datasource-level and per-model permissions.
+    * Used by the MCP plugin's list_logical_models tool.
+    *
+    * @param datasource the datasource name (e.g. "Examples/Orders")
+    * @param principal  the current user
+    * @return list of logical models, each with entity names and attribute metadata
+    */
+   @GetMapping(value = "/v1/logical-models", produces = MediaType.APPLICATION_JSON_VALUE)
+   public List<Map<String, Object>> listLogicalModels(
+      @RequestParam("datasource") String datasource,
+      Principal principal)
+      throws Exception
+   {
+      if(!dataSourceService.checkPermission(datasource, ResourceAction.READ, principal)) {
+         return Collections.emptyList();
+      }
+
+      XDataModel dataModel = dataSourceService.getDataModel(datasource);
+
+      if(dataModel == null) {
+         return Collections.emptyList();
+      }
+
+      List<Map<String, Object>> result = new ArrayList<>();
+
+      for(String modelName : dataModel.getLogicalModelNames()) {
+         XLogicalModel lm = dataModel.getLogicalModel(modelName);
+
+         if(lm == null) {
+            continue;
+         }
+
+         AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+            AssetEntry.Type.LOGIC_MODEL, datasource + "/" + modelName, null);
+         entry = dataSourceService.getModelAssetEntry(entry);
+
+         if(entry == null ||
+            !dataSourceService.checkPermission(entry, ResourceAction.READ, principal))
+         {
+            continue;
+         }
+
+         List<Map<String, Object>> entities = new ArrayList<>();
+         Enumeration<XEntity> entityEnum = lm.getEntities();
+
+         while(entityEnum.hasMoreElements()) {
+            XEntity entity = entityEnum.nextElement();
+            List<Map<String, String>> attributes = new ArrayList<>();
+            Enumeration<XAttribute> attrEnum = entity.getAttributes();
+
+            while(attrEnum.hasMoreElements()) {
+               XAttribute attr = attrEnum.nextElement();
+               Map<String, String> attrMap = new LinkedHashMap<>();
+               attrMap.put("name", attr.getName());
+               attrMap.put("type", attr.getDataType());
+               attributes.add(attrMap);
+            }
+
+            Map<String, Object> entityMap = new LinkedHashMap<>();
+            entityMap.put("name", entity.getName());
+            entityMap.put("attributes", attributes);
+            entities.add(entityMap);
+         }
+
+         // Include physical view join relationships so agents know how entities relate.
+         List<Map<String, String>> joins = new ArrayList<>();
+         String partitionName = lm.getPartition();
+
+         if(partitionName != null) {
+            XPartition partition = dataModel.getPartition(partitionName);
+
+            if(partition != null) {
+               Enumeration<XRelationship> relEnum = partition.getRelationships();
+
+               while(relEnum.hasMoreElements()) {
+                  XRelationship rel = relEnum.nextElement();
+                  Map<String, String> joinMap = new LinkedHashMap<>();
+                  joinMap.put("table", rel.getDependentTable());
+                  joinMap.put("column", rel.getDependentColumn());
+                  joinMap.put("foreignTable", rel.getIndependentTable());
+                  joinMap.put("foreignColumn", rel.getIndependentColumn());
+                  joinMap.put("joinType", rel.getJoinType());
+                  joins.add(joinMap);
+               }
+            }
+         }
+
+         Map<String, Object> modelMap = new LinkedHashMap<>();
+         modelMap.put("name", modelName);
+         modelMap.put("physicalView", partitionName);
+         modelMap.put("entities", entities);
+         modelMap.put("joins", joins);
+         result.add(modelMap);
+      }
+
+      return result;
+   }
+
    @ExceptionHandler(Exception.class)
    @ResponseStatus(org.springframework.http.HttpStatus.BAD_REQUEST)
    @ResponseBody
@@ -171,4 +282,5 @@ public class DatasourceMetaApiController {
 
    private final MetadataApiService metadataService;
    private final XRepository xrepository;
+   private final DataSourceService dataSourceService;
 }

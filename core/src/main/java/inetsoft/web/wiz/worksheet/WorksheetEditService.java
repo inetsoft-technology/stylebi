@@ -25,6 +25,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.TableAssemblyInfo;
+import inetsoft.util.MessageException;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
@@ -85,7 +86,21 @@ public class WorksheetEditService {
       applySocketSession(rws, session);
 
       Editor editor = new Editor(rws.getWorksheet());
-      mutation.accept(editor);
+
+      try {
+         mutation.accept(editor);
+      }
+      catch(MessageException me) {
+         // Auto-confirm cross-join: the column selection change has already been applied
+         // in memory before AbstractJoinTableAssembly.setColumnSelection throws.  In the
+         // browser UI this would surface as a confirmation dialog — here we just accept it.
+         if(!(me.getCause() instanceof CrossJoinException)) {
+            throw me;
+         }
+
+         LOG.info("Auto-confirmed cross join in agent edit: {}", me.getMessage());
+      }
+
       // Checkpoint saved after the mutation so redo restores the post-edit state,
       // matching the @Undoable / makeUndoable pattern used by the standard WS controllers.
       rws.addCheckpoint(rws.getWorksheet().prepareCheckpoint());
@@ -211,9 +226,15 @@ public class WorksheetEditService {
       for(Assembly a : ws.getAssemblies()) {
          if(a instanceof TableAssembly ta) {
             String name = ta.getName();
-            WorksheetEventUtil.refreshColumnSelection(rws, name, true);
-            WorksheetEventUtil.loadTableData(rws, name, true, true);
-            WorksheetEventUtil.fixAssemblyInfo(rws, ta);
+
+            try {
+               WorksheetEventUtil.refreshColumnSelection(rws, name, true);
+               WorksheetEventUtil.loadTableData(rws, name, true, true);
+               WorksheetEventUtil.fixAssemblyInfo(rws, ta);
+            }
+            catch(Exception ex) {
+               LOG.warn("Failed to refresh assembly: {}", name, ex);
+            }
          }
       }
    }
@@ -599,6 +620,10 @@ public class WorksheetEditService {
        * Creates a {@link RotatedTableAssembly} (transpose) from an existing table.
        */
       public void addRotate(String name, String source) throws PairingException {
+         if(name == null || name.isBlank()) {
+            name = AssetUtil.getNextName(ws, AbstractSheet.TABLE_ASSET);
+         }
+
          TableAssembly src = requireTable(source);
          RotatedTableAssembly table = new RotatedTableAssembly(ws, name, src);
          table.setLiveData(true);
@@ -615,6 +640,10 @@ public class WorksheetEditService {
       public void addUnpivot(String name, String source, int headerColumns)
          throws PairingException
       {
+         if(name == null || name.isBlank()) {
+            name = AssetUtil.getNextName(ws, AbstractSheet.TABLE_ASSET);
+         }
+
          TableAssembly src = requireTable(source);
          int colCount = src.getColumnSelection(false).getAttributeCount();
 
@@ -751,6 +780,10 @@ public class WorksheetEditService {
       public void addConcatenation(String name, List<String> tables, String opType)
          throws PairingException
       {
+         if(name == null || name.isBlank()) {
+            name = AssetUtil.getNextName(ws, AbstractSheet.TABLE_ASSET);
+         }
+
          if(tables == null || tables.size() < 2) {
             throw new PairingException("Concatenation requires at least two tables.");
          }
@@ -760,6 +793,20 @@ public class WorksheetEditService {
 
          for(int i = 0; i < tables.size(); i++) {
             sources[i] = requireTable(tables.get(i));
+         }
+
+         // Validate that all tables have the same number of columns.
+         int colCount = sources[0].getColumnSelection(true).getAttributeCount();
+
+         for(int i = 1; i < sources.length; i++) {
+            int otherCount = sources[i].getColumnSelection(true).getAttributeCount();
+
+            if(otherCount != colCount) {
+               throw new PairingException(
+                  "Data blocks that do not have the same number of columns cannot be " +
+                  "concatenated. \"" + sources[0].getName() + "\" has " + colCount +
+                  " columns but \"" + sources[i].getName() + "\" has " + otherCount + ".");
+            }
          }
 
          // Build one operator per adjacent pair.
@@ -787,6 +834,10 @@ public class WorksheetEditService {
        * @throws PairingException if the source assembly is not found
        */
       public void addMirror(String name, String source) throws PairingException {
+         if(name == null || name.isBlank()) {
+            name = AssetUtil.getNextName(ws, AbstractSheet.TABLE_ASSET);
+         }
+
          Assembly a = ws.getAssembly(source);
 
          if(!(a instanceof WSAssembly wsa)) {
@@ -877,7 +928,7 @@ public class WorksheetEditService {
        * @throws PairingException if the table or column is not found
        */
       public void changeColumnType(String table, String col, String type)
-         throws PairingException
+         throws Exception
       {
          if(!XSchema.isPrimitiveType(type)) {
             throw new PairingException(
@@ -887,14 +938,48 @@ public class WorksheetEditService {
          }
 
          TableAssembly t = requireTable(table);
-         ColumnSelection cs = t.getColumnSelection(false);
+
+         // Use the public column selection (matching the UI's ColumnTypeDialogService
+         // approach) so that AssetUtil.findColumn can match against the embedded data.
+         ColumnSelection cs = t.getColumnSelection();
          DataRef ref = cs.getAttribute(col);
+
+         if(ref == null) {
+            // Fall back to private column selection.
+            cs = t.getColumnSelection(false);
+            ref = cs.getAttribute(col);
+         }
 
          if(!(ref instanceof ColumnRef cr)) {
             throw new PairingException("Column not found: " + col);
          }
 
-         cr.setDataType(type);
+         // Also update the matching ref from findAttribute (same approach as
+         // ColumnTypeDialogService) to ensure the canonical ref is updated.
+         ColumnRef cr2 = (ColumnRef) cs.findAttribute(cr);
+
+         if(cr2 != null) {
+            cr2.setDataType(type);
+         }
+         else {
+            cr.setDataType(type);
+         }
+
+         // For embedded tables, also update the underlying XEmbeddedTable data type.
+         // Without this, refreshColumnSelection rebuilds the column selection from
+         // the data and resets the type back to the original.
+         if(t instanceof EmbeddedTableAssembly embedded) {
+            XEmbeddedTable data = embedded.getEmbeddedData();
+
+            if(data != null) {
+               int index = AssetUtil.findColumn(data, cr2 != null ? cr2 : cr);
+
+               if(index >= 0) {
+                  data.setDataType(index, type, null, null, true);
+                  embedded.setEmbeddedData(data);
+               }
+            }
+         }
       }
 
       // -----------------------------------------------------------------------
@@ -1001,7 +1086,7 @@ public class WorksheetEditService {
                newTop.addOperator(newOp);
             }
          }
-         else {
+         else if(leftKey != null && rightKey != null) {
             TableAssemblyOperator.Operator newOp = new TableAssemblyOperator.Operator();
             newOp.setLeftTable(leftTable);
             newOp.setRightTable(rightTable);
@@ -1009,6 +1094,19 @@ public class WorksheetEditService {
             newOp.setRightAttribute(new AttributeRef(null, rightKey));
             newOp.setOperation(operation);
             newTop.addOperator(newOp);
+         }
+         else {
+            // No new keys provided — preserve existing key pairs, only update join type.
+            for(int i = 0; i < top.getOperatorCount(); i++) {
+               TableAssemblyOperator.Operator orig = top.getOperator(i);
+               TableAssemblyOperator.Operator newOp = new TableAssemblyOperator.Operator();
+               newOp.setLeftTable(orig.getLeftTable());
+               newOp.setRightTable(orig.getRightTable());
+               newOp.setLeftAttribute(orig.getLeftAttribute());
+               newOp.setRightAttribute(orig.getRightAttribute());
+               newOp.setOperation(operation);
+               newTop.addOperator(newOp);
+            }
          }
 
          join.setOperator(leftTable, rightTable, newTop);
@@ -1302,6 +1400,18 @@ public class WorksheetEditService {
 
          TableAssembly newTable = requireTable(tableName);
          TableAssembly[] existing = ctbl.getTableAssemblies();
+
+         // Validate column count matches existing subtables.
+         int colCount = existing[0].getColumnSelection(true).getAttributeCount();
+         int newCount = newTable.getColumnSelection(true).getAttributeCount();
+
+         if(newCount != colCount) {
+            throw new PairingException(
+               "Data blocks that do not have the same number of columns cannot be " +
+               "concatenated. Existing subtables have " + colCount +
+               " columns but \"" + tableName + "\" has " + newCount + ".");
+         }
+
          TableAssembly[] updated = new TableAssembly[existing.length + 1];
          System.arraycopy(existing, 0, updated, 0, existing.length);
          updated[existing.length] = newTable;
@@ -1310,7 +1420,7 @@ public class WorksheetEditService {
          // Copy the last-pair operator (between existing[n-2] and existing[n-1]) so that
          // the new table inherits the same UNION/INTERSECT/MINUS as the most recent pair
          // rather than always defaulting to whatever operator 0 happens to be.
-         TableAssemblyOperator op = ctbl.getOperator(existing.length - 1);
+         TableAssemblyOperator op = ctbl.getOperator(existing.length - 2);
          ctbl.setTableAssemblies(updated);
 
          // Set operator between last existing and new table
@@ -1398,6 +1508,7 @@ public class WorksheetEditService {
          DefaultNamedGroupAssembly assembly = new DefaultNamedGroupAssembly(ws, name);
          assembly.setNamedGroupInfo(ngi);
          assembly.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
+         assembly.setAttachedSource(new SourceInfo(SourceInfo.ASSET, null, table));
          assembly.setAttachedAttribute(ref);
 
          placeAssembly(assembly);
@@ -1577,8 +1688,24 @@ public class WorksheetEditService {
          }
 
          if(defaultValue != null) {
-            var.setValueNode(
-               inetsoft.uql.schema.XValueNode.createValueNode(defaultValue, name));
+            // Use the variable's type to create the correct value node subclass
+            // (e.g. IntegerValue for "integer") so the default value survives
+            // serialization round-trips.
+            String effectiveType = type != null
+               ? type : (var.getTypeNode() != null ? var.getTypeNode().getType() : null);
+            inetsoft.uql.schema.XValueNode valueNode =
+               inetsoft.uql.schema.XValueNode.createValueNode(name, effectiveType);
+
+            if(valueNode != null) {
+               try {
+                  valueNode.parse0(defaultValue);
+               }
+               catch(Exception e) {
+                  valueNode.setValue(defaultValue);
+               }
+
+               var.setValueNode(valueNode);
+            }
          }
       }
 

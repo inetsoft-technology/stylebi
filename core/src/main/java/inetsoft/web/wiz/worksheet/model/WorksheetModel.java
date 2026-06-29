@@ -26,7 +26,8 @@ import java.util.List;
  * class can be constructed anywhere (tests, service, controller) without a
  * container.</p>
  */
-public record WorksheetModel(List<TableModel> tables, List<VariableModel> variables) {
+public record WorksheetModel(List<TableModel> tables, List<VariableModel> variables,
+                             List<NamedGroupModel> namedGroups) {
 
    /**
     * A single table assembly inside the worksheet.
@@ -122,8 +123,9 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
        *
        * @param column  source column name
        * @param formula formula name (e.g. {@code "Sum"}, {@code "Count"})
+       * @param alias   output alias; may be {@code null}
        */
-      public record AggregateRefModel(String column, String formula) {}
+      public record AggregateRefModel(String column, String formula, String alias) {}
    }
 
    /**
@@ -143,4 +145,29 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * @param defaultValue stringified default value; may be {@code null}
     */
    public record VariableModel(String name, String label, String type, String defaultValue) {}
+
+   /**
+    * A named group assembly in the worksheet.
+    *
+    * @param name          assembly name
+    * @param table         the source table the grouping is attached to
+    * @param column        the column the grouping is attached to
+    * @param groupMappings list of group name to values mappings
+    * @param groupOthers   {@code true} if unmapped values are grouped as "Others"
+    */
+   public record NamedGroupModel(
+      String name,
+      String table,
+      String column,
+      List<GroupMappingModel> groupMappings,
+      boolean groupOthers
+   ) {}
+
+   /**
+    * A single group mapping inside a named group.
+    *
+    * @param groupName the name of the group
+    * @param values    the values assigned to this group
+    */
+   public record GroupMappingModel(String groupName, List<String> values) {}
 }
