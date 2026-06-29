@@ -185,10 +185,14 @@ class PermissionHierarchyTest {
    private static void grantRolePermission(ResourceType type, String resource,
                                            ResourceAction action, String roleName, String orgId)
    {
-      Permission permission = new Permission();
+      SecurityProvider sp = engine().getSecurityProvider();
+      Permission permission = sp.getPermission(type, resource, orgId);
+      if(permission == null) {
+         permission = new Permission();
+      }
       permission.setRoleGrantsForOrg(action, Set.of(roleName), orgId);
       permission.updateGrantAllByOrg(orgId, true);
-      engine().getSecurityProvider().setPermission(type, resource, permission, orgId);
+      sp.setPermission(type, resource, permission, orgId);
    }
 
    private static SRPrincipal loginAsPrincipal(String loginUserName, String effectiveUserName,

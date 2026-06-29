@@ -31,6 +31,7 @@ package inetsoft.web.security;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.AuthenticationService;
 import inetsoft.sree.web.SessionLicenseServiceProvider;
+import inetsoft.web.security.support.FilterTestSupport;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
@@ -50,10 +51,6 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 @Tag("core")
 class CsrfFilterUnitTest {
-
-   /** Matches the private constant CSRFFilter.SESSION_ATTRIBUTE_NAME */
-   private static final String SESSION_ATTR =
-      "__private_inetsoft.web.security.CSRFFilter.TOKEN";
 
    @Mock private SessionLicenseServiceProvider sessionLicenseServiceProvider;
    @Mock private AuthenticationService authenticationService;
@@ -110,7 +107,7 @@ class CsrfFilterUnitTest {
    @Test
    void doFilter_csrfRequired_mismatchedToken_returns403() throws Exception {
       MockHttpServletRequest request = internalApiPost();
-      request.getSession(true).setAttribute(SESSION_ATTR, "correct-token");
+      request.getSession(true).setAttribute(FilterTestSupport.CSRF_SESSION_ATTR, "correct-token");
       request.addHeader("X-XSRF-TOKEN", "wrong-token");
       MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -125,7 +122,7 @@ class CsrfFilterUnitTest {
    @Test
    void doFilter_csrfRequired_validHeaderToken_callsChain() throws Exception {
       MockHttpServletRequest request = internalApiPost();
-      request.getSession(true).setAttribute(SESSION_ATTR, "my-token");
+      request.getSession(true).setAttribute(FilterTestSupport.CSRF_SESSION_ATTR, "my-token");
       request.addHeader("X-XSRF-TOKEN", "my-token");
       MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -140,7 +137,7 @@ class CsrfFilterUnitTest {
    @Test
    void doFilter_csrfRequired_validParameterToken_callsChain() throws Exception {
       MockHttpServletRequest request = internalApiPost();
-      request.getSession(true).setAttribute(SESSION_ATTR, "param-token");
+      request.getSession(true).setAttribute(FilterTestSupport.CSRF_SESSION_ATTR, "param-token");
       request.setParameter("_csrf", "param-token");
       MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -232,7 +229,7 @@ class CsrfFilterUnitTest {
    @Test
    void doFilter_cookieMatchesSessionToken_noNewCookieHeader() throws Exception {
       MockHttpServletRequest request = apiRequest("GET", "/api/internal/data");
-      request.getSession(true).setAttribute(SESSION_ATTR, "stable-token");
+      request.getSession(true).setAttribute(FilterTestSupport.CSRF_SESSION_ATTR, "stable-token");
       request.setCookies(new Cookie("XSRF-TOKEN", "stable-token"));
       MockHttpServletResponse response = new MockHttpServletResponse();
 

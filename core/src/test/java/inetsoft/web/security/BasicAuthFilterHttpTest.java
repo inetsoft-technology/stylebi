@@ -92,6 +92,10 @@ class BasicAuthFilterHttpTest {
    @Test
    void validCredentials_returns200() throws Exception {
       SRPrincipal principal = mock(SRPrincipal.class, withSettings().lenient());
+      // AuthenticationService.authenticate(IdentityID userId, IdentityID loginAsUser,
+      //   String password, String remoteHost, String remoteAddr, String serverName,
+      //   String locale, Locale clientLocale, boolean anonymousAllowed,
+      //   boolean userMustExist, String sessionId, String requestedUri)
       doReturn(principal).when(authService).authenticate(
          any(), any(), any(), any(), any(), any(), any(), any(),
          anyBoolean(), anyBoolean(), any(), any());
@@ -131,6 +135,10 @@ class BasicAuthFilterHttpTest {
    @Test
    void sessionExceededAdmin_returns200WithJson() throws Exception {
       SRPrincipal principal = mock(SRPrincipal.class, withSettings().lenient());
+      // AuthenticationService.authenticate(IdentityID userId, IdentityID loginAsUser,
+      //   String password, String remoteHost, String remoteAddr, String serverName,
+      //   String locale, Locale clientLocale, boolean anonymousAllowed,
+      //   boolean userMustExist, String sessionId, String requestedUri)
       doReturn(principal).when(authService).authenticate(
          any(), any(), any(), any(), any(), any(), any(), any(),
          anyBoolean(), anyBoolean(), any(), any());
@@ -148,6 +156,10 @@ class BasicAuthFilterHttpTest {
    @Test
    void sessionExceededNonAdmin_returns401() throws Exception {
       SRPrincipal principal = mock(SRPrincipal.class, withSettings().lenient());
+      // AuthenticationService.authenticate(IdentityID userId, IdentityID loginAsUser,
+      //   String password, String remoteHost, String remoteAddr, String serverName,
+      //   String locale, Locale clientLocale, boolean anonymousAllowed,
+      //   boolean userMustExist, String sessionId, String requestedUri)
       doReturn(principal).when(authService).authenticate(
          any(), any(), any(), any(), any(), any(), any(), any(),
          anyBoolean(), anyBoolean(), any(), any());

@@ -45,10 +45,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Tag("core")
 class CsrfFilterHttpTest {
 
-   /** Must match CSRFFilter.SESSION_ATTRIBUTE_NAME (private constant). */
-   private static final String SESSION_ATTR =
-      "__private_inetsoft.web.security.CSRFFilter.TOKEN";
-
    @Mock private SessionLicenseServiceProvider licenseProvider;
    @Mock private AuthenticationService authService;
 
@@ -82,7 +78,7 @@ class CsrfFilterHttpTest {
    @Test
    void postWithValidHeaderToken_returns200() throws Exception {
       mvc.perform(post("/api/internal/data")
-            .sessionAttr(SESSION_ATTR, "csrf-token")
+            .sessionAttr(FilterTestSupport.CSRF_SESSION_ATTR, "csrf-token")
             .header("X-XSRF-TOKEN", "csrf-token"))
          .andExpect(status().isOk());
    }
@@ -90,7 +86,7 @@ class CsrfFilterHttpTest {
    @Test
    void postWithValidParamToken_returns200() throws Exception {
       mvc.perform(post("/api/internal/data")
-            .sessionAttr(SESSION_ATTR, "param-token")
+            .sessionAttr(FilterTestSupport.CSRF_SESSION_ATTR, "param-token")
             .param("_csrf", "param-token"))
          .andExpect(status().isOk());
    }
