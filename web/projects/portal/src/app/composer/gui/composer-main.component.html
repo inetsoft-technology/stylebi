@@ -269,22 +269,32 @@
        </split-pane>
      </div>
    </div>
-   <vs-binding-pane *ngIf="focusedViewsheet?.bindingEditMode && !wizardEditMode"
-      [runtimeId]="bindingPaneModel.runtimeId"
-      [assemblyName]="bindingPaneModel.absoluteName"
-      [temporarySheet]="focusedSheet.newSheet"
-      [objectType]="bindingPaneModel.objectType"
-      [wizardOriginalInfo]="bindingPaneModel.wizardOriginalInfo"
-      [variableValues]="getVariables(bindingPaneModel.absoluteName, bindingPaneModel.objectType)"
-      [linkUri]="focusedViewsheet?.linkUri"
-      [assetId]="focusedViewsheet.id"
-      [isCube]="!!!focusedViewsheet?.baseEntry"
-      [aiAssistantPermission]="aiAssistantPermission"
-      (onOpenWizardPane)="switchBindingToWizard($event)"
-      (onCloseBindingPane)="closeBindingPane()"
-      (onAssemblyChanged)="refreshChangedAssembly($event)"
-      (onRenamed)="changeBindingAssemblyName($event)">
-   </vs-binding-pane>
+   @if (focusedViewsheet?.bindingEditMode && !wizardEditMode) {
+      @defer (prefetch on idle) {
+         <vs-binding-pane
+            [runtimeId]="bindingPaneModel.runtimeId"
+            [assemblyName]="bindingPaneModel.absoluteName"
+            [temporarySheet]="focusedSheet.newSheet"
+            [objectType]="bindingPaneModel.objectType"
+            [wizardOriginalInfo]="bindingPaneModel.wizardOriginalInfo"
+            [variableValues]="getVariables(bindingPaneModel.absoluteName, bindingPaneModel.objectType)"
+            [linkUri]="focusedViewsheet?.linkUri"
+            [assetId]="focusedViewsheet.id"
+            [isCube]="!!!focusedViewsheet?.baseEntry"
+            [aiAssistantPermission]="aiAssistantPermission"
+            (onOpenWizardPane)="switchBindingToWizard($event)"
+            (onCloseBindingPane)="closeBindingPane()"
+            (onAssemblyChanged)="refreshChangedAssembly($event)"
+            (onRenamed)="changeBindingAssemblyName($event)">
+         </vs-binding-pane>
+      } @loading {
+         <div class="loading-container">
+            <div class="loading-content">
+               <i class="loading-icon--spin loading-icon fa-spin icon-4x fa-fw" aria-hidden="true"></i>
+            </div>
+         </div>
+      }
+   }
    <vs-wizard *ngIf="wizardEditMode"
       [model]="wizardModel"
       [aiAssistantPermission]="aiAssistantPermission"
