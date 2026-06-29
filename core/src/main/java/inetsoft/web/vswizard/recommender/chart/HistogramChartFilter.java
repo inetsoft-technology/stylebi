@@ -22,6 +22,7 @@ import inetsoft.uql.CompositeValue;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.graph.aesthetic.StaticSizeFrame;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.StaticSizeFrameWrapper;
 
@@ -72,7 +73,20 @@ public class HistogramChartFilter extends ChartTypeFilter {
       info.setClearedFormula(clearedFormula);
       yref.setFormulaValue("Count");
       StaticSizeFrameWrapper size = new StaticSizeFrameWrapper();
-      size.setSize(30, CompositeValue.Type.DEFAULT);
+      // Render the binned bars at FULL band width (contiguous) so the chart reads as a histogram
+      // rather than a gapped category bar chart. Per BarVO.getBarSize, a static-sized bar fills the
+      // band (width == maxbar) only when BOTH: (1) size == max, and (2) largest != smallest — when
+      // largest == smallest (the default) it short-circuits to maxbar/2, i.e. the half-width gap that
+      // made the histogram look like a normal bar chart. So set distinct largest/smallest and pin
+      // size to max. (max is persisted via SizeFrameWrapper so this survives save/reopen.)
+      StaticSizeFrame frame = (StaticSizeFrame) size.getVisualFrame();
+      // BarVO.getBarSize: width = maxbar * size/max (with smallest=0). The rendered geometry size is
+      // a fixed 15 here, so width == maxbar (full band, contiguous histogram) exactly when max == 15.
+      // largest must differ from smallest, else getBarSize short-circuits to maxbar/2 (the gap).
+      frame.setSmallest(0);
+      frame.setLargest(15);
+      frame.setMax(15);
+      size.setSize(15, CompositeValue.Type.DEFAULT);
       yref.setSizeFrameWrapper(size);
 
       VSChartDimensionRef range = new VSChartDimensionRef();
