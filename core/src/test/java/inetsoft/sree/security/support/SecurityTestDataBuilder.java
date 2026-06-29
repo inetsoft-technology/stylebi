@@ -136,6 +136,8 @@ public class SecurityTestDataBuilder {
       authzProvider = new FileAuthorizationProvider();
       authzProvider.setProviderName("Primary");
 
+      // setProviders() persists the chain to storage as a side effect;
+      // SecurityEngine.init() (line below) reads it to discover provider types.
       AuthenticationChain authcChain = new AuthenticationChain();
       authcChain.setProviders(Collections.singletonList(authcProvider));
 
