@@ -30,7 +30,7 @@
  * Confirmed bugs (it.fails): none
  */
 
-import { Component, EventEmitter, Input, NO_ERRORS_SCHEMA, Output } from "@angular/core";
+import { Component, Directive, EventEmitter, Input, NO_ERRORS_SCHEMA, Output } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { render } from "@testing-library/angular";
 
@@ -42,7 +42,7 @@ import { NameLabelTuple } from "../../../../../../../shared/util/name-label-tupl
 import { SortColumnDirective } from "../../../../widget/directive/sort-column.directive";
 import { CreateMVPane } from "./create-mv-pane.component";
 
-@Component({ selector: "sort-column-stub", standalone: true, template: "" })
+@Directive({ selector: "[sortColumn]", standalone: true })
 class SortColumnStub {
    @Input() data: any[];
    @Input() sortKey: any;

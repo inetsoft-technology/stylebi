@@ -35,14 +35,14 @@ import { Viewsheet } from "../../../composer/data/vs/viewsheet";
 
 afterEach(() => vi.restoreAllMocks());
 
-type CellContextOverrides = {
+interface CellContextOverrides {
    viewer?: boolean;
    preview?: boolean;
    composer?: boolean;
    binding?: boolean;
    vsWizard?: boolean;
    vsWizardPreview?: boolean;
-};
+}
 
 interface VSTableCellTestOverrides {
    cell?: Partial<BaseTableCellModel>;
