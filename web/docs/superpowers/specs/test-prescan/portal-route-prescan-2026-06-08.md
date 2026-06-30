@@ -2,7 +2,7 @@
 
 **日期**: 2026-06-08（2026-06-12 补充扫描，新增 65 个组件；2026-06-24 补充扫描，新增 6 个组件）
 **候选组件数**: 148（原 142，2026-06-24 新增 6）| **建议推进**: 82 | **建议跳过**: 0 | **建议暂缓**: 66 | **待审核**: 121 | **多 pass 组件**: 41
-**测试进度**: ✅已测试 50 / 148 | 待测 32 / 148 | ⏭ 跳过 0 / 148 | ⏸️暂缓 66 / 148
+**测试进度**: ✅已测试 59 / 148 | 待测 23 / 148 | ⏭ 跳过 0 / 148 | ⏸️暂缓 66 / 148
 
 ## 状态说明
 - 第一列「状态」初始为「待审核」，人工审核后改为 ✅已测试 / ⏭已跳过 / ⏸️暂缓
@@ -39,8 +39,8 @@
 | ✅已测试 | LogicalModelExpressionDialog | 230 | 0 | 6 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
 | ✅已测试 | LogicalModelPropertyPane | 591 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | LogicalModelComponent | 275 | 2 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: logical-model.component.interaction.tl.spec.ts<br>P2: logical-model.component.risk.tl.spec.ts |
-| 待审核 | PhysicalGraphPane | 237 | 0 | 9 | **multi-pass** | ✅ 推进 |  |  | P1: physical-graph-pane.component.interaction.tl.spec.ts<br>P2: physical-graph-pane.component.risk.tl.spec.ts |
-| 待审核 | PhysicalJoinEditPane | 120 | 0 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: physical-join-edit-pane.component.interaction.tl.spec.ts<br>P2: physical-join-edit-pane.component.risk.tl.spec.ts |
+| ✅已测试 | PhysicalGraphPane | 237 | 0 | 9 | **multi-pass** | ✅ 推进 |  |  | P1: physical-graph-pane.component.interaction.tl.spec.ts<br>P2: physical-graph-pane.component.risk.tl.spec.ts |
+| ✅已测试 | PhysicalJoinEditPane | 120 | 0 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: physical-join-edit-pane.component.interaction.tl.spec.ts<br>P2: physical-join-edit-pane.component.risk.tl.spec.ts |
 | ✅已测试P1 | PhysicalModelNetworkGraphComponent | 779 | 0 | 19 | **multi-pass** | ✅ 推进 |  |  | P1: physical-model-network-graph.component.interaction.tl.spec.ts (37/37 ✅)<br>P2: physical-model-network-graph.component.risk.tl.spec.ts (worker crash, 搁置) |
 | ✅已测试 | DatabaseVPMComponent | 270 | 1 | 8 | **multi-pass** | ✅ 推进 |  |  | P1: database-vpm.component.interaction.tl.spec.ts (32/32 ✅)<br>P2: database-vpm.component.risk.tl.spec.ts (18/18 ✅) |
 | ✅已测试 | VPMConditionsComponent | 259 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | vpm-conditions.component.tl.spec.ts (37/37 ✅) |
@@ -54,20 +54,20 @@
 | ✅已测试 | DatasourcesXmlaComponent | 602 | 0 | 35 | **multi-pass** | ✅ 推进 | ✅ datasources-xmla.component.interaction.tl.spec.ts (47 tests)<br>✅ datasources-xmla.component.risk.tl.spec.ts (12 tests) |  | P1: datasources-xmla.component.interaction.tl.spec.ts<br>P2: datasources-xmla.component.risk.tl.spec.ts |
 | ✅已测试 | DataFolderBrowserComponent | 938 | 1 | 17 | **multi-pass** | ✅ 推进 | ⚠️ data-folder-browser.component.tl.spec.ts | Regression-sensitive: route scope, folder-first sorting, and selected-object remapping can; Regression-sensitive: failed search must not leave stale r | P1: data-folder-browser.component.interaction.tl.spec.ts<br>P2: data-folder-browser.component.risk.tl.spec.ts |
 | ✅已测试 | DataFolderListViewComponent | 151 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | data-folder-list-view.component.tl.spec.ts (18/18 ✅) |
-| ✅ 推进 | FilesBrowserComponent | 119 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅已测试 | FilesBrowserComponent | 119 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | DataSourcesTreeViewComponent | 1463 | 7 | 19 | **multi-pass** | ✅ 推进 | ⚠️ data-sources-tree-view.component.tl.spec.ts | Group 1 — changeDataSourcesTree: always returns false [Risk 3] (confirmed bug); 🔁 Regression-sensitive: return false instead of found breaks the recu | P1: data-sources-tree-view.component.interaction.tl.spec.ts<br>P2: data-sources-tree-view.component.risk.tl.spec.ts<br>P3: data-sources-tree-view.component.display.tl.spec.ts |
 | ⏸️暂缓 | DataTabComponent | 65 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
-| 待审核 | InputNameDescDialog | 113 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| 待审核 | MoveAssetDialogComponent | 121 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
+| ✅已测试 | InputNameDescDialog | 113 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | input-name-desc-dialog.component.tl.spec.ts (9/9 ✅) |
+| ✅已测试 | MoveAssetDialogComponent | 121 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | move-asset-dialog.component.tl.spec.ts (11/11 ✅) |
 | 待审核 | AnalyzeMVDialog | 280 | 0 | 30 | **multi-pass** | ✅ 推进 |  |  | P1: analyze-mv-dialog.component.interaction.tl.spec.ts<br>P2: analyze-mv-dialog.component.risk.tl.spec.ts |
 | ⏸️暂缓 | AnalyzeMVPane | 58 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
-| 待审核 | CreateMVPane | 112 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试 | CreateMVPane | 112 | 0 | 0 | **single-pass** | ✅已测试 |  |  | single pass |
 | ⏸️暂缓 | ArrangeDashboardDialog | 94 | 0 | 2 | **single-pass** | 暂缓 | ⚠️ arrange-dashboard-dialog.spec.ts | Bug #18799 not enabled dashboard should display in list | single pass (+内存泄漏) |
-| 待审核 | AutoJoinTablesDialog | 144 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核 | ChooseTableDialog | 204 | 1 | 7 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
+| ✅已测试 | AutoJoinTablesDialog | 144 | 0 | 3 | **single-pass** | ✅已测试 |  |  | single pass (+竞态+内存泄漏) |
+| ✅已测试 | ChooseTableDialog | 204 | 1 | 7 | **single-pass** | ✅已测试 |  |  | single pass (+竞态+内存泄漏) |
 | 待审核 | EditDashboardDialog | 179 | 0 | 7 | **multi-pass** | ✅ 推进 | ⚠️ edit-dashboard-dialog.spec.ts | Bug #18620 Don't allow special characters in the name; Bug #21678 should allow & -+ | P1: edit-dashboard-dialog.component.interaction.tl.spec.ts<br>P2: edit-dashboard-dialog.component.risk.tl.spec.ts |
 | ⏸️暂缓 | InlineViewDialog | 66 | 0 | 2 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
-| 待审核 | PhysicalTableAliasesDialog | 101 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
+| ✅已测试 | PhysicalTableAliasesDialog | 101 | 0 | 2 | **single-pass** | ✅已测试 |  |  | single pass (+内存泄漏) |
 | ⏸️暂缓 | PreferencesDialog | 81 | 0 | 2 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | ⏸️暂缓 | VPMConditionDialog | 62 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | ⏸️暂缓 | PortalRedirectComponent | 26 | 0 | 2 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
@@ -159,7 +159,7 @@
 - Reason: 回归主体：navigation / HTTP loading / lifecycle / user flows
 
 **Pass 2** (`database-vpm-browser.component.risk.tl.spec.ts`)
-- Methods: editable, deletable, crrentSearchFolderLabel, search, reSearch, clearSearch, refreshModels, deleteModel, deleteSelected
+- Methods: editable, deletable, currentSearchFolderLabel, search, reSearch, clearSearch, refreshModels, deleteModel, deleteSelected
 - Reason: async≥3：竞态 / destructive / state inconsistency
 
 ### DatabasePhysicalModelComponent
