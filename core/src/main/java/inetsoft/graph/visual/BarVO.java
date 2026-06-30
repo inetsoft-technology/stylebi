@@ -782,11 +782,25 @@ public class BarVO extends ElementVO {
          // dodge(). Subsequent bars must return immediately — if they run the centering step below,
          // their shape is already a trapezoid whose bounding-box
          // height differs from the original rectangle height, causing a wrong extra shift.
-         if(elem.getHint("_funnel_shaped_") != null) {
-            return;
+         //
+         // The guard must be scoped per-coordinate, not per-element: in a faceted
+         // (multi-dimension) chart each facet is rendered as a separate sub-graph with its
+         // own dodge() pass, but they all share this single GraphElement instance. An
+         // element-wide flag would let the first facet set it and suppress funnel shaping in
+         // every other facet, leaving those bars as plain rectangles. The coord passed to
+         // dodge() is the facet's own inner coordinate, so it uniquely identifies the pass.
+         @SuppressWarnings("unchecked")
+         Set<Coordinate> shaped = (Set<Coordinate>) elem.getHint("_funnel_shaped_");
+
+         if(shaped == null) {
+            shaped = Collections.newSetFromMap(new IdentityHashMap<>());
+            elem.setHint("_funnel_shaped_", shaped);
          }
 
-         elem.setHint("_funnel_shaped_", Boolean.TRUE);
+         // already shaped this facet's bars in this pass
+         if(!shaped.add(coord)) {
+            return;
+         }
 
          // Collect all funnel bars for this element from the full collision map.
          List<BarVO> allBars = new ArrayList<>();
