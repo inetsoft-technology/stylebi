@@ -31,6 +31,9 @@ import java.util.List;
  */
 public class WorksheetTableResponse {
 
+   public static final String PROBE_ERROR_QUERY = "query_error";
+   public static final String PROBE_ERROR_INFRA = "infra_error";
+
    /** Asset identifier of the worksheet; pass as {@code worksheetId} in subsequent calls. */
    private String wsId;
 
@@ -48,6 +51,12 @@ public class WorksheetTableResponse {
 
    private boolean success;
    private String errorMessage;
+   /**
+    * Optional, only populated by GET /api/wiz/ws/table/probe when success=false.
+    * query_error means the table itself failed to execute and callers may block/rebuild it;
+    * infra_error means the probe could not verify execution and callers should warn but continue.
+    */
+   private String probeErrorKind;
 
    public String getWsId() { return wsId; }
    public void setWsId(String wsId) { this.wsId = wsId; }
@@ -68,5 +77,8 @@ public class WorksheetTableResponse {
 
    public String getErrorMessage() { return errorMessage; }
    public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
+
+   public String getProbeErrorKind() { return probeErrorKind; }
+   public void setProbeErrorKind(String probeErrorKind) { this.probeErrorKind = probeErrorKind; }
 
 }

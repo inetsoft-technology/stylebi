@@ -133,6 +133,9 @@ public class WorksheetTableController {
          response.setSuccess(false);
          response.setTableName(tableName);
          response.setErrorMessage(e.getMessage());
+         response.setProbeErrorKind(e instanceof WorksheetTableService.ProbeTableException probeException
+                                       ? probeException.getProbeErrorKind()
+                                       : WorksheetTableResponse.PROBE_ERROR_INFRA);
          LOG.error("Probe failed for worksheet table '{}'", tableName, e);
          return response;
       }

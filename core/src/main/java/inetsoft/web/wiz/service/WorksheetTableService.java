@@ -46,7 +46,15 @@ import inetsoft.web.wiz.model.osi.*;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
 import org.springframework.stereotype.Service;
 
+import java.net.ConnectException;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.security.Principal;
+import java.sql.SQLNonTransientConnectionException;
+import java.sql.SQLRecoverableException;
+import java.sql.SQLException;
+import java.sql.SQLTimeoutException;
+import java.sql.SQLTransientConnectionException;
 import java.util.*;
 
 import static inetsoft.web.wiz.service.GenerateWsService.WORKSHEET_ROOT_FOLDER_PATH;
@@ -237,13 +245,18 @@ public class WorksheetTableService {
             lens.moreRows(1);
          }
          catch(Exception ex) {
-            throw new IllegalArgumentException(WizVsService.failedQueryError(rootMessage(ex)), ex);
+            throw probeFailure(ex);
          }
 
          // Throws IllegalArgumentException("Worksheet query failed … (cause: <DB error>)") when the
          // lens chain carries failed-query fallback data — the unified signal for SQL and expression
          // failures alike. WizVsService is in this same package.
-         WizVsService.checkFailedQuery(lens);
+         try {
+            WizVsService.checkFailedQuery(lens);
+         }
+         catch(Exception ex) {
+            throw probeFailure(ex);
+         }
 
          WorksheetTableResponse response = new WorksheetTableResponse();
          response.setTableName(targetTable.getName());
@@ -253,6 +266,75 @@ public class WorksheetTableService {
       finally {
          box.dispose();
       }
+   }
+
+   public static class ProbeTableException extends RuntimeException {
+      public ProbeTableException(String probeErrorKind, String message, Throwable cause) {
+         super(message, cause);
+         this.probeErrorKind = probeErrorKind;
+      }
+
+      public String getProbeErrorKind() {
+         return probeErrorKind;
+      }
+
+      private final String probeErrorKind;
+   }
+
+   private static ProbeTableException probeFailure(Throwable ex) {
+      String detail = rootMessage(ex);
+      String kind = probeErrorKind(ex, detail);
+
+      if(WorksheetTableResponse.PROBE_ERROR_QUERY.equals(kind) &&
+         !detail.startsWith("Worksheet query failed")) {
+         detail = WizVsService.failedQueryError(detail);
+      }
+
+      return new ProbeTableException(kind, detail, ex);
+   }
+
+   private static String probeErrorKind(Throwable ex, String detail) {
+      for(Throwable t = ex; t != null; t = t.getCause()) {
+         if(t instanceof SQLTimeoutException ||
+            t instanceof SQLTransientConnectionException ||
+            t instanceof SQLNonTransientConnectionException ||
+            t instanceof SQLRecoverableException ||
+            t instanceof ConnectException ||
+            t instanceof SocketTimeoutException ||
+            t instanceof SocketException)
+         {
+            return WorksheetTableResponse.PROBE_ERROR_INFRA;
+         }
+
+         if(t instanceof SQLException sqlException) {
+            String state = sqlException.getSQLState();
+
+            if(state != null && (state.startsWith("08") || state.startsWith("28"))) {
+               return WorksheetTableResponse.PROBE_ERROR_INFRA;
+            }
+         }
+      }
+
+      String msg = detail == null ? "" : detail.toLowerCase(Locale.ROOT);
+
+      if(msg.contains("connection refused") ||
+         msg.contains("connection reset") ||
+         msg.contains("connection closed") ||
+         msg.contains("connection failed") ||
+         msg.contains("connect timed out") ||
+         msg.contains("timed out") ||
+         msg.contains("timeout") ||
+         msg.contains("socket") ||
+         msg.contains("network") ||
+         msg.contains("authentication failed") ||
+         msg.contains("authorization failed") ||
+         msg.contains("credential") ||
+         msg.contains("login failed"))
+      {
+         return WorksheetTableResponse.PROBE_ERROR_INFRA;
+      }
+
+      return WorksheetTableResponse.PROBE_ERROR_QUERY;
    }
 
    // Get worksheet table metadata.
