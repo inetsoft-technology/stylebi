@@ -62,6 +62,14 @@ import { GraphTypes } from "../../common/graph-types";
 import { ChartBindingModel } from "../data/chart/chart-binding-model";
 import { CrosstabBindingModel } from "../data/table/crosstab-binding-model";
 import { DataRef } from "../../common/data/data-ref";
+import { TestUtils } from "../../common/test/test-utils";
+import {
+   BINDING_SERVICE_MOCK,
+   MODEL_SERVICE_MOCK,
+   MODAL_MOCK,
+   UI_CONTEXT_MOCK,
+   renderComponent as renderBindingEditor,
+} from "./binding-editor.component.test-fixtures";
 
 const bindingServiceMock = {
    runtimeId: "",
@@ -427,5 +435,39 @@ describe("BindingEditor — showHighLowPane, changeMessage, hideDcTip, updateCha
       const comp = await renderComponent();
       comp.updateChartMaxMode({ assembly: "Chart1", maxMode: true });
       expect(comp.chartMaxMode).toBe(true);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 8: crosstab template regressions [legacy]
+// ---------------------------------------------------------------------------
+
+describe("BindingEditor — crosstab template regressions", () => {
+   it("should not render percent-by option for VS crosstab binding", async () => {
+      UI_CONTEXT_MOCK.isVS.mockReturnValue(true);
+      const bindingModel = TestUtils.createMockCrosstabBindingModel();
+      bindingModel.aggregates = [TestUtils.createMockBAggregateRef("customer_id")];
+      bindingModel.option = {
+         colTotalVisibleValue: "false",
+         rowTotalVisibleValue: "false",
+         percentageByValue: "1",
+         summarySideBySide: false,
+      };
+
+      const { fixture } = await renderBindingEditor({
+         objectType: "VSCrosstab",
+         assemblyName: "Crosstab1",
+         bindingModel,
+         runtimeId: "crosstab-15096061975720",
+      });
+      const comp = fixture.componentInstance as BindingEditor;
+      comp.objectModel = TestUtils.createMockVSObjectModel("VSCrosstab", "Crosstab1");
+      comp.currentFormat = TestUtils.createMockFromatInfo();
+      comp.linkUri = "/sree/";
+      comp.formatPaneDisabled = false;
+      comp.variableValues = [];
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector(".percentBy_label_id")).toBeNull();
    });
 });

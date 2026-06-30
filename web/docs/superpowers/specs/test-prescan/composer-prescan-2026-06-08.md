@@ -1,12 +1,13 @@
 # composer Route Pre-scan Report
 
-**日期**: 2026-06-08（2026-06-24 补充扫描，新增 30 个组件）
-**候选组件数**: 110（原 80，2026-06-24 新增 30）| **建议推进**: 102 | **建议跳过**: 8 | **待审核**: 0 | **多 pass 组件**: 32
-**测试进度**: ✅已测试 98 / 110 | 待测 6 / 110 | ⏭ 跳过 6 / 110
+**日期**: 2026-06-08（2026-06-24 补充扫描，新增 30 个组件；2026-06-30 旧 spec 迁移完成）
+**候选组件数**: 110（原 80，2026-06-24 新增 30）| **Prescan 建议推进**: 104 | **Prescan 建议不推进**: 6 | **多 pass 组件**: 32
+**测试进度**: ✅已测试 105 / 110 | ⏭已跳过 5 / 110 | 待处理 0 / 110 | 旧 spec 已删除 6 / 6（⚠️ 清零）
 
 ## 状态说明
-- 第一列「状态」初始为「待审核」，人工审核后改为 ✅已测试 / ⏭已跳过
-- ⚠️ 有旧spec — 新测试通过后在同 PR 内删除旧 .spec.ts
+- **状态**（第一列）：TL 生成工作流 — `待处理` → 人工确认后改为 `✅已测试` 或 `⏭已跳过`
+- **Prescan 建议**（「建议」列）：扫描脚本输出，只读 — `✅ 推进` / `⏭ 不推进`（与状态独立；可能出现「建议不推进但已有 TL」，如 SelectDataSourceDialog）
+- ⚠️ 有旧spec — 新测试通过后在同 PR 内删除旧 `.spec.ts`（主表 6 项已于 2026-06-30 全部标记「已删除」；5 个 ⏭已跳过项仍保留旧 spec）
 - 「旧 spec 备注」列记录旧测试中不易从源码推断的 case，生成新测试时参考
 
 ## 分类说明
@@ -16,7 +17,7 @@
 
 ## 候选组件清单
 
-| 状态 | 组件 | logic_lines | dispatch | async_zones | 分类 | 建议 | 旧 spec | 旧 spec 备注 | Pass 计划 |
+| 状态 | 组件 | logic_lines | dispatch | async_zones | 分类 | Prescan 建议 | 旧 spec | 旧 spec 备注 | Pass 计划 |
 |------|------|-------------|----------|-------------|------|------|---------|-------------|-----------|
 | ✅已测试 | ComposerAppComponent | 93 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | AiAssistantPanelComponent | 177 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) |
@@ -29,11 +30,11 @@
 | ✅已测试 | ScriptTreePane | 74 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ script-tree-pane.component.tl.spec.ts |
 | ✅已测试 | ComponentsPane | 302 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ components-pane.component.tl.spec.ts |
 | ✅已测试 | StyleTreePane | 97 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ style-tree-pane.component.tl.spec.ts |
-| ✅已测试 P1P3 | VSFormatsPane | 679 | 4 | 1 | **multi-pass** | ✅ 推进 | ⚠️ vs-formats-pane.spec.ts | Bug #16685, Bug #16689 check the aligment combox status; Bug #18597, BUg #18664 color,border, aligment status; Bug #18060, Bug #18342 for wrap text on | P1: vs-formats-pane.component.interaction.tl.spec.ts ✅<br>P3: vs-formats-pane.component.display.tl.spec.ts ✅ |
+| ✅已测试 P1P3 | VSFormatsPane | 679 | 4 | 1 | **multi-pass** | ✅ 推进 | 已删除 | 旧 spec 矩阵用例已迁入 P1 Groups 19-26；P1+P3 TL 共 102 tests | P1: vs-formats-pane.component.interaction.tl.spec.ts ✅<br>P3: vs-formats-pane.component.display.tl.spec.ts ✅ |
 | ✅已测试 | WSCompositeTableSidebarPane | 77 | 1 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) ✅ ws-composite-table-sidebar-pane.component.tl.spec.ts |
 | ✅已测试 P1P2P3 | WSPaneComponent | 944 | 5 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: ws-pane.component.interaction.tl.spec.ts ✅<br>P2: ws-pane.component.risk.tl.spec.ts ✅<br>P3: ws-pane.component.display.tl.spec.ts ✅ |
-| ✅已测试 P1P2P3 | VSPane | 2071 | 7 | 23 | **multi-pass** | ✅ 推进 | ⚠️ viewsheet-pane.component.spec.ts | Bug #10442 make sure to update send to back/front enabled after adding vs object to vs; Bug #16274 make sure to update send to back/front enabled afte | P1: viewsheet-pane.component.interaction.tl.spec.ts ✅<br>P2: viewsheet-pane.component.risk.tl.spec.ts ✅<br>P3: viewsheet-pane.component.display.tl.spec.ts ✅ |
-| ✅已测试 P1P2P3 | ViewerAppComponent | 3363 | 10 | 53 | **multi-pass** | ✅ 推进 | ⚠️ viewer-app.spec.ts | Bug #16456 TODO, logica changed, can not get fixed dropdown pane; Bug #19176 hide full screen in preview; Bug #16961 should refresh scale to screen vs | P1: viewer-app.component.interaction.tl.spec.ts ✅<br>P2: viewer-app.component.risk.tl.spec.ts ✅<br>P3: viewer-app.component.display.tl.spec.ts ✅ |
+| ✅已测试 P1P2P3 | VSPane | 2071 | 7 | 23 | **multi-pass** | ✅ 推进 | 已删除 | 旧 spec 已迁入 P1 Group 22（drop/zoom 菜单）+ P2 Group 8 扩展（status bar） | P1: viewsheet-pane.component.interaction.tl.spec.ts ✅<br>P2: viewsheet-pane.component.risk.tl.spec.ts ✅<br>P3: viewsheet-pane.component.display.tl.spec.ts ✅ |
+| ✅已测试 P1P2P3 | ViewerAppComponent | 3363 | 10 | 53 | **multi-pass** | ✅ 推进 | 已删除 | keepAwake/release 已迁入 P1；previousPage 由 P1 Group 14 覆盖 | P1: viewer-app.component.interaction.tl.spec.ts ✅<br>P2: viewer-app.component.risk.tl.spec.ts ✅<br>P3: viewer-app.component.display.tl.spec.ts ✅ |
 | ✅已测试 | ScriptEditPaneComponent | 194 | 2 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) ✅ script-edit-pane.component.tl.spec.ts |
 | ✅已测试 | StylePaneComponent | 89 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ style-pane.component.tl.spec.ts |
 | ✅已测试 | ComposerEmptyEditor | 95 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) ✅ composer-empty-editor.component.tl.spec.ts |
@@ -48,11 +49,11 @@
 | ✅已测试 | EditCustomPatternsDialog | 86 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ edit-custom-patterns-dialog.component.tl.spec.ts |
 | ✅已测试 | ViewsheetPropertyDialog | 112 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) ✅ viewsheet-property-dialog.component.tl.spec.ts |
 | ✅已测试 | ToolbarGroup | 84 | 1 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) |
-| ✅已测试 P1P2 | ImportCSVDialog  | 423 | 1 | 33 | **multi-pass** | ✅ 推进 | ⚠️ import-csv-dialog.component.spec.ts | test: should throw an error on empty file | P1: import-csv-dialog.component.interaction.tl.spec.ts ✅<br>P2: import-csv-dialog.component.risk.tl.spec.ts ✅ |
+| ✅已测试 P1P2 | ImportCSVDialog  | 423 | 1 | 33 | **multi-pass** | ✅ 推进 | 已删除 | empty file 在 P1；unpivot/firstRow + headerCols 在 P2 Group 10 | P1: import-csv-dialog.component.interaction.tl.spec.ts ✅<br>P2: import-csv-dialog.component.risk.tl.spec.ts ✅ |
 | ✅已测试 P1P2 | SQLQueryDialog | 386 | 0 | 10 | **multi-pass** | ✅ 推进 |  |  | P1: sql-query-dialog.component.interaction.tl.spec.ts ✅<br>P2: sql-query-dialog.component.risk.tl.spec.ts ✅ |
 | ✅已测试 P1P2 | TabularQueryDialog | 374 | 0 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: tabular-query-dialog.component.interaction.tl.spec.ts ✅<br>P2: tabular-query-dialog.component.risk.tl.spec.ts ✅ |
 | ✅已测试 P1P2 | GroupingDialog | 346 | 0 | 52 | **multi-pass** | ✅ 推进 |  |  | P1: grouping-dialog.component.interaction.tl.spec.ts ✅<br>P2: grouping-dialog.component.risk.tl.spec.ts ✅ |
-| ✅已测试 | SelectDataSourceDialog | 46 | 0 | 0 | **single-pass** | ⏭ 跳过 |  |  | single pass ✅ select-data-source-dialog.component.tl.spec.ts |
+| ✅已测试 | SelectDataSourceDialog | 46 | 0 | 0 | **single-pass** | ⏭ 不推进 |  | prescan 建议不推进，但已有 TL | single pass ✅ select-data-source-dialog.component.tl.spec.ts |
 | ✅已测试 | EmbeddedTableDialog | 49 | 0 | 1 | **single-pass** | ✅ 推进 | 已删除 | test: should not allow non-positive number of rows or columns; test: should not allow duplicate names | single pass (+内存泄漏) ✅ embedded-table-dialog.component.tl.spec.ts |
 | ✅已测试 P1P2 | VariableAssemblyDialog | 334 | 0 | 26 | **multi-pass** | ✅ 推进 | 已删除 | Bug #20319 should allow some characters for variable | P1: variable-assembly-dialog.component.interaction.tl.spec.ts ✅<br>P2: variable-assembly-dialog.component.risk.tl.spec.ts ✅ |
 | ✅已测试 | VariableInputDialog | 214 | 0 | 0 | **single-pass** | ✅ 推进 |  | Bug #16824 Make sure the default value of a boolean type is false | single pass ✅ variable-input-dialog.component.tl.spec.ts |
@@ -86,7 +87,7 @@
 | ✅已测试 | ShareGoogleChatDialog | 52 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) ✅ share-google-chat-dialog.component.tl.spec.ts |
 | ✅已测试 | ShareSlackDialog | 52 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | single pass (+竞态+内存泄漏) ✅ share-slack-dialog.component.tl.spec.ts |
 | ✅已测试 | RemoveBookmarksDialog | 69 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) ✅ remove-bookmarks-dialog.component.tl.spec.ts |
-| ✅已测试 | BindingEditor | 267 | 1 | 1 | **single-pass** | ✅ 推进 | ⚠️ binding-editor.spec.ts | Bug #20245; for Bug #20163; test: Crosstab should not have a percent by option | single pass (+内存泄漏) ✅ binding-editor.component.tl.spec.ts |
+| ✅已测试 | BindingEditor | 267 | 1 | 1 | **single-pass** | ✅ 推进 | 已删除 | #20163/#20245 在 Groups 1-2；crosstab percent-by 在 Group 8 | single pass (+内存泄漏) ✅ binding-editor.component.tl.spec.ts |
 | ✅已测试 | VSObjectView | 190 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | single pass (+内存泄漏) ✅ vs-object-view.component.tl.spec.ts |
 | ✅已测试 P1P2 | VsWizardPane | 901 | 1 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: vs-wizard-pane.component.interaction.tl.spec.ts ✅<br>P2: vs-wizard-pane.component.risk.tl.spec.ts ✅ |
 | ✅已测试 P1P2 | ObjectWizardPane | 556 | 1 | 3 | **multi-pass** | ✅ 推进 |  |  | P1: object-wizard-pane.component.interaction.tl.spec.ts ✅<br>P2: object-wizard-pane.component.risk.tl.spec.ts ✅ |
@@ -95,7 +96,7 @@
 | ✅已测试 P1P2 | CodemirrorComponent | 417 | 1 | 8 | **multi-pass** | ✅ 推进 |  |  | P1: codemirror.component.interaction.tl.spec.ts ✅<br>P2: codemirror.component.risk.tl.spec.ts ✅ |
 | ✅已测试 | ViewsheetOptionsPane | 131 | 0 | 5 | **single-pass** | ✅ 推进 | 已删除 | #17036,the design mode data size should be disable when use worksheet; Bug #17303 Clear button should be enabled when has datasource; Bug #10157 Clear | single pass (+竞态+内存泄漏) ✅ viewsheet-options-pane.component.tl.spec.ts |
 | ✅已测试 | FiltersPane | 119 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ filters-pane.component.tl.spec.ts |
-| ✅已测试 | ScreensPane | 160 | 0 | 2 | **single-pass** | ✅ 推进 | ⚠️ screens-pane.spec.ts | Bug #19354 Click device 'Delete' button, confirm dialog should pop up.; Bug #18417, clear button should be disabled when no print layout; Bug #19349,  | single pass (+内存泄漏) ✅ screens-pane.component.tl.spec.ts |
+| ✅已测试 | ScreensPane | 160 | 0 | 2 | **single-pass** | ✅ 推进 | 已删除 | printLayout readonly DOM 在 Group 8（Bug #19349）；其余 case 原 TL 已覆盖 | single pass (+内存泄漏) ✅ screens-pane.component.tl.spec.ts |
 | ✅已测试 | LocalizationPane | 81 | 0 | 0 | **single-pass** | ✅ 推进 | 已删除 | Bug #19630 Components node should display; Bug #19118 should focus on the selected column | single pass ✅ localization-pane.component.tl.spec.ts |
 | ✅已测试 | ViewsheetScriptPane | 184 | 2 | 0 | **single-pass** | ✅ 推进 | 已删除 | TypeError when the timer fired after the fixture was destroyed.; Bug #18853 should select onRefresh by default; fixture is destroyed (which nulls code | single pass ✅ viewsheet-script-pane.component.tl.spec.ts |
 
@@ -144,6 +145,7 @@
 **Pass 1** (`vs-formats-pane.component.interaction.tl.spec.ts`)
 - Methods: focusedAssemblies, filter, color, get, colorType, backgroundColor, backgroundColorType, format, getFont, getAlignment, changeColor, isViewsheetSelected, isValueFillVisible, isNonEditableChartVOSelected, isFontDisabled, isEditDisabled, isChartEditableSelected, isAlignDisabled, isHAlignmentEnabled, isVAlignmentEnabled, isWrapTextDisabled, isBorderDisabled, isRoundCornerDisabled, isColorDisabled, isBackgroundDisabled, isDynamicColorDisabled, isCSSDisabled, updateCSS, changeAlphaWarning, updatePresenter, updatePresenterProperties, getComboMode, measureBarSelected, isInputType, selectedDetailCell, updateProperties, reset, openPresenterPropertyDialog, tableSelected, textSelected, shapeSelected, borderTooltip, roundCornerMax, isRoundTopCornersOnlyVisible
 - Reason: 回归主体：navigation / HTTP loading / lifecycle / user flows
+- Legacy（2026-06-30）：Groups 19–26 自 `vs-formats-pane.spec.ts` 迁入（bar chart / formatDisabled / table·calc·crosstab cssDisabled+showPresenter / selection measure bar / radar / textinput / viewer chart / circle packing / vsObjectFormat flags）；P1+P3 共 102 tests
 
 **Pass 3** (`vs-formats-pane.component.display.tl.spec.ts`)
 - Methods: getFormat, getColorLabel, closeFormat, isFormatDisabled, updateFormat, getBorderLabel, isFormattingDisabled, getCSSLabel, showPresenter
@@ -168,10 +170,12 @@
 **Pass 1** (`viewsheet-pane.component.interaction.tl.spec.ts`)
 - Methods: vs, active, getAssemblyName, getSnapGridStyle, getBackgroundImage, ngAfterViewInit, zoom, detectChanges, isActionEnabled, isGroupActionEnabled, isUngroupActionEnabled, isBringToFrontActionEnabled, isSendToBackActionEnabled, isSnapshot, isVSSnapshot, processSetViewsheetInfoCommand, processUpdateLayoutCommand, processVSDependencyChangedCommand, processReopenSheetCommand, processCollectParametersCommand, enterParameters, processInitGridCommand, processUpdateLayoutUndoStateCommand, processUpdateUndoStateCommand, isInZone, processCloseSheetCommand, processSaveSheetCommand, processExpiredSheetCommand, processChangeCurrentLayoutCommand, processSetRuntimeIdCommand, processAddVSObjectCommand, applyAddVSObjectCommand, processAssemblyChangedCommand, processUpdateZIndexesCommand, processRefreshVSObjectCommand, applyRefreshVSObjectCommand, refreshGroupContainerOrder, processRenameVSObjectCommand, processPopulateVSObjectTreeCommand, processRefreshBindingTreeCommand, processExportVSCommand, processMessageCommand, processProgress, processVSTrapCommand, processSetGrayedOutFieldsCommand, confirm, drop, dragenter, dragover, mousedown, onKeydown, dblClick, paste, isModalOpen, trackByFn, onAssemblyActionEvent, copyAssembly, cutAssembly, bringAssemblyToFront, bringAssemblyForward, sendAssemblyToBack, sendAssemblyBackward, assemblyResized, processAssemblyResize, updateDragRulerGuides, onSnap, clickEvent, isTargetVSPane, isTargetShape, replaceObject, layoutToolbarVisible, mobileToolbarVisible, layoutChanged, layoutName, touchAsset, openEmbeddedViewsheet, openEditPane, openWizardPane, onSelectionBox, forEach, refreshStatusByVs, openWorksheet, refreshStatusByLayout, trimComma, substring, processOpenBindingPaneCommand, popupNotifications, onMaxModeChange, openConsoleDialog, getTemplateWidth, getTemplateHeight, onKeyUp, changeSearchMode, isSearchMode, search, nextFocus, previousFocus, scrollToMatchedAssembly, flatMap, scrollToAssembly, compareObjectByPosition, getStatusForStatusBar, getStatus2ForStatusBar, getSearchString, isVisible, searchInputKeyUp, isDefaultOrgAsset, isFilterInMaxModeView
 - Reason: 回归主体：navigation / HTTP loading / lifecycle / user flows
+- Legacy（2026-06-30）：Group 22 drop 自 viewsheet（Bug #16088）；Group 15 zoom 菜单（Bug #10350）
 
 **Pass 2** (`viewsheet-pane.component.risk.tl.spec.ts`)
 - Methods: openExistingViewsheet, processClearLoadingCommand, cancelViewsheetLoading, processRemoveVSObjectCommand, removeVSObject, addConsoleMessage, deselectObjects, resetCursor, removeAssembly, assemblyMoved, processAssemblyMoved, updateRulerGuides, updateSnapGuides, updateFormats, refreshStatus, updateRulerPosition
 - Reason: async≥3：竞态 / destructive / state inconsistency
+- Legacy（2026-06-30）：Group 8 扩展 status bar 文案（chart/selection/table 等；alias Bug #21029；trimComma Bug #21507）
 
 **Pass 3** (`viewsheet-pane.component.display.tl.spec.ts`)
 - Methods: processShowLoadingMaskCommand, processSetCurrentFormatCommand, showProgressDialog, getDataSourceCSSIcon, displayPlaceholderDragElementModel, openFormatPane, getSearchResultLabel
@@ -182,6 +186,7 @@
 **Pass 1** (`viewer-app.component.interaction.tl.spec.ts`)
 - Methods: tabsHeight, runtimeId, getAssemblyName, ngAfterViewInit, forEach, initViewsheetConnection, ngAfterContentInit, ngAfterViewChecked, active, mobileToolbarVisible, pinchZoom, getClosestScrollParent, screenSize, scrolled, checkZoom, beforeunloadHandler, onKeyUp, onToolbarButtonFocus, nextToolbarButton, previousToolbarButton, onKeyDown, getPreviousSelectableAssembly, getNextSelectableAssembly, selectAssembly, mousedown, previousURLEnable, back, previousPage, nextPage, editViewsheet, subscribe, reopenExpiredViewsheet, refreshViewsheet, zoom, zoomLayout, isZoomItemSelected, zoomOutEnabled, zoomInEnabled, isMobile, emailViewsheet, scheduleViewsheet, printViewsheet, exportViewsheet, importExcel, importExcelFile, toggleAnnotations, getBookmarks, saveCurrentBookmarkDisabled, saveBookmark, gotoBookmark, doGotoBookmark, setDefaultBookmark, editBookmark, substring, toggleFullScreen, applyFullScreen, onFullScreenChange, closeViewsheetOnServer, closeViewsheet, openConditionDialog, openHighlightDialog, createTableActionHandler, processSetRuntimeIdCommand, processCollectParametersCommand, processUpdateSharedFiltersCommand, processDelayVisibilityCommand, processAddVSObjectCommand, processRefreshVSObjectCommand, processInitGridCommand, processSetPermissionsCommand, processSetExportTypesCommand, processMessageCommand, processSetComposedDashboardCommand, processProgress, processUpdateUndoStateCommand, processAnnotationChangedCommand, isInZone, filter, processSetViewsheetInfoCommand, processUpdateZIndexesCommand, processExpiredSheetCommand, onOpenContextMenu, showAnnotationDialog, addMobileActionSubsciption, isPermissionForbidden, addAnnotation, openViewsheet0, enterParameters, registerDataTipVisible, registerPopCompVisible, setDataTipOffsets, getComponentModel, setAppSize, getScaleSize, onViewerRootResize, getVariables, updateData, getDim, assign, getMinimumToolbarWidth, notifyParentFrame, submitData, preventMouseInteractions, processOpenComposerCommand, openComposer, hasBottomPadding, hasRightPadding, shareEmail, shareFacebook, shareHangouts, shareLinkedin, shareSlack, shareTwitter, shareLink, changeMaxMode, toggleDoubleCalendar, scroll, showHints, scrollLeft, scrollTop, openProfileDialog, openViewsheetOptionDialog, hideProfilingBanner, isPreviousPageVisible, isPreviousPageDisabled, isNextPageVisible, isNextPageDisabled, isEditVisible, isRefreshViewsheetVisible, isEmailVisible, isSocialSharingVisible, isShareEmailDisabled, isShareFacebookDisabled, isShareHangoutsDisabled, isShareLinkedInDisabled, isShareSlackDisabled, isShareTwitterDisabled, isShareLinkDisabled, isScheduleVisible, isPrintViewsheetVisible, isExportVisible, isImportExcelVisible, isZoomVisible, isAnnotationButtonVisible, isHideAnnotationsVisible, bookmarksVisible, isAddBookmarkDisabled, isShareToAllDisabled, isSetDefaultBookmarkVisible, isSetDefaultBookmarkDisabled, isEditBookmarkVisible, isEditBookmarkDisabled, isToggleFullScreenVisible, isCloseViewsheetVisible, setViewerToolbarDefinitions, createBookmarkButtonDefs, push, getReloadMessage, getViewerRootHeight, setMobileToolbarActions, moreActions, allowedActionsNum, isPageControlVisible, usePagingControl, updateScrollTop, checkExportStatus, getOrgId, loadingStateChanged, isDataTipOrPopComponentVisible, getScrollViewport, updateTabPositions
 - Reason: 回归主体：navigation / HTTP loading / lifecycle / user flows
+- Legacy（2026-06-30）：`processSetRuntimeIdCommand` keepAwake + destroy release（自 `viewer-app.spec.ts`）；未迁入：toolbar DOM 计数、postMessage iframe、多 tab 独立 KeepAwakeService
 
 **Pass 2** (`viewer-app.component.risk.tl.spec.ts`)
 - Methods: onViewerRootResizeEvent, clearSelectedAssemblies, setServerUpdateInterval, clearServerUpdateInterval, showBookmarks, isBookmarkHome, deleteBookmark, deleteBookMarks, addBookmark, fullScreenApplied, beforeDestroy, processClearLoadingCommand, processRemoveVSObjectCommand, processClearScrollCommand, removeAnnotations, openViewsheet, openPreviewViewsheet, cancelViewsheetLoading, sendBookmarkEvent, deleteBookmarkByCondition, updateScrollLeft, pagingControlModel, processEmbedErrorCommand, handleDataTipPopComponentChanges, clearDataTipPopComponents, updateScrollViewport
@@ -214,6 +219,7 @@
 **Pass 2** (`import-csv-dialog.component.risk.tl.spec.ts`)
 - Methods: initForm, clearProgress, ok, cancel, initFileToucher, updatePreviewTable, parsePreviewResponse
 - Reason: async≥3：竞态 / destructive / state inconsistency
+- Legacy（2026-06-30）：Group 10 unpivot/firstRow 互斥 + headerCols 校验（自 `import-csv-dialog.component.spec.ts`）
 
 ### SQLQueryDialog
 
@@ -393,36 +399,36 @@
 > 来源：系统性缺口分析，composer 路由下高频使用的 widget/ 共享组件（条件编辑器、公式/脚本、SQL 查询、日期编辑器等）及 format/ 边框组件。
 > `logic_lines / dispatch / async_zones` 均为 `—`（待 prescan workflow 精确扫描）。
 
-| 状态 | 组件 | logic_lines | dispatch | async_zones | 分类 | 建议 | 旧 spec | 旧 spec 备注 | Pass 计划 |
+| 状态 | 组件 | logic_lines | dispatch | async_zones | 分类 | Prescan 建议 | 旧 spec | 旧 spec 备注 | Pass 计划 |
 |------|------|-------------|----------|-------------|------|------|---------|-------------|-----------|
 | ✅已测试 P1P2P3 | FormulaEditorDialog | 1105 | 4 | 9 | **multi-pass** | ✅ 推进 | 已删除 | Covers SQL-type warning dialogs, formula name character validation, duplicate-name guard in ok(), and 4 expressionChange node cases; does NOT cover isCycle/checkExpression cycle detection, showAggregateDialog modal flow, deleteAggregate, all HTTP subscribe paths in populateTrees, ngOnDestroy cleanup, validExpression getter, or getGrayedOutValues branching. | P1: formula-editor-dialog.component.interaction.tl.spec.ts ✅<br>P2: formula-editor-dialog.component.risk.tl.spec.ts ✅<br>P3: formula-editor-dialog.component.display.tl.spec.ts ✅ |
-| 待审核 | ScriptPane | 632 | 3 | 6 | **multi-pass** | ✅ 推进 | ⚠️ script-pane.component.spec.ts | Only 1 trivial smoke test (null defs init); all functional paths (itemClicked, getCSSIcon, insertText, isGrayedOutField, blockKeys, async subscribe flows, cursor guards, analysis results, destroyCodeMirror) are uncovered. | P1: script-pane.component.interaction.tl.spec.ts<br>P2: script-pane.component.risk.tl.spec.ts<br>P3: script-pane.component.display.tl.spec.ts |
+| ✅已测试 | ScriptPane | 632 | 3 | 6 | **multi-pass** | ✅ 推进 | 已删除 | Only 1 trivial smoke test (null defs init); all functional paths (itemClicked, getCSSIcon, insertText, isGrayedOutField, blockKeys, async subscribe flows, cursor guards, analysis results, destroyCodeMirror) are now covered by TL passes. | P1 ✅ script-pane.component.interaction.tl.spec.ts<br>P2 ✅ script-pane.component.risk.tl.spec.ts<br>P3 ✅ script-pane.component.display.tl.spec.ts |
 | ✅已测试 | VSAssemblyScriptPane | 139 | 1 | 0 | **single-pass** | ✅ 推进 | 已删除 | Covers only the data.name==="field" branch of onExpressionChange (1 of 8+ branches); component/parameter/COLUMN-TABLE/highlighted/axis-legend/colorLegend-title-axis/component-with-space branches and both private helpers are untested. | single pass ✅ vsassembly-script-pane.component.tl.spec.ts |
-| 待审核 | SimpleQueryPaneComponent | 537 | 3 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: simple-query-pane.component.interaction.tl.spec.ts<br>P2: simple-query-pane.component.risk.tl.spec.ts<br>P3: simple-query-pane.component.display.tl.spec.ts |
+| ✅已测试 | SimpleQueryPaneComponent | 537 | 3 | 7 | **multi-pass** | ✅ 推进 |  | Added interaction/risk/display TL coverage for model setter, list and dialog mutations, direct SQL insertion, condition-field observable ordering, drop completion flow, preview HTTP branches, addColumns reorder branches, cleanup guards, and display helpers. Potential droppedIntoColumnList duplicate table-pair risk is marked in the risk spec header. | P1 ✅ simple-query-pane.component.interaction.tl.spec.ts<br>P2 ✅ simple-query-pane.component.risk.tl.spec.ts<br>P3 ✅ simple-query-pane.component.display.tl.spec.ts |
 | ✅已测试 | SQLQueryJoinDialog | 208 | 1 | 5 | **single-pass** | ✅ 推进 |  |  | single pass ✅ sql-query-join-dialog.component.tl.spec.ts |
 | ✅已测试 | SQLQueryDialogListComponent | 160 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ sql-query-dialog-list.component.tl.spec.ts |
 | ✅已测试 | AdditionalTableSelectionPaneComponent | 179 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ additional-table-selection-pane.component.tl.spec.ts |
-| 待审核 | ConditionItemPane | 351 | 3 | 1 | **multi-pass** | ✅ 推进 |  |  | P1: ConditionItemPane.interaction.tl.spec.ts<br>P3: ConditionItemPane.display.tl.spec.ts |
-| 待审核 | ConditionPane | 320 | 3 | 0 | **multi-pass** | ✅ 推进 | ⚠️ condition-pane.component.spec.ts | Covers only 4 cases (clear, delete, indent, insert-field-required-warning); leaves untested: modify, save/saveOption return values, up/down swap logic, canMoveUp/Down/Unindent guards, expressionRenamed field remapping, conditionItemSelected junction propagation, updateDirtyJunction emit, conditionList setter edge cases, availableFields setter field-exist check. | P1: condition-pane.interaction.tl.spec.ts<br>P3: condition-pane.display.tl.spec.ts |
-| 待审核 | ConditionFieldComboComponent | 269 | 1 | 1 | **single-pass** | ⏭ 跳过 | ⚠️ condition-field-combo.spec.ts | getTooltip() 4-branch classType dispatch (GroupRef/AggregateRef/ColumnRef/else) and the startSearch()/closeSearch() search flow with setTimeout focus are not covered by existing tests. | single pass |
-| 待审核 | ConditionEditor | 139 | 3 | 0 | **multi-pass** | ✅ 推进 |  |  | P1: condition-editor.component.interaction.tl.spec.ts<br>P3: condition-editor.component.display.tl.spec.ts |
+| ✅已测试 | ConditionItemPane | 351 | 3 | 1 | **multi-pass** | ✅ 推进 |  | Added interaction/display TL coverage for lifecycle, provider delegation, modal result handling, showUseList/date-range guards, default values, and formula predicates. | P1 ✅ condition-item-pane.component.interaction.tl.spec.ts<br>P3 ✅ condition-item-pane.component.display.tl.spec.ts |
+| ✅已测试 | ConditionPane | 320 | 3 | 0 | **multi-pass** | ✅ 推进 | 已删除 | Covers only 4 cases (clear, delete, indent, insert-field-required-warning); uncovered mutation, guard, rename, selection, and setter paths are now covered by TL passes. | P1 ✅ condition-pane.component.interaction.tl.spec.ts<br>P3 ✅ condition-pane.component.display.tl.spec.ts |
+| ✅已测试 | ConditionFieldComboComponent | 269 | 1 | 1 | **single-pass** | ✅ 推进 | 已删除 | getTooltip() classType dispatch, startSearch()/closeSearch() focus flow, fieldsModel shaping, alias remap, selection emit/close, list/tree toggle, dropdown sizing, and virtual-scroll expand/collapse are covered by TL. | single pass ✅ condition-field-combo.component.tl.spec.ts |
+| ✅已测试 | ConditionEditor | 139 | 3 | 0 | **multi-pass** | ✅ 推进 |  | Added interaction/display TL coverage for ngOnChanges defaults, session-data reset, selectType default dispatch, value emit guards, multi-value type preservation, dropdown close, updateChoiceQuery guards, getChoiceQuery source dispatch, and getSelectValues. | P1 ✅ condition-editor.component.interaction.tl.spec.ts<br>P3 ✅ condition-editor.component.display.tl.spec.ts |
 | ✅已测试 | ValueEditor | 165 | 1 | 1 | **single-pass** | ✅ 推进 | 已删除 | Covers template rendering by type and isBrowseEnabled CalculateRef guard only; does not test browseData() subscribe flow, getBrowseDataList() label mapping, selectValues() toggle, isSelected() date-transform matching, or ngOnChanges default date/boolean emission. | single pass ✅ value-editor.component.tl.spec.ts |
 | ✅已测试 | OneOfConditionEditor | 185 | 2 | 0 | **single-pass** | ✅ 推进 | 已删除 | Only one test (Bug #18994): delete button disabled after removing all items via DOM clicks; add(), modify(), valueChanged() special-type propagation, initValue() branching, and multi-select (ctrl/shift) are entirely untested. | single pass ✅ one-of-condition-editor.component.tl.spec.ts |
 | ✅已测试 | SubqueryDialog | 111 | 0 | 0 | **single-pass** | ✅ 推进 | 已删除 | Covers only Bug #9968 regression (single currentTable entry with empty columns does not crash); ngOnInit else-branch, changeSelectedTable, isValid permutations, ok/cancel emits, getTooltip branching, and dataRefsEqual are all untested. | single pass ✅ subquery-dialog.component.tl.spec.ts |
 | ✅已测试 | ExpressionEditor | 127 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass ✅ expression-editor.component.tl.spec.ts |
 | ✅已测试 | HighlightPane | 148 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ highlight-pane.component.tl.spec.ts |
 | ✅已测试 | DateValueEditorComponent | 155 | 1 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ date-value-editor.component.tl.spec.ts |
-| 待审核 | DynamicValueEditorComponent | 156 | 4 | 0 | **multi-pass** | ✅ 推进 |  |  | P1: dynamic-value-editor.interaction.tl.spec.ts<br>P3: dynamic-value-editor.display.tl.spec.ts |
+| ✅已测试 P1P3 | DynamicValueEditorComponent | 156 | 4 | 0 | **multi-pass** | ✅ 推进 |  | Added interaction/display TL coverage for ngOnInit date fallback, today/forceToDefault ngOnChanges branches, value/type/date emit contracts, calendar visibility/disable guards, ComboMode↔ValueTypes mapping, prompt/format/mode/isDate dispatch. | P1 ✅ dynamic-value-editor.component.interaction.tl.spec.ts<br>P3 ✅ dynamic-value-editor.component.display.tl.spec.ts |
 | ✅已测试 | AutoCompleteText | 269 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ auto-complete-text.component.tl.spec.ts |
 | ✅已测试 | ImagePreviewPane | 190 | 2 | 4 | **single-pass** | ✅ 推进 | 已删除 | Covers upload HTTP URL, alpha opacity rendering, layoutObject disabling animate-GIF checkbox, and clear button reset — but omits deleteUpload() confirm+HTTP-delete+tree mutation, selectImage() current-type branching, imageSrc getter fallback to emptyimage.gif, and initCurrentNode() dynamic-image ($,=) path. | single pass ✅ image-preview-pane.component.tl.spec.ts |
-| 待审核 | VariableListEditor | 79 | 1 | 0 | **single-pass** | ⏭ 跳过 | ⚠️ variable-list-editor.component.spec.ts | swap() and clear() not tested; DATE placeholder branch and CHARACTER maxlength omitted. | single pass |
+| ⏭已跳过 | VariableListEditor | 79 | 1 | 0 | **single-pass** | ⏭ 不推进 | ⚠️ variable-list-editor.component.spec.ts | swap() and clear() not tested; DATE placeholder branch and CHARACTER maxlength omitted. | — |
 | ✅已测试 | SimpleTableComponent | 109 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ simple-table.component.tl.spec.ts |
 | ✅已测试 | FixedDropdownComponent | 165 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass ✅ fixed-dropdown.component.tl.spec.ts |
 | ✅已测试 | SlideOutComponent | 113 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ slide-out.component.tl.spec.ts |
-| 待审核 | BandPanel | 52 | 0 | 0 | **single-pass** | ⏭ 跳过 | ⚠️ band-panel.component.spec.ts | Uses fragile ng-reflect-is-disabled attribute assertions and a DOM query for .entriChart-cb_id CSS class; field-filtering test checks rendered option count which is non-trivially derivable from source alone. | single pass |
-| 待审核 | StatPanel | 38 | 0 | 0 | **single-pass** | ⏭ 跳过 | ⚠️ stat-panel.component.spec.ts | ngOnInit auto-selection of first non-empty-label field into model.measure is not explicitly asserted, and changeAlphaWarning is untested; otherwise core paths covered. | single pass |
-| 待审核 | ColorMap | 42 | 0 | 0 | **single-pass** | ⏭ 跳过 | ⚠️ color-map.component.spec.ts | Covers all computed properties and both EventEmitter outputs via a 22-entry color table; no gaps notable. | single pass |
-| 待审核 | FormatPresenterPane | 43 | 0 | 1 | **single-pass** | ⏭ 跳过 | ⚠️ format-presenter-pane.component.spec.ts | selectPresenter() emitter and getIcon() leaf/non-leaf paths are untested; only isPresenterDialogEnabled() and init mock are covered. | single pass |
+| ⏭已跳过 | BandPanel | 52 | 0 | 0 | **single-pass** | ⏭ 不推进 | ⚠️ band-panel.component.spec.ts | Uses fragile ng-reflect-is-disabled attribute assertions and a DOM query for .entriChart-cb_id CSS class; field-filtering test checks rendered option count which is non-trivially derivable from source alone. | — |
+| ⏭已跳过 | StatPanel | 38 | 0 | 0 | **single-pass** | ⏭ 不推进 | ⚠️ stat-panel.component.spec.ts | ngOnInit auto-selection of first non-empty-label field into model.measure is not explicitly asserted, and changeAlphaWarning is untested; otherwise core paths covered. | — |
+| ⏭已跳过 | ColorMap | 42 | 0 | 0 | **single-pass** | ⏭ 不推进 | ⚠️ color-map.component.spec.ts | Covers all computed properties and both EventEmitter outputs via a 22-entry color table; no gaps notable. | — |
+| ⏭已跳过 | FormatPresenterPane | 43 | 0 | 1 | **single-pass** | ⏭ 不推进 | ⚠️ format-presenter-pane.component.spec.ts | selectPresenter() emitter and getIcon() leaf/non-leaf paths are untested; only isPresenterDialogEnabled() and init mock are covered. | — |
 | ✅已测试 | Ruler | 145 | 1 | 0 | **single-pass** | ✅ 推进 | 已删除 | Covers component creation and horizontal/vertical orientation positional styles only; guide styles (guideTopStyle/guideLeftStyle/guideWidthStyle/guideHeightStyle), scale setter normalization, updateRulerSize canvas tick-drawing paths, and the offsetParent===null early-exit guard are all untested. | single pass ✅ ruler.component.tl.spec.ts |
 | ✅已测试 | BorderStylePane | 144 | 1 | 0 | **single-pass** | ✅ 推进 |  |  | single pass ✅ border-style-pane.component.tl.spec.ts |
 
@@ -511,3 +517,20 @@
 **Pass 3** (`dynamic-value-editor.display.tl.spec.ts`)
 - Methods: getDateValueTypeNumber, getDateValueTypeStr, getPromptString, format (getter), mode (getter), isDate (getter)
 - Reason: Covers the four 3+-branch dispatch methods: ComboMode↔ValueTypes bidirectional mapping, prompt-string selection by XSchema type, format string selection (DATE/TIME/TIME_INSTANT), and numeric/text mode computation
+
+---
+
+## 旧 spec 迁移记录（2026-06-30）
+
+主表 6 个 ⚠️ 项的旧 `.spec.ts` 已删除，用例迁入对应 TL pass（命名遵循 `risk-driven-test-generation.md`：无 `.status-bar` / `.regression` 等非标准后缀）：
+
+| 组件 | 已删除文件 | TL 迁入位置 |
+|------|-----------|------------|
+| VSFormatsPane | `vsobjects/format/vs-formats-pane.spec.ts` | P1 Groups 19–26（102 tests = P1 74 + P3 28） |
+| VSPane | `composer/gui/vs/editor/viewsheet-pane.component.spec.ts` | P1 Groups 15、22；P2 Group 8 扩展 |
+| ViewerAppComponent | `vsobjects/viewer-app.spec.ts` | P1 keepAwake/release |
+| ImportCSVDialog | `composer/dialog/ws/import-csv-dialog.component.spec.ts` | P1 empty file；P2 Group 10 |
+| BindingEditor | `binding/editor/binding-editor.spec.ts` | single-pass Group 8（crosstab percent-by） |
+| ScreensPane | `composer/dialog/vs/screens-pane.spec.ts` | single-pass Group 8（printLayout readonly） |
+
+**未迁入（有意保留缺口）**：viewer-app toolbar DOM 计数、postMessage iframe、多 tab KeepAwakeService；vs-formats-pane selection list color picker RGB DOM（Bug #20302）。

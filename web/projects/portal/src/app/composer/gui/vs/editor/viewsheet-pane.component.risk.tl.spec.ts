@@ -41,13 +41,61 @@
  *                        when assemblies are focused.
  *   Group 8  [Risk 2] — refreshStatus (via getStatusForStatusBar): status.text=vs.statusText
  *                        when no assemblies focused; includes <b>assemblyName</b> when
- *                        assembly focused.
+ *                        assembly focused; chart/selection/table region strings; alias and
+ *                        trimComma regressions (Bugs #17399–#21507).
  */
 
 import { of } from "rxjs";
 import { makeMocks, renderComponent } from "./viewsheet-pane.component.test-helpers";
 import { Status } from "../../../../status-bar/status";
 import { DataTipService } from "../../../../vsobjects/objects/data-tip/data-tip.service";
+import { TestUtils } from "../../../../common/test/test-utils";
+import { TableDataPath } from "../../../../common/data/table-data-path";
+import { ChartObject } from "../../../../graph/model/chart-object";
+import { ChartRegion } from "../../../../graph/model/chart-region";
+import { VSGaugeModel } from "../../../../vsobjects/model/output/vs-gauge-model";
+import { VSChartModel } from "../../../../vsobjects/model/vs-chart-model";
+import { VSGroupContainerModel } from "../../../../vsobjects/model/vs-group-container-model";
+import { VSRadioButtonModel } from "../../../../vsobjects/model/vs-radio-button-model";
+import { VSRangeSliderModel } from "../../../../vsobjects/model/vs-range-slider-model";
+import { VSSelectionListModel } from "../../../../vsobjects/model/vs-selection-list-model";
+import { VSTabModel } from "../../../../vsobjects/model/vs-tab-model";
+import { VSTableModel } from "../../../../vsobjects/model/vs-table-model";
+import { Viewsheet } from "../../../data/vs/viewsheet";
+
+function createCellRegion(): TableDataPath {
+   return {
+      col: false, colIndex: -1, dataType: "string", index: 0, level: -1,
+      path: [], row: true, type: 512,
+   };
+}
+
+function createTitleRegion(): TableDataPath {
+   return {
+      col: false, colIndex: -1, dataType: "string", index: 0, level: -1,
+      path: [], row: true, type: 16384,
+   };
+}
+
+function createHeaderRegion(): TableDataPath {
+   return {
+      col: false, colIndex: -1, dataType: "string", index: 0, level: -1,
+      path: ["Employee"], row: false, type: 256,
+   };
+}
+
+function createChartObject(): ChartObject {
+   return {
+      areaName: "plot_area",
+      bounds: null,
+      layoutBounds: null,
+      tiles: null,
+      regions: [],
+      xboundaries: [],
+      yboundaries: [],
+      showReferenceLine: false,
+   } as ChartObject;
+}
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -440,5 +488,179 @@ describe("VSPane — getStatusForStatusBar / refreshStatus", () => {
 
       const status: Status = comp.getStatusForStatusBar();
       expect(status.text).toContain("<b>Chart1</b>");
+   });
+
+   it("should show chart region context in the status bar (Bugs #17399, #17428, #20839)", async () => {
+      const { comp } = await renderComponent();
+      const vs: Viewsheet = comp.vs;
+      const chart1: VSChartModel = Object.assign(
+         { locked: false, hyperlinks: [] },
+         TestUtils.createMockVSChartModel("chart1"),
+      );
+      chart1.stringDictionary = ["Label"];
+      vs.currentFocusedAssemblies = [chart1];
+      const chartRegion: ChartRegion = TestUtils.createMockChartRegion();
+      const chartObject: ChartObject = createChartObject();
+      chart1.regionMetaDictionary = [{ areaType: "text", dimIdx: 0 }];
+      chart1.chartSelection = { chartObject, regions: [chartRegion] };
+      comp.detectChanges(true);
+      expect(comp.status.text).toBe("chart1 => <b>text</b>");
+
+      chart1.regionMetaDictionary = [{ areaType: "label" }];
+      chart1.chartSelection = { chartObject, regions: [chartRegion] };
+      comp.detectChanges(true);
+      expect(comp.status.text).toContain("<b>targetLabel");
+
+      chartObject.areaName = "x_title";
+      chart1.regionMetaDictionary = [{ areaType: "title" }];
+      chart1.chartSelection = { chartObject, regions: [chartRegion] };
+      comp.detectChanges(true);
+      expect(comp.status.text).toBe("chart1 => <b>axisTitle[x]</b>");
+
+      chartObject.areaName = "y_title";
+      chart1.chartSelection = { chartObject, regions: [chartRegion] };
+      comp.detectChanges(true);
+      expect(comp.status.text).toBe("chart1 => <b>axisTitle[y]</b>");
+
+      vs.currentFocusedAssemblies = [];
+      comp.detectChanges(true);
+      expect(comp.status.text).toBeUndefined();
+   });
+
+   it("should show selection list region context (Bug #17430)", async () => {
+      const { comp } = await renderComponent();
+      const vs: Viewsheet = comp.vs;
+      const vsList: VSSelectionListModel = TestUtils.createMockVSSelectionListModel("vsList");
+      vsList.selectionList.selectionValues = [TestUtils.createMockSelectionValues()];
+      vs.currentFocusedAssemblies = [vsList];
+      vsList.selectedRegions = [createCellRegion()];
+      comp.detectChanges(true);
+      expect(comp.status.text).toBe("vsList => <b>Cell</b>");
+
+      vsList.selectedRegions = [createTitleRegion()];
+      comp.detectChanges(true);
+      expect(comp.status.text).toBe("vsList => <b>Title</b>");
+
+      vsList.selectedRegions = [];
+      comp.detectChanges(true);
+      expect(comp.status.text).toBe("<b>vsList</b>");
+   });
+
+   it("should show radio button region context (Bug #17444)", async () => {
+      const { comp } = await renderComponent();
+      const vs: Viewsheet = comp.vs;
+      const radioBtn: VSRadioButtonModel = TestUtils.createMockVSRadioButtonModel("radioBtn");
+      vs.currentFocusedAssemblies = [radioBtn];
+      radioBtn.selectedRegions = [createTitleRegion()];
+      comp.detectChanges(true);
+      expect(comp.status.text).toBe("radioBtn => <b>Title</b>");
+
+      radioBtn.selectedRegions = [createCellRegion()];
+      comp.detectChanges(true);
+      expect(comp.status.text).toBe("radioBtn => <b>Cell</b>");
+
+      radioBtn.selectedRegions = [];
+      comp.detectChanges(true);
+      expect(comp.status.text).toBe("<b>radioBtn</b>");
+   });
+
+   it("should show selection container child context (Bug #21023)", async () => {
+      const { comp } = await renderComponent();
+      const vs: Viewsheet = comp.vs;
+      const vsList: VSSelectionListModel = TestUtils.createMockVSSelectionListModel("vsList");
+      const rangeSlider: VSRangeSliderModel = TestUtils.createMockVSRangeSliderModel("range1");
+      vsList.container = "container1";
+      rangeSlider.container = "container1";
+      vsList.containerType = "VSSelectionContainer";
+      rangeSlider.containerType = "VSSelectionContainer";
+      vsList.selectionList.selectionValues = [TestUtils.createMockSelectionValues()];
+
+      vs.currentFocusedAssemblies = [vsList];
+      comp.detectChanges(true);
+      expect(comp.status.text).toBe("<b>vsList</b>");
+
+      vsList.selectedRegions = [createCellRegion()];
+      vs.currentFocusedAssemblies = [vsList];
+      comp.detectChanges(true);
+      expect(comp.status.text).toBe("vsList => <b>Cell</b>");
+
+      vs.currentFocusedAssemblies = [rangeSlider];
+      comp.detectChanges(true);
+      expect(comp.status.text).toBe("<b>range1</b>");
+
+      rangeSlider.selectedRegions = [createTitleRegion()];
+      vs.currentFocusedAssemblies = [rangeSlider];
+      comp.detectChanges(true);
+      expect(comp.status.text).toBe("range1 => <b>Title</b>");
+   });
+
+   it("should show table region context inside a group container (Bug #20872)", async () => {
+      const { comp } = await renderComponent();
+      const vs: Viewsheet = comp.vs;
+      const table1: VSTableModel = TestUtils.createMockVSTableModel("table1");
+      table1.container = "group1";
+      table1.containerType = "VSGroupContainer";
+      table1.colCount = 2;
+      table1.colNames = ["Employee", "Total"];
+
+      table1.selectedRegions = [createTitleRegion()];
+      vs.currentFocusedAssemblies = [table1];
+      comp.detectChanges(true);
+      expect(comp.status.text).toBe("table1 => <b>Title</b>");
+
+      table1.selectedRegions = [createHeaderRegion()];
+      comp.detectChanges(true);
+      expect(comp.status.text).toBe("table1 => <b>Header Cell [Employee]</b>");
+
+      table1.selectedRegions = [createCellRegion()];
+      table1.selectedRegions[0].path = ["Employee"];
+      table1.selectedRegions[0].row = false;
+      comp.detectChanges(true);
+      expect(comp.status.text).toBe("table1 => <b>Detail Cell [Employee]</b>");
+   });
+
+   it("should display viewsheet alias in status text (Bug #21029)", async () => {
+      const { comp } = await renderComponent();
+      const vs: Viewsheet = comp.vs;
+      vs.id = "1^128^__NULL__^align";
+      vs.label = "test";
+      vs.runtimeId = "align-15145353038700";
+      vs.currentFocusedAssemblies = [];
+      vs.statusText = "Global Viewsheet/test 2017-12-29 16:13:42";
+
+      comp.detectChanges(true);
+      expect(comp.status.text.startsWith("Global Viewsheet/test")).toBe(true);
+      expect(comp.status.text.startsWith("Global Viewsheet/align")).toBe(false);
+   });
+
+   it("should not display a trailing comma when group and child are focused (Bug #21507)", async () => {
+      const { comp } = await renderComponent();
+      const vs: Viewsheet = comp.vs;
+      const table1: VSTableModel = TestUtils.createMockVSTableModel("table1");
+      const gauge1: VSGaugeModel = TestUtils.createMockVSGaugeModel("gauge1");
+      const gauge2: VSGaugeModel = TestUtils.createMockVSGaugeModel("gauge2");
+      const group1: VSGroupContainerModel = TestUtils.createMockVSGroupContainerModel("group1");
+      Object.assign({
+         labels: ["group1", "gauge2"],
+         childrenNames: ["group1", "gauge2"],
+         selected: "group1",
+         activeFormat: TestUtils.createMockVSFormatModel(),
+         roundTopCornersOnly: true,
+         roundBottomCornersOnly: false,
+         bottomTabs: false,
+      }, TestUtils.createMockVSObjectModel("VSTab", "tab1"));
+
+      table1.container = "group1";
+      gauge1.container = "group1";
+      table1.containerType = "VSGroupContainer";
+      gauge1.containerType = "VSGroupContainer";
+      group1.container = "tab1";
+      gauge2.container = "tab1";
+      group1.containerType = "VSTab";
+      gauge2.containerType = "VSTab";
+
+      vs.currentFocusedAssemblies = [group1, gauge1];
+      comp.detectChanges(true);
+      expect(comp.status.text).toBe("<b>gauge1</b>");
    });
 });

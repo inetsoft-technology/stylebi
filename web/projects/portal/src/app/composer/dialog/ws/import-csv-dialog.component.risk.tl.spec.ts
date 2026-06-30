@@ -427,3 +427,39 @@ describe("ImportCSVDialog — initForm structure", () => {
       }
    });
 });
+
+// ---------------------------------------------------------------------------
+// Group 10: unpivot / firstRow mutual exclusion + headerCols validation [legacy regression]
+// ---------------------------------------------------------------------------
+
+describe("ImportCSVDialog — unpivot and firstRow form coupling", () => {
+   it("should clear unpivotCB when firstRowCB is enabled", async () => {
+      const { comp } = await renderComponent(undefined, { unpivotCB: true, firstRowCB: false });
+
+      comp.form.get("firstRowCB").patchValue(true);
+
+      expect(comp.form.get("unpivotCB").value).toBeFalsy();
+   });
+
+   it("should clear firstRowCB when unpivotCB is enabled", async () => {
+      const { comp } = await renderComponent(undefined, { unpivotCB: false, firstRowCB: true });
+
+      comp.form.get("unpivotCB").patchValue(true);
+
+      expect(comp.form.get("firstRowCB").value).toBeFalsy();
+   });
+
+   it("should reject negative headerCols when unpivot is enabled", async () => {
+      const { comp } = await renderComponent(undefined, { unpivotCB: true, headerCols: 0 });
+
+      const control = comp.form.get("headerCols");
+      control.patchValue(-1);
+      expect(control.errors).toBeTruthy();
+
+      control.patchValue(0);
+      expect(control.errors).toBeFalsy();
+
+      control.patchValue(1);
+      expect(control.errors).toBeFalsy();
+   });
+});

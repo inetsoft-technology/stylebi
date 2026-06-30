@@ -65,6 +65,7 @@
 
 import { waitFor } from "@testing-library/angular";
 
+import { KeepAwakeService } from "../common/services/keep-awake.service";
 import {
    VS_CLIENT_MOCK,
    STOMP_CLIENT_MOCK,
@@ -110,6 +111,17 @@ describe("ViewerAppComponent — processSetRuntimeIdCommand()", () => {
 
       // processSetPermissionsCommand receives ["Toolbar"]; indexOf("Toolbar") >= 0 → toolbarVisible=false
       expect(comp.toolbarVisible).toBe(false);
+   });
+
+   it("should call keepAwakeService.keepAwake when runtime id is set", async () => {
+      const { comp, fixture } = await renderComponent();
+      const keepAwake = fixture.debugElement.injector.get(KeepAwakeService);
+      const keepAwakeSpy = vi.spyOn(keepAwake, "keepAwake");
+      vi.spyOn(comp as any, "showBookmarks").mockImplementation(() => {});
+
+      comp.processSetRuntimeIdCommand({ runtimeId: "rt-9", permissions: [] });
+
+      expect(keepAwakeSpy).toHaveBeenCalledWith("rt-9");
    });
 });
 
@@ -886,5 +898,15 @@ describe("ViewerAppComponent — ngOnDestroy()", () => {
       comp.ngOnDestroy();
 
       expect(DIALOG_SERVICE_MOCK.ngOnDestroy).toHaveBeenCalledOnce();
+   });
+
+   it("should call keepAwakeService.release on destroy", async () => {
+      const { fixture } = await renderComponent();
+      const keepAwake = fixture.debugElement.injector.get(KeepAwakeService);
+      const releaseSpy = vi.spyOn(keepAwake, "release");
+
+      fixture.destroy();
+
+      expect(releaseSpy).toHaveBeenCalled();
    });
 });

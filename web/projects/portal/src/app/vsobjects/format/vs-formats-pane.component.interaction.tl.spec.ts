@@ -41,6 +41,14 @@
  *   Group 16 [baseline] — isValueFillVisible: VSGauge face 10910 → true; non-matching face → false
  *   Group 17 [baseline] — roundCornerMax / tableSelected / textSelected / borderTooltip getters
  *   Group 18 [baseline] — isRoundTopCornersOnlyVisible: VSTab without regions → true; with regions → false
+ *   Group 19 [baseline] — bar chart region format flags (legacy vs-formats-pane.spec.ts)
+ *   Group 20 [baseline] — formatDisabled: selection list bar, embedded VS, chart vo
+ *   Group 21 [baseline] — table/calc/crosstab cssDisabled + showPresenter selection paths
+ *   Group 22 [baseline] — selection list measure bar format flags (Bugs #17965, #18704)
+ *   Group 23 [baseline] — radar chart format flags (Bugs #18345, #19119)
+ *   Group 24 [baseline] — VSTextInput format flags (Bug #18582)
+ *   Group 25 [baseline] — viewer-side chart format flags (Bugs #18855, #19820)
+ *   Group 26 [baseline] — circle packing color flags; vsObjectFormat flag propagation
  *
  * Confirmed bugs (it.fails): none
  *
@@ -58,9 +66,12 @@ import { of } from "rxjs";
 
 import { ComboMode } from "../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { ColorDropdown } from "../../widget/color-picker/color-dropdown.component";
+import { GraphTypes } from "../../common/graph-types";
 import { VSObjectFormatInfoModel } from "../../common/data/vs-object-format-info-model";
 import { FormatInfoModel } from "../../common/data/format-info-model";
 import { TestUtils } from "../../common/test/test-utils";
+import { ChartRegion } from "../../graph/model/chart-region";
+import { VSChartModel } from "../model/vs-chart-model";
 import { PresenterPropertyDialogModel } from "../../widget/presenter/data/presenter-property-dialog-model";
 import {
    FONT_SERVICE_MOCK,
@@ -69,6 +80,14 @@ import {
    resetMocks,
    renderComponent,
 } from "./vs-formats-pane.test-fixtures";
+
+beforeAll(() => {
+   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      font: "",
+      clearRect: vi.fn(),
+      measureText: (_text: string) => ({ width: 0 }),
+   } as any);
+});
 
 beforeEach(() => resetMocks());
 
@@ -839,5 +858,376 @@ describe("VSFormatsPane — isRoundTopCornersOnlyVisible: VSTab region check", (
       comp.focusedAssemblies = [tab];
 
       expect(comp.roundTopCornersOnlyVisible).toBe(false);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 19 — bar chart region format flags [baseline, legacy regression]
+// ---------------------------------------------------------------------------
+
+describe("VSFormatsPane — bar chart region format flags", () => {
+   it("should enable/disable format controls across bar chart selection paths", async () => {
+      const { comp } = await renderComponent();
+      const chart1: VSChartModel = TestUtils.createMockVSChartModel("chart1");
+      chart1.chartSelection = { chartObject: null, regions: null };
+      const regions1: ChartRegion = TestUtils.createMockChartRegion();
+
+      comp.focusedAssemblies = [chart1];
+      comp._format.halignmentEnabled = true;
+      expect(comp.fontDisabled).toBeFalsy();
+      expect(comp.formatDisabled).toBeFalsy();
+      expect(comp.dynamicColorDisabled).toBeFalsy();
+      expect(comp.alignDisabled).toBeFalsy();
+      expect(comp.wrapTextDisabled).toBeTruthy();
+      expect(comp.borderDisabled).toBeFalsy();
+      expect(comp.cssDisabled).toBeFalsy();
+      expect(comp.showPresenter()).toBeFalsy();
+
+      comp._format.valignmentEnabled = true;
+      comp._format.halignmentEnabled = false;
+      chart1.regionMetaDictionary = [{ areaType: "title" }];
+      let chartObject = TestUtils.createMockChartObject("y_title");
+      chart1.chartSelection = { chartObject, regions: [regions1] };
+      comp.focusedAssemblies = [chart1];
+      expect(comp.dynamicColorDisabled).toBeTruthy();
+      expect(comp.alignDisabled).toBeFalsy();
+      expect(comp.isHAlignmentEnabled()).toBeFalsy();
+      expect(comp.borderDisabled).toBeTruthy();
+
+      comp._format.halignmentEnabled = true;
+      comp._format.valignmentEnabled = false;
+      chartObject = TestUtils.createMockChartObject("x_title");
+      chart1.chartSelection = { chartObject, regions: [regions1] };
+      comp.focusedAssemblies = [chart1];
+      expect(comp.isHAlignmentEnabled()).toBeTruthy();
+
+      comp._format.halignmentEnabled = false;
+      comp._format.valignmentEnabled = false;
+      chart1.regionMetaDictionary = [{ areaType: "axis" }];
+      chartObject = TestUtils.createMockChartObject("bottom_x_axis");
+      chart1.chartSelection = { chartObject, regions: [regions1] };
+      comp.focusedAssemblies = [chart1];
+      expect(comp.alignDisabled).toBeTruthy();
+      expect(comp.borderDisabled).toBeTruthy();
+
+      comp._format.halignmentEnabled = true;
+      chartObject = TestUtils.createMockChartObject("top_x_axis");
+      chart1.chartSelection = { chartObject, regions: [regions1] };
+      comp.focusedAssemblies = [chart1];
+      expect(comp.alignDisabled).toBeFalsy();
+      expect(comp.isHAlignmentEnabled()).toBeTruthy();
+
+      comp._format.halignmentEnabled = false;
+      comp._format.valignmentEnabled = false;
+      chart1.regionMetaDictionary = [{ areaType: "axis" }];
+      chartObject = TestUtils.createMockChartObject("left_y_axis");
+      chart1.chartSelection = { chartObject, regions: [regions1] };
+      comp.focusedAssemblies = [chart1];
+      expect(comp.alignDisabled).toBeTruthy();
+
+      comp._format.halignmentEnabled = true;
+      chart1.regionMetaDictionary = [{ areaType: "text" }];
+      chartObject = TestUtils.createMockChartObject("plot_area");
+      chart1.chartSelection = { chartObject, regions: [regions1] };
+      comp.focusedAssemblies = [chart1];
+      expect(comp.dynamicColorDisabled).toBeTruthy();
+      expect(comp.isHAlignmentEnabled()).toBeTruthy();
+
+      chart1.regionMetaDictionary = [{ areaType: "legend" }];
+      chartObject = TestUtils.createMockChartObject("legend_title");
+      chart1.chartSelection = { chartObject, regions: [regions1] };
+      comp.focusedAssemblies = [chart1];
+      expect(comp.alignDisabled).toBeFalsy();
+
+      chart1.regionMetaDictionary = [{ areaType: "vo" }];
+      chartObject = TestUtils.createMockChartObject("plot_area");
+      chart1.chartSelection = { chartObject, regions: [regions1] };
+      comp.focusedAssemblies = [chart1];
+      expect(comp.colorDisabled).toBeTruthy();
+      expect(comp.alignDisabled).toBeTruthy();
+
+      chart1.regionMetaDictionary = [{ areaType: "label" }];
+      comp._format.halignmentEnabled = false;
+      comp._format.valignmentEnabled = false;
+      chart1.chartSelection = { chartObject, regions: [regions1] };
+      comp.focusedAssemblies = [chart1];
+      expect(comp.formatDisabled).toBeFalsy();
+      expect(comp.colorDisabled).toBeFalsy();
+      expect(comp.alignDisabled).toBeTruthy();
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 20 — formatDisabled selection paths [baseline, legacy regression]
+// ---------------------------------------------------------------------------
+
+describe("VSFormatsPane — formatDisabled selection paths", () => {
+   it("should keep format enabled for selection list bar and chart vo, but disable for embedded vs", async () => {
+      const { comp } = await renderComponent();
+      const list1 = TestUtils.createMockVSSelectionListModel("list");
+      const region1 = TestUtils.createMockselectedRegion();
+      region1.path[0] = "Measure Bar";
+      list1.selectedRegions = [region1];
+      comp.focusedAssemblies = [list1];
+      expect(comp.formatDisabled).toBeFalsy();
+
+      const emvs1 = TestUtils.createMockVSViewsheetModel("vs1");
+      comp.focusedAssemblies = [emvs1];
+      expect(comp.formatDisabled).toBeTruthy();
+
+      const chart1: VSChartModel = TestUtils.createMockVSChartModel("chart1");
+      chart1.chartSelection = {
+         chartObject: TestUtils.createMockChartObject("plot_area"),
+         regions: [TestUtils.createMockChartRegion()],
+      };
+      chart1.regionMetaDictionary = [{ areaType: "vo" }];
+      comp.focusedAssemblies = [chart1];
+      expect(comp.formatDisabled).toBeFalsy();
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 21 — table / calc / crosstab CSS and presenter flags [baseline, legacy regression]
+// ---------------------------------------------------------------------------
+
+describe("VSFormatsPane — table / calc / crosstab CSS and presenter flags", () => {
+   it("should toggle cssDisabled and showPresenter for table selection paths", async () => {
+      const { comp } = await renderComponent();
+      const table = TestUtils.createMockVSTableModel("table");
+      table.titleSelected = false;
+      table.selectedData = null;
+      table.selectedHeaders = null;
+      table.selectedRegions = null;
+      table.firstSelectedColumn = -1;
+      table.firstSelectedRow = -1;
+      comp.focusedAssemblies = [table];
+      expect(comp.cssDisabled).toBeFalsy();
+      expect(comp.showPresenter()).toBeFalsy();
+
+      table.titleSelected = true;
+      comp.focusedAssemblies = [table];
+      expect(comp.cssDisabled).toBeFalsy();
+
+      table.titleSelected = false;
+      table.selectedHeaders = new Map<number, number[]>();
+      table.selectedHeaders.set(0, [1]);
+      comp.focusedAssemblies = [table];
+      expect(comp.cssDisabled).toBeTruthy();
+
+      table.selectedHeaders = null;
+      table.selectedData = new Map<number, number[]>();
+      table.selectedData.set(1, [2]);
+      comp.focusedAssemblies = [table];
+      expect(comp.cssDisabled).toBeTruthy();
+   });
+
+   it("should toggle cssDisabled and showPresenter for calc table selection paths", async () => {
+      const { comp } = await renderComponent();
+      const calc = TestUtils.createMockVSCalcTableModel("calc");
+      calc.titleSelected = false;
+      calc.selectedHeaders = null;
+      calc.selectedData = null;
+      calc.firstSelectedColumn = -1;
+      calc.firstSelectedRow = -1;
+      comp.focusedAssemblies = [calc];
+      expect(comp.cssDisabled).toBeFalsy();
+      expect(comp.showPresenter()).toBeFalsy();
+
+      calc.titleSelected = true;
+      comp.focusedAssemblies = [calc];
+      expect(comp.cssDisabled).toBeFalsy();
+
+      calc.titleSelected = false;
+      calc.selectedData = new Map<number, number[]>();
+      calc.selectedData.set(2, [1]);
+      calc.selectedHeaders = null;
+      calc.firstSelectedRow = 1;
+      comp.focusedAssemblies = [calc];
+      expect(comp.cssDisabled).toBeTruthy();
+      expect(comp.showPresenter()).toBeTruthy();
+   });
+
+   it("should toggle cssDisabled and showPresenter for crosstab selection paths", async () => {
+      const { comp } = await renderComponent();
+      const crosstab = TestUtils.createMockVSCrosstabModel("crosstab");
+      crosstab.titleSelected = false;
+      crosstab.selectedHeaders = null;
+      crosstab.selectedData = null;
+      crosstab.firstSelectedColumn = -1;
+      crosstab.firstSelectedRow = -1;
+      comp.focusedAssemblies = [crosstab];
+      expect(comp.cssDisabled).toBeFalsy();
+      expect(comp.showPresenter()).toBeFalsy();
+
+      crosstab.titleSelected = true;
+      comp.focusedAssemblies = [crosstab];
+      expect(comp.cssDisabled).toBeFalsy();
+
+      crosstab.titleSelected = false;
+      crosstab.selectedHeaders = new Map<number, number[]>();
+      crosstab.selectedHeaders.set(0, [1]);
+      crosstab.firstSelectedColumn = 0;
+      crosstab.firstSelectedRow = 0;
+      comp.focusedAssemblies = [crosstab];
+      expect(comp.cssDisabled).toBeTruthy();
+      expect(comp.showPresenter()).toBeTruthy();
+
+      crosstab.selectedData = new Map<number, number[]>();
+      crosstab.selectedData.set(1, [1]);
+      crosstab.selectedHeaders = null;
+      comp.focusedAssemblies = [crosstab];
+      expect(comp.cssDisabled).toBeTruthy();
+      expect(comp.showPresenter()).toBeTruthy();
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 22 — selection list measure bar [baseline, legacy regression]
+// ---------------------------------------------------------------------------
+
+describe("VSFormatsPane — selection list measure bar", () => {
+   it("should enable only color/css controls when a measure bar is selected", async () => {
+      const formats = TestUtils.createMockVSObjectFormatInfoModel();
+      formats.color = "-11432519";
+      formats.colorType = "Static";
+      const { comp } = await renderComponent({ format: formats });
+      const list = TestUtils.createMockVSSelectionListModel("list");
+      list.showBar = true;
+      const region = TestUtils.createMockselectedRegion();
+      region.path = ["Measure Bar"];
+      list.selectedRegions = [region];
+      comp.focusedAssemblies = [list];
+      expect(comp.dynamicColorDisabled).toBeFalsy();
+      expect(comp.fontDisabled).toBeTruthy();
+      expect(comp.formattingDisabled).toBeTruthy();
+      expect(comp.alignDisabled).toBeTruthy();
+      expect(comp.wrapTextDisabled).toBeTruthy();
+      expect(comp.borderDisabled).toBeTruthy();
+      expect(comp.cssDisabled).toBeFalsy();
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 23 — radar chart format flags [baseline, legacy regression]
+// ---------------------------------------------------------------------------
+
+describe("VSFormatsPane — radar chart format flags", () => {
+   it("should disable color/alignment/border on radar axis, but enable alignment on x2 title", async () => {
+      const { comp } = await renderComponent();
+      const chart: VSChartModel = TestUtils.createMockVSChartModel("chart");
+      chart.chartType = GraphTypes.CHART_RADAR;
+      chart.chartSelection = { chartObject: null, regions: null };
+      let chartObject = TestUtils.createMockChartObject("plot_area");
+      const region1 = TestUtils.createMockChartRegion();
+      chart.regionMetaDictionary = [{ areaType: "axis" }];
+      chart.chartSelection = { chartObject, regions: [region1] };
+      comp._format.halignmentEnabled = false;
+      comp._format.valignmentEnabled = false;
+      comp.focusedAssemblies = [chart];
+      expect(comp.dynamicColorDisabled).toBeTruthy();
+      expect(comp.alignDisabled).toBeTruthy();
+      expect(comp.borderDisabled).toBeTruthy();
+
+      chartObject = TestUtils.createMockChartObject("x2_title");
+      chart.regionMetaDictionary = [{ areaType: "x2_title" }];
+      chart.chartSelection = { chartObject, regions: [region1] };
+      comp._format.halignmentEnabled = true;
+      comp._format.valignmentEnabled = false;
+      comp.focusedAssemblies = [chart];
+      expect(comp.alignDisabled).toBeFalsy();
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 24 — VSTextInput format flags [baseline, legacy regression]
+// ---------------------------------------------------------------------------
+
+describe("VSFormatsPane — VSTextInput format flags", () => {
+   it("should expose the expected disabled flags for VSTextInput", async () => {
+      const { comp } = await renderComponent();
+      const textinput = TestUtils.createMockVSTextInputModel("textinput1");
+      comp.focusedAssemblies = [textinput];
+      expect(comp.dynamicColorDisabled).toBeFalsy();
+      expect(comp.fontDisabled).toBeFalsy();
+      expect(comp.formattingDisabled).toBeTruthy();
+      expect(comp.alignDisabled).toBeFalsy();
+      expect(comp.wrapTextDisabled).toBeTruthy();
+      expect(comp.borderDisabled).toBeFalsy();
+      expect(comp.cssDisabled).toBeFalsy();
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 25 — viewer-side chart format flags [baseline, legacy regression]
+// ---------------------------------------------------------------------------
+
+describe("VSFormatsPane — viewer-side chart format flags", () => {
+   it("should disable css for whole chart and alignment for plot text in viewer mode", async () => {
+      const { comp } = await renderComponent({ viewer: true });
+      const chart1: VSChartModel = TestUtils.createMockVSChartModel("chart1");
+      chart1.chartSelection = { chartObject: null, regions: null };
+      comp.focusedAssemblies = [chart1];
+      expect(comp.cssDisabled).toBeTruthy();
+
+      comp._format.halignmentEnabled = false;
+      comp._format.valignmentEnabled = false;
+      chart1.regionMetaDictionary = [{ areaType: "text" }];
+      const chartObject = TestUtils.createMockChartObject("plot_area");
+      chart1.chartSelection = { chartObject, regions: [TestUtils.createMockChartRegion()] };
+      comp.focusedAssemblies = [chart1];
+      expect(comp.alignDisabled).toBeTruthy();
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 26 — circle packing / vsObjectFormat flags [baseline, legacy regression]
+// ---------------------------------------------------------------------------
+
+describe("VSFormatsPane — circle packing color flags", () => {
+   it("should disable color only for non-innermost circles", async () => {
+      const { comp } = await renderComponent();
+      const chart: VSChartModel = TestUtils.createMockVSChartModel("packing");
+      chart.chartType = GraphTypes.CHART_CIRCLE_PACKING;
+      chart.axisFields = ["OuterDim", "InnerDim"];
+      chart.stringDictionary = ["OuterDim", "InnerDim"];
+      chart.chartSelection = { chartObject: null, regions: null };
+      const region = TestUtils.createMockChartRegion();
+
+      chart.regionMetaDictionary = [{ areaType: "legend_content", meaIdx: -1 }];
+      chart.chartSelection = {
+         chartObject: TestUtils.createMockChartObject("legend_content"),
+         regions: [region],
+      };
+      comp.focusedAssemblies = [chart];
+      expect(comp.colorDisabled).toBeFalsy();
+
+      chart.regionMetaDictionary = [{ areaType: "vo", meaIdx: 0 }];
+      chart.chartSelection = {
+         chartObject: TestUtils.createMockChartObject("plot_area"),
+         regions: [region],
+      };
+      comp.focusedAssemblies = [chart];
+      expect(comp.colorDisabled).toBeTruthy();
+
+      chart.regionMetaDictionary = [{ areaType: "vo", meaIdx: 1 }];
+      comp.focusedAssemblies = [chart];
+      expect(comp.colorDisabled).toBeFalsy();
+   });
+});
+
+describe("VSFormatsPane — vsObjectFormat flag propagation", () => {
+   it("should honor dynamicColorDisabled, borderDisabled, and alignEnabled from vsObjectFormat", async () => {
+      const vsObjectFormat = TestUtils.createMockVSObjectFormatInfoModel();
+      vsObjectFormat.dynamicColorDisabled = true;
+      vsObjectFormat.borderDisabled = true;
+      vsObjectFormat.alignEnabled = true;
+      const { comp } = await renderComponent({ format: vsObjectFormat });
+      const chart1: VSChartModel = TestUtils.createMockVSChartModel("chart1");
+      chart1.chartSelection = { chartObject: null, regions: null };
+      comp.vsObjectFormat = vsObjectFormat;
+      comp.focusedAssemblies = [chart1];
+      expect(comp.dynamicColorDisabled).toBe(true);
+      expect(comp.borderDisabled).toBe(true);
+      expect(comp.alignDisabled).toBe(false);
    });
 });
