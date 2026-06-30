@@ -789,16 +789,7 @@ public class BarVO extends ElementVO {
          // element-wide flag would let the first facet set it and suppress funnel shaping in
          // every other facet, leaving those bars as plain rectangles. The coord passed to
          // dodge() is the facet's own inner coordinate, so it uniquely identifies the pass.
-         @SuppressWarnings("unchecked")
-         Set<Coordinate> shaped = (Set<Coordinate>) elem.getHint("_funnel_shaped_");
-
-         if(shaped == null) {
-            shaped = Collections.newSetFromMap(new IdentityHashMap<>());
-            elem.setHint("_funnel_shaped_", shaped);
-         }
-
-         // already shaped this facet's bars in this pass
-         if(!shaped.add(coord)) {
+         if(!markFunnelShaped(elem, coord)) {
             return;
          }
 
@@ -1514,6 +1505,31 @@ public class BarVO extends ElementVO {
       }
 
       return result;
+   }
+
+   /**
+    * Mark a funnel facet as shaped, scoping the guard per-coordinate rather than per-element.
+    *
+    * In a faceted (multi-dimension) funnel chart, every facet shares the same GraphElement
+    * instance but is laid out in its own sub-graph with its own dodge() pass and its own
+    * coordinate. The "_funnel_shaped_" hint therefore holds a set of the coordinates already
+    * shaped (identity-based, since each facet has a distinct Coordinate instance) instead of a
+    * single boolean. The first bar of a facet records its coordinate and proceeds with the
+    * reshaping; later bars in the same facet pass the same coordinate and are de-duplicated.
+    *
+    * @return true if this coordinate had not been shaped yet (caller should proceed),
+    *         false if it was already shaped (caller should return early).
+    */
+   static boolean markFunnelShaped(GraphElement elem, Coordinate coord) {
+      @SuppressWarnings("unchecked")
+      Set<Coordinate> shaped = (Set<Coordinate>) elem.getHint("_funnel_shaped_");
+
+      if(shaped == null) {
+         shaped = Collections.newSetFromMap(new IdentityHashMap<>());
+         elem.setHint("_funnel_shaped_", shaped);
+      }
+
+      return shaped.add(coord);
    }
 
    /**
