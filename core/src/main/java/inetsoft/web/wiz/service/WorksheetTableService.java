@@ -226,30 +226,40 @@ public class WorksheetTableService {
       AssetQuerySandbox box = new AssetQuerySandbox(worksheet);
       box.setBaseUser(user);
 
-      TableLens lens = box.getTableLens(targetTable.getAbsoluteName(),
-                                        AssetQuerySandbox.LIVE_MODE);
-
-      // Force the first data row (row 0 = header, row 1 = first data row) so lazily-evaluated
-      // expression columns actually run — a JS column only fails when a row is produced. A failed
-      // query surfaces either by throwing here (e.g. a JS column failing mid-fetch) or by degrading
-      // to a failed-query fallback lens (checkFailedQuery below). Normalize the throw to the same
-      // failed-query error shape so the caller sees one signal.
       try {
-         lens.moreRows(1);
-      }
-      catch(Exception ex) {
-         throw new IllegalArgumentException(WizVsService.failedQueryError(rootMessage(ex)), ex);
-      }
+         TableLens lens = box.getTableLens(targetTable.getAbsoluteName(),
+                                           AssetQuerySandbox.LIVE_MODE);
 
-      // Throws IllegalArgumentException("Worksheet query failed … (cause: <DB error>)") when the
-      // lens chain carries failed-query fallback data — the unified signal for SQL and expression
-      // failures alike. WizVsService is in this same package.
-      WizVsService.checkFailedQuery(lens);
+         if(lens == null) {
+            throw new IllegalArgumentException(
+               "Could not obtain a table lens for '" + tableName + "' — the assembly may not be executable");
+         }
 
-      WorksheetTableResponse response = new WorksheetTableResponse();
-      response.setTableName(targetTable.getName());
-      response.setSuccess(true);
-      return response;
+         // Force the first data row (row 0 = header, row 1 = first data row) so lazily-evaluated
+         // expression columns actually run — a JS column only fails when a row is produced. A failed
+         // query surfaces either by throwing here (e.g. a JS column failing mid-fetch) or by degrading
+         // to a failed-query fallback lens (checkFailedQuery below). Normalize the throw to the same
+         // failed-query error shape so the caller sees one signal.
+         try {
+            lens.moreRows(1);
+         }
+         catch(Exception ex) {
+            throw new IllegalArgumentException(WizVsService.failedQueryError(rootMessage(ex)), ex);
+         }
+
+         // Throws IllegalArgumentException("Worksheet query failed … (cause: <DB error>)") when the
+         // lens chain carries failed-query fallback data — the unified signal for SQL and expression
+         // failures alike. WizVsService is in this same package.
+         WizVsService.checkFailedQuery(lens);
+
+         WorksheetTableResponse response = new WorksheetTableResponse();
+         response.setTableName(targetTable.getName());
+         response.setSuccess(true);
+         return response;
+      }
+      finally {
+         box.dispose();
+      }
    }
 
    // Get worksheet table metadata.
