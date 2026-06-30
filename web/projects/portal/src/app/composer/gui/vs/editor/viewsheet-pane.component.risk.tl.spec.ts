@@ -59,7 +59,6 @@ import { VSGroupContainerModel } from "../../../../vsobjects/model/vs-group-cont
 import { VSRadioButtonModel } from "../../../../vsobjects/model/vs-radio-button-model";
 import { VSRangeSliderModel } from "../../../../vsobjects/model/vs-range-slider-model";
 import { VSSelectionListModel } from "../../../../vsobjects/model/vs-selection-list-model";
-import { VSTabModel } from "../../../../vsobjects/model/vs-tab-model";
 import { VSTableModel } from "../../../../vsobjects/model/vs-table-model";
 import { Viewsheet } from "../../../data/vs/viewsheet";
 
@@ -95,6 +94,20 @@ function createChartObject(): ChartObject {
       yboundaries: [],
       showReferenceLine: false,
    } as ChartObject;
+}
+
+async function renderFocusedChart() {
+   const { comp } = await renderComponent();
+   const vs: Viewsheet = comp.vs;
+   const chart1: VSChartModel = Object.assign(
+      { locked: false, hyperlinks: [] },
+      TestUtils.createMockVSChartModel("chart1"),
+   );
+   chart1.stringDictionary = ["Label"];
+   vs.currentFocusedAssemblies = [chart1];
+   const chartRegion: ChartRegion = TestUtils.createMockChartRegion();
+   const chartObject: ChartObject = createChartObject();
+   return { comp, chart1, chartRegion, chartObject };
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -490,39 +503,47 @@ describe("VSPane — getStatusForStatusBar / refreshStatus", () => {
       expect(status.text).toContain("<b>Chart1</b>");
    });
 
-   it("should show chart region context in the status bar (Bugs #17399, #17428, #20839)", async () => {
-      const { comp } = await renderComponent();
-      const vs: Viewsheet = comp.vs;
-      const chart1: VSChartModel = Object.assign(
-         { locked: false, hyperlinks: [] },
-         TestUtils.createMockVSChartModel("chart1"),
-      );
-      chart1.stringDictionary = ["Label"];
-      vs.currentFocusedAssemblies = [chart1];
-      const chartRegion: ChartRegion = TestUtils.createMockChartRegion();
-      const chartObject: ChartObject = createChartObject();
+   it("should show chart text region in the status bar (Bug #17399)", async () => {
+      const { comp, chart1, chartRegion, chartObject } = await renderFocusedChart();
       chart1.regionMetaDictionary = [{ areaType: "text", dimIdx: 0 }];
       chart1.chartSelection = { chartObject, regions: [chartRegion] };
       comp.detectChanges(true);
       expect(comp.status.text).toBe("chart1 => <b>text</b>");
+   });
 
+   it("should show chart label region in the status bar (Bug #17428)", async () => {
+      const { comp, chart1, chartRegion, chartObject } = await renderFocusedChart();
       chart1.regionMetaDictionary = [{ areaType: "label" }];
       chart1.chartSelection = { chartObject, regions: [chartRegion] };
       comp.detectChanges(true);
       expect(comp.status.text).toContain("<b>targetLabel");
+   });
 
+   it("should show chart x-axis title in the status bar (Bug #20839)", async () => {
+      const { comp, chart1, chartRegion, chartObject } = await renderFocusedChart();
       chartObject.areaName = "x_title";
       chart1.regionMetaDictionary = [{ areaType: "title" }];
       chart1.chartSelection = { chartObject, regions: [chartRegion] };
       comp.detectChanges(true);
       expect(comp.status.text).toBe("chart1 => <b>axisTitle[x]</b>");
+   });
 
+   it("should show chart y-axis title in the status bar (Bug #20839)", async () => {
+      const { comp, chart1, chartRegion, chartObject } = await renderFocusedChart();
       chartObject.areaName = "y_title";
+      chart1.regionMetaDictionary = [{ areaType: "title" }];
       chart1.chartSelection = { chartObject, regions: [chartRegion] };
       comp.detectChanges(true);
       expect(comp.status.text).toBe("chart1 => <b>axisTitle[y]</b>");
+   });
 
-      vs.currentFocusedAssemblies = [];
+   it("should clear status text when chart focus is removed (Bug #20839)", async () => {
+      const { comp, chart1, chartRegion, chartObject } = await renderFocusedChart();
+      chart1.regionMetaDictionary = [{ areaType: "text", dimIdx: 0 }];
+      chart1.chartSelection = { chartObject, regions: [chartRegion] };
+      comp.detectChanges(true);
+
+      comp.vs.currentFocusedAssemblies = [];
       comp.detectChanges(true);
       expect(comp.status.text).toBeUndefined();
    });
@@ -640,15 +661,6 @@ describe("VSPane — getStatusForStatusBar / refreshStatus", () => {
       const gauge1: VSGaugeModel = TestUtils.createMockVSGaugeModel("gauge1");
       const gauge2: VSGaugeModel = TestUtils.createMockVSGaugeModel("gauge2");
       const group1: VSGroupContainerModel = TestUtils.createMockVSGroupContainerModel("group1");
-      Object.assign({
-         labels: ["group1", "gauge2"],
-         childrenNames: ["group1", "gauge2"],
-         selected: "group1",
-         activeFormat: TestUtils.createMockVSFormatModel(),
-         roundTopCornersOnly: true,
-         roundBottomCornersOnly: false,
-         bottomTabs: false,
-      }, TestUtils.createMockVSObjectModel("VSTab", "tab1"));
 
       table1.container = "group1";
       gauge1.container = "group1";
