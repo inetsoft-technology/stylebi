@@ -110,8 +110,8 @@ export function createConditionItemPane(options: {
    const dialog = {
       open: vi.fn(() => ({ result: options.dialogResult || Promise.resolve({}) }))
    } as any;
-   const changeDetectorRef = { detectChanges: vi.fn(), markForCheck: vi.fn() } as any;
-   const comp = new ConditionItemPane(dialog, changeDetectorRef);
+   const uiContextService = { isVS: vi.fn(() => true) } as any;
+   const comp = new ConditionItemPane(dialog, uiContextService);
 
    comp.provider = provider;
    comp.condition = options.condition || makeCondition();

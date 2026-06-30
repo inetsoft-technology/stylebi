@@ -207,6 +207,12 @@ export interface RenderOptions {
    assemblyName?: string;
    bindingModel?: BindingModel;
    rmode?: number;
+   objectModel?: any;
+   currentFormat?: any;
+   linkUri?: string;
+   formatPaneDisabled?: boolean;
+   variableValues?: string[];
+   consoleMessages?: any[];
 }
 
 export interface RenderResult {
@@ -222,6 +228,12 @@ export async function renderComponent(opts: RenderOptions = {}): Promise<RenderR
          assemblyName: opts.assemblyName,
          bindingModel: opts.bindingModel,
          rmode:        opts.rmode,
+         objectModel:  opts.objectModel,
+         currentFormat: opts.currentFormat,
+         linkUri:      opts.linkUri,
+         formatPaneDisabled: opts.formatPaneDisabled,
+         variableValues: opts.variableValues,
+         consoleMessages: opts.consoleMessages ?? [],
       },
       providers: [
          { provide: BindingService,   useValue: BINDING_SERVICE_MOCK },

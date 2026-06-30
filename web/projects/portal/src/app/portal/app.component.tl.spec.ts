@@ -35,7 +35,8 @@
  *   openComposer()       | skip          | BroadcastChannel + window.open; out of scope — browser API heavy
  *   remaining public API | skip          | tab tooltips, logout, profiling — UI/display; out of scope this pass
  *
- * HTTP: MSW inline server.use() via setupPortalMsw()
+ * HTTP: MSW inline server.use() via setupPortalMsw(); overrides cleared in afterEach
+ * (also reset globally by vitest-setup-tl.ts).
  *
  * MSW note: vitest-setup-tl.ts starts MSW with onUnhandledRequest:"error", so every ngOnInit HTTP
  * subscription must be intercepted. Real HttpClient (provideHttpClient) + MSW handlers cover
@@ -160,6 +161,7 @@ async function renderComponent() {
 }
 
 afterEach(() => {
+   server.resetHandlers();
    vi.restoreAllMocks();
    document.body.className = document.body.className.replace(/\bapp-loaded\b/g, "").trim();
 });

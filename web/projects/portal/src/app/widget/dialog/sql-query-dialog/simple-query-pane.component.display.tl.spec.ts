@@ -55,7 +55,7 @@ describe("SimpleQueryPaneComponent - addColumns branch matrix [Group 1, Risk 3]"
       expect(getSQLSpy).toHaveBeenCalled();
    });
 
-   it("should reorder existing columns for oldIndex less than, greater than, and equal to target index", () => {
+   it("should reorder an existing column when oldIndex is less than target index", () => {
       const table = makeTableEntry("Orders");
       const { comp, model } = createSimpleQueryPane({
          model: makeBasicModel({
@@ -67,17 +67,43 @@ describe("SimpleQueryPaneComponent - addColumns branch matrix [Group 1, Risk 3]"
          })
       });
 
-      // oldIndex (0) < target (2): move "a" forward
       comp.addColumns([{ columnEntry: makeColumnEntry("Orders", "a"), parentEntry: table }], 2);
+
       expect(model.columns.map(column => column.name)).toEqual(["Orders.b", "Orders.a", "Orders.c"]);
+   });
 
-      // oldIndex (2) > target (0): move "c" backward
+   it("should reorder an existing column when oldIndex is greater than target index", () => {
+      const table = makeTableEntry("Orders");
+      const { comp, model } = createSimpleQueryPane({
+         model: makeBasicModel({
+            columns: [
+               { name: "Orders.a" },
+               { name: "Orders.b" },
+               { name: "Orders.c" }
+            ]
+         })
+      });
+
       comp.addColumns([{ columnEntry: makeColumnEntry("Orders", "c"), parentEntry: table }], 0);
-      expect(model.columns.map(column => column.name)).toEqual(["Orders.c", "Orders.b", "Orders.a"]);
 
-      // oldIndex (1) == target (1): "b" stays in place
+      expect(model.columns.map(column => column.name)).toEqual(["Orders.c", "Orders.a", "Orders.b"]);
+   });
+
+   it("should leave column order unchanged when oldIndex equals target index", () => {
+      const table = makeTableEntry("Orders");
+      const { comp, model } = createSimpleQueryPane({
+         model: makeBasicModel({
+            columns: [
+               { name: "Orders.a" },
+               { name: "Orders.b" },
+               { name: "Orders.c" }
+            ]
+         })
+      });
+
       comp.addColumns([{ columnEntry: makeColumnEntry("Orders", "b"), parentEntry: table }], 1);
-      expect(model.columns.map(column => column.name)).toEqual(["Orders.c", "Orders.b", "Orders.a"]);
+
+      expect(model.columns.map(column => column.name)).toEqual(["Orders.a", "Orders.b", "Orders.c"]);
    });
 
    it("should show max-count confirm and skip insertion when the limit is reached", () => {

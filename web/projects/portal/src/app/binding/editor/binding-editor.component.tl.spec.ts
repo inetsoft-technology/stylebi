@@ -459,14 +459,12 @@ describe("BindingEditor — crosstab template regressions", () => {
          assemblyName: "Crosstab1",
          bindingModel,
          runtimeId: "crosstab-15096061975720",
+         objectModel: TestUtils.createMockVSObjectModel("VSCrosstab", "Crosstab1"),
+         currentFormat: TestUtils.createMockFromatInfo(),
+         linkUri: "/sree/",
+         formatPaneDisabled: false,
+         variableValues: [],
       });
-      const comp = fixture.componentInstance as BindingEditor;
-      comp.objectModel = TestUtils.createMockVSObjectModel("VSCrosstab", "Crosstab1");
-      comp.currentFormat = TestUtils.createMockFromatInfo();
-      comp.linkUri = "/sree/";
-      comp.formatPaneDisabled = false;
-      comp.variableValues = [];
-      fixture.detectChanges();
 
       expect(fixture.nativeElement.querySelector(".percentBy_label_id")).toBeNull();
    });

@@ -70,7 +70,6 @@ import { GraphTypes } from "../../common/graph-types";
 import { VSObjectFormatInfoModel } from "../../common/data/vs-object-format-info-model";
 import { FormatInfoModel } from "../../common/data/format-info-model";
 import { TestUtils } from "../../common/test/test-utils";
-import { ChartRegion } from "../../graph/model/chart-region";
 import { VSChartModel } from "../model/vs-chart-model";
 import { PresenterPropertyDialogModel } from "../../widget/presenter/data/presenter-property-dialog-model";
 import {
@@ -866,14 +865,14 @@ describe("VSFormatsPane — isRoundTopCornersOnlyVisible: VSTab region check", (
 // ---------------------------------------------------------------------------
 
 describe("VSFormatsPane — bar chart region format flags", () => {
-   it("should enable/disable format controls across bar chart selection paths", async () => {
+   it("should expose baseline format flags for whole-chart selection", async () => {
       const { comp } = await renderComponent();
-      const chart1: VSChartModel = TestUtils.createMockVSChartModel("chart1");
-      chart1.chartSelection = { chartObject: null, regions: null };
-      const regions1: ChartRegion = TestUtils.createMockChartRegion();
+      const chart = TestUtils.createMockVSChartModel("chart1");
+      chart.chartSelection = { chartObject: null, regions: null };
 
-      comp.focusedAssemblies = [chart1];
+      comp.focusedAssemblies = [chart];
       comp._format.halignmentEnabled = true;
+
       expect(comp.fontDisabled).toBeFalsy();
       expect(comp.formatDisabled).toBeFalsy();
       expect(comp.dynamicColorDisabled).toBeFalsy();
@@ -882,78 +881,174 @@ describe("VSFormatsPane — bar chart region format flags", () => {
       expect(comp.borderDisabled).toBeFalsy();
       expect(comp.cssDisabled).toBeFalsy();
       expect(comp.showPresenter()).toBeFalsy();
+   });
 
-      comp._format.valignmentEnabled = true;
-      comp._format.halignmentEnabled = false;
-      chart1.regionMetaDictionary = [{ areaType: "title" }];
-      let chartObject = TestUtils.createMockChartObject("y_title");
-      chart1.chartSelection = { chartObject, regions: [regions1] };
-      comp.focusedAssemblies = [chart1];
-      expect(comp.dynamicColorDisabled).toBeTruthy();
-      expect(comp.alignDisabled).toBeFalsy();
-      expect(comp.isHAlignmentEnabled()).toBeFalsy();
-      expect(comp.borderDisabled).toBeTruthy();
+   describe("title regions", () => {
+      it("should disable dynamic color and horizontal alignment for y_title", async () => {
+         const { comp } = await renderComponent();
+         const chart = TestUtils.createMockVSChartModel("chart1");
+         const region = TestUtils.createMockChartRegion();
 
-      comp._format.halignmentEnabled = true;
-      comp._format.valignmentEnabled = false;
-      chartObject = TestUtils.createMockChartObject("x_title");
-      chart1.chartSelection = { chartObject, regions: [regions1] };
-      comp.focusedAssemblies = [chart1];
-      expect(comp.isHAlignmentEnabled()).toBeTruthy();
+         comp._format.valignmentEnabled = true;
+         comp._format.halignmentEnabled = false;
+         chart.regionMetaDictionary = [{ areaType: "title" }];
+         chart.chartSelection = {
+            chartObject: TestUtils.createMockChartObject("y_title"),
+            regions: [region],
+         };
+         comp.focusedAssemblies = [chart];
 
-      comp._format.halignmentEnabled = false;
-      comp._format.valignmentEnabled = false;
-      chart1.regionMetaDictionary = [{ areaType: "axis" }];
-      chartObject = TestUtils.createMockChartObject("bottom_x_axis");
-      chart1.chartSelection = { chartObject, regions: [regions1] };
-      comp.focusedAssemblies = [chart1];
-      expect(comp.alignDisabled).toBeTruthy();
-      expect(comp.borderDisabled).toBeTruthy();
+         expect(comp.dynamicColorDisabled).toBeTruthy();
+         expect(comp.alignDisabled).toBeFalsy();
+         expect(comp.isHAlignmentEnabled()).toBeFalsy();
+         expect(comp.borderDisabled).toBeTruthy();
+      });
 
-      comp._format.halignmentEnabled = true;
-      chartObject = TestUtils.createMockChartObject("top_x_axis");
-      chart1.chartSelection = { chartObject, regions: [regions1] };
-      comp.focusedAssemblies = [chart1];
-      expect(comp.alignDisabled).toBeFalsy();
-      expect(comp.isHAlignmentEnabled()).toBeTruthy();
+      it("should enable horizontal alignment for x_title", async () => {
+         const { comp } = await renderComponent();
+         const chart = TestUtils.createMockVSChartModel("chart1");
+         const region = TestUtils.createMockChartRegion();
 
-      comp._format.halignmentEnabled = false;
-      comp._format.valignmentEnabled = false;
-      chart1.regionMetaDictionary = [{ areaType: "axis" }];
-      chartObject = TestUtils.createMockChartObject("left_y_axis");
-      chart1.chartSelection = { chartObject, regions: [regions1] };
-      comp.focusedAssemblies = [chart1];
-      expect(comp.alignDisabled).toBeTruthy();
+         comp._format.halignmentEnabled = true;
+         comp._format.valignmentEnabled = false;
+         chart.regionMetaDictionary = [{ areaType: "title" }];
+         chart.chartSelection = {
+            chartObject: TestUtils.createMockChartObject("x_title"),
+            regions: [region],
+         };
+         comp.focusedAssemblies = [chart];
 
-      comp._format.halignmentEnabled = true;
-      chart1.regionMetaDictionary = [{ areaType: "text" }];
-      chartObject = TestUtils.createMockChartObject("plot_area");
-      chart1.chartSelection = { chartObject, regions: [regions1] };
-      comp.focusedAssemblies = [chart1];
-      expect(comp.dynamicColorDisabled).toBeTruthy();
-      expect(comp.isHAlignmentEnabled()).toBeTruthy();
+         expect(comp.isHAlignmentEnabled()).toBeTruthy();
+      });
+   });
 
-      chart1.regionMetaDictionary = [{ areaType: "legend" }];
-      chartObject = TestUtils.createMockChartObject("legend_title");
-      chart1.chartSelection = { chartObject, regions: [regions1] };
-      comp.focusedAssemblies = [chart1];
-      expect(comp.alignDisabled).toBeFalsy();
+   describe("axis regions", () => {
+      it("should disable alignment and border for bottom_x_axis when alignment flags are off", async () => {
+         const { comp } = await renderComponent();
+         const chart = TestUtils.createMockVSChartModel("chart1");
+         const region = TestUtils.createMockChartRegion();
 
-      chart1.regionMetaDictionary = [{ areaType: "vo" }];
-      chartObject = TestUtils.createMockChartObject("plot_area");
-      chart1.chartSelection = { chartObject, regions: [regions1] };
-      comp.focusedAssemblies = [chart1];
-      expect(comp.colorDisabled).toBeTruthy();
-      expect(comp.alignDisabled).toBeTruthy();
+         comp._format.halignmentEnabled = false;
+         comp._format.valignmentEnabled = false;
+         chart.regionMetaDictionary = [{ areaType: "axis" }];
+         chart.chartSelection = {
+            chartObject: TestUtils.createMockChartObject("bottom_x_axis"),
+            regions: [region],
+         };
+         comp.focusedAssemblies = [chart];
 
-      chart1.regionMetaDictionary = [{ areaType: "label" }];
-      comp._format.halignmentEnabled = false;
-      comp._format.valignmentEnabled = false;
-      chart1.chartSelection = { chartObject, regions: [regions1] };
-      comp.focusedAssemblies = [chart1];
-      expect(comp.formatDisabled).toBeFalsy();
-      expect(comp.colorDisabled).toBeFalsy();
-      expect(comp.alignDisabled).toBeTruthy();
+         expect(comp.alignDisabled).toBeTruthy();
+         expect(comp.borderDisabled).toBeTruthy();
+      });
+
+      it("should enable alignment for top_x_axis when horizontal alignment is enabled", async () => {
+         const { comp } = await renderComponent();
+         const chart = TestUtils.createMockVSChartModel("chart1");
+         const region = TestUtils.createMockChartRegion();
+
+         comp._format.halignmentEnabled = true;
+         comp._format.valignmentEnabled = false;
+         chart.regionMetaDictionary = [{ areaType: "axis" }];
+         chart.chartSelection = {
+            chartObject: TestUtils.createMockChartObject("top_x_axis"),
+            regions: [region],
+         };
+         comp.focusedAssemblies = [chart];
+
+         expect(comp.alignDisabled).toBeFalsy();
+         expect(comp.isHAlignmentEnabled()).toBeTruthy();
+      });
+
+      it("should disable alignment for left_y_axis when alignment flags are off", async () => {
+         const { comp } = await renderComponent();
+         const chart = TestUtils.createMockVSChartModel("chart1");
+         const region = TestUtils.createMockChartRegion();
+
+         comp._format.halignmentEnabled = false;
+         comp._format.valignmentEnabled = false;
+         chart.regionMetaDictionary = [{ areaType: "axis" }];
+         chart.chartSelection = {
+            chartObject: TestUtils.createMockChartObject("left_y_axis"),
+            regions: [region],
+         };
+         comp.focusedAssemblies = [chart];
+
+         expect(comp.alignDisabled).toBeTruthy();
+      });
+   });
+
+   describe("chart, legend, label, and vo regions", () => {
+      it("should disable dynamic color for plot text selection", async () => {
+         const { comp } = await renderComponent();
+         const chart = TestUtils.createMockVSChartModel("chart1");
+         const region = TestUtils.createMockChartRegion();
+
+         comp._format.halignmentEnabled = true;
+         comp._format.valignmentEnabled = false;
+         chart.regionMetaDictionary = [{ areaType: "text" }];
+         chart.chartSelection = {
+            chartObject: TestUtils.createMockChartObject("plot_area"),
+            regions: [region],
+         };
+         comp.focusedAssemblies = [chart];
+
+         expect(comp.dynamicColorDisabled).toBeTruthy();
+         expect(comp.isHAlignmentEnabled()).toBeTruthy();
+      });
+
+      it("should keep alignment enabled for legend title", async () => {
+         const { comp } = await renderComponent();
+         const chart = TestUtils.createMockVSChartModel("chart1");
+         const region = TestUtils.createMockChartRegion();
+
+         comp._format.halignmentEnabled = true;
+         comp._format.valignmentEnabled = false;
+         chart.regionMetaDictionary = [{ areaType: "legend" }];
+         chart.chartSelection = {
+            chartObject: TestUtils.createMockChartObject("legend_title"),
+            regions: [region],
+         };
+         comp.focusedAssemblies = [chart];
+
+         expect(comp.alignDisabled).toBeFalsy();
+      });
+
+      it("should disable color and alignment for vo plot_area", async () => {
+         const { comp } = await renderComponent();
+         const chart = TestUtils.createMockVSChartModel("chart1");
+         const region = TestUtils.createMockChartRegion();
+
+         comp._format.halignmentEnabled = true;
+         comp._format.valignmentEnabled = false;
+         chart.regionMetaDictionary = [{ areaType: "vo" }];
+         chart.chartSelection = {
+            chartObject: TestUtils.createMockChartObject("plot_area"),
+            regions: [region],
+         };
+         comp.focusedAssemblies = [chart];
+
+         expect(comp.colorDisabled).toBeTruthy();
+         expect(comp.alignDisabled).toBeTruthy();
+      });
+
+      it("should keep format and color enabled but disable alignment for label region", async () => {
+         const { comp } = await renderComponent();
+         const chart = TestUtils.createMockVSChartModel("chart1");
+         const region = TestUtils.createMockChartRegion();
+
+         comp._format.halignmentEnabled = false;
+         comp._format.valignmentEnabled = false;
+         chart.regionMetaDictionary = [{ areaType: "label" }];
+         chart.chartSelection = {
+            chartObject: TestUtils.createMockChartObject("plot_area"),
+            regions: [region],
+         };
+         comp.focusedAssemblies = [chart];
+
+         expect(comp.formatDisabled).toBeFalsy();
+         expect(comp.colorDisabled).toBeFalsy();
+         expect(comp.alignDisabled).toBeTruthy();
+      });
    });
 });
 
