@@ -242,7 +242,7 @@ export async function createSelectionComponent(overrides: any = {}) {
    const selectionMobileService = overrides.selectionMobileService ?? {
       maxSelectionChanged: vi.fn(() => selectionMobileSubject.asObservable()),
    };
-   const renderer = {
+   const renderer = overrides.renderer ?? {
       listen: vi.fn(() => () => {}),
       setStyle: vi.fn(),
       removeStyle: vi.fn(),
@@ -250,7 +250,7 @@ export async function createSelectionComponent(overrides: any = {}) {
       addClass: vi.fn(),
       removeClass: vi.fn(),
    };
-   const elementRef = {
+   const elementRef = overrides.elementRef ?? {
       nativeElement: {
          querySelector: vi.fn(() => null),
          contains: vi.fn(() => false),

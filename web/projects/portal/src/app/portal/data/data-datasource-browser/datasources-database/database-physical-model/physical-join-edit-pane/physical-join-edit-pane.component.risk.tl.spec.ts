@@ -61,6 +61,12 @@ describe("PhysicalJoinEditPane — Pass 2: Risk", () => {
 
    // ── Group 2 — ngAfterViewChecked ──────────────────────────────────────────
    describe("Group 2 — ngAfterViewChecked", () => {
+      beforeEach(() => vi.useFakeTimers());
+      afterEach(() => {
+         vi.clearAllTimers();
+         vi.useRealTimers();
+      });
+
       it("should call makeSource and setSuspendDrawing(false, true) when isSuspendDrawing is true", () => {
          const jspMock = makeJspMock(true);
          const { comp } = createComp({ jspMock });
@@ -82,7 +88,6 @@ describe("PhysicalJoinEditPane — Pass 2: Risk", () => {
       });
 
       it("should clear populated flag and schedule clear+initJoinConnections via setTimeout", () => {
-         vi.useFakeTimers();
          const { comp, thumbnailService } = createComp();
          (comp as any).populated = true;
 
@@ -95,11 +100,9 @@ describe("PhysicalJoinEditPane — Pass 2: Risk", () => {
 
          expect(thumbnailService.clear).toHaveBeenCalled();
          expect(thumbnailService.initJoinConnections).toHaveBeenCalled();
-         vi.useRealTimers();
       });
 
       it("should not schedule clear+initJoinConnections when populated is false", () => {
-         vi.useFakeTimers();
          const { comp, thumbnailService } = createComp();
          (comp as any).populated = false;
 
@@ -108,11 +111,9 @@ describe("PhysicalJoinEditPane — Pass 2: Risk", () => {
 
          expect(thumbnailService.clear).not.toHaveBeenCalled();
          expect(thumbnailService.initJoinConnections).not.toHaveBeenCalled();
-         vi.useRealTimers();
       });
 
       it("should not call initJoinConnections a second time if ngAfterViewChecked fires again before setTimeout resolves", () => {
-         vi.useFakeTimers();
          const { comp, thumbnailService } = createComp();
          (comp as any).populated = true;
 
@@ -123,7 +124,6 @@ describe("PhysicalJoinEditPane — Pass 2: Risk", () => {
          vi.runAllTimers();
 
          expect(thumbnailService.initJoinConnections).toHaveBeenCalledTimes(1);
-         vi.useRealTimers();
       });
    });
 

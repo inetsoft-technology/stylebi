@@ -17,28 +17,28 @@
  */
 
 /**
- * VSSelection �?Pass 3: Display (dispatchPoints=3)
+ * VSSelection �?Pass 3: Display (dispatchPoints=3)
  *
  * Risk-first coverage:
- *   Group 1 �?updateSelectionState: toggle/toggleAll/singleSelection matrix;
+ *   Group 1 �?updateSelectionState: toggle/toggleAll/singleSelection matrix;
  *                                   cellSelected+toggle keeps selected;
  *                                   dropdown auto-hide on singleSelection click
- *   Group 2 �?navigate: all FocusRegions (SEARCH_BAR/CLEAR_SEARCH/MENU/DROPDOWN/cell index);
+ *   Group 2 �?navigate: all FocusRegions (SEARCH_BAR/CLEAR_SEARCH/MENU/DROPDOWN/cell index);
  *                       UP/DOWN/LEFT/RIGHT/SPACE per region; scroll-into-view logic
- *   Group 3 �?set model: objectType dispatch (VSSelectionList vs VSSelectionTree);
+ *   Group 3 �?set model: objectType dispatch (VSSelectionList vs VSSelectionTree);
  *                        expandAll/scriptApplied path; controller creation vs reuse
- *   Group 4 �?disPlayZIndex: viewer+dropdown+maxMode+pop combinations
- *   Group 5 �?topPosition: viewer non-dropdown, viewer dropdown atBottom,
+ *   Group 4 �?disPlayZIndex: viewer+dropdown+maxMode+pop combinations
+ *   Group 5 �?topPosition: viewer non-dropdown, viewer dropdown atBottom,
  *                          viewer dropdown inBottomTab (collapsed/expanded/with-search),
  *                          composer dropdown inBottomTab (collapsed-search/no-search)
- *   Group 6 �?calcCellWidth: numCols clamping logic
- *   Group 7 �?getBodyHeight: container vs dropdown vs normal mode
- *   Group 8 �?getTitleWidth: border margin math
- *   Group 9 �?updateListSelectedString: state bitmask 1/9/10 filtering
- *   Group 10 �?getIdentifier: parentNode chain concatenation
- *   Group 11 �?selectAll: force/included/compatible filtering, composite recursion
- *   Group 12 �?trackByIdx: stable virtual-scroll tracking keys (pure-function, no rendering)
- *   Group 13 �?setQuickSwitchHover: overlay button positioning math (direct instantiation)
+ *   Group 6 �?calcCellWidth: numCols clamping logic
+ *   Group 7 �?getBodyHeight: container vs dropdown vs normal mode
+ *   Group 8 �?getTitleWidth: border margin math
+ *   Group 9 �?updateListSelectedString: state bitmask 1/9/10 filtering
+ *   Group 10 �?getIdentifier: parentNode chain concatenation
+ *   Group 11 �?selectAll: force/included/compatible filtering, composite recursion
+ *   Group 12 �?trackByIdx: stable virtual-scroll tracking keys (pure-function, no rendering)
+ *   Group 13 �?setQuickSwitchHover: overlay button positioning math (direct instantiation)
  */
 
 import { Subject } from "rxjs";
@@ -46,7 +46,6 @@ import { Subject } from "rxjs";
 import { NavigationKeys } from "../navigation-keys";
 import {
    createMockController,
-   createMockGlobalSubmitService,
    makeEmptySelectionList,
    makeMockListModel,
    makeMockSelectionValues,
@@ -65,8 +64,8 @@ async function renderComponent(overrides: any = {}) {
    return createSelectionComponent(overrides);
 }
 
-describe("VSSelection �?Pass 3: Display", () => {
-   describe("Group 1 �?updateSelectionState", () => {
+describe("VSSelection �?Pass 3: Display", () => {
+   describe("Group 1 �?updateSelectionState", () => {
       it("should keep selected state when toggle is true and cell is not selected", async () => {
          const { comp } = await renderComponent();
          comp.model.singleSelection = true;
@@ -164,7 +163,7 @@ describe("VSSelection �?Pass 3: Display", () => {
 
    // Group 2: lastCellSelectedIndex is a private field; injecting it directly lets us test
    // navigate() transitions without simulating a full keyboard interaction chain.
-   describe("Group 2 �?navigate", () => {
+   describe("Group 2 �?navigate", () => {
       it("should move from SEARCH_BAR to CLEAR_SEARCH on RIGHT", async () => {
          const { comp } = await renderComponent();
          comp["lastCellSelectedIndex"] = -4;
@@ -282,7 +281,7 @@ describe("VSSelection �?Pass 3: Display", () => {
 
    // Group 3: scriptApplied is a private field that gates the expandAll-on-model-set path;
    // reading/writing it directly is the only way to test the guard without a prior-model lifecycle.
-   describe("Group 3 �?set model dispatch", () => {
+   describe("Group 3 �?set model dispatch", () => {
       it("should create SelectionListController for VSSelectionList", async () => {
          const { comp } = await renderComponent();
          const listModel = makeMockListModel();
@@ -341,7 +340,7 @@ describe("VSSelection �?Pass 3: Display", () => {
       });
    });
 
-   describe("Group 4 �?disPlayZIndex", () => {
+   describe("Group 4 �?disPlayZIndex", () => {
       it("should return null when not in viewer", async () => {
          const context = { viewer: false, preview: false };
          const { comp } = await renderComponent({ context });
@@ -377,7 +376,7 @@ describe("VSSelection �?Pass 3: Display", () => {
       });
    });
 
-   describe("Group 5 �?topPosition", () => {
+   describe("Group 5 �?topPosition", () => {
       it("should return objectFormat.top for viewer non-dropdown", async () => {
          const { comp } = await renderComponent();
          const listModel = makeMockListModel();
@@ -419,7 +418,7 @@ describe("VSSelection �?Pass 3: Display", () => {
       });
    });
 
-   describe("Group 6 �?calcCellWidth", () => {
+   describe("Group 6 �?calcCellWidth", () => {
       it("should calculate cell width based on body width and numCols", async () => {
          const { comp } = await renderComponent();
          const listModel = makeMockListModel();
@@ -461,7 +460,7 @@ describe("VSSelection �?Pass 3: Display", () => {
       });
    });
 
-   describe("Group 7 �?getBodyHeight", () => {
+   describe("Group 7 �?getBodyHeight", () => {
       it("should calculate body height for container mode", async () => {
          const { comp } = await renderComponent();
          const listModel = makeMockListModel();
@@ -500,7 +499,7 @@ describe("VSSelection �?Pass 3: Display", () => {
       });
    });
 
-   describe("Group 8 �?getTitleWidth", () => {
+   describe("Group 8 �?getTitleWidth", () => {
       it("should return title width without margins", async () => {
          const { comp } = await renderComponent();
          const listModel = makeMockListModel();
@@ -525,7 +524,7 @@ describe("VSSelection �?Pass 3: Display", () => {
       });
    });
 
-   describe("Group 9 �?updateListSelectedString", () => {
+   describe("Group 9 �?updateListSelectedString", () => {
       it("should include values with state 1", async () => {
          const { comp } = await renderComponent();
          setSelectionValuesForTest(comp, [
@@ -584,7 +583,7 @@ describe("VSSelection �?Pass 3: Display", () => {
       });
    });
 
-   describe("Group 10 �?getIdentifier", () => {
+   describe("Group 10 �?getIdentifier", () => {
       it("should return value for leaf node", async () => {
          const { comp } = await renderComponent();
          const value = { value: "leaf", parentNode: null };
@@ -606,7 +605,7 @@ describe("VSSelection �?Pass 3: Display", () => {
       });
    });
 
-   describe("Group 11 �?selectAll", () => {
+   describe("Group 11 �?selectAll", () => {
       it("should select included values", async () => {
          const { comp } = await renderComponent();
          const controller = createMockController(comp.model);
@@ -679,11 +678,11 @@ describe("VSSelection �?Pass 3: Display", () => {
    });
 
    // ─────────────────────────────────────────────────────────────────────────
-   // Group 12 �?trackByIdx: stable virtual-scroll tracking keys
+   // Group 12 �?trackByIdx: stable virtual-scroll tracking keys
    // Pure-function tests; no rendering required.
    // Ported from vs-selection.component.spec.ts (trackByIdx describe block).
    // ─────────────────────────────────────────────────────────────────────────
-   describe("Group 12 �?trackByIdx: stable virtual-scroll tracking keys", () => {
+   describe("Group 12 �?trackByIdx: stable virtual-scroll tracking keys", () => {
       const trackByIdx = VSSelection.prototype.trackByIdx.bind({});
 
       it("should return a stable value key for a SelectionValueModel item", () => {
@@ -742,12 +741,12 @@ describe("VSSelection �?Pass 3: Display", () => {
    });
 
    // ─────────────────────────────────────────────────────────────────────────
-   // Group 13 �?setQuickSwitchHover: overlay button positioning math
+   // Group 13 �?setQuickSwitchHover: overlay button positioning math
    // Direct-instantiation tests; no rendering required.
    // Ported from the "quick-switch overlay positioner" describe block in
    // vs-selection.spec.ts, which mocked Renderer2 to capture setStyle calls.
    // ─────────────────────────────────────────────────────────────────────────
-   describe("Group 13 �?setQuickSwitchHover: overlay button positioning math", () => {
+   describe("Group 13 �?setQuickSwitchHover: overlay button positioning math", () => {
       function makeRect(left: number, top: number, width: number, height: number): DOMRect {
          return {
             left, top, width, height,
@@ -770,7 +769,7 @@ describe("VSSelection �?Pass 3: Display", () => {
          };
       }
 
-      function createQsTest(opts: { scale?: number; showScroll?: boolean; listRect?: DOMRect } = {}) {
+      async function createQsTest(opts: { scale?: number; showScroll?: boolean; listRect?: DOMRect } = {}) {
          const { scale = 1, showScroll = false, listRect = makeRect(0, 0, 200, 300) } = opts;
          const setStyleCalls: Array<{ el: any; prop: string; value: string }> = [];
 
@@ -793,26 +792,8 @@ describe("VSSelection �?Pass 3: Display", () => {
          const elementRef: any = {
             nativeElement: { querySelector: (sel: string) => sel === ".selection-list" ? listEl : null },
          };
-         const zone: any = { run: (fn: any) => fn(), runOutsideAngular: (fn: any) => fn() };
-         const scaleService: any = { getScale: () => new Subject<number>().asObservable() };
 
-         const comp = new VSSelection(
-            { sendEvent: vi.fn(), commands: new Subject<any>().asObservable() } as any,
-            {} as any,
-            renderer,
-            { showFilter: vi.fn() } as any,
-            elementRef,
-            { detectChanges: vi.fn() } as any,
-            zone,
-            scaleService,
-            {} as any,
-            { isDataTip: vi.fn() } as any,
-            { open: vi.fn() } as any,
-            createMockGlobalSubmitService() as any,
-            { isCurrentPopComponent: vi.fn() } as any,
-            {} as any,
-            null as any,
-         );
+         const { comp } = await createSelectionComponent({ renderer, elementRef });
 
          (comp as any).quickSwitchOverlay = { nativeElement: btnEl };
          (comp as any).quickSwitchOverlayIcon = { nativeElement: {} };
@@ -827,8 +808,8 @@ describe("VSSelection �?Pass 3: Display", () => {
          return { comp, setStyleCalls, listEl, btnEl, lastStyle };
       }
 
-      it("with measure content: anchors button at labelEl.right (column-agnostic)", () => {
-         const { comp, listEl, btnEl, lastStyle } = createQsTest();
+      it("with measure content: anchors button at labelEl.right (column-agnostic)", async () => {
+         const { comp, listEl, btnEl, lastStyle } = await createQsTest();
          const cell = makeCell(makeRect(0, 0, 100, 30), true, makeRect(0, 0, 70, 30));
          comp.setQuickSwitchHover(cell, false, () => {});
 
@@ -838,8 +819,8 @@ describe("VSSelection �?Pass 3: Display", () => {
          expect(lastStyle(listEl, "width")).toBe("200px");
       });
 
-      it("non-last column without measure: anchors button at right edge of hovered cell", () => {
-         const { comp, btnEl, lastStyle } = createQsTest();
+      it("non-last column without measure: anchors button at right edge of hovered cell", async () => {
+         const { comp, btnEl, lastStyle } = await createQsTest();
          const cell = makeCell(makeRect(0, 0, 100, 30), false);
          comp.setQuickSwitchHover(cell, false, () => {});
 
@@ -848,8 +829,8 @@ describe("VSSelection �?Pass 3: Display", () => {
          expect(lastStyle(btnEl, "right")).toBe("auto");
       });
 
-      it("last/single column without measure, with scrollbar: clamps to listRight - scrollbar - btn", () => {
-         const { comp, btnEl, lastStyle } = createQsTest({ showScroll: true });
+      it("last/single column without measure, with scrollbar: clamps to listRight - scrollbar - btn", async () => {
+         const { comp, btnEl, lastStyle } = await createQsTest({ showScroll: true });
          const cell = makeCell(makeRect(0, 0, 200, 30), false);
          comp.setQuickSwitchHover(cell, false, () => {});
 
@@ -857,17 +838,17 @@ describe("VSSelection �?Pass 3: Display", () => {
          expect(lastStyle(btnEl, "left")).toBe("160px");
       });
 
-      it("clamps button left to 0 when cell is narrower than the button", () => {
-         const { comp, btnEl, lastStyle } = createQsTest();
+      it("clamps button left to 0 when cell is narrower than the button", async () => {
+         const { comp, btnEl, lastStyle } = await createQsTest();
          const cell = makeCell(makeRect(0, 0, 10, 30), false);
          comp.setQuickSwitchHover(cell, false, () => {});
 
-         // cellRight(10) - btn(24) = -14 �?clamped to 0 by Math.max(0, ...)
+         // cellRight(10) - btn(24) = -14 �?clamped to 0 by Math.max(0, ...)
          expect(lastStyle(btnEl, "left")).toBe("0px");
       });
 
-      it("does not expand body width or apply margin-left to adjacent columns", () => {
-         const { comp, listEl, btnEl, setStyleCalls } = createQsTest();
+      it("does not expand body width or apply margin-left to adjacent columns", async () => {
+         const { comp, listEl, btnEl, setStyleCalls } = await createQsTest();
          const cell = makeCell(makeRect(0, 0, 100, 30), false);
          comp.setQuickSwitchHover(cell, false, () => {});
 
@@ -877,24 +858,24 @@ describe("VSSelection �?Pass 3: Display", () => {
          expect(setStyleCalls.find(c => c.prop === "width" && c.el !== listEl)).toBeUndefined();
       });
 
-      it("converts viewport coordinates to CSS px when scale != 1", () => {
-         const { comp, listEl, btnEl, lastStyle } = createQsTest({
+      it("converts viewport coordinates to CSS px when scale != 1", async () => {
+         const { comp, listEl, btnEl, lastStyle } = await createQsTest({
             scale: 2,
             listRect: makeRect(100, 0, 400, 600),
          });
-         // Cell at viewport (100,0) 200×60 px �?list-relative (0,0) 100×30 CSS px (non-last column).
+         // Cell at viewport (100,0) 200×60 px �?list-relative (0,0) 100×30 CSS px (non-last column).
          const cell = makeCell(makeRect(100, 0, 200, 60), false);
          comp.setQuickSwitchHover(cell, false, () => {});
 
-         // (cellRight 300 - listLeft 100) / scale 2 = 100 CSS px �?100 - btn(24) = 76;
+         // (cellRight 300 - listLeft 100) / scale 2 = 100 CSS px �?100 - btn(24) = 76;
          // listWidth 400/2=200 - 0 - btn(24) = 176; min = 76.
          expect(lastStyle(btnEl, "left")).toBe("76px");
          expect(lastStyle(listEl, "width")).toBe("200px");
       });
 
-      it("falls back to cell-rect math when measure content has no labelEl (defensive)", () => {
-         const { comp, btnEl, lastStyle } = createQsTest();
-         // hasMeasure=true but no labelRect �?falls to else branch
+      it("falls back to cell-rect math when measure content has no labelEl (defensive)", async () => {
+         const { comp, btnEl, lastStyle } = await createQsTest();
+         // hasMeasure=true but no labelRect �?falls to else branch
          const cell = makeCell(makeRect(0, 0, 100, 30), true /* hasMeasure, no labelRect */);
          comp.setQuickSwitchHover(cell, false, () => {});
 
@@ -902,8 +883,8 @@ describe("VSSelection �?Pass 3: Display", () => {
          expect(lastStyle(btnEl, "left")).toBe("76px");
       });
 
-      it("returns early without writing position styles when the list element is missing", () => {
-         const { comp, btnEl, listEl, lastStyle } = createQsTest();
+      it("returns early without writing position styles when the list element is missing", async () => {
+         const { comp, btnEl, listEl, lastStyle } = await createQsTest();
          (comp as any).elementRef = { nativeElement: { querySelector: () => null } };
          const cell = makeCell(makeRect(0, 0, 100, 30), false);
          comp.setQuickSwitchHover(cell, false, () => {});

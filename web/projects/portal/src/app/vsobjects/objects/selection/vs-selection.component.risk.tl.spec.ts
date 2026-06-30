@@ -17,17 +17,17 @@
  */
 
 /**
- * VSSelection â€?Pass 2: Risk (asyncZones=9)
+ * VSSelection ï¿½?Pass 2: Risk (asyncZones=9)
  *
  * Risk-first coverage:
- *   Group 1 â€?onSearchKeyUp: 500ms debounce race conditions; searchTimer cleared on rapid keypresses;
+ *   Group 1 ï¿½?onSearchKeyUp: 500ms debounce race conditions; searchTimer cleared on rapid keypresses;
  *                             searchPending flag prevents model refresh mid-search
- *   Group 2 â€?constructor subscriptions: scaleService.getScale and selectionMobileService.maxSelectionChanged
- *   Group 3 â€?ngOnInit subscriptions: globalSubmitService.globalSubmit and updateSelections
- *   Group 4 â€?set controller: unappliedSubject + updateViewSubject subscription replacement without leak
- *   Group 5 â€?set actions: actionSubscription replaced without leak
- *   Group 6 â€?onShow: mouseUpListener registration and cleanup on outside click
- *   Group 7 â€?ngOnDestroy: full teardown of all subscriptions, renderer listeners, overlay cleanup
+ *   Group 2 ï¿½?constructor subscriptions: scaleService.getScale and selectionMobileService.maxSelectionChanged
+ *   Group 3 ï¿½?ngOnInit subscriptions: globalSubmitService.globalSubmit and updateSelections
+ *   Group 4 ï¿½?set controller: unappliedSubject + updateViewSubject subscription replacement without leak
+ *   Group 5 ï¿½?set actions: actionSubscription replaced without leak
+ *   Group 6 ï¿½?onShow: mouseUpListener registration and cleanup on outside click
+ *   Group 7 ï¿½?ngOnDestroy: full teardown of all subscriptions, renderer listeners, overlay cleanup
  */
 
 import { Subject } from "rxjs";
@@ -60,8 +60,8 @@ async function renderComponent(overrides: any = {}) {
    return createSelectionComponent(overrides);
 }
 
-describe("VSSelection â€?Pass 2: Risk", () => {
-   describe("Group 1 â€?onSearchKeyUp() debounce race", () => {
+describe("VSSelection ï¿½?Pass 2: Risk", () => {
+   describe("Group 1 ï¿½?onSearchKeyUp() debounce race", () => {
       it("should debounce search by 500ms", async () => {
          const { comp } = await renderComponent();
          const controller = createMockController();
@@ -118,7 +118,7 @@ describe("VSSelection â€?Pass 2: Risk", () => {
       });
    });
 
-   describe("Group 2 â€?constructor subscriptions", () => {
+   describe("Group 2 ï¿½?constructor subscriptions", () => {
       it("should subscribe to scaleService.getScale", async () => {
          const scaleSubject = new Subject<number>();
          const scaleService = { getScale: vi.fn(() => scaleSubject.asObservable()) };
@@ -175,7 +175,7 @@ describe("VSSelection â€?Pass 2: Risk", () => {
       });
    });
 
-   describe("Group 3 â€?ngOnInit subscriptions", () => {
+   describe("Group 3 ï¿½?ngOnInit subscriptions", () => {
       it("should unsubscribe from globalSubmit when destroyed", async () => {
          const globalSubmitSubject = new Subject<string>();
          const globalSubmitService = {
@@ -221,21 +221,27 @@ describe("VSSelection â€?Pass 2: Risk", () => {
       });
    });
 
-   describe("Group 4 â€?set controller subscription replacement", () => {
+   describe("Group 4 ï¿½?set controller subscription replacement", () => {
       it("should replace unApplySubscription without leaking", async () => {
-         const { comp } = await renderComponent();
+         const globalSubmitService = {
+            globalSubmit: vi.fn(() => new Subject<string>().asObservable()),
+            updateSelections: vi.fn(() => new Subject<Map<string, any[]>>().asObservable()),
+            updateState: vi.fn(),
+         };
+         const { comp } = await renderComponent({ globalSubmitService });
          const firstController = createMockController();
          const secondController = createMockController();
 
-         injectController(comp, firstController);
-         const firstUnappliedSpy = vi.spyOn(firstController.unappliedSubject, "next");
-
-         injectController(comp, secondController);
+         assignController(comp, firstController);
+         assignController(comp, secondController);
 
          firstController.unappliedSubject.next(true);
-         secondController.unappliedSubject.next(true);
+         expect(globalSubmitService.updateState).not.toHaveBeenCalled();
 
-         expect(firstUnappliedSpy).toHaveBeenCalled();
+         secondController.unappliedSubject.next(true);
+         expect(globalSubmitService.updateState).toHaveBeenCalledWith(
+            comp.model.absoluteName, true,
+         );
       });
 
       it("should replace updateViewSubscription without leaking", async () => {
@@ -257,7 +263,7 @@ describe("VSSelection â€?Pass 2: Risk", () => {
       });
    });
 
-   describe("Group 5 â€?set actions subscription replacement", () => {
+   describe("Group 5 ï¿½?set actions subscription replacement", () => {
       it("should replace actionSubscription without leaking", async () => {
          const { comp } = await renderComponent();
          const firstOnAssemblyActionEvent = new Subject<any>();
@@ -282,7 +288,7 @@ describe("VSSelection â€?Pass 2: Risk", () => {
 
    // Group 6: renderer and elementRef are private dependencies; overriding them via
    // (comp as any) lets us inject a capturing renderer without a full DI-wired fixture.
-   describe("Group 6 â€?onShow mouseUpListener", () => {
+   describe("Group 6 ï¿½?onShow mouseUpListener", () => {
       it("should register mouseUpListener when onShow is called outside container", async () => {
          const renderer = createCapturingRenderer(false);
          const { comp, elementRef } = await renderComponent();
@@ -352,7 +358,7 @@ describe("VSSelection â€?Pass 2: Risk", () => {
 
    // Group 7: _overlayMouseLeaveUnlisten and _overlayWheelUnlisten are private cleanup fns;
    // pre-seeding them verifies ngOnDestroy calls each one without going through onShow.
-   describe("Group 7 â€?ngOnDestroy full teardown", () => {
+   describe("Group 7 ï¿½?ngOnDestroy full teardown", () => {
       it("should cleanup overlay mouseLeave listener", async () => {
          const cleanupFn = vi.fn();
          const { comp } = await renderComponent();

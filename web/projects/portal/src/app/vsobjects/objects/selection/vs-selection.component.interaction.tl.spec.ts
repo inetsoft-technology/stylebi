@@ -17,19 +17,19 @@
  */
 
 /**
- * VSSelection â€?Pass 1: Interaction
+ * VSSelection ï¿½?Pass 1: Interaction
  *
  * Risk-first coverage:
- *   Group 1 â€?ngOnInit: globalSubmitService subscriptions for globalSubmit and updateSelections
- *   Group 2 â€?ngOnDestroy: subscription cleanup for actionSubscription, adhocFilterListener,
+ *   Group 1 ï¿½?ngOnInit: globalSubmitService subscriptions for globalSubmit and updateSelections
+ *   Group 2 ï¿½?ngOnDestroy: subscription cleanup for actionSubscription, adhocFilterListener,
  *                           subscriptions, unApplySubscription, overlay listeners
- *   Group 3 â€?set controller: subscription wiring for unappliedSubject and updateViewSubject
- *   Group 4 â€?set actions: all event.id dispatch cases (unselect/hide/show/reverse/sort/search/
+ *   Group 3 ï¿½?set controller: subscription wiring for unappliedSubject and updateViewSubject
+ *   Group 4 ï¿½?set actions: all event.id dispatch cases (unselect/hide/show/reverse/sort/search/
  *                          max-mode/apply/remove-child/select-subtree/clear-subtree/select-all/
  *                          menu-actions/format-pane/more-actions)
- *   Group 5 â€?toggleMaxMode: sends MaxObjectEvent and emits maxModeChange
- *   Group 6 â€?onSelectAll / onUnselect / onReverse: selection management flows
- *   Group 7 â€?processExpandTreeNodesCommand: script-triggered tree expansion
+ *   Group 5 ï¿½?toggleMaxMode: sends MaxObjectEvent and emits maxModeChange
+ *   Group 6 ï¿½?onSelectAll / onUnselect / onReverse: selection management flows
+ *   Group 7 ï¿½?processExpandTreeNodesCommand: script-triggered tree expansion
  */
 
 import { Subject } from "rxjs";
@@ -55,8 +55,8 @@ async function renderComponent(overrides: any = {}) {
    return createSelectionComponent(overrides);
 }
 
-describe("VSSelection â€?Pass 1: Interaction", () => {
-   describe("Group 1 â€?ngOnInit()", () => {
+describe("VSSelection ï¿½?Pass 1: Interaction", () => {
+   describe("Group 1 ï¿½?ngOnInit()", () => {
       it("should subscribe to globalSubmitService.globalSubmit", async () => {
          const { comp, globalSubmitService } = await renderComponent();
          comp.ngOnInit();
@@ -116,7 +116,7 @@ describe("VSSelection â€?Pass 1: Interaction", () => {
 
    // Group 2: private subscription/listener fields are seeded directly because ngOnDestroy
    // must clean them up; going through full subscription setup would obscure the signal.
-   describe("Group 2 â€?ngOnDestroy()", () => {
+   describe("Group 2 ï¿½?ngOnDestroy()", () => {
       it("should unsubscribe from actionSubscription", async () => {
          const { comp } = await renderComponent();
          const actionSubscription = { unsubscribe: vi.fn() };
@@ -152,7 +152,7 @@ describe("VSSelection â€?Pass 1: Interaction", () => {
 
    // Group 3: private previous-subscription fields are seeded to verify the controller setter
    // unsubscribes the old subscription before wiring the new one.
-   describe("Group 3 â€?set controller", () => {
+   describe("Group 3 ï¿½?set controller", () => {
       it("should unsubscribe from previous unApplySubscription when controller changes", async () => {
          const { comp } = await renderComponent();
          const prevUnApplySubscription = { unsubscribe: vi.fn() };
@@ -189,7 +189,7 @@ describe("VSSelection â€?Pass 1: Interaction", () => {
       });
    });
 
-   describe("Group 4 â€?set actions", () => {
+   describe("Group 4 ï¿½?set actions", () => {
       it("should unsubscribe from previous actionSubscription when actions changes", async () => {
          const { comp } = await renderComponent();
          const prevActionSubscription = { unsubscribe: vi.fn() };
@@ -207,17 +207,6 @@ describe("VSSelection â€?Pass 1: Interaction", () => {
 
          actions.onAssemblyActionEvent.next({ id: "selection-list unselect" });
          expect(comp.controller.clearSelections).toHaveBeenCalled();
-      });
-
-      it("should handle selection-list unselect action", async () => {
-         const { comp } = await renderComponent();
-         const controller = createMockController(makeMockListModel());
-         injectController(comp, controller);
-         const actions = createMockActions();
-         comp.actions = actions as any;
-
-         actions.onAssemblyActionEvent.next({ id: "selection-list unselect" });
-         expect(controller.clearSelections).toHaveBeenCalled();
       });
 
       it("should handle selection-list hide action", async () => {
@@ -368,7 +357,7 @@ describe("VSSelection â€?Pass 1: Interaction", () => {
       });
    });
 
-   describe("Group 5 â€?toggleMaxMode()", () => {
+   describe("Group 5 ï¿½?toggleMaxMode()", () => {
       it("should send MaxObjectEvent via viewsheetClient", async () => {
          const viewsheetClient = { sendEvent: vi.fn(), commands: new Subject<any>().asObservable() };
          const { comp } = await renderComponent({ viewsheetClient });
@@ -399,7 +388,7 @@ describe("VSSelection â€?Pass 1: Interaction", () => {
       });
    });
 
-   describe("Group 6 â€?selection management", () => {
+   describe("Group 6 ï¿½?selection management", () => {
       it("should call controller.applySelections when onSelectAll is called", async () => {
          const { comp } = await renderComponent();
          const controller = createMockController(makeMockListModel());
@@ -434,7 +423,7 @@ describe("VSSelection â€?Pass 1: Interaction", () => {
       });
    });
 
-   describe("Group 7 â€?processExpandTreeNodesCommand", () => {
+   describe("Group 7 ï¿½?processExpandTreeNodesCommand", () => {
       it("should expand all nodes when scriptChanged and expand are true", async () => {
          const { comp } = await renderComponent();
          const treeModel = makeMockTreeModel();
