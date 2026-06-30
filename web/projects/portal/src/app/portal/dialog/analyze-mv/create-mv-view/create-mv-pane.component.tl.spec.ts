@@ -42,7 +42,7 @@ import { NameLabelTuple } from "../../../../../../../shared/util/name-label-tupl
 import { SortColumnDirective } from "../../../../widget/directive/sort-column.directive";
 import { CreateMVPane } from "./create-mv-pane.component";
 
-@Component({ selector: "[sortColumn]", standalone: true, template: "" })
+@Component({ selector: "sort-column-stub", standalone: true, template: "" })
 class SortColumnStub {
    @Input() data: any[];
    @Input() sortKey: any;
