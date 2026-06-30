@@ -515,12 +515,13 @@ describe("VSSelection �?Pass 3: Display", () => {
          const { comp } = await renderComponent();
          const listModel = makeMockListModel();
          listModel.titleFormat.width = 150;
-         listModel.titleFormat.border = { top: "1px", left: "2px", right: "2px", bottom: "1px" };
-         listModel.objectFormat.border = { top: "1px", left: "2px", right: "2px", bottom: "1px" };
+         listModel.titleFormat.border = { top: "0px", left: "0px", right: "0px", bottom: "0px" };
+         listModel.objectFormat.border = { top: "1px", left: "4px", right: "6px", bottom: "1px" };
          comp.model = listModel;
 
+         // formula: 150 - 4 - 6 + 0 + 0 = 140
          const width = comp.getTitleWidth();
-         expect(width).toBe(150);
+         expect(width).toBe(140);
       });
    });
 
