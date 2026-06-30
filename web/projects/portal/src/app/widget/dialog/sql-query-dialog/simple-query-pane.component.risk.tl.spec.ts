@@ -24,9 +24,10 @@
  *   Group 2 [Risk 3] - droppedIntoColumnList/getTableColumns observable completion contract
  *   Group 3 [Risk 3] - updateQueryTab HTTP success, validation error, and network error branches
  *
- * Suspected bugs (header only):
+ * Confirmed bugs (it.fails):
  *   Suspicion A - droppedIntoColumnList stores a whole table pair once for each non-duplicate
- *      column, so tables with multiple remaining columns can be duplicated before addColumns().
+ *      column, so addColumns() receives duplicate pairs for multi-column tables (final
+ *      model.columns can still look correct because addColumns reorder logic masks it).
  *
  * Out of scope this pass: pure label and branch-matrix helpers.
  */
@@ -116,6 +117,27 @@ describe("SimpleQueryPaneComponent - dropped column async flow [Group 2, Risk 3]
 
       expect(emitted).toEqual(["Orders", "Customers"]);
       expect(Object.keys(comp.columnCache)).toEqual(["Orders", "Customers"]);
+   });
+
+   // Bug: tableColumns.push(tablePair) runs inside tablePair.columns.forEach, so a table with
+   // multiple non-duplicate columns is queued once per column. addColumns() then receives
+   // duplicate pairs (model.columns may still look correct due to reorder logic in addColumns).
+   it.fails("should pass each table column once to addColumns when dropping a whole table with multiple columns", () => {
+      const table = makeTableEntry("Orders");
+      const { comp, controller } = createSimpleQueryPane({
+         model: makeBasicModel({ columns: [] })
+      });
+      controller.getTableColumns.mockReturnValue(of([
+         makeColumnEntry("Orders", "state"),
+         makeColumnEntry("Orders", "id")
+      ]));
+      const addColumnsSpy = vi.spyOn(comp, "addColumns");
+
+      comp.droppedIntoColumnList([{
+         [AssetType[AssetType.PHYSICAL_TABLE]]: JSON.stringify([table])
+      }, 0]);
+
+      expect(addColumnsSpy.mock.calls[0][0]).toHaveLength(2);
    });
 });
 
