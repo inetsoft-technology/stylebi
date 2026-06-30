@@ -184,6 +184,7 @@ class SignupControllerTest {
       @Test
       void missingSessionEmail_redirectsToSignupPage() {
          when(request.getSession(false)).thenReturn(session);
+         when(session.getAttribute("SIGNUP_EMAIL_CODE")).thenReturn(null);
          when(session.getAttribute("SIGNUP_USER_EMAIL")).thenReturn(null);
 
          SignupResponseModel result = signupController.submitSignupDetail(
@@ -194,7 +195,7 @@ class SignupControllerTest {
 
       @Test
       void invalidUserName_returnsFailure() {
-         stubValidSession();
+         stubSessionWithEmail();
          when(userSignupService.validUserName(SIGNUP_EMAIL)).thenReturn(false);
 
          SignupResponseModel result = signupController.submitSignupDetail(
@@ -206,7 +207,7 @@ class SignupControllerTest {
 
       @Test
       void invalidPassword_returnsFailure() {
-         stubValidSession();
+         stubSessionWithEmail();
          when(userSignupService.validUserName(SIGNUP_EMAIL)).thenReturn(true);
          when(userSignupService.validPassword(VALID_PASSWORD)).thenReturn(false);
 
@@ -280,10 +281,14 @@ class SignupControllerTest {
          verify(session).removeAttribute("SIGNUP_EMAIL_CODE");
       }
 
-      private void stubValidSession() {
+      private void stubSessionWithEmail() {
          when(request.getSession(false)).thenReturn(session);
          when(session.getAttribute("SIGNUP_USER_EMAIL")).thenReturn(SIGNUP_EMAIL);
          when(session.getAttribute("SIGNUP_EMAIL_CODE")).thenReturn(VALID_CODE);
+      }
+
+      private void stubValidSession() {
+         stubSessionWithEmail();
          when(session.getAttribute("SIGNUP_EMAIL_CODE_TIME")).thenReturn(System.currentTimeMillis());
       }
 

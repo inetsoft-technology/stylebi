@@ -277,6 +277,10 @@ public class VirtualAuthenticationProvider
     */
    @Override
    public void addUser(User user) {
+      if(user == null) {
+         return;
+      }
+
       if(user.getName().equals("admin")) {
          admin = (FSUser) user;
          save();

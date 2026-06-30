@@ -40,4 +40,20 @@ class PermissionIdentityTest {
 
       assertFalse(left.equalsIgnoreCase(right));
    }
+
+   @Test
+   void equalsIgnoreCase_bothNonNullOrganizationIds_sameOrg_matches() {
+      Permission.PermissionIdentity left = new Permission.PermissionIdentity("alice", "org-a");
+      Permission.PermissionIdentity right = new Permission.PermissionIdentity("ALICE", "ORG-A");
+
+      assertTrue(left.equalsIgnoreCase(right));
+   }
+
+   @Test
+   void equalsIgnoreCase_bothNonNullOrganizationIds_differentOrg_noMatch() {
+      Permission.PermissionIdentity left = new Permission.PermissionIdentity("alice", "org-a");
+      Permission.PermissionIdentity right = new Permission.PermissionIdentity("ALICE", "org-b");
+
+      assertFalse(left.equalsIgnoreCase(right));
+   }
 }

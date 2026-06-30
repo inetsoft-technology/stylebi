@@ -150,7 +150,7 @@ class UserSignupServiceTest {
       static Stream<Arguments> invalidUserNameCases() {
          return Stream.of(
             Arguments.of(""),
-            // disallowed special character
+            // '!' is in the excluded set; '@' is permitted (emails are valid usernames)
             Arguments.of("user@name!"),
             // length must be strictly less than 39
             Arguments.of("a".repeat(39))
