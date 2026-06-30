@@ -279,6 +279,15 @@ public class VisualObjectArea extends InteractiveArea implements MenuArea {
 
          return regions.toArray(new Region[regions.size()]);
       }
+      else if(isFunnelShaped()) {
+         // Funnel bars are trapezoids (BarVO.dodge reshapes them). Keep the
+         // actual polygon outline instead of collapsing to a bounding box so
+         // the selection highlight matches the rendered shape (Bug #75530).
+         Shape tshape = trans.createTransformedShape(shape);
+         tshape = AffineTransform.getTranslateInstance(-p.getX(), -p.getY())
+            .createTransformedShape(tshape);
+         region = new AreaRegion(tshape);
+      }
       else {
          boolean isLine = shape instanceof Line2D;
          Rectangle2D.Double rect =
@@ -321,6 +330,25 @@ public class VisualObjectArea extends InteractiveArea implements MenuArea {
       }
 
       return new Region[] {region};
+   }
+
+   /**
+    * Check if the visual object is a funnel bar, which is reshaped into a
+    * trapezoid by BarVO.dodge(). The MOVE_MIDDLE collision modifier is the
+    * same condition used there to perform the reshaping.
+    */
+   private boolean isFunnelShaped() {
+      if(vobj instanceof ElementVO) {
+         Geometry geo = ((ElementVO) vobj).getGeometry();
+
+         if(geo instanceof ElementGeometry) {
+            GraphElement elem = ((ElementGeometry) geo).getElement();
+            return elem != null &&
+               (elem.getCollisionModifier() & GraphElement.MOVE_MIDDLE) != 0;
+         }
+      }
+
+      return false;
    }
 
    /**
