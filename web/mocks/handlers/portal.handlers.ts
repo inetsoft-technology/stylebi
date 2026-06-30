@@ -772,6 +772,53 @@ export const portalHandlers = [
       return HttpResponse.json({ nodes: [], timeOut: false });
    }),
 
+   // DatabaseVPMBrowserComponent.refreshModels() — list VPMs for a database
+   http.get("*/api/data/vpm/browse/*", () => {
+      return HttpResponse.json({
+         editable: true,
+         deletable: true,
+         items: [
+            {
+               type: "VPM",
+               id: "SalesDB/VPM1",
+               path: "SalesDB/VPM1",
+               urlPath: "SalesDB/VPM1",
+               name: "VPM1",
+               createdBy: "admin",
+               description: "Test VPM",
+               createdDate: 1700000000000,
+               editable: true,
+               deletable: true,
+               createdDateLabel: "2024-01-01",
+               databaseName: "SalesDB",
+            },
+         ],
+         names: ["VPM1"],
+         dateFormat: "yyyy-MM-dd",
+      });
+   }),
+
+   // DatabaseVPMBrowserComponent.search() — search VPMs by query
+   http.post("*/api/data/vpm/search", () => {
+      return HttpResponse.json({
+         editable: true,
+         deletable: true,
+         items: [],
+         names: [],
+         dateFormat: "yyyy-MM-dd",
+      });
+   }),
+
+   // DatabaseVPMBrowserComponent.renameModel() — rename a VPM
+   http.put("*/api/data/vpm/rename", () => {
+      return HttpResponse.json({});
+   }),
+
+   // DatabaseVPMBrowserComponent.deleteModel() — remove one or more VPMs
+   http.post("*/api/data/vpm/remove", () => {
+      return HttpResponse.json({});
+   }),
+
    // AutoDrillDialog — viewsheet variable names for a given asset link
    http.get("*/api/data/logicalModel/vs/autoDrill-parameters", () => {
       return HttpResponse.json([]);

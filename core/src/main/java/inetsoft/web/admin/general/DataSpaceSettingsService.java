@@ -102,12 +102,9 @@ public class DataSpaceSettingsService extends BackupSupport {
          // For the same backup, use the same timestamp
          String stamp = createBackupTimestamp();
          file = this.fileSystemService.getCacheTempFile("backup", ".zip");
-         boolean mapdbStorage = "mapdb".equals(InetsoftConfig.getInstance().getKeyValue().getType());
 
          try(OutputStream output = new FileOutputStream(file)) {
-            StorageTransfer storageTransfer = mapdbStorage ? new ClusterStorageTransfer() :
-               new DirectStorageTransfer(this.keyValueEngine, this.blobEngine);
-            storageTransfer.exportContents(output);
+            StorageTransfer.create(this.keyValueEngine, this.blobEngine).exportContents(output);
          }
 
          String path = getBackFile(model != null ? model.dataspace() : null, stamp);

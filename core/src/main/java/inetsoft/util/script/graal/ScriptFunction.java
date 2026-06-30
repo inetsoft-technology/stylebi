@@ -101,8 +101,47 @@ public class ScriptFunction implements ProxyExecutable {
     * {@code float}) would otherwise fail reflective {@code Method.invoke} with an
     * argument-type mismatch. This narrows a {@code Number} to the target numeric
     * primitive/wrapper; other values are passed through unchanged.
+    *
+    * <p>A {@code null} value for a primitive parameter is coerced to that
+    * primitive's Java default ({@code false}, {@code 0}, {@code '\0'}) rather
+    * than passed through. {@code null} reaches here when a script omits a
+    * trailing argument or passes {@code undefined}/{@code null} (e.g. a library
+    * function calling {@code setActionVisible('Edit')} on the two-arg
+    * {@code setActionVisible(String, boolean)}); reflective invocation cannot
+    * unbox {@code null} to a primitive, so this mirrors Rhino's FunctionObject
+    * argument conversion, where a missing/undefined boolean meant {@code false}
+    * (Bug #75525).
     */
    private static Object coerce(Object value, Class<?> ptype) {
+      if(value == null) {
+         if(ptype == boolean.class) {
+            return false;
+         }
+         else if(ptype == int.class) {
+            return 0;
+         }
+         else if(ptype == long.class) {
+            return 0L;
+         }
+         else if(ptype == double.class) {
+            return 0d;
+         }
+         else if(ptype == float.class) {
+            return 0f;
+         }
+         else if(ptype == short.class) {
+            return (short) 0;
+         }
+         else if(ptype == byte.class) {
+            return (byte) 0;
+         }
+         else if(ptype == char.class) {
+            return '\0';
+         }
+
+         return null;
+      }
+
       if(value instanceof Number) {
          Number n = (Number) value;
 

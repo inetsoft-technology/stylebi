@@ -59,7 +59,13 @@ public class InvalidateSessionFilter extends AbstractSecurityFilter {
                SecurityEngine securityEngine = getSecurityEngine();
 
                if(securityEngine != null) {
-                  if(!securityEngine.isActiveUser(principal)) {
+                  // Skip stale-principal check on logout/sessionexpired requests so that
+                  // LogoutFilter can still read the session principal to determine the
+                  // correct redirect URL (guest → login page vs. authenticated → portal).
+                  boolean isLogout = isPageRequested(LogoutFilter.LOGOUT_URI, httpRequest) ||
+                     isPageRequested(LogoutFilter.EXPIRED_URI, httpRequest);
+
+                  if(!isLogout && !securityEngine.isActiveUser(principal)) {
                      session.invalidate();
                   }
                }

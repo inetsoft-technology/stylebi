@@ -22,6 +22,8 @@ import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
 import inetsoft.test.*;
 import inetsoft.util.script.graal.GraalJavaScriptEngine;
+import inetsoft.util.script.graal.ScriptScope;
+import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -57,6 +59,57 @@ public class LibFunctionCallableTest {
          Object src = engine.compile("addTwo(40, 2)");
          Object result = engine.exec(src, null, null);
          assertEquals(42.0, result);
+      }
+      finally {
+         engine.close();
+      }
+   }
+
+   @Test
+   void libFunctionResolvesExecScopeMember() throws Exception {
+      // Bug #75525: a library function whose body references an unqualified name
+      // (e.g. setActionVisible) provided only by the executing scope must resolve
+      // it dynamically (Rhino scope-chain behavior), not throw
+      // "setActionVisible is not defined".
+      LibManager mgr = LibManagerProvider.getInstance().getManager();
+      mgr.setScript("callsScopeFn",
+                    "function callsScopeFn() { setActionVisible('AxisResize'); return 'ok'; }");
+
+      GraalJavaScriptEngine engine = new GraalJavaScriptEngine();
+      final boolean[] called = { false };
+
+      try {
+         engine.init(new HashMap<>());
+
+         // scope exposing setActionVisible as a callable member, mirroring how a
+         // VSAScriptable exposes assembly script functions to the engine.
+         ScriptScope scope = new ScriptScope() {
+            private final Object fn = (ProxyExecutable) args -> {
+               called[0] = true;
+               return null;
+            };
+
+            public Object getMember(String n) {
+               return "setActionVisible".equals(n) ? fn : null;
+            }
+
+            public boolean hasMember(String n) {
+               return "setActionVisible".equals(n);
+            }
+
+            public void putMember(String n, Object v) {
+            }
+
+            public Object[] getMemberKeys() {
+               return new Object[] { "setActionVisible" };
+            }
+         };
+
+         Object src = engine.compile("callsScopeFn()");
+         Object result = engine.exec(src, scope, null);
+         assertEquals("ok", result);
+         assertTrue(called[0],
+                    "library function should resolve setActionVisible from the executing scope");
       }
       finally {
          engine.close();

@@ -62,9 +62,12 @@ public class LogoutFilter extends AbstractLogoutFilter {
    private void handleSessionExpired(HttpServletRequest request, HttpServletResponse response)
       throws IOException
    {
-      response.sendRedirect(getLogoutRedirectUri(request));
+      // Compute redirect URI before invalidating — getLogoutRedirectUri reads the session principal.
+      String redirectUri = getLogoutRedirectUri(request);
+      logout(request); // invalidates session and releases license slot
+      response.sendRedirect(redirectUri);
    }
 
    public static final String LOGOUT_URI = "/logout";
-   private static final String EXPIRED_URI = "/sessionexpired";
+   public static final String EXPIRED_URI = "/sessionexpired";
 }

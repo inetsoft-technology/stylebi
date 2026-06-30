@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2025  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -519,6 +519,43 @@ class DatabaseAuthenticationProviderTests {
       }
 
       return args.stream();
+   }
+
+   @Test
+   void authenticateShouldReturnFalseWhenPasswordIsWrong() {
+      waitForCache();
+      TestOrganization org = expectedData.get(0);
+      TestUser user = org.users().get(0);
+      IdentityID id = new IdentityID(user.name(), org.id());
+      assertFalse(provider.authenticate(id, new DefaultTicket(id, "wrong-password-xyz")));
+   }
+
+   @Test
+   void getUserShouldReturnNullForUnknownUser() {
+      waitForCache();
+      assertNull(provider.getUser(new IdentityID("nosuchuser99", expectedData.get(0).id())));
+   }
+
+   @Test
+   void getRolesShouldReturnEmptyArrayWhenOrgIdIsNotKnown() {
+      waitForCache();
+      IdentityID id = new IdentityID("anyUser", "nonexistent-org-9999");
+      IdentityID[] actual = provider.getRoles(id);
+      assertNotNull(actual);
+      assertEquals(0, actual.length);
+   }
+
+   @Test
+   void isOrgAdministratorRoleShouldReturnTrueForValidRoleAndExistingOrg() {
+      waitForCache();
+      String existingOrgId = expectedData.get(0).id();
+      assertTrue(provider.isOrgAdministratorRole(new IdentityID("Org Admin", existingOrgId)));
+   }
+
+   @Test
+   void isOrgAdministratorRoleShouldReturnFalseWhenOrgDoesNotExist() {
+      waitForCache();
+      assertFalse(provider.isOrgAdministratorRole(new IdentityID("Org Admin", "nonexistent-org-9999")));
    }
 
    private void waitForCache() {
