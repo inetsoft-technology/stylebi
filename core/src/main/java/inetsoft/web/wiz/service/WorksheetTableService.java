@@ -20,6 +20,8 @@ package inetsoft.web.wiz.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.TableLens;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -171,6 +173,81 @@ public class WorksheetTableService {
             WsServiceHelper.extractPrimaryTableFields(worksheet, table, dbTableOverride));
       }
 
+      response.setSuccess(true);
+      return response;
+   }
+
+   // ─── Probe: execute an already-built table to surface render-time query failures ──────────
+
+   /**
+    * Probe whether an already-built worksheet table can actually execute, without exporting any
+    * data. A {@code sql query table} or a table with expression columns is only structurally
+    * validated at creation and is fully executed at render time; this probe runs it early so an
+    * invalid SQL / expression fails loud at table-creation time instead of only at create_viewsheet.
+    *
+    * <p>Runs the table in {@code LIVE_MODE} and forces the first data row so lazily-evaluated
+    * expression columns (notably JS) actually run, then inspects the result for a failed-query
+    * fallback lens. On failure it throws an {@link IllegalArgumentException} carrying the real
+    * underlying DB/expression error (the controller maps that to {@code success=false} +
+    * {@code errorMessage}, the same shape as {@link #createTable}); on success it returns
+    * {@code success=true}.
+    *
+    * <p>Why {@code LIVE_MODE} rather than {@code RUNTIME_MODE}: a failed query is degraded to a
+    * failed-query fallback lens rather than thrown. {@code RUNTIME_MODE} discards the cause
+    * (AssetQuery swallows {@code SQLExpressionFailedException} for RUNTIME), whereas
+    * {@code LIVE_MODE} stamps the underlying cause onto the fallback lens for BOTH SQL and
+    * expression failures, which {@link WizVsService#checkFailedQuery} then surfaces.
+    */
+   public WorksheetTableResponse probeTable(String worksheetId, String tableName, Principal user)
+      throws Exception
+   {
+      if(Tool.isEmptyString(worksheetId)) {
+         throw new IllegalArgumentException("worksheetId is required");
+      }
+
+      if(Tool.isEmptyString(tableName)) {
+         throw new IllegalArgumentException("tableName is required");
+      }
+
+      Worksheet worksheet = resolveWorksheet(worksheetId, user).worksheet();
+      TableAssembly targetTable = null;
+
+      for(Assembly assembly : worksheet.getAssemblies()) {
+         if(assembly instanceof TableAssembly ta && Tool.equals(tableName, ta.getAbsoluteName())) {
+            targetTable = ta;
+            break;
+         }
+      }
+
+      if(targetTable == null) {
+         throw new IllegalArgumentException("Table not found: " + tableName);
+      }
+
+      AssetQuerySandbox box = new AssetQuerySandbox(worksheet);
+      box.setBaseUser(user);
+
+      TableLens lens = box.getTableLens(targetTable.getAbsoluteName(),
+                                        AssetQuerySandbox.LIVE_MODE);
+
+      // Force the first data row (row 0 = header, row 1 = first data row) so lazily-evaluated
+      // expression columns actually run — a JS column only fails when a row is produced. A failed
+      // query surfaces either by throwing here (e.g. a JS column failing mid-fetch) or by degrading
+      // to a failed-query fallback lens (checkFailedQuery below). Normalize the throw to the same
+      // failed-query error shape so the caller sees one signal.
+      try {
+         lens.moreRows(1);
+      }
+      catch(Exception ex) {
+         throw new IllegalArgumentException(WizVsService.failedQueryError(rootMessage(ex)), ex);
+      }
+
+      // Throws IllegalArgumentException("Worksheet query failed … (cause: <DB error>)") when the
+      // lens chain carries failed-query fallback data — the unified signal for SQL and expression
+      // failures alike. WizVsService is in this same package.
+      WizVsService.checkFailedQuery(lens);
+
+      WorksheetTableResponse response = new WorksheetTableResponse();
+      response.setTableName(targetTable.getName());
       response.setSuccess(true);
       return response;
    }

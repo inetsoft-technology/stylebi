@@ -109,6 +109,35 @@ public class WorksheetTableController {
       return worksheetTableService.getWorksheetModel(wsIdentifier, user);
    }
 
+   /**
+    * Probe whether an already-built worksheet table can actually execute — used to surface a query
+    * failure (invalid SQL / expression column) at table-creation time instead of only at render.
+    * Returns {@code success=true} when the table executes, or {@code success=false} with
+    * {@code errorMessage} carrying the real underlying DB/expression error (the same shape as
+    * {@link #createTable}). Read-only: nothing is created, modified, or exported.
+    *
+    * @param worksheetId the worksheet asset identifier
+    * @param tableName   the table assembly to probe
+    * @param user        the authenticated user
+    */
+   @GetMapping(value = "/ws/table/probe", produces = MediaType.APPLICATION_JSON_VALUE)
+   public WorksheetTableResponse probeTable(@RequestParam("worksheetId") String worksheetId,
+                                            @RequestParam("tableName") String tableName,
+                                            Principal user)
+   {
+      try {
+         return worksheetTableService.probeTable(worksheetId, tableName, user);
+      }
+      catch(Exception e) {
+         WorksheetTableResponse response = new WorksheetTableResponse();
+         response.setSuccess(false);
+         response.setTableName(tableName);
+         response.setErrorMessage(e.getMessage());
+         LOG.error("Probe failed for worksheet table '{}'", tableName, e);
+         return response;
+      }
+   }
+
    private final WorksheetTableService worksheetTableService;
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetTableController.class);
 }
