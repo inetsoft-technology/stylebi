@@ -23,10 +23,10 @@
  *   Group 1 [Risk 2] - showUseList and date-range guards
  *   Group 2 [Risk 2] - default condition value dispatch
  *   Group 3 [Risk 1] - formula and provider-backed predicate getters
+ *   Group 4 [Risk 2] - updateCondition null-values guard on DATE_IN path
  *
- * Suspected bugs (header only):
+ * Suspected bugs (header only — no test yet):
  *   Suspicion A - showUseList assumes ColumnRef.dataRefModel exists; partial ColumnRef inputs can throw before returning.
- *   Suspicion B - updateCondition assumes condition.values exists when clearing choiceQuery; null values can throw on DATE_IN/highlight/no-browse paths.
  *   Suspicion C - numeric BETWEEN defaults to an empty values array, while binary-condition-editor indexes values[0]/values[1].
  *
  * Out of scope this pass: modal and mutation emit flows.
@@ -216,5 +216,18 @@ describe("ConditionItemPane - formula and provider-backed predicates [Group 3, R
       expect(comp.isReportWorksheetSource()).toBe(false);
       expect(comp.isBrowseDataEnabled()).toBe(false);
       expect(comp.getGrayedOutFields()).toEqual([makeField("blocked")]);
+   });
+});
+
+describe("ConditionItemPane - updateCondition null-values guard [Group 4, Risk 2]", () => {
+   it("should not throw when condition.values is null on DATE_IN path", () => {
+      const { comp } = createConditionItemPane({
+         condition: makeCondition({
+            operation: ConditionOperation.DATE_IN,
+            values: null as any
+         })
+      });
+
+      expect(() => comp.updateCondition()).not.toThrow();
    });
 });

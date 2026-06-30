@@ -55,7 +55,7 @@ describe("SimpleQueryPaneComponent - addColumns branch matrix [Group 1, Risk 3]"
       expect(getSQLSpy).toHaveBeenCalled();
    });
 
-   it("should reorder existing columns for oldIndex less than greater than and equal index", () => {
+   it("should reorder existing columns for oldIndex less than, greater than, and equal to target index", () => {
       const table = makeTableEntry("Orders");
       const { comp, model } = createSimpleQueryPane({
          model: makeBasicModel({
@@ -67,12 +67,15 @@ describe("SimpleQueryPaneComponent - addColumns branch matrix [Group 1, Risk 3]"
          })
       });
 
+      // oldIndex (0) < target (2): move "a" forward
       comp.addColumns([{ columnEntry: makeColumnEntry("Orders", "a"), parentEntry: table }], 2);
       expect(model.columns.map(column => column.name)).toEqual(["Orders.b", "Orders.a", "Orders.c"]);
 
+      // oldIndex (2) > target (0): move "c" backward
       comp.addColumns([{ columnEntry: makeColumnEntry("Orders", "c"), parentEntry: table }], 0);
       expect(model.columns.map(column => column.name)).toEqual(["Orders.c", "Orders.b", "Orders.a"]);
 
+      // oldIndex (1) == target (1): "b" stays in place
       comp.addColumns([{ columnEntry: makeColumnEntry("Orders", "b"), parentEntry: table }], 1);
       expect(model.columns.map(column => column.name)).toEqual(["Orders.c", "Orders.b", "Orders.a"]);
    });

@@ -126,21 +126,20 @@ describe("DynamicValueEditorComponent - ngOnChanges input branches [Group 2, Ris
       expect(comp.dateTime).toEqual(DateTypeFormatter.toTimeInstant("2024-10-11", comp.format));
    });
 
-   it("should apply current time when forceToDefault is set with an invalid defaultValue", () => {
+   it("should apply current time when forceToDefault becomes true with an invalid defaultValue", () => {
       vi.spyOn(DateTypeFormatter, "currentTimeInstantInFormat").mockReturnValue("2024-11-12");
       const { comp } = createDynamicValueEditor({
-         forceToDefault: true,
          defaultValue: "invalid",
          valueModel: makeValueModel({ value: "2024-01-01", type: ValueTypes.VALUE })
       });
       comp.ngOnInit();
 
       comp.ngOnChanges({
-         defaultValue: {
-            currentValue: "invalid",
-            previousValue: undefined,
-            firstChange: true,
-            isFirstChange: () => true
+         forceToDefault: {
+            currentValue: true,
+            previousValue: false,
+            firstChange: false,
+            isFirstChange: () => false
          }
       });
 

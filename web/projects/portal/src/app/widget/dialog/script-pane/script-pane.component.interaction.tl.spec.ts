@@ -32,9 +32,10 @@
 import { SimpleChange } from "@angular/core";
 import { TreeTool } from "../../../common/util/tree-tool";
 import { TreeNodeModel } from "../../tree/tree-node-model";
-import { createCodeMirror, createScriptPane } from "./script-pane.component.test-helpers";
+import { createCodeMirror, createScriptPane, cleanupScriptPaneDom } from "./script-pane.component.test-helpers";
 
 afterEach(() => {
+   cleanupScriptPaneDom();
    vi.restoreAllMocks();
    vi.useRealTimers();
 });

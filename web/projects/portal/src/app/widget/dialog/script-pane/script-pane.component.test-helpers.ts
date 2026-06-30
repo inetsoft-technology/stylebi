@@ -111,6 +111,14 @@ export function createTernServer() {
    };
 }
 
+const scriptPaneDomCleanups: (() => void)[] = [];
+
+export function cleanupScriptPaneDom(): void {
+   while(scriptPaneDomCleanups.length > 0) {
+      scriptPaneDomCleanups.pop()?.();
+   }
+}
+
 export function createScriptPane(options: {
    codeMirror?: MockCodeMirror;
    defs?: any[] | null;
@@ -125,6 +133,11 @@ export function createScriptPane(options: {
    const rendererCleanups: ReturnType<typeof vi.fn>[] = [];
    const container = document.createElement("div");
    const textarea = document.createElement("textarea");
+   const hostElement = document.createElement("div");
+
+   container.appendChild(textarea);
+   document.body.appendChild(container);
+   document.body.appendChild(hostElement);
 
    container.getClientRects = vi.fn(() => createDomRectList(options.displayed ?? true));
 
@@ -166,7 +179,7 @@ export function createScriptPane(options: {
       })
    } as any;
 
-   const host = { nativeElement: document.createElement("div") } as any;
+   const host = { nativeElement: hostElement } as any;
    const comp = new ScriptPane(
       codemirrorService,
       zone,
@@ -179,6 +192,12 @@ export function createScriptPane(options: {
 
    (comp as any).scriptEditor = { nativeElement: textarea };
    (comp as any).scriptEditorContainer = { nativeElement: container };
+
+   const cleanup = () => {
+      container.remove();
+      hostElement.remove();
+   };
+   scriptPaneDomCleanups.push(cleanup);
 
    return {
       comp,
@@ -194,6 +213,7 @@ export function createScriptPane(options: {
       helpUrl$,
       cursorTop$,
       container,
-      textarea
+      textarea,
+      cleanup
    };
 }

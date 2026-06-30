@@ -31,7 +31,11 @@
 import { DataRef } from "../../../common/data/data-ref";
 import { TreeNodeModel } from "../../tree/tree-node-model";
 import { ScriptPane } from "./script-pane.component";
-import { createScriptPane } from "./script-pane.component.test-helpers";
+import { createScriptPane, cleanupScriptPaneDom } from "./script-pane.component.test-helpers";
+
+afterEach(() => {
+   cleanupScriptPaneDom();
+});
 
 describe("ScriptPane - getCSSIcon [Group 1, Risk 2]", () => {
    it("should classify aggregate, model, table, field, and folder nodes", () => {

@@ -259,8 +259,6 @@ function createCombo() {
    comp.displayList = true;
    comp.addNoneItem = true;
    comp.fieldsModel = makeFieldsModel([makeRef("Orders.state")]);
-   comp.treeModel = comp.createTreeModel();
-   comp.listModel = comp.createListModel();
 
    return { comp, changeRef, renderer, dropdown, focus };
 }

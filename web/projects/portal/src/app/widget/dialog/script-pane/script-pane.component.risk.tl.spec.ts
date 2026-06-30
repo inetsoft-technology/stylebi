@@ -31,9 +31,10 @@
 import { TreeTool } from "../../../common/util/tree-tool";
 import { CodemirrorHighlightTextInfo } from "../codemirror-highlight-text-info";
 import { TreeNodeModel } from "../../tree/tree-node-model";
-import { createCodeMirror, createDomRectList, createScriptPane } from "./script-pane.component.test-helpers";
+import { createCodeMirror, createDomRectList, createScriptPane, cleanupScriptPaneDom } from "./script-pane.component.test-helpers";
 
 afterEach(() => {
+   cleanupScriptPaneDom();
    vi.restoreAllMocks();
    vi.useRealTimers();
 });
@@ -105,22 +106,21 @@ describe("ScriptPane - lifecycle refresh timers [Group 2, Risk 3]", () => {
 describe("ScriptPane - delayAutocomplete cancellation [Group 3, Risk 3]", () => {
    it("should cancel the previous autocomplete timer and listeners before scheduling the next one", () => {
       vi.useFakeTimers();
-      const { comp, codeMirror, rendererCleanups } = createScriptPane();
+      const { comp, codeMirror, renderer } = createScriptPane();
       const first = vi.fn();
       const second = vi.fn();
       (comp as any).codemirrorInstance = codeMirror;
       (comp as any).ternServer = { options: { hintDelay: 25 } };
 
       (comp as any).delayAutocomplete(first);
-      const firstCleanupCount = rendererCleanups.length;
+      const firstCleanups = (renderer.listen as any).mock.results.map((result: any) => result.value);
       (comp as any).delayAutocomplete(second);
       vi.advanceTimersByTime(25);
 
       expect(first).not.toHaveBeenCalled();
       expect(second).toHaveBeenCalledTimes(1);
       expect(codeMirror.off).toHaveBeenCalled();
-      expect(rendererCleanups.slice(0, firstCleanupCount).every(cleanup => cleanup.mock.calls.length > 0))
-         .toBe(true);
+      expect(firstCleanups.every((cleanup: any) => cleanup.mock.calls.length > 0)).toBe(true);
       expect((comp as any).cancelAutocomplete).toBeNull();
    });
 

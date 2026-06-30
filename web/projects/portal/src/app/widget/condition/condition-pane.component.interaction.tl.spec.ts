@@ -247,7 +247,7 @@ describe("ConditionPane - move, indent, unindent, and expression rename [Group 4
       comp.conditionList = list;
       comp.selectedIndex = 2;
       let emitted: any[] = null;
-      comp.conditionListChange.subscribe(value => emitted = value);
+      const moveSub = comp.conditionListChange.subscribe(value => emitted = value);
 
       comp.up();
 
@@ -262,6 +262,7 @@ describe("ConditionPane - move, indent, unindent, and expression rename [Group 4
       comp.down();
 
       expect(comp.selectedIndex).toBe(2);
+      moveSub.unsubscribe();
    });
 
    it("should indent and unindent selected junction when guards allow it", () => {
@@ -269,7 +270,7 @@ describe("ConditionPane - move, indent, unindent, and expression rename [Group 4
       comp.conditionList = makeConditionList();
       comp.selectedIndex = 1;
       let emitted: any[] = null;
-      comp.conditionListChange.subscribe(value => emitted = value);
+      const indentSub = comp.conditionListChange.subscribe(value => emitted = value);
 
       comp.indent();
 
@@ -280,6 +281,7 @@ describe("ConditionPane - move, indent, unindent, and expression rename [Group 4
       comp.unindent();
 
       expect(emitted[1].level).toBe(0);
+      indentSub.unsubscribe();
    });
 
    it("should rename matching condition fields and emit the updated list", () => {
