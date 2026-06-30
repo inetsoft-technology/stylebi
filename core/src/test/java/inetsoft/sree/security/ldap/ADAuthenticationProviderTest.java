@@ -357,7 +357,6 @@ class ADAuthenticationProviderTest {
       }
 
       @Test
-      @Disabled("Suspect 1: readConfiguration assumes required fields are present and dereferences null JsonNodes; Fix: use path() or null-safe defaults before asText()/asBoolean()/asInt()")
       void readConfiguration_missingAdSpecificFields_fallsBackToDefaults() {
          ObjectNode config = createBaseConfiguration();
          config.remove("userSearch");

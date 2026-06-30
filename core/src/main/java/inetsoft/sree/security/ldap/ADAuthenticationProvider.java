@@ -397,11 +397,11 @@ public class ADAuthenticationProvider extends LdapAuthenticationProvider {
    public void readConfiguration(JsonNode configuration) {
       super.readConfiguration(configuration);
       ObjectNode config = (ObjectNode) configuration;
-      setUserSearch(config.get("userSearch").asText(USER_SEARCH));
-      setUserRolesSearch(config.get("userRolesSearch").asText(USER_ROLES_SEARCH));
-      setUserBase(config.get("userBase").asText());
-      setGroupBase(config.get("groupBase").asText());
-      setRoleBase(config.get("roleBase").asText());
+      setUserSearch(config.path("userSearch").asText(USER_SEARCH));
+      setUserRolesSearch(config.path("userRolesSearch").asText(USER_ROLES_SEARCH));
+      setUserBase(config.path("userBase").asText(""));
+      setGroupBase(config.path("groupBase").asText(""));
+      setRoleBase(config.path("roleBase").asText(""));
    }
 
    @Override
