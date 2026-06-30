@@ -163,7 +163,8 @@ export function createMockGlobalSubmitService(): any {
    };
 }
 
-export function setMockController(comp: VSSelection, controller: any): void {
+/** Bypass the public setter when a test needs raw controller injection without subscriptions. */
+export function injectController(comp: VSSelection, controller: any): void {
    comp["_controller"] = controller;
 }
 
@@ -221,7 +222,7 @@ export function makeExpandTreeNodesCommand(
    };
 }
 
-export async function renderSelectionComponent(overrides: any = {}) {
+export async function createSelectionComponent(overrides: any = {}) {
    const viewsheetClient = overrides.viewsheetClient ?? {
       sendEvent: vi.fn(),
       commands: new Subject<any>().asObservable(),

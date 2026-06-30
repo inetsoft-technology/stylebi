@@ -17,19 +17,19 @@
  */
 
 /**
- * VSSelection — Pass 1: Interaction
+ * VSSelection �?Pass 1: Interaction
  *
  * Risk-first coverage:
- *   Group 1 — ngOnInit: globalSubmitService subscriptions for globalSubmit and updateSelections
- *   Group 2 — ngOnDestroy: subscription cleanup for actionSubscription, adhocFilterListener,
+ *   Group 1 �?ngOnInit: globalSubmitService subscriptions for globalSubmit and updateSelections
+ *   Group 2 �?ngOnDestroy: subscription cleanup for actionSubscription, adhocFilterListener,
  *                           subscriptions, unApplySubscription, overlay listeners
- *   Group 3 — set controller: subscription wiring for unappliedSubject and updateViewSubject
- *   Group 4 — set actions: all event.id dispatch cases (unselect/hide/show/reverse/sort/search/
+ *   Group 3 �?set controller: subscription wiring for unappliedSubject and updateViewSubject
+ *   Group 4 �?set actions: all event.id dispatch cases (unselect/hide/show/reverse/sort/search/
  *                          max-mode/apply/remove-child/select-subtree/clear-subtree/select-all/
  *                          menu-actions/format-pane/more-actions)
- *   Group 5 — toggleMaxMode: sends MaxObjectEvent and emits maxModeChange
- *   Group 6 — onSelectAll / onUnselect / onReverse: selection management flows
- *   Group 7 — processExpandTreeNodesCommand: script-triggered tree expansion
+ *   Group 5 �?toggleMaxMode: sends MaxObjectEvent and emits maxModeChange
+ *   Group 6 �?onSelectAll / onUnselect / onReverse: selection management flows
+ *   Group 7 �?processExpandTreeNodesCommand: script-triggered tree expansion
  */
 
 import { Subject } from "rxjs";
@@ -45,18 +45,18 @@ import {
    makeMockSelectionValues,
    makeMockTreeModel,
    makeSelectionValue,
-   renderSelectionComponent,
-   setMockController,
+   createSelectionComponent,
+   injectController,
 } from "./vs-selection.component.test-helpers";
 
 afterEach(() => vi.restoreAllMocks());
 
 async function renderComponent(overrides: any = {}) {
-   return renderSelectionComponent(overrides);
+   return createSelectionComponent(overrides);
 }
 
-describe("VSSelection — Pass 1: Interaction", () => {
-   describe("Group 1 — ngOnInit()", () => {
+describe("VSSelection �?Pass 1: Interaction", () => {
+   describe("Group 1 �?ngOnInit()", () => {
       it("should subscribe to globalSubmitService.globalSubmit", async () => {
          const { comp, globalSubmitService } = await renderComponent();
          comp.ngOnInit();
@@ -74,10 +74,6 @@ describe("VSSelection — Pass 1: Interaction", () => {
          comp.model.submitOnChange = false;
          const controller = createMockController(makeMockListModel());
          comp["_controller"] = controller;
-         comp.ngOnInit();
-
-         const globalSubmitSubject = globalSubmitService.globalSubmit();
-         globalSubmitSubject.subscribe().unsubscribe();
          const emitSubject = new Subject<string>();
          vi.spyOn(globalSubmitService, "globalSubmit").mockReturnValue(emitSubject.asObservable());
          comp.ngOnInit();
@@ -120,7 +116,7 @@ describe("VSSelection — Pass 1: Interaction", () => {
 
    // Group 2: private subscription/listener fields are seeded directly because ngOnDestroy
    // must clean them up; going through full subscription setup would obscure the signal.
-   describe("Group 2 — ngOnDestroy()", () => {
+   describe("Group 2 �?ngOnDestroy()", () => {
       it("should unsubscribe from actionSubscription", async () => {
          const { comp } = await renderComponent();
          const actionSubscription = { unsubscribe: vi.fn() };
@@ -156,7 +152,7 @@ describe("VSSelection — Pass 1: Interaction", () => {
 
    // Group 3: private previous-subscription fields are seeded to verify the controller setter
    // unsubscribes the old subscription before wiring the new one.
-   describe("Group 3 — set controller", () => {
+   describe("Group 3 �?set controller", () => {
       it("should unsubscribe from previous unApplySubscription when controller changes", async () => {
          const { comp } = await renderComponent();
          const prevUnApplySubscription = { unsubscribe: vi.fn() };
@@ -193,7 +189,7 @@ describe("VSSelection — Pass 1: Interaction", () => {
       });
    });
 
-   describe("Group 4 — set actions", () => {
+   describe("Group 4 �?set actions", () => {
       it("should unsubscribe from previous actionSubscription when actions changes", async () => {
          const { comp } = await renderComponent();
          const prevActionSubscription = { unsubscribe: vi.fn() };
@@ -216,7 +212,7 @@ describe("VSSelection — Pass 1: Interaction", () => {
       it("should handle selection-list unselect action", async () => {
          const { comp } = await renderComponent();
          const controller = createMockController(makeMockListModel());
-         setMockController(comp, controller);
+         injectController(comp, controller);
          const actions = createMockActions();
          comp.actions = actions as any;
 
@@ -227,7 +223,7 @@ describe("VSSelection — Pass 1: Interaction", () => {
       it("should handle selection-list hide action", async () => {
          const { comp } = await renderComponent();
          const controller = createMockController(makeMockListModel());
-         setMockController(comp, controller);
+         injectController(comp, controller);
          const actions = createMockActions();
          comp.actions = actions as any;
 
@@ -238,7 +234,7 @@ describe("VSSelection — Pass 1: Interaction", () => {
       it("should handle selection-list show action", async () => {
          const { comp } = await renderComponent();
          const controller = createMockController(makeMockListModel());
-         setMockController(comp, controller);
+         injectController(comp, controller);
          const actions = createMockActions();
          comp.actions = actions as any;
 
@@ -249,7 +245,7 @@ describe("VSSelection — Pass 1: Interaction", () => {
       it("should handle selection-list reverse action", async () => {
          const { comp } = await renderComponent();
          const controller = createMockController(makeMockListModel());
-         setMockController(comp, controller);
+         injectController(comp, controller);
          const actions = createMockActions();
          comp.actions = actions as any;
 
@@ -260,7 +256,7 @@ describe("VSSelection — Pass 1: Interaction", () => {
       it("should handle selection-list sort action", async () => {
          const { comp } = await renderComponent();
          const controller = createMockController(makeMockListModel());
-         setMockController(comp, controller);
+         injectController(comp, controller);
          const actions = createMockActions();
          comp.actions = actions as any;
 
@@ -271,7 +267,7 @@ describe("VSSelection — Pass 1: Interaction", () => {
       it("should handle selection-list search action", async () => {
          const { comp } = await renderComponent();
          const controller = createMockController(makeMockListModel());
-         setMockController(comp, controller);
+         injectController(comp, controller);
          const actions = createMockActions();
          comp.actions = actions as any;
 
@@ -292,7 +288,7 @@ describe("VSSelection — Pass 1: Interaction", () => {
       it("should handle selection-list apply action", async () => {
          const { comp } = await renderComponent();
          const controller = createMockController(makeMockListModel());
-         setMockController(comp, controller);
+         injectController(comp, controller);
          const actions = createMockActions();
          comp.actions = actions as any;
 
@@ -303,7 +299,7 @@ describe("VSSelection — Pass 1: Interaction", () => {
       it("should handle selection-list select-all action", async () => {
          const { comp } = await renderComponent();
          const controller = createMockController(makeMockListModel());
-         setMockController(comp, controller);
+         injectController(comp, controller);
          const actions = createMockActions();
          comp.actions = actions as any;
 
@@ -320,7 +316,7 @@ describe("VSSelection — Pass 1: Interaction", () => {
             ...createMockController(treeModel),
             selectSubtree: vi.fn(),
          };
-         setMockController(comp, controller);
+         injectController(comp, controller);
          comp.model.contextMenuCell = makeSelectionValue({ state: 0, level: 0, value: "test" });
          const actions = createMockActions();
          comp.actions = actions as any;
@@ -340,7 +336,7 @@ describe("VSSelection — Pass 1: Interaction", () => {
             setSubtree: vi.fn(),
             clearSingleCellSubTree: vi.fn(),
          };
-         setMockController(comp, controller);
+         injectController(comp, controller);
          comp.model.contextMenuCell = makeSelectionValue({ state: 0, level: 0, value: "test" });
          const actions = createMockActions();
          comp.actions = actions as any;
@@ -372,7 +368,7 @@ describe("VSSelection — Pass 1: Interaction", () => {
       });
    });
 
-   describe("Group 5 — toggleMaxMode()", () => {
+   describe("Group 5 �?toggleMaxMode()", () => {
       it("should send MaxObjectEvent via viewsheetClient", async () => {
          const viewsheetClient = { sendEvent: vi.fn(), commands: new Subject<any>().asObservable() };
          const { comp } = await renderComponent({ viewsheetClient });
@@ -403,11 +399,11 @@ describe("VSSelection — Pass 1: Interaction", () => {
       });
    });
 
-   describe("Group 6 — selection management", () => {
+   describe("Group 6 �?selection management", () => {
       it("should call controller.applySelections when onSelectAll is called", async () => {
          const { comp } = await renderComponent();
          const controller = createMockController(makeMockListModel());
-         setMockController(comp, controller);
+         injectController(comp, controller);
          comp.onSelectAll();
          expect(controller.applySelections).toHaveBeenCalled();
       });
@@ -415,7 +411,7 @@ describe("VSSelection — Pass 1: Interaction", () => {
       it("should call controller.clearSelections when onUnselect is called", async () => {
          const { comp } = await renderComponent();
          const controller = createMockController(makeMockListModel());
-         setMockController(comp, controller);
+         injectController(comp, controller);
          comp.onUnselect();
          expect(controller.clearSelections).toHaveBeenCalled();
       });
@@ -424,7 +420,7 @@ describe("VSSelection — Pass 1: Interaction", () => {
          const { comp } = await renderComponent();
          comp.model.submitOnChange = true;
          const controller = createMockController(makeMockListModel());
-         setMockController(comp, controller);
+         injectController(comp, controller);
          comp.onReverse();
          expect(controller.reverseSelections).toHaveBeenCalled();
       });
@@ -432,13 +428,13 @@ describe("VSSelection — Pass 1: Interaction", () => {
       it("should call controller.sortSelections when onSort is called", async () => {
          const { comp } = await renderComponent();
          const controller = createMockController(makeMockListModel());
-         setMockController(comp, controller);
+         injectController(comp, controller);
          comp.onSort();
          expect(controller.sortSelections).toHaveBeenCalled();
       });
    });
 
-   describe("Group 7 — processExpandTreeNodesCommand", () => {
+   describe("Group 7 �?processExpandTreeNodesCommand", () => {
       it("should expand all nodes when scriptChanged and expand are true", async () => {
          const { comp } = await renderComponent();
          const treeModel = makeMockTreeModel();
@@ -448,7 +444,7 @@ describe("VSSelection — Pass 1: Interaction", () => {
             ...createMockController(treeModel),
             expandAllNodes: vi.fn(),
          };
-         setMockController(comp, controller);
+         injectController(comp, controller);
 
          comp.processExpandTreeNodesCommand(makeExpandTreeNodesCommand({ scriptChanged: true, expand: true }));
          expect(controller.expandAllNodes).toHaveBeenCalled();
@@ -462,10 +458,11 @@ describe("VSSelection — Pass 1: Interaction", () => {
             ...createMockController(treeModel),
             expandAllNodes: vi.fn(),
          };
-         setMockController(comp, controller);
+         injectController(comp, controller);
 
          comp.processExpandTreeNodesCommand(makeExpandTreeNodesCommand({ scriptChanged: false, expand: true }));
          expect(controller.expandAllNodes).not.toHaveBeenCalled();
       });
    });
 });
+

@@ -17,17 +17,17 @@
  */
 
 /**
- * VSSelection â€” Pass 2: Risk (asyncZones=9)
+ * VSSelection â€?Pass 2: Risk (asyncZones=9)
  *
  * Risk-first coverage:
- *   Group 1 â€” onSearchKeyUp: 500ms debounce race conditions; searchTimer cleared on rapid keypresses;
+ *   Group 1 â€?onSearchKeyUp: 500ms debounce race conditions; searchTimer cleared on rapid keypresses;
  *                             searchPending flag prevents model refresh mid-search
- *   Group 2 â€” constructor subscriptions: scaleService.getScale and selectionMobileService.maxSelectionChanged
- *   Group 3 â€” ngOnInit subscriptions: globalSubmitService.globalSubmit and updateSelections
- *   Group 4 â€” set controller: unappliedSubject + updateViewSubject subscription replacement without leak
- *   Group 5 â€” set actions: actionSubscription replaced without leak
- *   Group 6 â€” onShow: mouseUpListener registration and cleanup on outside click
- *   Group 7 â€” ngOnDestroy: full teardown of all subscriptions, renderer listeners, overlay cleanup
+ *   Group 2 â€?constructor subscriptions: scaleService.getScale and selectionMobileService.maxSelectionChanged
+ *   Group 3 â€?ngOnInit subscriptions: globalSubmitService.globalSubmit and updateSelections
+ *   Group 4 â€?set controller: unappliedSubject + updateViewSubject subscription replacement without leak
+ *   Group 5 â€?set actions: actionSubscription replaced without leak
+ *   Group 6 â€?onShow: mouseUpListener registration and cleanup on outside click
+ *   Group 7 â€?ngOnDestroy: full teardown of all subscriptions, renderer listeners, overlay cleanup
  */
 
 import { Subject } from "rxjs";
@@ -39,8 +39,8 @@ import {
    createMockController,
    makeMockListModel,
    makeMockSelectionValues,
-   renderSelectionComponent,
-   setMockController,
+   createSelectionComponent,
+   injectController,
 } from "./vs-selection.component.test-helpers";
 
 beforeEach(() => {
@@ -57,15 +57,15 @@ afterAll(() => {
 });
 
 async function renderComponent(overrides: any = {}) {
-   return renderSelectionComponent(overrides);
+   return createSelectionComponent(overrides);
 }
 
-describe("VSSelection â€” Pass 2: Risk", () => {
-   describe("Group 1 â€” onSearchKeyUp() debounce race", () => {
+describe("VSSelection â€?Pass 2: Risk", () => {
+   describe("Group 1 â€?onSearchKeyUp() debounce race", () => {
       it("should debounce search by 500ms", async () => {
          const { comp } = await renderComponent();
          const controller = createMockController();
-         setMockController(comp, controller);
+         injectController(comp, controller);
 
          comp.onSearchKeyUp();
          expect(controller.searchSelections).not.toHaveBeenCalled();
@@ -77,7 +77,7 @@ describe("VSSelection â€” Pass 2: Risk", () => {
       it("should cancel pending search on rapid keypresses", async () => {
          const { comp } = await renderComponent();
          const controller = createMockController();
-         setMockController(comp, controller);
+         injectController(comp, controller);
 
          comp.onSearchKeyUp();
          comp.onSearchKeyUp();
@@ -90,7 +90,7 @@ describe("VSSelection â€” Pass 2: Risk", () => {
       it("should set searchPending to prevent model refresh mid-search", async () => {
          const { comp } = await renderComponent();
          const controller = createMockController();
-         setMockController(comp, controller);
+         injectController(comp, controller);
 
          comp.onSearchKeyUp();
          expect((comp as any).searchPending).toBe(true);
@@ -118,7 +118,7 @@ describe("VSSelection â€” Pass 2: Risk", () => {
       });
    });
 
-   describe("Group 2 â€” constructor subscriptions", () => {
+   describe("Group 2 â€?constructor subscriptions", () => {
       it("should subscribe to scaleService.getScale", async () => {
          const scaleSubject = new Subject<number>();
          const scaleService = { getScale: vi.fn(() => scaleSubject.asObservable()) };
@@ -175,7 +175,7 @@ describe("VSSelection â€” Pass 2: Risk", () => {
       });
    });
 
-   describe("Group 3 â€” ngOnInit subscriptions", () => {
+   describe("Group 3 â€?ngOnInit subscriptions", () => {
       it("should unsubscribe from globalSubmit when destroyed", async () => {
          const globalSubmitSubject = new Subject<string>();
          const globalSubmitService = {
@@ -221,16 +221,16 @@ describe("VSSelection â€” Pass 2: Risk", () => {
       });
    });
 
-   describe("Group 4 â€” set controller subscription replacement", () => {
+   describe("Group 4 â€?set controller subscription replacement", () => {
       it("should replace unApplySubscription without leaking", async () => {
          const { comp } = await renderComponent();
          const firstController = createMockController();
          const secondController = createMockController();
 
-         setMockController(comp, firstController);
+         injectController(comp, firstController);
          const firstUnappliedSpy = vi.spyOn(firstController.unappliedSubject, "next");
 
-         setMockController(comp, secondController);
+         injectController(comp, secondController);
 
          firstController.unappliedSubject.next(true);
          secondController.unappliedSubject.next(true);
@@ -257,7 +257,7 @@ describe("VSSelection â€” Pass 2: Risk", () => {
       });
    });
 
-   describe("Group 5 â€” set actions subscription replacement", () => {
+   describe("Group 5 â€?set actions subscription replacement", () => {
       it("should replace actionSubscription without leaking", async () => {
          const { comp } = await renderComponent();
          const firstOnAssemblyActionEvent = new Subject<any>();
@@ -265,11 +265,11 @@ describe("VSSelection â€” Pass 2: Risk", () => {
          const firstActions = { onAssemblyActionEvent: firstOnAssemblyActionEvent, toolbarActions: [], menuActions: [], getMoreActions: vi.fn(() => []) };
          const secondActions = { onAssemblyActionEvent: secondOnAssemblyActionEvent, toolbarActions: [], menuActions: [], getMoreActions: vi.fn(() => []) };
 
-         setMockController(comp, createMockController());
+         injectController(comp, createMockController());
          comp.actions = firstActions as any;
 
          const controller = createMockController();
-         setMockController(comp, controller);
+         injectController(comp, controller);
          comp.actions = secondActions as any;
 
          firstOnAssemblyActionEvent.next({ id: "selection-list unselect" });
@@ -282,7 +282,7 @@ describe("VSSelection â€” Pass 2: Risk", () => {
 
    // Group 6: renderer and elementRef are private dependencies; overriding them via
    // (comp as any) lets us inject a capturing renderer without a full DI-wired fixture.
-   describe("Group 6 â€” onShow mouseUpListener", () => {
+   describe("Group 6 â€?onShow mouseUpListener", () => {
       it("should register mouseUpListener when onShow is called outside container", async () => {
          const renderer = createCapturingRenderer(false);
          const { comp, elementRef } = await renderComponent();
@@ -299,7 +299,7 @@ describe("VSSelection â€” Pass 2: Risk", () => {
          const { comp, elementRef } = await renderComponent();
          (comp as any).renderer = renderer;
          (comp as any).elementRef = elementRef;
-         setMockController(comp, createMockController());
+         injectController(comp, createMockController());
 
          comp.onShow();
 
@@ -319,7 +319,7 @@ describe("VSSelection â€” Pass 2: Risk", () => {
          const { comp } = await renderComponent();
          (comp as any).renderer = renderer;
          (comp as any).elementRef = renderer.elementRef;
-         setMockController(comp, createMockController());
+         injectController(comp, createMockController());
 
          comp.onShow();
 
@@ -341,7 +341,7 @@ describe("VSSelection â€” Pass 2: Risk", () => {
          const { comp, elementRef } = await renderComponent();
          (comp as any).renderer = renderer;
          (comp as any).elementRef = elementRef;
-         setMockController(comp, createMockController());
+         injectController(comp, createMockController());
 
          comp.onShow();
          renderer.mousedownHandler({ target: document.body });
@@ -352,7 +352,7 @@ describe("VSSelection â€” Pass 2: Risk", () => {
 
    // Group 7: _overlayMouseLeaveUnlisten and _overlayWheelUnlisten are private cleanup fns;
    // pre-seeding them verifies ngOnDestroy calls each one without going through onShow.
-   describe("Group 7 â€” ngOnDestroy full teardown", () => {
+   describe("Group 7 â€?ngOnDestroy full teardown", () => {
       it("should cleanup overlay mouseLeave listener", async () => {
          const cleanupFn = vi.fn();
          const { comp } = await renderComponent();
@@ -381,17 +381,6 @@ describe("VSSelection â€” Pass 2: Risk", () => {
 
          expect(hideOverlaySpy).toHaveBeenCalled();
       });
-
-      it("should call super.ngOnDestroy", async () => {
-         const { comp } = await renderComponent();
-         const superNgOnDestroySpy = vi.spyOn(comp as any, "ngOnDestroy").mockImplementation(() => {
-            comp["_overlayMouseLeaveUnlisten"]?.();
-            comp["_overlayWheelUnlisten"]?.();
-         });
-
-         comp.ngOnDestroy();
-
-         expect(superNgOnDestroySpy).toHaveBeenCalled();
-      });
    });
 });
+
