@@ -210,14 +210,7 @@ public class WorksheetTableService {
       }
 
       Worksheet worksheet = resolveWorksheet(worksheetId, user).worksheet();
-      TableAssembly targetTable = null;
-
-      for(Assembly assembly : worksheet.getAssemblies()) {
-         if(assembly instanceof TableAssembly ta && Tool.equals(tableName, ta.getAbsoluteName())) {
-            targetTable = ta;
-            break;
-         }
-      }
+      Assembly targetTable = worksheet.getAssembly(tableName);
 
       if(targetTable == null) {
          throw new IllegalArgumentException("Table not found: " + tableName);
