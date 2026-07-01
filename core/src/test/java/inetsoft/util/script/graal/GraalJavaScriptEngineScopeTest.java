@@ -74,6 +74,24 @@ class GraalJavaScriptEngineScopeTest {
       assertEquals(false, scope.getMember("visible"));
    }
 
+   // Characterization test for the JS-string-literal encoding used by compile():
+   // a body containing a double quote, a backslash, and an embedded newline must
+   // survive being embedded in the eval(...) wrapper and evaluate correctly.
+   @Test void bodyWithQuotesBackslashesAndNewlinesRoundTrips() throws Exception {
+      MapScope scope = new MapScope();
+      // script text: var s = "a\"b\\c";<newline>s  -> string value a"b\c
+      Object src = engine.compile("var s = \"a\\\"b\\\\c\";\ns");
+      assertEquals("a\"b\\c", engine.exec(src, scope, scope));
+   }
+
+   // A leading "use strict" that is part of a larger expression (not a standalone
+   // directive) must NOT be stripped — doing so would corrupt the script.
+   @Test void leadingUseStrictInExpressionIsNotStripped() throws Exception {
+      MapScope scope = new MapScope();
+      Object src = engine.compile("\"use strict\" + \" x\"");
+      assertEquals("use strict x", engine.exec(src, scope, scope));
+   }
+
    private static ScriptScope makeParam(String k, String v) {
       MapScope p = new MapScope();
       p.putMember(k, v);

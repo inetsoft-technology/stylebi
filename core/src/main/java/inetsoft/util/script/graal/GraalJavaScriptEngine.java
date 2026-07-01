@@ -551,28 +551,117 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * Must be called while holding {@code lock} (result used inline in exec).
     */
    /**
-    * Removes leading ECMAScript Directive Prologue entries for {@code "use strict"} so
-    * that the source can be wrapped in a {@code with(__scope__){...}} block without
-    * triggering a SyntaxError (strict mode forbids {@code with}).
+    * Removes leading ECMAScript Directive Prologue entries for {@code "use strict"}
+    * so the body can be embedded without silently flipping to strict-mode
+    * evaluation (which would forbid {@code with} in the library-function wrapper
+    * and change assignment/scope/`this` semantics in the {@code eval(...)} form
+    * used by {@link #compile}).
+    *
+    * <p>A directive prologue is recognized per the spec: it may be preceded by
+    * whitespace and line/block comments, and the terminating {@code ;} is
+    * optional (ASI). This tolerant scan therefore matches all of
+    * {@code "use strict";}, a bare {@code "use strict"} on its own line, and a
+    * directive preceded by a comment — not just the semicolon-terminated literal.
     */
    private static String stripStrictDirectives(String src) {
       String s = src;
 
       while(true) {
-         String t = s.stripLeading();
+         int i = skipWhitespaceAndComments(s, 0);
+         int end = matchUseStrictDirective(s, i);
 
-         if(t.startsWith("\"use strict\";")) {
-            s = t.substring("\"use strict\";".length());
+         if(end < 0) {
+            break;
          }
-         else if(t.startsWith("'use strict';")) {
-            s = t.substring("'use strict';".length());
+
+         // drop everything up to and including the directive (any skipped
+         // leading comments are inert, so discarding them is harmless).
+         s = s.substring(end);
+      }
+
+      return s;
+   }
+
+   /**
+    * Skip leading whitespace, {@code //} line comments and {@code /* *}{@code /}
+    * block comments starting at {@code from}; return the index of the first
+    * significant character (or {@code s.length()}).
+    */
+   private static int skipWhitespaceAndComments(String s, int from) {
+      int i = from;
+
+      while(i < s.length()) {
+         char c = s.charAt(i);
+
+         if(Character.isWhitespace(c)) {
+            i++;
+         }
+         else if(c == '/' && i + 1 < s.length() && s.charAt(i + 1) == '/') {
+            i += 2;
+
+            while(i < s.length() && s.charAt(i) != '\n' && s.charAt(i) != '\r') {
+               i++;
+            }
+         }
+         else if(c == '/' && i + 1 < s.length() && s.charAt(i + 1) == '*') {
+            i += 2;
+
+            while(i + 1 < s.length() && !(s.charAt(i) == '*' && s.charAt(i + 1) == '/')) {
+               i++;
+            }
+
+            i = Math.min(i + 2, s.length());
          }
          else {
             break;
          }
       }
 
-      return s;
+      return i;
+   }
+
+   /**
+    * If a {@code "use strict"} / {@code 'use strict'} directive begins at
+    * {@code from}, return the index just past it (consuming an optional trailing
+    * {@code ;}, ASI-style); otherwise return -1.
+    *
+    * <p>A directive prologue entry is an ExpressionStatement whose expression is
+    * a lone StringLiteral, so the literal must be terminated by {@code ;}, a line
+    * break (ASI), {@code }} or EOF. When it is instead followed by a continuation
+    * (e.g. {@code "use strict" + x}), the literal is part of a larger expression
+    * and must NOT be treated as a directive — otherwise we would corrupt the
+    * script by stripping the leading token.
+    */
+   private static int matchUseStrictDirective(String s, int from) {
+      for(String lit : new String[] { "\"use strict\"", "'use strict'" }) {
+         if(s.startsWith(lit, from)) {
+            int j = from + lit.length();
+            int k = j;
+
+            // skip spaces/tabs between the literal and its terminator.
+            while(k < s.length() && (s.charAt(k) == ' ' || s.charAt(k) == '\t')) {
+               k++;
+            }
+
+            if(k >= s.length()) {
+               return j;                 // EOF -> ASI terminates the directive
+            }
+
+            char c = s.charAt(k);
+
+            if(c == ';') {
+               return k + 1;             // explicit terminator (consume it)
+            }
+
+            if(c == '\n' || c == '\r' || c == '}') {
+               return j;                 // line break (ASI) or end of block
+            }
+
+            return -1;                   // continuation -> not a directive
+         }
+      }
+
+      return -1;
    }
 
    private int maxErrors() {
