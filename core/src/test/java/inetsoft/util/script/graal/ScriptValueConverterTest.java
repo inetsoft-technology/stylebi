@@ -83,4 +83,23 @@ class ScriptValueConverterTest {
       Object v = ScriptValueConverter.toHost(ctx.getBindings("js").getMember("d"));
       assertSame(d, v);
    }
+
+   // Bug #75549: toHost must be symmetric with toGuest — a ScopeProxy-wrapped
+   // ScriptScope round-trips back to the underlying scope, so Java callers that
+   // read a published scope global back (e.g. senv.get("viewsheet") in
+   // CalcTableLens) still receive the real ScriptScope, not the proxy bridge.
+   @Test void scopeProxyUnwrapsToUnderlyingScope() {
+      ScriptScope scope = new SimpleScope();
+      ctx.getBindings("js").putMember("s", ScriptValueConverter.toGuest(scope));
+      Object v = ScriptValueConverter.toHost(ctx.getBindings("js").getMember("s"));
+      assertSame(scope, v);
+   }
+
+   /** Minimal ScriptScope so toGuest produces a ScopeProxy. */
+   private static class SimpleScope implements ScriptScope {
+      public Object getMember(String name) { return null; }
+      public boolean hasMember(String name) { return false; }
+      public void putMember(String name, Object value) { }
+      public Object[] getMemberKeys() { return new Object[0]; }
+   }
 }
