@@ -137,7 +137,7 @@ describe("QueryPreviewTableComponent", () => {
          expect(measureSpy).toHaveBeenCalled();
       });
 
-      it("should preserve scroll position when visibility changes but columns stay aligned", async () => {
+      it("should recompute and restore scroll position when column visibility changes with the same column count", async () => {
          vi.useFakeTimers();
 
          const { comp, previewNative } = createComponent();
@@ -160,6 +160,35 @@ describe("QueryPreviewTableComponent", () => {
 
          expect(comp.scrollXPos).toBe(32);
          expect(previewNative.scrollLeft).toBe(32);
+      });
+
+      it("should skip width recalculation and leave scroll position untouched when columns stay aligned", async () => {
+         vi.useFakeTimers();
+
+         const { comp, previewNative, renderer } = createComponent();
+         vi.spyOn(GuiTool, "measureScrollbars").mockReturnValue(12);
+
+         comp.tableData = [
+            ["Visible", "Hidden"],
+            ["A", "B"]
+         ];
+         await flushMicrotasks();
+         vi.runAllTimers();
+
+         // sentinel deliberately differs from previewNative.scrollLeft: if the skip
+         // branch were incorrectly entered, scrollXPos would be overwritten to 32
+         comp.scrollXPos = 99;
+         previewNative.scrollLeft = 32;
+         vi.mocked(renderer.setProperty).mockClear();
+         comp.tableData = [
+            ["Visible", "Hidden"],
+            ["C", "D"]
+         ];
+         await flushMicrotasks();
+         vi.runAllTimers();
+
+         expect(comp.scrollXPos).toBe(99);
+         expect(renderer.setProperty).not.toHaveBeenCalled();
       });
 
       it("should normalize hidden column widths and restore scrollLeft after colWidths updates", async () => {

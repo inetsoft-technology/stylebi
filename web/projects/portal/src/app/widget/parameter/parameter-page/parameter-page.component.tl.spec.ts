@@ -256,11 +256,21 @@ describe("ParameterPage - single pass", () => {
          expect(comp.pageModel.params[2].value).toBeNull();
       });
 
-      it("should block submit when a required parameter is empty or a decimal parameter is invalid", () => {
+      it("should block submit when a required parameter is empty", () => {
          const comp = new ParameterPage({ open: vi.fn() } as never);
          comp.pageModel = makePageModel({
             params: [
                makeSimpleParameter({ required: true, value: "" }),
+            ],
+         });
+
+         expect(comp.canSubmit()).toBe(false);
+      });
+
+      it("should block submit when a decimal parameter has an invalid value", () => {
+         const comp = new ParameterPage({ open: vi.fn() } as never);
+         comp.pageModel = makePageModel({
+            params: [
                makeSimpleParameter({ decimalType: true, value: "abc" }),
             ],
          });

@@ -26,7 +26,7 @@
  *   Group 4 [Risk 3] - graphViewChange subscription teardown
  */
 
-import { HttpClient, provideHttpClient } from "@angular/common/http";
+import { HttpClient, HttpParams, provideHttpClient } from "@angular/common/http";
 import { TestBed } from "@angular/core/testing";
 import { Subject, of } from "rxjs";
 
@@ -141,12 +141,13 @@ describe("QueryLinkGraphPaneComponent - single pass", () => {
 
          comp.closeJoinEditPane(true);
 
-         expect(getSpy).toHaveBeenCalledWith(
-            "../api/data/datasource/query/join-edit/close",
-            { params: expect.anything() },
-         );
+         expect(getSpy).toHaveBeenCalledTimes(1);
+         const [url, options] = getSpy.mock.calls[0];
+         expect(url).toBe("../api/data/datasource/query/join-edit/close");
+         expect((options as { params: HttpParams }).params.get("newRuntimeId")).toBe("runtime-2");
+         expect((options as { params: HttpParams }).params.get("originRuntimeId")).toBe("runtime-1");
+         expect((options as { params: HttpParams }).params.get("save")).toBe("true");
          expect(refreshSpy).toHaveBeenCalled();
-         expect(comp.editJoinRuntimeId).toBe("runtime-2");
       });
 
       it("should compute toolbarHeight, graphContainerHeight, and isJoinEditView from graphPaneModel", () => {

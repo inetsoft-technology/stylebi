@@ -115,7 +115,7 @@ describe("PhysicalTableTreeComponent - single pass", () => {
    });
 
    describe("Group 3 - locked node cleanup", () => {
-      it("should remove locked leaves and update parent selection state", () => {
+      it("should remove locked leaves and drop the parent when not all children remain selected", () => {
          const comp = new PhysicalTableTreeComponent();
          const locked = makeLeaf("locked", "T1", true);
          const unlocked = makeLeaf("unlocked", "T1");
@@ -125,7 +125,22 @@ describe("PhysicalTableTreeComponent - single pass", () => {
 
          comp.removeLockedNodes();
 
-         expect(comp.selectedNodes).toEqual([unlocked, parent]);
+         expect(comp.selectedNodes).toEqual([unlocked]);
+      });
+
+      it("should re-add the parent when every child of it is still selected", () => {
+         const comp = new PhysicalTableTreeComponent();
+         const child1 = makeLeaf("c1", "T1");
+         const child2 = makeLeaf("c2", "T1");
+         const parent = makeParent("T1", [child1, child2]);
+         comp.selectedNodes = [child1 as never, child2 as never];
+
+         // updateParent is private and is only invoked internally from removeLockedNodes,
+         // which always removes the triggering child first - making this branch unreachable
+         // through the public API. Invoke it directly to cover the allChildrenSelected path.
+         (comp as any)["updateParent"](parent as never);
+
+         expect(comp.selectedNodes).toEqual([child1, child2, parent]);
       });
    });
 });
