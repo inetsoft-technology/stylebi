@@ -275,7 +275,10 @@ public class BarVO extends ElementVO {
       // also if the bar is too narrow, no anti-alias would cause the bars to
       // appear to be different size
       double r = ((IntervalElement) elem).getCornerRadius();
-      if(getOuterArc(path) != null || fraction || (r > 0 && !(this instanceof Bar3DVO))) {
+      // funnel segments are trapezoids with sloped edges; without anti-aliasing the
+      // diagonal sides render as jagged steps in raster exports (e.g. PNG).
+      boolean isFunnel = (elem.getCollisionModifier() & GraphElement.MOVE_MIDDLE) != 0;
+      if(getOuterArc(path) != null || fraction || (r > 0 && !(this instanceof Bar3DVO)) || isFunnel) {
          g.setRenderingHint(GHints.CURVE, "true");
       }
 
