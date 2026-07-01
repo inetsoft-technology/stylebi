@@ -242,10 +242,12 @@ public class WorksheetTableService {
             // expression columns actually run — a JS column only fails when a row is produced.
             lens.moreRows(1);
 
-            // Throws IllegalArgumentException("Worksheet query failed … (cause: <real error>)") when
-            // the lens chain carries a failed-query fallback — the unified signal for SQL and
-            // expression failures alike. WizVsService is in this same package.
-            WizVsService.checkFailedQuery(lens);
+            // Throws IllegalArgumentException(raw cause) when the lens chain carries a failed-query
+            // fallback — the unified signal for SQL and expression failures alike. Pass false so the
+            // real cause is surfaced verbatim instead of the expression-specific failedQueryError
+            // message, which would misdirect for a raw SQL query table or an infra error.
+            // WizVsService is in this same package.
+            WizVsService.checkFailedQuery(lens, false);
          }
       }
       finally {
