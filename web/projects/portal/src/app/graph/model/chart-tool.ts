@@ -982,6 +982,12 @@ export namespace ChartTool {
                            break;
                      }
                   }
+
+                  // close the polygon subpath so stroke() draws the final edge
+                  // back to the start (fill auto-closes, stroke does not). Without
+                  // this the closing edge of polygon shapes (e.g. funnel trapezoid
+                  // selection) is missing. (Bug #75530)
+                  context.closePath();
                }
             }
 
