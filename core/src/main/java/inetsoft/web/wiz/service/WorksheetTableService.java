@@ -20,6 +20,8 @@ package inetsoft.web.wiz.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.TableLens;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -156,7 +158,27 @@ public class WorksheetTableService {
          viewsheetService.getAssetRepository().setSheet(worksheetEntry, worksheet, user, true);
       }
 
-      // 8. Extract column info for the response.
+      // 8. Execution probe: a SQL query table or a table with expression columns only executes at
+      // render time, so structural creation above can succeed while the query/expression is invalid.
+      // Probe it now — with the worksheet/table already in hand, no reload — so ANY execution failure
+      // (invalid SQL/expression, or an infrastructure error while executing) fails loud here with the
+      // real error, attributed to this table, instead of only surfacing at create_viewsheet. The table
+      // stays persisted and the same wsId is returned, so the caller can rebuild just this one table.
+      if(shouldProbe(request)) {
+         try {
+            probeExecutable(worksheet, table, user);
+         }
+         catch(Exception ex) {
+            WorksheetTableResponse failure = new WorksheetTableResponse();
+            failure.setWsId(worksheetEntry.toIdentifier());
+            failure.setTableName(table.getName());
+            failure.setSuccess(false);
+            failure.setErrorMessage(rootMessage(ex));
+            return failure;
+         }
+      }
+
+      // 9. Extract column info for the response.
       List<WorksheetColumnData> columns = extractColumnsFromSelection(table);
 
       WorksheetTableResponse response = new WorksheetTableResponse();
@@ -173,6 +195,64 @@ public class WorksheetTableService {
 
       response.setSuccess(true);
       return response;
+   }
+
+   // ─── Probe: execute a freshly-built table to surface render-time query failures ──────────
+
+   /**
+    * Whether {@link #createTable} should run the execution probe for this request. A {@code sql query
+    * table} always executes its raw SQL at render time, and a table carrying expression columns (JS or
+    * {@code sql:true}) evaluates them at render time — both can be structurally valid yet fail on
+    * execution. Pure physical / mirror / join tables with no expression columns carry no render-time
+    * execution risk beyond what structural creation already validates, so they are not probed (zero
+    * added latency).
+    */
+   private boolean shouldProbe(WorksheetTableRequest request) {
+      if("sql query table".equals(request.getTableType())) {
+         return true;
+      }
+
+      List<WorksheetTableRequest.ExpressionColumnInfo> exprCols = request.getExpressionColumns();
+      return exprCols != null && !exprCols.isEmpty();
+   }
+
+   /**
+    * Probe whether a freshly-built worksheet table can actually execute, without exporting any data.
+    * Runs the table in {@code LIVE_MODE} and forces the first data row so lazily-evaluated expression
+    * columns (notably JS) actually run, then inspects the result for a failed-query fallback lens.
+    * Any failure propagates (the caller maps it to {@code success=false} + {@code errorMessage}).
+    *
+    * <p>Why {@code LIVE_MODE} rather than {@code RUNTIME_MODE}: a failed query is degraded to a
+    * failed-query fallback lens rather than thrown. {@code RUNTIME_MODE} discards the cause
+    * (AssetQuery swallows {@code SQLExpressionFailedException} for RUNTIME), whereas {@code LIVE_MODE}
+    * stamps the underlying cause onto the fallback lens for BOTH SQL and expression failures, which
+    * {@link WizVsService#checkFailedQuery} then surfaces. The cause never bubbles out of
+    * {@code getTableLens} (LIVE re-swallows it at doGetTableLens), so {@code checkFailedQuery} must
+    * be called actively.
+    */
+   private void probeExecutable(Worksheet worksheet, Assembly table, Principal user) throws Exception {
+      AssetQuerySandbox box = new AssetQuerySandbox(worksheet);
+      box.setBaseUser(user);
+
+      try {
+         TableLens lens = box.getTableLens(table.getAbsoluteName(), AssetQuerySandbox.LIVE_MODE);
+
+         if(lens != null) {
+            // Force the first data row (row 0 = header, row 1 = first data row) so lazily-evaluated
+            // expression columns actually run — a JS column only fails when a row is produced.
+            lens.moreRows(1);
+
+            // Throws IllegalArgumentException(raw cause) when the lens chain carries a failed-query
+            // fallback — the unified signal for SQL and expression failures alike. Pass false so the
+            // real cause is surfaced verbatim instead of the expression-specific failedQueryError
+            // message, which would misdirect for a raw SQL query table or an infra error.
+            // WizVsService is in this same package.
+            WizVsService.checkFailedQuery(lens, false);
+         }
+      }
+      finally {
+         box.dispose();
+      }
    }
 
    // Get worksheet table metadata.

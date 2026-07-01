@@ -753,6 +753,22 @@ public class WizVsService {
     */
    // package-private for testing
    static void checkFailedQuery(XTable lens) {
+      checkFailedQuery(lens, true);
+   }
+
+   /**
+    * Throws if the lens chain contains failed-query fallback data. When a live query fails
+    * (e.g. a computed-column expression that is invalid SQL for the data source), AssetQuery
+    * substitutes design-time sample data instead of erroring, and the chart path replaces
+    * that meta table with generated sample rows (name1/999.99). The wiz path must surface
+    * the failure instead of returning fabricated rows as if they were real query results.
+    *
+    * @param wrapExpressionError when true, throw the expression-specific {@link #failedQueryError}
+    *        message (the default for chart/binding callers); when false, throw the raw underlying
+    *        cause instead, for callers surfacing failures on non-expression tables (e.g. a raw SQL
+    *        query table) where the "check the expression columns" advice would mislead.
+    */
+   static void checkFailedQuery(XTable lens, boolean wrapExpressionError) {
       if(lens == null) {
          return;
       }
@@ -764,7 +780,9 @@ public class WizVsService {
          String cause = failedQueryCause(t);
 
          if(cause != null) {
-            throw new IllegalArgumentException(failedQueryError(cause));
+            throw new IllegalArgumentException(
+               wrapExpressionError ? failedQueryError(cause)
+                  : (cause.isBlank() ? "Worksheet query failed." : cause));
          }
       }
    }
