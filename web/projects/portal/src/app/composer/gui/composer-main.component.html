@@ -269,7 +269,7 @@
        </split-pane>
      </div>
    </div>
-   @defer (on immediate; prefetch on idle) {
+   @defer (when focusedViewsheet?.bindingEditMode && !wizardEditMode; prefetch on idle) {
       @if (focusedViewsheet?.bindingEditMode && !wizardEditMode) {
          <vs-binding-pane
             [runtimeId]="bindingPaneModel.runtimeId"
