@@ -482,6 +482,25 @@ describe("VSTable — Pass 3: Display", () => {
          expect(comp.getObjectTop()).toBe(comp.model.objectFormat.top);
       });
 
+      it("should return objectFormat.top when containerType is not VSTab", () => {
+         const { comp } = createTableComponent({
+            model: { shrink: true, containerType: "VSTable" },
+         });
+
+         // guard: containerType === "VSTab" is false — offset skipped
+         expect(comp.getObjectTop()).toBe(comp.model.objectFormat.top);
+      });
+
+      it("should return objectFormat.top when vsInfo is null even with containerType VSTab", () => {
+         const { comp } = createTableComponent({
+            model: { shrink: true, containerType: "VSTab", container: "tab1" },
+         });
+         comp.vsInfo = null;
+
+         // guard: this.vsInfo is falsy — offset skipped
+         expect(comp.getObjectTop()).toBe(comp.model.objectFormat.top);
+      });
+
       it("should return objectFormat.top when parent VSTab has bottomTabs=false", () => {
          const { comp } = createTableComponent({
             model: { shrink: true, containerType: "VSTab", container: "tab1" },

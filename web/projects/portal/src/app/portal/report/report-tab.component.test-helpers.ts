@@ -39,43 +39,43 @@ import { CollapseRepositoryTreeService } from "./desktop/collapse-repository-tre
 import { ReportTabModel } from "./report-tab-model";
 import { ReportTabComponent } from "./report-tab.component";
 
-type ReportTabPrivateApi = {
+interface ReportTabPrivateApi {
    init(): void;
    isEntryOpened(entry: RepositoryEntry): boolean;
    processMessageCommand(command: { message: string; type: string }): void;
    reloadUrl(url: string, navigationExtras: { queryParams?: Record<string, string> }): void;
-};
+}
 
-type ReportTabCurrentRouteStub = {
+interface ReportTabCurrentRouteStub {
    currentUrl$: BehaviorSubject<string>;
    repositoryEntry$: BehaviorSubject<RepositoryEntry | null>;
    repositoryUrl$: BehaviorSubject<string | null>;
    currentUrl: BehaviorSubject<string>;
    repositoryEntry: BehaviorSubject<RepositoryEntry | null>;
    repositoryUrl: BehaviorSubject<string | null>;
-};
+}
 
-type ReportTabRouterStub = {
+interface ReportTabRouterStub {
    events: Subject<unknown>;
    navigate: ReturnType<typeof vi.fn>;
-};
+}
 
-type ReportTabNotificationsStub = {
+interface ReportTabNotificationsStub {
    success: ReturnType<typeof vi.fn>;
    info: ReturnType<typeof vi.fn>;
    warning: ReturnType<typeof vi.fn>;
    danger: ReturnType<typeof vi.fn>;
-};
+}
 
-type ReportTabMobileViewStub = {
+interface ReportTabMobileViewStub {
    activePane: string;
-};
+}
 
-type ReportTabViewsheetClientStub = {
+interface ReportTabViewsheetClientStub {
    commands: Subject<unknown>;
    connect: ReturnType<typeof vi.fn>;
    sendEvent: ReturnType<typeof vi.fn>;
-};
+}
 
 export function createReportTabModel(
    overrides: Partial<ReportTabModel> = {},

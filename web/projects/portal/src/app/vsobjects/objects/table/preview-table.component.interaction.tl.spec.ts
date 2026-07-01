@@ -382,7 +382,7 @@ describe("Group 12 — DnD: dragStart/dragOverTable/onLeave/dropOnTable", () => 
       const { comp } = createPreviewComponent();
       comp.dragStart(makeDragEvent(), 0);
 
-      // columnWidths[1] ≈ 166; left=0 → posx=200 > 166/2=83 → right half → dropIndex=2
+      // columnWidths[1] capped at 150 by Math.min; left=0 → posx=200 > 150/2=75 → right half → dropIndex=2
       const overEvent = makeDragEvent({
          clientX: 200,
          currentTarget: { getBoundingClientRect: vi.fn().mockReturnValue({ left: 0 }) },
@@ -395,7 +395,7 @@ describe("Group 12 — DnD: dragStart/dragOverTable/onLeave/dropOnTable", () => 
       const { comp } = createPreviewComponent();
       comp.dragStart(makeDragEvent(), 2);
 
-      // posx=20 < 166/2=83 → left half → dropIndex=1
+      // posx=20 < 150/2=75 → left half → dropIndex=1
       const overEvent = makeDragEvent({
          clientX: 20,
          currentTarget: { getBoundingClientRect: vi.fn().mockReturnValue({ left: 0 }) },

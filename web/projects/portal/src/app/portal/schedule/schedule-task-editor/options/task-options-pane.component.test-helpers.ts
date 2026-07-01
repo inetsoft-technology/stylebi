@@ -30,7 +30,7 @@ import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-z
 import { ScheduleUsersService } from "../../../../../../../shared/schedule/schedule-users.service";
 import { TaskOptionsPane } from "./task-options-pane.component";
 
-type TaskOptionsScheduleUsersStub = {
+interface TaskOptionsScheduleUsersStub {
    owners$: BehaviorSubject<IdentityIdWithLabel[]>;
    groups$: BehaviorSubject<IdentityId[]>;
    adminName$: BehaviorSubject<string>;
@@ -38,7 +38,7 @@ type TaskOptionsScheduleUsersStub = {
    getGroups: ReturnType<typeof vi.fn>;
    getAdminName: ReturnType<typeof vi.fn>;
    isLoading: boolean;
-};
+}
 
 export function makeIdentityId(name: string): IdentityId {
    return {

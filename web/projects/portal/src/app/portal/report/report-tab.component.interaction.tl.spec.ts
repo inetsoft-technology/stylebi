@@ -71,6 +71,8 @@ describe("ReportTabComponent - interaction", () => {
          currentRouteService.repositoryUrl$.next("/wizard/path");
          notifications$.next({ type: "danger", content: "boom" });
          currentRouteService.repositoryEntry$.next(null);
+         // Seed openedEntrys so the /close reset branch is actually exercised
+         comp.openedEntrys = [entry];
          currentRouteService.repositoryUrl$.next("/close");
 
          expect(viewsheetClient.connect).toHaveBeenCalled();

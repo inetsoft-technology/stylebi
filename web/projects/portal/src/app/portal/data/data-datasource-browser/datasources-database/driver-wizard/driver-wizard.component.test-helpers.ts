@@ -23,29 +23,29 @@ import { Observable } from "rxjs";
 
 import { DriverWizardComponent } from "./driver-wizard.component";
 
-type DriverWizardPrivateApi = {
+interface DriverWizardPrivateApi {
    createDriver(): void;
    scanDrivers(id: string): Observable<string[]>;
    searchMaven(query: string): Observable<string[]>;
    uploadDrivers(): void;
    uploadId: string | null;
-};
+}
 
-type DriverWizardNotifications = {
+interface DriverWizardNotifications {
    notifications: {
       danger: ReturnType<typeof vi.fn>;
    };
-};
+}
 
-type DriverWizardFileLike = {
+interface DriverWizardFileLike {
    name: string;
-};
+}
 
-type DriverWizardFileEvent = {
+interface DriverWizardFileEvent {
    target: {
       files: DriverWizardFileLike[];
    };
-};
+}
 
 type DriverWizardMouseEventOverrides = Pick<MouseEvent, "ctrlKey" | "metaKey" | "shiftKey">;
 

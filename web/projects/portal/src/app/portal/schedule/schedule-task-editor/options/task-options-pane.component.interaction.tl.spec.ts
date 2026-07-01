@@ -184,21 +184,33 @@ describe("TaskOptionsPane - interaction", () => {
    });
 
    describe("Group 3 - execute as and save", () => {
-      it("should disable execute-as when the user list is still loading or the task cannot impersonate", () => {
+      it("should disable execute-as while the user list is loading and re-enable it once loading finishes", () => {
          const usersService = createScheduleUsersStub();
          usersService.isLoading = true;
+         usersService.adminName$.next("admin");
          const { comp, parentForm } = createTaskOptionsPane({ usersService });
          comp.parentForm = parentForm;
-         comp.model = makeTaskOptionsPaneModel({
-            securityEnabled: true,
-            selfOrg: false,
-         });
+         comp.model = makeTaskOptionsPaneModel({ securityEnabled: true, selfOrg: false });
          comp.ngOnInit();
 
          expect(comp.loadingUsers).toBe(true);
          expect(comp.disableExecuteAs()).toBe(true);
 
          usersService.isLoading = false;
+         expect(comp.loadingUsers).toBe(false);
+         expect(comp.disableExecuteAs()).toBe(false);
+      });
+
+      it("should disable execute-as when selfOrg is true and re-enable it when selfOrg is false", () => {
+         const usersService = createScheduleUsersStub();
+         usersService.adminName$.next("admin");
+         const { comp, parentForm } = createTaskOptionsPane({ usersService });
+         comp.parentForm = parentForm;
+         comp.model = makeTaskOptionsPaneModel({ securityEnabled: true, selfOrg: false });
+         comp.ngOnInit();
+
+         expect(comp.disableExecuteAs()).toBe(false);
+
          comp._model.selfOrg = true;
          expect(comp.disableExecuteAs()).toBe(true);
       });

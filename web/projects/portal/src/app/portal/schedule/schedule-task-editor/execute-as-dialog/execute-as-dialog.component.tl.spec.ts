@@ -34,23 +34,23 @@ import { IdentityType } from "../../../../../../../shared/data/identity-type";
 import { ExpandStringDirective } from "../../../../widget/expand-string/expand-string.directive";
 import { ExecuteAsDialog } from "./execute-as-dialog.component";
 
-type IdentityIdStub = {
+interface IdentityIdStub {
    name: string;
    orgID: string | null;
-};
+}
 
-type IdentityIdWithLabelStub = {
+interface IdentityIdWithLabelStub {
    identityID: IdentityIdStub;
    label?: string;
-};
+}
 
-type IdentityTreeStub = {
+interface IdentityTreeStub {
    searchMode: boolean;
    nodeExpanded: ReturnType<typeof vi.fn>;
    tree: {
       selectedNodes: unknown[];
    };
-};
+}
 
 function createComponent(): ExecuteAsDialog {
    return new ExecuteAsDialog();

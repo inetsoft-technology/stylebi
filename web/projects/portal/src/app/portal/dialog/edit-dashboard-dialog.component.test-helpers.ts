@@ -26,23 +26,23 @@ import { DashboardModel } from "../../common/data/dashboard-model";
 import { RepositoryTreeService } from "../../widget/repository-tree/repository-tree.service";
 import { EditDashboardDialog } from "./edit-dashboard-dialog.component";
 
-type EditDashboardDialogTreeStub = {
+interface EditDashboardDialogTreeStub {
    selectAndExpandToPath: ReturnType<typeof vi.fn>;
-};
+}
 
-type EditDashboardDialogRepositoryTreeServiceStub = {
+interface EditDashboardDialogRepositoryTreeServiceStub {
    getRootFolder: ReturnType<typeof vi.fn>;
-};
+}
 
-type EditDashboardDialogChangeDetectorStub = {
+interface EditDashboardDialogChangeDetectorStub {
    detectChanges: ReturnType<typeof vi.fn>;
-};
+}
 
-type EditDashboardDialogModalStub = {
+interface EditDashboardDialogModalStub {
    open: ReturnType<typeof vi.fn>;
-};
+}
 
-type EditDashboardDialogRootNode = {
+interface EditDashboardDialogRootNode {
    label: string;
    leaf: boolean;
    data: {
@@ -52,19 +52,19 @@ type EditDashboardDialogRootNode = {
       label: string;
    };
    children: unknown[];
-};
+}
 
-type EditDashboardDialogNodeData = {
+interface EditDashboardDialogNodeData {
    type: number;
    path: string;
    entry?: {
       identifier: string;
    };
-};
+}
 
-type EditDashboardDialogNode = {
+interface EditDashboardDialogNode {
    data: EditDashboardDialogNodeData;
-};
+}
 
 export function createEditDashboardDialogRootNode(): EditDashboardDialogRootNode {
    return {
