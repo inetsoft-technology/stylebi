@@ -46,15 +46,7 @@ import inetsoft.web.wiz.model.osi.*;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
 import org.springframework.stereotype.Service;
 
-import java.net.ConnectException;
-import java.net.SocketException;
-import java.net.SocketTimeoutException;
 import java.security.Principal;
-import java.sql.SQLNonTransientConnectionException;
-import java.sql.SQLRecoverableException;
-import java.sql.SQLException;
-import java.sql.SQLTimeoutException;
-import java.sql.SQLTransientConnectionException;
 import java.util.*;
 
 import static inetsoft.web.wiz.service.GenerateWsService.WORKSHEET_ROOT_FOLDER_PATH;
@@ -168,31 +160,21 @@ public class WorksheetTableService {
 
       // 8. Execution probe: a SQL query table or a table with expression columns only executes at
       // render time, so structural creation above can succeed while the query/expression is invalid.
-      // Probe it now — with the worksheet/table already in hand, no reload — so a real DB/expression
-      // error fails loud here (attributed to this table) instead of only at create_viewsheet.
-      //   query_error → return success=false + the real error now (table stays persisted; same wsId,
-      //                 so the caller can rebuild just this one table).
-      //   infra_error → non-blocking: keep success=true and attach a warning; the table built fine,
-      //                 we just could not verify execution (timeout / connection / auth).
-      String probeWarning = null;
-
+      // Probe it now — with the worksheet/table already in hand, no reload — so ANY execution failure
+      // (invalid SQL/expression, or an infrastructure error while executing) fails loud here with the
+      // real error, attributed to this table, instead of only surfacing at create_viewsheet. The table
+      // stays persisted and the same wsId is returned, so the caller can rebuild just this one table.
       if(shouldProbe(request)) {
          try {
             probeExecutable(worksheet, table, user);
          }
-         catch(ProbeTableException ex) {
-            if(!WorksheetTableResponse.PROBE_ERROR_INFRA.equals(ex.getProbeErrorKind())) {
-               WorksheetTableResponse failure = new WorksheetTableResponse();
-               failure.setWsId(worksheetEntry.toIdentifier());
-               failure.setTableName(table.getName());
-               failure.setSuccess(false);
-               failure.setErrorMessage(ex.getMessage());
-               failure.setProbeErrorKind(WorksheetTableResponse.PROBE_ERROR_QUERY);
-               return failure;
-            }
-
-            probeWarning = "Could not verify execution (" + ex.getMessage() +
-               "); this table may still fail at render time.";
+         catch(Exception ex) {
+            WorksheetTableResponse failure = new WorksheetTableResponse();
+            failure.setWsId(worksheetEntry.toIdentifier());
+            failure.setTableName(table.getName());
+            failure.setSuccess(false);
+            failure.setErrorMessage(rootMessage(ex));
+            return failure;
          }
       }
 
@@ -209,11 +191,6 @@ public class WorksheetTableService {
             ? request.getPhysicalSource().getTableName() : null;
          response.setPrimaryTableFields(
             WsServiceHelper.extractPrimaryTableFields(worksheet, table, dbTableOverride));
-      }
-
-      if(probeWarning != null) {
-         response.setWarning(probeWarning);
-         response.setProbeErrorKind(WorksheetTableResponse.PROBE_ERROR_INFRA);
       }
 
       response.setSuccess(true);
@@ -243,9 +220,7 @@ public class WorksheetTableService {
     * Probe whether a freshly-built worksheet table can actually execute, without exporting any data.
     * Runs the table in {@code LIVE_MODE} and forces the first data row so lazily-evaluated expression
     * columns (notably JS) actually run, then inspects the result for a failed-query fallback lens.
-    * Throws a {@link ProbeTableException} carrying the real underlying DB/expression error on failure
-    * (the caller maps {@code query_error} to {@code success=false} + {@code errorMessage} and
-    * {@code infra_error} to a non-blocking warning); returns normally on success.
+    * Any failure propagates (the caller maps it to {@code success=false} + {@code errorMessage}).
     *
     * <p>Why {@code LIVE_MODE} rather than {@code RUNTIME_MODE}: a failed query is degraded to a
     * failed-query fallback lens rather than thrown. {@code RUNTIME_MODE} discards the cause
@@ -255,123 +230,27 @@ public class WorksheetTableService {
     * {@code getTableLens} (LIVE re-swallows it at doGetTableLens), so {@code checkFailedQuery} must
     * be called actively.
     */
-   private void probeExecutable(Worksheet worksheet, Assembly table, Principal user) {
+   private void probeExecutable(Worksheet worksheet, Assembly table, Principal user) throws Exception {
       AssetQuerySandbox box = new AssetQuerySandbox(worksheet);
       box.setBaseUser(user);
 
       try {
-         // getTableLens declares a checked Exception (setup/execution failure); normalize it to the
-         // same classified probe failure shape rather than letting it escape unclassified.
-         TableLens lens;
+         TableLens lens = box.getTableLens(table.getAbsoluteName(), AssetQuerySandbox.LIVE_MODE);
 
-         try {
-            lens = box.getTableLens(table.getAbsoluteName(), AssetQuerySandbox.LIVE_MODE);
-         }
-         catch(Exception ex) {
-            throw probeFailure(ex);
-         }
-
-         if(lens == null) {
-            throw new ProbeTableException(
-               WorksheetTableResponse.PROBE_ERROR_QUERY,
-               "Could not obtain a table lens for '" + table.getName() +
-               "' — the assembly may not be executable", null);
-         }
-
-         // Force the first data row (row 0 = header, row 1 = first data row) so lazily-evaluated
-         // expression columns actually run — a JS column only fails when a row is produced. A failed
-         // query surfaces either by throwing here (e.g. a JS column failing mid-fetch) or by degrading
-         // to a failed-query fallback lens (checkFailedQuery below). Normalize the throw to the same
-         // failed-query error shape so the caller sees one signal.
-         try {
+         if(lens != null) {
+            // Force the first data row (row 0 = header, row 1 = first data row) so lazily-evaluated
+            // expression columns actually run — a JS column only fails when a row is produced.
             lens.moreRows(1);
-         }
-         catch(Exception ex) {
-            throw probeFailure(ex);
-         }
 
-         // Throws IllegalArgumentException("Worksheet query failed … (cause: <DB error>)") when the
-         // lens chain carries failed-query fallback data — the unified signal for SQL and expression
-         // failures alike. WizVsService is in this same package.
-         try {
+            // Throws IllegalArgumentException("Worksheet query failed … (cause: <real error>)") when
+            // the lens chain carries a failed-query fallback — the unified signal for SQL and
+            // expression failures alike. WizVsService is in this same package.
             WizVsService.checkFailedQuery(lens);
-         }
-         catch(Exception ex) {
-            throw probeFailure(ex);
          }
       }
       finally {
          box.dispose();
       }
-   }
-
-   public static class ProbeTableException extends RuntimeException {
-      public ProbeTableException(String probeErrorKind, String message, Throwable cause) {
-         super(message, cause);
-         this.probeErrorKind = probeErrorKind;
-      }
-
-      public String getProbeErrorKind() {
-         return probeErrorKind;
-      }
-
-      private final String probeErrorKind;
-   }
-
-   private static ProbeTableException probeFailure(Throwable ex) {
-      String detail = rootMessage(ex);
-      String kind = probeErrorKind(ex, detail);
-
-      if(WorksheetTableResponse.PROBE_ERROR_QUERY.equals(kind) &&
-         !detail.startsWith("Worksheet query failed")) {
-         detail = WizVsService.failedQueryError(detail);
-      }
-
-      return new ProbeTableException(kind, detail, ex);
-   }
-
-   private static String probeErrorKind(Throwable ex, String detail) {
-      for(Throwable t = ex; t != null; t = t.getCause()) {
-         if(t instanceof SQLTimeoutException ||
-            t instanceof SQLTransientConnectionException ||
-            t instanceof SQLNonTransientConnectionException ||
-            t instanceof SQLRecoverableException ||
-            t instanceof ConnectException ||
-            t instanceof SocketTimeoutException ||
-            t instanceof SocketException)
-         {
-            return WorksheetTableResponse.PROBE_ERROR_INFRA;
-         }
-
-         if(t instanceof SQLException sqlException) {
-            String state = sqlException.getSQLState();
-
-            if(state != null && (state.startsWith("08") || state.startsWith("28"))) {
-               return WorksheetTableResponse.PROBE_ERROR_INFRA;
-            }
-         }
-      }
-
-      String msg = detail == null ? "" : detail.toLowerCase(Locale.ROOT);
-
-      if(msg.contains("connection refused") ||
-         msg.contains("connection reset") ||
-         msg.contains("connection closed") ||
-         msg.contains("connection failed") ||
-         msg.contains("connect timed out") ||
-         msg.contains("timed out") ||
-         msg.contains("timeout") ||
-         msg.contains("socket") ||
-         msg.contains("network") ||
-         msg.contains("authentication failed") ||
-         msg.contains("authorization failed") ||
-         msg.contains("credential") ||
-         msg.contains("login failed"))
-      {
-         return WorksheetTableResponse.PROBE_ERROR_INFRA;
-      }
-
-      return WorksheetTableResponse.PROBE_ERROR_QUERY;
    }
 
    // Get worksheet table metadata.

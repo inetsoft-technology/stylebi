@@ -31,9 +31,6 @@ import java.util.List;
  */
 public class WorksheetTableResponse {
 
-   public static final String PROBE_ERROR_QUERY = "query_error";
-   public static final String PROBE_ERROR_INFRA = "infra_error";
-
    /** Asset identifier of the worksheet; pass as {@code worksheetId} in subsequent calls. */
    private String wsId;
 
@@ -51,18 +48,6 @@ public class WorksheetTableResponse {
 
    private boolean success;
    private String errorMessage;
-   /**
-    * Optional, only populated by the create-time execution probe when the table failed to execute.
-    * query_error means the table itself failed to execute and callers may block/rebuild it (returned
-    * with success=false); infra_error means the probe could not verify execution and callers should
-    * warn but continue (returned with success=true plus {@link #warning}).
-    */
-   private String probeErrorKind;
-   /**
-    * Optional, non-blocking warning: set when the create-time execution probe could not verify the
-    * table (infra_error). {@code success} stays true, but the table may still fail at render time.
-    */
-   private String warning;
 
    public String getWsId() { return wsId; }
    public void setWsId(String wsId) { this.wsId = wsId; }
@@ -83,11 +68,5 @@ public class WorksheetTableResponse {
 
    public String getErrorMessage() { return errorMessage; }
    public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
-
-   public String getProbeErrorKind() { return probeErrorKind; }
-   public void setProbeErrorKind(String probeErrorKind) { this.probeErrorKind = probeErrorKind; }
-
-   public String getWarning() { return warning; }
-   public void setWarning(String warning) { this.warning = warning; }
 
 }
