@@ -41,6 +41,7 @@
 .join-properties__content {
    display: grid;
    gap: 12px;
+   padding-top: var(--inet-space-5);
 }
 
 .join-properties__content > .form-floating:first-child {

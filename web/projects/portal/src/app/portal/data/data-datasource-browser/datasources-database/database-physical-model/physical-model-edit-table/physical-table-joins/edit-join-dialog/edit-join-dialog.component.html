@@ -29,7 +29,6 @@
     </div>
     <div class="join-properties__content">
       @if (!!joinModel) {
-        <div class="mt-3 col-12">
           <div class="form-floating">
             <input type="text" name="joinPreview" class="form-control"
               [ngModel]="joinPreview"
@@ -78,8 +77,6 @@
                     [(ngModel)]="joinModel.mergingRule">
                   _#(And)
                 </label>
-              </div>
-              <div class="join-properties__choice-row">
                 <label class="join-properties__choice-label">
                   <input class="form-check-input align-middle" type="radio"
                     name="mergingRadio"
@@ -99,8 +96,6 @@
                     [(ngModel)]="joinModel.cardinality">
                   _#(One to one)
                 </label>
-              </div>
-              <div class="join-properties__choice-row">
                 <label class="join-properties__choice-label">
                   <input class="form-check-input align-middle" type="radio"
                     name="cardinalityRadio"
@@ -108,8 +103,6 @@
                     [(ngModel)]="joinModel.cardinality">
                   _#(One to many)
                 </label>
-              </div>
-              <div class="join-properties__choice-row">
                 <label class="join-properties__choice-label">
                   <input class="form-check-input align-middle" type="radio"
                     name="cardinalityRadio"
@@ -117,8 +110,6 @@
                     [(ngModel)]="joinModel.cardinality">
                   _#(Many to one)
                 </label>
-              </div>
-              <div class="join-properties__choice-row">
                 <label class="join-properties__choice-label">
                   <input class="form-check-input align-middle" type="radio"
                     name="cardinalityRadio"
@@ -136,7 +127,6 @@
               </label>
             </div>
           }
-        </div>
       }
     </div>
   </div>
