@@ -33,6 +33,19 @@ import { http, HttpResponse } from "msw";
 
 export const viewerHandlers = [
 
+   // VSSelectionContainer.addFilter() — load the tree for the add-filter dialog
+   http.get("*/api/selectioncontainer/add-filter/tree", () => {
+      return HttpResponse.json({
+         targetTree: {
+            label: "Root",
+            leaf: false,
+            expanded: true,
+            children: [],
+         },
+         grayedOutFields: [],
+      });
+   }),
+
    // EmailDialog.ok() — validate email addresses before sending
    http.get("*/api/vs/check-email-valid", () => {
       return HttpResponse.json({

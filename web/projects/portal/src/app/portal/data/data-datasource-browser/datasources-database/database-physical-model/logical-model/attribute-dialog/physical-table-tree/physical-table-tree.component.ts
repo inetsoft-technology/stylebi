@@ -309,7 +309,7 @@ export class PhysicalTableTreeComponent {
          const index: number = this.indexOf(parent, this.selectedNodes);
 
          if(index >= 0) {
-            this.selectedNodes.slice(index, 1);
+            this.selectedNodes.splice(index, 1);
          }
       }
    }
