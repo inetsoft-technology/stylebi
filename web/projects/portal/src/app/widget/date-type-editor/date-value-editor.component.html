@@ -59,12 +59,16 @@
       </div>
     </div>
     <div class="ngb-dp-content ngb-dp-months">
-      <div *ngFor="let month of datepicker.state.months" class="ngb-dp-month">
-        <div *ngIf="datepicker.displayMonths > 1" class="ngb-dp-month-name">
-          {{ datepicker.i18n.getMonthLabel(month) }}
+      @for(month of datepicker.state.months; track month) {
+        <div class="ngb-dp-month">
+          @if(datepicker.displayMonths > 1) {
+            <div class="ngb-dp-month-name">
+              {{ datepicker.i18n.getMonthLabel(month) }}
+            </div>
+          }
+          <ngb-datepicker-month [month]="month"></ngb-datepicker-month>
         </div>
-        <ngb-datepicker-month [month]="month"></ngb-datepicker-month>
-      </div>
+      }
     </div>
   </div>
 </ng-template>
