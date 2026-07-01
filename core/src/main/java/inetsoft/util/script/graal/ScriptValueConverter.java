@@ -121,6 +121,25 @@ public final class ScriptValueConverter {
          return arr;
       }
 
+      // proxy/host wrappers and plain objects: hand back the raw value's
+      // host object if present, else the Value itself for member access.
+      // Unwrap our own scope adapters back to the underlying ScriptScope so
+      // toHost is symmetric with toGuest (e.g. env.get("viewsheet") returns the
+      // real ViewsheetScope, not the ScopeProxy bridge).
+      if(v.isProxyObject()) {
+         Object proxy = v.asProxyObject();
+
+         if(proxy instanceof ScopeProxy) {
+            return ((ScopeProxy) proxy).getScope();
+         }
+
+         if(proxy instanceof ArrayProxy) {
+            return ((ArrayProxy) proxy).getScope();
+         }
+
+         return proxy;
+      }
+
       return v;
    }
 }
