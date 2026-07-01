@@ -19,21 +19,26 @@
 /**
  * MonitoringSidenavComponent — Angular Testing Library + MSW
  *
- * Demo target for SecurityMswHandlers (Phase 2 / M6): MonitoringSidenavComponent is the EM
- * sidebar/nav-menu component that calls AuthorizationService.getPermissions("monitoring") and
- * shows/hides menu items (<a mat-list-item>) based on the response, exactly the pattern the
- * SecurityMswHandlers personas are meant to exercise.
+ * Two describe blocks:
+ *   1. "MonitoringSidenavComponent" — general smoke test (component creation).
+ *   2. "MonitoringSidenavComponent — SECURITY: SecurityMswHandlers personas" — permission
+ *      persona coverage (8 cases below).
  *
- * Persona coverage (8 required cases, see docs/superpowers/plans/2026-06-30-permission-test-phase2.md
- * Task 1):
- *   1. asSiteAdmin  — For-Org-x path (monitoring/cache)   -> menu item IN dom
- *   2. asSiteAdmin  — For-Org-ok path (monitoring/queries) -> menu item IN dom
- *   3. asSiteAdmin  — navbar isSiteAdmin=true reflected on the component
- *   4. asOrgAdmin   — For-Org-x path (monitoring/cache)   -> menu item NOT in dom
- *   5. asOrgAdmin   — For-Org-ok path (monitoring/queries) -> menu item IN dom (must not over-hide)
- *   6. asOrgAdmin   — navbar isOrgAdminOnly=true reflected on the component
- *   7. asViewer     — no admin entries rendered at all
- *   8. asAnonymous  — authz 401 handled gracefully (no crash, no visible menu items)
+ * Component: EM sidebar/nav-menu; calls AuthorizationService.getPermissions("monitoring") and
+ * shows/hides menu items (<a mat-list-item>) based on the response.
+ *
+ *   asSiteAdmin:
+ *     Case 1 — For-Org-x path (monitoring/cache)    → menu item IN dom
+ *     Case 2 — For-Org-ok path (monitoring/queries) → menu item IN dom
+ *     Case 3 — navbar isSiteAdmin=true              → reflected on component
+ *   asOrgAdmin:
+ *     Case 4 — For-Org-x path (monitoring/cache)    → menu item NOT in dom
+ *     Case 5 — For-Org-ok path (monitoring/queries) → menu item IN dom (no over-hide)
+ *     Case 6 — navbar isOrgAdminOnly=true           → reflected on component
+ *   asViewer:
+ *     Case 7 — no admin entries rendered
+ *   asAnonymous:
+ *     Case 8 — authz 401 handled gracefully (no crash, no visible menu items)
  *
  * NOTE on the authz child-key contract: the real backend (/api/em/authz) returns permissions
  * keyed by *child component name* (e.g. { cache: true, queries: true }), which is what
@@ -111,8 +116,27 @@ async function renderComponent() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// General (non-security) smoke test — merged from the former
+// monitoring-sidenav.component.spec.ts (TestBed-based "should create" test).
+// ─────────────────────────────────────────────────────────────────────────────
 
-describe("MonitoringSidenavComponent — SecurityMswHandlers personas", () => {
+describe("MonitoringSidenavComponent", () => {
+
+   // Basic creation smoke test. Relies on the default em.handlers.ts authz/navbar responses
+   // (no persona override) — this block intentionally contains no security-persona coverage;
+   // see the "SECURITY:" describe block below for that.
+   it("should create", async () => {
+      const { fixture } = await renderComponent();
+
+      expect(fixture.componentInstance).toBeTruthy();
+   });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECURITY: SecurityMswHandlers persona coverage (Phase 2 / M6 demo target).
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("MonitoringSidenavComponent — SECURITY: SecurityMswHandlers personas", () => {
 
    // Case 1: asSiteAdmin — For-Org-x path (monitoring/cache) must be visible.
    it("case 1: siteAdmin sees the For-Org-x Cache menu item", async () => {
