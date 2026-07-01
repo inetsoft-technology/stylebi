@@ -371,9 +371,71 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    }
 
    public Object compile(String cmd, boolean fieldOnly) throws Exception {
-      // store raw text; the with-wrap is applied per-exec against the live scope
-      return Source.newBuilder("js", "with(__scope__){\n" + cmd + "\n}", "<cmd>")
+      // Rhino parity: Context.evaluateString(scope, ...) bound the top-level
+      // `this` to the scope object, so dashboard scripts routinely reference
+      // assembly properties as `this.position`, `this.scaledPosition`, etc. A
+      // bare with(__scope__){ ... } wrapper only fixes *unqualified* name
+      // resolution — `this` at the top level of context.eval is globalThis, so
+      // `this.<prop>` would read undefined and throw (Bug #75550).
+      //
+      // Run the body inside a function invoked with __scope__ as its receiver so
+      // `this` === the scope. A plain function body would discard the script's
+      // completion value, which value/expression bindings depend on (e.g. a Text
+      // value binding "=field['Total']"; see ViewsheetSandbox.executeDynamicValue).
+      // A *direct* eval preserves the statement-list completion value while
+      // inheriting both the `this` receiver and the enclosing with(__scope__)
+      // scope chain, so unqualified names still resolve against the live scope.
+      //
+      // Strip any leading "use strict" prologue: under the old top-level
+      // with(__scope__){ ... } wrapper such a directive was an inert string
+      // expression (a directive prologue is only recognized at the very start of
+      // a script/function body, not inside a block), so scripts ran sloppy. As
+      // the first statement of the eval'd body it *would* be recognized and flip
+      // the body to strict eval, changing assignment/scope semantics — so remove
+      // it to preserve the prior behavior.
+      String body = stripStrictDirectives(cmd);
+      return Source.newBuilder("js",
+         "(function(){with(__scope__){return eval(" + toJsStringLiteral(body) +
+            ");}}).call(__scope__)", "<cmd>")
          .buildLiteral();
+   }
+
+   /**
+    * Encode a script body as a JavaScript double-quoted string literal for
+    * embedding in the {@code eval(...)} wrapper built by {@link #compile}.
+    * Escapes the characters that are illegal or ambiguous inside a JS string
+    * (quote, backslash, the C0 control set including the line terminators, and
+    * the U+2028/U+2029 line/paragraph separators).
+    */
+   private static String toJsStringLiteral(String s) {
+      StringBuilder sb = new StringBuilder(s.length() + 16);
+      sb.append('"');
+
+      for(int i = 0; i < s.length(); i++) {
+         char c = s.charAt(i);
+
+         switch(c) {
+         case '"':      sb.append("\\\""); break;
+         case '\\':     sb.append("\\\\"); break;
+         case '\n':     sb.append("\\n"); break;
+         case '\r':     sb.append("\\r"); break;
+         case '\t':     sb.append("\\t"); break;
+         case '\b':     sb.append("\\b"); break;
+         case '\f':     sb.append("\\f"); break;
+         default:
+            // C0 controls plus the U+2028/U+2029 line/paragraph separators
+            // (illegal unescaped inside a JS string literal) -> \\uXXXX.
+            if(c < 0x20 || c == 0x2028 || c == 0x2029) {
+               sb.append(String.format("\\u%04x", (int) c));
+            }
+            else {
+               sb.append(c);
+            }
+         }
+      }
+
+      sb.append('"');
+      return sb.toString();
    }
 
    public void checkFunction(String name, String cmd) throws Exception {

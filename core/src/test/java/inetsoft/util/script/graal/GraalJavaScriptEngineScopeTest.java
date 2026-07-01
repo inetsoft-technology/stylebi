@@ -46,6 +46,34 @@ class GraalJavaScriptEngineScopeTest {
       assertEquals("West", engine.exec(src, scope, scope));
    }
 
+   // Bug #75550: `this` must be bound to the executing scope (Rhino parity), so
+   // dashboard scripts that qualify assembly properties as `this.<prop>` resolve
+   // instead of reading undefined off globalThis.
+   @Test void thisResolvesToScope() throws Exception {
+      MapScope scope = new MapScope();
+      scope.putMember("parameter", makeParam("region", "West"));
+      Object src = engine.compile("this.parameter.region");
+      assertEquals("West", engine.exec(src, scope, scope));
+   }
+
+   // The eval-based wrapper must still return the statement-list completion
+   // value, which scripted value/expression bindings depend on.
+   @Test void completionValuePreservedForStatementList() throws Exception {
+      MapScope scope = new MapScope();
+      scope.putMember("x", 10.0);
+      Object src = engine.compile("var y = x + 5;\ny * 2");
+      assertEquals(30.0, ((Number) engine.exec(src, scope, scope)).doubleValue());
+   }
+
+   // Unqualified assignment must still write through to the owning scope.
+   @Test void unqualifiedAssignmentWritesToScope() throws Exception {
+      MapScope scope = new MapScope();
+      scope.putMember("visible", true);
+      Object src = engine.compile("visible = false");
+      engine.exec(src, scope, scope);
+      assertEquals(false, scope.getMember("visible"));
+   }
+
    private static ScriptScope makeParam(String k, String v) {
       MapScope p = new MapScope();
       p.putMember(k, v);
