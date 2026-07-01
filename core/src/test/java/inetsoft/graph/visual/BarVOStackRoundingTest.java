@@ -17,6 +17,9 @@
  */
 package inetsoft.graph.visual;
 
+import inetsoft.graph.coord.Coordinate;
+import inetsoft.graph.element.GraphElement;
+import inetsoft.graph.element.IntervalElement;
 import inetsoft.graph.geometry.IntervalGeometry;
 import org.junit.jupiter.api.Test;
 
@@ -152,5 +155,36 @@ class BarVOStackRoundingTest {
       assertEquals(posZones.arc(), negZones.arc(), 1e-9);
       assertEquals(posZones.inOuterArcZone(), negZones.inOuterArcZone());
       assertEquals(posZones.inInnerArcZone(), negZones.inInnerArcZone());
+   }
+
+   // -----------------------------------------------------------------------
+   // Funnel per-facet shaping guard (Bug #75533).
+   // A faceted (multi-dimension) funnel chart lays out each facet in its own
+   // sub-graph/dodge() pass but they share one IntervalElement instance. The
+   // shaping guard must be scoped per coordinate so every facet is shaped, not
+   // just the first one — while still de-duplicating repeated calls from the
+   // multiple bars within a single facet's pass.
+   // -----------------------------------------------------------------------
+
+   @Test
+   void markFunnelShaped_scopedPerFacetCoordinate() {
+      GraphElement elem = new IntervalElement("value");
+      Coordinate facetA = mock(Coordinate.class);
+      Coordinate facetB = mock(Coordinate.class);
+
+      // First bar of facet A: not yet shaped -> caller proceeds with reshaping.
+      assertTrue(BarVO.markFunnelShaped(elem, facetA),
+                 "first bar of facet A should trigger funnel shaping");
+      // Another bar of facet A in the same pass: already shaped -> caller returns early.
+      assertFalse(BarVO.markFunnelShaped(elem, facetA),
+                  "later bars of facet A must be de-duplicated");
+
+      // Facet B shares the same element but is a distinct coordinate: it must still
+      // be shaped. Before the fix an element-level flag suppressed every facet after
+      // the first, which is exactly the regression this guards against.
+      assertTrue(BarVO.markFunnelShaped(elem, facetB),
+                 "facet B must be shaped even though it shares the element with facet A");
+      assertFalse(BarVO.markFunnelShaped(elem, facetB),
+                  "later bars of facet B must be de-duplicated");
    }
 }
