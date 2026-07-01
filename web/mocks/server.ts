@@ -37,6 +37,7 @@ import { composerHandlers } from "./handlers/composer.handlers";
 import { emHandlers } from "./handlers/em.handlers";
 import { portalHandlers } from "./handlers/portal.handlers";
 import { viewerHandlers } from "./handlers/viewer.handlers";
+export { SecurityMswHandlers } from "./handlers/security-permission.handlers";
 
 type MswServer = ReturnType<typeof setupServer>;
 type GlobalWithMswServer = typeof globalThis & {
