@@ -2,7 +2,7 @@
 
 **日期**: 2026-06-08（2026-06-12 补充扫描，新增 65 个组件；2026-06-24 补充扫描，新增 6 个组件）
 **候选组件数**: 148（原 142，2026-06-24 新增 6）| **建议推进**: 82 | **建议跳过**: 0 | **建议暂缓**: 66 | **待审核**: 121 | **多 pass 组件**: 41
-**测试进度**: ✅已测试 59 / 148 | 待测 23 / 148 | ⏭ 跳过 0 / 148 | ⏸️暂缓 66 / 148
+**测试进度**: ✅已测试 68 / 148 | 待测 14 / 148 | ⏭ 跳过 0 / 148 | ⏸️暂缓 66 / 148
 
 ## 状态说明
 - 第一列「状态」初始为「待审核」，人工审核后改为 ✅已测试 / ⏭已跳过 / ⏸️暂缓
@@ -47,7 +47,7 @@
 | ✅已测试 | VPMHiddenColumnsComponent | 331 | 0 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: vpm-hidden-columns.component.interaction.tl.spec.ts (29/29 ✅)<br>P2: vpm-hidden-columns.component.risk.tl.spec.ts (13/13 ✅) |
 | ⏸️暂缓 | VPMTestComponent | 63 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | DatasourcesDatabaseComponent | 662 | 0 | 12 | **multi-pass** | ✅ 推进 |  |  | P1: datasources-database.component.interaction.tl.spec.ts<br>P2: datasources-database.component.risk.tl.spec.ts |
-| 待审核 | DriverWizardComponent | 275 | 0 | 24 | **multi-pass** | ✅ 推进 |  |  | P1: driver-wizard.component.interaction.tl.spec.ts<br>P2: driver-wizard.component.risk.tl.spec.ts |
+| ✅已测试 | DriverWizardComponent | 275 | 0 | 24 | **multi-pass** | ✅ 推进 |  |  | P1: driver-wizard.component.interaction.tl.spec.ts<br>P2: driver-wizard.component.risk.tl.spec.ts |
 | ⏸️暂缓 | EditPropertyDialogComponent | 50 | 0 | 2 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | DatasourcesDatasourceEditorComponent | 258 | 0 | 8 | **multi-pass** | ✅ 推进 | ✅ datasources-datasource-editor.component.interaction.tl.spec.ts (35 tests)<br>✅ datasources-datasource-editor.component.risk.tl.spec.ts (10 tests) |  | P1: datasources-datasource-editor.component.interaction.tl.spec.ts<br>P2: datasources-datasource-editor.component.risk.tl.spec.ts |
 | ✅已测试 | DatasourcesDatasourceComponent | 346 | 0 | 7 | **multi-pass** | ✅ 推进 | ✅ datasources-datasource.component.interaction.tl.spec.ts (33 tests)<br>✅ datasources-datasource.component.risk.tl.spec.ts (10 tests) |  | P1: datasources-datasource.component.interaction.tl.spec.ts<br>P2: datasources-datasource.component.risk.tl.spec.ts |
@@ -59,34 +59,34 @@
 | ⏸️暂缓 | DataTabComponent | 65 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | InputNameDescDialog | 113 | 0 | 1 | **single-pass** | ✅ 推进 |  |  | input-name-desc-dialog.component.tl.spec.ts (9/9 ✅) |
 | ✅已测试 | MoveAssetDialogComponent | 121 | 0 | 3 | **single-pass** | ✅ 推进 |  |  | move-asset-dialog.component.tl.spec.ts (11/11 ✅) |
-| 待审核 | AnalyzeMVDialog | 280 | 0 | 30 | **multi-pass** | ✅ 推进 |  |  | P1: analyze-mv-dialog.component.interaction.tl.spec.ts<br>P2: analyze-mv-dialog.component.risk.tl.spec.ts |
+| ✅已测试 | AnalyzeMVDialog | 280 | 0 | 30 | **multi-pass** | ✅ 推进 |  |  | P1: analyze-mv-dialog.component.interaction.tl.spec.ts<br>P2: analyze-mv-dialog.component.risk.tl.spec.ts |
 | ⏸️暂缓 | AnalyzeMVPane | 58 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | ✅已测试 | CreateMVPane | 112 | 0 | 0 | **single-pass** | ✅已测试 |  |  | single pass |
 | ⏸️暂缓 | ArrangeDashboardDialog | 94 | 0 | 2 | **single-pass** | 暂缓 | ⚠️ arrange-dashboard-dialog.spec.ts | Bug #18799 not enabled dashboard should display in list | single pass (+内存泄漏) |
 | ✅已测试 | AutoJoinTablesDialog | 144 | 0 | 3 | **single-pass** | ✅已测试 |  |  | single pass (+竞态+内存泄漏) |
 | ✅已测试 | ChooseTableDialog | 204 | 1 | 7 | **single-pass** | ✅已测试 |  |  | single pass (+竞态+内存泄漏) |
-| 待审核 | EditDashboardDialog | 179 | 0 | 7 | **multi-pass** | ✅ 推进 | ⚠️ edit-dashboard-dialog.spec.ts | Bug #18620 Don't allow special characters in the name; Bug #21678 should allow & -+ | P1: edit-dashboard-dialog.component.interaction.tl.spec.ts<br>P2: edit-dashboard-dialog.component.risk.tl.spec.ts |
+| ✅已测试 | EditDashboardDialog | 179 | 0 | 7 | **multi-pass** | ✅ 推进 | ~~⚠️ edit-dashboard-dialog.spec.ts~~ | Bug #18620 Don't allow special characters in the name; Bug #21678 should allow & -+ | P1: edit-dashboard-dialog.component.interaction.tl.spec.ts<br>P2: edit-dashboard-dialog.component.risk.tl.spec.ts |
 | ⏸️暂缓 | InlineViewDialog | 66 | 0 | 2 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | PhysicalTableAliasesDialog | 101 | 0 | 2 | **single-pass** | ✅已测试 |  |  | single pass (+内存泄漏) |
 | ⏸️暂缓 | PreferencesDialog | 81 | 0 | 2 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | ⏸️暂缓 | VPMConditionDialog | 62 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | ⏸️暂缓 | PortalRedirectComponent | 26 | 0 | 2 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | ⏸️暂缓 | RepositoryDesktopViewComponent | 65 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
-| 待审核 | ReportTabComponent | 280 | 2 | 9 | **multi-pass** | ✅ 推进 |  |  | P1: report-tab.component.interaction.tl.spec.ts<br>P2: report-tab.component.risk.tl.spec.ts |
+| ✅已测试 | ReportTabComponent | 280 | 2 | 9 | **multi-pass** | ✅ 推进 |  |  | P1: report-tab.component.interaction.tl.spec.ts<br>P2: report-tab.component.risk.tl.spec.ts |
 | ⏸️暂缓 | PortalReportComponent | 93 | 0 | 3 | **single-pass** | 暂缓 |  |  | single pass (+竞态+内存泄漏) |
 | ⏸️暂缓 | WelcomePageComponent | 39 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | TaskActionPane | 464 | 0 | 8 | **multi-pass** | ✅ 推进 | ~~⚠️ task-action-pane.component.spec.ts~~ | Bug #19890 should pop up warning when to delete action; test: should not copy when no action is selected; test: should not copy when multiple actions  | P1: task-action-pane.component.interaction.tl.spec.ts<br>P2: task-action-pane.component.risk.tl.spec.ts |
 | ✅已测试 | TaskConditionPane | 1073 | 3 | 3 | **multi-pass** | ✅ 推进 | ~~⚠️ task-condition-pane.spec.ts~~ | Bug #19519 should show current date when not set; Bug #19687 should show set date; Bug #19517 select and deselect all function for weekly | P1: task-condition-pane.component.interaction.tl.spec.ts<br>P2: task-condition-pane.component.risk.tl.spec.ts<br>P3: task-condition-pane.component.display.tl.spec.ts |
-| 待审核 | ExecuteAsDialog | 190 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核 | TaskOptionsPane | 189 | 0 | 13 | **multi-pass** | ✅ 推进 | ⚠️ task-options-pane.component.spec.ts | Bug #19508; Bug #19745; Bug #21420 should get correct locale info when set 'Default' | P1: task-options-pane.component.interaction.tl.spec.ts<br>P2: task-options-pane.component.risk.tl.spec.ts |
-| 待审核 | ScheduleTaskEditorComponent | 192 | 0 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: schedule-task-editor.component.interaction.tl.spec.ts<br>P2: schedule-task-editor.component.risk.tl.spec.ts |
+| ✅已测试 | ExecuteAsDialog | 190 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试 | TaskOptionsPane | 189 | 0 | 13 | **multi-pass** | ✅ 推进 | ~~⚠️ task-options-pane.component.spec.ts~~ | Bug #19508; Bug #19745; Bug #21420 should get correct locale info when set 'Default' | P1: task-options-pane.component.interaction.tl.spec.ts<br>P2: task-options-pane.component.risk.tl.spec.ts |
+| ✅已测试 | ScheduleTaskEditorComponent | 192 | 0 | 7 | **multi-pass** | ✅ 推进 |  |  | P1: schedule-task-editor.component.interaction.tl.spec.ts<br>P2: schedule-task-editor.component.risk.tl.spec.ts |
 | ⏸️暂缓 | SelectDashboardDialog | 69 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | ⏸️暂缓 | EditTaskFolderDialog | 69 | 0 | 4 | **single-pass** | 暂缓 |  |  | single pass (+竞态+内存泄漏) |
 | ⏸️暂缓 | MoveTaskDialogComponent | 97 | 0 | 3 | **single-pass** | 暂缓 |  |  | single pass (+竞态+内存泄漏) |
 | ✅已测试 | ScheduleTaskListComponent | 844 | 1 | 58 | **multi-pass** | ✅ 推进 |  |  | P1: schedule-task-list.component.interaction.tl.spec.ts<br>P2: schedule-task-list.component.risk.tl.spec.ts |
-| 待审核 | InputNameDialog | 112 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ input-name-dialog.component.spec.ts | Bug #19762 Show the error message on the input; test: Show the error message on the input | single pass (+内存泄漏) |
-| ✅已测试 | ActionsContextmenuComponent | 154 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ actions-contextmenu.component.spec.ts | test: should not create a dropdown when there are no visible actions | single pass (+内存泄漏) |
-| ✅已测试 | NotificationsComponent | 65 | 0 | 1 | **single-pass** | ✅ 推进 | ⚠️ notifications.component.spec.ts | 无 | single pass (+内存泄漏) |
+| ✅已测试 | InputNameDialog | 112 | 0 | 1 | **single-pass** | ✅ 推进 | ~~⚠️ input-name-dialog.component.spec.ts~~ | Bug #19762 Show the error message on the input; test: Show the error message on the input | single pass (+内存泄漏) |
+| ✅已测试 | ActionsContextmenuComponent | 154 | 0 | 1 | **single-pass** | ✅ 推进 | ~~⚠️ actions-contextmenu.component.spec.ts~~ | test: should not create a dropdown when there are no visible actions | single pass (+内存泄漏) |
+| ✅已测试 | NotificationsComponent | 65 | 0 | 1 | **single-pass** | ✅ 推进 | ~~⚠️ notifications.component.spec.ts~~ | 无 | single pass (+内存泄漏) |
 | ✅已测试 | RepositoryTreeComponent | 461 | 0 | 5 | **single-pass** | ✅已测试 | 24/24✅ |  | single pass (+竞态+内存泄漏) |
 | ⏸️暂缓 | ResponsiveTabsComponent | 80 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
 | ✅已测试 | SplitPane | 120 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
@@ -459,7 +459,7 @@
 | ⏸️暂缓 | ScheduleTabComponent | 20 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | ✅ 已测试 | ActionAccordionComponent | 861 | 0 | 6 | **multi-pass** | ✅ 推进 | ⚠️ action-accordion.spec.ts | test: check clear all parameters; test: should get correct highlight name for alert | P1: action-accordion.component.interaction.tl.spec.ts<br>P2: action-accordion.component.risk.tl.spec.ts |
 | ⏸️暂缓 | ScheduleTaskDialogComponent | 57 | 0 | 0 | **single-pass** | 暂缓 | ⚠️ schedule-task-dialog.spec.ts | Bug #21217 task name control (broken test) | single pass |
-| 待审核   | AddParameterDialogComponent | 265 | 0 | 2 | **single-pass** | ✅ 推进 | ⚠️ add-parameter-dialog.component.spec.ts | test: should pop confirm dialog when create duplicate parameter; broken test: check can create parameter; test: check can edit parameter | single pass (+内存泄漏) |
+| ✅ 已测试   | AddParameterDialogComponent | 265 | 0 | 2 | **single-pass** | ✅ 推进 | ~~⚠️ add-parameter-dialog.component.spec.ts~~ | test: should pop confirm dialog when create duplicate parameter; broken test: check can create parameter; test: check can edit parameter | single pass (+内存泄漏) |
 | ⏸️暂缓 | EditableTableComponent | 45 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | ⏸️暂缓 | ParameterTableComponent | 55 | 0 | 0 | **single-pass** | 暂缓 | ⚠️ parameter-table.component.spec.ts | test: should show confirm when to delete parameter; test: check can edit parameter; test: should display timeinstant/array parameter correctly | single pass |
 | ⏸️暂缓 | CreateTaskFolderDialogComponent | 73 | 0 | 1 | **single-pass** | 暂缓 |  |  | single pass (+内存泄漏) |
@@ -566,7 +566,7 @@
 |------|------|-------------|----------|-------------|------|------|---------|-------------|-----------|
 | ✅已测试 | SimpleScheduleDialog | 540 | 3 | 5 | **multi-pass** | ✅ 推进 | ~~⚠️ simple-schedule-dialog.component.spec.ts~~ | Both test cases are marked it.skip, giving zero effective coverage; no core functionality (form init, history restore, timezone conversion, export visibility logic, okDisabled guard) is tested. | P1: simple-schedule-dialog.component.interaction.tl.spec.ts (25/25 ✅)<br>P2: simple-schedule-dialog.component.risk.tl.spec.ts (22/22 ✅)<br>P3: simple-schedule-dialog.component.display.tl.spec.ts (22/22 ✅) |
 | 待审核 | StartTimeEditor | 173 | 1 | 1 | **single-pass** | ✅ 推进 |  |  | single pass |
-| ✅已测试 | EmbeddedEmailPane | 469 | 4 | 5 | **multi-pass** | ✅ 推进 | ⚠️ email-addr-dialog.spec.ts | Covers add-user dedup and remove-user via DOM clicks on EmailAddrDialog host and direct EmbeddedEmailPane; does NOT cover select() multi-key logic, addressChange() format branches, reset() colon-delimited non-embeddedOnly parsing, searchUsers() mode toggle, moveFocus() keyboard dispatch, addIdentity() group path deduplication, or currentUser/usersNode async ordering. | P1: embedded-email-pane.component.interaction.tl.spec.ts (36/36 ✅)<br>P2: embedded-email-pane.component.risk.tl.spec.ts (15/15 ✅ + 1 expected fail)<br>P3: embedded-email-pane.component.display.tl.spec.ts (15/15 ✅) |
+| ✅已测试 | EmbeddedEmailPane | 469 | 4 | 5 | **multi-pass** | ✅ 推进 |  | Covers add-user dedup and remove-user via DOM clicks on EmailAddrDialog host and direct EmbeddedEmailPane; does NOT cover select() multi-key logic, addressChange() format branches, reset() colon-delimited non-embeddedOnly parsing, searchUsers() mode toggle, moveFocus() keyboard dispatch, addIdentity() group path deduplication, or currentUser/usersNode async ordering. | P1: embedded-email-pane.component.interaction.tl.spec.ts (36/36 ✅)<br>P2: embedded-email-pane.component.risk.tl.spec.ts (15/15 ✅ + 1 expected fail)<br>P3: embedded-email-pane.component.display.tl.spec.ts (15/15 ✅) |
 | 待审核 | EmailPane | 135 | 1 | 6 | **multi-pass** | ✅ 推进 |  |  | P1: email-pane.interaction.tl.spec.ts<br>P2: email-pane.risk.tl.spec.ts |
 | 待审核 | ParameterPage | 283 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核 | TimepickerComponent | 202 | 4 | 0 | **multi-pass** | ✅ 推进 |  |  | P1: timepicker.interaction.tl.spec.ts<br>P3: timepicker.display.tl.spec.ts |
