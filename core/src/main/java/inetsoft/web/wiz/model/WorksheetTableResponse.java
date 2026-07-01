@@ -52,11 +52,17 @@ public class WorksheetTableResponse {
    private boolean success;
    private String errorMessage;
    /**
-    * Optional, only populated by GET /api/wiz/ws/table/probe when success=false.
-    * query_error means the table itself failed to execute and callers may block/rebuild it;
-    * infra_error means the probe could not verify execution and callers should warn but continue.
+    * Optional, only populated by the create-time execution probe when the table failed to execute.
+    * query_error means the table itself failed to execute and callers may block/rebuild it (returned
+    * with success=false); infra_error means the probe could not verify execution and callers should
+    * warn but continue (returned with success=true plus {@link #warning}).
     */
    private String probeErrorKind;
+   /**
+    * Optional, non-blocking warning: set when the create-time execution probe could not verify the
+    * table (infra_error). {@code success} stays true, but the table may still fail at render time.
+    */
+   private String warning;
 
    public String getWsId() { return wsId; }
    public void setWsId(String wsId) { this.wsId = wsId; }
@@ -80,5 +86,8 @@ public class WorksheetTableResponse {
 
    public String getProbeErrorKind() { return probeErrorKind; }
    public void setProbeErrorKind(String probeErrorKind) { this.probeErrorKind = probeErrorKind; }
+
+   public String getWarning() { return warning; }
+   public void setWarning(String warning) { this.warning = warning; }
 
 }

@@ -166,7 +166,37 @@ public class WorksheetTableService {
          viewsheetService.getAssetRepository().setSheet(worksheetEntry, worksheet, user, true);
       }
 
-      // 8. Extract column info for the response.
+      // 8. Execution probe: a SQL query table or a table with expression columns only executes at
+      // render time, so structural creation above can succeed while the query/expression is invalid.
+      // Probe it now — with the worksheet/table already in hand, no reload — so a real DB/expression
+      // error fails loud here (attributed to this table) instead of only at create_viewsheet.
+      //   query_error → return success=false + the real error now (table stays persisted; same wsId,
+      //                 so the caller can rebuild just this one table).
+      //   infra_error → non-blocking: keep success=true and attach a warning; the table built fine,
+      //                 we just could not verify execution (timeout / connection / auth).
+      String probeWarning = null;
+
+      if(shouldProbe(request)) {
+         try {
+            probeExecutable(worksheet, table, user);
+         }
+         catch(ProbeTableException ex) {
+            if(!WorksheetTableResponse.PROBE_ERROR_INFRA.equals(ex.getProbeErrorKind())) {
+               WorksheetTableResponse failure = new WorksheetTableResponse();
+               failure.setWsId(worksheetEntry.toIdentifier());
+               failure.setTableName(table.getName());
+               failure.setSuccess(false);
+               failure.setErrorMessage(ex.getMessage());
+               failure.setProbeErrorKind(WorksheetTableResponse.PROBE_ERROR_QUERY);
+               return failure;
+            }
+
+            probeWarning = "Could not verify execution (" + ex.getMessage() +
+               "); this table may still fail at render time.";
+         }
+      }
+
+      // 9. Extract column info for the response.
       List<WorksheetColumnData> columns = extractColumnsFromSelection(table);
 
       WorksheetTableResponse response = new WorksheetTableResponse();
@@ -181,59 +211,71 @@ public class WorksheetTableService {
             WsServiceHelper.extractPrimaryTableFields(worksheet, table, dbTableOverride));
       }
 
+      if(probeWarning != null) {
+         response.setWarning(probeWarning);
+         response.setProbeErrorKind(WorksheetTableResponse.PROBE_ERROR_INFRA);
+      }
+
       response.setSuccess(true);
       return response;
    }
 
-   // ─── Probe: execute an already-built table to surface render-time query failures ──────────
+   // ─── Probe: execute a freshly-built table to surface render-time query failures ──────────
 
    /**
-    * Probe whether an already-built worksheet table can actually execute, without exporting any
-    * data. A {@code sql query table} or a table with expression columns is only structurally
-    * validated at creation and is fully executed at render time; this probe runs it early so an
-    * invalid SQL / expression fails loud at table-creation time instead of only at create_viewsheet.
-    *
-    * <p>Runs the table in {@code LIVE_MODE} and forces the first data row so lazily-evaluated
-    * expression columns (notably JS) actually run, then inspects the result for a failed-query
-    * fallback lens. On failure it throws an {@link IllegalArgumentException} carrying the real
-    * underlying DB/expression error (the controller maps that to {@code success=false} +
-    * {@code errorMessage}, the same shape as {@link #createTable}); on success it returns
-    * {@code success=true}.
+    * Whether {@link #createTable} should run the execution probe for this request. A {@code sql query
+    * table} always executes its raw SQL at render time, and a table carrying expression columns (JS or
+    * {@code sql:true}) evaluates them at render time — both can be structurally valid yet fail on
+    * execution. Pure physical / mirror / join tables with no expression columns carry no render-time
+    * execution risk beyond what structural creation already validates, so they are not probed (zero
+    * added latency).
+    */
+   private boolean shouldProbe(WorksheetTableRequest request) {
+      if("sql query table".equals(request.getTableType())) {
+         return true;
+      }
+
+      List<WorksheetTableRequest.ExpressionColumnInfo> exprCols = request.getExpressionColumns();
+      return exprCols != null && !exprCols.isEmpty();
+   }
+
+   /**
+    * Probe whether a freshly-built worksheet table can actually execute, without exporting any data.
+    * Runs the table in {@code LIVE_MODE} and forces the first data row so lazily-evaluated expression
+    * columns (notably JS) actually run, then inspects the result for a failed-query fallback lens.
+    * Throws a {@link ProbeTableException} carrying the real underlying DB/expression error on failure
+    * (the caller maps {@code query_error} to {@code success=false} + {@code errorMessage} and
+    * {@code infra_error} to a non-blocking warning); returns normally on success.
     *
     * <p>Why {@code LIVE_MODE} rather than {@code RUNTIME_MODE}: a failed query is degraded to a
     * failed-query fallback lens rather than thrown. {@code RUNTIME_MODE} discards the cause
-    * (AssetQuery swallows {@code SQLExpressionFailedException} for RUNTIME), whereas
-    * {@code LIVE_MODE} stamps the underlying cause onto the fallback lens for BOTH SQL and
-    * expression failures, which {@link WizVsService#checkFailedQuery} then surfaces.
+    * (AssetQuery swallows {@code SQLExpressionFailedException} for RUNTIME), whereas {@code LIVE_MODE}
+    * stamps the underlying cause onto the fallback lens for BOTH SQL and expression failures, which
+    * {@link WizVsService#checkFailedQuery} then surfaces. The cause never bubbles out of
+    * {@code getTableLens} (LIVE re-swallows it at doGetTableLens), so {@code checkFailedQuery} must
+    * be called actively.
     */
-   public WorksheetTableResponse probeTable(String worksheetId, String tableName, Principal user)
-      throws Exception
-   {
-      if(Tool.isEmptyString(worksheetId)) {
-         throw new IllegalArgumentException("worksheetId is required");
-      }
-
-      if(Tool.isEmptyString(tableName)) {
-         throw new IllegalArgumentException("tableName is required");
-      }
-
-      Worksheet worksheet = resolveWorksheet(worksheetId, user).worksheet();
-      Assembly targetTable = worksheet.getAssembly(tableName);
-
-      if(targetTable == null) {
-         throw new IllegalArgumentException("Table not found: " + tableName);
-      }
-
+   private void probeExecutable(Worksheet worksheet, Assembly table, Principal user) {
       AssetQuerySandbox box = new AssetQuerySandbox(worksheet);
       box.setBaseUser(user);
 
       try {
-         TableLens lens = box.getTableLens(targetTable.getAbsoluteName(),
-                                           AssetQuerySandbox.LIVE_MODE);
+         // getTableLens declares a checked Exception (setup/execution failure); normalize it to the
+         // same classified probe failure shape rather than letting it escape unclassified.
+         TableLens lens;
+
+         try {
+            lens = box.getTableLens(table.getAbsoluteName(), AssetQuerySandbox.LIVE_MODE);
+         }
+         catch(Exception ex) {
+            throw probeFailure(ex);
+         }
 
          if(lens == null) {
-            throw new IllegalArgumentException(
-               "Could not obtain a table lens for '" + tableName + "' — the assembly may not be executable");
+            throw new ProbeTableException(
+               WorksheetTableResponse.PROBE_ERROR_QUERY,
+               "Could not obtain a table lens for '" + table.getName() +
+               "' — the assembly may not be executable", null);
          }
 
          // Force the first data row (row 0 = header, row 1 = first data row) so lazily-evaluated
@@ -257,11 +299,6 @@ public class WorksheetTableService {
          catch(Exception ex) {
             throw probeFailure(ex);
          }
-
-         WorksheetTableResponse response = new WorksheetTableResponse();
-         response.setTableName(targetTable.getName());
-         response.setSuccess(true);
-         return response;
       }
       finally {
          box.dispose();
