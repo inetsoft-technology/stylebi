@@ -46,6 +46,29 @@ class GraalJavaScriptEngineScopeTest {
       assertEquals("West", engine.exec(src, scope, scope));
    }
 
+   // Regression test for Bug #75549: a ScriptScope published as a global (e.g.
+   // "viewsheet") must be wrapped as a ScopeProxy so member access such as
+   // viewsheet['Chart1'] routes through ScriptScope.getMember() rather than
+   // GraalJS's Java host-member reflection, which returned undefined and made
+   // viewsheet['Chart1'].someMethod() throw "Cannot read property ... of undefined".
+   @Test void publishedScopeGlobalResolvesBracketAndDotAccess() throws Exception {
+      MapScope viewsheet = new MapScope();
+      MapScope chart = new MapScope();
+      chart.putMember("name", "Chart1");
+      viewsheet.putMember("Chart1", chart);
+      engine.put("viewsheet", viewsheet);
+
+      // bracket access (the exact form reported in #75549) resolves the assembly
+      assertEquals("Chart1",
+         engine.exec(engine.compile("viewsheet['Chart1'].name"), null, null));
+      // dot access resolves equivalently
+      assertEquals("Chart1",
+         engine.exec(engine.compile("viewsheet.Chart1.name"), null, null));
+      // the member itself must be defined, not undefined
+      assertEquals(Boolean.FALSE,
+         engine.exec(engine.compile("typeof viewsheet['Chart1'] === 'undefined'"), null, null));
+   }
+
    private static ScriptScope makeParam(String k, String v) {
       MapScope p = new MapScope();
       p.putMember(k, v);
