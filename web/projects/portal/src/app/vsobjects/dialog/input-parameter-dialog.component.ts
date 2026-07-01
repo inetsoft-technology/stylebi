@@ -363,6 +363,8 @@ export class InputParameterDialog implements OnInit {
          case XSchema.TIME_INSTANT:
             return this.form.controls["dateValue"].invalid || this.invalidDate() ||
                this.form.controls["timeValue"].invalid;
+         case XSchema.BOOLEAN:
+            return this.form.controls["alphaNumericValue"].invalid;
          default:
             return this.form.controls["alphaNumericValue"].invalid || !this.model.value;
       }
