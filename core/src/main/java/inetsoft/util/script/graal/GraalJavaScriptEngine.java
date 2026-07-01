@@ -122,7 +122,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          Value bindings = context.getBindings("js");
 
          for(Map.Entry<String, Object> e : vars.entrySet()) {
-            bindings.putMember(e.getKey(), e.getValue());
+            bindings.putMember(e.getKey(), ScriptValueConverter.toGuest(e.getValue()));
          }
       }
 
@@ -571,7 +571,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
       try {
          if(context != null) {
-            context.getBindings("js").putMember(name, value);
+            context.getBindings("js").putMember(name, ScriptValueConverter.toGuest(value));
          }
       }
       finally {
