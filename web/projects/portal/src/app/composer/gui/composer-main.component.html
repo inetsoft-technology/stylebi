@@ -269,8 +269,8 @@
        </split-pane>
      </div>
    </div>
-   @if (focusedViewsheet?.bindingEditMode && !wizardEditMode) {
-      @defer (prefetch on idle) {
+   @defer (on immediate; prefetch on idle) {
+      @if (focusedViewsheet?.bindingEditMode && !wizardEditMode) {
          <vs-binding-pane
             [runtimeId]="bindingPaneModel.runtimeId"
             [assemblyName]="bindingPaneModel.absoluteName"
@@ -287,13 +287,11 @@
             (onAssemblyChanged)="refreshChangedAssembly($event)"
             (onRenamed)="changeBindingAssemblyName($event)">
          </vs-binding-pane>
-      } @loading {
-         <div class="loading-container">
-            <div class="loading-content">
-               <i class="loading-icon--spin loading-icon fa-spin icon-4x fa-fw" aria-hidden="true"></i>
-            </div>
-         </div>
       }
+   } @error {
+      <div class="loading-container">
+         <span>_#(js:Failed to load the binding editor)</span>
+      </div>
    }
    <vs-wizard *ngIf="wizardEditMode"
       [model]="wizardModel"
