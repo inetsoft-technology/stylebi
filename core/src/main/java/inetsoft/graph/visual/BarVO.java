@@ -796,56 +796,98 @@ public class BarVO extends ElementVO {
             return;
          }
 
-         // Collect all funnel bars for this element from the full collision map.
-         List<BarVO> allBars = new ArrayList<>();
+         // Collect every funnel segment for this element. The collision map only keys the
+         // bottom segment of each stacked column; when a text/color aesthetic adds a peer
+         // group dimension, the remaining stacked segments are stored in the overlapped
+         // value lists (the dodge driver marks them "moved" so they never become keys).
+         // Gather keys and values so every segment is reshaped, not just the bottom one,
+         // otherwise the upper segments keep their stacked rectangles and the funnel
+         // renders disordered. (Bug #75528)
+         Set<BarVO> barSet = new LinkedHashSet<>();
 
-         for(ElementVO key : comap.keySet()) {
-            if(!(key instanceof BarVO)) {
-               continue;
-            }
+         for(Map.Entry<ElementVO, List<ElementVO>> e : comap.entrySet()) {
+            collectFunnelBar(barSet, e.getKey(), elem);
 
-            GraphElement ke = ((ElementGeometry) key.getGeometry()).getElement();
-
-            if((ke.getCollisionModifier() & GraphElement.MOVE_MIDDLE) != 0 && ke == elem) {
-               allBars.add((BarVO) key);
+            for(ElementVO ov : e.getValue()) {
+               collectFunnelBar(barSet, ov, elem);
             }
          }
 
-         // Center every bar vertically (heights are still original rectangles here).
-         for(BarVO bar : allBars) {
-            double h = bar.shape.getBounds2D().getHeight();
-            bar.shape = GTool.move(bar.shape, 0, (GHEIGHT - h) / 2);
-            bar.cachedShape.clear();
+         // Group segments into funnel levels by x position (one column per inner-dimension
+         // value). Stacked segments within a level share the same x/width and differ in y.
+         Map<Long, List<BarVO>> levelMap = new LinkedHashMap<>();
+
+         for(BarVO bar : barSet) {
+            long key = Math.round(bar.shape.getBounds2D().getX());
+            levelMap.computeIfAbsent(key, k -> new ArrayList<>()).add(bar);
          }
 
-         // Sort left to right by x position.
-         allBars.sort(Comparator.comparingDouble(b -> b.shape.getBounds2D().getX()));
+         // Sort levels left to right by x position.
+         List<List<BarVO>> levels = new ArrayList<>(levelMap.values());
+         levels.sort(Comparator.comparingDouble(lvl -> lvl.get(0).shape.getBounds2D().getX()));
+
+         // Each level's funnel height is the total of its stacked segment heights.
+         double[] levelH = new double[levels.size()];
+
+         for(int i = 0; i < levels.size(); i++) {
+            double sum = 0;
+
+            for(BarVO bar : levels.get(i)) {
+               sum += bar.shape.getBounds2D().getHeight();
+            }
+
+            levelH[i] = sum;
+         }
 
          double cy = GHEIGHT / 2.0;
 
-         // Reshape each bar into a parallelogram whose right edge height equals the
-         // left edge height of the next bar, so adjacent sections connect seamlessly.
-         for(int i = 0; i < allBars.size(); i++) {
-            BarVO bar = allBars.get(i);
-            Rectangle2D bounds = bar.shape.getBounds2D();
+         // Reshape each level so its outer silhouette forms the funnel: the bottom-most
+         // segment's bottom edge and the top-most segment's top edge follow the taper
+         // (this level's height on the left, the next level's height on the right), while
+         // the dividers between stacked segments stay straight (horizontal). Inner segments
+         // are therefore rectangles and only the top/bottom segments are trapezoids. With a
+         // single segment per level this reduces to a plain left-to-right trapezoid.
+         for(int i = 0; i < levels.size(); i++) {
+            List<BarVO> level = levels.get(i);
+            // Stack segments bottom-to-top.
+            level.sort(Comparator.comparingDouble(b -> b.shape.getBounds2D().getY()));
+
+            double leftH  = levelH[i];
+            // Right edge = next level's height; last level is a flat trapezoid end.
+            double rightH = (i + 1 < levels.size()) ? levelH[i + 1] : leftH;
+
+            Rectangle2D bounds = level.get(0).shape.getBounds2D();
             double x = bounds.getX();
             double w = bounds.getWidth();
-            double leftH  = bounds.getHeight();
-            // Right edge = next bar's height; last bar is a flat rectangle end.
-            double rightH = (i + 1 < allBars.size())
-               ? allBars.get(i + 1).shape.getBounds2D().getHeight()
-               : leftH;
+            double cum = 0;        // height consumed from the bottom of this level
+            int n = level.size();
 
-            GeneralPath path = new GeneralPath();
-            path.moveTo((float) x,       (float)(cy + leftH  / 2)); // top-left
-            path.lineTo((float)(x + w),  (float)(cy + rightH / 2)); // top-right
-            path.lineTo((float)(x + w),  (float)(cy - rightH / 2)); // bottom-right
-            path.lineTo((float) x,       (float)(cy - leftH  / 2)); // bottom-left
-            path.closePath();
+            for(int s = 0; s < n; s++) {
+               BarVO bar = level.get(s);
+               double segH = bar.shape.getBounds2D().getHeight();
+               double divLow  = cy - leftH / 2 + cum;          // straight divider below
+               double divHigh = cy - leftH / 2 + cum + segH;   // straight divider above
+               cum += segH;
 
-            bar.shape = path;
-            bar.geomShape = path;
-            bar.cachedShape.clear();
+               boolean isBottom = s == 0;
+               boolean isTop = s == n - 1;
+               // Only the outer edges follow the taper; inner dividers stay horizontal.
+               double bL = isBottom ? cy - leftH  / 2 : divLow;
+               double bR = isBottom ? cy - rightH / 2 : divLow;
+               double tL = isTop    ? cy + leftH  / 2 : divHigh;
+               double tR = isTop    ? cy + rightH / 2 : divHigh;
+
+               GeneralPath path = new GeneralPath();
+               path.moveTo((float) x,       (float) tL); // top-left
+               path.lineTo((float)(x + w),  (float) tR); // top-right
+               path.lineTo((float)(x + w),  (float) bR); // bottom-right
+               path.lineTo((float) x,       (float) bL); // bottom-left
+               path.closePath();
+
+               bar.shape = path;
+               bar.geomShape = path;
+               bar.cachedShape.clear();
+            }
          }
 
          return;
@@ -931,6 +973,19 @@ public class BarVO extends ElementVO {
                BarVO bar = (BarVO) stack.get(j);
                bar.setShape(GTool.move(bar.shape, offset, 0));
             }
+         }
+      }
+   }
+
+   /**
+    * Add vo to the set if it is a funnel (MOVE_MIDDLE) bar belonging to elem.
+    */
+   private static void collectFunnelBar(Set<BarVO> set, ElementVO vo, GraphElement elem) {
+      if(vo instanceof BarVO) {
+         GraphElement ke = ((ElementGeometry) vo.getGeometry()).getElement();
+
+         if((ke.getCollisionModifier() & GraphElement.MOVE_MIDDLE) != 0 && ke == elem) {
+            set.add((BarVO) vo);
          }
       }
    }
