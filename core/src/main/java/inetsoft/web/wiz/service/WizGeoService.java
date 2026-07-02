@@ -183,6 +183,12 @@ public class WizGeoService {
       response.setUnmatched(new ArrayList<>(unmatched));
       response.setCandidateFeatures(candidateFeatures(layer));
 
+      // If the runtime was reaped, getRuntimeViewsheet reopened it under a new id; echo it so the
+      // client adopts the live runtime for the following geo_apply (mirrors apply()).
+      if(!request.getRuntimeId().equals(rvs.getID())) {
+         response.setRuntimeId(rvs.getID());
+      }
+
       // Persist the converted map back to the session asset so save_viewsheet (which reads from
       // storage, not the live runtime) captures the map type + geo binding.
       persistViewsheet(vs, request.getViewsheetIdentifier(), user);
