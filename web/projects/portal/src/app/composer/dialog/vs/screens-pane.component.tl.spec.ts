@@ -43,8 +43,6 @@
  * Out of scope:
  *   showViewsheetDeviceLayoutDialog / showViewsheetPrintLayoutDialog — open NgbModal with a
  *     ViewChild TemplateRef that is unavailable in unit tests; integration-level modal flow.
- *   Bug #19349 (printLayout input readonly attribute) — DOM-attribute-level check; ATL unit tests
- *     focus on component logic, not Angular reactive-form attribute propagation to the DOM.
  *   ngOnChanges — called when @Input references change; side-effects already covered via initForm.
  */
 
@@ -415,5 +413,22 @@ describe("ScreensPane — ngOnInit and onKeyDown", () => {
       comp.onKeyDown({ keyCode: 40 } as KeyboardEvent);
 
       expect(comp.selectedLayout).toBe(-1);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 8: print layout input DOM [legacy regression]
+// ---------------------------------------------------------------------------
+
+describe("ScreensPane — print layout input", () => {
+   // 🔁 Regression-sensitive (Bug #19349): print layout label must not be user-editable.
+   it("should render the printLayout control as readonly when a print layout is set", async () => {
+      const { fixture } = await renderComponent({ printLayout: createPrintLayoutModel() });
+      fixture.detectChanges();
+
+      const input = fixture.nativeElement.querySelector("input[formcontrolname='printLayout']")
+         ?? fixture.nativeElement.querySelector("input[ng-reflect-name='printLayout']");
+      expect(input).not.toBeNull();
+      expect(input.hasAttribute("readonly")).toBe(true);
    });
 });

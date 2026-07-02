@@ -34,6 +34,17 @@ import { VSSelection } from "./vs-selection.component";
 import { ComposerContextProviderFactory, ContextProvider } from "../../context-provider.service";
 
 describe("Selection List Cell Test", () => {
+   /*
+    * This file is intentionally kept intact — none of its tests have been migrated to TL specs.
+    * The companion TL specs cover complementary, non-overlapping areas:
+    *   selection-list-cell.component.interaction.tl.spec.ts — selectedCells setter,
+    *     clickLabel routing, onDragStart, setMenuCell, resize events (new coverage)
+    *   selection-list-cell.component.display.tl.spec.ts — getIconClass, ariaSelected,
+    *     barY, setMeasureWidths/setTextWidths, height getters (new coverage)
+    * Tests 1–7 (DOM rendering) and tests 8–32 (quick-switch, long-press, hover) are not
+    * duplicated in TL specs because they test layout/animation behaviors already validated
+    * end-to-end via the TestBed DOM approach here.
+    */
    beforeAll(() => {
       vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
          font: "",

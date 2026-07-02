@@ -30,7 +30,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 /**
- * Virtual authentication module.
+ * Virtual authentication module used when security is disabled ({@link #isVirtual()}).
+ * Supports only the built-in admin account (plus system/anonymous identities).
+ *
+ * <p>{@link #addUser(User)} intentionally updates only the admin user (for password
+ * rotation via {@link SecurityEngine#changePassword}). Non-admin users are silently
+ * ignored rather than throwing {@link UnsupportedOperationException} — a known
+ * contract gap with {@link EditableAuthenticationProvider} that is deferred.
  *
  * @author InetSoft Technology
  * @since  8.5
@@ -88,6 +94,10 @@ public class VirtualAuthenticationProvider
          return false;
       }
 
+      if(userIdentity == null) {
+         return false;
+      }
+
       String algorithm =
          admin.getPasswordAlgorithm() == null ? "MD5" : admin.getPasswordAlgorithm();
       return Objects.equals(userIdentity.name, admin.getName()) &&
@@ -137,6 +147,10 @@ public class VirtualAuthenticationProvider
     */
    @Override
    public User getUser(IdentityID userIdentity) {
+      if(userIdentity == null) {
+         return null;
+      }
+
       if("admin".equals(userIdentity.name)) {
          return admin;
       }
@@ -263,6 +277,10 @@ public class VirtualAuthenticationProvider
     */
    @Override
    public void addUser(User user) {
+      if(user == null) {
+         return;
+      }
+
       if(user.getName().equals("admin")) {
          admin = (FSUser) user;
          save();

@@ -38,8 +38,7 @@ import { DragService } from "../../../widget/services/drag.service";
 import { ModelService } from "../../../widget/services/model.service";
 import { DefaultScaleService } from "../../../widget/services/scale/default-scale-service";
 import { ScaleService } from "../../../widget/services/scale/scale-service";
-import { TableActions } from "../../action/table-actions";
-import { ContextProvider, ViewerContextProviderFactory } from "../../context-provider.service";
+import { ContextProvider } from "../../context-provider.service";
 import { ViewsheetInfo } from "../../data/viewsheet-info";
 import { RichTextService } from "../../dialog/rich-text-dialog/rich-text.service";
 import { BaseTableCellModel } from "../../model/base-table-cell-model";
@@ -275,93 +274,17 @@ describe("VSTable Unit Tests", () => {
       httpTestingController = TestBed.inject(HttpTestingController);
    }));
 
-   it("should expand the last column", () => {
-      let fixture1: ComponentFixture<VSTable> = TestBed.createComponent(VSTable);
-      // 300 - (30 + 30 + 90) = 150
-      fixture1.componentInstance.model = createModel(300, [30, 30, 90, 40], 4);
-      fixture1.detectChanges();
-      expect(fixture1.componentInstance.displayColWidths[3]).toBe(150);
-
-      let fixture2: ComponentFixture<VSTable> = TestBed.createComponent(VSTable);
-      fixture2.componentInstance.model = createModel(160, [60, 60, 20, 140], 4);
-      fixture2.detectChanges();
-      expect(fixture2.componentInstance.displayColWidths[0]).toBe(60);
-      expect(fixture2.componentInstance.displayColWidths[1]).toBe(60);
-      expect(fixture2.componentInstance.displayColWidths[2]).toBe(20);
-      expect(fixture2.componentInstance.displayColWidths[3]).toBe(140);
-   });
-
-   it("should shift shrunk table down to stay flush with bottom-tabs strip", () => {
-      const tabName = "tab1";
-      const tabModel: any = { absoluteName: tabName, bottomTabs: true };
-
-      let fixture: ComponentFixture<VSTable> = TestBed.createComponent(VSTable);
-      const component = fixture.componentInstance;
-      const model = createModel(300, [30, 30, 30, 30], 4, 240);
-      const designTop = 100;
-      model.objectFormat.top = designTop;
-      model.shrink = true;
-      model.scrollHeight = 10;
-      model.container = tabName;
-      model.containerType = "VSTab";
-      component.model = model;
-      component.vsInfo = new ViewsheetInfo([tabModel], "");
-      fixture.detectChanges();
-
-      // sanity: shrink actually reduced the rendered height
-      const renderedHeight = component.getObjectHeight();
-      expect(renderedHeight).toBeLessThan(model.objectFormat.height);
-
-      // bottom-tabs + shrink → top shifted so bottom stays at the design bottom
-      const expectedTop = designTop + model.objectFormat.height - renderedHeight;
-      expect(component.getObjectTop()).toBe(expectedTop);
-      expect(component.getObjectTop() + renderedHeight)
-         .toBe(designTop + model.objectFormat.height);
-
-      // top-tabs parent: no shift even when shrunk
-      tabModel.bottomTabs = false;
-      expect(component.getObjectTop()).toBe(designTop);
-
-      // not inside a tab: no shift
-      tabModel.bottomTabs = true;
-      model.containerType = undefined;
-      expect(component.getObjectTop()).toBe(designTop);
-
-      // shrink off: no shift
-      model.containerType = "VSTab";
-      model.shrink = false;
-      expect(component.getObjectTop()).toBe(designTop);
-
-      // max mode: no shift
-      model.shrink = true;
-      (model as any).maxMode = true;
-      expect(component.getObjectTop()).toBe(designTop);
-
-      // vsInfo absent: no shift (defensive guard)
-      (model as any).maxMode = false;
-      component.vsInfo = null;
-      expect(component.getObjectTop()).toBe(designTop);
-   });
-
-   // Bug #9839 ensure row and col selection instantiated to -1, to signal nothing selected.
-   it("should instantiate firstSelectedRow and firstSelectedColumn to -1", () => {
-      let fixture1: ComponentFixture<VSTable> = TestBed.createComponent(VSTable);
-      fixture1.componentInstance.model = createModel(300, [30, 30, 30], 4);
-      fixture1.detectChanges();
-
-      fixture1.componentInstance.ngOnInit();
-      expect(fixture1.componentInstance.model.firstSelectedColumn).toEqual(-1);
-      expect(fixture1.componentInstance.model.firstSelectedRow).toEqual(-1);
-   });
-
-   // Bug #9913 ensure resizing works with drag/drop.
-   it("should be draggable if not resizing", () => {
-      let fixture1: ComponentFixture<VSTable> = TestBed.createComponent(VSTable);
-      fixture1.componentInstance.model = createModel(300, [30, 30, 30], 4);
-      fixture1.detectChanges();
-
-      expect(fixture1.componentInstance.isDraggable(true)).toBeTruthy();
-   });
+   /*
+    * Migrated to ATL + MSW TL specs (direct-instantiation, no TestBed overhead):
+    *   displayColWidths expand-last-col
+    *     → vs-table.component.display.tl.spec.ts  Group 11
+    *   getObjectTop shrunk + bottomTabs
+    *     → vs-table.component.display.tl.spec.ts  Group 12
+    *   firstSelectedRow / firstSelectedColumn init (Bug #9839)
+    *     → vs-table.component.interaction.tl.spec.ts  Group 1
+    *   isDraggable (Bug #9913)
+    *     → vs-table.component.interaction.tl.spec.ts  Group 11
+    */
 
    // Bug #10465 table should be hidden when visible is false
    it("should be hidden if not visible", () => {
@@ -402,38 +325,11 @@ describe("VSTable Unit Tests", () => {
       });
    }));
 
-   //Bug #18422, highlight dialog can not open
-   it("should fire event when highlight action is triggered", () => new Promise<void>((done) => {
-      const model = createModel(300, [30, 30, 30], 4);
-      const tableActions = new TableActions(model, ViewerContextProviderFactory(false));
-      let fixture: ComponentFixture<VSTable> = TestBed.createComponent(VSTable);
-      fixture.componentInstance.model = model;
-      fixture.componentInstance.actions = tableActions;
-      fixture.detectChanges();
-
-      fixture.componentInstance.onOpenHighlightDialog.subscribe((event) => {
-         expect(event).toBe(model);
-         done();
-      });
-
-      tableActions.menuActions[1].actions[1].action(null);
-   }));
-
-   //Bug #20169
-   it("should clear flyover when unselect cell", () => {
-      let model = createModel(300, [30, 30, 30], 4);
-      model.selectedData = new Map<number, number[]>();
-      model.selectedData.set(1, [1]);
-      model.hasFlyover = true;
-      model.isFlyOnClick = true;
-      let fixture: ComponentFixture<VSTable> = TestBed.createComponent(VSTable);
-      fixture.componentInstance.model = model;
-      fixture.componentInstance.vsInfo = new ViewsheetInfo([], "");
-      fixture.componentInstance.flyoverCellSelected = false;
-      fixture.componentInstance.clearFlyover(true);
-
-      expect(fixture.componentInstance.model.selectedData).toBeNull();
-   });
+   // Migrated to ATL + MSW TL specs:
+   //   onOpenHighlightDialog "table highlight" action (Bug #18422)
+   //     → vs-table.component.interaction.tl.spec.ts  Group 13
+   //   clearFlyover force=true / selectedData=null (Bug #20169)
+   //     → vs-table.component.interaction.tl.spec.ts  Group 12
 
    //Bug #21413, Bug #21414
    it.skip("should reload model on cancel action", () => { // broken test

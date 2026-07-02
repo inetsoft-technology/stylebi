@@ -17,7 +17,6 @@
  */
 package inetsoft.web.security;
 
-import inetsoft.sree.ClientInfo;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.AuthenticationService;
@@ -58,12 +57,6 @@ public class RequestPrincipalFilter extends AbstractSecurityFilter {
 
          if(principal != null) {
             if(principal instanceof SRPrincipal) {
-               ClientInfo user = ((SRPrincipal) principal).getUser();
-
-               if(user != null) {
-                  user.setLocale(httpRequest.getLocale());
-               }
-
                ThreadContext.setContextPrincipal(principal);
                ThreadContext.setLocale(((SRPrincipal) principal).getLocale());
                ((SRPrincipal) principal).setLastAccess(System.currentTimeMillis());

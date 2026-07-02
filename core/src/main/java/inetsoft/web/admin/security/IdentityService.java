@@ -298,6 +298,100 @@ public class IdentityService {
       return warnings;
    }
 
+   /**
+    * Compute, without deleting anything, which scheduled tasks would be affected if the given
+    * identities were deleted: tasks owned by a user (deleted) and tasks where a user/group is
+    * the "execute as" (reset to the task owner). Only user/group deletions affect tasks.
+    */
+   public DeleteIdentitiesTaskImpactResponse getDeleteTaskImpacts(IdentityModel[] models,
+                                                                  String providerName,
+                                                                  Principal principal)
+   {
+      // track (org, task name) so distinct tasks that share a name across orgs aren't merged
+      Set<TaskRef> ownedTasks = new LinkedHashSet<>();
+      Set<TaskRef> executeAsTasks = new LinkedHashSet<>();
+      AuthenticationProvider authcProvider = this.getProvider(providerName);
+
+      if(authcProvider instanceof EditableAuthenticationProvider provider) {
+         for(IdentityModel model : models) {
+            int type = model.type();
+
+            if(type != Identity.USER && type != Identity.GROUP) {
+               continue;
+            }
+
+            ResourceType resourceType = type == Identity.GROUP ?
+               ResourceType.SECURITY_GROUP : ResourceType.SECURITY_USER;
+
+            // gate by the same admin permission the delete enforces, so an admin can't enumerate
+            // another org's task names by posting identities they aren't allowed to administer
+            try {
+               if(!securityEngine.checkPermission(principal, resourceType,
+                  model.identityID().convertToKey(), ResourceAction.ADMIN))
+               {
+                  continue;
+               }
+            }
+            catch(Exception ignore) {
+               continue;
+            }
+
+            Identity identity = new DefaultIdentity(model.identityID(), type);
+            String targetOrg = model.identityID() == null ? null : model.identityID().orgID;
+
+            try {
+               // resolve the impact in the target identity's org so a site/host admin deleting a
+               // user in another org (e.g. the self org) still sees that org's affected tasks
+               ScheduleManager.IdentityTaskImpact impact = targetOrg == null
+                  ? scheduleManager.getIdentityRemovalImpact(identity, provider)
+                  : OrganizationManager.runInOrgScope(
+                     targetOrg, () -> scheduleManager.getIdentityRemovalImpact(identity, provider));
+               impact.ownedTasks().forEach(name -> ownedTasks.add(new TaskRef(targetOrg, name)));
+               impact.executeAsTasks().forEach(name -> executeAsTasks.add(new TaskRef(targetOrg, name)));
+            }
+            catch(Exception ex) {
+               LOG.warn("Failed to compute schedule task impact for {}", model.identityID(), ex);
+            }
+         }
+      }
+
+      // a task whose owner is being deleted is removed entirely, so don't also report it as a reset
+      executeAsTasks.removeAll(ownedTasks);
+
+      return DeleteIdentitiesTaskImpactResponse.builder()
+         .ownedTasks(toDisplayNames(ownedTasks))
+         .executeAsTasks(toDisplayNames(executeAsTasks))
+         .build();
+   }
+
+   /**
+    * Render task refs for display, qualifying a name with its org only when the same name
+    * appears under more than one org so cross-org duplicates stay distinct.
+    */
+   private static List<String> toDisplayNames(Set<TaskRef> refs) {
+      Map<String, Set<String>> orgsByName = new LinkedHashMap<>();
+
+      for(TaskRef ref : refs) {
+         orgsByName.computeIfAbsent(ref.name(), k -> new LinkedHashSet<>()).add(ref.org());
+      }
+
+      List<String> names = new ArrayList<>();
+
+      for(TaskRef ref : refs) {
+         if(ref.org() != null && orgsByName.get(ref.name()).size() > 1) {
+            names.add(ref.name() + " (" + ref.org() + ")");
+         }
+         else {
+            names.add(ref.name());
+         }
+      }
+
+      return names;
+   }
+
+   private record TaskRef(String org, String name) {
+   }
+
    private void logoutSession(IdentityID user) {
       SessionLicenseManager sessionLicenseManager =
          sessionLicenseServiceProvider.getSessionLicenseManager();
