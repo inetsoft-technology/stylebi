@@ -25,7 +25,7 @@
 | orgSecurityAdmin | SECURITY_ROLE | `viewerRole`（本 org 自建角色，从未单独 grant） | ADMIN | ✓ | 同上；仅对本 org 自建角色生效，全局角色不生效（`isNotGlobalRole`） |
 | orgSecurityAdmin | SECURITY_USER | `targetUser` | WRITE | ✓ | **级联放行的是原始 action**，不是"隐式提升成 ADMIN 再走 RWD 兜底" |
 | orgSecurityAdmin | SECURITY_ROLE | `viewerRole` | ASSIGN | ✓ | 同上，ASSIGN 不属于 R/W/D，如果是 ADMIN→RWD 兜底机制就不会覆盖到它，证明这是两套不同机制 |
-| orgSecurityAdmin | SECURITY_ROLE | 全局角色(org-less)（示例：`Everyone`） | ADMIN | ✗ `[待补]` | 负控制：`isNotGlobalRole` 挡掉全局角色；`SecurityTestDataBuilder` 目前没有创建 org-less 角色的方法，需要先补 fixture 能力 |
+| orgSecurityAdmin | SECURITY_ROLE | 全局角色(org-less)，如 `addGlobalRole("globalRole0")` | ADMIN | ✗ `[待补]` | 负控制：`isNotGlobalRole` 挡掉全局角色；builder 方法已在 Task 3 加了（`addGlobalRole`），Task 4 用例暂未写 |
 | identityAdmin-user(实例) | SECURITY_USER | `targetUser` | ADMIN | ✓ | |
 | identityAdmin-user(实例) | SECURITY_USER | `anotherUser` | ADMIN | ✗ | 负路径：不越实例 |
 | identityAdmin-user(实例) | SECURITY_USER | `targetUser` | WRITE | ✓ | ADMIN→隐含（`SecurityEngine` L826-832，通用兜底非 User 专属） |
@@ -43,6 +43,24 @@
 | identityAdmin-role ⚠️ | SECURITY_ROLE | `anotherRole` | ASSIGN | ✗ | 负路径：不越实例 |
 | identityAdmin-role ⚠️ | ASSET | `mx/folder/item` | READ | ✗ | |
 
+**S2-GRANTEE-VARIETY `[待补]`**（对照 `docs/superpowers/specs/security/Administrator.md` §1.1.1/1.1.2 补的场景；现有用例授权方全部是 `Identity.USER`，从没测过 role/group 作为授权方，以及三者同时设置的 OR 组合）：
+
+| 用户类型 | 资源类型 | 资源(示例) | Action | 预期 | 备注 |
+|---|---|---|---|---|---|
+| viaRoleUser（role0 被 grant ADMIN on targetUser2，viaRoleUser 持有 role0） | SECURITY_USER | `targetUser2` | ADMIN | ✓ | 授权方是 ROLE，不是 USER |
+| noRoleUser（不持有 role0） | SECURITY_USER | `targetUser2` | ADMIN | ✗ | 负路径 |
+| viaGroupUser（group0 被 grant ADMIN on targetUser2，viaGroupUser 属于 group0） | SECURITY_USER | `targetUser2` | ADMIN | ✓ | 授权方是 GROUP，直接成员 |
+| viaSubGroupUser（属于 group0 的子 group1，group0 被 grant） | SECURITY_USER | `targetUser2` | ADMIN | ✓ | 授权方是 GROUP，子组成员间接继承（`checkUserGroupPermission` 递归） |
+| viaAnyOneOfThreeUser（targetUser3 同时 grant 给一个 user、一个 role、一个 group，此用户只匹配其中 role 那一条） | SECURITY_USER | `targetUser3` | ADMIN | ✓ | OR 组合：只满足三者之一即放行（默认 OR 模式） |
+
+**S2-GLOBAL-ROLE-ROOT `[待补]`**（对照 Administrator.md §1.3；`"Roles"` 全局根与 `"Organization Roles"` 本 org 根是两个独立节点，S2-ROOT-CASCADE 目前只测了后者）：
+
+| 用户类型 | 资源类型 | 资源 | Action | 预期 | 备注 |
+|---|---|---|---|---|---|
+| rootGlobalRoleAdmin（`"Roles"` 全局根 ADMIN） | SECURITY_ROLE | `addGlobalRole("globalRole0")` 创建的角色 | ADMIN | ✓ | 全局根级联到全局角色 |
+| rootGlobalRoleAdmin（同上） | SECURITY_ROLE | `targetRole`（本 org 自建角色） | ADMIN | ✗ | 全局根不覆盖本 org 角色——两个根节点相互独立 |
+| rootRoleAdmin（`"Organization Roles"` 本 org 根 ADMIN，已有的 S2-ROOT-CASCADE 场景） | SECURITY_ROLE | `addGlobalRole("globalRole0")` 创建的角色 | ADMIN | ✗ | 反过来，本 org 根也不覆盖全局角色，互不越界 |
+
 **S2-ROOT-CASCADE**（独立 `@Test`，验证 "Users"/"Groups"/"Organization Roles" 三种根节点各自级联到全部同类型实例，`DefaultCheckPermissionStrategy` L134-186）：
 
 | 用户类型 | 资源类型 | 资源 | Action | 预期 | 备注 |
@@ -53,6 +71,8 @@
 | rootRoleAdmin（同上） | SECURITY_ROLE | `targetRole` | WRITE | ✓ | 根节点 ADMIN **能**拿到 W/D，与单个 role 的 ASSIGN-only 相反 |
 | identityAdmin-role（对照组，非根节点） | SECURITY_ROLE | `anotherRole` | ASSIGN | ✗ | 证明单个 role 的 ASSIGN 授权不会被误判成根节点级联 |
 
+> **顺带证明"根节点权限覆盖子节点自身权限"**（Administrator.md §1.1.3，跟内容资源的继承方向相反）：`TARGET_USER` 已经在 S2 主表里被 `identityAdminUser`（`identityAdmin-user(实例)` 那几行）单独 grant 过；`rootUserAdmin` 并不在那条独立授权名单里，但对第一行 `rootUserAdmin` × `targetUser` 的断言依然是 ✓——因为 `DefaultCheckPermissionStrategy` 对 SECURITY_USER 的根节点检查在方法最前面就 `return true` 了，根本不会走到 `targetUser` 自己的 `Permission` 对象。这条规则靠 fixture 复用已经被验证，不需要新增用例，只需要在 `s2RootCascadeVariant()` 这行断言旁边加一句注释点明即可。
+
 **S2-GROUP-CHAIN**（独立 `@Test`，验证 Group ≥3 层 BFS 委派继承，User 无此维度）：
 
 | 用户类型 | 资源类型 | 资源 | Action | 预期 | 备注 |
@@ -60,6 +80,9 @@
 | chainAdmin（adminChainGroup0 ADMIN） | SECURITY_GROUP | `adminChainGroup1` | ADMIN | ✓ | 1 跳 |
 | chainAdmin（同上） | SECURITY_GROUP | `adminChainGroup2` | ADMIN | ✓ | 2 跳（孙节点）——只测 1 跳无法证明真 BFS |
 | chainAdmin（同上） | SECURITY_GROUP | `adminChainSiblingGroup` | ADMIN | ✗ | 负路径：链外兄弟组不可达 |
+| midChainAdmin（只在 `adminChainGroup1` 上 grant ADMIN，不动 group0/group2 的授权）`[待补]` | SECURITY_GROUP | `adminChainGroup2`（`adminChainGroup1` 的子组） | ADMIN | ✓ | 向下依然传播——复用现有 3 层结构，不需要新建 fixture |
+| midChainAdmin（同上）`[待补]` | SECURITY_GROUP | `adminChainGroup0`（`adminChainGroup1` 的父组） | ADMIN | ✗ | **不向上穿透**——对照 Administrator.md §1.2 Check2/3（该文档这两行资源类型误写成 `SECURITY_USER`，按上下文应为 `SECURITY_GROUP`），是 SECURITY_GROUP 版本的 Rule 2/3 |
+| midChainAdmin（同上）`[待补]` | SECURITY_GROUP | `Groups`（根节点） | ADMIN | ✗ | 同上，不向上穿透到根节点 |
 
 ### S3 — ADMIN 隐含语义 + 父子双向规则（Rule 1-3）
 
