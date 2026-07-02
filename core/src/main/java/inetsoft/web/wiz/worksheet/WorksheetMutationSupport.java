@@ -273,14 +273,28 @@ public final class WorksheetMutationSupport {
 
          AggregateRef ar = new AggregateRef(colRef, formula);
 
-         if(spec.alias() != null) {
-            colRef.setAlias(spec.alias());
-         }
-
          if(ainfo.containsAggregate(ar)) {
-            ainfo.addSecondaryAggregate(ar);
+            // Second aggregate on the same column: clone the ref before aliasing.
+            // The shared ref was (correctly) mutated by the first spec — that is how
+            // the aggregate output column gets its name — so aliasing it again would
+            // silently overwrite the first alias (Min(x) as a, Max(x) as b -> both b).
+            // The clone carries this spec's own alias into the secondary-aggregate
+            // conversion below, which creates a separate expression column for it.
+            ColumnRef cloned = (ColumnRef) colRef.clone();
+
+            if(spec.alias() != null) {
+               cloned.setAlias(spec.alias());
+            }
+
+            ainfo.addSecondaryAggregate(new AggregateRef(cloned, formula));
          }
          else {
+            // First aggregate on this column: set the alias on the shared ref from the
+            // column selection — the aggregate output column is named from it.
+            if(spec.alias() != null) {
+               colRef.setAlias(spec.alias());
+            }
+
             ainfo.addAggregate(ar, false);
          }
       }
@@ -351,6 +365,7 @@ public final class WorksheetMutationSupport {
    public static void addExpressionColumn(TableAssembly t, String name,
                                           String expression, String type, boolean sql)
    {
+      expression = normalizeDateArithmetic(t, expression, sql);
       ExpressionRef expr = new ExpressionRef(null, name);
       expr.setExpression(expression != null ? expression : "");
       ColumnRef colRef = new ColumnRef(expr);
@@ -381,6 +396,7 @@ public final class WorksheetMutationSupport {
    public static void editExpression(TableAssembly t, String name,
                                      String expression, String type, boolean sql)
    {
+      expression = normalizeDateArithmetic(t, expression, sql);
       ColumnSelection cs = t.getColumnSelection(false);
 
       for(int i = 0; i < cs.getAttributeCount(); i++) {
@@ -403,6 +419,80 @@ public final class WorksheetMutationSupport {
 
       // Not found — add as new expression column.
       addExpressionColumn(t, name, expression, type, sql);
+   }
+
+   /** Matches {@code field['a'] - field['b']} with arbitrary whitespace around the minus. */
+   private static final java.util.regex.Pattern DATE_DIFF_PATTERN =
+      java.util.regex.Pattern.compile("field\\['([^']+)'\\]\\s*-\\s*field\\['([^']+)'\\]");
+
+   /**
+    * Rewrites date-to-date subtraction in script (non-SQL) expressions to use
+    * {@code .getTime()}.
+    *
+    * <p>In the Rhino script engine, {@code java.util.Date} values do not subtract
+    * numerically — {@code field['a'] - field['b']} on two date columns silently
+    * evaluates to null. The subtraction intent is unambiguous, so normalize it to
+    * {@code (field['a'].getTime() - field['b'].getTime())} (a millisecond difference)
+    * instead of letting the query return a plausible-but-null column. Only applies
+    * when BOTH operands resolve to date-typed columns; SQL-mode expressions are left
+    * untouched because native date subtraction is valid on some databases.</p>
+    */
+   static String normalizeDateArithmetic(TableAssembly t, String expression, boolean sql) {
+      if(sql || expression == null || !expression.contains("field[")) {
+         return expression;
+      }
+
+      ColumnSelection cs = t.getColumnSelection(false);
+
+      if(cs == null) {
+         return expression;
+      }
+
+      java.util.regex.Matcher m = DATE_DIFF_PATTERN.matcher(expression);
+      StringBuilder sb = new StringBuilder();
+      boolean changed = false;
+
+      while(m.find()) {
+         String left = m.group(1);
+         String right = m.group(2);
+
+         if(isDateColumn(cs, left) && isDateColumn(cs, right)) {
+            m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(
+               "(field['" + left + "'].getTime() - field['" + right + "'].getTime())"));
+            changed = true;
+         }
+         else {
+            m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(m.group()));
+         }
+      }
+
+      if(!changed) {
+         return expression;
+      }
+
+      m.appendTail(sb);
+      return sb.toString();
+   }
+
+   private static boolean isDateColumn(ColumnSelection cs, String field) {
+      DataRef ref = cs.getAttribute(field);
+
+      if(ref == null) {
+         for(int i = 0; i < cs.getAttributeCount(); i++) {
+            if(cs.getAttribute(i) instanceof ColumnRef cr && field.equals(cr.getAlias())) {
+               ref = cr;
+               break;
+            }
+         }
+      }
+
+      if(ref == null) {
+         return false;
+      }
+
+      String dtype = ref.getDataType();
+      return XSchema.DATE.equals(dtype) || XSchema.TIME_INSTANT.equals(dtype) ||
+         XSchema.TIME.equals(dtype);
    }
 
    // =========================================================================

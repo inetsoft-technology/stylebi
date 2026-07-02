@@ -23,6 +23,7 @@ import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.web.wiz.pairing.*;
 import org.junit.jupiter.api.*;
 
@@ -160,6 +161,51 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals(1, ai.getAggregateCount());
    }
 
+   @Test
+   void sameColumnAggregatesKeepDistinctAliases() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "price");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            List.of("cat"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("price", "MIN", "min_price"),
+                    new WorksheetMutationSupport.AggregateSpec("price", "MAX", "max_price"))));
+
+      AggregateInfo ai = t.getAggregateInfo();
+      assertEquals(2, ai.getAggregateCount());
+
+      // Each aggregate must carry its own alias — with a shared ColumnRef the second
+      // alias silently overwrote the first (Min/Max both ended up named max_price).
+      // The first aggregate aliases the shared column-selection ref (that is how the
+      // output column is named); the second is converted to a secondary aggregate on
+      // its own expression column carrying its own alias.
+      ColumnRef ref0 = (ColumnRef) ai.getAggregate(0).getDataRef();
+      ColumnRef ref1 = (ColumnRef) ai.getAggregate(1).getDataRef();
+      assertEquals("min_price", ref0.getAlias());
+      assertEquals("max_price", ref1.getAlias());
+
+      // The first alias lands on the shared base ref (output naming mechanism);
+      // the second must NOT have overwritten it.
+      ColumnRef base = null;
+      ColumnSelection cs2 = t.getColumnSelection(false);
+
+      for(int i = 0; i < cs2.getAttributeCount(); i++) {
+         if(cs2.getAttribute(i) instanceof ColumnRef cr && "price".equals(cr.getAttribute()) &&
+            !(cr.getDataRef() instanceof ExpressionRef))
+         {
+            base = cr;
+            break;
+         }
+      }
+
+      assertNotNull(base);
+      assertEquals("min_price", base.getAlias());
+   }
+
    // =========================================================================
    // Expression column test
    // =========================================================================
@@ -178,6 +224,45 @@ class WorksheetEditServiceMutatorsTest {
       ColumnSelection cs = t.getColumnSelection(false);
       DataRef ref = cs.getAttribute("computed");
       assertNotNull(ref, "expression column 'computed' should be present");
+   }
+
+   @Test
+   void addExpressionColumnRewritesDateSubtraction() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t =
+         TestWorksheets.tableWithColumns(ws, "T", "start_date", "end_date", "amount");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("start_date")).setDataType(XSchema.TIME_INSTANT);
+      ((ColumnRef) cs.getAttribute("end_date")).setDataType(XSchema.TIME_INSTANT);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Plain date subtraction silently evaluates to null in the Rhino engine —
+      // the mutator must rewrite it to the .getTime() form.
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "days", "(field['end_date'] - field['start_date']) / 86400000",
+         "double", false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("days");
+      assertNotNull(col);
+      String expr = ((ExpressionRef) col.getDataRef()).getExpression();
+      assertEquals("((field['end_date'].getTime() - field['start_date'].getTime())) / 86400000",
+                   expr);
+
+      // Subtraction of non-date columns must be left untouched.
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "diff", "field['amount'] - field['amount']", "double", false));
+      ColumnRef col2 = (ColumnRef) t.getColumnSelection(false).getAttribute("diff");
+      String expr2 = ((ExpressionRef) col2.getDataRef()).getExpression();
+      assertEquals("field['amount'] - field['amount']", expr2);
+
+      // SQL-mode expressions must be left untouched.
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "sql_days", "field['end_date'] - field['start_date']", "double", true));
+      ColumnRef col3 = (ColumnRef) t.getColumnSelection(false).getAttribute("sql_days");
+      String expr3 = ((ExpressionRef) col3.getDataRef()).getExpression();
+      assertEquals("field['end_date'] - field['start_date']", expr3);
    }
 
    // =========================================================================

@@ -30,9 +30,13 @@ import java.util.*;
  * modifying any state.
  *
  * <p>Data is fetched via {@link AssetQuerySandbox#getTableLens} in
- * {@link AssetQuerySandbox#LIVE_MODE}, which executes the underlying query against
- * the live data source.  Callers should keep {@code limit} small (≤ 200) to avoid
- * long-running queries in an agent context.</p>
+ * {@link AssetQuerySandbox#RUNTIME_MODE}, which executes the full underlying query
+ * against the live data source.  LIVE_MODE must NOT be used here: it samples input
+ * tables to the sandbox's design-time row cap, so aggregates over large tables are
+ * silently computed on truncated data — an agent reading those numbers gets
+ * plausible-but-wrong analytics.  The {@code limit} only caps how many result rows
+ * are returned, not the rows the query computes over.  Callers should keep
+ * {@code limit} small (≤ 200) to avoid large payloads in an agent context.</p>
  */
 @Service
 public class WorksheetPreviewService {
@@ -61,7 +65,7 @@ public class WorksheetPreviewService {
       TableLens lens;
 
       try {
-         lens = box.getTableLens(tableName, AssetQuerySandbox.LIVE_MODE);
+         lens = box.getTableLens(tableName, AssetQuerySandbox.RUNTIME_MODE);
       }
       catch(Exception e) {
          throw new PairingException("Failed to execute worksheet query for '"
