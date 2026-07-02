@@ -30,13 +30,30 @@
  *   Group 8  - navigate LEFT/RIGHT: no-snap decrements/increments by 5; debounce called on refresh=true
  *   Group 9  - getTicks count: >0 ticks for valid range; ticks[0].left=0
  *   Group 10 - navigate with snap: increment-scaled step (40px) + snap rounding; contrast vs no-snap (5px)
+ *   Group 11 - Legacy DOM regressions ported verbatim from vs-slider.spec.ts (bugs #10226,
+ *              #18430, #20993): uses a real TestBed render (not direct instantiation) because
+ *              these assertions are about real template output (the *#if-removed current-value
+ *              label, the text-decoration style binding, and the verticalCenter-driven wrapper
+ *              top style) that cannot be observed on a directly-instantiated component.
  *
  * Model defaults: min=0, max=100, increment=20, value=50, width=200, height=60.
  * Key derived values: handlePosition=100, verticalCenter=24.
  */
 
+import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { GuiTool } from "../../../common/util/gui-tool";
+import { TestUtils } from "../../../common/test/test-utils";
+import { ViewsheetClientService } from "../../../common/viewsheet-client";
+import { DebounceService } from "../../../widget/services/debounce.service";
+import { ContextProvider } from "../../context-provider.service";
+import { CheckFormDataService } from "../../util/check-form-data.service";
+import { FormInputService } from "../../util/form-input.service";
+import { DataTipService } from "../data-tip/data-tip.service";
+import { PopComponentService } from "../data-tip/pop-component.service";
+import { TimerService } from "../data-tip/timer.service";
 import { NavigationKeys } from "../navigation-keys";
+import { VSSlider } from "./vs-slider.component";
 import { createVSSlider, makeVSSliderModel } from "./vs-slider.component.test-helpers";
 
 describe("VSSlider", () => {
@@ -198,10 +215,12 @@ describe("VSSlider", () => {
    describe("Group 7 – moveHandleHere", () => {
       it("should set handlePosition to the snapped offsetX value", () => {
          const { comp } = createVSSlider({ snap: false } as any);
-         comp.moveHandleHere(new MouseEvent("click", { clientX: 120 }) as any);
-         // offsetX = 0 in jsdom (MouseEvent offsetX is always 0 without layout)
-         // snap(0) = 0 (no snap); clamped to [0, 200]
-         expect(comp.handlePosition).toBe(0);
+         // Real MouseEvent.offsetX is a computed, layout-dependent property whose jsdom value is
+         // environment-specific (never reliably 0). Use a plain mock so the assertion is
+         // deterministic and actually exercises the clamp/pass-through math below.
+         comp.moveHandleHere({ offsetX: 120 } as unknown as MouseEvent);
+         // snap(120) = 120 (no snap); clamped to [0, 200]
+         expect(comp.handlePosition).toBe(120);
       });
 
       it("should trigger applySelection which calls sendEvent", () => {
@@ -322,6 +341,85 @@ describe("VSSlider", () => {
          comp["navigate"](NavigationKeys.LEFT);
 
          expect(comp.handlePosition).toBe(95);
+      });
+   });
+
+   // ─── Group 11: Legacy DOM regressions ported from vs-slider.spec.ts ─────────
+   describe("Group 11 – legacy DOM regressions", () => {
+      let fixture: ComponentFixture<VSSlider>;
+
+      beforeEach(waitForAsync(() => {
+         const viewsheetClient: any = { sendEvent: vi.fn(), runtimeId: "vs-1^128^__^Sheet1" };
+         const dataTipService = { isDataTip: vi.fn().mockReturnValue(false) };
+         const formDataService = {
+            checkFormData: vi.fn(),
+            removeObject: vi.fn(),
+            addObject: vi.fn(),
+            replaceObject: vi.fn(),
+         };
+         const timerService = { defer: vi.fn((fn: any) => fn()) };
+
+         TestBed.configureTestingModule({
+            imports: [VSSlider],
+            schemas: [NO_ERRORS_SCHEMA],
+            providers: [
+               { provide: ViewsheetClientService, useValue: viewsheetClient },
+               { provide: CheckFormDataService, useValue: formDataService },
+               FormInputService,
+               PopComponentService,
+               DebounceService,
+               { provide: DataTipService, useValue: dataTipService },
+               { provide: ContextProvider, useValue: {} },
+               { provide: TimerService, useValue: timerService },
+            ],
+         });
+         TestBed.compileComponents();
+
+         fixture = TestBed.createComponent(VSSlider);
+         fixture.componentInstance.model = makeVSSliderModel();
+         fixture.detectChanges();
+      }));
+
+      // Bug #10226
+      it("should not have current value label when currentVisible is false", () => {
+         let currentLabel: any = fixture.nativeElement.querySelector(".slider-value");
+         expect(currentLabel).toBeTruthy();
+
+         fixture.componentInstance.model.currentVisible = false;
+         fixture.detectChanges();
+         currentLabel = fixture.nativeElement.querySelector(".slider-value");
+         expect(currentLabel).toBeFalsy();
+      });
+
+      // Bug #18430
+      it("should apply text-decoration to the value label and tick labels", () => {
+         fixture.componentInstance.model.ticksVisible = true;
+         fixture.componentInstance.model.labelVisible = true;
+         fixture.componentInstance.model.currentVisible = true;
+         fixture.componentInstance.model.currentLabel = "10";
+         fixture.componentInstance.model.objectFormat.decoration = "underline line-through";
+
+         fixture.detectChanges();
+         let valueLabel = fixture.nativeElement.querySelector(".slider-value");
+         let tickLabel = fixture.nativeElement.querySelectorAll(".slider-label")[0];
+         expect(valueLabel.style["text-decoration"]).toEqual("underline line-through");
+         expect(tickLabel.style["text-decoration"]).toEqual("underline line-through");
+      });
+
+      // Bug #20993
+      it("should position the wrapper using the verticalCenter formula", () => {
+         let model = makeVSSliderModel();
+         model.objectFormat.height = 89;
+         model.objectFormat.top = 210;
+         model.objectFormat.left = 401;
+         model.objectFormat.width = 140;
+
+         fixture.componentInstance.model = model;
+         fixture.detectChanges();
+
+         let slider = fixture.nativeElement.querySelector("div.wrapper");
+         // verticalCenter = max(17, min(ceil(89/2)=45, 89-36=53)) = 45
+         expect(slider.style["top"]).toBe("45px");
       });
    });
 });
