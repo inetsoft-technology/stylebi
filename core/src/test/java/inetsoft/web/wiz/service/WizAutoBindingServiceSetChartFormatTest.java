@@ -18,8 +18,10 @@
 package inetsoft.web.wiz.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
@@ -32,6 +34,7 @@ import org.junit.jupiter.api.Test;
 import java.security.Principal;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -52,6 +55,7 @@ import static org.mockito.Mockito.when;
 @Tag("core")
 class WizAutoBindingServiceSetChartFormatTest {
    private WizAutoBindingService service;
+   private ViewsheetService viewsheetService;
    private WizVsService wizVsService;
    private Viewsheet vs;
    private ChartVSAssemblyInfo info;
@@ -59,7 +63,7 @@ class WizAutoBindingServiceSetChartFormatTest {
 
    @BeforeEach
    void setUp() throws Exception {
-      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      viewsheetService = mock(ViewsheetService.class);
       wizVsService = mock(WizVsService.class);
       // collaborators not used by setChartFormat; their classes can't be initialized in a plain
       // unit-test environment (no Spring context), so pass null instead of mocks.
@@ -84,6 +88,7 @@ class WizAutoBindingServiceSetChartFormatTest {
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
       when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      when(rvs.getID()).thenReturn("rt-1");
       when(viewsheetService.getViewsheet(anyString(), any())).thenReturn(rvs);
       when(wizVsService.fetchAssemblyData(anyString(), anyString(), any()))
          .thenReturn(new CreateViewsheetResult());
@@ -104,6 +109,29 @@ class WizAutoBindingServiceSetChartFormatTest {
 
       verify(info).setTitleValue("Contacts per Account");
       verify(info).setTitleVisible(true);
+   }
+
+   // When the runtime was reaped, WizUtil.getViewsheetOrRestore reopens it from the durable identifier
+   // under a NEW id; setChartFormat must echo that live id in the result so the client adopts it next.
+   @Test
+   void echoesTheRestoredRuntimeIdWhenTheRuntimeWasReopened() throws Exception {
+      // rt-1 was reaped: getViewsheet throws; the identifier is reopened as rt-restored.
+      RuntimeViewsheet restored = mock(RuntimeViewsheet.class);
+      when(restored.getViewsheet()).thenReturn(vs);
+      when(restored.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      when(restored.getID()).thenReturn("rt-restored");
+      when(viewsheetService.getViewsheet(eq("rt-1"), any()))
+         .thenThrow(new ExpiredSheetException("rt-1", null));
+      when(viewsheetService.openViewsheet(any(AssetEntry.class), any(), eq(false)))
+         .thenReturn("rt-restored");
+      when(viewsheetService.getViewsheet(eq("rt-restored"), any())).thenReturn(restored);
+      when(wizVsService.fetchAssemblyData(eq("rt-restored"), anyString(), any()))
+         .thenReturn(new CreateViewsheetResult());
+
+      CreateViewsheetResult result =
+         service.setChartFormat(titleRequest("1^128^__NULL__^visualizations-abc/chart1^host-org"), null);
+
+      assertEquals("rt-restored", result.getRuntimeId());
    }
 
    @Test

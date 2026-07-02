@@ -104,6 +104,7 @@ class WizAutoBindingServiceSetChartColorsTest {
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
       when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      when(rvs.getID()).thenReturn("rt-1");
       when(viewsheetService.getViewsheet(anyString(), any())).thenReturn(rvs);
       when(wizVsService.fetchAssemblyData(anyString(), anyString(), any(Principal.class)))
          .thenReturn(new CreateViewsheetResult());

@@ -44,6 +44,7 @@ import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -107,7 +108,10 @@ public class WizVsService {
       }
 
       try {
-         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+         RuntimeViewsheet rvs = WizUtil.getViewsheetOrRestore(
+            viewsheetService, runtimeId, model.getViewsheetIdentifier(), user);
+         boolean restored = !runtimeId.equals(rvs.getID());
+         runtimeId = rvs.getID();
          Viewsheet vs = getValidatedViewsheet(rvs);
 
          final Viewsheet targetVs;
@@ -410,7 +414,7 @@ public class WizVsService {
             result.setBinding(binding);
             result.setAssemblyName(assembly.getName());
 
-            if(createdRuntimeId) {
+            if(createdRuntimeId || restored) {
                result.setRuntimeId(runtimeId);
             }
 

@@ -25,6 +25,8 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.BrowseDataController;
 import inetsoft.web.composer.model.BrowseDataModel;
+import inetsoft.web.wiz.WizUtil;
+import inetsoft.web.wiz.model.WizBrowseDataResponse;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -39,17 +41,20 @@ public class WizBrowseDataService {
    /**
     * Browse distinct values for a worksheet table column, accessed via a VS runtimeId.
     *
-    * @param runtimeId    the VS runtime ID (vsId)
-    * @param assemblyName the worksheet table/assembly name that owns the column
-    * @param dataRefModel the column ref describing which column to browse
-    * @param principal    the current user
+    * @param runtimeId           the VS runtime ID (vsId)
+    * @param assemblyName        the worksheet table/assembly name that owns the column
+    * @param viewsheetIdentifier the durable asset id, used to restore a reaped runtime; may be null
+    * @param dataRefModel        the column ref describing which column to browse
+    * @param principal           the current user
     */
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public BrowseDataModel browseData(@ClusterProxyKey String runtimeId, String assemblyName,
-                                     DataRefModel dataRefModel, Principal principal)
+   public WizBrowseDataResponse browseData(@ClusterProxyKey String runtimeId, String assemblyName,
+                                           String viewsheetIdentifier, DataRefModel dataRefModel,
+                                           Principal principal)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      RuntimeViewsheet rvs =
+         WizUtil.getViewsheetOrRestore(viewsheetService, runtimeId, viewsheetIdentifier, principal);
 
       if(rvs == null) {
          throw new IllegalArgumentException("No viewsheet found for runtimeId=" + runtimeId);
@@ -75,7 +80,18 @@ public class WizBrowseDataService {
       browseDataController.setColumn((ColumnRef) dataRef);
       browseDataController.setName(assemblyName);
 
-      return browseDataController.process(rws.getAssetQuerySandbox());
+      BrowseDataModel model = browseDataController.process(rws.getAssetQuerySandbox());
+
+      WizBrowseDataResponse response = new WizBrowseDataResponse();
+      response.setValues(model != null ? model.values() : null);
+
+      // Echo the runtimeId only when a reaped runtime was restored (id changed) so the client adopts
+      // the live runtime for its next edit instead of triggering a second restore.
+      if(!runtimeId.equals(rvs.getID())) {
+         response.setRuntimeId(rvs.getID());
+      }
+
+      return response;
    }
 
    private final ViewsheetService viewsheetService;

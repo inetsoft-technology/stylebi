@@ -48,6 +48,7 @@ import inetsoft.uql.viewsheet.graph.VSMapInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.handler.VSChartHandler;
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.model.GeoApplyRequest;
 import inetsoft.web.wiz.model.GeoApplyResponse;
 import inetsoft.web.wiz.model.GeoDetectRequest;
@@ -83,7 +84,8 @@ public class WizGeoService {
     * Marks {@code column} geographic on the chart and auto-detects its geo type/layer + matching.
     */
    public GeoDetectResponse detect(GeoDetectRequest request, Principal user) throws Exception {
-      RuntimeViewsheet rvs = getRuntimeViewsheet(request.getRuntimeId(), user);
+      RuntimeViewsheet rvs =
+         getRuntimeViewsheet(request.getRuntimeId(), request.getViewsheetIdentifier(), user);
       Viewsheet vs = rvs.getViewsheet();
       ChartVSAssembly chart = getChart(vs, request.getAssemblyName());
       ViewsheetSandbox box = getSandbox(rvs);
@@ -192,7 +194,8 @@ public class WizGeoService {
     * unmatched values.
     */
    public GeoApplyResponse apply(GeoApplyRequest request, Principal user) throws Exception {
-      RuntimeViewsheet rvs = getRuntimeViewsheet(request.getRuntimeId(), user);
+      RuntimeViewsheet rvs =
+         getRuntimeViewsheet(request.getRuntimeId(), request.getViewsheetIdentifier(), user);
       Viewsheet vs = rvs.getViewsheet();
       ChartVSAssembly chart = getChart(vs, request.getAssemblyName());
       ViewsheetSandbox box = getSandbox(rvs);
@@ -262,6 +265,12 @@ public class WizGeoService {
       GeoApplyResponse response = new GeoApplyResponse();
       response.setStatus(stillUnmatched.isEmpty() ? GeoApplyResponse.STATUS_COMPLETE : GeoApplyResponse.STATUS_PARTIAL);
       response.setStillUnmatched(new ArrayList<>(stillUnmatched));
+
+      // If the runtime was reaped, getRuntimeViewsheet reopened it under a new id; echo it so the
+      // client adopts the live runtime for its next edit (mirrors the create/modify path).
+      if(!request.getRuntimeId().equals(rvs.getID())) {
+         response.setRuntimeId(rvs.getID());
+      }
 
       // Persist the resolved feature mappings to the session asset so a saved map keeps them.
       persistViewsheet(vs, request.getViewsheetIdentifier(), user);
@@ -443,12 +452,17 @@ public class WizGeoService {
       return null;
    }
 
-   private RuntimeViewsheet getRuntimeViewsheet(String runtimeId, Principal user) throws Exception {
+   private RuntimeViewsheet getRuntimeViewsheet(String runtimeId, String viewsheetIdentifier,
+                                                Principal user)
+      throws Exception
+   {
       if(Tool.isEmptyString(runtimeId)) {
          throw new IllegalArgumentException("runtimeId is required");
       }
 
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+      // Transparently restore a reaped runtime from its durable asset identifier.
+      RuntimeViewsheet rvs =
+         WizUtil.getViewsheetOrRestore(viewsheetService, runtimeId, viewsheetIdentifier, user);
 
       if(rvs == null || rvs.getViewsheet() == null) {
          throw new IllegalStateException("Runtime viewsheet not found: " + runtimeId);

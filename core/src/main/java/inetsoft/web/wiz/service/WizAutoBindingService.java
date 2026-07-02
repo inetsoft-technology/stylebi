@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.graph.ChangeChartTypeProcessor;
 import inetsoft.uql.*;
@@ -44,6 +45,7 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.web.binding.model.graph.CalculateInfo;
+import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.BindingInfo;
 import org.slf4j.Logger;
@@ -81,6 +83,21 @@ public class WizAutoBindingService {
       return autoBindingInternal(request, user, false);
    }
 
+   /**
+    * Whether a cached recommendation (auto-binding) runtime can still be reused. The recommendation
+    * runtime is a transient temp viewsheet with no durable asset, so a reaped one cannot be restored
+    * and must be replaced; returns false for a gone/expired id so the caller mints a fresh one.
+    */
+   public boolean isRecommendationRuntimeReusable(String autoBindingRuntimeId, Principal user) throws Exception {
+      try {
+         return viewsheetService.getViewsheet(autoBindingRuntimeId, user) != null;
+      }
+      catch(ExpiredSheetException ex) {
+         LOG.debug("Recommendation runtime [{}] expired; will mint a fresh one", autoBindingRuntimeId);
+         return false;
+      }
+   }
+
    private AutoBindingResponse autoBindingInternal(AutoBindingRequest request, Principal user,
                                                    boolean skipExecution)
       throws Exception
@@ -92,6 +109,16 @@ public class WizAutoBindingService {
       // Phase 1: resolve or create the recommendation RVS.
       String autoBindingRuntimeId = request.getAutoBindingRuntimeId();
       boolean createdAutoBindingRvs = false;
+
+      // A cached recommendation runtime that has been reaped (TTL/restart) cannot be reused, and unlike
+      // the chart's viewsheet it has no durable asset to restore from — so treat an expired id as
+      // absent and mint a fresh one below (mirrors changeType's fallback). Without this, a later
+      // update_binding on an expired recommendation runtime would fail outright.
+      if(!Tool.isEmptyString(autoBindingRuntimeId)
+         && !isRecommendationRuntimeReusable(autoBindingRuntimeId, user))
+      {
+         autoBindingRuntimeId = null;
+      }
 
       if(Tool.isEmptyString(autoBindingRuntimeId)) {
          Viewsheet.WizInfo wizInfo = new Viewsheet.WizInfo(true, null, null);
@@ -2018,11 +2045,14 @@ public class WizAutoBindingService {
    public CreateViewsheetResult setChartFormat(ChartFormatRequest request, Principal user)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(request.getWizRuntimeId(), user);
+      RuntimeViewsheet rvs = WizUtil.getViewsheetOrRestore(
+         viewsheetService, request.getWizRuntimeId(), request.getViewsheetIdentifier(), user);
 
       if(rvs == null || rvs.getViewsheet() == null) {
          throw new Exception("Chart runtime not found: " + request.getWizRuntimeId());
       }
+
+      String effRuntimeId = rvs.getID();
 
       VSAssembly assembly = rvs.getViewsheet().getAssembly(request.getAssemblyName());
 
@@ -2164,13 +2194,13 @@ public class WizAutoBindingService {
       }
 
       CreateViewsheetResult result =
-         wizVsService.fetchAssemblyData(request.getWizRuntimeId(), request.getAssemblyName(), user);
+         wizVsService.fetchAssemblyData(effRuntimeId, request.getAssemblyName(), user);
 
       if(result == null) {
          result = new CreateViewsheetResult();
       }
 
-      result.setRuntimeId(request.getWizRuntimeId());
+      result.setRuntimeId(effRuntimeId);
       result.setAssemblyName(request.getAssemblyName());
 
       if(request.getViewsheetIdentifier() != null) {
@@ -2209,11 +2239,14 @@ public class WizAutoBindingService {
    public CreateViewsheetResult setChartColors(ChartColorsRequest request, Principal user)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(request.getWizRuntimeId(), user);
+      RuntimeViewsheet rvs = WizUtil.getViewsheetOrRestore(
+         viewsheetService, request.getWizRuntimeId(), request.getViewsheetIdentifier(), user);
 
       if(rvs == null || rvs.getViewsheet() == null) {
          throw new Exception("Chart runtime not found: " + request.getWizRuntimeId());
       }
+
+      String effRuntimeId = rvs.getID();
 
       VSAssembly assembly = rvs.getViewsheet().getAssembly(request.getAssemblyName());
 
@@ -2267,13 +2300,13 @@ public class WizAutoBindingService {
       }
 
       CreateViewsheetResult result =
-         wizVsService.fetchAssemblyData(request.getWizRuntimeId(), request.getAssemblyName(), user);
+         wizVsService.fetchAssemblyData(effRuntimeId, request.getAssemblyName(), user);
 
       if(result == null) {
          result = new CreateViewsheetResult();
       }
 
-      result.setRuntimeId(request.getWizRuntimeId());
+      result.setRuntimeId(effRuntimeId);
       result.setAssemblyName(request.getAssemblyName());
 
       if(request.getViewsheetIdentifier() != null) {

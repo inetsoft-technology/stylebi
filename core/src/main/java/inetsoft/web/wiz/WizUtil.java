@@ -18,12 +18,20 @@
 
 package inetsoft.web.wiz;
 
+import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.ExpiredSheetException;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.util.Tool;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.nio.charset.StandardCharsets;
+import java.security.Principal;
 import java.util.Base64;
 
 public class WizUtil {
@@ -43,6 +51,51 @@ public class WizUtil {
       }
 
       return decodedId;
+   }
+
+   /**
+    * Resolve the runtime viewsheet for a wiz modify operation, transparently restoring it when the
+    * runtime has been reaped (TTL expiry / server restart).
+    *
+    * The runtime viewsheet is transient, but the viewsheet asset that {@code viewsheetIdentifier}
+    * points to is durable (every wiz create/modify rewrites it via persistViewsheet), so a reaped
+    * runtime can be reopened from the identifier into a fresh runtime carrying the same state. Callers
+    * MUST read {@link RuntimeViewsheet#getID()} off the returned value to pick up the (possibly new)
+    * runtimeId and echo it back to the client, so subsequent edits target the live runtime instead of
+    * the reaped one.
+    *
+    * @param viewsheetService    the runtime registry (resolve + reopen).
+    * @param runtimeId           the runtime id the client believes is active (may be reaped).
+    * @param viewsheetIdentifier the durable asset identifier to restore from; may be null/empty.
+    * @param user                the requesting principal.
+    * @return the live RuntimeViewsheet (the existing one, or a freshly reopened one).
+    * @throws ExpiredSheetException if the runtime is gone AND no identifier is available to restore from.
+    */
+   public static RuntimeViewsheet getViewsheetOrRestore(ViewsheetService viewsheetService,
+                                                        String runtimeId, String viewsheetIdentifier,
+                                                        Principal user)
+      throws Exception
+   {
+      try {
+         return viewsheetService.getViewsheet(runtimeId, user);
+      }
+      catch(ExpiredSheetException ex) {
+         if(Tool.isEmptyString(viewsheetIdentifier)) {
+            // Nothing durable to restore from (e.g. the asset was explicitly removed) — surface expiry.
+            throw ex;
+         }
+
+         AssetEntry entry = AssetEntry.createAssetEntry(viewsheetIdentifier);
+
+         if(entry == null) {
+            throw ex;
+         }
+
+         String restoredId = viewsheetService.openViewsheet(entry, user, false);
+         LOG.debug("Restored reaped runtime [{}] from identifier [{}] as [{}]",
+                   runtimeId, viewsheetIdentifier, restoredId);
+         return viewsheetService.getViewsheet(restoredId, user);
+      }
    }
 
    /**
@@ -104,4 +157,6 @@ public class WizUtil {
    }
 
    public static final String ANNOTATION_RAW_DATA_MAX_ROW = "annotation.rawdata.maxrow";
+
+   private static final Logger LOG = LoggerFactory.getLogger(WizUtil.class);
 }

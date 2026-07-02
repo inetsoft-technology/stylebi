@@ -17,36 +17,23 @@
  */
 package inetsoft.web.wiz.model;
 
-import java.util.List;
+import java.io.Serializable;
 
 /**
- * Response for {@code POST /api/wiz/viewsheet/geo/apply}.
- * {@code status} is "complete" when no originally-unmatched values remain, else "partial".
+ * Response for {@code POST /api/wiz/vs/condition/browse-data}: the distinct column values, plus the
+ * live {@code runtimeId} echoed only when a reaped runtime was transparently restored during the
+ * browse (its id changed). The client adopts the echoed id so the next edit targets the live runtime
+ * instead of triggering a second restore.
  */
-public class GeoApplyResponse {
-   public static final String STATUS_COMPLETE = "complete";
-   public static final String STATUS_PARTIAL  = "partial";
-
-   public String getStatus() {
-      return status;
+public class WizBrowseDataResponse implements Serializable {
+   public Object[] getValues() {
+      return values;
    }
 
-   public void setStatus(String status) {
-      this.status = status;
+   public void setValues(Object[] values) {
+      this.values = values;
    }
 
-   public List<String> getStillUnmatched() {
-      return stillUnmatched;
-   }
-
-   public void setStillUnmatched(List<String> stillUnmatched) {
-      this.stillUnmatched = stillUnmatched;
-   }
-
-   /**
-    * The live runtimeId, echoed only when a reaped runtime was transparently restored (its id
-    * changed). Null on the normal path; the client keeps its existing id when this is absent.
-    */
    public String getRuntimeId() {
       return runtimeId;
    }
@@ -55,7 +42,8 @@ public class GeoApplyResponse {
       this.runtimeId = runtimeId;
    }
 
-   private String status;
-   private List<String> stillUnmatched;
+   private Object[] values;
    private String runtimeId;
+
+   private static final long serialVersionUID = 1L;
 }
