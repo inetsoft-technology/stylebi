@@ -22,32 +22,39 @@
  * Two describe blocks:
  *   1. "MonitoringSidenavComponent" — general smoke test (component creation).
  *   2. "MonitoringSidenavComponent — SECURITY: SecurityMswHandlers personas" — permission
- *      persona coverage (8 cases below).
+ *      persona coverage.
  *
  * Component: EM sidebar/nav-menu; calls AuthorizationService.getPermissions("monitoring") and
- * shows/hides menu items (<a mat-list-item>) based on the response.
+ * shows/hides menu items (<a mat-list-item>) based on the response. Seven items total:
+ * Summary/Cluster/Log/Cache are For-Org-x (siteAdmin only); Viewsheets/Queries/Users are
+ * For-Org-ok (both siteAdmin and orgAdmin).
  *
- *   asSiteAdmin:
- *     Case 1 — For-Org-x path (monitoring/cache)    → menu item IN dom
- *     Case 2 — For-Org-ok path (monitoring/queries) → menu item IN dom
- *     Case 3 — navbar isSiteAdmin=true              → reflected on component
+ * Testing strategy: siteAdmin is intentionally NOT tested per item here. Proving "permission=true
+ * renders the link visible" is generic Angular `@if` binding behavior, not gatekeeping logic —
+ * it is already exercised by the For-Org-ok rows (queries/viewsheets/users=true) inside the
+ * orgAdmin table below. orgAdmin is the actual boundary: a single persona whose permission map
+ * mixes true and false values proves the binding works in both directions, so one parameterized
+ * table covering all 7 items under orgAdmin is sufficient without a separate siteAdmin pass.
+ *
  *   asOrgAdmin:
- *     Case 4 — For-Org-x path (monitoring/cache)    → menu item NOT in dom
- *     Case 5 — For-Org-ok path (monitoring/queries) → menu item IN dom (no over-hide)
- *     Case 6 — navbar isOrgAdminOnly=true           → reflected on component
+ *     orgAdmin item-visibility boundary — it.each over all 7 monitoring items, asserting
+ *       Summary/Cluster/Log/Cache hidden and Viewsheets/Queries/Users visible.
+ *     navbar isOrgAdminOnly=true — reflected on the component.
  *   asViewer:
- *     Case 7 — no admin entries rendered
+ *     no admin entries rendered.
  *   asAnonymous:
- *     Case 8 — authz 401 handled gracefully (no crash, no visible menu items)
+ *     authz 401 handled gracefully (no crash, no visible menu items).
  *
  * NOTE on the authz child-key contract: the real backend (/api/em/authz) returns permissions
  * keyed by *child component name* (e.g. { cache: true, queries: true }), which is what
  * MonitoringSidenavComponent.ngOnInit() reads (p.permissions.cache, p.permissions.queries, ...).
- * SecurityMswHandlers.asSiteAdmin()/.asOrgAdmin() key their authz response by the *requested path*
- * itself ({ [path]: true }) — a deliberately simple, persona-level mock. To exercise the real
- * child-key contract this spec layers one additional server.use() authz override per case (same
- * "useInitXMarker()" composition pattern already used in security-settings-page.component.tl.spec.ts)
- * on top of SecurityMswHandlers, which still supplies the persona's navbar handlers verbatim.
+ * SecurityMswHandlers.asOrgAdmin() keys its authz response by the *requested path* itself
+ * ({ [path]: true }) — a deliberately simple, persona-level mock; since MonitoringSidenavComponent
+ * requests the parent path ("monitoring"), that generic response has none of the child keys this
+ * component actually reads. To exercise the real child-key contract this spec layers one
+ * additional server.use() authz override (same "useInitXMarker()" composition pattern already
+ * used in security-settings-page.component.tl.spec.ts) on top of SecurityMswHandlers, which still
+ * supplies the persona's navbar handlers verbatim.
  */
 
 import { NO_ERRORS_SCHEMA, Component } from "@angular/core";
@@ -67,36 +74,43 @@ import { AppInfoService } from "../../../../../shared/util/app-info.service";
 @Component({ selector: "em-page-header", template: "", standalone: true })
 class MockPageHeaderComponent {}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// For-Org-x / For-Org-ok fixtures (SITE_ADMIN_ONLY_PATHS leaf names, see
-// security-permission.handlers.ts)
-// ─────────────────────────────────────────────────────────────────────────────
-
 // Templates use the raw "_#(...)" i18n placeholder syntax; no translation pipe runs in
 // this test environment, so the accessible name is the untranslated placeholder text.
 
-/** monitoring/cache — For-Org-x: siteAdmin only, orgAdmin denied+hidden. */
-const CACHE_LINK_NAME = "_#(Cache)";
-/** monitoring/queries — For-Org-ok: both siteAdmin and orgAdmin can access. */
+/** monitoring/queries — For-Org-ok item used as a resolution anchor for negative assertions. */
 const QUERIES_LINK_NAME = "_#(Queries)";
 
 /**
- * Layers a child-key authz response on top of whatever persona handlers are already
- * registered, so MonitoringSidenavComponent's p.permissions.cache / .queries reads resolve
- * per the SITE_ADMIN_ONLY_PATHS boundary for the "monitoring" path.
+ * orgAdmin's fixed child-key permission map for the "monitoring" path, per
+ * SITE_ADMIN_ONLY_PATHS in security-permission.handlers.ts: Summary/Cluster/Log/Cache are
+ * For-Org-x (denied); Viewsheets/Queries/Users are For-Org-ok (allowed). This is the same for
+ * every case in the describe block below — only which item a given case asserts on varies.
  */
-function useMonitoringChildPermissions(opts: { cache: boolean; queries: boolean }): void {
+function useOrgAdminChildPermissions(): void {
    server.use(
       http.get("*/api/em/authz", () =>
          HttpResponse.json({
-            permissions: { cache: opts.cache, queries: opts.queries, summary: opts.cache,
-               viewsheets: opts.queries, users: opts.queries, cluster: opts.cache, log: opts.cache },
+            permissions: {
+               summary: false, cluster: false, log: false, cache: false,
+               viewsheets: true, queries: true, users: true,
+            },
             labels: {},
             multiTenancyHiddenComponents: {},
          })
       )
    );
 }
+
+/** [accessible link name, expected visible under orgAdmin] for all 7 monitoring items. */
+const ORG_ADMIN_ITEM_VISIBILITY: Array<[name: string, expectedVisible: boolean]> = [
+   ["_#(Summary)", false],
+   ["_#(Cluster)", false],
+   ["_#(Logs)", false],
+   ["_#(Cache)", false],
+   ["_#(Viewsheets)", true],
+   [QUERIES_LINK_NAME, true],
+   ["_#(Users)", true],
+];
 
 async function renderComponent() {
    const appInfoMock = { isEnterprise: () => of(true) };
@@ -138,91 +152,54 @@ describe("MonitoringSidenavComponent", () => {
 
 describe("MonitoringSidenavComponent — SECURITY: SecurityMswHandlers personas", () => {
 
-   // Case 1: asSiteAdmin — For-Org-x path (monitoring/cache) must be visible.
-   it("case 1: siteAdmin sees the For-Org-x Cache menu item", async () => {
-      server.use(...SecurityMswHandlers.asSiteAdmin());
-      useMonitoringChildPermissions({ cache: true, queries: true });
+   // orgAdmin item-visibility boundary: one parameterized test covers all 7 items, proving the
+   // For-Org-x/For-Org-ok split in both directions (hidden AND visible) under a single persona.
+   describe("asOrgAdmin — item visibility boundary", () => {
+      it.each(ORG_ADMIN_ITEM_VISIBILITY)("%s should be visible=%s", async (name, expectedVisible) => {
+         server.use(...SecurityMswHandlers.asOrgAdmin());
+         useOrgAdminChildPermissions();
 
-      await renderComponent();
+         await renderComponent();
 
-      expect(await screen.findByRole("link", { name: CACHE_LINK_NAME })).toBeTruthy();
+         if(expectedVisible) {
+            expect(await screen.findByRole("link", { name })).toBeTruthy();
+         }
+         else {
+            // Wait for a known-visible item to resolve first, confirming the authz response has
+            // settled, before asserting this item's continued absence.
+            await screen.findByRole("link", { name: QUERIES_LINK_NAME });
+            expect(screen.queryByRole("link", { name })).toBeNull();
+         }
+      });
    });
 
-   // Case 2: asSiteAdmin — For-Org-ok path (monitoring/queries) must be visible.
-   it("case 2: siteAdmin sees the For-Org-ok Queries menu item", async () => {
-      server.use(...SecurityMswHandlers.asSiteAdmin());
-      useMonitoringChildPermissions({ cache: true, queries: true });
-
-      await renderComponent();
-
-      expect(await screen.findByRole("link", { name: QUERIES_LINK_NAME })).toBeTruthy();
-   });
-
-   // Case 3: asSiteAdmin — navbar isSiteAdmin=true flag is served correctly.
-   it("case 3: asSiteAdmin serves isSiteAdmin=true on the navbar endpoint", async () => {
-      server.use(...SecurityMswHandlers.asSiteAdmin());
-      useMonitoringChildPermissions({ cache: true, queries: true });
-
-      const isSiteAdmin = await fetch("/api/em/navbar/isSiteAdmin").then(r => r.json());
-      expect(isSiteAdmin).toBe(true);
-
-      await renderComponent();
-      // siteAdmin persona: no org-admin-only hiding, Cache (For-Org-x) stays visible.
-      expect(await screen.findByRole("link", { name: CACHE_LINK_NAME })).toBeTruthy();
-   });
-
-   // Case 4: asOrgAdmin — For-Org-x path (monitoring/cache) must be hidden. Critical boundary.
-   it("case 4: orgAdmin does NOT see the For-Org-x Cache menu item", async () => {
+   // asOrgAdmin — navbar isOrgAdminOnly=true flag is served correctly.
+   it("asOrgAdmin serves isOrgAdminOnly=true on the navbar endpoint", async () => {
       server.use(...SecurityMswHandlers.asOrgAdmin());
-      useMonitoringChildPermissions({ cache: false, queries: true });
-
-      await renderComponent();
-      // Wait for the For-Org-ok item to appear first, confirming the authz response has
-      // resolved, before asserting the For-Org-x item's continued absence.
-      await screen.findByRole("link", { name: QUERIES_LINK_NAME });
-
-      expect(screen.queryByRole("link", { name: CACHE_LINK_NAME })).toBeNull();
-   });
-
-   // Case 5: asOrgAdmin — For-Org-ok path (monitoring/queries) must remain visible.
-   // Paired with case 4: proves SITE_ADMIN_ONLY_PATHS is not over-hiding For-Org-ok items.
-   it("case 5: orgAdmin still sees the For-Org-ok Queries menu item (no over-hiding)", async () => {
-      server.use(...SecurityMswHandlers.asOrgAdmin());
-      useMonitoringChildPermissions({ cache: false, queries: true });
-
-      await renderComponent();
-
-      expect(await screen.findByRole("link", { name: QUERIES_LINK_NAME })).toBeTruthy();
-   });
-
-   // Case 6: asOrgAdmin — navbar isOrgAdminOnly=true flag is served correctly.
-   it("case 6: asOrgAdmin serves isOrgAdminOnly=true on the navbar endpoint", async () => {
-      server.use(...SecurityMswHandlers.asOrgAdmin());
-      useMonitoringChildPermissions({ cache: false, queries: true });
+      useOrgAdminChildPermissions();
 
       const isOrgAdminOnly = await fetch("/api/em/navbar/isOrgAdminOnly").then(r => r.json());
       expect(isOrgAdminOnly).toBe(true);
 
       await renderComponent();
-      // orgAdmin persona: For-Org-x Cache stays hidden, For-Org-ok Queries stays visible.
+      // Sanity check that the component still renders correctly alongside the navbar flag;
+      // full item-by-item coverage is the "item visibility boundary" block above.
       expect(await screen.findByRole("link", { name: QUERIES_LINK_NAME })).toBeTruthy();
-      expect(screen.queryByRole("link", { name: CACHE_LINK_NAME })).toBeNull();
    });
 
-   // Case 7: asViewer — no admin menu entries at all.
-   it("case 7: viewer sees no admin menu entries", async () => {
+   // asViewer — no admin menu entries at all. asViewer() already returns an empty permissions
+   // map for /api/em/authz, so no additional child-key override is needed here.
+   it("viewer sees no admin menu entries", async () => {
       server.use(...SecurityMswHandlers.asViewer());
-      useMonitoringChildPermissions({ cache: false, queries: false });
 
       await renderComponent();
       // Give the authz subscription a chance to resolve before asserting continued absence.
       await waitFor(() => expect(screen.queryByRole("link")).toBeNull());
 
-      expect(screen.queryByRole("link", { name: CACHE_LINK_NAME })).toBeNull();
-      expect(screen.queryByRole("link", { name: QUERIES_LINK_NAME })).toBeNull();
+      expect(screen.queryAllByRole("link")).toHaveLength(0);
    });
 
-   // Case 8: asAnonymous — authz returns 401; component must not crash and must show no menu items.
+   // asAnonymous — authz returns 401; component must not crash and must show no menu items.
    //
    // MonitoringSidenavComponent.ngOnInit() subscribes to getPermissions() with no error
    // callback, so RxJS reports the 401 via its internal reportUnhandledError path (rxjs
@@ -232,7 +209,7 @@ describe("MonitoringSidenavComponent — SECURITY: SecurityMswHandlers personas"
    // documented rxjs testing hook instead, and restored immediately after the assertions.
    // "Not crashing" here means: no menu items render, and the only error rxjs reports is the
    // expected 401 — nothing else (e.g. a TypeError from a bad template binding).
-   it("case 8: anonymous authz 401 is handled gracefully without crashing", async () => {
+   it("anonymous authz 401 is handled gracefully without crashing", async () => {
       server.use(...SecurityMswHandlers.asAnonymous());
 
       const capturedErrors: unknown[] = [];
@@ -247,8 +224,7 @@ describe("MonitoringSidenavComponent — SECURITY: SecurityMswHandlers personas"
          rxjsConfig.onUnhandledError = previousOnUnhandledError;
       }
 
-      expect(screen.queryByRole("link", { name: CACHE_LINK_NAME })).toBeNull();
-      expect(screen.queryByRole("link", { name: QUERIES_LINK_NAME })).toBeNull();
+      expect(screen.queryAllByRole("link")).toHaveLength(0);
       expect(String((capturedErrors[0] as any)?.status)).toBe("401");
    });
 });

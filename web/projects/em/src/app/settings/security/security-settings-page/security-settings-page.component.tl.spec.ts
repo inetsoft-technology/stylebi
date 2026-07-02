@@ -37,11 +37,12 @@ import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { provideHttpClient } from "@angular/common/http";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSlideToggleChange } from "@angular/material/slide-toggle";
-import { render, waitFor } from "@testing-library/angular";
+import { render, screen, waitFor } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
-import { Subject, of } from "rxjs";
+import { Subject, of, config as rxjsConfig } from "rxjs";
 
 import { server } from "@test-mocks/server";
+import { SecurityMswHandlers } from "@test-mocks/handlers/security-permission.handlers";
 import { AppInfoService } from "../../../../../../shared/util/app-info.service";
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
 import { AuthorizationService } from "../../../authorization/authorization.service";
@@ -507,5 +508,144 @@ describe("SecuritySettingsPageComponent", () => {
          expect(scheduleUsersMock.loadScheduleUsers).not.toHaveBeenCalled();
          expect(component.securityEnabled).toBe(false);
       });
+   });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECURITY: SecurityMswHandlers persona coverage (Task 1/M6 follow-up).
+//
+// Groups 1-6 above mock AuthorizationService directly (authzMock in renderComponent()),
+// bypassing HTTP entirely — correct for testing toggle/HTTP-request behavior unrelated to
+// permissions. This block instead leaves AuthorizationService un-mocked so /api/em/authz flows
+// through MSW/SecurityMswHandlers, to test the actual permission -> tab visibility binding
+// (mechanism A, same `@if (xVisible)` pattern as monitoring-sidenav/settings-sidenav).
+//
+// The tab nav only renders at all when `securityEnabled && isRefreshed` (security-settings-page
+// .component.html L73) — the default MSW handler returns enable:false for get-enable-security,
+// so every case here overrides it to true; otherwise all 5 tabs would be absent regardless of
+// permissions, making the assertions vacuous.
+//
+// Providers/SSO/Sign In With Google are For-Org-x; Actions/Users are For-Org-ok. Testing
+// strategy: only orgAdmin is tested per item, same rationale as the other Task 1/M6 specs.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("SecuritySettingsPageComponent — SECURITY: SecurityMswHandlers personas", () => {
+
+   function useSecurityEnabled(): void {
+      server.use(
+         http.get("*/api/em/security/get-enable-security", () =>
+            MswHttpResponse.json({ enable: true, toggleDisabled: false, ldapProviderUsed: false })
+         )
+      );
+   }
+
+   /** orgAdmin's fixed child-key permission map for the "settings/security" path. */
+   function useOrgAdminChildPermissions(): void {
+      server.use(
+         http.get("*/api/em/authz", () =>
+            MswHttpResponse.json({
+               permissions: {
+                  provider: false, sso: false, googleSignIn: false,
+                  actions: true, users: true,
+               },
+               labels: {},
+               multiTenancyHiddenComponents: {},
+            })
+         )
+      );
+   }
+
+   /** [accessible tab name, expected visible under orgAdmin] for all 5 security tabs. */
+   const ORG_ADMIN_ITEM_VISIBILITY: Array<[name: string, expectedVisible: boolean]> = [
+      ["_#(Security Providers)", false],
+      ["_#(em.security.sso)", false],
+      ["_#(Sign In With Google)", false],
+      ["_#(Actions)", true],
+      ["_#(Users)", true],
+   ];
+
+   /** A known For-Org-ok tab used as a resolution anchor for negative assertions. */
+   const USERS_TAB_NAME = "_#(Users)";
+
+   /**
+    * Unlike renderComponent() above, this does NOT provide AuthorizationService — it stays the
+    * real root-provided singleton so /api/em/authz goes through MSW.
+    */
+   async function renderComponentAsPersona() {
+      const dialogMock = { open: vi.fn() };
+      const scheduleUsersMock = { loadScheduleUsers: vi.fn() };
+      const orgDropdownMock = { refreshProviders: vi.fn() };
+      const appInfoMock = {
+         isEnterprise: vi.fn().mockReturnValue(of(false)),
+         isLdapProviderUsed: vi.fn().mockReturnValue(of(false)),
+         setLdapProviderUsed: vi.fn()
+      };
+      const orgBusyMock = { orgLoading$: new Subject<boolean>() };
+
+      return render(SecuritySettingsPageComponent, {
+         providers: [
+            provideHttpClient(),
+            { provide: MatDialog, useValue: dialogMock },
+            { provide: ScheduleUsersService, useValue: scheduleUsersMock },
+            { provide: OrganizationDropdownService, useValue: orgDropdownMock },
+            { provide: AppInfoService, useValue: appInfoMock },
+            { provide: SecurityBusyService, useValue: orgBusyMock },
+            { provide: PageHeaderService, useValue: { title: "" } }
+         ],
+         schemas: [NO_ERRORS_SCHEMA]
+      });
+   }
+
+   describe("asOrgAdmin — item visibility boundary", () => {
+      it.each(ORG_ADMIN_ITEM_VISIBILITY)("%s should be visible=%s", async (name, expectedVisible) => {
+         server.use(...SecurityMswHandlers.asOrgAdmin());
+         useOrgAdminChildPermissions();
+         useSecurityEnabled();
+
+         await renderComponentAsPersona();
+
+         if(expectedVisible) {
+            expect(await screen.findByRole("tab", { name })).toBeTruthy();
+         }
+         else {
+            // Wait for a known-visible tab to resolve first, confirming the authz response has
+            // settled, before asserting this tab's continued absence.
+            await screen.findByRole("tab", { name: USERS_TAB_NAME });
+            expect(screen.queryByRole("tab", { name })).toBeNull();
+         }
+      });
+   });
+
+   // asViewer — empty permissions map filters out every tab. securityEnabled is forced true so
+   // the absence is proven to come from the permission filter, not from the tab nav being
+   // hidden entirely.
+   it("viewer sees no security tabs", async () => {
+      server.use(...SecurityMswHandlers.asViewer());
+      useSecurityEnabled();
+
+      await renderComponentAsPersona();
+      await waitFor(() => expect(screen.queryAllByRole("tab")).toHaveLength(0));
+   });
+
+   // asAnonymous — authz 401; component must not crash. Same rxjs unhandled-error capture
+   // pattern as monitoring-sidenav: ngOnInit subscribes with no error callback.
+   it("anonymous authz 401 is handled without crashing and renders no tabs", async () => {
+      server.use(...SecurityMswHandlers.asAnonymous());
+      useSecurityEnabled();
+
+      const capturedErrors: unknown[] = [];
+      const previousOnUnhandledError = rxjsConfig.onUnhandledError;
+      rxjsConfig.onUnhandledError = (err) => capturedErrors.push(err);
+
+      try {
+         await renderComponentAsPersona();
+         await waitFor(() => expect(capturedErrors.length).toBeGreaterThan(0));
+      }
+      finally {
+         rxjsConfig.onUnhandledError = previousOnUnhandledError;
+      }
+
+      expect(screen.queryAllByRole("tab")).toHaveLength(0);
+      expect(String((capturedErrors[0] as any)?.status)).toBe("401");
    });
 });
