@@ -767,6 +767,8 @@ public class JDBCHandler extends XHandler {
                   JDBCDataSource.JDBC_SYBASE;
                boolean informix = xds.getDatabaseType() ==
                   JDBCDataSource.JDBC_INFORMIX;
+               boolean postgres = xds.getDatabaseType() ==
+                  JDBCDataSource.JDBC_POSTGRESQL;
                boolean clickhouse = xds.getDatabaseType() ==
                   JDBCDataSource.JDBC_CLICKHOUSE;
                boolean db2 = xds.getDatabaseType() == JDBCDataSource.JDBC_DB2;
@@ -902,6 +904,15 @@ public class JDBCHandler extends XHandler {
                            if(informix && val instanceof String) {
                               ((PreparedStatement) stmt).setString(inIdx,
                                  (String) SQLTypes.convert(val, translations));
+                           }
+                           // PostgreSQL needs Types.OTHER for enum columns;
+                           // setObject with Types.OTHER tells the PG driver to
+                           // let the server infer the type, avoiding
+                           // "operator does not exist: <enum> = character varying"
+                           else if(postgres && val instanceof String) {
+                              ((PreparedStatement) stmt).setObject(inIdx,
+                                 SQLTypes.convert(val, translations),
+                                 java.sql.Types.OTHER);
                            }
                            else if(db2 && val instanceof Number) {
                               ((PreparedStatement) stmt).

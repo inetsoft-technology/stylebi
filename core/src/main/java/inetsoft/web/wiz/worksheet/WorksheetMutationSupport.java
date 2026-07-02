@@ -516,9 +516,9 @@ public final class WorksheetMutationSupport {
             ConditionSpec spec = node.condition();
             int op = parseOperation(spec.operation());
             boolean negate = spec.negated() || isNegatedOperation(spec.operation());
-            String dtype = spec.type() != null ? spec.type() : inferColumnType(t, spec.field());
+            String dtype = spec.type() != null ? spec.type() : inferColumnType(t, spec.field(), post);
 
-            DataRef ref = resolveField(t, spec.field());
+            DataRef ref = resolveField(t, spec.field(), post);
             Condition c = new Condition(dtype);
             c.setOperation(op);
 
@@ -606,7 +606,54 @@ public final class WorksheetMutationSupport {
     * and aggregates reference the real column objects.
     */
    static DataRef resolveField(TableAssembly t, String field) {
-      ColumnSelection cs = t.getColumnSelection(false);
+      return resolveField(t, field, false);
+   }
+
+   /**
+    * Resolves a field name against the table's column selection.
+    *
+    * @param t     the table assembly
+    * @param field the field name or alias to resolve
+    * @param post  {@code true} to search the PUBLIC column selection (includes
+    *              aggregate output aliases), {@code false} for the PRIVATE selection
+    */
+   static DataRef resolveField(TableAssembly t, String field, boolean post) {
+      // Post-aggregate (HAVING) conditions must reference the AggregateInfo refs, not the
+      // column selection: the condition dialog builds its post-aggregate field list from
+      // AggregateInfo (AggregateRef/GroupRef), and a condition stored with a plain ColumnRef
+      // is displayed as a pre-aggregate condition. The alias set by set_group_aggregate lives
+      // on the column selection's ColumnRef too, so AggregateInfo must be searched FIRST or
+      // the ColumnRef alias match below would win.
+      if(post && field != null) {
+         AggregateInfo ainfo = t.getAggregateInfo();
+
+         if(ainfo != null && !ainfo.isEmpty()) {
+            for(int i = 0; i < ainfo.getAggregateCount(); i++) {
+               AggregateRef ar = ainfo.getAggregate(i);
+
+               // Match the alias (e.g. "total_paid"), the view ("Sum(total_paid)"),
+               // or the base attribute name.
+               if(field.equals(ar.toView()) ||
+                  ar.getDataRef() instanceof ColumnRef cr &&
+                     (field.equals(cr.getAlias()) || field.equals(cr.getAttribute())))
+               {
+                  return ar;
+               }
+            }
+
+            for(int i = 0; i < ainfo.getGroupCount(); i++) {
+               GroupRef gr = ainfo.getGroup(i);
+
+               if(field.equals(gr.getAttribute()) ||
+                  gr.getDataRef() instanceof ColumnRef cr && field.equals(cr.getAlias()))
+               {
+                  return gr;
+               }
+            }
+         }
+      }
+
+      ColumnSelection cs = t.getColumnSelection(post);
 
       if(cs != null && field != null) {
          // Try direct lookup first (handles both raw name and alias via ColumnSelection).
@@ -636,7 +683,11 @@ public final class WorksheetMutationSupport {
     * Falls back to {@link XSchema#STRING} when the column is not found or has no type.
     */
    private static String inferColumnType(TableAssembly t, String field) {
-      DataRef col = resolveField(t, field);
+      return inferColumnType(t, field, false);
+   }
+
+   private static String inferColumnType(TableAssembly t, String field, boolean post) {
+      DataRef col = resolveField(t, field, post);
 
       if(col.getDataType() != null && !col.getDataType().isBlank()) {
          return col.getDataType();

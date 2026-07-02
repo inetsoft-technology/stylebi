@@ -88,12 +88,40 @@ public class WorksheetPreviewService {
          Map<String, Object> rowMap = new LinkedHashMap<>();
 
          for(int col = 0; col < colCount; col++) {
-            rowMap.put(headers[col], lens.getObject(row, col));
+            rowMap.put(headers[col], toJsonSafe(lens.getObject(row, col)));
          }
 
          rows.add(rowMap);
       }
 
       return rows;
+   }
+
+   /**
+    * Convert a cell value to a JSON-safe type.  Primitive wrappers, Strings, and
+    * null pass through unchanged.  Anything else (e.g. PostgreSQL PGobject for
+    * tsvector/enum, byte arrays, custom JDBC types) is converted to its String
+    * representation so Jackson can always serialize the response without breaking
+    * gzip or JSON encoding.
+    */
+   private static Object toJsonSafe(Object value) {
+      if(value == null) {
+         return null;
+      }
+
+      if(value instanceof String || value instanceof Number || value instanceof Boolean) {
+         return value;
+      }
+
+      if(value instanceof java.util.Date || value instanceof java.time.temporal.Temporal) {
+         return value.toString();
+      }
+
+      if(value instanceof byte[]) {
+         return "(binary)";
+      }
+
+      // Covers PGobject (tsvector, enum, etc.) and any other non-standard JDBC type
+      return value.toString();
    }
 }
