@@ -184,7 +184,6 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    private chartAreasRetryCount: number = 0;
    private readonly MAX_CHART_AREAS_RETRIES = 5;
    private subscriptions = Subscription.EMPTY;
-   private isIE: boolean = GuiTool.isIE();
    private isIFrame: boolean = GuiTool.isIFrame();
    // Stashed by processSetChartAreasCommand so that the model setter can apply fresh
    // chart areas immediately when Angular's CD re-binds the model, instead of issuing
@@ -1340,16 +1339,10 @@ export class VSChart extends AbstractVSObject<VSChartModel>
 
    changeSizeRatio(sizeRatio: number, vertical: boolean): void {
       const chartEvent = new VSChartPlotResizeEvent(this.model, false, sizeRatio, vertical);
-
-      if(this.isIE) {
-         let key = this.getAssemblyName() + (vertical ? "vertical-resize-slider" : "horizontal-resize-slider");
-         this.debounceService.debounce(key, () => {
-            this.viewsheetClient.sendEvent(CHART_PLOT_RESIZE_URL, chartEvent);
-         }, 400, []);
-      }
-      else {
+      const key = this.getAssemblyName() + (vertical ? "vertical-resize-slider" : "horizontal-resize-slider");
+      this.debounceService.debounce(key, () => {
          this.viewsheetClient.sendEvent(CHART_PLOT_RESIZE_URL, chartEvent);
-      }
+      }, 400, []);
    }
 
    public changeTitle(title: string): void {
