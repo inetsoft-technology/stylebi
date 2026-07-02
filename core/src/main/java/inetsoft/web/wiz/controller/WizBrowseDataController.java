@@ -18,7 +18,7 @@
 package inetsoft.web.wiz.controller;
 
 import inetsoft.web.binding.drm.DataRefModel;
-import inetsoft.web.composer.model.BrowseDataModel;
+import inetsoft.web.wiz.model.WizBrowseDataResponse;
 import inetsoft.web.wiz.service.WizBrowseDataService;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -36,19 +36,21 @@ public class WizBrowseDataController {
     * Browse distinct values for a worksheet column, using a VS runtimeId to locate
     * the underlying worksheet.
     *
-    * @param runtimeId    VS runtime ID (vsId)
-    * @param assemblyName worksheet table/assembly name that owns the column
-    * @param dataRefModel column descriptor (classType, name, attribute, …)
-    * @param principal    current user
+    * @param runtimeId           VS runtime ID (vsId)
+    * @param assemblyName        worksheet table/assembly name that owns the column
+    * @param viewsheetIdentifier durable asset id, used to restore a reaped runtime (optional)
+    * @param dataRefModel        column descriptor (classType, name, attribute, …)
+    * @param principal           current user
     */
    @PostMapping(value = "/vs/condition/browse-data", produces = MediaType.APPLICATION_JSON_VALUE)
-   public BrowseDataModel browseData(
+   public WizBrowseDataResponse browseData(
       @RequestParam("runtimeId") String runtimeId,
       @RequestParam("assemblyName") String assemblyName,
+      @RequestParam(value = "viewsheetIdentifier", required = false) String viewsheetIdentifier,
       @RequestBody DataRefModel dataRefModel,
       Principal principal) throws Exception
    {
-      return wizBrowseDataService.browseData(runtimeId, assemblyName, dataRefModel, principal);
+      return wizBrowseDataService.browseData(runtimeId, assemblyName, viewsheetIdentifier, dataRefModel, principal);
    }
 
    private final WizBrowseDataService wizBrowseDataService;

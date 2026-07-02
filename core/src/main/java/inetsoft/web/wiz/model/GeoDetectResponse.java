@@ -71,10 +71,23 @@ public class GeoDetectResponse {
       this.candidateFeatures = candidateFeatures;
    }
 
+   /**
+    * The live runtimeId, echoed only when a reaped runtime was transparently restored during detect
+    * (its id changed). Null on the normal path; the client keeps its existing id when this is absent.
+    */
+   public String getRuntimeId() {
+      return runtimeId;
+   }
+
+   public void setRuntimeId(String runtimeId) {
+      this.runtimeId = runtimeId;
+   }
+
    private String geoType;
    private int layer;
    private String layerName;
    private int matchedCount;
    private List<String> unmatched;
    private List<String> candidateFeatures;
+   private String runtimeId;
 }
