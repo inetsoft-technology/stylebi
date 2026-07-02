@@ -61,7 +61,8 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.uql.asset.AssetRepository.class),
                                           mock(inetsoft.web.wiz.service.MetadataApiService.class),
                                           mock(inetsoft.web.portal.controller.database.QueryManagerService.class),
-                                          mock(inetsoft.web.composer.ws.LayoutGraphService.class));
+                                          mock(inetsoft.web.composer.ws.LayoutGraphService.class),
+                                          mock(inetsoft.web.portal.controller.database.DataSourceService.class));
    }
 
    private static SheetAgentFeature featureOn() {
@@ -169,7 +170,7 @@ class WorksheetAgentControllerTest {
       EditRequest req = new EditRequest("remove_column", "T", "x",
          null, null, null, null, null, null, null, null, null, null, false,
          null, null, null, null, null,
-         null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null,
          null, null, null, null, null, null, null, null, null, null,
          null, null, null, null,
          null, null,
