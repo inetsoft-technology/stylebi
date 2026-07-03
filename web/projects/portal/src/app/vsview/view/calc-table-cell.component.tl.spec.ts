@@ -191,7 +191,7 @@ describe("CalcTableCellComponent — single pass", () => {
          const innerCell = createTableCell({ row: 0, col: 1, span: null });
          const { container } = await renderCell({ cell: innerCell, spanCell });
 
-         expect(getCellDiv(container).getAttribute("style")).toContain("border-left: none");
+         expect(getCellDiv(container).style.borderLeftStyle).toBe("none");
       });
    });
 

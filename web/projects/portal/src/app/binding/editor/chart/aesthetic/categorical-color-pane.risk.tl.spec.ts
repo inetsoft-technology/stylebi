@@ -35,7 +35,7 @@
  */
 
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { render, screen, waitFor } from "@testing-library/angular";
+import { fireEvent, render, screen, waitFor } from "@testing-library/angular";
 import userEvent from "@testing-library/user-event";
 import { of } from "rxjs";
 import { ColorMap } from "../../../../common/data/color-map";
@@ -89,7 +89,7 @@ async function renderPane(mappingModel?: ColorMappingDialogModel, customFrames: 
    const frameModel = createFrameModel();
    const field = {
       fullName: "Employee",
-      dataInfo: TestUtils.createMockChartDimensionRef("Employee"),
+      dataInfo: Object.assign(TestUtils.createMockChartDimensionRef("Employee"), { classType: "dimension" }),
       frame: frameModel
    };
 
@@ -172,7 +172,7 @@ describe("CategoricalColorPane — openDialog false timing [Group 3, Risk 3]", (
          return {} as any;
       });
 
-      await userEvent.click(screen.getByTitle(SELECT_PALETTE));
+      fireEvent.click(screen.getByTitle(SELECT_PALETTE));
       vi.runAllTimers();
 
       expect(events).toEqual([true, false]);
@@ -188,14 +188,14 @@ describe("CategoricalColorPane — constructor subscription [Group 4, Risk 3]", 
       const frameModel = createFrameModel();
       const field = {
          fullName: "Employee",
-         dataInfo: TestUtils.createMockChartDimensionRef("Employee"),
+         dataInfo: Object.assign(TestUtils.createMockChartDimensionRef("Employee"), { classType: "dimension" }),
          frame: frameModel
       };
 
       const { fixture } = await render(CategoricalColorPane, {
          providers: [
             { provide: NgbModal, useValue: {} },
-            { provide: ModelService, useValue: { getModel: vi.fn(), sendModel: vi.fn() } },
+            { provide: ModelService, useValue: { getModel: vi.fn().mockReturnValue(of([])), sendModel: vi.fn() } },
             { provide: UIContextService, useValue: { isVS: () => true } },
             { provide: ChartEditorService, useValue: editorService }
          ],

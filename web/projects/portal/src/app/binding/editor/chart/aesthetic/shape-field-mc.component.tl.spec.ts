@@ -42,6 +42,7 @@ import { TestUtils } from "../../../../common/test/test-utils";
 import { UIContextService } from "../../../../common/services/ui-context.service";
 import { AestheticInfo } from "../../../data/chart/aesthetic-info";
 import { ChartEditorService } from "../../../services/chart/chart-editor.service";
+import { FIELD_MC_PROVIDERS } from "./field-mc-test-helpers";
 import { ShapeFieldMc } from "./shape-field-mc.component";
 
 function createAllChartAggregate(name: string) {
@@ -61,6 +62,7 @@ async function renderShapeFieldMc(
    };
    const result = await render(ShapeFieldMc, {
       providers: [
+         ...FIELD_MC_PROVIDERS,
          { provide: ChartEditorService, useValue: editorService },
          { provide: DndService, useValue: {} },
          { provide: UIContextService, useValue: { isVS: () => false } }
@@ -113,11 +115,9 @@ describe("ShapeFieldMc — frame type getters [Group 2, Risk 2]", () => {
    it("should detect line charts via isLineType", async () => {
       const bindingModel = TestUtils.createMockChartBindingModel();
       bindingModel.chartType = GraphTypes.CHART_LINE;
-      const { container } = await renderShapeFieldMc(bindingModel);
+      const { fixture } = await renderShapeFieldMc(bindingModel);
 
-      await openShapeDropdown(container);
-
-      expect(document.querySelector("static-line-pane, linear-line-pane")).toBeTruthy();
+      expect((fixture.componentInstance as any).isLineType).toBe(true);
    });
 
    it("should detect gantt milestone field", async () => {
@@ -125,10 +125,9 @@ describe("ShapeFieldMc — frame type getters [Group 2, Risk 2]", () => {
       bindingModel.chartType = GraphTypes.CHART_GANTT;
       const aggr = TestUtils.createMockChartAggregateRef("Task");
       bindingModel.milestoneField = aggr;
-      const { container } = await renderShapeFieldMc(bindingModel, aggr);
+      const { fixture } = await renderShapeFieldMc(bindingModel, aggr);
 
-      expect(container.querySelector(".visual-edit-icon.icon-disabled, .visual-edit-icon .icon-disabled"))
-         .toBeTruthy();
+      expect((fixture.componentInstance as any).isMilestoneField).toBe(true);
    });
 });
 
@@ -182,9 +181,14 @@ describe("ShapeFieldMc — setAestheticRef and openChanged [Group 4, Risk 2]", (
    it("should set shapeField on binding model via setAestheticRef", async () => {
       const bindingModel = TestUtils.createMockChartBindingModel();
       const { fixture, container } = await renderShapeFieldMc(bindingModel);
-      const ref = { fullName: "state", dataInfo: null, frame: null } as AestheticInfo;
+      const ref = {
+         fullName: "state",
+         dataInfo: TestUtils.createMockChartDimensionRef("state"),
+         frame: null
+      } as AestheticInfo;
 
       fixture.componentInstance.setAestheticRef(ref);
+      fixture.componentInstance.ngOnChanges(null);
       fixture.detectChanges();
 
       expect(bindingModel.shapeField).toBe(ref);

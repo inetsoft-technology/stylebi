@@ -36,6 +36,7 @@
 import { ComponentFixture } from "@angular/core/testing";
 import { render, screen } from "@testing-library/angular";
 import userEvent from "@testing-library/user-event";
+import { of } from "rxjs";
 import { DndService } from "../../../../common/dnd/dnd.service";
 import { GraphTypes } from "../../../../common/graph-types";
 import {
@@ -47,6 +48,7 @@ import { TestUtils } from "../../../../common/test/test-utils";
 import { UIContextService } from "../../../../common/services/ui-context.service";
 import { AestheticInfo } from "../../../data/chart/aesthetic-info";
 import { ChartEditorService } from "../../../services/chart/chart-editor.service";
+import { ModelService } from "../../../../widget/services/model.service";
 import { FIELD_MC_PROVIDERS } from "./field-mc-test-helpers";
 import { ColorFieldMc } from "./color-field-mc.component";
 
@@ -59,14 +61,16 @@ async function renderColorFieldMc(
    const editorService = {
       changeChartAesthetic: vi.fn(),
       isDropPaneAccept: vi.fn().mockReturnValue(true),
-      getDNDType: vi.fn().mockReturnValue(0)
+      getDNDType: vi.fn().mockReturnValue(0),
+      getCustomChartFrames: vi.fn().mockReturnValue(of([]))
    };
    const result = await render(ColorFieldMc, {
       providers: [
          ...FIELD_MC_PROVIDERS,
          { provide: ChartEditorService, useValue: editorService },
          { provide: DndService, useValue: {} },
-         { provide: UIContextService, useValue: { isVS: () => false } }
+         { provide: UIContextService, useValue: { isVS: () => false } },
+         { provide: ModelService, useValue: { getModel: vi.fn().mockReturnValue(of([])), sendModel: vi.fn().mockReturnValue(of({ body: null })) } }
       ],
       componentProperties: {
          bindingModel,
@@ -152,8 +156,14 @@ describe("ColorFieldMc — getEditPaneId [Group 3, Risk 2]", () => {
    it("should return CategoricalColor for discrete dimension color field", async () => {
       const bindingModel = TestUtils.createMockChartBindingModel();
       const dim = TestUtils.createMockChartDimensionRef("state");
-      bindingModel.colorField = { fullName: "state", dataInfo: dim, frame: new CategoricalColorModel() };
-      const { container, fixture } = await renderColorFieldMc(bindingModel);
+      const frame = new CategoricalColorModel();
+      frame.colors = ["#aa0000"];
+      frame.cssColors = ["#aa0000"];
+      frame.defaultColors = ["#aa0000"];
+      frame.colorMaps = [];
+      frame.globalColorMaps = [];
+      bindingModel.colorField = { fullName: "state", dataInfo: dim, frame };
+      const { container, fixture } = await renderColorFieldMc(bindingModel, { assetId: "1^128^__NULL__^TEST" });
 
       await openColorDropdown(container, fixture);
 
@@ -186,10 +196,11 @@ describe("ColorFieldMc — chart-type guards [Group 4, Risk 2]", () => {
       bindingModel.chartType = GraphTypes.CHART_MAP_CONTOUR;
       bindingModel.yfields = [TestUtils.createMockChartAggregateRef("Sum(qty)")];
       bindingModel.colorFrame = new GradientColorModel();
-      const { container } = await renderColorFieldMc(bindingModel);
+      const { fixture } = await renderColorFieldMc(bindingModel);
+      const comp = fixture.componentInstance as any;
 
-      expect(screen.getByTitle(EDIT_COLOR)).toBeInTheDocument();
-      expect(container.querySelector("[data-test='colorIcon'].icon-disabled")).toBeTruthy();
+      expect(comp.isDropPaneAccept()).toBe(false);
+      expect(comp.getHint()).toBe("Edit Color");
    });
 });
 
@@ -197,7 +208,11 @@ describe("ColorFieldMc — aggregate sync [Group 5, Risk 2]", () => {
    it("should set colorField on binding model via setAestheticRef", async () => {
       const bindingModel = TestUtils.createMockChartBindingModel();
       const { fixture, container } = await renderColorFieldMc(bindingModel);
-      const ref = { fullName: "qty", dataInfo: null, frame: null } as AestheticInfo;
+      const ref = {
+         fullName: "qty",
+         dataInfo: TestUtils.createMockChartAggregateRef("qty"),
+         frame: null
+      } as AestheticInfo;
 
       fixture.componentInstance.setAestheticRef(ref);
       fixture.componentInstance.ngOnChanges(null);

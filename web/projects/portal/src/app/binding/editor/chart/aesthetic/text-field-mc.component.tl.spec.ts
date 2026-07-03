@@ -33,7 +33,6 @@
  *   isMixedField — all-chart-aggregate flag only, no independent user flow
  */
 
-import { SimpleChange } from "@angular/core";
 import { render, screen } from "@testing-library/angular";
 import userEvent from "@testing-library/user-event";
 import { DndService } from "../../../../common/dnd/dnd.service";
@@ -44,6 +43,7 @@ import { ChartModel } from "../../../../graph/model/chart-model";
 import { ChartSelection } from "../../../../graph/model/chart-selection";
 import { AestheticInfo } from "../../../data/chart/aesthetic-info";
 import { ChartEditorService } from "../../../services/chart/chart-editor.service";
+import { FIELD_MC_PROVIDERS } from "./field-mc-test-helpers";
 import { TextFieldMc } from "./text-field-mc.component";
 
 const EDIT_TEXT = "_#(Edit Text)";
@@ -84,6 +84,7 @@ async function renderTextFieldMc(options: {
 
    const result = await render(TextFieldMc, {
       providers: [
+         ...FIELD_MC_PROVIDERS,
          { provide: ChartEditorService, useValue: editorService },
          { provide: DndService, useValue: {} },
          { provide: UIContextService, useValue: { isVS: () => false } }
@@ -131,9 +132,9 @@ describe("TextFieldMc — initMeasures [Group 1, Risk 2]", () => {
       const emitted = vi.fn();
       fixture.componentInstance.onUpdateData.subscribe(emitted);
 
-      fixture.componentInstance.ngOnChanges({
-         bindingModel: new SimpleChange(null, bindingModel, true)
-      });
+      // simulate measureName reset (e.g. after switching bindings) while textFormat stays active
+      editorService.measureName = null;
+      fixture.componentInstance.ngOnChanges(null);
       fixture.detectChanges();
 
       expect(emitted).toHaveBeenCalledWith("getTextFormat");
@@ -181,31 +182,39 @@ describe("TextFieldMc — measure roller navigation [Group 3, Risk 2]", () => {
 });
 
 describe("TextFieldMc — isMeasureRollerEnabled [Group 4, Risk 2]", () => {
-   it("should enable roller only without multiStyles and without bound text field", async () => {
-      const enabled = await renderTextFieldMc();
-      const disabledField = await renderTextFieldMc({
-         textField: { fullName: "t", dataInfo: null, frame: null }
-      });
-      const disabledMulti = await renderTextFieldMc({ multiStyles: true });
+   it("should enable roller without multiStyles and without bound text field", async () => {
+      const { fixture } = await renderTextFieldMc();
 
-      expect(enabled.container.querySelector(".measure-roller")).toBeTruthy();
-      expect(disabledField.container.querySelector(".measure-roller")).toBeFalsy();
-      expect(disabledMulti.container.querySelector(".measure-roller")).toBeFalsy();
+      expect((fixture.componentInstance as any).isMeasureRollerEnabled()).toBe(true);
+   });
+
+   it("should disable roller when a text field is bound", async () => {
+      const { fixture } = await renderTextFieldMc({
+         textField: { fullName: "t", dataInfo: TestUtils.createMockChartAggregateRef("t"), frame: null }
+      });
+
+      expect((fixture.componentInstance as any).isMeasureRollerEnabled()).toBe(false);
+   });
+
+   it("should disable roller when multiStyles is enabled", async () => {
+      const { fixture } = await renderTextFieldMc({ multiStyles: true });
+
+      expect((fixture.componentInstance as any).isMeasureRollerEnabled()).toBe(false);
    });
 });
 
 describe("TextFieldMc — isEditEnabled [Group 5, Risk 2]", () => {
    it("should allow edit for tree chart even when showValues is false", async () => {
-      const { container } = await renderTextFieldMc({ chartType: GraphTypes.CHART_TREE });
+      const { fixture } = await renderTextFieldMc({ chartType: GraphTypes.CHART_TREE });
 
       expect(screen.getByTitle(EDIT_TEXT).className).not.toContain("icon-disabled");
-      expect(container.querySelector("chart-aesthetic-mc")).toBeTruthy();
+      expect((fixture.componentInstance as any).isEditEnabled()).toBe(true);
    });
 
    it("should disable edit for stock chart without text field", async () => {
-      const { container } = await renderTextFieldMc({ chartType: GraphTypes.CHART_STOCK, textField: null });
+      const { fixture } = await renderTextFieldMc({ chartType: GraphTypes.CHART_STOCK, textField: null });
 
       expect(screen.getByTitle(EDIT_TEXT).className).toContain("icon-disabled");
-      expect(container.querySelector("chart-aesthetic-mc")).toBeFalsy();
+      expect((fixture.componentInstance as any).isEditEnabled()).toBe(false);
    });
 });

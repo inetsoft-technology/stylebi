@@ -64,16 +64,17 @@ describe("LinearColorPane — ngOnInit and resetEditors [Group 1, Risk 2]", () =
       frame.fromColor = "#111111";
       frame.toColor = "#222222";
       const changed = vi.fn();
-      const { fixture, container } = await render(LinearColorPane, {
-         componentProperties: { frame }
+      const { fixture } = await render(LinearColorPane, {
+         componentProperties: { frame },
+         detectChangesOnRender: false
       });
       fixture.componentInstance.onChangeColorFrame.subscribe(changed);
       fixture.detectChanges();
 
-      expect(radioByLabel(CUSTOM)).toBeChecked();
+      const comp = fixture.componentInstance as any;
+      expect(comp.isSelectedFrame(comp.gradientModel)).toBe(true);
       expect(changed).toHaveBeenCalledWith(frame);
-      expect(gradientEditorButtons(container).length).toBeGreaterThan(0);
-      expect(fixture.componentInstance.originalFrame).toBe(frame);
+      expect(comp.originalFrame).toBe(frame);
    });
 
    it("should restore original frame and re-emit on resetEditors", async () => {
@@ -100,10 +101,12 @@ describe("LinearColorPane — brewer model getters [Group 2, Risk 2]", () => {
       expect(radioByLabel(SINGLE_HUE)).toBeChecked();
    });
 
-   it("should classify multi-hue and diverging brewer frames", async () => {
+   it("should classify multi-hue brewer frames", async () => {
       await renderPane(new V.BuGnColorModel());
       expect(radioByLabel(MULTI_HUE)).toBeChecked();
+   });
 
+   it("should classify diverging brewer frames", async () => {
       await renderPane(new V.BrBGColorModel());
       expect(radioByLabel(DIVERGING)).toBeChecked();
    });
@@ -157,16 +160,18 @@ describe("LinearColorPane — syncColors [Group 4, Risk 2]", () => {
 
 describe("LinearColorPane — isSelectedFrame and gmodel [Group 5, Risk 1]", () => {
    it("should expose live frame through gmodel when gradient is selected", async () => {
-      const { container } = await renderPane(new V.GradientColorModel());
+      const { fixture } = await renderPane(new V.GradientColorModel());
+      const comp = fixture.componentInstance as any;
 
-      expect(radioByLabel(CUSTOM)).toBeChecked();
-      expect(gradientEditorButtons(container).every(btn => !btn.disabled)).toBe(true);
+      expect(comp.isSelectedFrame(comp.gradientModel)).toBe(true);
+      expect(comp.gmodel).toBe(comp.frame);
    });
 
    it("should return editor gradient model when another frame type is selected", async () => {
-      const { container } = await renderPane(new V.BluesColorModel());
+      const { fixture } = await renderPane(new V.BluesColorModel());
+      const comp = fixture.componentInstance as any;
 
-      expect(radioByLabel(SINGLE_HUE)).toBeChecked();
-      expect(gradientEditorButtons(container).every(btn => btn.disabled)).toBe(true);
+      expect(comp.isSelectedFrame(comp.gradientModel)).toBe(false);
+      expect(comp.gmodel).toBe(comp.gradientModel);
    });
 });

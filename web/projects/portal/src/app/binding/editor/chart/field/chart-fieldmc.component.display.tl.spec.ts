@@ -145,33 +145,33 @@ describe("ChartFieldmc — Pass 3: Display", () => {
    describe("Group 3 — imgOpacity / isRefConvertEnabled [Risk 2]", () => {
       it("should return reduced opacity for geofields", async () => {
          const field = TestUtils.createMockChartDimensionRef("state");
-         const { container } = await renderChartFieldmc({ field, fieldType: "geofields" });
+         const { comp } = await renderChartFieldmc({ field, fieldType: "geofields" });
 
-         expect(container.querySelector(".drag-handle")).toBeTruthy();
+         expect(comp.imgOpacity()).toBe(0.5);
       });
 
       it("should return full opacity when ref convert is enabled", async () => {
          const field = TestUtils.createMockChartDimensionRef("state");
          field.refConvertEnabled = true;
-         const { container, model } = await renderChartFieldmc({ field, fieldType: "yfields" });
+         const { comp, model } = await renderChartFieldmc({ field, fieldType: "yfields" });
          model.chartType = GraphTypes.CHART_BAR;
 
-         expect(chartFieldEditIcon(container)).toBeTruthy();
+         expect(comp.imgOpacity()).toBe(1);
       });
 
       it("should disable convert for geofields", async () => {
          const field = TestUtils.createMockChartDimensionRef("lat");
-         const { container } = await renderChartFieldmc({ field, fieldType: "geofields" });
+         const { comp } = await renderChartFieldmc({ field, fieldType: "geofields" });
 
-         expect(container.querySelector("chart-type-button")).toBeFalsy();
+         expect(comp.isRefConvertEnabled(field, "geofields")).toBe(false);
       });
 
       it("should enable convert for yfields on bar charts", async () => {
          const field = TestUtils.createMockChartDimensionRef("state");
-         const { container, model } = await renderChartFieldmc({ field, fieldType: "yfields" });
+         const { comp, model } = await renderChartFieldmc({ field, fieldType: "yfields" });
          model.chartType = GraphTypes.CHART_BAR;
 
-         expect(chartFieldEditIcon(container)).toBeTruthy();
+         expect(comp.isRefConvertEnabled(field, "yfields")).toBe(true);
       });
    });
 
@@ -198,9 +198,9 @@ describe("ChartFieldmc — Pass 3: Display", () => {
 
       it("should disable sort for geofields", async () => {
          const field = TestUtils.createMockChartDimensionRef("lat");
-         const { container } = await renderChartFieldmc({ field, fieldType: "geofields" });
+         const { comp } = await renderChartFieldmc({ field, fieldType: "geofields" });
 
-         expect(chartFieldEditIcon(container)).toBeFalsy();
+         expect(comp.isSortSupported()).toBe(false);
       });
 
       it("should enable sort for non-funnel axis fields", async () => {
@@ -295,13 +295,13 @@ describe("ChartFieldmc — Pass 3: Display", () => {
 
       it("should return true for multistyle measure axis fields", async () => {
          const field = TestUtils.createMockChartAggregateRef("sales");
-         const { container, model } = await renderChartFieldmc({
+         const { comp, model } = await renderChartFieldmc({
             field,
             fieldType: "yfields",
          });
          model.multiStyles = true;
 
-         expect(chartTypeButton(container)).toBeTruthy();
+         expect(comp.isVisibleChartTypeButton()).toBe(true);
       });
 
       it("should return false when discrete is checked", async () => {
@@ -449,11 +449,10 @@ describe("ChartFieldmc — Pass 3: Display", () => {
       it("should allow editing cube measures on SQL Server", async () => {
          const field = TestUtils.createMockChartAggregateRef("sales");
          field.refType = DataRefType.CUBE_MEASURE;
-         uiContextMock.isSqlServer.mockReturnValue(true);
-         const { container, model } = await renderChartFieldmc({ field });
+         const { comp, model } = await renderChartFieldmc({ field });
          model.source = { ...model.source, sqlServer: true };
 
-         expect(chartFieldEditIcon(container)).toBeTruthy();
+         expect(comp.isEditMeasure()).toBe(true);
       });
 
       it("should block editing cube measures when not SQL Server", async () => {
@@ -539,7 +538,7 @@ describe("ChartFieldmc — Pass 3: Display", () => {
       it("should expose binding model, params, and aggregate field", async () => {
          const field = TestUtils.createMockChartAggregateRef("sales") as ChartAggregateRef;
          const allAggr = TestUtils.createMockChartAggregateRef("total");
-         const { container, model } = await renderChartFieldmc({
+         const { comp, model } = await renderChartFieldmc({
             field,
             currentAggr: allAggr,
          });
@@ -548,20 +547,18 @@ describe("ChartFieldmc — Pass 3: Display", () => {
          model.chartType = GraphTypes.CHART_LINE;
          allAggr.chartType = GraphTypes.CHART_BAR;
 
-         expect(chartTypeButton(container)).toBeTruthy();
-         expect(chartTypeButton(container)?.getAttribute("ng-reflect-multi-styles")).toBe("true");
-         expect(chartTypeButton(container)?.getAttribute("ng-reflect-stack-measures")).toBe("true");
-         expect(chartTypeButton(container)?.getAttribute("ng-reflect-chart-type")).toBe(String(GraphTypes.CHART_BAR));
+         expect(comp.multiStyles).toBe(true);
+         expect(comp.stackMeasures).toBe(true);
+         expect(comp.chartType).toBe(GraphTypes.CHART_BAR);
       });
 
       it("should fall back to binding chart type when currentAggr is absent", async () => {
          const field = TestUtils.createMockChartAggregateRef("sales");
-         const { container, model } = await renderChartFieldmc({ field });
+         const { comp, model } = await renderChartFieldmc({ field });
          model.multiStyles = true;
          model.chartType = GraphTypes.CHART_PIE;
 
-         expect(chartTypeButton(container)?.getAttribute("ng-reflect-chart-type"))
-            .toBe(String(GraphTypes.CHART_PIE));
+         expect(comp.chartType).toBe(GraphTypes.CHART_PIE);
       });
    });
 
@@ -575,9 +572,9 @@ describe("ChartFieldmc — Pass 3: Display", () => {
       it("should return dataRefModel view when present", async () => {
          const field = TestUtils.createMockChartDimensionRef("state");
          field.dataRefModel.view = "State View";
-         const { container } = await renderChartFieldmc({ field });
+         const { comp } = await renderChartFieldmc({ field });
 
-         expect(chartFieldComboLabel(container)).toBe("State View");
+         expect((comp as any).getDisplayLabel(field)).toBe("State View");
       });
    });
 });

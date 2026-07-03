@@ -96,11 +96,11 @@ describe("ChartFieldmc — Pass 1: Interaction", () => {
 
       it("should store dynamic values and call changeChartRef for axis fields", async () => {
          const field = TestUtils.createMockChartDimensionRef("state");
-         const { fixture, container } = await renderChartFieldmc({ field, fieldType: "xfields" });
+         const { fixture } = await renderChartFieldmc({ field, fieldType: "xfields" });
 
          fixture.componentInstance.changeColumnValue("${var1}");
 
-         expect(chartFieldComboValue(container)).toBe("${var1}");
+         expect(field.columnValue).toBe("${var1}");
          expect(editorServiceMock.changeChartRef).toHaveBeenCalledWith(field, "xfields");
       });
 
@@ -108,7 +108,7 @@ describe("ChartFieldmc — Pass 1: Interaction", () => {
          const field = TestUtils.createMockChartDimensionRef("city");
          const allAggr = TestUtils.createMockChartAggregateRef("sales");
          allAggr.classType = "allaggregate";
-         const { fixture, container } = await renderChartFieldmc({
+         const { fixture } = await renderChartFieldmc({
             field,
             fieldType: "color",
             currentAggr: allAggr,
@@ -117,7 +117,7 @@ describe("ChartFieldmc — Pass 1: Interaction", () => {
 
          fixture.componentInstance.changeColumnValue("${var1}");
 
-         expect(chartFieldComboValue(container)).toBe("${var1}");
+         expect(field.columnValue).toBe("${var1}");
          expect(aestheticSpy).toHaveBeenCalled();
          expect(editorServiceMock.changeChartRef).not.toHaveBeenCalled();
       });
