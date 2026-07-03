@@ -18,6 +18,16 @@
 package inetsoft.sree.security;
 
 /*
+ * Slice test class for permission-matrix-resources.md § S2 (SECURITY_* identity management
+ * boundary). Sibling slices S3/S4/S5 each get their own PermissionMatrixResourcesS{N}Test class
+ * instead of one combined PermissionMatrixResourcesTest — S2 alone already spans ~40 planned
+ * cases across five sub-scenarios (main table, GRANTEE-VARIETY, GLOBAL-ROLE-ROOT, ROOT-CASCADE,
+ * GROUP-CHAIN), and S2-S5 test genuinely different production mechanisms (identity cascade vs.
+ * ADMIN parent/child rules vs. content-access links vs. folder inheritance) that share little
+ * fixture setup, so splitting loses no reuse. See docs/superpowers/plans/
+ * 2026-06-30-permission-test-phase2.md "Revision note" for why this replaced the original
+ * single-file MatrixTestCase/UserType parameterized design.
+ *
  * Covers permission-matrix-resources.md — S2 main table (SECURITY_* boundary), first batch:
  *   - orgSecurityAdmin cross-type cascade (DefaultCheckPermissionStrategy L57-67)
  *   - identityAdmin-user(instance), identityAdmin-group(instance), identityAdmin-role
@@ -53,7 +63,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
-class PermissionMatrixResourcesTest {
+class PermissionMatrixResourcesS2Test {
 
    private static final String ORG_NAME = "matrix_org";
    private static final String ORG_ID = "matrix_org_id";

@@ -2,18 +2,18 @@
 
 **关联规格：** `docs/superpowers/specs/2026-06-25-permission-test-architecture-design.md`
 **Phase 1 覆盖范围：** `MultiTenantIsolationTest`（场景 13–18B）、`PermissionHierarchyTest`（场景 19–20）
-**Phase 2 M8 实现：** `PermissionMatrixResourcesTest`（S2-S5）
+**Phase 2 M8 实现：** 按切片拆成 4 个测试类——`PermissionMatrixResourcesS2Test`/`S3Test`/`S4Test`/`S5Test`（原计划是单个 `PermissionMatrixResourcesTest` + `MatrixTestCase` 参数化 DSL，已废弃，见 `docs/superpowers/plans/2026-06-30-permission-test-phase2.md` 的"修订说明"）
 **姊妹文档：** 区二 Security Action 权限矩阵（S6-S8，`PermissionMatrixActionsTest`）见 `permission-matrix-actions.md`
 
 图例：✓ = allowed　✗ = denied　— = n/a　`(ADMIN→)` = 由 ADMIN 隐含授权　`[P1]` = Phase 1 已覆盖
 
 **"测试状态"列取值**（每个场景表都有这一列，用来回答"这一行有没有被自动化测试覆盖"）：
-- `[M8]` = 已在 `PermissionMatrixResourcesTest.java` 落地并通过，后面附对应的 `@Test` 方法名
+- `[M8]` = 已在对应切片的 `PermissionMatrixResourcesS{N}Test.java`（如 S2 → `PermissionMatrixResourcesS2Test`）落地并通过，后面附对应的 `@Test` 方法名
 - `[M8⚠️]` = 已落地，但实测结果与本表"预期"列不符，测试已 `@Disabled` 并注明原因（不会静默地把矛盾的断言标成"通过"）
 - `[附加]` = M7 切片计划未分配、本文档补记的基线抽样（见文末"附加"小节）
 - `[待补]` = 已在设计文档确认、尚未落到测试代码，后面附未落地的具体原因（缺 fixture 能力/需要先验证约定/依赖其他场景先落地等）
 
-下方按切片（Slice）列出具体场景，每一行大致对应 `PermissionMatrixResourcesTest` 里的一个 `MatrixTestCase`（或一个独立 `@Test` 方法），方便实现前逐条 review。资源路径为 fixture 示例路径（与 Phase 2 计划 Task 4-5 的常量一致），不是生产环境真实路径。总览矩阵（按资源组归类的能力速查表）见文末附录。
+下方按切片（Slice）列出具体场景，每一行大致对应对应切片测试类（`PermissionMatrixResourcesS2Test`/`S3Test`/`S4Test`/`S5Test`）里的一个独立 `@Test` 方法，方便实现前逐条 review。资源路径为 fixture 示例路径，不是生产环境真实路径。总览矩阵（按资源组归类的能力速查表）见文末附录。
 
 ### 资源组速查表（完整版见架构设计文档 § 区一 534-542 行）
 
@@ -24,7 +24,7 @@
 | Portal Dashboard | `DASHBOARD` | READ/WRITE/DELETE/ADMIN | **否**——扁平命名空间，`DASHBOARD.getParent()` 恒返回 `null` | 无切片分配，仅文末附加基线抽样 `[待补]` |
 | 数据源 | `DATA_SOURCE_FOLDER`/`DATA_SOURCE`/`CUBE`/`QUERY`（Logical Model） | READ/WRITE/DELETE/ADMIN | 是——文件夹用 `/`，model/cube 挂载用 `::` | 仅 S5-RULE4 覆盖 Rule 4 提升逻辑，基础 ADMIN/继承未验证 `[待补]` |
 | 调度 | `SCHEDULE_TASK_FOLDER`/`SCHEDULE_TASK`/`SCHEDULE_CYCLE` | READ/WRITE/DELETE/ADMIN/ASSIGN | 仅文件夹层继承；task/cycle 本身扁平 | 无切片分配，仅文末附加基线抽样 `[待补]` |
-| 安全管理 | `SECURITY_USER`/`SECURITY_GROUP`/`SECURITY_ROLE`/`SECURITY_ORGANIZATION` | User/Group 走 ADMIN，Role 走 ASSIGN | 各类型独立合成根节点级联，非路径分隔符继承 | S2 主表实例级场景已在 `PermissionMatrixResourcesTest` 落地 `[M8]`；通配符场景、全局角色负控制仍 `[待补]`；identityAdmin-role 的 WRITE/DELETE 断言因实测分歧 `@Disabled`，见 `[M8⚠️]` 说明 |
+| 安全管理 | `SECURITY_USER`/`SECURITY_GROUP`/`SECURITY_ROLE`/`SECURITY_ORGANIZATION` | User/Group 走 ADMIN，Role 走 ASSIGN | 各类型独立合成根节点级联，非路径分隔符继承 | S2 主表实例级场景已在 `PermissionMatrixResourcesS2Test` 落地 `[M8]`；通配符场景、全局角色负控制仍 `[待补]`；identityAdmin-role 的 WRITE/DELETE 断言因实测分歧 `@Disabled`，见 `[M8⚠️]` 说明 |
 | 库资源 | `SCRIPT_LIBRARY`/`SCRIPT`（扁平单层） / `TABLE_STYLE_LIBRARY`/`TABLE_STYLE`（真正多级） | READ/WRITE/DELETE/ADMIN | Table Style 是，`~` 分隔；Script 否，固定单层 | 无切片分配，仅文末附加基线抽样 `[待补]` |
 
 ---
@@ -68,7 +68,7 @@
 
 > **`[M8⚠️]` 发现：ASSIGN 可能被意外提升为完整 R/W/D/A（M8 实测，尚未定性）**
 >
-> 上面两行标 `[M8⚠️]` 的用例（`identityAdminRoleUser` 对只被授予 ASSIGN 的 `targetRole` 做 WRITE/DELETE 检查）在 `PermissionMatrixResourcesTest.java` 里已经写出，但实测结果是 **允许**，跟本表"预期"列的 ✗ 直接矛盾（顺带一提，同样条件下 ADMIN 检查也允许）。已将这两个 `@Test` 标记 `@Disabled` 并写明原因，没有为了让测试变绿而反过来断言"允许"。
+> 上面两行标 `[M8⚠️]` 的用例（`identityAdminRoleUser` 对只被授予 ASSIGN 的 `targetRole` 做 WRITE/DELETE 检查）在 `PermissionMatrixResourcesS2Test.java` 里已经写出，但实测结果是 **允许**，跟本表"预期"列的 ✗ 直接矛盾（顺带一提，同样条件下 ADMIN 检查也允许）。已将这两个 `@Test` 标记 `@Disabled` 并写明原因，没有为了让测试变绿而反过来断言"允许"。
 >
 > 根因定位在 `DefaultCheckPermissionStrategy.java` 232-240 行：
 > ```java
@@ -107,7 +107,7 @@
 
 | 用户类型 | 资源类型 | 资源 | Action | 预期 | 测试状态 | 备注 | 结论 |
 |---|---|---|---|---|---|---|---|
-| rootUserAdmin（Users 根 ADMIN） | SECURITY_USER | `targetUser` / `anotherUser` | ADMIN | ✓ / ✓ | `[待补]`：下方叙述提到的 `s2RootCascadeVariant()` 是 M7 规划时假定的方法名，`PermissionMatrixResourcesTest.java` 里尚未实现，且需要先用 `IdentityID("Users", orgId).convertToKey()` 当 resource key 写 grant（同 SECURITY_ORGANIZATION 根节点的坑，见 M8 批次一踩过的坑） | 级联到**全部**用户，不只是配置过的 | rootUserAdmin 能管理 EM 里的每一个用户，不局限于 targetUser/anotherUser 这两个例子 |
+| rootUserAdmin（Users 根 ADMIN） | SECURITY_USER | `targetUser` / `anotherUser` | ADMIN | ✓ / ✓ | `[待补]`：下方叙述提到的 `s2RootCascadeVariant()` 是早期规划（已废弃的 `MatrixTestCase` 方案）里假定的方法名，`PermissionMatrixResourcesS2Test.java` 里尚未实现这个场景，且需要先用 `IdentityID("Users", orgId).convertToKey()` 当 resource key 写 grant（同 SECURITY_ORGANIZATION 根节点的坑，见 M8 批次一踩过的坑） | 级联到**全部**用户，不只是配置过的 | rootUserAdmin 能管理 EM 里的每一个用户，不局限于 targetUser/anotherUser 这两个例子 |
 | rootGroupAdmin（Groups 根 ADMIN） | SECURITY_GROUP | `targetGroup` / `anotherGroup` | ADMIN | ✓ / ✓ | `[待补]`：同上 | 级联到全部组 | rootGroupAdmin 能管理 EM 里的每一个组 |
 | rootRoleAdmin（Organization Roles 根 ADMIN） | SECURITY_ROLE | `targetRole` | ASSIGN | ✓ | `[待补]`：同上 | 根节点授予的是 ADMIN 不是 ASSIGN | rootRoleAdmin 能把 targetRole 分配给用户 |
 | rootRoleAdmin（同上） | SECURITY_ROLE | `targetRole` | WRITE | ✓ | `[待补]`：同上 | 根节点 ADMIN **能**拿到 W/D，与单个 role 的 ASSIGN-only 相反 | rootRoleAdmin 还能直接编辑/删除 targetRole 本身，不像普通的单角色授权那样只能分配 |
