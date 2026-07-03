@@ -5,9 +5,21 @@
 **Phase 2 M8 实现：** `PermissionMatrixResourcesTest`（S2-S5）
 **姊妹文档：** 区二 Security Action 权限矩阵（S6-S8，`PermissionMatrixActionsTest`）见 `permission-matrix-actions.md`
 
-图例：✓ = allowed　✗ = denied　— = n/a　`(ADMIN→)` = 由 ADMIN 隐含授权　`[P1]` = Phase 1 已覆盖　`[待补]` = 已在设计文档确认、尚未落到测试代码
+图例：✓ = allowed　✗ = denied　— = n/a　`(ADMIN→)` = 由 ADMIN 隐含授权　`[P1]` = Phase 1 已覆盖　`[待补]` = 已在设计文档确认、尚未落到测试代码　`[附加]` = M7 切片计划未分配、本文档补记的基线抽样（见文末"附加"小节）
 
 下方按切片（Slice）列出具体场景，每一行大致对应 `PermissionMatrixResourcesTest` 里的一个 `MatrixTestCase`（或一个独立 `@Test` 方法），方便实现前逐条 review。资源路径为 fixture 示例路径（与 Phase 2 计划 Task 4-5 的常量一致），不是生产环境真实路径。总览矩阵（按资源组归类的能力速查表）见文末附录。
+
+### 资源组速查表（完整版见架构设计文档 § 区一 534-542 行）
+
+| 资源组 | 代表 ResourceType | 适用 action | 层级继承 | 本文档覆盖情况 |
+|---|---|---|---|---|
+| Repository（Viewsheet 树） | `REPORT` | READ/WRITE/DELETE/ADMIN | 是，`/` 分隔真实父子继承 | S3/S4/S5 各有 `*-CROSS-GROUP` 抽样 `[待补]` |
+| Worksheet | `ASSET` | READ/WRITE/DELETE/ADMIN | 是，`/` 分隔真实父子继承 | S3/S4/S5 主表全覆盖 |
+| Portal Dashboard | `DASHBOARD` | READ/WRITE/DELETE/ADMIN | **否**——扁平命名空间，`DASHBOARD.getParent()` 恒返回 `null` | 无切片分配，仅文末附加基线抽样 `[待补]` |
+| 数据源 | `DATA_SOURCE_FOLDER`/`DATA_SOURCE`/`CUBE`/`QUERY`（Logical Model） | READ/WRITE/DELETE/ADMIN | 是——文件夹用 `/`，model/cube 挂载用 `::` | 仅 S5-RULE4 覆盖 Rule 4 提升逻辑，基础 ADMIN/继承未验证 `[待补]` |
+| 调度 | `SCHEDULE_TASK_FOLDER`/`SCHEDULE_TASK`/`SCHEDULE_CYCLE` | READ/WRITE/DELETE/ADMIN/ASSIGN | 仅文件夹层继承；task/cycle 本身扁平 | 无切片分配，仅文末附加基线抽样 `[待补]` |
+| 安全管理 | `SECURITY_USER`/`SECURITY_GROUP`/`SECURITY_ROLE`/`SECURITY_ORGANIZATION` | User/Group 走 ADMIN，Role 走 ASSIGN | 各类型独立合成根节点级联，非路径分隔符继承 | S2 全覆盖 |
+| 库资源 | `SCRIPT_LIBRARY`/`SCRIPT`（扁平单层） / `TABLE_STYLE_LIBRARY`/`TABLE_STYLE`（真正多级） | READ/WRITE/DELETE/ADMIN | Table Style 是，`~` 分隔；Script 否，固定单层 | 无切片分配，仅文末附加基线抽样 `[待补]` |
 
 ---
 
@@ -94,6 +106,8 @@
 
 ## S3 — ADMIN 隐含语义 + 父子双向规则（Rule 1-3）
 
+> **机制范围说明**：Rule 1-3（ADMIN 父子双向传播）来自 `DefaultCheckPermissionStrategy` 对 `ResourceType.isHierarchical()` 的通用向上/向下级联逻辑，对架构设计文档定义的全部"有真正父子继承的组"（Repository/`REPORT`、Worksheet/`ASSET`、数据源/`DATA_SOURCE_FOLDER` 等）一视同仁生效，不是 `ASSET` 专属行为；`Portal Dashboard`/`DASHBOARD` 是扁平命名空间，不适用 Rule 2/3。下表以 `ASSET` 作为主验证资源类型；ADMIN→READ/WRITE/DELETE 隐含兜底本身是与资源类型无关的通用机制（`SecurityEngine.java` L826-832，S2 已用 SECURITY_* 验证过），此处不重复跨组验证，只对 Rule 1-3 做跨组抽样，见下方 **S3-CROSS-GROUP**。
+
 | 用户类型 | 资源类型 | 资源(示例) | Action | 预期 | 备注 |
 |---|---|---|---|---|---|
 | contentResourceAdmin | ASSET | `mx/folder/item`（本节点，ADMIN 授权点） | ADMIN | ✓ | 显式授权 |
@@ -104,7 +118,18 @@
 | no-grant | ASSET | `mx/folder`（父节点，仅子节点 `mx/folder/item/sub` 被授予 ADMIN） | ADMIN | ✗ | **Rule 2（向上不穿透）**：子 ADMIN 不给父 ADMIN |
 | no-grant | ASSET | `mx/folder`（同上，祖父节点） | READ | ✗ | **Rule 3（跨级不穿透）**：孙节点 ADMIN 不给祖父访问权 |
 
+**S3-CROSS-GROUP `[待补]`**（用 `REPORT`（Repository 组）做代表性抽样，证明 Rule 1-3 不是 `ASSET` 专属；`DATA_SOURCE_FOLDER` 抽样视优先级另行补充，不要求三组全排列）：
+
+| 用户类型 | 资源类型 | 资源(示例) | Action | 预期 | 备注 |
+|---|---|---|---|---|---|
+| contentResourceAdmin | REPORT | `mx_vs/folder/viewsheet1`（本节点，ADMIN 授权点） | ADMIN | ✓ | 显式授权，作为下方 Rule 1 断言的前提 |
+| contentResourceAdmin | REPORT | `mx_vs/folder/viewsheet1/deep`（子节点） | READ | ✓ | Rule 1（向下）在 Repository 组同样成立 |
+| no-grant | REPORT | `mx_vs/folder`（父节点，仅子节点 `mx_vs/folder/viewsheet1/sub` 被授予 ADMIN） | ADMIN | ✗ | Rule 2（向上不穿透）在 Repository 组同样成立 |
+| no-grant | REPORT | `mx_vs/folder`（同上，祖父节点） | READ | ✗ | Rule 3（跨级不穿透）在 Repository 组同样成立 |
+
 ## S4 — 内容访问三条链路 + Role/Group 层级 + AND/OR 变体
+
+> **机制范围说明**：User→Role/Group→资源三条链路、Role/Group 父子层级继承、AND/OR 变体，走的都是与资源类型无关的通用授权解析路径，架构设计文档 758 行将本切片的列范围定义为 "Repository / Worksheet" 两组。下表以 `ASSET` 为主验证资源类型；跨组抽样见下方 **S4-CROSS-GROUP**，只代表性验证一条链路，不要求三条链路 × AND/OR 在 `REPORT` 上重复展开。
 
 | 用户类型 | 资源类型 | 资源(示例) | Action | 预期 | 备注 |
 |---|---|---|---|---|---|
@@ -136,7 +161,15 @@
 | orgViewer-via-role（同一资源同时有 role grant 和 group grant） | ASSET | `mx/folder/item` | READ | ✗ | AND 模式：只满足 role，不满足 group → denied |
 | orgViewer-via-group-role（同时满足 group 和 role 两条 grant） | ASSET | `mx/folder/item` | READ | ✓ | AND 模式：两条都满足 → allowed |
 
+**S4-CROSS-GROUP `[待补]`**（用 `REPORT`（Repository 组）代表性抽样 via-role 一条链路，证明三条链路机制不是 `ASSET` 专属；不重复展开 via-group/via-group-role/AND 变体）：
+
+| 用户类型 | 资源类型 | 资源(示例) | Action | 预期 | 备注 |
+|---|---|---|---|---|---|
+| orgViewer-via-role | REPORT | `mx_vs/folder/viewsheet1` | READ | ✓ | User → Role → 资源，在 Repository 组同样成立 |
+
 ## S5 — 层级继承（含 Rule 4：继承路径 W→D 提升）
+
+> **机制范围说明**：父文件夹授权向子资源传播（含 Rule 4 W→D 提升）来自 `DefaultCheckPermissionStrategy` 的通用继承分支（L392-450），架构设计文档 759 行将本切片列范围定义为 "Repository / Worksheet + 数据源"。下表以 `ASSET` 为主验证资源类型；跨组抽样见下方 **S5-CROSS-GROUP**（基础继承传播）及 **S5-RULE4-WRITE-PROMOTES-DELETE**（Rule 4 提升逻辑，已规划 `DATA_SOURCE`/`QUERY`/`CUBE` 抽样）。
 
 | 用户类型 | 资源类型 | 资源(示例) | Action | 预期 | 备注 |
 |---|---|---|---|---|---|
@@ -144,7 +177,13 @@
 | no-grant | ASSET | `mx/folder/item` | READ | ✗ | 无父级授权、无继承 |
 | no-grant | ASSET | `mx/folder`（父节点本身） | READ | ✗ | 父节点自己也无授权 |
 
-**S5-RULE4-WRITE-PROMOTES-DELETE `[待补]`**（设计文档 Rule 4，`DefaultCheckPermissionStrategy.java` L392-450；Task 5 尚未实现，以下为待落地场景，用 sr13_8 `DPermission_Case.checkRepositorySetPermission` / `checkDataSourceSetPermission` 交叉验证过）：
+**S5-CROSS-GROUP `[待补]`**（用 `REPORT`（Repository 组）代表性抽样基础继承传播，证明机制不是 `ASSET` 专属；Rule 4 的跨组抽样见下方 S5-RULE4，已覆盖数据源，不在此重复）：
+
+| 用户类型 | 资源类型 | 资源(示例) | Action | 预期 | 备注 |
+|---|---|---|---|---|---|
+| orgViewer-inherited（父文件夹 `mx_vs/folder` 有 READ grant） | REPORT | `mx_vs/folder/viewsheet1`（子资源，自己无显式权限） | READ | ✓ | 父级授权正确传播给子资源，在 Repository 组同样成立 |
+
+**S5-RULE4-WRITE-PROMOTES-DELETE `[待补]`**（设计文档 Rule 4，`DefaultCheckPermissionStrategy.java` L392-450；Task 5 尚未实现，以下为待落地场景，用 sr13_8 `DPermission_Case.checkRepositorySetPermission` / `checkDataSourceSetPermission` 交叉验证过）。下表已经用 `ASSET`（Worksheet）+ `DATA_SOURCE`/`QUERY`/`CUBE`（数据源）两组做了跨组抽样，满足"证明 Rule 4 是通用继承机制、不是单一资源组专属"的要求，不需要再补 `REPORT` 的 Rule 4 场景：
 
 | 用户类型 | 资源类型 | 资源(示例) | Action | 预期 | 备注 |
 |---|---|---|---|---|---|
@@ -156,7 +195,20 @@
 | partialGrantDsUser（同上） | QUERY | `Model::mx_datasource_folder/ds1`（孙资源） | DELETE | ✓ | 验证规则是通用继承机制，不是 Repository/Worksheet 专属 |
 | partialGrantDsUser（同上） | CUBE | `cube1::mx_datasource_folder/ds1`（孙资源） | DELETE | ✓ | 同上，覆盖 CUBE 子类型 |
 
-执行顺序：S2 → S3 → S4 → S5，低优先级行（no-grant / anonymous）按需补充。区二（S6-S8）见 `permission-matrix-actions.md`。
+## 附加 — 未分配切片的资源组基线抽样（Portal Dashboard / 调度 / 库资源）`[待补]`
+
+> 这三组在架构设计文档的 M7 切片计划（752-759 行）里**从未被分配到任何切片**：S2 只覆盖 `SECURITY_*`，S3/S4/S5 只覆盖 Repository/Worksheet/数据源。在正式补切片之前，先用 `contentResourceAdmin` 的显式 ADMIN 授权 + 隐含 R/W/D 各给一行最基础的抽样，把"完全零验证"的状态往前推一步；调度组的 `ASSIGN` action、库资源组 `TABLE_STYLE` 的 `~` 分隔多级继承与 `SCRIPT` 单层结构等专属细节暂不展开，留作后续独立场景（可参照 S2 里 identityAdmin-role 对 ASSIGN 的处理方式、S2-GROUP-CHAIN 对多层继承的处理方式）。
+
+| 用户类型 | 资源类型 | 资源(示例) | Action | 预期 | 备注 |
+|---|---|---|---|---|---|
+| contentResourceAdmin | DASHBOARD | `dashboard1`（本节点，ADMIN 授权点；扁平命名空间，无子节点） | ADMIN | ✓ | 显式授权 |
+| contentResourceAdmin | DASHBOARD | `dashboard1` | READ | ✓ | ADMIN→隐含；DASHBOARD 无 Rule 1-3（扁平结构，无父子级联需要验证） |
+| contentResourceAdmin | SCHEDULE_TASK | `mx_schedule_folder/task1`（文件夹下的任务节点） | ADMIN | ✓ | 显式授权 |
+| contentResourceAdmin | SCHEDULE_TASK | `mx_schedule_folder/task1` | READ | ✓ | ADMIN→隐含 |
+| contentResourceAdmin | SCRIPT | `mx_script_lib/script1`（SCRIPT 固定单层，`SCRIPT.getParent()` 恒回到 `SCRIPT_LIBRARY:*`） | ADMIN | ✓ | 显式授权 |
+| contentResourceAdmin | SCRIPT | `mx_script_lib/script1` | READ | ✓ | ADMIN→隐含 |
+
+执行顺序：S2 → S3 → S4 → S5，低优先级行（no-grant / anonymous）按需补充；上方"附加"表待正式排入切片计划后再决定归属（新增独立切片，或并入 S3）。区二（S6-S8）见 `permission-matrix-actions.md`。
 
 ---
 
@@ -164,28 +216,31 @@
 
 > 下表是原始的"用户类型 × 资源组"速查表，用于快速查某个用户类型在某类资源上大致有什么能力；具体到某个 Action/某条边界规则的精确断言以上面按切片列出的场景表为准，两处如有出入以切片表 + 代码为准。区二（Security Action）的对应总览表见 `permission-matrix-actions.md`。
 
-资源组定义见架构设计文档 § 区一。行为规则：
+资源组定义见架构设计文档 § 区一，共 7 组：Repository(`REPORT`)/Worksheet(`ASSET`)/Portal Dashboard(`DASHBOARD`)/数据源(`DATA_SOURCE*`/`QUERY`/`CUBE`)/调度(`SCHEDULE_TASK*`)/安全管理(`SECURITY_*`)/库资源(`SCRIPT*`/`TABLE_STYLE*`)。行为规则：
 - `siteAdmin`（sysAdmin role）：跨所有 org、所有资源、所有 action 全通
 - `orgAdmin`（Organization Administrator role）：本 org 全通；跨 org 全拒
 - ADMIN 隐含语义（`SecurityEngine` L826-832）：拥有 ADMIN 则隐含 READ/WRITE/DELETE
+- 7 组里只有调度组额外适用 `ASSIGN`（`SCHEDULE_TASK`/`SCHEDULE_CYCLE`），下表未单独展开，参见 `permission-matrix-actions.md`
 
-Action 列：R=READ  W=WRITE  D=DELETE  A=ADMIN  S=SHARE
+Action 列：R=READ  W=WRITE  D=DELETE  A=ADMIN（无 SHARE：`SHARE` 是区二 Social Sharing 的独立 `ResourceType`，不属于区一任何资源组的适用 action，早期版本表格曾把它错标进内容资源列，已在本次修订移除）
 
-| 用户类型 | 层级内容资产(ASSET/REPORT) | 单体内容(VIEWSHEET/WS) | 数据层(DATA_SOURCE) | 调度(SCHEDULE_TASK) | 安全管理(SECURITY_USER/ORG) | 库资源(SCRIPT) |
+> **列名订正**：原表第 2 列曾写作"单体内容(VIEWSHEET/WS)"，但 `ResourceType.VIEWSHEET`/`ResourceType.WORKSHEET` 并非内容权限类型——它们固定 `path="*"` + `ACCESS`，语义是"能否打开 Composer"的全局开关（见设计文档 578-579 行），不是本表意图覆盖的"单个内容资源实例的 R/W/D/A"。结合该列原有的"扁平命名空间、无继承"描述，实际对应的是 7 组之一的 **Portal Dashboard(`DASHBOARD`)**（`DASHBOARD.getParent()` 恒返回 `null`），已在本次修订更正列名和数值，原列名/数值属于早期版本遗留的错误标注。
+
+| 用户类型 | 层级内容资产(ASSET/REPORT) | Portal Dashboard(DASHBOARD) | 数据层(DATA_SOURCE) | 调度(SCHEDULE_TASK) | 安全管理(SECURITY_USER/ORG) | 库资源(SCRIPT) |
 |---|---|---|---|---|---|---|
-| `siteAdmin` | ✓ R/W/D/A | ✓ R/W/D/A/S | ✓ R/W/D/A | ✓ R/W/D/A | ✓ R/W/D/A | ✓ R/W/D/A |
-| `orgAdmin` | ✓ R/W/D/A [P1-need] | ✓ R/W/D/A/S [P1-need] | ✓ R/W/D/A [P1-need] | ✓ R/W/D/A [P1-need] | ✓ R/W/D/A [P1-need] | ✓ R/W/D/A [P1-need] |
+| `siteAdmin` | ✓ R/W/D/A | ✓ R/W/D/A | ✓ R/W/D/A | ✓ R/W/D/A | ✓ R/W/D/A | ✓ R/W/D/A |
+| `orgAdmin` | ✓ R/W/D/A [P1-need] | ✓ R/W/D/A [P1-need] | ✓ R/W/D/A [P1-need] | ✓ R/W/D/A [P1-need] | ✓ R/W/D/A [P1-need] | ✓ R/W/D/A [P1-need] |
 | `orgSecurityAdmin` | ✗ R/W/D/A (无内容权) | ✗ | ✗ | ✗ | ✓ 任意 action，级联到全部 SECURITY_USER/GROUP + 本org SECURITY_ROLE 实例（含从未单独 grant 过的），不只是 SECURITY_ORGANIZATION 自身、也不只 ADMIN [S2] | ✗ |
 | `identityAdmin-user(实例)` | ✗ | ✗ | ✗ | ✗ | ✓ A→R/W/D({name}) / ✗ 其他实例 [S2] | ✗ |
 | `identityAdmin-user(通配)` | ✗ | ✗ | ✗ | ✗ | ✓ A→R/W/D(*) 全部实例 [S2] | ✗ |
 | `identityAdmin-group(实例)` | ✗ | ✗ | ✗ | ✗ | ✓ A→R/W/D({name}) / ✗ 其他实例 [S2] | ✗ |
 | `identityAdmin-group(通配)` | ✗ | ✗ | ✗ | ✗ | ✓ A→R/W/D(*) 全部实例 [S2] | ✗ |
 | `identityAdmin-role` ⚠️非 ADMIN | ✗ | ✗ | ✗ | ✗ | ✓ ASSIGN({name}) 仅此action / ✗ W/D [S2] | ✗ |
-| `contentResourceAdmin` | ✓ A + (ADMIN→)R/W/D [S3] | ✓ A + (ADMIN→)R/W/D/S [S3] | ✓ A + (ADMIN→)R/W/D [S3] | ✓ A + (ADMIN→)R/W/D [S3] | — | ✓ A + (ADMIN→)R/W/D [S3] |
-| `orgViewer-via-role` | ✓ R / ✗ W/D/A [S4] | ✓ R / ✗ W/D/A/S [S4] | — | — | ✗ | — |
-| `orgViewer-via-group` | ✓ R / ✗ W/D/A [S4] | ✓ R / ✗ W/D/A/S [S4] | — | — | ✗ | — |
-| `orgViewer-via-group-role` | ✓ R / ✗ W/D/A [S4] | ✓ R / ✗ W/D/A/S [S4] | — | — | ✗ | — |
-| `orgViewer-inherited` | ✓ R(子继父) / ✗ W/D/A [S5]；部分授权(仅 W)时子级会被提升出 D，见 S5-RULE4 [S5][待补] | — (非层级类型) | ✓ R(子继父)，部分授权(仅 W)提升 D 同样适用 [S5][待补] | — | ✗ | — |
+| `contentResourceAdmin` | ✓ A + (ADMIN→)R/W/D [S3] | ✓ A + (ADMIN→)R/W/D（扁平命名空间，不适用 Rule 2/3）[附加][待补] | ✓ A + (ADMIN→)R/W/D（基础 ADMIN 隐含尚未验证；仅 Rule 4 提升逻辑已在 S5-RULE4 验证）[待补] | ✓ A + (ADMIN→)R/W/D（现有切片未覆盖，见文末"附加"抽样）[附加][待补] | — | ✓ A + (ADMIN→)R/W/D（现有切片未覆盖，见文末"附加"抽样）[附加][待补] |
+| `orgViewer-via-role` | ✓ R / ✗ W/D/A [S4] | ✓ R / ✗ W/D/A（现有 S4 用例尚未覆盖 DASHBOARD）[待补] | — | — | ✗ | — |
+| `orgViewer-via-group` | ✓ R / ✗ W/D/A [S4] | ✓ R / ✗ W/D/A（同上）[待补] | — | — | ✗ | — |
+| `orgViewer-via-group-role` | ✓ R / ✗ W/D/A [S4] | ✓ R / ✗ W/D/A（同上）[待补] | — | — | ✗ | — |
+| `orgViewer-inherited` | ✓ R(子继父) / ✗ W/D/A [S5]；部分授权(仅 W)时子级会被提升出 D，见 S5-RULE4 [S5][待补] | — (扁平命名空间，无继承路径，不适用 S5) | ✓ R(子继父)，部分授权(仅 W)提升 D 同样适用 [S5][待补] | — | ✗ | — |
 | `orgUser-no-grant` ⚑低 | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 
 **ADMIN 父子双向规则**（S3 须覆盖）：
