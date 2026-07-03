@@ -146,13 +146,13 @@
                   (ngModelChange)="changeBookmark($event)"
                   [disabled]="!bookmarks || bookmarks.length == 0"
                   placeholder="_#(Bookmark)">
-                  <option [ngValue]="null" [selected]="model.bookmark == null">
-                    @for (bookmark of bookmarks; track bookmark) {
-                      <option
-                        [ngValue]="getBookMarkValue(bookmark)" [selected]="bookmarkSelected(bookmark)">
-                        {{bookmark}}
-                      </option>
-                    }
+                  <option [ngValue]="null" [selected]="model.bookmark == null"></option>
+                  @for (bookmark of bookmarks; track bookmark) {
+                    <option
+                      [ngValue]="getBookMarkValue(bookmark)" [selected]="bookmarkSelected(bookmark)">
+                      {{bookmark}}
+                    </option>
+                  }
                   </select>
                   <label>_#(Bookmark)</label>
                 </div>
