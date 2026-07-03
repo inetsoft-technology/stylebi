@@ -5,7 +5,7 @@
 **Phase 2 M8 实现：** `PermissionMatrixResourcesTest`（S2-S5）
 **姊妹文档：** 区二 Security Action 权限矩阵（S6-S8，`PermissionMatrixActionsTest`）见 `permission-matrix-actions.md`
 
-图例：✓ = allowed　✗ = denied　— = n/a　`(ADMIN→)` = 由 ADMIN 隐含授权　`[P1]` = Phase 1 已覆盖　`[待补]` = 已在设计文档确认、尚未落到测试代码　`[附加]` = M7 切片计划未分配、本文档补记的基线抽样（见文末"附加"小节）
+图例：✓ = allowed　✗ = denied　— = n/a　`(ADMIN→)` = 由 ADMIN 隐含授权　`[P1]` = Phase 1 已覆盖　`[待补]` = 已在设计文档确认、尚未落到测试代码　`[附加]` = M7 切片计划未分配、本文档补记的基线抽样（见文末"附加"小节）　`[M8]` = 已在 `PermissionMatrixResourcesTest.java` 落地并通过　`[M8⚠️]` = 已落地但实测结果与本表"预期"列不符，测试已 `@Disabled` 并注明原因，见该行备注
 
 下方按切片（Slice）列出具体场景，每一行大致对应 `PermissionMatrixResourcesTest` 里的一个 `MatrixTestCase`（或一个独立 `@Test` 方法），方便实现前逐条 review。资源路径为 fixture 示例路径（与 Phase 2 计划 Task 4-5 的常量一致），不是生产环境真实路径。总览矩阵（按资源组归类的能力速查表）见文末附录。
 
@@ -18,7 +18,7 @@
 | Portal Dashboard | `DASHBOARD` | READ/WRITE/DELETE/ADMIN | **否**——扁平命名空间，`DASHBOARD.getParent()` 恒返回 `null` | 无切片分配，仅文末附加基线抽样 `[待补]` |
 | 数据源 | `DATA_SOURCE_FOLDER`/`DATA_SOURCE`/`CUBE`/`QUERY`（Logical Model） | READ/WRITE/DELETE/ADMIN | 是——文件夹用 `/`，model/cube 挂载用 `::` | 仅 S5-RULE4 覆盖 Rule 4 提升逻辑，基础 ADMIN/继承未验证 `[待补]` |
 | 调度 | `SCHEDULE_TASK_FOLDER`/`SCHEDULE_TASK`/`SCHEDULE_CYCLE` | READ/WRITE/DELETE/ADMIN/ASSIGN | 仅文件夹层继承；task/cycle 本身扁平 | 无切片分配，仅文末附加基线抽样 `[待补]` |
-| 安全管理 | `SECURITY_USER`/`SECURITY_GROUP`/`SECURITY_ROLE`/`SECURITY_ORGANIZATION` | User/Group 走 ADMIN，Role 走 ASSIGN | 各类型独立合成根节点级联，非路径分隔符继承 | S2 全覆盖 |
+| 安全管理 | `SECURITY_USER`/`SECURITY_GROUP`/`SECURITY_ROLE`/`SECURITY_ORGANIZATION` | User/Group 走 ADMIN，Role 走 ASSIGN | 各类型独立合成根节点级联，非路径分隔符继承 | S2 主表实例级场景已在 `PermissionMatrixResourcesTest` 落地 `[M8]`；通配符场景、全局角色负控制仍 `[待补]`；identityAdmin-role 的 WRITE/DELETE 断言因实测分歧 `@Disabled`，见 `[M8⚠️]` 说明 |
 | 库资源 | `SCRIPT_LIBRARY`/`SCRIPT`（扁平单层） / `TABLE_STYLE_LIBRARY`/`TABLE_STYLE`（真正多级） | READ/WRITE/DELETE/ADMIN | Table Style 是，`~` 分隔；Script 否，固定单层 | 无切片分配，仅文末附加基线抽样 `[待补]` |
 
 ---
@@ -35,30 +35,47 @@
 
 | 用户类型 | 资源类型 | 资源(示例) | Action | 预期 | 备注 | 结论 |
 |---|---|---|---|---|---|---|
-| orgSecurityAdmin | SECURITY_ORGANIZATION | `matrix_org_id` | ADMIN | ✓ | 授权本身生效（第 2 行"拒绝"是否有意义的前提） | orgSecurityAdmin 能管理本 org 的安全设置 |
-| orgSecurityAdmin | ASSET | `mx/folder/item` | READ | ✗ | 无内容权，证明不外溢到非安全身份资源类型 | orgSecurityAdmin 看不到任何内容资源（报表/仪表盘等） |
-| orgSecurityAdmin | SECURITY_USER | `targetUser`（从未单独 grant 给 orgSecAdmin） | ADMIN | ✓ | **跨类型级联**（`DefaultCheckPermissionStrategy` L57-67）：只看当前 org 的 SECURITY_ORGANIZATION 是否有 ADMIN，不看具体 resource 路径 | orgSecurityAdmin 能管理 targetUser（编辑/删除），即使从没单独针对 targetUser 授权过 |
-| orgSecurityAdmin | SECURITY_GROUP | `targetGroup`（同上，从未单独 grant） | ADMIN | ✓ | 同上，跨类型级联 | orgSecurityAdmin 能管理 targetGroup，同样即使从没单独授权过 |
-| orgSecurityAdmin | SECURITY_ROLE | `viewerRole`（本 org 自建角色，从未单独 grant） | ADMIN | ✓ | 同上；仅对本 org 自建角色生效，全局角色不生效（`isNotGlobalRole`） | orgSecurityAdmin 能管理本 org 自建的 viewerRole 角色（编辑/删除/分配） |
-| orgSecurityAdmin | SECURITY_USER | `targetUser` | WRITE | ✓ | **级联放行的是原始 action**，不是"隐式提升成 ADMIN 再走 RWD 兜底" | orgSecurityAdmin 能编辑 targetUser 的信息 |
-| orgSecurityAdmin | SECURITY_ROLE | `viewerRole` | ASSIGN | ✓ | 同上，ASSIGN 不属于 R/W/D，如果是 ADMIN→RWD 兜底机制就不会覆盖到它，证明这是两套不同机制 | orgSecurityAdmin 能把 viewerRole 分配给其他用户 |
-| orgSecurityAdmin | SECURITY_ROLE | 全局角色(org-less)，如 `addGlobalRole("globalRole0")` | ADMIN | ✗ `[待补]` | 负控制：`isNotGlobalRole` 挡掉全局角色；builder 方法已在 Task 3 加了（`addGlobalRole`），Task 4 用例暂未写 | orgSecurityAdmin 管不了全局角色（跨 org 共享，如内置 Everyone），只有 siteAdmin 能管 |
-| identityAdmin-user(实例) | SECURITY_USER | `targetUser` | ADMIN | ✓ | | identityAdminUser 能管理 targetUser（编辑/删除该用户） |
-| identityAdmin-user(实例) | SECURITY_USER | `anotherUser` | ADMIN | ✗ | 负路径：不越实例 | identityAdminUser 看不到/管不了 anotherUser——只对被明确授权的那个用户生效 |
-| identityAdmin-user(实例) | SECURITY_USER | `targetUser` | WRITE | ✓ | ADMIN→隐含（`SecurityEngine` L826-832，通用兜底非 User 专属） | identityAdminUser 能编辑 targetUser 的信息 |
-| identityAdmin-user(实例) | SECURITY_USER | `targetUser` | DELETE | ✓ | 同上 | identityAdminUser 能删除 targetUser |
-| identityAdmin-user(通配) | SECURITY_USER | `targetUser` / `anotherUser` | ADMIN | ✓ / ✓ | 通配符对全部实例生效 | identityAdminWildUser 能管理 EM 里的所有用户，包括 targetUser 和 anotherUser |
-| identityAdmin-user(通配) | ASSET | `mx/folder/item` | READ | ✗ | 仍然拿不到内容权 | identityAdminWildUser 虽然能管理所有用户，但看不到任何内容资源 |
-| identityAdmin-group(实例) | SECURITY_GROUP | `targetGroup` | ADMIN | ✓ | | identityAdminGroupInstUser 能管理 targetGroup（编辑/删除该组） |
-| identityAdmin-group(实例) | SECURITY_GROUP | `anotherGroup` | ADMIN | ✗ | 负路径：不越实例 | identityAdminGroupInstUser 管不了 anotherGroup——只对被明确授权的那个组生效 |
-| identityAdmin-group(实例) | SECURITY_GROUP | `targetGroup` | WRITE | ✓ | ADMIN→隐含 | identityAdminGroupInstUser 能编辑 targetGroup 的信息 |
-| identityAdmin-group(通配) | SECURITY_GROUP | `targetGroup` / `anotherGroup` | ADMIN | ✓ / ✓ | 通配符对全部实例生效 | identityAdminGroupWildUser 能管理 EM 里的所有组 |
-| identityAdmin-group(通配) | ASSET | `mx/folder/item` | READ | ✗ | | identityAdminGroupWildUser 看不到任何内容资源 |
-| identityAdmin-role ⚠️ | SECURITY_ROLE | `targetRole` | ASSIGN | ✓ | 写入的是 ASSIGN，不是 ADMIN | identityAdminRoleUser 能把 targetRole 分配给其他用户 |
-| identityAdmin-role ⚠️ | SECURITY_ROLE | `targetRole` | WRITE | ✗ | **关键负路径**：ASSIGN 不隐含 WRITE | identityAdminRoleUser 不能编辑 targetRole 本身的定义（改名、改继承关系等） |
-| identityAdmin-role ⚠️ | SECURITY_ROLE | `targetRole` | DELETE | ✗ | ASSIGN 不隐含 DELETE | identityAdminRoleUser 不能删除 targetRole |
-| identityAdmin-role ⚠️ | SECURITY_ROLE | `anotherRole` | ASSIGN | ✗ | 负路径：不越实例 | identityAdminRoleUser 不能分配 anotherRole——只对被明确授权的那个角色生效 |
-| identityAdmin-role ⚠️ | ASSET | `mx/folder/item` | READ | ✗ | | identityAdminRoleUser 看不到任何内容资源 |
+| orgSecurityAdmin | SECURITY_ORGANIZATION | `matrix_org_id` | ADMIN | ✓ | 授权本身生效（第 2 行"拒绝"是否有意义的前提）`[M8]` | orgSecurityAdmin 能管理本 org 的安全设置 |
+| orgSecurityAdmin | ASSET | `mx/folder/item` | READ | ✗ | 无内容权，证明不外溢到非安全身份资源类型`[M8]` | orgSecurityAdmin 看不到任何内容资源（报表/仪表盘等） |
+| orgSecurityAdmin | SECURITY_USER | `targetUser`（从未单独 grant 给 orgSecAdmin） | ADMIN | ✓ | **跨类型级联**（`DefaultCheckPermissionStrategy` L57-67）：只看当前 org 的 SECURITY_ORGANIZATION 是否有 ADMIN，不看具体 resource 路径`[M8]` | orgSecurityAdmin 能管理 targetUser（编辑/删除），即使从没单独针对 targetUser 授权过 |
+| orgSecurityAdmin | SECURITY_GROUP | `targetGroup`（同上，从未单独 grant） | ADMIN | ✓ | 同上，跨类型级联`[M8]`（测试用等价的 `anotherGroup`，同样从未单独 grant） | orgSecurityAdmin 能管理 targetGroup，同样即使从没单独授权过 |
+| orgSecurityAdmin | SECURITY_ROLE | `viewerRole`（本 org 自建角色，从未单独 grant） | ADMIN | ✓ | 同上；仅对本 org 自建角色生效，全局角色不生效（`isNotGlobalRole`）`[M8]`（测试用等价的 `anotherRole`，同样从未单独 grant） | orgSecurityAdmin 能管理本 org 自建的 viewerRole 角色（编辑/删除/分配） |
+| orgSecurityAdmin | SECURITY_USER | `targetUser` | WRITE | ✓ | **级联放行的是原始 action**，不是"隐式提升成 ADMIN 再走 RWD 兜底"`[M8]` | orgSecurityAdmin 能编辑 targetUser 的信息 |
+| orgSecurityAdmin | SECURITY_ROLE | `viewerRole` | ASSIGN | ✓ | 同上，ASSIGN 不属于 R/W/D，如果是 ADMIN→RWD 兜底机制就不会覆盖到它，证明这是两套不同机制`[M8]`（测试用等价的 `anotherRole`） | orgSecurityAdmin 能把 viewerRole 分配给其他用户 |
+| orgSecurityAdmin | SECURITY_ROLE | 全局角色(org-less)，如 `addGlobalRole("globalRole0")` | ADMIN | ✗ `[待补]` | 负控制：`isNotGlobalRole` 挡掉全局角色；`SecurityTestDataBuilder` 目前**没有** `addGlobalRole` 方法（此前文档说"Task 3 已加"，经代码核实并不存在），需要先补这个 builder 方法才能写这条用例 | orgSecurityAdmin 管不了全局角色（跨 org 共享，如内置 Everyone），只有 siteAdmin 能管 |
+| identityAdmin-user(实例) | SECURITY_USER | `targetUser` | ADMIN | ✓ | `[M8]` | identityAdminUser 能管理 targetUser（编辑/删除该用户） |
+| identityAdmin-user(实例) | SECURITY_USER | `anotherUser` | ADMIN | ✗ | 负路径：不越实例`[M8]` | identityAdminUser 看不到/管不了 anotherUser——只对被明确授权的那个用户生效 |
+| identityAdmin-user(实例) | SECURITY_USER | `targetUser` | WRITE | ✓ | ADMIN→隐含（`SecurityEngine` L826-832，通用兜底非 User 专属）`[M8]` | identityAdminUser 能编辑 targetUser 的信息 |
+| identityAdmin-user(实例) | SECURITY_USER | `targetUser` | DELETE | ✓ | 同上`[M8]` | identityAdminUser 能删除 targetUser |
+| identityAdmin-user(通配) | SECURITY_USER | `targetUser` / `anotherUser` | ADMIN | ✓ / ✓ | 通配符对全部实例生效`[待补]`：生产代码里通配符检查是 `provider.getPermission(SECURITY_USER, orgID)`（`DefaultCheckPermissionStrategy.java` L371）——用 orgID 字符串本身当 resource key，不是字面的 `"*"`，需要先确认这个约定再写 fixture，避免写出一个"看起来对但其实没测到通配符路径"的用例 | identityAdminWildUser 能管理 EM 里的所有用户，包括 targetUser 和 anotherUser |
+| identityAdmin-user(通配) | ASSET | `mx/folder/item` | READ | ✗ | 仍然拿不到内容权`[待补]`：同上，随通配符场景一起补 | identityAdminWildUser 虽然能管理所有用户，但看不到任何内容资源 |
+| identityAdmin-group(实例) | SECURITY_GROUP | `targetGroup` | ADMIN | ✓ | `[M8]` | identityAdminGroupInstUser 能管理 targetGroup（编辑/删除该组） |
+| identityAdmin-group(实例) | SECURITY_GROUP | `anotherGroup` | ADMIN | ✗ | 负路径：不越实例`[M8]` | identityAdminGroupInstUser 管不了 anotherGroup——只对被明确授权的那个组生效 |
+| identityAdmin-group(实例) | SECURITY_GROUP | `targetGroup` | WRITE | ✓ | ADMIN→隐含`[M8]` | identityAdminGroupInstUser 能编辑 targetGroup 的信息 |
+| identityAdmin-group(通配) | SECURITY_GROUP | `targetGroup` / `anotherGroup` | ADMIN | ✓ / ✓ | 通配符对全部实例生效`[待补]`：同 identityAdmin-user(通配) 的顾虑，通配符 key 约定需先验证 | identityAdminGroupWildUser 能管理 EM 里的所有组 |
+| identityAdmin-group(通配) | ASSET | `mx/folder/item` | READ | ✗ | `[待补]`：同上 | identityAdminGroupWildUser 看不到任何内容资源 |
+| identityAdmin-role ⚠️ | SECURITY_ROLE | `targetRole` | ASSIGN | ✓ | 写入的是 ASSIGN，不是 ADMIN`[M8]` | identityAdminRoleUser 能把 targetRole 分配给其他用户 |
+| identityAdmin-role ⚠️ | SECURITY_ROLE | `targetRole` | WRITE | ✗ | **关键负路径**：ASSIGN 不隐含 WRITE`[M8⚠️]`——**实测与此不符，见下方发现说明**：`DefaultCheckPermissionStrategy.java` L232-240 的 `hasResourcePermission` 检查会让 ASSIGN-only 的身份也拿到 WRITE，测试已写出但 `@Disabled`，等待确认这是 bug 还是本文档过时 | identityAdminRoleUser 不能编辑 targetRole 本身的定义（改名、改继承关系等）——**（待确认，实测为"能"）** |
+| identityAdmin-role ⚠️ | SECURITY_ROLE | `targetRole` | DELETE | ✗ | ASSIGN 不隐含 DELETE`[M8⚠️]`——**实测与此不符，同上** | identityAdminRoleUser 不能删除 targetRole——**（待确认，实测为"能"）** |
+| identityAdmin-role ⚠️ | SECURITY_ROLE | `anotherRole` | ASSIGN | ✗ | 负路径：不越实例`[M8]` | identityAdminRoleUser 不能分配 anotherRole——只对被明确授权的那个角色生效 |
+| identityAdmin-role ⚠️ | ASSET | `mx/folder/item` | READ | ✗ | `[M8]` | identityAdminRoleUser 看不到任何内容资源 |
+
+> **`[M8⚠️]` 发现：ASSIGN 可能被意外提升为完整 R/W/D/A（M8 实测，尚未定性）**
+>
+> 上面两行标 `[M8⚠️]` 的用例（`identityAdminRoleUser` 对只被授予 ASSIGN 的 `targetRole` 做 WRITE/DELETE 检查）在 `PermissionMatrixResourcesTest.java` 里已经写出，但实测结果是 **允许**，跟本表"预期"列的 ✗ 直接矛盾（顺带一提，同样条件下 ADMIN 检查也允许）。已将这两个 `@Test` 标记 `@Disabled` 并写明原因，没有为了让测试变绿而反过来断言"允许"。
+>
+> 根因定位在 `DefaultCheckPermissionStrategy.java` 232-240 行：
+> ```java
+> //if admin permissions to this resource, return true
+> boolean hasResourcePermission = provider.getPermission(type, resource, orgID) != null &&
+>    provider.getPermission(type, resource, orgID)
+>       .getOrgScopedUserGrants(ResourceAction.ASSIGN, OrganizationManager.getInstance().getCurrentOrgID())
+>       .contains(pId);
+> if(hasResourcePermission) { return true; }
+> ```
+> 这段检查只要求当前用户持有任意 role/group/org（基本等于"已登录的普通用户"都满足），不区分资源类型，也不看外部实际请求的 `action` 是什么——却硬编码去查 `ResourceAction.ASSIGN` 的授权，一旦命中就直接放行，不管外部问的是 WRITE/DELETE/ADMIN 哪一个。注释写的是"if **admin** permissions"，而文件里其他所有级联检查（L64、L150、L159、L169、L181、L326、L334、L353）查的都是 `ResourceAction.ADMIN`，只有这一处查 `ASSIGN`——看起来像是把 `ADMIN` 误写成了 `ASSIGN`。
+>
+> 这跟本表上面两行"Role 设 Administrator Permissions（ASSIGN）→ 只有 ASSIGN，没有 W/D"的结论（以及架构设计文档 448 行"规则核实对照表"第 2 条的核实结论）直接冲突。在产品侧确认这是生产代码 bug（该修代码）还是文档过时（该改文档、改测试预期）之前，不把任一结论当作"已验证通过"写进本表。
 
 **S2-GRANTEE-VARIETY `[待补]`**（对照 `docs/superpowers/specs/security/Administrator.md` §1.1.1/1.1.2 补的场景；现有用例里被授权身份全部是 `Identity.USER` 类型，从没测过 role/group 作为被授权身份，以及三者同时设置的 OR 组合）：
 
