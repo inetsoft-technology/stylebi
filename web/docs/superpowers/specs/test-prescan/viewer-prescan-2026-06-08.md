@@ -2,7 +2,7 @@
 
 **日期**: 2026-06-08（2026-06-10 补充扫描，新增 11 个组件；2026-06-24 补充扫描，新增 103 个组件）
 **候选组件数**: 142（原 39，2026-06-24 新增 103）| **建议推进**: 110 | **建议跳过**: 21 | **建议暂缓**: 11 | **待审核**: 0 | **多 pass 组件**: 34
-**测试进度**: ✅已测试 55 / 142 | 待测 55 / 142 | ⏭ 已跳过 21 / 142 | ⏸️暂缓 11 / 142
+**测试进度**: ✅已测试 69 / 142 | 待测 41 / 142 | ⏭ 已跳过 21 / 142 | ⏸️暂缓 11 / 142
 
 ## 状态说明
 - 第一列「状态」初始为「待审核」，人工审核后改为 ✅已测试 / ⏭已跳过 / ⏸️暂缓
@@ -193,45 +193,45 @@
 | ✅已测试   | VSText | 665 | 2 | 2 | **multi-pass** | ✅ 推进 | ~~⚠️ vs-text.component.spec.ts~~ | Only 1 active test (shadow CSS class) and 1 skipped broken test; no coverage of ngOnInit/ngOnDestroy, sendChangeEvent debouncing, clicked/clickHyperlink flows, tooltip resolution in modelChanged, actions subscription routing, getEllipsisText, or external URL messaging. | P1: vs-text.component.interaction.tl.spec.ts (19 tests) |
 | ✅已测试    | VSImage | 166 | 4 | 1 | **multi-pass** | ✅ 推进 | ~~⚠️ vs-image.component.spec.ts~~ | Covers hyperlink self/non-self open (bug #17228), annotation overflow (bug #17807), shadow CSS class (bug #20755); two tests are .skipped (alpha, border); no coverage of getSrc() 3-branch URL construction, clicked() popComponent toggle, getOpacity() data-tip vs normal path, or ngOnChanges popComponent registration. | P1: VSImage.interaction.tl.spec.ts<br>P3: VSImage.display.tl.spec.ts |
 | ⏭ 已跳过  | VSGauge | 78 | 2 | 0 | **single-pass** | ⏭ 跳过 | ⚠️ vs-gauge.component.spec.ts | getTooltip 3-branch logic (customTooltipString / hyperlinks[0].tooltip / defaultAnnotationContent) and getOpacity popComponent branch are untested. | single pass |
-| ✅ 推进    | VSComboBox | 450 | 4 | 2 | **multi-pass** | ✅ 推进 | ⚠️ vs-combo-box.spec.ts | Covers only 2 narrow DOM assertions (date placeholder text, h-alignment); omits onChange/applySelection STOMP dispatch, clearCalendar, calendar/serverTZ date parsing, navigate() keyboard flow, and form-submit subscription. | P1: vs-combo-box.interaction.tl.spec.ts<br>P3: vs-combo-box.display.tl.spec.ts |
+| ✅已测试    | VSComboBox | 450 | 4 | 2 | **multi-pass** | ✅ 推进 | ~~⚠️ vs-combo-box.spec.ts~~ | Covers only 2 narrow DOM assertions (date placeholder text, h-alignment); omits onChange/applySelection STOMP dispatch, clearCalendar, calendar/serverTZ date parsing, navigate() keyboard flow, and form-submit subscription. | P1: vs-combo-box.interaction.tl.spec.ts<br>P3: vs-combo-box.display.tl.spec.ts |
 | ⏸️暂缓   | VSCheckBox | 80 | 1 | 0 | **single-pass** | 暂缓 | ⚠️ vs-check-box.spec.ts | Only tests CSS H/V alignment rendering; isSelected, onChange toggle branches (deselect/select, refresh/non-refresh, ctrlDown), and applySelection debounce/fallback are entirely untested. | P1: vs-check-box.interaction.tl.spec.ts |
 | ⏸️暂缓   | VSRadioButton | 75 | 1 | 0 | **single-pass** | 暂缓 |  |  | single pass |
-| 待审核    | VSTextInput | 306 | 2 | 3 | **single-pass** | ✅ 推进 | ⚠️ vs-text-input.component.spec.ts | Only 3 tests (DOM structure, manual date input, skipped border); leaves submit/validation modal, onKey enter branching, navigate keyboard flow, setDateFromDatepicker, applySelection debounce, ngOnChanges subscription wiring, and selected setter all uncovered. | single pass |
-| 待审核    | VSSubmit | 115 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ vs-submit.spec.ts | Covers only vAlign padding and fade-assembly disabled class; omits onClick debounce/sendEvent/globalSubmitService flow, navigate() keyboard handling, and initFocusColor() border/background color derivation. | single pass |
-| 待审核    | VSTab | 278 | 2 | 2 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核    | VSViewsheet | 380 | 1 | 0 | **single-pass** | ✅ 推进 | ⚠️ vs-viewsheet.component.spec.ts | Only covers showIconContainer/isChildDropdownExpanded edge cases; all command-processing methods (processAddVSObjectCommand, processRefreshVSObjectCommand, processRemoveVSObjectCommand, processUpdateZIndexesCommand), selectViewsheet, ngOnChanges, showContextMenu, and removeSelectedAnnotations are entirely untested. | P1: vs-viewsheet.component.interaction.tl.spec.ts |
-| 待审核    | VSAnnotation | 247 | 1 | 3 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试    | VSTextInput | 306 | 2 | 3 | **single-pass** | ✅ 推进 | ~~⚠️ vs-text-input.component.spec.ts~~ | Only 3 tests (DOM structure, manual date input, skipped border); leaves submit/validation modal, onKey enter branching, navigate keyboard flow, setDateFromDatepicker, applySelection debounce, ngOnChanges subscription wiring, and selected setter all uncovered. | single pass |
+| ✅已测试    | VSSubmit | 115 | 0 | 0 | **single-pass** | ✅ 推进 | ~~⚠️ vs-submit.spec.ts~~ | Covers only vAlign padding and fade-assembly disabled class; omits onClick debounce/sendEvent/globalSubmitService flow, navigate() keyboard handling, and initFocusColor() border/background color derivation. | single pass |
+| ✅已测试    | VSTab | 278 | 2 | 2 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试    | VSViewsheet | 380 | 1 | 0 | **single-pass** | ✅ 推进 | ⚠️ vs-viewsheet.component.spec.ts | Only covers showIconContainer/isChildDropdownExpanded edge cases; all command-processing methods (processAddVSObjectCommand, processRefreshVSObjectCommand, processRemoveVSObjectCommand, processUpdateZIndexesCommand), selectViewsheet, ngOnChanges, showContextMenu, and removeSelectedAnnotations are entirely untested. | P1: vs-viewsheet.component.interaction.tl.spec.ts |
+| ✅已测试    | VSAnnotation | 247 | 1 | 3 | **single-pass** | ✅ 推进 |  |  | single pass |
 | ⏭ 已跳过  | VSHiddenAnnotation | 21 | 0 | 0 | **single-pass** | ⏭ 跳过 |  |  | single pass |
 | ⏭ 已跳过  | VSGroupContainer | 52 | 1 | 0 | **single-pass** | ⏭ 跳过 | ⚠️ vs-group-container.spec.ts | Covers only the alpha/opacity binding (bug #20760); getSrc() URL construction and all three onImageLoad() aspect-ratio branches are untested. | single pass |
-| 待审核    | VSSpinner | 204 | 1 | 1 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试   | VSSpinner | 204 | 1 | 1 | **single-pass** | ✅ 推进 |  |  | ✅ vs-spinner.component.tl.spec.ts (45 tests) |
 | ⏭ 已跳过  | VSThermometer | 28 | 0 | 0 | **single-pass** | ⏭ 跳过 |  |  | single pass |
 | ⏭ 已跳过  | VSCylinder | 18 | 0 | 0 | **single-pass** | ⏭ 跳过 |  |  | single pass |
 | ⏭ 已跳过  | VSSlidingScale | 17 | 0 | 0 | **single-pass** | ⏭ 跳过 |  |  | single pass |
-| 待审核    | VSLine | 171 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试    | VSLine | 171 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | ⏭ 已跳过  | VSOval | 19 | 0 | 0 | **single-pass** | ⏭ 跳过 |  |  | single pass |
 | ⏭ 已跳过  | VSRectangle | 17 | 0 | 0 | **single-pass** | ⏭ 跳过 |  |  | single pass |
-| 待审核    | MiniMenu | 104 | 1 | 2 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试    | MiniMenu | 104 | 1 | 2 | **single-pass** | ✅ 推进 |  |  | single pass |
 | ⏭ 已跳过  | VSTitle | 46 | 0 | 0 | **single-pass** | ⏭ 跳过 | ⚠️ vs-title.component.spec.ts | Covers only the titleVisible display toggle (Bug #18906); ngOnChanges editingTitle reset, resize event emissions, and context-provider getters are untested but are trivial pass-throughs. | single pass |
 | ⏸️暂缓   | TitleCell | 78 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | ⏭ 已跳过  | VSInputLabelWrapper | 55 | 0 | 0 | **single-pass** | ⏭ 跳过 | ⚠️ vs-input-label-wrapper.component.spec.ts | onLabelClick EventEmitter emit is not tested; all other public contracts (12 property getters, 2 host bindings) are covered. | single pass |
-| 待审核    | ChartArea | 1435 | 3 | 4 | **multi-pass** | ✅ 推进 |  |  | P1: chart-area.component.interaction.tl.spec.ts<br>P2: chart-area.component.risk.tl.spec.ts<br>P3: chart-area.component.display.tl.spec.ts |
-| 待审核    | ChartAxisArea | 675 | 3 | 4 | **multi-pass** | ✅ 推进 |  |  | P1: chart-axis-area.interaction.tl.spec.ts<br>P2: chart-axis-area.risk.tl.spec.ts<br>P3: chart-axis-area.display.tl.spec.ts |
-| 待审核    | ChartPlotArea | 586 | 4 | 3 | **multi-pass** | ✅ 推进 | ⚠️ chart-plot-area.component.spec.ts | Only validates region point coordinate structure (trivially structural); the selection test is skipped — no coverage of onMove cursor logic, loaded HTTP error path, pan mode, flyover/dataTip emission, or ngOnChanges scroll handling. | P1: chart-plot-area.interaction.tl.spec.ts<br>P2: chart-plot-area.risk.tl.spec.ts<br>P3: chart-plot-area.display.tl.spec.ts |
-| 待审核    | ChartLegendContainer | 229 | 3 | 0 | **multi-pass** | ✅ 推进 |  |  | P1: chart-legend-container.component.interaction.tl.spec.ts<br>P3: chart-legend-container.component.display.tl.spec.ts |
+| ✅已测试   | ChartArea | 1435 | 3 | 4 | **multi-pass** | ✅ 推进 |  |  | ✅ P1: chart-area.component.interaction.tl.spec.ts (97 tests)<br>✅ P2: chart-area.component.risk.tl.spec.ts (19 tests: 15 pass + 4 it.fails)<br>✅ P3: chart-area.component.display.tl.spec.ts (75 tests) |
+| ✅已测试 | ChartAxisArea | 675 | 3 | 4 | **multi-pass** | ✅ 推进 |  |  | ✅ P1: chart-axis-area.component.interaction.tl.spec.ts (55 tests)<br>✅ P2: chart-axis-area.component.risk.tl.spec.ts (16 tests)<br>✅ P3: chart-axis-area.component.display.tl.spec.ts (41 tests) |
+| ✅已测试    | ChartPlotArea | 586 | 4 | 3 | **multi-pass** | ✅ 推进 | 🗑️ 已删除 chart-plot-area.component.spec.ts | Legacy spec deleted; its structural region-binding check was trivial (framework Input passthrough, not component logic), and its never-run `it.skip` full-area-selection case was ported into Pass 1 as a real (non-mocked) ChartTool.getTreeRegions geometry integration test. | ✅ P1: chart-plot-area.component.interaction.tl.spec.ts (45 tests)<br>✅ P2: chart-plot-area.component.risk.tl.spec.ts (17 tests)<br>✅ P3: chart-plot-area.component.display.tl.spec.ts (36 tests) |
+| ✅已测试    | ChartLegendContainer | 229 | 3 | 0 | **multi-pass** | ✅ 推进 |  |  | ✅ P1: chart-legend-container.component.interaction.tl.spec.ts (12 tests)<br>✅ P3: chart-legend-container.component.display.tl.spec.ts (17 tests) |
 | ⏸️暂缓   | ChartLegendArea | 51 | 1 | 0 | **single-pass** | 暂缓 |  |  | single pass |
 | ⏸️暂缓   | ChartTitleArea | 56 | 0 | 0 | **single-pass** | 暂缓 |  |  | single pass |
-| 待审核    | ChartTargetLinesPane | 150 | 2 | 2 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试    | ChartTargetLinesPane | 150 | 2 | 2 | **single-pass** | ✅ 推进 |  |  | single pass |
 | ⏸️暂缓   | ChartPlotOptionsPaneComponent | 74 | 0 | 2 | **single-pass** | 暂缓 |  |  | single pass |
 | ⏸️暂缓   | AxisPropertyDialog | 57 | 0 | 0 | **single-pass** | 暂缓 | ⚠️ axis-property-dialog.spec.ts | Covers only incrementValid/minmaxValid with a single "correct value" case; defaultTab aliasTab→labelTab fallback and all three EventEmitter outputs (ok/close/apply) are untested. | single pass |
 | ⏭ 已跳过  | LegendFormatGeneralPane | 97 | 2 | 1 | **single-pass** | ⏭ 跳过 | ⚠️ legend-format-general-pane.spec.ts | Only one it-block (Bug #10107 Ignore Null checkbox); borderStyle getter/setter 10-branch mappings and onValueChange→model.title are untested. | single pass |
-| 待审核    | DateComparisonIntervalPaneComponent | 510 | 6 | 1 | **multi-pass** | ✅ 推进 |  |  | P1: date-comparison-interval-pane.interaction.tl.spec.ts<br>P3: date-comparison-interval-pane.display.tl.spec.ts |
+| ✅ 推进    | DateComparisonIntervalPaneComponent | 510 | 6 | 1 | **multi-pass** | ✅ 推进 |  |  | P1: date-comparison-interval-pane.interaction.tl.spec.ts<br>P3: date-comparison-interval-pane.display.tl.spec.ts |
 | 待审核    | DateComparisonPaneComponent | 165 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核    | DateComparisonDialog | 144 | 2 | 1 | **single-pass** | ✅ 推进 |  |  | single pass |
 | 待审核    | DateComparisonStandardPeriodsComponent | 174 | 4 | 0 | **multi-pass** | ✅ 推进 |  |  | P1: DateComparisonStandardPeriodsComponent.interaction.tl.spec.ts<br>P3: DateComparisonStandardPeriodsComponent.display.tl.spec.ts |
 | 待审核    | HierarchyPropertyPane | 489 | 1 | 0 | **single-pass** | ✅ 推进 | ⚠️ hierarchy-property-pane.spec.ts | Only one test covers the clear button DOM check; all drag-and-drop state mutation methods (columnDragStart, contentDragEnter, contentDrop, newDimensionDrop, columnDrop, contentDragLeave, removeDuplicateMembers), getMemberName's 16-case date-level switch, getInputClass grayed-out logic, initLocalColumnList filtering, and isDragAccepted/isDateDroppable/setDateLevel are completely uncovered. | P1: hierarchy-property-pane.interaction.tl.spec.ts |
-| 待审核    | HierarchyEditor | 107 | 1 | 1 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅ 推进    | HierarchyEditor | 107 | 1 | 1 | **single-pass** | ✅ 推进 |  |  | single pass |
 | ⏭ 已跳过  | HyperlinkDialog | 320 | 1 | 4 | **single-pass** | ⏭ 跳过 | ⚠️ hyperlink-dialog.component.spec.ts | submit/ok/apply flows with trapService.checkTrap callbacks are untested; expressionChange and selectType methods have no coverage; HTTP error paths in getBookmarks and updateParameters are not exercised. | single pass |
-| 待审核    | ChartPropertyDialog | 123 | 1 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅ 推进    | ChartPropertyDialog | 123 | 1 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
 | ⏸️暂缓   | TipPane | 99 | 0 | 2 | **single-pass** | 暂缓 | ⚠️ tip-pane.spec.ts | Covers disable/enable state, flyover checkbox toggling tipView reset, and selectAll/clearAll; does NOT test the dataTipChanged cycle-dependency subscribe path, the editTip modal open/resolve flow, or the constructor getObjectChange subscription setting objectAddRemoved. | single pass |
 | 待审核    | RangeSliderDataPane | 280 | 2 | 0 | **single-pass** | ✅ 推进 | ⚠️ range-slider-data-pane.spec.ts | Existing TestBed spec covers composite-mode button enable/disable states and focus-after-delete; does not test selectColumn rangeType dispatch (CUBE_DIMENSION/numeric/TIME/date branches), switchType model resets, ngAfterViewInit column pre-population, or updateSourceType assemblySource logic. | single pass |
 | 待审核    | RangeSliderEditDialog | 162 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass |
