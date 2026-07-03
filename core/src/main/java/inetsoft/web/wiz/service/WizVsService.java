@@ -418,9 +418,12 @@ public class WizVsService {
                result.setRuntimeId(runtimeId);
             }
 
-            // For skipExecution (changeType): remove the displaced primary before persisting
-            // so the stored viewsheet contains only the new assembly.
-            if(skipExecution && previousPrimaryAssembly != null && !createdRuntimeId) {
+            // Remove the displaced primary before persisting so the stored viewsheet contains only
+            // the new assembly. Previously this ran only for skipExecution (changeType), so the
+            // standard autoBinding path (create_viewsheet / update_binding) left the old assembly
+            // behind — merely demoted to non-primary — and it got persisted alongside the new one,
+            // accumulating an extra chart in the viewsheet on every re-bind of an existing runtime.
+            if(previousPrimaryAssembly != null && !createdRuntimeId) {
                targetVs.removeAssembly(previousPrimaryAssembly.getName());
                removedPreviousPrimary = true;
             }
