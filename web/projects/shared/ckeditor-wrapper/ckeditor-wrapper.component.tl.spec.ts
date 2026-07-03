@@ -81,6 +81,7 @@ describe("CkeditorWrapperComponent — ControlValueAccessor [Group 1, Risk 2]", 
       expect(onChange).not.toHaveBeenCalled();
    });
 
+   // Skipped: this case's design doesn't pass — will be revisited separately.
    it.skip("should update disabled state via setDisabledState", async () => {
       const { fixture, container } = await renderWrapper();
 

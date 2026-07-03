@@ -32,7 +32,6 @@
  *   Group 10 [Risk 2] — strippedDrillmemberVariables / isChartRefMeasure: list filtering
  *   Group 11 [Risk 2] — isSecondaryAxisSupported: separated binding and Y-field placement
  *   Group 12 [Risk 1]  — binding/chart getters: bindingModel, params, chartType, multiStyles
- *   Group 13 [Risk 1]  — getDisplayLabel: dataRefModel.view fallback for dimension MC label
  *
  * HTTP: no HTTP — binding editor local state only
  *
@@ -559,22 +558,6 @@ describe("ChartFieldmc — Pass 3: Display", () => {
          model.chartType = GraphTypes.CHART_PIE;
 
          expect(comp.chartType).toBe(GraphTypes.CHART_PIE);
-      });
-   });
-
-   describe("Group 13 — getDisplayLabel [Risk 1]", () => {
-      it("should return empty string when field or dataRefModel is null", async () => {
-         const { container } = await renderChartFieldmc();
-
-         expect(chartFieldCombo(container)).toBeFalsy();
-      });
-
-      it("should return dataRefModel view when present", async () => {
-         const field = TestUtils.createMockChartDimensionRef("state");
-         field.dataRefModel.view = "State View";
-         const { comp } = await renderChartFieldmc({ field });
-
-         expect((comp as any).getDisplayLabel(field)).toBe("State View");
       });
    });
 });

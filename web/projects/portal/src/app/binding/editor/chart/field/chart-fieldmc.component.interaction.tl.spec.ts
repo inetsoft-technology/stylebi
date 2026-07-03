@@ -34,7 +34,7 @@
  * Out of scope this pass: cellLabel, cellValue, imgOpacity, isRefConvertEnabled,
  *   isSortSupported, isOuterDimRef, isVisibleChartTypeButton, geoBtnVisible, convertBtnTitle,
  *   getTitle, getFieldClassType, isEditMeasure, isChartRefMeasure, strippedDrillmemberVariables,
- *   isSecondaryAxisSupported, binding/chart getters, getDisplayLabel
+ *   isSecondaryAxisSupported, binding/chart getters
  *   (covered in chart-fieldmc.component.display.tl.spec.ts)
  */
 
