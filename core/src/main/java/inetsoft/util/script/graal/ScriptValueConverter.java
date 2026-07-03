@@ -87,6 +87,24 @@ public final class ScriptValueConverter {
          return new Date(inst.toEpochMilli());
       }
 
+      // Our own adapters first (the inverse of toGuest): ArrayProxy implements
+      // both ProxyArray and ProxyObject, so it also satisfies hasArrayElements()
+      // below — it must be unwrapped back to its ScriptArrayScope here, before
+      // the generic array branch flattens it into a plain Object[] copy.
+      if(v.isProxyObject()) {
+         Object proxy = v.asProxyObject();
+
+         if(proxy instanceof ScopeProxy) {
+            return ((ScopeProxy) proxy).getScope();
+         }
+
+         if(proxy instanceof ArrayProxy) {
+            return ((ArrayProxy) proxy).getScope();
+         }
+
+         return proxy;
+      }
+
       if(v.hasArrayElements()) {
          long n = v.getArraySize();
 
@@ -101,23 +119,6 @@ public final class ScriptValueConverter {
          }
 
          return arr;
-      }
-
-      // proxy/host wrappers and plain objects: unwrap our own adapters back
-      // to the ScriptScope/ScriptArrayScope they wrap (the inverse of
-      // toGuest), else hand back the raw proxy/Value for member access.
-      if(v.isProxyObject()) {
-         Object proxy = v.asProxyObject();
-
-         if(proxy instanceof ScopeProxy) {
-            return ((ScopeProxy) proxy).getScope();
-         }
-
-         if(proxy instanceof ArrayProxy) {
-            return ((ArrayProxy) proxy).getScope();
-         }
-
-         return proxy;
       }
 
       return v;
