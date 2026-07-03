@@ -2,7 +2,7 @@
 
 **日期**: 2026-06-08（2026-06-10 补充扫描，新增 11 个组件；2026-06-24 补充扫描，新增 103 个组件）
 **候选组件数**: 142（原 39，2026-06-24 新增 103）| **建议推进**: 110 | **建议跳过**: 21 | **建议暂缓**: 11 | **待审核**: 0 | **多 pass 组件**: 34
-**测试进度**: ✅已测试 47 / 142 | 待测 63 / 142 | ⏭ 已跳过 21 / 142 | ⏸️暂缓 11 / 142
+**测试进度**: ✅已测试 74 / 142 | 待测 36 / 142 | ⏭ 已跳过 21 / 142 | ⏸️暂缓 11 / 142
 
 ## 状态说明
 - 第一列「状态」初始为「待审核」，人工审核后改为 ✅已测试 / ⏭已跳过 / ⏸️暂缓
@@ -244,36 +244,36 @@
 | ⏸️暂缓   | HighlightDialog | 70 | 0 | 1 | **single-pass** | 暂缓 | ⚠️ highlight-dialog.component.spec.ts | Only 1 active test (validateHighlights called on ok()); editConditions modal flow, checkTrap callbacks, apply/cancel emits, and ngOnInit auto-selection are all uncovered; several tests are commented out. | single pass |
 | ⏭ 已跳过  | RichTextDialog | 37 | 0 | 0 | **single-pass** | ⏭ 跳过 | ⚠️ rich-text-dialog.component.spec.ts | All three tests are effectively non-asserting: one is it.skip, two use unresolved fixture.whenStable().then() chains so assertions never execute; ok()/cancel() emission and ngOnInit content-copy logic are not covered. | single pass |
 | 待审核    | CalcTableLayoutPane | 467 | 2 | 1 | **single-pass** | ✅ 推进 | ⚠️ vs-calc-table-layout.spec.ts | Covers only selectCell and getCellContent; skips clickCell (async/setTimeout acknowledged in comment); misses resize flow (resizeCell/onMouseMove/onMouseUp), all three command processors, createSpanMap/findBaseCell, addShiftCells/mergeDimension/validateDimension, getCellStyle/setSpanCellStyle, and loading-count state. | P1: vs-calc-table-layout.interaction.tl.spec.ts |
-| 待审核    | CalcTableCellComponent | 183 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核    | SortOption | 230 | 2 | 4 | **single-pass** | ✅ 推进 | ⚠️ sort-option.spec.ts | openDialog() and getVariables() HTTP flows are entirely untested — two sequential HTTP calls (check-variables GET then availableValues PUT), conditional VariableInputDialog open, and manualOrder assembly from valueLabelList/namedGroupInfo are not covered by any existing test case. | single pass |
-| 待审核    | TableFieldmc | 366 | 4 | 0 | **multi-pass** | ✅ 推进 |  |  | P1: table-fieldmc.interaction.tl.spec.ts<br>P3: table-fieldmc.display.tl.spec.ts |
-| 待审核    | CalcDataPane | 392 | 3 | 2 | **multi-pass** | ✅ 推进 | ⚠️ calc-data-pane.spec.ts | Covers 5 bug-regression cases (changeCellType, duplicate-name dialog, edit-icon disabled state, group/summary disabled for CalculateRef, expansion not reset on column change) using TestBed; the 3-branch formulaValue getter and setGroupType date-type branching are not tested. | P1: calc-data-pane.interaction.tl.spec.ts<br>P3: calc-data-pane.display.tl.spec.ts |
+| ✅已测试 | CalcTableCellComponent | 183 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | ✅ calc-table-cell.component.tl.spec.ts (11 tests) |
+| ✅已测试 | SortOption | 230 | 2 | 4 | **single-pass** | ✅ 推进 | ~~⚠️ sort-option.spec.ts~~ | openDialog() check-variables + availableValues HTTP flow, manualOrder assembly, and getCurrentOrder manual detection now covered via MSW. | ✅ sort-option.component.tl.spec.ts (11 tests) |
+| ✅已测试 | TableFieldmc | 366 | 4 | 0 | **multi-pass** | ✅ 推进 |  |  | ✅ P1: table-fieldmc.component.interaction.tl.spec.ts (9 tests)<br>✅ P3: table-fieldmc.component.display.tl.spec.ts (13 tests) |
+| ✅已测试 | CalcDataPane | 392 | 3 | 2 | **multi-pass** | ✅ 推进 | ~~⚠️ calc-data-pane.spec.ts~~ | Bug regressions (changeCellType, duplicate name, calc-field disabled, formulaValue getter, setGroupType date branch) ported to TL tests. | ✅ P1: calc-data-pane.interaction.tl.spec.ts (11 tests)<br>✅ P3: calc-data-pane.display.tl.spec.ts (16 tests) |
 | ⏭ 已跳过  | CalcAggregateOption | 290 | 1 | 0 | **single-pass** | ⏭ 跳过 | ⚠️ calc-aggregate-option.spec.ts | Covers all 4 dispatch paths in getPercents, isPercent gating, isTwoColumns/secondCol combobox, and formula list by data type (number/date/boolean); nStr setter validation and submit/apply EventEmitter emission are not tested. | single pass |
 | ⏭ 已跳过  | CalcGroupOption | 344 | 2 | 3 | **single-pass** | ⏭ 跳过 | ⚠️ calc-group-option.component.spec.ts | One skipped test for date-level dropdown (DATE/TIME/TIME_INSTANT branch of getDateLevelOpts); HTTP flows in openManualDialog and getVariables are entirely uncovered. | single pass |
-| 待审核    | TableDataEditor | 171 | 1 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核    | GroupOption | 256 | 2 | 1 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试 | TableDataEditor | 171 | 1 | 0 | **single-pass** | ✅ 推进 |  |  | ✅ table-data-editor.component.tl.spec.ts (13 tests) |
+| ✅已测试 | GroupOption | 256 | 2 | 1 | **single-pass** | ✅ 推进 |  |  | ✅ group-option.component.tl.spec.ts (17 tests) |
 | ⏭ 已跳过  | ExpertNamedGroupDialog | 221 | 1 | 0 | **single-pass** | ⏭ 跳过 | ⚠️ expert-named-group-dialog.spec.ts | moveUp/moveDown/canUp/canDown reorder logic, deleteGroup index-boundary selection, clearAll, conditionListChange group-list mutation, and selectCondition getter are not tested — non-trivial edge cases not derivable from source alone. | single pass |
-| 待审核    | CalculatePaneDialog | 436 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核    | CalculatePane | 407 | 2 | 3 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核    | ChartFieldmc | 352 | 3 | 0 | **multi-pass** | ✅ 推进 |  |  | P1: chart-fieldmc.component.interaction.tl.spec.ts<br>P3: chart-fieldmc.component.display.tl.spec.ts |
-| 待审核    | GeoMappingDialog | 389 | 2 | 2 | **single-pass** | ✅ 推进 | ⚠️ geo-mapping-dialog.component.spec.ts | Covers button disable states and changeAlgorithm delegation only; omits add()/remove() mutation logic, checkDuplicateMapping() duplicate detection, getFilteredFeatures() filter behavior, and onCommit/onCancel event emissions. | single pass |
-| 待审核    | DimensionEditor | 294 | 1 | 1 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核    | GeoOptionPane | 180 | 0 | 4 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核    | ChartDataEditor | 161 | 2 | 0 | **single-pass** | ✅ 推进 | ⚠️ chart-data-editor.component.spec.ts | Only one trivial test (grayedOutValues passthrough); isPrimaryField(), displayLabel getter, dragOverField() Mekko override, checkDropValid(), and getDropType() are entirely untested. | single pass |
-| 待审核    | ColorMappingDialog | 165 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核    | ShapeFieldMc | 195 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核    | CategoricalColorPane | 132 | 0 | 6 | **multi-pass** | ✅ 推进 | ⚠️ categorical-color-pane.spec.ts | Existing spec covers palette dialog open + icon paging + color editor count via TestBed DOM; does not cover shareColorsChange HTTP sync, lazy-load colorMappingDialog, resetted emit on map diff, or showColorValueFrame. | P1: categorical-color-pane.interaction.tl.spec.ts<br>P2: categorical-color-pane.risk.tl.spec.ts |
-| 待审核    | ColorFieldMc | 140 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核    | TextFieldMc | 101 | 1 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核    | LinearColorPane | 173 | 2 | 0 | **single-pass** | ✅ 推进 | ⚠️ linear-color-pane.component.spec.ts | Only one test covering gradientModel.fromColor after GradientColorEditor.changeColor(); switchColorModel, setBrewerColor, resetEditors, syncColors, and all three model-name getters are entirely untested. | single pass |
-| 待审核    | NamedGroupPane | 339 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核    | FormulaOption | 157 | 0 | 0 | **single-pass** | ✅ 推进 | ⚠️ formula-option.spec.ts | Only 2 bug-regression cases (Bug #19370 dynamic expression kept in secondaryColumnValue, Bug #20322 null formulaOptionModel shows combo); ngOnInit flow, changeFormulaValue warning dialog, npValueChange clamping, getAvailableFields CalculateRef exclusion, fixSecondaryColumn null-clearing, isFormulaEnabled, hasN/isByFormula/isNValid predicates are all untested. | single pass |
-| 待审核    | ChartTypeButton | 179 | 1 | 2 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核    | ChartStylePane | 227 | 3 | 0 | **multi-pass** | ✅ 推进 | ⚠️ chart-style-pane.component.spec.ts | Only tests stackEnabled() for CHART_BAR/CHART_PIE (Bug #19389/#19135); getCssIcon mapping, stackChecked, createStyles with custom types, stackChanged index preservation, stylesToRows row-chunking, multiChanged dual-emit, multiDisabled, getImageBorder, and applyClick are all uncovered. | P1: chart-style-pane.component.interaction.tl.spec.ts<br>P3: chart-style-pane.component.display.tl.spec.ts |
-| 待审核    | Slider | 227 | 1 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核    | RangeSlider | 154 | 1 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核    | BindingTreeComponent | 203 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | single pass |
-| 待审核    | CkeditorWrapperComponent | 167 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | single pass |
+| ✅已测试 | CalculatePaneDialog | 436 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | ✅ calculate-pane-dialog.component.tl.spec.ts (16 tests) |
+| ✅已测试 | CalculatePane | 407 | 2 | 3 | **single-pass** | ✅ 推进 |  |  | ✅ calculate-pane.component.tl.spec.ts (6 tests) |
+| ✅已测试 | ChartFieldmc | 352 | 3 | 0 | **multi-pass** | ✅ 推进 |  |  | ✅ P1: chart-fieldmc.component.interaction.tl.spec.ts (19 tests)<br>✅ P3: chart-fieldmc.component.display.tl.spec.ts (45 tests) |
+| ✅已测试 | GeoMappingDialog | 389 | 2 | 2 | **single-pass** | ✅ 推进 | ~~⚠️ geo-mapping-dialog.component.spec.ts~~ | Covers button disable states and changeAlgorithm delegation only; omits add()/remove() mutation logic, checkDuplicateMapping() duplicate detection, getFilteredFeatures() filter behavior, and onCommit/onCancel event emissions. | ✅ geo-mapping-dialog.component.tl.spec.ts (13 tests) |
+| ✅已测试 | DimensionEditor | 294 | 1 | 1 | **single-pass** | ✅ 推进 |  |  | ✅ dimension-editor.component.tl.spec.ts (21 tests) |
+| ✅已测试 | GeoOptionPane | 180 | 0 | 4 | **single-pass** | ✅ 推进 |  |  | ✅ geo-option-pane.component.tl.spec.ts (6 tests) |
+| ✅已测试 | ChartDataEditor | 161 | 2 | 0 | **single-pass** | ✅ 推进 | ~~⚠️ chart-data-editor.component.spec.ts~~ | Only one trivial test (grayedOutValues passthrough); isPrimaryField(), displayLabel getter, dragOverField() Mekko override, checkDropValid(), and getDropType() are entirely untested. | ✅ chart-data-editor.component.tl.spec.ts (11 tests) |
+| ✅已测试 | ColorMappingDialog | 165 | 0 | 0 | **single-pass** | ✅ 推进 | ~~⚠️ color-mapping-dialog.spec.ts~~ | Manual input toggle date-level label/value round-trip and Bug #21331 duplicate option dedupe covered in tl spec. | ✅ color-mapping-dialog.component.tl.spec.ts (9 tests) |
+| ✅已测试 | ShapeFieldMc | 195 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | ✅ shape-field-mc.component.tl.spec.ts (11 tests) |
+| ✅已测试 | CategoricalColorPane | 132 | 0 | 6 | **multi-pass** | ✅ 推进 | ~~⚠️ categorical-color-pane.spec.ts~~ | Existing spec covers palette dialog open + icon paging + color editor count via TestBed DOM; does not cover shareColorsChange HTTP sync, lazy-load colorMappingDialog, resetted emit on map diff, or showColorValueFrame. | ✅ P1: categorical-color-pane.interaction.tl.spec.ts (12 tests)<br>✅ P2: categorical-color-pane.risk.tl.spec.ts (4 tests) |
+| ✅已测试 | ColorFieldMc | 140 | 2 | 0 | **single-pass** | ✅ 推进 |  |  | ✅ color-field-mc.component.tl.spec.ts (10 tests) |
+| ✅已测试 | TextFieldMc | 101 | 1 | 0 | **single-pass** | ✅ 推进 |  |  | ✅ text-field-mc.component.tl.spec.ts (7 tests) |
+| ✅已测试 | LinearColorPane | 173 | 2 | 0 | **single-pass** | ✅ 推进 | ~~⚠️ linear-color-pane.component.spec.ts~~ | Only one test covering gradientModel.fromColor after GradientColorEditor.changeColor(); switchColorModel, setBrewerColor, resetEditors, syncColors, and all three model-name getters are entirely untested. | ✅ linear-color-pane.component.tl.spec.ts (9 tests) |
+| ✅已测试 | NamedGroupPane | 339 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | ✅ named-group-pane.component.tl.spec.ts (7 tests) |
+| ✅已测试 | FormulaOption | 157 | 0 | 0 | **single-pass** | ✅ 推进 | ~~⚠️ formula-option.spec.ts~~ | Only 2 bug-regression cases (Bug #19370 dynamic expression kept in secondaryColumnValue, Bug #20322 null formulaOptionModel shows combo); ngOnInit flow, changeFormulaValue warning dialog, npValueChange clamping, getAvailableFields CalculateRef exclusion, fixSecondaryColumn null-clearing, isFormulaEnabled, hasN/isByFormula/isNValid predicates are all untested. | ✅ formula-option.component.tl.spec.ts (9 tests) |
+| ✅已测试 | ChartTypeButton | 179 | 1 | 2 | **single-pass** | ✅ 推进 |  |  | ✅ chart-type-button.component.tl.spec.ts (10 tests) |
+| ✅已测试 | ChartStylePane | 227 | 3 | 0 | **multi-pass** | ✅ 推进 | ~~⚠️ chart-style-pane.component.spec.ts~~ | Only tests stackEnabled() for CHART_BAR/CHART_PIE (Bug #19389/#19135); getCssIcon mapping, stackChecked, createStyles with custom types, stackChanged index preservation, stylesToRows row-chunking, multiChanged dual-emit, multiDisabled, getImageBorder, and applyClick are all uncovered. | ✅ P1: chart-style-pane.component.interaction.tl.spec.ts (8 tests)<br>✅ P3: chart-style-pane.component.display.tl.spec.ts (8 tests) |
+| ✅已测试 | Slider | 227 | 1 | 0 | **single-pass** | ✅ 推进 |  |  | ✅ slider.component.tl.spec.ts (8 tests) |
+| ✅已测试 | RangeSlider | 154 | 1 | 0 | **single-pass** | ✅ 推进 |  |  | ✅ range-slider.component.tl.spec.ts (7 tests) |
+| ✅已测试 | BindingTreeComponent | 203 | 0 | 2 | **single-pass** | ✅ 推进 |  |  | ✅ binding-tree.component.tl.spec.ts (9 tests) |
+| ✅已测试 | CkeditorWrapperComponent | 167 | 0 | 0 | **single-pass** | ✅ 推进 |  |  | ✅ ckeditor-wrapper.component.tl.spec.ts (11 tests) |
 
 ---
 

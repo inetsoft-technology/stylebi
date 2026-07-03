@@ -33,13 +33,18 @@
  *   ngOnDestroy — editor destroy delegated to CKEditor Angular wrapper
  */
 
-import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { ComponentFixture } from "@angular/core/testing";
+import { By } from "@angular/platform-browser";
+import { CKEditorComponent } from "@ckeditor/ckeditor5-angular";
 import { fireEvent, render, waitFor } from "@testing-library/angular";
 import { CkeditorWrapperComponent } from "./ckeditor-wrapper.component";
 
+function ckeditorInstance(fixture: ComponentFixture<CkeditorWrapperComponent>) {
+   return fixture.debugElement.query(By.directive(CKEditorComponent))?.componentInstance as CKEditorComponent | undefined;
+}
+
 async function renderWrapper(props: Partial<CkeditorWrapperComponent> = {}) {
    return render(CkeditorWrapperComponent, {
-      schemas: [NO_ERRORS_SCHEMA],
       componentProperties: props
    });
 }
@@ -79,17 +84,19 @@ describe("CkeditorWrapperComponent — ControlValueAccessor [Group 1, Risk 2]", 
    it("should update disabled state via setDisabledState", async () => {
       const { fixture, container } = await renderWrapper();
 
+      await waitFor(() => expect(container.querySelector("ckeditor")).toBeTruthy());
+
       fixture.componentInstance.setDisabledState(true);
       fixture.detectChanges();
 
-      await waitFor(() => {
-         expect(container.querySelector("ckeditor")?.getAttribute("ng-reflect-disabled")).toBe("true");
-      });
+      expect(fixture.componentInstance.disabled).toBe(true);
+      expect(ckeditorInstance(fixture)?.disabled).toBe(true);
 
       fixture.componentInstance.setDisabledState(false);
       fixture.detectChanges();
 
-      expect(container.querySelector("ckeditor")?.getAttribute("ng-reflect-disabled")).toBe("false");
+      expect(fixture.componentInstance.disabled).toBe(false);
+      expect(ckeditorInstance(fixture)?.disabled).toBe(false);
    });
 
    it("should register onTouched callback", async () => {
