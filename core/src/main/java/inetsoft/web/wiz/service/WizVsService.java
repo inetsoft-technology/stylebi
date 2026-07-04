@@ -2243,6 +2243,14 @@ public class WizVsService {
          ref.setRankingOptionValue(String.valueOf(ranking.getOptionValue()));
       }
 
+      if(dim != null && dim.isNumericBin()) {
+         if(base.getType() != null && !base.getType().isEmpty()) {
+            ref.setDataType(base.getType());
+         }
+
+         WizardRecommenderUtil.applyNumericBin(ref);
+      }
+
       return ref;
    }
 
