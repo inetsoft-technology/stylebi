@@ -55,6 +55,14 @@ public class DimensionFieldInfo extends SimpleFieldInfo {
       this.timeSeries = timeSeries;
    }
 
+   public boolean isNumericBin() {
+      return numericBin;
+   }
+
+   public void setNumericBin(boolean numericBin) {
+      this.numericBin = numericBin;
+   }
+
    public List<String> getManualOrder() {
       return manualOrder;
    }
@@ -67,5 +75,6 @@ public class DimensionFieldInfo extends SimpleFieldInfo {
    private Ranking ranking;
    private String fullName;
    private boolean timeSeries = false;
+   private boolean numericBin = false;
    private List<String> manualOrder;
 }

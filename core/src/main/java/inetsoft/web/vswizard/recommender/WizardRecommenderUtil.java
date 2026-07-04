@@ -841,6 +841,20 @@ public final class WizardRecommenderUtil {
       buildRangeDimension(dim, rvs, tname, interval);
    }
 
+   /**
+    * Convert a dimension ref into a numeric range-binned dimension using the {@code Range@<field>}
+    * shorthand — the same mechanism the lone-measure histogram uses (see HistogramChartFilter). The
+    * wizard executor auto-bins the numeric column (~8 nice-number bins) and createRangeDimension
+    * materializes it on save. Idempotent; no-op when the ref has no base column.
+    */
+   public static void applyNumericBin(VSDimensionRef ref) {
+      String base = ref.getGroupColumnValue();
+
+      if(base != null && !base.isEmpty() && !base.startsWith("Range@")) {
+         ref.setGroupColumnValue("Range@" + base);
+      }
+   }
+
    // Build the range calc field (binned expression) for a Range@ dimension from the computed interval,
    // register it on the viewsheet, and re-point the dimension at it. Shared by both createRangeDimension
    // overloads (wizard tempInfo path and non-wizard SourceInfo path).
