@@ -52,16 +52,26 @@ final class WizFieldInfoFactory {
    /**
     * A crosstab design ref built from an explicit binding has no backing ColumnRef, so getVSName()
     * is empty and getFullName() short-circuits to "" before the date-qualifying branch. Derive the
-    * level-qualified name (e.g. "DayOfWeek(date_start)") directly from the group column + date level.
+    * name directly from the group column: a level-qualified name (e.g. "DayOfWeek(date_start)") for a
+    * DATE-typed dimension that carries a real date level, else the plain column name.
+    *
+    * The date-type guard matters: a non-date crosstab dimension (a string/numeric column) can carry a
+    * spurious default YEAR date level, and date-naming it would echo a bogus "Year(status)" fullName
+    * that pollutes the downstream facts pack. We only date-qualify genuine date dimensions, and always
+    * fall back to the group column (never an empty string) for everything else.
     */
    static String crosstabDimFullName(VSDimensionRef dim) {
       String fullName = dim.getFullName();
+      String groupColumn = dim.getGroupColumnValue();
 
-      if((fullName == null || fullName.isEmpty() || fullName.equals(dim.getGroupColumnValue()))
-         && dim.getDateLevel() != XConstants.NONE_DATE_GROUP
-         && dim.getGroupColumnValue() != null && !dim.getGroupColumnValue().isEmpty())
+      if((fullName == null || fullName.isEmpty() || fullName.equals(groupColumn))
+         && groupColumn != null && !groupColumn.isEmpty())
       {
-         return DateRangeRef.getName(dim.getGroupColumnValue(), dim.getDateLevel());
+         if(dim.isDateTime() && dim.getDateLevel() != XConstants.NONE_DATE_GROUP) {
+            return DateRangeRef.getName(groupColumn, dim.getDateLevel());
+         }
+
+         return groupColumn;
       }
 
       return fullName;
