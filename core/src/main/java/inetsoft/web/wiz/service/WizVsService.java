@@ -1295,8 +1295,23 @@ public class WizVsService {
    }
 
    private static String slotName(DataRef ref) {
-      return ref instanceof VSAggregateRef agg ? agg.getFullName()
-         : WizardRecommenderUtil.getChartRefFieldName(ref);
+      if(ref instanceof VSAggregateRef agg) {
+         return agg.getFullName();
+      }
+
+      String name = WizardRecommenderUtil.getChartRefFieldName(ref);
+
+      // A crosstab design ref built from an explicit binding is a plain VSDimensionRef
+      // (not VSChartDimensionRef), so getChartRefFieldName() falls through to
+      // getAttribute() == "". Fall back to the level-qualified name so date-level
+      // crosstab dims (e.g. "DayOfWeek(date_start)") still echo a usable slot name.
+      // Chart dims are VSChartDimensionRef, whose groupColumnValue is non-empty, so
+      // this branch is crosstab-only and leaves chart slot names unaffected.
+      if((name == null || name.isEmpty()) && ref instanceof VSDimensionRef dim) {
+         return WizFieldInfoFactory.crosstabDimFullName(dim);
+      }
+
+      return name;
    }
 
    private static String aestheticSlotName(AestheticRef aref) {
@@ -1340,7 +1355,7 @@ public class WizVsService {
 
       for(DataRef ref : refs) {
          if(ref instanceof VSDimensionRef dim) {
-            dimensions.add(WizFieldInfoFactory.createDimensionFieldInfo(dim));
+            dimensions.add(WizFieldInfoFactory.createCrosstabDimensionFieldInfo(dim));
          }
       }
    }
@@ -2257,6 +2272,10 @@ public class WizVsService {
    private VSDimensionRef createVSDimensionRef(DimensionFieldInfo field) {
       VSDimensionRef ref = new VSDimensionRef();
       ref.setGroupColumnValue(field.getField());
+
+      if(field.getType() != null && !field.getType().isEmpty()) {
+         ref.setDataType(field.getType());
+      }
 
       if(field.getOrder() != null) {
          ref.setOrder(field.getOrder());
