@@ -62,4 +62,24 @@ class WizFieldInfoFactoryTest {
       assertEquals(expectedFullName, info.getFullName());   // level-qualified, e.g. "DayOfWeek(date_start)"
       assertNotNull(info.getDateGroupLevel());              // level echoed
    }
+
+   /**
+    * A NON-date crosstab dimension (e.g. a string column) can carry a spurious default YEAR date
+    * level. Its echoed {@code fullName} must be the plain column name, NOT a date-range name like
+    * "Year(status)" — otherwise the downstream facts pack keys the grid by a bogus dimension name.
+    * Regression for the multi-dim string-crosstab facts-pack pollution.
+    */
+   @Test
+   void crosstabDimEchoDoesNotDateNameANonDateDimension() {
+      VSChartDimensionRef dim = new VSChartDimensionRef();
+      dim.setGroupColumnValue("status");
+      dim.setDataType(XSchema.STRING);
+      dim.setDateLevelValue(String.valueOf(XConstants.YEAR_DATE_GROUP)); // spurious default level
+
+      DimensionFieldInfo info = WizFieldInfoFactory.createCrosstabDimensionFieldInfo(dim);
+
+      assertEquals("status", info.getField());
+      assertEquals("status", info.getFullName());            // NOT "Year(status)"
+      assertFalse(info.getFullName().startsWith("Year("));   // explicit guard against the regression
+   }
 }
