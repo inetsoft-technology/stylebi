@@ -20,8 +20,12 @@ package inetsoft.web.wiz.service;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
 import inetsoft.uql.viewsheet.VSDimensionRef;
@@ -30,6 +34,8 @@ import inetsoft.uql.viewsheet.graph.VSAestheticRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.web.wiz.model.CreateViewsheetResult;
+import inetsoft.web.wiz.model.DimensionFieldInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -107,6 +113,45 @@ class BindingSlotsTest {
       // aggregate name to line up with the measures list / rankingCol convention.
       assertEquals(List.of("Sum(amount)"), slots.get("aggregates"),
          "crosstab aggregate reported as full aggregate name, not the bare column");
+   }
+
+   @Test
+   void crosstabDateLevelDimensionSlotUsesLevelQualifiedName() {
+      // A crosstab design ref built from an explicit binding is a plain VSDimensionRef
+      // with no backing ColumnRef (no setDataRef), so getAttribute() == "". Before the
+      // fix, both the dimensions echo (createDimensionFieldInfo) and the rows slot name
+      // (getChartRefFieldName) collapsed to "" for a date-level dim like this one.
+      VSDimensionRef dim = new VSDimensionRef();
+      dim.setGroupColumnValue("date_start");
+      dim.setDataType(XSchema.TIME_INSTANT);
+      dim.setDateLevelValue(String.valueOf(XConstants.DAY_OF_WEEK_DATE_GROUP));
+
+      VSCrosstabInfo cinfo = new VSCrosstabInfo();
+      cinfo.setDesignRowHeaders(new DataRef[]{ dim });
+      cinfo.setDesignAggregates(new DataRef[]{ crosstabAggregate("amount", "Sum") });
+
+      String expectedFullName =
+         DateRangeRef.getName("date_start", XConstants.DAY_OF_WEEK_DATE_GROUP);
+
+      // Fix 2: slots.rows must report the level-qualified name, not "".
+      Map<String, Object> slots = WizVsService.collectCrosstabSlots(cinfo);
+      assertEquals(List.of(expectedFullName), slots.get("rows"),
+         "date-level crosstab row dimension slot falls back to the level-qualified name");
+
+      // Fix 1: the dimensions echo (reached via the public collectFlatBinding entry
+      // point, same as the create_viewsheet/apply_binding response path) must route
+      // through createCrosstabDimensionFieldInfo, not the chart variant.
+      CrosstabVSAssembly assembly = new CrosstabVSAssembly();
+      assembly.setVSCrosstabInfo(cinfo);
+
+      WizVsService service = new WizVsService(null, null);
+      CreateViewsheetResult.FlatBinding binding = service.collectFlatBinding(assembly);
+
+      assertEquals(1, binding.getDimensions().size());
+      DimensionFieldInfo info = binding.getDimensions().get(0);
+      assertEquals("date_start", info.getField());
+      assertEquals(expectedFullName, info.getFullName(),
+         "crosstab dimensions echo carries the level-qualified fullName");
    }
 
    private static VSDimensionRef crosstabDimension(String field) {

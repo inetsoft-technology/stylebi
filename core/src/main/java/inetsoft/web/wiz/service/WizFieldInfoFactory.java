@@ -19,6 +19,7 @@ package inetsoft.web.wiz.service;
 
 import inetsoft.uql.XCondition;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
@@ -42,9 +43,28 @@ final class WizFieldInfoFactory {
    static DimensionFieldInfo createCrosstabDimensionFieldInfo(VSDimensionRef dim) {
       DimensionFieldInfo info = baseDimensionFieldInfo(dim);
       info.setType(dim.getDataType());
+      info.setFullName(crosstabDimFullName(dim));
       applyDateGroup(info, dim);
       applyRanking(info, dim);
       return info;
+   }
+
+   /**
+    * A crosstab design ref built from an explicit binding has no backing ColumnRef, so getVSName()
+    * is empty and getFullName() short-circuits to "" before the date-qualifying branch. Derive the
+    * level-qualified name (e.g. "DayOfWeek(date_start)") directly from the group column + date level.
+    */
+   static String crosstabDimFullName(VSDimensionRef dim) {
+      String fullName = dim.getFullName();
+
+      if((fullName == null || fullName.isEmpty() || fullName.equals(dim.getGroupColumnValue()))
+         && dim.getDateLevel() != XConstants.NONE_DATE_GROUP
+         && dim.getGroupColumnValue() != null && !dim.getGroupColumnValue().isEmpty())
+      {
+         return DateRangeRef.getName(dim.getGroupColumnValue(), dim.getDateLevel());
+      }
+
+      return fullName;
    }
 
    static DimensionFieldInfo createChartDimensionFieldInfo(VSDimensionRef dim) {
