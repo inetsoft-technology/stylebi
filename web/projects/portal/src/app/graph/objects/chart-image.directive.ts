@@ -13,14 +13,14 @@
  */
 
 import { HttpClient } from "@angular/common/http";
-import { Directive, ElementRef, EventEmitter, Input, Output, Renderer2 } from "@angular/core";
+import { Directive, ElementRef, EventEmitter, Input, OnDestroy, Output, Renderer2 } from "@angular/core";
 import { SafeValue } from "@angular/platform-browser";
 
 @Directive({
     selector: "[chartImage]",
     standalone: true
 })
-export class ChartImageDirective {
+export class ChartImageDirective implements OnDestroy {
    @Input()
    get chartImage(): string | SafeValue {
       return this._chartImage;
@@ -29,7 +29,21 @@ export class ChartImageDirective {
    set chartImage(value: string | SafeValue) {
       if(value !== this._chartImage) {
          this._chartImage = value;
-         this.loadImage();
+
+         if(this._loadTimer !== null) {
+            clearTimeout(this._loadTimer);
+            this._loadTimer = null;
+         }
+
+         if(!!value) {
+            this._loadTimer = setTimeout(() => {
+               this._loadTimer = null;
+               this.loadImage();
+            }, 50);
+         }
+         else {
+            this.renderer.removeAttribute(this.element.nativeElement, "src");
+         }
       }
    }
 
@@ -37,8 +51,16 @@ export class ChartImageDirective {
    @Output() onLoaded = new EventEmitter<void>();
    @Output() onError = new EventEmitter<void>();
    private _chartImage: string | SafeValue = null;
+   private _loadTimer: ReturnType<typeof setTimeout> | null = null;
 
    constructor(private element: ElementRef, private http: HttpClient, private renderer: Renderer2) {
+   }
+
+   ngOnDestroy(): void {
+      if(this._loadTimer !== null) {
+         clearTimeout(this._loadTimer);
+         this._loadTimer = null;
+      }
    }
 
    private loadImage(reloading = false): void {
