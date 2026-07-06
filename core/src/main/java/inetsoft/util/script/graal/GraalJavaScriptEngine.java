@@ -517,7 +517,15 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                loc = " (line " + ex.getSourceLocation().getStartLine() + ")";
             }
 
-            throw new ScriptException(ex.getMessage() + loc, ex);
+            // Do not retain the PolyglotException as the cause: it is not
+            // serializable (PolyglotException.writeObject throws), which would
+            // mask the real script error when this exception is marshalled
+            // across the cluster (e.g. an Ignite affinity-call response). The
+            // message already carries the JS error text and line; copy the
+            // merged host/guest stack trace so nothing useful is lost. (#75555)
+            ScriptException se = new ScriptException(ex.getMessage() + loc);
+            se.setStackTrace(ex.getStackTrace());
+            throw se;
          }
          finally {
             // clear the script-execution flag for this thread (balanced with the

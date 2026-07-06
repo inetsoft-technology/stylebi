@@ -19,6 +19,8 @@ package inetsoft.util.script.graal;
 
 import inetsoft.util.script.ScriptException;
 import org.junit.jupiter.api.*;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectOutputStream;
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
@@ -39,6 +41,28 @@ class GraalJavaScriptEngineErrorTest {
       ScriptException ex = assertThrows(ScriptException.class,
          () -> engine.exec(src, null, null));
       assertTrue(ex.getMessage().contains("boom"));
+   }
+
+   /**
+    * Bug #75555: the ScriptException thrown for a runtime script error must be
+    * fully serializable. Previously it retained the non-serializable GraalJS
+    * PolyglotException as its cause, so marshalling it across the cluster (Ignite
+    * affinity-call response) failed with "PolyglotException serialization is not
+    * supported", masking the real script error.
+    */
+   @Test void runtimeErrorScriptExceptionIsSerializable() throws Exception {
+      Object src = engine.compile("var o; o.y");
+      ScriptException ex = assertThrows(ScriptException.class,
+         () -> engine.exec(src, null, null));
+
+      // must round-trip through Java serialization without throwing
+      try(ObjectOutputStream oos = new ObjectOutputStream(new ByteArrayOutputStream())) {
+         assertDoesNotThrow(() -> oos.writeObject(ex),
+            "runtime-error ScriptException must be serializable (#75555)");
+      }
+
+      // the real script error is preserved in the message
+      assertNotNull(ex.getMessage());
    }
 
    /**
