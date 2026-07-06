@@ -222,7 +222,7 @@ public class ChartVSAScriptableTest {
       chartVSAScriptable.setTipView("this is a tip view");
       assertEquals("this is a tip view", chartVSAScriptable.getTipView());
 
-      assertEquals(145, chartVSAScriptable.getMemberKeys().length);
+      assertEquals(146, chartVSAScriptable.getMemberKeys().length);
    }
 
    /**
@@ -242,6 +242,10 @@ public class ChartVSAScriptableTest {
       assertEquals("Median Income", chartVSAScriptable1.getMember("sizeField"));
       assertEquals("Property Value", chartVSAScriptable1.getMember("textField"));
       assertNotNull(chartVSAScriptable1.getMember("data"));
+      // Bug #75568: "table" is an alias of "data" and must be resolvable. Under GraalJS,
+      // hasMember gates getMember, so "table" must be registered as a member.
+      assertTrue(chartVSAScriptable1.hasMember("table"));
+      assertNotNull(chartVSAScriptable1.getMember("table"));
       assertEquals("Data", chartVSAScriptable1.getMember("query"));
 
       //check getSuffix
