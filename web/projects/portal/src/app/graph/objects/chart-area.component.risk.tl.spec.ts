@@ -27,31 +27,36 @@
  * axis+plot loading/error state, ngOnDestroy cleanup.
  *
  * Risk-first coverage:
- *   Group 1 [Risk 3] — model setter: scrollTop/scrollLeft subscriptions are never unsubscribed
- *                       on reassignment (unlike clearCanvasSubscription, which is) — a confirmed
- *                       subscription leak (it.fails)
+ *   Group 1 [Risk 3] — model setter: scrollTop/scrollLeft subscriptions are now unsubscribed
+ *                       on reassignment, matching the existing clearCanvasSubscription pattern
+ *                       (Bug #75575, fixed)
  *   Group 2 [Risk 3] — clearCanvasSubject callback: flyoverApplied guard prevents the mutual-
  *                       flyover double-clear described in Bug #60159
- *   Group 5 [Risk 3] — fireLoading/fireLoaded: imageError is overwritten (not OR'd) by each
- *                       axisLoaded/plotLoaded call, so a later success silently erases an
- *                       earlier failure and onLoad fires despite it (confirmed bug, it.fails)
+ *   Group 5 [Risk 3] — fireLoading/fireLoaded: axis and plot failures are now tracked in
+ *                       separate axisImageError/plotImageError flags and OR'd into imageError,
+ *                       so a later success no longer erases an earlier failure (Bug #75575, fixed)
  *   Group 4 [Risk 2] — axisLoading: _loadingAxesSet is only cleared when _axisLoaded is
  *                       currently true (Bug #74260) — verify both branches of that guard
- *   Group 3 [Risk 2] — scrollTop/scrollLeft subscriptions: stale-assembly guard under the
- *                       leaked-subscription scenario from Group 1
+ *   Group 3 [Risk 2] — scrollTop/scrollLeft subscriptions: stale-assembly guard holds across
+ *                       multiple model reassignments
  *   Group 6 [Risk 2] — ngOnDestroy: full subscription cleanup, and the pre-ngOnInit crash risk
  *                       from calling ngOnDestroy before devicePixelRatioMedia is ever assigned
- *                       (confirmed bug, it.fails)
+ *                       (Bug #75575, fixed)
  *
- * Confirmed bugs (it.fails):
- *   Bug A — scrollTop/scrollLeft subscription leak (Group 1): every model reassignment creates
- *     a NEW subscription to pagingControlService.scrollTop()/scrollLeft() without unsubscribing
- *     the previous one (clearCanvasSubscription IS unsubscribed first; these two are not).
- *   Bug B — imageError overwritten, not OR'd (Group 5): axisLoaded()/plotLoaded() each
+ * Fixed bugs (Bug #75575):
+ *   Bug A — scrollTop/scrollLeft subscription leak (Group 1): every model reassignment used to
+ *     create a NEW subscription to pagingControlService.scrollTop()/scrollLeft() without
+ *     unsubscribing the previous one. Fix: unsubscribe the previous scrollTopSubscription/
+ *     scrollLeftSubscription at the top of the setter, mirroring clearCanvasSubscription.
+ *   Bug B — imageError overwritten, not OR'd (Group 5): axisLoaded()/plotLoaded() each used to
  *     unconditionally set `this.imageError = !success` from their own local success flag, so a
- *     later success call silently clears an earlier failure and onLoad fires despite it.
- *   Bug C — ngOnDestroy crashes if called before ngOnInit (Group 6): `devicePixelRatioMedia` is
- *     only assigned inside ngOnInit; ngOnDestroy dereferences it unconditionally.
+ *     later success call silently cleared an earlier failure and onLoad fired despite it. Fix:
+ *     track axisImageError/plotImageError separately, OR the failure into each on load
+ *     completion, reset each only at the start of its own fresh load cycle, and derive
+ *     imageError as axisImageError || plotImageError.
+ *   Bug C — ngOnDestroy crashed if called before ngOnInit (Group 6): `devicePixelRatioMedia` is
+ *     only assigned inside ngOnInit; ngOnDestroy dereferenced it unconditionally. Fix: use the
+ *     optional-chaining guard `this.devicePixelRatioMedia?.removeEventListener(...)`.
  *
  * Out of scope this pass: see chart-area.component.interaction.tl.spec.ts header for the full
  * Pass 1/Pass 3 method split.
@@ -79,23 +84,22 @@ describe("ChartArea — model setter reassignment (subscription leak)", () => {
       expect(clearCanvas).not.toHaveBeenCalled();
    });
 
-   // Bug: unlike clearCanvasSubscription (unsubscribed at the top of the setter before creating
-   // a new one), scrollTopSubscription/scrollLeftSubscription are reassigned with no matching
-   // unsubscribe call. Each model reassignment accumulates one more live subscription on the
-   // SAME pagingControlService.scrollTop()/scrollLeft() observable, so a single scroll event
-   // re-runs the sync callback once per accumulated subscription instead of once.
-   it.fails("should invoke the scrollTop sync callback only once per emission after two model reassignments (BUG: subscription leak)", () => {
+   // Bug #75575 (fixed): unlike clearCanvasSubscription (unsubscribed at the top of the setter
+   // before creating a new one), scrollTopSubscription/scrollLeftSubscription used to be
+   // reassigned with no matching unsubscribe call, so each model reassignment accumulated one
+   // more live subscription on the SAME pagingControlService.scrollTop()/scrollLeft()
+   // observable. Fix: unsubscribe the previous subscription at the top of the setter.
+   it("should invoke the scrollTop sync callback only once per emission after two model reassignments", () => {
       const { comp, scrollTopSubject } = createComponent();
-      comp.model = makeModel(); // second assignment — leaks a second scrollTop subscription
+      comp.model = makeModel(); // second assignment — old scrollTop subscription is now cancelled
       const showPagingControlSpy = vi.spyOn(comp, "showPagingControl").mockImplementation(() => {});
 
       scrollTopSubject.next(77);
 
-      // Expected (bug-free) behavior: exactly one live subscription reacts to the emission.
       expect(showPagingControlSpy).toHaveBeenCalledTimes(1);
    });
 
-   it.fails("should invoke the scrollLeft sync callback only once per emission after two model reassignments (BUG: subscription leak)", () => {
+   it("should invoke the scrollLeft sync callback only once per emission after two model reassignments", () => {
       const { comp, scrollLeftSubject } = createComponent();
       comp.model = makeModel();
       const showPagingControlSpy = vi.spyOn(comp, "showPagingControl").mockImplementation(() => {});
@@ -175,13 +179,13 @@ describe("ChartArea — clearCanvasSubject callback flyoverApplied guard", () =>
 });
 
 // ---------------------------------------------------------------------------
-// Group 3: scrollTop/scrollLeft stale-assembly guard under leaked subscriptions [Risk 2]
+// Group 3: scrollTop/scrollLeft stale-assembly guard across model reassignment [Risk 2]
 // ---------------------------------------------------------------------------
 
 describe("ChartArea — scroll sync stale-assembly guard", () => {
-   it("should NOT sync scrollTop for a different assembly even with an accumulated (leaked) subscription", () => {
+   it("should NOT sync scrollTop for a different assembly even after a model reassignment", () => {
       const { comp, pagingControlService, scrollTopSubject } = createComponent();
-      comp.model = makeModel(); // second assignment leaks a subscription (Group 1) — guard must still hold for both
+      comp.model = makeModel(); // second assignment — guard must still hold after resubscription
       pagingControlService.getCurrentAssembly.mockReturnValue("OtherChart");
       comp.scrollTop = 5;
 
@@ -258,11 +262,12 @@ describe("ChartArea — concurrent axis+plot loading/error state", () => {
       expect(errors).toEqual([true]);
    });
 
-   // Bug: axisLoaded()/plotLoaded() each set `this.imageError = !success` unconditionally from
-   // their OWN local success flag — there is no OR-with-previous-failure logic. An axis failure
-   // is silently erased by a later, unrelated plot success, and onLoad fires as if nothing had
-   // gone wrong.
-   it.fails("should NOT fire onLoad after an axis failure just because the plot subsequently succeeds (BUG: imageError overwritten, not OR'd)", () => {
+   // Bug #75575 (fixed): axisLoaded()/plotLoaded() used to each set `this.imageError = !success`
+   // unconditionally from their OWN local success flag, with no OR-with-previous-failure logic,
+   // so an axis failure was silently erased by a later, unrelated plot success and onLoad fired
+   // as if nothing had gone wrong. Fix: track axisImageError/plotImageError separately and OR
+   // the failure into each on completion.
+   it("should NOT fire onLoad after an axis failure just because the plot subsequently succeeds", () => {
       const { comp } = createComponent();
       comp.axisLoading("bottom_x_axis");
       comp.plotLoading();
@@ -339,10 +344,11 @@ describe("ChartArea — ngOnDestroy full cleanup", () => {
       expect(removeSpy).toHaveBeenCalledWith("change", expect.any(Function));
    });
 
-   // Bug: devicePixelRatioMedia is only assigned inside ngOnInit(). If a component instance is
-   // destroyed without ngOnInit ever having run (e.g. removed before Angular's first CD pass),
-   // ngOnDestroy() dereferences it unconditionally and throws.
-   it.fails("should not throw when ngOnDestroy is called without ngOnInit ever having run (BUG: devicePixelRatioMedia is undefined)", () => {
+   // Bug #75575 (fixed): devicePixelRatioMedia is only assigned inside ngOnInit(). If a
+   // component instance is destroyed without ngOnInit ever having run (e.g. removed before
+   // Angular's first CD pass), ngOnDestroy() used to dereference it unconditionally and throw.
+   // Fix: this.devicePixelRatioMedia?.removeEventListener(...).
+   it("should not throw when ngOnDestroy is called without ngOnInit ever having run", () => {
       const { comp } = createComponent();
       expect(() => comp.ngOnDestroy()).not.toThrow();
    });

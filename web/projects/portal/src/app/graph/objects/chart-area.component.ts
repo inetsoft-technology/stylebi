@@ -135,6 +135,8 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
    _model: ChartModel;
    mobileDevice: boolean = GuiTool.isMobileDevice();
    imageError: boolean = false;
+   private axisImageError: boolean = false;
+   private plotImageError: boolean = false;
    _selected: boolean;
    axisResizeLabel: string;
    private clearCanvasSubscription: Subscription;
@@ -145,10 +147,22 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
    @Input() set model(model: ChartModel) {
       this._model = model;
       this.imageError = false;
+      this.axisImageError = false;
+      this.plotImageError = false;
 
       if(this.clearCanvasSubscription) {
          this.clearCanvasSubscription.unsubscribe();
          this.clearCanvasSubscription = null;
+      }
+
+      if(this.scrollTopSubscription) {
+         this.scrollTopSubscription.unsubscribe();
+         this.scrollTopSubscription = null;
+      }
+
+      if(this.scrollLeftSubscription) {
+         this.scrollLeftSubscription.unsubscribe();
+         this.scrollLeftSubscription = null;
       }
 
       if(model) {
@@ -373,7 +387,7 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
 
    ngOnDestroy(): void {
       window.removeEventListener("resize", this.onResize);
-      this.devicePixelRatioMedia.removeEventListener("change", this.onDevicePixelRatioChange);
+      this.devicePixelRatioMedia?.removeEventListener("change", this.onDevicePixelRatioChange);
 
       if(this.clearCanvasSubscription) {
          this.clearCanvasSubscription.unsubscribe();
@@ -1440,6 +1454,7 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
          // axis that was removed by Angular's *ngFor diffing without firing axisLoaded) are
          // no longer valid. Clear them so the new cycle has a clean baseline. (Bug #74260)
          this._loadingAxesSet.clear();
+         this.axisImageError = false;
       }
 
       this._loadingAxesSet.add(areaName);
@@ -1448,7 +1463,10 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
    }
 
    public axisLoaded(success: boolean, areaName: string) {
-      this.imageError = !success;
+      // OR the failure into axisImageError instead of overwriting it — a later successful
+      // axis tile must not silently erase an earlier failed one within the same cycle. (Bug #75575)
+      this.axisImageError = this.axisImageError || !success;
+      this.imageError = this.axisImageError || this.plotImageError;
 
       if(areaName === "") {
          // Sentinel call from vs-chart when there are no axis tiles to load. Forcibly
@@ -1468,12 +1486,16 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
    }
 
    plotLoading(): void {
+      this.plotImageError = false;
       this._plotLoaded = false;
       this.fireLoading();
    }
 
    plotLoaded(success: boolean): void {
-      this.imageError = !success;
+      // OR the failure into plotImageError instead of overwriting it — a later successful
+      // plot load must not silently erase an earlier axis (or plot) failure. (Bug #75575)
+      this.plotImageError = this.plotImageError || !success;
+      this.imageError = this.axisImageError || this.plotImageError;
       this._plotLoaded = true;
       this.fireLoaded();
    }
