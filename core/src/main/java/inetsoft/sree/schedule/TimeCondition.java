@@ -391,7 +391,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
 
          break;
       case EVERY_HOUR:
-         if(days_of_week.length <= 0) {
+         if(days_of_week.length <= 0 || getHourlyInterval() <= 0) {
             return -1;
          }
 
@@ -432,6 +432,25 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          }
 
          break;
+      case WEEK_OF_YEAR:
+         if(week_of_year <= 0 || day_of_week <= 0) {
+            return -1;
+         }
+
+         int weekMaxDays = 400;
+
+         while((cal1.get(Calendar.WEEK_OF_YEAR) != week_of_year ||
+                cal1.get(Calendar.DAY_OF_WEEK) != day_of_week ||
+                cal1.getTimeInMillis() < curr) && weekMaxDays-- > 0)
+         {
+            cal1.add(Calendar.DATE, 1);
+         }
+
+         if(weekMaxDays < 0) {
+            return -1;
+         }
+
+         break;
       case EVERY_MONTH:
          if(months_of_year.length <= 0) {
             return -1;
@@ -466,6 +485,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          break;
       }
 
+      scheduleTime = cal1.getTimeInMillis();
       return cal1.getTimeInMillis();
    }
 
@@ -1019,6 +1039,10 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
                buffer.append(" interval=\"").append(interval).append("\"");
             }
          }
+         else if(type == WEEK_OF_YEAR) {
+            buffer.append(" dayOfWeek=\"").append(getDayOfWeek()).append("\" weekOfYear=\"")
+               .append(getWeekOfYear()).append("\"");
+         }
          else if(type == EVERY_HOUR) {
             if(days_of_week.length > 0) {
                buffer.append(" daysOfWeek=\"").append(Tool.arrayToString(days_of_week))
@@ -1196,6 +1220,27 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          }
 
          this.weekdayOnly = "true".equals(Tool.getAttribute(tag, "weekday"));
+      }
+      else if(type == TimeCondition.WEEK_OF_YEAR) {
+         int hour = Tool.getCompatibleHour(Integer.parseInt
+            (Objects.requireNonNull(Tool.getAttribute(tag, "hour"))));
+         int minute = Integer.parseInt(Objects.requireNonNull(Tool.getAttribute(tag, "minute")));
+         int second = Integer.parseInt(Objects.requireNonNull(Tool.getAttribute(tag, "second")));
+
+         if(Tool.getAttribute(tag, "hour_end") != null) {
+            this.hour_end = Tool.getCompatibleHour(Integer.parseInt(
+                                                      Tool.getAttribute(tag, "hour_end")));
+            this.minute_end = Integer.parseInt(Tool.getAttribute(tag, "minute_end"));
+            this.second_end = Integer.parseInt(Tool.getAttribute(tag, "second_end"));
+         }
+
+         this.hour = hour;
+         this.minute = minute;
+         this.second = second;
+         this.day_of_week =
+            Integer.parseInt(Objects.requireNonNull(Tool.getAttribute(tag, "dayOfWeek")));
+         this.week_of_year =
+            Integer.parseInt(Objects.requireNonNull(Tool.getAttribute(tag, "weekOfYear")));
       }
       else {
          throw new Exception(Catalog.getCatalog().getString(

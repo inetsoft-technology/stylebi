@@ -597,6 +597,21 @@ public class TimeConditionTest {
       return toFixedDate(localDateTime).getTime();
    }
 
+   @Test
+   void testGetRetryTimeOnWeek_Of_Year() {
+      try(MockedStatic<Calendar> ignored = mockTodayAs("2025-01-01T00:00:00")) {
+         // invalid config (default week_of_year=-1, day_of_week=-1) should return -1
+         TimeCondition condition = TimeCondition.atWeekOfYear(-1, -1, 20, 30, 30);
+         assertEquals(-1, condition.getRetryTime(toFixedMillis("2025-01-01T20:35:30"), 0));
+
+         // valid week+day should return a future time (week 10 of 2025 = ~March 5, 2025)
+         condition = TimeCondition.atWeekOfYear(10, Calendar.WEDNESDAY, 20, 30, 30);
+         long currentTime = toFixedMillis("2025-01-01T20:35:30");
+         long retryTime = condition.getRetryTime(currentTime, 0);
+         assertTrue(retryTime > currentTime);
+      }
+   }
+
    private Date toDate(String localDateTime) {
       return toFixedDate(localDateTime);
    }
