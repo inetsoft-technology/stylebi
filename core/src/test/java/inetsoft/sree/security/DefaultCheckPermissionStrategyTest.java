@@ -221,6 +221,44 @@ class DefaultCheckPermissionStrategyTest {
    }
 
    // ─────────────────────────────────────────────────────────────────
+   // [Path C] Org admin checking a role that does not exist
+   // ─────────────────────────────────────────────────────────────────
+
+   // checkOrgAdminPermission's SECURITY_ROLE branch (line 571-575) unconditionally returned
+   // false when the target role did not exist, unlike the analogous SECURITY_USER branch
+   // (line 536-538, "Bug #66393") which falls back to comparing orgIDs. This meant an org
+   // admin looking up a non-existent role in their own org got permission denied (401)
+   // instead of reaching the "not found" (404) check in the calling API layer. (Bug #75545)
+   @Test
+   void orgAdminCanCheckNonExistentRoleInOwnOrg() {
+      String resource = new IdentityID("noExistRole", "org0").convertToKey();
+
+      try(MockedStatic<SUtil> mocked = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS)) {
+         mocked.when(SUtil::isMultiTenant).thenReturn(true);
+
+         assertTrue(
+            strategy.checkPermission(org_admin, ResourceType.SECURITY_ROLE, resource, ResourceAction.ADMIN),
+            "org admin should have admin permission over a non-existent role in their own org " +
+            "so the caller can surface a 'not found' rather than 'forbidden' result");
+      }
+   }
+
+   // Security boundary: a missing role in a *different* org must still be denied, so this
+   // doesn't leak role existence/permission across organizations.
+   @Test
+   void orgAdminCannotCheckNonExistentRoleInOtherOrg() {
+      String resource = new IdentityID("noExistRole", "otherOrg").convertToKey();
+
+      try(MockedStatic<SUtil> mocked = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS)) {
+         mocked.when(SUtil::isMultiTenant).thenReturn(true);
+
+         assertFalse(
+            strategy.checkPermission(org_admin, ResourceType.SECURITY_ROLE, resource, ResourceAction.ADMIN),
+            "org admin must not gain permission over a non-existent role outside their own org");
+      }
+   }
+
+   // ─────────────────────────────────────────────────────────────────
    // [Path B] System administrator bypasses all permission checks
    // ─────────────────────────────────────────────────────────────────
 
