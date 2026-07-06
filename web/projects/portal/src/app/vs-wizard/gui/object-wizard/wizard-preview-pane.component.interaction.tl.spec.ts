@@ -30,14 +30,16 @@
  *                          vsObject
  *   Group 6  [baseline] — hasLegend getter: true when legends.length > 0; true when
  *                          legendHidden=true; false when legends empty and legendHidden=false
- *   Group 7  [Risk 3]  — memory-leak (known bug): CommandProcessor commands subscription is
- *                          NOT cleaned up on destroy because component has no ngOnDestroy
+ *   Group 7  [Risk 3]  — memory-leak: CommandProcessor commands subscription is cleaned up
+ *                          on destroy via ngOnDestroy() -> this.cleanup()
  *
- * Confirmed bugs (it.fails):
- *   Group 7 — VSWizardPreviewPane extends CommandProcessor but does not implement ngOnDestroy /
- *              call this.cleanup(), so viewsheetClient.commands remains subscribed after the
- *              component is destroyed. Any subsequent command published on the global channel
- *              dispatches to the dead instance.
+ * Fixed bugs:
+ *   Group 7 (Bug #75572) — VSWizardPreviewPane extends CommandProcessor but did not implement
+ *              ngOnDestroy / call this.cleanup(), so viewsheetClient.commands remained
+ *              subscribed after the component was destroyed. Any subsequent command published
+ *              on the global channel dispatched to the dead instance. Fix: add
+ *              ngOnDestroy() { this.cleanup(); }, matching every other CommandProcessor
+ *              subclass in the codebase.
  *
  * Out of scope:
  *   ngAfterViewInit calling setPreviewPaneSize() — tested in Group 2 via direct call; the
@@ -286,15 +288,15 @@ describe("VSWizardPreviewPane — hasLegend getter", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Group 7 — memory-leak: CommandProcessor subscription not cleaned up [Risk 3]
+// Group 7 — memory-leak: CommandProcessor subscription cleaned up on destroy
+// (Bug #75572, fixed) [Risk 3]
 // ---------------------------------------------------------------------------
 
 describe("VSWizardPreviewPane — CommandProcessor subscription lifecycle", () => {
-   // 🔁 Known bug: VSWizardPreviewPane extends CommandProcessor (which subscribes to
-   // viewsheetClient.commands in its constructor) but does not implement ngOnDestroy or
-   // call this.cleanup(). After the component is destroyed the subscription remains active,
-   // dispatching incoming commands to the dead instance. This can cause console errors and
-   // stale state mutations when the wizard preview is closed and a new one is opened.
+   // Bug #75572 (fixed): VSWizardPreviewPane extends CommandProcessor (which subscribes to
+   // viewsheetClient.commands in its constructor) but used to not implement ngOnDestroy or
+   // call this.cleanup(). After the component was destroyed the subscription remained active,
+   // dispatching incoming commands to the dead instance. Fix: ngOnDestroy() { this.cleanup(); }.
    it("should have an active commands subscription while alive", async () => {
       const { fixture } = await renderComponent();
       expect(commandsSubject.observed).toBe(true);
@@ -302,20 +304,12 @@ describe("VSWizardPreviewPane — CommandProcessor subscription lifecycle", () =
       fixture.destroy();
    });
 
-   // Expected failure: `expect(commandsSubject.observed).toBe(false)` fails because
-   // VSWizardPreviewPane has no ngOnDestroy / cleanup(), so CommandProcessor's commands
-   // subscription is never unsubscribed after destroy. If this test fails for an unrelated
-   // reason (e.g. renderComponent throws during setup), it.fails will still pass silently —
-   // verify by checking the failure message says "expected true to be false".
-   it.fails(
-      "should unsubscribe from CommandProcessor commands after ngOnDestroy (BUG: no ngOnDestroy)",
-      async () => {
-         const { fixture } = await renderComponent();
-         expect(commandsSubject.observed).toBe(true);
+   it("should unsubscribe from CommandProcessor commands after ngOnDestroy", async () => {
+      const { fixture } = await renderComponent();
+      expect(commandsSubject.observed).toBe(true);
 
-         fixture.destroy();
+      fixture.destroy();
 
-         expect(commandsSubject.observed).toBe(false);
-      },
-   );
+      expect(commandsSubject.observed).toBe(false);
+   });
 });

@@ -22,6 +22,7 @@ import {
    HostListener,
    Input,
    NgZone,
+   OnDestroy,
    OnInit,
    Output
 } from "@angular/core";
@@ -51,7 +52,7 @@ import { WizardPreviewContainer } from "./wizard-preview-container.component";
     imports: [WizardPreviewContainer]
 })
 export class VSWizardPreviewPane extends CommandProcessor
-   implements OnInit, AfterViewInit
+   implements OnInit, AfterViewInit, OnDestroy
 {
    @Input() vsObject: VSObjectModel;
    @Input() runtimeId: string;
@@ -79,6 +80,10 @@ export class VSWizardPreviewPane extends CommandProcessor
 
    ngAfterViewInit(): void {
       this.setPreviewPaneSize();
+   }
+
+   ngOnDestroy(): void {
+      this.cleanup();
    }
 
    get assemblyName(): string {
