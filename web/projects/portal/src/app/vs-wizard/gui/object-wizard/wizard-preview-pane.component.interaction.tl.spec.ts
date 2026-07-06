@@ -38,8 +38,12 @@
  *              ngOnDestroy / call this.cleanup(), so viewsheetClient.commands remained
  *              subscribed after the component was destroyed. Any subsequent command published
  *              on the global channel dispatched to the dead instance. Fix: add
- *              ngOnDestroy() { this.cleanup(); }, matching every other CommandProcessor
- *              subclass in the codebase.
+ *              ngOnDestroy() { this.cleanup(); }, matching the pattern used by some other
+ *              CommandProcessor subclasses (e.g. VsWizardComponent, ObjectWizardPaneComponent).
+ *              NOTE: this pattern is not universal — a number of other CommandProcessor
+ *              subclasses (e.g. ViewerAppComponent, VSSelectionContainerChildren,
+ *              CalcTableLayoutPane) never call this.cleanup() either. That is a separate,
+ *              pre-existing latent issue outside the scope of this fix; not addressed here.
  *
  * Out of scope:
  *   ngAfterViewInit calling setPreviewPaneSize() — tested in Group 2 via direct call; the
