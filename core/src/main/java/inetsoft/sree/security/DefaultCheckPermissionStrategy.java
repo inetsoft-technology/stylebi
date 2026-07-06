@@ -232,7 +232,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          //if admin permissions to this resource, return true
          boolean hasResourcePermission = provider.getPermission(type, resource, orgID) != null &&
             provider.getPermission(type, resource, orgID)
-               .getOrgScopedUserGrants(ResourceAction.ASSIGN, OrganizationManager.getInstance().getCurrentOrgID())
+               .getOrgScopedUserGrants(ResourceAction.ADMIN, OrganizationManager.getInstance().getCurrentOrgID())
                .contains(pId);
 
          if(hasResourcePermission) {
