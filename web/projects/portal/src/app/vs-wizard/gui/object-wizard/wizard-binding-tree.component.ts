@@ -19,6 +19,7 @@ import { Component, Input, NgZone, OnDestroy, OnInit, Optional, ViewChild } from
 import { Subscription } from "rxjs";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { NotificationsComponent } from "../../../widget/notifications/notifications.component";
+import { DebounceService } from "../../../widget/services/debounce.service";
 import { Tool } from "../../../../../../shared/util/tool";
 import {
    CommandProcessor,
@@ -73,6 +74,8 @@ const OBJECT_WIZARD_REFRESH = "/events/vswizard/object-wizard/refresh";
     imports: [TreeComponent, NotificationsComponent]
 })
 export class WizardBindingTree extends CommandProcessor implements OnInit, OnDestroy {
+   private static readonly RECOMMENDER_DEBOUNCE_MS = 200;
+
    @Input() runtimeId: string;
    @Input() temporarySheet: boolean;
    @Input() originalMode: VsWizardEditModes;
@@ -89,7 +92,8 @@ export class WizardBindingTree extends CommandProcessor implements OnInit, OnDes
                private treeService: BindingTreeService,
                private modelService: ModelService,
                private dialogService: NgbModal,
-               protected zone: NgZone)
+               protected zone: NgZone,
+               private debounceService: DebounceService)
    {
       super(viewsheetClient, zone, true);
    }
@@ -118,6 +122,7 @@ export class WizardBindingTree extends CommandProcessor implements OnInit, OnDes
          this.bindingTreeSubscription.unsubscribe();
       }
 
+      this.debounceService.cancel("wizard-recommender-" + this.runtimeId);
       this.cleanup();
    }
 
@@ -291,7 +296,10 @@ export class WizardBindingTree extends CommandProcessor implements OnInit, OnDes
          }
       }
 
-      this.recommender(tableName);
+      this.debounceService.debounce(
+         "wizard-recommender-" + this.runtimeId,
+         () => this.recommender(tableName),
+         WizardBindingTree.RECOMMENDER_DEBOUNCE_MS);
    }
 
    public recommender(tableName?: string, reload?: boolean): void {
