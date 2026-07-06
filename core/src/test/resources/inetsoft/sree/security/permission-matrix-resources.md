@@ -24,7 +24,7 @@
 | Portal Dashboard | `DASHBOARD` | READ/WRITE/DELETE/ADMIN | **否**——扁平命名空间，`DASHBOARD.getParent()` 恒返回 `null` | 无切片分配，仅文末附加基线抽样 `[待补]` |
 | 数据源 | `DATA_SOURCE_FOLDER`/`DATA_SOURCE`/`CUBE`/`QUERY`（Logical Model） | READ/WRITE/DELETE/ADMIN | 是——文件夹用 `/`，model/cube 挂载用 `::` | 仅 S5-RULE4 覆盖 Rule 4 提升逻辑，基础 ADMIN/继承未验证 `[待补]` |
 | 调度 | `SCHEDULE_TASK_FOLDER`/`SCHEDULE_TASK`/`SCHEDULE_CYCLE` | READ/WRITE/DELETE/ADMIN/ASSIGN | 仅文件夹层继承；task/cycle 本身扁平 | 无切片分配，仅文末附加基线抽样 `[待补]` |
-| 安全管理 | `SECURITY_USER`/`SECURITY_GROUP`/`SECURITY_ROLE`/`SECURITY_ORGANIZATION` | User/Group 走 ADMIN，Role 走 ASSIGN | 各类型独立合成根节点级联，非路径分隔符继承 | S2 主表实例级场景已在 `PermissionMatrixResourcesS2Test` 落地 `[M8]`；通配符场景、全局角色负控制仍 `[待补]`；identityAdmin-role 的 WRITE/DELETE 断言因实测分歧 `@Disabled`，见 `[M8⚠️]` 说明 |
+| 安全管理 | `SECURITY_USER`/`SECURITY_GROUP`/`SECURITY_ROLE`/`SECURITY_ORGANIZATION` | User/Group 走 ADMIN，Role 走 ASSIGN | 各类型独立合成根节点级联，非路径分隔符继承 | S2（按 S2.1-S2.5 分资源类型组织）：S2.1/S2.2/S2.4 实例级+根节点级联场景已在 `PermissionMatrixResourcesS2Test` 落地 `[M8]`；S2.3 的 identityAdmin-group(通配)、S2.2 的 S2-GRANTEE-VARIETY、S2.3 的 S2-GROUP-CHAIN 仍 `[待补]`（identityAdmin-group(通配) 已确认不能照抄 user 通配符的 key 约定，机制未知；其余两个待实现依赖已解除，随时可排期）；S2.4 的 identityAdmin-role WRITE/DELETE 断言、S2.1 的 orgSecurityAdmin 全局角色负控制、S2.4 的 S2-GLOBAL-ROLE-ROOT 根节点互相越界，三处独立发现均因实测分歧 `@Disabled`，见各自 `[M8⚠️]` 说明（根因各不相同） |
 | 库资源 | `SCRIPT_LIBRARY`/`SCRIPT`（扁平单层） / `TABLE_STYLE_LIBRARY`/`TABLE_STYLE`（真正多级） | READ/WRITE/DELETE/ADMIN | Table Style 是，`~` 分隔；Script 否，固定单层 | 无切片分配，仅文末附加基线抽样 `[待补]` |
 
 ---
@@ -37,34 +37,164 @@
 - **对 `<resource>` 设置 "Administrator Permissions"** = 在 `<resource>` 对应的 `Permission` 对象上，为某个身份（User/Group/Role）写入 `ADMIN` action。例如给 `targetUser2`（一个 `SECURITY_USER` 资源）设置 "Administrator Permissions"，等价于在 EM 的 Security > Users > `targetUser2` > Permission 标签页里，把某个身份勾进 Administrator 列，底层写入的就是 `` `ADMIN` `` action。测试代码通过 `SecurityTestDataBuilder` 直接写这个 `Permission` 对象，不经过 EM UI，也没有一个"操作者"用户去点这个按钮——它只是 fixture 静态构造出的一条规则："资源 X 的 Permission 上，身份 Y 被赋予 `ADMIN`"。
 - **"用户类型"/"登录用户"列指的是登录去做权限检查的测试账号**，它不一定等于被设置了 "Administrator Permissions" 的那个身份本身：
   - 多数行里，登录用户本身就是被授权的身份（例如 `identityAdminUser` 直接对 `targetUser` 设置了 "Administrator Permissions"），这种情况登录用户＝被授权身份，是同一个对象。
-  - 少数行里（典型例子见下面 S2-GRANTEE-VARIETY），被授权的身份是一个 Role/Group（例如 `targetUser2` 的 "Administrator Permissions" 授予了 `role0`），登录用户是**持有该 role / 属于该 group 的另一个 user**（例如 `viaRoleUser`）——登录用户自己从未被单独授权过，是靠"持有 role0"这层间接关系拿到权限的。这两种情况在表格里都会用括号注明具体设置，避免"谁被授权了什么"产生歧义。
+  - 少数行里（典型例子见下面 S2.2 的 S2-GRANTEE-VARIETY），被授权的身份是一个 Role/Group（例如 `targetUser2` 的 "Administrator Permissions" 授予了 `role0`），登录用户是**持有该 role / 属于该 group 的另一个 user**（例如 `viaRoleUser`）——登录用户自己从未被单独授权过，是靠"持有 role0"这层间接关系拿到权限的。这两种情况在表格里都会用括号注明具体设置，避免"谁被授权了什么"产生歧义。
 
-| 用户类型 | 资源类型 | 资源(示例) | Action | 预期 | 测试状态 | 备注 | 结论 |
+本节按资源类型分为 S2.1 Organization / S2.2 Users / S2.3 Groups / S2.4 Organization Roles + Roles / S2.5 其他情况五类。
+
+**机制速查表**（同一机制在不同资源类型下重复出现，横向对比见下表；纵向的具体场景/测试方法见对应资源类型小节）：
+
+| 机制 | 一句话 | 详见 |
+|---|---|---|
+| 跨类型级联 | `SECURITY_ORGANIZATION` ADMIN → 级联到本 org 内 User/Group/org 自建 Role 的任意实例，不看具体资源路径；对全局角色**不**应该生效，但实测生效（已确认违反预期，Issue #75574） | S2.1 |
+| 实例级直授 | 对某个具体 User/Group/Role 资源单独设 Administrator Permission（Role 是 ASSIGN），只对该实例生效，不跨实例 | S2.2 / S2.3 / S2.4 各自"实例"小节 |
+| 通配符 | 仅 `SECURITY_USER` 有此机制：`provider.getPermission(SECURITY_USER, orgID)`（2-arg，key 是 org id 字符串本身），对本 org 全部用户生效；`SECURITY_GROUP` 无对应代码路径（机制未知，待查） | S2.2 / S2.3 |
+| 根节点级联 | 对 `"Users"`/`"Groups"`/`"Organization Roles"`/`"Roles"` 四个根节点资源设 ADMIN，级联到该类型全部实例；Role 有两个根，理论上应互相独立，实测未隔离（已确认违反设计意图） | S2.2 / S2.3 / S2.4 |
+| Group 链式继承 | Group 对子孙组（≥3 层 BFS）传播委派权限，不向上穿透到父组/根节点 | S2.3 |
+| 被授权身份多样性 | Administrator Permission 的被授权方不仅可以是 User，也可以是 Role/Group（含子组间接继承），多个身份间是 OR 关系 | S2.2 |
+
+### S2.1 — Organization（`SECURITY_ORGANIZATION`：跨类型级联能力及边界）
+
+orgSecurityAdmin 的授权点是 `SECURITY_ORGANIZATION` 资源本身；本节验证的是"对本 org 的 `SECURITY_ORGANIZATION` 设 ADMIN"这一单一授权能级联到哪些其它资源类型（正向能力），以及在哪里应该被挡住却没被挡住（边界/负控制）。User/Group/Role 各自的实例级、通配符、根节点级联等机制见 S2.2/S2.3/S2.4，此处不重复。
+
+**Action：给 orgSecurityAdmin 授予组织节点（`SECURITY_ORGANIZATION`，`matrix_org_id`）的 Administrator Permission**——本表全部行共用这一次授权，不额外在 `"Users"`/`"Groups"`/任何具体资源上加授权；下表"检查资源类型/检查Action"两列是拿这一次授权去逐个验证能不能触达的目标，不是另外的授权点。
+
+| 登录用户 | 检查资源类型 | 资源(示例) | 检查Action | 预期 | 测试状态 | 备注 | 结论 |
 |---|---|---|---|---|---|---|---|
 | orgSecurityAdmin | SECURITY_ORGANIZATION | `matrix_org_id` | ADMIN | ✓ | `[M8]` `orgSecurityAdmin_adminOnOwnOrgSecurityOrganization_allowed` | 授权本身生效（第 2 行"拒绝"是否有意义的前提） | orgSecurityAdmin 能管理本 org 的安全设置 |
 | orgSecurityAdmin | ASSET | `mx/folder/item` | READ | ✗ | `[M8]` `orgSecurityAdmin_noContentPermission_assetReadDenied` | 无内容权，证明不外溢到非安全身份资源类型 | orgSecurityAdmin 看不到任何内容资源（报表/仪表盘等） |
-| orgSecurityAdmin | SECURITY_USER | `targetUser`（从未单独 grant 给 orgSecAdmin） | ADMIN | ✓ | `[M8]` `orgSecurityAdmin_crossTypeCascade_securityUserAdmin_allowedWithoutDirectGrant` | **跨类型级联**（`DefaultCheckPermissionStrategy` L57-67）：只看当前 org 的 SECURITY_ORGANIZATION 是否有 ADMIN，不看具体 resource 路径 | orgSecurityAdmin 能管理 targetUser（编辑/删除），即使从没单独针对 targetUser 授权过 |
-| orgSecurityAdmin | SECURITY_GROUP | `targetGroup`（同上，从未单独 grant） | ADMIN | ✓ | `[M8]` `orgSecurityAdmin_crossTypeCascade_securityGroupAdmin_allowedWithoutDirectGrant`（测试用等价的 `anotherGroup`，同样从未单独 grant） | 同上，跨类型级联 | orgSecurityAdmin 能管理 targetGroup，同样即使从没单独授权过 |
-| orgSecurityAdmin | SECURITY_ROLE | `viewerRole`（本 org 自建角色，从未单独 grant） | ADMIN | ✓ | `[M8]` `orgSecurityAdmin_crossTypeCascade_orgOwnedRoleAdmin_allowedWithoutDirectGrant`（测试用等价的 `anotherRole`，同样从未单独 grant） | 同上；仅对本 org 自建角色生效，全局角色不生效（`isNotGlobalRole`） | orgSecurityAdmin 能管理本 org 自建的 viewerRole 角色（编辑/删除/分配） |
+| orgSecurityAdmin | SECURITY_USER | `targetUser`（从未单独 grant 给 orgSecAdmin） | ADMIN | ✓ | `[M8]` `orgSecurityAdmin_crossTypeCascade_allowedWithoutDirectGrant`（参数化，case `securityUserAdmin_allowedWithoutDirectGrant`） | **跨类型级联**（`DefaultCheckPermissionStrategy` L57-67）：只看当前 org 的 SECURITY_ORGANIZATION 是否有 ADMIN，不看具体 resource 路径 | orgSecurityAdmin 能管理 targetUser（编辑/删除），即使从没单独针对 targetUser 授权过 |
+| orgSecurityAdmin | SECURITY_GROUP | `targetGroup`（同上，从未单独 grant） | ADMIN | ✓ | `[M8]` `orgSecurityAdmin_crossTypeCascade_allowedWithoutDirectGrant`（参数化，case `securityGroupAdmin_allowedWithoutDirectGrant`；测试用等价的 `anotherGroup`，同样从未单独 grant） | 同上，跨类型级联 | orgSecurityAdmin 能管理 targetGroup，同样即使从没单独授权过 |
+| orgSecurityAdmin | SECURITY_ROLE | `viewerRole`（本 org 自建角色，从未单独 grant） | ADMIN | ✓ | `[M8]` `orgSecurityAdmin_crossTypeCascade_allowedWithoutDirectGrant`（参数化，case `orgOwnedRoleAdmin_allowedWithoutDirectGrant`；测试用等价的 `anotherRole`，同样从未单独 grant） | 同上；仅对本 org 自建角色生效，全局角色不生效（`isNotGlobalRole`） | orgSecurityAdmin 能管理本 org 自建的 viewerRole 角色（编辑/删除/分配） |
 | orgSecurityAdmin | SECURITY_USER | `targetUser` | WRITE | ✓ | `[M8]` `orgSecurityAdmin_crossTypeCascade_grantsOriginalAction_notAdminOnly` | **级联放行的是原始 action**，不是"隐式提升成 ADMIN 再走 RWD 兜底" | orgSecurityAdmin 能编辑 targetUser 的信息 |
 | orgSecurityAdmin | SECURITY_ROLE | `viewerRole` | ASSIGN | ✓ | `[M8]` `orgSecurityAdmin_crossTypeCascade_grantsOriginalAction_notAdminOnly`（同一方法，测试用等价的 `anotherRole`） | 同上，ASSIGN 不属于 R/W/D，如果是 ADMIN→RWD 兜底机制就不会覆盖到它，证明这是两套不同机制 | orgSecurityAdmin 能把 viewerRole 分配给其他用户 |
-| orgSecurityAdmin | SECURITY_ROLE | 全局角色(org-less)，如 `addGlobalRole("globalRole0")` | ADMIN | ✗ | `[待补]` | 负控制：`isNotGlobalRole` 挡掉全局角色；`SecurityTestDataBuilder` 目前**没有** `addGlobalRole` 方法（此前文档说"Task 3 已加"，经代码核实并不存在），需要先补这个 builder 方法才能写这条用例 | orgSecurityAdmin 管不了全局角色（跨 org 共享，如内置 Everyone），只有 siteAdmin 能管 |
-| identityAdmin-user(实例) | SECURITY_USER | `targetUser` | ADMIN | ✓ | `[M8]` `identityAdminUser_adminOnTargetUser_allowed` | | identityAdminUser 能管理 targetUser（编辑/删除该用户） |
-| identityAdmin-user(实例) | SECURITY_USER | `anotherUser` | ADMIN | ✗ | `[M8]` `identityAdminUser_adminOnAnotherUser_denied_doesNotCrossInstance` | 负路径：不越实例 | identityAdminUser 看不到/管不了 anotherUser——只对被明确授权的那个用户生效 |
-| identityAdmin-user(实例) | SECURITY_USER | `targetUser` | WRITE | ✓ | `[M8]` `identityAdminUser_writeAndDeleteOnTargetUser_allowed_adminImpliesRWD` | ADMIN→隐含（`SecurityEngine` L826-832，通用兜底非 User 专属） | identityAdminUser 能编辑 targetUser 的信息 |
-| identityAdmin-user(实例) | SECURITY_USER | `targetUser` | DELETE | ✓ | `[M8]`（同一方法，见上一行） | 同上 | identityAdminUser 能删除 targetUser |
-| identityAdmin-user(通配) | SECURITY_USER | `targetUser` / `anotherUser` | ADMIN | ✓ / ✓ | `[待补]`：生产代码里通配符检查是 `provider.getPermission(SECURITY_USER, orgID)`（`DefaultCheckPermissionStrategy.java` L371）——用 orgID 字符串本身当 resource key，不是字面的 `"*"`，需要先确认这个约定再写 fixture，避免写出一个"看起来对但其实没测到通配符路径"的用例 | 通配符对全部实例生效 | identityAdminWildUser 能管理 EM 里的所有用户，包括 targetUser 和 anotherUser |
-| identityAdmin-user(通配) | ASSET | `mx/folder/item` | READ | ✗ | `[待补]`：同上，随通配符场景一起补 | 仍然拿不到内容权 | identityAdminWildUser 虽然能管理所有用户，但看不到任何内容资源 |
-| identityAdmin-group(实例) | SECURITY_GROUP | `targetGroup` | ADMIN | ✓ | `[M8]` `identityAdminGroupInstUser_adminOnTargetGroup_allowed` | | identityAdminGroupInstUser 能管理 targetGroup（编辑/删除该组） |
-| identityAdmin-group(实例) | SECURITY_GROUP | `anotherGroup` | ADMIN | ✗ | `[M8]` `identityAdminGroupInstUser_adminOnAnotherGroup_denied_doesNotCrossInstance` | 负路径：不越实例 | identityAdminGroupInstUser 管不了 anotherGroup——只对被明确授权的那个组生效 |
-| identityAdmin-group(实例) | SECURITY_GROUP | `targetGroup` | WRITE | ✓ | `[M8]` `identityAdminGroupInstUser_writeOnTargetGroup_allowed_adminImpliesRWD` | ADMIN→隐含 | identityAdminGroupInstUser 能编辑 targetGroup 的信息 |
-| identityAdmin-group(通配) | SECURITY_GROUP | `targetGroup` / `anotherGroup` | ADMIN | ✓ / ✓ | `[待补]`：同 identityAdmin-user(通配) 的顾虑，通配符 key 约定需先验证 | 通配符对全部实例生效 | identityAdminGroupWildUser 能管理 EM 里的所有组 |
-| identityAdmin-group(通配) | ASSET | `mx/folder/item` | READ | ✗ | `[待补]`：同上 | | identityAdminGroupWildUser 看不到任何内容资源 |
-| identityAdmin-role ⚠️ | SECURITY_ROLE | `targetRole` | ASSIGN | ✓ | `[M8]` `identityAdminRoleUser_assignOnTargetRole_allowed` | 写入的是 ASSIGN，不是 ADMIN | identityAdminRoleUser 能把 targetRole 分配给其他用户 |
-| identityAdmin-role ⚠️ | SECURITY_ROLE | `targetRole` | WRITE | ✗ | `[M8⚠️]` `identityAdminRoleUser_writeOnTargetRole_denied_assignDoesNotImplyWrite`（`@Disabled`，实测为允许，见下方发现说明） | **关键负路径**：ASSIGN 不隐含 WRITE | identityAdminRoleUser 不能编辑 targetRole 本身的定义（改名、改继承关系等）——**（待确认，实测为"能"）** |
-| identityAdmin-role ⚠️ | SECURITY_ROLE | `targetRole` | DELETE | ✗ | `[M8⚠️]` `identityAdminRoleUser_deleteOnTargetRole_denied_assignDoesNotImplyDelete`（`@Disabled`，同上） | ASSIGN 不隐含 DELETE | identityAdminRoleUser 不能删除 targetRole——**（待确认，实测为"能"）** |
-| identityAdmin-role ⚠️ | SECURITY_ROLE | `anotherRole` | ASSIGN | ✗ | `[M8]` `identityAdminRoleUser_assignOnAnotherRole_denied_doesNotCrossInstance` | 负路径：不越实例 | identityAdminRoleUser 不能分配 anotherRole——只对被明确授权的那个角色生效 |
-| identityAdmin-role ⚠️ | ASSET | `mx/folder/item` | READ | ✗ | `[M8]` `identityAdminRoleUser_noContentPermission_assetReadDenied` | | identityAdminRoleUser 看不到任何内容资源 |
+| orgSecurityAdmin | SECURITY_ROLE | 全局角色(org-less，非 sysAdmin)，对照内置 `Organization Administrator`（`addGlobalRole("globalRole0")`） | ADMIN | ✗ | `[M8⚠️]` `orgSecurityAdmin_adminOnGlobalRole_denied_negativeControl`（`@Disabled`，JUnit 和真实生产环境都实测为允许，**确认是生产 bug，非测试假象**，见下方发现说明） | 负控制：`isNotGlobalRole` 确实挡住了 L57-67 那条级联，但 `checkOrgAdminPermission()`（L525-616）是另一条独立的级联，其 SECURITY_ROLE 分支（L591）显式把"角色 org 为 null 且角色自身非 sysAdmin"也判为可管理，不受 `isNotGlobalRole` 约束 | orgSecurityAdmin 管不了全局角色（跨 org 共享），只有 siteAdmin 或持有全局 `Administrator` 角色的人才能管——**已确认违反产品预期，且已在真实部署里用直接 API 调用复现（绕开了 UI 树的隐藏），不是测试环境的假象** |
+| orgSecurityAdmin | SECURITY_ROLE | 全局角色(org-less，sysAdmin=true)，即内置 `Administrator` 本尊 | ADMIN | ✗ | `[M8⚠️]` `orgSecurityAdmin_adminOnGlobalSysAdminRole_denied_negativeControl`（`@Disabled`，**生产环境实测允许**，但同形状的 JUnit 复现返回拒绝——两者矛盾，根因未完全定位，见下方发现说明） | 同上机制，但 `checkOrgAdminPermission()` 的 `!isSiteAdmin` 分支理论上应该保护住 sysAdmin 角色本身；真实环境用直接 API 调用（`GET .../roles/Administrator~~_3b_~~__GLOBAL__/`）实测返回 200 且 `editable:true`，跟这条防护矛盾 | orgSecurityAdmin 管不了内置 `Administrator` 角色——**生产环境已确认违反预期（实测能看到、能编辑），但具体是哪条代码路径放行的还没查清楚，需要针对真实/预发环境再排查一次** |
+
+> **`[M8⚠️]` 发现：orgSecurityAdmin 能管理全局角色——已确认生产 bug，非测试假象**
+>
+> 上面两行全局角色负控制，跟下面 S2.4 的 ASSIGN/ADMIN 那条不同：**不只是 JUnit 里实测矛盾，已经在真实部署的 EM 上用浏览器直接复现**。复现方式：用只持有 `SECURITY_ORGANIZATION` ADMIN（没有 Organization Administrator 角色、不是 site admin）的 orgSecurityAdmin 账号登录 EM，Security > Users 树里正确地看不到 `Roles`（全局根）节点——UI 这一层没问题。但在浏览器 Console 里用同一个登录 session 直接调后端接口（绕开树，不经过 UI 点击）：
+>
+> ```
+> GET /sree/api/em/security/providers/Primary/roles/Organization%20Administrator~~_3b_~~__GLOBAL__/
+> GET /sree/api/em/security/providers/Primary/roles/Administrator~~_3b_~~__GLOBAL__/
+> ```
+>
+> 两个内置全局角色**都返回 HTTP 200 和完整角色数据，其中 `"editable":true`**——即接口本身没有守住这道边界，只有 UI 树把入口藏起来了，是"只在前端隐藏、后端没有独立校验"的反模式，任何拿到合法 orgSecurityAdmin session 的人都能通过直接调接口绕过。
+>
+> **两个角色的根因目前定位到不同程度：**
+> - **`Organization Administrator`**（org=null，sysAdmin=false，orgAdmin=true）：根因已经在 JUnit 里精确复现并定位，见 `orgSecurityAdmin_adminOnGlobalRole_denied_negativeControl` 的注释——`checkOrgAdminPermission()`（`DefaultCheckPermissionStrategy.java` L525-616）的 `SECURITY_ROLE` 分支（L591）显式把"角色 org 为 null 且角色自身不是 sysAdmin"也判定为可管理，是一条完全独立于 `isNotGlobalRole()` 级联（L58-67）的放行路径。
+> - **`Administrator`**（org=null，sysAdmin=true）：生产环境已确认同样暴露（实测 200 + `editable:true`），**但根因还没有完全定位**。`checkOrgAdminPermission()` 的 `!isSiteAdmin` 分支理论上应该专门保护"角色自身是 sysAdmin"的这种情况，在 JUnit 里用完全同形状的角色复现时，这条分支以及方法里其它所有级联路径都返回拒绝，跟生产环境的实测结果矛盾。已知的差异候选：`RoleController.getRole()`（`RoleController.java` L232-236）在算 `editableRoles` 返回字段时，额外单独调用了一次 `checkPermission(..., ResourceAction.ASSIGN)`（不是 `@Secured` 网关用的 `ADMIN`），这条路径本次 JUnit 复现没有覆盖到；也不能排除生产/预发环境本身（多 provider、缓存等）跟这个隔离的单 provider fixture 有其它未知差异。**在有人对着真实/预发环境再排查一次、把这条路径也钉死之前，不要假设"改完 `Organization Administrator` 那条分支就等于修完了"。**（这条未定位的开放问题也是 S2.5 的占位内容，见文末）
+
+### S2.2 — Users（`SECURITY_USER`）及子节点
+
+覆盖机制：实例级直授、通配符、根节点级联（`"Users"` 根）、被授权身份多样性。orgSecurityAdmin 跨类型级联管理任意 User 实例的能力见 S2.1，此处不重复。
+
+**identityAdmin-user(实例)**
+
+**Action：给 identityAdminUser 授予 `targetUser`（`SECURITY_USER`）的 Administrator Permission**——只授权这一个具体用户实例，不碰通配符或根节点。
+
+| 登录用户 | 检查资源类型 | 资源(示例) | 检查Action | 预期 | 测试状态 | 备注 | 结论 |
+|---|---|---|---|---|---|---|---|
+| identityAdminUser | SECURITY_USER | `targetUser` | ADMIN | ✓ | `[M8]` `identityAdminUser_adminOnTargetUser_allowed` | | identityAdminUser 能管理 targetUser（编辑/删除该用户） |
+| identityAdminUser | SECURITY_USER | `anotherUser` | ADMIN | ✗ | `[M8]` `identityAdminUser_adminOnAnotherUser_denied_doesNotCrossInstance` | 负路径：不越实例 | identityAdminUser 看不到/管不了 anotherUser——只对被明确授权的那个用户生效 |
+| identityAdminUser | SECURITY_USER | `targetUser` | WRITE | ✓ | `[M8]` `identityAdminUser_writeAndDeleteOnTargetUser_allowed_adminImpliesRWD` | ADMIN→隐含（`SecurityEngine` L826-832，通用兜底非 User 专属） | identityAdminUser 能编辑 targetUser 的信息 |
+| identityAdminUser | SECURITY_USER | `targetUser` | DELETE | ✓ | `[M8]`（同一方法，见上一行） | 同上 | identityAdminUser 能删除 targetUser |
+
+**identityAdmin-user(通配)**
+
+**Action：给 identityAdminWildUser 授予 `SECURITY_USER` 通配符（`provider.getPermission(SECURITY_USER, orgID)`，key 是 org id 字符串本身）的 Administrator Permission**——不针对任何具体用户实例。
+
+| 登录用户 | 检查资源类型 | 资源(示例) | 检查Action | 预期 | 测试状态 | 备注 | 结论 |
+|---|---|---|---|---|---|---|---|
+| identityAdminWildUser | SECURITY_USER | `targetUser` / `anotherUser` | ADMIN | ✓ / ✓ | `[M8]` `identityAdminWildUser_adminOnAnyUser_allowed`（参数化，两个 case） | 已确认：生产代码通配符检查是 `provider.getPermission(SECURITY_USER, orgID)`（`DefaultCheckPermissionStrategy.java` L369-376）——2-arg 重载委托给 `getPermission(type, orgID字符串, null)`，`null` org 参数在 `AuthorizationChain.fixOrgID()` 里被解析成 `OrganizationManager.getCurrentOrgID()`（即 `withContextPrincipal` 设置的当前 org）。resource key 是裸的 org id 字符串本身，不是 `"*"`，也不是 `IdentityID` key——跟 orgSecurityAdmin 那套 `convertToKey()` 约定完全不同 | identityAdminWildUser 能管理 EM 里的所有用户，包括 targetUser 和 anotherUser |
+| identityAdminWildUser | ASSET | `mx/folder/item` | READ | ✗ | `[M8]` `identityAdminWildUser_noContentPermission_assetReadDenied` | 仍然拿不到内容权 | identityAdminWildUser 虽然能管理所有用户，但看不到任何内容资源 |
+
+**根节点级联（`"Users"` 根）**
+
+**Action：给 rootUserAdmin 授予 `"Users"` 根节点（`SECURITY_USER:"Users"`，字面意义上的具体资源，不是抽象概念）的 Administrator Permission**——下表"资源"列的 `targetUser`/`anotherUser` 是级联**验证目标**，不是授权点本身，本身没有被单独授权。
+
+| 登录用户 | 检查资源类型 | 资源 | 检查Action | 预期 | 测试状态 | 备注 | 结论 |
+|---|---|---|---|---|---|---|---|
+| rootUserAdmin | SECURITY_USER | `targetUser` / `anotherUser` | ADMIN | ✓ / ✓ | `[M8]` `rootUserAdmin_adminOnAnyUser_allowed`（参数化，两个 case） | 级联到**全部**用户，不只是配置过的 | rootUserAdmin 能管理 EM 里的每一个用户，不局限于 targetUser/anotherUser 这两个例子 |
+
+> **顺带证明"根节点权限覆盖子节点自身权限"**（Administrator.md §1.1.3，跟内容资源的继承方向相反）：`TARGET_USER` 已经在上面 `identityAdmin-user(实例)` 表格里被 `identityAdminUser` 单独 grant 过；`rootUserAdmin` 并不在那条独立授权名单里，但对第一行 `rootUserAdmin` × `targetUser` 的断言依然是 ✓（已用 `rootUserAdmin_adminOnAnyUser_allowed` 的 `targetUser_allowed` case 实测验证）——因为 `DefaultCheckPermissionStrategy` 对 SECURITY_USER 的根节点检查在方法最前面就 `return true` 了，根本不会走到 `targetUser` 自己的 `Permission` 对象。
+
+**S2-GRANTEE-VARIETY `[待补]`**（对照 `docs/superpowers/specs/security/Administrator.md` §1.1.1/1.1.2 补的场景；现有用例里被授权身份全部是 `Identity.USER` 类型，从没测过 role/group 作为被授权身份，以及三者同时设置的 OR 组合）：
+
+> 下表"登录用户"列括号里描述的是 "Administrator Permissions" 的具体设置，不代表登录用户自己被授权——除非登录用户与被授权身份是同一个对象。例如第一行的设置是："`targetUser2` 的 "Administrator Permissions" 授予了身份 `role0`（一个 Role）；登录测试用的 `viaRoleUser` 这个 user 持有 `role0`"，所以 `viaRoleUser` 是通过持有该角色间接拿到权限，而不是被直接授权。
+
+| 登录用户 | 检查资源类型 | 资源(示例) | 检查Action | 预期 | 测试状态 | 备注 | 结论 |
+|---|---|---|---|---|---|---|---|
+| viaRoleUser（设置：`targetUser2` 的 "Administrator Permissions" 授予 `role0`；viaRoleUser 持有 `role0`） | SECURITY_USER | `targetUser2` | ADMIN | ✓ | `[待补]` | 被授权身份类型是 ROLE，不是 USER；viaRoleUser 靠持有该角色间接拿到权限 | viaRoleUser 能管理 targetUser2——即使从没被单独授权过，只因为持有 role0 |
+| noRoleUser（同一设置，但 noRoleUser 不持有 `role0`） | SECURITY_USER | `targetUser2` | ADMIN | ✗ | `[待补]` | 负路径：不持有该角色就不受益 | noRoleUser 看不到 targetUser2——同样没被单独授权，也不持有 role0 |
+| viaGroupUser（设置：`targetUser2` 的 "Administrator Permissions" 授予 `group0`；viaGroupUser 是 `group0` 的直接成员） | SECURITY_USER | `targetUser2` | ADMIN | ✓ | `[待补]` | 被授权身份类型是 GROUP；直接成员 | viaGroupUser 能管理 targetUser2——因为属于被授权的 group0 |
+| viaSubGroupUser（同一设置；viaSubGroupUser 属于 `group0` 的子组 `group1`，自己不直接在 `group0` 里） | SECURITY_USER | `targetUser2` | ADMIN | ✓ | `[待补]` | 被授权身份类型是 GROUP；子组成员间接继承（`checkUserGroupPermission` 递归向上找父组） | viaSubGroupUser 也能管理 targetUser2——即使只是 group0 的子组 group1 成员，间接继承同样生效 |
+| viaAnyOneOfThreeUser（设置：`targetUser3` 的 "Administrator Permissions" 同时授予一个 user、一个 role、一个 group 三个不同身份；此登录用户只匹配其中 role 那一条，另两条对它不生效） | SECURITY_USER | `targetUser3` | ADMIN | ✓ | `[待补]` | OR 组合：三个被授权身份只需满足其一即放行（默认 OR 模式） | viaAnyOneOfThreeUser 能管理 targetUser3——三个被授权身份（user/role/group）中只要匹配一个就够 |
+
+### S2.3 — Groups（`SECURITY_GROUP`）及子节点
+
+覆盖机制：实例级直授、通配符（机制未确认，见下）、根节点级联（`"Groups"` 根）、链式继承。
+
+**identityAdmin-group(实例)**
+
+**Action：给 identityAdminGroupInstUser 授予 `targetGroup`（`SECURITY_GROUP`）的 Administrator Permission**——只授权这一个具体组实例。
+
+| 登录用户 | 检查资源类型 | 资源(示例) | 检查Action | 预期 | 测试状态 | 备注 | 结论 |
+|---|---|---|---|---|---|---|---|
+| identityAdminGroupInstUser | SECURITY_GROUP | `targetGroup` | ADMIN | ✓ | `[M8]` `identityAdminGroupInstUser_adminOnTargetGroup_allowed` | | identityAdminGroupInstUser 能管理 targetGroup（编辑/删除该组） |
+| identityAdminGroupInstUser | SECURITY_GROUP | `anotherGroup` | ADMIN | ✗ | `[M8]` `identityAdminGroupInstUser_adminOnAnotherGroup_denied_doesNotCrossInstance` | 负路径：不越实例 | identityAdminGroupInstUser 管不了 anotherGroup——只对被明确授权的那个组生效 |
+| identityAdminGroupInstUser | SECURITY_GROUP | `targetGroup` | WRITE | ✓ | `[M8]` `identityAdminGroupInstUser_writeOnTargetGroup_allowed_adminImpliesRWD` | ADMIN→隐含 | identityAdminGroupInstUser 能编辑 targetGroup 的信息 |
+
+**identityAdmin-group(通配) `[待补]`**
+
+**Action（待验证机制）：给 identityAdminGroupWildUser 授予"Groups 通配符"的 Administrator Permission**——具体写入哪个 resource key 尚未确定，见下表备注：`DefaultCheckPermissionStrategy.java` L369-376 的通配符查询硬编码只判断 `type == ResourceType.SECURITY_USER`，**没有** SECURITY_GROUP 分支；全文搜索也找不到任何 `provider.getPermission(SECURITY_GROUP, orgID)` 这种调用。User 的通配符约定不能直接套到 Group 上，需要先去 EM UI 确认"给 Groups 设通配符 Administrator Permission"实际写入的是什么 resource key，再回来对代码。
+
+| 登录用户 | 检查资源类型 | 资源(示例) | 检查Action | 预期 | 测试状态 | 备注 | 结论 |
+|---|---|---|---|---|---|---|---|
+| identityAdminGroupWildUser | SECURITY_GROUP | `targetGroup` / `anotherGroup` | ADMIN | ✓ / ✓ | `[待补]` | 通配符对全部实例生效（**待验证是否真的成立**） | identityAdminGroupWildUser 能管理 EM 里的所有组（**待验证**） |
+| identityAdminGroupWildUser | ASSET | `mx/folder/item` | READ | ✗ | `[待补]`：同上，随通配符场景一起补 | | identityAdminGroupWildUser 看不到任何内容资源 |
+
+**根节点级联（`"Groups"` 根）**
+
+**Action：给 rootGroupAdmin 授予 `"Groups"` 根节点（`SECURITY_GROUP:"Groups"`）的 Administrator Permission**——下表"资源"列的 `targetGroup`/`anotherGroup` 是级联验证目标，不是授权点本身。
+
+| 登录用户 | 检查资源类型 | 资源 | 检查Action | 预期 | 测试状态 | 备注 | 结论 |
+|---|---|---|---|---|---|---|---|
+| rootGroupAdmin | SECURITY_GROUP | `targetGroup` / `anotherGroup` | ADMIN | ✓ / ✓ | `[M8]` `rootGroupAdmin_adminOnAnyGroup_allowed`（参数化，两个 case） | 级联到全部组 | rootGroupAdmin 能管理 EM 里的每一个组 |
+
+**S2-GROUP-CHAIN `[待补]`**（独立 `@Test`，验证 Group ≥3 层 BFS 委派继承，User 无此维度）：
+
+**Action 1：给 chainAdmin 授予 `adminChainGroup0`（`SECURITY_GROUP`）的 Administrator Permission**——`adminChainGroup0` 是 `adminChainGroup1` 的父组，`adminChainGroup1` 是 `adminChainGroup2` 的父组（3 层链路）。
+
+| 登录用户 | 检查资源类型 | 资源 | 检查Action | 预期 | 测试状态 | 备注 | 结论 |
+|---|---|---|---|---|---|---|---|
+| chainAdmin | SECURITY_GROUP | `adminChainGroup1`（子组，1 跳） | ADMIN | ✓ | `[待补]` | 1 跳 | chainAdmin 能管理它的子组 adminChainGroup1 |
+| chainAdmin | SECURITY_GROUP | `adminChainGroup2`（孙组，2 跳） | ADMIN | ✓ | `[待补]` | 2 跳（孙节点）——只测 1 跳无法证明真 BFS | chainAdmin 也能管理孙组 adminChainGroup2——跨两层同样生效 |
+| chainAdmin | SECURITY_GROUP | `adminChainSiblingGroup`（链外兄弟组） | ADMIN | ✗ | `[待补]` | 负路径：链外兄弟组不可达 | chainAdmin 管不了不在这条链路上的 adminChainSiblingGroup |
+
+**Action 2：给 midChainAdmin 授予 `adminChainGroup1`（`SECURITY_GROUP`，链路中间节点）的 Administrator Permission**——不动 `adminChainGroup0`/`adminChainGroup2` 的授权，验证委派既能向下传播、又不会向上穿透。
+
+| 登录用户 | 检查资源类型 | 资源 | 检查Action | 预期 | 测试状态 | 备注 | 结论 |
+|---|---|---|---|---|---|---|---|
+| midChainAdmin | SECURITY_GROUP | `adminChainGroup2`（`adminChainGroup1` 的子组） | ADMIN | ✓ | `[待补]` | 向下依然传播——复用现有 3 层结构，不需要新建 fixture | midChainAdmin 能管理它的子组 adminChainGroup2 |
+| midChainAdmin | SECURITY_GROUP | `adminChainGroup0`（`adminChainGroup1` 的父组） | ADMIN | ✗ | `[待补]` | **不向上穿透**——对照 Administrator.md §1.2 Check2/3（该文档这两行资源类型误写成 `SECURITY_USER`，按上下文应为 `SECURITY_GROUP`），是 SECURITY_GROUP 版本的 Rule 2/3 | midChainAdmin 管不了它的父组 adminChainGroup0——权限不会向上传递给祖先 |
+| midChainAdmin | SECURITY_GROUP | `Groups`（根节点） | ADMIN | ✗ | `[待补]` | 同上，不向上穿透到根节点 | midChainAdmin 更管不了 Groups 根节点——同样不向上传递 |
+
+### S2.4 — Organization Roles / Roles（全局角色根）及子节点（`SECURITY_ROLE`）
+
+Role 比 User/Group 多一层复杂度：典型授权是 ASSIGN 而不是 ADMIN，且有**两个**根节点——本 org 的 `"Organization Roles"` 和全局的 `"Roles"`，两者理论上应该互相独立（实测未隔离，见本节末尾 S2-GLOBAL-ROLE-ROOT）。
+
+**identityAdmin-role(实例)** ⚠️
+
+**Action：给 identityAdminRoleUser 授予 `targetRole`（`SECURITY_ROLE`）的 Administrator Permission，写入的是 ASSIGN，不是 ADMIN**——Role 的典型授权方式跟 User/Group 不同，只授权这一个具体角色实例。
+
+| 登录用户 | 检查资源类型 | 资源(示例) | 检查Action | 预期 | 测试状态 | 备注 | 结论 |
+|---|---|---|---|---|---|---|---|
+| identityAdminRoleUser ⚠️ | SECURITY_ROLE | `targetRole` | ASSIGN | ✓ | `[M8]` `identityAdminRoleUser_assignOnTargetRole_allowed` | | identityAdminRoleUser 能把 targetRole 分配给其他用户 |
+| identityAdminRoleUser ⚠️ | SECURITY_ROLE | `targetRole` | WRITE | ✗ | `[M8⚠️]` `identityAdminRoleUser_writeOnTargetRole_denied_assignDoesNotImplyWrite`（`@Disabled`，实测为允许，见下方发现说明） | **关键负路径**：ASSIGN 不隐含 WRITE | identityAdminRoleUser 不能编辑 targetRole 本身的定义（改名、改继承关系等）——**（待确认，实测为"能"）** |
+| identityAdminRoleUser ⚠️ | SECURITY_ROLE | `targetRole` | DELETE | ✗ | `[M8⚠️]` `identityAdminRoleUser_deleteOnTargetRole_denied_assignDoesNotImplyDelete`（`@Disabled`，同上） | ASSIGN 不隐含 DELETE | identityAdminRoleUser 不能删除 targetRole——**（待确认，实测为"能"）** |
+| identityAdminRoleUser ⚠️ | SECURITY_ROLE | `anotherRole` | ASSIGN | ✗ | `[M8]` `identityAdminRoleUser_assignOnAnotherRole_denied_doesNotCrossInstance` | 负路径：不越实例 | identityAdminRoleUser 不能分配 anotherRole——只对被明确授权的那个角色生效 |
+| identityAdminRoleUser ⚠️ | ASSET | `mx/folder/item` | READ | ✗ | `[M8]` `identityAdminRoleUser_noContentPermission_assetReadDenied` | | identityAdminRoleUser 看不到任何内容资源 |
 
 > **`[M8⚠️]` 发现：ASSIGN 可能被意外提升为完整 R/W/D/A（M8 实测，尚未定性）**
 >
@@ -83,49 +213,54 @@
 >
 > 这跟本表上面两行"Role 设 Administrator Permissions（ASSIGN）→ 只有 ASSIGN，没有 W/D"的结论（以及架构设计文档 448 行"规则核实对照表"第 2 条的核实结论）直接冲突。在产品侧确认这是生产代码 bug（该修代码）还是文档过时（该改文档、改测试预期）之前，不把任一结论当作"已验证通过"写进本表。
 
-**S2-GRANTEE-VARIETY `[待补]`**（对照 `docs/superpowers/specs/security/Administrator.md` §1.1.1/1.1.2 补的场景；现有用例里被授权身份全部是 `Identity.USER` 类型，从没测过 role/group 作为被授权身份，以及三者同时设置的 OR 组合）：
+**根节点级联（`"Organization Roles"` 本 org 根）**
 
-> 下表"登录用户"列括号里描述的是 "Administrator Permissions" 的具体设置，不代表登录用户自己被授权——除非登录用户与被授权身份是同一个对象。例如第一行的设置是："`targetUser2` 的 "Administrator Permissions" 授予了身份 `role0`（一个 Role）；登录测试用的 `viaRoleUser` 这个 user 持有 `role0`"，所以 `viaRoleUser` 是通过持有该角色间接拿到权限，而不是被直接授权。
+**Action：给 rootRoleAdmin 授予 `"Organization Roles"` 本 org 根节点（`SECURITY_ROLE:"Organization Roles"`）的 Administrator Permission，写入的是 ADMIN，不是 ASSIGN**——`targetRole` 本身没有被单独授权。
 
-| 登录用户 | 资源类型 | 资源(示例) | Action | 预期 | 测试状态 | 备注 | 结论 |
+| 登录用户 | 检查资源类型 | 资源 | 检查Action | 预期 | 测试状态 | 备注 | 结论 |
 |---|---|---|---|---|---|---|---|
-| viaRoleUser（设置：`targetUser2` 的 "Administrator Permissions" 授予 `role0`；viaRoleUser 持有 `role0`） | SECURITY_USER | `targetUser2` | ADMIN | ✓ | `[待补]` | 被授权身份类型是 ROLE，不是 USER；viaRoleUser 靠持有该角色间接拿到权限 | viaRoleUser 能管理 targetUser2——即使从没被单独授权过，只因为持有 role0 |
-| noRoleUser（同一设置，但 noRoleUser 不持有 `role0`） | SECURITY_USER | `targetUser2` | ADMIN | ✗ | `[待补]` | 负路径：不持有该角色就不受益 | noRoleUser 看不到 targetUser2——同样没被单独授权，也不持有 role0 |
-| viaGroupUser（设置：`targetUser2` 的 "Administrator Permissions" 授予 `group0`；viaGroupUser 是 `group0` 的直接成员） | SECURITY_USER | `targetUser2` | ADMIN | ✓ | `[待补]` | 被授权身份类型是 GROUP；直接成员 | viaGroupUser 能管理 targetUser2——因为属于被授权的 group0 |
-| viaSubGroupUser（同一设置；viaSubGroupUser 属于 `group0` 的子组 `group1`，自己不直接在 `group0` 里） | SECURITY_USER | `targetUser2` | ADMIN | ✓ | `[待补]` | 被授权身份类型是 GROUP；子组成员间接继承（`checkUserGroupPermission` 递归向上找父组） | viaSubGroupUser 也能管理 targetUser2——即使只是 group0 的子组 group1 成员，间接继承同样生效 |
-| viaAnyOneOfThreeUser（设置：`targetUser3` 的 "Administrator Permissions" 同时授予一个 user、一个 role、一个 group 三个不同身份；此登录用户只匹配其中 role 那一条，另两条对它不生效） | SECURITY_USER | `targetUser3` | ADMIN | ✓ | `[待补]` | OR 组合：三个被授权身份只需满足其一即放行（默认 OR 模式） | viaAnyOneOfThreeUser 能管理 targetUser3——三个被授权身份（user/role/group）中只要匹配一个就够 |
+| rootRoleAdmin | SECURITY_ROLE | `targetRole` | ASSIGN | ✓ | `[M8]` `rootRoleAdmin_assignOnTargetRole_allowed` | 根节点授予的是 ADMIN | rootRoleAdmin 能把 targetRole 分配给用户 |
+| rootRoleAdmin | SECURITY_ROLE | `targetRole` | WRITE | ✓ | `[M8]` `rootRoleAdmin_writeOnTargetRole_allowed_rootAdminImpliesRWD` | 根节点 ADMIN **能**拿到 W/D，与单个 role 的 ASSIGN-only 相反 | rootRoleAdmin 还能直接编辑/删除 targetRole 本身，不像普通的单角色授权那样只能分配 |
 
-**S2-GLOBAL-ROLE-ROOT `[待补]`**（对照 Administrator.md §1.3；`"Roles"` 全局根与 `"Organization Roles"` 本 org 根是两个独立节点，S2-ROOT-CASCADE 目前只测了后者）：
+> **本表不单独设"非根节点对照组"行**：上面 `identityAdmin-role(实例)` 表格里 `anotherRole` × ASSIGN × ✗ 一行已经是同一个 `MatrixTestCase`——principal、resource、action、预期结果完全一致，只是叙事角度不同（那边是证明"不越实例"，这里想证明"单个 role 的 ASSIGN 授权不会被误判成根节点级联"）。两个角度共用同一次断言即可，不需要在 Java 里重复实现。
 
-| 用户类型 | 资源类型 | 资源 | Action | 预期 | 测试状态 | 备注 | 结论 |
-|---|---|---|---|---|---|---|---|
-| rootGlobalRoleAdmin（`"Roles"` 全局根 ADMIN） | SECURITY_ROLE | `addGlobalRole("globalRole0")` 创建的角色 | ADMIN | ✓ | `[待补]`：依赖 `SecurityTestDataBuilder.addGlobalRole`，同 S2 主表全局角色负控制那行 | 全局根级联到全局角色 | rootGlobalRoleAdmin 能管理全局角色 globalRole0 |
-| rootGlobalRoleAdmin（同上） | SECURITY_ROLE | `targetRole`（本 org 自建角色） | ADMIN | ✗ | `[待补]`：同上 | 全局根不覆盖本 org 角色——两个根节点相互独立 | rootGlobalRoleAdmin 管不了本 org 自建的 targetRole——全局根节点权限不跨到 org 角色 |
-| rootRoleAdmin（`"Organization Roles"` 本 org 根 ADMIN，已有的 S2-ROOT-CASCADE 场景） | SECURITY_ROLE | `addGlobalRole("globalRole0")` 创建的角色 | ADMIN | ✗ | `[待补]`：同上，且依赖 S2-ROOT-CASCADE 先落地 | 反过来，本 org 根也不覆盖全局角色，互不越界 | rootRoleAdmin（本 org 角色根管理员）管不了全局角色 globalRole0——反过来同样不越界 |
+**根节点级联（`"Roles"` 全局根）与两根越界发现（S2-GLOBAL-ROLE-ROOT）**（对照 Administrator.md §1.3）：
 
-**S2-ROOT-CASCADE**（独立 `@Test`，验证 "Users"/"Groups"/"Organization Roles" 三种根节点各自级联到全部同类型实例，`DefaultCheckPermissionStrategy` L134-186）：三个根节点在代码里就是字面意义上的具体资源，不是抽象概念——`rootUserAdmin`/`rootGroupAdmin`/`rootRoleAdmin` 的 "Administrator Permissions" 分别设置在资源 `SECURITY_USER:"Users"`、`SECURITY_GROUP:"Groups"`、`SECURITY_ROLE:"Organization Roles"`（本 org 根；全局根是 `"Roles"`，见下面 S2-GLOBAL-ROLE-ROOT）上。下表"资源"列写的 `targetUser`/`anotherUser` 等是级联**验证目标**，不是授权点本身——授权点固定就是对应类型的根节点，这里不重复列出。另外这跟 `orgSecurityAdmin` 的授权点是两套不相关的机制：orgSecurityAdmin 授权点是完全独立的 `SECURITY_ORGANIZATION` 资源类型（见上文主表第 1 行），不落在这三个根节点上，只是效果都是"管理该类型下全部实例"，容易被误认为同一回事。
-
-| 用户类型 | 资源类型 | 资源 | Action | 预期 | 测试状态 | 备注 | 结论 |
-|---|---|---|---|---|---|---|---|
-| rootUserAdmin（Users 根 ADMIN） | SECURITY_USER | `targetUser` / `anotherUser` | ADMIN | ✓ / ✓ | `[待补]`：下方叙述提到的 `s2RootCascadeVariant()` 是早期规划（已废弃的 `MatrixTestCase` 方案）里假定的方法名，`PermissionMatrixResourcesS2Test.java` 里尚未实现这个场景，且需要先用 `IdentityID("Users", orgId).convertToKey()` 当 resource key 写 grant（同 SECURITY_ORGANIZATION 根节点的坑，见 M8 批次一踩过的坑） | 级联到**全部**用户，不只是配置过的 | rootUserAdmin 能管理 EM 里的每一个用户，不局限于 targetUser/anotherUser 这两个例子 |
-| rootGroupAdmin（Groups 根 ADMIN） | SECURITY_GROUP | `targetGroup` / `anotherGroup` | ADMIN | ✓ / ✓ | `[待补]`：同上 | 级联到全部组 | rootGroupAdmin 能管理 EM 里的每一个组 |
-| rootRoleAdmin（Organization Roles 根 ADMIN） | SECURITY_ROLE | `targetRole` | ASSIGN | ✓ | `[待补]`：同上 | 根节点授予的是 ADMIN 不是 ASSIGN | rootRoleAdmin 能把 targetRole 分配给用户 |
-| rootRoleAdmin（同上） | SECURITY_ROLE | `targetRole` | WRITE | ✓ | `[待补]`：同上 | 根节点 ADMIN **能**拿到 W/D，与单个 role 的 ASSIGN-only 相反 | rootRoleAdmin 还能直接编辑/删除 targetRole 本身，不像普通的单角色授权那样只能分配 |
-
-> **顺带证明"根节点权限覆盖子节点自身权限"**（Administrator.md §1.1.3，跟内容资源的继承方向相反）：`TARGET_USER` 已经在 S2 主表里被 `identityAdminUser`（`identityAdmin-user(实例)` 那几行）单独 grant 过；`rootUserAdmin` 并不在那条独立授权名单里，但对第一行 `rootUserAdmin` × `targetUser` 的断言依然是 ✓——因为 `DefaultCheckPermissionStrategy` 对 SECURITY_USER 的根节点检查在方法最前面就 `return true` 了，根本不会走到 `targetUser` 自己的 `Permission` 对象。这条规则靠 fixture 复用已经被验证，不需要新增用例，只需要在 `s2RootCascadeVariant()` 这行断言旁边加一句注释点明即可。
+> **发现：两个根节点对 ADMIN action 不是真正独立的——确认是设计违背，跟 Issue #75574 是两个不同的 bug。** 实现这个场景时用临时 debug 输出（加进 `DefaultCheckPermissionStrategy.java`，排查完就还原了，没留在生产代码里）追出来：`DefaultCheckPermissionStrategy` L134-154 那段"专门"区分两个根节点的代码，对全局角色其实**从来不会命中**——它的守卫条件 `Tool.equals(role.getOrganizationID(), currentOrgId)` 对全局角色（`role.getOrganizationID()` 为 null）算的是 `Tool.equals(null, "matrix_org_id")`，直接是 `null == "matrix_org_id"` → false，不管全局根有没有配置授权都不会通过。真正放行的是另一个完全独立的方法——私有的 `getPermission(ResourceType, String, ResourceAction, String)`（L625 起），它在处理 ADMIN action 时走"累计权限"逻辑，对 `SECURITY_ROLE` 类型（L744-763）**同时**查 `"Organization Roles"` 和 `"Roles"` 两个根节点的授权，把两边的 user/role/group/organization 授权列表合并进同一个集合里，不管被检查的角色实际属于哪个根：
 >
-> **本表不单独设"非根节点对照组"行**：主表 row 23（`identityAdmin-role` ⚠️ × `anotherRole` × ASSIGN × ✗）已经是同一个 `MatrixTestCase`——principal、resource、action、预期结果完全一致，只是叙事角度不同（那边是证明"不越实例"，这里想证明"单个 role 的 ASSIGN 授权不会被误判成根节点级联"）。两个角度共用同一次断言即可，不需要在 Java 里重复实现；review 这张表时可以直接对照主表 row 23。
+> ```java
+> else if(currentType == ResourceType.SECURITY_ROLE) {
+>    perm = provider.getPermission(currentType, new IdentityID("Organization Roles", ...));
+>    if(perm != null) { users.addAll(...); ... }         // 合并进同一批集合
+>    perm = provider.getPermission(currentType, new IdentityID("Roles", ...));
+>    if(perm != null) { users.addAll(...); ... }         // 合并进同一批集合
+> }
+> ```
+>
+> 结果是:**在任意一个根节点上有 ADMIN,就会对全部角色(不分全局/本org)都有 ADMIN**——两个根节点对 ADMIN action 根本没有真正隔离。这跟本节想验证的"两个根节点互相独立"直接矛盾。下表两行按设计意图（预期列）断言,已 `@Disabled`,没有为了跟当前行为一致而改成断言"允许"。
+>
+> **两个根节点的现实可达性不对称,已核实,别高估 `rootGlobalRoleAdmin` 这半边的严重程度：**
+> - `rootRoleAdmin` 的授权(`Organization Roles` 根 ADMIN)——**多租户下能从 EM 页面正常配出来**,任何 org 管理员今天就能在自己 org 的 `Organization Roles` 节点上把 Administrator Permission 委派给某个用户，这个用户就会连带拿到管理全部全局角色的权限。这是这个发现里真正有现实意义的那一半。
+> - `rootGlobalRoleAdmin` 的授权(`Roles` 全局根 ADMIN)——**多租户下从 EM 页面设置不了**：前端 `UsersSettingsViewComponent.showPageEdit()`（`users-settings-view.component.ts` L328-338）专门判断了"选中节点是角色类型的根节点,且名字不是 `Organization Roles`"这种情况,直接不渲染编辑面板,Administrator Permissions 表格根本不会出现。看起来是一个已经存在的、针对全局角色根节点的专门防护，页面层面确实挡住了。绕开页面直接调接口写这条权限（跟 #75574 同样的"UI 挡住但接口未必真的校验"模式）**没有测过**，留作未确认的后续跟进，不计入这次的结论。单租户部署下 `showPageEdit()` 无条件放行，这个场景在单租户下是可达的。
+>
+> 下面两个用 `rootGlobalRoleAdmin` 的 `@Test` 之所以保留：这一层测试验证的是 `SecurityEngine.checkPermission()` 引擎本身的逻辑，给定一个已经存在的 Permission 对象，不管它是通过什么途径写进去的（架构设计文档里"权限逻辑测试"这一层的定义就是"与 HTTP 无关"）。这两条测试的通过/跳过状态，不代表"多租户 EM UI 上能复现"这个结论——那个结论以上面这条可达性说明为准。
 
-**S2-GROUP-CHAIN**（独立 `@Test`，验证 Group ≥3 层 BFS 委派继承，User 无此维度）：
+**Action A：给 rootGlobalRoleAdmin 授予 `"Roles"` 全局根节点（`SECURITY_ROLE:"Roles"`）的 Administrator Permission**——**多租户 EM UI 上设不了，见上方可达性说明**。
 
-| 用户类型 | 资源类型 | 资源 | Action | 预期 | 测试状态 | 备注 | 结论 |
+| 登录用户 | 检查资源类型 | 资源 | 检查Action | 预期 | 测试状态 | 备注 | 结论 |
 |---|---|---|---|---|---|---|---|
-| chainAdmin（adminChainGroup0 ADMIN） | SECURITY_GROUP | `adminChainGroup1` | ADMIN | ✓ | `[待补]` | 1 跳 | chainAdmin（在 adminChainGroup0 上被授权）能管理它的子组 adminChainGroup1 |
-| chainAdmin（同上） | SECURITY_GROUP | `adminChainGroup2` | ADMIN | ✓ | `[待补]` | 2 跳（孙节点）——只测 1 跳无法证明真 BFS | chainAdmin 也能管理孙组 adminChainGroup2——跨两层同样生效 |
-| chainAdmin（同上） | SECURITY_GROUP | `adminChainSiblingGroup` | ADMIN | ✗ | `[待补]` | 负路径：链外兄弟组不可达 | chainAdmin 管不了不在这条链路上的 adminChainSiblingGroup |
-| midChainAdmin（只在 `adminChainGroup1` 上 grant ADMIN，不动 group0/group2 的授权） | SECURITY_GROUP | `adminChainGroup2`（`adminChainGroup1` 的子组） | ADMIN | ✓ | `[待补]` | 向下依然传播——复用现有 3 层结构，不需要新建 fixture | midChainAdmin（只在 adminChainGroup1 上被授权）能管理它的子组 adminChainGroup2 |
-| midChainAdmin（同上） | SECURITY_GROUP | `adminChainGroup0`（`adminChainGroup1` 的父组） | ADMIN | ✗ | `[待补]` | **不向上穿透**——对照 Administrator.md §1.2 Check2/3（该文档这两行资源类型误写成 `SECURITY_USER`，按上下文应为 `SECURITY_GROUP`），是 SECURITY_GROUP 版本的 Rule 2/3 | midChainAdmin 管不了它的父组 adminChainGroup0——权限不会向上传递给祖先 |
-| midChainAdmin（同上） | SECURITY_GROUP | `Groups`（根节点） | ADMIN | ✗ | `[待补]` | 同上，不向上穿透到根节点 | midChainAdmin 更管不了 Groups 根节点——同样不向上传递 |
+| rootGlobalRoleAdmin | SECURITY_ROLE | `addGlobalRole("globalRole0")` 创建的角色 | ADMIN | ✓ | `[M8]` `rootGlobalRoleAdmin_adminOnGlobalRole_allowed` | 全局根级联到全局角色（实际是走上面发现的那条"累计权限"合并路径,不是 L134-154 那段专门代码——后者对全局角色从不命中，但结果凑巧一致） | rootGlobalRoleAdmin 能管理全局角色 globalRole0 |
+| rootGlobalRoleAdmin | SECURITY_ROLE | `targetRole`（本 org 自建角色） | ADMIN | ✗ | `[M8⚠️]` `rootGlobalRoleAdmin_adminOnOrgRole_denied_rootsShouldBeIndependent`（`@Disabled`，实测允许，见上方发现说明） | 全局根不该覆盖本 org 角色——两个根节点应该相互独立 | rootGlobalRoleAdmin 管不了本 org 自建的 targetRole——**代码逻辑上已确认违反设计意图**，但这个授权本身在多租户 EM UI 上配不出来，现实攻击面待接口层面确认 |
+
+**Action B：给 rootRoleAdmin 授予 `"Organization Roles"` 本 org 根节点的 Administrator Permission**（同"根节点级联"一节的授权）——**多租户 EM UI 上能正常配置**。
+
+| 登录用户 | 检查资源类型 | 资源 | 检查Action | 预期 | 测试状态 | 备注 | 结论 |
+|---|---|---|---|---|---|---|---|
+| rootRoleAdmin | SECURITY_ROLE | `addGlobalRole("globalRole0")` 创建的角色 | ADMIN | ✗ | `[M8⚠️]` `rootRoleAdmin_adminOnGlobalRole_denied_rootsShouldBeIndependent`（`@Disabled`，实测允许，见上方发现说明） | 反过来，本 org 根也不该覆盖全局角色 | rootRoleAdmin（本 org 角色根管理员）管不了全局角色 globalRole0——**已确认违反设计意图，且能通过日常 EM 操作复现，是这个发现里现实意义更大的一半** |
+
+### S2.5 — 其他情况
+
+当前为空。
 
 ## S3 — ADMIN 隐含语义 + 父子双向规则（Rule 1-3）
 
