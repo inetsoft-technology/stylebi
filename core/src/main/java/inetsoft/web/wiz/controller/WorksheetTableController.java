@@ -26,16 +26,21 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * REST endpoint for incremental, multi-step worksheet construction.
  * <p>
- * Each call adds exactly one table assembly to a worksheet.
+ * Each call creates a batch of table assemblies in one worksheet (loaded/created once,
+ * persisted once), returning one per-table result each.
  * <ul>
  *   <li>First call (no {@code worksheetId}): creates a new worksheet, returns {@code wsId}.</li>
  *   <li>Subsequent calls: pass {@code worksheetId} from the previous response to add
- *       the next table to the same worksheet.</li>
+ *       more tables to the same worksheet.</li>
  * </ul>
+ * A single table's failure does not abort the others: its result carries {@code success:false}
+ * and an {@code errorMessage}; only the tables that succeeded are persisted.
  * This endpoint is intentionally separate from {@code /ws/generate} so that
  * complex multi-step queries can be built without affecting the single-shot path.
  */
@@ -47,26 +52,30 @@ public class WorksheetTableController {
       this.worksheetTableService = worksheetTableService;
    }
 
-   /**
-    * Create or extend a worksheet by adding a single table assembly.
-    *
-    * @param request the table definition to create
-    * @param user    the authenticated user
-    * @return the table's column list and the worksheet identifier
-    */
    @PostMapping(value = "/ws/table", produces = MediaType.APPLICATION_JSON_VALUE)
-   public WorksheetTableResponse createTable(@RequestBody WorksheetTableRequest request,
-                                             Principal user)
+   public WorksheetTablesResponse createTables(@RequestBody WorksheetTableRequest request,
+                                               Principal user)
    {
       try {
-         return worksheetTableService.createTable(request, user);
+         return worksheetTableService.createTables(request, user);
       }
       catch(Exception e) {
-         WorksheetTableResponse response = new WorksheetTableResponse();
-         response.setSuccess(false);
-         response.setTableName(request.getTableName());
-         response.setErrorMessage(e.getMessage());
-         LOG.error("Failed to create worksheet table '{}'", request.getTableName(), e);
+         // A batch-level failure (e.g. worksheet load) fails every requested table.
+         WorksheetTablesResponse response = new WorksheetTablesResponse();
+         List<WorksheetTableResponse> failures = new ArrayList<>();
+
+         if(request.getTables() != null) {
+            for(WorksheetTable t : request.getTables()) {
+               WorksheetTableResponse r = new WorksheetTableResponse();
+               r.setTableName(t.getTableName());
+               r.setSuccess(false);
+               r.setErrorMessage(e.getMessage());
+               failures.add(r);
+            }
+         }
+
+         response.setTables(failures);
+         LOG.error("Failed to create worksheet tables", e);
          return response;
       }
    }

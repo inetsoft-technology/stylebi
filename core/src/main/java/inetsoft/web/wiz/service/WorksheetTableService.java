@@ -87,10 +87,10 @@ public class WorksheetTableService {
 
    // ─── Public entry point ───────────────────────────────────────────────────
 
-   public WorksheetTableResponse createTable(WorksheetTableRequest request, Principal user)
+   public WorksheetTablesResponse createTables(WorksheetTableRequest request, Principal user)
       throws Exception
    {
-      // 1. Load or create the worksheet.
+      // 1. Load or create the worksheet — once for the whole batch.
       Worksheet worksheet;
       AssetEntry worksheetEntry;
 
@@ -113,76 +113,133 @@ public class WorksheetTableService {
          worksheetEntry = null;
       }
 
-      // #75456: default wiz analytics to full data. The WorksheetInfo constructor seeds inputmax
-      // from the design-mode sample cap (asset.sample.maxrows, default 50000); a chart that
-      // aggregates a table whose query returns more detail rows than that silently under-counts
-      // Sum/Count. 0 = unlimited. (Sampled-preview mode will pass a non-zero cap here in a follow-up.)
+      // #75456: default wiz analytics to full data (0 = unlimited).
       worksheet.getWorksheetInfo().setDesignMaxRows(0);
 
+      List<WorksheetTableResponse> results = new ArrayList<>();
+      Set<String> failed = new HashSet<>();
+      List<WorksheetTable> tables = request.getTables() != null
+         ? request.getTables() : Collections.emptyList();
+
+      for(WorksheetTable table : tables) {
+         String missing = firstMissingDependency(worksheet, table, failed);
+
+         if(missing != null) {
+            results.add(failure(table.getTableName(),
+               "Depends on table \"" + missing + "\" which failed to create or does not exist."));
+            failed.add(table.getTableName());
+            continue;
+         }
+
+         try {
+            results.add(addOneTable(worksheet, table, user));
+         }
+         catch(Exception e) {
+            // Roll back any half-built assembly so the persisted worksheet stays clean.
+            if(worksheet.getAssembly(table.getTableName()) != null) {
+               worksheet.removeAssembly(table.getTableName());
+            }
+
+            results.add(failure(table.getTableName(), rootMessage(e)));
+            failed.add(table.getTableName());
+         }
+      }
+
+      // Persist once. New worksheet is only persisted when it actually holds an assembly.
+      WsServiceHelper.layoutGraph(layoutGraphService, worksheet);
+
+      if(worksheetEntry != null) {
+         viewsheetService.getAssetRepository().setSheet(worksheetEntry, worksheet, user, true);
+      }
+      else if(worksheet.getAssemblies().length > 0) {
+         worksheetEntry = WsServiceHelper.persistWorksheet(viewsheetService, worksheet, user);
+      }
+
+      WorksheetTablesResponse response = new WorksheetTablesResponse();
+      response.setWsId(worksheetEntry != null ? worksheetEntry.toIdentifier() : null);
+      response.setTables(results);
+      return response;
+   }
+
+   /**
+    * The first declared dependency of {@code t} (a join/mirror base, or a join path's left/right
+    * table) that is either already failed in this batch or absent from the worksheet — or
+    * {@code null} when every dependency is present and healthy.
+    */
+   String firstMissingDependency(Worksheet ws, WorksheetTable t, Set<String> failed) {
+      List<String> deps = new ArrayList<>();
+
+      if(t.getBaseTables() != null) {
+         deps.addAll(t.getBaseTables());
+      }
+
+      if(t.getJoinPaths() != null) {
+         for(WorksheetTable.JoinPathInfo jp : t.getJoinPaths()) {
+            deps.add(jp.getLeftTable());
+            deps.add(jp.getRightTable());
+         }
+      }
+
+      for(String dep : deps) {
+         if(dep != null && (failed.contains(dep) || ws.getAssembly(dep) == null)) {
+            return dep;
+         }
+      }
+
+      return null;
+   }
+
+   private WorksheetTableResponse failure(String tableName, String message) {
+      WorksheetTableResponse r = new WorksheetTableResponse();
+      r.setTableName(tableName);
+      r.setColumns(Collections.emptyList());
+      r.setSuccess(false);
+      r.setErrorMessage(message);
+      return r;
+   }
+
+   private WorksheetTableResponse addOneTable(Worksheet worksheet, WorksheetTable request,
+                                              Principal user)
+      throws Exception
+   {
       // 2. Build the table assembly.
       AbstractTableAssembly table = buildTable(worksheet, request, user);
 
-      // 3. Apply pre-aggregate conditions (WHERE).
+      // 3. Pre-aggregate conditions (WHERE).
       if(request.getPreAggregateCondition() != null && !request.getPreAggregateCondition().isEmpty()) {
          ConditionList preList = buildConditionList(
             table.getColumnSelection(true), request.getPreAggregateCondition(), worksheet, false);
          table.setPreConditionList(preList);
       }
 
-      // 4. Apply aggregation (GROUP BY + aggregates).
+      // 4. Aggregation.
       if(request.getAggregateInfo() != null) {
          applyAggregateInfo(table, request.getAggregateInfo());
       }
 
-      // 5. Apply post-aggregate conditions (HAVING).
+      // 5. Post-aggregate conditions (HAVING).
       if(request.getPostAggregateCondition() != null && !request.getPostAggregateCondition().isEmpty()) {
          ConditionList postList = buildConditionList(
             table.getColumnSelection(true), request.getPostAggregateCondition(), worksheet, true);
          table.setPostConditionList(postList);
       }
 
-      // 6. Apply ranking / top-N conditions.
+      // 6. Ranking / top-N.
       if(request.getRankingCondition() != null && !request.getRankingCondition().isEmpty()) {
          ConditionList rankList = buildRankingConditionList(
             table.getColumnSelection(true), request.getRankingCondition());
          table.setRankingConditionList(rankList);
       }
 
-      // 7. Persist the worksheet.
-      WsServiceHelper.layoutGraph(layoutGraphService, worksheet);
-
-      if(worksheetEntry == null) {
-         worksheetEntry = WsServiceHelper.persistWorksheet(viewsheetService, worksheet, user);
-      }
-      else {
-         viewsheetService.getAssetRepository().setSheet(worksheetEntry, worksheet, user, true);
-      }
-
-      // 8. Execution probe: a SQL query table or a table with expression columns only executes at
-      // render time, so structural creation above can succeed while the query/expression is invalid.
-      // Probe it now — with the worksheet/table already in hand, no reload — so ANY execution failure
-      // (invalid SQL/expression, or an infrastructure error while executing) fails loud here with the
-      // real error, attributed to this table, instead of only surfacing at create_viewsheet. The table
-      // stays persisted and the same wsId is returned, so the caller can rebuild just this one table.
+      // 8. Execution probe for render-time-executable tables.
       if(shouldProbe(request)) {
-         try {
-            probeExecutable(worksheet, table, user);
-         }
-         catch(Exception ex) {
-            WorksheetTableResponse failure = new WorksheetTableResponse();
-            failure.setWsId(worksheetEntry.toIdentifier());
-            failure.setTableName(table.getName());
-            failure.setSuccess(false);
-            failure.setErrorMessage(rootMessage(ex));
-            return failure;
-         }
+         probeExecutable(worksheet, table, user);
       }
 
-      // 9. Extract column info for the response.
+      // 9. Build the success response.
       List<WorksheetColumnData> columns = extractColumnsFromSelection(table);
 
       WorksheetTableResponse response = new WorksheetTableResponse();
-      response.setWsId(worksheetEntry.toIdentifier());
       response.setTableName(table.getName());
       response.setColumns(columns);
 
@@ -194,25 +251,32 @@ public class WorksheetTableService {
       }
 
       response.setSuccess(true);
+
+      // Set primary only after the table fully succeeds (so a failed+rolled-back table never
+      // leaves a dangling primary reference — see Task 2 rollback).
+      if(request.isAsPrimaryTable()) {
+         worksheet.setPrimaryAssembly(table.getName());
+      }
+
       return response;
    }
 
    // ─── Probe: execute a freshly-built table to surface render-time query failures ──────────
 
    /**
-    * Whether {@link #createTable} should run the execution probe for this request. A {@code sql query
+    * Whether {@link #addOneTable} should run the execution probe for this request. A {@code sql query
     * table} always executes its raw SQL at render time, and a table carrying expression columns (JS or
     * {@code sql:true}) evaluates them at render time — both can be structurally valid yet fail on
     * execution. Pure physical / mirror / join tables with no expression columns carry no render-time
     * execution risk beyond what structural creation already validates, so they are not probed (zero
     * added latency).
     */
-   private boolean shouldProbe(WorksheetTableRequest request) {
+   private boolean shouldProbe(WorksheetTable request) {
       if("sql query table".equals(request.getTableType())) {
          return true;
       }
 
-      List<WorksheetTableRequest.ExpressionColumnInfo> exprCols = request.getExpressionColumns();
+      List<WorksheetTable.ExpressionColumnInfo> exprCols = request.getExpressionColumns();
       return exprCols != null && !exprCols.isEmpty();
    }
 
@@ -525,7 +589,7 @@ public class WorksheetTableService {
 
    // ─── Table builders ───────────────────────────────────────────────────────
 
-   private AbstractTableAssembly buildTable(Worksheet worksheet, WorksheetTableRequest request,
+   private AbstractTableAssembly buildTable(Worksheet worksheet, WorksheetTable request,
                                             Principal user)
       throws Exception
    {
@@ -543,22 +607,18 @@ public class WorksheetTableService {
          default -> throw new IllegalArgumentException("Unknown tableType: " + tableType);
       };
 
-      if(request.isAsPrimaryTable()) {
-         worksheet.setPrimaryAssembly(table.getName());
-      }
-
       return table;
    }
 
    private AbstractTableAssembly buildPhysicalTable(Worksheet worksheet,
-                                                    WorksheetTableRequest request,
+                                                    WorksheetTable request,
                                                     Principal user)
       throws Exception
    {
       PhysicalBoundTableAssembly table =
          new PhysicalBoundTableAssembly(worksheet, request.getTableName());
 
-      WorksheetTableRequest.PhysicalSource src = request.getPhysicalSource();
+      WorksheetTable.PhysicalSource src = request.getPhysicalSource();
 
       if(src == null) {
          throw new IllegalArgumentException("physicalSource is required for physical table");
@@ -616,11 +676,11 @@ public class WorksheetTableService {
     * work — unlike the physical/mirror/join model, whose generated SQL can't express them.
     * Other tables can mirror/join the result by name.
     */
-   private AbstractTableAssembly buildSqlTable(Worksheet worksheet, WorksheetTableRequest request)
+   private AbstractTableAssembly buildSqlTable(Worksheet worksheet, WorksheetTable request)
       throws Exception
    {
       String sqlString = request.getSqlExpression();
-      WorksheetTableRequest.PhysicalSource src = request.getPhysicalSource();
+      WorksheetTable.PhysicalSource src = request.getPhysicalSource();
 
       if(sqlString == null || sqlString.isBlank()) {
          throw new IllegalArgumentException("sqlExpression is required for sql query table");
@@ -754,7 +814,7 @@ public class WorksheetTableService {
    }
 
    private AbstractTableAssembly buildMirrorTable(Worksheet worksheet,
-                                                  WorksheetTableRequest request)
+                                                  WorksheetTable request)
    {
       List<String> bases = request.getBaseTables();
 
@@ -787,11 +847,11 @@ public class WorksheetTableService {
    }
 
    private AbstractTableAssembly buildJoinTable(Worksheet worksheet,
-                                                WorksheetTableRequest request)
+                                                WorksheetTable request)
       throws Exception
    {
       List<String> bases = request.getBaseTables();
-      List<WorksheetTableRequest.JoinPathInfo> joinPaths = request.getJoinPaths();
+      List<WorksheetTable.JoinPathInfo> joinPaths = request.getJoinPaths();
 
       if(bases == null || bases.isEmpty()) {
          throw new IllegalArgumentException("Relational join table requires baseTables");
@@ -823,7 +883,7 @@ public class WorksheetTableService {
       // Build the composite operator.
       TableAssemblyOperator noperator = new TableAssemblyOperator();
 
-      for(WorksheetTableRequest.JoinPathInfo path : joinPaths) {
+      for(WorksheetTable.JoinPathInfo path : joinPaths) {
          TableAssembly left = (TableAssembly) worksheet.getAssembly(path.getLeftTable());
          TableAssembly right = (TableAssembly) worksheet.getAssembly(path.getRightTable());
 
@@ -869,10 +929,10 @@ public class WorksheetTableService {
 
    // ─── Column selection helpers ─────────────────────────────────────────────
 
-   private ColumnSelection buildColumnSelection(List<WorksheetTableRequest.ColumnInfo> cols) {
+   private ColumnSelection buildColumnSelection(List<WorksheetTable.ColumnInfo> cols) {
       ColumnSelection cs = new ColumnSelection();
 
-      for(WorksheetTableRequest.ColumnInfo col : cols) {
+      for(WorksheetTable.ColumnInfo col : cols) {
          AttributeRef ref = new AttributeRef(null, AssetUtil.trimEntity(col.getName(), null));
 
          if(col.getType() != null) {
@@ -921,7 +981,7 @@ public class WorksheetTableService {
    }
 
    private void applyExpressionColumns(AbstractTableAssembly table,
-                                       List<WorksheetTableRequest.ExpressionColumnInfo> exprCols)
+                                       List<WorksheetTable.ExpressionColumnInfo> exprCols)
    {
       if(exprCols == null || exprCols.isEmpty()) {
          return;
@@ -929,7 +989,7 @@ public class WorksheetTableService {
 
       ColumnSelection cs = table.getColumnSelection(false);
 
-      for(WorksheetTableRequest.ExpressionColumnInfo col : exprCols) {
+      for(WorksheetTable.ExpressionColumnInfo col : exprCols) {
          String colName = col.getAlias() != null ? col.getAlias() : col.getName();
          ExpressionRef expr = new ExpressionRef(null, colName);
          expr.setExpression(col.getExpression() != null ? col.getExpression() : "");
@@ -961,14 +1021,14 @@ public class WorksheetTableService {
    // ─── Aggregate info ───────────────────────────────────────────────────────
 
    private void applyAggregateInfo(AbstractTableAssembly table,
-                                   WorksheetTableRequest.AggregateInfo aggInfo)
+                                   WorksheetTable.AggregateInfo aggInfo)
    {
       if(aggInfo == null) {
          return;
       }
 
-      List<WorksheetTableRequest.GroupByFieldInfo> groups = aggInfo.getGroups();
-      List<WorksheetTableRequest.AggregateFieldInfo> aggregates = aggInfo.getAggregates();
+      List<WorksheetTable.GroupByFieldInfo> groups = aggInfo.getGroups();
+      List<WorksheetTable.AggregateFieldInfo> aggregates = aggInfo.getAggregates();
 
       if((groups == null || groups.isEmpty()) && (aggregates == null || aggregates.isEmpty())) {
          return;
@@ -979,7 +1039,7 @@ public class WorksheetTableService {
       ColumnSelection privateCs = table.getColumnSelection(false);
 
       if(groups != null) {
-         for(WorksheetTableRequest.GroupByFieldInfo grp : groups) {
+         for(WorksheetTable.GroupByFieldInfo grp : groups) {
             DataRef ref = cs.getAttribute(grp.getFieldName());
 
             if(!(ref instanceof ColumnRef column)) {
@@ -1021,7 +1081,7 @@ public class WorksheetTableService {
          // AggregateDialogService.updateAggregateInfo()).
          Map<String, Integer> fieldOccurrenceCount = new HashMap<>();
 
-         for(WorksheetTableRequest.AggregateFieldInfo agg : aggregates) {
+         for(WorksheetTable.AggregateFieldInfo agg : aggregates) {
             DataRef column = cs.getAttribute(agg.getFieldName());
 
             if(column == null) {
@@ -1106,7 +1166,7 @@ public class WorksheetTableService {
    // ─── Condition list ───────────────────────────────────────────────────────
 
    /**
-    * Converts the flat {@link WorksheetTableRequest.ConditionItem} list emitted by
+    * Converts the flat {@link WorksheetTable.ConditionItem} list emitted by
     * the wiz-services condition-tree normaliser into a StyleBI {@link ConditionList}.
     *
     * <p>Each item carries:
@@ -1128,13 +1188,13 @@ public class WorksheetTableService {
     */
    // Package-private for unit testing (WorksheetTableServiceConditionTest).
    ConditionList buildConditionList(ColumnSelection columns,
-                                    List<WorksheetTableRequest.ConditionItem> items,
+                                    List<WorksheetTable.ConditionItem> items,
                                     Worksheet worksheet,
                                     boolean isHaving)
    {
       ConditionList list = new ConditionList();
 
-      for(WorksheetTableRequest.ConditionItem item : items) {
+      for(WorksheetTable.ConditionItem item : items) {
          // Insert a junction operator before each non-first item.
          if(item.getJunction() != null) {
             int junctionType = "or".equalsIgnoreCase(item.getJunction())
@@ -1149,11 +1209,11 @@ public class WorksheetTableService {
    }
 
    private ConditionList buildRankingConditionList(ColumnSelection columns,
-                                                   List<WorksheetTableRequest.ConditionItem> items)
+                                                   List<WorksheetTable.ConditionItem> items)
    {
       ConditionList list = new ConditionList();
 
-      for(WorksheetTableRequest.ConditionItem item : items) {
+      for(WorksheetTable.ConditionItem item : items) {
          if(item.getJunction() != null) {
             int junctionType = "or".equalsIgnoreCase(item.getJunction())
                ? JunctionOperator.OR : JunctionOperator.AND;
@@ -1167,7 +1227,7 @@ public class WorksheetTableService {
    }
 
    private void appendRankingConditionItem(ConditionList list,
-                                           WorksheetTableRequest.ConditionItem item,
+                                           WorksheetTable.ConditionItem item,
                                            ColumnSelection columns)
    {
       if(item.getField() == null || item.getOperation() == null) {
@@ -1192,7 +1252,7 @@ public class WorksheetTableService {
       rc.setDataRef(ref);
 
       if(item.getValues() != null && !item.getValues().isEmpty()) {
-         WorksheetTableRequest.WorksheetConditionValue v = item.getValues().get(0);
+         WorksheetTable.WorksheetConditionValue v = item.getValues().get(0);
 
          if("VALUE".equals(v.getType()) && v.getValue() != null) {
             Object val = v.getValue() instanceof Number
@@ -1206,7 +1266,7 @@ public class WorksheetTableService {
    }
 
    private void appendConditionItem(ConditionList list,
-                                    WorksheetTableRequest.ConditionItem item,
+                                    WorksheetTable.ConditionItem item,
                                     ColumnSelection columns,
                                     Worksheet worksheet,
                                     boolean isHaving)
@@ -1273,7 +1333,7 @@ public class WorksheetTableService {
          ac.setNegated(item.isNegated());
 
          if(item.getValues() != null) {
-            for(WorksheetTableRequest.WorksheetConditionValue v : item.getValues()) {
+            for(WorksheetTable.WorksheetConditionValue v : item.getValues()) {
                addConditionValue(ac, v, columns, worksheet);
             }
          }
@@ -1310,7 +1370,7 @@ public class WorksheetTableService {
    }
 
    private void addConditionValue(AssetCondition condition,
-                                  WorksheetTableRequest.WorksheetConditionValue v,
+                                  WorksheetTable.WorksheetConditionValue v,
                                   ColumnSelection columns,
                                   Worksheet worksheet)
    {
@@ -1344,7 +1404,7 @@ public class WorksheetTableService {
          }
 
          case "SUBQUERY" -> {
-            WorksheetTableRequest.SubQueryInfo sq = v.getSubQuery();
+            WorksheetTable.SubQueryInfo sq = v.getSubQuery();
 
             if(sq == null || sq.getSubQueryName() == null) {
                return;
@@ -1361,7 +1421,7 @@ public class WorksheetTableService {
                subQuery.setAttribute(attrRef);
 
                // Correlated subquery: per-row filter linking subquery to main table.
-               WorksheetTableRequest.SubQueryWhere where = sq.getWhere();
+               WorksheetTable.SubQueryWhere where = sq.getWhere();
 
                if(where != null) {
                   DataRef subAttrRef = queryCs.getAttribute(where.getSubQueryColumn());
