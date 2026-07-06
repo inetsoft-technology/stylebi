@@ -17,6 +17,7 @@
  */
 package inetsoft.util.script.graal;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
 import inetsoft.sree.SreeEnv;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Value;
@@ -66,22 +67,23 @@ public final class LegacyJavaShim {
    private static final Map<String, Optional<Class<?>>> CLASS_CACHE = new ConcurrentHashMap<>();
 
    /**
-    * Bounded LRU cache of names that did <em>not</em> resolve to a class. Package
+    * Bounded cache of names that did <em>not</em> resolve to a class. Package
     * navigation probes many non-class names (e.g. {@code java}, {@code awt}, bare
     * identifiers), and each failed {@link Class#forName} scans the entire classpath
     * (every JAR) before throwing {@code ClassNotFoundException} -- the most expensive
     * classloading outcome. Remembering misses collapses repeat probes to a single
-    * lookup; the LRU bound keeps the set from growing without limit under the
+    * lookup; the size bound keeps the set from growing without limit under the
     * exploratory navigation the positive cache alone can't guard against.
+    *
+    * <p>Only {@code ClassNotFoundException} misses are cached (see {@link #tryLoad});
+    * a class that is unreachable today because a plugin/driver hasn't been installed
+    * yet becomes reachable once it is, so this cache must be invalidated whenever
+    * plugins change ({@link #invalidateNegativeCache()}, wired to
+    * {@link inetsoft.util.PluginsChangedEvent}).
     */
    private static final int NEGATIVE_CACHE_MAX = 10_000;
    private static final Map<String, Boolean> NEGATIVE_CACHE =
-      Collections.synchronizedMap(new LinkedHashMap<>(256, 0.75f, true) {
-         @Override
-         protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
-            return size() > NEGATIVE_CACHE_MAX;
-         }
-      });
+      Caffeine.newBuilder().maximumSize(NEGATIVE_CACHE_MAX).<String, Boolean>build().asMap();
 
    private LegacyJavaShim() {
    }
@@ -258,13 +260,35 @@ public final class LegacyJavaShim {
          CLASS_CACHE.put(fqcn, Optional.of(cls));
          return cls;
       }
-      catch(ClassNotFoundException | LinkageError ex) {
+      catch(ClassNotFoundException ex) {
          // Remember the miss so repeat probes don't rescan the whole classpath.
-         // Bounded (LRU, see NEGATIVE_CACHE) to avoid unbounded growth from
+         // Bounded (see NEGATIVE_CACHE) to avoid unbounded growth from
          // exploratory package navigation.
          NEGATIVE_CACHE.put(fqcn, Boolean.TRUE);
          return null;
       }
+      catch(LinkageError ex) {
+         // Not cached: unlike ClassNotFoundException, this can be a transient
+         // outcome (e.g. a referenced supertype not yet on the classpath while a
+         // plugin is mid-install) -- a later probe may still succeed.
+         return null;
+      }
+   }
+
+   /**
+    * Clears the negative-lookup cache. Names that were unreachable may become
+    * reachable after a plugin or JDBC driver is installed at runtime (no server
+    * restart), so this must run whenever the set of loadable classes can have
+    * changed. Wired to {@link inetsoft.util.PluginsChangedEvent} via
+    * {@link LegacyJavaShimPluginListener}.
+    */
+   static void invalidateNegativeCache() {
+      NEGATIVE_CACHE.clear();
+   }
+
+   /** Test-visible: whether {@code fqcn} is currently a cached miss. */
+   static boolean isNegativelyCached(String fqcn) {
+      return NEGATIVE_CACHE.containsKey(fqcn);
    }
 
    static boolean isResolvableName(String name) {
