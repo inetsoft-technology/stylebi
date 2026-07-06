@@ -17,9 +17,7 @@
  */
 package inetsoft.web.wiz.controller;
 
-import inetsoft.sree.SreeEnv;
-import inetsoft.uql.XPrincipal;
-import inetsoft.util.Tool;
+import inetsoft.web.wiz.AppDomainUtils;
 import inetsoft.web.wiz.OrganizationDomains;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -34,32 +32,13 @@ import java.security.Principal;
 public class AppDomainsController {
    @GetMapping(value = "/appDomains", produces = MediaType.APPLICATION_JSON_VALUE)
    public OrganizationDomains getAppDomains(Principal user) throws Exception {
-      String value = SreeEnv.getProperty(getOrgAppDomainPropKey(user), false, true);
-
-      if(Tool.isEmptyString(value)) {
-         return null;
-      }
-
-      OrganizationDomains domains = new OrganizationDomains();
-      domains.parseFromProperty(value);
-      return domains;
+      return AppDomainUtils.getAppDomains(user);
    }
 
    @PostMapping(value = "/appDomains", produces = MediaType.APPLICATION_JSON_VALUE)
    public void setAppDomains(@RequestBody OrganizationDomains appDomains,
                              Principal user) throws Exception
    {
-      String value = appDomains.toString();
-      SreeEnv.setProperty(getOrgAppDomainPropKey(user), value, true);
+      AppDomainUtils.setAppDomains(appDomains, user);
    }
-
-   private String getOrgAppDomainPropKey(Principal user) {
-      if(user != null && ((XPrincipal) user).getOrgId() != null) {
-         return Tool.buildString(APP_DOMAIN, ".", ((XPrincipal) user).getOrgId());
-      }
-
-      return APP_DOMAIN;
-   }
-
-   private static final String APP_DOMAIN = "app.domains";
 }
