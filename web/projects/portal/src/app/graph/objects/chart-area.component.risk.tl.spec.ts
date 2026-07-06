@@ -280,6 +280,24 @@ describe("ChartArea — concurrent axis+plot loading/error state", () => {
       expect(loads).toHaveLength(0);
    });
 
+   // Bug #75575 follow-up (code review): resetting axisImageError/plotImageError at the start
+   // of a fresh cycle must also recompute the public imageError flag immediately — otherwise a
+   // stale error banner from the previous cycle keeps showing for the full duration of the new
+   // load, only clearing once the matching axisLoaded()/plotLoaded() call resolves.
+   it("should clear a stale imageError as soon as a fresh axis cycle starts, not only once it resolves", () => {
+      const { comp } = createComponent();
+      comp.axisLoading("bottom_x_axis");
+      comp.plotLoading();
+      comp.axisLoaded(false, "bottom_x_axis"); // axis fails this cycle
+      comp.plotLoaded(true); // plot succeeds; imageError stays true because of the axis failure
+      expect(comp.imageError).toBe(true);
+
+      comp.axisLoading("bottom_x_axis"); // fresh axis cycle starts (_axisLoaded was true)
+
+      // imageError must already be false here, before axisLoaded() ever resolves the new cycle.
+      expect(comp.imageError).toBe(false);
+   });
+
    it("should emit onError (not onLoad) when the axis fails after the plot already succeeded", () => {
       const { comp } = createComponent();
       comp.axisLoading("bottom_x_axis");

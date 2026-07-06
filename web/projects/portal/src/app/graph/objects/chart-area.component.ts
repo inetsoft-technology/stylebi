@@ -1455,6 +1455,7 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
          // no longer valid. Clear them so the new cycle has a clean baseline. (Bug #74260)
          this._loadingAxesSet.clear();
          this.axisImageError = false;
+         this.imageError = this.axisImageError || this.plotImageError;
       }
 
       this._loadingAxesSet.add(areaName);
@@ -1487,6 +1488,7 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
 
    plotLoading(): void {
       this.plotImageError = false;
+      this.imageError = this.axisImageError || this.plotImageError;
       this._plotLoaded = false;
       this.fireLoading();
    }
