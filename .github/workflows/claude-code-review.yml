@@ -58,5 +58,20 @@ jobs:
             markdown format. Format your comments as regular text or simple code
             blocks to avoid the "Apply suggestion" buttton.
 
+            IMPORTANT:
+            Do not use the Task tool or spawn sub-agents. Task usage is not
+            permitted and wastes review turns.
+
+            Review the PR yourself in a single workflow based on the PR diff.
+            Use Read/Grep when helpful.
+
+            Prioritize business logic, API changes, tests, and potential
+            regressions. Skip generated files, lock files, and clearly
+            non-functional formatting-only changes unless they may affect
+            behavior.
+
+            Do not mark the review as complete until all relevant files have
+            been analyzed.
+
           claude_args: |
             --max-turns 50 --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
