@@ -41,6 +41,7 @@ import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ReactiveFormsModule, UntypedFormGroup } from "@angular/forms";
 import { HttpClientModule } from "@angular/common/http";
 import { RouterTestingModule } from "@angular/router/testing";
+import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { render } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 import { MatDialog } from "@angular/material/dialog";
@@ -53,7 +54,7 @@ import { ErrorStateMatcher } from "@angular/material/core";
 import { Subject, EMPTY, of } from "rxjs";
 
 import { ActivatedRoute } from "@angular/router";
-import { server } from "../../../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 import { ScheduleTaskListComponent, DistributionType } from "./schedule-task-list.component";
 import { PageHeaderService } from "../../../page-header/page-header.service";
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
@@ -133,6 +134,23 @@ function setupDefaultEndpoints() {
       http.get("*/api/em/schedule/distribution/chart", () =>
          MswHttpResponse.json({ values: [], image: "data:image/png;base64,abc" })
       ),
+      http.get("*/api/em/schedule/folder/get", () =>
+         MswHttpResponse.json({
+            nodes: [{
+               label: "Scheduled Tasks",
+               path: "/",
+               owner: { name: "admin", orgID: "host_org" },
+               type: 0x40000001,
+               readOnly: false,
+               builtIn: false,
+               description: "",
+               icon: "folder-icon",
+               visible: true,
+               children: [],
+               properties: {},
+            }]
+         })
+      ),
    );
 }
 
@@ -144,7 +162,7 @@ async function renderComponent() {
    setupDefaultEndpoints();
 
    const result = await render(ScheduleTaskListComponent, {
-      imports: [ReactiveFormsModule, HttpClientModule, RouterTestingModule, MatMenuModule],
+      imports: [ReactiveFormsModule, HttpClientModule, RouterTestingModule, MatMenuModule, NoopAnimationsModule],
       schemas: [NO_ERRORS_SCHEMA],
       providers: [
          { provide: PageHeaderService, useValue: { title: "", currentOrgId: null } },

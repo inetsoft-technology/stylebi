@@ -26,6 +26,12 @@
 import { http, HttpResponse } from "msw";
 
 export const modelHandlers = [
+   // DatabasePhysicalModelComponent.ngOnDestroy() — always fires on fixture teardown.
+   // Must be a global handler (not server.use()) so it survives server.resetHandlers().
+   http.delete("*/api/data/physicalmodel/destroy", () => {
+      return HttpResponse.json({});
+   }),
+
    // Portal data-source browser
    http.get("*/api/portal/content/data-source/:name", () => {
       return HttpResponse.json({ tables: [], columns: [] });

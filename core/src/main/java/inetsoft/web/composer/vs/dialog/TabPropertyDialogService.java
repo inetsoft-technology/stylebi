@@ -114,6 +114,7 @@ public class TabPropertyDialogService {
       return result;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setTabPropertyDialogModel(@ClusterProxyKey String runtimeId, String objectId,
                                          TabPropertyDialogModel value, String linkUri,

@@ -17,14 +17,13 @@
  */
 package inetsoft.report.script.viewsheet;
 
+import inetsoft.util.script.graal.ScriptFunction;
 import inetsoft.uql.XTable;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.script.XTableArray;
 import inetsoft.uql.util.XNodeTable;
-import inetsoft.util.script.FunctionObject2;
 import inetsoft.util.script.JavaScriptEngine;
-import org.mozilla.javascript.FunctionObject;
-import org.mozilla.javascript.ScriptableObject;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,6 +32,8 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * PreparedStatementScriptable encapsulates a PreparedStatement.
@@ -40,7 +41,7 @@ import java.sql.*;
  * @version 11.2
  * @author InetSoft Technology Corp
  */
-public class PreparedStatementScriptable extends ScriptableObject {
+public class PreparedStatementScriptable implements ScriptScope {
    /**
     * Constructor.
     * @param sql the specified sql definition.
@@ -66,87 +67,107 @@ public class PreparedStatementScriptable extends ScriptableObject {
    /**
     * Get the name of the set of objects implemented by this Java class.
     */
-   @Override
    public String getClassName() {
       return "PreparedStatementScriptable";
+   }
+
+   @Override
+   public Object getMember(String name) {
+      return members.get(name);
+   }
+
+   @Override
+   public boolean hasMember(String name) {
+      return members.containsKey(name);
+   }
+
+   @Override
+   public void putMember(String name, Object value) {
+      members.put(name, value);
+   }
+
+   @Override
+   public Object[] getMemberKeys() {
+      return members.keySet().toArray();
    }
 
    /**
     * Add methods to write to database.
     */
    private void addFunctions() {
+      // Feature #75423: native functions exposed via ScriptFunction (GraalJS).
       try {
-         FunctionObject func = new FunctionObject2(this, getClass(), "addBatch");
-         put("addBatch", this, func);
+         ScriptFunction func = new ScriptFunction(this, getClass(), "addBatch");
+         members.put("addBatch", func);
 
-         func = new FunctionObject2(this, getClass(), "clearParameters");
-         put("clearParameters", this, func);
+         func = new ScriptFunction(this, getClass(), "clearParameters");
+         members.put("clearParameters", func);
 
-         func = new FunctionObject2(this, getClass(), "execute");
-         put("execute", this, func);
+         func = new ScriptFunction(this, getClass(), "execute");
+         members.put("execute", func);
 
-         func = new FunctionObject2(this, getClass(), "executeBatch");
-         put("executeBatch", this, func);
+         func = new ScriptFunction(this, getClass(), "executeBatch");
+         members.put("executeBatch", func);
 
-         func = new FunctionObject2(this, getClass(), "executeQuery");
-         put("executeQuery", this, func);
+         func = new ScriptFunction(this, getClass(), "executeQuery");
+         members.put("executeQuery", func);
 
-         func = new FunctionObject2(this, getClass(), "executeUpdate");
-         put("executeUpdate", this, func);
+         func = new ScriptFunction(this, getClass(), "executeUpdate");
+         members.put("executeUpdate", func);
 
-         func = new FunctionObject2(this, getClass(), "setBigDecimal", int.class, Object.class);
-         put("setBigDecimal", this, func);
+         func = new ScriptFunction(this, getClass(), "setBigDecimal", int.class, Object.class);
+         members.put("setBigDecimal", func);
 
-         func = new FunctionObject2(this, getClass(), "setBoolean", int.class, boolean.class);
-         put("setBoolean", this, func);
+         func = new ScriptFunction(this, getClass(), "setBoolean", int.class, boolean.class);
+         members.put("setBoolean", func);
 
-         func = new FunctionObject2(this, getClass(), "setByte", int.class, Object.class);
-         put("setByte", this, func);
+         func = new ScriptFunction(this, getClass(), "setByte", int.class, Object.class);
+         members.put("setByte", func);
 
-         func = new FunctionObject2(this, getClass(), "setDate", int.class, Object.class);
-         put("setDate", this, func);
+         func = new ScriptFunction(this, getClass(), "setDate", int.class, Object.class);
+         members.put("setDate", func);
 
-         func = new FunctionObject2(this, getClass(), "setDouble", int.class, double.class);
-         put("setDouble", this, func);
+         func = new ScriptFunction(this, getClass(), "setDouble", int.class, double.class);
+         members.put("setDouble", func);
 
-         func = new FunctionObject2(this, getClass(), "setFloat", int.class, Object.class);
-         put("setFloat", this, func);
+         func = new ScriptFunction(this, getClass(), "setFloat", int.class, Object.class);
+         members.put("setFloat", func);
 
-         func = new FunctionObject2(this, getClass(), "setInt", int.class, int.class);
-         put("setInt", this, func);
+         func = new ScriptFunction(this, getClass(), "setInt", int.class, int.class);
+         members.put("setInt", func);
 
-         func = new FunctionObject2(this, getClass(), "setLong", int.class, Object.class);
-         put("setLong", this, func);
+         func = new ScriptFunction(this, getClass(), "setLong", int.class, Object.class);
+         members.put("setLong", func);
 
-         func = new FunctionObject2(this, getClass(), "setNull", int.class, int.class);
-         put("setNull", this, func);
+         func = new ScriptFunction(this, getClass(), "setNull", int.class, int.class);
+         members.put("setNull", func);
 
-         func = new FunctionObject2(this, getClass(), "setNull", int.class, int.class, String.class);
-         put("setNull", this, func);
+         func = new ScriptFunction(this, getClass(), "setNull", int.class, int.class, String.class);
+         members.put("setNull", func);
 
-         func = new FunctionObject2(this, getClass(), "setObject", int.class, Object.class);
-         put("setObject", this, func);
+         func = new ScriptFunction(this, getClass(), "setObject", int.class, Object.class);
+         members.put("setObject", func);
 
-         func = new FunctionObject2(this, getClass(), "setObject", int.class, Object.class, int.class);
-         put("setObject", this, func);
+         func = new ScriptFunction(this, getClass(), "setObject", int.class, Object.class, int.class);
+         members.put("setObject", func);
 
-         func = new FunctionObject2(this, getClass(), "setObject", int.class, Object.class, int.class, int.class);
-         put("setObject", this, func);
+         func = new ScriptFunction(this, getClass(), "setObject", int.class, Object.class, int.class, int.class);
+         members.put("setObject", func);
 
-         func = new FunctionObject2(this, getClass(), "setShort", int.class, Object.class);
-         put("setShort", this, func);
+         func = new ScriptFunction(this, getClass(), "setShort", int.class, Object.class);
+         members.put("setShort", func);
 
-         func = new FunctionObject2(this, getClass(), "setString", int.class, String.class);
-         put("setString", this, func);
+         func = new ScriptFunction(this, getClass(), "setString", int.class, String.class);
+         members.put("setString", func);
 
-         func = new FunctionObject2(this, getClass(), "setTime", int.class, Object.class);
-         put("setTime", this, func);
+         func = new ScriptFunction(this, getClass(), "setTime", int.class, Object.class);
+         members.put("setTime", func);
 
-         func = new FunctionObject2(this, getClass(), "setTimestamp", int.class, Object.class);
-         put("setTimestamp", this, func);
+         func = new ScriptFunction(this, getClass(), "setTimestamp", int.class, Object.class);
+         members.put("setTimestamp", func);
 
-         func = new FunctionObject2(this, getClass(), "setBinaryStream", int.class, String.class);
-         put("setBinaryStream", this, func);
+         func = new ScriptFunction(this, getClass(), "setBinaryStream", int.class, String.class);
+         members.put("setBinaryStream", func);
       }
       catch(Exception e) {
          LOG.warn("Failed to register prepared statement properties and functions",
@@ -464,6 +485,7 @@ public class PreparedStatementScriptable extends ScriptableObject {
    private Connection conn;
    private JDBCDataSource jdbcSrc;
    private PreparedStatement pstmt;
+   private final Map<String, Object> members = new LinkedHashMap<>();
    private static final Logger LOG =
       LoggerFactory.getLogger(PreparedStatementScriptable.class);
 }

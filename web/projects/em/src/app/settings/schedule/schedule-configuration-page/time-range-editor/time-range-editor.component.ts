@@ -37,7 +37,9 @@ import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { MatCard, MatCardContent } from "@angular/material/card";
 import { MatTabGroup, MatTab } from "@angular/material/tabs";
+import { ErrorStateMatcher } from "@angular/material/core";
 import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
+import { EmErrorStateMatcher } from "../../../../common/util/error/em-error-state-matcher";
 import { NgIf } from "@angular/common";
 
 export interface TimeRangeData {
@@ -50,6 +52,10 @@ export interface TimeRangeData {
     templateUrl: "./time-range-editor.component.html",
     styleUrls: ["./time-range-editor.component.scss"],
     encapsulation: ViewEncapsulation.None,
+    // This dialog is opened via MatDialog, which uses the root injector and does
+    // not inherit the schedule route's EmErrorStateMatcher provider. Provide it
+    // here so required-field errors display eagerly (Bug #75338).
+    providers: [{ provide: ErrorStateMatcher, useClass: EmErrorStateMatcher }],
     imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatTabGroup, MatTab, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatError, MatCheckbox, ResourcePermissionComponent, MatDialogActions, MatButton]
 })
 export class TimeRangeEditorComponent implements OnInit {

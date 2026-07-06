@@ -493,9 +493,10 @@ public interface Cluster extends AutoCloseable {
     * @param address         the address of the remote, recipient node.
     * @param outgoingMessage the message object to send to the recipient.
     * @param matcher         a function that checks if an incoming message is the response to the
-    *                        sent message. If it is, it returns the expected output; otherwise it
-    *                        returns {@code null}. It is guaranteed that the message was received
-    *                        from the recipient at <i>address</i>.
+    *                        sent message. Must be non-blocking — it is invoked on the Ignite
+    *                        message dispatcher thread. If it is the expected response, it returns
+    *                        the output; otherwise it returns {@code null}. It is guaranteed that
+    *                        the message was received from the recipient at <i>address</i>.
     *
     * @param <T> the return type of the matcher function.
     *
@@ -531,9 +532,10 @@ public interface Cluster extends AutoCloseable {
     * @param address         the address of the remote, recipient node.
     * @param outgoingMessage the message object to send to the recipient.
     * @param matcher         a function that checks if an incoming message is the response to the
-    *                        sent message. If it is, it returns the expected output; otherwise it
-    *                        returns {@code null}. It is guaranteed that the message was received
-    *                        from the recipient at <i>address</i>.
+    *                        sent message. Must be non-blocking — it is invoked on the Ignite
+    *                        message dispatcher thread. If it is the expected response, it returns
+    *                        the output; otherwise it returns {@code null}. It is guaranteed that
+    *                        the message was received from the recipient at <i>address</i>.
     * @param timeout         the maximum time to wait for a response.
     * @param unit            the time unit of the timeout argument.
     *
@@ -617,6 +619,14 @@ public interface Cluster extends AutoCloseable {
     * @throws IOException if an I/O error occurs.
     */
    File getTransferFile(String link) throws IOException;
+
+   /**
+    * Cancels a pending file transfer that was registered with {@link #addTransferFile(File)} but
+    * has not yet been consumed. Removes the entry from the transfer registry and deletes the file.
+    *
+    * @param link the link returned by {@link #addTransferFile(File)}.
+    */
+   void cancelTransferFile(String link);
 
    /**
     * Executes a SQL query against a cache.

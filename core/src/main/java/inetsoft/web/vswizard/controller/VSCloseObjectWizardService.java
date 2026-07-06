@@ -69,6 +69,7 @@ public class VSCloseObjectWizardService {
       this.temporaryInfoService = temporaryInfoService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void closeHandle(@ClusterProxyKey String vsId, boolean save, CloseObjectWizardEvent event,
                            String linkUri, Principal principal,

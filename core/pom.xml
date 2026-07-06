@@ -98,9 +98,14 @@
     </dependency>
 
     <dependency>
-      <groupId>org.mozilla</groupId>
-      <artifactId>rhino</artifactId>
-      <scope>compile</scope>
+      <groupId>org.graalvm.polyglot</groupId>
+      <artifactId>polyglot</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.graalvm.polyglot</groupId>
+      <artifactId>js-community</artifactId>
+      <type>pom</type>
     </dependency>
 
     <dependency>
@@ -756,6 +761,13 @@
       <version>${project.version}</version>
       <scope>provided</scope>
       <classifier>shaded</classifier>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.build</groupId>
+      <artifactId>cluster-proxy-annotations</artifactId>
+      <version>${project.version}</version>
+      <scope>compile</scope>
     </dependency>
 
     <dependency>

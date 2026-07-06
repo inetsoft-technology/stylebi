@@ -111,7 +111,11 @@ export class EmailListDialogComponent implements OnInit, OnDestroy {
 
          if(!strs || !(strs.some((str) => this.emailIdentities.indexOf(str) == -1))) {
             this.treeControl.collapseAll();
-            this.dataSource.data = this.originalDataSource;
+
+            if(this.originalDataSource) {
+               this.dataSource.data = this.originalDataSource;
+            }
+
             return;
          }
 
@@ -138,6 +142,10 @@ export class EmailListDialogComponent implements OnInit, OnDestroy {
             distinctUntilChanged()
          )
          .subscribe((val: string) => {
+            if(!this.originalDataSource) {
+               return;
+            }
+
             let splits: string[] = val.split(",");
             let searchStr = splits[splits.length - 1];
             this.dataSource.data = this.searchEmailTree(Tool.clone(this.originalDataSource), searchStr);
@@ -345,7 +353,7 @@ export class EmailListDialogComponent implements OnInit, OnDestroy {
    }
 
    private searchEmailTree(roots: EmailNode[], searchStr: string): EmailNode[] {
-      if(!searchStr) {
+      if(!searchStr || !roots) {
          return roots;
       }
 

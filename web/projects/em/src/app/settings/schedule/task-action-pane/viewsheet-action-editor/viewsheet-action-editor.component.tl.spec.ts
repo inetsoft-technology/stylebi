@@ -73,7 +73,7 @@ class MatSelectStub implements ControlValueAccessor {
    registerOnChange() {}
    registerOnTouched() {}
 }
-import { server } from "../../../../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 import { ViewsheetActionEditorComponent } from "./viewsheet-action-editor.component";
 import { ViewsheetActionService } from "../viewsheet-action.service";
 import { EmailListService } from "../email-list.service";

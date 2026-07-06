@@ -23,7 +23,7 @@
           <select class="form-control" [ngModel]="getCurrentOrder()" id="currentOrder"
             (ngModelChange)="changeOrderType($event)"
             [disabled]="!isSortEnabled()">
-            @for (sort of getSortOrders(); track trackByFn($index, sort)) {
+            @for (sort of sortOrders; track trackByFn($index, sort)) {
               @if (sortItemVisible(sort)) {
                 <option [value]="sort.value">{{sort.label}}</option>
               }

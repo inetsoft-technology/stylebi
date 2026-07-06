@@ -41,6 +41,7 @@ public class DeleteDataService extends WorksheetControllerService {
       super(viewsheetService, dataSourceRegistry);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void deleteData(
       @ClusterProxyKey String runtimeId, WSDeleteDataEvent event, Principal principal,

@@ -1114,6 +1114,22 @@
     "!type" : "fn(measure: ?, ranges: ?, target: ?, color: ?, xdims: ?, ydims: ?, opts: ?) -> ?",
     "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=createBulletGraph"
   },
+  "createCirclePackingGraph" : {
+    "!type" : "fn() -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=createCirclePackingGraph"
+  },
+  "createMekkoGraph" : {
+    "!type" : "fn() -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=createMekkoGraph"
+  },
+  "createSunburstGraph" : {
+    "!type" : "fn() -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=createSunburstGraph"
+  },
+  "createTreemap" : {
+    "!type" : "fn() -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=createTreemap"
+  },
   "dataBinding" : {
     "!type" : "fn() -> ?"
   },
@@ -1255,7 +1271,7 @@
         "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectMatch"
       },
       "replace" : {
-        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectMatch"
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectReplace"
       },
       "search" : {
         "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectSearch"

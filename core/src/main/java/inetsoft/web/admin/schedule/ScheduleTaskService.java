@@ -846,7 +846,7 @@ public class ScheduleTaskService {
 
          if(distribution != null) {
             for(TaskDistributionGroup group : distribution.days()) {
-               if(group.index() <0) {
+               if(group.index() <= 0) {
                   continue;
                }
 

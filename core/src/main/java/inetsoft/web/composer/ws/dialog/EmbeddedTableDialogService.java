@@ -59,6 +59,7 @@ public class EmbeddedTableDialogService extends WorksheetControllerService {
       return model;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void createEmbeddedTable(@ClusterProxyKey String runtimeId, EmbeddedTableDialogModel model,
                                    Principal principal, CommandDispatcher commandDispatcher) throws Exception

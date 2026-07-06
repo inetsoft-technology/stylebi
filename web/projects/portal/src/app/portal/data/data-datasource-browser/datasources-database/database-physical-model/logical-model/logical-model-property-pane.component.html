@@ -47,7 +47,7 @@
       </div>
       <div class="data-model-left-top">
         <div tabindex="0" (keydown)="keyDown($event)">
-          @for (entity of logicalModel.entities; track entity; let i = $index) {
+          @for (entity of logicalModel.entities; track entity.name; let i = $index) {
             <element-tree-node
               [node]="entity"
               [entityIndex]="i"
@@ -63,7 +63,7 @@
               (onShiftSelect)="shiftSelect($event)"
               (onToggleEntity)="entityToggle($event)"
               (onDeleteAttribute)="onDeleteAttribute($event)"
-              (onAttributeOrderChanged)="attributeOrderChanged()">
+              (onAttributeOrderChanged)="attributeOrderChanged($event)">
             </element-tree-node>
           }
           <loading-indicator-pane [show]="loading"></loading-indicator-pane>

@@ -16,6 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <div class="time-picker">
+  @let meridianLabel = getMeridianLabel();
   <mat-form-field appearance="outline" color="accent" class="time-picker-field">
     <mat-label>HH</mat-label>
     <input type="text" matInput maxlength="2"
@@ -54,7 +55,7 @@
       <button mat-stroked-button
         [disabled]="disabled"
         (click)="changeMeridian()"
-      >{{getMeridianLabel()}}</button>
+      >{{meridianLabel}}</button>
     </div>
   }
 </div>

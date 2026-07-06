@@ -15,7 +15,7 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
-@for (alert of alerts; track alert) {
+@for (alert of alerts; track alert.id) {
   <p>
     <ngb-alert [type]="alert.type" (closed)="closeAlert(alert)" [class.full-width]="fullWidth">
       <span class="message-text">{{ alert.message }}</span>

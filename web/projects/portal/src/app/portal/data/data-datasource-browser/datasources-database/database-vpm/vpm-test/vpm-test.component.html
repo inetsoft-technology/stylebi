@@ -45,7 +45,7 @@
           <div class="form-floating">
             <select class="form-control"
               [(ngModel)]="selectedUser">
-              @for (user of testData.users; track user) {
+              @for (user of testData.users; track user.value) {
                 <option [value]="user?.value">
                   {{user?.label}}
                 </option>
@@ -58,7 +58,7 @@
           <div class="form-floating">
             <select class="form-control"
               [(ngModel)]="selectedRole">
-              @for (role of testData.roles; track role) {
+              @for (role of testData.roles; track role.value) {
                 <option [value]="role?.value">
                   {{role?.label}}
                 </option>

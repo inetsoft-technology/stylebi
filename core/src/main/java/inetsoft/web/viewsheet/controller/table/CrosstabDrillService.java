@@ -43,6 +43,7 @@ public class CrosstabDrillService extends BaseTableDrillService<DrillEvent> {
    }
 
    @Override
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void eventHandler(@ClusterProxyKey String runtimeId,
                             DrillEvent event,
@@ -56,6 +57,7 @@ public class CrosstabDrillService extends BaseTableDrillService<DrillEvent> {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void drill(@ClusterProxyKey String runtimeId, DrillCellsEvent event, Principal principal,
                      CommandDispatcher dispatcher, String linkUri)

@@ -41,6 +41,7 @@ import inetsoft.storage.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.service.XEngine;
@@ -99,7 +100,7 @@ public class IdentityService {
                           ExternalStorageService externalStorageService,
                           XRepository xRepository,
                           RepletRegistryManager repletRegistryManager,
-                          IgniteSessionRepository sessionRepository)
+                          Optional<IgniteSessionRepository> sessionRepository)
    {
       this.securityEngine = securityEngine;
       this.securityProvider = securityProvider;
@@ -129,7 +130,7 @@ public class IdentityService {
       this.externalStorageService = externalStorageService;
       this.xRepository = xRepository;
       this.repletRegistryManager = repletRegistryManager;
-      this.sessionRepository = sessionRepository;
+      this.sessionRepository = sessionRepository.orElse(null);
    }
 
    private AuthenticationProvider getProvider(String providerName) {
@@ -238,7 +239,6 @@ public class IdentityService {
                }
 
                if(type == Identity.USER) {
-                  deleteUserIDs.add(identityId);
                   logoutSession(identityId);
                }
 
@@ -246,6 +246,12 @@ public class IdentityService {
 
                syncIdentity(provider, identityId != null ? new DefaultIdentity(identityId, type) :
                   new DefaultIdentity(), null);
+
+               // only mark as deleted after syncIdentity succeeds, so favorites
+               // aren't stripped for users whose deletion failed
+               if(type == Identity.USER) {
+                  deleteUserIDs.add(identityId);
+               }
             }
             catch(Exception ex) {
                actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
@@ -260,6 +266,9 @@ public class IdentityService {
                }
             }
          }
+
+         // sweep shared-asset favorites once for all deleted users (one scan per org)
+         removeUserFavorites(deleteUserIDs);
 
          if(!failedIdentities.isEmpty()) {
             String warning = String.format(
@@ -287,6 +296,100 @@ public class IdentityService {
       }
 
       return warnings;
+   }
+
+   /**
+    * Compute, without deleting anything, which scheduled tasks would be affected if the given
+    * identities were deleted: tasks owned by a user (deleted) and tasks where a user/group is
+    * the "execute as" (reset to the task owner). Only user/group deletions affect tasks.
+    */
+   public DeleteIdentitiesTaskImpactResponse getDeleteTaskImpacts(IdentityModel[] models,
+                                                                  String providerName,
+                                                                  Principal principal)
+   {
+      // track (org, task name) so distinct tasks that share a name across orgs aren't merged
+      Set<TaskRef> ownedTasks = new LinkedHashSet<>();
+      Set<TaskRef> executeAsTasks = new LinkedHashSet<>();
+      AuthenticationProvider authcProvider = this.getProvider(providerName);
+
+      if(authcProvider instanceof EditableAuthenticationProvider provider) {
+         for(IdentityModel model : models) {
+            int type = model.type();
+
+            if(type != Identity.USER && type != Identity.GROUP) {
+               continue;
+            }
+
+            ResourceType resourceType = type == Identity.GROUP ?
+               ResourceType.SECURITY_GROUP : ResourceType.SECURITY_USER;
+
+            // gate by the same admin permission the delete enforces, so an admin can't enumerate
+            // another org's task names by posting identities they aren't allowed to administer
+            try {
+               if(!securityEngine.checkPermission(principal, resourceType,
+                  model.identityID().convertToKey(), ResourceAction.ADMIN))
+               {
+                  continue;
+               }
+            }
+            catch(Exception ignore) {
+               continue;
+            }
+
+            Identity identity = new DefaultIdentity(model.identityID(), type);
+            String targetOrg = model.identityID() == null ? null : model.identityID().orgID;
+
+            try {
+               // resolve the impact in the target identity's org so a site/host admin deleting a
+               // user in another org (e.g. the self org) still sees that org's affected tasks
+               ScheduleManager.IdentityTaskImpact impact = targetOrg == null
+                  ? scheduleManager.getIdentityRemovalImpact(identity, provider)
+                  : OrganizationManager.runInOrgScope(
+                     targetOrg, () -> scheduleManager.getIdentityRemovalImpact(identity, provider));
+               impact.ownedTasks().forEach(name -> ownedTasks.add(new TaskRef(targetOrg, name)));
+               impact.executeAsTasks().forEach(name -> executeAsTasks.add(new TaskRef(targetOrg, name)));
+            }
+            catch(Exception ex) {
+               LOG.warn("Failed to compute schedule task impact for {}", model.identityID(), ex);
+            }
+         }
+      }
+
+      // a task whose owner is being deleted is removed entirely, so don't also report it as a reset
+      executeAsTasks.removeAll(ownedTasks);
+
+      return DeleteIdentitiesTaskImpactResponse.builder()
+         .ownedTasks(toDisplayNames(ownedTasks))
+         .executeAsTasks(toDisplayNames(executeAsTasks))
+         .build();
+   }
+
+   /**
+    * Render task refs for display, qualifying a name with its org only when the same name
+    * appears under more than one org so cross-org duplicates stay distinct.
+    */
+   private static List<String> toDisplayNames(Set<TaskRef> refs) {
+      Map<String, Set<String>> orgsByName = new LinkedHashMap<>();
+
+      for(TaskRef ref : refs) {
+         orgsByName.computeIfAbsent(ref.name(), k -> new LinkedHashSet<>()).add(ref.org());
+      }
+
+      List<String> names = new ArrayList<>();
+
+      for(TaskRef ref : refs) {
+         if(ref.org() != null && orgsByName.get(ref.name()).size() > 1) {
+            names.add(ref.name() + " (" + ref.org() + ")");
+         }
+         else {
+            names.add(ref.name());
+         }
+      }
+
+      return names;
+   }
+
+   private record TaskRef(String org, String name) {
    }
 
    private void logoutSession(IdentityID user) {
@@ -473,6 +576,8 @@ public class IdentityService {
             eprovider.removeUser(identityId);
             updateIdentityPermissions(type, identityId, null, identityId.orgID, identityId.orgID,true);
             removeUserScopedAssets(identity);
+            UserEnv.removeUser(identityId);
+            AutoSaveUtils.deleteUserAutoSaveFiles(identityId);
          }
          else {
             if(!identityId.equals(oID)) {
@@ -1629,7 +1734,7 @@ public class IdentityService {
 
          if(Tool.contains(identityIds, new IdentityID(name, oldID.orgID))) {
             final String err = Catalog.getCatalog().getString("common.duplicateName");
-            throw new Exception(err);
+            throw new MessageException(err);
          }
 
          actionRecord.setActionError("new name:" + name);
@@ -1716,11 +1821,13 @@ public class IdentityService {
 
       syncIdentity(eprovider, user, oIdentity);
 
-      try {
-         sessionRepository.updatePrincipalRolesAndGroups(oIdentity, user.getRoles(), user.getGroups(), eprovider);
-      }
-      catch(Exception e) {
-         LOG.warn("Failed to update live session principals for user {}", oIdentity, e);
+      if(sessionRepository != null) {
+         try {
+            sessionRepository.updatePrincipalRolesAndGroups(oIdentity, user.getRoles(), user.getGroups(), eprovider);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to update live session principals for user {}", oIdentity, e);
+         }
       }
 
       return user;
@@ -2202,6 +2309,91 @@ public class IdentityService {
       };
       Set<String> keys = indexedStorage.getKeys(filter, identityID.getOrgID());
       keys.stream().forEach(key -> indexedStorage.remove(key));
+   }
+
+   /**
+    * Remove deleted users from the favoritesUser lists of shared assets they had favorited,
+    * so no dangling references are left behind. Scans each affected organization's folders
+    * once for the whole batch, so a bulk delete costs one sweep per org rather than one per
+    * user.
+    */
+   private void removeUserFavorites(Collection<IdentityID> identityIDs) {
+      if(identityIDs == null || identityIDs.isEmpty()) {
+         return;
+      }
+
+      removeUserEMFavorites(identityIDs);
+
+      Map<String, Set<String>> userKeysByOrg = new HashMap<>();
+
+      for(IdentityID id : identityIDs) {
+         if(id != null && id.getOrgID() != null) {
+            userKeysByOrg.computeIfAbsent(id.getOrgID(), o -> new HashSet<>())
+               .add(id.convertToKey());
+         }
+      }
+
+      IndexedStorage.Filter filter = key -> {
+         AssetEntry entry = AssetEntry.createAssetEntry(key);
+         return entry != null && entry.isFolder();
+      };
+
+      for(Map.Entry<String, Set<String>> e : userKeysByOrg.entrySet()) {
+         String orgID = e.getKey();
+         Set<String> userKeys = e.getValue();
+
+         for(String key : indexedStorage.getKeys(filter, orgID)) {
+            try {
+               XMLSerializable data = indexedStorage.getXMLSerializable(key, null, orgID);
+
+               if(data instanceof AssetFolder folder) {
+                  boolean changed = false;
+
+                  for(AssetEntry folderEntry : folder.getEntries()) {
+                     for(String userKey : userKeys) {
+                        if(folderEntry.getFavoritesUsers().contains(userKey)) {
+                           folderEntry.deleteFavoritesUser(userKey);
+                           changed = true;
+                        }
+                     }
+                  }
+
+                  if(changed) {
+                     OrganizationManager.runInOrgScope(orgID, () -> {
+                        indexedStorage.putXMLSerializable(key, folder);
+                        return null;
+                     });
+                  }
+               }
+            }
+            catch(Exception ex) {
+               LOG.warn("Failed to remove deleted-user favorites from {}", key, ex);
+            }
+         }
+      }
+   }
+
+   /**
+    * Remove the deleted users' EM admin-panel favorites, which are stored per
+    * identity key in the emFavorites store and would otherwise be orphaned.
+    */
+   private void removeUserEMFavorites(Collection<IdentityID> identityIDs) {
+      KeyValueStorage<FavoriteList> favorites = keyValueStorageManager.getStorage("emFavorites");
+
+      for(IdentityID id : identityIDs) {
+         if(id != null) {
+            try {
+               favorites.remove(id.convertToKey()).get(10L, TimeUnit.SECONDS);
+            }
+            catch(InterruptedException e) {
+               Thread.currentThread().interrupt();
+               LOG.warn("Interrupted while removing EM favorites for deleted user {}", id, e);
+            }
+            catch(Exception e) {
+               LOG.warn("Failed to remove EM favorites for deleted user {}", id, e);
+            }
+         }
+      }
    }
 
 

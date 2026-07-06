@@ -127,6 +127,11 @@ export class VSSelectionContainerChildren extends CommandProcessor implements On
    childActions: AbstractVSActions<any>[] = [];
    currentSelectionActions: CurrentSelectionActions[] = [];
    mobileDevice: boolean = GuiTool.isMobileDevice();
+   cachedBodyTop: number = 0;
+   cachedBodyLeft: number = 0;
+   cachedBodyHeight: number = 0;
+   cachedBodyWidth: number = 0;
+   cachedInnerWidth: number = 0;
    private _vsObject: VSSelectionContainerModel;
 
    get viewer(): boolean {
@@ -180,11 +185,24 @@ export class VSSelectionContainerChildren extends CommandProcessor implements On
          }
       }
 
+      this.updateCachedLayout();
       this.changeRef.detectChanges();
    }
 
    get vsObject(): VSSelectionContainerModel {
       return this._vsObject;
+   }
+
+   private updateCachedLayout(): void {
+      if(!this._vsObject) {
+         return;
+      }
+
+      this.cachedBodyHeight = this.getBodyHeight();
+      this.cachedBodyLeft = this.getBodyLeft();
+      this.cachedBodyTop = this.getBodyTop();
+      this.cachedBodyWidth = this.getBodyWidth();
+      this.cachedInnerWidth = this.getInnerWidth();
    }
 
    trackByName(index: number, object: VSObjectModel): string {

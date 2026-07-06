@@ -44,6 +44,7 @@ public class DelayVisibilityService {
       this.lifecycleService = coreLifecycleService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void onShowDelayedVisibility(@ClusterProxyKey String runtimeId, DelayVisibilityEvent event,
                                        Principal principal, CommandDispatcher dispatcher)

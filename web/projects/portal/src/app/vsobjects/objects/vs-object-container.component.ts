@@ -98,6 +98,8 @@ import { VSDataTipDirective } from "./data-tip/vs-data-tip.directive";
     imports: [VSDataTipDirective, VSPopComponentDirective, VSAnnotation, VSCalcTable, VSCalendar, VSChart, VSCheckBox, VSComboBox, VSCrosstab, VSCylinder, VSGauge, VSGroupContainer, VSImage, VSLine, VSOval, VSRadioButton, VSRectangle, VSRangeSlider, VSSelection, VSSelectionContainer, VSSelectionContainerChildren, VSSlider, VSSlidingScale, VSSpinner, VSSubmit, VSTab, VSTable, VSText, VSTextInput, VSThermometer, VSViewsheet, MiniToolbar, PlaceholderDragElement]
 })
 export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
+   readonly popUpContentBoostZIndex: number = DateTipHelper.getPopUpContentBoostZIndex();
+
    @Input() public vsInfo: ViewsheetInfo;
    @Input() public vsObjectActions: AbstractVSActions<any>[];
    @Input() public activeName: string;
@@ -261,6 +263,14 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          model.visible && (!!model.container && model.active || !model.container) || !!(<any> model).adhocFilter ||
          this.dataTipService.isDataTipVisible(model.absoluteName) ||
          (!!model.container && this.dataTipService.isDataTipVisible(model.container));
+   }
+
+   isFilterInMaxModeView(model: VSObjectModel): boolean {
+      if(!this.viewer || !(<any> model).adhocFilter) {
+         return false;
+      }
+
+      return !!this.vsInfo?.vsObjects.find(v => v["maxMode"]);
    }
 
    isMiniToolbarVisible(model: VSObjectModel): boolean {
@@ -538,8 +548,10 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    }
 
    zIndex(vsObject: VSObjectModel): number {
-      if(this.popService.isPopSource(vsObject.absoluteName) ||
-         this.dataTipService.isDataTipSource(vsObject.absoluteName))
+      const adhocFilter = (<any> vsObject).adhocFilter;
+
+      if(!adhocFilter && (this.popService.isPopSource(vsObject.absoluteName) ||
+         this.dataTipService.isDataTipSource(vsObject.absoluteName)))
       {
          return DateTipHelper.getPopUpSourceZIndex();
       }
@@ -564,6 +576,12 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       // Data annotations are rendered in the chart-annotation-overlay so they don't need this boost.
       if(vsObject.assemblyAnnotationModels?.length > 0) {
          zIndex += 5000;
+      }
+
+      // Adhoc filters are temporary VS objects, not VSPopComponent content, but they
+      // still need to paint above the source table/crosstab while preserving container order.
+      if(adhocFilter) {
+         zIndex += DateTipHelper.getPopUpContentBoostZIndex();
       }
 
       return zIndex;
@@ -766,6 +784,14 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
       }
       else {
          vsObject.selectedAnnotations = [ann.absoluteName];
+      }
+
+      if(mouseEvent.button === 2) {
+         const vsObjectIndex = this.vsInfo.vsObjects.indexOf(vsObject);
+
+         if(vsObjectIndex >= 0 && this.vsObjectActions[vsObjectIndex]) {
+            this.showContextMenu(mouseEvent, this.vsObjectActions[vsObjectIndex]);
+         }
       }
    }
 

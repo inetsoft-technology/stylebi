@@ -36,11 +36,16 @@ body {
   margin: 0;
 }
 
+.toolbar-raised-button {
+  --mat-toolbar-container-background-color: #f5f5f5;
+}
+
 .mat-mdc-snack-bar-container .mdc-snackbar__surface {
   background-color: var(--inet-em-accent-A100) !important;
 
   .mat-mdc-snack-bar-label {
     color: var(--inet-em-dark-primary-text);
+    font-size: 14px;
   }
 }
 

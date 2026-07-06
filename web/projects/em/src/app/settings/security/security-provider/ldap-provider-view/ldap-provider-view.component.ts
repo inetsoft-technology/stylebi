@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {Component, EventEmitter, Inject, Input, OnDestroy, OnInit, Output} from "@angular/core";
+import { NgIf } from "@angular/common";
 import { AbstractControl, FormGroupDirective, NgForm, UntypedFormControl, UntypedFormGroup, ValidatorFn, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import {MAT_BOTTOM_SHEET_DATA, MatBottomSheet, MatBottomSheetRef} from "@angular/material/bottom-sheet";
 import { ErrorStateMatcher, MatOption } from "@angular/material/core";
@@ -45,7 +46,7 @@ import { MatCard, MatCardContent, MatCardActions } from "@angular/material/card"
     selector: "em-ldap-provider-view",
     templateUrl: "./ldap-provider-view.component.html",
     styleUrls: ["./ldap-provider-view.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, MatHint, MatInput, MatError, MatCheckbox, MatCardActions, MatButton, MatProgressSpinner, MatIconButton, MatSuffix, MatIcon]
+    imports: [NgIf, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, MatHint, MatInput, MatError, MatCheckbox, MatCardActions, MatButton, MatProgressSpinner, MatIconButton, MatSuffix, MatIcon]
 })
 export class LdapProviderViewComponent implements OnInit, OnDestroy {
    @Input() form: UntypedFormGroup;

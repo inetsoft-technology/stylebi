@@ -51,6 +51,7 @@ public class VSWizardFormatService {
       this.temporaryInfoService = temporaryInfoService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void updateFormat(@ClusterProxyKey String id, SetWizardBindingFormatEvent event,
                             CommandDispatcher dispatcher, Principal principal, String linkUri) throws Exception

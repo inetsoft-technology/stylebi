@@ -18,7 +18,7 @@
 import { HttpClient } from "@angular/common/http";
 import { EventEmitter, NgZone } from "@angular/core";
 import { Router } from "@angular/router";
-import { AsyncSubject, Observable, of as observableOf, Subject } from "rxjs";
+import { AsyncSubject, Observable, of as observableOf, Subject, Subscription } from "rxjs";
 import { SsoHeartbeatService } from "../sso/sso-heartbeat.service";
 import { LogoutService } from "../util/logout.service";
 import { StompClientChannel } from "./stomp-client-channel";
@@ -42,6 +42,8 @@ export class StompClient {
    private heartbeat: EventEmitter<any> = new EventEmitter<any>();
    private emClient: boolean = false;
    private redirecting = false;
+   private heartbeatSubscription?: Subscription;
+   private heartbeatSource$?: Observable<void>;
 
    public reloadOnFailure: boolean;
 
@@ -49,9 +51,17 @@ export class StompClient {
                private onReconnectError: (error: string) => any,
                private ssoHeartbeatService: SsoHeartbeatService,
                private logoutService: LogoutService, emClient: boolean, private baseHref: string,
-               private customElement: boolean)
+               private customElement: boolean, heartbeatSource$?: Observable<void>)
    {
       this.emClient = emClient;
+
+      if(heartbeatSource$) {
+         this.heartbeatSource$ = heartbeatSource$;
+         this.heartbeatSubscription = heartbeatSource$.subscribe(() => {
+            this.heartbeat.emit({});
+         });
+      }
+
       this.client = this.createStompClient();
       this.client.connect({},
          () => {
@@ -76,6 +86,7 @@ export class StompClient {
 
                this.connected = false;
                this.pendingConnections = [];
+               this.destroyHeartbeat();
                this.onDisconnect(this.endpoint);
                this.clientSubject.next(null);
                this.clientSubject.complete();
@@ -86,6 +97,16 @@ export class StompClient {
                this.reconnect();
             }
          });
+   }
+
+   private destroyHeartbeat(): void {
+      if(this.heartbeatSubscription) {
+         this.heartbeatSubscription.unsubscribe();
+         this.heartbeatSubscription = null;
+      }
+
+      clearTimeout(this.heartbeatTimeoutId);
+      this.heartbeatTimeoutId = null;
    }
 
    private resetHeartbeatTimer() {
@@ -123,7 +144,9 @@ export class StompClient {
       // too large, stomp default frame size is 16kb
       client.maxWebSocketFrameSize = 64 * 1024;
       client.debug = null; // comment this out to trace the messages
-      this.resetHeartbeatTimer();
+      if(!this.heartbeatSource$) {
+         this.resetHeartbeatTimer();
+      }
       return client;
    }
 
@@ -175,6 +198,7 @@ export class StompClient {
                console.error("Failed to reconnect to server: ", error);
                this.connected = false;
                this.pendingConnections = [];
+               this.destroyHeartbeat();
                this.onDisconnect(this.endpoint);
                this.clientSubject.complete();
             }
@@ -207,6 +231,7 @@ export class StompClient {
          this.client = null;
          this.clientSubject.next(null);
          this.clientSubject.complete();
+         this.destroyHeartbeat();
          this.onDisconnect(this.endpoint);
       }
    }

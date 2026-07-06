@@ -17,7 +17,7 @@
 -->
 @if (!!model) {
   <div #jspContainerMain class="jsplumb-container" tabindex="-1">
-    @for (table of showTables; track table) {
+    @for (table of showTables; track table.name) {
       <edit-join-table
       [table]="table" class="bd-gray edit-join-table-border-radius"></edit-join-table>
     }

@@ -355,6 +355,17 @@ public class DeployService {
                                           Principal principal)
       throws Exception
    {
+      return importAsset(info, ignoreList, overwriting, targetFolderInfo, principal, null);
+   }
+
+   @DatasourceIgnoreGlobalShare
+   public ImportAssetResponse importAsset(DeploymentInfo info, List<String> ignoreList,
+                                          boolean overwriting,
+                                          ImportTargetFolderInfo targetFolderInfo,
+                                          Principal principal,
+                                          Map<String, Boolean> bookmarkResolutions)
+      throws Exception
+   {
       Set<IdentityID> users = new HashSet<>();
       List<String> ignoreUserAssets = new ArrayList<>();
       boolean isAutoSave = false;
@@ -428,7 +439,9 @@ public class DeployService {
             // if auto save has administrator, support import auto save assets.
             // if no security, only can login em by admin.
          }
-         else if(!noUsers && !securityEngine.isSecurityEnabled()) {
+         else if(!noUsers && !securityEngine.isSecurityEnabled() &&
+                 !"true".equals(System.getProperty("inetsoftStorageInitializing")))
+         {
             throw new Exception(
                Catalog.getCatalog().getString("em.import.userNoSecurity"));
          }
@@ -461,7 +474,7 @@ public class DeployService {
 
          List<String> failedAssets = engine.importAssets(
             overwriting, info.getProperties().fileOrders(), info, false, principal, ignoreList,
-            targetFolderInfo, actionRecord, list);
+            targetFolderInfo, actionRecord, list, bookmarkResolutions);
          return ImportAssetResponse.builder()
             .failed(!failedAssets.isEmpty())
             .ignoreUserAssets(ignoreUserAssets)
@@ -557,13 +570,32 @@ public class DeployService {
       }
 
       ImportAssetResponse response = importAsset(deploymentInfo, ignoreList, overwrite,
-         targetFolderInfo, principal);
+         targetFolderInfo, principal, null);
 
       if(response.failed()) {
          throw new Exception(
             "Failed to import the following assets: " +
             String.join(", ", response.failedAssets()));
       }
+   }
+
+   /**
+    * Scans the uploaded JAR for bookmark conflicts against the current repository.
+    *
+    * @see DeployManagerService#getBookmarkConflicts(DeploymentInfo, ImportTargetFolderInfo, java.util.List)
+    */
+   public List<BookmarkConflict> getBookmarkConflicts(DeploymentInfo info,
+                                                      ImportTargetFolderInfo targetFolderInfo,
+                                                      List<String> ignoreList)
+      throws Exception
+   {
+      return deployManagerService.getBookmarkConflicts(info, targetFolderInfo, ignoreList)
+         .stream()
+         .map(c -> BookmarkConflict.builder().from(c)
+            .existingModifiedLabel(c.existingModified() > 0 ? Tool.formatDateTime(c.existingModified()) : "—")
+            .importedModifiedLabel(c.importedModified() > 0 ? Tool.formatDateTime(c.importedModified()) : "—")
+            .build())
+         .collect(Collectors.toList());
    }
 
    /**

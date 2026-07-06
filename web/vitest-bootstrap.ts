@@ -34,6 +34,43 @@
 (globalThis as any).process ??= {};
 (globalThis as any).process.browser = true;
 
+// CodeMirror measures text with Range geometry APIs. jsdom exposes Range but
+// does not implement these layout methods, so provide stable no-op geometry.
+function _emptyDOMRect(): DOMRect {
+   return typeof DOMRect === "function"
+      ? new DOMRect(0, 0, 0, 0)
+      : {
+         x: 0,
+         y: 0,
+         width: 0,
+         height: 0,
+         top: 0,
+         right: 0,
+         bottom: 0,
+         left: 0,
+         toJSON() {
+            return this;
+         },
+      } as DOMRect;
+}
+
+function _emptyDOMRectList(): DOMRectList {
+   const rects = [] as unknown as DOMRectList & { item(index: number): DOMRect | null };
+   rects.item = (index: number) => rects[index] ?? null;
+
+   return rects;
+}
+
+const _Range = (globalThis as any).Range;
+if (_Range?.prototype) {
+   _Range.prototype.getBoundingClientRect ??= () => _emptyDOMRect();
+   _Range.prototype.getClientRects ??= () => _emptyDOMRectList();
+}
+
+if (typeof window !== "undefined") {
+   window.focus = () => {};
+}
+
 
 // The zone.js vitest patch wraps `globalThis.vitest.it`, `.describe`, etc.,
 // to run each test inside a `ProxyZone`. The patch is keyed on
@@ -53,6 +90,46 @@ if (_Zone && !(globalThis as any)["__zone_symbol__describe"]) {
       "[vitest-bootstrap] zone.js vitest patch did not wrap describe/it; " +
       "tests using waitForAsync()/fakeAsync() will fail with 'Expected to be running in ProxyZone'.",
    );
+}
+
+function _patchVitestFactoryMethod(
+   patchedFn: any,
+   originalFn: any,
+   factoryName: string,
+): void {
+   const originalFactory = originalFn?.[factoryName];
+
+   if (typeof originalFactory !== "function") {
+      return;
+   }
+
+   patchedFn[factoryName] = originalFactory.bind(originalFn);
+}
+
+// Zone.js wraps `it`/`test` but only re-attaches a fixed list of static methods.
+// Vitest 4 has additional statics such as `fails`; copy missing statics from the
+// original pre-patch function stored under Zone.__symbol__(name).
+if (_Zone) {
+   for (const fnName of ["it", "test", "describe", "suite"]) {
+      const patchedFn = (globalThis as any)[fnName];
+      const originalFn = (globalThis as any)[_Zone.__symbol__(fnName)];
+
+      if (patchedFn && originalFn && patchedFn !== originalFn) {
+         for (const key of Object.getOwnPropertyNames(originalFn)) {
+            if (!(key in patchedFn)) {
+               const desc = Object.getOwnPropertyDescriptor(originalFn, key);
+
+               if (desc) {
+                  Object.defineProperty(patchedFn, key, desc);
+               }
+            }
+         }
+
+         for (const factoryName of ["each", "for"]) {
+            _patchVitestFactoryMethod(patchedFn, originalFn, factoryName);
+         }
+      }
+   }
 }
 
 // The Angular CLI's vitest unit-test builder initializes TestBed with

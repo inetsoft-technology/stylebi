@@ -47,6 +47,7 @@ public class VSLineService {
       this.vsAssemblyInfoHandler = vsAssemblyInfoHandler;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void resize(@ClusterProxyKey String vsId, ResizeVSLineEvent event, Principal principal,
                       CommandDispatcher dispatcher) throws Exception

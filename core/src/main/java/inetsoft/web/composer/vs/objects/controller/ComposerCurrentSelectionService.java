@@ -44,6 +44,7 @@ public class ComposerCurrentSelectionService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void setTitleRatio(@ClusterProxyKey String runtimeId, double ratio,
                              VSObjectEvent event, Principal principal,
                              CommandDispatcher dispatcher) throws Exception

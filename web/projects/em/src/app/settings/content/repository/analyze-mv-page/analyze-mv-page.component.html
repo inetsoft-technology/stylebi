@@ -89,7 +89,7 @@
           <mat-label>_#(Set Cycle)</mat-label>
           <mat-select placeholder="_#(Set Cycle)" [(ngModel)]="mvCycle">
             <mat-option value="">_#(None)</mat-option>
-            @for (cycle of cycles; track cycle) {
+            @for (cycle of cycles; track cycle.name) {
               <mat-option [value]="cycle.name">
                 {{cycle.label}}
               </mat-option>

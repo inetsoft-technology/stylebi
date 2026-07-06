@@ -17,9 +17,11 @@
  */
 import { BreakpointObserver } from "@angular/cdk/layout";
 import { FlatTreeControl } from "@angular/cdk/tree";
+import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
-import { Subject, Subscription } from "rxjs";
+import { of, Subject, Subscription } from "rxjs";
+import { catchError } from "rxjs/operators";
 import { IdentityType } from "../../../../../../../shared/data/identity-type";
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
 import { Tool } from "../../../../../../../shared/util/tool";
@@ -38,6 +40,7 @@ import {
 import { SecurityTreeViewComponent } from "../../security-tree-view/security-tree-view.component";
 import { MatSlideToggleChange } from "@angular/material/slide-toggle";
 import { CreateOrganizationDialogComponent } from "./create-organization-dialog.component";
+import { DeleteIdentitiesTaskImpact } from "./delete-identities-task-impact";
 import { EditIdentityPaneComponent } from "../edit-identity-pane/edit-identity-pane.component";
 import { MatButton } from "@angular/material/button";
 import { TopScrollDirective } from "../../../../top-scroll/top-scroll.directive";
@@ -119,6 +122,7 @@ export class UsersSettingsViewComponent implements OnInit {
    }
 
    constructor(private dialog: MatDialog,
+               private http: HttpClient,
                private breakpointObserver: BreakpointObserver,
                private appInfoService: AppInfoService,
                private scrollService: TopScrollService)
@@ -232,11 +236,49 @@ export class UsersSettingsViewComponent implements OnInit {
    }
 
    delete() {
+      // only user/group deletions affect scheduled tasks, so skip the pre-check otherwise
+      const affectsTasks = this.selectedNodes.some(
+         node => node.type === IdentityType.USER || node.type === IdentityType.GROUP);
+
+      if(!affectsTasks) {
+         this.confirmDelete({ ownedTasks: [], executeAsTasks: [] });
+         return;
+      }
+
+      const provider = Tool.byteEncodeURLComponent(this.selectedProvider);
+      const identities = this.selectedNodes.map(node => ({
+         identityID: node.identityID,
+         type: node.type
+      }));
+      const uri = `../api/em/security/user/delete-identities/${provider}/affected-tasks`;
+
+      // warn about scheduled tasks that will be deleted or have their "execute as" reset; on
+      // failure fall back to the plain confirmation rather than blocking the delete
+      this.http.post<DeleteIdentitiesTaskImpact>(uri, identities).pipe(
+         catchError(() => of(<DeleteIdentitiesTaskImpact>{ ownedTasks: [], executeAsTasks: [] }))
+      ).subscribe(impact => this.confirmDelete(impact));
+   }
+
+   private confirmDelete(impact: DeleteIdentitiesTaskImpact) {
+      let content = "_#(js:em.security.delete.confirm)";
+
+      if(impact?.ownedTasks?.length) {
+         content += "\n\n_#(js:em.security.delete.ownedTasksWarning)\n" +
+            impact.ownedTasks.map(task => "• " + task).join("\n");
+      }
+
+      if(impact?.executeAsTasks?.length) {
+         content += "\n\n_#(js:em.security.delete.executeAsTasksWarning)\n" +
+            impact.executeAsTasks.map(task => "• " + task).join("\n");
+      }
+
+      const hasImpact = !!(impact?.ownedTasks?.length || impact?.executeAsTasks?.length);
+
       let dialogRef = this.dialog.open(MessageDialog, {
-         width: "350px",
+         width: hasImpact ? "500px" : "350px",
          data: {
             title: "_#(js:Delete)",
-            content: "_#(js:em.security.delete.confirm)",
+            content: content,
             type: MessageDialogType.DELETE
          }
       });

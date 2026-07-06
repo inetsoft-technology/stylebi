@@ -134,7 +134,7 @@
                   <mat-label>_#(Theme)</mat-label>
                   <mat-select formControlName="theme">
                     <mat-option value="">_#(Default)</mat-option>
-                    @for (theme of themes; track theme) {
+                    @for (theme of themes; track theme.id) {
                       <mat-option [value]="theme.id">
                         {{theme.name}}
                       </mat-option>

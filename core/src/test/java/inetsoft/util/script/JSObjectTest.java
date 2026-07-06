@@ -21,10 +21,10 @@ package inetsoft.util.script;
 import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
-import org.mozilla.javascript.*;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -32,7 +32,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.awt.*;
 import java.awt.geom.Ellipse2D;
 import java.text.*;
-import java.util.Date;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -43,26 +43,17 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 class JSObjectTest {
 
-   private Scriptable scope;
-   private JSObject jsObject;
-
    @BeforeEach
    void setUp() {
-      Context context = Context.enter();
-      try {
-         scope = context.initStandardObjects(); // Initialize a proper top-level scope
-         jsObject = new JSObject(scope, new Object(), Object.class);
-      }
-      finally {
-         Context.exit();
-      }
    }
 
    @Test
+   @Disabled("Task 5.3: JSObject is now a Rhino-free static-utility class; the " +
+      "instance constructor JSObject(scope, obj, type) and the instance get(name, scope) " +
+      "method that enforced the getClass/getClassLoader prohibition were removed. Member " +
+      "access security is now handled by the GraalJS ScriptHostAccess class filter.")
    void testGet() {
-      // Test prohibited methods
-      assertThrows(RuntimeException.class, () -> jsObject.get("getClass", scope));
-      assertThrows(RuntimeException.class, () -> jsObject.get("getClassLoader", scope));
+      // Previously verified that jsObject.get("getClass"/"getClassLoader", scope) threw.
    }
 
    @Test
@@ -93,12 +84,12 @@ class JSObjectTest {
       color = (Color) JSObject.convert(0x00FF00, Color.class);
       assertEquals(new Color(0, 255, 0), color);
 
-      // Test with a NativeObject containing RGB values
-      NativeObject nativeObject = new NativeObject();
-      nativeObject.put("r", nativeObject, 0);
-      nativeObject.put("g", nativeObject, 0);
-      nativeObject.put("b", nativeObject, 255);
-      color = (Color) JSObject.convert(nativeObject, Color.class);
+      // Test with a script object (Map) containing RGB values
+      Map<String, Object> obj = new HashMap<>();
+      obj.put("r", 0);
+      obj.put("g", 0);
+      obj.put("b", 255);
+      color = (Color) JSObject.convert(obj, Color.class);
       assertEquals(new Color(0, 0, 255), color);
 
       // Test with Color[].class
@@ -122,13 +113,13 @@ class JSObjectTest {
 
    @Test
    void testConvertToInsets() {
-      // Test with NativeObject containing top, left, bottom, and right
-      NativeObject nativeObject = new NativeObject();
-      nativeObject.put("top", nativeObject, 10);
-      nativeObject.put("left", nativeObject, 20);
-      nativeObject.put("bottom", nativeObject, 30);
-      nativeObject.put("right", nativeObject, 40);
-      Insets insets = (Insets) JSObject.convert(nativeObject, Insets.class);
+      // Test with a script object (Map) containing top, left, bottom, and right
+      Map<String, Object> obj = new HashMap<>();
+      obj.put("top", 10);
+      obj.put("left", 20);
+      obj.put("bottom", 30);
+      obj.put("right", 40);
+      Insets insets = (Insets) JSObject.convert(obj, Insets.class);
       assertNotNull(insets);
       assertEquals(10, insets.top);
       assertEquals(20, insets.left);
@@ -147,11 +138,11 @@ class JSObjectTest {
 
    @Test
    void testConvertToDimension() {
-      // Test with NativeObject containing width and height
-      NativeObject nativeObject = new NativeObject();
-      nativeObject.put("width", nativeObject, 100);
-      nativeObject.put("height", nativeObject, 200);
-      Dimension dimension = (Dimension) JSObject.convert(nativeObject, Dimension.class);
+      // Test with a script object (Map) containing width and height
+      Map<String, Object> obj = new HashMap<>();
+      obj.put("width", 100);
+      obj.put("height", 200);
+      Dimension dimension = (Dimension) JSObject.convert(obj, Dimension.class);
       assertEquals(new Dimension(100, 200), dimension);
 
       // Test with an array containing width and height
@@ -162,20 +153,20 @@ class JSObjectTest {
 
    @Test
    void testConvertToPoint() {
-      // Test with NativeObject containing x and y
-      NativeObject nativeObject = new NativeObject();
-      nativeObject.put("x", nativeObject, 10);
-      nativeObject.put("y", nativeObject, 20);
-      Point point = (Point) JSObject.convert(nativeObject, Point.class);
+      // Test with a script object (Map) containing x and y
+      Map<String, Object> obj = new HashMap<>();
+      obj.put("x", 10);
+      obj.put("y", 20);
+      Point point = (Point) JSObject.convert(obj, Point.class);
       assertNotNull(point);
       assertEquals(10, point.x);
       assertEquals(20, point.y);
 
-      // Test with NativeObject containing row and column
-      nativeObject = new NativeObject();
-      nativeObject.put("row", nativeObject, 30);
-      nativeObject.put("column", nativeObject, 40);
-      point = (Point) JSObject.convert(nativeObject, Point.class);
+      // Test with a script object (Map) containing row and column
+      obj = new HashMap<>();
+      obj.put("row", 30);
+      obj.put("column", 40);
+      point = (Point) JSObject.convert(obj, Point.class);
       assertNotNull(point);
       assertEquals(40, point.x);
       assertEquals(30, point.y);
@@ -190,13 +181,13 @@ class JSObjectTest {
 
    @Test
    void testConvertToShape() {
-      // Test with NativeObject for Ellipse
-      NativeObject ellipseObject = new NativeObject();
-      ellipseObject.put("type", ellipseObject, "ellipse");
-      ellipseObject.put("x", ellipseObject, 10);
-      ellipseObject.put("y", ellipseObject, 20);
-      ellipseObject.put("width", ellipseObject, 30);
-      ellipseObject.put("height", ellipseObject, 40);
+      // Test with a script object (Map) for Ellipse
+      Map<String, Object> ellipseObject = new HashMap<>();
+      ellipseObject.put("type", "ellipse");
+      ellipseObject.put("x", 10);
+      ellipseObject.put("y", 20);
+      ellipseObject.put("width", 30);
+      ellipseObject.put("height", 40);
       Shape ellipse = (Shape) JSObject.convert(ellipseObject, Shape.class);
       assertTrue(ellipse instanceof Ellipse2D.Double);
       Ellipse2D.Double ellipse2D = (Ellipse2D.Double) ellipse;
@@ -205,12 +196,12 @@ class JSObjectTest {
       assertEquals(30, ellipse2D.width, 0.01);
       assertEquals(40, ellipse2D.height, 0.01); //bug #71459
 
-      // Test with NativeObject for Rectangle
-      NativeObject rectangleObject = new NativeObject();
-      rectangleObject.put("x", rectangleObject, 50);
-      rectangleObject.put("y", rectangleObject, 60);
-      rectangleObject.put("width", rectangleObject, 70);
-      rectangleObject.put("height", rectangleObject, 80);
+      // Test with a script object (Map) for Rectangle
+      Map<String, Object> rectangleObject = new HashMap<>();
+      rectangleObject.put("x", 50);
+      rectangleObject.put("y", 60);
+      rectangleObject.put("width", 70);
+      rectangleObject.put("height", 80);
       Shape rectangle = (Shape) JSObject.convert(rectangleObject, Shape.class);
       assertTrue(rectangle instanceof Rectangle);
       Rectangle rect = (Rectangle) rectangle;
@@ -328,15 +319,14 @@ class JSObjectTest {
 
    @Test
    void testSplit() {
-      // Test with NativeArray
-      NativeArray nativeArray = new NativeArray(new Object[]{ "a", "b", "c" });
-      Object[] result = JSObject.split(nativeArray);
-      assertArrayEquals(new Object[]{ "a", "b", "c" }, result);
-
-      // Test with Java array
+      // Test with Java array (GraalJS arrays surface as Object[] / List)
       Object[] javaArray = new Object[]{ "x", "y", "z" };
-      result = JSObject.split(javaArray);
+      Object[] result = JSObject.split(javaArray);
       assertArrayEquals(new Object[]{ "x", "y", "z" }, result);
+
+      // Test with a List
+      result = JSObject.split(Arrays.asList("a", "b", "c"));
+      assertArrayEquals(new Object[]{ "a", "b", "c" }, result);
 
       // Test with comma-separated string
       String csv = "1,2,3";
@@ -346,14 +336,9 @@ class JSObjectTest {
 
    @Test
    void testSplitN() {
-      // Test with a NativeArray
-      NativeArray nativeArray = new NativeArray(new Object[]{ 1, 2.5, 3 });
-      double[] result = JSObject.splitN(nativeArray);
-      assertArrayEquals(new double[]{ 1.0, 2.5, 3.0 }, result);
-
       // Test with a Java array
       Object[] javaArray = new Object[]{ 4, 5.5, 6 };
-      result = JSObject.splitN(javaArray);
+      double[] result = JSObject.splitN(javaArray);
       assertArrayEquals(new double[]{ 4.0, 5.5, 6.0 }, result);
 
       // Test with a comma-separated string
@@ -370,10 +355,11 @@ class JSObjectTest {
    @Test
    void testIsArray() {
       assertTrue(JSObject.isArray(new int[]{ 1, 2, 3 }));
+      assertTrue(JSObject.isArray(Arrays.asList(1, 2, 3)));
       assertFalse(JSObject.isArray("not an array"));
 
-      // Test with a NativeArray
-      assertFalse(JSObject.isArray(new NativeObject()));
+      // Test with a script object (Map) — not an array
+      assertFalse(JSObject.isArray(new HashMap<>()));
    }
 
    @Test
@@ -384,25 +370,17 @@ class JSObjectTest {
       VariableTable result = JSObject.convertToVariableTable(inputTable, new VariableTable(), true);
       assertEquals("value1", result.get("key1"));
 
-      // Case 2: Input is a Scriptable array of key-value pairs
-      NativeArray scriptableArray = new NativeArray(2);
-      NativeObject pair1 = new NativeObject();
-      pair1.put(0, pair1, "key2");
-      pair1.put(1, pair1, "value2");
-      scriptableArray.put(0, scriptableArray, pair1);
-
-      NativeObject pair2 = new NativeObject();
-      pair2.put(0, pair2, "key3");
-      pair2.put(1, pair2, null); // Null value
-      scriptableArray.put(1, scriptableArray, pair2);
+      // Case 2: Input is an array of key-value pairs (arrays surface as Object[])
+      Object[] pair1 = new Object[]{ "key2", "value2" };
+      Object[] pair2 = new Object[]{ "key3", null }; // Null value
+      Object[] scriptableArray = new Object[]{ pair1, pair2 };
 
       result = JSObject.convertToVariableTable(scriptableArray, new VariableTable(), false);
       assertEquals("value2", result.get("key2"));
       assertNull(result.get("key3")); // Null values are not kept when keepNull is false
 
-      // Case 3: Invalid input (non-Scriptable item in array)
-      NativeArray invalidArray = new NativeArray(1);
-      invalidArray.put(0, invalidArray, "invalidItem");
+      // Case 3: Invalid input (non-array item in array)
+      Object[] invalidArray = new Object[]{ "invalidItem" };
       VariableTable vars = new VariableTable();
       result = JSObject.convertToVariableTable(invalidArray, vars, true);
       assertEquals(0, vars.size()); // No valid key-value pairs added

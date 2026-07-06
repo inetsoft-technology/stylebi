@@ -25,7 +25,7 @@
       <div class="col-6">
         <select class="form-control" size="7" [ngModel]="modelIndex"
           (ngModelChange)="updateTableName($event)" [ngModelOptions]="{standalone: true}">
-          @for (_table of tables; track _table; let _i = $index) {
+          @for (_table of tables; track _table.name; let _i = $index) {
             <option [value]="_i"
               [attr.title]="_table.description">
             {{_table.name}}</option>
@@ -36,7 +36,7 @@
         <div class="form-row-float-label">
           <div class="form-floating">
             <select class="form-control mb-1" formControlName="label" placeholder="_#(Label Column)">
-              @for (_col of headers; track _col; let i = $index) {
+              @for (_col of headers; track $index; let i = $index) {
                 <option
                   [value]="_col" [attr.title]="getColumnTooltip(i)">
                 {{currentTable.name + "." + _col}}</option>
@@ -48,7 +48,7 @@
         <div class="form-row-float-label">
           <div class="form-floating">
             <select class="form-control" formControlName="value" placeholder="_#(Value Column)">
-              @for (_col of headers; track _col; let i = $index) {
+              @for (_col of headers; track $index; let i = $index) {
                 <option
                   [value]="_col" [attr.title]="getColumnTooltip(i)">
                 {{currentTable.name + "." + _col}}</option>

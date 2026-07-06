@@ -22,7 +22,7 @@
         <div class="form-floating">
           <select class="form-control" [ngModel]="model.formatType"
             (ngModelChange)="changeFormatType($event)">
-            @for (type of types; track type) {
+            @for (type of types; track $index) {
               <option [value]="type.value">{{type.label}}</option>
             }
           </select>

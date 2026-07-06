@@ -19,7 +19,7 @@ package inetsoft.report.script.formula;
 
 import inetsoft.report.script.TableRow;
 import inetsoft.uql.XTable;
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -98,7 +98,7 @@ class RowIterator extends CellIterator {
    }
 
    @Override
-   public Scriptable getScope() {
+   public ScriptScope getScope() {
       if(tableRow == null) {
          tableRow = new TableRow(table, row);
       }
@@ -110,10 +110,10 @@ class RowIterator extends CellIterator {
    }
 
    @Override
-   public Object getValue(Scriptable scope) {
+   public Object getValue(ScriptScope scope) {
       if(expr != null) {
          try {
-            Scriptable tableRow = getScope();
+            ScriptScope tableRow = getScope();
 
             return FormulaEvaluator.exec(expr, scope, "rowValue", tableRow);
          }

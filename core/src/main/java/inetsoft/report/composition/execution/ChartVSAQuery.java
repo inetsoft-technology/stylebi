@@ -628,15 +628,30 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
          assemblyInfo.getChartDescriptor() : assemblyInfo.getRTChartDescriptor();
 
       desc.setSortOthersLast(cinfo);
+      Worksheet ws = table != null ? table.getWorksheet() : null;
 
       if(table == null || isDetail()) {
          mergeZoomConds(table, null);
+
+         if(table != null) {
+            ws.removeAssembly(table.getName());
+            ws.addAssembly(table);
+         }
+
          return table;
       }
 
       if(groups.size() <= 1) {
          subcols = null;
          mergeZoomConds(table, null);
+
+         // Register the clone in the worksheet before applyDiscreteAggregates. The join table
+         // built inside that method stores child names in tnames[] and resolves them via
+         // ws.getAssembly() at execution time. Without this the local WorksheetWrapper still
+         // holds the original bound table under the same name, so the join would execute
+         // against the unmodified table instead of the clone with chart aggregate/column info.
+         ws.removeAssembly(table.getName());
+         ws.addAssembly(table);
 
          table = applyDiscreteAggregates(table, cinfo);
 
@@ -655,7 +670,6 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
       subcols = new SubColumns[subs.length];
       String ozoomTable = zoomTable;
       TableAssemblyOperator[] ops = new TableAssemblyOperator[subs.length - 1];
-      Worksheet ws = table.getWorksheet();
       int idx = 0;
 
       for(Set group : groups.keySet()) {
@@ -827,7 +841,12 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
             })
             .forEach(a -> {
                AggregateRef aref = (AggregateRef) a;
-               DataRef ref2 = cols2.getAttribute(aref.getDataRef().getName());
+               // Match by attribute (alias/attribute, as createAggregateRef does) rather
+               // than by raw qualified name, so the aggregated column is re-qualified to the
+               // discrete mirror table's own column. Otherwise it keeps the base table's
+               // inner alias and ends up out of scope in the generated sub-query (e.g. a
+               // discrete measure with no preceding same-axis dimension). (Bug #75328)
+               DataRef ref2 = AssetUtil.getColumnRefFromAttribute(cols2, aref.getDataRef());
 
                if(ref2 == null) {
                   cols2.addAttribute(aref.getDataRef());
@@ -1432,6 +1451,51 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
                cols2.addAttribute(column);
                SortRef sort = new SortRef(column);
                dsorts.addSort(sort);
+            }
+         }
+      }
+
+      // For relation charts, nodeColorField and nodeSizeField that are VSDimensionRefs are
+      // excluded from getAestheticRefs() to avoid GROUP BY row-splitting per target node
+      // (a dimension like MonthOfYear spanning two months produces multiple rows per node,
+      // causing node text/size measures to reflect only the first-encountered month).
+      // Add them back here as MAX aggregates so color/size frames still have the column
+      // available, using MAX as a consistent representative value per (Source, Target) group.
+      // Skipped for detail view: ainfo.clear() discards all aggregates in that path anyway.
+      if(!isDetail() && cinfo instanceof RelationVSChartInfo) {
+         RelationVSChartInfo rinfo = (RelationVSChartInfo) cinfo;
+         List<AestheticRef> nodeAestheticRefs = new ArrayList<>();
+         nodeAestheticRefs.add(rinfo.getNodeColorField());
+         nodeAestheticRefs.add(rinfo.getNodeSizeField());
+
+         for(AestheticRef nodeARef : nodeAestheticRefs) {
+            if(nodeARef == null || !(nodeARef.getDataRef() instanceof VSDimensionRef)) {
+               continue;
+            }
+
+            VSDimensionRef nodeDim = (VSDimensionRef) nodeARef.getDataRef();
+            GroupRef nodeGroup = nodeDim.createGroupRef(cols);
+
+            if(nodeGroup == null) {
+               continue;
+            }
+
+            ColumnRef nodeCol = (ColumnRef) nodeGroup.getDataRef();
+            int existingIdx = cols.indexOfAttribute(nodeCol);
+
+            if(existingIdx >= 0) {
+               nodeCol = (ColumnRef) cols.getAttribute(existingIdx);
+               cols.removeAttribute(existingIdx);
+            }
+
+            if(!colsSet.contains(nodeCol)) {
+               nodeCol.setVisible(true);
+               cols.addAttribute(counter++, nodeCol);
+               colsSet.add(nodeCol);
+            }
+
+            if(!ainfo.containsGroup(nodeCol) && !ainfo.containsAggregate(nodeCol)) {
+               ainfo.addAggregate(new AggregateRef(nodeCol, AggregateFormula.MAX));
             }
          }
       }

@@ -36,6 +36,7 @@ import org.w3c.dom.NodeList;
 import java.io.*;
 import java.text.Format;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
@@ -654,11 +655,9 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
       // write shared VSFormat and table data path
       output.writeInt(fmtmap.size());
 
-      for(VSCompositeFormat fmt : fmtmap.keySet()) {
-         Integer idx = fmtmap.get(fmt);
-
-         output.writeInt(idx);
-         fmt.writeData(output);
+      for(Map.Entry<VSCompositeFormat, Integer> e : fmtmap.entrySet()) {
+         output.writeInt(e.getValue());
+         e.getKey().writeData(output);
       }
    }
 
@@ -668,11 +667,9 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
    protected void writeFormats(PrintWriter writer) {
       // write shared VSFormat and table data path
 
-      for(VSCompositeFormat fmt : fmtmap.keySet()) {
-         Integer idx = fmtmap.get(fmt);
-
-         writer.println("<cellFormat index=\"" + idx + "\">");
-         fmt.writeXML(writer);
+      for(Map.Entry<VSCompositeFormat, Integer> e : fmtmap.entrySet()) {
+         writer.println("<cellFormat index=\"" + e.getValue() + "\">");
+         e.getKey().writeXML(writer);
          writer.println("</cellFormat>");
       }
    }
@@ -862,8 +859,9 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
       };
 
       // don't reuse swap data. since selection values are mutable, need to write them out.
+      Kryo kryo = XSwapUtil.getKryo();
+
       try(Output objout = new Output(new FileOutputStream(swapFile))) {
-         Kryo kryo = XSwapUtil.getKryo();
          ArrayList<SelectionValue> list2 = new ArrayList<>();
 
          for(int i = 0; i < this.list.size(); i++) {
@@ -884,6 +882,9 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
       catch(Exception ex) {
          LOG.warn("Swapping failed for selection list: " + swapFile, ex);
       }
+      finally {
+         XSwapUtil.releaseKryo(kryo);
+      }
 
       return true;
    }
@@ -899,9 +900,9 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
                Function<Integer, Format> defFmtMapper = idx -> defFmtDict.get(idx);
                Function<Integer, VSCompositeFormat> fmtMapper = idx -> fmtDict.get(idx);
 
-               try(Input inp = new Input(new FileInputStream(swapFile))) {
-                  Kryo kryo = XSwapUtil.getKryo();
+               Kryo kryo = XSwapUtil.getKryo();
 
+               try(Input inp = new Input(new FileInputStream(swapFile))) {
                   for(int i = 0; i < this.list.size(); i++) {
                      SelectionValue val = this.list.get(i);
 
@@ -920,6 +921,9 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
                }
                catch(Exception ex) {
                   LOG.warn("Restore failed for selection list: " + swapFile, ex);
+               }
+               finally {
+                  XSwapUtil.releaseKryo(kryo);
                }
             }
          }
@@ -1166,7 +1170,13 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
    private ArrayList<SelectionValue> list;
    private String dtype;
    private Comparator comp;
-   private final Map<VSCompositeFormat, Integer> fmtmap = new HashMap<>(); // VSFormat -> index
+   // ConcurrentHashMap instead of HashMap: writeFormats() iterates this map while other
+   // threads may call clear() (via writeData/writeXML). Using entrySet() guarantees
+   // getValue() is never null (ConcurrentHashMap forbids null values), preventing NPE
+   // from the old keySet()+get() pattern under concurrent modification. Call sites guard
+   // fmt != null before getFormatIndex() and level is a primitive, so the no-null constraint
+   // is satisfied.
+   private final Map<VSCompositeFormat, Integer> fmtmap = new ConcurrentHashMap<>(); // VSFormat -> index
    private double mmin = 0;
    private double mmax = 100;
    private Comparator textComp =

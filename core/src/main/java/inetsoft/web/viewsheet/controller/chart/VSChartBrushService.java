@@ -58,6 +58,7 @@ public class VSChartBrushService extends VSChartControllerService<VSChartBrushEv
    }
 
    @Override
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void eventHandler(@ClusterProxyKey String runtimeId,
                             VSChartBrushEvent event,

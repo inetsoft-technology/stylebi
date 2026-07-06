@@ -39,7 +39,7 @@
           <select class="form-control" [disabled]="!model.enableColumnEditing"
             (change)="choose($event.target.value)" [(ngModel)]="model.inputControl"
             placeholder="_#(Input Control)">
-            @for (input of inputsTypes; track input) {
+            @for (input of inputsTypes; track $index) {
               <option [value]="input.value">{{input.label}}</option>
             }
           </select>

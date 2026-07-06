@@ -53,6 +53,7 @@ import { ViewData } from "../view-data";
 import { Tool } from "../../../../../shared/util/tool";
 import { map, mergeMap } from "rxjs/operators";
 import { ModelService } from "../../widget/services/model.service";
+import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
 import { PageTabComponent } from "./page-tab.component";
 
 
@@ -60,11 +61,14 @@ import { PageTabComponent } from "./page-tab.component";
     selector: "v-viewer-view",
     templateUrl: "viewer-view.component.html",
     styleUrls: ["viewer-view.component.scss"],
-    providers: [{
+    providers: [
+        ShowHyperlinkService,
+        {
             provide: ContextProvider,
             useFactory: ViewerContextProviderFactory,
             deps: [[new Optional(), ComposerToken], [new Optional(), EmbedToken]]
-        }],
+        }
+    ],
     imports: [ViewerAppComponent, PageTabComponent]
 })
 export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeactivate, AfterViewChecked {
@@ -102,15 +106,17 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
    }
 
    public ngOnInit(): void {
+      // Capture whether we're returning from the binding editor before the async subscribe,
+      // while getCurrentNavigation() is still valid (component activates during navigation).
+      const returnFromEditor = !!this.router.getCurrentNavigation()?.extras.state?.["returnFromEditor"];
+
       this.subscriptions.add(this.route.data.subscribe((data: {
          viewData: ViewData
          principalCommand: SetPrincipalCommand
       }) => {
-         // If a tab for this asset already exists (e.g. returning from binding editor for a
-         // linked/drilled VS), preserve the existing tabs instead of clearing them.
          const existingTab = this.pageTabService.tabs.find(tab => tab.id === data.viewData.assetId);
 
-         if(!existingTab) {
+         if(!existingTab || !returnFromEditor) {
             this.pageTabService.clearTabs();
             const tab: TabInfoModel = {
                id: data.viewData.assetId,

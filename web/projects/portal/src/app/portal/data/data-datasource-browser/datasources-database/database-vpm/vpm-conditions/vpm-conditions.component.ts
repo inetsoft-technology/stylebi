@@ -18,6 +18,7 @@
 import {
    Component,
    Input,
+   OnDestroy,
    ViewChild,
    TemplateRef,
    ViewEncapsulation,
@@ -33,7 +34,7 @@ import { NgbModal, NgbModalOptions, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBa
 import { Tool } from "../../../../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../../../../common/util/component-tool";
 import { ConditionTypes } from "../../../../model/datasources/database/vpm/condition/condition-types.enum";
-import { Observable } from "rxjs";
+import { Observable, Subject, takeUntil } from "rxjs";
 import { StringWrapper } from "../../../../model/datasources/database/string-wrapper";
 import { ClauseModel } from "../../../../model/datasources/database/vpm/condition/clause/clause-model";
 import { ClauseValueTypes } from "../../../../model/datasources/database/vpm/condition/clause/clause-value-types";
@@ -58,7 +59,7 @@ const PHYSICAL_MODEL_COLUMNS_URI: string = "../api/data/vpm/physicalModel/tables
     encapsulation: ViewEncapsulation.None,
     imports: [SplitPane, FormsModule, ExistsDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, DataModelScriptPane, NgbNavOutlet, ChooseTableDialog, VPMConditionDialog, ClausePipe, ConjunctionPipe]
 })
-export class VPMConditionsComponent {
+export class VPMConditionsComponent implements OnDestroy {
    _conditions: ConditionModel[];
    @Input() set conditions(conditions: ConditionModel[]) {
       this._conditions = conditions;
@@ -90,6 +91,8 @@ export class VPMConditionsComponent {
    refreshingColumns: boolean = false;
    vpmConditionDialogModel: VPMConditionDialogModel;
    ConditionTypes = ConditionTypes;
+   // Emits once on destroy to cancel any in-flight HTTP subscriptions (see refreshColumns).
+   private readonly destroy$ = new Subject<void>();
    private defaultCondition: ConditionModel = {
       name: "",
       clauses: [],
@@ -99,6 +102,11 @@ export class VPMConditionsComponent {
    };
 
    constructor(private httpClient: HttpClient, private modalService: NgbModal) {
+   }
+
+   ngOnDestroy(): void {
+      this.destroy$.next();
+      this.destroy$.complete();
    }
 
    /**
@@ -311,7 +319,9 @@ export class VPMConditionsComponent {
             { params: params});
       }
 
+      // takeUntil prevents a late HTTP response from writing to state after the component is destroyed.
       request
+         .pipe(takeUntil(this.destroy$))
          .subscribe(
             data => {
                this.currentColumns = data;

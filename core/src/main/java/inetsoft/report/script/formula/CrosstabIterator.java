@@ -19,7 +19,7 @@ package inetsoft.report.script.formula;
 
 import inetsoft.report.filter.CrossTabFilter;
 import inetsoft.uql.XTable;
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptScope;
 
 import java.awt.*;
 import java.util.Collection;
@@ -70,7 +70,7 @@ class CrosstabIterator extends CellIterator {
    }
 
    @Override
-   public Scriptable getScope() {
+   public ScriptScope getScope() {
       if(tableRow == null) {
          tableRow = new CrosstabCellScope((CrossTabFilter) table, row, col);
       }
@@ -82,7 +82,7 @@ class CrosstabIterator extends CellIterator {
    }
 
    @Override
-   public Object getValue(Scriptable scope) {
+   public Object getValue(ScriptScope scope) {
       return table.getObject(row, col);
    }
 

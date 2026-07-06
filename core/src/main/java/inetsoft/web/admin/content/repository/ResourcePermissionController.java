@@ -99,7 +99,7 @@ public class ResourcePermissionController {
       boolean allowed;
 
       if(resource.getType() == ResourceType.SCHEDULE_TASK) {
-         ScheduleTask task = scheduleManager.getScheduleTask(path);
+         ScheduleTask task = scheduleManager.getScheduleTask(resource.getPath());
          allowed = task != null &&
             ScheduleManager.hasTaskPermission(task.getOwner(), principal, scheduleTaskAction);
       }

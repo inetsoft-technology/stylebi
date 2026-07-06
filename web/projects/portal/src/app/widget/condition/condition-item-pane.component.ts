@@ -358,7 +358,7 @@ export class ConditionItemPane implements OnInit, OnChanges {
 
       // if use-list is disabled, it should not be set to use list
       if(!this.showUseList) {
-         this.condition.values.forEach(c => c.choiceQuery = null);
+         this.condition.values?.forEach(c => c.choiceQuery = null);
       }
    }
 

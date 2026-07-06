@@ -74,6 +74,7 @@ public class ClipboardControllerService {
       this.vsObjectPropertyService = vsObjectPropertyService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void copyOrCut(@ClusterProxyKey String runtimeId, CopyVSObjectsEvent event,
                          Principal principal, CommandDispatcher dispatcher, String linkUri) throws Exception
@@ -129,6 +130,7 @@ public class ClipboardControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void pasteObject(@ClusterProxyKey String runtimeId, int x, int y, Principal principal,
                            CommandDispatcher dispatcher, String linkUri) throws Exception
@@ -421,6 +423,7 @@ public class ClipboardControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void pasteHighlight(@ClusterProxyKey String runtimeId, PasteHighlightEvent event,
                               Principal principal, CommandDispatcher dispatcher, @LinkUri String linkUri) throws Exception

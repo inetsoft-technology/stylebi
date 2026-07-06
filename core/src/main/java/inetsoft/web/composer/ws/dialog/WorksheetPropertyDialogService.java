@@ -55,6 +55,7 @@ public class WorksheetPropertyDialogService extends WorksheetControllerService {
       return result;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setWorksheetInfo(@ClusterProxyKey String runtimeId, WorksheetPropertyDialogModel model,
                                 Principal principal, CommandDispatcher commandDispatcher) throws Exception

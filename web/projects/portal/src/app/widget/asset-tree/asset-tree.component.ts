@@ -769,7 +769,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    private updateUseVirtualScroll(): void {
       this.useVirtualScroll = false;
 
-      if(this.manyNodesUseVirtualScroll && this.hasLoadedAllNode()) {
+      if(this.manyNodesUseVirtualScroll) {
          this.useVirtualScroll = TreeTool.needUseVirtualScroll(this.activeRoot);
       }
    }
@@ -936,6 +936,6 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    }
 
    isTableStyle(): boolean {
-      return this.defaultFolder.path.includes("/Table Style");
+      return !!this.defaultFolder?.path?.includes("/Table Style");
    }
 }

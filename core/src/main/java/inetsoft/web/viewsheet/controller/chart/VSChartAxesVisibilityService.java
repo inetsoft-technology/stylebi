@@ -23,11 +23,10 @@ import inetsoft.cluster.*;
 import inetsoft.graph.data.PairsDataSet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.graph.GraphTypeUtil;
+import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
-import inetsoft.util.Tool;
-import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.viewsheet.event.chart.VSChartAxesVisibilityEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
@@ -42,42 +41,36 @@ import java.util.stream.Stream;
 public class VSChartAxesVisibilityService extends VSChartControllerService<VSChartAxesVisibilityEvent> {
    public VSChartAxesVisibilityService(CoreLifecycleService coreLifecycleService,
                                           ViewsheetService viewsheetService,
-                                          VSChartAreasServiceProxy vsChartAreasService,
-                                          VSObjectPropertyService vsObjectPropertyService) {
+                                          VSChartAreasServiceProxy vsChartAreasService) {
       super(coreLifecycleService, viewsheetService, vsChartAreasService);
-      this.vsObjectPropertyService = vsObjectPropertyService;
    }
 
    @Override
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void eventHandler(@ClusterProxyKey String runtimeId,
-                            VSChartAxesVisibilityEvent event, 
-                            String linkUri, Principal principal, 
-                            CommandDispatcher dispatcher) throws Exception 
+                            VSChartAxesVisibilityEvent event,
+                            String linkUri, Principal principal,
+                            CommandDispatcher dispatcher) throws Exception
    {
-      this.processEvent(runtimeId, event, principal, chartState -> {
+      this.processEvent(runtimeId, event, principal, linkUri, dispatcher, chartState -> {
          if(event.isHide()) {
-            hideAxis(event, chartState, linkUri, principal, dispatcher);
+            return hideAxis(event, chartState);
          }
          else {
-            showAllAxes(chartState, linkUri, principal, dispatcher);
+            return showAllAxes(chartState);
          }
       });
 
       return null;
    }
 
-   private void hideAxis(VSChartAxesVisibilityEvent event, VSChartStateInfo chartState,
-                         String linkUri, Principal principal, CommandDispatcher dispatcher)
+   private int hideAxis(VSChartAxesVisibilityEvent event, VSChartStateInfo chartState)
    {
-      ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) Tool.clone(chartState.getChartAssemblyInfo());
-      VSChartInfo chartInfo = info.getVSChartInfo();
+      ChartVSAssemblyInfo info = chartState.getChartAssemblyInfo();
+      VSChartInfo chartInfo = chartState.getChartInfo();
       String columnName = event.getColumnName();
-      ChartRef chartRef = null;
-
-      if(chartState.getChartAssemblyInfo() != null) {
-         chartRef = (ChartRef) info.getDCBIndingRef(columnName);
-      }
+      ChartRef chartRef = (ChartRef) info.getDCBIndingRef(columnName);
 
       if(chartRef == null) {
          chartRef = getAxixRef(chartInfo, columnName);
@@ -153,16 +146,8 @@ public class VSChartAxesVisibilityService extends VSChartControllerService<VSCha
          setVisible(axisDescriptor, false, false);
       }
 
-      try {
-         info.resetRuntimeValues();
-         chartInfo.clearRuntime();
-         vsObjectPropertyService.editObjectProperty(
-            chartState.getRuntimeViewsheet(), info, info.getAbsoluteName(), info.getAbsoluteName(),
-            linkUri, principal, dispatcher);
-      }
-      catch(Exception ex) {
-         throw new RuntimeException(ex);
-      }
+      chartInfo.clearRuntime();
+      return VSAssembly.VIEW_CHANGED;
    }
 
    // find ref in axes.
@@ -173,18 +158,14 @@ public class VSChartAxesVisibilityService extends VSChartControllerService<VSCha
          .findFirst().orElse(null);
    }
 
-   private void showAllAxes(VSChartStateInfo chartState,
-                            String linkUri,
-                            Principal principal,
-                            CommandDispatcher dispatcher)
+   private int showAllAxes(VSChartStateInfo chartState)
    {
-      ChartVSAssemblyInfo info = (ChartVSAssemblyInfo)
-         Tool.clone(chartState.getChartAssemblyInfo());
-      VSChartInfo chartInfo = info.getVSChartInfo();
+      ChartVSAssemblyInfo info = chartState.getChartAssemblyInfo();
+      VSChartInfo chartInfo = chartState.getChartInfo();
       ChartDescriptor chartDescriptor = info.getChartDescriptor();
 
       if(chartInfo == null || chartDescriptor == null) {
-         return;
+         return VSAssembly.VIEW_CHANGED;
       }
 
       boolean maxMode = info.getMaxSize() != null;
@@ -197,15 +178,8 @@ public class VSChartAxesVisibilityService extends VSChartControllerService<VSCha
          showAllAxes(chartInfo, false);
       }
 
-      try {
-         info.resetRuntimeValues();
-         vsObjectPropertyService.editObjectProperty(
-            chartState.getRuntimeViewsheet(), info, info.getAbsoluteName(), info.getAbsoluteName(),
-            linkUri, principal, dispatcher);
-      }
-      catch(Exception ex) {
-         throw new RuntimeException(ex);
-      }
+      chartInfo.clearRuntime();
+      return VSAssembly.VIEW_CHANGED;
    }
 
    private void showAllAxes(VSChartInfo chartInfo, boolean maxMode) {
@@ -247,5 +221,4 @@ public class VSChartAxesVisibilityService extends VSChartControllerService<VSCha
       }
    }
 
-   private final VSObjectPropertyService vsObjectPropertyService;
 }

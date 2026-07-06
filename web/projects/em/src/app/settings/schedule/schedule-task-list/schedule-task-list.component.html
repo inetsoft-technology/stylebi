@@ -181,19 +181,21 @@
   <mat-card appearance="outlined">
     <mat-card-header>
       <div class="distribution-title">
+        @let distributionDayLabel = getDistributionDayLabel();
+        @let distributionHourLabel = getDistributionHourLabel();
         <div>_#(Distribution)</div>
         @if (distributionType === DistributionType.WEEK) {
           <div>(_#(Week))</div>
         }
         @if (distributionType === DistributionType.DAY) {
-          <div>({{getDistributionDayLabel()}})</div>
+          <div>({{distributionDayLabel}})</div>
           <button mat-icon-button (click)="showWeekDistribution()"
             title="_#(Back)" aria-label="Back">
             <mat-icon fontSet="ineticons" fontIcon="backward-icon"></mat-icon>
           </button>
         }
         @if (distributionType === DistributionType.HOUR) {
-          <div>({{getDistributionHourLabel()}})</div>
+          <div>({{distributionHourLabel}})</div>
           <button mat-icon-button (click)="showDayDistribution()"
             title="_#(Back)" aria-label="Back">
             <mat-icon fontSet="ineticons" fontIcon="backward-icon"></mat-icon>
@@ -208,7 +210,7 @@
         }
         @if (distributionChart) {
           <map name="distributionChartMap">
-            @for (value of distributionChart.values; track value) {
+            @for (value of distributionChart.values; track $index) {
               <area
                 shape="rect"
                 [coords]="getDistributionValueCoords(value)"

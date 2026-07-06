@@ -19,12 +19,10 @@
 package inetsoft.report.script;
 
 import inetsoft.report.lens.DefaultTableLens;
-import inetsoft.report.script.viewsheet.TableVSAScriptable;
 import inetsoft.test.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
-import org.mozilla.javascript.Scriptable;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -33,7 +31,6 @@ import java.awt.*;
 import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -51,11 +48,10 @@ public class TableRowTest {
       tableRow = new TableRow(defaultTableLens, 1, "Background", Color.class);
 
       assertEquals(1, tableRow.getRow());
-      assertTrue(tableRow.has("length", null));
-      assertEquals(3, tableRow.get("length", null));
+      assertTrue(tableRow.hasMember("length"));
+      assertEquals(3, tableRow.getMember("length"));
 
-      assertTrue(tableRow.has(1, null));
-      assertArrayEquals(new Object[]{ "name", "id", "date", "length" }, tableRow.getIds());
+      assertArrayEquals(new Object[]{ "name", "id", "date", "length" }, tableRow.getMemberKeys());
       assertEquals("[index]", tableRow.getDisplaySuffix());
       assertEquals("[]", tableRow.getSuffix());
    }
@@ -67,15 +63,15 @@ public class TableRowTest {
    void testWithOthers() {
       tableRow = new TableRow(defaultTableLens, 1, "LineWrap", boolean.class);
 
-      assertTrue(tableRow.has("name", null));
-      assertFalse(tableRow.has("test", null));
+      assertTrue(tableRow.hasMember("name"));
+      assertFalse(tableRow.hasMember("test"));
 
-      //check no parent, but put a didn't existed column and value
-      tableRow.put("name2", mock(TableVSAScriptable.class), "test");
-      assertEquals(Scriptable.NOT_FOUND, tableRow.get("name2", null));
+      // assigning an unknown column name now stores it as a local member
+      tableRow.putMember("name2", "test");
+      assertEquals("test", tableRow.getMember("name2"));
 
-      TableRow row1 = (TableRow)tableRow.get(-1, null);
-      assertArrayEquals(new Object[]{ "name", "id", "date", "length" }, row1.getIds());
+      TableRow row1 = (TableRow) tableRow.getArrayElement(-1);
+      assertArrayEquals(new Object[]{ "name", "id", "date", "length" }, row1.getMemberKeys());
 
       TableRow.TableCol tableCol = new TableRow.TableCol();
       assertEquals("null[0]", tableCol.toString());

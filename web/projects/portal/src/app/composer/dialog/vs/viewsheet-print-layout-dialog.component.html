@@ -30,7 +30,7 @@
               <div class="form-floating col-12">
                 <select class="form-control" [(ngModel)]="model.paperSize"
                   [ngModelOptions]="{standalone: true}" (change)="initForm()">
-                  @for (paperSize of paper; track paperSize) {
+                  @for (paperSize of paper; track paperSize.value) {
                     <option [value]="paperSize.value">{{paperSize.label}}</option>
                   }
                 </select>
@@ -94,7 +94,7 @@
             <div class="form-row-float-label form-row">
               <div class="form-floating col-auto">
                 <select class="form-control unit_select_id" [ngModel]="model.units" (ngModelChange)="unitChanged($event)" [ngModelOptions]="{standalone: true}">
-                  @for (measurement of measurementsView; track measurement) {
+                  @for (measurement of measurementsView; track measurement.value) {
                     <option [value]="measurement.value">
                       {{measurement.label}}
                     </option>

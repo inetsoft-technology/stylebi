@@ -39,6 +39,7 @@ public class DragColumnsService extends WorksheetControllerService {
       super(viewsheetService, dataSourceRegistry);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void dragColumns(
       @ClusterProxyKey String runtimeId,

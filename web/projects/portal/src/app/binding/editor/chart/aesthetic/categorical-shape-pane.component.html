@@ -27,6 +27,7 @@
   </div>
 
   @if (isPaneVisible()) {
+    @let numItems = getNumItems();
     <div class="content m-1">
       <i class="chevron-circle-arrow-left-icon icon-size-small me-2"
         [class.fade]="currIndex <= 0"
@@ -53,7 +54,7 @@
         </span>
       }
       <i class="chevron-circle-arrow-right-icon icon-size-small ms-2"
-        [class.fade]="currIndex >= this.getNumItems() - NUM_EDITORS"
+        [class.fade]="currIndex >= numItems - NUM_EDITORS"
       aria-hidden="true" (click)="showNext()"></i>
     </div>
   }

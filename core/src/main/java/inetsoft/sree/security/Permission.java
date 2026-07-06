@@ -1151,7 +1151,7 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
             return false;
          }
 
-         if(organizationID == null && other.name != null) {
+         if(organizationID == null && other.organizationID != null) {
             return false;
          }
 

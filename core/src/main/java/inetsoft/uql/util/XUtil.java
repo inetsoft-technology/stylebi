@@ -67,7 +67,6 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
 import com.zaxxer.hikari.HikariConfig;
-import org.mozilla.javascript.Undefined;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Node;
@@ -337,11 +336,11 @@ public final class XUtil {
       String partitionName = (partition.getBasePartition() != null ?
          partition.getBasePartition().getName() + "^^" + partition.getName() :
          partition.getName());
-      XPartition tempPartition = partitionDataCache.get(partitionName);
+      XPartition tempPartition = partitionDataCache().get(partitionName);
 
       if(tempPartition == null ) {
          tempPartition = partition.applyAutoAliases();
-         partitionDataCache.put(partitionName, tempPartition);
+         partitionDataCache().put(partitionName, tempPartition);
       }
 
       partition = tempPartition;
@@ -3427,11 +3426,11 @@ public final class XUtil {
       String partitionName = partition.getBasePartition() != null ?
          partition.getBasePartition().getName() + "^^" + partition.getName() :
          partition.getName();
-      XPartition tempPartition = partitionDataCache.get(partitionName);
+      XPartition tempPartition = partitionDataCache().get(partitionName);
 
       if(tempPartition == null) {
          tempPartition = partition.applyAutoAliases();
-         partitionDataCache.put(partitionName, tempPartition);
+         partitionDataCache().put(partitionName, tempPartition);
       }
 
       partition = tempPartition;
@@ -3790,7 +3789,7 @@ public final class XUtil {
                   catch(Exception ex) {
                      LOG.error(
                         "Failed to check asset permission: " + entry, ex);
-                     return Undefined.instance;
+                     return null;
                   }
 
                   if(message != null) {
@@ -3819,7 +3818,7 @@ public final class XUtil {
             }
          }
          else {
-            return Undefined.instance;
+            return null;
          }
 
          return new XTableArray(table);
@@ -3851,7 +3850,7 @@ public final class XUtil {
          }
       }
 
-      return Undefined.instance;
+      return null;
    }
 
    /**
@@ -4879,7 +4878,14 @@ public final class XUtil {
    // @by stephenwebster, For bug1416867569612, add short term cache for getting
    // the applyAutoAliases result. This saves significant time when in a tight
    // loop, such as repeated calls to getAttributes
-   private static DataCache<String, XPartition> partitionDataCache = new DataCache<>(5, 1000);
+   // Created lazily (holder idiom) so loading XUtil does not require a live Spring context.
+   private static DataCache<String, XPartition> partitionDataCache() {
+      return PartitionCacheHolder.CACHE;
+   }
+
+   private static final class PartitionCacheHolder {
+      static final DataCache<String, XPartition> CACHE = new DataCache<>(5, 1000);
+   }
 
    @FunctionalInterface
    public interface PermissionUpdater {

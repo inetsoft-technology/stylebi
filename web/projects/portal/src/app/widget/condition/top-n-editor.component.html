@@ -31,7 +31,7 @@
     <select class="form-control" [compareWith]="isEquals"
       [ngModel]="dataRef" (ngModelChange)="dataRefChanged($event)">
       <option [ngValue]="null"></option>
-      @for (_field of aggFields; track _field) {
+      @for (_field of aggFields; track $index) {
         <option [ngValue]="_field">{{_field.view}}</option>
       }
     </select>

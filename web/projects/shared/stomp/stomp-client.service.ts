@@ -22,6 +22,7 @@ import { LogoutService } from "../util/logout.service";
 import { StompClient } from "./stomp-client";
 import { StompClientConnection } from "./stomp-client-connection";
 import { BaseHrefService } from "../../portal/src/app/common/services/base-href.service";
+import { HeartbeatWorkerService } from "../../portal/src/app/common/services/heartbeat-worker.service";
 
 /**
  * Service that encapsulates the communication with a server via the STOMP protocol over
@@ -37,7 +38,8 @@ export class StompClientService {
    private _reloadOnFailure: boolean = false;
 
    constructor(private zone: NgZone, private ssoHeartbeatService: SsoHeartbeatService,
-               private logoutService: LogoutService, private baseHrefService: BaseHrefService)
+               private logoutService: LogoutService, private baseHrefService: BaseHrefService,
+               private heartbeatWorkerService: HeartbeatWorkerService)
    {
    }
 
@@ -51,7 +53,7 @@ export class StompClientService {
                endpoint, (key) => this.onDisconnect(key),
                (error) => this.onReconnectError(error),
                this.ssoHeartbeatService, this.logoutService, em, this.baseHrefService.getBaseHref(),
-               customElement);
+               customElement, this.heartbeatWorkerService.createHeartbeat(endpoint, 25000));
             this.clients.set(endpoint, client);
          }
 

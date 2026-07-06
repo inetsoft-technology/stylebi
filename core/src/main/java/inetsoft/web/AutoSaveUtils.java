@@ -261,6 +261,48 @@ public final class AutoSaveUtils {
       }
    }
 
+   /**
+    * Delete all auto save files (active and recycle bin) owned by the given user.
+    * Used when a user is deleted so their drafts are not left orphaned.
+    */
+   public static void deleteUserAutoSaveFiles(IdentityID user) {
+      if(user == null) {
+         return;
+      }
+
+      try {
+         // resolve the bucket from the deleted user's org, not the caller's,
+         // so a site admin deleting a cross-org user still finds their drafts
+         BlobStorage<Metadata> blobStorage = getStorageForOrg(user.getOrgID());
+
+         for(String file : blobStorage.paths().collect(Collectors.toList())) {
+            String[] attrs = Tool.split(getName(file), '^');
+
+            if(attrs.length > 3) {
+               String fileUser = attrs[2];
+
+               if(fileUser == null || "anonymous".equals(fileUser) ||
+                  Tool.equals(fileUser, "_NULL_"))
+               {
+                  continue;
+               }
+
+               if(user.equals(IdentityID.getIdentityIDFromKey(fileUser))) {
+                  try {
+                     blobStorage.delete(file);
+                  }
+                  catch(Exception e) {
+                     LOG.warn("Failed to delete auto save file {} for user {}", file, user, e);
+                  }
+               }
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to delete auto save files for user {}", user, e);
+      }
+   }
+
    public static void deleteRecycledAutoSaveFiles(Principal principal) {
       try {
          BlobStorage<Metadata> blobStorage = getStorage(principal);
@@ -329,8 +371,10 @@ public final class AutoSaveUtils {
          principal = ThreadContext.getContextPrincipal();
       }
 
-      String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      return getStorageForOrg(OrganizationManager.getInstance().getCurrentOrgID(principal));
+   }
 
+   static BlobStorage<Metadata> getStorageForOrg(String orgId) {
       if(orgId == null) {
          orgId = OrganizationManager.getInstance().getCurrentOrgID();
       }

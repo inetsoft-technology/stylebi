@@ -112,6 +112,7 @@ public class VSBindingService {
 
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void insertChild(@ClusterProxyKey String vsId, InsertSelectionChildEvent event, String linkUri,
                            Principal principal, CommandDispatcher dispatcher, boolean doThrow)
       throws Exception
@@ -232,6 +233,7 @@ public class VSBindingService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void changeBinding(@ClusterProxyKey String runtimeId, ChangeVSObjectBindingEvent event,
                              Principal principal, CommandDispatcher dispatcher, String linkUri) throws Exception
    {
@@ -385,6 +387,7 @@ public class VSBindingService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public String commit(@ClusterProxyKey String vsId, String assemblyName,
                         String editMode, String originalMode,
                         Principal principal)

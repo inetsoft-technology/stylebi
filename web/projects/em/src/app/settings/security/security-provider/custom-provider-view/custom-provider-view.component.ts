@@ -34,9 +34,6 @@ import { CodemirrorService } from "../../../../../../../shared/util/codemirror/c
 import { CustomProviderModel } from "../security-provider-model/custom-provider-model";
 import { take } from "rxjs/operators";
 import { Subscription } from "rxjs";
-import {
-   DefaultCodemirrorService
-} from "../../../../../../../shared/util/codemirror/default-codemirror.service";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
 
@@ -44,11 +41,6 @@ import { MatFormField, MatLabel } from "@angular/material/form-field";
     selector: "em-custom-provider-view",
     templateUrl: "./custom-provider-view.component.html",
     styleUrls: ["./custom-provider-view.component.scss"],
-    providers: [{
-            provide: CodemirrorService,
-            useClass: DefaultCodemirrorService,
-            deps: []
-        }],
     imports: [FormsModule, ReactiveFormsModule, MatFormField, MatInput, MatLabel]
 })
 export class CustomProviderViewComponent implements OnInit, AfterViewInit, AfterViewChecked, OnDestroy {

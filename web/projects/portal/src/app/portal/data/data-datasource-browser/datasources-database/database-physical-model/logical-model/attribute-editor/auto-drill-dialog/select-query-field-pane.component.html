@@ -17,7 +17,7 @@
 -->
 <div class="select-query-field-pane">
   <select multiple class="query-field-list" [ngModel]="selectedField" (ngModelChange)="selectField($event)">
-    @for (field of fields; track field) {
+    @for (field of fields; track field.name) {
       <option [value]="field.name"
         [class.selected]="field.name == selectedField">
         {{field.name}}

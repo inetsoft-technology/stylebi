@@ -34,7 +34,7 @@
             <button class="form-control dropdown-toggle level-button" type="button"
               [fixedDropdown]="dropdownMenu" [autoClose]="false"
               dropdownPlacement="bottom">
-              <div>{{getLevelButtonLabel()}}</div>
+              <div>{{levelButtonLabel}}</div>
             </button>
           </div>
         </div>
@@ -43,7 +43,7 @@
         @if (!visibleMessages || visibleMessages.length == 0) {
           <p class="text-center">_#(vs.noMessage)</p>
         }
-        @for (message of visibleMessages; track message) {
+        @for (message of visibleMessages; track $index) {
           <div class="alert message-content mb-2"
             [class.alert-danger]="message.type == 'ERROR'"
             [class.alert-warning]="message.type == 'WARNING'"

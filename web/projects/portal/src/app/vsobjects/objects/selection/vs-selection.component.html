@@ -41,11 +41,15 @@
   [safeFont]="model.objectFormat.font"
   outOfZone (onDocKeydown)="onKeyDown($event)">
   <div class="selection-list">
+    @let bodyWidth = getBodyWidth();
+    @let bodyHeight = getBodyHeight();
+    @let titleWidth = getTitleWidth();
+    @let titleHeight = getTitleHeight();
     @if (model.titleVisible || !controller.isAdhocFilter() && !(viewer && !model.dropdown && model.containerType !== 'VSSelectionContainer')) {
       <div class="selection-list-header"
         [class.inactive]="!viewer && !model.titleVisible && model.containerType !== 'VSSelectionContainer'"
-        [style.width.px]="getTitleWidth()"
-        [style.height.px]="getTitleHeight()"
+        [style.width.px]="titleWidth"
+        [style.height.px]="titleHeight"
         [style.border-bottom]="headerBorderBottom"
         [style.border-top]="model.titleFormat.border.top"
         [style.border-left]="model.titleFormat.border.left"
@@ -101,7 +105,7 @@
         (dragstart)="dragStart($event)">
         <title-cell [titleFormat]="model.titleFormat"
           [titleHeight]="getTitleCellHeight()"
-          [titleContent]="getTitle()"
+          [titleContent]="model.title || ''"
           [(editingTitle)]="editingTitle"
           [editable]="!viewer"
           [selected]="selected"
@@ -159,7 +163,7 @@
       class="vertical-scrollbar-wrapper-container">
       <div class="vertical-scroll-wrapper vertical-scrollbar-offset"
         [style.width.px]="scrollbarWidth + 1"
-        [style.height.px]="getBodyHeight()"
+        [style.height.px]="bodyHeight"
         [style.top.px]="verticalScrollbarTop"
         outOfZone (onScroll)="verticalScrollHandler($event.target.scrollTop)"
         (onMousedown)="$event.stopPropagation()"
@@ -197,15 +201,15 @@
       #scrollBody
       class="selection-list-body"
       [class.selection-list-body-contained]="model.container == 'VSSelectionContainer'"
-      [style.width.px]="getBodyWidth()"
-      [style.height.px]="getBodyHeight()"
+      [style.width.px]="bodyWidth"
+      [style.height.px]="bodyHeight"
       [style.margin-left.px]="(model.containerType !== 'VSSelectionContainer') ? leftMargin : null"
       (wheel)="wheelScrollHandler($event)">
       <div #cellContent>
         @for (row of selectionValuesTable; track trackByIdx(i, row); let i = $index) {
           <div
             class="selection-list-cell-row"
-            [style.width.px]="getBodyWidth()">
+            [style.width.px]="bodyWidth">
             @for (value of row; track trackByIdx(j, value); let j = $index) {
               <div
                 class="selection-list-cell-column">
@@ -258,7 +262,7 @@
           @if (controller.showOther) {
             <div class="show-others"
               [style.margin-left.px]="controller.model.levels > 1 ? 0 : controller.indent"
-              [style.width.px]="getBodyWidth()"
+              [style.width.px]="bodyWidth"
               [style.color]="othersFormat?.foreground"
               [style.background]="othersFormat?.background"
               [safeFont]="othersFormat?.font">

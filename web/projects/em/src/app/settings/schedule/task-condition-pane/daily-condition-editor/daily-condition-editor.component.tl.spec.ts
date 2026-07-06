@@ -42,10 +42,7 @@
  *     constant year-round, making the arithmetic deterministic in any test environment.
  */
 
-import { Component, forwardRef, NO_ERRORS_SCHEMA } from "@angular/core";
-import { ControlValueAccessor, NG_VALUE_ACCESSOR, ReactiveFormsModule } from "@angular/forms";
-import { MatCheckboxModule } from "@angular/material/checkbox";
-import { NoopAnimationsModule } from "@angular/platform-browser/animations";
+import { provideNoopAnimations } from "@angular/platform-browser/animations";
 import { render } from "@testing-library/angular";
 
 import { DailyConditionEditorComponent } from "./daily-condition-editor.component";
@@ -53,20 +50,6 @@ import { DateTimeService } from "../date-time.service";
 import { TimeConditionModel, TimeConditionType, TimeRange } from "../../../../../../../shared/schedule/model/time-condition-model";
 import { TaskConditionChanges } from "../task-condition-pane.component";
 import { StartTimeChange } from "../start-time-editor/start-time-editor.component";
-
-// ---------------------------------------------------------------------------
-// Stubs
-// ---------------------------------------------------------------------------
-
-// em-time-zone-select uses formControlName="timeZone" — needs a CVA stub.
-@Component({
-   selector: "em-time-zone-select",
-   template: "",
-   providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => TimeZoneSelectStub), multi: true }]
-})
-class TimeZoneSelectStub implements ControlValueAccessor {
-   writeValue() {} registerOnChange() {} registerOnTouched() {}
-}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -100,10 +83,7 @@ function makeTimeRange(name = "Business Hours"): TimeRange {
 
 async function renderComponent(props: Partial<DailyConditionEditorComponent> = {}) {
    const result = await render(DailyConditionEditorComponent, {
-      imports: [ReactiveFormsModule, MatCheckboxModule, NoopAnimationsModule],
-      declarations: [TimeZoneSelectStub],
-      schemas: [NO_ERRORS_SCHEMA],
-      providers: [DateTimeService],
+      providers: [DateTimeService, provideNoopAnimations()],
       componentProperties: {
          condition: makeCondition(),
          ...props,

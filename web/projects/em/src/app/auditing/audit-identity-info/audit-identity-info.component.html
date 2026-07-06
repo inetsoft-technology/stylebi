@@ -22,7 +22,7 @@
       <mat-form-field appearance="outline" color="accent" class="flex">
         <mat-label>_#(Identity Organizations)</mat-label>
         <mat-select formControlName="selectedOrganizations" multiple>
-          @for (org of organizations; track org; let i = $index) {
+          @for (org of organizations; track org.name; let i = $index) {
             <mat-option [value]="org.orgID">{{organizations[i].name}}</mat-option>
           }
         </mat-select>
@@ -31,7 +31,7 @@
     <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Types)</mat-label>
       <mat-select formControlName="selectedTypes" multiple>
-        @for (type of getTypes(); track type) {
+        @for (type of displayTypes; track type) {
           <mat-option [value]="type">{{getTypeLabel(type)}}</mat-option>
         }
       </mat-select>

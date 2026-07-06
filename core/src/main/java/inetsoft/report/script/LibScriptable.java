@@ -22,8 +22,7 @@ import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.Cleaner;
 import inetsoft.util.Tool;
-import inetsoft.util.script.TimeoutContext;
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,11 +38,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * @version 11.5
  * @author InetSoft Technology Corp
  */
-public class LibScriptable extends ScriptableObject {
+public class LibScriptable implements ScriptScope {
    /**
     * Get a per scope (report) scriptable.
     */
-   public LibScriptable(Scriptable funcScope) {
+   public LibScriptable(ScriptScope funcScope) {
       this.funcScope = funcScope;
       loadScripts();
 
@@ -69,7 +68,7 @@ public class LibScriptable extends ScriptableObject {
     */
    private void deleteScripts(Set<String> funcs) {
       for(String func : funcs) {
-         delete(func);
+         removeMember(func);
       }
 
       funcs.clear();
@@ -90,60 +89,47 @@ public class LibScriptable extends ScriptableObject {
    }
 
    @Override
-   public Object get(String name, Scriptable scope) {
-      if(funcs.containsKey(name)) {
-         Object func = funcs.get(name);
-
-         if(func instanceof String) {
-            try {
-               func = compileFunction(name, (String) func);
-               funcs.put(name, func);
-            }
-            catch(Exception ex) {
-               LOG.warn(ex.getMessage(), ex);
-            }
-         }
-
-         func = funcs.get(name);
-
-         // simulate dynamic scope
-         if(func instanceof Function) {
-            ((Function) func).setParentScope(scope);
-         }
-
-         return func;
-      }
-
-      return super.get(name, scope);
-   }
-
-   /**
-    * Add one function to the scope.
-    * @param fname the specified function name.
-    * @param source the specified source code.
-    */
-   private Object compileFunction(String fname, String source) {
-      if(source == null || source.length() == 0) {
-         return null;
-      }
-
-      Context cx = TimeoutContext.enter();
-
-      try {
-         Scriptable funcScope = this.funcScope != null ? this.funcScope : this;
-         return cx.compileFunction(funcScope, source, "<" + fname + ">", 1, null);
-      }
-      finally {
-         Context.exit();
-      }
+   public Object getMember(String name) {
+      // Library script functions are now callable: GraalJavaScriptEngine.initScope
+      // installs each library function's source as a global function definition
+      // at engine init, so any script/formula can call it by name. This scriptable
+      // is retained only for member enumeration (autocomplete via getMemberKeys);
+      // getMember returns the function source string.
+      return funcs.get(name);
    }
 
    @Override
+   public boolean hasMember(String name) {
+      return funcs.containsKey(name);
+   }
+
+   @Override
+   public void putMember(String name, Object value) {
+      funcs.put(name, value);
+   }
+
+   @Override
+   public boolean removeMember(String name) {
+      return funcs.remove(name) != null;
+   }
+
+   @Override
+   public Object[] getMemberKeys() {
+      return funcs.keySet().toArray(new Object[0]);
+   }
+
    public String getClassName() {
       return "Lib";
    }
 
-   private Scriptable funcScope;
+   /**
+    * Get all library function sources keyed by name.
+    */
+   public Map<String, Object> getFunctions() {
+      return funcs;
+   }
+
+   private ScriptScope funcScope;
    private Map<String, Object> funcs = new ConcurrentHashMap<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(LibScriptable.class);

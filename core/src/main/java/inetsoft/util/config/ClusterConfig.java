@@ -53,6 +53,17 @@ public class ClusterConfig implements Serializable {
    }
 
    /**
+    * The port used for direct file transfers between cluster nodes (e.g. heap dumps).
+    */
+   public int getFileTransferPort() {
+      return fileTransferPort;
+   }
+
+   public void setFileTransferPort(int fileTransferPort) {
+      this.fileTransferPort = fileTransferPort;
+   }
+
+   /**
     * A flag that indicates if multicast discovery is enabled.
     */
    public boolean isMulticastEnabled() {
@@ -249,6 +260,7 @@ public class ClusterConfig implements Serializable {
 
    private int portNumber = 5701;
    private int outboundPortNumber = 0;
+   private int fileTransferPort = 0;
    private boolean multicastEnabled = true;
    private String multicastAddress = "224.2.2.3";
    private int multicastPort = 54327;

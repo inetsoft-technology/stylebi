@@ -43,7 +43,7 @@
 
     @if (showLegends) {
       <div class="summary-chart-legends">
-        @for (legend of legends; track legend) {
+        @for (legend of legends; track $index) {
           <div class="summary-chart-legend-item">
             <div class="summary-chart-legend"
               [style.background]="legend.color"

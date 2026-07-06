@@ -157,7 +157,7 @@ export class DatabaseVPMBrowserComponent implements OnDestroy, OnInit {
       return !!this.model ? this.model.deletable : false;
    }
 
-   get crrentSearchFolderLabel(): string {
+   get currentSearchFolderLabel(): string {
       return !this.currentFolderPathString || this.currentFolderPathString === "/" ?
          this.rootLabel : this.currentFolderPathString;
    }

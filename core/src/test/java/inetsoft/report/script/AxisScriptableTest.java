@@ -24,7 +24,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
-import org.mozilla.javascript.UniqueTag;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -113,8 +112,8 @@ public class AxisScriptableTest {
       assertEquals(mockAxisDescriptor,  axisScriptable.getObject());
 
       //check addDimensionProperties
-      assertTrue(axisScriptable.has("noNull", null));
-      assertTrue(axisScriptable.has("truncate", null));
+      assertTrue(axisScriptable.hasMember("noNull"));
+      assertTrue(axisScriptable.hasMember("truncate"));
 
       //check else and isMeasure is false
       when(mockVSChartAggregateRef.isSecondaryY()).thenReturn(false);
@@ -123,11 +122,11 @@ public class AxisScriptableTest {
       axisScriptable = new AxisScriptable(mockVSChartInfo, "state");
 
       assertEquals(mockAxisDescriptor,  axisScriptable.getObject());
-      assertTrue(axisScriptable.has("minimum", null));
+      assertTrue(axisScriptable.hasMember("minimum"));
    }
 
    /**
-    * test setLabelAlias,setFieldAxis,put and get
+    * test setLabelAlias,setFieldAxis,putMember and getMember
     */
    @Test
    void testOtherFunctions() {
@@ -138,8 +137,9 @@ public class AxisScriptableTest {
       axisScriptable.setLabelAlias("label", "alias");
       axisScriptable.setFieldAxis(true);
 
-      //labelColor,font,format,rotation
-      axisScriptable.put("font", null, mock(PropertyDescriptor.class));
-      assertEquals(UniqueTag.NOT_FOUND, axisScriptable.get("font", null));
+      //labelColor,font,format,rotation: property not registered (axis is null),
+      //so an unknown member resolves to null (was Rhino UniqueTag.NOT_FOUND).
+      axisScriptable.putMember("font", mock(PropertyDescriptor.class));
+      assertNull(axisScriptable.getMember("font"));
    }
 }

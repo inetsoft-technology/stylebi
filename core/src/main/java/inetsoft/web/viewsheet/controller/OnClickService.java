@@ -59,6 +59,7 @@ public class OnClickService {
       this.inputService = inputService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void onConfirm(@ClusterProxyKey String vsId, String name, String x, String y,
                          boolean isConfirm, VSOnClickEvent confirmEvent, String linkUri,
@@ -120,6 +121,7 @@ public class OnClickService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void onClick(@ClusterProxyKey String vsId, String name, String x, String y, VSSubmitEvent submitEvent,
                        String linkUri, Principal principal, CommandDispatcher dispatcher) throws Exception
@@ -211,8 +213,8 @@ public class OnClickService {
       String script = getScript(assembly);
 
       if(xstr != null && ystr != null) {
-         scope.put("mouseX", scope, xstr);
-         scope.put("mouseY", scope, ystr);
+         scope.putMember("mouseX", xstr);
+         scope.putMember("mouseY", ystr);
       }
 
       // after onClick event, the viewsheet will be refreshed, which reset

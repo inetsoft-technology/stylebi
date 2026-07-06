@@ -17,7 +17,7 @@
 -->
 <div class="object-sub-type-pane"
   [style.justify-content]="!hasSubTypes() ? 'center' : 'flex-start'">
-  @for (subType of displayedSubTypes; track subType; let i = $index) {
+  @for (subType of displayedSubTypes; track $index; let i = $index) {
     <div class="sub-type">
       <td class="object-sub-type" [class.bd-primary]="isSelected(i)">
         <object-type-icon [type]="subType" (onSelected)="selectObjectSubType(i)">

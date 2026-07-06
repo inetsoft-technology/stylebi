@@ -531,4 +531,28 @@ class PermissionTest {
       // Actual behavior due to the bug: false.
       assertTrue(a.equalsIgnoreCase(b));
    }
+
+   // ── multi-tenant orgId isolation ──────────────────────────────────────────
+
+   // Risk 3: grant stored for ("alice", ORG_B) must not satisfy a check for ("alice", ORG_A);
+   // orgId is the tenant boundary — same username in different orgs are distinct identities.
+   @Test
+   void check_sameNameDifferentOrg_returnsFalse() {
+      Permission perm = new Permission();
+      perm.setGrants(ResourceAction.READ, Identity.USER,
+                     Set.of(new Permission.PermissionIdentity("alice", ORG_B)));
+      assertFalse(perm.check(new Permission.PermissionIdentity("alice", ORG_A),
+                             ResourceAction.READ, Identity.USER),
+                  "Grant for alice@orgB must not satisfy a check for alice@orgA");
+   }
+
+   // getGrants orgId filter must exclude a same-named user belonging to a different org
+   @Test
+   void getGrants_sameNameDifferentOrg_returnsEmpty() {
+      Permission perm = new Permission();
+      perm.setGrants(ResourceAction.READ, Identity.USER,
+                     Set.of(new Permission.PermissionIdentity("alice", ORG_B)));
+      assertTrue(perm.getGrants(ResourceAction.READ, Identity.USER, ORG_A).isEmpty(),
+                 "alice from orgB must not appear when filtering grants for orgA");
+   }
 }

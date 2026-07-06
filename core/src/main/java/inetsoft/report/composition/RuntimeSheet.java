@@ -75,6 +75,35 @@ public abstract class RuntimeSheet {
    }
 
    /**
+    * Get the heartbeat timeout in milliseconds. A runtime sheet is considered
+    * timed out if no heartbeat has been received within this window. Defaults
+    * to 180000 (3 minutes); configurable via the "viewsheet.heartbeat.timeout"
+    * property. Read on each call so it can be retuned without a restart.
+    */
+   public static long getHeartbeatTimeout() {
+      String property = SreeEnv.getProperty("viewsheet.heartbeat.timeout");
+
+      if(property != null) {
+         try {
+            return Math.max(180000L, Long.parseLong(property));
+         }
+         catch(NumberFormatException ex) {
+            LOG.warn("Invalid value for viewsheet.heartbeat.timeout: '{}', using default 180000ms",
+               property);
+         }
+      }
+
+      return 180000;
+   }
+
+   /**
+    * Check whether a heartbeat timestamp is older than the configured timeout.
+    */
+   static boolean isHeartbeatExpired(long heartbeat, long now) {
+      return heartbeat < now - getHeartbeatTimeout();
+   }
+
+   /**
     * Constructor.
     */
    public RuntimeSheet() {
@@ -99,7 +128,6 @@ public abstract class RuntimeSheet {
 
    RuntimeSheet(RuntimeSheetState state, ObjectMapper mapper) {
       entry = loadXml(new AssetEntry(), state.getEntry());
-      accessed = state.getAccessed();
       user = loadXPrincipal(state.getUser());
       contextPrincipal = loadXPrincipal(state.getContextPrincipal());
       editable = state.isEditable();
@@ -124,9 +152,12 @@ public abstract class RuntimeSheet {
       lowner = state.getLowner();
       isLockProcessed = state.isLockProcessed();
       disposed = state.isDisposed();
-      heartbeat = state.getHeartbeat();
       prop = loadPropMap(state.getProp(), mapper);
       previousURL = state.getPreviousURL();
+
+      // Safe fallback: toSheet() will overwrite with the authoritative value from accessTimeMap
+      // when one exists. Without this, accessed == 0 and isTimeout() evicts immediately.
+      access(true);
    }
 
    /**
@@ -149,6 +180,10 @@ public abstract class RuntimeSheet {
       return accessed;
    }
 
+   void setAccessed(long accessed) {
+      this.accessed = accessed;
+   }
+
    /**
     * Check if the runtime sheet is timeout.
     * @return <tt>true</tt> if time out, <tt>false</tt> otherwise.
@@ -156,8 +191,8 @@ public abstract class RuntimeSheet {
    public boolean isTimeout() {
       long now = System.currentTimeMillis();
 
-      // timeout if no heartbeat in 3 minutes
-      if(heartbeat < now - 180000) {
+      // timeout if no heartbeat within the configured window (default 3 minutes)
+      if(isHeartbeatExpired(heartbeat, now)) {
          return true;
       }
 
@@ -486,8 +521,6 @@ public abstract class RuntimeSheet {
 
    synchronized void saveState(RuntimeSheetState state, ObjectMapper mapper) {
       state.setEntry(saveXml(entry));
-      state.setAccessed(accessed);
-
       if(user instanceof XPrincipal xuser) {
          state.setUser(saveXml(xuser));
       }
@@ -499,11 +532,11 @@ public abstract class RuntimeSheet {
          List<String> values = new ArrayList<>();
 
          for(int i = 0; i < points.size(); i++) {
-            AbstractSheet sheet = points.get(i);
+            String[] classAndXml = points.getXmlForState(i);
 
-            if(sheet != null) {
-               values.add(sheet.getClass().getName());
-               values.add(saveXml(sheet));
+            if(classAndXml != null) {
+               values.add(classAndXml[0]);
+               values.add(classAndXml[1]);
             }
          }
 
@@ -520,7 +553,6 @@ public abstract class RuntimeSheet {
       state.setLowner(lowner);
       state.setLockProcessed(isLockProcessed);
       state.setDisposed(disposed);
-      state.setHeartbeat(heartbeat);
       state.setProp(savePropMap(prop, mapper));
       state.setPreviousURL(previousURL);
    }
@@ -837,6 +869,24 @@ public abstract class RuntimeSheet {
          }
       }
 
+      // Returns {className, xml} for saveState without calling access() or validate().
+      // Avoids the swap-in round-trip (decompress + DOM parse + object + reserialize)
+      // for checkpoints that are already on disk.
+      String[] getXmlForState(int index) {
+         XSwappableSheet swappable = values.get(index);
+
+         synchronized(swappable) {
+            String className = swappable.sheetClassName;
+            String xml = swappable.getXml();
+
+            if(className == null || xml == null) {
+               return null;
+            }
+
+            return new String[]{ className, xml };
+         }
+      }
+
       @SuppressWarnings("removal")
       @Override
       protected void finalize() throws Throwable {
@@ -852,6 +902,7 @@ public abstract class RuntimeSheet {
    public static final class XSwappableSheet extends XSwappable {
       public XSwappableSheet(AbstractSheet sheet, XPrincipal contextPrincipal) {
          this.sheet = sheet;
+         this.sheetClassName = sheet != null ? sheet.getClass().getName() : null;
          this.contextPrincipal = contextPrincipal;
          this.contextOrgId = OrganizationContextHolder.getCurrentOrgId();
          this.valid = true;
@@ -1057,7 +1108,66 @@ public abstract class RuntimeSheet {
          return sheet;
       }
 
+      // Returns the sheet's XML for saveState serialization without triggering validate().
+      // If the sheet is in memory, serializes to XML directly.
+      // If the sheet is swapped and is a Worksheet, falls back to validate() + writeXML() to
+      // produce non-ISTEMP XML — _swap() writes the .tdat with Worksheet.setIsTEMP(true), and
+      // storing that raw XML in Ignite causes SnapshotEmbeddedTableAssembly to reference temp
+      // paths local to this node when another node restores an undo checkpoint.
+      // For other sheet types (Viewsheet etc.), reads the .tdat file directly, skipping the
+      // DOM parse + object construction + re-serialize round-trip. The ISTEMP flag set by
+      // _swap() is a ThreadLocal read exclusively by SnapshotEmbeddedTableAssembly, which is
+      // a Worksheet-only class — Viewsheet.writeXML() never consults it, so raw .tdat bytes
+      // for non-Worksheet checkpoints are safe to store in Ignite without re-serialization.
+      String getXml() {
+         if(valid) {
+            if(sheet == null) {
+               return null;
+            }
+
+            StringWriter buffer = new StringWriter();
+            PrintWriter writer = new PrintWriter(buffer);
+            sheet.writeXML(writer);
+            writer.flush();
+            return buffer.toString();
+         }
+
+         // Worksheet checkpoints are written with Worksheet.setIsTEMP(true) by _swap().
+         // Fall back to validate() + writeXML() so Ignite receives non-ISTEMP XML.
+         if(Worksheet.class.getName().equals(sheetClassName)) {
+            validate(false);
+
+            if(sheet == null) {
+               return null;
+            }
+
+            StringWriter buffer = new StringWriter();
+            PrintWriter writer = new PrintWriter(buffer);
+            sheet.writeXML(writer);
+            writer.flush();
+            return buffer.toString();
+         }
+
+         File file = getFile(prefix + ".tdat");
+
+         if(!file.exists()) {
+            LOG.warn("Swap file missing for checkpoint serialization: {}", file);
+            return null;
+         }
+
+         try(InputStream in = Tool.createUncompressInputStream(new FileInputStream(file))) {
+            String xml = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            // Strip the XML declaration written by _swap() — saveState stores element XML only.
+            return xml.replaceFirst("^<\\?xml[^?]*\\?>\\s*", "");
+         }
+         catch(Exception e) {
+            LOG.error("Failed to read swapped sheet XML for state serialization", e);
+            return null;
+         }
+      }
+
       private AbstractSheet sheet;
+      private final String sheetClassName;
       private final XPrincipal contextPrincipal;
       private final String contextOrgId;
       private boolean valid;
@@ -1085,7 +1195,7 @@ public abstract class RuntimeSheet {
    private String lowner;           // user who locked it
    private boolean isLockProcessed; // unlocked flag
    private boolean disposed;        // disposed flag
-   private long heartbeat = System.currentTimeMillis(); // heartbeat timestamp
+   volatile long heartbeat = System.currentTimeMillis(); // heartbeat timestamp
    private Map<String, Object> prop = new HashMap<>();
    private String previousURL;
 

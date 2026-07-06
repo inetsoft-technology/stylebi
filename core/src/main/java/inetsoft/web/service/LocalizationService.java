@@ -203,9 +203,14 @@ public class LocalizationService {
       return resource.getURL().openStream();
    }
 
-   public static Reader getResourceReader(String resource) {
-      return new BufferedReader(
-         new InputStreamReader(getResourceStream(resource), StandardCharsets.UTF_8));
+   public static Reader getResourceReader(String resource) throws IOException {
+      InputStream stream = getResourceStream(resource);
+
+      if(stream == null) {
+         throw new FileNotFoundException("Resource not found: " + resource);
+      }
+
+      return new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
    }
 
    private static InputStream getResourceStream(String resource) {

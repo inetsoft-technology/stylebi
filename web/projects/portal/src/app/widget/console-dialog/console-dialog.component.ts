@@ -44,6 +44,7 @@ export class ConsoleDialogComponent implements OnInit {
    @Output() onCommit = new EventEmitter<string[]>();
    levelOptions = ["_#(js:Error)", "_#(js:Warning)", "_#(js:Info)"];
    selectedLevels: string[] = [];
+   levelButtonLabel: string = "_#(js:All levels)";
 
    constructor(private modelService: ModelService) {
    }
@@ -52,13 +53,19 @@ export class ConsoleDialogComponent implements OnInit {
       this.selectedLevels = Tool.clone(this.messageLevels);
 
       if(!this.selectedLevels) {
-         this.selectedLevels = ["Error", "Warning", "Info"];
+         this.selectedLevels = Tool.clone(this.levelOptions);
       }
 
       if(!this.messages) {
          this.messages = [];
       }
 
+      this.updateLevelButtonLabel();
+   }
+
+   private updateLevelButtonLabel(): void {
+      this.levelButtonLabel = this.selectedLevels.length == this.levelOptions.length ?
+         "_#(js:All levels)" : "_#(js:Custom levels)";
    }
 
    get visibleMessages(): ConsoleMessage[] {
@@ -107,6 +114,8 @@ export class ConsoleDialogComponent implements OnInit {
             this.selectedLevels = this.selectedLevels.filter(level => level != event.target.value);
          }
       }
+
+      this.updateLevelButtonLabel();
    }
 
    closeDialog(): void {

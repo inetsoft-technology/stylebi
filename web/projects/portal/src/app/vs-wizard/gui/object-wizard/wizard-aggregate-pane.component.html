@@ -26,7 +26,7 @@
         </div>
       }
       @if (!isDetail) {
-        @for (dim of dimensions; track dim; let idx = $index) {
+        @for (dim of dimensions; track $index; let idx = $index) {
           <div>
             <wizard-group-item
               [dataRef]="dim" [index]="idx"
@@ -39,7 +39,7 @@
             </wizard-group-item>
           </div>
         }
-        @for (mea of measures; track mea; let idx = $index) {
+        @for (mea of measures; track $index; let idx = $index) {
           <div>
             <wizard-aggregate-item
               [dataRef]="mea" [index]="idx"
@@ -58,7 +58,7 @@
         }
       }
       @if (isDetail) {
-        @for (col of details; track col; let idx = $index) {
+        @for (col of details; track $index; let idx = $index) {
           <div>
             <wizard-detail-item
               [dataRef]="col" [index]="idx"

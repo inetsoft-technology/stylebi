@@ -56,6 +56,7 @@ public class WSLoadTableDataService extends WorksheetControllerService {
       super(viewsheetService, dataSourceRegistry);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void loadWSTableData(@ClusterProxyKey String runtimeId, String assemblyName,
                                WSLoadTableDataEvent event, Principal principal,

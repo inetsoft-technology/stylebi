@@ -51,6 +51,7 @@ public class ChangeDependencyService extends WorksheetControllerService{
       super(viewsheetService, dataSourceRegistry);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void changeDependency(
       @ClusterProxyKey String runtimeId, WSChangeDependencyEvent event, Principal principal,

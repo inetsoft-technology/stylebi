@@ -221,6 +221,44 @@ class DefaultCheckPermissionStrategyTest {
    }
 
    // ─────────────────────────────────────────────────────────────────
+   // [Path C] Org admin checking a role that does not exist
+   // ─────────────────────────────────────────────────────────────────
+
+   // checkOrgAdminPermission's SECURITY_ROLE branch (line 571-575) unconditionally returned
+   // false when the target role did not exist, unlike the analogous SECURITY_USER branch
+   // (line 536-538, "Bug #66393") which falls back to comparing orgIDs. This meant an org
+   // admin looking up a non-existent role in their own org got permission denied (401)
+   // instead of reaching the "not found" (404) check in the calling API layer. (Bug #75545)
+   @Test
+   void orgAdminCanCheckNonExistentRoleInOwnOrg() {
+      String resource = new IdentityID("noExistRole", "org0").convertToKey();
+
+      try(MockedStatic<SUtil> mocked = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS)) {
+         mocked.when(SUtil::isMultiTenant).thenReturn(true);
+
+         assertTrue(
+            strategy.checkPermission(org_admin, ResourceType.SECURITY_ROLE, resource, ResourceAction.ADMIN),
+            "org admin should have admin permission over a non-existent role in their own org " +
+            "so the caller can surface a 'not found' rather than 'forbidden' result");
+      }
+   }
+
+   // Security boundary: a missing role in a *different* org must still be denied, so this
+   // doesn't leak role existence/permission across organizations.
+   @Test
+   void orgAdminCannotCheckNonExistentRoleInOtherOrg() {
+      String resource = new IdentityID("noExistRole", "otherOrg").convertToKey();
+
+      try(MockedStatic<SUtil> mocked = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS)) {
+         mocked.when(SUtil::isMultiTenant).thenReturn(true);
+
+         assertFalse(
+            strategy.checkPermission(org_admin, ResourceType.SECURITY_ROLE, resource, ResourceAction.ADMIN),
+            "org admin must not gain permission over a non-existent role outside their own org");
+      }
+   }
+
+   // ─────────────────────────────────────────────────────────────────
    // [Path B] System administrator bypasses all permission checks
    // ─────────────────────────────────────────────────────────────────
 
@@ -331,6 +369,47 @@ class DefaultCheckPermissionStrategyTest {
          Arguments.of(roleGrantedPermission(TEST_ROLE, TEST_ORG, ResourceAction.READ, false), true),
          // ✗ no permission defined → falls through to return false
          Arguments.of(null, false)
+      );
+   }
+
+   // [Path D] SECURITY_ROLE with only ASSIGN must not imply READ/WRITE/DELETE/ADMIN (#75567).
+   // Regression: hasResourcePermission incorrectly checked ASSIGN grants instead of ADMIN,
+   // granting full access to any action when only ASSIGN was configured.
+   @ParameterizedTest
+   @MethodSource("securityRoleAssignOnlyCases")
+   void securityRoleAssignOnlyDoesNotImplyOtherActions(ResourceAction action, boolean expected) {
+      String roleResource = new IdentityID("targetRole", TEST_ORG).convertToKey();
+      Permission assignOnlyPerm = grantedPermission(TEST_USER, TEST_ORG, ResourceAction.ASSIGN, false);
+
+      try(MockedStatic<SUtil> sutilMock = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
+          MockedStatic<OrganizationManager> omMock =
+             Mockito.mockStatic(OrganizationManager.class, Mockito.CALLS_REAL_METHODS))
+      {
+         sutilMock.when(SUtil::isMultiTenant).thenReturn(false);
+         sutilMock.when(() -> SUtil.isInternalUser(any())).thenReturn(false);
+
+         OrganizationManager mockOM = mock(OrganizationManager.class);
+         omMock.when(OrganizationManager::getInstance).thenReturn(mockOM);
+         omMock.when(OrganizationManager::getCurrentOrgName).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID()).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID(any())).thenReturn(TEST_ORG);
+         when(mockOM.isSiteAdmin(any(Principal.class))).thenReturn(false);
+
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_ROLE), eq(roleResource), eq(TEST_ORG)))
+            .thenReturn(assignOnlyPerm);
+
+         assertEquals(expected,
+            mockStrategy.checkPermission(mockUser, ResourceType.SECURITY_ROLE, roleResource, action));
+      }
+   }
+
+   private static Stream<Arguments> securityRoleAssignOnlyCases() {
+      return Stream.of(
+         Arguments.of(ResourceAction.ASSIGN, true),
+         Arguments.of(ResourceAction.READ, false),
+         Arguments.of(ResourceAction.WRITE, false),
+         Arguments.of(ResourceAction.DELETE, false),
+         Arguments.of(ResourceAction.ADMIN, false)
       );
    }
 

@@ -17,7 +17,8 @@
  */
 package inetsoft.uql.script;
 
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptArrayScope;
+import inetsoft.util.script.graal.ScriptScope;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,7 +29,7 @@ import java.util.List;
  * @version 8.0
  * @author InetSoft Technology Corp
  */
-public class StringArray implements Scriptable, Wrapper {
+public class StringArray implements ScriptArrayScope {
    /**
     * Constructor.
     */
@@ -44,7 +45,6 @@ public class StringArray implements Scriptable, Wrapper {
    /**
     * Get the name of the set of objects implemented by this Java class.
     */
-   @Override
    public String getClassName() {
       return name;
    }
@@ -53,44 +53,54 @@ public class StringArray implements Scriptable, Wrapper {
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       if(name.equals("length")) {
          return Integer.valueOf(list.size());
       }
 
-      return Undefined.instance;
+      return null;
    }
 
    /**
     * Get a property from the object selected by an integral index.
     */
    @Override
-   public Object get(int index, Scriptable start) {
+   public Object getArrayElement(long index) {
       if(index >= 0 && index < list.size()) {
-         return list.get(index);
+         return list.get((int) index);
       }
 
-      return Undefined.instance;
+      return null;
+   }
+
+   /**
+    * Get the number of indexed elements.
+    */
+   @Override
+   public long getArraySize() {
+      return list.size();
+   }
+
+   /**
+    * Set an indexed property in this object. Ported from the Rhino
+    * {@code put(int, Scriptable, Object)}: only set when the index is in
+    * range and the value is null or a String. (#75423)
+    */
+   @Override
+   public void setArrayElement(long index, Object value) {
+      if(index >= 0 && index < list.size() &&
+         (value == null || value instanceof String))
+      {
+         list.set((int) index, value);
+      }
    }
 
    /**
     * Indicate whether or not a named property is defined in an object.
     */
    @Override
-   public boolean has(String name, Scriptable start) {
+   public boolean hasMember(String name) {
       if(name.equals("length")) {
-         return true;
-      }
-
-      return false;
-   }
-
-   /**
-    * Indicate whether or not an indexed property is defined in an object.
-    */
-   @Override
-   public boolean has(int index, Scriptable start) {
-      if(index >= 0 && index < list.size()) {
          return true;
       }
 
@@ -101,7 +111,7 @@ public class StringArray implements Scriptable, Wrapper {
     * Set a named property in this object.
     */
    @Override
-   public void put(String name, Scriptable start, Object value) {
+   public void putMember(String name, Object value) {
       if(name.equals("length") && value instanceof Number) {
          int length = ((Number) value).intValue();
 
@@ -122,64 +132,26 @@ public class StringArray implements Scriptable, Wrapper {
    }
 
    /**
-    * Set an indexed property in this object.
-    */
-   @Override
-   public void put(int index, Scriptable start, Object value) {
-      if(index >= 0 && index < list.size() &&
-         (value == null || value instanceof String))
-      {
-         list.set(index, value);
-      }
-   }
-
-   /**
     * Remove a property from this object.
     */
    @Override
-   public void delete(String name) {
+   public boolean removeMember(String name) {
       // do nothing
-   }
-
-   /**
-    * Remove a property from this object.
-    */
-   @Override
-   public void delete(int index) {
-      if(index >= 0 && index < list.size()) {
-         list.remove(index);
-      }
-   }
-
-   /**
-    * Get the prototype of the object.
-    */
-   @Override
-   public Scriptable getPrototype() {
-      return prototype;
-   }
-
-   /**
-    * Set the prototype of the object.
-    */
-   @Override
-   public void setPrototype(Scriptable prototype) {
-      this.prototype = prototype;
+      return false;
    }
 
    /**
     * Get the parent scope of the object.
     */
    @Override
-   public Scriptable getParentScope() {
+   public ScriptScope getParentScope() {
       return parent;
    }
 
    /**
     * Set the parent scope of the object.
     */
-   @Override
-   public void setParentScope(Scriptable parent) {
+   public void setParentScope(ScriptScope parent) {
       this.parent = parent;
    }
 
@@ -187,7 +159,7 @@ public class StringArray implements Scriptable, Wrapper {
     * Get an array of property ids.
     */
    @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       Object[] ids = new Object[list.size() + 1];
 
       for(int i = 0; i < list.size(); i++) {
@@ -200,26 +172,9 @@ public class StringArray implements Scriptable, Wrapper {
    }
 
    /**
-    * Get the default value of the object with a given hint.
-    */
-   @Override
-   public Object getDefaultValue(Class hint) {
-      return list;
-   }
-
-   /**
-    * Implement the instanceof operator.
-    */
-   @Override
-   public boolean hasInstance(Scriptable instance) {
-      return false;
-   }
-
-   /**
     * Unwrap the object by returning the wrapped value.
     * @return the wrapped value.
     */
-   @Override
    public Object unwrap() {
       String[] arr = new String[list.size()];
       list.toArray(arr);
@@ -235,6 +190,5 @@ public class StringArray implements Scriptable, Wrapper {
 
    private String name;
    private List list;
-   private Scriptable parent;
-   private Scriptable prototype;
+   private ScriptScope parent;
 }

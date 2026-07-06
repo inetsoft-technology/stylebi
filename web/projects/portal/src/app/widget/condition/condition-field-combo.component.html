@@ -22,7 +22,7 @@
     (openChange)="dropDownOpenChange($event)"
     dropdownPlacement="bottom" [autoClose]="false">
     <div class="condition-field-combo-text ps-1" [attr.title]="getTooltip(field)">
-      {{field ? field.view : getDefaultValue()}}&nbsp;
+      {{field ? field.view : defaultValue}}&nbsp;
     </div>
   </div>
   @if (showSearch) {

@@ -77,7 +77,7 @@ public class SubmitVSAScriptableTest {
    @Test
    void testAddProperties() {
       submitVSAScriptable.addProperties();
-      assert submitVSAScriptable.get("refreshAfterSubmit", submitVSAScriptable) instanceof Boolean;
+      assert submitVSAScriptable.getMember("refreshAfterSubmit") instanceof Boolean;
 
       //check isPublicProperty()
       String[] privatePropertys = {"hyperlink", "value", "shadow"};

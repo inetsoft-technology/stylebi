@@ -16,7 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <select class="form-control session-editor" [(ngModel)]="value" (ngModelChange)="valueChange.emit($event)">
-  @for (choice of sessionDataChoices; track choice) {
+  @for (choice of sessionDataChoices; track $index) {
     <option [ngValue]="choice.data">{{choice.label}}</option>
   }
 </select>

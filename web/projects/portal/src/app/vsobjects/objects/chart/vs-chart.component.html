@@ -36,6 +36,7 @@
     [class.disable-actions-fade]="!model.enabled"
     [class.fade-assembly]="!viewer && !model.visible"
     [style.display]="getVisible() ? null : 'none'">
+    @let zIndex = getZIndex();
     @if (model.drillTip) {
       <i [wTooltip]="model.drillTip" class="drill-filter-icon drill-tip"
       [class.move-down]="isTipOverlapToolbar()"></i>
@@ -55,7 +56,7 @@
       [style.border-bottom]="model.objectFormat.border.bottom"
       [style.border-right]="model.objectFormat.border.right"
       [style.background]="model.objectFormat.background"
-      [style.z-index]="getZIndex()"
+      [style.z-index]="zIndex"
       [style.border-radius.px]="model.objectFormat.roundCorner">
     </div>
     @if (model.titleVisible) {
@@ -74,7 +75,7 @@
         (changeTitle)="changeTitle($event)"
         (titleResizeMove)="titleResizeMove($event)"
         (titleResizeEnd)="titleResizeEnd()"
-        [zIndex]="viewer ? getZIndex() + 1 : 0"
+        [zIndex]="viewer ? zIndex + 1 : 0"
         [cursorPointer]="!!(viewer && model.titleLinkModel)"
         [wTooltip]="model.titleLinkModel?.tooltip ?? ''">
       </vs-title>
@@ -99,7 +100,7 @@
         [showEmptyArea]="showEmptyArea"
         [noChartData]="noChartData"
         [plotScaleInfo]="plotScaleInfo"
-        [zIndex]="getZIndex()"
+        [zIndex]="zIndex"
         [hideSortIcon]="isDataTip() || vsWizard || model.dateComparisonDefined"
         [isDataTip]="isDataTip()"
         [isResizeVisible]="isResizeVisible"
@@ -173,7 +174,7 @@
                     showDetails($event.sortInfo, $event.format, $event.column, $event.str, $event.detailStyle, $event.dndInfo, $event.newColName, $event.toggleHide)">
     </vs-preview-table>
     @if (enableAnnotation) {
-      @for (annotationModel of model.assemblyAnnotationModels; track annotationModel) {
+      @for (annotationModel of model.assemblyAnnotationModels; track $index) {
         <vs-annotation
           [model]="annotationModel"
           [actions]="actions"

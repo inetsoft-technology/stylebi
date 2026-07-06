@@ -22,10 +22,10 @@
     _#(viewer.mobile.hint)</div>
   }
   @if (!!showingActions) {
-    @for (group of showingActions; track group) {
+    @for (group of showingActions; track $index) {
       @if (group.visible) {
         <div class="btn-group" role="group">
-          @for (action of group.actions; track action) {
+          @for (action of group.actions; track $index) {
             @if (action.visible()) {
               <button type="button" class="btn btn-sm toolbar-button"
                 [disabled]="!action.enabled()" (click)="action.action()">
@@ -39,7 +39,7 @@
     }
   }
   @if (!!moreActions) {
-    @for (group of moreActions; track group; let i = $index) {
+    @for (group of moreActions; track $index; let i = $index) {
       <div class="drop-down-pane">
         @if (group.visible) {
           <button class="btn btn-sm dropdown-toggle no-caret toolbar-button"
@@ -52,7 +52,7 @@
       <ng-template #dropdownMenu>
         @if (group) {
           <div class="dropdown-pane mobile-dropdown py-2">
-            @for (action of group.actions; track action) {
+            @for (action of group.actions; track $index) {
               @if (action.visible()) {
                 <a
                   class="dropdown-item"
@@ -78,13 +78,13 @@
     </button>
     <ng-template #mobileSandwichDropdown>
       <div class="dropdown-menu show" role="menu">
-        @for (group of actions.menuActions; track group) {
+        @for (group of actions.menuActions; track $index) {
           @if (group.visible) {
             @if (actions.requiresMenuSeparator(group) && group.visible) {
               <div class="dropdown-divider"
               ></div>
             }
-            @for (action of group.actions; track action) {
+            @for (action of group.actions; track $index) {
               @if (action.visible()) {
                 <a role="menuitem" class="dropdown-item"
                   [class.disable-link]="!action.enabled()"

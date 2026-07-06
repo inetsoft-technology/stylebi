@@ -84,7 +84,7 @@
                 <div shuffleRight class="bd-gray shuffle-list-pane">
                   @if (hidden) {
                     <div class="hidden-columns-table" (click)="clearHiddenSelected()">
-                      @for (column of hidden.hiddens; track column) {
+                      @for (column of hidden.hiddens; track $index) {
                         <div class="hidden-columns-table-row"
                           [class.bg-node-selected]="isSelectedHiddenColumn(column)"
                           (click)="selectHiddenColumn($event, column)">
@@ -104,7 +104,7 @@
                 <div class="shuffle-title">_#(Available Roles)</div>
                 <div shuffleLeft class="bd-gray shuffle-list-pane">
                   <div class="hidden-columns-table">
-                    @for (role of availableRoles; track role) {
+                    @for (role of availableRoles; track role.value) {
                       <div class="hidden-columns-table-row"
                         [class.bg-node-selected]="selectedAvailableRoles.includes(role?.value)"
                         (click)="selectAvailableRole($event, role?.value)">

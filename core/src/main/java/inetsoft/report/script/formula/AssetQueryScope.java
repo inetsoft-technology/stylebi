@@ -24,12 +24,12 @@ import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.script.VariableScriptable;
 import inetsoft.util.script.DynamicScope;
-import inetsoft.util.script.JavaScriptEngine;
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -38,7 +38,7 @@ import java.util.Map;
  * @version 10.3
  * @author InetSoft Technology Corp
  */
-public class AssetQueryScope extends ScriptableObject implements DynamicScope {
+public class AssetQueryScope implements DynamicScope, Cloneable {
    /**
     * Create a scope for an asset query.
     */
@@ -67,17 +67,17 @@ public class AssetQueryScope extends ScriptableObject implements DynamicScope {
     * Set the parameters.
     */
    public void setVariableTable(VariableTable vars) {
-      put("parameter", this, new VariableScriptable(vars));
+      putMember("parameter", new VariableScriptable(vars));
    }
 
    /**
     * Set the parameters.
     */
    public VariableTable getVariableTable() {
-      Object currentVarTable = get("parameter", this);
+      Object currentVarTable = getMember("parameter");
 
-      if(currentVarTable instanceof Wrapper) {
-         currentVarTable = ((Wrapper) currentVarTable).unwrap();
+      if(currentVarTable instanceof VariableScriptable) {
+         currentVarTable = ((VariableScriptable) currentVarTable).unwrap();
       }
 
       if(currentVarTable instanceof VariableTable) {
@@ -102,7 +102,7 @@ public class AssetQueryScope extends ScriptableObject implements DynamicScope {
     * Get a property value.
     */
    @Override
-   public Object get(String id, Scriptable start) {
+   public Object getMember(String id) {
       try {
          Worksheet ws = box.getWorksheet();
 
@@ -128,26 +128,55 @@ public class AssetQueryScope extends ScriptableObject implements DynamicScope {
          LOG.error("Failed to get property from asset query: " + id, ex);
       }
 
-      Object val = super.get(id, start);
+      // the dynamic scope fallback (executing scope) is now provided
+      // centrally by BindingRootProxy
+      return members.get(id);
+   }
 
-      if(val == NOT_FOUND) {
-         // this is to simulate dynamic scope for function. the execScriptable is the
-         // scope actually executing the script. if var is not found until this point,
-         // we look at the executing scope to see if it's there
-         Scriptable execScriptable = JavaScriptEngine.getExecScriptable();
+   @Override
+   public boolean hasMember(String id) {
+      try {
+         Worksheet ws = box.getWorksheet();
 
-         if(execScriptable != null && execScriptable != this) {
-            val = execScriptable.get(id, this);
+         if(ws != null && ws.getAssembly(id) instanceof TableAssembly) {
+            return true;
          }
       }
+      catch(Exception ex) {
+         // ignore
+      }
 
-      return val;
+      return members.containsKey(id);
+   }
+
+   @Override
+   public void putMember(String id, Object value) {
+      members.put(id, value);
+   }
+
+   @Override
+   public boolean removeMember(String id) {
+      return members.remove(id) != null;
+   }
+
+   @Override
+   public Object[] getMemberKeys() {
+      return members.keySet().toArray(new Object[0]);
+   }
+
+   @Override
+   public ScriptScope getParentScope() {
+      return parentScope;
+   }
+
+   @Override
+   public void setParentScope(ScriptScope parent) {
+      this.parentScope = parent;
    }
 
    /**
     * Get the name of this scriptable.
     */
-   @Override
    public String getClassName() {
       return "AssetQuerySandbox";
    }
@@ -172,6 +201,9 @@ public class AssetQueryScope extends ScriptableObject implements DynamicScope {
    private int mode;
    private AssetQuerySandbox box;
    private Map tablemap = new HashMap();
+   private final Map<String, Object> members = new LinkedHashMap<>();
+   // volatile for safe publication (see ViewsheetScope.parentScope)
+   private volatile ScriptScope parentScope;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(AssetQueryScope.class);

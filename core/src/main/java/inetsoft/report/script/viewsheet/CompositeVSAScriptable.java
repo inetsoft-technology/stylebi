@@ -17,7 +17,7 @@
  */
 package inetsoft.report.script.viewsheet;
 
-import org.mozilla.javascript.Scriptable;
+import inetsoft.util.script.graal.ScriptScope;
 
 /**
  * The composite viewsheet assembly scriptable in viewsheet scope.
@@ -25,7 +25,7 @@ import org.mozilla.javascript.Scriptable;
  * @version 8.5
  * @author InetSoft Technology Corp
  */
-public interface CompositeVSAScriptable extends Scriptable {
+public interface CompositeVSAScriptable extends ScriptScope {
    /**
     * The null object indicates that the scriptable has no cell value. So that
     * we could distinguish no cell value from null cel value.

@@ -18,11 +18,11 @@
 @if (visibleActions.length > 0) {
   <div
     class="dropdown-menu show contextmenu-container">
-    @for (group of visibleActions; track group; let _first = $first; let i = $index) {
+    @for (group of visibleActions; track $index; let _first = $first; let i = $index) {
       @if (!_first) {
         <div class="dropdown-divider"></div>
       }
-      @for (action of group.actions; track action; let j = $index) {
+      @for (action of group.actions; track $index; let j = $index) {
         @if (itemVisible(action)) {
           <a class="dropdown-item"
             [attr.data-menu-id]="action.id()"

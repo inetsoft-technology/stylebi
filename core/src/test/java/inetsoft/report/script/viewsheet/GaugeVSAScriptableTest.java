@@ -79,7 +79,7 @@ public class GaugeVSAScriptableTest {
    @Test
    void testAddProperties() {
       gaugeVSAScriptable.addProperties();
-      assertEquals(true, gaugeVSAScriptable.get("labelVisible", gaugeVSAScriptable));
+      assertEquals(true, gaugeVSAScriptable.getMember("labelVisible"));
 
       assertTrue(gaugeVSAScriptable.isPublicProperty("visible"));
    }
@@ -107,9 +107,11 @@ public class GaugeVSAScriptableTest {
 
    @Test
    void testGet() throws Exception {
-      assertNull(gaugeVSAScriptable.get("value", gaugeVSAScriptable));
-      assertNull(gaugeVSAScriptable.get("dataConditions", gaugeVSAScriptable));
-      assertNull(gaugeVSAScriptable.getDefaultValue(GaugeVSAScriptable.class));
+      assertNull(gaugeVSAScriptable.getMember("value"));
+      assertNull(gaugeVSAScriptable.getMember("dataConditions"));
+      // Feature #75423: Rhino getDefaultValue(Class) scalar coercion was removed;
+      // the output's value is now exposed only via the "value" member (asserted above).
+      assertNull(gaugeVSAScriptable.getMember("value"));
    }
 
    @ParameterizedTest

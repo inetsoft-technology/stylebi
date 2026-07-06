@@ -16,6 +16,9 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 @if (model) {
+  @let objectWidth = getObjectWidth();
+  @let objectHeight = getObjectHeight();
+  @let objectTop = getObjectTop();
   <div
     #tableContainer
     class="table-container vs-object"
@@ -31,11 +34,11 @@
     [class.fade-assembly]="!viewer && !model.visible"
     [class.disable-actions-fade]="!model.enabled"
      [style.top.px]="(viewer || embeddedVS) && !model.maxMode && !isBinding ?
-     getObjectTop() : null"
+     objectTop : null"
     [style.left.px]="(viewer || embeddedVS) && !model.maxMode && !isBinding ? model.objectFormat.left : null"
     [style.position]="viewer || embeddedVS || isBinding ? 'absolute' : 'relative'"
-    [style.width.px]="getObjectWidth()"
-    [style.height.px]="getObjectHeight()"
+    [style.width.px]="objectWidth"
+    [style.height.px]="objectHeight"
     (onClick)="showPagingControl()">
     @if (model.drillTip) {
       <i [wTooltip]="model.drillTip" class="drill-filter-icon drill-tip"
@@ -48,14 +51,16 @@
         [class.move-down]="isTipOverlapToolbar()"
       (click)="showDateComparisonDialog()"></i>
     }
+    @let zIndex = getZIndex();
+    @let lbTableWidth = getLBTableWidth();
     <div class="z-index-wrapper"
       [style.background]="model.objectFormat.background"
       [style.overflow]="model.objectFormat.roundCorner != 0 ? 'hidden' : ''"
       [style.border-radius.px]="model.objectFormat.roundCorner"
-      [style.z-index]="getZIndex()">
+      [style.z-index]="zIndex">
       @if (!model.shrink || (!viewer || totalColWidth > 0)) {
         <div class="border-div"
-          [style.width.px]="getObjectWidth()"
+          [style.width.px]="objectWidth"
           [style.height.px]="borderDivHeight"
           [style.border-top]="model.objectFormat.border.top"
           [style.border-left]="model.objectFormat.border.left"
@@ -71,7 +76,7 @@
             [formatPainterMode]="vsInfo?.formatPainterMode"
             [titleSelected]="model.titleSelected"
             [titleVisible]="model.titleVisible"
-            [titleWidth]="getObjectWidth()"
+            [titleWidth]="objectWidth"
             (selectTitle)="selectTitle($event)"
             (changeTitle)="changeTableTitle($event)"
             (titleResizeMove)="titleResizeMove($event)"
@@ -100,22 +105,22 @@
       <div class="table-wrapper"
         #tableWrapper
         [style.top.px]="tableWrapperTop"
-        [style.width.px]="getObjectWidth()"
+        [style.width.px]="objectWidth"
         [style.height.px]="tableWrapperHeight"
         selectionBox
         [selectionBoxBannedSelector]="'input, .highlightable'"
         (onSelectionBox)="selectCells($event)"
         (mousedown)="onDown($event)"
-        (wheel)="wheelScrollHandler($event)">
+        outOfZone (onWheel)="wheelScrollHandler($event)">
         <div #leftTopDiv class="left-top-table"
           [style.left.px]="isFullHorizontalWrapper ? -scrollX : null">
           <table>
             <tbody>
-              @for (_row of ltTable; track _row; let i = $index) {
+              @for (_row of ltTable; track $index; let i = $index) {
                 <tr
                   [class.hidden-row]="getRowHeight(i) <= 0"
                   [style.height.px]="getRowHeight(i)">
-                  @for (_cell of _row; track _cell; let j = $index) {
+                  @for (_cell of _row; track $index; let j = $index) {
                     @if (i < model.headerRowCount && !_cell.spanCell) {
                       @if ((!isRowVisible(i, _cell) || !isColVisible(j)) && getCellWidth(_cell, j) == 0) {
                         <td vs-simple-cell
@@ -177,20 +182,22 @@
                           [safeFont]="_cell.vsFormatModel.font"
                           [dataTip]="model.dataTip"
                           [dataTipOnClick]="model.isTipOnClick">
-                          @if (sortEnable(_cell) && model.sortOnHeader && !vsWizard) {
-                            <i sortButton
-                              title="_#(Sort Column)"
-                              class="sort-button vs-header-cell-button-sort hover-bg-secondary"
-                              [class.col-sorted]="isColSorted(_cell)"
-                              [class.sort-ascending-icon]="isSorted(_cell.field, 'asc')"
-                              [class.sort-descending-icon]="isSorted(_cell.field, 'desc')"
-                              [class.sort-value-ascending-icon]="isSorted(_cell.field, 'val-asc')"
-                              [class.sort-value-descending-icon]="isSorted(_cell.field, 'val-desc')"
-                              [class.sort-icon]="isSorted(_cell.field, 'none')"
-                              (click)="sortColumn(_cell, $event)"
-                              aria-hidden="true">
-                            </i>
-                          }
+                          <ng-container ngProjectAs="[sortButton]">
+                            @if (sortEnable(_cell) && model.sortOnHeader && !vsWizard) {
+                              <i sortButton
+                                title="_#(Sort Column)"
+                                class="sort-button vs-header-cell-button-sort hover-bg-secondary"
+                                [class.col-sorted]="isColSorted(_cell)"
+                                [class.sort-ascending-icon]="isSorted(_cell.field, 'asc')"
+                                [class.sort-descending-icon]="isSorted(_cell.field, 'desc')"
+                                [class.sort-value-ascending-icon]="isSorted(_cell.field, 'val-asc')"
+                                [class.sort-value-descending-icon]="isSorted(_cell.field, 'val-desc')"
+                                [class.sort-icon]="isSorted(_cell.field, 'none')"
+                                (click)="sortColumn(_cell, $event)"
+                                aria-hidden="true">
+                              </i>
+                            }
+                          </ng-container>
                         </td>
                       }
                     }
@@ -208,11 +215,11 @@
           [style.top.px]="rtTableHeight" [style.left.px]="-rbTableX - scrollX">
           <table #lowerTable>
             <tbody>
-              @for (_row of table; track _row; let i = $index) {
+              @for (_row of table; track $index; let i = $index) {
                 <tr
                   [class.hidden-row]="getRowHeight(indexToRow(i)) <= 0"
                   [style.height.px]="getRowHeight(indexToRow(i))">
-                  @for (_cell of _row; track _cell; let j = $index) {
+                  @for (_cell of _row; track $index; let j = $index) {
                     @if (!_cell.spanCell && isShowCol(_cell, j)) {
                       @if (!isRowVisible(i, _cell) || !isColVisible(j)) {
                         <td vs-simple-cell
@@ -272,20 +279,22 @@
                           [style.color]="_cell.vsFormatModel.foreground"
                           [style.background]="_cell.vsFormatModel.background"
                           [safeFont]="_cell.vsFormatModel.font">
-                          @if (sortEnable(_cell) && !model.sortOnHeader && model.sortAggregate && model.timeSeriesNames.length == 0 && !vsWizard) {
-                            <i sortButton
-                              title="_#(Sort Column)"
-                              class="sort-button vs-header-cell-button-sort hover-bg-secondary"
-                              [class.col-sorted]="isColSorted(_cell)"
-                              [class.sort-ascending-icon]="isSorted(_cell.field, 'asc')"
-                              [class.sort-descending-icon]="isSorted(_cell.field, 'desc')"
-                              [class.sort-value-ascending-icon]="isSorted(_cell.field, 'val-asc')"
-                              [class.sort-value-descending-icon]="isSorted(_cell.field, 'val-desc')"
-                              [class.sort-icon]="isSorted(_cell.field, 'none')"
-                              (click)="sortColumn(_cell, $event)"
-                              aria-hidden="true">
-                            </i>
-                          }
+                          <ng-container ngProjectAs="[sortButton]">
+                            @if (sortEnable(_cell) && !model.sortOnHeader && model.sortAggregate && model.timeSeriesNames.length == 0 && !vsWizard) {
+                              <i sortButton
+                                title="_#(Sort Column)"
+                                class="sort-button vs-header-cell-button-sort hover-bg-secondary"
+                                [class.col-sorted]="isColSorted(_cell)"
+                                [class.sort-ascending-icon]="isSorted(_cell.field, 'asc')"
+                                [class.sort-descending-icon]="isSorted(_cell.field, 'desc')"
+                                [class.sort-value-ascending-icon]="isSorted(_cell.field, 'val-asc')"
+                                [class.sort-value-descending-icon]="isSorted(_cell.field, 'val-desc')"
+                                [class.sort-icon]="isSorted(_cell.field, 'none')"
+                                (click)="sortColumn(_cell, $event)"
+                                aria-hidden="true">
+                              </i>
+                            }
+                          </ng-container>
                         </td>
                       }
                     }
@@ -301,16 +310,16 @@
           [touchScrollEnabled]="selected"
           [style.top.px]="rtTableHeight"
           [style.left.px]="isFullHorizontalWrapper ? -scrollX : null"
-           [style.height.px]="isBinding ? getObjectHeight() - rtTableHeight :
-                              getObjectHeight() - rtTableHeight - (model.titleVisible ? model.titleFormat.height : 0) + 1"
-          [style.width.px]="getLBTableWidth()">
+           [style.height.px]="isBinding ? objectHeight - rtTableHeight :
+                              objectHeight - rtTableHeight - (model.titleVisible ? model.titleFormat.height : 0) + 1"
+          [style.width.px]="lbTableWidth">
           <table #leftBottomTable>
             <tbody>
-              @for (_row of lbTable; track _row; let i = $index) {
+              @for (_row of lbTable; track $index; let i = $index) {
                 <tr
                   [class.hidden-row]="getRowHeight(indexToRow(i)) <= 0"
                   [style.height.px]="getRowHeight(indexToRow(i))">
-                  @for (_cell of _row; track _cell; let j = $index) {
+                  @for (_cell of _row; track $index; let j = $index) {
                     @if (!_cell.spanCell && isShowCol(_cell, j)) {
                       @if ((!isRowVisible(i, _cell) && getRowPosition(i) + getCellHeight(_cell.row, _cell) < scrollY) || !isColVisible(j)) {
                         <td vs-simple-cell
@@ -378,20 +387,22 @@
                           [dataTip]="model.dataTip"
                           [dataTipOnClick]="model.isTipOnClick"
                           [class.visible-cell]="getCellHeight(_cell.row, _cell) > 0">
-                          @if (sortEnable(_cell) && !model.sortOnHeader && !isAggregate(_cell.field) && model.sortDimension && !vsWizard) {
-                            <i sortButton
-                              title="_#(Sort Column)"
-                              class="sort-button vs-header-cell-button-sort hover-bg-secondary"
-                              [class.col-sorted]="isColSorted(_cell)"
-                              [class.sort-ascending-icon]="isSorted(_cell.field, 'asc')"
-                              [class.sort-descending-icon]="isSorted(_cell.field, 'desc')"
-                              [class.sort-value-ascending-icon]="isSorted(_cell.field, 'val-asc')"
-                              [class.sort-value-descending-icon]="isSorted(_cell.field, 'val-desc')"
-                              [class.sort-icon]="isSorted(_cell.field, 'none')"
-                              (click)="sortColumn(_cell, $event)"
-                              aria-hidden="true">
-                            </i>
-                          }
+                          <ng-container ngProjectAs="[sortButton]">
+                            @if (sortEnable(_cell) && !model.sortOnHeader && !isAggregate(_cell.field) && model.sortDimension && !vsWizard) {
+                              <i sortButton
+                                title="_#(Sort Column)"
+                                class="sort-button vs-header-cell-button-sort hover-bg-secondary"
+                                [class.col-sorted]="isColSorted(_cell)"
+                                [class.sort-ascending-icon]="isSorted(_cell.field, 'asc')"
+                                [class.sort-descending-icon]="isSorted(_cell.field, 'desc')"
+                                [class.sort-value-ascending-icon]="isSorted(_cell.field, 'val-asc')"
+                                [class.sort-value-descending-icon]="isSorted(_cell.field, 'val-desc')"
+                                [class.sort-icon]="isSorted(_cell.field, 'none')"
+                                (click)="sortColumn(_cell, $event)"
+                                aria-hidden="true">
+                              </i>
+                            }
+                          </ng-container>
                         </td>
                       }
                     }
@@ -406,11 +417,11 @@
           [style.width.px]="isFullHorizontalWrapper ? rbTableWidth + scrollX : rbTableWidth ">
           <table #rightTopTable [style.transform]="'translate(' + rbTableX + 'px,0px)'">
             <tbody>
-              @for (_row of rtTable; track _row; let i = $index) {
+              @for (_row of rtTable; track $index; let i = $index) {
                 <tr
                   [class.hidden-row]="getRowHeight(i) <= 0"
                   [style.height.px]="getRowHeight(i)">
-                  @for (_cell of _row; track _cell; let j = $index) {
+                  @for (_cell of _row; track $index; let j = $index) {
                     @if (i < model.headerRowCount && !_cell.spanCell && isShowCol(_cell, j)) {
                       @if (!isRowVisible(i, _cell) || !isColVisible(j)) {
                         <td vs-simple-cell
@@ -476,20 +487,22 @@
                           [safeFont]="_cell.vsFormatModel.font"
                           [dataTip]="model.dataTip"
                           [dataTipOnClick]="model.isTipOnClick">
-                          @if (sortDimensionEnable(_cell) && !vsWizard) {
-                            <i sortButton
-                              title="_#(Sort Column)"
-                              class="sort-button vs-header-cell-button-sort hover-bg-secondary"
-                              [class.col-sorted]="isColSorted(_cell)"
-                              [class.sort-ascending-icon]="isSorted(_cell.field, 'asc')"
-                              [class.sort-descending-icon]="isSorted(_cell.field, 'desc')"
-                              [class.sort-value-ascending-icon]="isSorted(_cell.field, 'val-asc')"
-                              [class.sort-value-descending-icon]="isSorted(_cell.field, 'val-desc')"
-                              [class.sort-icon]="isSorted(_cell.field, 'none')"
-                              (click)="sortColumn(_cell, $event)"
-                              aria-hidden="true">
-                            </i>
-                          }
+                          <ng-container ngProjectAs="[sortButton]">
+                            @if (sortDimensionEnable(_cell) && !vsWizard) {
+                              <i sortButton
+                                title="_#(Sort Column)"
+                                class="sort-button vs-header-cell-button-sort hover-bg-secondary"
+                                [class.col-sorted]="isColSorted(_cell)"
+                                [class.sort-ascending-icon]="isSorted(_cell.field, 'asc')"
+                                [class.sort-descending-icon]="isSorted(_cell.field, 'desc')"
+                                [class.sort-value-ascending-icon]="isSorted(_cell.field, 'val-asc')"
+                                [class.sort-value-descending-icon]="isSorted(_cell.field, 'val-desc')"
+                                [class.sort-icon]="isSorted(_cell.field, 'none')"
+                                (click)="sortColumn(_cell, $event)"
+                                aria-hidden="true">
+                              </i>
+                            }
+                          </ng-container>
                         </td>
                       }
                     }
@@ -526,7 +539,7 @@
         <vs-hidden-annotation [annotations]="model.assemblyAnnotationModels"></vs-hidden-annotation>
       </div>
       <div class="annotation-container">
-        @for (annotationModel of model.assemblyAnnotationModels; track annotationModel) {
+        @for (annotationModel of model.assemblyAnnotationModels; track annotationModel.absoluteName) {
           <vs-annotation
             [model]="annotationModel"
             [actions]="actions"
@@ -541,7 +554,7 @@
     }
     @if (enableAnnotation) {
       <div class="annotation-container">
-        @for (annotationModel of model.leftTopAnnotations; track annotationModel) {
+        @for (annotationModel of model.leftTopAnnotations; track annotationModel.absoluteName) {
           @if (annotationModel.cellOffset) {
             <div
               class="annotation-cell-container"
@@ -565,7 +578,7 @@
     @if (enableAnnotation) {
       <div class="annotation-container"
         [style.left.px]="-scrollX">
-        @for (annotationModel of model.rightTopAnnotations; track annotationModel) {
+        @for (annotationModel of model.rightTopAnnotations; track annotationModel.absoluteName) {
           @if (annotationModel.cellOffset) {
             <div
               class="annotation-cell-container"
@@ -592,7 +605,7 @@
       <div class="annotation-container"
         [style.top.px]="-scrollY"
         [style.left.px]="isFullHorizontalWrapper ? -scrollX : 'unset'">
-        @for (annotationModel of model.leftBottomAnnotations; track annotationModel) {
+        @for (annotationModel of model.leftBottomAnnotations; track annotationModel.absoluteName) {
           @if (annotationModel.cellOffset && isCellLoaded(annotationModel)) {
             <div
               class="annotation-cell-container"
@@ -621,7 +634,7 @@
         class="annotation-container"
         [style.top.px]="-scrollY"
         [style.left.px]="-scrollX">
-        @for (annotationModel of model.rightBottomAnnotations; track annotationModel) {
+        @for (annotationModel of model.rightBottomAnnotations; track annotationModel.absoluteName) {
           @if (annotationModel.cellOffset && isCellLoaded(annotationModel)) {
             <div
               class="annotation-cell-container"
@@ -646,7 +659,7 @@
     }
     @if (mobileDevice) {
       <div #resizeLine class="col-resize-line"
-        [style.height.px]="getObjectHeight()"
+        [style.height.px]="objectHeight"
         [style.top.px]="0">
       </div>
     }

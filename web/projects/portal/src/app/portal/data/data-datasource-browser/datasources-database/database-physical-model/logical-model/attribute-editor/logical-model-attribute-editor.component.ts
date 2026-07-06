@@ -133,12 +133,16 @@ export class LogicalModelAttributeEditor implements OnInit, OnDestroy {
    _existNames: string[];
    private inited: boolean = false;
    private subscription: Subscription;
+   private resetPending: any;
 
    @Input() set existNames(existNames: string[]) {
       this._existNames = existNames;
 
       if(this.inited) {
-         this.resetFormControl();
+         // Defer the reset so the shared form is not mutated during change
+         // detection, which would change form.invalid after the parent's
+         // Save button [disabled] binding was checked (NG0100).
+         this.scheduleReset();
       }
    }
 
@@ -150,9 +154,26 @@ export class LogicalModelAttributeEditor implements OnInit, OnDestroy {
       const columnChanged: boolean = !this.attribute || value.qualifiedName != this.attribute.qualifiedName;
       const tableChanged: boolean = !this.attribute || value.table != this.attribute.table;
       const formatChanged: boolean = !this.attribute || !Tool.isEquals(value.format, this.attribute.format);
+      // Cancel the stale subscription before switching attributes. The deferred
+      // resetFormControl (scheduleReset) leaves form.valueChanges active across the
+      // transition. Without this unsubscribe, Angular's [ngModel] sync for dataType
+      // triggers valueChanges → apply() writes the old form "name" value onto the
+      // new attribute object, corrupting its name and breaking @for track-by-name.
+      this.unsubscribeForm();
       this._attribute = value;
       this.editable = !!value && !value.baseElement;
-      this.resetFormControl();
+
+      if(this.inited) {
+         // Selecting a different attribute after init must defer the form
+         // rebuild for the same reason as existNames: rebuilding synchronously
+         // would change form.invalid after the parent's Save button [disabled]
+         // binding was already checked, throwing NG0100. selectNode/updateFormulas
+         // below do not touch the form, so the deferred reset order is safe.
+         this.scheduleReset();
+      }
+      else {
+         this.resetFormControl();
+      }
 
       if(tableChanged || columnChanged) {
          this.selectNode();
@@ -180,7 +201,16 @@ export class LogicalModelAttributeEditor implements OnInit, OnDestroy {
    }
 
    ngOnDestroy(): void {
+      clearTimeout(this.resetPending);
       this.unsubscribeForm();
+   }
+
+   // Coalesce rapid successive deferred resets and cancel any pending one on
+   // destroy, so a stale timer never mutates the shared parent form after this
+   // editor is gone.
+   private scheduleReset(): void {
+      clearTimeout(this.resetPending);
+      this.resetPending = setTimeout(() => this.resetFormControl(), 0);
    }
 
    /**

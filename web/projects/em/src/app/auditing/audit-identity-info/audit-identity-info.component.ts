@@ -65,6 +65,7 @@ export class AuditIdentityInfoComponent implements OnInit, OnDestroy {
    form: FormGroup;
    systemAdministrator = false;
    organizationFilter = false;
+   displayTypes: string[] = [];
    private subscriptions = new Subscription();
    private _displayedColumns = [
       "name", "type", "actionType", "actionTime", "actionDescription", "state", "server"
@@ -92,6 +93,10 @@ export class AuditIdentityInfoComponent implements OnInit, OnDestroy {
       return this.noOrgTypes;
    }
 
+   private updateTypes(): void {
+      this.displayTypes = this.getTypes();
+   }
+
    constructor(private http: HttpClient, private activatedRoute: ActivatedRoute,
                private pageTitle: PageHeaderService, private errorService: ErrorHandlerService,
                fb: FormBuilder)
@@ -107,6 +112,7 @@ export class AuditIdentityInfoComponent implements OnInit, OnDestroy {
 
    ngOnInit(): void {
       this.pageTitle.title = "_#(js:Identity Information)";
+      this.updateTypes();
       this.http.get<string[]>("../api/em/security/users/get-all-organization-names/").subscribe(
           (orgList => this.orgNames = orgList)
        );
@@ -138,6 +144,7 @@ export class AuditIdentityInfoComponent implements OnInit, OnDestroy {
                this.organizations = params.organizations;
                this.organizationFilter = params.organizationFilter;
                this.hosts = params.hosts;
+               this.updateTypes();
             }));
    };
 

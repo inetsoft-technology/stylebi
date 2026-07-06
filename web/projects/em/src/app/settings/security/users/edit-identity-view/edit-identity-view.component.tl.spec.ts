@@ -57,7 +57,7 @@ import { MatSelectModule } from "@angular/material/select";
 import { ErrorStateMatcher } from "@angular/material/core";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { render } from "@testing-library/angular";
-import { BehaviorSubject, Subject } from "rxjs";
+import { BehaviorSubject, EMPTY, Subject } from "rxjs";
 
 import { EditIdentityViewComponent } from "./edit-identity-view.component";
 import { IdentityType } from "../../../../../../../shared/data/identity-type";
@@ -69,6 +69,7 @@ import {
    EditUserPaneModel,
 } from "../edit-identity-pane/edit-identity-pane.model";
 import { SecurityBusyService } from "../security-busy.service";
+import { OrganizationDropdownService } from "../../../../navbar/organization-dropdown.service";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -178,6 +179,7 @@ async function renderComponent(props: {
       providers: [
          { provide: ErrorStateMatcher, useValue: { isErrorState: () => false } },
          { provide: SecurityBusyService, useValue: orgBusySpy },
+         { provide: OrganizationDropdownService, useValue: { onRefresh: EMPTY, onOrgChange: EMPTY } },
       ],
       componentProperties: {
          identityEditableChanges: editableSubject,

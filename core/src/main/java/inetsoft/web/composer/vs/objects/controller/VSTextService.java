@@ -52,6 +52,7 @@ public class VSTextService {
       this.vsLayoutService = vsLayoutService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void changeText(@ClusterProxyKey String runtimeId, ChangeVSObjectTextEvent event,
                           String linkUri, Principal principal, CommandDispatcher dispatcher)
@@ -75,6 +76,7 @@ public class VSTextService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Boolean changeText(@ClusterProxyKey String runtimeId, String focusedLayoutName,
                              int region, ChangeVSObjectTextEvent event, String linkUri,

@@ -215,6 +215,7 @@ public class RangeSliderPropertyDialogService {
       return result;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setRangeSliderPropertyModel(@ClusterProxyKey String runtimeId, String objectId,
                                            RangeSliderPropertyDialogModel value, String linkUri,

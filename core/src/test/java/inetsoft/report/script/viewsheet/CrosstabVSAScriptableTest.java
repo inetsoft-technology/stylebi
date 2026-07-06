@@ -75,28 +75,28 @@ public class CrosstabVSAScriptableTest {
    @Test
    void testSetProperties() throws Exception {
       crosstabVSAScriptable.setProperty("fillBlankWithZero", true);
-      assertEquals(true, crosstabVSAScriptable.get("fillBlankWithZero", null));
+      assertEquals(true, crosstabVSAScriptable.getMember("fillBlankWithZero"));
 
       crosstabVSAScriptable.setProperty("summarySideBySide", false);
-      assertEquals(false, crosstabVSAScriptable.get("summarySideBySide", null));
+      assertEquals(false, crosstabVSAScriptable.getMember("summarySideBySide"));
 
       crosstabVSAScriptable.setProperty("drillEnabled", true);
-      assertEquals(true, crosstabVSAScriptable.get("drillEnabled", null));
+      assertEquals(true, crosstabVSAScriptable.getMember("drillEnabled"));
 
       crosstabVSAScriptable.setProperty("mergeSpan", true);
-      assertEquals(true, crosstabVSAScriptable.get("mergeSpan", null));
+      assertEquals(true, crosstabVSAScriptable.getMember("mergeSpan"));
 
       crosstabVSAScriptable.setProperty("sortOthersLast", true);
-      assertEquals(true, crosstabVSAScriptable.get("sortOthersLast", null));
+      assertEquals(true, crosstabVSAScriptable.getMember("sortOthersLast"));
 
       crosstabVSAScriptable.setProperty("computeTrendAndComparisonForTotals", false);
-      assertEquals(false, crosstabVSAScriptable.get("computeTrendAndComparisonForTotals", null));
+      assertEquals(false, crosstabVSAScriptable.getMember("computeTrendAndComparisonForTotals"));
 
       crosstabVSAScriptable.setProperty("dateComparisonEnabled", true);
-      assertEquals(true, crosstabVSAScriptable.get("dateComparisonEnabled", null));
+      assertEquals(true, crosstabVSAScriptable.getMember("dateComparisonEnabled"));
 
       crosstabVSAScriptable.setQuery("query1");
-      assertEquals("query1", crosstabVSAScriptable.get("query", null));
+      assertEquals("query1", crosstabVSAScriptable.getMember("query"));
 
       crosstabVSAScriptable.addProperties();
    }

@@ -59,6 +59,8 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
    public WorksheetEngine(AssetRepository engine, Cluster cluster) throws RemoteException {
       this.cluster = cluster;
       cluster.registerSpringProxyPartitionedCache(CACHE_NAME);
+      cluster.registerSpringProxyPartitionedCache(RuntimeSheetCache.ACCESS_TIME_MAP_NAME);
+      cluster.getCache(RuntimeSheetCache.ACCESS_TIME_MAP_NAME);
       amap = new RuntimeSheetCache(cluster, CACHE_NAME);
       emap = new ConcurrentHashMap<>();
       executionMap = new ExecutionMap();
@@ -161,6 +163,14 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
     */
    @Override
    public void dispose() {
+      try {
+         debouncer.close();
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to close debouncer", e);
+      }
+
+      affinityExecutor.shutdownNow();
       engine.dispose();
 
       try {
@@ -693,28 +703,44 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
       return null;
    }
 
-   /**
-    * Access a sheet.
-    */
+   @Override
+   public void writeSheet(String id) {
+      // Debounce writes to at most once per second per session. Captures state at fire time
+      // so the write reflects all mutations that landed in the debounce window.
+      debouncer.debounce("writeSheet_" + id, 1L, TimeUnit.SECONDS, () -> {
+         RuntimeSheet rs = amap.get(id);
+
+         if(rs != null) {
+            CompletableFuture.runAsync(() -> {
+               if(amap.containsKey(id)) {
+                  amap.put(id, rs);
+               }
+            }, affinityExecutor)
+               .exceptionally(e -> {
+                  LOG.error("Failed to write sheet {} to distributed cache", id, e);
+                  return null;
+               });
+         }
+      });
+   }
+
    private void accessSheet(String id, boolean touch) {
       RuntimeSheet rs = amap.get(id);
 
-      if(rs != null) {
-         if(touch) {
-            rs.access(true);
-         }
-
-         // Only refresh the cache if this node is still the primary for this key.
-         // This debounced task is scheduled 1 second after getSheet() is called.
-         // During that window, an Ignite topology change (node join/leave/rebalance)
-         // can move the partition primary to a different node. Calling amap.put()
-         // on a non-primary node logs a spurious "Added remote runtime sheet" error,
-         // stores a stale copy in this node's local map, and causes memory growth
-         // as each non-primary node accumulates session copies it doesn't own.
-         if(amap.isLocal(id)) {
-            amap.put(id, rs);
-         }
+      if(rs == null) {
+         return;
       }
+
+      if(!touch) {
+         // touch=false: refresh heartbeat in memory only — prevents isTimeout() from
+         // evicting an actively-polled session at the 3-minute heartbeat check.
+         // access(false) updates heartbeat but not accessed, so no Ignite write is needed.
+         rs.access(false);
+         return;
+      }
+
+      rs.access(true);
+      amap.updateAccessTime(id, rs.getLastAccessed());
    }
 
    public RuntimeWorksheet[] getAllRuntimeWorksheetSheets() {
@@ -777,6 +803,7 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
          executionMap.setCompleted(id);
       }
 
+      debouncer.cancel("writeSheet_" + id);
       amap.remove(id);
       emap.remove(id);
       clearPreviewTarget(rsheet, id);
@@ -1160,6 +1187,7 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
                      executionMap.setCompleted(id);
                   }
 
+                  debouncer.cancel("writeSheet_" + id);
                   amap.remove(id);
                   emap.remove(id);
                   clearPreviewTarget(rs, id);

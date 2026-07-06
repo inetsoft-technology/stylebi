@@ -132,6 +132,7 @@ export class MonthCalendar implements OnChanges, AfterViewInit {
    mobile: boolean = GuiTool.isMobileDevice();
    iconColor: string;
    selectedBgColor: string;
+   calendarHeight: number = 0;
 
    constructor(private changeDetectorRef: ChangeDetectorRef,
                private firstDayOfWeekService: FirstDayOfWeekService,
@@ -184,6 +185,7 @@ export class MonthCalendar implements OnChanges, AfterViewInit {
          this.selectedBgColor = GuiTool.getSelectedColor(this.model.monthFormat.background ?
             this.model.monthFormat.background : this.model.objectFormat.background, "#cdf7f6");
          this.titleChanged.emit(this.secondCalendar);
+         this.calendarHeight = this.getCalendarHeight();
       }
    }
 

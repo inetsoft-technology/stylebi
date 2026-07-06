@@ -17,7 +17,10 @@
  */
 package inetsoft.report.script.viewsheet;
 
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptScope;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * The pviewsheet scriptable in viewsheet scope.
@@ -25,47 +28,63 @@ import org.mozilla.javascript.*;
  * @version 11.1
  * @author InetSoft Technology Corp
  */
-public class PViewsheetScriptable extends ScriptableObject {
+public class PViewsheetScriptable implements ScriptScope {
    /**
     * Create a viewsheet assembly scriptable.
     */
    public PViewsheetScriptable() {
-      super();
    }
 
    /**
     * Get the name of the set of objects implemented by this Java class.
     */
-   @Override
    public String getClassName() {
       return "PViewsheetVSA";
    }
 
    /**
-    * Get a named property from the object.
+    * Get a named property from the object. Auto-vivifies a child attribute
+    * scriptable on first access.
     */
    @Override
-   public Object get(String name, Scriptable start) {
-      Object obj = null;
-      boolean exist = has(name, start);
+   public Object getMember(String name) {
+      Object obj = members.get(name);
 
-      if(!exist) {
-         put(name, start, obj = new AttributeScriptable());
-      }
-      else {
-         obj = super.get(name, start);
+      if(obj == null) {
+         obj = new AttributeScriptable();
+         members.put(name, obj);
       }
 
       return obj;
    }
 
-   private class AttributeScriptable extends ScriptableObject
-      implements Callable
-   {
+   @Override
+   public boolean hasMember(String name) {
+      return true;
+   }
+
+   @Override
+   public void putMember(String name, Object value) {
+      members.put(name, value);
+   }
+
+   @Override
+   public Object[] getMemberKeys() {
+      return members.keySet().toArray();
+   }
+
+   private final Map<String, Object> members = new LinkedHashMap<>();
+
+   // NOTE (Feature #75423): the inner AttributeScriptable previously implemented
+   // Rhino's Callable (returning itself when invoked as a function, to support
+   // arbitrary method chains via __noSuchMethod__). The callable-as-function
+   // behavior is a Rhino-specific feature; under GraalJS it would be modeled with
+   // a ProxyExecutable in the Milestone 4 native-binding work. For now it is a
+   // plain auto-vivifying ScriptScope (member access still chains).
+   private class AttributeScriptable implements ScriptScope {
       /**
        * Get the name of the set of objects implemented by this Java class.
        */
-      @Override
       public String getClassName() {
          return "AttributeVSA";
       }
@@ -74,42 +93,32 @@ public class PViewsheetScriptable extends ScriptableObject {
        * Get a named property from the object.
        */
       @Override
-      public Object get(String name, Scriptable start) {
-         Object obj = null;
-         boolean exist = has(name, start);
+      public Object getMember(String name) {
+         Object obj = members.get(name);
 
-         if(!exist || "__noSuchMethod__".equals(name)) {
-            put(name, start, obj = new AttributeScriptable());
-         }
-         else {
-            obj = super.get(name, start);
+         if(obj == null || "__noSuchMethod__".equals(name)) {
+            obj = new AttributeScriptable();
+            members.put(name, obj);
          }
 
          return obj;
       }
 
-      /**
-       * Get the default value of the object with a given hint.
-       */
       @Override
-      public Object getDefaultValue(java.lang.Class hint) {
-         return new Object();
+      public boolean hasMember(String name) {
+         return true;
       }
 
-      /**
-       * Perform the call.
-       *
-       * @param cx the current Context for this thread
-       * @param scope the scope to use to resolve properties.
-       * @param thisObj the JavaScript <code>this</code> object
-       * @param args the array of arguments
-       * @return the result of the call
-       */
       @Override
-      public Object call(Context cx, Scriptable scope,
-                         Scriptable Obj, Object[] args)
-      {
-         return this;
+      public void putMember(String name, Object value) {
+         members.put(name, value);
       }
+
+      @Override
+      public Object[] getMemberKeys() {
+         return members.keySet().toArray();
+      }
+
+      private final Map<String, Object> members = new LinkedHashMap<>();
    }
 }

@@ -17,7 +17,8 @@
 -->
 @for (vsObject of vsInfo.vsObjects; track trackByName(i, vsObject); let i = $index) {
   @if (isObjectRendered(vsObject)) {
-    <div [style.display]="isMaxModeHidden(vsObject) ? 'none' : 'block'">
+    <div [style.display]="isMaxModeHidden(vsObject) ? 'none' : 'block'"
+         [class.max-mode-view-filter]="isFilterInMaxModeView(vsObject)">
       <div class="focus-assembly {{getAssemblyAsClass(vsObject)}}"
         [id]="getAssemblyDivId(vsObject)"
         VSDataTip [dataTipName]="vsObject.absoluteName"
@@ -41,7 +42,7 @@
         [class.popup-showing]="isPopupShowing(vsObject)"
         [class.max-mode]="vsObject.maxMode"
         [class.force-show-toolbar]="forceShowMiniToolbar && isFocused(vsObject)"
-        [style.z-index]="isActivePopComponent(vsObject) || needsZIndexBoost(vsObject) ? zIndex(vsObject) + getPopUpContentBoostZIndex() : zIndex(vsObject)"
+        [style.z-index]="isActivePopComponent(vsObject) || needsZIndexBoost(vsObject) ? zIndex(vsObject) + popUpContentBoostZIndex : zIndex(vsObject)"
         (click)="select(i, $event)" (mouseenter)="onMouseEnter(vsObject, $event)">
         @if (vsObject.objectType == 'VSAnnotation') {
           <vs-annotation
@@ -378,13 +379,13 @@
 }
 <!-- Chart data annotations rendered outside all VS object stacking contexts -->
 <div class="chart-annotation-overlay">
-  @for (vsObject of vsInfo.vsObjects; track vsObject; let i = $index) {
+  @for (vsObject of vsInfo.vsObjects; track vsObject.absoluteName; let i = $index) {
     @if (vsObject.objectType === 'VSChart' && viewer && !context.binding &&
       !$any(vsObject).maxMode && !!$any(vsObject).plot) {
       <div [style.top.px]="getVsObjectPosition(vsObject, i, true)"
         [style.left.px]="getVsObjectPosition(vsObject, i, false)"
         style="position: absolute;">
-        @for (ann of getChartDataAnnotations(vsObject); track ann) {
+        @for (ann of getChartDataAnnotations(vsObject); track ann.absoluteName) {
           <vs-annotation
             [model]="ann"
             [vsInfo]="vsInfo"
@@ -404,7 +405,10 @@
 </div>
 <placeholder-drag-element [model]="placeholderDragElementModel" #placeholderDragElement></placeholder-drag-element>
 @if (showingPopUpOrDataTip() && (containerBounds || embeddedVSBounds)) {
-  <canvas #popUpDim class="pop-component-bg" [style.z-index]="getPopDimZIndex()" [attr.height]="getPopDimHeight()"
-    [attr.width]="getPopDimWidth()">
+  @let popDimZIndex = getPopDimZIndex();
+  @let popDimHeight = getPopDimHeight();
+  @let popDimWidth = getPopDimWidth();
+  <canvas #popUpDim class="pop-component-bg" [style.z-index]="popDimZIndex" [attr.height]="popDimHeight"
+    [attr.width]="popDimWidth">
   </canvas>
 }

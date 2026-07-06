@@ -53,8 +53,8 @@ import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse } from "msw";
 
-import { of } from "rxjs";
-import { server } from "../../../../../../../mocks/server";
+import { EMPTY, of } from "rxjs";
+import { server } from "@test-mocks/server";
 import { ScheduleCycleEditorPageComponent } from "./schedule-cycle-editor-page.component";
 import { ScheduleCycleDialogModel } from "../model/schedule-cycle-dialog-model";
 import { TimeZoneService } from "../../../../../../shared/schedule/time-zone.service";
@@ -112,7 +112,7 @@ async function renderComponent(opts: {
       open: vi.fn().mockReturnValue({ afterClosed: () => of(opts.dialogConfirms ?? false) })
    };
    const snackBarMock = { open: vi.fn() };
-   const routerMock = { navigate: vi.fn() };
+   const routerMock = { navigate: vi.fn(), events: EMPTY };
 
    const result = await render(ScheduleCycleEditorPageComponent, {
       imports: [ReactiveFormsModule, NoopAnimationsModule],

@@ -49,7 +49,7 @@
               }
             }
             @if (model.formatTypes.length > 0) {
-              @for (format of model.formatTypes; track format) {
+              @for (format of model.formatTypes; track format.key) {
                 <option [value]="format.value">
                   {{format.key}}
                 </option>
@@ -277,7 +277,7 @@
               <div class="col form-floating">
                 <select class="form-control" [(ngModel)]="timeZoneId" (change)="setTimeZone()"
                   formControlName="timeZone">
-                  @for (tz of model?.timeZoneOptions; track tz) {
+                  @for (tz of model?.timeZoneOptions; track tz.timeZoneId) {
                     <option [value]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
                   }
                 </select>

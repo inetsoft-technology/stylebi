@@ -16,6 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 @if (model && model.labels.length > 1) {
+  @let bottomBorder = getBottomBorder();
   <div class="viewsheet-tab-container"
     [style.top.px]="viewer || embeddedVS ? model.objectFormat.top : null"
     [style.left.px]="viewer || embeddedVS ? model.objectFormat.left : null"
@@ -56,7 +57,7 @@
             [style.margin-top.px]="getMargin(tabID, 'top')"
             [style.margin-bottom.px]="getMargin(tabID, 'bottom')">
           {{label}}</div>
-          @if (!!getBottomBorder()) {
+          @if (!!bottomBorder) {
             <div class="tab-item-bottom-border"
               [ngStyle]="getTabItemBottomBorderStyle(tabID)">
             </div>
@@ -64,7 +65,7 @@
         </div>
       }
       @if (!model.bottomTabs) {
-        <div class="tab-bottom-border" [style.border-bottom]="getBottomBorder()"
+        <div class="tab-bottom-border" [style.border-bottom]="bottomBorder"
           (click)="model.selectedRegions = []">
         </div>
       }

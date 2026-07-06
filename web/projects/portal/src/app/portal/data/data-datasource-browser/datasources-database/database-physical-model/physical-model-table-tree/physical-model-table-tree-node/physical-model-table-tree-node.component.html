@@ -28,7 +28,7 @@
         @if (hasChildren()) {
           <span
             [class.disabled]="disabled"
-            class="{{getToggleIcon()}} tree-node-toggle cursor-pointer truncate-addon"
+            class="{{node.expanded ? 'caret-down-icon' : 'caret-right-icon'}} tree-node-toggle cursor-pointer truncate-addon"
             (click)="toggleNode(); $event.stopPropagation()"
             (dblclick)="$event.stopPropagation()">
           </span>
@@ -57,7 +57,7 @@
 }
 @if (node && node.expanded && node.children) {
   <div [class.tree-children]="showRoot">
-    @for (_node of (keepAllChildren ? node.children : (node.children | search:searchStr:true)); track _node) {
+    @for (_node of (keepAllChildren ? node.children : (node.children | search:searchStr:true)); track $index) {
       @if (isTableVisible(_node)) {
         <physical-model-table-tree-node
           [node]="_node"

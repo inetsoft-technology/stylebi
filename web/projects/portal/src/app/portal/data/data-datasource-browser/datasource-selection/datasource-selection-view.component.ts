@@ -86,8 +86,10 @@ export class DatasourceSelectionViewComponent implements OnInit, OnDestroy, CanC
    }
 
    ngOnDestroy(): void {
-      this.subscriptions.unsubscribe();
-      this.subscriptions = null;
+      if(this.subscriptions) {
+         this.subscriptions.unsubscribe();
+         this.subscriptions = null;
+      }
    }
 
    public canDeactivate(component?: CanComponentDeactivate, route?: ActivatedRouteSnapshot,

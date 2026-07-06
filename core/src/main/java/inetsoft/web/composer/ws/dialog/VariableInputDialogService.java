@@ -60,6 +60,7 @@ public class VariableInputDialogService extends WorksheetControllerService {
       return res == null ? new ArrayList<>() : res.varInfos();
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void restoreVariable(@ClusterProxyKey String runtimeId, Principal principal) throws Exception {
       RuntimeWorksheet rws = getRuntimeWorksheet(runtimeId, principal);
@@ -70,6 +71,7 @@ public class VariableInputDialogService extends WorksheetControllerService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void initVariableInfos(@ClusterProxyKey String runtimeId, WSCollectVariablesOverEvent event, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception

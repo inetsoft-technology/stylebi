@@ -117,6 +117,7 @@ public class VSChartBindingService {
       return type;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public BindingModel setChartBinding(@ClusterProxyKey String vsId, String assemblyName,
                                        ChartBindingModel cmodel, Principal principal) throws Exception
@@ -200,6 +201,7 @@ public class VSChartBindingService {
       return mapHandler.getGeoData(rvs, chart, refName);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Map<String, Object> changeMapType(@ClusterProxyKey String vsId,
                                             String assemblyName, String type, String layerstr,
@@ -215,6 +217,7 @@ public class VSChartBindingService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public BindingModel convertChartRef(
       @ClusterProxyKey String vsId, String assemblyName, String refName,
       int type, Principal principal) throws Exception
@@ -228,6 +231,7 @@ public class VSChartBindingService {
       return bindingService.createModel(assembly);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Map<String, Object> getMappingData(@ClusterProxyKey String vsId,
                                              String assemblyName, ChartGeoRefModel geo,
@@ -266,6 +270,7 @@ public class VSChartBindingService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public BindingModel setGeographic(@ClusterProxyKey String vsId,
                                      String assemblyName,
                                      String refName, boolean isDim,

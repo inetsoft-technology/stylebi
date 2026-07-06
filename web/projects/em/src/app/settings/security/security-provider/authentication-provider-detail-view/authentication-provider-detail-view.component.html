@@ -40,7 +40,7 @@
               <mat-label>_#(Provider Type)</mat-label>
               <mat-select placeholder="_#(Provider Type)" formControlName="providerType">
                 <mat-option [value]="SecurityProviderType.FILE">_#(em.common.security.defaultProvider)</mat-option>
-                @if (model?.ldapProviderEnabled) {
+                @if (model?.ldapProviderEnabled && !isMultiTenant) {
                   <mat-option
                   [value]="SecurityProviderType.LDAP">_#(em.common.security.ldapProvider)</mat-option>
                 }

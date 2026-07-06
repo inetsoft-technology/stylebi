@@ -37,12 +37,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.Tag;
-import org.mozilla.javascript.ScriptableObject;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -86,21 +87,21 @@ public class ChartVSAScriptableTest {
       chartVSAScriptable.addProperties();
 
       // Assert that the "combinedTooltip" property is of type Boolean
-      assert chartVSAScriptable.get("combinedTooltip", null) instanceof Boolean;
+      assert chartVSAScriptable.getMember("combinedTooltip") instanceof Boolean;
       // Create an array of keys to check
       String[] keys = {"xAxis", "yAxis", "y2Axis"};
       // Loop through the keys and assert that each property is of type AxisScriptable
       for (String key : keys) {
-         assert chartVSAScriptable.get(key, null) instanceof AxisScriptable;
+         assert chartVSAScriptable.getMember(key) instanceof AxisScriptable;
       }
       // Assert that the "axis" property is of type ChartArray
-      assert chartVSAScriptable.get("axis", null) instanceof ChartArray;
+      assert chartVSAScriptable.getMember("axis") instanceof ChartArray;
       // Assert that the "bindingInfo" property is of type BindingInfo (commented out)
-      //assert chartVSAScriptable.get("bindingInfo") instanceof BindingInfo;
+      //assert chartVSAScriptable.getMember("bindingInfo") instanceof BindingInfo;
       // Assert that the "singleStyle" property is of type VSChartArray
-      assert chartVSAScriptable.get("singleStyle", null) instanceof VSChartArray;
+      assert chartVSAScriptable.getMember("singleStyle") instanceof VSChartArray;
       // Assert that the "dateComparisonEnabled" property is of type Boolean
-      assert chartVSAScriptable.get("dateComparisonEnabled", null) instanceof Boolean;
+      assert chartVSAScriptable.getMember("dateComparisonEnabled") instanceof Boolean;
    }
 
    @Test
@@ -108,32 +109,32 @@ public class ChartVSAScriptableTest {
       chartVSAScriptable.addProperties();
       PlotDescriptor plot = chartVSAScriptable.getRTChartDescriptor().getPlotDescriptor();
 
-      chartVSAScriptable.put("barCornerRadius", null, 0.4);
+      chartVSAScriptable.putMember("barCornerRadius", 0.4);
       assertEquals(0.4, plot.getBarCornerRadius(), 0.001);
-      assertEquals(0.4, (double) chartVSAScriptable.get("barCornerRadius", null), 0.001);
+      assertEquals(0.4, (double) chartVSAScriptable.getMember("barCornerRadius"), 0.001);
 
       // clamped to 0 for negative values
-      chartVSAScriptable.put("barCornerRadius", null, -0.1);
+      chartVSAScriptable.putMember("barCornerRadius", -0.1);
       assertEquals(0, plot.getBarCornerRadius(), 0.001);
 
       // clamped to 0.5 for values exceeding max
-      chartVSAScriptable.put("barCornerRadius", null, 0.8);
+      chartVSAScriptable.putMember("barCornerRadius", 0.8);
       assertEquals(0.5, plot.getBarCornerRadius(), 0.001);
 
       // boundary values
-      chartVSAScriptable.put("barCornerRadius", null, 0.0);
+      chartVSAScriptable.putMember("barCornerRadius", 0.0);
       assertEquals(0.0, plot.getBarCornerRadius(), 0.001);
 
-      chartVSAScriptable.put("barCornerRadius", null, 0.5);
+      chartVSAScriptable.putMember("barCornerRadius", 0.5);
       assertEquals(0.5, plot.getBarCornerRadius(), 0.001);
 
-      chartVSAScriptable.put("barRoundAllCorners", null, true);
+      chartVSAScriptable.putMember("barRoundAllCorners", true);
       assertTrue(plot.isBarRoundAllCorners());
-      assertTrue((boolean) chartVSAScriptable.get("barRoundAllCorners", null));
+      assertTrue((boolean) chartVSAScriptable.getMember("barRoundAllCorners"));
 
-      chartVSAScriptable.put("barRoundAllCorners", null, false);
+      chartVSAScriptable.putMember("barRoundAllCorners", false);
       assertFalse(plot.isBarRoundAllCorners());
-      assertFalse((boolean) chartVSAScriptable.get("barRoundAllCorners", null));
+      assertFalse((boolean) chartVSAScriptable.getMember("barRoundAllCorners"));
    }
 
    @Test
@@ -141,25 +142,25 @@ public class ChartVSAScriptableTest {
       EGraph graph = new EGraph();
       LineElement elem = new LineElement("State", "Quantity");
       graph.addElement(elem);
-      chartVSAScriptable.put("graph", null, graph);
-      assert chartVSAScriptable.get("graph", null) instanceof EGraph;
+      chartVSAScriptable.putMember("graph", graph);
+      assert chartVSAScriptable.getMember("graph") instanceof EGraph;
       //put data
       Object[][] data1 = {{"State", "Quantity"}, {"NJ", 200}, {"NY", 300}};
       DefaultDataSet dataSet1 = new DefaultDataSet(data1);
-      chartVSAScriptable.put("data", null, dataSet1);
-      assert chartVSAScriptable.get("data", null) instanceof TableArray;
+      chartVSAScriptable.putMember("data", dataSet1);
+      assert chartVSAScriptable.getMember("data") instanceof TableArray;
 
       //put dataset
       Object[][] data2 = {{"CA", 200, false}, {"NJ", 3000, true}, {"NY", 2000, true}};
-      chartVSAScriptable.put("dataset", null, data2);
-      assert chartVSAScriptable.get("dataset", null) instanceof DefaultDataSet;
+      chartVSAScriptable.putMember("dataset", data2);
+      assert chartVSAScriptable.getMember("dataset") instanceof DefaultDataSet;
 
       //put query
-      chartVSAScriptable.put("query", null, "q1");
-      assertEquals("q1", chartVSAScriptable.get("query", null));
+      chartVSAScriptable.putMember("query", "q1");
+      assertEquals("q1", chartVSAScriptable.getMember("query"));
 
       //put chart style
-      chartVSAScriptable.put("chartStyle", null, StyleConstants.CHART_LINE);
+      chartVSAScriptable.putMember("chartStyle", StyleConstants.CHART_LINE);
       assertEquals(StyleConstants.CHART_LINE, chartVSAssemblyInfo.getChartStyle());
    }
 
@@ -221,7 +222,7 @@ public class ChartVSAScriptableTest {
       chartVSAScriptable.setTipView("this is a tip view");
       assertEquals("this is a tip view", chartVSAScriptable.getTipView());
 
-      assertEquals(145, chartVSAScriptable.getIds().length);
+      assertEquals(146, chartVSAScriptable.getMemberKeys().length);
    }
 
    /**
@@ -233,15 +234,19 @@ public class ChartVSAScriptableTest {
 
       //check x,y,color,shape,text,size fields on bar chart
       assertArrayEquals(new String[] {"State"},
-                        (String[])chartVSAScriptable1.get("xFields", null));
+                        (String[])chartVSAScriptable1.getMember("xFields"));
       assertArrayEquals(new String[] {"Population"},
-                        (String[])chartVSAScriptable1.get("yFields", null));
-      assertEquals("Region", chartVSAScriptable1.get("colorField"));
-      assertEquals("Division", chartVSAScriptable1.get("shapeField"));
-      assertEquals("Median Income", chartVSAScriptable1.get("sizeField"));
-      assertEquals("Property Value", chartVSAScriptable1.get("textField"));
-      assertNotNull(chartVSAScriptable1.get("data"));
-      assertEquals("Data", chartVSAScriptable1.get("query"));
+                        (String[])chartVSAScriptable1.getMember("yFields"));
+      assertEquals("Region", chartVSAScriptable1.getMember("colorField"));
+      assertEquals("Division", chartVSAScriptable1.getMember("shapeField"));
+      assertEquals("Median Income", chartVSAScriptable1.getMember("sizeField"));
+      assertEquals("Property Value", chartVSAScriptable1.getMember("textField"));
+      assertNotNull(chartVSAScriptable1.getMember("data"));
+      // Bug #75568: "table" is an alias of "data" and must be resolvable. Under GraalJS,
+      // hasMember gates getMember, so "table" must be registered as a member.
+      assertTrue(chartVSAScriptable1.hasMember("table"));
+      assertNotNull(chartVSAScriptable1.getMember("table"));
+      assertEquals("Data", chartVSAScriptable1.getMember("query"));
 
       //check getSuffix
       String[] items = {"xFields", "yFields", "axis", "singleStyle"};
@@ -267,7 +272,7 @@ public class ChartVSAScriptableTest {
       chartVSAScriptable2.setAssembly(Map.getName());
 
       assertArrayEquals(new String[] {"State"},
-                        (String[])chartVSAScriptable2.get("geoFields", null));
+                        (String[])chartVSAScriptable2.getMember("geoFields"));
       assertEquals("[]", chartVSAScriptable2.getSuffix("geoFields"));
 
       EGraph eGraph = chartVSAScriptable2.getEGraph();
@@ -301,22 +306,17 @@ public class ChartVSAScriptableTest {
 
       //clrs: color
       chartVSAScriptable1.addProperties();
-      ScriptableObject targetOptions = new ScriptableObject() {
-         @Override
-         public String getClassName() {
-            return "targetOptions";
-         }
-      };
+      Map<String, Object> targetOptions = new HashMap<>();
 
-      targetOptions.put("lineStyle", targetOptions , GraphConstants.THIN_LINE);
+      targetOptions.put("lineStyle", GraphConstants.THIN_LINE);
       chartVSAScriptable1.addTargetLine("Sum(Population)", "0xDD99DD",
                                         new String[]{"aver"}, targetOptions);
 
-      targetOptions.put("fillAbove",targetOptions , new Color(255, 255, 255));
-      targetOptions.put("fillBelow",targetOptions , new Color(255, 255, 255));
-      targetOptions.put("label",targetOptions , "{1},{1}");
-      targetOptions.put("lineColor",targetOptions , new Color(255, 0, 0));
-      targetOptions.put("lineStyle",targetOptions , GraphConstants.THICK_LINE);
+      targetOptions.put("fillAbove", new Color(255, 255, 255));
+      targetOptions.put("fillBelow", new Color(255, 255, 255));
+      targetOptions.put("label", "{1},{1}");
+      targetOptions.put("lineColor", new Color(255, 0, 0));
+      targetOptions.put("lineStyle", GraphConstants.THICK_LINE);
       chartVSAScriptable1.addTargetBand("Sum(Population)", "0xDD99DD",
                                         new String[]{"min", "max"}, targetOptions);
       assertEquals(2, chartVSAScriptable1.getRTChartDescriptor().getTargetCount());

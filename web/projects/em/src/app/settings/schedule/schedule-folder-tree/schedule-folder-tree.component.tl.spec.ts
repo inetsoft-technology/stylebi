@@ -53,7 +53,7 @@ import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 
 import { EMPTY, of, Subject } from "rxjs";
-import { server } from "../../../../../../../mocks/server";
+import { server } from "@test-mocks/server";
 import { ScheduleFolderTreeComponent } from "./schedule-folder-tree.component";
 import { EmScheduleChangeService } from "../schedule-task-list/em-schedule-change.service";
 import { ScheduleTaskDragService } from "../schedule-task-list/schedule-task-drag.service";

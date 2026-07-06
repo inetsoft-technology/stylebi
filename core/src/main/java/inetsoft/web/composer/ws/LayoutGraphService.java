@@ -46,6 +46,7 @@ public class LayoutGraphService extends WorksheetControllerService {
       super(viewsheetService, dataSourceRegistry);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void layoutGraph(@ClusterProxyKey String runtimeId,
                            WSLayoutGraphEvent event, Principal principal,

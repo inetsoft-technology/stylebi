@@ -374,6 +374,138 @@ export const portalHandlers = [
       return HttpResponse.json(null);
    }),
 
+   // ─── 3a. Data folder browser ──────────────────────────────────────────────
+
+   // DataFolderBrowserComponent.refreshFolderBrowser — root browser (no path)
+   http.get("*/api/portal/data/browser", () => {
+      return HttpResponse.json({
+         root: true,
+         worksheetAccess: true,
+         currentFolder: [],
+         folders: [],
+         files: [],
+      });
+   }),
+
+   // DataFolderBrowserComponent.refreshFolderBrowser — browser with path segment
+   http.get("*/api/portal/data/browser/*", () => {
+      return HttpResponse.json({
+         root: false,
+         worksheetAccess: true,
+         currentFolder: [],
+         folders: [],
+         files: [],
+      });
+   }),
+
+   // DataFolderBrowserComponent.refreshSearchBrowser — dataset search results
+   http.post("*/api/data/search/datasets", () => {
+      return HttpResponse.json({ assets: [], assetNames: [] });
+   }),
+
+   // DataFolderBrowserComponent.searchFunc — ngbTypeahead autocomplete suggestions
+   http.post("*/api/data/search/datasets/assetNames", () => {
+      return HttpResponse.json({ assetNames: [], assets: [] });
+   }),
+
+   // DataFolderBrowserComponent.deleteSelected — check which items are removable
+   http.post("*/api/data/removeableStatuses", () => {
+      return HttpResponse.json({ folderDependencies: [], datasetDependencies: [] });
+   }),
+
+   // DataFolderBrowserComponent.deleteSelected — bulk delete confirmed items
+   http.post("*/api/data/removeAll", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // DataFolderBrowserComponent.addFolder — create new worksheet folder
+   http.post("*/api/data/folders", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // DataFolderBrowserComponent.addFolder — duplicate name check for new folder
+   http.post("*/api/data/datasets/isDuplicate", () => {
+      return HttpResponse.json({ duplicate: false });
+   }),
+
+   // DataFolderBrowserComponent.moveAssets — bulk move folders
+   http.post("*/api/data/folders/moveFolders", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // DataFolderBrowserComponent.moveAssets — bulk move datasets
+   http.post("*/api/data/datasets/moveDatasets", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // DataFolderBrowserComponent.moveAsset (single) — move one folder
+   http.post("*/api/data/folders/move", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // DataFolderBrowserComponent.moveAsset (single) — move one dataset
+   http.post("*/api/data/datasets/move", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // ─── 3b. Data sources tree view ───────────────────────────────────────────
+
+   // DataSourcesTreeViewComponent.getDataNavigationTree — combined nav tree root
+   http.get("*/api/portal/data/tree", () => {
+      return HttpResponse.json({
+         label: "Root",
+         data: { path: "/", name: "root", scope: 0 },
+         children: [
+            {
+               label: "Data Sources",
+               data: { path: "/datasources", name: "datasources", scope: 0, type: "DATA_SOURCE_ROOT_FOLDER", properties: {} },
+               children: [],
+               leaf: false,
+               expanded: false,
+               type: "DATA_SOURCE_ROOT_FOLDER",
+            },
+         ],
+         leaf: false,
+         expanded: true,
+         type: "ROOT",
+      });
+   }),
+
+   // DataSourcesTreeViewComponent.openFolder — expand a worksheet folder node
+   http.get("*/api/data/folders/children/*", () => {
+      return HttpResponse.json([]);
+   }),
+
+   // DataSourcesTreeViewComponent.openDatasourcesFolder — expand datasource root node
+   http.get("*/api/data/datasources/nodes", () => {
+      return HttpResponse.json([]);
+   }),
+
+   // DataSourcesTreeViewComponent.checkDataFoldersDuplicate — folder move duplicate check
+   http.post("*/api/data/move/checkDuplicate", () => {
+      return HttpResponse.json(NO_DUPLICATE);
+   }),
+
+   // DataSourcesTreeViewComponent — physical/logical model duplicate check before move
+   http.post("*/api/data/logicalModel/checkDuplicate", () => {
+      return HttpResponse.json(NO_DUPLICATE);
+   }),
+
+   // DataSourcesTreeViewComponent — VPM duplicate check before move
+   http.post("*/api/data/vpm/checkDuplicate", () => {
+      return HttpResponse.json(NO_DUPLICATE);
+   }),
+
+   // AppInfoService.isEnterprise() — shared service, default community edition
+   http.get("*/api/enterprise", () => {
+      return HttpResponse.json(false);
+   }),
+
+   // AppInfoService constructor — org info for shared service
+   http.get("*/api/org/info", () => {
+      return HttpResponse.json({ key: "host_org", value: "Default" });
+   }),
+
    // ─── 4. Physical model / database ────────────────────────────────────────
 
    // DatasourcesDatabaseComponent — load database connection form
@@ -436,6 +568,43 @@ export const portalHandlers = [
    // LogicalModelPropertyPane — logical model edit permission
    http.get("*/api/data/logicalmodel/permission/editable", () => {
       return HttpResponse.json(true);
+   }),
+
+   // LogicalModelComponent — datasource settings (fullDateSupport, etc.)
+   http.get("*/api/data/logicalmodel/settings", () => {
+      return HttpResponse.json({ fullDateSupport: true });
+   }),
+
+   // LogicalModelComponent — load model (edit mode)
+   http.get("*/api/data/logicalmodel/models", () => {
+      return HttpResponse.json({
+         name: "LM1", partition: "physModel", entities: [],
+         description: "", connection: null, parent: null, folder: "",
+      });
+   }),
+
+   // LogicalModelComponent — save model (edit)
+   http.put("*/api/data/logicalmodel/models", () => {
+      return HttpResponse.json({
+         name: "LM1", partition: "physModel", entities: [],
+         description: "", connection: null, parent: null, folder: "",
+      });
+   }),
+
+   // LogicalModelComponent — create model
+   http.post("*/api/data/logicalmodel/models", () => {
+      return HttpResponse.json({
+         name: "LM1", partition: "physModel", entities: [],
+         description: "", connection: null, parent: null, folder: "",
+      });
+   }),
+
+   // LogicalModelComponent — create extended model
+   http.post("*/api/data/logicalmodel/extended", () => {
+      return HttpResponse.json({
+         name: "LM1", partition: "physModel", entities: [],
+         description: "", connection: null, parent: "parentLM", folder: "",
+      });
    }),
 
    // PhysicalGraphPaneComponent — load graph canvas model
@@ -505,14 +674,164 @@ export const portalHandlers = [
       return new HttpResponse(null, { status: 200 });
    }),
 
-   // AutoDrillDialog — worksheet parameters for drill-through
-   http.get("*/api/portal/data/autodrill/worksheet/params", () => {
-      return HttpResponse.json({ params: [] });
+   // AutoDrillDialog — viewsheet repository tree (hyperlink picker)
+   http.get("*/api/composer/vs/hyperlink-dialog-model/tree", () => {
+      return HttpResponse.json({
+         label: "Root",
+         leaf: false,
+         expanded: false,
+         data: { path: "/" },
+         children: [],
+      });
    }),
 
-   // AutoDrillDialog — available worksheet fields
+   // PhysicalModelNetworkGraphComponent — remove tables (POST)
+   http.post("*/api/data/physicalmodel/tables/remove", () => {
+      return HttpResponse.json(null);
+   }),
+
+   // PhysicalModelNetworkGraphComponent — clear all tables (DELETE)
+   http.delete("*/api/data/physicalmodel/table/*", () => {
+      return HttpResponse.json(null);
+   }),
+
+   // PhysicalModelNetworkGraphComponent — clear all joins (DELETE)
+   http.delete("*/api/data/physicalmodel/join/*", () => {
+      return HttpResponse.json(null);
+   }),
+
+   // PhysicalModelNetworkGraphComponent — open join edit pane (GET)
+   http.get("*/api/data/physicalmodel/join-edit/open/*", () => {
+      return HttpResponse.json("newRuntimeId");
+   }),
+
+   // LogicalModelExpressionDialog — column fields tree (POST)
+   http.post("*/api/data/logicalModel/tables/nodes", () => {
+      return HttpResponse.json({
+         label: "_#(js:Fields)", expanded: false, leaf: false, children: [],
+      });
+   }),
+
+   // LogicalModelAttributeEditor — attribute format string preview (POST)
+   http.post("*/api/data/logicalModel/attribute/format", () => {
+      return HttpResponse.json(null);
+   }),
+
+   // LogicalModelExpressionDialog — validate expression (POST)
+   http.post("*/api/data/logicalModel/attribute/expression", () => {
+      return HttpResponse.json({});
+   }),
+
+   // ─── VPM (Virtual Private Model) ─────────────────────────────────────────
+
+   // DatabaseVPMComponent.ngOnInit — users and roles for the Test tab
+   http.get("*/api/data/vpm/usersRoles", () => {
+      return HttpResponse.json({ users: [], roles: [] });
+   }),
+
+   // DatabaseVPMComponent.ngOnInit — available clause operators for condition editor
+   http.get("*/api/data/vpm/operations", () => {
+      return HttpResponse.json([]);
+   }),
+
+   // DatabaseVPMComponent.refreshVPM() — load VPM definition in edit mode
+   http.get("*/api/data/vpm/models", () => {
+      return HttpResponse.json({
+         name: "myVPM",
+         conditions: [],
+         hidden: { roles: [], hiddens: [], name: null, script: null },
+         lookup: "",
+         description: "",
+      });
+   }),
+
+   // DatabaseVPMComponent.saveVPM() — update VPM (edit mode, responseType: "text")
+   http.put("*/api/data/vpm/models", () => {
+      return new HttpResponse("", { status: 200, headers: { "Content-Type": "text/plain" } });
+   }),
+
+   // DatabaseVPMComponent.saveVPM() — create VPM (create mode, responseType: "text")
+   http.post("*/api/data/vpm/models", () => {
+      return new HttpResponse("", { status: 200, headers: { "Content-Type": "text/plain" } });
+   }),
+
+   // VPMTestComponent — run VPM test query
+   http.post("*/api/data/vpm/test", () => {
+      return HttpResponse.json({ rows: [] });
+   }),
+   http.post("*/api/data/vpm/columns/*", () => {
+      return HttpResponse.json([]);
+   }),
+   http.get("*/api/data/vpm/physicalModel/tables", () => {
+      return HttpResponse.json([]);
+   }),
+   http.post("*/api/data/vpm/hiddenColumn/tree", () => {
+      return HttpResponse.json([]);
+   }),
+   http.get("*/api/data/vpm/hiddenColumn/fullTree/*", () => {
+      return HttpResponse.json({ nodes: [], timeOut: false });
+   }),
+
+   // DatabaseVPMBrowserComponent.refreshModels() — list VPMs for a database
+   http.get("*/api/data/vpm/browse/*", () => {
+      return HttpResponse.json({
+         editable: true,
+         deletable: true,
+         items: [
+            {
+               type: "VPM",
+               id: "SalesDB/VPM1",
+               path: "SalesDB/VPM1",
+               urlPath: "SalesDB/VPM1",
+               name: "VPM1",
+               createdBy: "admin",
+               description: "Test VPM",
+               createdDate: 1700000000000,
+               editable: true,
+               deletable: true,
+               createdDateLabel: "2024-01-01",
+               databaseName: "SalesDB",
+            },
+         ],
+         names: ["VPM1"],
+         dateFormat: "yyyy-MM-dd",
+      });
+   }),
+
+   // DatabaseVPMBrowserComponent.search() — search VPMs by query
+   http.post("*/api/data/vpm/search", () => {
+      return HttpResponse.json({
+         editable: true,
+         deletable: true,
+         items: [],
+         names: [],
+         dateFormat: "yyyy-MM-dd",
+      });
+   }),
+
+   // DatabaseVPMBrowserComponent.renameModel() — rename a VPM
+   http.put("*/api/data/vpm/rename", () => {
+      return HttpResponse.json({});
+   }),
+
+   // DatabaseVPMBrowserComponent.deleteModel() — remove one or more VPMs
+   http.post("*/api/data/vpm/remove", () => {
+      return HttpResponse.json({});
+   }),
+
+   // AutoDrillDialog — viewsheet variable names for a given asset link
+   http.get("*/api/data/logicalModel/vs/autoDrill-parameters", () => {
+      return HttpResponse.json([]);
+   }),
+
+   // AutoDrillDialog — worksheet parameters for drill-through
+   http.get("*/api/portal/data/autodrill/worksheet/params", () => {
+      return HttpResponse.json([]);
+   }),
+
+   // AutoDrillDialog — available worksheet column fields (response is string[])
    http.get("*/api/portal/data/autodrill/worksheet/fields", () => {
-      return HttpResponse.json({ fields: [] });
+      return HttpResponse.json([]);
    }),
 
    // ─── 5. Query builder ────────────────────────────────────────────────────
@@ -610,5 +929,83 @@ export const portalHandlers = [
    // FieldsPaneComponent — group-by validation
    http.post("*/api/data/datasource/query/groupby/check", () => {
       return HttpResponse.json({ valid: true });
+   }),
+
+   // QueryFieldsPaneComponent — get sample format string for a field
+   http.post("*/api/data/datasource/query/field/format", () => {
+      return HttpResponse.json("");
+   }),
+
+   // QueryFieldsPaneComponent — add columns to the query
+   http.post("*/api/data/datasource/query/column/add", () => {
+      return HttpResponse.json({ limitMessage: null, columnMap: {} });
+   }),
+
+   // QueryFieldsPaneComponent — remove columns from the query
+   http.post("*/api/data/datasource/query/column/remove", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // QueryFieldsPaneComponent — update a column's properties (alias, dataType, format, drill)
+   http.post("*/api/data/datasource/query/column/update", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // QueryFieldsPaneComponent — browse column distinct values
+   http.get("*/api/data/datasource/query/column/browse", () => {
+      return HttpResponse.json([]);
+   }),
+
+   // QueryFieldsPaneComponent — save an expression column
+   http.post("*/api/data/datasource/query/expression/save", () => {
+      return HttpResponse.json(null);
+   }),
+
+   // SimpleScheduleDialog.ok() — email address validation before submit
+   http.get("*/api/vs/check-email-valid", () => {
+      return HttpResponse.json({
+         messageCommand: { type: "OK", message: "", events: null },
+         addressHistory: [],
+      });
+   }),
+
+   // EmbeddedEmailPane constructor — fetch users node tree for identity selection
+   http.get("*/api/vs/expand-identity-node", () => {
+      return HttpResponse.json([]);
+   }),
+
+   // QueryNetworkGraphPaneComponent — open join edit pane (returns new runtimeId)
+   http.get("*/api/data/datasource/query/join-edit/open/*", () => {
+      return HttpResponse.json("rt-join-edit");
+   }),
+
+   // QueryNetworkGraphPaneComponent — add tables to the query graph
+   http.post("*/api/data/datasource/query/table/add", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // QueryNetworkGraphPaneComponent — remove tables from the query graph
+   http.post("*/api/data/datasource/query/table/remove", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // QueryNetworkGraphPaneComponent — move table position
+   http.put("*/api/data/datasource/query/table/move", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // QueryNetworkGraphPaneComponent — clear all tables from graph (DELETE)
+   http.delete("*/api/data/datasource/query/table/*", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // QueryNetworkGraphPaneComponent — clear all joins from graph (DELETE)
+   http.delete("*/api/data/datasource/query/joins/*", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // QueryNetworkGraphPaneComponent — delete selected join condition
+   http.post("*/api/data/datasource/query/joins/delete", () => {
+      return new HttpResponse(null, { status: 200 });
    }),
 ];

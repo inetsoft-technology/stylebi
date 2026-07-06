@@ -246,6 +246,18 @@ public abstract class AbstractSecurityFilter
             }
          }
 
+         // For anonymous localhost clients, evict all prior sessions from the same client
+         // before creating a new one. Each pre-cookie request (e.g. in Docker at localhost)
+         // creates a new HTTP session and consumes a license slot; evicting here prevents
+         // accumulation. Non-localhost clients are handled by the per-client session cap
+         // below, which respects the configurable maxSessions limit and avoids evicting
+         // sessions from other users behind the same corporate NAT/proxy.
+         if(isAnonymousPrincipal(principal) && !isNonlocalClient(principal)) {
+            SecurityEngine.getSecurity().getActivePrincipalList().stream()
+               .filter(p -> p != principal && isSameClient(principal, p))
+               .forEach(p -> authenticationService.logout(p, p.getUser().getIPAddress(), ""));
+         }
+
          if(sessionIdToReplace != null) {
             authenticationService.addSession(principal, sessionIdToReplace);
          }
@@ -256,9 +268,7 @@ public abstract class AbstractSecurityFilter
          session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
 
          // Mark anonymous sessions as fresh so they can be invalidated on error responses
-         if(principal != null && principal.getName() != null &&
-            principal.getName().startsWith(ClientInfo.ANONYMOUS))
-         {
+         if(isAnonymousPrincipal(principal)) {
             session.setAttribute(FRESH_ANONYMOUS_SESSION_ATTR, Boolean.TRUE);
          }
       }
@@ -704,6 +714,14 @@ public abstract class AbstractSecurityFilter
       }
 
       return true;
+   }
+
+   private boolean isAnonymousPrincipal(SRPrincipal principal) {
+      if(principal == null || principal.getName() == null) {
+         return false;
+      }
+
+      return ClientInfo.ANONYMOUS.equals(IdentityID.getIdentityIDFromKey(principal.getName()).getName());
    }
 
    private boolean isNonlocalClient(SRPrincipal principal) {

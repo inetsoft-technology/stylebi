@@ -53,4 +53,40 @@ export const composerHandlers = [
    http.post("*/api/composer/viewsheet/close/:id", () => {
       return new HttpResponse(null, { status: 200 });
    }),
+
+   // Tabular data source types (used by AssetTreePane.ngOnInit)
+   http.get("*/api/composer/tabularDataSourceTypes", () => {
+      return HttpResponse.json([]);
+   }),
+
+   // Asset tree operations (used by AssetTreePane)
+   http.post("*/api/composer/asset-tree/add-folder", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   http.post("*/api/composer/asset-tree/remove-asset", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   http.post("*/api/composer/asset-tree/rename-asset", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   http.post("*/api/composer/asset-tree/change-asset", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // Recycling bin operations (used by AssetTreePane.moveAssetToRecyclingBin)
+   http.post("*/api/dashboard/recyclebin/remove-asset", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   http.post("*/api/dataset/recyclebin/remove-asset", () => {
+      return new HttpResponse(null, { status: 200 });
+   }),
+
+   // Font list (used by FontPane in highlight/format panes)
+   http.get("*/api/format/fonts", () => {
+      return HttpResponse.json([]);
+   }),
 ];

@@ -191,16 +191,16 @@ public class HiddenColumns extends VpmObject {
       StringArray tarray = new StringArray("table", tables);
       StringArray carray = new StringArray("column", columns);
       StringArray harray = new StringArray("hiddenColumn", arr);
-      scope.put("tables", scope, tarray);
-      scope.put("columns", scope, carray);
-      scope.put("hiddenColumns", scope, harray);
-      scope.put("partition", scope, partition);
+      scope.putMember("tables", tarray);
+      scope.putMember("columns", carray);
+      scope.putMember("hiddenColumns", harray);
+      scope.putMember("partition", partition);
 
       if(WSExecution.getAssetQuerySandbox() != null) {
-         scope.put("creatingMV", scope, WSExecution.getAssetQuerySandbox().isCreatingMV());
+         scope.putMember("creatingMV", WSExecution.getAssetQuerySandbox().isCreatingMV());
       }
       else {
-         scope.put("creatingMV", scope, false);
+         scope.putMember("creatingMV", false);
       }
 
       Object result;

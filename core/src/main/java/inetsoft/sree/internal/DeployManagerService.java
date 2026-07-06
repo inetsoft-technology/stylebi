@@ -35,6 +35,9 @@ import inetsoft.uql.util.Identity;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
+import inetsoft.uql.viewsheet.VSBookmark;
+import inetsoft.uql.viewsheet.VSBookmarkInfo;
+import inetsoft.web.admin.content.repository.model.BookmarkConflict;
 import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
@@ -631,11 +634,27 @@ public class DeployManagerService {
                             List<String> ignoreUserAssets)
       throws Exception
    {
+      importAssets(overwriting, order, info, desktop, principal, ignoreList, actionRecord,
+         failedList, targetFolderInfo, ignoreUserAssets, null);
+   }
+
+   public void importAssets(boolean overwriting,
+                            final List<String> order,
+                            DeploymentInfo info,
+                            boolean desktop, Principal principal,
+                            List<String> ignoreList,
+                            ActionRecord actionRecord,
+                            List<String> failedList,
+                            ImportTargetFolderInfo targetFolderInfo,
+                            List<String> ignoreUserAssets,
+                            Map<String, Boolean> bookmarkResolutions)
+      throws Exception
+   {
       PasswordEncryption.setDecryptForceLocal(true);
 
       try {
          importAssets0(overwriting, order, info, desktop, principal, ignoreList, actionRecord,
-            failedList, targetFolderInfo, ignoreUserAssets);
+            failedList, targetFolderInfo, ignoreUserAssets, bookmarkResolutions);
          Set<String> ignoredQueries = info.getIgnoredQueries();
 
          if(!ignoredQueries.isEmpty()) {
@@ -658,12 +677,18 @@ public class DeployManagerService {
                               ActionRecord actionRecord,
                               List<String> failedList,
                               ImportTargetFolderInfo targetFolderInfo,
-                              List<String> ignoreUserAssets)
+                              List<String> ignoreUserAssets,
+                              Map<String, Boolean> bookmarkResolutions)
       throws Exception
    {
       List<AssetEntry> vss = new ArrayList<>();
       XAssetConfig config = new XAssetConfig();
       config.setOverwriting(overwriting);
+
+      if(bookmarkResolutions != null && !bookmarkResolutions.isEmpty()) {
+         config.setContextAttribute("bookmarkResolutions", bookmarkResolutions);
+      }
+
       File[] files = info.getFiles();
       Map<String, String> names = info.getNames();
       List<PartialDeploymentJarInfo.RequiredAsset> ignoreAssets = new ArrayList<>();
@@ -945,6 +970,157 @@ public class DeployManagerService {
       catch(Throwable e) {
          LOG.error("Failed to create materialized views", e);
       }
+   }
+
+   /**
+    * Scans the unzipped import JAR for bookmark conflicts — {@code (user, bookmarkName)} pairs
+    * where an entry exists in both the import and the current repository.
+    *
+    * @param info             deployment info including files and names
+    * @param targetFolderInfo the target folder for import remapping (may be null)
+    * @param ignoreList       list of dependent asset indices to exclude
+    * @return list of conflicts, one entry per conflicting {@code (viewsheetPath, user, bookmarkName)} triple
+    */
+   public List<BookmarkConflict> getBookmarkConflicts(
+      DeploymentInfo info, ImportTargetFolderInfo targetFolderInfo,
+      List<String> ignoreList) throws Exception
+   {
+      List<BookmarkConflict> conflicts = new ArrayList<>();
+      File[] files = info.getFiles();
+
+      if(files == null || files.length == 0) {
+         return conflicts;
+      }
+
+      // Build the set of ignored dependent assets
+      List<PartialDeploymentJarInfo.RequiredAsset> ignoreAssets = new ArrayList<>();
+
+      for(int i = 0; i < info.getDependentAssets().size(); i++) {
+         if(ignoreList != null && ignoreList.contains(i + "")) {
+            ignoreAssets.add(info.getDependentAssets().get(i));
+         }
+      }
+
+      AssetRepository engine = AssetUtil.getAssetRepository(false);
+
+      DeployHelper deployHelper = targetFolderInfo != null
+         ? new DeployHelper(info, targetFolderInfo)
+         : null;
+
+      AssetEntry targetFolder = deployHelper != null ? deployHelper.getTargetFolder() : null;
+
+      if(targetFolder != null && targetFolder.isRoot()) {
+         targetFolder = null;
+      }
+
+      AssetEntry commonPrefixFolder = deployHelper != null && targetFolder != null
+         ? deployHelper.getCommonPrefixFolder()
+         : null;
+
+      Map<String, String> names = info.getNames();
+
+      for(File file : files) {
+         if(file == null || !file.isFile()) {
+            continue;
+         }
+
+         XAsset asset = DeployHelper.getAsset(file, names);
+
+         if(asset == null || !ViewsheetAsset.VIEWSHEET.equals(asset.getType())) {
+            continue;
+         }
+
+         // Skip assets excluded by the admin
+         if(isIgnoreAsset(asset, ignoreAssets)) {
+            continue;
+         }
+
+         if(targetFolder != null) {
+            XAsset remapped = getChangeRootFolderAsset(asset, targetFolder,
+               new HashSet<>(), commonPrefixFolder, false, new HashSet<>(), new HashMap<>(), false);
+
+            if(remapped != null) {
+               asset = remapped;
+            }
+         }
+
+         AssetEntry entry = ((ViewsheetAsset) asset).getAssetEntry();
+
+         try(InputStream in = new FileInputStream(file)) {
+            Document doc = Tool.parseXML(in);
+
+            if(doc == null) {
+               continue;
+            }
+
+            Element root = doc.getDocumentElement();
+            Element belem = Tool.getChildNodeByTagName(root, "AllBookmarks");
+
+            if(belem == null) {
+               continue;
+            }
+
+            NodeList usersList = Tool.getChildNodesByTagName(belem, "user");
+
+            for(int i = 0; i < usersList.getLength(); i++) {
+               if(!(usersList.item(i) instanceof Element)) {
+                  continue;
+               }
+
+               Element userElem = (Element) usersList.item(i);
+               String userName = Tool.getChildValueByTagName(userElem, "name");
+               Element bookmarkElem = Tool.getChildNodeByTagName(userElem, "bookmarks");
+
+               if(userName == null || bookmarkElem == null) {
+                  continue;
+               }
+
+               VSBookmark imported = new VSBookmark();
+               imported.parseXML(bookmarkElem);
+
+               IdentityID userID = IdentityID.getIdentityIDFromKey(userName);
+               userID.setOrgID(OrganizationManager.getInstance().getCurrentOrgID());
+               VSBookmark existing = engine.getVSBookmark(entry, new XPrincipal(userID));
+
+               if(existing == null) {
+                  continue;
+               }
+
+               for(String bName : imported.getBookmarks()) {
+                  // INITIAL_STATE is always a mirror of HOME_BOOKMARK (written together in
+                  // RuntimeViewsheet.saveBookmark when confirmed=true). Showing it as a
+                  // separate conflict row would be confusing and redundant — skip it here;
+                  // it is handled implicitly when HOME_BOOKMARK is resolved.
+                  if(VSBookmark.INITIAL_STATE.equals(bName)) {
+                     continue;
+                  }
+
+                  VSBookmarkInfo existingInfo = existing.getBookmarkInfo(bName);
+
+                  if(existingInfo == null) {
+                     continue; // no conflict — name only exists in import
+                  }
+
+                  VSBookmarkInfo importedInfo = imported.getBookmarkInfo(bName);
+                  conflicts.add(BookmarkConflict.builder()
+                     .viewsheetPath(entry.getPath())
+                     .user(userID.convertToKey())
+                     .userLabel(userID.getName())
+                     .bookmarkName(bName)
+                     .existingCreated(existingInfo.getCreateTime())
+                     .existingModified(existingInfo.getLastModified())
+                     .importedCreated(importedInfo != null ? importedInfo.getCreateTime() : -1L)
+                     .importedModified(importedInfo != null ? importedInfo.getLastModified() : -1L)
+                     .build());
+               }
+            }
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to scan bookmark conflicts in asset '{}'", entry.getPath(), e);
+         }
+      }
+
+      return conflicts;
    }
 
    private static String getAssetFileIdentifier(XAsset asset) {

@@ -24,6 +24,7 @@ import {
    EventEmitter,
    forwardRef,
    Input,
+   NgZone,
    OnChanges,
    OnDestroy,
    OnInit,
@@ -189,7 +190,7 @@ export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, After
       return this.treeView == TreeView.RECENT_VIEW;
    }
 
-   constructor(private changeRef: ChangeDetectorRef) {
+   constructor(private changeRef: ChangeDetectorRef, private ngZone: NgZone) {
    }
 
    ngOnInit(): void {
@@ -966,7 +967,7 @@ export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, After
       }
 
       this.unSubscribeVScroll();
-      this.vScrollSubscription = this.dataSource.registerScrollContainer(this.treeContainer.nativeElement)
+      this.vScrollSubscription = this.dataSource.registerScrollContainer(this.treeContainer.nativeElement, this.ngZone)
          .pipe(map(nodes => this.calculateBounds(nodes)))
          .subscribe(nodes => {
             this.dataSource.fireVirtualScroll(nodes);

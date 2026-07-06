@@ -311,7 +311,7 @@ _#(viewer.viewsheet.action.layoutFooterEditDes)</div>
           <i class="grouping-icon icon-size-medium"></i>
           <span>_#(Grouping)</span>
         </button>
-        @for (dataSource of databaseDataSources; track dataSource) {
+        @for (dataSource of databaseDataSources; track dataSource.name) {
           <button [ngbTooltip]="databaseQueryTooltip" triggers="hover"
             placement="bottom" [disabled]="!sqlEnabled"
             class="dropdown-item new-database-query-button"
@@ -320,7 +320,7 @@ _#(viewer.viewsheet.action.layoutFooterEditDes)</div>
             <span>{{getDatabaseLabel(dataSource)}} _#(Query)</span>
           </button>
         }
-        @for (type of tabularDataSourceTypes; track type) {
+        @for (type of tabularDataSourceTypes; track type.name) {
           @if (type.exists) {
             <button class="dropdown-item" (click)="newTabularQuery(type)">
               <i class="tabular-subquery-icon icon-size-medium"></i>

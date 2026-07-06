@@ -16,11 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-// TL (testing-library) test setup. Extends vitest-setup.ts and adds MSW
-// server lifecycle. Under the old Jest setup, setup-jest.ts (which had MSW)
-// was only wired to jest.tl.config.js, not to the main portal test suite.
+// TL (testing-library) test setup for the portal project. Starts the MSW server
+// lifecycle so all *.tl.spec.ts files in portal can intercept HTTP requests.
 import { afterAll, afterEach, beforeAll } from "vitest";
-import { server } from "../../../mocks/server";
+import { server } from "@test-mocks/server";
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());

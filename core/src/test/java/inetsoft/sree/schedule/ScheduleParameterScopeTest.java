@@ -34,11 +34,24 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
+/*
+ * Tier: [mockStatic] — MockedConstruction<GregorianCalendar> and Date fix wall-clock for
+ * dynamic schedule parameters. Spring (@SreeHome) provides ScriptEnv wiring only.
+ *
+ * Intent vs implementation suspects: none confirmed for ScheduleParameterScope at this time.
+ */
+
+/*
+ * Cases deferred - low value or out of scope:
+ *
+ * [ScheduleParameterScope] getScriptEnv() / Cloneable
+ *             -> trivial accessors; NOT duplicated here
+ */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -48,6 +61,7 @@ public class ScheduleParameterScopeTest {
 
    @ParameterizedTest
    @CsvSource({
+      "_TODAY, 2024-02-29 00:00:00",
       "_BEGINNING_OF_THIS_YEAR, 2024-01-01 00:00:00",
       "_BEGINNING_OF_THIS_QUARTER, 2024-01-01 00:00:00",
       "_BEGINNING_OF_THIS_MONTH, 2024-02-01 00:00:00",
@@ -65,6 +79,7 @@ public class ScheduleParameterScopeTest {
       "_LAST_MONTH, 2024-01-29 23:59:59",
       "_LAST_WEEK, 2024-02-22 23:59:59",
       "_LAST_DAY, 2024-02-28 23:59:59",
+      "_LAST_HOUR, 2024-02-29 22:59:59",
       "_LAST_MINUTE, 2024-02-29 23:58:59",
 
       "_NEXT_YEAR, 2025-02-28 23:59:59",
@@ -76,19 +91,26 @@ public class ScheduleParameterScopeTest {
       "_NEXT_MINUTE, 2024-03-01 00:00:59"
    })
    void testDynamicDate(String dynamicDate, String expected) {
-      try (MockedConstruction<GregorianCalendar> mockedCalendar = Mockito.mockConstruction(
-         GregorianCalendar.class, (mock, context) -> {
-            Calendar fixedCalendar = createCalendar(2024, Calendar.FEBRUARY, 29, 23, 59, 59);
-            mockCalendarMethod(mock, fixedCalendar);
-         })) {
+      Calendar anchor = createCalendar(2024, Calendar.FEBRUARY, 29, 23, 59, 59);
+
+      try(MockedConstruction<GregorianCalendar> ignored = mockCalendarAt(anchor)) {
          ScheduleParameterScope scheduleParameterScope = new ScheduleParameterScope();
 
-         Date actualDate = (Date) scheduleParameterScope.get(dynamicDate, null);
+         Date actualDate = (Date) scheduleParameterScope.getMember(dynamicDate);
          assertEquals(expected, sdf.format(actualDate));
+      }
+   }
 
-      } catch (Exception e) {
-         e.printStackTrace();
-         throw new RuntimeException("Test Schedule  DynamicDate failed due to exception: " + e.getMessage());
+   @Test
+   void testNowReturnsFixedCurrentTime() {
+      long fixedMillis = createCalendar(2024, Calendar.FEBRUARY, 29, 23, 59, 59).getTimeInMillis();
+
+      try(MockedConstruction<Date> mockedDate = Mockito.mockConstruction(Date.class, (mock, context) ->
+         when(mock.getTime()).thenReturn(fixedMillis))) {
+         ScheduleParameterScope scheduleParameterScope = new ScheduleParameterScope();
+         Date actualDate = (Date) scheduleParameterScope.getMember(DynamicDate.NOW);
+         assertEquals("2024-02-29 23:59:59", sdf.format(actualDate));
+         assertEquals(1, mockedDate.constructed().size());
       }
    }
 
@@ -104,34 +126,70 @@ public class ScheduleParameterScopeTest {
       "2, 31, 23, 59, _LAST_QUARTER, 2023-10-31 23:59:59",
       "2, 31, 23, 59, _NEXT_QUARTER, 2024-04-30 23:59:59",   //Issue #71783
 
+      "0, 31, 23, 59, _THIS_QUARTER, 2024-01-31 23:59:59",   // Q1 first month, day clamp
+      "0, 31, 23, 59, _LAST_QUARTER, 2023-10-31 23:59:59",
+      "0, 31, 23, 59, _NEXT_QUARTER, 2024-04-30 23:59:59",
+
       "2, 1, 00, 59, _LAST_HOUR, 2024-02-29 23:59:59",  // check hour and minute
       "2, 1, 00, 00, _LAST_MINUTE, 2024-02-29 23:59:59"  // check hour and minute
    })
    void testQuarterDynamicDate(String month, int day, int hour, int minite, String dynamicDate, String expected) {
-      try (MockedConstruction<GregorianCalendar> mockedCalendar = Mockito.mockConstruction(
-         GregorianCalendar.class, (mock, context) -> {
-            Calendar fixedCalendar = createCalendar(2024, Integer.parseInt(month), day, hour, minite, 59);
-            mockCalendarMethod(mock, fixedCalendar);
-         })) {
+      Calendar fixedCalendar = createCalendar(2024, Integer.parseInt(month), day, hour, minite, 59);
+
+      try(MockedConstruction<GregorianCalendar> ignored = mockCalendarAt(fixedCalendar)) {
+         ScheduleParameterScope scheduleParameterScope = new ScheduleParameterScope();
+         Date actualDate = (Date) scheduleParameterScope.getMember(dynamicDate);
+         assertEquals(expected, sdf.format(actualDate));
+      }
+   }
+
+   @ParameterizedTest
+   @CsvSource({
+      "1, 24, _BEGINNING_OF_THIS_WEEK, 2024-02-18 00:00:00",  // Saturday anchor
+      "1, 24, _END_OF_THIS_WEEK, 2024-02-24 23:59:59",
+      "1, 25, _BEGINNING_OF_THIS_WEEK, 2024-02-25 00:00:00",  // Sunday anchor
+      "1, 25, _END_OF_THIS_WEEK, 2024-03-02 23:59:59",
+      "11, 28, _BEGINNING_OF_THIS_WEEK, 2024-12-22 00:00:00", // year-end Saturday
+      "11, 28, _END_OF_THIS_WEEK, 2024-12-28 23:59:59",
+      "11, 29, _BEGINNING_OF_THIS_WEEK, 2024-12-29 00:00:00", // year-end Sunday
+      "11, 29, _END_OF_THIS_WEEK, 2025-01-04 23:59:59"
+   })
+   void testWeekBoundaryDynamicDate(int month, int day, String dynamicDate, String expected) {
+      Calendar anchor = createCalendar(2024, month, day, 23, 59, 59);
+
+      try(MockedConstruction<GregorianCalendar> ignored = mockCalendarAt(anchor)) {
          ScheduleParameterScope scheduleParameterScope = new ScheduleParameterScope();
 
-         Date actualDate = (Date) scheduleParameterScope.get(dynamicDate, null);
+         Date actualDate = (Date) scheduleParameterScope.getMember(dynamicDate);
          assertEquals(expected, sdf.format(actualDate));
-
-      } catch (Exception e) {
-         e.printStackTrace();
-         throw new RuntimeException("Test Schedule Quarter DynamicDates failed due to exception: " + e.getMessage());
       }
    }
 
    @Test
+   void testUnknownDynamicDateDelegatesToSuper() {
+      ScheduleParameterScope scheduleParameterScope = new ScheduleParameterScope();
+      Object actual = scheduleParameterScope.getMember("_UNKNOWN_DYNAMIC_DATE");
+      assertNull(actual);
+   }
+
+   @Test
    void testStaticMethod() {
-      try (MockedConstruction<GregorianCalendar> mockedCalendar = Mockito.mockConstruction(
-         GregorianCalendar.class, (mock, context) -> {
-            Calendar fixedCalendar = createCalendar(2024, 1, 29, 23, 59, 59);
-            mockCalendarMethod(mock, fixedCalendar);
-         })) {
-         Date actualDate = ScheduleParameterScope.getEndOfThisMonth(XSchema.DATE);
+      Calendar fixedCalendar = createCalendar(2024, 1, 29, 23, 59, 59);
+
+      try(MockedConstruction<GregorianCalendar> ignored = mockCalendarAt(fixedCalendar)) {
+         Date actualDate = ScheduleParameterScope.getBeginningOfThisYear();
+         assertEquals("2024-01-01 00:00:00", sdf.format(actualDate));
+
+         actualDate = ScheduleParameterScope.getBeginningOfThisQuarter();
+         assertEquals("2024-01-01 00:00:00", sdf.format(actualDate));
+
+         actualDate = ScheduleParameterScope.getBeginningOfThisMonth();
+         assertEquals("2024-02-01 00:00:00", sdf.format(actualDate));
+
+         actualDate = ScheduleParameterScope.getBeginningOfThisWeek();
+         assertEquals("2024-02-25 00:00:00", sdf.format(actualDate));
+
+         actualDate = ScheduleParameterScope.getEndOfThisMonth(XSchema.DATE);
          assertEquals("2024-02-29 00:00:00", sdf.format(actualDate));
 
          actualDate = ScheduleParameterScope.getEndOfThisQuarter(XSchema.DATE);
@@ -143,15 +201,22 @@ public class ScheduleParameterScopeTest {
          actualDate = ScheduleParameterScope.getEndOfThisYear(XSchema.DATE);
          assertEquals("2024-12-31 00:00:00", sdf.format(actualDate));
 
-         ScheduleParameterScope scheduleParameterScope = new ScheduleParameterScope();
-         assertEquals(25, scheduleParameterScope.getIds().length);
+         actualDate = ScheduleParameterScope.getToday();
+         assertEquals("2024-02-29 00:00:00", sdf.format(actualDate));
 
-      } catch (Exception e) {
-         e.printStackTrace();
-         throw new RuntimeException("Test Schedule Quarter DynamicDates failed due to exception: " + e.getMessage());
+         ScheduleParameterScope scheduleParameterScope = new ScheduleParameterScope();
+         assertEquals(25, scheduleParameterScope.getMemberKeys().length);
       }
    }
 
+   private MockedConstruction<GregorianCalendar> mockCalendarAt(Calendar anchor) {
+      return Mockito.mockConstruction(GregorianCalendar.class, (mock, context) -> {
+         Calendar fixedCalendar = (Calendar) anchor.clone();
+         mockCalendarMethod(mock, fixedCalendar);
+      });
+   }
+
+   @SuppressWarnings("MagicConstant")
    private void mockCalendarMethod(GregorianCalendar mock, Calendar fixedCalendar) {
       // set the mock calendar to a fixed time
       mock.setTime(fixedCalendar.getTime());
@@ -172,7 +237,7 @@ public class ScheduleParameterScopeTest {
          return null;
       }).when(mock).add(anyInt(), anyInt());
 
-      // mock  get operation and obtain from real calendar
+      // mock get operation and obtain from real calendar
       doAnswer(inv -> {
          int field = inv.getArgument(0);
          return fixedCalendar.get(field);
@@ -187,7 +252,8 @@ public class ScheduleParameterScopeTest {
       when(mock.getTime()).thenAnswer(inv -> fixedCalendar.getTime());
    }
 
-   private Calendar createCalendar(int year, int month, int day, int hour, int minute, int second) {
+   @SuppressWarnings("MagicConstant")
+   private static Calendar createCalendar(int year, int month, int day, int hour, int minute, int second) {
       Calendar calendar = new GregorianCalendar(year, month , day, hour, minute, second);
       calendar.set(Calendar.MILLISECOND, 0);
       return calendar;

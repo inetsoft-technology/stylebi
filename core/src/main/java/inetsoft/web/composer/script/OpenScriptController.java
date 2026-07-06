@@ -31,7 +31,8 @@ import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptEnvRepository;
 import inetsoft.web.composer.model.script.*;
 import inetsoft.web.composer.script.service.ScriptService;
-import org.mozilla.javascript.EvaluatorException;
+import org.graalvm.polyglot.PolyglotException;
+import org.graalvm.polyglot.SourceSection;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -156,12 +157,28 @@ public class OpenScriptController {
       ScriptEnv env = ScriptEnvRepository.getScriptEnv();
 
       try {
-         env.compile(script);
+         env.checkFunction("script", script);
       }
       catch(Exception e) {
-         return "row:" + ((EvaluatorException) e).lineNumber() +
-            ",col:" + ((EvaluatorException) e).columnNumber() +
-            ",error:" + e.getMessage();
+         int line = 0;
+         int column = 0;
+         Throwable cause = e;
+
+         // unwrap to the GraalJS PolyglotException to recover source location
+         while(cause != null && !(cause instanceof PolyglotException)) {
+            cause = cause.getCause();
+         }
+
+         if(cause instanceof PolyglotException) {
+            SourceSection loc = ((PolyglotException) cause).getSourceLocation();
+
+            if(loc != null) {
+               line = loc.getStartLine();
+               column = loc.getStartColumn();
+            }
+         }
+
+         return "row:" + line + ",col:" + column + ",error:" + e.getMessage();
       }
 
       return null;

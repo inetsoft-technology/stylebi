@@ -35,7 +35,7 @@ import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.log.LogManager;
 import inetsoft.util.script.*;
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -122,9 +122,9 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       if(!(getVSAssemblyInfo() instanceof ChartVSAssemblyInfo)) {
-         return Undefined.instance;
+         return null;
       }
 
       if(creator != null) {
@@ -143,17 +143,17 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
       VSChartInfo vinfo = getChartInfo();
 
       if(vinfo != null) {
-         return getPropertyValue(name, vinfo, start);
+         return getPropertyValue(name, vinfo);
       }
 
-      return super.get(name, start);
+      return super.getMember(name);
    }
 
    /**
     * Sets a named property in this object.
     */
    @Override
-   public void put(String name, Scriptable start, Object value) {
+   public void putMember(String name, Object value) {
       if(name.equals("graph") && creator != null) {
          value = JavaScriptEngine.unwrap(value);
 
@@ -181,7 +181,7 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
                creator.setDataSet(nset);
             }
             else {
-               super.put("dataset", start, nset);
+               super.putMember("dataset", nset);
             }
 
             data.table = new DataSetTable(nset);
@@ -195,7 +195,7 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
             creator.setDataSet(nset);
          }
          else {
-            super.put("dataset", start, nset);
+            super.putMember("dataset", nset);
          }
 
          return;
@@ -217,7 +217,7 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
          }
       }
 
-      super.put(name, start, value);
+      super.putMember(name, value);
    }
 
    /**
@@ -226,7 +226,7 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
     * @param vinfo binding info of the chart.
     * @return the value of the sepecific property.
     */
-   private Object getPropertyValue(String name, VSChartInfo vinfo, Scriptable start) {
+   private Object getPropertyValue(String name, VSChartInfo vinfo) {
       ChartBindable bindable = this.bindable;
 
       if(bindable == null) {
@@ -270,7 +270,7 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
          return getTipConditions();
       }
 
-      return super.get(name, start);
+      return super.getMember(name);
    }
 
    /**
@@ -349,6 +349,9 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
 
       addProperty("bindingInfo", bindingInfo = new VSChartBindingScriptable(this));
       addProperty("data", data);
+      // "table" is an alias for "data" resolved in getPropertyValue; it must be
+      // registered so hasMember("table") is true (GraalJS gates getMember on hasMember).
+      addProperty("table", data);
       addProperty("dataset", null);
       addProperty("graph", null);
       addProperty("query", null);
@@ -546,11 +549,11 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
       else if("xFields".equals(prop) || "yFields".equals(prop) ||
          "geoFields".equals(prop) || "axis".equals(prop) ||
          "singleStyle".equals(prop) ||
-         get(prop + "", this) instanceof ArrayObject)
+         getMember(prop + "") instanceof ArrayObject)
       {
          return "[]";
       }
-      else if(get(prop + "", this) instanceof FunctionObject) {
+      else if(getMember(prop + "") instanceof ScriptFunction) {
          return "()";
       }
 
@@ -565,7 +568,7 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
          axisScript = new AxisScriptable(getChartInfo(), new AxisDescriptor());
       }
 
-      return axisScript.getIds();
+      return axisScript.getMemberKeys();
    }
 
    /**
@@ -578,7 +581,7 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
          fieldAxisScript.setFieldAxis(true);
       }
 
-      return fieldAxisScript.getIds();
+      return fieldAxisScript.getMemberKeys();
    }
 
    /**
@@ -589,7 +592,7 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
          legendScript = new LegendScriptable(new LegendDescriptor());
       }
 
-      return legendScript.getIds();
+      return legendScript.getMemberKeys();
    }
 
    /**
@@ -600,7 +603,7 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
          titleScript = new TitleScriptable(new TitleDescriptor());
       }
 
-      return titleScript.getIds();
+      return titleScript.getMemberKeys();
    }
 
    /**
@@ -611,7 +614,7 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
          valueScript = new TextFormatScriptable(new CompositeTextFormat());
       }
 
-      return valueScript.getIds();
+      return valueScript.getMemberKeys();
    }
 
    /**
@@ -622,7 +625,7 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
          graphScript = new VSEGraphScriptable();
       }
 
-      return graphScript.getIds();
+      return graphScript.getMemberKeys();
    }
 
    /**
@@ -948,7 +951,7 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
       return box;
    }
 
-   private class ChartArrayImpl extends VSChartArray implements Wrapper {
+   private class ChartArrayImpl extends VSChartArray {
       public ChartArrayImpl(String property, Class pType) {
          super(property, pType);
       }
@@ -963,26 +966,11 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
          return ChartVSAScriptable.this.getChartInfo();
       }
 
-      @Override
+      // NOTE (Feature #75423): kept as a plain accessor (Rhino Wrapper.unwrap and
+      // getDefaultValue scalar-coercion are removed; the chart style value is
+      // available via this method).
       public Object unwrap() {
          return ChartVSAScriptable.this.getInfo().getChartStyle();
-      }
-
-      @Override
-      public Object getDefaultValue(Class hint) {
-         if(hint == ScriptRuntime.ByteClass ||
-            hint == ScriptRuntime.DoubleClass ||
-            hint == ScriptRuntime.FloatClass ||
-            hint == ScriptRuntime.IntegerClass ||
-            hint == ScriptRuntime.LongClass ||
-            hint == ScriptRuntime.NumberClass ||
-            hint == ScriptRuntime.ShortClass ||
-            hint == ScriptRuntime.StringClass)
-         {
-            return unwrap();
-         }
-
-         return super.getDefaultValue(hint);
       }
    }
 

@@ -285,22 +285,30 @@
       </split-pane>
     </div>
   </div>
-  <vs-binding-pane *ngIf="focusedViewsheet?.bindingEditMode && !wizardEditMode"
-                   [runtimeId]="bindingPaneModel.runtimeId"
-                   [assemblyName]="bindingPaneModel.absoluteName"
-                   [temporarySheet]="focusedSheet.newSheet"
-                   [objectType]="bindingPaneModel.objectType"
-                   [wizardOriginalInfo]="bindingPaneModel.wizardOriginalInfo"
-                   [variableValues]="getVariables(bindingPaneModel.absoluteName, bindingPaneModel.objectType)"
-                   [linkUri]="focusedViewsheet?.linkUri"
-                   [assetId]="focusedViewsheet.id"
-                   [isCube]="!!!focusedViewsheet?.baseEntry"
-                   [aiAssistantPermission]="aiAssistantPermission"
-                   (onOpenWizardPane)="switchBindingToWizard($event)"
-                   (onCloseBindingPane)="closeBindingPane()"
-                   (onAssemblyChanged)="refreshChangedAssembly($event)"
-                   (onRenamed)="changeBindingAssemblyName($event)">
-  </vs-binding-pane>
+  @defer (when focusedViewsheet?.bindingEditMode && !wizardEditMode; prefetch on idle) {
+    @if (focusedViewsheet?.bindingEditMode && !wizardEditMode) {
+      <vs-binding-pane *ngIf="focusedViewsheet?.bindingEditMode && !wizardEditMode"
+                       [runtimeId]="bindingPaneModel.runtimeId"
+                       [assemblyName]="bindingPaneModel.absoluteName"
+                       [temporarySheet]="focusedSheet.newSheet"
+                       [objectType]="bindingPaneModel.objectType"
+                       [wizardOriginalInfo]="bindingPaneModel.wizardOriginalInfo"
+                       [variableValues]="getVariables(bindingPaneModel.absoluteName, bindingPaneModel.objectType)"
+                       [linkUri]="focusedViewsheet?.linkUri"
+                       [assetId]="focusedViewsheet.id"
+                       [isCube]="!!!focusedViewsheet?.baseEntry"
+                       [aiAssistantPermission]="aiAssistantPermission"
+                       (onOpenWizardPane)="switchBindingToWizard($event)"
+                       (onCloseBindingPane)="closeBindingPane()"
+                       (onAssemblyChanged)="refreshChangedAssembly($event)"
+                       (onRenamed)="changeBindingAssemblyName($event)">
+      </vs-binding-pane>
+    }
+  } @error {
+    <div class="loading-container">
+      <span>_#(js:Failed to load the binding editor)</span>
+    </div>
+  }
   <vs-wizard *ngIf="wizardEditMode"
              [model]="wizardModel"
              [aiAssistantPermission]="aiAssistantPermission"

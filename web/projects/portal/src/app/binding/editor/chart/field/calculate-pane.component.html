@@ -18,7 +18,7 @@
 <div class="form-floating">
   <div class="input-group">
     <select data-test="Trend and Comparison Dropdown" class="form-control calc-combo" [(ngModel)]="calculateValue" [disabled]="!enabled">
-      @for (calc of defaultCalcs; track calc) {
+      @for (calc of defaultCalcs; track $index) {
         <option [ngValue]="calc.data">
           {{calc.label}}
         </option>

@@ -126,6 +126,7 @@ public class VSWizardBindingService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void bindingTreeNodeChanged(@ClusterProxyKey String id, RefreshBindingFieldsEvent event,
                                       CommandDispatcher dispatcher, Principal principal,
@@ -188,6 +189,7 @@ public class VSWizardBindingService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void refreshBindingRefs(@ClusterProxyKey String id, RefreshBindingFieldsEvent event,
                                   CommandDispatcher dispatcher, Principal principal,
@@ -284,6 +286,7 @@ public class VSWizardBindingService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void refreshBindingInfo(@ClusterProxyKey String id, UpdateVsWizardBindingEvent event,
                                   CommandDispatcher dispatcher, Principal principal,
@@ -332,6 +335,7 @@ public class VSWizardBindingService {
       return null;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void updateColumns(@ClusterProxyKey String id, UpdateColumnsEvent event,
                              CommandDispatcher dispatcher, Principal principal,

@@ -96,6 +96,7 @@
         (onContextmenu)="onContextmenu.emit([$event[0], $event[1], selectedNodes])">
       </tree-node>
     }
-    <div [style.height.px]="useVirtualScroll ? getVirtualBottom() : 0"></div>
+    @let virtualBottom = getVirtualBottom();
+    <div [style.height.px]="useVirtualScroll ? virtualBottom : 0"></div>
   </div>
 </div>

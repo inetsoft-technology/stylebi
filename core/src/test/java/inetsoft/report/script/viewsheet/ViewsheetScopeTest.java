@@ -292,10 +292,10 @@ public class ViewsheetScopeTest {
       assertInstanceOf(TableVSAScriptable.class, viewsheetScope.getVSAScriptable("TableView1"));
 
       // test prepareVariables and getvariableScriptable
-      Principal principal = (Principal)viewsheetScope.getVariableScriptable().get("__principal__", null);
+      Principal principal = (Principal)viewsheetScope.getVariableScriptable().getMember("__principal__");
       assertEquals("INETSOFT_SYSTEM~;~host-org", principal.getName());
       viewsheetScope.prepareVariables(null);
-      Object[] paras = (Object[])viewsheetScope.getVariableScriptable().get("parameterNames", null);
+      Object[] paras = (Object[])viewsheetScope.getVariableScriptable().getMember("parameterNames");
       assertArrayEquals(new Object[] {"__principal__", "_GROUPS_", "_USER_", "_ROLES_"},  paras);
 
       //test execute with a scriptable
@@ -304,13 +304,13 @@ public class ViewsheetScopeTest {
 
    @Test
    void testSomeGet() {
-      assertNull(viewsheetScope.get("event", null));
-      assertEquals(FormTableRow.OLD, viewsheetScope.get("OLD", null));
-      assertEquals(FormTableRow.CHANGED, viewsheetScope.get("CHANGED", null));
-      assertEquals(FormTableRow.ADDED, viewsheetScope.get("ADDED", null));
-      assertEquals(FormTableRow.DELETED, viewsheetScope.get("DELETED", null));
+      assertNull(viewsheetScope.getMember("event"));
+      assertEquals(FormTableRow.OLD, viewsheetScope.getMember("OLD"));
+      assertEquals(FormTableRow.CHANGED, viewsheetScope.getMember("CHANGED"));
+      assertEquals(FormTableRow.ADDED, viewsheetScope.getMember("ADDED"));
+      assertEquals(FormTableRow.DELETED, viewsheetScope.getMember("DELETED"));
 
-      assertEquals(19, viewsheetScope.getIds().length);
+      assertEquals(19, viewsheetScope.getMemberKeys().length);
 
       ViewsheetScope viewsheetScope1 = (ViewsheetScope)viewsheetScope.clone();
       assertEquals("ViewsheetScope", viewsheetScope1.getClassName());

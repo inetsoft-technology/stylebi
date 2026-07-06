@@ -25,7 +25,7 @@
             <input type="checkbox"
               [ngModel]="isModelAllSelected()" (ngModelChange)="selectionAll($event)">
           </th>
-          @for (header of tableHeaders; track header) {
+          @for (header of tableHeaders; track header.name) {
             <th class="table-header" sortColumn
               [sortKey]="header.name" [data]="models" [sortType]="sortType"
               (sortTypeChanged)="changeSortType($event)">{{header.label}}
@@ -34,10 +34,10 @@
         </tr>
       </thead>
       <tbody>
-        @for (model of models; track model; let i = $index) {
+        @for (model of models; track model.name; let i = $index) {
           <tr>
             <td><input type="checkbox" [ngModel]="isModelSelected(model)" (ngModelChange)="selectionChanged($event, model)"></td>
-            @for (header of tableHeaders; track header) {
+            @for (header of tableHeaders; track header.name) {
               <td>{{model[header.name]}}</td>
             }
           </tr>

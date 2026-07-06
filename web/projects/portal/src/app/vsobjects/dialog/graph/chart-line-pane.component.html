@@ -85,7 +85,7 @@
           <select class="form-control" [ngModelOptions]="{standalone: true}"
             placeholder="_#(Trend Line)"
             [(ngModel)]="model.trendLineType" (change)="setEnabled()">
-          @for (_option of trendlineOptions; track _option) {
+          @for (_option of trendlineOptions; track _option.value) {
             <option
             [value]="_option.value">{{_option.label}}</option>
           }

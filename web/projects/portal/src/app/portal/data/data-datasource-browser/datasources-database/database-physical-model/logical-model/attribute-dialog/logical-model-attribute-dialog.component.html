@@ -26,7 +26,7 @@
         formControlName="parent"
         [class.is-invalid]="!!parentControl.errors"
         (ngModelChange)="entityChange($event)">
-        @for (entity of entities; track entity; let i = $index) {
+        @for (entity of entities; track entity.name; let i = $index) {
           <option [value]="i">{{ entity.name }}</option>
         }
       </select>

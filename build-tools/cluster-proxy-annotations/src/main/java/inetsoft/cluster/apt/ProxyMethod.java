@@ -25,7 +25,8 @@ import java.util.Objects;
 
 public final class ProxyMethod {
    public ProxyMethod(String name, String callableClassName, String returnType, String cacheName,
-                      String keyParam, List<ProxyParameter> parameters, List<String> exceptions)
+                      String keyParam, List<ProxyParameter> parameters, List<String> exceptions,
+                      boolean writeMethod)
    {
       this.name = name;
       this.callableClassName = callableClassName;
@@ -35,6 +36,7 @@ public final class ProxyMethod {
       this.keyParam = keyParam;
       this.parameters = new DecoratedCollection<>(parameters);
       this.exceptions = new DecoratedCollection<>(exceptions);
+      this.writeMethod = writeMethod;
    }
 
    public String getName() {
@@ -67,6 +69,10 @@ public final class ProxyMethod {
 
    public DecoratedCollection<String> getExceptions() {
       return exceptions;
+   }
+
+   public boolean isWriteMethod() {
+      return writeMethod;
    }
 
    @Override
@@ -109,4 +115,5 @@ public final class ProxyMethod {
    private final String keyParam;
    private final DecoratedCollection<ProxyParameter> parameters;
    private final DecoratedCollection<String> exceptions;
+   private final boolean writeMethod;
 }

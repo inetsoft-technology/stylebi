@@ -68,6 +68,7 @@ public class VSSelectionService {
     * @param assemblyName the name of the selection assembly.
     * @param event        the event to apply.
     */
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void applySelection(@ClusterProxyKey String runtimeId, String assemblyName,
                               ApplySelectionListEvent event, Principal principal,
@@ -105,6 +106,7 @@ public class VSSelectionService {
     * @param assemblyName the name of the selection tree assembly.
     * @param event        the event to apply
     */
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void selectSubtree(@ClusterProxyKey String runtimeId, String assemblyName,
                              ApplySelectionListEvent event, Principal principal,
@@ -171,6 +173,7 @@ public class VSSelectionService {
     *
     * @param assemblyName the name of the selection assembly.
     */
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void unselectAll(@ClusterProxyKey String runtimeId, String assemblyName, Principal principal,
                            CommandDispatcher dispatcher, String linkUri) throws Exception {
@@ -218,6 +221,7 @@ public class VSSelectionService {
       });
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void toggleSelectionStyle(@ClusterProxyKey String runtimeId, String assemblyName,
                                     Principal principal, CommandDispatcher dispatcher, String linkUri) throws Exception
@@ -258,6 +262,7 @@ public class VSSelectionService {
     * @param assemblyName the name of the selection assembly.
     * @param event        the sort event.
     */
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void sortSelection(@ClusterProxyKey String runtimeId, String assemblyName,
                              SortSelectionListEvent event, Principal principal,
@@ -527,6 +532,7 @@ public class VSSelectionService {
       }
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void updateVisibleValues(@ClusterProxyKey String runtimeId, String assemblyName,
                                    ApplyExpandedSelectionTreeEvent event, Principal principal,

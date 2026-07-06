@@ -17,29 +17,20 @@
  */
 package inetsoft.util.script;
 
-import inetsoft.report.*;
 import inetsoft.report.internal.ImageLocation;
 import inetsoft.report.internal.MetaImage;
-import inetsoft.report.internal.license.LicenseManager;
-import inetsoft.report.script.LibScriptable;
-import inetsoft.report.script.formula.FormulaFunctions;
-import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.sree.SreeEnv;
-import inetsoft.uql.asset.AssetEntry;
-import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.util.*;
 import inetsoft.util.graphics.SVGSupport;
+import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.web.viewsheet.command.MessageCommand;
-import org.mozilla.javascript.*;
-import org.mozilla.javascript.Context;
 import org.pojava.datetime.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.io.*;
-import java.lang.reflect.*;
 import java.net.URL;
 import java.text.*;
 import java.time.*;
@@ -48,7 +39,13 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * The javascript engine represents the script runtime environment.
+ * Static script utility functions and per-thread script state. These are the
+ * Rhino-free remnants of the old Rhino-based JavaScriptEngine; the actual
+ * scripting runtime is now provided by
+ * {@link inetsoft.util.script.graal.GraalJavaScriptEngine}. Only the utility
+ * functions used by scripts (date/number/array helpers) and the thread-local
+ * script state (exec scope, error counts, on-click flag) remain here, since
+ * they are referenced from many call sites across the code base.
  *
  * @version 6.1, 5/27/2004
  * @author InetSoft Technology Corp
@@ -60,516 +57,40 @@ public class JavaScriptEngine {
    }
 
    /**
-    * Set the script engine containing this engine. All objects in the
-    * container engine are accessible in this engine.
+    * Mark the current thread as executing a script by pushing the active
+    * scope. Must be balanced with {@link #popExecScriptable()} in a finally
+    * block. This is a dedicated per-thread stack scoped tightly to actual
+    * script evaluation (mirrors the pre-GraalJS engine), and is intentionally
+    * separate from {@link FormulaContext}'s scope stack (which is also pushed
+    * during non-script operations such as viewsheet data processing).
     */
-   public void setParent(Scriptable parent) {
-      topscope.setParentScope(parent);
+   public static void pushExecScriptable(ScriptScope scope) {
+      getThreadLocals().execScriptable.get().push(scope);
    }
 
    /**
-    * Sets the parent scope of <tt>child</tt> to the top-level scope.
-    *
-    * @param child the scriptable to be modified.
+    * Pop the active script scope. Removes the thread-local entirely once the
+    * stack is empty so reused (pooled) threads are not left flagged as script
+    * threads.
     */
-   public void addTopLevelParentScope(Scriptable child) {
-      child.setParentScope(topscope);
-   }
+   public static void popExecScriptable() {
+      Stack<ScriptScope> stack = getThreadLocals().execScriptable.get();
 
-   /**
-    * Initialize the script runtime environment.
-    */
-   public void init(Map vars) throws Exception {
-      try(Context cx = SecureClassShutter.createSecureContext()) {
-         Scriptable globalscope = initScope();
-
-         if(topscope == null) {
-            topscope = new EngineScope();
-         }
-
-         topscope.setParentScope(globalscope);
-
-         // initialize script variables
-         Iterator names = vars.keySet().iterator();
-
-         while(names.hasNext()) {
-            String name = (String) names.next();
-            put(name, vars.get(name));
-         }
-      }
-   }
-
-   /**
-    * Initialize the function object.
-    */
-   public Scriptable initFunction(Scriptable globalscope) throws Exception {
-      if(sql || globalscope.has("newInstance", globalscope)) {
-         return globalscope;
-      }
-
-      Class[] params = { String.class };
-      FunctionObject func;
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "newInstance", params);
-      globalscope.put("newInstance", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "isNull", Object.class);
-      globalscope.put("isNull", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "isArray", Object.class);
-      globalscope.put("isArray", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "indexOf",
-                                 Object.class, Object.class);
-      globalscope.put("indexOf", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "getDate", Object.class);
-      globalscope.put("getDate", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "isDate", Object.class);
-      globalscope.put("isDate", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "isNumber", Object.class);
-      globalscope.put("isNumber", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "formatDate",
-                                 Object.class, String.class);
-      globalscope.put("formatDate", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "formatNumber",
-          double.class, String.class, Object.class);
-      globalscope.put("formatNumber", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "parseDate",
-         String.class, Object.class);
-      globalscope.put("parseDate", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "dateAdd",
-         String.class, int.class, Object.class);
-      globalscope.put("dateAdd", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "dateDiff",
-         String.class, Object.class, Object.class);
-      globalscope.put("dateDiff", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "datePart",
-         String.class, Object.class, boolean.class);
-      globalscope.put("datePart", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class,
-         "datePartForceWeekOfMonth", String.class, Object.class, boolean.class, int.class);
-      globalscope.put("datePartForceWeekOfMonth", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "trim", String.class);
-      globalscope.put("trim", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "ltrim", String.class);
-      globalscope.put("ltrim", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "rtrim", String.class);
-      globalscope.put("rtrim", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "split",
-                                 String.class, Object.class, Object.class);
-      globalscope.put("split", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "log", Object.class);
-      globalscope.put("log", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "alert", Object.class, Object.class);
-      globalscope.put("alert", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "confirm", String.class);
-      globalscope.put("confirm", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "registerPackage",
-                                 String.class);
-      globalscope.put("registerPackage", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "getImageJS", Object.class);
-      globalscope.put("getImage", globalscope, func);
-
-      func = new FunctionObject2(globalscope, JavaScriptEngine.class, "numberToString",
-                                 Object.class);
-      globalscope.put("numberToString", globalscope, func);
-
-      func = new FunctionObject2(globalscope, GoogleMapsFunctions.class, "setupGoogleMapsPlot",
-         Object.class, String.class, Object.class, String.class, String.class, int.class,
-         int.class, int.class, int.class);
-      globalscope.put("setupGoogleMapsPlot", globalscope, func);
-
-      globalscope.put("eval", globalscope, new EvalFunc(globalscope));
-
-      // formula related functions
-      addFunctions(FormulaFunctions.class, globalscope);
-
-      return globalscope;
-   }
-
-   /**
-    * Initialize the top scope.
-    */
-   protected synchronized Scriptable initScope() throws Exception {
-      Scriptable globalscope = getGlobalScope();
-
-      if(globalscope == null) {
-         Context cx = Context.getCurrentContext();
-         globalscope = (Scriptable) cx.initStandardObjects(new GlobalScope());
-
-         // don't restrict access to graph and data classes
-         // this allows inetsoft.* classes to be new'ed
-         ContextJavaPackage inetpkg = new ContextJavaPackage(
-            "inetsoft", "inetsoft.graph", "inetsoft.report",
-            "inetsoft.report.painter", "inetsoft.report.lens",
-            "inetsoft.report.filter", "inetsoft.uql",
-            "inetsoft.util.audit.templates", "inetsoft.analytic.composition.event");
-         // this allows common com. and org. packages
-         ContextJavaPackage compkg = new ContextJavaPackage("com");
-         ContextJavaPackage orgpkg = new ContextJavaPackage("org");
-         // allow java.awt (color, font) to be accessed in all envs
-         // java.text for formats
-         ContextJavaPackage javapkg = new ContextJavaPackage(
-            "java", "java.awt", "java.text", "java.util");
-
-         // For Protecht, only expose java.sql to end user if Form is available.
-         if(LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM)) {
-            javapkg.addUnrestricted("java.sql");
-         }
-
-         // all packages
-         Map<String,ContextJavaPackage> pkgmap = new HashMap<>();
-         ContextJavaPackage[] pkgs = {inetpkg, compkg, orgpkg, javapkg};
-
-         // setup the packages
-         for(ContextJavaPackage pkg : pkgs) {
-            globalscope.put(pkg.getRootName(), globalscope, pkg);
-            pkg.setParentScope(globalscope);
-            pkgmap.put(pkg.getRootName(), pkg);
-         }
-
-         // find custom java packages to be accessed from JavaScript
-         String prop = SreeEnv.getProperty("javascript.java.packages");
-
-         if(prop != null) {
-            String[] arr = Tool.split(prop, ',', -1);
-
-            for(int i = 0; i < arr.length; i++) {
-               String pkg = arr[i];
-               int dot = pkg.indexOf('.');
-
-               // when registering a package, only give the first node of
-               // the package name, otherwise it would not work
-               if(dot > 0) {
-                  pkg = pkg.substring(0, dot);
-               }
-
-               ContextJavaPackage jpkg = pkgmap.get(pkg);
-
-               if(jpkg == null) {
-                  Scriptable custompkg = new ContextJavaPackage(pkg, arr[i]);
-                  globalscope.put(pkg, globalscope, custompkg);
-                  custompkg.setParentScope(globalscope);
-               }
-               else {
-                  jpkg.addUnrestricted(arr[i]);
-               }
-            }
-         }
-
-         Scriptable vscons = cx.newObject(globalscope);
-         vscons.setParentScope(globalscope);
-         // add Chart here so it's accessible from vs, may want to refactor it
-         // to a class outside of inetsoft.util.script if necessary
-         // add Chart constants
-         Scriptable cons = cx.newObject(globalscope);
-         cons.setParentScope(globalscope);
-
-         Class[] chartcls = {
-            inetsoft.uql.viewsheet.graph.GraphTypes.class,
-            inetsoft.report.composition.region.ChartConstants.class,
-            inetsoft.uql.viewsheet.graph.GeographicOption.class};
-
-         String[] types = inetsoft.report.internal.graph.MapData.getMapTypes();
-
-         for(int i = 0; i < types.length; i++) {
-            String value = types[i];
-            String name = "MAP_TYPE_" + value.toUpperCase();
-            cons.put(name, cons, value);
-            vscons.put(name, cons, value);
-         }
-
-         addFields(cons, chartcls);
-         globalscope.put("Chart", globalscope, cons);
-
-         Scriptable linecons = cx.newObject(globalscope);
-         addFields(linecons, inetsoft.graph.aesthetic.GLine.class);
-         globalscope.put("GLine", globalscope, linecons);
-
-         Scriptable textureCons = cx.newObject(globalscope);
-         addFields(textureCons, inetsoft.graph.aesthetic.GTexture.class);
-         globalscope.put("GTexture", globalscope, textureCons);
-
-         Scriptable shapeCons = cx.newObject(globalscope);
-         addFields(shapeCons, inetsoft.graph.aesthetic.GShape.class);
-         globalscope.put("GShape", globalscope, shapeCons);
-
-         Scriptable svShapeCons = cx.newObject(globalscope);
-         addFields(svShapeCons, inetsoft.graph.aesthetic.SVGShape.class);
-         globalscope.put("SVGShape", globalscope, svShapeCons);
-
-         Class[] all = {
-            StyleConstants.class, ReportSheet.class, TableLens.class,
-            VSFormat.class, TimeInfo.class,
-            // Don't merge constants from GLine, GTexture, or GShape, they shadow numeric constants
-            // in StyleConstants and are added individually, anyway.
-//            inetsoft.graph.aesthetic.GLine.class,
-//            inetsoft.graph.aesthetic.GTexture.class,
-//            inetsoft.graph.aesthetic.GShape.class
-         };
-
-         addFields(vscons, chartcls);
-         addFields(vscons, all);
-         // define viewsheet Report constants
-         globalscope.put("StyleConstant", globalscope, vscons);
-
-         setGlobalScope(globalscope);
-         globalscope = initFunction(globalscope);
-
-         // add calc functions to global scope
-         Calc topcalc = new Calc();
-         Calc calc = new Calc();
-
-         globalscope.setPrototype(topcalc);
-
-         calc.setParentScope(globalscope);
-         globalscope.put("CALC", globalscope, calc);
-      }
-
-      return globalscope;
-   }
-
-   /**
-    * Get a global scope for the current context.
-    */
-   private Scriptable getGlobalScope() {
-      return ConfigurationContext.getContext().get(GLOBAL_SCOPE_KEY);
-   }
-
-   /**
-    * Set the global scope for the current context.
-    */
-   private void setGlobalScope(Scriptable scope) {
-      ConfigurationContext.getContext().put(GLOBAL_SCOPE_KEY, scope);
-   }
-
-   /**
-    * Compile a function and add it to the scope.
-    */
-   public void compileFunction(String name, String source) throws Exception {
-      if(source == null) {
-         return;
-      }
-
-      Context cx = TimeoutContext.enter();
-      Function script = null;
-      Scriptable globalscope = initScope();
-
-      script = cx.compileFunction(globalscope, source, "<" + name + ">", 1,
-                                  null);
-
-      if(script != null) {
-         globalscope.put(name, globalscope, script);
-      }
-
-      Context.exit();
-   }
-
-   /**
-    * Compile a function and throw an exception if there is any syntax error.
-    */
-   public void checkFunction(String name, String source) throws Exception {
-      if(source == null) {
-         return;
-      }
-
-      Context cx = TimeoutContext.enter();
-
-      cx.compileFunction(topscope, source, "<function>", 1, null);
-      Context.exit();
-   }
-
-   /**
-    * Compile a script into a script object.
-    */
-   public Script compile(String cmd) throws Exception {
-      return this.compile(cmd, false);
-   }
-
-   /**
-    * Compile a script into a script object.
-    */
-   public Script compile(String cmd, boolean fieldOnly) throws Exception {
-      Context cx = TimeoutContext.enter();
-
-      try {
-         try {
-            return cx.compileReader(new StringReader(cmd), "<cmd>", 1, null);
-         }
-         // possible exception with (63516):
-         // Encountered code generation error while compiling script:
-         //  generated bytecode fro method exceeds 64K limit.
-         catch(EvaluatorException ex) {
-            cx.setOptimizationLevel(-1);
-            return cx.compileReader(new StringReader(cmd), "<cmd>", 1, null);
-         }
-      }
-      finally {
-         Context.exit();
-      }
-   }
-
-   /**
-    * Execute a script.
-    * @param script script object.
-    * @param scope scope this script should execute in.
-    * @param rscope report/viewsheet scope.
-    */
-   public Object exec(Script script, final Object scope, Scriptable rscope) throws Exception {
-      if(errorsExceeded(script)) {
-         return null;
-      }
-
-      Catalog catalog = Catalog.getCatalog();
-      ClassLoader loader = Thread.currentThread().getContextClassLoader();
-      Thread.currentThread().setContextClassLoader(getClass().getClassLoader());
-      Context cx = TimeoutContext.enter();
-      Object val = null;
-      Stack<Scriptable> stack = getThreadLocals().execScriptable.get();
-      stack.push((Scriptable) scope);
-
-      if(scope instanceof DynamicScope) {
-         if(dynamicLib == null) {
-            dynamicLib = new LibScriptable(null);
-         }
-
-         addToPrototype((Scriptable) scope, dynamicLib);
-      }
-
-      try {
-         TimeoutContext.startClock(cx);
-         val = script.exec(cx, (Scriptable) scope);
-         val = unwrap(val);
-      }
-      catch(Throwable ex) {
-         incrementError(script);
-
-         if(ex instanceof WrappedException) {
-            ex = (Throwable) ((WrappedException) ex).unwrap();
-         }
-
-         if(ex instanceof JavaScriptException) {
-            Object exval = ((JavaScriptException) ex).getValue();
-
-            if(exval instanceof Throwable) {
-               LOG.debug("Javascript exception in execution", exval);
-            }
-         }
-         else if(ex instanceof EcmaError) {
-            // ignore, will be printed later
-         }
-         // runtime error gives more information and is not a script problem
-         else if(ex instanceof Error || ex instanceof RuntimeException) {
-            LOG.debug("Script error or runtime exception", ex);
-         }
-
-         ByteArrayOutputStream buf = new ByteArrayOutputStream();
-         PrintWriter writer = new PrintWriter(buf);
-
-         ex.printStackTrace(writer);//NOSONAR
-         writer.close();
-         ByteArrayInputStream inbuf = new ByteArrayInputStream(buf.toByteArray());
-         BufferedReader reader = new BufferedReader(new InputStreamReader(inbuf));
-         String line;
-         Vector elines = new Vector(); // error line numbers
-
-         while((line = reader.readLine()) != null) {
-            int idx = line.indexOf("<");
-
-            if(idx > 0) {
-               int eidx = line.indexOf(">:", idx + 1);
-
-               if(eidx > 0) {
-                  eidx = line.indexOf(')', idx);
-
-                  if(idx > 0) {
-                     String str = line.substring(idx, eidx);
-
-                     // if <cmd>, delete it. it is used for regular script
-                     if(str.startsWith("<cmd>:")) {
-                        str = str.substring(6);
-                     }
-
-                     elines.addElement(str);
-                  }
-               }
-            }
-         }
-
-         // construct line number info
-         StringBuilder linemsg = new StringBuilder();
-
-         for(int i = 0; i < elines.size(); i++) {
-            if(i > 0) {
-               linemsg.append(" " + catalog.getString("called from line"));
-            }
-            else {
-               linemsg.append(" " + catalog.getString("at line"));
-            }
-
-            linemsg.append(" " + elines.elementAt(i));
-         }
-
-         if(rscope instanceof ViewsheetScope) {
-            ViewsheetScope vsScope = (ViewsheetScope) rscope;
-            ScriptEnv scriptEnv = vsScope.getScriptEnv();
-
-            Viewsheet viewsheet = (Viewsheet) scriptEnv.get("_viewsheet");
-            AssetEntry runtimeEntry = viewsheet.getRuntimeEntry();
-
-            String entryPath = runtimeEntry.getPath();
-            String orgId = runtimeEntry.getOrgID();
-            String viewsheetId = entryPath + "^" + orgId;
-
-            throw new ScriptException("(" + ex.getMessage() + ") " + linemsg +
-                                         " in viewsheet: " + viewsheetId);
-         }
-
-         throw new ScriptException("(" + ex.getMessage() + ") " + linemsg);
-      }
-      finally {
+      if(!stack.isEmpty()) {
          stack.pop();
-
-         if(stack.isEmpty()) {
-            getThreadLocals().execScriptable.remove();
-         }
-
-         if(scope instanceof DynamicScope) {
-            removeFromPrototype((Scriptable) scope, dynamicLib);
-         }
-
-         Thread.currentThread().setContextClassLoader(loader);
-         TimeoutContext.stopClock(cx);
-         Context.exit();
       }
 
-      return val;
+      if(stack.isEmpty()) {
+         getThreadLocals().execScriptable.remove();
+      }
    }
 
    /**
-    * Get the scriptable executing the actual script.
+    * Get the scriptable executing the actual script, or null if the current
+    * thread is not inside script evaluation.
     */
-   public static Scriptable getExecScriptable() {
-      Stack<Scriptable> stack = getThreadLocals().execScriptable.get();
+   public static ScriptScope getExecScriptable() {
+      Stack<ScriptScope> stack = getThreadLocals().execScriptable.get();
       return stack.isEmpty() ? null : stack.peek();
    }
 
@@ -604,411 +125,6 @@ public class JavaScriptEngine {
    }
 
    /**
-    * Evaluate a Javascript command.
-    */
-   public Object evaluate(String cmd) throws Exception {
-      try(Context cx = SecureClassShutter.createSecureContext()) {
-         Object val = cx.evaluateString(topscope, cmd, "<cmd>", 1, null);
-         return unwrap(val);
-      }
-   }
-
-   /**
-    * Find a Javascript object in a scope. If the id does not have a
-    * scriptable object, this function returns null;
-    * @id element id.
-    * @param scope Javascript scope.
-    * @return Javascript object for an element or null.
-    */
-   public Scriptable getScriptable(Object id, Scriptable scope) {
-      scope = (scope == null) ? topscope : scope;
-
-      try(Context cx = SecureClassShutter.createSecureContext()) {
-         if(id == null) {
-            return scope;
-         }
-
-         Object val = findObject(id, scope, new Vector());
-
-         if(val == Undefined.instance || val == Scriptable.NOT_FOUND) {
-            return null;
-         }
-
-         if(val instanceof Scriptable) {
-            return (Scriptable) val;
-         }
-         else if(val != null) {
-            return new NativeJavaObject(topscope, val, val.getClass());
-         }
-
-         return null;
-      }
-   }
-
-   /**
-    * Find all functions in the current runtime.
-    */
-   public static Set getAllFunctions(JavaScriptEngine engine) {
-      return getAllFunctions(engine, false);
-   }
-
-   /**
-    * Find all functions in the current runtime.
-    */
-   public static Set getAllFunctions(JavaScriptEngine engine, boolean fieldOnly) {
-      try(Context cx = SecureClassShutter.createSecureContext()) {
-         Set funcs = new HashSet();
-         Set proc = new HashSet(); // processed objects
-         Scriptable scope = engine.getScriptable(null, null);
-
-         if(scope != null && !fieldOnly) {
-            findFunctions(scope, funcs, proc, true);
-            findFunctions(scope.getParentScope(), funcs, proc, false); // topscope
-         }
-
-         try {
-            findFunctions(engine.initScope(), funcs, proc, false); // globalscope
-         }
-         catch(Exception ex) {
-            LOG.error(
-               "Failed to find functions in global scope", ex);
-         }
-
-         try {
-            // find all element types
-            Field[] fields = JavaScriptEngine.class.getDeclaredFields();
-
-            for(int i = 0; i < fields.length; i++) {
-               if(Modifier.isStatic(fields[i].getModifiers()) &&
-                  fields[i].getName().endsWith("Prototype"))
-               {
-                  Object obj = fields[i].get(null);
-
-                  if(obj instanceof Scriptable) {
-                     findFunctions((Scriptable) obj, funcs, proc, false);
-                  }
-               }
-            }
-         }
-         catch(Exception ex) {
-            LOG.error("Failed to find static functions", ex);
-         }
-
-         return funcs;
-      }
-   }
-
-   /**
-    * Find all functions in the scope.
-    */
-   private static void findFunctions(Scriptable obj, Set funcs, Set proc,
-      boolean recursive) {
-      if(proc.contains(obj) || obj instanceof Undefined) {
-         return;
-      }
-
-      proc.add(obj);
-      Object[] arr = obj.getIds();
-
-      for(int i = 0; i < arr.length; i++) {
-         if(arr[i] instanceof String) {
-            Object child = obj.get((String) arr[i], obj);
-
-            if(child instanceof Function) {
-               funcs.add(arr[i]);
-            }
-            else if(recursive && (child instanceof Scriptable)) {
-               findFunctions((Scriptable) child, funcs, proc, true);
-            }
-         }
-      }
-   }
-
-   /**
-    * Recursively find a scriptable object.
-    */
-   protected static Object findObject(Object name, Scriptable scope,
-                                      Vector checked)
-   {
-      // if scope already processed, ignore
-      if(scope == null || checked.indexOf(scope) >= 0) {
-         return Scriptable.NOT_FOUND;
-      }
-
-      checked.addElement(scope);
-
-      Object val = Scriptable.NOT_FOUND;
-
-      if(name instanceof Integer) {
-         val = scope.get(((Integer) name).intValue(), scope);
-      }
-      else {
-         try {
-            val = scope.get(name.toString(), scope);
-         }
-         catch(NoClassDefFoundError ex) {
-            return Scriptable.NOT_FOUND;
-         }
-      }
-
-      if(val != Undefined.instance && val != Scriptable.NOT_FOUND) {
-         return val;
-      }
-
-      val = findObject(name, scope.getPrototype(), checked);
-
-      if(val != Undefined.instance && val != Scriptable.NOT_FOUND) {
-         return val;
-      }
-
-      return findObject(name, scope.getParentScope(), checked);
-   }
-
-   /**
-    * Find a qualified name (e.g. java.lang).
-    */
-   private static Object findQualifiedObject(String name, Scriptable scope) {
-      Vector checked = new Vector();
-      int dot = name.indexOf('.');
-
-      if(dot < 0) {
-         return findObject(name, scope, checked);
-      }
-
-      String name2 = name.substring(dot + 1);
-      name = name.substring(0, dot);
-
-      Object obj = findObject(name, scope, checked);
-
-      if(obj instanceof Scriptable) {
-         return findQualifiedObject(name2, (Scriptable) obj);
-      }
-
-      return Scriptable.NOT_FOUND;
-   }
-
-   /**
-    * Define a variable in the top scope.
-    * @param name variable name. The name can be a simple name, in which case
-    * the object is added to the report scope. If the name is qualified with
-    * a scope name as "scope::name", the name is added to the named scope.
-    * @param obj variable value.
-    */
-   public void put(String name, Object obj) {
-      int cc = name.indexOf("::");
-      Scriptable scope = null;
-
-      if(cc > 0) {
-         String sname = name.substring(0, cc);
-
-         name = name.substring(cc + 2);
-         scope = getScriptable(sname, null);
-      }
-
-      if(scope == null) {
-         scope = topscope;
-      }
-
-      scope.put(name, scope, obj);
-
-      if(obj instanceof Scriptable) {
-         // @by larryl, don't override explicitly set parent scope, otherwise
-         // the scope set by call will be lost
-         if(((Scriptable) obj).getParentScope() == null) {
-            ((Scriptable) obj).setParentScope(scope);
-         }
-      }
-   }
-
-   /**
-    * Get the object from the top scope.
-    */
-   public Object get(String name) {
-      return topscope.get(name, topscope);
-   }
-
-   /**
-    * Remove a variable from the scripting environment.
-    * @param name variable name.
-    */
-   public void remove(String name) {
-      topscope.delete(name);
-   }
-
-   /**
-    * Get all property ids of an element.
-    *
-    * @param id element id.
-    * @param parent true to include all ids in the parents.
-    * @return a list of object ids in the scope. Function objects are
-    * added '()' at the end.
-    */
-   public Object[] getIds(Object id, Scriptable scope, boolean parent) {
-      try(Context cx = SecureClassShutter.createSecureContext()) {
-         Scriptable obj = getScriptable(id, scope);
-         HashSet ids = new HashSet();
-
-         findIds(obj, ids, new HashSet(), parent, ID);
-
-         Object[] idarr = ids.toArray(new Object[ids.size()]);
-
-         Arrays.sort(idarr);
-         return idarr;
-      }
-   }
-
-   /**
-    * Get all property display names of an element for property tree. If the
-    * element does not exist in the scope, get all display names in the report.
-    * @param id element id.
-    * @param parent true to include all display names in the parents.
-    * @return a list of object display names in the scope. Function objects are
-    * added '()' at the end.
-    */
-   public Object[] getDisplayNames(Object id, Scriptable scope, boolean parent)
-   {
-      try(Context cx = SecureClassShutter.createSecureContext()) {
-         Scriptable obj = getScriptable(id, scope);
-         HashSet ids = new HashSet();
-
-         findIds(obj, ids, new HashSet(), parent, ID_DISPLAY_NAME);
-
-         Object[] idarr = ids.toArray(new Object[ids.size()]);
-
-         Arrays.sort(idarr);
-         return idarr;
-      }
-   }
-
-   /**
-    * Get all property names of an element for property tree. If the
-    * element does not exist in the scope, get all names in the report.
-    * @param id element id.
-    * @param parent true to include all names in the parents.
-    * @return a list of object names in the scope. Function objects are
-    * added '()' at the end.
-    */
-   public Object[] getNames(Object id, Scriptable scope, boolean parent) {
-      try(Context cx = SecureClassShutter.createSecureContext()) {
-         Scriptable obj = getScriptable(id, scope);
-         HashSet ids = new HashSet();
-
-         findIds(obj, ids, new HashSet(), parent, ID_NAME);
-
-         Object[] idarr = ids.toArray(new Object[ids.size()]);
-
-         Arrays.sort(idarr);
-         return idarr;
-      }
-   }
-
-   /**
-    * Recursively find all IDS.
-    */
-   private void findIds(Scriptable obj, Set ids, Set checked, boolean parent,
-                        int type)
-   {
-      // if object already processed, ignore
-      if(obj == null || checked.contains(obj)) {
-         return;
-      }
-
-      checked.add(obj);
-
-      // @by larryl, if this is a native java string, it will be converted to
-      // the js string at runtime. If we use the NativeJavaObject to get the
-      // members from the java string, the signature could be different or
-      // missing from the js strings.
-      if(obj instanceof Wrapper && ((Wrapper) obj).unwrap() instanceof String) {
-         // convert NativeJavaObject of String to NativeString (js)
-         obj = Context.toObject(((Wrapper) obj).unwrap(), obj,
-                                ScriptRuntime.StringClass);
-      }
-
-      Object[] arr = {};
-      boolean global = obj == getGlobalScope();
-
-      // @by larryl, true getAllIds() first to try to get standard properties
-      if(obj instanceof ScriptableObject) {
-         arr = ((ScriptableObject) obj).getAllIds();
-      }
-
-      // @by larryl, if getAllIds() isn't implemented, we get the ids from the
-      // regular ids
-      if(arr.length == 0) {
-         arr = obj.getIds();
-      }
-
-      for(int i = 0; i < arr.length; i++) {
-         // add () to function
-         if(arr[i] instanceof String) {
-            Object child = obj.get((String) arr[i], obj);
-            boolean idfunction = false;
-
-            if(child instanceof Scriptable) {
-               Scriptable prop = (Scriptable) child;
-
-               if(prop instanceof Function) {
-                  if(prop instanceof IdFunctionObject) {
-                     idfunction = true;
-                  }
-
-                  if(!(prop instanceof NativeJavaMethod &&
-                     ((String)arr[i]).endsWith("()")))
-                  {
-                     arr[i] = toFunction(arr[i]);
-                  }
-               }
-               else if(prop instanceof ArrayObject) {
-                  // is display name for property tree?
-                  if(type == ID_DISPLAY_NAME) {
-                     arr[i] = arr[i] + ((ArrayObject) prop).getDisplaySuffix();
-                     arr[i] = translateArray((String) arr[i]);
-                  }
-                  // is name for auto complete?
-                  else if(type == ID_NAME) {
-                     arr[i] = arr[i] + ((ArrayObject) prop).getSuffix();
-                     arr[i] = translateArray((String) arr[i]);
-                  }
-               }
-            }
-
-            // include all global functions, e.g. Date, isNaN
-            if(!idfunction || global) {
-               ids.add(arr[i]);
-            }
-         }
-      }
-
-      findIds(obj.getPrototype(), ids, checked, parent, type);
-
-      if(parent) {
-         findIds(obj.getParentScope(), ids, checked, parent, type);
-      }
-   }
-
-   /**
-    * Return a string in function call notation.
-    */
-   protected String toFunction(Object name) {
-      return name + "()";
-   }
-
-   /**
-    * Return a string in array reference notation.
-    */
-   protected String toArray(Object name) {
-      return name + "[]";
-   }
-
-   /**
-    * Normalize array name or display name.
-    */
-   protected String translateArray(String name) {
-      return name;
-   }
-
-   /**
     * Create a new instance of an object.
     */
    public static Object newInstance(String cls) throws Exception {
@@ -1019,9 +135,7 @@ public class JavaScriptEngine {
     * Check if an object is an array.
     */
    public static boolean isArray(Object val) {
-      val = unwrap(val);
-      return (val instanceof NativeArray) ||
-         val != null && val.getClass().isArray();
+      return JSObject.isArray(val);
    }
 
    /**
@@ -1035,8 +149,10 @@ public class JavaScriptEngine {
          return -1;
       }
       else {
-         for(int i = 0; i < Array.getLength(arr); i++) {
-            if(val != null && val.equals(Array.get(arr, i))) {
+         Object[] a = split(arr);
+
+         for(int i = 0; i < a.length; i++) {
+            if(val != null && val.equals(a[i])) {
                return i;
             }
          }
@@ -1049,9 +165,7 @@ public class JavaScriptEngine {
     * Check if an object is null.
     */
    public static boolean isNull(Object val) {
-      val = unwrap(val);
-      return val == null || val == Undefined.instance ||
-         (val instanceof Undefined);
+      return unwrap(val) == null;
    }
 
    /**
@@ -1065,10 +179,7 @@ public class JavaScriptEngine {
     * Check if an object is a number.
     */
    public static boolean isNumber(Object val) {
-      val = unwrap(val);
-      return val instanceof Number ||
-    val instanceof Scriptable &&
-         ((Scriptable) val).getClassName().equals("Number");
+      return unwrap(val) instanceof Number;
    }
 
    /**
@@ -1079,36 +190,6 @@ public class JavaScriptEngine {
       SimpleDateFormat fmt = Tool.createDateFormat(fmtstr, ThreadContext.getLocale());
 
       return (date != null) ? fmt.format(date) : "NaD";
-   }
-
-   /**
-    * Register a java package into a scope.
-    */
-   public static void registerPackage(String pkg) {
-      Scriptable globalScope = ConfigurationContext.getContext().get(GLOBAL_SCOPE_KEY);
-      registerPackage(pkg, globalScope);
-   }
-
-   /**
-    * Register a java package into a scope.
-    */
-   public static void registerPackage(String pkg, Scriptable scope) {
-      int dot = pkg.indexOf('.');
-
-      // when registering a package, only give the first node of
-      // the package name, otherwise it would not work
-      if(dot > 0) {
-         pkg = pkg.substring(0, dot);
-      }
-
-      try {
-         ContextJavaPackage runtime = new ContextJavaPackage(pkg);
-         runtime.setParentScope(scope);
-         scope.put(pkg, scope, runtime);
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to register package: " + pkg, ex);
-      }
    }
 
    /**
@@ -1637,7 +718,7 @@ public class JavaScriptEngine {
    }
 
    /**
-    * Trim a string on right side.
+    * Split a string by a delimiter.
     */
    public static String[] split(String str, Object delim, Object count) {
       delim = unwrap(delim);
@@ -1789,354 +870,65 @@ public class JavaScriptEngine {
    }
 
    /**
-    * Add public constant static fields to the object as constants.
-    */
-   public static void addFields(Scriptable obj, Class... clss) throws Exception {
-      for(Class cls : clss) {
-         for(Field field : cls.getFields()) {
-            int mod = field.getModifiers();
-
-            if(Modifier.isPublic(mod) && Modifier.isStatic(mod) &&
-               Modifier.isFinal(mod)) {
-               obj.put(field.getName(), obj, field.get(null));
-            }
-         }
-      }
-   }
-
-   /**
-    * Convert a string to an identifier.
-    */
-   public String toIdentifier(String id) {
-      return id.replace(' ', '_');
-   }
-
-   /**
-    * Delete all properties of an object.
-    */
-   private void delete(Scriptable obj) {
-      if(obj == null) {
-         return;
-      }
-
-      try(Context cx = SecureClassShutter.createSecureContext()) {
-         if(obj instanceof Undefined) {
-            return;
-         }
-
-         obj.setPrototype(null); // clear link to parent from bean
-         obj.setParentScope(null); // break recursive link
-
-         // optimization, if not scriptable object, the reference is not
-         // saved (most likely so we don't need to call all the get()
-         if(obj instanceof ScriptableObject) {
-            Object[] ids = obj.getIds();
-
-            for(int i = 0; i < ids.length; i++) {
-               Object val = null;
-
-               if(ids[i] instanceof Integer) {
-                  int idx = ((Integer) ids[i]).intValue();
-
-                  val = obj.get(idx, obj);
-
-                  if(val instanceof Scriptable) {
-                     obj.delete(idx);
-                  }
-               }
-               else if(ids[i] instanceof String) {
-                  val = obj.get((String) ids[i], obj);
-
-                  if(val instanceof Scriptable) {
-                     obj.delete((String) ids[i]);
-                  }
-               }
-            }
-         }
-      }
-   }
-
-   /**
-    * Set whether is for sql only.
-    */
-   public void setSQL(boolean sql) {
-      this.sql = sql;
-   }
-
-   /**
-    * check if is for sql only.
-    */
-   public boolean isSQL() {
-      return sql;
-   }
-
-   /**
-    * The top-most scope shared by all engines. It is used to return
-    * undefined if a symbol is not found in the environment anywhere.
-    */
-   public static class GlobalScope extends ScriptableObject {
-      @Override
-      public String getClassName() {
-         return "GlobalScope";
-      }
-
-      public Object get(String name, Scriptable start) {
-         // @by stephenwebster, For Bug #16190
-         // Disable Access to unsafe top level Scriptables which can lead to the
-         // bypassing of package security restrictions.  This has to be done before
-         // the call to super.get
-         if(name.equals("Packages") || name.equals("getClass") ||
-            name.equals("JavaAdapter") || name.equals("JavaImporter"))
-         {
-            return NOT_FOUND;
-         }
-
-         return super.get(name, start);
-      }
-
-      @Override
-      public Object[] getIds() {
-         return getAllIds();
-      }
-   }
-
-   /**
     * Split string into string array.
     */
    public static String[] splitStr(Object str) {
-      Object arr = split(str);
-      String[] ns = new String[Array.getLength(arr)];
-
-      for(int i = 0; i < ns.length; i++) {
-         Object item = Array.get(arr, i);
-
-         if(item != null) {
-            try {
-               ns[i] = item.toString();
-            }
-            catch(Throwable e) {// ignored, defaults to 0
-            }
-         }
-      }
-
-      return ns;
+      return JSObject.splitStr(str);
    }
 
    /**
     * Split an object into an array.
     */
    public static Object[] split(Object str) {
-      Object[] arr = null;
-
-      str = unwrap(str);
-
-      // @by larryl, for formula references, an empty value is returned as
-      // a null. When converting an object back to an array, we treat null
-      // as an empty array for consistency.
-      if(str == null) {
-         arr = new Object[0];
-      }
-      else if(str instanceof NativeArray) {
-         NativeArray narr = (NativeArray) str;
-         Object[] arr2 = new Object[(int) narr.jsGet_length()];
-
-         for(int i = 0; i < arr2.length; i++) {
-            arr2[i] = unwrap(narr.get(i, narr));
-         }
-
-         arr = arr2;
-      }
-      else if(str.getClass().isArray()) {
-         arr = (Object[]) str;
-
-         // @by larryl, rhino 1.7 may return mixed double/int array for numbers.
-         // This would cause Arrays.sort to fail (cast exception in compareTo).
-         Set<Class> types = new HashSet<>();
-
-         for(int i = 0; i < arr.length; i++) {
-            arr[i] = unwrap(arr[i]);
-
-            if(arr[i] != null) {
-               types.add(arr[i].getClass());
-            }
-         }
-
-         if(types.size() > 1) {
-            for(int i = 0; i < arr.length; i++) {
-               if(arr[i] instanceof Number) {
-                  arr[i] = Double.valueOf(((Number) arr[i]).doubleValue());
-               }
-            }
-         }
-      }
-      else if(str instanceof String) {
-         arr = Tool.split((String) str, ',');
-      }
-      else {
-         arr = new Object[] { str };
-      }
-
-      return arr;
+      return JSObject.split(str);
    }
 
    /**
-    * Add all static functions from a class to a scope.
+    * Add a JS object to the end of a scope's lookup chain.
+    *
+    * <p>Under GraalJS, unqualified name resolution walks the
+    * {@link ScriptScope#getParentScope()} chain (see BindingRootProxy), which
+    * replaces the Rhino prototype chain. This appends {@code jsobj} at the end
+    * of {@code scope}'s parent chain so the two cooperating scopes (e.g. a
+    * viewsheet scope and its worksheet {@code AssetQueryScope}) resolve each
+    * other's members. The terminal scope must be a {@link DynamicScope}
+    * (the only scopes chained this way); otherwise this is a no-op. A
+    * duplicate/cycle guard prevents re-adding {@code jsobj} or forming a loop.
     */
-   public static void addFunctions(Class cls, Scriptable scope) {
-      Method[] methods = cls.getMethods();
-
-      try {
-         for(int j = 0; j < methods.length; j++) {
-            if(methods[j].getDeclaringClass() != cls ||
-               !Modifier.isStatic(methods[j].getModifiers()) ||
-               !Modifier.isPublic(methods[j].getModifiers()))
-            {
-               continue;
-            }
-
-            FunctionObject func = new FunctionObject(
-               methods[j].getName(), methods[j], scope);
-
-            scope.put(methods[j].getName(), scope, func);
-         }
+   public static void addToPrototype(Object scope, Object jsobj) {
+      if(!(scope instanceof ScriptScope) || !(jsobj instanceof ScriptScope)) {
+         return;
       }
-      catch(Exception ex) {
-         LOG.error("Failed to add functions from: " + cls, ex);
+
+      ScriptScope start = (ScriptScope) scope;
+      ScriptScope obj = (ScriptScope) jsobj;
+
+      if(start == obj) {
+         return;
       }
-   }
 
-   /**
-    * Scope to hold engine (per report) properties.
-    */
-   protected static class EngineScope extends ImporterTopLevel {
-      public EngineScope() {
-         try {
-            FunctionObject func;
-
-            func = new FunctionObject("importPackage",
-                          EngineScope.class.getMethod("importPackage",
-                         new Class[] { Object.class }), this);
-            this.put("importPackage", this, func);
-
-            func = new FunctionObject(
-               "importClass", EngineScope.class.getMethod(
-               "importClass", new Class[] { Object.class }), this);
-            this.put("importClass", this, func);
-
-            // add all default (e.g. graph) packages so they don't need to
-            // be imported individually
-            DefaultPackages def = new DefaultPackages(this);
-            addToPrototype(this, def);
-         }
-         catch(Exception ex) {
-            LOG.error("Failed to init EngineScope", ex);
+      // if jsobj's own chain already leads back to scope, appending scope -> jsobj
+      // would close a loop; bail out
+      for(ScriptScope s = obj; s != null; s = s.getParentScope()) {
+         if(s == start) {
+            return;
          }
       }
 
-      /**
-       * Import a package into a scope, e.g. importPackage(inetsoft.graph)
-       */
-      public void importPackage(Object pkg) {
-         try {
-            pkg = unwrap(pkg);
+      // walk to the end of the parent chain, bailing out if jsobj is already
+      // present (already added, or would create a cycle)
+      ScriptScope target = start;
 
-            if(pkg == null) {
-               return;
-            }
-
-            if(pkg instanceof String) {
-               pkg = findQualifiedObject((String) pkg, this);
-
-               if(pkg == Scriptable.NOT_FOUND || pkg == null) {
-                  pkg = new NativeJavaPackage((String) pkg);
-                  ((Scriptable) pkg).setParentScope(this);
-               }
-            }
-
-            if(pkg instanceof ContextJavaPackage) {
-               throw new RuntimeException("Restricted package: " + pkg);
-            }
-
-            addToPrototype(this, new JavaPackageWrapper((Scriptable) pkg));
+      while(target.getParentScope() != null) {
+         if(target.getParentScope() == obj) {
+            return;
          }
-         catch(Exception ex) {
-            LOG.error("Failed to import package: " + pkg, ex);
-         }
+
+         target = target.getParentScope();
       }
 
-      /**
-       * Imports a class into this scope, e.g. importClass(java.awt.Font)
-       *
-       * @param cls the class to import.
-       */
-      public void importClass(Object cls) {
-         try {
-            if(!(cls instanceof NativeJavaClass)) {
-               throw new RuntimeException("Not a class: " + cls);
-            }
-
-            NativeJavaClass jcls = (NativeJavaClass) cls;
-            String fqn = jcls.getClassObject().getName();
-            String name = fqn.substring(fqn.lastIndexOf('.') + 1);
-            Object val = get(name, this);
-
-            if(val != NOT_FOUND && val != jcls) {
-               throw new RuntimeException("Class already defined: " + jcls);
-            }
-
-            put(name, this, jcls);
-         }
-         catch(Exception exc) {
-            LOG.error("Failed to import class: " + cls, exc);
-         }
-      }
-
-      @Override
-      public String getClassName() {
-         return "Engine";
-      }
-   }
-
-   /**
-    * Add a JS object to scope's prototype chain.
-    * @param scope target obj to add to prototype.
-    * @param jsobj prototype for scope.
-    */
-   public static void addToPrototype(Scriptable scope, Scriptable jsobj) {
-      synchronized(scope) {
-         Scriptable proto = scope;
-
-         while(proto != null && proto.getPrototype() != null) {
-            proto = proto.getPrototype();
-
-            if(proto == jsobj) { // already added, ignore
-               return;
-            }
-         }
-
-         if(proto != null) {
-            proto.setPrototype(jsobj);
-         }
-      }
-   }
-
-   /**
-    * remove a JS object from scope's prototype chain.
-    */
-   public static void removeFromPrototype(Scriptable scope, Scriptable jsobj) {
-      Scriptable proto = scope;
-
-      synchronized(scope) {
-         while(proto != null && proto.getPrototype() != null) {
-            Scriptable proto2 = proto.getPrototype();
-
-            if(proto2 == jsobj) { // found, remove
-               proto.setPrototype(jsobj.getPrototype());
-               break;
-            }
-
-            proto = proto2;
-         }
+      if(target instanceof DynamicScope) {
+         ((DynamicScope) target).setParentScope(obj);
       }
    }
 
@@ -2148,221 +940,26 @@ public class JavaScriptEngine {
       return getThreadLocals().onClickScript.get();
    }
 
-   /**
-    * A wrapper to prevent any name lookup to be returned as a symbol in the
-    * scope. The NativeJavaPackage class returns another package object for
-    * ANY name if it doesn't exist. This causes the name lookup to be totally
-    * messaged up if a package is used as a prototype.
-    */
-   private static class JavaPackageWrapper extends ScriptableObject {
-      public JavaPackageWrapper(Scriptable pkg) {
-         this.pkg = pkg;
-
-         // extract package name, this is extremely dependent on rhino version
-         // but currently there is not api to get it nicely
-         // [JavaPackage inetsoft.graph]
-         String name = pkg.toString();
-
-         if(!name.startsWith("[JavaPackage") || !name.endsWith("]")) {
-            throw new RuntimeException("Import package only: " + pkg);
-         }
-
-         name = name.substring(0, name.length() - 1);
-         name = name.substring(name.indexOf(' '));
-         pkgname = name.trim();
-      }
-
-      @Override
-      public String getClassName() {
-         return "JavaPackageWrapper";
-      }
-
-      @Override
-      public Object get(String name, Scriptable start) {
-         Object val = clsmap.get(name);
-
-         if(val != null) {
-            return val;
-         }
-
-         // only return if the name is a class
-         try {
-            Class.forName(pkgname + "." + name);
-            val = pkg.get(name, start);
-         }
-         catch(Throwable ex) {
-            val = NOT_FOUND;
-         }
-
-         clsmap.put(name, val);
-         return val;
-      }
-
-      @Override
-      public void put(String name, Scriptable start, Object val) {
-         clsmap.put(name, val);
-      }
-
-      private Scriptable pkg;
-      private String pkgname;
-      private Map clsmap = new HashMap(); // class name -> Class or NOT_FOUND
-   }
-
-   /**
-    * This class contains a list of packages to be imported into the
-    * top scope. It is more efficient than calling importPackage()
-    * for each class since the prototype will be called by every
-    * name lookup. This class combines them into a single lookup.
-    */
-   private static class DefaultPackages extends ScriptableObject {
-      public DefaultPackages(Scriptable scope) {
-         this.scope = scope;
-         pkgs = new String[] {
-            "inetsoft.graph",
-            "inetsoft.graph.aesthetic",
-            "inetsoft.graph.coord",
-            "inetsoft.graph.data",
-            "inetsoft.graph.element",
-            "inetsoft.graph.geo",
-            "inetsoft.graph.guide",
-            "inetsoft.graph.guide.form",
-            "inetsoft.graph.scale",
-            "inetsoft.graph.schema"};
-      }
-
-      @Override
-      public String getClassName() {
-         return "DefaultPackages";
-      }
-
-      @Override
-      public Object get(String name, Scriptable start) {
-         Object val = clsmap.get(name);
-
-         if(val != null) {
-            return val;
-         }
-
-         synchronized(this) {
-            val = clsmap.get(name);
-
-            if(val != null) {
-               return val;
-            }
-
-            val = NOT_FOUND;
-            Object cached = name2cls.get(name);
-            Class<?> cls = null;
-
-            if(cached != null) {
-               if(cached instanceof Class) {
-                  val = new NativeJavaClass(scope, (Class<?>) cached);
-                  clsmap.put(name, val);
-                  return val;
-               }
-               else {
-                  return cached;
-               }
-            }
-            else if(KNOWN_CLASSES.containsKey(name)) {
-               try {
-                  val = new NativeJavaClass(scope, cls = Class.forName(KNOWN_CLASSES.get(name)));
-               }
-               catch(Exception ex) {
-                  // ignore
-               }
-            }
-            // optimization, Class.forName is expensive, don't try every name
-            else if(isValidClassName(name)) {
-               for(String pkg : pkgs) {
-                  try {
-                     cls = Class.forName(pkg + "." + name);
-                     val = new NativeJavaClass(scope, cls);
-                     break;
-                  }
-                  catch(Exception ex) {
-                     // ignore
-                  }
-               }
-            }
-
-            name2cls.put(name, cls != null ? cls : NOT_FOUND);
-            clsmap.put(name, val);
-         }
-
-         return val;
-      }
-
-      private final Scriptable scope; // parent scope
-      private final String[] pkgs;
-      private final Map<String, Object> clsmap = new HashMap<>(); // class name -> Class or NOT_FOUND
-      private static final Map<String, String> KNOWN_CLASSES = new HashMap<>();
-      // we should be able to use a global (static) clsmap to share the class instance
-      // in js. adding a name2cls to minimize change in logic. this isn't necessary if
-      // NativeJavaClass is immutable, which should be the case.
-      // should merge this with clsmap (and change clsmap to static). (13.1)
-      private static final Map<String, Object> name2cls = new ConcurrentHashMap<>();
-      static {
-         KNOWN_CLASSES.put("ExtendedDecimalFormat", "inetsoft.util.ExtendedDecimalFormat");
-      }
-   }
-
-   /**
-    * Check if the string is a valid name.
-    */
-   private static boolean isValidClassName(String cls) {
-      return cls.length() > 1 && Character.isUpperCase(cls.charAt(0)) &&
-         !Character.isUpperCase(cls.charAt(cls.length() - 1));
-   }
-
    private static ThreadLocals getThreadLocals() {
-      return ConfigurationContext.getContext().computeIfAbsent(THREAD_LOCALS,  k -> new ThreadLocals());
-   }
-
-   private static class EvalFunc extends BaseFunction {
-      public EvalFunc(Scriptable top) {
-         this.globalScope = top;
-      }
-
-      @Override
-      public Object call(Context cx, Scriptable scope, Scriptable thisObj,
-                         Object[] args)
-      {
-         if(FormulaContext.isRestricted()) {
-            throw new RuntimeException("eval() not allowed in restricted mode");
-         }
-         return ScriptRuntime.evalSpecial(cx, scope, thisObj, args, "eval", 0);
-      }
-
-      private Scriptable globalScope;
+      return ConfigurationContext.getContext().computeIfAbsent(THREAD_LOCALS, k -> new ThreadLocals());
    }
 
    private static SreeEnv.Value maxErrorsProperty = new SreeEnv.Value("script.max.errors", 30000);
-   private static final int ID = 0; // id selector
-   private static final int ID_NAME = 1; // id name selector
-   private static final int ID_DISPLAY_NAME = 2; // id display name selector
-
-   private static final String GLOBAL_SCOPE_KEY =
-      JavaScriptEngine.class.getName() + ".globalScope";
-
-   // top level scope
-   protected Scriptable topscope = null;
-   protected boolean sql = false;
-
-   // dynamic scope lib
-   private LibScriptable dynamicLib;
 
    private static final Logger LOG = LoggerFactory.getLogger(JavaScriptEngine.class);
 
    private static final String THREAD_LOCALS = JavaScriptEngine.class.getName() + ".threadLocals";
 
    private static final class ThreadLocals {
-      private final ThreadLocal<Stack<Scriptable>> execScriptable =
-         ThreadLocal.withInitial(Stack::new);
       private final ThreadLocal<Map<Object, Integer>> scriptErrors =
          ThreadLocal.withInitial(HashMap::new);
       private final ThreadLocal<Map<String, DateFormat>> dateFormats =
          ThreadLocal.withInitial(ConcurrentHashMap::new);
       private final ThreadLocal<Boolean> onClickScript = ThreadLocal.withInitial(() -> Boolean.FALSE);
+      // dedicated stack of scopes for the actively-executing script; drives
+      // isScriptThread()/getExecScriptable(). Pushed/popped only around actual
+      // script evaluation (see GraalJavaScriptEngine.exec).
+      private final ThreadLocal<Stack<ScriptScope>> execScriptable =
+         ThreadLocal.withInitial(Stack::new);
    }
 }

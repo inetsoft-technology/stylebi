@@ -43,6 +43,7 @@ public class VSChartAxisResizeService  extends VSChartControllerService<VSChartA
    }
 
    @Override
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void eventHandler(@ClusterProxyKey String runtimeId,
                             VSChartAxisResizeEvent event,

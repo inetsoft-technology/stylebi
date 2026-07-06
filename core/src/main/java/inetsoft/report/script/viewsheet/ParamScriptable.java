@@ -20,7 +20,7 @@ package inetsoft.report.script.viewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
-import org.mozilla.javascript.*;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,21 +33,18 @@ import java.util.List;
  * @version 8.5
  * @author InetSoft Technology Corp
  */
-public class ParamScriptable extends ScriptableObject {
+public class ParamScriptable implements ScriptScope {
    /**
     * Create a param scriptable.
     * @param box the specified viewsheet sandbox.
     */
    public ParamScriptable(ViewsheetSandbox box) {
-      super();
-
       this.box = box;
    }
 
    /**
     * Get the name of the set of objects implemented by this Java class.
     */
-   @Override
    public String getClassName() {
       return "Param";
    }
@@ -56,12 +53,12 @@ public class ParamScriptable extends ScriptableObject {
     * Get a named property from the object.
     */
    @Override
-   public Object get(String name, Scriptable start) {
+   public Object getMember(String name) {
       Viewsheet vs = box.getViewsheet();
       VSAssembly assembly = (VSAssembly) vs.getAssembly(name);
 
       if(!(assembly instanceof InputVSAssembly)) {
-         return Undefined.instance;
+         return null;
       }
 
       try {
@@ -71,14 +68,19 @@ public class ParamScriptable extends ScriptableObject {
          LOG.error("Failed to get parameter data", ex);
       }
 
-      return Undefined.instance;
+      return null;
+   }
+
+   @Override
+   public void putMember(String name, Object value) {
+      // read-only
    }
 
    /**
     * Indicate whether or not a named property is defined in an object.
     */
    @Override
-   public boolean has(String name, Scriptable start) {
+   public boolean hasMember(String name) {
       Viewsheet vs = box.getViewsheet();
       VSAssembly assembly = (VSAssembly) vs.getAssembly(name);
       return assembly instanceof InputVSAssembly;
@@ -88,7 +90,7 @@ public class ParamScriptable extends ScriptableObject {
     * Get an array of property ids.
     */
    @Override
-   public Object[] getIds() {
+   public Object[] getMemberKeys() {
       List list = new ArrayList();
       Viewsheet vs = box.getViewsheet();
       Assembly[] assemblies = vs.getAssemblies();

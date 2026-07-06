@@ -63,6 +63,7 @@ public class ComposerGroupColumnsService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void group(@ClusterProxyKey String runtimeId, GroupFieldsEvent event, String linkUri,
                      Principal principal, CommandDispatcher dispatcher) throws Exception
    {

@@ -39,7 +39,7 @@
 
   @if (graph.showColumns) {
     <div class="graph-cols-content">
-      @for (col of graph.cols; track col; let i = $index) {
+      @for (col of graph.cols; track col.name; let i = $index) {
         <div class="physical-graph-column-label"
           [ngClass]="i % 2 == 0 ? 'graph-even-column' : 'graph-odd-column'">
           {{col.name}}

@@ -45,6 +45,7 @@ public class ColumnDescriptionDialogService extends WorksheetControllerService {
       super(viewsheetService, dataSourceRegistry);
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void updateColumnType(@ClusterProxyKey String runtimeId, WSColumnDescriptionEvent event,
                                 Principal principal, CommandDispatcher commandDispatcher) throws Exception

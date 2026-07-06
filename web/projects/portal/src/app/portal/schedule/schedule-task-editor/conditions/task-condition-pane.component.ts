@@ -753,7 +753,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
       }
 
       if(tz == this.timeZoneOptions[0]) {
-         this.localTimeZoneLabel = new Date().toTimeString().match(/\((.+)\)/)[1];
+         this.localTimeZoneLabel = new Date().toTimeString().match(/\((.+)\)/)?.[1] || null;
       }
       else {
          this.localTimeZoneLabel = tz.label;
@@ -1201,7 +1201,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
 
       if(!edit || !this.timeCondition?.timeZone || this.serverTimeZone) {
          this.timeZoneName = this.serverTimeZone ? this.timeZone :
-            new Date().toTimeString().match(/\((.+)\)/)[1];
+            new Date().toTimeString().match(/\((.+)\)/)?.[1] ?? "";
       }
    }
 
@@ -1224,8 +1224,44 @@ export class TaskConditionPane implements OnInit, OnChanges {
             this.convertToTimeZone(this.serverTimeZoneOffset, this.localTimeZoneOffset);
          }
 
+         // also convert the other conditions of a multi-condition task so their times are
+         // displayed in the new time zone when edited later (Bug #75325). each condition is
+         // converted using its own time zone offset, which may differ from the current one.
+         this.convertOtherConditions(this.serverTimeZone);
+
          this.updateTimeZone();
          LocalStorage.setItem(TZ_STORAGE_KEY, this.serverTimeZone + "");
+      }
+   }
+
+   /**
+    * Converts the times of the task's other time conditions (not currently being edited)
+    * between their own time zone and the server time zone.
+    */
+   private convertOtherConditions(toServerTimeZone: boolean): void {
+      if(!this.model || !this.model.conditions) {
+         return;
+      }
+
+      for(const cond of this.model.conditions) {
+         if(cond === this.condition || !this.isTimeCondition(cond)) {
+            continue;
+         }
+
+         const timeCondition = <TimeConditionModel> cond;
+         const condTzOffset =
+            this.timeZoneService.calculateTimezoneOffset(timeCondition.timeZone);
+
+         if(condTzOffset == this.serverTimeZoneOffset) {
+            continue;
+         }
+
+         if(toServerTimeZone) {
+            this.convertTimeCondition(timeCondition, condTzOffset, this.serverTimeZoneOffset);
+         }
+         else {
+            this.convertTimeCondition(timeCondition, this.serverTimeZoneOffset, condTzOffset);
+         }
       }
    }
 
@@ -1246,6 +1282,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
       else {
          if(this.isTimeCondition(this.condition)) {
             this.timeCondition.timeZone = this.localTimeZoneId;
+            this.timeCondition.timeZoneLabel = this.localTimeZoneLabel || null;
          }
 
          this.form?.get("timeZone")?.enable();
@@ -1253,7 +1290,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
 
       this.timeZoneName = this.serverTimeZone ? this.timeZone :
          this.localTimeZoneLabel != null ? this.localTimeZoneLabel :
-            new Date().toTimeString().match(/\((.+)\)/)[1];
+            new Date().toTimeString().match(/\((.+)\)/)?.[1] || null;
       this.localTimeZoneOffset = this.timeZoneService.calculateTimezoneOffset(this.localTimeZoneId);
    }
 

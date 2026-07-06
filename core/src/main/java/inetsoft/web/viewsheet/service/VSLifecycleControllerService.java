@@ -46,6 +46,7 @@ public class VSLifecycleControllerService {
       this.vsBookmarkService = vsBookmarkService;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Map<String, String[]> setRuntimeParameters(@ClusterProxyKey String runtimeId,
                                                      Map<String, String[]> parameters, Principal principal) throws Exception
@@ -100,6 +101,7 @@ public class VSLifecycleControllerService {
       return parameters;
    }
 
+   @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void openReturnedViewsheet(@ClusterProxyKey String rid, Principal principal, String linkUri,
                                       OpenViewsheetEvent event, CommandDispatcher dispatcher)

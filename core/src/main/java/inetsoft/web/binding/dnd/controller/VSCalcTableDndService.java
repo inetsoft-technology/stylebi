@@ -68,6 +68,7 @@ public class VSCalcTableDndService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void addRemoveColumns(@ClusterProxyKey String runtimeVS, VSDndEvent event, Principal principal,
                                 String linkUri, CommandDispatcher dispatcher) throws Exception
    {
@@ -89,6 +90,7 @@ public class VSCalcTableDndService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void addColumns(@ClusterProxyKey String runtimeId, VSDndEvent event, Principal principal,
                           String linkUri, CommandDispatcher dispatcher) throws Exception
    {
@@ -132,6 +134,7 @@ public class VSCalcTableDndService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterWriteMethod
    public Void removeColumns(@ClusterProxyKey String runtimeId, VSDndEvent event, Principal principal,
                              String linkUri, CommandDispatcher dispatcher) throws Exception
    {

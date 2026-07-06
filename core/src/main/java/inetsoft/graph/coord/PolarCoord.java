@@ -1008,7 +1008,7 @@ public class PolarCoord extends Coordinate {
    /**
     * Get the center hole size as ratio of coord width/height for PLUS, between 0 and 1.
     */
-   @TernMethod
+   @TernMethod(url = "#cshid=PolarCoordGetHoleRatio")
    public double getHoleRatio() {
       return holeRatio;
    }
@@ -1017,7 +1017,7 @@ public class PolarCoord extends Coordinate {
     * Set the center hole size as ratio of coord width/height for PLUS, between 0 and 1.
     * Default value is 0.3.
     */
-   @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_PolarCoord_setHoleRatio.htm")
+   @TernMethod(url = "#cshid=PolarCoordSetHoleRatio")
    public void setHoleRatio(double holeRatio) {
       this.holeRatio = holeRatio;
    }

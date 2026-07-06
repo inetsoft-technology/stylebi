@@ -17,21 +17,22 @@
  */
 package inetsoft.report.script.viewsheet;
 
+import inetsoft.util.script.graal.ScriptFunction;
 import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.uql.*;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.JDBCHandler;
 import inetsoft.uql.util.ConnectionProcessor;
 import inetsoft.util.Tool;
-import inetsoft.util.script.FunctionObject2;
-import org.mozilla.javascript.FunctionObject;
-import org.mozilla.javascript.ScriptableObject;
+import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.security.Principal;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * DBScriptable encapsulates a JDBC connection.
@@ -39,7 +40,7 @@ import java.sql.SQLException;
  * @version 11.2
  * @author InetSoft Technology Corp
  */
-public class DBScriptable extends ScriptableObject {
+public class DBScriptable implements ScriptScope {
    /**
     * Constructor.
     * @param source data source name.
@@ -97,9 +98,28 @@ public class DBScriptable extends ScriptableObject {
    /**
     * Get the name of the set of objects implemented by this Java class.
     */
-   @Override
    public String getClassName() {
       return "DBScriptable";
+   }
+
+   @Override
+   public Object getMember(String name) {
+      return members.get(name);
+   }
+
+   @Override
+   public boolean hasMember(String name) {
+      return members.containsKey(name);
+   }
+
+   @Override
+   public void putMember(String name, Object value) {
+      members.put(name, value);
+   }
+
+   @Override
+   public Object[] getMemberKeys() {
+      return members.keySet().toArray();
    }
 
    /**
@@ -248,34 +268,35 @@ public class DBScriptable extends ScriptableObject {
     * Add methods to write to database.
     */
    private void addFunctions() {
+      // Feature #75423: native functions exposed via ScriptFunction (GraalJS).
       try {
-         FunctionObject func = new FunctionObject2(this, getClass(), "executeSelect", String.class);
-         put("executeSelect", this, func);
+         ScriptFunction func = new ScriptFunction(this, getClass(), "executeSelect", String.class);
+         members.put("executeSelect", func);
 
-         func = new FunctionObject2(this, getClass(), "executeQuery",
+         func = new ScriptFunction(this, getClass(), "executeQuery",
                                     PreparedStatementScriptable.class);
-         put("executeQuery", this, func);
+         members.put("executeQuery", func);
 
-         func = new FunctionObject2(this, getClass(), "executeUpdate", String.class);
-         put("executeUpdate", this, func);
+         func = new ScriptFunction(this, getClass(), "executeUpdate", String.class);
+         members.put("executeUpdate", func);
 
-         func = new FunctionObject2(this, getClass(), "update", PreparedStatementScriptable.class);
-         put("update", this, func);
+         func = new ScriptFunction(this, getClass(), "update", PreparedStatementScriptable.class);
+         members.put("update", func);
 
-         func = new FunctionObject2(this, getClass(), "commit");
-         put("commit", this, func);
+         func = new ScriptFunction(this, getClass(), "commit");
+         members.put("commit", func);
 
-         func = new FunctionObject2(this, getClass(), "rollback");
-         put("rollback", this, func);
+         func = new ScriptFunction(this, getClass(), "rollback");
+         members.put("rollback", func);
 
-         func = new FunctionObject2(this, getClass(), "close");
-         put("close", this, func);
+         func = new ScriptFunction(this, getClass(), "close");
+         members.put("close", func);
 
-         func = new FunctionObject2(this, getClass(), "prepareStatement", String.class);
-         put("prepareStatement", this, func);
+         func = new ScriptFunction(this, getClass(), "prepareStatement", String.class);
+         members.put("prepareStatement", func);
 
-         func = new FunctionObject2(this, getClass(), "prepareCall", String.class);
-         put("prepareCall", this, func);
+         func = new ScriptFunction(this, getClass(), "prepareCall", String.class);
+         members.put("prepareCall", func);
       }
       catch(Exception e) {
          LOG.warn("Failed to register database properties and functions", e);
@@ -299,6 +320,7 @@ public class DBScriptable extends ScriptableObject {
    private Connection conn;
    private JDBCDataSource jdbcSrc;
    private boolean scriptOver = false;
+   private final Map<String, Object> members = new LinkedHashMap<>();
    private static final Logger LOG =
       LoggerFactory.getLogger(DBScriptable.class);
 }

@@ -37,6 +37,8 @@ import { RouteReuseStrategy } from "@angular/router";
 import { ScheduleTaskNamesService } from "../../shared/schedule/schedule-task-names.service";
 import { ScheduleUsersService } from "../../shared/schedule/schedule-users.service";
 import { SsoHeartbeatService } from "../../shared/sso/sso-heartbeat.service";
+import { CodemirrorService } from "../../shared/util/codemirror/codemirror.service";
+import { DefaultCodemirrorService } from "../../shared/util/codemirror/default-codemirror.service";
 import { AppComponent } from "./app/app.component";
 import { APP_ROUTES } from "./app/app.routes";
 import { CustomRouteReuseStrategy } from "./app/custom-route-reuse-strategy";
@@ -52,6 +54,7 @@ bootstrapApplication(AppComponent, {
       httpInterceptorProviders,
       ScheduleUsersService,
       ScheduleTaskNamesService,
+      { provide: CodemirrorService, useClass: DefaultCodemirrorService },
       { provide: RouteReuseStrategy, useClass: CustomRouteReuseStrategy },
       provideAnimations(),
       provideHttpClient(withInterceptorsFromDi()),
