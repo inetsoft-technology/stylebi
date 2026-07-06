@@ -55,11 +55,17 @@ export class ChartImageDirective implements OnDestroy {
    private _loadTimer: ReturnType<typeof setTimeout> | null = null;
    private currentBlobUrl: string = null;
    private loadSubscription: Subscription = null;
+   private retryTimer: ReturnType<typeof setTimeout> | null = null;
 
    constructor(private element: ElementRef, private http: HttpClient, private renderer: Renderer2) {
    }
 
    ngOnDestroy(): void {
+      if(this.retryTimer != null) {
+         clearTimeout(this.retryTimer);
+         this.retryTimer = null;
+      }
+
       this.loadSubscription?.unsubscribe();
       this.loadSubscription = null;
 
@@ -75,6 +81,11 @@ export class ChartImageDirective implements OnDestroy {
    }
 
    private loadImage(reloading = false): void {
+      if(this.retryTimer != null) {
+         clearTimeout(this.retryTimer);
+         this.retryTimer = null;
+      }
+
       this.loadSubscription?.unsubscribe();
       this.loadSubscription = null;
 
@@ -89,7 +100,10 @@ export class ChartImageDirective implements OnDestroy {
             response => {
                if(response.headers?.has("Retry-After")) {
                   const interval = parseInt(response.headers.get("Retry-After"), 10) * 1000;
-                  setTimeout(() => this.loadImage(true), interval);
+                  this.retryTimer = setTimeout(() => {
+                     this.retryTimer = null;
+                     this.loadImage(true);
+                  }, interval);
                }
                else if(requestedImage == this.chartImage) {
                   // Do not set if image address changed before the request returned
