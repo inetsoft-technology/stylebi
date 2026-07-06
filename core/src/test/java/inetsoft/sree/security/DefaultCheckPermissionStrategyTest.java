@@ -334,6 +334,47 @@ class DefaultCheckPermissionStrategyTest {
       );
    }
 
+   // [Path D] SECURITY_ROLE with only ASSIGN must not imply READ/WRITE/DELETE/ADMIN (#75567).
+   // Regression: hasResourcePermission incorrectly checked ASSIGN grants instead of ADMIN,
+   // granting full access to any action when only ASSIGN was configured.
+   @ParameterizedTest
+   @MethodSource("securityRoleAssignOnlyCases")
+   void securityRoleAssignOnlyDoesNotImplyOtherActions(ResourceAction action, boolean expected) {
+      String roleResource = new IdentityID("targetRole", TEST_ORG).convertToKey();
+      Permission assignOnlyPerm = grantedPermission(TEST_USER, TEST_ORG, ResourceAction.ASSIGN, false);
+
+      try(MockedStatic<SUtil> sutilMock = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
+          MockedStatic<OrganizationManager> omMock =
+             Mockito.mockStatic(OrganizationManager.class, Mockito.CALLS_REAL_METHODS))
+      {
+         sutilMock.when(SUtil::isMultiTenant).thenReturn(false);
+         sutilMock.when(() -> SUtil.isInternalUser(any())).thenReturn(false);
+
+         OrganizationManager mockOM = mock(OrganizationManager.class);
+         omMock.when(OrganizationManager::getInstance).thenReturn(mockOM);
+         omMock.when(OrganizationManager::getCurrentOrgName).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID()).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID(any())).thenReturn(TEST_ORG);
+         when(mockOM.isSiteAdmin(any(Principal.class))).thenReturn(false);
+
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_ROLE), eq(roleResource), eq(TEST_ORG)))
+            .thenReturn(assignOnlyPerm);
+
+         assertEquals(expected,
+            mockStrategy.checkPermission(mockUser, ResourceType.SECURITY_ROLE, roleResource, action));
+      }
+   }
+
+   private static Stream<Arguments> securityRoleAssignOnlyCases() {
+      return Stream.of(
+         Arguments.of(ResourceAction.ASSIGN, true),
+         Arguments.of(ResourceAction.READ, false),
+         Arguments.of(ResourceAction.WRITE, false),
+         Arguments.of(ResourceAction.DELETE, false),
+         Arguments.of(ResourceAction.ADMIN, false)
+      );
+   }
+
    // ─────────────────────────────────────────────────────────────────
    // [Path F] Hierarchical resource traversal falls back to parent — mock-based
    // ─────────────────────────────────────────────────────────────────
