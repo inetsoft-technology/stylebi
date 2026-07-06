@@ -62,6 +62,13 @@ public class WorksheetPreviewService {
          throw new PairingException(PairingException.Kind.INTERNAL, "Worksheet query sandbox is not available");
       }
 
+      // RUNTIME_MODE execution calls TableAssembly.replaceVariables, which substitutes
+      // variable values ($(name)) into condition lists IN PLACE. Bound tables are cloned
+      // per-execution so their originals are safe, but EmbeddedTableAssembly executes
+      // un-cloned — the substitution would permanently bake the current variable value
+      // into the worksheet state (the composer avoids this by previewing on a cloned
+      // runtime sheet). Snapshot the variable-bearing structures and restore them after.
+      Map<String, ConditionSnapshot> snapshots = snapshotConditions(rws.getWorksheet());
       TableLens lens;
 
       try {
@@ -70,6 +77,9 @@ public class WorksheetPreviewService {
       catch(Exception e) {
          throw new PairingException("Failed to execute worksheet query for '"
                                     + tableName + "': " + e.getMessage());
+      }
+      finally {
+         restoreConditions(rws.getWorksheet(), snapshots);
       }
 
       if(lens == null) {
@@ -99,6 +109,84 @@ public class WorksheetPreviewService {
       }
 
       return rows;
+   }
+
+   /**
+    * The structures {@link inetsoft.uql.asset.TableAssembly#replaceVariables} mutates:
+    * pre/post/ranking/MV condition lists and the aggregate info.
+    */
+   private record ConditionSnapshot(
+      inetsoft.uql.ConditionListWrapper pre,
+      inetsoft.uql.ConditionListWrapper post,
+      inetsoft.uql.ConditionListWrapper ranking,
+      inetsoft.uql.ConditionListWrapper mvUpdatePre,
+      inetsoft.uql.ConditionListWrapper mvUpdatePost,
+      inetsoft.uql.ConditionListWrapper mvDeletePre,
+      inetsoft.uql.ConditionListWrapper mvDeletePost,
+      inetsoft.uql.asset.AggregateInfo aggregateInfo) {}
+
+   private static Map<String, ConditionSnapshot> snapshotConditions(
+      inetsoft.uql.asset.Worksheet ws)
+   {
+      Map<String, ConditionSnapshot> snapshots = new HashMap<>();
+
+      if(ws == null) {
+         return snapshots;
+      }
+
+      for(inetsoft.uql.asset.Assembly a : ws.getAssemblies()) {
+         if(a instanceof inetsoft.uql.asset.TableAssembly t) {
+            snapshots.put(t.getName(), new ConditionSnapshot(
+               cloneConds(t.getPreConditionList()),
+               cloneConds(t.getPostConditionList()),
+               cloneConds(t.getRankingConditionList()),
+               cloneConds(t.getMVUpdatePreConditionList()),
+               cloneConds(t.getMVUpdatePostConditionList()),
+               cloneConds(t.getMVDeletePreConditionList()),
+               cloneConds(t.getMVDeletePostConditionList()),
+               t.getAggregateInfo() != null
+                  ? (inetsoft.uql.asset.AggregateInfo) t.getAggregateInfo().clone() : null));
+         }
+      }
+
+      return snapshots;
+   }
+
+   private static void restoreConditions(inetsoft.uql.asset.Worksheet ws,
+                                         Map<String, ConditionSnapshot> snapshots)
+   {
+      if(ws == null) {
+         return;
+      }
+
+      for(inetsoft.uql.asset.Assembly a : ws.getAssemblies()) {
+         if(a instanceof inetsoft.uql.asset.TableAssembly t) {
+            ConditionSnapshot s = snapshots.get(t.getName());
+
+            if(s == null) {
+               continue;
+            }
+
+            t.setPreConditionList(s.pre());
+            t.setPostConditionList(s.post());
+            t.setRankingConditionList(s.ranking());
+            t.setMVUpdatePreConditionList(s.mvUpdatePre());
+            t.setMVUpdatePostConditionList(s.mvUpdatePost());
+            t.setMVDeletePreConditionList(s.mvDeletePre());
+            t.setMVDeletePostConditionList(s.mvDeletePost());
+
+            if(s.aggregateInfo() != null) {
+               t.setAggregateInfo(s.aggregateInfo());
+            }
+         }
+      }
+   }
+
+   private static inetsoft.uql.ConditionListWrapper cloneConds(
+      inetsoft.uql.ConditionListWrapper wrapper)
+   {
+      return wrapper != null
+         ? (inetsoft.uql.ConditionListWrapper) wrapper.clone() : null;
    }
 
    /**

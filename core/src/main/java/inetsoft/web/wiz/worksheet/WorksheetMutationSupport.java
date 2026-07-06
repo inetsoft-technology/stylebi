@@ -214,6 +214,7 @@ public final class WorksheetMutationSupport {
     */
    public static void applyAggregateInfo(TableAssembly t, List<String> groups,
                                          List<AggregateSpec> aggregates)
+      throws inetsoft.web.wiz.pairing.PairingException
    {
       if((groups == null || groups.isEmpty()) &&
          (aggregates == null || aggregates.isEmpty()))
@@ -243,6 +244,11 @@ public final class WorksheetMutationSupport {
 
                // Also index by raw attribute name (without entity prefix)
                availableColumns.putIfAbsent(cr.getAttribute(), cr);
+
+               // And by entity-qualified name (e.g. "customer1.first_name")
+               if(!cr.isEntityBlank()) {
+                  availableColumns.putIfAbsent(cr.getEntity() + "." + cr.getAttribute(), cr);
+               }
             }
          }
       }
@@ -251,7 +257,13 @@ public final class WorksheetMutationSupport {
          ColumnRef resolved = availableColumns.get(group);
 
          if(resolved == null) {
-            resolved = new ColumnRef(new AttributeRef(null, group));
+            // Fail loud: a silently invalid GroupRef would be dropped by the next
+            // assembly refresh, producing a plausible-but-wrong result. This bites in
+            // practice because setting an aggregate alias RENAMES the base column, so
+            // a later call referencing the old name misses.
+            throw new inetsoft.web.wiz.pairing.PairingException(
+               "Column not found for group: '" + group + "'. Available columns: " +
+               availableColumns.keySet());
          }
 
          GroupRef gr = new GroupRef(resolved);
@@ -268,7 +280,11 @@ public final class WorksheetMutationSupport {
          ColumnRef colRef = availableColumns.get(spec.field());
 
          if(colRef == null) {
-            colRef = new ColumnRef(new AttributeRef(null, spec.field()));
+            // Fail loud instead of creating an unresolvable AttributeRef that the
+            // engine silently drops (see group comment above).
+            throw new inetsoft.web.wiz.pairing.PairingException(
+               "Column not found for aggregate: '" + spec.field() +
+               "'. Available columns: " + availableColumns.keySet());
          }
 
          AggregateRef ar = new AggregateRef(colRef, formula);
@@ -314,10 +330,14 @@ public final class WorksheetMutationSupport {
             String base = cref.getAttribute();
 
             // Generate a unique column name (e.g. Amount_1, Amount_2).
+            // Must scan attributes AND aliases: cs2.getAttribute(name) resolves by the
+            // column's display name, which is the ALIAS when one is set — so a prior
+            // secondary column named Amount_1 with alias max_amount would not be found
+            // and the next secondary would collide on Amount_1 (third-aggregate bug).
             int suffix = 1;
             String exprName = base + "_1";
 
-            while(cs2.getAttribute(exprName) != null) {
+            while(containsColumnNamed(cs2, exprName)) {
                exprName = base + "_" + (++suffix);
             }
 
@@ -347,6 +367,23 @@ public final class WorksheetMutationSupport {
 
       t.setAggregateInfo(ainfo);
       t.setAggregate(!ainfo.isEmpty());
+   }
+
+   /**
+    * Checks whether the selection contains a column whose raw attribute name OR alias
+    * matches {@code name}. Unlike {@link ColumnSelection#getAttribute(String)}, which
+    * resolves by display name only, this catches both identities.
+    */
+   private static boolean containsColumnNamed(ColumnSelection cs, String name) {
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         if(cs.getAttribute(i) instanceof ColumnRef cr &&
+            (name.equals(cr.getAttribute()) || name.equals(cr.getAlias())))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    // =========================================================================

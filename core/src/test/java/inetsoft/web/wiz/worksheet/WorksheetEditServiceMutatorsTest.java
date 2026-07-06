@@ -173,20 +173,29 @@ class WorksheetEditServiceMutatorsTest {
          ed.setGroupAggregate("T",
             List.of("cat"),
             List.of(new WorksheetMutationSupport.AggregateSpec("price", "MIN", "min_price"),
-                    new WorksheetMutationSupport.AggregateSpec("price", "MAX", "max_price"))));
+                    new WorksheetMutationSupport.AggregateSpec("price", "MAX", "max_price"),
+                    new WorksheetMutationSupport.AggregateSpec("price", "COUNT", "n"))));
 
       AggregateInfo ai = t.getAggregateInfo();
-      assertEquals(2, ai.getAggregateCount());
+      assertEquals(3, ai.getAggregateCount());
 
       // Each aggregate must carry its own alias — with a shared ColumnRef the second
       // alias silently overwrote the first (Min/Max both ended up named max_price).
       // The first aggregate aliases the shared column-selection ref (that is how the
-      // output column is named); the second is converted to a secondary aggregate on
-      // its own expression column carrying its own alias.
+      // output column is named); subsequent ones are converted to secondary aggregates
+      // on their own expression columns carrying their own aliases.
       ColumnRef ref0 = (ColumnRef) ai.getAggregate(0).getDataRef();
       ColumnRef ref1 = (ColumnRef) ai.getAggregate(1).getDataRef();
+      ColumnRef ref2 = (ColumnRef) ai.getAggregate(2).getDataRef();
       assertEquals("min_price", ref0.getAlias());
       assertEquals("max_price", ref1.getAlias());
+      assertEquals("n", ref2.getAlias());
+
+      // The 2nd and 3rd secondaries must bind to DISTINCT expression columns —
+      // the unique-name scan previously missed aliased expression columns, so the
+      // third aggregate collided with the second (both bound to price_1).
+      assertEquals("price_1", ref1.getAttribute());
+      assertEquals("price_2", ref2.getAttribute());
 
       // The first alias lands on the shared base ref (output naming mechanism);
       // the second must NOT have overwritten it.
@@ -204,6 +213,29 @@ class WorksheetEditServiceMutatorsTest {
 
       assertNotNull(base);
       assertEquals("min_price", base.getAlias());
+   }
+
+   @Test
+   void setGroupAggregateFailsLoudOnUnknownColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // An unresolvable field previously produced a bogus AttributeRef that the engine
+      // silently dropped — a plausible-but-wrong result. It must fail loud instead.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("T", List.of("cat"),
+               List.of(new WorksheetMutationSupport.AggregateSpec("no_such_col", "SUM", "x")))));
+      assertTrue(ex.getMessage().contains("no_such_col"));
+      assertTrue(ex.getMessage().contains("Available columns"));
+
+      PairingException ex2 = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("T", List.of("no_such_group"), List.of())));
+      assertTrue(ex2.getMessage().contains("no_such_group"));
    }
 
    // =========================================================================
