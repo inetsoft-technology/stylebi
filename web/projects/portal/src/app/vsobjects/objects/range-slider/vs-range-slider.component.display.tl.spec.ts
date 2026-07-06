@@ -34,12 +34,35 @@
  *   Group 12 - focusSelectedHandle: blur+focus Left/Right/Middle based on mouseHandle
  *   Group 13 - getLabelPosition overflow: leftOverflow<0 shifts right; rightOverflow<0 shifts left
  *   Group 14 - clearNavSelection: mouseHandle→None; menuFocus→NONE(-5); keyNav→false
+ *   Group 15 - Legacy DOM regressions ported verbatim from vs-range-slider.component.spec.ts
+ *              (bugs #18972, #20993): uses a real TestBed render (not direct instantiation)
+ *              because these assertions are about real template output (the objectFormat
+ *              text-decoration binding on the body, and the sliderTop-driven top style on
+ *              the range-slider/range-line/current-value/range-value elements) that cannot
+ *              be observed on a directly-instantiated component.
  */
 
+import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
+import { NEVER } from "rxjs";
 import { GuiTool } from "../../../common/util/gui-tool";
+import { ViewsheetClientService } from "../../../common/viewsheet-client";
+import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropdown.service";
+import { DebounceService } from "../../../widget/services/debounce.service";
+import { ModelService } from "../../../widget/services/model.service";
+import { DialogService } from "../../../widget/slide-out/dialog-service.service";
+import { ContextProvider } from "../../context-provider.service";
+import { CheckFormDataService } from "../../util/check-form-data.service";
+import { GlobalSubmitService } from "../../util/global-submit.service";
+import { AdhocFilterService } from "../data-tip/adhoc-filter.service";
+import { DataTipService } from "../data-tip/data-tip.service";
+import { PopComponentService } from "../data-tip/pop-component.service";
+import { TimerService } from "../data-tip/timer.service";
 import { NavigationKeys } from "../navigation-keys";
+import { VSRangeSlider } from "./vs-range-slider.component";
 import {
    createVSRangeSlider,
+   makeVSRangeSliderModel,
    stubViewChildRefs,
 } from "./vs-range-slider.component.test-helpers";
 
@@ -411,6 +434,90 @@ describe("VSRangeSlider – display / rendering (P3)", () => {
          comp["keyNav"] = true;
          comp["clearNavSelection"]();
          expect(comp["keyNav"]).toBe(false);
+      });
+   });
+
+   // ─── Group 15: Legacy DOM regressions ported from vs-range-slider.component.spec.ts ──
+
+   describe("Group 15 – legacy DOM regressions", () => {
+      let fixture: ComponentFixture<VSRangeSlider>;
+
+      beforeEach(waitForAsync(() => {
+         const viewsheetClient: any = { sendEvent: vi.fn(), runtimeId: "vs-1^128^__^Sheet1" };
+         const formDataService = { checkFormData: vi.fn() };
+         const modelService = { getModel: vi.fn() };
+         const modalService = { open: vi.fn() };
+         const adhocFilterService = { showFilter: vi.fn().mockReturnValue(() => {}) };
+         const dataTipService = { isDataTip: vi.fn().mockReturnValue(false) };
+         const debounceService = {
+            debounce: vi.fn().mockImplementation((_key: any, fn: any) => fn()),
+         };
+         const dropdownService = { open: vi.fn() };
+         const globalSubmitService = {
+            globalSubmit: vi.fn().mockReturnValue(NEVER),
+            updateState: vi.fn(),
+         };
+         const timerService = { defer: vi.fn((fn: any) => fn()) };
+         const context = new ContextProvider(
+            false, false, false, false, false, false, false, false, false, false, false,
+         );
+
+         TestBed.configureTestingModule({
+            imports: [VSRangeSlider],
+            schemas: [NO_ERRORS_SCHEMA],
+            providers: [
+               { provide: ViewsheetClientService, useValue: viewsheetClient },
+               { provide: CheckFormDataService, useValue: formDataService },
+               { provide: ModelService, useValue: modelService },
+               { provide: DialogService, useValue: modalService },
+               { provide: AdhocFilterService, useValue: adhocFilterService },
+               { provide: ContextProvider, useValue: context },
+               { provide: DataTipService, useValue: dataTipService },
+               { provide: DebounceService, useValue: debounceService },
+               { provide: FixedDropdownService, useValue: dropdownService },
+               { provide: GlobalSubmitService, useValue: globalSubmitService },
+               { provide: TimerService, useValue: timerService },
+               PopComponentService,
+            ],
+         });
+         TestBed.compileComponents();
+
+         fixture = TestBed.createComponent(VSRangeSlider);
+         fixture.componentInstance.model = makeVSRangeSliderModel();
+         fixture.detectChanges();
+      }));
+
+      // Bug #18972
+      it("should apply text-decoration format to the range slider body", () => {
+         const model = makeVSRangeSliderModel();
+         model.objectFormat.decoration = "underline";
+         fixture.componentInstance.model = model;
+         fixture.detectChanges();
+
+         const body = fixture.nativeElement.querySelector("div.vs-range-slider-body");
+         expect(body.style["text-decoration"]).toBe("underline");
+      });
+
+      // Bug #20993
+      it("should position the slider elements using sliderTop", () => {
+         const model = makeVSRangeSliderModel();
+         model.objectFormat.height = 80;
+         fixture.componentInstance.model = model;
+         fixture.detectChanges();
+
+         // sliderTop = Math.ceil(objectFormat.height / 2) - 4 = Math.ceil(80/2) - 4 = 36
+         // rangeValueOffset = 10 → range-value top = 36 + 10 = 46
+         const rangeSlider = fixture.nativeElement.querySelector("div.range-slider");
+         const rangeLine = fixture.nativeElement.querySelector("div.range-line");
+         const currentValue = fixture.nativeElement.querySelector("div.current-value");
+         const maxValue = fixture.nativeElement.querySelector("div.range-value.range-right");
+         const minValue = fixture.nativeElement.querySelector("div.range-value.range-left");
+
+         expect(rangeSlider.style["top"]).toBe("36px");
+         expect(rangeLine.style["top"]).toBe("36px");
+         expect(currentValue.style["top"]).toBe("calc(36px - 1em)");
+         expect(maxValue.style["top"]).toBe("46px");
+         expect(minValue.style["top"]).toBe("46px");
       });
    });
 });

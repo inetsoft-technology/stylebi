@@ -43,7 +43,6 @@
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { GuiTool } from "../../../common/util/gui-tool";
-import { TestUtils } from "../../../common/test/test-utils";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { DebounceService } from "../../../widget/services/debounce.service";
 import { ContextProvider } from "../../context-provider.service";
@@ -292,7 +291,7 @@ describe("VSSlider", () => {
          const { comp } = createVSSlider();
          // incCount = ceil((100-0)/20) = 5 → ticks at i=0..5 = 6 entries
          // All will be included because measureText mock returns 10 (small label width)
-         expect(comp.ticks.length).toBeGreaterThan(0);
+         expect(comp.ticks.length).toBe(6);
       });
 
       it("should have ticks[0].left at 0 (start of line)", () => {

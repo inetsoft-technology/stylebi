@@ -428,7 +428,7 @@ describe("VSComboBox — Pass 1: Interaction", () => {
          comp.onChange("Label B");
 
          expect(socket.sendEvent).toHaveBeenCalledWith(
-            "/events/vsview/object/model", expect.objectContaining({}));
+            "/events/vsview/object/model", expect.objectContaining({ name: "Combo1" }));
       });
    });
 

@@ -1168,59 +1168,76 @@ describe("VSText - single-pass interaction", () => {
             value: "XSRF-TOKEN=test-token",
             configurable: true,
          });
-         comp.safeUrlText = "https://frame.example.com/path/page";
-         domSanitizer.sanitize = vi.fn((ctx: SecurityContext, value: any) => {
-            if(ctx === SecurityContext.RESOURCE_URL) return "https://frame.example.com/path/page";
-            return value;
-         });
-         vi.spyOn(GuiTool, "resolveUrl").mockImplementation((url: string) => {
-            if(url === "../api/path") return "https://resolved.example.com/api/path";
-            return "https://frame.example.com/path/page";
-         });
 
-         (comp as any).sendExternalUrls();
+         try {
+            comp.safeUrlText = "https://frame.example.com/path/page";
+            domSanitizer.sanitize = vi.fn((ctx: SecurityContext, value: any) => {
+               if(ctx === SecurityContext.RESOURCE_URL) return "https://frame.example.com/path/page";
+               return value;
+            });
+            vi.spyOn(GuiTool, "resolveUrl").mockImplementation((url: string) => {
+               if(url === "../api/path") return "https://resolved.example.com/api/path";
+               return "https://frame.example.com/path/page";
+            });
 
-         expect(postMessage).toHaveBeenCalledWith(
-            {
-               type: "inetsoftExternalUrls",
-               token: "test-token",
-               urls: {
-                  rel: "https://resolved.example.com/api/path",
-                  abs: "https://remote.example.com/a",
+            (comp as any).sendExternalUrls();
+
+            expect(postMessage).toHaveBeenCalledWith(
+               {
+                  type: "inetsoftExternalUrls",
+                  token: "test-token",
+                  urls: {
+                     rel: "https://resolved.example.com/api/path",
+                     abs: "https://remote.example.com/a",
+                  },
                },
-            },
-            "https://frame.example.com",
-         );
+               "https://frame.example.com",
+            );
+         }
+         finally {
+            // restore the prototype's cookie accessor shadowed by the defineProperty above
+            delete (document as any).cookie;
+         }
       });
 
       it("should post a single url update to the iframe via processUpdateExternalUrlCommand", () => {
          const { comp, domSanitizer, postMessage } = createTextComponent({
             model: { url: true, externalUrls: {} },
          });
-         comp.safeUrlText = "https://frame.example.com/path/page";
-         domSanitizer.sanitize = vi.fn((ctx: SecurityContext, value: any) => {
-            if(ctx === SecurityContext.RESOURCE_URL) return "https://frame.example.com/path/page";
-            return value;
-         });
-         vi.spyOn(GuiTool, "resolveUrl").mockImplementation((url: string) => {
-            if(url === "../single") return "https://resolved.example.com/single";
-            return "https://frame.example.com/path/page";
+         Object.defineProperty(document, "cookie", {
+            value: "XSRF-TOKEN=other-token",
+            configurable: true,
          });
 
-         (comp as any).processUpdateExternalUrlCommand({
-            type: "UpdateExternalUrlCommand",
-            name: "one",
-            url: "../single",
-         });
+         try {
+            comp.safeUrlText = "https://frame.example.com/path/page";
+            domSanitizer.sanitize = vi.fn((ctx: SecurityContext, value: any) => {
+               if(ctx === SecurityContext.RESOURCE_URL) return "https://frame.example.com/path/page";
+               return value;
+            });
+            vi.spyOn(GuiTool, "resolveUrl").mockImplementation((url: string) => {
+               if(url === "../single") return "https://resolved.example.com/single";
+               return "https://frame.example.com/path/page";
+            });
 
-         expect(postMessage).toHaveBeenCalledWith(
-            {
-               type: "inetsoftExternalUrls",
-               token: expect.any(String),
-               urls: { one: "https://resolved.example.com/single" },
-            },
-            "https://frame.example.com",
-         );
+            (comp as any).processUpdateExternalUrlCommand({
+               type: "UpdateExternalUrlCommand",
+               name: "one",
+               url: "../single",
+            });
+
+            expect(postMessage).toHaveBeenCalledWith(
+               {
+                  type: "inetsoftExternalUrls",
+                  token: "other-token",
+                  urls: { one: "https://resolved.example.com/single" },
+               },
+               "https://frame.example.com",
+            );
+         }
+         finally {
+            delete (document as any).cookie;
+         }
       });
    });
 });
