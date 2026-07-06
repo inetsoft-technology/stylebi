@@ -570,8 +570,9 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
 
          Role role = currProvider.getRole(resourceID);
 
+         // role doesn't exist, so just equals org name (see Bug #66393 for SECURITY_USER).
          if(role == null) {
-            return false;
+            return Objects.equals(resourceID.getOrgID(), orgID);
          }
 
          IdentityID[] roles = new IdentityID[]{role.getIdentityID()};
