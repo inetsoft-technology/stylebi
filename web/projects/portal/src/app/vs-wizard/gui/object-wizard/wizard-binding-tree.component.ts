@@ -74,6 +74,8 @@ const OBJECT_WIZARD_REFRESH = "/events/vswizard/object-wizard/refresh";
     imports: [TreeComponent, NotificationsComponent]
 })
 export class WizardBindingTree extends CommandProcessor implements OnInit, OnDestroy {
+   private static readonly RECOMMENDER_DEBOUNCE_MS = 200;
+
    @Input() runtimeId: string;
    @Input() temporarySheet: boolean;
    @Input() originalMode: VsWizardEditModes;
@@ -297,7 +299,7 @@ export class WizardBindingTree extends CommandProcessor implements OnInit, OnDes
       this.debounceService.debounce(
          "wizard-recommender-" + this.runtimeId,
          () => this.recommender(tableName),
-         200);
+         WizardBindingTree.RECOMMENDER_DEBOUNCE_MS);
    }
 
    public recommender(tableName?: string, reload?: boolean): void {
