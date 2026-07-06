@@ -166,7 +166,7 @@ public class WorksheetTableService {
     * table) that is either already failed in this batch or absent from the worksheet — or
     * {@code null} when every dependency is present and healthy.
     */
-   String firstMissingDependency(Worksheet ws, WorksheetTable t, Set<String> failed) {
+   public String firstMissingDependency(Worksheet ws, WorksheetTable t, Set<String> failed) {
       List<String> deps = new ArrayList<>();
 
       if(t.getBaseTables() != null) {
