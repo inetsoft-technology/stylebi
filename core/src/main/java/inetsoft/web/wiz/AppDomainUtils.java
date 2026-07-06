@@ -46,8 +46,8 @@ public final class AppDomainUtils {
    }
 
    private static String getOrgAppDomainPropKey(Principal user) {
-      if(user != null && ((XPrincipal) user).getOrgId() != null) {
-         return Tool.buildString(APP_DOMAIN, ".", ((XPrincipal) user).getOrgId());
+      if(user instanceof XPrincipal principal && principal.getOrgId() != null) {
+         return Tool.buildString(APP_DOMAIN, ".", principal.getOrgId());
       }
 
       return APP_DOMAIN;

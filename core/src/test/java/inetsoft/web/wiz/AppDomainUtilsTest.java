@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
+import java.security.Principal;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -46,6 +47,88 @@ class AppDomainUtilsTest {
          assertIterableEquals(
             List.of("sub1.customer.example", "sub2.customer.example"),
             domains.getSubDomainIds());
+      }
+   }
+
+   @Test
+   void getAppDomainsReturnsNullForNullPropertyValue() {
+      XPrincipal principal = mock(XPrincipal.class);
+      when(principal.getOrgId()).thenReturn("customerOrg");
+
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+         sreeEnv.when(() -> SreeEnv.getProperty("app.domains.customerOrg", false, true))
+            .thenReturn(null);
+
+         assertNull(AppDomainUtils.getAppDomains(principal));
+      }
+   }
+
+   @Test
+   void getAppDomainsReturnsNullForEmptyPropertyValue() {
+      XPrincipal principal = mock(XPrincipal.class);
+      when(principal.getOrgId()).thenReturn("customerOrg");
+
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+         sreeEnv.when(() -> SreeEnv.getProperty("app.domains.customerOrg", false, true))
+            .thenReturn("");
+
+         assertNull(AppDomainUtils.getAppDomains(principal));
+      }
+   }
+
+   @Test
+   void getAppDomainsUsesFallbackPropertyWhenUserIsNull() {
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+         sreeEnv.when(() -> SreeEnv.getProperty("app.domains", false, true))
+            .thenReturn("global.example");
+
+         OrganizationDomains domains = AppDomainUtils.getAppDomains(null);
+
+         assertNotNull(domains);
+         assertEquals("global.example", domains.getId());
+      }
+   }
+
+   @Test
+   void setAppDomainsUsesFallbackPropertyWhenOrgIdIsNull() {
+      XPrincipal principal = mock(XPrincipal.class);
+      when(principal.getOrgId()).thenReturn(null);
+
+      OrganizationDomains domains = new OrganizationDomains();
+      domains.setId("global.example");
+
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+         AppDomainUtils.setAppDomains(domains, principal);
+
+         sreeEnv.verify(() -> SreeEnv.setProperty("app.domains", "global.example", true));
+      }
+   }
+
+   @Test
+   void getAppDomainsUsesFallbackPropertyForNonXPrincipal() {
+      Principal principal = () -> "service-account";
+
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+         sreeEnv.when(() -> SreeEnv.getProperty("app.domains", false, true))
+            .thenReturn("fallback.example");
+
+         OrganizationDomains domains = AppDomainUtils.getAppDomains(principal);
+
+         assertNotNull(domains);
+         assertEquals("fallback.example", domains.getId());
+      }
+   }
+
+   @Test
+   void getAppDomainReturnsPrimaryDomainId() {
+      XPrincipal principal = mock(XPrincipal.class);
+      when(principal.getOrgId()).thenReturn("customerOrg");
+
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+         sreeEnv.when(() -> SreeEnv.getProperty("app.domains.customerOrg", false, true))
+            .thenReturn("customer.example;sub.customer.example");
+
+         assertEquals("customer.example", AppDomainUtils.getAppDomain(principal));
       }
    }
 
