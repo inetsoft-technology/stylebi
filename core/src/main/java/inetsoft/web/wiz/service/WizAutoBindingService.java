@@ -688,6 +688,10 @@ public class WizAutoBindingService {
             }
 
             applyDateGroup(dim, dimFc);
+
+            if(dimFc.isNumericBin()) {
+               WizardRecommenderUtil.applyNumericBin(dim);
+            }
          }
 
          if(fc.getOrder() != null) {

@@ -19,6 +19,7 @@ package inetsoft.web.wiz.service;
 
 import inetsoft.uql.XCondition;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
@@ -42,9 +43,38 @@ final class WizFieldInfoFactory {
    static DimensionFieldInfo createCrosstabDimensionFieldInfo(VSDimensionRef dim) {
       DimensionFieldInfo info = baseDimensionFieldInfo(dim);
       info.setType(dim.getDataType());
+      info.setFullName(crosstabDimFullName(dim));
       applyDateGroup(info, dim);
       applyRanking(info, dim);
       return info;
+   }
+
+   /**
+    * A crosstab design ref built from an explicit binding has no backing ColumnRef, so getVSName()
+    * is empty and getFullName() short-circuits to "" before the date-qualifying branch. Derive the
+    * name directly from the group column: a level-qualified name (e.g. "DayOfWeek(date_start)") for a
+    * DATE-typed dimension that carries a real date level, else the plain column name.
+    *
+    * The date-type guard matters: a non-date crosstab dimension (a string/numeric column) can carry a
+    * spurious default YEAR date level, and date-naming it would echo a bogus "Year(status)" fullName
+    * that pollutes the downstream facts pack. We only date-qualify genuine date dimensions, and always
+    * fall back to the group column (never an empty string) for everything else.
+    */
+   static String crosstabDimFullName(VSDimensionRef dim) {
+      String fullName = dim.getFullName();
+      String groupColumn = dim.getGroupColumnValue();
+
+      if((fullName == null || fullName.isEmpty() || fullName.equals(groupColumn))
+         && groupColumn != null && !groupColumn.isEmpty())
+      {
+         if(dim.isDateTime() && dim.getDateLevel() != XConstants.NONE_DATE_GROUP) {
+            return DateRangeRef.getName(groupColumn, dim.getDateLevel());
+         }
+
+         return groupColumn;
+      }
+
+      return fullName;
    }
 
    static DimensionFieldInfo createChartDimensionFieldInfo(VSDimensionRef dim) {
