@@ -41,6 +41,16 @@ public class ScriptUtil {
          return ((inetsoft.uql.script.XTableArray) obj).unwrap();
       }
 
+      // Likewise for a TableArray (the calc/report script table wrapper,
+      // e.g. the value returned by a calc cell's data['*@...'] subtable
+      // reference). It was also a Rhino Wrapper; unwrap it to its underlying
+      // XTable so host code (toList/mapList/etc.) can detect and process it as
+      // a table instead of leaving the non-serializable wrapper in a cell
+      // value. (#75576 / #75423)
+      if(obj instanceof inetsoft.report.script.TableArray) {
+         return ((inetsoft.report.script.TableArray) obj).unwrap();
+      }
+
       // @by larryl, if a calculation generates an invalid result, show null
       // instead of NaN of Infinity. This can be caused by performing a time
       // series comparison and the result fo the first or last item would
