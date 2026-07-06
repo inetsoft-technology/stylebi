@@ -65,6 +65,24 @@ public final class LegacyJavaShim {
    /** Context-independent cache of class lookups (Class is context-agnostic). */
    private static final Map<String, Optional<Class<?>>> CLASS_CACHE = new ConcurrentHashMap<>();
 
+   /**
+    * Bounded LRU cache of names that did <em>not</em> resolve to a class. Package
+    * navigation probes many non-class names (e.g. {@code java}, {@code awt}, bare
+    * identifiers), and each failed {@link Class#forName} scans the entire classpath
+    * (every JAR) before throwing {@code ClassNotFoundException} -- the most expensive
+    * classloading outcome. Remembering misses collapses repeat probes to a single
+    * lookup; the LRU bound keeps the set from growing without limit under the
+    * exploratory navigation the positive cache alone can't guard against.
+    */
+   private static final int NEGATIVE_CACHE_MAX = 10_000;
+   private static final Map<String, Boolean> NEGATIVE_CACHE =
+      Collections.synchronizedMap(new LinkedHashMap<>(256, 0.75f, true) {
+         @Override
+         protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
+            return size() > NEGATIVE_CACHE_MAX;
+         }
+      });
+
    private LegacyJavaShim() {
    }
 
@@ -223,6 +241,11 @@ public final class LegacyJavaShim {
          return cached.orElse(null);
       }
 
+      // get() (not containsKey) so a hit refreshes the entry's LRU access order.
+      if(NEGATIVE_CACHE.get(fqcn) != null) {
+         return null;
+      }
+
       ClassLoader cl = Thread.currentThread().getContextClassLoader();
 
       if(cl == null) {
@@ -236,7 +259,10 @@ public final class LegacyJavaShim {
          return cls;
       }
       catch(ClassNotFoundException | LinkageError ex) {
-         // don't cache misses — avoids unbounded growth from exploratory package navigation
+         // Remember the miss so repeat probes don't rescan the whole classpath.
+         // Bounded (LRU, see NEGATIVE_CACHE) to avoid unbounded growth from
+         // exploratory package navigation.
+         NEGATIVE_CACHE.put(fqcn, Boolean.TRUE);
          return null;
       }
    }
