@@ -214,6 +214,7 @@ public final class WorksheetMutationSupport {
     */
    public static void applyAggregateInfo(TableAssembly t, List<String> groups,
                                          List<AggregateSpec> aggregates)
+      throws inetsoft.web.wiz.pairing.PairingException
    {
       if((groups == null || groups.isEmpty()) &&
          (aggregates == null || aggregates.isEmpty()))
@@ -243,6 +244,11 @@ public final class WorksheetMutationSupport {
 
                // Also index by raw attribute name (without entity prefix)
                availableColumns.putIfAbsent(cr.getAttribute(), cr);
+
+               // And by entity-qualified name (e.g. "customer1.first_name")
+               if(!cr.isEntityBlank()) {
+                  availableColumns.putIfAbsent(cr.getEntity() + "." + cr.getAttribute(), cr);
+               }
             }
          }
       }
@@ -251,7 +257,13 @@ public final class WorksheetMutationSupport {
          ColumnRef resolved = availableColumns.get(group);
 
          if(resolved == null) {
-            resolved = new ColumnRef(new AttributeRef(null, group));
+            // Fail loud: a silently invalid GroupRef would be dropped by the next
+            // assembly refresh, producing a plausible-but-wrong result. This bites in
+            // practice because setting an aggregate alias RENAMES the base column, so
+            // a later call referencing the old name misses.
+            throw new inetsoft.web.wiz.pairing.PairingException(
+               "Column not found for group: '" + group + "'. Available columns: " +
+               availableColumns.keySet());
          }
 
          GroupRef gr = new GroupRef(resolved);
@@ -268,19 +280,37 @@ public final class WorksheetMutationSupport {
          ColumnRef colRef = availableColumns.get(spec.field());
 
          if(colRef == null) {
-            colRef = new ColumnRef(new AttributeRef(null, spec.field()));
+            // Fail loud instead of creating an unresolvable AttributeRef that the
+            // engine silently drops (see group comment above).
+            throw new inetsoft.web.wiz.pairing.PairingException(
+               "Column not found for aggregate: '" + spec.field() +
+               "'. Available columns: " + availableColumns.keySet());
          }
 
          AggregateRef ar = new AggregateRef(colRef, formula);
 
-         if(spec.alias() != null) {
-            colRef.setAlias(spec.alias());
-         }
-
          if(ainfo.containsAggregate(ar)) {
-            ainfo.addSecondaryAggregate(ar);
+            // Second aggregate on the same column: clone the ref before aliasing.
+            // The shared ref was (correctly) mutated by the first spec — that is how
+            // the aggregate output column gets its name — so aliasing it again would
+            // silently overwrite the first alias (Min(x) as a, Max(x) as b -> both b).
+            // The clone carries this spec's own alias into the secondary-aggregate
+            // conversion below, which creates a separate expression column for it.
+            ColumnRef cloned = (ColumnRef) colRef.clone();
+
+            if(spec.alias() != null) {
+               cloned.setAlias(spec.alias());
+            }
+
+            ainfo.addSecondaryAggregate(new AggregateRef(cloned, formula));
          }
          else {
+            // First aggregate on this column: set the alias on the shared ref from the
+            // column selection — the aggregate output column is named from it.
+            if(spec.alias() != null) {
+               colRef.setAlias(spec.alias());
+            }
+
             ainfo.addAggregate(ar, false);
          }
       }
@@ -300,10 +330,14 @@ public final class WorksheetMutationSupport {
             String base = cref.getAttribute();
 
             // Generate a unique column name (e.g. Amount_1, Amount_2).
+            // Must scan attributes AND aliases: cs2.getAttribute(name) resolves by the
+            // column's display name, which is the ALIAS when one is set — so a prior
+            // secondary column named Amount_1 with alias max_amount would not be found
+            // and the next secondary would collide on Amount_1 (third-aggregate bug).
             int suffix = 1;
             String exprName = base + "_1";
 
-            while(cs2.getAttribute(exprName) != null) {
+            while(containsColumnNamed(cs2, exprName)) {
                exprName = base + "_" + (++suffix);
             }
 
@@ -335,6 +369,23 @@ public final class WorksheetMutationSupport {
       t.setAggregate(!ainfo.isEmpty());
    }
 
+   /**
+    * Checks whether the selection contains a column whose raw attribute name OR alias
+    * matches {@code name}. Unlike {@link ColumnSelection#getAttribute(String)}, which
+    * resolves by display name only, this catches both identities.
+    */
+   private static boolean containsColumnNamed(ColumnSelection cs, String name) {
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         if(cs.getAttribute(i) instanceof ColumnRef cr &&
+            (name.equals(cr.getAttribute()) || name.equals(cr.getAlias())))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
    // =========================================================================
    // Expression column helpers
    // =========================================================================
@@ -351,6 +402,7 @@ public final class WorksheetMutationSupport {
    public static void addExpressionColumn(TableAssembly t, String name,
                                           String expression, String type, boolean sql)
    {
+      expression = normalizeDateArithmetic(t, expression, sql);
       ExpressionRef expr = new ExpressionRef(null, name);
       expr.setExpression(expression != null ? expression : "");
       ColumnRef colRef = new ColumnRef(expr);
@@ -381,6 +433,7 @@ public final class WorksheetMutationSupport {
    public static void editExpression(TableAssembly t, String name,
                                      String expression, String type, boolean sql)
    {
+      expression = normalizeDateArithmetic(t, expression, sql);
       ColumnSelection cs = t.getColumnSelection(false);
 
       for(int i = 0; i < cs.getAttributeCount(); i++) {
@@ -403,6 +456,80 @@ public final class WorksheetMutationSupport {
 
       // Not found — add as new expression column.
       addExpressionColumn(t, name, expression, type, sql);
+   }
+
+   /** Matches {@code field['a'] - field['b']} with arbitrary whitespace around the minus. */
+   private static final java.util.regex.Pattern DATE_DIFF_PATTERN =
+      java.util.regex.Pattern.compile("field\\['([^']+)'\\]\\s*-\\s*field\\['([^']+)'\\]");
+
+   /**
+    * Rewrites date-to-date subtraction in script (non-SQL) expressions to use
+    * {@code .getTime()}.
+    *
+    * <p>In the Rhino script engine, {@code java.util.Date} values do not subtract
+    * numerically — {@code field['a'] - field['b']} on two date columns silently
+    * evaluates to null. The subtraction intent is unambiguous, so normalize it to
+    * {@code (field['a'].getTime() - field['b'].getTime())} (a millisecond difference)
+    * instead of letting the query return a plausible-but-null column. Only applies
+    * when BOTH operands resolve to date-typed columns; SQL-mode expressions are left
+    * untouched because native date subtraction is valid on some databases.</p>
+    */
+   static String normalizeDateArithmetic(TableAssembly t, String expression, boolean sql) {
+      if(sql || expression == null || !expression.contains("field[")) {
+         return expression;
+      }
+
+      ColumnSelection cs = t.getColumnSelection(false);
+
+      if(cs == null) {
+         return expression;
+      }
+
+      java.util.regex.Matcher m = DATE_DIFF_PATTERN.matcher(expression);
+      StringBuilder sb = new StringBuilder();
+      boolean changed = false;
+
+      while(m.find()) {
+         String left = m.group(1);
+         String right = m.group(2);
+
+         if(isDateColumn(cs, left) && isDateColumn(cs, right)) {
+            m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(
+               "(field['" + left + "'].getTime() - field['" + right + "'].getTime())"));
+            changed = true;
+         }
+         else {
+            m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(m.group()));
+         }
+      }
+
+      if(!changed) {
+         return expression;
+      }
+
+      m.appendTail(sb);
+      return sb.toString();
+   }
+
+   private static boolean isDateColumn(ColumnSelection cs, String field) {
+      DataRef ref = cs.getAttribute(field);
+
+      if(ref == null) {
+         for(int i = 0; i < cs.getAttributeCount(); i++) {
+            if(cs.getAttribute(i) instanceof ColumnRef cr && field.equals(cr.getAlias())) {
+               ref = cr;
+               break;
+            }
+         }
+      }
+
+      if(ref == null) {
+         return false;
+      }
+
+      String dtype = ref.getDataType();
+      return XSchema.DATE.equals(dtype) || XSchema.TIME_INSTANT.equals(dtype) ||
+         XSchema.TIME.equals(dtype);
    }
 
    // =========================================================================
@@ -516,9 +643,9 @@ public final class WorksheetMutationSupport {
             ConditionSpec spec = node.condition();
             int op = parseOperation(spec.operation());
             boolean negate = spec.negated() || isNegatedOperation(spec.operation());
-            String dtype = spec.type() != null ? spec.type() : inferColumnType(t, spec.field());
+            String dtype = spec.type() != null ? spec.type() : inferColumnType(t, spec.field(), post);
 
-            DataRef ref = resolveField(t, spec.field());
+            DataRef ref = resolveField(t, spec.field(), post);
             Condition c = new Condition(dtype);
             c.setOperation(op);
 
@@ -606,7 +733,54 @@ public final class WorksheetMutationSupport {
     * and aggregates reference the real column objects.
     */
    static DataRef resolveField(TableAssembly t, String field) {
-      ColumnSelection cs = t.getColumnSelection(false);
+      return resolveField(t, field, false);
+   }
+
+   /**
+    * Resolves a field name against the table's column selection.
+    *
+    * @param t     the table assembly
+    * @param field the field name or alias to resolve
+    * @param post  {@code true} to search the PUBLIC column selection (includes
+    *              aggregate output aliases), {@code false} for the PRIVATE selection
+    */
+   static DataRef resolveField(TableAssembly t, String field, boolean post) {
+      // Post-aggregate (HAVING) conditions must reference the AggregateInfo refs, not the
+      // column selection: the condition dialog builds its post-aggregate field list from
+      // AggregateInfo (AggregateRef/GroupRef), and a condition stored with a plain ColumnRef
+      // is displayed as a pre-aggregate condition. The alias set by set_group_aggregate lives
+      // on the column selection's ColumnRef too, so AggregateInfo must be searched FIRST or
+      // the ColumnRef alias match below would win.
+      if(post && field != null) {
+         AggregateInfo ainfo = t.getAggregateInfo();
+
+         if(ainfo != null && !ainfo.isEmpty()) {
+            for(int i = 0; i < ainfo.getAggregateCount(); i++) {
+               AggregateRef ar = ainfo.getAggregate(i);
+
+               // Match the alias (e.g. "total_paid"), the view ("Sum(total_paid)"),
+               // or the base attribute name.
+               if(field.equals(ar.toView()) ||
+                  ar.getDataRef() instanceof ColumnRef cr &&
+                     (field.equals(cr.getAlias()) || field.equals(cr.getAttribute())))
+               {
+                  return ar;
+               }
+            }
+
+            for(int i = 0; i < ainfo.getGroupCount(); i++) {
+               GroupRef gr = ainfo.getGroup(i);
+
+               if(field.equals(gr.getAttribute()) ||
+                  gr.getDataRef() instanceof ColumnRef cr && field.equals(cr.getAlias()))
+               {
+                  return gr;
+               }
+            }
+         }
+      }
+
+      ColumnSelection cs = t.getColumnSelection(post);
 
       if(cs != null && field != null) {
          // Try direct lookup first (handles both raw name and alias via ColumnSelection).
@@ -636,7 +810,11 @@ public final class WorksheetMutationSupport {
     * Falls back to {@link XSchema#STRING} when the column is not found or has no type.
     */
    private static String inferColumnType(TableAssembly t, String field) {
-      DataRef col = resolveField(t, field);
+      return inferColumnType(t, field, false);
+   }
+
+   private static String inferColumnType(TableAssembly t, String field, boolean post) {
+      DataRef col = resolveField(t, field, post);
 
       if(col.getDataType() != null && !col.getDataType().isBlank()) {
          return col.getDataType();
