@@ -196,6 +196,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    // Fallback timeout handle: clears loading state if chart-area's onLoad never fires
    // (e.g. during rapid max-mode transitions). (Bug #74278)
    private chartLoadingTimeout: ReturnType<typeof setTimeout> | null = null;
+   private showHintsTimer: ReturnType<typeof setTimeout> | null = null;
    // DOM clone of chart-area shown while tiles reload, so the old chart stays visible. (Bug #74260)
    private chartSnapshot: HTMLElement | null = null;
 
@@ -988,6 +989,11 @@ export class VSChart extends AbstractVSObject<VSChartModel>
          this.chartAreasRetryTimer = null;
       }
 
+      if(this.showHintsTimer) {
+         clearTimeout(this.showHintsTimer);
+         this.showHintsTimer = null;
+      }
+
       this.subscriptions.unsubscribe();
 
       if(this.actionSubscription) {
@@ -1278,9 +1284,14 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       }
 
       if(this.mobileDevice) {
+         if(this.showHintsTimer) {
+            clearTimeout(this.showHintsTimer);
+         }
+
          this.showHints = true;
          this.detectChanges();
-         setTimeout(() => {
+         this.showHintsTimer = setTimeout(() => {
+            this.showHintsTimer = null;
             this.showHints = false;
             this.detectChanges();
          }, 1000);
