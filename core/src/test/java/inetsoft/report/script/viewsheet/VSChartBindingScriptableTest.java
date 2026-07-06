@@ -106,6 +106,24 @@ public class VSChartBindingScriptableTest {
                    vsChartBindingScriptable.getSizeField("order_date").getName());
    }
 
+   // Bug #75573: the 2-arg script form setColorField(field, type) omits the
+   // trailing aggregate argument, which GraalJS delivers as null. The type value
+   // (Chart.STRING == "string") must not be mistaken for the field name.
+   @Test
+   void testSetAestheticFieldByName() {
+      chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_BAR);
+
+      vsChartBindingScriptable.setColorField("state", ChartConstants.STRING, null);
+      AestheticRef colorField = vsChartBindingScriptable.getColorField("state");
+      assertNotNull(colorField);
+      assertEquals("state", colorField.getName());
+
+      vsChartBindingScriptable.setShapeField("region", ChartConstants.STRING, null);
+      AestheticRef shapeField = vsChartBindingScriptable.getShapeField("region");
+      assertNotNull(shapeField);
+      assertEquals("region", shapeField.getName());
+   }
+
    @Test
    void testSetGetTextField() {
       chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_LINE);
