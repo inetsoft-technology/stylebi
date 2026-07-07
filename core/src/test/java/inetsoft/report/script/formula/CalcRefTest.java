@@ -22,6 +22,7 @@ import inetsoft.report.internal.table.*;
 import inetsoft.report.script.viewsheet.CalcTableVSAScriptable;
 import inetsoft.test.*;
 import inetsoft.util.script.FormulaContext;
+import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -153,6 +154,36 @@ public class CalcRefTest {
 
       Object result2 = calcRef.getMember(".");
       assertArrayEquals(new Object[] {1, null}, (Object[])result2);
+   }
+
+   /**
+    * test get with valueOf (GraalJS ToPrimitive coercion)
+    */
+   @Test
+   void testGetWithValueOf() {
+      FormulaContext.pushCellLocation(point0);
+      when(mockRuntimeCalcTableLens.getCellContext(0, 0)).thenReturn(mockContext);
+      provideMockGroup(mockContext, "cell1", 1, "value1");
+
+      calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
+      Object member = calcRef.getMember("valueOf");
+      assertInstanceOf(ProxyExecutable.class, member);
+      assertEquals("value1", ((ProxyExecutable) member).execute());
+   }
+
+   /**
+    * test get with toString (GraalJS ToPrimitive coercion)
+    */
+   @Test
+   void testGetWithToString() {
+      FormulaContext.pushCellLocation(point0);
+      when(mockRuntimeCalcTableLens.getCellContext(0, 0)).thenReturn(mockContext);
+      provideMockGroup(mockContext, "cell1", 1, "value1");
+
+      calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
+      Object member = calcRef.getMember("toString");
+      assertInstanceOf(ProxyExecutable.class, member);
+      assertEquals("value1", ((ProxyExecutable) member).execute());
    }
 
    /**
