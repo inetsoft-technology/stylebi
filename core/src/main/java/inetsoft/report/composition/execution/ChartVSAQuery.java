@@ -1501,142 +1501,52 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
             // dimension ref
             if(refs[i] instanceof VSDimensionRef) {
                VSDimensionRef vdim = (VSDimensionRef) refs[i];
+               boolean hasInnerDim = false;
 
-               if(rankingFields.contains(vdim.getFullName())) {
-                  continue;
-               }
-
-               RankingCondition cond = vdim.getRankingCondition();
-
-               if(cond != null) {
-                  DataRef aref = cond.getDataRef();
-
-                  if(aref == null) {
-                     vdim.updateRanking(cols);
-                     cond = vdim.getRankingCondition();
+               for(int j = i + 1; j < refs.length; j++) {
+                  if(refs[j] instanceof VSDimensionRef) {
+                     hasInnerDim = true;
+                     break;
                   }
                }
 
-               if(cond != null) {
-                  // clone it, fix bug1343989398469
-                  cond = cond.clone();
-
-                  for(int j = i + 1; j < refs.length; j++) {
-                     if(refs[j] instanceof VSDimensionRef) {
-                        mgrcond = false;
-                        break;
-                     }
-                  }
-
-                  GroupRef group = vdim.createGroupRef(cols);
-
-                  if(group == null) {
-                     continue;
-                  }
-
-                  DataRef aref = cond.getDataRef();
-                  aref = AssetUtil.getColumnRefFromAttribute(cols, aref);
-                  DataRef aref2 = (aref != null) ? findRef(ainfo, aref) : null;
-
-                  if(aref2 == null) {
-                     LOG.warn("Ranking column not found: " + aref);
-                     continue;
-                  }
-
-                  cond.setDataRef(aref2);
-                  DataRef gref = group.getDataRef();
-                  ConditionItem ranking = new ConditionItem(gref, cond, 0);
-
-                  if(rconds.getSize() > 0) {
-                     JunctionOperator op = new JunctionOperator();
-                     rconds.append(op);
-                  }
-
-                  rconds.append(ranking);
-                  rankingFields.add(vdim.getFullName());
+               if(mergeDimRanking(vdim, cols, ainfo, rconds, rankingFields, null) &&
+                  hasInnerDim)
+               {
+                  mgrcond = false;
                }
             }
          }
 
          // Relation/Tree chart source and target fields are never included in
-         // cinfo.getRTFields() (AbstractChartInfo.getRTFields() only assembles x/y, group/path, and aesthetic refs)
+         // cinfo.getRTFields() (AbstractChartInfo.getRTFields() only assembles x/y,
+         // group/path, and aesthetic refs), so a RankingCondition set on either of
+         // them would otherwise never be merged into the query, making Top N/Bottom N
+         // ranking a no-op for tree charts.
          if(cinfo instanceof RelationChartInfo) {
             RelationChartInfo rcinfo = (RelationChartInfo) cinfo;
-            ChartRef[] treeFields = { rcinfo.getRTSourceField(), rcinfo.getRTTargetField() };
+            ChartRef sourceField = rcinfo.getRTSourceField();
+            ChartRef targetField = rcinfo.getRTTargetField();
+            // guards the ainfo group name fallback in mergeDimRanking() against
+            // source and target matching the same (ambiguous/shared) group name
+            Set<GroupRef> usedGroups = new HashSet<>();
 
-            for(ChartRef treeField : treeFields) {
-               if(!(treeField instanceof VSDimensionRef)) {
-                  continue;
+            // source is the outer/parent grouping and target is the inner/child
+            // grouping in a tree chart, so ranking on source while target is also
+            // bound isn't innermost and needs the same per-group post-processing
+            // (mgrcond = false) as a non-innermost x/y dimension above.
+            if(sourceField instanceof VSDimensionRef) {
+               boolean merged = mergeDimRanking((VSDimensionRef) sourceField, cols, ainfo,
+                                                 rconds, rankingFields, usedGroups);
+
+               if(merged && targetField instanceof VSDimensionRef) {
+                  mgrcond = false;
                }
+            }
 
-               VSDimensionRef vdim = (VSDimensionRef) treeField;
-
-               if(rankingFields.contains(vdim.getFullName())) {
-                  continue;
-               }
-
-               RankingCondition cond = vdim.getRankingCondition();
-
-               if(cond != null) {
-                  DataRef aref = cond.getDataRef();
-
-                  if(aref == null) {
-                     vdim.updateRanking(cols);
-                     cond = vdim.getRankingCondition();
-                  }
-               }
-
-               if(cond == null) {
-                  continue;
-               }
-
-               // clone it, fix bug1343989398469
-               cond = cond.clone();
-               GroupRef group = vdim.createGroupRef(cols);
-
-               // Region/State aren't part of the x/y binding loop above, so their
-               // column may not yet be synced into `cols` at this point
-               // createGroupRef(cols) can spuriously return null even though ainfo
-               // already has a real group for this field. Fall back to the existing
-               // group already registered on ainfo. The group's underlying ref name
-               // may be table-qualified while vdim.getFullName() is not, so match tolerating that qualification.
-               if(group == null) {
-                  String vname = vdim.getFullName();
-
-                  for(GroupRef g : ainfo.getGroups()) {
-                     String gname = g.getName();
-
-                     if(gname != null && (gname.equals(vname) || gname.endsWith("." + vname))) {
-                        group = g;
-                        break;
-                     }
-                  }
-               }
-
-               if(group == null) {
-                  continue;
-               }
-
-               DataRef aref = cond.getDataRef();
-               aref = AssetUtil.getColumnRefFromAttribute(cols, aref);
-               DataRef aref2 = (aref != null) ? findRef(ainfo, aref) : null;
-
-               if(aref2 == null) {
-                  LOG.warn("Ranking column not found: " + aref);
-                  continue;
-               }
-
-               cond.setDataRef(aref2);
-               DataRef gref = group.getDataRef();
-               ConditionItem ranking = new ConditionItem(gref, cond, 0);
-
-               if(rconds.getSize() > 0) {
-                  JunctionOperator op = new JunctionOperator();
-                  rconds.append(op);
-               }
-
-               rconds.append(ranking);
-               rankingFields.add(vdim.getFullName());
+            if(targetField instanceof VSDimensionRef) {
+               mergeDimRanking((VSDimensionRef) targetField, cols, ainfo, rconds,
+                                rankingFields, usedGroups);
             }
          }
       }
@@ -2149,6 +2059,102 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
     */
    private DataRef findRef(AggregateInfo ainfo, DataRef ref) {
       return AssetUtil.findRef(ainfo, ref);
+   }
+
+   /**
+    * Merge a dimension ref's RankingCondition (if any) into the ranking condition list.
+    * @param usedGroups when non-null, tracks which ainfo groups have already been
+    *                    claimed by a prior call in the same ranking pass (e.g. a tree
+    *                    chart's source/target fields), so that two different fields
+    *                    with an ambiguous/shared qualified name can't both resolve to
+    *                    the same group. Pass null when callers are guaranteed distinct
+    *                    (e.g. cinfo.getRTFields(), which never duplicates a column).
+    * @return true if this ref has a RankingCondition, regardless of whether the merge
+    *         into rconds actually succeeded - callers use this to decide whether
+    *         ranking on a non-innermost dimension should disable query-level merging
+    *         (mgrcond).
+    */
+   private boolean mergeDimRanking(VSDimensionRef vdim, ColumnSelection cols,
+                                    AggregateInfo ainfo, ConditionList rconds,
+                                    Set<String> rankingFields, Set<GroupRef> usedGroups)
+   {
+      if(rankingFields.contains(vdim.getFullName())) {
+         return false;
+      }
+
+      RankingCondition cond = vdim.getRankingCondition();
+
+      if(cond != null) {
+         DataRef aref = cond.getDataRef();
+
+         if(aref == null) {
+            vdim.updateRanking(cols);
+            cond = vdim.getRankingCondition();
+         }
+      }
+
+      if(cond == null) {
+         return false;
+      }
+
+      // clone it, fix bug1343989398469
+      cond = cond.clone();
+      GroupRef group = vdim.createGroupRef(cols);
+
+      // Fields that aren't part of the x/y binding loop (e.g. a tree chart's source
+      // and target) may not have their column synced into `cols` yet - that sync
+      // happens later, in the "Align generated grouping/sorting refs" loop - so
+      // createGroupRef(cols) can spuriously return null even though ainfo already has
+      // a real group for this field. Fall back to the matching group already
+      // registered on ainfo, tolerating a table-qualified name (e.g. "Query1.State"
+      // vs "State"). Skip any group already claimed via usedGroups to avoid two
+      // different fields resolving to the same ambiguous/shared qualified name.
+      if(group == null) {
+         String vname = vdim.getFullName();
+
+         for(GroupRef g : ainfo.getGroups()) {
+            String gname = g.getName();
+
+            if(gname == null || usedGroups != null && usedGroups.contains(g)) {
+               continue;
+            }
+
+            if(gname.equals(vname) || gname.endsWith("." + vname)) {
+               group = g;
+               break;
+            }
+         }
+      }
+
+      if(group == null) {
+         return true;
+      }
+
+      if(usedGroups != null) {
+         usedGroups.add(group);
+      }
+
+      DataRef aref = cond.getDataRef();
+      aref = AssetUtil.getColumnRefFromAttribute(cols, aref);
+      DataRef aref2 = (aref != null) ? findRef(ainfo, aref) : null;
+
+      if(aref2 == null) {
+         LOG.warn("Ranking column not found: " + aref);
+         return true;
+      }
+
+      cond.setDataRef(aref2);
+      DataRef gref = group.getDataRef();
+      ConditionItem ranking = new ConditionItem(gref, cond, 0);
+
+      if(rconds.getSize() > 0) {
+         JunctionOperator op = new JunctionOperator();
+         rconds.append(op);
+      }
+
+      rconds.append(ranking);
+      rankingFields.add(vdim.getFullName());
+      return true;
    }
 
    /**
