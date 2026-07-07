@@ -370,12 +370,6 @@ export class GeoMappingDialog implements OnInit {
    }
 
    checkDuplicateMapping(): void {
-      let msize = Object.keys(this.manualMappings).length;
-
-      if(msize == 0) {
-         this.chartGeoModel.option.mapping.dupMapping = null;
-      }
-
       let map = {};
 
       for(let name in this.manualMappings) {
@@ -428,7 +422,9 @@ export class GeoMappingDialog implements OnInit {
       }
 
       this.chartGeoModel.option.mapping.dupMapping =
-         <{ [key: string]: Array<string>} >dupMapping;
+         Object.keys(dupMapping).length > 0
+            ? <{ [key: string]: Array<string>} >dupMapping
+            : null;
    }
 
    ok(evt: any): void {
