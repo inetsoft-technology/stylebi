@@ -31,9 +31,11 @@
  *   Group 9 [Risk 2]          - createDataBaseAssets (1 case)
  *   Group 10 [Risk 2]         - hasModelDuplicateCheck (1 case)
  *
- * Confirmed bugs (it.failing - remove wrapper once fixed):
- *   - moveModelsToTarget(null, ...) throws because items?.length == 0 does not guard null.
- *   - addLogicalModel wires the duplicate checker to the VPM endpoint instead of the logical-model endpoint.
+ * Fixed bugs (Issue #75587):
+ *   - moveModelsToTarget(null, ...) threw because items?.length == 0 did not guard null;
+ *     now guarded with `!items || items.length == 0`.
+ *   - addLogicalModel wired the duplicate checker to the VPM endpoint instead of the
+ *     logical-model endpoint; now passes PortalDataType.LOGIC_MODEL.
  *
  * KEY contracts:
  *   - emitChanged notifies subscribers returned by changed().
@@ -257,9 +259,9 @@ describe("DataModelBrowserService", () => {
             "_#(js:data.datasets.moveTargetPermissionError)");
       });
 
-      it.fails("[Risk 3] should treat a null item list as a no-op instead of throwing", () => {
-         // Regression-sensitive: the method uses optional chaining in its empty-list guard,
-         // which implies null-safety, but items?.length == 0 is false for null.
+      it("[Risk 3] should treat a null item list as a no-op instead of throwing", () => {
+         // Fixed Issue #75587: the empty-list guard now uses `!items || items.length == 0`
+         // instead of `items?.length == 0`, which was false (not a no-op) for null.
          expect(() => service.moveModelsToTarget(null as any, "Target Folder", vi.fn()))
             .not.toThrow();
 
@@ -310,9 +312,10 @@ describe("DataModelBrowserService", () => {
    // Group 5 [Risk 3, 2, 2, 2] - add model routing and duplicate checks
    // ---------------------------------------------------------------------------
    describe("add model routing and duplicate checks", () => {
-      it.fails("[Risk 3] should use the logical-model duplicate endpoint when adding a logical model", () => {
-         // Regression-sensitive: using the VPM duplicate endpoint can allow duplicate logical
-         // model names through client validation, leading to a later save failure or overwrite.
+      it("[Risk 3] should use the logical-model duplicate endpoint when adding a logical model", () => {
+         // Fixed Issue #75587: addLogicalModel() now passes PortalDataType.LOGIC_MODEL to
+         // hasModelDuplicateCheck() instead of PortalDataType.VPM, so the dialog checks
+         // against the logical-model duplicate endpoint instead of the VPM one.
          const dialog: any = {};
          vi.spyOn(ComponentTool, "showDialog").mockReturnValue(dialog);
 
