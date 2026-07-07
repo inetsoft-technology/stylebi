@@ -82,6 +82,7 @@ export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
       if(model) {
          this.form.get("ascending").setValue(model.ascending, {emitEvent: false});
          this.form.get("expand").setValue(model.expand, {emitEvent: false});
+         this.form.get("modernVisualization").setValue(model.modernVisualization, {emitEvent: false});
          this.updateFormFile("Logo", model);
          this.updateFormFile("Favicon", model);
          this.updateFormFile("Viewsheet", model);
@@ -103,6 +104,7 @@ export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
          this.form.get("viewsheetFile").setValue(null, {emitEvent: false});
          this.form.get("userformatFile").setValue(null, {emitEvent: false});
          this.form.get("defaultFonts").setValue(true, {emitEvent: false});
+         this.form.get("modernVisualization").setValue(false, {emitEvent: false});
       }
    }
 
@@ -128,7 +130,8 @@ export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
             viewsheetFile: [null],
             userformatFile: [null],
             defaultFonts: [true],
-            selectedTheme: ["default"]
+            selectedTheme: ["default"],
+            modernVisualization: [false]
          },
          {
             validator: [
@@ -215,6 +218,7 @@ export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
       this.model.ascending = this.form.get("ascending").value;
       this.model.repositoryTree = GuiTool.isMobileDevice() ? false : true;
       this.model.expand = this.form.get("expand").value;
+      this.model.modernVisualization = this.form.get("modernVisualization").value;
       this.model.defaultFont = this.form.get("defaultFonts").value;
       this.updateModelFile("Logo");
       this.updateModelFile("Favicon");

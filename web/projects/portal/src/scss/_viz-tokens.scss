@@ -1,0 +1,61 @@
+/*!
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+// Visualization token contract. Legacy-default values; inert until a selector consumes them.
+// Do not wire the chart-color group to marks or in-graph chrome: those are server-rendered
+// (graph engine + format.css + GDefaults) and appear in export, so browser CSS cannot drive them.
+:root {
+  // density — browser-DOM data surfaces only; viewsheet-assembly density is server-side.
+  --inet-viz-row-height: var(--inet-row-height-md);
+  --inet-viz-chrome-row-height: var(--inet-row-height-md);
+  --inet-viz-cell-padding-x: var(--inet-space-4);
+  --inet-viz-cell-padding-y: var(--inet-space-3);
+  --inet-viz-toolbar-height: var(--inet-control-height-md);
+  --inet-viz-control-height: var(--inet-control-height-sm);
+  --inet-viz-font-size: var(--inet-font-size-base);
+
+  // state — live-view DOM overlays only; export-visible state is server-rendered via VSFormat.
+  --inet-viz-hover-bg: var(--inet-ui-neutral-hover-bg-color);
+  --inet-viz-selected-bg: var(--inet-shell-selected-bg-color);
+  --inet-viz-selected-text: var(--inet-selected-item-text-color);
+  --inet-viz-selected-border: var(--inet-primary-color);
+  --inet-viz-active-border: var(--inet-primary-color);
+  --inet-viz-context-bg: var(--inet-shell-surface-subtle);
+  --inet-viz-inline-edit-bg: var(--inet-shell-surface-default);
+  --inet-viz-filtered-bg: var(--inet-shell-surface-subtle);
+  --inet-viz-sorted-color: var(--inet-text-muted-color);
+  --inet-viz-pinned-divider: var(--inet-border-strong-color);
+  --inet-viz-warning-bg: var(--inet-warning-color-light);
+  --inet-viz-anomaly-bg: var(--inet-danger-color-light);
+  --inet-viz-dimmed-opacity: 0.5;
+
+  // compatibility — CSS gate switches DOM only; server-rendered surfaces follow the server-side
+  // per-org property.
+  --inet-viz-mode: legacy;
+
+  // chart color: RESERVED / CONCEPTUAL ONLY — server-rendered, do not wire to marks or in-graph
+  // chrome. Colors resolve server-side via format.css / descriptors.
+  // --inet-viz-chart-series-*, --inet-viz-ramp-sequential-*, --inet-viz-ramp-diverging-*,
+  // --inet-viz-threshold-*, --inet-viz-conditional-*
+}
+
+// Modern gate scope (DOM surfaces only), toggled per org via body.viz-modern.
+.viz-modern,
+[data-viz-theme="v2"] {
+  --inet-viz-mode: modern;
+}
