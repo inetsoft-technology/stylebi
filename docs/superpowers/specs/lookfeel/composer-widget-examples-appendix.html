@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>StyleBI Design Widget Examples Appendix</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',system-ui,sans-serif;font-size:13px;background:#F7F6F2;color:#242421;-webkit-font-smoothing:antialiased;}
+.page{max-width:1100px;margin:0 auto;padding:40px 32px 80px;}
+.cover{padding:48px 0 36px;border-bottom:2px solid #EEA555;margin-bottom:40px;}
+.cover-title{font-size:42px;font-weight:700;letter-spacing:-.02em;color:#242421;}
+.cover-sub{font-size:22px;font-weight:400;color:#5E5D57;margin-top:4px;}
+.cover-meta{margin-top:16px;font-size:12px;color:#999790;line-height:1.8;}
+.section-title{font-size:18px;font-weight:600;color:#242421;border-bottom:1px solid #ECEAE3;padding-bottom:10px;margin:40px 0 16px;}
+.component-card{border:1px solid #D4D2C9;border-radius:6px;background:#fff;overflow:hidden;}
+.component-head{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid #ECEAE3;background:#FCFBF8;gap:12px;}
+.component-title{font-size:12px;font-weight:600;color:#242421;}
+.component-sub{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#999790;}
+.component-body{padding:14px;}
+.component-note{font-size:11px;color:#5E5D57;line-height:1.6;padding:8px 0;border-top:1px solid #ECEAE3;}
+.component-note:first-of-type{padding-top:0;border-top:none;}
+.worksheet-demo{display:grid;gap:16px;}
+.worksheet-canvas{position:relative;height:500px;overflow:hidden;border-radius:8px;background:linear-gradient(180deg,#FFFEFC 0%,#FCFBF8 100%);border:1px solid #ECEAE3;padding:18px;}
+.worksheet-lines{position:absolute;inset:18px;pointer-events:none;overflow:visible;}
+.worksheet-node{position:absolute;background:#fff;border:1px solid #D4D2C9;border-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.06),0 1px 3px rgba(0,0,0,.04);overflow:hidden;transition:opacity 120ms ease,border-color 120ms ease,box-shadow 120ms ease;}
+.worksheet-node-header{height:30px;display:flex;align-items:center;gap:8px;padding:0 10px;font-size:12px;font-weight:500;color:#242421;border-bottom:1px solid #ECEAE3;background:#F7F6F2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.worksheet-node-icon{width:16px;height:16px;border:1px solid #D4D2C9;border-radius:3px;background:#fff;position:relative;flex:0 0 auto;}
+.worksheet-node-icon::before{content:'';position:absolute;left:3px;top:3px;width:4px;height:4px;background:#B0AEA6;box-shadow:6px 0 0 #B0AEA6,0 6px 0 #B0AEA6,6px 6px 0 #B0AEA6;}
+.worksheet-node-body{padding:8px 10px 10px;display:grid;gap:4px;font-size:11px;color:#242421;background:#fff;}
+.worksheet-node-meta{color:#5E5D57;}
+.worksheet-node-handle{position:absolute;width:12px;height:12px;border-radius:999px;background:#A7A39A;border:2px solid #FCFBF8;z-index:2;}
+.worksheet-node.connected .worksheet-node-header{background:#FEF8EE;}
+.worksheet-node.selected{border-color:#BFDDE5;box-shadow:0 0 0 2px rgba(167,215,227,.35),0 4px 10px rgba(0,0,0,.06);}
+.worksheet-node.selected .worksheet-node-header{background:#DDF1F5;color:#123C44;border-bottom-color:#BFDDE5;}
+.worksheet-node.selected .worksheet-node-handle{background:#5E5D57;}
+.worksheet-node.primary .worksheet-node-header{background:#fff;color:#8A745D;}
+.worksheet-node.primary .worksheet-node-icon{background:#EEA555;border-color:#EEA555;}
+.worksheet-node.primary .worksheet-node-icon::before{background:#fff;box-shadow:6px 0 0 #fff,0 6px 0 #fff,6px 6px 0 #fff;}
+.worksheet-node.primary .worksheet-node-meta{color:#9B846D;}
+.worksheet-node.dimmed{opacity:.42;box-shadow:none;}
+.worksheet-node.dimmed .worksheet-node-header{background:#FBFAF7;color:#A7A39A;}
+.worksheet-node.dimmed .worksheet-node-body,.worksheet-node.dimmed .worksheet-node-meta{color:#B8B3AA;}
+.worksheet-line-muted{stroke:#B8B3AA;stroke-width:1.35;fill:none;marker-end:url(#ws-arrow-muted);}
+.worksheet-line-active{stroke:#242421;stroke-width:1.55;fill:none;marker-end:url(#ws-arrow-active);}
+.worksheet-node.n1{left:220px;top:18px;width:236px;}
+.worksheet-node.n2{left:22px;top:150px;width:176px;}
+.worksheet-node.n3{left:250px;top:158px;width:188px;}
+.worksheet-node.n4{left:520px;top:144px;width:188px;}
+.worksheet-node.n5{left:642px;top:18px;width:184px;}
+.worksheet-node.n6{left:8px;top:286px;width:182px;}
+.worksheet-node.n7{left:520px;top:306px;width:170px;}
+.worksheet-node.n8{left:778px;top:270px;width:182px;}
+.worksheet-node.n9{left:250px;top:372px;width:198px;}
+.worksheet-node.n10{left:810px;top:126px;width:188px;}
+.worksheet-node.n1 .worksheet-node-handle.top{left:108px;top:-7px;}
+.worksheet-node.n1 .worksheet-node-handle.left{left:-7px;top:86px;}
+.worksheet-node.n1 .worksheet-node-handle.right{right:-7px;top:86px;}
+.worksheet-node.n1 .worksheet-node-handle.bottom{left:108px;bottom:-7px;}
+.worksheet-node.n2 .worksheet-node-handle.top{left:80px;top:-7px;}
+.worksheet-node.n2 .worksheet-node-handle.right{right:-7px;top:50px;}
+.worksheet-node.n2 .worksheet-node-handle.bottom{left:80px;bottom:-7px;}
+.worksheet-node.n3 .worksheet-node-handle.left{left:-7px;top:50px;}
+.worksheet-node.n3 .worksheet-node-handle.top{left:88px;top:-7px;}
+.worksheet-node.n4 .worksheet-node-handle.left{left:-7px;top:50px;}
+.worksheet-node.n4 .worksheet-node-handle.top{left:82px;top:-7px;}
+.worksheet-node.n4 .worksheet-node-handle.right{right:-7px;top:50px;}
+.worksheet-node.n5 .worksheet-node-handle.bottom{left:88px;bottom:-7px;}
+.worksheet-node.n6 .worksheet-node-handle.top{left:80px;top:-7px;}
+.worksheet-node.n7 .worksheet-node-handle.top{left:78px;top:-7px;}
+.worksheet-node.n8 .worksheet-node-handle.left{left:-7px;top:50px;}
+.worksheet-node.n9 .worksheet-node-handle.left{left:-7px;top:50px;}
+.worksheet-node.n10 .worksheet-node-handle.left{left:-7px;top:50px;}
+@media (max-width:900px){.page{padding-left:20px;padding-right:20px;}.worksheet-canvas{height:980px;padding:14px;}.worksheet-lines{display:none;}.worksheet-node.n1{left:0;top:0;width:100%;max-width:320px;}.worksheet-node.n2{left:0;top:110px;width:100%;max-width:260px;}.worksheet-node.n3{left:0;top:220px;width:100%;max-width:280px;}.worksheet-node.n4{left:0;top:330px;width:100%;max-width:280px;}.worksheet-node.n5{left:0;top:440px;width:100%;max-width:280px;}.worksheet-node.n6{left:0;top:550px;width:100%;max-width:260px;}.worksheet-node.n7{left:0;top:660px;width:100%;max-width:260px;}.worksheet-node.n8{left:0;top:770px;width:100%;max-width:280px;}.worksheet-node.n9{left:0;top:880px;width:100%;max-width:280px;}.worksheet-node.n10{display:none;}}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="cover">
+    <div class="cover-title">design-widget-examples</div>
+    <div class="cover-sub">Worksheet and workflow examples appendix</div>
+    <div class="cover-meta">Examples for non-shell design widgets that still coordinate with the overall product theme.</div>
+  </div>
+
+  <div class="section-title">Worksheet Nodes</div>
+  <div class="component-card">
+    <div class="component-head">
+      <div class="component-title">Worksheet Nodes</div>
+      <div class="component-sub">Full graph states under the theme</div>
+    </div>
+    <div class="component-body">
+      <div class="worksheet-demo">
+        <div class="worksheet-canvas">
+          <svg class="worksheet-lines" viewBox="0 0 1040 500" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <marker id="ws-arrow-muted" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L8,4 L0,8 z" fill="#B8B3AA"></path>
+              </marker>
+              <marker id="ws-arrow-active" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L8,4 L0,8 z" fill="#242421"></path>
+              </marker>
+            </defs>
+            <path class="worksheet-line-active" d="M 340 54 C 344 96, 346 124, 344 158"></path>
+            <path class="worksheet-line-active" d="M 198 200 C 224 200, 236 200, 250 208"></path>
+            <path class="worksheet-line-active" d="M 438 208 C 474 196, 494 192, 520 194"></path>
+            <path class="worksheet-line-active" d="M 340 54 C 352 116, 366 234, 348 372"></path>
+            <path class="worksheet-line-muted" d="M 110 258 C 108 274, 96 280, 88 286"></path>
+            <path class="worksheet-line-muted" d="M 604 228 C 610 266, 606 286, 604 306"></path>
+            <path class="worksheet-line-muted" d="M 708 194 C 786 222, 846 244, 778 304"></path>
+            <path class="worksheet-line-muted" d="M 810 160 C 770 162, 746 168, 708 178"></path>
+          </svg>
+
+          <div class="worksheet-node selected n1">
+            <span class="worksheet-node-handle top"></span>
+            <span class="worksheet-node-handle left"></span>
+            <span class="worksheet-node-handle right"></span>
+            <span class="worksheet-node-handle bottom"></span>
+            <div class="worksheet-node-header"><span class="worksheet-node-icon"></span>25Q4TableauRenew</div>
+            <div class="worksheet-node-body">
+              <div>Rows : 89</div>
+              <div class="worksheet-node-meta">cols : 10 of 10</div>
+            </div>
+          </div>
+
+          <div class="worksheet-node connected n2">
+            <span class="worksheet-node-handle top"></span>
+            <span class="worksheet-node-handle right"></span>
+            <span class="worksheet-node-handle bottom"></span>
+            <div class="worksheet-node-header"><span class="worksheet-node-icon"></span>orderRowCnt</div>
+            <div class="worksheet-node-body">
+              <div>Rows : 1</div>
+              <div class="worksheet-node-meta">cols : 2 of 10</div>
+            </div>
+          </div>
+
+          <div class="worksheet-node connected n3">
+            <span class="worksheet-node-handle left"></span>
+            <span class="worksheet-node-handle top"></span>
+            <div class="worksheet-node-header"><span class="worksheet-node-icon"></span>1rowOrderIDs</div>
+            <div class="worksheet-node-body">
+              <div>Rows : 1</div>
+              <div class="worksheet-node-meta">cols : 3 of 3</div>
+            </div>
+          </div>
+
+          <div class="worksheet-node dimmed n4">
+            <span class="worksheet-node-handle left"></span>
+            <span class="worksheet-node-handle top"></span>
+            <span class="worksheet-node-handle right"></span>
+            <div class="worksheet-node-header"><span class="worksheet-node-icon"></span>MasterFindRows</div>
+            <div class="worksheet-node-body">
+              <div>Rows : 1</div>
+              <div class="worksheet-node-meta">cols : 2 of 29</div>
+            </div>
+          </div>
+
+          <div class="worksheet-node primary dimmed n5">
+            <span class="worksheet-node-handle bottom"></span>
+            <div class="worksheet-node-header"><span class="worksheet-node-icon"></span>xStep2-Master25Q...</div>
+            <div class="worksheet-node-body">
+              <div>Rows : 2175</div>
+              <div class="worksheet-node-meta">cols : 27 of 27</div>
+            </div>
+          </div>
+
+          <div class="worksheet-node dimmed n6">
+            <span class="worksheet-node-handle top"></span>
+            <div class="worksheet-node-header"><span class="worksheet-node-icon"></span>Step 1-nRowOrderID</div>
+            <div class="worksheet-node-body">
+              <div>Rows : 1</div>
+              <div class="worksheet-node-meta">cols : 2 of 2</div>
+            </div>
+          </div>
+
+          <div class="worksheet-node dimmed n7">
+            <span class="worksheet-node-handle top"></span>
+            <div class="worksheet-node-header"><span class="worksheet-node-icon"></span>Find1RowID</div>
+            <div class="worksheet-node-body">
+              <div>Rows : 1</div>
+              <div class="worksheet-node-meta">cols : 2 of 2</div>
+            </div>
+          </div>
+
+          <div class="worksheet-node dimmed n8">
+            <span class="worksheet-node-handle left"></span>
+            <div class="worksheet-node-header"><span class="worksheet-node-icon"></span>Step3-Find0RowID</div>
+            <div class="worksheet-node-body">
+              <div>Rows : 1</div>
+              <div class="worksheet-node-meta">cols : 2 of 2</div>
+            </div>
+          </div>
+
+          <div class="worksheet-node connected n9">
+            <span class="worksheet-node-handle left"></span>
+            <div class="worksheet-node-header"><span class="worksheet-node-icon"></span>Step5-Find1Orders</div>
+            <div class="worksheet-node-body">
+              <div>Rows : 1</div>
+              <div class="worksheet-node-meta">cols : 12 of 12</div>
+            </div>
+          </div>
+
+          <div class="worksheet-node dimmed n10">
+            <span class="worksheet-node-handle left"></span>
+            <div class="worksheet-node-header"><span class="worksheet-node-icon"></span>FilteroutLost1</div>
+            <div class="worksheet-node-body">
+              <div>Rows : 1</div>
+              <div class="worksheet-node-meta">cols : 27 of 27</div>
+            </div>
+          </div>
+        </div>
+        <div class="component-note">This example uses the full page width so the node spacing and line routing read like a complete worksheet graph instead of a cramped card sketch.</div>
+        <div class="component-note"><strong>Selected node CSS:</strong> <code>.worksheet-node.selected</code> uses a soft blue header <code>#DDF1F5</code>, a cool border <code>#BFDDE5</code>, and a restrained halo so the active block leads the eye without becoming heavy.</div>
+        <div class="component-note"><strong>Connected node CSS:</strong> <code>.worksheet-node.connected .worksheet-node-header</code> applies the pale yellow header <code>#FEF8EE</code> while the card body stays white, keeping related steps visible but clearly secondary.</div>
+        <div class="component-note"><strong>Primary node CSS:</strong> <code>.worksheet-node.primary .worksheet-node-icon</code> paints only the icon tile in amber <code>#EEA555</code>; the rest of the node stays quiet so the orange signal reads as a role marker rather than a full alert block.</div>
+        <div class="component-note"><strong>Line and dimming CSS:</strong> <code>.worksheet-line-active</code> uses dark charcoal <code>#242421</code>, <code>.worksheet-line-muted</code> uses <code>#B8B3AA</code>, and <code>.worksheet-node.dimmed</code> lowers opacity so unrelated paths recede.</div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

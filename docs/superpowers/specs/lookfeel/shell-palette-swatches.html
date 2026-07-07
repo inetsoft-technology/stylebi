@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>StyleBI Shell Palette Swatches</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #F8F7F4;
+    color: #35342F;
+    padding: 40px 48px;
+    font-size: 13px;
+  }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+    color: #1F1F1B;
+    margin-bottom: 6px;
+  }
+
+  .subtitle {
+    color: #6A685F;
+    margin-bottom: 48px;
+    font-size: 13px;
+  }
+
+  .section {
+    margin-bottom: 48px;
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #99958C;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #D9D5CC;
+  }
+
+  .swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .swatch {
+    width: 160px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(0,0,0,0.08);
+    background: #fff;
+  }
+
+  .swatch-color {
+    height: 72px;
+    width: 100%;
+  }
+
+  .swatch-info {
+    padding: 10px 12px 12px;
+  }
+
+  .swatch-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: #1F1F1B;
+    margin-bottom: 2px;
+    line-height: 1.3;
+  }
+
+  .swatch-hex {
+    font-size: 11px;
+    color: #6A685F;
+    font-family: "Fira Mono", "Cascadia Code", "Consolas", monospace;
+    margin-bottom: 4px;
+  }
+
+  .swatch-use {
+    font-size: 10px;
+    color: #99958C;
+    line-height: 1.4;
+  }
+
+  /* on-color text demo inside swatch */
+  .swatch-color.has-text {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+
+  .family-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(0,0,0,0.08);
+    margin-bottom: 12px;
+    width: fit-content;
+  }
+
+  .family-row .swatch {
+    border-radius: 0;
+    border: none;
+    border-right: 1px solid rgba(0,0,0,0.06);
+    width: 150px;
+  }
+
+  .family-row .swatch:last-child {
+    border-right: none;
+  }
+</style>
+</head>
+<body>
+
+<h1>StyleBI Shell Palette</h1>
+<p class="subtitle">Color swatches generated from shell-palette-spec.md</p>
+
+<!-- NEUTRALS -->
+<div class="section">
+  <div class="section-title">Neutral Scale — Heavy use · Primary source of hierarchy</div>
+  <div class="swatches">
+
+    <div class="swatch">
+      <div class="swatch-color" style="background:#F8F7F4;"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">surface-canvas</div>
+        <div class="swatch-hex">#F8F7F4</div>
+        <div class="swatch-use">page / canvas background</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color" style="background:#FFFFFF; border-bottom:1px solid #ECE9E2;"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">surface-default</div>
+        <div class="swatch-hex">#FFFFFF</div>
+        <div class="swatch-use">cards, dialogs, raised panels, inputs</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color" style="background:#F1EFEA;"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">surface-subtle</div>
+        <div class="swatch-hex">#F1EFEA</div>
+        <div class="swatch-use">tabs, toolbars, side areas</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color" style="background:#ECE9E2;"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">surface-hover</div>
+        <div class="swatch-hex">#ECE9E2</div>
+        <div class="swatch-use">hover fills, neutral active surfaces</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color" style="background:#D9D5CC;"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">border-default</div>
+        <div class="swatch-hex">#D9D5CC</div>
+        <div class="swatch-use">normal borders and dividers</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color" style="background:#C8C2B7;"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">border-strong</div>
+        <div class="swatch-hex">#C8C2B7</div>
+        <div class="swatch-use">stronger separators, emphasis borders</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#1F1F1B; color:#F8F7F4;">Aa</div>
+      <div class="swatch-info">
+        <div class="swatch-name">text-strong</div>
+        <div class="swatch-hex">#1F1F1B</div>
+        <div class="swatch-use">strong headings and emphasis</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#35342F; color:#F8F7F4;">Aa</div>
+      <div class="swatch-info">
+        <div class="swatch-name">text-default</div>
+        <div class="swatch-hex">#35342F</div>
+        <div class="swatch-use">primary body and control text</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#6A685F; color:#F8F7F4;">Aa</div>
+      <div class="swatch-info">
+        <div class="swatch-name">text-muted</div>
+        <div class="swatch-hex">#6A685F</div>
+        <div class="swatch-use">secondary labels, subdued text</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#99958C; color:#F8F7F4;">Aa</div>
+      <div class="swatch-info">
+        <div class="swatch-name">text-subtle</div>
+        <div class="swatch-hex">#99958C</div>
+        <div class="swatch-use">placeholders, low-priority meta text</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- PRIMARY -->
+<div class="section">
+  <div class="section-title">Primary Family — Moderate, intentional · Only routine shell accent</div>
+  <div class="family-row">
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#E58A2A; color:#fff;">Primary</div>
+      <div class="swatch-info">
+        <div class="swatch-name">primary</div>
+        <div class="swatch-hex">#E58A2A</div>
+        <div class="swatch-use">primary actions, key emphasis</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#C96F12; color:#fff;">Hover</div>
+      <div class="swatch-info">
+        <div class="swatch-name">primary-hover</div>
+        <div class="swatch-hex">#C96F12</div>
+        <div class="swatch-use">hover state for primary actions</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#A95607; color:#fff;">Active</div>
+      <div class="swatch-info">
+        <div class="swatch-name">primary-active</div>
+        <div class="swatch-hex">#A95607</div>
+        <div class="swatch-use">active / pressed state</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#F6E2C8; color:#4A2500;">Soft</div>
+      <div class="swatch-info">
+        <div class="swatch-name">primary-soft</div>
+        <div class="swatch-hex">#F6E2C8</div>
+        <div class="swatch-use">soft primary surface</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#F6E2C8; color:#4A2500; font-size:10px;">Text on soft</div>
+      <div class="swatch-info">
+        <div class="swatch-name">primary-text</div>
+        <div class="swatch-hex">#4A2500</div>
+        <div class="swatch-use">text on soft primary surfaces</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- SECONDARY -->
+<div class="section">
+  <div class="section-title">Support Family — Secondary (Violet) · Limited structural use</div>
+  <div class="family-row">
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#7455A8; color:#fff;">Secondary</div>
+      <div class="swatch-info">
+        <div class="swatch-name">secondary</div>
+        <div class="swatch-hex">#7455A8</div>
+        <div class="swatch-use">constrained violet structural emphasis</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#624494; color:#fff;">Hover</div>
+      <div class="swatch-info">
+        <div class="swatch-name">secondary-hover</div>
+        <div class="swatch-hex">#624494</div>
+        <div class="swatch-use">hover state</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#4E3378; color:#fff;">Active</div>
+      <div class="swatch-info">
+        <div class="swatch-name">secondary-active</div>
+        <div class="swatch-hex">#4E3378</div>
+        <div class="swatch-use">active state</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#EDE8F5; color:#3D2070;">Soft</div>
+      <div class="swatch-info">
+        <div class="swatch-name">secondary-soft</div>
+        <div class="swatch-hex">#EDE8F5</div>
+        <div class="swatch-use">soft violet support surface</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#EDE8F5; color:#3D2070; font-size:10px;">Text on soft</div>
+      <div class="swatch-info">
+        <div class="swatch-name">secondary-text</div>
+        <div class="swatch-hex">#3D2070</div>
+        <div class="swatch-use">text on secondary-soft surfaces</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- THIRD -->
+<div class="section">
+  <div class="section-title">Support Family — Third (Rose) · Limited structural use</div>
+  <div class="family-row">
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#B54B6E; color:#fff;">Third</div>
+      <div class="swatch-info">
+        <div class="swatch-name">third</div>
+        <div class="swatch-hex">#B54B6E</div>
+        <div class="swatch-use">constrained rose structural emphasis</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#F5DCEA; color:#6B1F3A;">Soft</div>
+      <div class="swatch-info">
+        <div class="swatch-name">third-soft</div>
+        <div class="swatch-hex">#F5DCEA</div>
+        <div class="swatch-use">soft rose support surface</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#F5DCEA; color:#6B1F3A; font-size:10px;">Text on soft</div>
+      <div class="swatch-info">
+        <div class="swatch-name">third-text</div>
+        <div class="swatch-hex">#6B1F3A</div>
+        <div class="swatch-use">text on third-soft surfaces</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- FOURTH -->
+<div class="section">
+  <div class="section-title">Support Family — Fourth (Teal) · Limited structural use</div>
+  <div class="family-row">
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#1D8A86; color:#fff;">Fourth</div>
+      <div class="swatch-info">
+        <div class="swatch-name">fourth</div>
+        <div class="swatch-hex">#1D8A86</div>
+        <div class="swatch-use">constrained teal structural emphasis</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#D5EDEC; color:#0F4E4C;">Soft</div>
+      <div class="swatch-info">
+        <div class="swatch-name">fourth-soft</div>
+        <div class="swatch-hex">#D5EDEC</div>
+        <div class="swatch-use">soft teal support surface</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#D5EDEC; color:#0F4E4C; font-size:10px;">Text on soft</div>
+      <div class="swatch-info">
+        <div class="swatch-name">fourth-text</div>
+        <div class="swatch-hex">#0F4E4C</div>
+        <div class="swatch-use">text on fourth-soft surfaces</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- SEMANTIC -->
+<div class="section">
+  <div class="section-title">Semantic Families — Reserved for meaning-bearing states only</div>
+  <div class="swatches">
+
+    <!-- Success -->
+    <div class="family-row">
+      <div class="swatch">
+        <div class="swatch-color has-text" style="background:#2E8B57; color:#fff;">Success</div>
+        <div class="swatch-info">
+          <div class="swatch-name">success</div>
+          <div class="swatch-hex">#2E8B57</div>
+          <div class="swatch-use">success states</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color has-text" style="background:#E2F3E8; color:#1D5B39;">Soft</div>
+        <div class="swatch-info">
+          <div class="swatch-name">success-soft</div>
+          <div class="swatch-hex">#E2F3E8</div>
+          <div class="swatch-use">soft success surfaces</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color has-text" style="background:#E2F3E8; color:#1D5B39; font-size:10px;">Text on soft</div>
+        <div class="swatch-info">
+          <div class="swatch-name">success-text</div>
+          <div class="swatch-hex">#1D5B39</div>
+          <div class="swatch-use">text on success-soft surfaces</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Warning -->
+    <div class="family-row">
+      <div class="swatch">
+        <div class="swatch-color has-text" style="background:#B7791F; color:#fff;">Warning</div>
+        <div class="swatch-info">
+          <div class="swatch-name">warning</div>
+          <div class="swatch-hex">#B7791F</div>
+          <div class="swatch-use">warning states</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color has-text" style="background:#F8E8CC; color:#7A4E10;">Soft</div>
+        <div class="swatch-info">
+          <div class="swatch-name">warning-soft</div>
+          <div class="swatch-hex">#F8E8CC</div>
+          <div class="swatch-use">soft warning surfaces</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color has-text" style="background:#F8E8CC; color:#7A4E10; font-size:10px;">Text on soft</div>
+        <div class="swatch-info">
+          <div class="swatch-name">warning-text</div>
+          <div class="swatch-hex">#7A4E10</div>
+          <div class="swatch-use">text on warning-soft surfaces</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Danger -->
+    <div class="family-row">
+      <div class="swatch">
+        <div class="swatch-color has-text" style="background:#C84C4C; color:#fff;">Danger</div>
+        <div class="swatch-info">
+          <div class="swatch-name">danger</div>
+          <div class="swatch-hex">#C84C4C</div>
+          <div class="swatch-use">destructive / error states</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color has-text" style="background:#F7DEDE; color:#7F2E2E;">Soft</div>
+        <div class="swatch-info">
+          <div class="swatch-name">danger-soft</div>
+          <div class="swatch-hex">#F7DEDE</div>
+          <div class="swatch-use">soft danger surfaces</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color has-text" style="background:#F7DEDE; color:#7F2E2E; font-size:10px;">Text on soft</div>
+        <div class="swatch-info">
+          <div class="swatch-name">danger-text</div>
+          <div class="swatch-hex">#7F2E2E</div>
+          <div class="swatch-use">text on danger-soft surfaces</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info -->
+    <div class="family-row">
+      <div class="swatch">
+        <div class="swatch-color has-text" style="background:#3E7FC4; color:#fff;">Info</div>
+        <div class="swatch-info">
+          <div class="swatch-name">info</div>
+          <div class="swatch-hex">#3E7FC4</div>
+          <div class="swatch-use">informational states</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color has-text" style="background:#E4EFFA; color:#1F548A;">Soft</div>
+        <div class="swatch-info">
+          <div class="swatch-name">info-soft</div>
+          <div class="swatch-hex">#E4EFFA</div>
+          <div class="swatch-use">soft info surfaces</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color has-text" style="background:#E4EFFA; color:#1F548A; font-size:10px;">Text on soft</div>
+        <div class="swatch-info">
+          <div class="swatch-name">info-text</div>
+          <div class="swatch-hex">#1F548A</div>
+          <div class="swatch-use">text on info-soft surfaces</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- NEUTRAL CONTROLS -->
+<div class="section">
+  <div class="section-title">Neutral Control Tokens — For default and secondary button / control chrome</div>
+  <div class="swatches">
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#6A685F; color:#F8F7F4;">Aa</div>
+      <div class="swatch-info">
+        <div class="swatch-name">ui-neutral-color</div>
+        <div class="swatch-hex">#6A685F</div>
+        <div class="swatch-use">neutral control text / icon color</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color" style="background:#D9D5CC;"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">ui-neutral-border-color</div>
+        <div class="swatch-hex">#D9D5CC</div>
+        <div class="swatch-use">neutral control borders</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color" style="background:#ECE9E2;"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">ui-neutral-hover-bg-color</div>
+        <div class="swatch-hex">#ECE9E2</div>
+        <div class="swatch-use">hover background for neutral controls</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:#ECE9E2; color:#1F1F1B; font-size:10px;">Hover text</div>
+      <div class="swatch-info">
+        <div class="swatch-name">ui-neutral-hover-color</div>
+        <div class="swatch-hex">#1F1F1B</div>
+        <div class="swatch-use">hover text / icon color</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>
