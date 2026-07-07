@@ -50,6 +50,7 @@ public interface LookAndFeelSettingsModel {
    @Nullable List<UserFontModel> newFontFaces();
    List<ViewsheetCSSEntry> viewsheetCSSEntries();
    boolean vsEnabled();
+   boolean modernVisualization();
 
    static Builder builder() {
       return new Builder();

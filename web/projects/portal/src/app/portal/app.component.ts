@@ -85,6 +85,7 @@ export class PortalAppComponent implements OnInit, OnDestroy {
    private routeSubscription: Subscription;
    private licenseInfo: LicenseInfo;
    private readonly ACCESSIBILITY_CLASS: string = "accessible";
+   private readonly VIZ_MODERN_CLASS: string = "viz-modern";
    private destroy$ = new Subject<void>();
    private isGettingStartedShown: boolean = false;
    private readonly _onMessage = (evt: MessageEvent) => this.handleMessageEvent(evt);
@@ -159,6 +160,7 @@ export class PortalAppComponent implements OnInit, OnDestroy {
             this.portalModelService.model = model;
             this.aiAssistantService.aiAssistantVisible = model.aiAssistantVisible;
             this.updateAccessibility();
+            this.updateVisualizationMode();
             this.checkDefaultTab();
 
             let title = model.title;
@@ -251,6 +253,11 @@ export class PortalAppComponent implements OnInit, OnDestroy {
          const body: HTMLElement = this.document.body;
          body.classList.add(this.ACCESSIBILITY_CLASS);
       }
+   }
+
+   updateVisualizationMode(): void {
+      const body: HTMLElement = this.document.body;
+      body.classList.toggle(this.VIZ_MODERN_CLASS, !!this.model.modernVisualization);
    }
 
    get leftNavTabs(): PortalTab[] {
