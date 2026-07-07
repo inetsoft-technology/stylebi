@@ -35,6 +35,7 @@
           <mat-checkbox formControlName="expand">
           _#(Expand All Nodes)</mat-checkbox>
         }
+        <mat-checkbox formControlName="modernVisualization">_#(Modern Visualization)</mat-checkbox>
         <div class="linked-fields" [class.linked-fields-expanded]="!form.controls.defaultLogo?.value">
           @if (model.customLogoEnabled) {
             <mat-checkbox formControlName="defaultLogo">_#(Default Logo)</mat-checkbox>
