@@ -59,3 +59,39 @@
 [data-viz-theme="v2"] {
   --inet-viz-mode: modern;
 }
+
+// Modern density matrices (DOM surfaces only). Legacy :root defaults above stay unchanged, so
+// gate-off is byte-identical. The density body class (viz-density-<mode>) is carried from the
+// server; bare .viz-modern falls back to the default mode (dense). Enabling modern applies these
+// values, so DOM surfaces adopt the selected density — dense tightens padding/controls vs legacy
+// (the "dense == today" parity is a server-assembly property, not a DOM one).
+.viz-modern,
+.viz-modern.viz-density-dense {
+  --inet-viz-row-height: 20px;
+  --inet-viz-chrome-row-height: 22px;
+  --inet-viz-cell-padding-x: var(--inet-space-2); // 4px
+  --inet-viz-cell-padding-y: 3px;
+  --inet-viz-toolbar-height: 24px;
+  --inet-viz-control-height: 24px;
+  --inet-viz-font-size: 12px; // only tier that reduces type
+}
+
+.viz-modern.viz-density-compact {
+  --inet-viz-row-height: 24px;
+  --inet-viz-chrome-row-height: 26px;
+  --inet-viz-cell-padding-x: var(--inet-space-3); // 6px
+  --inet-viz-cell-padding-y: var(--inet-space-2); // 4px
+  --inet-viz-toolbar-height: 28px;
+  --inet-viz-control-height: 28px;
+  --inet-viz-font-size: var(--inet-font-size-base); // 13px
+}
+
+.viz-modern.viz-density-comfortable {
+  --inet-viz-row-height: 28px;
+  --inet-viz-chrome-row-height: 30px;
+  --inet-viz-cell-padding-x: var(--inet-space-4); // 8px
+  --inet-viz-cell-padding-y: var(--inet-space-3); // 6px
+  --inet-viz-toolbar-height: 30px;
+  --inet-viz-control-height: 30px;
+  --inet-viz-font-size: var(--inet-font-size-base); // 13px
+}

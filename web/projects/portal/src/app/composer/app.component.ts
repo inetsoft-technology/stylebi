@@ -15,10 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClient } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { Title } from "@angular/platform-browser";
 import { ActivatedRoute, Router } from "@angular/router";
 import { NgbDatepickerConfig, NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { PortalModel } from "../portal/portal-model";
 import { AiAssistantPanelComponent } from "../../../../shared/ai-assistant/ai-assistant-panel.component";
 import { DownloadTargetComponent } from "../../../../shared/download/download-target.component";
 import { FirstDayOfWeekService } from "../common/services/first-day-of-week.service";
@@ -30,12 +32,17 @@ import { ComposerMainComponent } from "./gui/composer-main.component";
 import { ResizeHandlerService } from "./gui/resize-handler.service";
 import { ComposerRecentService } from "./gui/composer-recent.service";
 
+const PORTAL_MODEL_URI: string = "../api/portal/get-portal-model";
+
 @Component({
     imports: [AiAssistantPanelComponent, ComposerMainComponent, DownloadTargetComponent],
     selector: "composer-app",
     templateUrl: "app.component.html"
 })
 export class ComposerAppComponent implements OnInit, OnDestroy {
+   private readonly VIZ_MODERN_CLASS: string = "viz-modern";
+   private readonly VIZ_DENSITY_CLASSES: string[] =
+      ["viz-density-comfortable", "viz-density-compact", "viz-density-dense"];
    initialSheet: string;
    baseWS: string;
    runtimeId: string;
@@ -58,7 +65,8 @@ export class ComposerAppComponent implements OnInit, OnDestroy {
                private titleService: Title,
                private modalService: NgbModal,
                private firstDayOfWeekService: FirstDayOfWeekService,
-               private composerRecentService: ComposerRecentService)
+               private composerRecentService: ComposerRecentService,
+               private http: HttpClient)
    {
       titleService.setTitle("_#(js:Visual Composer)");
       // Need to set a default min and max date otherwise the range is only 20 years.
@@ -112,11 +120,29 @@ export class ComposerAppComponent implements OnInit, OnDestroy {
       this.firstDayOfWeekService.getFirstDay().subscribe((model) => {
          this.ngbDatepickerConfig.firstDayOfWeek = model.isoFirstDay;
       });
+
+      this.http.get<PortalModel>(PORTAL_MODEL_URI)
+         .subscribe((model) => this.updateVisualizationMode(model));
    }
 
    ngOnDestroy() {
       this.dragService.removeListeners(document);
       this.resizeHandlerService.removeListeners();
+   }
+
+   private updateVisualizationMode(model: PortalModel): void {
+      const body: HTMLElement = document.body;
+      const modern: boolean = !!model.modernVisualization;
+      body.classList.toggle(this.VIZ_MODERN_CLASS, modern);
+      body.classList.remove(...this.VIZ_DENSITY_CLASSES);
+
+      if(modern) {
+         const densityClass = `viz-density-${model.vizDensity}`;
+
+         if(this.VIZ_DENSITY_CLASSES.includes(densityClass)) {
+            body.classList.add(densityClass);
+         }
+      }
    }
 
    downloadStarted(url: string): void {
