@@ -61,6 +61,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * evaluates to {@code false} for a wrapped object. The {@code ProxyObject} SPI has
  * no hook to answer host {@code instanceof}. Scripts should branch on behavior
  * (method/property presence) rather than Java type.
+ *
+ * <p><b>Known limitation:</b> argument unwrapping only inspects the top-level
+ * argument {@code Value}. A wrapper nested inside an array/{@code List}/varargs
+ * argument would reach the host call still wrapped. This is not exercised by the
+ * current API surface (no {@code EGraph}/{@code GraphElement} method takes a
+ * collection of graph elements), but a future method that does would need to
+ * unwrap collection elements as well.
  */
 public final class HostBeanProxy implements ProxyObject {
    // Intern wrappers per underlying object so that repeated access to the same
@@ -162,7 +169,8 @@ public final class HostBeanProxy implements ProxyObject {
          return wrapResult(host.invokeMember(getter));
       }
 
-      // Native public field.
+      // Native public field. Reached only when no bean getter matched above, so a
+      // same-named bean accessor deliberately takes precedence over a native field.
       if(host.hasMember(key)) {
          return wrapResult(host.getMember(key));
       }
@@ -181,7 +189,8 @@ public final class HostBeanProxy implements ProxyObject {
          return;
       }
 
-      // Native writable field.
+      // Native writable field. Reached only when no bean setter matched above, so a
+      // same-named bean accessor deliberately takes precedence over a native field.
       Value host = hostValue();
 
       if(host.hasMember(key)) {
