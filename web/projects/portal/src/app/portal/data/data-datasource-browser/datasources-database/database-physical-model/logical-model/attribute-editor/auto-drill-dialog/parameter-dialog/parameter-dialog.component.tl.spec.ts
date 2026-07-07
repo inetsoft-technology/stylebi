@@ -496,13 +496,10 @@ describe("ParameterDialog — getFirstErrorMessage, close, changeValue", () => {
 // ---------------------------------------------------------------------------
 
 describe("ParameterDialog — subscription leak after destroy", () => {
-   // Expected failure: `expect(comp.model.field).toBe("sentinel")` fails because the
-   // typeChanges subscription in ngOnInit has no takeUntilDestroyed. The setTimeout(0ms)
-   // callback fires after fixture.destroy() and resets model.field to null.
-   // Bug: no ngOnDestroy to unsubscribe from form.controls["type"].valueChanges.
-   // If the test fails for a reason other than the expect (e.g. fixture.destroy() throws),
-   // verify the failure is an AssertionError on model.field, not an exception.
-   it.fails("post-destroy type-change callback should not reset model.field", async () => {
+   // Fixed Issue #75590: the type-change subscription is now stored in
+   // this.typeChangeSubscription and unsubscribed in ngOnDestroy(), so a value
+   // change on the form control after destroy no longer fires the callback at all.
+   it("post-destroy type-change callback should not reset model.field", async () => {
       const { comp, fixture } = await renderComp({ index: -1 });
       // Prime typeInitialized=true with one type change before destroy
       comp.form.controls["type"].setValue(XSchema.STRING);

@@ -179,6 +179,14 @@ public class ChartVSAScriptableTest {
       chartVSAScriptable.putMember("dataset", data2);
       assert chartVSAScriptable.getMember("dataset") instanceof DefaultDataSet;
 
+      //put dataset as a DataSet instance. Under GraalJS a script-created DataSet
+      //(dataset = new DefaultDataSet(...)) arrives here unwrapped, so it must
+      //still be routed to the creator rather than dropped. (Bug #75580)
+      DefaultDataSet dataSet2 = new DefaultDataSet(
+         new Object[][]{{"State", "Quantity"}, {"NJ", 200}, {"NY", 300}});
+      chartVSAScriptable.putMember("dataset", dataSet2);
+      assertSame(dataSet2, chartVSAScriptable.getMember("dataset"));
+
       //put query
       chartVSAScriptable.putMember("query", "q1");
       assertEquals("q1", chartVSAScriptable.getMember("query"));
@@ -246,6 +254,7 @@ public class ChartVSAScriptableTest {
       chartVSAScriptable.setTipView("this is a tip view");
       assertEquals("this is a tip view", chartVSAScriptable.getTipView());
 
+      assertEquals(146, chartVSAScriptable.getMemberKeys().length);
       assertEquals(149, chartVSAScriptable.getMemberKeys().length);
    }
 
@@ -305,6 +314,10 @@ public class ChartVSAScriptableTest {
       assertEquals("Median Income", chartVSAScriptable1.getMember("sizeField"));
       assertEquals("Property Value", chartVSAScriptable1.getMember("textField"));
       assertNotNull(chartVSAScriptable1.getMember("data"));
+      // Bug #75568: "table" is an alias of "data" and must be resolvable. Under GraalJS,
+      // hasMember gates getMember, so "table" must be registered as a member.
+      assertTrue(chartVSAScriptable1.hasMember("table"));
+      assertNotNull(chartVSAScriptable1.getMember("table"));
       assertEquals("Data", chartVSAScriptable1.getMember("query"));
 
       //check getSuffix

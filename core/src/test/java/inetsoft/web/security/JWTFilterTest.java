@@ -18,14 +18,13 @@
 package inetsoft.web.security;
 
 /*
- * Intent vs implementation suspects:
+ * Design note — JWTFilter.doFilter() outer condition (JWTFilter.java:70):
  *
- * [Suspect 1] Operator precedence in doFilter outer condition — JWTFilter.java:70
- *             Actual:   (!isLogin && !isDoc && isPublicApi) || isTeamWebsocket
- *             Possible intent: !isLogin && !isDoc && (isPublicApi || isTeamWebsocket)
- *             With current code, the login-URI exclusion guard does NOT apply to the
- *             /reports/** websocket path. Likely intentional (login lives at /api/public/login,
- *             which never overlaps /reports/**), but left as a disabled spec for future review.
+ * (!isLogin && !isDoc && isPublicApi) || isTeamWebsocket
+ *
+ * Parentheses make the precedence explicit: team-websocket paths enter the JWT branch
+ * without the login/doc exclusion guard. No current impact — login and doc paths live
+ * under /api/public/, which does not overlap /reports/**.
  */
 
 /*
@@ -222,18 +221,6 @@ class JWTFilterTest {
 
       assertEquals(HttpServletResponse.SC_UNAUTHORIZED, response.getStatus());
       verifyNoInteractions(chain);
-   }
-
-   // ---- Suspect 1: operator precedence — login exclusion does not apply to websocket path ----
-
-   @Test
-   @Disabled("Suspect 1: isTeamWebsocketEndpoint short-circuits the login-URI exclusion guard " +
-             "due to || precedence — JWTFilter.java:70. " +
-             "Current: (!isLogin && !isDoc && isPublicApi) || isTeamWebsocket. " +
-             "If intent is to exclude login from all JWT checks use: !isLogin && !isDoc && (isPublicApi || isTeamWebsocket). " +
-             "Likely benign since /reports/** and /api/public/login never overlap.")
-   void doFilter_teamWebsocketPath_loginExclusionDoesNotApply() {
-      // placeholder to document the precedence difference
    }
 
    // ---- helper ----

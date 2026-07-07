@@ -420,6 +420,21 @@ public class RoleController {
          .build();
    }
 
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/security/users",
+         actions = ResourceAction.ACCESS
+      )
+   )
+   @PostMapping("/api/em/security/user/delete-identities/{provider}/affected-tasks")
+   public DeleteIdentitiesTaskImpactResponse getDeleteAffectedTasks(@RequestBody IdentityModel[] models,
+                                                                    @DecodePathVariable("provider") String providerName,
+                                                                    Principal principal)
+   {
+      return identityService.getDeleteTaskImpacts(models, providerName, principal);
+   }
+
    private final SecurityProvider securityProvider;
    private final IdentityService identityService;
    private final UserTreeService userTreeService;

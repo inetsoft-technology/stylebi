@@ -256,7 +256,7 @@ public class UserSignupService {
       }
 
       String[] names = SUtil.parseSignUpUserNames(userID, principal);
-      String cookies = principal.getProperty("SignupCookies");
+      String cookies = principal != null ? principal.getProperty("SignupCookies") : null;
 
       PostSignUpUserData postUserData = new PostSignUpUserData(email, names[0], names[1], cookies);
       postUserData.sendUserData();

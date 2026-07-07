@@ -18,19 +18,11 @@
 package inetsoft.sree.security.provider;
 
 /*
- * Intent vs implementation suspects (VirtualAuthenticationProvider-specific)
+ * Intentional design notes (NOT bugs — do not file issues for these)
  *
- * [Suspect 2] getUser(null userIdentity)
- *             intent : return null (unknown user)
- *             actual : VirtualAuthenticationProvider:140 accesses userIdentity.name before
- *                      null check → NullPointerException
- *             see    : getUser_nullIdentity_doesNotThrow (below, @Disabled)
- *
- * [Suspect 3] addUser(nonAdminUser)
- *             intent : add user or throw UnsupportedOperationException
- *             actual : silently ignored — VirtualAuthenticationProvider:265 only branches on
- *                      "admin"; all other users are dropped without error or exception
- *             see    : addUser_nonAdminUser_doesNotSilentlyIgnore (below, @Disabled)
+ * [Design 1] addUser(nonAdminUser) silently ignores non-admin users instead of throwing
+ *            UnsupportedOperationException. Intentional for virtual/no-security mode; see
+ *            VirtualAuthenticationProvider class Javadoc. Verified by addUser_nonAdminUser_silentlyIgnored.
  */
 
 /*
@@ -214,15 +206,10 @@ class VirtualAuthenticationProviderTest
          "Returned user must have the anonymous identity name");
    }
 
-   // [Suspect 2 — @Disabled]: Line 140 accesses userIdentity.name before null guard → NPE
    @Test
-   @Disabled("Suspect 2: getUser(null) throws NPE — " +
-      "VirtualAuthenticationProvider:140 accesses userIdentity.name before null check; " +
-      "Fix: add `if (userIdentity == null) return null;` at method entry")
-   void getUser_nullIdentity_doesNotThrow() {
-      assertDoesNotThrow(
-         () -> provider.getUser(null),
-         "getUser(null) must not throw — return null for unknown/null identity");
+   void getUser_nullIdentity_returnsNull() {
+      assertNull(provider.getUser(null),
+         "getUser(null) must return null without throwing");
    }
 
    // -----------------------------------------------------------------------
@@ -259,22 +246,17 @@ class VirtualAuthenticationProviderTest
       }
    }
 
-   // [Suspect 3 — @Disabled]: non-admin addUser() is silently ignored — contract violation
-   // EditableAuthenticationProvider.addUser() must either add the user or throw
-   // UnsupportedOperationException; VirtualAuthenticationProvider does neither.
+   // [Design 1] non-admin addUser() is silently ignored (documented on provider class).
    @Test
-   @Disabled("Suspect 3: addUser(nonAdmin) silently ignores the request — " +
-      "VirtualAuthenticationProvider:265 only processes admin; Fix: throw " +
-      "UnsupportedOperationException for non-admin to make the contract violation explicit")
-   void addUser_nonAdminUser_doesNotSilentlyIgnore() {
+   void addUser_nonAdminUser_silentlyIgnored() {
       IdentityID newUserId = new IdentityID("testuser", Organization.getDefaultOrganizationID());
       FSUser newUser = new FSUser(newUserId);
       newUser.setActive(true);
 
-      provider.addUser(newUser);
-
-      assertNotNull(provider.getUser(newUserId),
-         "addUser must either add the user or throw — silent discard violates EditableAuthenticationProvider contract");
+      assertDoesNotThrow(() -> provider.addUser(newUser),
+         "addUser(nonAdmin) must not throw in virtual mode");
+      assertNull(provider.getUser(newUserId),
+         "Non-admin user must not be persisted — addUser is a no-op for non-admin");
    }
 
    // -----------------------------------------------------------------------
@@ -315,16 +297,4 @@ class VirtualAuthenticationProviderTest
       assertEquals(expectedName, provider.getOrgNameFromID(orgId));
    }
 
-   // -----------------------------------------------------------------------
-   // C12 Suspect override (Suspect 1 — declared in AuthenticationProviderContractTest)
-   // -----------------------------------------------------------------------
-
-   @Override
-   @Test
-   @Disabled("Suspect 1: authenticate(null identity) throws NPE — " +
-      "VirtualAuthenticationProvider accesses userIdentity.name before null check; " +
-      "Fix: add `if (userIdentity == null) return false;` before the Objects.equals call")
-   void authenticate_nullIdentityID_doesNotThrow() {
-      super.authenticate_nullIdentityID_doesNotThrow();
-   }
 }

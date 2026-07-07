@@ -17,90 +17,224 @@
  */
 package inetsoft.web.portal.controller;
 
-import inetsoft.report.LibManagerProvider;
-import inetsoft.report.internal.DesignSession;
-import inetsoft.sree.RepletRegistryManager;
+/*
+ * GettingStartedController coverage map — [unit] tier, Mockito stubs GettingStartedService
+ *
+ * Cases deferred — folderId format / getDefaultFolder logic:
+ *
+ * [GettingStartedService] getDefaultFolder() -> covered in GettingStartedServiceTest
+ *
+ * Cases deferred — hasCreatedAssets stream pipeline:
+ *
+ * [GettingStartedService] hasCreatedAssets() -> indexed storage + asset repository integration
+ */
+
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.internal.*;
-import inetsoft.sree.internal.cluster.Cluster;
-import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.*;
-import inetsoft.test.*;
-import inetsoft.uql.asset.AssetRepository;
-import inetsoft.util.IndexedStorage;
-import inetsoft.util.Tool;
+import inetsoft.uql.XPrincipal;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.web.portal.model.GettingStartedAssetDefaultFolder;
 import inetsoft.web.portal.service.GettingStartedService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.io.IOException;
+import java.security.Principal;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
-@Disabled("Flaky on the build server")
-@ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-@SreeHome
+@ExtendWith(MockitoExtension.class)
 @Tag("core")
 class GettingStartedControllerTest {
-   @Autowired
-   SecurityEngine securityEngine;
-   @Autowired
-   Cluster cluster;
-   GettingStartedController gettingStartedController;
-   SRPrincipal admin;
-   SRPrincipal user1;
+
+   private static final String DEFAULT_FOLDER_ID = "folder-id-from-service";
+
+   @Mock private GettingStartedService gettingStartedService;
+   @Mock private SecurityEngine securityEngine;
+   @Mock private XPrincipal xPrincipal;
+
+   private GettingStartedController gettingStartedController;
+   private MockedStatic<SreeEnv> sreeEnvMock;
 
    @BeforeEach
-   void before() throws Exception {
-      securityEngine.enableSecurity();
-      SUtil.setMultiTenant(true);
-
-      AssetRepository assetRepository = Mockito.mock(AssetRepository.class);
-      DeployManagerService deployManagerService = Mockito.mock(DeployManagerService.class);
-      IndexedStorage indexedStorage = Mockito.mock(IndexedStorage.class);
-      DesignSession designSession = Mockito.mock(DesignSession.class);
-      LibManagerProvider libManagerProvider = Mockito.mock(LibManagerProvider.class);
-      DataCycleManager dataCycleManager = Mockito.mock(DataCycleManager.class);
-      RepletRegistryManager repletRegistryManager = Mockito.mock(RepletRegistryManager.class);
-      AnalyticEngine engine = new AnalyticEngine(deployManagerService, designSession, libManagerProvider, dataCycleManager, cluster, repletRegistryManager);
-      PortalThemesManager portalThemesManager = Mockito.mock(PortalThemesManager.class);
-      GettingStartedService gettingStartedService = new GettingStartedService(assetRepository, engine, securityEngine, indexedStorage, portalThemesManager);
+   void setUp() {
       gettingStartedController = new GettingStartedController(gettingStartedService, securityEngine);
-
-      admin = new SRPrincipal(new IdentityID("admin", Organization.getDefaultOrganizationID()), new IdentityID[] { new IdentityID("Everyone",Organization.getDefaultOrganizationID())}, new String[0], Organization.getDefaultOrganizationID(),
-                              Tool.getSecureRandom().nextLong());
-      admin.setProperty("showGettingStated", "true");
-
-      user1 = new SRPrincipal(new IdentityID("user1", Organization.getDefaultOrganizationID()), new IdentityID[] {new IdentityID("Everyone", Organization.getDefaultOrganizationID())}, new String[0], Organization.getDefaultOrganizationID(),
-                              Tool.getSecureRandom().nextLong());
-      user1.setProperty("showGettingStated", "true");
+      sreeEnvMock = Mockito.mockStatic(SreeEnv.class);
+      sreeEnvMock.when(() -> SreeEnv.getProperty("getting.started")).thenReturn(null);
    }
 
-   @Test
-   void checkShowGettingStarted() throws IOException {
-      SreeEnv.setProperty("getting.started", "false", false);
-      SreeEnv.save();
-      assertEquals("false", gettingStartedController.showGettingStarted(admin));
-
-      SreeEnv.remove("getting.started", false);
-      SreeEnv.save();
-      assertEquals("true", gettingStartedController.showGettingStarted(user1));
+   @AfterEach
+   void tearDown() {
+      if(sreeEnvMock != null) {
+         sreeEnvMock.close();
+      }
    }
 
-   @Test
-   void checkSingUpUserCreateQueryWSVSPermission() throws Exception {
-      assertEquals("4^1^user1" + IdentityID.KEY_DELIMITER + "Self Organization^/^SELF",
-                   gettingStartedController.checkCreateQueryPermission(user1).folderId());
-      assertEquals("4^1^user1" + IdentityID.KEY_DELIMITER + "Self Organization^/^SELF",
-                   gettingStartedController.checkCreateWSPermission(user1).folderId());
-      assertEquals("4^4097^user1" + IdentityID.KEY_DELIMITER + "Self Organization^/^SELF",
-                   gettingStartedController.getVSDefaultSaveFolder(user1).folderId());
+   // -------------------------------------------------------------------------
+   // showGettingStarted
+   // -------------------------------------------------------------------------
+
+   @Nested
+   class ShowGettingStarted {
+
+      @Test
+      void sreeEnvOverride_returnsConfiguredValue() {
+         sreeEnvMock.when(() -> SreeEnv.getProperty("getting.started")).thenReturn("false");
+
+         assertEquals("false", gettingStartedController.showGettingStarted(xPrincipal));
+         verifyNoInteractions(gettingStartedService);
+      }
+
+      @Test
+      void principalShowFlagNotTrue_returnsFalse() {
+         when(xPrincipal.getProperty("showGettingStated")).thenReturn("false");
+
+         assertEquals("false", gettingStartedController.showGettingStarted(xPrincipal));
+         verifyNoInteractions(gettingStartedService);
+      }
+
+      @Test
+      void principalShowFlagTrue_evaluatesServiceAndClearsProperty() {
+         when(xPrincipal.getProperty("showGettingStated")).thenReturn("true");
+         when(gettingStartedService.hasPermission(xPrincipal)).thenReturn(true);
+         when(gettingStartedService.hasCreatedAssets(xPrincipal)).thenReturn(false);
+
+         assertEquals("true", gettingStartedController.showGettingStarted(xPrincipal));
+
+         verify(xPrincipal).setProperty("showGettingStated", null);
+         verify(gettingStartedService).hasPermission(xPrincipal);
+         verify(gettingStartedService).hasCreatedAssets(xPrincipal);
+      }
+
+      @Test
+      void nonXPrincipal_skipsShowFlagGate() {
+         Principal plainPrincipal = mock(Principal.class);
+         when(gettingStartedService.hasPermission(plainPrincipal)).thenReturn(true);
+         when(gettingStartedService.hasCreatedAssets(plainPrincipal)).thenReturn(false);
+
+         assertEquals("true", gettingStartedController.showGettingStarted(plainPrincipal));
+
+         verify(gettingStartedService).hasPermission(plainPrincipal);
+         verify(gettingStartedService).hasCreatedAssets(plainPrincipal);
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // checkCreateQueryPermission
+   // -------------------------------------------------------------------------
+
+   @Nested
+   class CheckCreateQueryPermission {
+
+      @Test
+      void noWorksheetPermission_returnsError() throws Exception {
+         when(gettingStartedService.hasCreateWSPermission(xPrincipal)).thenReturn(false);
+
+         GettingStartedAssetDefaultFolder result =
+            gettingStartedController.checkCreateQueryPermission(xPrincipal);
+
+         assertNotNull(result.errorMessage());
+         assertNull(result.folderId());
+         verify(securityEngine, never()).checkPermission(
+            any(Principal.class), any(ResourceType.class), anyString(), any(ResourceAction.class));
+      }
+
+      @Test
+      void noPhysicalTableAccess_returnsError() throws Exception {
+         when(gettingStartedService.hasCreateWSPermission(xPrincipal)).thenReturn(true);
+         when(securityEngine.checkPermission(xPrincipal, ResourceType.PHYSICAL_TABLE,
+            "*", ResourceAction.ACCESS)).thenReturn(false);
+
+         GettingStartedAssetDefaultFolder result =
+            gettingStartedController.checkCreateQueryPermission(xPrincipal);
+
+         assertNotNull(result.errorMessage());
+         assertNull(result.folderId());
+         verify(gettingStartedService, never()).getDefaultFolder(any(), any());
+      }
+
+      @Test
+      void authorized_returnsDefaultWorksheetFolder() throws Exception {
+         when(gettingStartedService.hasCreateWSPermission(xPrincipal)).thenReturn(true);
+         when(securityEngine.checkPermission(xPrincipal, ResourceType.PHYSICAL_TABLE,
+            "*", ResourceAction.ACCESS)).thenReturn(true);
+         when(gettingStartedService.getDefaultFolder(xPrincipal, AssetEntry.Type.WORKSHEET))
+            .thenReturn(DEFAULT_FOLDER_ID);
+
+         GettingStartedAssetDefaultFolder result =
+            gettingStartedController.checkCreateQueryPermission(xPrincipal);
+
+         assertEquals(DEFAULT_FOLDER_ID, result.folderId());
+         assertNull(result.errorMessage());
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // checkCreateWSPermission
+   // -------------------------------------------------------------------------
+
+   @Nested
+   class CheckCreateWSPermission {
+
+      @Test
+      void noWorksheetPermission_returnsError() {
+         when(gettingStartedService.hasCreateWSPermission(xPrincipal)).thenReturn(false);
+
+         GettingStartedAssetDefaultFolder result =
+            gettingStartedController.checkCreateWSPermission(xPrincipal);
+
+         assertNotNull(result.errorMessage());
+         assertNull(result.folderId());
+      }
+
+      @Test
+      void authorized_returnsDefaultWorksheetFolder() {
+         when(gettingStartedService.hasCreateWSPermission(xPrincipal)).thenReturn(true);
+         when(gettingStartedService.getDefaultFolder(xPrincipal, AssetEntry.Type.WORKSHEET))
+            .thenReturn(DEFAULT_FOLDER_ID);
+
+         GettingStartedAssetDefaultFolder result =
+            gettingStartedController.checkCreateWSPermission(xPrincipal);
+
+         assertEquals(DEFAULT_FOLDER_ID, result.folderId());
+         assertNull(result.errorMessage());
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // getVSDefaultSaveFolder
+   // -------------------------------------------------------------------------
+
+   @Nested
+   class GetVSDefaultSaveFolder {
+
+      @Test
+      void noDashboardPermission_returnsError() {
+         when(gettingStartedService.hasDashboardPermission(xPrincipal)).thenReturn(false);
+
+         GettingStartedAssetDefaultFolder result =
+            gettingStartedController.getVSDefaultSaveFolder(xPrincipal);
+
+         assertNotNull(result.errorMessage());
+         assertNull(result.folderId());
+      }
+
+      @Test
+      void authorized_returnsDefaultDashboardFolder() {
+         when(gettingStartedService.hasDashboardPermission(xPrincipal)).thenReturn(true);
+         when(gettingStartedService.getDefaultFolder(xPrincipal, AssetEntry.Type.DASHBOARD))
+            .thenReturn(DEFAULT_FOLDER_ID);
+
+         GettingStartedAssetDefaultFolder result =
+            gettingStartedController.getVSDefaultSaveFolder(xPrincipal);
+
+         assertEquals(DEFAULT_FOLDER_ID, result.folderId());
+         assertNull(result.errorMessage());
+      }
    }
 }

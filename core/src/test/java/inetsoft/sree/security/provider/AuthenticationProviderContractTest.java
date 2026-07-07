@@ -20,14 +20,7 @@ package inetsoft.sree.security.provider;
 /*
  * Intent vs implementation suspects
  *
- * [Suspect 1] authenticate(null userIdentity, ticket)
- *             intent : return false (contract C12)
- *             actual : at least VirtualAuthenticationProvider accesses userIdentity.name
- *                      without a null guard → NullPointerException at line ~84
- *             see    : VirtualAuthenticationProviderTest.authenticate_nullIdentityID_doesNotThrow
- *                      which overrides this test with @Disabled
- *
- * [Suspect 2] authenticate(sameNameDifferentOrg, ticket)
+ * [Suspect 1] authenticate(sameNameDifferentOrg, ticket)
  *             intent : return false — same username in a different org is a distinct identity
  *             actual : providers that only check IdentityID.name (not orgId) would return true
  *             test   : C15 is skipped (assumeTrue) when anotherOrgId() returns null;
@@ -252,14 +245,12 @@ public abstract class AuthenticationProviderContractTest<T extends Authenticatio
          "Empty password must be rejected");
    }
 
-   // C12 [Risk 3 Suspect — see file header]: null userIdentity → must NOT throw
-   // Known defect: VirtualAuthenticationProvider accesses userIdentity.name without null guard.
+   // C12 [Risk 3]: null userIdentity → false, must NOT throw
    @Test
-   void authenticate_nullIdentityID_doesNotThrow() {
+   void authenticate_nullIdentity_returnsFalse() {
       DefaultTicket ticket = new DefaultTicket(validUserId(), validPassword());
-      assertDoesNotThrow(
-         () -> provider.authenticate(null, ticket),
-         "authenticate(null identity) must not throw — return false or handle gracefully");
+      assertFalse(provider.authenticate(null, ticket),
+         "Null userIdentity must return false without throwing");
    }
 
    // -----------------------------------------------------------------------

@@ -335,13 +335,6 @@ export class ChartFieldmc extends FieldMC {
       this.dndService.setDragStartStyle(event, this.field.columnValue);
    }
 
-   /**
-    * Get the content show in chart dimension mc.
-    */
-   private getDisplayLabel(field: ChartRef): string {
-      return field == null || field.dataRefModel == null ? "" : field.dataRefModel.view;
-   }
-
    getFieldClassType(): string {
       return GraphUtil.isDimensionRef(this.field) ||
          GraphUtil.isGeoRef(this.field) ? "Dimension" : "Measure";

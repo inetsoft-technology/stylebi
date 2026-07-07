@@ -15,9 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
+import { Component, EventEmitter, Input, OnDestroy, OnInit, Output, ViewChild } from "@angular/core";
 import { AbstractControl, UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { HttpClient } from "@angular/common/http";
+import { Subscription } from "rxjs";
 import { HelpUrlService } from "../../../../../../../widget/help-link/help-url.service";
 import { EntityModel } from "../../../../../model/datasources/database/physical-model/logical-model/entity-model";
 import { AttributeModel } from "../../../../../model/datasources/database/physical-model/logical-model/attribute-model";
@@ -39,7 +40,7 @@ const FIELDS_URI: string = "../api/data/logicalModel/tables/nodes";
     styleUrls: ["logical-model-expression-dialog.component.scss"],
     imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, ScriptPane, NotificationsComponent, CustomSelectComponent]
 })
-export class LogicalModelExpressionDialog implements OnInit {
+export class LogicalModelExpressionDialog implements OnInit, OnDestroy {
    @Input() entities: EntityModel[];
    @Input() parent: number = 0;
    @Input() databaseName: string;
@@ -56,8 +57,16 @@ export class LogicalModelExpressionDialog implements OnInit {
    operatorTreeRoot: TreeNodeModel;
    functionTreeRoot: TreeNodeModel;
    cursor: {line: number, ch: number};
+   private okSubscription: Subscription;
 
    constructor(private http: HttpClient, private helpUrlService: HelpUrlService) {
+   }
+
+   ngOnDestroy(): void {
+      if(this.okSubscription) {
+         this.okSubscription.unsubscribe();
+         this.okSubscription = null;
+      }
    }
 
    ngOnInit() {
@@ -256,7 +265,11 @@ export class LogicalModelExpressionDialog implements OnInit {
          return;
       }
 
-      this.http.post(CHECK_EXPRESSION_URI, new StringWrapper(this.expression))
+      if(this.okSubscription) {
+         this.okSubscription.unsubscribe();
+      }
+
+      this.okSubscription = this.http.post(CHECK_EXPRESSION_URI, new StringWrapper(this.expression))
          .subscribe((data: any) => {
                if(data && data.body) {
                   this.notifications.danger("_#(js:Error)" + ": " + data.body);

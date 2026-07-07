@@ -16,10 +16,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {
-    Component, Input, Output, EventEmitter, OnInit, ViewChild, ElementRef, AfterViewInit,
+    Component, Input, Output, EventEmitter, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewInit,
     ChangeDetectorRef
 } from "@angular/core";
 import { UntypedFormControl, UntypedFormGroup, Validators, ValidationErrors, AbstractControl, ValidatorFn, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { Subscription } from "rxjs";
 import { DrillParameterModel } from "../../../../../../../model/datasources/database/physical-model/logical-model/drill-parameter-model";
 import { ValidatorMessageInfo } from "../../../../../../../../../widget/dialog/input-name-dialog/input-name-dialog.component";
 import { XSchema } from "../../../../../../../../../common/data/xschema";
@@ -45,7 +46,7 @@ enum SourceType {
     styleUrls: ["parameter-dialog.component.scss"],
     imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, NgClass, DateValueEditorComponent, TimeValueEditorComponent, TimeInstantValueEditorComponent, CustomSelectComponent, NumberStepperComponent]
 })
-export class ParameterDialog implements OnInit, AfterViewInit {
+export class ParameterDialog implements OnInit, AfterViewInit, OnDestroy {
    @Input() index: number = -1;
    @Input() parameters: DrillParameterModel[] = [];
    @Input() variables: string[] = [];
@@ -69,9 +70,17 @@ export class ParameterDialog implements OnInit, AfterViewInit {
    field: string = "this.column";
    variable: string = "";
    private typeInitialized = false;
+   private typeChangeSubscription: Subscription;
 
    constructor(private changeDetectionRef: ChangeDetectorRef)
    {
+   }
+
+   ngOnDestroy(): void {
+      if(this.typeChangeSubscription) {
+         this.typeChangeSubscription.unsubscribe();
+         this.typeChangeSubscription = null;
+      }
    }
 
    ngOnInit() {
@@ -90,7 +99,7 @@ export class ParameterDialog implements OnInit, AfterViewInit {
       this.variable = this.model.name ? this.model.name : "";
       this.initForm();
 
-      this.form.controls["type"].valueChanges.subscribe((type: string) => {
+      this.typeChangeSubscription = this.form.controls["type"].valueChanges.subscribe((type: string) => {
          setTimeout(() => {
             let validators: ValidatorFn[] = [Validators.required];
 

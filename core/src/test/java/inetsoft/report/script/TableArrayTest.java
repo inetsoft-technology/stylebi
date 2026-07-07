@@ -20,6 +20,7 @@ package inetsoft.report.script;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
+import inetsoft.util.script.ScriptUtil;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -79,5 +80,17 @@ class TableArrayTest {
       assertFalse(arr.hasMember("nonexistent"));
       assertFalse(arr.hasMember("toString"));
       assertFalse(arr.hasMember("then"));
+   }
+
+   @Test
+   void unwrapReturnsUnderlyingXTable() {
+      // #75576: ScriptUtil.unwrap must unwrap a TableArray to its XTable so host
+      // code (toList/mapList/etc.) can process a data['*@...'] subtable reference
+      // instead of leaving the non-serializable wrapper in a cell value.
+      XTable xtable = table();
+      Object unwrapped = ScriptUtil.unwrap(new TableArray(xtable));
+
+      assertInstanceOf(XTable.class, unwrapped);
+      assertSame(xtable, unwrapped);
    }
 }

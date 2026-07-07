@@ -297,10 +297,18 @@ public class SignupController {
    public SignupResponseModel resendEmailCode(HttpServletRequest request) {
       HttpSession session = request.getSession(false);
       SignupResponseModel responseModel = new SignupResponseModel();
+
+      if(session == null) {
+         responseModel.setSuccess(false);
+         responseModel.setErrorMessage("error request");
+
+         return responseModel;
+      }
+
       Object emailObj = session.getAttribute(SIGNUP_USER_EMAIL);
       Object codeTime = session.getAttribute(SIGNUP_EMAIL_CODE_TIME);
 
-      if(session == null || !(emailObj instanceof String signupEmail) ||
+      if(!(emailObj instanceof String signupEmail) ||
          session.getAttribute(SIGNUP_EMAIL_CODE) == null ||
          codeTime == null)
       {

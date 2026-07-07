@@ -46,18 +46,22 @@
  *   Group 13 [Risk 2] — processUpdateLayoutUndoStateCommand: when vs.currentLayout present,
  *                        updates vs.layoutPoint and emits onSheetChange.
  *   Group 14 [Risk 2] — onKeydown: Ctrl+A selects all; Esc clears focused assemblies.
- *   Group 15 [Risk 2] — zoom: increments/decrements vs.scale; boundary guards.
+ *   Group 15 [Risk 2] — zoom: increments/decrements vs.scale; boundary guards;
+ *                        context-menu Zoom In/Out labels and actions (Bug #10350).
  *   Group 16 [Risk 2] — isInZone: returns false for ClearLoading/ShowLoadingMask; true otherwise.
  *   Group 17 [Risk 1] — getAssemblyName: returns null.
  *   Group 18 [Risk 1] — layoutToolbarVisible: true when layouts.length > 1.
  *   Group 19 [Risk 1] — trackByFn: returns object.absoluteName.
  *   Group 20 [Risk 1] — layoutName: returns currentLayout.name or "_#(js:Master)".
  *   Group 21 [Risk 1] — isFilterInMaxModeView: true when maxModeAssembly set + adhocFilter.
+ *   Group 22 [Risk 3] — drop: rejects embedding self viewsheet (Bug #16088).
  */
 
 import { makeMocks, renderComponent } from "./viewsheet-pane.component.test-helpers";
 import { VSLayoutModel } from "../../../data/vs/vs-layout-model";
 import { UIContextService } from "../../../../common/services/ui-context.service";
+import { TestUtils } from "../../../../common/test/test-utils";
+import { ComponentTool } from "../../../../common/util/component-tool";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -764,6 +768,19 @@ describe("VSPane — zoom", () => {
 
       expect(Number(comp.vs.scale.toFixed(2))).toBe(0.2);
    });
+
+   // 🔁 Regression-sensitive (Bug #10350): context menu must expose Zoom In/Out and
+   //    wire them to the same scale adjustment as zoom().
+   it("should expose Zoom In/Out menu actions that adjust vs.scale", async () => {
+      const { comp } = await renderComponent();
+      comp.vs.scale = 1.2;
+
+      expect(TestUtils.toString(comp.menuActions[1].actions[1].label())).toBe("Zoom In");
+      expect(TestUtils.toString(comp.menuActions[1].actions[2].label())).toBe("Zoom Out");
+
+      comp.menuActions[1].actions[1].action(null);
+      expect(comp.vs.scale).toBe(1.4);
+   });
 });
 
 // ---------------------------------------------------------------------------
@@ -895,5 +912,47 @@ describe("VSPane — isFilterInMaxModeView", () => {
       const obj: any = { absoluteName: "Filter1", adhocFilter: false };
 
       expect(comp.isFilterInMaxModeView(obj)).toBe(false);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 22: drop [Risk 3]
+// ---------------------------------------------------------------------------
+
+describe("VSPane — drop", () => {
+   // 🔁 Regression-sensitive (Bug #16088): dropping the same viewsheet into itself must
+   //    show an error dialog and must NOT call addNewObject.
+   it("should not add a new object when dropping the same viewsheet", async () => {
+      const { comp, mocks } = await renderComponent();
+      const vs = comp.vs;
+      vs.id = "MockID01";
+      vs.vsObjects = [];
+      const clientRect = { left: 0, top: 0 };
+      (comp as any).element = {
+         nativeElement: { getBoundingClientRect: () => clientRect },
+      };
+      (comp as any).vsPane = {
+         nativeElement: { scrollLeft: 0, scrollTop: 0 },
+      };
+
+      const event = {
+         preventDefault: vi.fn(),
+         pageX: 20,
+         pageY: 20,
+         dataTransfer: {
+            getData: vi.fn(() => JSON.stringify({
+               dragName: "viewsheet",
+               viewsheet: [{ identifier: "MockID01" }],
+            })),
+         },
+      } as any;
+
+      const showMessageDialog = vi.spyOn(ComponentTool, "showMessageDialog")
+         .mockImplementation(() => Promise.resolve("ok"));
+
+      comp.drop(event);
+
+      expect(mocks.composerObjectService.addNewObject).not.toHaveBeenCalled();
+      expect(showMessageDialog).toHaveBeenCalled();
    });
 });
