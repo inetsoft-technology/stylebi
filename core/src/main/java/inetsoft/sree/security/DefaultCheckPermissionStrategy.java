@@ -610,7 +610,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
 
          // org admin permission never extends to global (org-less) roles — e.g. the built-in
          // Administrator and Organization Administrator roles — only to roles owned by this org
-         return !isSiteAdmin && Tool.equals(orgID, currProvider.getRole(resourceID).getOrganizationID());
+         return !isSiteAdmin && Tool.equals(orgID, role.getOrganizationID());
       case SECURITY_ORGANIZATION:
          if(resource.equals("*")) {
             return false;
@@ -764,11 +764,16 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             // the dedicated root-check block above, lines ~135-154)
             Role currentRole = provider.getRole(IdentityID.getIdentityIDFromKey(currentResource));
 
-            if(currentRole != null && currentRole.getOrganizationID() != null) {
+            if(currentRole != null && currentRole.getOrganizationID() != null &&
+               Tool.equals(currentRole.getOrganizationID(), OrganizationManager.getInstance().getCurrentOrgID()))
+            {
                perm = provider.getPermission(currentType, new IdentityID("Organization Roles", OrganizationManager.getInstance().getCurrentOrgID()));
             }
-            else {
+            else if(currentRole == null || currentRole.getOrganizationID() == null) {
                perm = provider.getPermission(currentType, new IdentityID("Roles", OrganizationManager.getInstance().getCurrentOrgID()));
+            }
+            else {
+               perm = null; // role belongs to a different org — no cumulative admin merge applies
             }
 
             if(perm != null) {

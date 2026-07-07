@@ -560,6 +560,52 @@ class DefaultCheckPermissionStrategyTest {
       }
    }
 
+   // PR #4187 review follow-up: the ADMIN-cumulative helper's SECURITY_ROLE branch checked only
+   // "does the target role have SOME org" (getOrganizationID() != null), not "does that org match
+   // the current org context" — so an ADMIN grant on org A's "Organization Roles" node leaked
+   // onto a specific role belonging to a completely different org B, a cross-tenant escalation
+   // distinct from the org-less/global-role leak covered above.
+   @Test
+   void organizationRolesRootGrantDoesNotLeakOntoDifferentOrgsRole() {
+      String otherOrg = "otherOrg";
+      IdentityID otherOrgRoleId = new IdentityID("otherOrgRole", otherOrg);
+      String otherOrgRoleResource = otherOrgRoleId.convertToKey();
+      IdentityID orgRolesNodeId = new IdentityID("Organization Roles", TEST_ORG);
+
+      Role otherOrgRole = mock(Role.class);
+      when(otherOrgRole.getIdentityID()).thenReturn(otherOrgRoleId);
+      when(otherOrgRole.getOrganizationID()).thenReturn(otherOrg);
+
+      Permission orgRolesRootPermission = grantedPermission(TEST_USER, TEST_ORG, ResourceAction.ADMIN, false);
+
+      try(MockedStatic<SUtil> sutilMock = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
+          MockedStatic<OrganizationManager> omMock =
+             Mockito.mockStatic(OrganizationManager.class, Mockito.CALLS_REAL_METHODS))
+      {
+         sutilMock.when(SUtil::isMultiTenant).thenReturn(false);
+         sutilMock.when(() -> SUtil.isInternalUser(any())).thenReturn(false);
+
+         OrganizationManager mockOM = mock(OrganizationManager.class);
+         omMock.when(OrganizationManager::getInstance).thenReturn(mockOM);
+         omMock.when(OrganizationManager::getCurrentOrgName).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID()).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID(any())).thenReturn(TEST_ORG);
+         when(mockOM.isSiteAdmin(any(Principal.class))).thenReturn(false);
+
+         when(mockProvider.getRole(eq(otherOrgRoleId))).thenReturn(otherOrgRole);
+         // grant only exists on the caller's own org's "Organization Roles" root — never on the
+         // target role's own org, and never as a SECURITY_ORGANIZATION or org-admin-role grant,
+         // to isolate this code path.
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_ROLE), eq(orgRolesNodeId)))
+            .thenReturn(orgRolesRootPermission);
+
+         assertFalse(
+            mockStrategy.checkPermission(mockUser, ResourceType.SECURITY_ROLE, otherOrgRoleResource,
+                                         ResourceAction.ADMIN),
+            "ADMIN on org A's \"Organization Roles\" root must not leak onto org B's role");
+      }
+   }
+
    // ─────────────────────────────────────────────────────────────────
    // [Path F] Hierarchical resource traversal falls back to parent — mock-based
    // ─────────────────────────────────────────────────────────────────
