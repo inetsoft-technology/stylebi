@@ -322,7 +322,7 @@ export class CkeditorWrapperComponent implements OnInit, AfterViewInit, ControlV
 
          if(this.editorInstance) {
             this.editorInstance.model.change((writer) => {
-               this.editorInstance.execute('enter');
+               this.editorInstance.execute("enter");
             });
          }
       }

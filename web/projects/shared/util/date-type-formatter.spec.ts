@@ -19,7 +19,7 @@
 import { TestBed } from "@angular/core/testing";
 import { DateTypeFormatter } from "./date-type-formatter";
 
-describe('date-type-formatter', () => {
+describe("date-type-formatter", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [],

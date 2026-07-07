@@ -61,7 +61,7 @@ export default defineConfig(
       "@typescript-eslint/no-var-requires": "off",
       "@typescript-eslint/no-wrapper-object-types": "off",
       "@typescript-eslint/prefer-for-of": "off",
-      "quotes": "off",
+      "quotes": ["error", "double", { "avoidEscape": true, "allowTemplateLiterals": true }],
       "arrow-body-style": "off",
       "brace-style": ["off", "off"],
       "consistent-return": "off",

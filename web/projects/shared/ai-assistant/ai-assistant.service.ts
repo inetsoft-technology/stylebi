@@ -361,7 +361,7 @@ export class AiAssistantService {
          return;
       }
 
-      const dcDesc: string = model.dateComparisonDescription.replace(/<\/?b>/g, '');
+      const dcDesc: string = model.dateComparisonDescription.replace(/<\/?b>/g, "");
       this.setContextField("dateComparisonContext", dcDesc);
    }
 
