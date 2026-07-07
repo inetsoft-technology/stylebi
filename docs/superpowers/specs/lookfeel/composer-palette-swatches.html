@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>StyleBI Composer Palette Swatches</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --surface-canvas: #F8F7F4;
+    --surface-default: #FFFFFF;
+    --surface-subtle: #F1EFEA;
+    --surface-hover: #ECE9E2;
+    --border-default: #D9D5CC;
+    --border-strong: #C8C2B7;
+    --text-strong: #1F1F1B;
+    --text-default: #35342F;
+    --text-muted: #6A685F;
+    --text-subtle: #99958C;
+
+    --composer-context-bg: #FEF8EE;
+    --composer-context-border: #F3DFC2;
+    --composer-context-text: #8C5510;
+
+    --composer-selected-bg: #DDF1F5;
+    --composer-selected-border: #BFDDE5;
+    --composer-selected-text: #123C44;
+    --composer-selected-ring: rgba(167, 215, 227, 0.35);
+
+    --composer-primary-accent: #E58A2A;
+    --composer-primary-hover: #C96F12;
+    --composer-primary-text: #4A2500;
+    --composer-primary-soft: #F6E2C8;
+
+    --composer-dimmed-bg: #FBFAF7;
+    --composer-dimmed-border: #E6E2D9;
+    --composer-dimmed-text: #B8B3AA;
+
+    --ws-schema-connected-bg: #E2F3E8;
+    --ws-schema-compatible-bg: #DDF1F5;
+    --ws-schema-incompatible-bg: #F6E2C8;
+    --ws-schema-highlight-bg: #F7F3EA;
+
+    --ws-connection-default: #5E5D57;
+    --ws-connection-muted: #B8B3AA;
+    --ws-connection-warning: #EEA555;
+    --ws-connection-schema: #BDBDBD;
+
+    --ws-row-odd-bg: #FFFFFF;
+    --ws-row-even-bg: #F7F6F2;
+    --ws-row-selected-bg: #EAF6F8;
+    --ws-row-hover-bg: #F7F3EA;
+
+    --success: #2E8B57;
+    --warning: #B7791F;
+    --danger: #C84C4C;
+    --info: #3E7FC4;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--surface-canvas);
+    color: var(--text-default);
+    padding: 40px 48px 56px;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text-strong);
+    margin-bottom: 6px;
+  }
+
+  .subtitle {
+    color: var(--text-muted);
+    max-width: 760px;
+    margin-bottom: 18px;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 40px;
+  }
+
+  .pill {
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--border-default);
+    background: var(--surface-default);
+    color: var(--text-muted);
+  }
+
+  .section {
+    margin-bottom: 44px;
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .section-note {
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    max-width: 780px;
+  }
+
+  .swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .swatch {
+    width: 164px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: var(--surface-default);
+    box-shadow: 0 1px 2px rgba(31, 31, 27, 0.04);
+  }
+
+  .swatch-color {
+    height: 78px;
+    width: 100%;
+    position: relative;
+  }
+
+  .swatch-color.has-text,
+  .swatch-color.has-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  .swatch-color.has-label {
+    flex-direction: column;
+    gap: 2px;
+    text-align: center;
+  }
+
+  .swatch-info {
+    padding: 10px 12px 12px;
+  }
+
+  .swatch-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-strong);
+    margin-bottom: 2px;
+    line-height: 1.3;
+  }
+
+  .swatch-hex {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: "Fira Mono", "Cascadia Code", "Consolas", monospace;
+    margin-bottom: 4px;
+  }
+
+  .swatch-use {
+    font-size: 10px;
+    color: var(--text-subtle);
+    line-height: 1.45;
+  }
+
+  .family-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    width: fit-content;
+    background: var(--surface-default);
+  }
+
+  .family-row .swatch {
+    border-radius: 0;
+    border: none;
+    border-right: 1px solid rgba(0, 0, 0, 0.06);
+    box-shadow: none;
+    width: 156px;
+  }
+
+  .family-row .swatch:last-child {
+    border-right: none;
+  }
+
+  .ring-demo::after {
+    content: "";
+    position: absolute;
+    inset: 16px;
+    border-radius: 12px;
+    box-shadow: 0 0 0 8px var(--composer-selected-ring);
+    border: 1px solid rgba(18, 60, 68, 0.18);
+    background: rgba(255, 255, 255, 0.45);
+  }
+
+  .line-demo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, #FBFAF7 0%, #F3F1EC 100%);
+  }
+
+  .line-demo::after {
+    content: "";
+    width: 92px;
+    height: 3px;
+    border-radius: 999px;
+    background: currentColor;
+  }
+
+  .small-note {
+    font-size: 10px;
+    font-weight: 500;
+    opacity: 0.8;
+  }
+</style>
+</head>
+<body>
+
+<h1>StyleBI Composer Palette</h1>
+<p class="subtitle">Color swatches generated from composer-palette-spec.md. Shared chrome inherits shell foundations; Composer-specific families are reserved for authoring state and worksheet-only extensions.</p>
+
+<div class="legend">
+  <div class="pill">Shell foundation</div>
+  <div class="pill">Composer authoring state</div>
+  <div class="pill">Worksheet-only extension</div>
+  <div class="pill">Shell semantic inheritance</div>
+</div>
+
+<div class="section">
+  <div class="section-title">Shell Foundations In Composer</div>
+  <p class="section-note">These are the shell tokens Composer should consume directly for shared chrome, panes, dialogs, forms, tabs, and routine structural hierarchy.</p>
+  <div class="swatches">
+
+    <div class="swatch">
+      <div class="swatch-color" style="background:var(--surface-canvas);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">surface-canvas</div>
+        <div class="swatch-hex">#F8F7F4</div>
+        <div class="swatch-use">shared canvas and background surface</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color" style="background:var(--surface-default); border-bottom:1px solid var(--surface-hover);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">surface-default</div>
+        <div class="swatch-hex">#FFFFFF</div>
+        <div class="swatch-use">dialogs, cards, raised panes, inputs</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color" style="background:var(--surface-subtle);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">surface-subtle</div>
+        <div class="swatch-hex">#F1EFEA</div>
+        <div class="swatch-use">toolbars, side areas, tab rails</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color" style="background:var(--surface-hover);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">surface-hover</div>
+        <div class="swatch-hex">#ECE9E2</div>
+        <div class="swatch-use">neutral hover fill and active shell surface</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color" style="background:var(--border-default);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">border-default</div>
+        <div class="swatch-hex">#D9D5CC</div>
+        <div class="swatch-use">default pane, table, and form borders</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color" style="background:var(--border-strong);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">border-strong</div>
+        <div class="swatch-hex">#C8C2B7</div>
+        <div class="swatch-use">stronger splits and emphasis separators</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--text-strong); color:var(--surface-canvas);">Aa</div>
+      <div class="swatch-info">
+        <div class="swatch-name">text-strong</div>
+        <div class="swatch-hex">#1F1F1B</div>
+        <div class="swatch-use">headings and strong emphasis</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--text-default); color:var(--surface-canvas);">Aa</div>
+      <div class="swatch-info">
+        <div class="swatch-name">text-default</div>
+        <div class="swatch-hex">#35342F</div>
+        <div class="swatch-use">body and control text</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--text-muted); color:var(--surface-canvas);">Aa</div>
+      <div class="swatch-info">
+        <div class="swatch-name">text-muted</div>
+        <div class="swatch-hex">#6A685F</div>
+        <div class="swatch-use">secondary labels and subdued metadata</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--text-subtle); color:var(--surface-canvas);">Aa</div>
+      <div class="swatch-info">
+        <div class="swatch-name">text-subtle</div>
+        <div class="swatch-hex">#99958C</div>
+        <div class="swatch-use">placeholders and low-priority supporting text</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Composer Context Family</div>
+  <p class="section-note">Used for related or in-focus context, not explicit selection. This is the warm adjacent-state language unique to Composer authoring surfaces.</p>
+  <div class="family-row">
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--composer-context-bg); color:var(--composer-context-text);">Context</div>
+      <div class="swatch-info">
+        <div class="swatch-name">composer-context-bg</div>
+        <div class="swatch-hex">#FEF8EE</div>
+        <div class="swatch-use">related surface or in-focus context</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-label" style="background:var(--composer-context-bg); color:var(--composer-context-text); border:2px solid var(--composer-context-border);">
+        <div>Border</div>
+      </div>
+      <div class="swatch-info">
+        <div class="swatch-name">composer-context-border</div>
+        <div class="swatch-hex">#F3DFC2</div>
+        <div class="swatch-use">contextual border or outline</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--composer-context-bg); color:var(--composer-context-text);">Aa</div>
+      <div class="swatch-info">
+        <div class="swatch-name">composer-context-text</div>
+        <div class="swatch-hex">#8C5510</div>
+        <div class="swatch-use">text on contextual surfaces</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Composer Selected Family</div>
+  <p class="section-note">Used for direct selection, active edit targets, handles, and chosen items across worksheet, viewsheet, and wizard flows.</p>
+  <div class="family-row">
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--composer-selected-bg); color:var(--composer-selected-text);">Selected</div>
+      <div class="swatch-info">
+        <div class="swatch-name">composer-selected-bg</div>
+        <div class="swatch-hex">#DDF1F5</div>
+        <div class="swatch-use">selected surface</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-label" style="background:var(--composer-selected-bg); color:var(--composer-selected-text); border:2px solid var(--composer-selected-border);">
+        <div>Border</div>
+      </div>
+      <div class="swatch-info">
+        <div class="swatch-name">composer-selected-border</div>
+        <div class="swatch-hex">#BFDDE5</div>
+        <div class="swatch-use">selected border</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--composer-selected-bg); color:var(--composer-selected-text);">Aa</div>
+      <div class="swatch-info">
+        <div class="swatch-name">composer-selected-text</div>
+        <div class="swatch-hex">#123C44</div>
+        <div class="swatch-use">text on selected surfaces</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color ring-demo" style="background:var(--surface-default);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">composer-selected-ring</div>
+        <div class="swatch-hex">rgba(167, 215, 227, 0.35)</div>
+        <div class="swatch-use">selected halo or emphasis ring</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Composer Primary / Action Family</div>
+  <p class="section-note">These values stay aligned with the shell primary family. They are useful as Composer aliases only when an authoring surface needs a named local token.</p>
+  <div class="family-row">
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--composer-primary-accent); color:#FFFFFF;">Primary</div>
+      <div class="swatch-info">
+        <div class="swatch-name">composer-primary-accent</div>
+        <div class="swatch-hex">#E58A2A</div>
+        <div class="swatch-use">key authoring affordance</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--composer-primary-hover); color:#FFFFFF;">Hover</div>
+      <div class="swatch-info">
+        <div class="swatch-name">composer-primary-hover</div>
+        <div class="swatch-hex">#C96F12</div>
+        <div class="swatch-use">primary hover state</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--composer-primary-soft); color:var(--composer-primary-text);">Soft</div>
+      <div class="swatch-info">
+        <div class="swatch-name">composer-primary-soft</div>
+        <div class="swatch-hex">#F6E2C8</div>
+        <div class="swatch-use">soft primary background</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--composer-primary-soft); color:var(--composer-primary-text);">Aa</div>
+      <div class="swatch-info">
+        <div class="swatch-name">composer-primary-text</div>
+        <div class="swatch-hex">#4A2500</div>
+        <div class="swatch-use">text on primary surfaces</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Composer Dimmed / Inactive Family</div>
+  <p class="section-note">Used for inactive graph elements, unavailable targets, and de-emphasized authoring states.</p>
+  <div class="family-row">
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--composer-dimmed-bg); color:var(--text-muted);">Dimmed</div>
+      <div class="swatch-info">
+        <div class="swatch-name">composer-dimmed-bg</div>
+        <div class="swatch-hex">#FBFAF7</div>
+        <div class="swatch-use">dimmed surface</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-label" style="background:var(--composer-dimmed-bg); color:var(--text-muted); border:2px solid var(--composer-dimmed-border);">
+        <div>Border</div>
+      </div>
+      <div class="swatch-info">
+        <div class="swatch-name">composer-dimmed-border</div>
+        <div class="swatch-hex">#E6E2D9</div>
+        <div class="swatch-use">dimmed border</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--composer-dimmed-bg); color:var(--composer-dimmed-text);">Aa</div>
+      <div class="swatch-info">
+        <div class="swatch-name">composer-dimmed-text</div>
+        <div class="swatch-hex">#B8B3AA</div>
+        <div class="swatch-use">dimmed text</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Worksheet Extensions</div>
+  <p class="section-note">These worksheet-only tokens cover graph, schema, and table-detail states that are more specific than the shared Composer palette.</p>
+  <div class="swatches">
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--ws-schema-connected-bg); color:#1D5B39;">Connected</div>
+      <div class="swatch-info">
+        <div class="swatch-name">ws-schema-connected-bg</div>
+        <div class="swatch-hex">#E2F3E8</div>
+        <div class="swatch-use">connected schema column</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--ws-schema-compatible-bg); color:var(--composer-selected-text);">Compatible</div>
+      <div class="swatch-info">
+        <div class="swatch-name">ws-schema-compatible-bg</div>
+        <div class="swatch-hex">#DDF1F5</div>
+        <div class="swatch-use">compatible schema column</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--ws-schema-incompatible-bg); color:var(--composer-primary-text);">Incompatible</div>
+      <div class="swatch-info">
+        <div class="swatch-name">ws-schema-incompatible-bg</div>
+        <div class="swatch-hex">#F6E2C8</div>
+        <div class="swatch-use">incompatible schema column</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--ws-schema-highlight-bg); color:var(--text-muted);">Highlight</div>
+      <div class="swatch-info">
+        <div class="swatch-name">ws-schema-highlight-bg</div>
+        <div class="swatch-hex">#F7F3EA</div>
+        <div class="swatch-use">hover or highlight surface</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color line-demo" style="color:var(--ws-connection-default);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">ws-connection-default</div>
+        <div class="swatch-hex">#5E5D57</div>
+        <div class="swatch-use">default connection line</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color line-demo" style="color:var(--ws-connection-muted);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">ws-connection-muted</div>
+        <div class="swatch-hex">#B8B3AA</div>
+        <div class="swatch-use">de-emphasized connection line</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color line-demo" style="color:var(--ws-connection-warning);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">ws-connection-warning</div>
+        <div class="swatch-hex">#EEA555</div>
+        <div class="swatch-use">warning connection</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color line-demo" style="color:var(--ws-connection-schema);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">ws-connection-schema</div>
+        <div class="swatch-hex">#BDBDBD</div>
+        <div class="swatch-use">schema editor connection</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-label" style="background:var(--ws-row-odd-bg); color:var(--text-default); border-bottom:1px solid var(--border-default);">
+        <div>Odd row</div>
+      </div>
+      <div class="swatch-info">
+        <div class="swatch-name">ws-row-odd-bg</div>
+        <div class="swatch-hex">#FFFFFF</div>
+        <div class="swatch-use">odd detail row</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-label" style="background:var(--ws-row-even-bg); color:var(--text-default);">
+        <div>Even row</div>
+      </div>
+      <div class="swatch-info">
+        <div class="swatch-name">ws-row-even-bg</div>
+        <div class="swatch-hex">#F7F6F2</div>
+        <div class="swatch-use">even detail row</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-label" style="background:var(--ws-row-selected-bg); color:var(--composer-selected-text);">
+        <div>Selected row</div>
+      </div>
+      <div class="swatch-info">
+        <div class="swatch-name">ws-row-selected-bg</div>
+        <div class="swatch-hex">#EAF6F8</div>
+        <div class="swatch-use">selected detail row</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-label" style="background:var(--ws-row-hover-bg); color:var(--text-muted);">
+        <div>Hover row</div>
+      </div>
+      <div class="swatch-info">
+        <div class="swatch-name">ws-row-hover-bg</div>
+        <div class="swatch-hex">#F7F3EA</div>
+        <div class="swatch-use">detail row hover</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Shell Semantic Inheritance</div>
+  <p class="section-note">Composer inherits shell semantic families for standard success, warning, danger, and info meaning rather than redefining them locally.</p>
+  <div class="swatches">
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--success); color:#FFFFFF;">Success</div>
+      <div class="swatch-info">
+        <div class="swatch-name">success</div>
+        <div class="swatch-hex">#2E8B57</div>
+        <div class="swatch-use">validation and positive state feedback</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--warning); color:#FFFFFF;">Warning</div>
+      <div class="swatch-info">
+        <div class="swatch-name">warning</div>
+        <div class="swatch-hex">#B7791F</div>
+        <div class="swatch-use">caution and warning state feedback</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--danger); color:#FFFFFF;">Danger</div>
+      <div class="swatch-info">
+        <div class="swatch-name">danger</div>
+        <div class="swatch-hex">#C84C4C</div>
+        <div class="swatch-use">destructive and error state feedback</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--info); color:#FFFFFF;">Info</div>
+      <div class="swatch-info">
+        <div class="swatch-name">info</div>
+        <div class="swatch-hex">#3E7FC4</div>
+        <div class="swatch-use">informational system state feedback</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>
