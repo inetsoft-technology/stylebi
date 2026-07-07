@@ -304,6 +304,9 @@ public class CoreLifecycleService {
          infoMap.put("inlineSvg", "true".equals(SreeEnv.getProperty("graph.svg.inline")));
          infoMap.put("modernVisualization",
                      SreeEnv.getBooleanProperty("viewsheet.modernVisualization", false, true));
+         String vizDensity = SreeEnv.getProperty("viewsheet.density", false, true);
+         infoMap.put("vizDensity",
+                     vizDensity == null || vizDensity.isEmpty() ? "dense" : vizDensity);
 
          command.setInfo(infoMap);
          // TODO populate assemblyInfo with values from vs.getViewsheetInfo()

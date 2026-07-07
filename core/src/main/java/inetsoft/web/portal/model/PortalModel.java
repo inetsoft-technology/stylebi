@@ -57,6 +57,11 @@ public abstract class PortalModel {
       return false;
    }
 
+   @Value.Default
+   public String vizDensity() {
+      return "dense";
+   }
+
    public static Builder builder() {
       return new Builder();
    }
