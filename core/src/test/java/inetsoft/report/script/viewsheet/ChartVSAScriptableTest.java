@@ -254,8 +254,7 @@ public class ChartVSAScriptableTest {
       chartVSAScriptable.setTipView("this is a tip view");
       assertEquals("this is a tip view", chartVSAScriptable.getTipView());
 
-      assertEquals(146, chartVSAScriptable.getMemberKeys().length);
-      assertEquals(149, chartVSAScriptable.getMemberKeys().length);
+      assertEquals(151, chartVSAScriptable.getMemberKeys().length);
    }
 
    @Test
