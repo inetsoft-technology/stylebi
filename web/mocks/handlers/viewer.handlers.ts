@@ -186,4 +186,53 @@ export const viewerHandlers = [
       return HttpResponse.json({});
    }),
 
+   // BindingTreeComponent.validateBindingTree() — check connection parameters on expand
+   http.post("*/api/vs/bindingtree/getConnectionParameters", () => {
+      return HttpResponse.json({ parameters: [] });
+   }),
+
+   // BindingTreeComponent.openVariableInputDialog() — submit connection variables
+   http.post("*/api/composer/asset_tree/set-connection-variables", () => {
+      return HttpResponse.json({ message: "" });
+   }),
+
+   // CalculatePane.openCalculateDialog() — load calculator dimension metadata
+   http.get("*/api/composer/dims", () => {
+      return HttpResponse.json({
+         percent_dims: [{ data: "Region", label: "Region" }],
+         percent_level: [{ data: "1", label: "Grand Total" }],
+         valueof: [{ data: "OrderDate", label: "Order Date" }],
+         breakby: [{ data: "Year", label: "Year" }],
+         moving: [{ data: "Month", label: "Month" }],
+      });
+   }),
+
+   // CalculatePane.openCalculateDialog() — check whether reset is supported per break-by dim
+   http.get("*/api/composer/supportReset", () => {
+      return HttpResponse.json({ Year: true, "": false });
+   }),
+
+   // CalculatePane.openCalculateDialog() — load reset-level options per inner dimension
+   http.get("*/api/composer/resetOptions", () => {
+      return HttpResponse.json({
+         "": [["Year", "0"]],
+         "0": [["Quarter", "1"]],
+         "1": [["Month", "2"]],
+      });
+   }),
+
+   // SortOption.getVariables() — check whether variables must be set before manual ordering
+   http.get("*/api/vsdata/check-variables", () => {
+      return HttpResponse.json([]);
+   }),
+
+   // SortOption.openDialog() — load available values for manual sort ordering
+   http.put("*/api/vsdata/availableValues", () => {
+      return HttpResponse.json({
+         list: [
+            { value: "East", label: "East" },
+            { value: "West", label: "West" },
+         ],
+      });
+   }),
 ];
