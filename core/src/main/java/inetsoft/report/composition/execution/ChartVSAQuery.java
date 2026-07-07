@@ -1557,6 +1557,88 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
                }
             }
          }
+
+         // Relation/Tree chart source and target fields are never included in
+         // cinfo.getRTFields() (AbstractChartInfo.getRTFields() only assembles x/y, group/path, and aesthetic refs)
+         if(cinfo instanceof RelationChartInfo) {
+            RelationChartInfo rcinfo = (RelationChartInfo) cinfo;
+            ChartRef[] treeFields = { rcinfo.getRTSourceField(), rcinfo.getRTTargetField() };
+
+            for(ChartRef treeField : treeFields) {
+               if(!(treeField instanceof VSDimensionRef)) {
+                  continue;
+               }
+
+               VSDimensionRef vdim = (VSDimensionRef) treeField;
+
+               if(rankingFields.contains(vdim.getFullName())) {
+                  continue;
+               }
+
+               RankingCondition cond = vdim.getRankingCondition();
+
+               if(cond != null) {
+                  DataRef aref = cond.getDataRef();
+
+                  if(aref == null) {
+                     vdim.updateRanking(cols);
+                     cond = vdim.getRankingCondition();
+                  }
+               }
+
+               if(cond == null) {
+                  continue;
+               }
+
+               // clone it, fix bug1343989398469
+               cond = cond.clone();
+               GroupRef group = vdim.createGroupRef(cols);
+
+               // Region/State aren't part of the x/y binding loop above, so their
+               // column may not yet be synced into `cols` at this point
+               // createGroupRef(cols) can spuriously return null even though ainfo
+               // already has a real group for this field. Fall back to the existing
+               // group already registered on ainfo. The group's underlying ref name
+               // may be table-qualified while vdim.getFullName() is not, so match tolerating that qualification.
+               if(group == null) {
+                  String vname = vdim.getFullName();
+
+                  for(GroupRef g : ainfo.getGroups()) {
+                     String gname = g.getName();
+
+                     if(gname != null && (gname.equals(vname) || gname.endsWith("." + vname))) {
+                        group = g;
+                        break;
+                     }
+                  }
+               }
+
+               if(group == null) {
+                  continue;
+               }
+
+               DataRef aref = cond.getDataRef();
+               aref = AssetUtil.getColumnRefFromAttribute(cols, aref);
+               DataRef aref2 = (aref != null) ? findRef(ainfo, aref) : null;
+
+               if(aref2 == null) {
+                  LOG.warn("Ranking column not found: " + aref);
+                  continue;
+               }
+
+               cond.setDataRef(aref2);
+               DataRef gref = group.getDataRef();
+               ConditionItem ranking = new ConditionItem(gref, cond, 0);
+
+               if(rconds.getSize() > 0) {
+                  JunctionOperator op = new JunctionOperator();
+                  rconds.append(op);
+               }
+
+               rconds.append(ranking);
+               rankingFields.add(vdim.getFullName());
+            }
+         }
       }
 
       // if is sql cube, force to merge, because it is not support post process
