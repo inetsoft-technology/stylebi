@@ -94,7 +94,7 @@
     }
 
     .schedule-task-list-header__status-action {
-      min-height: 30px;
+      min-height: var(--inet-viz-toolbar-height);
       padding: 4px 10px;
       font-size: 12px;
       line-height: 1.2;
@@ -109,7 +109,7 @@
       margin-left: auto;
 
       .btn {
-        min-height: 30px;
+        min-height: var(--inet-viz-toolbar-height);
         padding: 4px 10px;
         font-size: 12px;
         line-height: 1.2;
@@ -191,7 +191,7 @@
                 }
 
                 > thead th {
-                  padding: var(--inet-space-3) var(--inet-space-4);
+                  padding: var(--inet-viz-cell-padding-y) var(--inet-viz-cell-padding-x);
                   background-color: var(--inet-table-heading-bg-color);
                   color: var(--inet-table-heading-text-color);
                   font-weight: 600;
@@ -235,7 +235,7 @@
                 }
 
                 > tbody td {
-                  padding: var(--inet-space-3) var(--inet-space-4);
+                  padding: var(--inet-viz-cell-padding-y) var(--inet-viz-cell-padding-x);
                   border-top: 1px solid var(--inet-table-border-color);
                 }
 

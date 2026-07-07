@@ -427,6 +427,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    previewBaseId: string;
    accessible: boolean = false;
    modernVisualization: boolean = false;
+   vizDensity: string = "dense";
    exportTypes: { label: string, value: string }[] = [];
    viewsheetLoading: boolean = false;
    preparingData: boolean = false;
@@ -2747,6 +2748,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.name = command.assemblyInfo["name"];
       this.accessible = command.info["accessible"];
       this.modernVisualization = command.info["modernVisualization"];
+      this.vizDensity = command.info["vizDensity"] ?? "dense";
       this.fitToWidth = command.info["fitToWidth"];
       this.balancePadding = command.info["balancePadding"];
       this.virtualScroll = command.info["virtualScroll"];
@@ -2778,7 +2780,15 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       }
 
       if(!this.inPortal) {
-         this.document.body.classList.toggle("viz-modern", !!this.modernVisualization);
+         const body: HTMLElement = this.document.body;
+         const modern: boolean = !!this.modernVisualization;
+         body.classList.toggle("viz-modern", modern);
+         body.classList.remove(
+            "viz-density-comfortable", "viz-density-compact", "viz-density-dense");
+
+         if(modern && ["comfortable", "compact", "dense"].includes(this.vizDensity)) {
+            body.classList.add(`viz-density-${this.vizDensity}`);
+         }
       }
 
       this.pageTabService.updateTabLabel(this.assetId, this.name);

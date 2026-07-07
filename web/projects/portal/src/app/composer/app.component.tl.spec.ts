@@ -39,10 +39,13 @@
  *                        resizeHandlerService.initListeners() called on init
  *   Group 7 [baseline] — constructor: ngbDatepickerConfig.minDate/maxDate set to 1900/2099 range
  *   Group 8 [baseline] — downloadStarted: opens info dialog via ComponentTool.showMessageDialog
+ *   Group 9 [Risk 2]  — ngOnInit: PortalModel fetch drives viz-modern/viz-density body classes;
+ *                        modern off → no classes; unrecognized density value ignored
  *
  * Out of scope this pass: none (single pass)
  */
 
+import { HttpClient } from "@angular/common/http";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { render } from "@testing-library/angular";
 import { ActivatedRoute, Router } from "@angular/router";
@@ -72,6 +75,7 @@ async function renderComponent(overrides: {
    recentService?: any;
    routeData?: Observable<any>;
    config?: any;
+   portalModel?: any;
 } = {}) {
    const config = overrides.config
       ?? ({ minDate: null, maxDate: null, firstDayOfWeek: 0 } as unknown as NgbDatepickerConfig);
@@ -84,6 +88,9 @@ async function renderComponent(overrides: {
    };
    const recentService = overrides.recentService ?? { currentUser: null };
    const routeData = overrides.routeData ?? of({ setPrincipalCommand: MOCK_PRINCIPAL_COMMAND });
+   const portalModel = overrides.portalModel
+      ?? { modernVisualization: false, vizDensity: "dense" };
+   const httpService: any = { get: vi.fn().mockReturnValue(of(portalModel)) };
 
    const result = await render(ComposerAppComponent, {
       schemas: [NO_ERRORS_SCHEMA],
@@ -100,6 +107,7 @@ async function renderComponent(overrides: {
          { provide: Title, useValue: { setTitle: vi.fn() } },
          { provide: NgbModal, useValue: { open: vi.fn() } },
          { provide: NgbDatepickerConfig, useValue: config },
+         { provide: HttpClient, useValue: httpService },
       ],
    });
 
@@ -110,6 +118,7 @@ async function renderComponent(overrides: {
       resizeHandlerService,
       recentService,
       config,
+      httpService,
    };
 }
 
@@ -121,7 +130,11 @@ beforeEach(() => {
 
 afterEach(() => {
    vi.restoreAllMocks();
-   document.body.className = document.body.className.replace(/\bapp-loaded\b/g, "").trim();
+   document.body.className = document.body.className
+      .replace(/\bapp-loaded\b/g, "")
+      .replace(/\bviz-modern\b/g, "")
+      .replace(/\bviz-density-\w+\b/g, "")
+      .trim();
 });
 
 // ---------------------------------------------------------------------------
@@ -302,5 +315,32 @@ describe("ComposerAppComponent — downloadStarted", () => {
          "_#(js:Info)",
          "_#(js:common.downloadStart)",
       );
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 9: ngOnInit — visualization mode body classes
+// ---------------------------------------------------------------------------
+
+describe("ComposerAppComponent — visualization mode", () => {
+   // 🔁 Regression-sensitive: composer dialogs (e.g. hyperlink params list) render at legacy
+   // density unless the composer body carries the same viz-modern/viz-density classes as the portal.
+   it("should apply viz-modern and viz-density-<mode> when modern is on", async () => {
+      await renderComponent({ portalModel: { modernVisualization: true, vizDensity: "comfortable" } });
+      expect(document.body.classList.contains("viz-modern")).toBe(true);
+      expect(document.body.classList.contains("viz-density-comfortable")).toBe(true);
+   });
+
+   it("should not apply any viz classes when modern is off", async () => {
+      await renderComponent({ portalModel: { modernVisualization: false, vizDensity: "comfortable" } });
+      expect(document.body.classList.contains("viz-modern")).toBe(false);
+      expect(document.body.className).not.toContain("viz-density-");
+   });
+
+   // Guards against injecting an arbitrary class from a server-set property value.
+   it("should ignore an unrecognized density value", async () => {
+      await renderComponent({ portalModel: { modernVisualization: true, vizDensity: "bogus" } });
+      expect(document.body.classList.contains("viz-modern")).toBe(true);
+      expect(document.body.className).not.toContain("viz-density-");
    });
 });

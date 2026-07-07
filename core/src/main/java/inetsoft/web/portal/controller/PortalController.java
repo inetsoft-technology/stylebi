@@ -114,6 +114,11 @@ public class PortalController {
 
       boolean modernVisualization =
          SreeEnv.getBooleanProperty("viewsheet.modernVisualization", false, true);
+      String vizDensity = SreeEnv.getProperty("viewsheet.density", false, true);
+
+      if(vizDensity == null || vizDensity.isEmpty()) {
+         vizDensity = "dense";
+      }
 
       PortalCreationPermisisons creationModel = refreshPortalCreationPermissions(principal);
       boolean aiAssistantVisible = aiSettingsService.isAiAssistantVisible() &&
@@ -144,6 +149,7 @@ public class PortalController {
          .profiling(profiling)
          .elasticLicenseExhausted(elasticLicenseExhausted)
          .modernVisualization(modernVisualization)
+         .vizDensity(vizDensity)
          .build();
    }
 
