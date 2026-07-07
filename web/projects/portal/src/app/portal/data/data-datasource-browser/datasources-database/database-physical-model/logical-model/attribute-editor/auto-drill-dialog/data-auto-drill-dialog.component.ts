@@ -360,7 +360,7 @@ export class AutoDrillDialog implements OnInit, AfterViewInit {
          }
       }
 
-      return newNamePre + existIndexs.length;
+      return existIndexs.length == 0 ? newNamePre : newNamePre + existIndexs.length;
    }
 
    /**

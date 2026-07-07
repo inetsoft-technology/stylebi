@@ -406,7 +406,7 @@ export class DataModelBrowserService {
          PortalDataType.LOGIC_MODEL, physicalModel, folder);
       const dialogProcess: (dilog: InputNameDescDialog) => void = dialog => {
          dialog.hasDuplicateCheck = this.hasModelDuplicateCheck(null, databaseName,
-            PortalDataType.VPM);
+            PortalDataType.LOGIC_MODEL);
          dialog.validators = this.ModelNameValidators;
          dialog.title = "_#(js:data.physicalmodel.newLogicalModel)";
          dialog.label = "_#(js:data.logicalmodel.modelName)";
@@ -506,7 +506,7 @@ export class DataModelBrowserService {
    }
 
    moveModelsToTarget(items: DatabaseAsset[], folder: string, callback?: Function): void {
-      if(items?.length == 0) {
+      if(!items || items.length == 0) {
          return;
       }
 
