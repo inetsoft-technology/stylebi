@@ -112,6 +112,9 @@ public class PortalController {
          }
       }
 
+      boolean modernVisualization =
+         SreeEnv.getBooleanProperty("viewsheet.modernVisualization", false, true);
+
       PortalCreationPermisisons creationModel = refreshPortalCreationPermissions(principal);
       boolean aiAssistantVisible = aiSettingsService.isAiAssistantVisible() &&
          securityEngine.checkPermission(principal, ResourceType.AI_ASSISTANT, "*", ResourceAction.ACCESS);
@@ -140,6 +143,7 @@ public class PortalController {
          .profile(porfile)
          .profiling(profiling)
          .elasticLicenseExhausted(elasticLicenseExhausted)
+         .modernVisualization(modernVisualization)
          .build();
    }
 

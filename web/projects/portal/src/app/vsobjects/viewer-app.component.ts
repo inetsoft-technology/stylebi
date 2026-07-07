@@ -426,6 +426,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    name: string;
    previewBaseId: string;
    accessible: boolean = false;
+   modernVisualization: boolean = false;
    exportTypes: { label: string, value: string }[] = [];
    viewsheetLoading: boolean = false;
    preparingData: boolean = false;
@@ -2765,6 +2766,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.viewsheetBackground = command.info["viewsheetBackground"];
       this.name = command.assemblyInfo["name"];
       this.accessible = command.info["accessible"];
+      this.modernVisualization = command.info["modernVisualization"];
       this.fitToWidth = command.info["fitToWidth"];
       this.balancePadding = command.info["balancePadding"];
       this.virtualScroll = command.info["virtualScroll"];
@@ -2793,6 +2795,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       if(this.accessible && !this.inPortal) {
          const body: HTMLElement = this.document.body;
          body.classList.add("accessible");
+      }
+
+      if(!this.inPortal) {
+         this.document.body.classList.toggle("viz-modern", !!this.modernVisualization);
       }
 
       this.pageTabService.updateTabLabel(this.assetId, this.name);
