@@ -86,6 +86,8 @@ export class PortalAppComponent implements OnInit, OnDestroy {
    private licenseInfo: LicenseInfo;
    private readonly ACCESSIBILITY_CLASS: string = "accessible";
    private readonly VIZ_MODERN_CLASS: string = "viz-modern";
+   private readonly VIZ_DENSITY_CLASSES: string[] =
+      ["viz-density-comfortable", "viz-density-compact", "viz-density-dense"];
    private destroy$ = new Subject<void>();
    private isGettingStartedShown: boolean = false;
    private readonly _onMessage = (evt: MessageEvent) => this.handleMessageEvent(evt);
@@ -257,7 +259,17 @@ export class PortalAppComponent implements OnInit, OnDestroy {
 
    updateVisualizationMode(): void {
       const body: HTMLElement = this.document.body;
-      body.classList.toggle(this.VIZ_MODERN_CLASS, !!this.model.modernVisualization);
+      const modern: boolean = !!this.model.modernVisualization;
+      body.classList.toggle(this.VIZ_MODERN_CLASS, modern);
+      body.classList.remove(...this.VIZ_DENSITY_CLASSES);
+
+      if(modern) {
+         const densityClass = `viz-density-${this.model.vizDensity}`;
+
+         if(this.VIZ_DENSITY_CLASSES.includes(densityClass)) {
+            body.classList.add(densityClass);
+         }
+      }
    }
 
    get leftNavTabs(): PortalTab[] {
