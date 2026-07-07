@@ -96,6 +96,37 @@ class LegacyJavaShimTest {
          "importPackage(java.awt); new Color(0, 9, 0).getGreen()")));
    }
 
+   /**
+    * A failed {@code Class.forName} probe is remembered so a repeat probe for
+    * the same name doesn't rescan the classpath again. (#75551)
+    */
+   @Test
+   void failedProbeIsCachedAsNegative() {
+      String bogus = "inetsoft.does.not.Exist" + System.nanoTime();
+
+      assertNull(LegacyJavaShim.tryLoad(bogus));
+      assertTrue(LegacyJavaShim.isNegativelyCached(bogus));
+      // second probe hits the cache and still correctly reports a miss.
+      assertNull(LegacyJavaShim.tryLoad(bogus));
+   }
+
+   /**
+    * Plugins/JDBC drivers can be installed at runtime without a restart, so a
+    * name cached as unreachable must become probe-able again once the negative
+    * cache is invalidated (wired to PluginsChangedEvent in production). (#75551)
+    */
+   @Test
+   void invalidateNegativeCacheDropsPriorMisses() {
+      String bogus = "inetsoft.does.not.Exist" + System.nanoTime();
+
+      assertNull(LegacyJavaShim.tryLoad(bogus));
+      assertTrue(LegacyJavaShim.isNegativelyCached(bogus));
+
+      LegacyJavaShim.invalidateNegativeCache();
+
+      assertFalse(LegacyJavaShim.isNegativelyCached(bogus));
+   }
+
    @Test
    void inetsoftPackageNavigationResolves() throws Exception {
       // a real inetsoft class on an allowed prefix resolves to a usable type.

@@ -71,6 +71,7 @@ import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropdown.service";
 import { BindingTreeService } from "../../../binding/widget/binding-tree/binding-tree.service";
 import { ModelService } from "../../../widget/services/model.service";
+import { DebounceService } from "../../../widget/services/debounce.service";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { MessageDialog } from "../../../widget/dialog/message-dialog/message-dialog.component";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
@@ -130,6 +131,11 @@ const MODAL_MOCK = {
    })),
 };
 
+const DEBOUNCE_SERVICE_MOCK = {
+   debounce: vi.fn().mockImplementation((_key: string, fn: () => void) => fn()),
+   cancel: vi.fn(),
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -153,6 +159,7 @@ async function renderComponent(opts: RenderOpts = {}) {
          { provide: BindingTreeService, useValue: TREE_SERVICE_MOCK },
          { provide: ModelService, useValue: {} },
          { provide: NgbModal, useValue: MODAL_MOCK },
+         { provide: DebounceService, useValue: DEBOUNCE_SERVICE_MOCK },
       ],
       schemas: [NO_ERRORS_SCHEMA],
    });
@@ -187,6 +194,8 @@ beforeEach(() => {
       close: vi.fn(),
       dismiss: vi.fn(),
    }));
+   DEBOUNCE_SERVICE_MOCK.debounce.mockClear().mockImplementation((_key: string, fn: () => void) => fn());
+   DEBOUNCE_SERVICE_MOCK.cancel.mockClear();
 
    MessageDialog.lastMessage = null;
    (MessageDialog as any).lastMessageTS = 0;
