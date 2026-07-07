@@ -139,6 +139,9 @@ Do not let it define:
 - vivid color belongs primarily to visualization
 - analytical colors should communicate data meaning, not decorate shell chrome
 - chart palettes, ramps, conditional formatting, and data emphasis should remain visualization-owned
+- note: chart marks and in-graph chrome are **server-rendered** and shared by live view and all
+  export formats, so their color is not driven by browser CSS tokens — see the Rendering And Theming
+  Architecture section of [visualization-design-spec.md](visualization-design-spec.md)
 
 ## Density Strategy
 
