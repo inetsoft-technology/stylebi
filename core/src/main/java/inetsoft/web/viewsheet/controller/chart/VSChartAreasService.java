@@ -38,6 +38,7 @@ import inetsoft.uql.XCube;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.ColumnNotFoundException;
+import inetsoft.uql.viewsheet.graph.ChartDescriptor;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
@@ -186,8 +187,15 @@ public class VSChartAreasService {
                   chartArea = new ChartArea(pair, null, chartInfo, cube, drill, false, absoluteName);
                }
 
+               // Use the runtime descriptor if available so script-applied values
+               // (e.g. legendRoundCorners) are reflected. The state descriptor may
+               // have been captured before graph generation created the runtime
+               // descriptor (e.g. on the first render in composer preview), in which
+               // case it holds design-time values.
+               ChartDescriptor chartDescriptor = info.getRTChartDescriptor() != null ?
+                  info.getRTChartDescriptor() : state.getChartDescriptor();
                model = (VSChartModel) new GraphBuilder(
-                  state.getAssembly(), chartInfo, chartArea, state.getChartDescriptor(), model).build();
+                  state.getAssembly(), chartInfo, chartArea, chartDescriptor, model).build();
 
                if(pair.isCompleted() && pair.getRealSizeVGraph() == null && !pair.isCancelled()) {
                   model.setNoData(true);
