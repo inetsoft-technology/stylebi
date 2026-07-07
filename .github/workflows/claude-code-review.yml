@@ -42,7 +42,7 @@ jobs:
             PR NUMBER: ${{ github.event.pull_request.number }}
             
             Perform a comprehensive code review with the following focus areas:
-            
+
             * Check that the changes are complete and correct
             * Clean code principals and best practices
             * Proper error handling and edge cases
@@ -51,6 +51,10 @@ jobs:
             * Check if any regression bugs may be introduced
             * Check if any backward incompatibility
             * Check if any test cases are broken by the changes
+            * Prioritize business logic, API changes, and potential regressions
+              over purely cosmetic changes
+            * Skip generated files, lock files, and non-functional
+              formatting-only changes unless they may affect behavior
             
             Provide detailed feedback using inline comments for specific issues.
             Use top-level comments for general observations or praise.
@@ -62,13 +66,7 @@ jobs:
             Do not use the Task tool or spawn sub-agents. Task usage is not
             permitted and wastes review turns.
 
-            Review the PR yourself in a single workflow based on the PR diff.
-            Use Read/Grep when helpful.
-
-            Prioritize business logic, API changes, tests, and potential
-            regressions. Skip generated files, lock files, and clearly
-            non-functional formatting-only changes unless they may affect
-            behavior.
+            Use available tools such as Read/Grep when helpful.
 
             Do not mark the review as complete until all relevant files have
             been analyzed.
