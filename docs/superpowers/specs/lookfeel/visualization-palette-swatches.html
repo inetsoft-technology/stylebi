@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>StyleBI Visualization Palette Swatches</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --surface-canvas: #F8F7F4;
+    --surface-default: #FFFFFF;
+    --surface-subtle: #F1EFEA;
+    --surface-hover: #ECE9E2;
+    --border-default: #D9D5CC;
+    --text-strong: #1F1F1B;
+    --text-default: #35342F;
+    --text-muted: #6A685F;
+    --text-subtle: #99958C;
+
+    --viz-hover-bg: #EEF4F6;
+    --viz-selected-bg: #DDF1F5;
+    --viz-selected-border: #BFDDE5;
+    --viz-selected-text: #123C44;
+    --viz-context-bg: #F7F3EA;
+    --viz-active-border: #E58A2A;
+    --viz-inline-edit-bg: #FFFFFF;
+    --viz-filtered-bg: #F6E2C8;
+    --viz-sorted-color: #8C5510;
+    --viz-pinned-divider: #C8C2B7;
+    --viz-warning-bg: #F8E8CC;
+    --viz-anomaly-bg: #F7DEDE;
+
+    --series-1: #00D4E8;
+    --series-2: #00B87A;
+    --series-3: #F59E0B;
+    --series-4: #F43F5E;
+    --series-5: #8B5CF6;
+    --series-6: #3B82F6;
+    --series-7: #0D9488;
+    --series-8: #64748B;
+
+    --series-dark-1: #22D3EE;
+    --series-dark-2: #10B981;
+    --series-dark-3: #FBB724;
+    --series-dark-4: #FB6181;
+    --series-dark-5: #A78BFA;
+    --series-dark-6: #60A5FA;
+    --series-dark-7: #2DD4BF;
+    --series-dark-8: #94A3B8;
+
+    --vivid-series-1: #19C2B5;
+    --vivid-series-2: #F06A3F;
+    --vivid-series-3: #C7A21A;
+    --vivid-series-4: #D94F70;
+    --vivid-series-5: #6E5AE6;
+    --vivid-series-6: #2C8EED;
+    --vivid-series-7: #4BAE6C;
+    --vivid-series-8: #8A6E54;
+
+    --vivid-series-dark-1: #3DD7C8;
+    --vivid-series-dark-2: #FF875B;
+    --vivid-series-dark-3: #E1BC3E;
+    --vivid-series-dark-4: #F06B8B;
+    --vivid-series-dark-5: #8B78F2;
+    --vivid-series-dark-6: #5BA6F5;
+    --vivid-series-dark-7: #6DC889;
+    --vivid-series-dark-8: #B19173;
+
+    --family-series-1: #58B8F2;
+    --family-series-2: #2E6FDC;
+    --family-series-3: #F08B49;
+    --family-series-4: #19B8A6;
+    --family-series-5: #7A60E0;
+    --family-series-6: #C44E7A;
+    --family-series-7: #B29A33;
+    --family-series-8: #5F8F6B;
+
+    --family-series-dark-1: #7FCBF6;
+    --family-series-dark-2: #5B92F1;
+    --family-series-dark-3: #FFAA68;
+    --family-series-dark-4: #3CD3C0;
+    --family-series-dark-5: #9B86F1;
+    --family-series-dark-6: #E06C98;
+    --family-series-dark-7: #D2B857;
+    --family-series-dark-8: #84B08D;
+
+    --light-chart-label: #1C1B1F;
+    --light-chart-sub: #49454F;
+    --dark-chart-label: #E6E0E9;
+    --dark-chart-sub: #CAC4D0;
+    --dark-surface-canvas: #1C1B1F;
+    --dark-surface-default: #252428;
+    --dark-surface-subtle: #2D2B30;
+    --dark-border-default: #49454F;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--surface-canvas);
+    color: var(--text-default);
+    padding: 40px 48px 56px;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text-strong);
+    margin-bottom: 6px;
+  }
+
+  .subtitle {
+    color: var(--text-muted);
+    max-width: 920px;
+    margin-bottom: 18px;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 40px;
+  }
+
+  .pill {
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--border-default);
+    background: var(--surface-default);
+    color: var(--text-muted);
+  }
+
+  .section {
+    margin-bottom: 44px;
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .section-note {
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    max-width: 920px;
+  }
+
+  .swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .swatch {
+    width: 164px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: var(--surface-default);
+    box-shadow: 0 1px 2px rgba(31, 31, 27, 0.04);
+  }
+
+  .swatch-color {
+    height: 78px;
+    width: 100%;
+    position: relative;
+  }
+
+  .swatch-color.has-text,
+  .swatch-color.has-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  .swatch-color.has-label {
+    flex-direction: column;
+    gap: 2px;
+    text-align: center;
+  }
+
+  .swatch-info {
+    padding: 10px 12px 12px;
+  }
+
+  .swatch-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-strong);
+    margin-bottom: 2px;
+    line-height: 1.3;
+  }
+
+  .swatch-hex {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: "Fira Mono", "Cascadia Code", "Consolas", monospace;
+    margin-bottom: 4px;
+  }
+
+  .swatch-use {
+    font-size: 10px;
+    color: var(--text-subtle);
+    line-height: 1.45;
+  }
+
+  .line-demo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, #FBFAF7 0%, #F3F1EC 100%);
+  }
+
+  .line-demo::after {
+    content: "";
+    width: 92px;
+    height: 3px;
+    border-radius: 999px;
+    background: currentColor;
+  }
+
+  .palette-row,
+  .bar-grid {
+    display: grid;
+    gap: 20px;
+  }
+
+  .palette-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-bottom: 20px;
+  }
+
+  .bar-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .palette-card,
+  .bar-card {
+    border-radius: 14px;
+    border: 1px solid var(--border-default);
+    background: var(--surface-default);
+    padding: 18px;
+  }
+
+  .palette-card.dark,
+  .bar-card.dark {
+    background: var(--dark-surface-default);
+    border-color: var(--dark-border-default);
+    color: var(--dark-chart-label);
+  }
+
+  .palette-card-title,
+  .bar-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .palette-card-note,
+  .bar-card-note {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+
+  .palette-card.dark .palette-card-note,
+  .bar-card.dark .bar-card-note {
+    color: var(--dark-chart-sub);
+  }
+
+  .palette-swatch-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .palette-chip {
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: rgba(255, 255, 255, 0.55);
+  }
+
+  .palette-card.dark .palette-chip {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .palette-chip-color {
+    height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .palette-chip-meta {
+    padding: 8px 10px 10px;
+  }
+
+  .palette-chip-name {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-strong);
+    margin-bottom: 2px;
+  }
+
+  .palette-card.dark .palette-chip-name {
+    color: var(--dark-chart-label);
+  }
+
+  .palette-chip-hex {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: "Fira Mono", "Cascadia Code", "Consolas", monospace;
+  }
+
+  .palette-card.dark .palette-chip-hex {
+    color: var(--dark-chart-sub);
+  }
+
+  .bar-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .bar-row {
+    display: grid;
+    grid-template-columns: 104px 1fr 46px;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .bar-name {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .bar-card.dark .bar-name {
+    color: var(--dark-chart-sub);
+  }
+
+  .bar-track {
+    height: 24px;
+    border-radius: 7px;
+    overflow: hidden;
+    background: var(--surface-subtle);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+  }
+
+  .bar-card.dark .bar-track {
+    background: var(--dark-surface-subtle);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    min-width: 52px;
+  }
+
+  .bar-fill-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--light-chart-label);
+    white-space: nowrap;
+  }
+
+  .bar-fill-label.dark,
+  .bar-fill-label.inverse {
+    color: #FFFFFF;
+  }
+
+  .bar-value {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: right;
+  }
+
+  .bar-card.dark .bar-value {
+    color: var(--dark-chart-sub);
+  }
+
+  @media (max-width: 1280px) {
+    .palette-row {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 980px) {
+    body {
+      padding: 28px 24px 40px;
+    }
+
+    .bar-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .bar-row {
+      grid-template-columns: 88px 1fr 40px;
+    }
+
+    .palette-swatch-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+</style>
+</head>
+<body>
+
+<h1>StyleBI Visualization Palette</h1>
+<p class="subtitle">Companion swatches for the visualization design spec. This file shows shared visualization-state tokens, the current default chart palette, two possible future exploratory alternatives, and simple labeled bar charts in both light and dark mode so palette distinction and label readability can be reviewed together.</p>
+
+<div class="legend">
+  <div class="pill">Visualization state tokens</div>
+  <div class="pill">Default chart palette</div>
+  <div class="pill">More vivid chart palette option</div>
+  <div class="pill">Vivid palette for possible future use</div>
+  <div class="pill">Repeated hue-family option</div>
+  <div class="pill">Three light palettes in one row</div>
+  <div class="pill">Three dark palettes in one row</div>
+  <div class="pill">Label readability on fills</div>
+</div>
+
+<div class="section">
+  <div class="section-title">Visualization State Tokens</div>
+  <p class="section-note">These are the shared analytical-state families called for by the visualization spec. They stay separate from shell routine chrome and from Composer authoring-state meaning.</p>
+  <div class="swatches">
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--viz-hover-bg); color:var(--text-default);">Hover</div>
+      <div class="swatch-info">
+        <div class="swatch-name">viz-hover-bg</div>
+        <div class="swatch-hex">#EEF4F6</div>
+        <div class="swatch-use">row hover, mark hover, temporary inspection state</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-label" style="background:var(--viz-selected-bg); color:var(--viz-selected-text); border:2px solid var(--viz-selected-border);">
+        <div>Selected</div>
+      </div>
+      <div class="swatch-info">
+        <div class="swatch-name">viz-selected-bg / border / text</div>
+        <div class="swatch-hex">#DDF1F5 / #BFDDE5 / #123C44</div>
+        <div class="swatch-use">selected row, selected mark, selected legend item</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--viz-context-bg); color:var(--text-default);">Contextual</div>
+      <div class="swatch-info">
+        <div class="swatch-name">viz-context-bg</div>
+        <div class="swatch-hex">#F7F3EA</div>
+        <div class="swatch-use">grouped headers, scoped regions, related rows</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-label" style="background:var(--surface-default); color:var(--text-default); border:2px solid var(--viz-active-border);">
+        <div>Active border</div>
+      </div>
+      <div class="swatch-info">
+        <div class="swatch-name">viz-active-border</div>
+        <div class="swatch-hex">#E58A2A</div>
+        <div class="swatch-use">active cell, active filter, current focused target</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--viz-inline-edit-bg); color:var(--text-default); border-bottom:1px solid var(--border-default);">Inline edit</div>
+      <div class="swatch-info">
+        <div class="swatch-name">viz-inline-edit-bg</div>
+        <div class="swatch-hex">#FFFFFF</div>
+        <div class="swatch-use">editable cell or compact embedded editor state</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--viz-filtered-bg); color:#4A2500;">Filtered</div>
+      <div class="swatch-info">
+        <div class="swatch-name">viz-filtered-bg</div>
+        <div class="swatch-hex">#F6E2C8</div>
+        <div class="swatch-use">filter-on chips and filtered analytical state</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color line-demo" style="color:var(--viz-sorted-color);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">viz-sorted-color</div>
+        <div class="swatch-hex">#8C5510</div>
+        <div class="swatch-use">sorted header and sort glyph emphasis</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color line-demo" style="color:var(--viz-pinned-divider);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">viz-pinned-divider</div>
+        <div class="swatch-hex">#C8C2B7</div>
+        <div class="swatch-use">frozen column and pinned region divider</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--viz-warning-bg); color:#7A4E10;">Warning</div>
+      <div class="swatch-info">
+        <div class="swatch-name">viz-warning-bg</div>
+        <div class="swatch-hex">#F8E8CC</div>
+        <div class="swatch-use">threshold warning and cautionary analytical state</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--viz-anomaly-bg); color:#7F2E2E;">Anomaly</div>
+      <div class="swatch-info">
+        <div class="swatch-name">viz-anomaly-bg</div>
+        <div class="swatch-hex">#F7DEDE</div>
+        <div class="swatch-use">outlier, anomaly, and exception state</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Chart Palette Comparison</div>
+  <p class="section-note">This layout puts the current default palette next to two possible future alternatives for faster comparison. The default palette reflects the current shared chart system. The other two are exploratory only: one pushes toward a more adventurous non-standard BI feel, and one tests repeated hue families such as light blue and deep blue appearing earlier in the sequence.</p>
+
+  <div class="palette-row">
+    <div class="palette-card">
+      <div class="palette-card-title">Default Palette - Light</div>
+      <div class="palette-card-note">Current shared light palette used as the baseline series sequence.</div>
+      <div class="palette-swatch-grid">
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--series-1); color:var(--light-chart-label);">1</div><div class="palette-chip-meta"><div class="palette-chip-name">series-1</div><div class="palette-chip-hex">#00D4E8</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--series-2); color:var(--light-chart-label);">2</div><div class="palette-chip-meta"><div class="palette-chip-name">series-2</div><div class="palette-chip-hex">#00B87A</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--series-3); color:var(--light-chart-label);">3</div><div class="palette-chip-meta"><div class="palette-chip-name">series-3</div><div class="palette-chip-hex">#F59E0B</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--series-4); color:#FFFFFF;">4</div><div class="palette-chip-meta"><div class="palette-chip-name">series-4</div><div class="palette-chip-hex">#F43F5E</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--series-5); color:#FFFFFF;">5</div><div class="palette-chip-meta"><div class="palette-chip-name">series-5</div><div class="palette-chip-hex">#8B5CF6</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--series-6); color:#FFFFFF;">6</div><div class="palette-chip-meta"><div class="palette-chip-name">series-6</div><div class="palette-chip-hex">#3B82F6</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--series-7); color:#FFFFFF;">7</div><div class="palette-chip-meta"><div class="palette-chip-name">series-7</div><div class="palette-chip-hex">#0D9488</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--series-8); color:#FFFFFF;">8</div><div class="palette-chip-meta"><div class="palette-chip-name">series-8</div><div class="palette-chip-hex">#64748B</div></div></div>
+      </div>
+    </div>
+
+    <div class="palette-card">
+      <div class="palette-card-title">Vivid Palette - Light</div>
+      <div class="palette-card-note">A more adventurous light palette with less standard BI hue ordering. Included here only as a possible future direction.</div>
+      <div class="palette-swatch-grid">
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--vivid-series-1); color:var(--light-chart-label);">1</div><div class="palette-chip-meta"><div class="palette-chip-name">vivid-1</div><div class="palette-chip-hex">#19C2B5</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--vivid-series-2); color:#FFFFFF;">2</div><div class="palette-chip-meta"><div class="palette-chip-name">vivid-2</div><div class="palette-chip-hex">#F06A3F</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--vivid-series-3); color:var(--light-chart-label);">3</div><div class="palette-chip-meta"><div class="palette-chip-name">vivid-3</div><div class="palette-chip-hex">#C7A21A</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--vivid-series-4); color:#FFFFFF;">4</div><div class="palette-chip-meta"><div class="palette-chip-name">vivid-4</div><div class="palette-chip-hex">#D94F70</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--vivid-series-5); color:#FFFFFF;">5</div><div class="palette-chip-meta"><div class="palette-chip-name">vivid-5</div><div class="palette-chip-hex">#6E5AE6</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--vivid-series-6); color:#FFFFFF;">6</div><div class="palette-chip-meta"><div class="palette-chip-name">vivid-6</div><div class="palette-chip-hex">#2C8EED</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--vivid-series-7); color:var(--light-chart-label);">7</div><div class="palette-chip-meta"><div class="palette-chip-name">vivid-7</div><div class="palette-chip-hex">#4BAE6C</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--vivid-series-8); color:#FFFFFF;">8</div><div class="palette-chip-meta"><div class="palette-chip-name">vivid-8</div><div class="palette-chip-hex">#8A6E54</div></div></div>
+      </div>
+    </div>
+
+    <div class="palette-card">
+      <div class="palette-card-title">Hue Family Palette - Light</div>
+      <div class="palette-card-note">Explores repeated hue families early in the order, including light and deep blue, while keeping enough separation for categorical review.</div>
+      <div class="palette-swatch-grid">
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--family-series-1); color:var(--light-chart-label);">1</div><div class="palette-chip-meta"><div class="palette-chip-name">family-1</div><div class="palette-chip-hex">#58B8F2</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--family-series-2); color:#FFFFFF;">2</div><div class="palette-chip-meta"><div class="palette-chip-name">family-2</div><div class="palette-chip-hex">#2E6FDC</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--family-series-3); color:#FFFFFF;">3</div><div class="palette-chip-meta"><div class="palette-chip-name">family-3</div><div class="palette-chip-hex">#F08B49</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--family-series-4); color:var(--light-chart-label);">4</div><div class="palette-chip-meta"><div class="palette-chip-name">family-4</div><div class="palette-chip-hex">#19B8A6</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--family-series-5); color:#FFFFFF;">5</div><div class="palette-chip-meta"><div class="palette-chip-name">family-5</div><div class="palette-chip-hex">#7A60E0</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--family-series-6); color:#FFFFFF;">6</div><div class="palette-chip-meta"><div class="palette-chip-name">family-6</div><div class="palette-chip-hex">#C44E7A</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--family-series-7); color:var(--light-chart-label);">7</div><div class="palette-chip-meta"><div class="palette-chip-name">family-7</div><div class="palette-chip-hex">#B29A33</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--family-series-8); color:#FFFFFF;">8</div><div class="palette-chip-meta"><div class="palette-chip-name">family-8</div><div class="palette-chip-hex">#5F8F6B</div></div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="palette-row" style="margin-bottom:0;">
+    <div class="palette-card dark">
+      <div class="palette-card-title">Default Palette - Dark</div>
+      <div class="palette-card-note">Current shared dark palette with stronger lift against darker chart surfaces.</div>
+      <div class="palette-swatch-grid">
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--series-dark-1); color:var(--light-chart-label);">1</div><div class="palette-chip-meta"><div class="palette-chip-name">series-dark-1</div><div class="palette-chip-hex">#22D3EE</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--series-dark-2); color:var(--light-chart-label);">2</div><div class="palette-chip-meta"><div class="palette-chip-name">series-dark-2</div><div class="palette-chip-hex">#10B981</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--series-dark-3); color:var(--light-chart-label);">3</div><div class="palette-chip-meta"><div class="palette-chip-name">series-dark-3</div><div class="palette-chip-hex">#FBB724</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--series-dark-4); color:#FFFFFF;">4</div><div class="palette-chip-meta"><div class="palette-chip-name">series-dark-4</div><div class="palette-chip-hex">#FB6181</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--series-dark-5); color:#FFFFFF;">5</div><div class="palette-chip-meta"><div class="palette-chip-name">series-dark-5</div><div class="palette-chip-hex">#A78BFA</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--series-dark-6); color:#FFFFFF;">6</div><div class="palette-chip-meta"><div class="palette-chip-name">series-dark-6</div><div class="palette-chip-hex">#60A5FA</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--series-dark-7); color:var(--light-chart-label);">7</div><div class="palette-chip-meta"><div class="palette-chip-name">series-dark-7</div><div class="palette-chip-hex">#2DD4BF</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--series-dark-8); color:var(--light-chart-label);">8</div><div class="palette-chip-meta"><div class="palette-chip-name">series-dark-8</div><div class="palette-chip-hex">#94A3B8</div></div></div>
+      </div>
+    </div>
+
+    <div class="palette-card dark">
+      <div class="palette-card-title">Vivid Palette - Dark</div>
+      <div class="palette-card-note">Dark-mode companion for the more adventurous palette direction. Included here only as a possible future direction.</div>
+      <div class="palette-swatch-grid">
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--vivid-series-dark-1); color:var(--light-chart-label);">1</div><div class="palette-chip-meta"><div class="palette-chip-name">vivid-dark-1</div><div class="palette-chip-hex">#3DD7C8</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--vivid-series-dark-2); color:#FFFFFF;">2</div><div class="palette-chip-meta"><div class="palette-chip-name">vivid-dark-2</div><div class="palette-chip-hex">#FF875B</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--vivid-series-dark-3); color:var(--light-chart-label);">3</div><div class="palette-chip-meta"><div class="palette-chip-name">vivid-dark-3</div><div class="palette-chip-hex">#E1BC3E</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--vivid-series-dark-4); color:#FFFFFF;">4</div><div class="palette-chip-meta"><div class="palette-chip-name">vivid-dark-4</div><div class="palette-chip-hex">#F06B8B</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--vivid-series-dark-5); color:#FFFFFF;">5</div><div class="palette-chip-meta"><div class="palette-chip-name">vivid-dark-5</div><div class="palette-chip-hex">#8B78F2</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--vivid-series-dark-6); color:#FFFFFF;">6</div><div class="palette-chip-meta"><div class="palette-chip-name">vivid-dark-6</div><div class="palette-chip-hex">#5BA6F5</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--vivid-series-dark-7); color:var(--light-chart-label);">7</div><div class="palette-chip-meta"><div class="palette-chip-name">vivid-dark-7</div><div class="palette-chip-hex">#6DC889</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--vivid-series-dark-8); color:#FFFFFF;">8</div><div class="palette-chip-meta"><div class="palette-chip-name">vivid-dark-8</div><div class="palette-chip-hex">#B19173</div></div></div>
+      </div>
+    </div>
+
+    <div class="palette-card dark">
+      <div class="palette-card-title">Hue Family Palette - Dark</div>
+      <div class="palette-card-note">Dark companion for the repeated hue-family experiment, keeping the blue family visible without letting the early sequence collapse.</div>
+      <div class="palette-swatch-grid">
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--family-series-dark-1); color:var(--light-chart-label);">1</div><div class="palette-chip-meta"><div class="palette-chip-name">family-dark-1</div><div class="palette-chip-hex">#7FCBF6</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--family-series-dark-2); color:#FFFFFF;">2</div><div class="palette-chip-meta"><div class="palette-chip-name">family-dark-2</div><div class="palette-chip-hex">#5B92F1</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--family-series-dark-3); color:#FFFFFF;">3</div><div class="palette-chip-meta"><div class="palette-chip-name">family-dark-3</div><div class="palette-chip-hex">#FFAA68</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--family-series-dark-4); color:var(--light-chart-label);">4</div><div class="palette-chip-meta"><div class="palette-chip-name">family-dark-4</div><div class="palette-chip-hex">#3CD3C0</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--family-series-dark-5); color:#FFFFFF;">5</div><div class="palette-chip-meta"><div class="palette-chip-name">family-dark-5</div><div class="palette-chip-hex">#9B86F1</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--family-series-dark-6); color:#FFFFFF;">6</div><div class="palette-chip-meta"><div class="palette-chip-name">family-dark-6</div><div class="palette-chip-hex">#E06C98</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--family-series-dark-7); color:var(--light-chart-label);">7</div><div class="palette-chip-meta"><div class="palette-chip-name">family-dark-7</div><div class="palette-chip-hex">#D2B857</div></div></div>
+        <div class="palette-chip"><div class="palette-chip-color" style="background:var(--family-series-dark-8); color:#FFFFFF;">8</div><div class="palette-chip-meta"><div class="palette-chip-name">family-dark-8</div><div class="palette-chip-hex">#84B08D</div></div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Bar Chart Preview - Default Palette With Labels</div>
+  <p class="section-note">This preview adds something the shell and Composer swatch files do not show: a simple bar chart rendered with the default categorical palette and inline labels, shown in both light and dark mode. It is meant to help judge series distinction and label readability together.</p>
+  <div class="bar-grid">
+    <div class="bar-card">
+      <div class="bar-card-title">Light Mode</div>
+      <div class="bar-card-note">Neutral chart chrome with default light palette and labels placed directly on fills.</div>
+      <div class="bar-chart">
+        <div class="bar-row"><div class="bar-name">Revenue</div><div class="bar-track"><div class="bar-fill" style="width:82%; background:var(--series-1);"><span class="bar-fill-label">$82M</span></div></div><div class="bar-value">82%</div></div>
+        <div class="bar-row"><div class="bar-name">Pipeline</div><div class="bar-track"><div class="bar-fill" style="width:69%; background:var(--series-2);"><span class="bar-fill-label">$69M</span></div></div><div class="bar-value">69%</div></div>
+        <div class="bar-row"><div class="bar-name">Forecast</div><div class="bar-track"><div class="bar-fill" style="width:61%; background:var(--series-3);"><span class="bar-fill-label">$61M</span></div></div><div class="bar-value">61%</div></div>
+        <div class="bar-row"><div class="bar-name">Variance</div><div class="bar-track"><div class="bar-fill" style="width:48%; background:var(--series-4);"><span class="bar-fill-label inverse">$48M</span></div></div><div class="bar-value">48%</div></div>
+      </div>
+    </div>
+
+    <div class="bar-card dark">
+      <div class="bar-card-title">Dark Mode</div>
+      <div class="bar-card-note">Darker widget surface with default dark palette and labels tuned for on-fill contrast.</div>
+      <div class="bar-chart">
+        <div class="bar-row"><div class="bar-name">Revenue</div><div class="bar-track"><div class="bar-fill" style="width:82%; background:var(--series-dark-1);"><span class="bar-fill-label">$82M</span></div></div><div class="bar-value">82%</div></div>
+        <div class="bar-row"><div class="bar-name">Pipeline</div><div class="bar-track"><div class="bar-fill" style="width:69%; background:var(--series-dark-2);"><span class="bar-fill-label">$69M</span></div></div><div class="bar-value">69%</div></div>
+        <div class="bar-row"><div class="bar-name">Forecast</div><div class="bar-track"><div class="bar-fill" style="width:61%; background:var(--series-dark-3);"><span class="bar-fill-label">$61M</span></div></div><div class="bar-value">61%</div></div>
+        <div class="bar-row"><div class="bar-name">Variance</div><div class="bar-track"><div class="bar-fill" style="width:48%; background:var(--series-dark-4);"><span class="bar-fill-label dark">$48M</span></div></div><div class="bar-value">48%</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Bar Chart Preview - Vivid Palette With Labels</div>
+  <p class="section-note">The same bar-chart structure shown with the more adventurous vivid alternative palette. It stays here as a possible future exploration only, so the spec can compare a more distinctive direction against the default system without implying any implementation commitment.</p>
+  <div class="bar-grid">
+    <div class="bar-card">
+      <div class="bar-card-title">Light Mode</div>
+      <div class="bar-card-note">Vivid palette on a light analytical surface.</div>
+      <div class="bar-chart">
+        <div class="bar-row"><div class="bar-name">Revenue</div><div class="bar-track"><div class="bar-fill" style="width:82%; background:var(--vivid-series-1);"><span class="bar-fill-label">$82M</span></div></div><div class="bar-value">82%</div></div>
+        <div class="bar-row"><div class="bar-name">Pipeline</div><div class="bar-track"><div class="bar-fill" style="width:69%; background:var(--vivid-series-2);"><span class="bar-fill-label">$69M</span></div></div><div class="bar-value">69%</div></div>
+        <div class="bar-row"><div class="bar-name">Forecast</div><div class="bar-track"><div class="bar-fill" style="width:61%; background:var(--vivid-series-3);"><span class="bar-fill-label">$61M</span></div></div><div class="bar-value">61%</div></div>
+        <div class="bar-row"><div class="bar-name">Variance</div><div class="bar-track"><div class="bar-fill" style="width:48%; background:var(--vivid-series-4);"><span class="bar-fill-label inverse">$48M</span></div></div><div class="bar-value">48%</div></div>
+      </div>
+    </div>
+
+    <div class="bar-card dark">
+      <div class="bar-card-title">Dark Mode</div>
+      <div class="bar-card-note">Vivid palette on a dark analytical surface.</div>
+      <div class="bar-chart">
+        <div class="bar-row"><div class="bar-name">Revenue</div><div class="bar-track"><div class="bar-fill" style="width:82%; background:var(--vivid-series-dark-1);"><span class="bar-fill-label">$82M</span></div></div><div class="bar-value">82%</div></div>
+        <div class="bar-row"><div class="bar-name">Pipeline</div><div class="bar-track"><div class="bar-fill" style="width:69%; background:var(--vivid-series-dark-2);"><span class="bar-fill-label">$69M</span></div></div><div class="bar-value">69%</div></div>
+        <div class="bar-row"><div class="bar-name">Forecast</div><div class="bar-track"><div class="bar-fill" style="width:61%; background:var(--vivid-series-dark-3);"><span class="bar-fill-label">$61M</span></div></div><div class="bar-value">61%</div></div>
+        <div class="bar-row"><div class="bar-name">Variance</div><div class="bar-track"><div class="bar-fill" style="width:48%; background:var(--vivid-series-dark-4);"><span class="bar-fill-label dark">$48M</span></div></div><div class="bar-value">48%</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Bar Chart Preview - Hue Family Palette With Labels</div>
+  <p class="section-note">This preview tests the repeated hue-family idea in the bar chart itself, where light blue and deep blue appear early in the order. It stays exploratory only and is meant to help judge whether the family resemblance still preserves enough categorical clarity.</p>
+  <div class="bar-grid">
+    <div class="bar-card">
+      <div class="bar-card-title">Light Mode</div>
+      <div class="bar-card-note">Hue-family palette on a light analytical surface.</div>
+      <div class="bar-chart">
+        <div class="bar-row"><div class="bar-name">Revenue</div><div class="bar-track"><div class="bar-fill" style="width:82%; background:var(--family-series-1);"><span class="bar-fill-label">$82M</span></div></div><div class="bar-value">82%</div></div>
+        <div class="bar-row"><div class="bar-name">Pipeline</div><div class="bar-track"><div class="bar-fill" style="width:69%; background:var(--family-series-2);"><span class="bar-fill-label dark">$69M</span></div></div><div class="bar-value">69%</div></div>
+        <div class="bar-row"><div class="bar-name">Forecast</div><div class="bar-track"><div class="bar-fill" style="width:61%; background:var(--family-series-3);"><span class="bar-fill-label inverse">$61M</span></div></div><div class="bar-value">61%</div></div>
+        <div class="bar-row"><div class="bar-name">Variance</div><div class="bar-track"><div class="bar-fill" style="width:48%; background:var(--family-series-4);"><span class="bar-fill-label">$48M</span></div></div><div class="bar-value">48%</div></div>
+      </div>
+    </div>
+
+    <div class="bar-card dark">
+      <div class="bar-card-title">Dark Mode</div>
+      <div class="bar-card-note">Hue-family palette on a dark analytical surface.</div>
+      <div class="bar-chart">
+        <div class="bar-row"><div class="bar-name">Revenue</div><div class="bar-track"><div class="bar-fill" style="width:82%; background:var(--family-series-dark-1);"><span class="bar-fill-label">$82M</span></div></div><div class="bar-value">82%</div></div>
+        <div class="bar-row"><div class="bar-name">Pipeline</div><div class="bar-track"><div class="bar-fill" style="width:69%; background:var(--family-series-dark-2);"><span class="bar-fill-label dark">$69M</span></div></div><div class="bar-value">69%</div></div>
+        <div class="bar-row"><div class="bar-name">Forecast</div><div class="bar-track"><div class="bar-fill" style="width:61%; background:var(--family-series-dark-3);"><span class="bar-fill-label dark">$61M</span></div></div><div class="bar-value">61%</div></div>
+        <div class="bar-row"><div class="bar-name">Variance</div><div class="bar-track"><div class="bar-fill" style="width:48%; background:var(--family-series-dark-4);"><span class="bar-fill-label">$48M</span></div></div><div class="bar-value">48%</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
