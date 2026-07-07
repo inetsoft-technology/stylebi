@@ -103,7 +103,7 @@ declare namespace Stomp {
 declare class DocumentTouch {
 }
 
-declare module 'fscreen' {
+declare module "fscreen" {
    type FScreen = {
       fulscreenEnabled: unknown;
       fullscreenElement: unknown;
