@@ -90,16 +90,19 @@ public final class ScriptValueConverter {
       // Our own adapters first (the inverse of toGuest): ArrayProxy implements
       // both ProxyArray and ProxyObject, so it also satisfies hasArrayElements()
       // below — it must be unwrapped back to its ScriptArrayScope here, before
-      // the generic array branch flattens it into a plain Object[] copy.
+      // the generic array branch would flatten it into a plain Object[] copy.
+      // Keeps toHost symmetric with toGuest so a published scope global reads
+      // back as the real ScriptScope/ScriptArrayScope (e.g. senv.get("viewsheet")
+      // returns the real ViewsheetScope in CalcTableLens, not the proxy bridge).
       if(v.isProxyObject()) {
          Object proxy = v.asProxyObject();
 
-         if(proxy instanceof ScopeProxy) {
-            return ((ScopeProxy) proxy).getScope();
+         if(proxy instanceof ScopeProxy scopeProxy) {
+            return scopeProxy.getScope();
          }
 
-         if(proxy instanceof ArrayProxy) {
-            return ((ArrayProxy) proxy).getScope();
+         if(proxy instanceof ArrayProxy arrayProxy) {
+            return arrayProxy.getScope();
          }
 
          return proxy;
