@@ -23,8 +23,11 @@ import inetsoft.test.SreeHome;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.jdbc.JDBCQuery;
 import inetsoft.uql.jdbc.UniformSQL;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.web.wiz.model.WorksheetStructure;
 import org.junit.jupiter.api.Tag;
@@ -133,6 +136,45 @@ class MetadataApiServiceStructureTest {
       assertEquals(2, columns.size());
       assertEquals("industry", columns.get(0).getName());
       assertEquals("annual_revenue", columns.get(1).getName());
+   }
+
+   @Test
+   void mapsAliasTypeRefTypeAndExpressionForColumns() {
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly t = new PhysicalBoundTableAssembly(ws, "accounts");
+      ColumnSelection cs = new ColumnSelection();
+
+      // Plain column: attribute-backed ColumnRef with an alias, explicit data type, and a
+      // non-default ref type (MEASURE).
+      AttributeRef attr = new AttributeRef(null, "annual_revenue");
+      attr.setRefType(DataRef.MEASURE);
+      ColumnRef plainColumn = new ColumnRef(attr);
+      plainColumn.setAlias("Annual Revenue");
+      plainColumn.setDataType(XSchema.DOUBLE);
+      cs.addAttribute(plainColumn);
+
+      // Expression column: ColumnRef wrapping an ExpressionRef, per the isExpression() &&
+      // getDataRef() instanceof ExpressionRef branch in createStructureColumn.
+      ExpressionRef expressionRef = new ExpressionRef(null, "revenue_plus_tax");
+      expressionRef.setExpression("field['a'] + field['b']");
+      ColumnRef expressionColumn = new ColumnRef(expressionRef);
+      cs.addAttribute(expressionColumn);
+
+      t.setColumnSelection(cs, false);
+
+      var columns = MetadataApiService.extractStructureColumns(t);
+
+      assertEquals(2, columns.size());
+
+      WorksheetStructure.Column plain = columns.get(0);
+      assertEquals("annual_revenue", plain.getName());
+      assertEquals("Annual Revenue", plain.getAlias());
+      assertEquals(XSchema.DOUBLE, plain.getType());
+      assertEquals(DataRef.MEASURE, plain.getRefType());
+      assertNull(plain.getExpression(), "non-expression column should not carry an expression");
+
+      WorksheetStructure.Column expression = columns.get(1);
+      assertEquals("field['a'] + field['b']", expression.getExpression());
    }
 
    // ---- extractStructureSource ----
