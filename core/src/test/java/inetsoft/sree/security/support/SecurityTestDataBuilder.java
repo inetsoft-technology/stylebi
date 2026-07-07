@@ -59,6 +59,9 @@ public class SecurityTestDataBuilder {
    private final List<RoleSpec> roles = new ArrayList<>();
    private final List<UserRoleAssignment> userRoles = new ArrayList<>();
    private final List<PermissionSpec> permissions = new ArrayList<>();
+   private final List<GroupSpec> groups = new ArrayList<>();
+   private final List<UserGroupAssignment> userGroups = new ArrayList<>();
+   private final List<GroupParentAssignment> groupParents = new ArrayList<>();
 
    private FileAuthenticationProvider authcProvider;
    private FileAuthorizationProvider authzProvider;
@@ -117,6 +120,30 @@ public class SecurityTestDataBuilder {
 
    public SecurityTestDataBuilder addUserToRole(String userName, String roleName, String orgId) {
       userRoles.add(new UserRoleAssignment(userName, roleName, orgId));
+      return this;
+   }
+
+   public SecurityTestDataBuilder addGroup(String groupName, String orgId) {
+      groups.add(new GroupSpec(groupName, orgId));
+      return this;
+   }
+
+   public SecurityTestDataBuilder addUserToGroup(String userName, String groupName, String orgId) {
+      userGroups.add(new UserGroupAssignment(userName, groupName, orgId));
+      return this;
+   }
+
+   /**
+    * Makes {@code groupName} a child of {@code parentGroupName} (both in {@code orgId}), i.e.
+    * {@code groupName}'s {@code FSGroup.setGroups()} (parent groups) includes
+    * {@code parentGroupName}. {@link PermissionChecker#checkUserGroupPermission} walks this
+    * chain upward from a checked group/user, so a delegated permission on an ancestor group
+    * cascades down to descendants, not the other way around.
+    */
+   public SecurityTestDataBuilder addGroupParent(String groupName, String parentGroupName,
+                                                  String orgId)
+   {
+      groupParents.add(new GroupParentAssignment(groupName, parentGroupName, orgId));
       return this;
    }
 
@@ -185,6 +212,36 @@ public class SecurityTestDataBuilder {
             .add(new IdentityID(ur.roleName(), ur.orgId()));
       }
 
+      // Build group→parentGroups map before writing groups
+      Map<IdentityID, List<String>> groupParentMap = new HashMap<>();
+      for(GroupParentAssignment gp : groupParents) {
+         groupParentMap
+            .computeIfAbsent(new IdentityID(gp.groupName(), gp.orgId()), k -> new ArrayList<>())
+            .add(gp.parentGroupName());
+      }
+
+      // Write groups
+      for(GroupSpec gs : groups) {
+         IdentityID groupId = new IdentityID(gs.groupName(), gs.orgId());
+         FSGroup group = new FSGroup(groupId);
+
+         List<String> parentGroups = groupParentMap.getOrDefault(groupId, Collections.emptyList());
+
+         if(!parentGroups.isEmpty()) {
+            group.setGroups(parentGroups.toArray(new String[0]));
+         }
+
+         authcProvider.addGroup(group);
+      }
+
+      // Build user→groups map before writing users
+      Map<IdentityID, List<String>> userGroupMap = new HashMap<>();
+      for(UserGroupAssignment ug : userGroups) {
+         userGroupMap
+            .computeIfAbsent(new IdentityID(ug.userName(), ug.orgId()), k -> new ArrayList<>())
+            .add(ug.groupName());
+      }
+
       // Write users
       for(UserSpec us : users) {
          IdentityID userId = new IdentityID(us.userName(), us.orgId());
@@ -197,6 +254,12 @@ public class SecurityTestDataBuilder {
 
          if(!assignedRoles.isEmpty()) {
             user.setRoles(assignedRoles.toArray(new IdentityID[0]));
+         }
+
+         List<String> assignedGroups = userGroupMap.getOrDefault(userId, Collections.emptyList());
+
+         if(!assignedGroups.isEmpty()) {
+            user.setGroups(assignedGroups.toArray(new String[0]));
          }
 
          authcProvider.addUser(user);
@@ -283,4 +346,7 @@ public class SecurityTestDataBuilder {
    private record UserRoleAssignment(String userName, String roleName, String orgId) {}
    private record PermissionSpec(ResourceType type, String resource, ResourceAction action,
                                   String granteeId, int identityType, String orgId) {}
+   private record GroupSpec(String groupName, String orgId) {}
+   private record UserGroupAssignment(String userName, String groupName, String orgId) {}
+   private record GroupParentAssignment(String groupName, String parentGroupName, String orgId) {}
 }

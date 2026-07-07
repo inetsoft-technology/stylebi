@@ -19,67 +19,33 @@ package inetsoft.sree.security;
 
 /*
  * Slice test class for permission-matrix-resources.md § S2 (SECURITY_* identity management
- * boundary). Sibling slices S3/S4/S5 each get their own PermissionMatrixResourcesS{N}Test class
- * instead of one combined PermissionMatrixResourcesTest — S2 alone already spans ~40 planned
- * cases across five sub-scenarios (main table, GRANTEE-VARIETY, GLOBAL-ROLE-ROOT, ROOT-CASCADE,
- * GROUP-CHAIN), and S2-S5 test genuinely different production mechanisms (identity cascade vs.
- * ADMIN parent/child rules vs. content-access links vs. folder inheritance) that share little
- * fixture setup, so splitting loses no reuse. See docs/superpowers/plans/
- * 2026-06-30-permission-test-phase2.md "Revision note" for why this replaced the original
- * single-file MatrixTestCase/UserType parameterized design.
+ * boundary). See that doc for the full scenario tables and root-cause write-ups of the bugs
+ * tracked here -- comments in this file are kept to code-level specifics that aren't obvious
+ * from the doc (fixture wiring, resource-key format gotchas), not restated narrative.
  *
- * Covers permission-matrix-resources.md — S2 main table (SECURITY_* boundary), first batch:
- *   - orgSecurityAdmin cross-type cascade (DefaultCheckPermissionStrategy L57-67)
- *   - orgSecurityAdmin global-role negative controls (both @Disabled — CONFIRMED PRODUCTION
- *     BUG, not a fixture artifact: reproduced live via direct API call against a real EM
- *     deployment, bypassing the UI's tree-visibility hiding. See
- *     orgSecurityAdmin_adminOnGlobalRole_denied_negativeControl's comment for the confirmed
- *     mechanism (checkOrgAdminPermission() L591) and
- *     orgSecurityAdmin_adminOnGlobalSysAdminRole_denied_negativeControl's comment for an
- *     unresolved second discrepancy (live-confirmed but not yet reproduced in this fixture))
- *   - identityAdmin-user(instance), identityAdmin-user(wildcard), identityAdmin-group(instance),
- *     identityAdmin-role (its WRITE/DELETE negative-control cases were @Disabled pending Issue
- *     #75567 — ASSIGN was being keyed instead of ADMIN in DefaultCheckPermissionStrategy L232-240,
- *     silently upgrading an ASSIGN-only grant to full WRITE/DELETE/ADMIN; fixed by commit
- *     b9049488a and re-enabled)
- *   - S2-ROOT-CASCADE (rootUserAdmin/rootGroupAdmin/rootRoleAdmin) — the "Users"/"Groups"/
- *     "Organization Roles" synthetic root resources, a THIRD independent cascade mechanism
- *     distinct from both the SECURITY_ORGANIZATION cascade (orgSecurityAdmin) and the
- *     SECURITY_USER-only wildcard (identityAdminWildUser) above, even though all three end up
- *     looking like "manages every instance of this type"
- *   - S2-GLOBAL-ROLE-ROOT (rootGlobalRoleAdmin, plus two @Disabled cases reusing rootRoleAdmin/
- *     rootGlobalRoleAdmin) — CONFIRMED DESIGN VIOLATION distinct from Issue #75574: the "Roles"
- *     (global) and "Organization Roles" (org) roots are supposed to be independent but leak into
- *     each other for the ADMIN action. See
- *     rootGlobalRoleAdmin_adminOnOrgRole_denied_rootsShouldBeIndependent's comment for the
- *     confirmed mechanism (the private getPermission() ADMIN-cumulative helper, L744-763, merges
- *     both roots' grants into one set)
+ * Fixture setup (see the addXxxFixtures() helpers called from setUp()) and test methods below
+ * are both organized to mirror the doc's own subsections:
+ *   S2.1 Organization              -- addOrganizationFixtures() / orgSecurityAdmin_*
+ *   S2.2 Users                     -- addUsersFixtures()        / identityAdminUser_*,
+ *                                      identityAdminWildUser_*, rootUserAdmin_*,
+ *                                      S2-GRANTEE-VARIETY (viaRoleUser/noRoleUser/viaGroupUser/
+ *                                      viaSubGroupUser/viaAnyOneOfThreeUser)
+ *   S2.3 Groups                    -- addGroupsFixtures()       / identityAdminGroupInstUser_*,
+ *                                      rootGroupAdmin_*, S2-GROUP-CHAIN (chainAdmin/midChainAdmin)
+ *   S2.4 Organization Roles/Roles  -- addRolesFixtures()        / identityAdminRoleUser_*,
+ *                                      rootRoleAdmin_*, S2-GLOBAL-ROLE-ROOT (rootGlobalRoleAdmin)
  *
- * identityAdmin-user WILDCARD (verified): the production wildcard lookup
- * (DefaultCheckPermissionStrategy L369-376) keys the permission by resource=orgID (the literal
- * org ID string), not "*" and not an IdentityID key — confirmed by tracing
- * provider.getPermission(SECURITY_USER, orgID)'s 2-arg-to-3-arg delegation down to
- * AuthorizationChain.fixOrgID(). See identityAdminWildUser_adminOnAnyUser_allowed's fixture
- * comment in setUp() for the exact mechanism.
+ * Two confirmed production bugs are tracked as @Disabled tests asserting the DESIGN INTENT, not
+ * current behavior -- see permission-matrix-resources.md for the full analysis of each:
+ *   - Issue #75574 (S2.1): orgSecurityAdmin_adminOnGlobalRole_denied_negativeControl and its
+ *     sysAdmin-role companion.
+ *   - S2-GLOBAL-ROLE-ROOT (S2.4): rootGlobalRoleAdmin_adminOnOrgRole_denied_rootsShouldBeIndependent
+ *     and rootRoleAdmin_adminOnGlobalRole_denied_rootsShouldBeIndependent.
+ * A third, Issue #75567 (ASSIGN wrongly implying WRITE/DELETE/ADMIN, S2.4), was fixed by commit
+ * b9049488a and its tests are enabled.
  *
- * S2-ROOT-CASCADE (verified): all three roots use the same
- * IdentityID(rootName, orgId).convertToKey() resource-key convention (DefaultCheckPermissionStrategy
- * L134-186) — confirmed Organization.getRootOrgRoleName()/getRootRoleName() both already return
- * a pre-converted key string, so there's no special-casing needed for SECURITY_ROLE vs
- * SECURITY_USER/SECURITY_GROUP here (unlike the wildcard convention above, which genuinely does
- * differ by type).
- *
- * Deliberately NOT covered yet (left for a later batch):
- *   - identityAdmin-group WILDCARD grants (SECURITY_GROUP) — has no equivalent wildcard block
- *     in DefaultCheckPermissionStrategy near the SECURITY_USER one (L369-376 is SECURITY_USER-
- *     only); needs its own spike to confirm whether/how group wildcards are keyed before
- *     encoding a fixture, don't assume it mirrors the user convention just verified.
- *   - S2-GRANTEE-VARIETY / S2-GLOBAL-ROLE-ROOT / S2-GROUP-CHAIN — these are
- *     separate scenarios in the design doc, not part of the main table.
- *
- * Note on identityAdmin-group(instance): the checked principal here is always a plain USER,
- * so no actual Group entity needs to exist for "targetGroup"/"anotherGroup" — SECURITY_GROUP
- * resource paths are just permission-storage keys in this scenario, not real group lookups.
+ * identityAdmin-group(wildcard) has no fixture/test here: investigated and confirmed to not be a
+ * separate mechanism from the S2.3 root cascade below (see permission-matrix-resources.md § S2.3).
  */
 
 import inetsoft.sree.security.support.*;
@@ -108,6 +74,8 @@ class PermissionMatrixResourcesS2Test {
    private static final String ORG_NAME = "matrix_org";
    private static final String ORG_ID = "matrix_org_id";
 
+   // Shared across sections: checked as resources by S2.1's cross-type-cascade positive controls,
+   // and as the primary subjects of S2.2/S2.3/S2.4's own scenarios below.
    private static final String TARGET_USER = "targetUser";
    private static final String ANOTHER_USER = "anotherUser";
    private static final String TARGET_GROUP = "targetGroup";
@@ -117,6 +85,22 @@ class PermissionMatrixResourcesS2Test {
    private static final String GLOBAL_ROLE = "globalRole0";
    private static final String GLOBAL_SYSADMIN_ROLE = "globalSysAdminRole0";
    private static final String ASSET_RESOURCE = "mx/folder/item";
+
+   // S2.2 / S2-GRANTEE-VARIETY fixture identifiers
+   private static final String TARGET_USER_2 = "targetUser2";
+   private static final String TARGET_USER_3 = "targetUser3";
+   private static final String GRANTEE_ROLE = "role0";
+   private static final String GRANTEE_GROUP = "group0";
+   private static final String GRANTEE_SUBGROUP = "group1";
+   private static final String UNRELATED_USER_3 = "unrelatedUser3";
+   private static final String UNRELATED_GROUP_3 = "unrelatedGroup3";
+
+   // S2.3 / S2-GROUP-CHAIN fixture identifiers: a 3-level group chain
+   // (CHAIN_GROUP_0 -> CHAIN_GROUP_1 -> CHAIN_GROUP_2) plus an unrelated sibling group.
+   private static final String CHAIN_GROUP_0 = "adminChainGroup0";
+   private static final String CHAIN_GROUP_1 = "adminChainGroup1";
+   private static final String CHAIN_GROUP_2 = "adminChainGroup2";
+   private static final String CHAIN_SIBLING_GROUP = "adminChainSiblingGroup";
 
    private static SecurityTestDataBuilder builder;
 
@@ -129,113 +113,209 @@ class PermissionMatrixResourcesS2Test {
    private static SRPrincipal rootGroupAdmin;
    private static SRPrincipal rootRoleAdmin;
    private static SRPrincipal rootGlobalRoleAdmin;
+   private static SRPrincipal viaRoleUser;
+   private static SRPrincipal noRoleUser;
+   private static SRPrincipal viaGroupUser;
+   private static SRPrincipal viaSubGroupUser;
+   private static SRPrincipal viaAnyOneOfThreeUser;
+   private static SRPrincipal chainAdmin;
+   private static SRPrincipal midChainAdmin;
+
+   // ── fixture setup ──────────────────────────────────────────────────────────
 
    @BeforeAll
    static void setUp() throws Exception {
-      builder = SecurityTestDataBuilder.create()
-         .addOrg(ORG_NAME, ORG_ID)
+      builder = SecurityTestDataBuilder.create().addOrg(ORG_NAME, ORG_ID);
 
-         .addRole(TARGET_ROLE, ORG_ID)
-         .addRole(ANOTHER_ROLE, ORG_ID)
-         // Negative control for orgSecurityAdmin's cascade: a role with NO organization
-         // (IdentityID(name, null)), matching how built-in Administrator/Organization
-         // Administrator roles are constructed. isNotGlobalRole() should exclude it.
-         .addGlobalRole(GLOBAL_ROLE)
-         // Mirrors the REAL built-in "Administrator" role: org=null AND sysAdmin=true
-         // (FileAuthenticationProvider.java L990: new IdentityID("Administrator", null)).
-         .addSysAdminRole(GLOBAL_SYSADMIN_ROLE, null)
+      addSharedIdentities(builder);
+      addOrganizationFixtures(builder);
+      addUsersFixtures(builder);
+      addGroupsFixtures(builder);
+      addRolesFixtures(builder);
 
-         .addUser("orgSecurityAdmin", ORG_ID, "password")
-         .addUser("identityAdminUser", ORG_ID, "password")
-         .addUser("identityAdminWildUser", ORG_ID, "password")
-         .addUser(TARGET_USER, ORG_ID, "password")
-         .addUser(ANOTHER_USER, ORG_ID, "password")
-         .addUser("identityAdminGroupInstUser", ORG_ID, "password")
-         .addUser("identityAdminRoleUser", ORG_ID, "password")
-         .addUser("rootUserAdmin", ORG_ID, "password")
-         .addUser("rootGroupAdmin", ORG_ID, "password")
-         .addUser("rootRoleAdmin", ORG_ID, "password")
-         .addUser("rootGlobalRoleAdmin", ORG_ID, "password")
+      builder.setup();
+      initPrincipals();
+   }
 
-         // orgSecurityAdmin fixture mirrors the exact repro confirmed live and filed as
-         // Issue #75574: a user with NO role assignment at all, granted EM access directly
-         // (via Security Actions, not through any role) plus "Administrator Permission" set
-         // on the org node in Security > Users (= SECURITY_ORGANIZATION ADMIN on this org,
-         // identity type USER). The EM grant isn't consumed by any assertion in this class
-         // (assertions call SecurityEngine.checkPermission() directly for SECURITY_ROLE, the
-         // same check RoleController.getRole()'s @Secured gate performs -- the EM_COMPONENT
-         // half of that gate is a separate, orthogonal check), but it's included so this
-         // fixture matches the confirmed real-world persona 1:1, in case a future controller-
-         // level test needs it.
-         .grantPermission(ResourceType.EM, "*", ResourceAction.ACCESS,
-                          "orgSecurityAdmin", Identity.USER, ORG_ID)
+   /** Roles/users referenced by more than one S2.x section below. */
+   private static void addSharedIdentities(SecurityTestDataBuilder b) {
+      b.addRole(TARGET_ROLE, ORG_ID)
+       .addRole(ANOTHER_ROLE, ORG_ID)
+       .addUser(TARGET_USER, ORG_ID, "password")
+       .addUser(ANOTHER_USER, ORG_ID, "password")
+       // Negative control for S2.1's cascade: a role with NO organization (IdentityID(name,
+       // null)), matching how built-in Administrator/Organization Administrator roles are
+       // constructed. isNotGlobalRole() should exclude it.
+       .addGlobalRole(GLOBAL_ROLE)
+       // Mirrors the REAL built-in "Administrator" role: org=null AND sysAdmin=true
+       // (FileAuthenticationProvider.java L990: new IdentityID("Administrator", null)).
+       .addSysAdminRole(GLOBAL_SYSADMIN_ROLE, null);
+      // TARGET_GROUP/ANOTHER_GROUP intentionally have no addGroup() call below -- every check
+      // against them uses a plain USER principal, so they're just permission-storage keys in
+      // this fixture, not real group lookups.
+   }
 
-         // ADMIN on SECURITY_ORGANIZATION cascades to all SECURITY_USER/SECURITY_GROUP
-         // instances and org-owned SECURITY_ROLE instances (see DefaultCheckPermissionStrategy
-         // L57-67). That check reads the permission via
-         // provider.getPermission(SECURITY_ORGANIZATION, IdentityID(orgName, orgId)), so the
-         // resource key here must equal that IdentityID's convertToKey() output, not the bare
-         // org id.
-         .grantPermission(ResourceType.SECURITY_ORGANIZATION,
-                          new IdentityID(ORG_NAME, ORG_ID).convertToKey(),
-                          ResourceAction.ADMIN, "orgSecurityAdmin", Identity.USER, ORG_ID)
+   /** S2.1 — Organization: orgSecurityAdmin's SECURITY_ORGANIZATION-ADMIN cross-type cascade. */
+   private static void addOrganizationFixtures(SecurityTestDataBuilder b) {
+      b.addUser("orgSecurityAdmin", ORG_ID, "password")
+       // Mirrors the confirmed live repro for Issue #75574: a user with no role assignment,
+       // granted EM access directly (not through a role) plus ADMIN on this org's
+       // SECURITY_ORGANIZATION resource. The EM grant isn't consumed by any assertion here
+       // (assertions call SecurityEngine.checkPermission() directly) but keeps the fixture
+       // matching the real-world persona 1:1.
+       .grantPermission(ResourceType.EM, "*", ResourceAction.ACCESS,
+                        "orgSecurityAdmin", Identity.USER, ORG_ID)
+       // Resource key must be IdentityID(orgName, orgId).convertToKey() -- that's what
+       // DefaultCheckPermissionStrategy's L57-67 cascade reads via
+       // provider.getPermission(SECURITY_ORGANIZATION, IdentityID(orgName, orgId)).
+       .grantPermission(ResourceType.SECURITY_ORGANIZATION,
+                        new IdentityID(ORG_NAME, ORG_ID).convertToKey(),
+                        ResourceAction.ADMIN, "orgSecurityAdmin", Identity.USER, ORG_ID);
+   }
 
-         // identityAdmin-user(instance): ADMIN on one specific SECURITY_USER instance
-         .grantPermission(ResourceType.SECURITY_USER, TARGET_USER, ResourceAction.ADMIN,
-                          "identityAdminUser", Identity.USER, ORG_ID)
+   /**
+    * S2.2 — Users: identityAdminUser (instance), identityAdminWildUser (wildcard), rootUserAdmin
+    * (root cascade), and S2-GRANTEE-VARIETY (grantee can be a ROLE/GROUP, not just a USER).
+    */
+   private static void addUsersFixtures(SecurityTestDataBuilder b) {
+      b.addUser("identityAdminUser", ORG_ID, "password")
+       .addUser("identityAdminWildUser", ORG_ID, "password")
+       .addUser("rootUserAdmin", ORG_ID, "password")
 
-         // identityAdmin-user(wildcard): ADMIN on the SECURITY_USER "wildcard", which the
-         // production wildcard check (DefaultCheckPermissionStrategy L369-376) looks up via
-         // provider.getPermission(SECURITY_USER, orgID) -- a 2-arg call that resolves to
-         // getPermission(SECURITY_USER, orgID-as-resource-string, null), and the null org
-         // param gets fixed up to OrganizationManager.getCurrentOrgID() (i.e. whatever
-         // ThreadContext's current org is at check time, via withContextPrincipal). So the
-         // resource key to grant against is the literal org ID string, NOT "*" and NOT an
-         // IdentityID(...).convertToKey() -- a completely different convention from
-         // orgSecurityAdmin's SECURITY_ORGANIZATION grant above.
-         .grantPermission(ResourceType.SECURITY_USER, ORG_ID, ResourceAction.ADMIN,
-                          "identityAdminWildUser", Identity.USER, ORG_ID)
+       .grantPermission(ResourceType.SECURITY_USER, TARGET_USER, ResourceAction.ADMIN,
+                        "identityAdminUser", Identity.USER, ORG_ID)
 
-         // identityAdmin-group(instance): ADMIN on one specific SECURITY_GROUP instance
-         .grantPermission(ResourceType.SECURITY_GROUP, TARGET_GROUP, ResourceAction.ADMIN,
-                          "identityAdminGroupInstUser", Identity.USER, ORG_ID)
+       // Wildcard resource key is the literal org ID string (NOT "*", NOT an IdentityID key) --
+       // DefaultCheckPermissionStrategy's L369-376 wildcard check does a 2-arg
+       // provider.getPermission(SECURITY_USER, orgID) lookup that resolves the org via
+       // ThreadContext, independent of which specific user is being checked.
+       .grantPermission(ResourceType.SECURITY_USER, ORG_ID, ResourceAction.ADMIN,
+                        "identityAdminWildUser", Identity.USER, ORG_ID)
 
-         // identityAdmin-role: ASSIGN (not ADMIN) on one specific SECURITY_ROLE instance
-         .grantPermission(ResourceType.SECURITY_ROLE, TARGET_ROLE, ResourceAction.ASSIGN,
-                          "identityAdminRoleUser", Identity.USER, ORG_ID)
+       // Root cascade key is IdentityID("Users", orgId).convertToKey() -- a synthetic resource
+       // DefaultCheckPermissionStrategy checks unconditionally before any per-instance lookup,
+       // independent of both the SECURITY_ORGANIZATION cascade (S2.1) and the wildcard above.
+       .grantPermission(ResourceType.SECURITY_USER,
+                        new IdentityID("Users", ORG_ID).convertToKey(),
+                        ResourceAction.ADMIN, "rootUserAdmin", Identity.USER, ORG_ID);
 
-         // S2-ROOT-CASCADE: "Users"/"Groups"/"Organization Roles" are literal synthetic
-         // resources DefaultCheckPermissionStrategy checks unconditionally before any
-         // per-instance lookup (L134-186), independent of the SECURITY_ORGANIZATION mechanism
-         // above (orgSecurityAdmin) and the SECURITY_USER-only wildcard above
-         // (identityAdminWildUser) -- three separate mechanisms that all end up looking like
-         // "manages every instance of this type". All three roots use the same
-         // IdentityID(rootName, orgId).convertToKey() resource-key convention: Users/Groups via
-         // the 2-arg IdentityID overload of getPermission() (which internally calls
-         // convertToKey()), Organization Roles via Organization.getRootOrgRoleName(), which
-         // itself returns `new IdentityID("Organization Roles", orgId).convertToKey()` already
-         // converted to a String.
-         .grantPermission(ResourceType.SECURITY_USER,
-                          new IdentityID("Users", ORG_ID).convertToKey(),
-                          ResourceAction.ADMIN, "rootUserAdmin", Identity.USER, ORG_ID)
-         .grantPermission(ResourceType.SECURITY_GROUP,
-                          new IdentityID("Groups", ORG_ID).convertToKey(),
-                          ResourceAction.ADMIN, "rootGroupAdmin", Identity.USER, ORG_ID)
-         .grantPermission(ResourceType.SECURITY_ROLE,
-                          new IdentityID("Organization Roles", ORG_ID).convertToKey(),
-                          ResourceAction.ADMIN, "rootRoleAdmin", Identity.USER, ORG_ID)
+      addGranteeVarietyFixtures(b);
+   }
 
-         // S2-GLOBAL-ROLE-ROOT: the "Roles" global root -- despite the name, its OWN storage key
-         // is IdentityID("Roles", ORG_ID) (current org, not org=null); what makes it "global" is
-         // that DefaultCheckPermissionStrategy routes global (org-less) roles to check against
-         // THIS root, while org-scoped roles check against the "Organization Roles" root instead
-         // (L141: `role.getOrganizationID() != null` decides which one).
-         .grantPermission(ResourceType.SECURITY_ROLE,
-                          new IdentityID("Roles", ORG_ID).convertToKey(),
-                          ResourceAction.ADMIN, "rootGlobalRoleAdmin", Identity.USER, ORG_ID)
+   /**
+    * S2-GRANTEE-VARIETY: an Administrator Permissions grantee can be a ROLE or a GROUP (with
+    * ordinary group-membership/parent-chain inheritance), not just a USER, and multiple grantee
+    * types on the same resource combine with OR semantics.
+    */
+   private static void addGranteeVarietyFixtures(SecurityTestDataBuilder b) {
+      b.addRole(GRANTEE_ROLE, ORG_ID)
+       .addGroup(GRANTEE_GROUP, ORG_ID)
+       .addGroup(GRANTEE_SUBGROUP, ORG_ID)
+       .addGroupParent(GRANTEE_SUBGROUP, GRANTEE_GROUP, ORG_ID)
 
-         .setup();
+       .addUser(TARGET_USER_2, ORG_ID, "password")
+       .addUser(TARGET_USER_3, ORG_ID, "password")
+       .addUser("viaRoleUser", ORG_ID, "password")
+       .addUser("noRoleUser", ORG_ID, "password")
+       .addUser("viaGroupUser", ORG_ID, "password")
+       .addUser("viaSubGroupUser", ORG_ID, "password")
+       .addUser("viaAnyOneOfThreeUser", ORG_ID, "password")
 
+       .addUserToRole("viaRoleUser", GRANTEE_ROLE, ORG_ID)
+       .addUserToRole("viaAnyOneOfThreeUser", GRANTEE_ROLE, ORG_ID)
+       // noRoleUser deliberately does NOT hold GRANTEE_ROLE -- negative control.
+       .addUserToGroup("viaGroupUser", GRANTEE_GROUP, ORG_ID)
+       // viaSubGroupUser is only a direct member of the CHILD group1, not group0 itself.
+       .addUserToGroup("viaSubGroupUser", GRANTEE_SUBGROUP, ORG_ID)
+
+       // targetUser2: granted to a ROLE grantee (role0) and a GROUP grantee (group0).
+       .grantPermission(ResourceType.SECURITY_USER, TARGET_USER_2, ResourceAction.ADMIN,
+                        GRANTEE_ROLE, Identity.ROLE, ORG_ID)
+       .grantPermission(ResourceType.SECURITY_USER, TARGET_USER_2, ResourceAction.ADMIN,
+                        GRANTEE_GROUP, Identity.GROUP, ORG_ID)
+
+       // targetUser3: granted to a USER, a ROLE, and a GROUP at once (OR semantics).
+       // viaAnyOneOfThreeUser only matches the ROLE arm; UNRELATED_USER_3/UNRELATED_GROUP_3
+       // are placeholder grantees standing in for the two arms that don't apply to it.
+       .grantPermission(ResourceType.SECURITY_USER, TARGET_USER_3, ResourceAction.ADMIN,
+                        UNRELATED_USER_3, Identity.USER, ORG_ID)
+       .grantPermission(ResourceType.SECURITY_USER, TARGET_USER_3, ResourceAction.ADMIN,
+                        GRANTEE_ROLE, Identity.ROLE, ORG_ID)
+       .grantPermission(ResourceType.SECURITY_USER, TARGET_USER_3, ResourceAction.ADMIN,
+                        UNRELATED_GROUP_3, Identity.GROUP, ORG_ID);
+   }
+
+   /**
+    * S2.3 — Groups: identityAdminGroupInstUser (instance), rootGroupAdmin (root cascade), and
+    * S2-GROUP-CHAIN (ADMIN on a group resource cascades down its descendant-group chain).
+    */
+   private static void addGroupsFixtures(SecurityTestDataBuilder b) {
+      b.addUser("identityAdminGroupInstUser", ORG_ID, "password")
+       .addUser("rootGroupAdmin", ORG_ID, "password")
+
+       .grantPermission(ResourceType.SECURITY_GROUP, TARGET_GROUP, ResourceAction.ADMIN,
+                        "identityAdminGroupInstUser", Identity.USER, ORG_ID)
+       .grantPermission(ResourceType.SECURITY_GROUP,
+                        new IdentityID("Groups", ORG_ID).convertToKey(),
+                        ResourceAction.ADMIN, "rootGroupAdmin", Identity.USER, ORG_ID);
+
+      addGroupChainFixtures(b);
+   }
+
+   /**
+    * S2-GROUP-CHAIN: a 3-level group chain (CHAIN_GROUP_0 -> CHAIN_GROUP_1 -> CHAIN_GROUP_2) plus
+    * an unrelated sibling group. Unlike S2-GRANTEE-VARIETY above (grantee is a group, login user
+    * is a member of it), here ADMIN is granted directly on a group RESOURCE and the checked
+    * resource is a descendant group -- DefaultCheckPermissionStrategy walks the checked
+    * resource's own ancestor-group chain looking for a match. A ≥3-level chain is needed to
+    * distinguish a real multi-hop walk from a single-parent check.
+    */
+   private static void addGroupChainFixtures(SecurityTestDataBuilder b) {
+      b.addGroup(CHAIN_GROUP_0, ORG_ID)
+       .addGroup(CHAIN_GROUP_1, ORG_ID)
+       .addGroup(CHAIN_GROUP_2, ORG_ID)
+       .addGroup(CHAIN_SIBLING_GROUP, ORG_ID)
+       .addGroupParent(CHAIN_GROUP_1, CHAIN_GROUP_0, ORG_ID)
+       .addGroupParent(CHAIN_GROUP_2, CHAIN_GROUP_1, ORG_ID)
+
+       .addUser("chainAdmin", ORG_ID, "password")
+       .addUser("midChainAdmin", ORG_ID, "password")
+
+       // Resource key MUST be the converted IdentityID key (new IdentityID(name,
+       // orgId).convertToKey()), NOT the bare group name used elsewhere in this file for
+       // direct-instance checks: the descendant-side ancestor walk that discovers this grant
+       // (getSecurityResourceParents()) reconstructs each ancestor in that converted format.
+       .grantPermission(ResourceType.SECURITY_GROUP,
+                        new IdentityID(CHAIN_GROUP_0, ORG_ID).convertToKey(),
+                        ResourceAction.ADMIN, "chainAdmin", Identity.USER, ORG_ID)
+       .grantPermission(ResourceType.SECURITY_GROUP,
+                        new IdentityID(CHAIN_GROUP_1, ORG_ID).convertToKey(),
+                        ResourceAction.ADMIN, "midChainAdmin", Identity.USER, ORG_ID);
+   }
+
+   /**
+    * S2.4 — Organization Roles/Roles: identityAdminRoleUser (ASSIGN, not ADMIN), rootRoleAdmin
+    * (org root cascade), rootGlobalRoleAdmin (S2-GLOBAL-ROLE-ROOT global root).
+    */
+   private static void addRolesFixtures(SecurityTestDataBuilder b) {
+      b.addUser("identityAdminRoleUser", ORG_ID, "password")
+       .addUser("rootRoleAdmin", ORG_ID, "password")
+       .addUser("rootGlobalRoleAdmin", ORG_ID, "password")
+
+       .grantPermission(ResourceType.SECURITY_ROLE, TARGET_ROLE, ResourceAction.ASSIGN,
+                        "identityAdminRoleUser", Identity.USER, ORG_ID)
+       .grantPermission(ResourceType.SECURITY_ROLE,
+                        new IdentityID("Organization Roles", ORG_ID).convertToKey(),
+                        ResourceAction.ADMIN, "rootRoleAdmin", Identity.USER, ORG_ID)
+       // "Roles" is the global root -- its OWN storage key is still IdentityID("Roles", ORG_ID)
+       // (current org, not org=null); DefaultCheckPermissionStrategy routes global (org-less)
+       // roles to check against THIS root instead of "Organization Roles".
+       .grantPermission(ResourceType.SECURITY_ROLE,
+                        new IdentityID("Roles", ORG_ID).convertToKey(),
+                        ResourceAction.ADMIN, "rootGlobalRoleAdmin", Identity.USER, ORG_ID);
+   }
+
+   private static void initPrincipals() {
       orgSecurityAdmin = builder.principalOf("orgSecurityAdmin", ORG_ID);
       identityAdminUser = builder.principalOf("identityAdminUser", ORG_ID);
       identityAdminWildUser = builder.principalOf("identityAdminWildUser", ORG_ID);
@@ -245,6 +325,13 @@ class PermissionMatrixResourcesS2Test {
       rootGroupAdmin = builder.principalOf("rootGroupAdmin", ORG_ID);
       rootRoleAdmin = builder.principalOf("rootRoleAdmin", ORG_ID);
       rootGlobalRoleAdmin = builder.principalOf("rootGlobalRoleAdmin", ORG_ID);
+      viaRoleUser = builder.principalOf("viaRoleUser", ORG_ID);
+      noRoleUser = builder.principalOf("noRoleUser", ORG_ID);
+      viaGroupUser = builder.principalOf("viaGroupUser", ORG_ID);
+      viaSubGroupUser = builder.principalOf("viaSubGroupUser", ORG_ID);
+      viaAnyOneOfThreeUser = builder.principalOf("viaAnyOneOfThreeUser", ORG_ID);
+      chainAdmin = builder.principalOf("chainAdmin", ORG_ID);
+      midChainAdmin = builder.principalOf("midChainAdmin", ORG_ID);
    }
 
    @AfterAll
@@ -255,7 +342,9 @@ class PermissionMatrixResourcesS2Test {
       }
    }
 
-   // ── orgSecurityAdmin: cross-type cascade off SECURITY_ORGANIZATION ADMIN ──────
+   // ════════════════════════════════════════════════════════════════════════════
+   // S2.1 — Organization (orgSecurityAdmin cross-type cascade)
+   // ════════════════════════════════════════════════════════════════════════════
    //
    // The cascade check resolves "current org" via OrganizationManager, which is backed by
    // ThreadContext rather than the principal argument passed to checkPermission(), so these
@@ -280,17 +369,12 @@ class PermissionMatrixResourcesS2Test {
             .verify());
    }
 
-   // Same shape across all three cases (same principal, same ThreadContext wrapper, same
-   // ADMIN action, plain-string resource key) — parameterized rather than three near-identical
-   // @Test methods. Unlike the abandoned file-wide MatrixTestCase/UserType DSL (see class-level
-   // javadoc), this doesn't need to encode cross-scenario fixture differences (ThreadContext
-   // wrapping, convertToKey() keys) since every row here already shares them.
-   //
-   // The "orgOwnedRoleAdmin_allowedWithoutDirectGrant" case (ANOTHER_ROLE, an org-scoped role)
-   // is the positive control confirming org-scoped role management works correctly for this
-   // persona -- matches the live repro's "组织内 role 获取，正确" finding. Only the GLOBAL role
-   // case (below, orgSecurityAdmin_adminOnGlobalRole_denied_negativeControl and its companion)
-   // is the confirmed bug (Issue #75574).
+   // Parameterized: same principal/ThreadContext wrapper/ADMIN action across all three resource
+   // types -- proves the SECURITY_ORGANIZATION-ADMIN cascade (DefaultCheckPermissionStrategy
+   // L57-67) applies to SECURITY_USER/GROUP/ROLE alike, without a direct grant on any of them.
+   // orgOwnedRoleAdmin_allowedWithoutDirectGrant (an org-scoped role) is the positive control
+   // confirming org-scoped roles work correctly for this persona -- only the GLOBAL role case
+   // below is the confirmed bug (Issue #75574).
    @ParameterizedTest(name = "{0}")
    @MethodSource("crossTypeCascadeCases")
    void orgSecurityAdmin_crossTypeCascade_allowedWithoutDirectGrant(
@@ -314,51 +398,31 @@ class PermissionMatrixResourcesS2Test {
       );
    }
 
-   // Negative control: isNotGlobalRole() (DefaultCheckPermissionStrategy L489-493) blocks the
-   // cascade's early-exit when the checked role exists and has no organizationID (i.e. is a
-   // global role, org-less like the built-in Administrator/Organization Administrator). The
-   // resource key must be GLOBAL_ROLE's own convertToKey() output (name + org=null) so that
-   // IdentityID.getIdentityIDFromKey(resource) resolves back to the same org-less identity that
-   // provider.getRole() was stored under -- a bare "globalRole0" string would instead resolve
-   // its org from ThreadContext (via getIdentityIDFromKey's fallback branch), which would look
-   // up a *different*, non-existent IdentityID(globalRole0, ORG_ID) and defeat the negative
-   // control by making isNotGlobalRole() see "role not found" (also true) for the wrong reason.
+   @Test
+   void orgSecurityAdmin_crossTypeCascade_grantsOriginalAction_notAdminOnly() {
+      // Proves the cascade allows the ORIGINALLY requested action (WRITE, ASSIGN), not just
+      // ADMIN — i.e. it is "allow this action outright", not "implicitly promote to ADMIN and
+      // fall back through the RWD bundle".
+      withContextPrincipal(orgSecurityAdmin, () -> {
+         PermissionMatrixVerifier.of(engine())
+            .resource(ResourceType.SECURITY_USER, TARGET_USER)
+               .expectAllow(orgSecurityAdmin, ResourceAction.WRITE)
+            .resource(ResourceType.SECURITY_ROLE, ANOTHER_ROLE)
+               .expectAllow(orgSecurityAdmin, ResourceAction.ASSIGN)
+            .verify();
+      });
+   }
+
+   // Negative control: isNotGlobalRole() correctly blocks the SECURITY_ORGANIZATION-ADMIN cascade
+   // (L57-67) for global (org-less) roles, but checkOrgAdminPermission()'s SECURITY_ROLE branch is
+   // a separate, independent cascade that explicitly allows org-admin-permission holders to
+   // manage org-less, non-sysAdmin roles too. CONFIRMED PRODUCTION BUG (Issue #75574), reproduced
+   // live via direct API call bypassing the UI's tree-visibility hiding -- not a fixture artifact.
+   // See permission-matrix-resources.md § S2.1 for the full repro and root-cause trace.
    //
-   // CONFIRMED PRODUCT BUG — Issue #75574. Not a JUnit-fixture artifact or a hypothesis pending
-   // verification: reproduced live by product against a real deployment. Repro (org "org-test",
-   // user "security-user" with NO role assignment at all, granted EM access directly via
-   // Security Actions, and "Administrator Permission" set on the org-test org node in
-   // Security > Users -- i.e. SECURITY_ORGANIZATION ADMIN, identity type USER, exactly this
-   // fixture's orgSecurityAdmin): logged into that org's EM, the "Roles" (global) tree node is
-   // correctly hidden in the UI, and fetching an org-scoped role is correctly allowed (see the
-   // "orgOwnedRoleAdmin_allowedWithoutDirectGrant" positive control above) -- but a direct
-   // browser-console call bypassing the UI,
-   //   GET /sree/api/em/security/providers/Primary/roles/Organization%20Administrator~~_3b_~~__GLOBAL__/
-   // returns HTTP 200 with the real role payload, `"editable":true` included.
-   //
-   // GLOBAL_ROLE (org=null, sysAdmin=false, orgAdmin=false) mirrors the real built-in
-   // "Organization Administrator" role's shape (org=null, sysAdmin=false, orgAdmin=true --
-   // FileAuthenticationProvider.java L1038-1041; sysAdmin is the flag that matters here, not
-   // orgAdmin) used in that repro. Root cause traced in this fixture (temporary debug prints in
-   // DefaultCheckPermissionStrategy.checkPermission(), reverted after diagnosis -- not left in
-   // the production file): isNotGlobalRole() correctly evaluates to false and the L58-67
-   // SECURITY_ORGANIZATION-ADMIN cascade is correctly skipped for GLOBAL_ROLE. The ALLOW instead
-   // comes from a completely different, independent cascade: checkOrgAdminPermission()
-   // (L525-616), called unconditionally later in the same method whenever the principal either
-   // holds an org-admin role or -- as here -- has ADMIN on SECURITY_ORGANIZATION for the current
-   // org. checkOrgAdminPermission()'s SECURITY_ROLE branch (L583-605) explicitly returns true for
-   // org-less roles whose own sysAdmin flag is false:
-   //
-   //   return !isSiteAdmin && (currProvider.getRole(resourceID).getOrganizationID() == null ||
-   //           orgID.equals(currProvider.getRole(resourceID).getOrganizationID()));
-   //
-   // (`isSiteAdmin` here means "is the CHECKED ROLE itself sysAdmin-flagged", not "is the calling
-   // principal a site admin".) The `getOrganizationID() == null` disjunct is not a missing-guard
-   // oversight like the ASSIGN/ADMIN mixup below -- it reads as a deliberate choice to treat
-   // org-less, non-sysAdmin-flagged roles as manageable by every org's admin-permission holders.
-   // Confirmed with the product owner that this is NOT intended: only site admin, or a user
-   // holding the global "Administrator" role, should be able to manage global roles -- see
-   // permission-matrix-resources.md for the tracked row.
+   // Resource key must be GLOBAL_ROLE's own convertToKey() output (name + org=null): a bare
+   // "globalRole0" string would resolve its org from ThreadContext instead, looking up a
+   // *different*, non-existent IdentityID and defeating the negative control.
    @Disabled("Issue #75574 — checkOrgAdminPermission()'s SECURITY_ROLE branch "
       + "(DefaultCheckPermissionStrategy L591) explicitly allows org-admin-permission holders to "
       + "manage org-less, non-sysAdmin global roles, bypassing the UI's tree-visibility "
@@ -373,30 +437,11 @@ class PermissionMatrixResourcesS2Test {
             .verify());
    }
 
-   // Companion negative control mirroring the real built-in "Administrator" role's exact shape
-   // (org=null, sysAdmin=TRUE -- FileAuthenticationProvider.java L1033-1036), not just any
-   // org-less role. Same Issue #75574 repro: fetching this role live
-   // (`GET .../roles/Administrator~~_3b_~~__GLOBAL__/`) also returned 200 with `"editable":true`
-   // for the org-scoped orgSecurityAdmin persona -- confirmed product bug, same as GLOBAL_ROLE
-   // above, not a hypothesis.
-   //
-   // This is deliberately a SEPARATE test from the one above, not a duplicate: this fixture's
-   // reproduction of the exact same role shape (org=null, sysAdmin=true) currently returns deny
-   // through every path in DefaultCheckPermissionStrategy, including checkOrgAdminPermission()'s
-   // `!isSiteAdmin` guard, which is specifically written to protect sysAdmin-flagged roles and
-   // does its job correctly here for BOTH actions RoleController.getRole() actually checks:
-   // verified ADMIN (the @Secured gate's check, asserted below) AND ASSIGN (the separate check
-   // at RoleController.java L232-236 that computes the `editableRoles` response field) both
-   // return deny in this fixture. That rules out the leading hypothesis for why this fixture
-   // doesn't reproduce the live leak. This is a real, currently-unexplained gap in this test's
-   // realism, not a doubt about the bug itself (the live 200 + editable:true is confirmed,
-   // independent of whether this fixture can reproduce it): something about the real/staging
-   // deployment (additional grant, provider config, caching) differs from this isolated
-   // single-provider fixture in a way not yet identified. The assertion below is written to the
-   // DESIGN INTENT (deny) as the target regression guard; treat it as an incomplete guard for
-   // Issue #75574's "Administrator" case specifically until someone with access to the live/
-   // staging environment closes this gap -- don't assume re-enabling it later means the
-   // production bug for this role is fixed.
+   // Companion negative control for the real built-in sysAdmin-flagged "Administrator" role, not
+   // just any org-less role. Confirmed exposed live the same way as GLOBAL_ROLE above, but this
+   // exact fixture shape returns deny through every traced path -- the specific code path behind
+   // the live leak for THIS role hasn't been isolated yet. See permission-matrix-resources.md
+   // § S2.1 for the full analysis and open follow-up.
    @Disabled("Issue #75574 — confirmed live that orgSecurityAdmin can view the real, "
       + "sysAdmin-flagged 'Administrator' global role via direct API call (200, editable:true) "
       + "-- but this exact JUnit reproduction returns deny for both ADMIN and ASSIGN actions "
@@ -413,30 +458,18 @@ class PermissionMatrixResourcesS2Test {
             .verify());
    }
 
-   @Test
-   void orgSecurityAdmin_crossTypeCascade_grantsOriginalAction_notAdminOnly() {
-      // Proves the cascade allows the ORIGINALLY requested action (WRITE, ASSIGN), not just
-      // ADMIN — i.e. it is "allow this action outright", not "implicitly promote to ADMIN and
-      // fall back through the RWD bundle".
-      withContextPrincipal(orgSecurityAdmin, () -> {
-         PermissionMatrixVerifier.of(engine())
-            .resource(ResourceType.SECURITY_USER, TARGET_USER)
-               .expectAllow(orgSecurityAdmin, ResourceAction.WRITE)
-            .resource(ResourceType.SECURITY_ROLE, ANOTHER_ROLE)
-               .expectAllow(orgSecurityAdmin, ResourceAction.ASSIGN)
-            .verify();
-      });
-   }
+   // ════════════════════════════════════════════════════════════════════════════
+   // S2.2 — Users
+   // ════════════════════════════════════════════════════════════════════════════
 
    // ── identityAdmin-user(instance) ──────────────────────────────────────────────
    //
-   // Every check below is wrapped in withContextPrincipal, even the ones that never grant
-   // ADMIN directly: DefaultCheckPermissionStrategy's ADMIN-cumulative branch resolves the
-   // storage org via provider.getPermission(type, resource) — a 2-arg overload that drops the
-   // orgId and falls back to OrganizationManager's ThreadContext-backed "current org" — and
-   // SecurityEngine.checkPermission() always retries a denied non-ADMIN action with ADMIN
-   // (L826-832), so that ambient org resolution can be reached from *any* of these checks, not
-   // just the ones that assert ADMIN directly.
+   // Every check below is wrapped in withContextPrincipal, even the ones that never grant ADMIN
+   // directly: DefaultCheckPermissionStrategy's ADMIN-cumulative branch resolves the storage org
+   // via a 2-arg provider.getPermission(type, resource) overload that falls back to
+   // OrganizationManager's ThreadContext-backed "current org", and SecurityEngine.checkPermission()
+   // always retries a denied non-ADMIN action with ADMIN, so that resolution matters for every
+   // check here, not just the ones asserting ADMIN directly.
 
    @Test
    void identityAdminUser_adminOnTargetUser_allowed() {
@@ -469,12 +502,6 @@ class PermissionMatrixResourcesS2Test {
    }
 
    // ── identityAdmin-user(wildcard) ────────────────────────────────────────────────
-   //
-   // Grant is on ResourceType.SECURITY_USER with resource=ORG_ID (see the grantPermission
-   // comment in setUp() for why) -- not "*", not an IdentityID key. The wildcard check
-   // (DefaultCheckPermissionStrategy L369-376) ignores the originally-requested resource
-   // string entirely and just looks up provider.getPermission(SECURITY_USER, orgID), so it
-   // applies identically no matter which specific user is being checked.
 
    @ParameterizedTest(name = "{0}")
    @MethodSource("wildcardUserAdminCases")
@@ -502,7 +529,93 @@ class PermissionMatrixResourcesS2Test {
             .verify());
    }
 
+   // ── root cascade (Users) ───────────────────────────────────────────────────────
+   //
+   // "Users" root ADMIN cascades to EVERY user instance (DefaultCheckPermissionStrategy L134-186
+   // checks the synthetic root unconditionally, before any per-resource grant) -- a third,
+   // independent mechanism distinct from both the SECURITY_ORGANIZATION cascade (S2.1) and the
+   // wildcard above.
+
+   @ParameterizedTest(name = "{0}")
+   @MethodSource("rootUserCascadeCases")
+   void rootUserAdmin_adminOnAnyUser_allowed(String caseName, String targetUser) {
+      withContextPrincipal(rootUserAdmin, () ->
+         PermissionMatrixVerifier.of(engine())
+            .resource(ResourceType.SECURITY_USER, targetUser)
+               .expectAllow(rootUserAdmin, ResourceAction.ADMIN)
+            .verify());
+   }
+
+   private static Stream<Arguments> rootUserCascadeCases() {
+      return Stream.of(
+         Arguments.of("targetUser_allowed", TARGET_USER),
+         Arguments.of("anotherUser_allowed_notLimitedToConfiguredInstances", ANOTHER_USER)
+      );
+   }
+
+   // ── S2-GRANTEE-VARIETY ──────────────────────────────────────────────────────
+
+   @Test
+   void viaRoleUser_adminOnTargetUser2_allowed_grantedToRoleNotUser() {
+      withContextPrincipal(viaRoleUser, () ->
+         PermissionMatrixVerifier.of(engine())
+            .resource(ResourceType.SECURITY_USER, TARGET_USER_2)
+               .expectAllow(viaRoleUser, ResourceAction.ADMIN)
+            .verify());
+   }
+
+   @Test
+   void noRoleUser_adminOnTargetUser2_denied_doesNotHoldGrantedRole() {
+      // Negative control: same targetUser2 grant (role0), but this principal never holds role0.
+      withContextPrincipal(noRoleUser, () ->
+         PermissionMatrixVerifier.of(engine())
+            .resource(ResourceType.SECURITY_USER, TARGET_USER_2)
+               .expectDeny(noRoleUser, ResourceAction.ADMIN)
+            .verify());
+   }
+
+   @Test
+   void viaGroupUser_adminOnTargetUser2_allowed_grantedToGroupDirectMember() {
+      withContextPrincipal(viaGroupUser, () ->
+         PermissionMatrixVerifier.of(engine())
+            .resource(ResourceType.SECURITY_USER, TARGET_USER_2)
+               .expectAllow(viaGroupUser, ResourceAction.ADMIN)
+            .verify());
+   }
+
+   @Test
+   void viaSubGroupUser_adminOnTargetUser2_allowed_inheritsThroughParentGroup() {
+      // viaSubGroupUser is a member of group1 (a CHILD of the granted group0), not group0 itself
+      // -- PermissionChecker.checkUserGroupPermission walks group1's own parent-group chain
+      // (FSGroup.getGroups()) up to group0 and finds the grant there.
+      withContextPrincipal(viaSubGroupUser, () ->
+         PermissionMatrixVerifier.of(engine())
+            .resource(ResourceType.SECURITY_USER, TARGET_USER_2)
+               .expectAllow(viaSubGroupUser, ResourceAction.ADMIN)
+            .verify());
+   }
+
+   @Test
+   void viaAnyOneOfThreeUser_adminOnTargetUser3_allowed_orSemanticsMatchesOneOfThree() {
+      // targetUser3's grant has three simultaneous grantees (a USER, role0, and a GROUP); this
+      // principal only holds role0 -- the other two arms belong to identities it has no relation
+      // to. Default OR semantics means matching just the role arm is enough.
+      withContextPrincipal(viaAnyOneOfThreeUser, () ->
+         PermissionMatrixVerifier.of(engine())
+            .resource(ResourceType.SECURITY_USER, TARGET_USER_3)
+               .expectAllow(viaAnyOneOfThreeUser, ResourceAction.ADMIN)
+            .verify());
+   }
+
+   // ════════════════════════════════════════════════════════════════════════════
+   // S2.3 — Groups
+   // ════════════════════════════════════════════════════════════════════════════
+
    // ── identityAdmin-group(instance) ─────────────────────────────────────────────
+   //
+   // The checked principal here is always a plain USER, so no actual Group entity needs to
+   // exist for "targetGroup"/"anotherGroup" -- SECURITY_GROUP resource paths are just
+   // permission-storage keys in this scenario, not real group lookups.
 
    @Test
    void identityAdminGroupInstUser_adminOnTargetGroup_allowed() {
@@ -530,6 +643,91 @@ class PermissionMatrixResourcesS2Test {
                .expectAllow(identityAdminGroupInstUser, ResourceAction.WRITE)
             .verify());
    }
+
+   // ── root cascade (Groups) ──────────────────────────────────────────────────────
+
+   @ParameterizedTest(name = "{0}")
+   @MethodSource("rootGroupCascadeCases")
+   void rootGroupAdmin_adminOnAnyGroup_allowed(String caseName, String targetGroup) {
+      withContextPrincipal(rootGroupAdmin, () ->
+         PermissionMatrixVerifier.of(engine())
+            .resource(ResourceType.SECURITY_GROUP, targetGroup)
+               .expectAllow(rootGroupAdmin, ResourceAction.ADMIN)
+            .verify());
+   }
+
+   private static Stream<Arguments> rootGroupCascadeCases() {
+      return Stream.of(
+         Arguments.of("targetGroup_allowed", TARGET_GROUP),
+         Arguments.of("anotherGroup_allowed_notLimitedToConfiguredInstances", ANOTHER_GROUP)
+      );
+   }
+
+   // ── S2-GROUP-CHAIN ──────────────────────────────────────────────────────────
+   //
+   // ADMIN granted directly on a group RESOURCE cascades down to its descendant groups (walking
+   // the resource's OWN ancestor-group chain, DefaultCheckPermissionStrategy L339-366 /
+   // getSecurityResourceParents()), but never climbs back up to ancestors or the "Groups" root.
+
+   @Test
+   void chainAdmin_adminOnChildGroup_allowed_oneHopDown() {
+      withContextPrincipal(chainAdmin, () ->
+         PermissionMatrixVerifier.of(engine())
+            .resource(ResourceType.SECURITY_GROUP, CHAIN_GROUP_1)
+               .expectAllow(chainAdmin, ResourceAction.ADMIN)
+            .verify());
+   }
+
+   @Test
+   void chainAdmin_adminOnGrandchildGroup_allowed_twoHopsDown() {
+      withContextPrincipal(chainAdmin, () ->
+         PermissionMatrixVerifier.of(engine())
+            .resource(ResourceType.SECURITY_GROUP, CHAIN_GROUP_2)
+               .expectAllow(chainAdmin, ResourceAction.ADMIN)
+            .verify());
+   }
+
+   @Test
+   void chainAdmin_adminOnUnrelatedSiblingGroup_denied_notOnChain() {
+      withContextPrincipal(chainAdmin, () ->
+         PermissionMatrixVerifier.of(engine())
+            .resource(ResourceType.SECURITY_GROUP, CHAIN_SIBLING_GROUP)
+               .expectDeny(chainAdmin, ResourceAction.ADMIN)
+            .verify());
+   }
+
+   @Test
+   void midChainAdmin_adminOnChildGroup_allowed_stillCascadesDownward() {
+      // midChainAdmin only holds ADMIN on the MIDDLE group (CHAIN_GROUP_1), not the root -- the
+      // downward cascade to its own child (CHAIN_GROUP_2) still applies.
+      withContextPrincipal(midChainAdmin, () ->
+         PermissionMatrixVerifier.of(engine())
+            .resource(ResourceType.SECURITY_GROUP, CHAIN_GROUP_2)
+               .expectAllow(midChainAdmin, ResourceAction.ADMIN)
+            .verify());
+   }
+
+   @Test
+   void midChainAdmin_adminOnParentGroup_denied_doesNotClimbUpward() {
+      withContextPrincipal(midChainAdmin, () ->
+         PermissionMatrixVerifier.of(engine())
+            .resource(ResourceType.SECURITY_GROUP, CHAIN_GROUP_0)
+               .expectDeny(midChainAdmin, ResourceAction.ADMIN)
+            .verify());
+   }
+
+   @Test
+   void midChainAdmin_adminOnGroupsRoot_denied_doesNotClimbToRoot() {
+      withContextPrincipal(midChainAdmin, () ->
+         PermissionMatrixVerifier.of(engine())
+            .resource(ResourceType.SECURITY_GROUP, new IdentityID("Groups", ORG_ID).convertToKey())
+               .expectDeny(midChainAdmin, ResourceAction.ADMIN)
+            .verify());
+   }
+
+   // ════════════════════════════════════════════════════════════════════════════
+   // S2.4 — Organization Roles / Roles
+   // ════════════════════════════════════════════════════════════════════════════
 
    // ── identityAdmin-role (ASSIGN, not ADMIN) ────────────────────────────────────
 
@@ -584,48 +782,7 @@ class PermissionMatrixResourcesS2Test {
             .verify());
    }
 
-   // ── S2-ROOT-CASCADE ────────────────────────────────────────────────────────────
-   //
-   // "Users"/"Groups"/"Organization Roles" root ADMIN grants cascade to EVERY instance of that
-   // identity type (DefaultCheckPermissionStrategy L134-186 checks the synthetic root
-   // unconditionally, before any per-resource grant) -- distinct from both orgSecurityAdmin's
-   // SECURITY_ORGANIZATION cascade and identityAdminWildUser's SECURITY_USER-only wildcard
-   // above; all three happen to look like "manages every instance" but are three independent
-   // code paths.
-
-   @ParameterizedTest(name = "{0}")
-   @MethodSource("rootUserCascadeCases")
-   void rootUserAdmin_adminOnAnyUser_allowed(String caseName, String targetUser) {
-      withContextPrincipal(rootUserAdmin, () ->
-         PermissionMatrixVerifier.of(engine())
-            .resource(ResourceType.SECURITY_USER, targetUser)
-               .expectAllow(rootUserAdmin, ResourceAction.ADMIN)
-            .verify());
-   }
-
-   private static Stream<Arguments> rootUserCascadeCases() {
-      return Stream.of(
-         Arguments.of("targetUser_allowed", TARGET_USER),
-         Arguments.of("anotherUser_allowed_notLimitedToConfiguredInstances", ANOTHER_USER)
-      );
-   }
-
-   @ParameterizedTest(name = "{0}")
-   @MethodSource("rootGroupCascadeCases")
-   void rootGroupAdmin_adminOnAnyGroup_allowed(String caseName, String targetGroup) {
-      withContextPrincipal(rootGroupAdmin, () ->
-         PermissionMatrixVerifier.of(engine())
-            .resource(ResourceType.SECURITY_GROUP, targetGroup)
-               .expectAllow(rootGroupAdmin, ResourceAction.ADMIN)
-            .verify());
-   }
-
-   private static Stream<Arguments> rootGroupCascadeCases() {
-      return Stream.of(
-         Arguments.of("targetGroup_allowed", TARGET_GROUP),
-         Arguments.of("anotherGroup_allowed_notLimitedToConfiguredInstances", ANOTHER_GROUP)
-      );
-   }
+   // ── root cascade (Organization Roles) ─────────────────────────────────────────
 
    @Test
    void rootRoleAdmin_assignOnTargetRole_allowed() {
@@ -640,9 +797,8 @@ class PermissionMatrixResourcesS2Test {
    void rootRoleAdmin_writeOnTargetRole_allowed_rootAdminImpliesRWD() {
       // Root-level ADMIN (unlike an individual role's ASSIGN-only "Administrator Permissions"
       // grant, see identityAdminRoleUser above) DOES get WRITE/DELETE -- the root check reuses
-      // the same Permission object regardless of the originally-requested action (L150
-      // checker.checkPermission(identity, orgRoleRootPer, action, true)), so a root ADMIN grant
-      // covers WRITE the same way it covered ASSIGN above.
+      // the same Permission object regardless of the originally-requested action, so a root
+      // ADMIN grant covers WRITE the same way it covered ASSIGN above.
       withContextPrincipal(rootRoleAdmin, () ->
          PermissionMatrixVerifier.of(engine())
             .resource(ResourceType.SECURITY_ROLE, TARGET_ROLE)
@@ -650,69 +806,22 @@ class PermissionMatrixResourcesS2Test {
             .verify());
    }
 
-   // ── S2-GLOBAL-ROLE-ROOT ──────────────────────────────────────────────────────────
+   // ── S2-GLOBAL-ROLE-ROOT ──────────────────────────────────────────────────────
    //
-   // "Roles" (global root, granted to rootGlobalRoleAdmin above) and "Organization Roles" (org
-   // root, granted to rootRoleAdmin) are supposed to be two independent nodes: a global-role
-   // administrator manages global (org-less) roles, an org-role administrator manages that org's
-   // own roles, and neither should cross over into the other's territory.
+   // "Roles" (global root) and "Organization Roles" (org root) are supposed to be independent,
+   // but DefaultCheckPermissionStrategy's private getPermission() ADMIN-cumulative helper merges
+   // both roots' grants into one set for any SECURITY_ROLE check -- ADMIN on either root leaks
+   // onto the other root's roles. CONFIRMED DESIGN VIOLATION, distinct from Issue #75574.
    //
-   // CONFIRMED DESIGN VIOLATION (found while writing this slice, not previously known) --
-   // distinct from Issue #75574. Root-caused with the same temporary-debug-prints technique used
-   // elsewhere in this file (added to DefaultCheckPermissionStrategy.java, reverted after
-   // diagnosis -- not left in the production file). The row-118 positive case
-   // (rootGlobalRoleAdmin managing a global role) passes, but NOT via the dedicated root-check
-   // block at L134-154 that this scenario was expected to exercise -- that block's guard
-   // `Tool.equals(role.getOrganizationID(), currentOrgId)` is `Tool.equals(null, "matrix_org_id")`
-   // for a global role, which resolves to `null == "matrix_org_id"` (false), so the block never
-   // fires for ANY global-role check, positive or negative. The actual ALLOW for all three rows
-   // comes from a completely different method: the private
-   // `getPermission(ResourceType, String, ResourceAction, String)` helper (L625+), which for the
-   // ADMIN action takes a special "cumulative permission" path. Its SECURITY_ROLE branch
-   // (L744-763) queries BOTH `IdentityID("Organization Roles", currentOrg)` AND
-   // `IdentityID("Roles", currentOrg)` and merges their user/role/group/organization ADMIN grants
-   // into ONE combined synthetic Permission, regardless of which root the checked role actually
-   // belongs under:
+   // Real-world reachability is asymmetric: rootRoleAdmin's grant ("Organization Roles") is
+   // settable through ordinary multi-tenant EM usage; rootGlobalRoleAdmin's grant ("Roles") is
+   // not exposed by the EM UI in multi-tenant mode (whether a direct API call could still write
+   // it hasn't been tested). See permission-matrix-resources.md § S2.4 for the full trace and
+   // asymmetry analysis.
    //
-   //   else if(currentType == ResourceType.SECURITY_ROLE) {
-   //      perm = provider.getPermission(currentType, new IdentityID("Organization Roles", ...));
-   //      if(perm != null) { users.addAll(...); ... }         // merged into the same sets
-   //      perm = provider.getPermission(currentType, new IdentityID("Roles", ...));
-   //      if(perm != null) { users.addAll(...); ... }         // merged into the same sets
-   //   }
-   //
-   // Net effect: ADMIN on EITHER root grants ADMIN on EVERY role, global or org-scoped -- the
-   // two roots are not actually independent for the ADMIN action, contradicting the design
-   // intent this whole slice is meant to verify. Rows 119/120 (the negative/independence checks)
-   // are asserted to the DESIGN INTENT (deny) and marked @Disabled, not asserted as "allow" to
-   // match current behavior.
-   //
-   // IMPORTANT ASYMMETRY -- confirmed real-world reachability differs between the two roots, even
-   // though they share the exact same buggy code path:
-   //   - rootRoleAdmin's grant (ADMIN on "Organization Roles") IS reachable through completely
-   //     ordinary EM usage in a multi-tenant deployment: any org admin can grant Administrator
-   //     Permission on that org's "Organization Roles" node to a delegate today, and that
-   //     delegate then also gets ADMIN on every global role. This is the operationally
-   //     significant half of this finding.
-   //   - rootGlobalRoleAdmin's grant (ADMIN on "Roles") is NOT reachable through the EM UI in a
-   //     multi-tenant deployment: `UsersSettingsViewComponent.showPageEdit()` (frontend,
-   //     `users-settings-view.component.ts` L328-338) explicitly suppresses the entire edit panel
-   //     -- so the Administrator Permissions table never even renders -- whenever the selected
-   //     tree node is a ROLE-type root whose name is anything other than "Organization Roles".
-   //     This looks like a deliberate, pre-existing guard against delegating the global root, and
-   //     it appears to work as intended for the UI. Whether a direct API call to
-   //     RoleController's edit-role endpoint (bypassing the UI, the same "UI hides it but the API
-   //     doesn't independently enforce it" pattern behind Issue #75574) can still write this
-   //     permission has NOT been tested and is an open follow-up, not confirmed either way.
-   //     `rootGlobalRoleAdmin` IS still reachable in non-multi-tenant deployments, where
-   //     `showPageEdit()` allows editing this node unconditionally.
-   //
-   // The two @Test methods below using rootGlobalRoleAdmin are kept despite the UI-reachability
-   // caveat, deliberately: this test layer verifies SecurityEngine.checkPermission()'s own logic
-   // given a Permission object that exists, independent of which UI/API path (if any) created it
-   // -- see the architecture design doc's "权限逻辑测试" layer definition ("与 HTTP 无关"). Do not
-   // read passing/failing status here as a claim about multi-tenant EM UI reachability; for that
-   // claim, see the asymmetry note above.
+   // The two rootGlobalRoleAdmin @Test methods below are kept despite the UI-reachability caveat:
+   // this layer tests SecurityEngine.checkPermission()'s own logic given an existing Permission
+   // object, independent of which UI/API path (if any) created it.
 
    @Test
    void rootGlobalRoleAdmin_adminOnGlobalRole_allowed() {
