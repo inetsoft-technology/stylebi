@@ -304,6 +304,30 @@ During migration:
 
 Establish BI-appropriate density as a first-class visualization behavior.
 
+### Rendering boundary: server-rendered data tables vs browser DOM
+
+Density obeys the same render-location split as color (see the Rendering And Theming Architecture
+section of [visualization-design-spec.md](./visualization-design-spec.md)). This governs how the
+tasks below are implemented.
+
+The reliable test (see the design spec's Rendering And Theming Architecture section): **is it a
+viewsheet assembly?** Anything extending `AbstractVSAssembly` is server-owned.
+
+- **Viewsheet data-surface assemblies** — table assemblies (VSTable/VSCrosstab/VSCalcTable) **and
+  selection lists / trees**: row/cell height, font size, and padding are **server-side and
+  user-settable** (`TableDataVSAssemblyInfo` row heights, `SelectionBaseVSAssemblyInfo` cell height,
+  `VSFormat` fonts, `AssetUtil.defh` / `Util.DEFAULT_FONT` defaults), carried to the client in the
+  assembly model and rendered from the same values on export. CSS density tokens do not drive these.
+- **Browser DOM tables/lists** (non-assemblies: worksheet detail, EM admin, dialog lists, portal
+  lists): CSS-density-themeable through `--inet-viz-*`; not part of viewsheet export.
+  (Note: "EM admin" = the Enterprise Manager admin UI's Angular Material tables — admin chrome, not
+  BI output, and in a separate build that does not import the viz tokens; a *secondary* density
+  candidate, not a primary visualization surface. See the design spec's Browser-DOM density caveats.)
+
+Rule: `--inet-viz-*` density tokens own browser DOM (non-assembly) data surfaces only. Modern
+density for viewsheet assemblies must be driven server-side (see Configuration source below), or
+live view and export will diverge.
+
 ### Tasks
 
 #### 1. Density tokens
@@ -332,18 +356,38 @@ The density property should resolve to an explicit per-mode value matrix rather 
 
 - store the default visualization density in an EM property setting
 - do not require a new EM UI surface in the first implementation pass
-- apply the configured density mode by mapping the property value onto the visualization density token set at runtime
+- apply the configured density mode through **two** paths, by render location:
+  - **browser DOM surfaces:** map the property value onto the `--inet-viz-*` density token set at
+    runtime
+  - **viewsheet data tables:** resolve the server-side density *defaults* (`AssetUtil.defh` row
+    height, `Util.DEFAULT_FONT`, padding) from the same property so the live table model **and**
+    every export format render the configured density
+- apply modern density to **defaults only** — preserve explicit user-set row heights and fonts
+- gate the modern default server-side (per-org/theme), not via the browser `.viz-modern` class,
+  because changing a default reflows saved viewsheets that rely on it
+
+Implementation is grounded: the server-side default is the hardcoded constant `AssetUtil.defh = 20`
+(no property exists yet), resolved at two shared choke points — `BaseTableService` (live model) and
+`VsToReportConverter.calculateRowHeights` (export) — with `userDataRowHeight`/`userHeaderRowHeight`
+flags marking user-set values. See the *Verified implementation anchors* table in
+[visualization-design-spec.md](./visualization-design-spec.md) for file:line references and the
+step-by-step plan in [visualization-phase3-implementation-plan.md](./visualization-phase3-implementation-plan.md).
+
+Resolved (2026-07-07): a **single unified density matrix** drives both halves, recalibrated so
+`dense = 20px = today's default` (comfortable 28 / compact 24 / dense 20). The default mode is
+**`dense`** (zero reflow on enable), selected **org-wide** via a new `viewsheet.density` property;
+per-component user-set row heights still take precedence. Server-side font-size density is deferred.
 
 #### 4. Local override boundary
 
 Allow local density override only for scan-heavy analytical list or table surfaces such as:
 
-- tables and grids
-- crosstab and pivot-style views
-- selection lists
-- long filter member lists
-- multi-select pick lists
-- long dropdown result panels that behave like dense lists
+- tables and grids *(viewsheet assemblies: server-side; DOM tables: CSS)*
+- crosstab and pivot-style views *(viewsheet assemblies: server-side)*
+- selection lists / trees *(viewsheet assemblies: server-side — override applies to the server default)*
+- long filter member lists *(DOM: CSS)*
+- multi-select pick lists *(DOM: CSS)*
+- long dropdown result panels that behave like dense lists *(DOM: CSS)*
 
 Do not plan local density override in the first pass for:
 
@@ -396,6 +440,22 @@ Define tokens and usage rules for:
 
 Standardize the core table/grid behavior used across visualization surfaces.
 
+### Rendering boundary: two table worlds
+
+Table work spans two rendering models that must not be conflated (see Phase 3 and the design spec's
+Rendering And Theming Architecture section):
+
+- **Viewsheet data-surface assemblies** (VSTable/VSCrosstab/VSCalcTable, and selection lists/trees —
+  anything extending `AbstractVSAssembly`): structure and density (row/cell height, font, padding,
+  borders) come from the server-side assembly/format model and are shared with export. Standardize
+  these through the server-side defaults and `VSFormat`, not CSS. State cues that are DOM overlays
+  (hover highlight, selection outline) may still be browser-rendered, but anything that must appear
+  in export is server-side.
+- **Browser DOM tables/lists** (non-assemblies: worksheet detail, EM admin, dialog lists, portal
+  lists): fully CSS-themeable through `--inet-viz-*` density and state tokens; not exported.
+
+Apply the visual-structure and state tasks below to each world through its correct system.
+
 ### Tasks
 
 #### 1. Visual structure
@@ -432,18 +492,40 @@ Dense visualization tables should not reuse shell list or shell-table behavior a
 
 Standardize the non-mark portions of charts so they feel cohesive with shell without borrowing shell visual density.
 
+### Rendering boundary: in-graph chrome vs surrounding DOM chrome
+
+The canonical statement of this constraint is the Rendering And Theming Architecture section of
+[visualization-design-spec.md](./visualization-design-spec.md); the summary below is the
+implementation-facing view.
+
+Chart chrome is not one layer. It splits by *where it is rendered*, and only one half is
+browser-CSS-themeable.
+
+- **In-graph chrome** — axis lines, tick labels, gridlines, legend swatches/border/background,
+  axis/legend titles, plot labels. These are painted **server-side** by the graph engine (colors
+  from descriptor color pickers → server-side CSS dictionary classes such as `ChartAxisLine`,
+  `ChartPlotLine`, `ChartLegend` in `format.css` → `GDefaults`) and baked into the chart image/SVG,
+  including inline SVG (fill/stroke are set as element attributes server-side). Browser
+  `--inet-viz-*` tokens **do not** color these, and the live view and every export format share
+  this one server-side render path.
+- **Surrounding DOM chrome** — the viewsheet object title bar, chart toolbar/menu, and the
+  interactive hover tooltip. These are Angular-rendered DOM, are browser-CSS-themeable, and are
+  **not part of the exported chart image**.
+
+Export-consistency rule: any color/appearance change that must appear in PDF/PNG/SVG/Excel/PPT/HTML
+export must be driven server-side. Changing a browser CSS token cannot make the export match, and
+for in-graph chrome cannot even change the live chart.
+
 ### Tasks
 
 #### 1. Chart chrome surfaces
 
-Standardize:
+Standardize, respecting the rendering boundary above:
 
-- headers
-- legends
-- axes
-- gridlines
-- tooltip containers
-- inline widget controls
+- **server-side (descriptors + `format.css` chart classes + `GDefaults`):** axes, axis titles/labels,
+  gridlines, legends (swatch/border/background/title), plot labels
+- **browser CSS (`--inet-viz-*`):** object header/title bar, inline widget controls, tooltip
+  container styling (interactive only; not exported)
 
 #### 2. Interaction rule
 
@@ -454,6 +536,7 @@ Standardize:
 ### Output
 
 - chart containers and chrome that frame data without competing with it
+- explicit routing of each chrome surface to its correct theming system so live and export stay in sync
 
 ## Phase 7: KPI And Embedded Controls
 
@@ -492,18 +575,84 @@ Define embedded filters and controls using:
 
 Define the visualization-owned color systems that should not be borrowed from shell.
 
+### Architectural split: server-rendered graph vs browser DOM
+
+Analytical color spans two independent theming systems that share no tokens. The split is **not**
+"marks versus chrome" — it is **where the pixels are rendered**. Almost all chart color, including
+in-graph chrome, is server-rendered. Phase 8 must treat the two systems separately or it will only
+half-work, and will break export consistency.
+
+- **Server-rendered graph (marks and in-graph chrome).** Bars/lines/points **and** axis lines, tick
+  labels, gridlines, legend swatches/border/background, axis and legend titles, and plot labels are
+  all colored **server-side by the graph engine** (`inetsoft.graph.aesthetic.*`) and baked into the
+  chart image/SVG — including inline SVG, where fill/stroke are set as element attributes
+  server-side. Color for these resolves through: per-object descriptor color pickers
+  (`AxisDescriptor.lineColor`, `PlotDescriptor.x/yGridColor`, `LegendsDescriptor.borderColor`,
+  series `CategoricalColorFrame.setUserColor`) → the server-side CSS dictionary
+  (`inetsoft.util.css.CSSDictionary`, parsing `format.css` / `defaults.css` via `PortalThemesManager`
+  and `SreeEnv("css.location")`, keyed by `CSSConstants` classes such as `ChartAxisLine`,
+  `ChartPlotLine`, `ChartLegend`, `ChartPalette`) → hardcoded `GDefaults` /
+  `CategoricalColorFrame.COLOR_PALETTE`.
+- **Browser DOM (surrounding chrome only).** Only the viewsheet object title bar, chart
+  toolbar/menu, and the interactive hover tooltip are Angular-rendered DOM and themeable through
+  browser `--inet-viz-*` CSS. These are **not part of the exported chart image**.
+
+Consequences:
+
+- Browser `--inet-viz-*` tokens **cannot** color marks, gridlines, axis lines, or legend
+  border/background. They apply only to surrounding DOM chrome.
+- The Phase 2 gate (`.viz-modern` / `[data-viz-theme="v2"]`) is browser-side and **cannot switch any
+  server-rendered graph color** by itself.
+- **Export consistency:** the live view and every export format (PDF/PNG/SVG/Excel/PPT/HTML) share
+  the one server-side render path, so any change that must show up in export **must** be made
+  server-side. A browser CSS change cannot make the export match and, for in-graph color, cannot
+  even change the live chart.
+
 ### Tasks
 
-- define categorical palettes
-- define sequential ramps
-- define diverging ramps
-- define threshold and anomaly primitives
-- define conditional formatting tokens and usage rules
-- keep these color systems separate from routine widget chrome
+#### 1. Server-rendered graph color (descriptors + `format.css` + `GDefaults`)
+
+- treat the modern categorical palettes, sequential/diverging ramps, threshold/anomaly primitives,
+  **and** in-graph chrome colors (axis lines, gridlines, legend border/background) as the single
+  source of truth, then **bridge** that definition into the server-side sources — the `CSSConstants`
+  chart classes in `format.css`, the relevant descriptor defaults, and where needed
+  `CategoricalColorFrame` — rather than duplicating any of it as browser tokens
+- reconcile the existing server-side sources — hardcoded `GDefaults` / `COLOR_PALETTE`, the
+  `format.css` CSS dictionary, and per-org theme CSS — so one modern definition drives all of them
+- do not route any exported color through browser CSS
+
+#### 2. Browser DOM chrome color (browser tokens)
+
+- define `--inet-viz-*` tokens only for surrounding DOM chrome (object header, inline widget
+  controls, interactive tooltip container) — none of which appears in export
+- keep these separate from routine widget chrome
+
+#### 3. Conditional formatting
+
+- define conditional formatting tokens and usage rules, explicitly tagging each surface as
+  server-rendered (engine/`format.css`-themeable, appears in export) or browser DOM
+  (CSS-themeable, not in export)
+
+### Modern-mode selection for server-rendered color
+
+Because the browser gate cannot reach any server-rendered graph color, Phase 8 must define how
+legacy versus modern graph color is selected server-side — coordinated with the same EM property
+mechanism Phase 3 uses for default density, or a per-org/theme property, rather than relying on the
+browser-side visualization gate.
 
 ### Output
 
-- explicit visualization-owned color systems for data meaning
+- explicit visualization-owned color systems for data meaning, correctly split by render location:
+  server-rendered graph color (marks + in-graph chrome, appears in export) versus browser DOM chrome
+- one modern graph-color definition bridged to the server-side sources so live view and all export
+  formats stay in sync
+
+### Dependency note
+
+This phase depends on the render-location boundary recorded in the Phase 0 audit
+([visualization-phase0-audit.md](./visualization-phase0-audit.md), Task 4) and the Phase 6 rendering
+boundary. Do not begin graph-color work until the server-side bridge and the server-side
+modern-mode selection mechanism are agreed.
 
 ## Phase 9: Themeability And Exposure Review
 
