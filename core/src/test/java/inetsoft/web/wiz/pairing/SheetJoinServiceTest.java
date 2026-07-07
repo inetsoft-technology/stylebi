@@ -38,7 +38,7 @@ import static org.mockito.Mockito.when;
  * [wrongUser]       mint for alice, join as bob -> PairingException
  * [codeConsumed]    second join with same code -> PairingException
  * [featureOff]      feature off -> PairingException; code not consumed
- * [viewsheet]       viewsheet code -> JoinSession with VIEWSHEET sheetType
+ * [viewsheet]       viewsheet code -> PairingException (not yet supported)
  */
 @Tag("core")
 @ExtendWith(MockitoExtension.class)
@@ -132,17 +132,14 @@ class SheetJoinServiceTest {
    }
 
    // ---------------------------------------------------------------------------
-   // 6. viewsheetCodeGrantsViewsheetSession
+   // 6. viewsheetCodeIsRejected
    // ---------------------------------------------------------------------------
    @Test
-   void viewsheetCodeGrantsViewsheetSession() throws PairingException {
+   void viewsheetCodeIsRejected() {
       when(feature.isEnabled()).thenReturn(true);
       String code = pairing.mint("Viewsheet/bar-1", ALICE_KEY, "sock-5", null, SheetType.VIEWSHEET);
       Principal alice = TestPrincipals.user("alice", "host-org");
 
-      JoinSession session = svc.join(code, alice);
-
-      assertNotNull(session);
-      assertEquals(SheetType.VIEWSHEET, session.sheetType());
+      assertThrows(PairingException.class, () -> svc.join(code, alice));
    }
 }

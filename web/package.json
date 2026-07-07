@@ -105,6 +105,7 @@
     "del": "^5.1.0",
     "eslint": "^8.57.0",
     "form-data": "^4.0.5",
+    "glob": "^7.2.3",
     "gulp": "^4.0.2",
     "gulp-concat": "^2.6.1",
     "gulp-dart-sass": "^0.9.1",

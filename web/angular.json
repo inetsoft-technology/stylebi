@@ -368,10 +368,7 @@
             "allowedCommonJsDependencies": [
               "codemirror",
               "lodash",
-              "dayjs",
-              "interactjs",
-              "sockjs-client",
-              "jsplumb"
+              "dayjs"
             ],
             "polyfills": [
               "zone.js",
@@ -382,12 +379,7 @@
             "inlineStyleLanguage": "scss",
             "assets": [
               "projects/portal/src/favicon.ico",
-              "projects/portal/src/assets",
-              {
-                "glob": "**/*",
-                "input": "node_modules/roboto-fontface/fonts/roboto",
-                "output": "assets/roboto"
-              }
+              "projects/portal/src/assets"
             ],
             "styles": [
               "projects/portal/src/styles.scss"
@@ -470,10 +462,7 @@
             "allowedCommonJsDependencies": [
               "codemirror",
               "lodash",
-              "dayjs",
-              "interactjs",
-              "sockjs-client",
-              "jsplumb"
+              "dayjs"
             ],
             "polyfills": [
               "zone.js",
@@ -484,12 +473,7 @@
             "inlineStyleLanguage": "scss",
             "assets": [
               "projects/portal/src/favicon.ico",
-              "projects/portal/src/assets",
-              {
-                "glob": "**/*",
-                "input": "node_modules/roboto-fontface/fonts/roboto",
-                "output": "assets/roboto"
-              }
+              "projects/portal/src/assets"
             ],
             "styles": [
               "projects/portal/src/styles.scss"

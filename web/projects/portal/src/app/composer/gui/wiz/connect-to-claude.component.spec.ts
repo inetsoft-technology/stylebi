@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NO_ERRORS_SCHEMA, NgZone } from "@angular/core";
+import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { of } from "rxjs";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
@@ -26,7 +26,6 @@ describe("ConnectToClaudeComponent", () => {
    let component: ConnectToClaudeComponent;
    let mockSocketConnection: any;
    let mockStompConnection: { subscribe: ReturnType<typeof vi.fn>; send: ReturnType<typeof vi.fn> };
-   let mockZone: any;
 
    beforeEach(waitForAsync(() => {
       mockStompConnection = {
@@ -41,15 +40,10 @@ describe("ConnectToClaudeComponent", () => {
       // Default: subscribe returns a Subscription-like object
       mockStompConnection.subscribe.mockReturnValue({ unsubscribe: vi.fn() });
 
-      mockZone = {
-         run: vi.fn((fn: () => any) => fn())
-      };
-
       TestBed.configureTestingModule({
          imports: [ConnectToClaudeComponent],
          providers: [
-            { provide: ViewsheetClientService, useValue: mockSocketConnection },
-            { provide: NgZone, useValue: mockZone }
+            { provide: ViewsheetClientService, useValue: mockSocketConnection }
          ],
          schemas: [NO_ERRORS_SCHEMA]
       });
@@ -77,15 +71,15 @@ describe("ConnectToClaudeComponent", () => {
       expect(mockSocketConnection.whenConnected).toHaveBeenCalled();
    });
 
-   it("requestCode subscribes to /user/queue/wiz/pairing/mint and sends mint request", () => {
+   it("requestCode subscribes to /user/commands/wiz/pairing/mint and sends mint request", () => {
       component.requestCode();
 
       expect(mockStompConnection.subscribe).toHaveBeenCalledWith(
-         "/user/queue/wiz/pairing/mint",
+         "/user/commands/wiz/pairing/mint",
          expect.any(Function)
       );
       expect(mockStompConnection.send).toHaveBeenCalledWith(
-         "/app/wiz/pairing/mint",
+         "/events/wiz/pairing/mint",
          {},
          JSON.stringify({ runtimeId: "rt-1", sheetType: "WORKSHEET" })
       );
