@@ -2353,7 +2353,10 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
          return;
       }
 
-      boolean aggr = !"undefined".equals(arg3);
+      // GraalJS delivers an omitted/undefined trailing argument as null (Rhino
+      // passed the string "undefined"), so treat null as the 2-arg form and
+      // reserve the aggregate-qualified 3-arg form for a real type value (Bug #75573).
+      boolean aggr = arg3 != null && !"undefined".equals(arg3);
       String arg1 = argObj1 == null ? null : argObj1.toString();
       ChartBindable bindable = ChartProcessor.getChartBindable(info, aggr ? arg1 : null);
 

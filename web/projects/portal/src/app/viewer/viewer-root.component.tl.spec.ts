@@ -25,11 +25,14 @@
  *   Group 2 [Risk 2] — ngOnDestroy: disconnects stored connection; safe when null
  *   Group 3 [Risk 2] — downloadStarted: opens info message dialog via ComponentTool
  *
- * Confirmed bugs (it.fails):
- *   memory-leak — viewer-root.component.ts:51: the subscription returned by
- *     this.socket.connect().subscribe() is never stored, so ngOnDestroy() cannot
- *     call unsubscribe(). After destroy, a new connection emission would still update
- *     this.connection on the dead component instance.
+ * Fixed bugs:
+ *   memory-leak (Bug #75570) — viewer-root.component.ts:51: the subscription returned by
+ *     this.socket.connect().subscribe() was never stored, so ngOnDestroy() could not call
+ *     unsubscribe(). Repro required the component to be destroyed BEFORE the STOMP
+ *     handshake resolved (this.connection was still undefined at destroy time, so the
+ *     ngOnDestroy() disconnect guard was a no-op); the pending subscription later fired into
+ *     the dead component, assigning a live connection that nothing would ever disconnect.
+ *     Fix: store the Subscription and unsubscribe() it in ngOnDestroy().
  *
  * Out of scope:
  *   - splash transitionend listener: requires real DOM transitionend event; jsdom
@@ -188,30 +191,30 @@ describe("ViewerRootComponent — downloadStarted()", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Group 4 — memory-leak (it.fails — confirmed missing unsubscribe)
+// Group 4 — memory-leak (Bug #75570, fixed — connect subscription now cancelled)
 // ---------------------------------------------------------------------------
 
-describe("ViewerRootComponent — memory-leak", () => {
-   // Expected failure: the final expect(comp["connection"]).toBe(firstConn) fails
-   // because ViewerRootComponent never stores the Subscription returned by
-   // socket.connect().subscribe(), so ngOnDestroy() has no reference to call
-   // unsubscribe(). After destroy, emitting a new connection from socketSubject
-   // still overwrites comp.connection — the subscription is alive on a dead component.
-   // If the test fails for another reason (e.g. fixture throws on render), check the
-   // error message to distinguish from the expected failure.
-   it.fails("should not update connection after ngOnDestroy when socket emits again", async () => {
+describe("ViewerRootComponent — memory-leak (Bug #75570)", () => {
+   // Bug #75570 (fixed): ViewerRootComponent used to never store the Subscription
+   // returned by socket.connect().subscribe(), so ngOnDestroy() had no reference to call
+   // unsubscribe(). Repro: destroy happens BEFORE the STOMP handshake resolves
+   // (this.connection is still undefined, so the ngOnDestroy() disconnect guard was a
+   // no-op), then the pending subscription's late emission still assigned a live
+   // connection to the dead component — nothing ever called .disconnect() on it.
+   //
+   // Note: production's StompClientService.connect() resolves via an AsyncSubject that
+   // emits at most once, so "connect, destroy, emit again on the same source" is not a
+   // reproducible production path — that's why this test destroys BEFORE the first (and
+   // only) emission rather than after.
+   it("should not leak the connection when it resolves after ngOnDestroy", async () => {
       const comp = await renderComponent();
 
-      const firstConn = { disconnect: vi.fn() };
-      socketSubject.next(firstConn);
-      expect((comp as any).connection).toBe(firstConn);
+      comp.ngOnDestroy(); // destroy before the STOMP handshake resolves
 
-      comp.ngOnDestroy();
+      const lateConn = { disconnect: vi.fn() };
+      socketSubject.next(lateConn); // late resolution — subscription is now cancelled
 
-      const newConn = { disconnect: vi.fn() };
-      socketSubject.next(newConn);
-
-      // Fails: socket subscription was never unsubscribed, so comp.connection becomes newConn.
-      expect((comp as any).connection).toBe(firstConn);
+      expect(lateConn.disconnect).not.toHaveBeenCalled();
+      expect((comp as any).connection).toBeUndefined();
    });
 });

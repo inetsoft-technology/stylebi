@@ -19,6 +19,7 @@
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { ActivatedRoute, RouterOutlet } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { Subscription } from "rxjs";
 import { AiAssistantPanelComponent } from "../../../../shared/ai-assistant/ai-assistant-panel.component";
 import { DownloadTargetComponent } from "../../../../shared/download/download-target.component";
 import { StompClientConnection } from "../../../../shared/stomp/stomp-client-connection";
@@ -34,6 +35,7 @@ import { ComponentTool } from "../common/util/component-tool";
 export class ViewerRootComponent implements OnInit, OnDestroy {
    inPortal: boolean = false;
    private connection: StompClientConnection;
+   private connectSubscription: Subscription;
 
    constructor(private socket: StompClientService, private modalService: NgbModal,
                private route: ActivatedRoute) {
@@ -48,12 +50,14 @@ export class ViewerRootComponent implements OnInit, OnDestroy {
          splash?.addEventListener("transitionend", () => splash.style.display = "none", { once: true });
       }
 
-      this.socket.connect("../vs-events").subscribe((connection) => {
+      this.connectSubscription = this.socket.connect("../vs-events").subscribe((connection) => {
          this.connection = connection;
       });
    }
 
    ngOnDestroy(): void {
+      this.connectSubscription?.unsubscribe();
+
       if(this.connection) {
          this.connection.disconnect();
       }

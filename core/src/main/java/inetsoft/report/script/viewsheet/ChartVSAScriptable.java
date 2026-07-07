@@ -349,6 +349,9 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
 
       addProperty("bindingInfo", bindingInfo = new VSChartBindingScriptable(this));
       addProperty("data", data);
+      // "table" is an alias for "data" resolved in getPropertyValue; it must be
+      // registered so hasMember("table") is true (GraalJS gates getMember on hasMember).
+      addProperty("table", data);
       addProperty("dataset", null);
       addProperty("graph", null);
       addProperty("query", null);

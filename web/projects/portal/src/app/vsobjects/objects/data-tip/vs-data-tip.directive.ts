@@ -35,6 +35,11 @@ export class VSDataTipDirective implements DoCheck {
    private leaveListener: () => any;
    private inElement: Element = null;
    private mobileDevice = GuiTool.isMobileDevice();
+   private lastRenderedTipX: number | undefined;
+   private lastRenderedTipY: number | undefined;
+   private lastRenderedTipName: string | undefined;
+   private lastRenderedTipAlpha: number | undefined;
+   private lastRenderedPopShowing: boolean | undefined;
 
    constructor(private popService: PopComponentService,
                private dataTipService: DataTipService,
@@ -75,6 +80,26 @@ export class VSDataTipDirective implements DoCheck {
          {
             // cancel existing hide events
             this.debounceService.cancel(DataTipService.DEBOUNCE_KEY);
+
+            const tipX = this.dataTipService.dataTipX;
+            const tipY = this.dataTipService.dataTipY;
+            const tipName = this.dataTipService.dataTipName;
+            const tipAlpha = this.dataTipService.dataTipAlpha;
+            const popShowing = this.popService.hasPopUpComponentShowing();
+
+            // Skip expensive DOM reads and style writes when all inputs are unchanged.
+            if(tipX === this.lastRenderedTipX && tipY === this.lastRenderedTipY &&
+               tipName === this.lastRenderedTipName && tipAlpha === this.lastRenderedTipAlpha &&
+               popShowing === this.lastRenderedPopShowing) {
+               return;
+            }
+
+            this.lastRenderedTipX = tipX;
+            this.lastRenderedTipY = tipY;
+            this.lastRenderedTipName = tipName;
+            this.lastRenderedTipAlpha = tipAlpha;
+            this.lastRenderedPopShowing = popShowing;
+
             const popInfo = this.popService.getPopInfo(this.dataTipName);
             const containerInfo = this.popService.getPopInfo(this.popContainerName);
             const nativeElement = !this.miniToolbar
@@ -84,9 +109,8 @@ export class VSDataTipDirective implements DoCheck {
             const mainComponent = !this.miniToolbar ? nativeElement :
                document.getElementById(this.dataTipService.getVSObjectId(this.dataTipName));
 
-            let top = this.dataTipService.dataTipY;
-            let left = this.dataTipService.dataTipX;
-            const alpha = this.dataTipService.dataTipAlpha;
+            let top = tipY;
+            let left = tipX;
             let parentElem: any = nativeElement;
             let reducedEmbeddedVsTop = 0;
             let reducedEmbeddedVsLeft = 0;
@@ -183,8 +207,8 @@ export class VSDataTipDirective implements DoCheck {
             if(!this.miniToolbar) {
                this.renderer.setStyle(nativeElement, "display", "block");
 
-               if(alpha != null && alpha != 1) {
-                  this.renderer.setStyle(nativeElement, "opacity", alpha / 100);
+               if(tipAlpha != null && tipAlpha != 1) {
+                  this.renderer.setStyle(nativeElement, "opacity", tipAlpha / 100);
                }
             }
             else {
@@ -193,12 +217,16 @@ export class VSDataTipDirective implements DoCheck {
             }
             // background set on the server so alpha can be applied to all backgrounds
             //this.renderer.setStyle(nativeElement, "background", "rgba(245,245,245,1.0)");
-            let showingComponent = this.popService.hasPopUpComponentShowing();
             this.renderer.setStyle(nativeElement, "z-index",
-               this.popZIndex + 99999 + (showingComponent ? 1000 : 0));
+               this.popZIndex + 99999 + (popShowing ? 1000 : 0));
             this.createOutsideClickListener();
          }
          else {
+            this.lastRenderedTipX = undefined;
+            this.lastRenderedTipY = undefined;
+            this.lastRenderedTipName = undefined;
+            this.lastRenderedTipAlpha = undefined;
+            this.lastRenderedPopShowing = undefined;
             this.renderer.setStyle(this.elementRef.nativeElement, "display", "none");
             this.removeOutsideClickListener();
          }
