@@ -38,7 +38,10 @@ package inetsoft.sree.security;
  *     orgSecurityAdmin_adminOnGlobalSysAdminRole_denied_negativeControl's comment for an
  *     unresolved second discrepancy (live-confirmed but not yet reproduced in this fixture))
  *   - identityAdmin-user(instance), identityAdmin-user(wildcard), identityAdmin-group(instance),
- *     identityAdmin-role
+ *     identityAdmin-role (its WRITE/DELETE negative-control cases were @Disabled pending Issue
+ *     #75567 — ASSIGN was being keyed instead of ADMIN in DefaultCheckPermissionStrategy L232-240,
+ *     silently upgrading an ASSIGN-only grant to full WRITE/DELETE/ADMIN; fixed by commit
+ *     b9049488a and re-enabled)
  *   - S2-ROOT-CASCADE (rootUserAdmin/rootGroupAdmin/rootRoleAdmin) — the "Users"/"Groups"/
  *     "Organization Roles" synthetic root resources, a THIRD independent cascade mechanism
  *     distinct from both the SECURITY_ORGANIZATION cascade (orgSecurityAdmin) and the
@@ -539,31 +542,12 @@ class PermissionMatrixResourcesS2Test {
             .verify());
    }
 
-   // NOTE: the following two cases are disabled, not deleted — see conversation/PR notes.
-   // Per the design doc (permission-test-architecture-design.md L448, permission-matrix-
-   // resources.md row 46-47), ASSIGN must NOT imply WRITE/DELETE. Actual behavior contradicts
-   // this: DefaultCheckPermissionStrategy.java L232-240 has an unconditional
-   // `hasResourcePermission` check — gated only by the user having *any* roles/groups/org (i.e.
-   // true for virtually every authenticated principal), not by ResourceType or by the requested
-   // `action` — that looks up ResourceAction.ASSIGN grants specifically (not the action actually
-   // being checked) and returns true on a match:
-   //
-   //   boolean hasResourcePermission = provider.getPermission(type, resource, orgID) != null &&
-   //      provider.getPermission(type, resource, orgID)
-   //         .getOrgScopedUserGrants(ResourceAction.ASSIGN, ...).contains(pId);
-   //   if(hasResourcePermission) { return true; }
-   //
-   // The comment above that block reads "if admin permissions to this resource, return true",
-   // which checks ResourceAction.ADMIN in every other cascade path in this file — this one
-   // checks ASSIGN instead, so it looks like ADMIN was probably intended. Confirmed empirically:
-   // identityAdminRoleUser (ASSIGN-only on targetRole) gets WRITE, DELETE, and ADMIN all
-   // allowed on targetRole, not just ASSIGN. This is either a real bug (a `Assign Permissions`
-   // grant silently upgrading to full R/W/D/A control of the role) or the design doc is stale;
-   // needs a product-owner call before encoding either behavior as "correct" here.
-   @Disabled("DefaultCheckPermissionStrategy L232-240 grants WRITE/DELETE to ASSIGN-only "
-      + "identities via an ASSIGN-keyed hasResourcePermission check — contradicts the design "
-      + "doc's 'ASSIGN does not imply WRITE/DELETE' claim; needs a decision on which is correct "
-      + "before asserting either way")
+   // Previously disabled: DefaultCheckPermissionStrategy.java L232-240 had an unconditional
+   // `hasResourcePermission` check that looked up ResourceAction.ASSIGN grants (instead of ADMIN)
+   // and returned true on a match, silently upgrading an ASSIGN-only grant to full WRITE/DELETE/
+   // ADMIN. Fixed by commit b9049488a ("fixed 75567: Fix privilege escalation where ASSIGN
+   // implied full role admin access") — that check now keys on ResourceAction.ADMIN like every
+   // other cascade path in this file. Re-verified passing after the fix; re-enabled.
    @Test
    void identityAdminRoleUser_writeOnTargetRole_denied_assignDoesNotImplyWrite() {
       withContextPrincipal(identityAdminRoleUser, () ->
@@ -573,7 +557,6 @@ class PermissionMatrixResourcesS2Test {
             .verify());
    }
 
-   @Disabled("See identityAdminRoleUser_writeOnTargetRole_denied_assignDoesNotImplyWrite")
    @Test
    void identityAdminRoleUser_deleteOnTargetRole_denied_assignDoesNotImplyDelete() {
       withContextPrincipal(identityAdminRoleUser, () ->
