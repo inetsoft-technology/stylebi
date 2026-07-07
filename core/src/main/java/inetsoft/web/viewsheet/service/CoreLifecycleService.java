@@ -302,6 +302,8 @@ public class CoreLifecycleService {
          infoMap.put("messageLevels", vsInfo.getMessageLevels());
          infoMap.put("virtualScroll", "true".equals(SreeEnv.getProperty("viewsheet.virtual.scroll")));
          infoMap.put("inlineSvg", "true".equals(SreeEnv.getProperty("graph.svg.inline")));
+         infoMap.put("modernVisualization",
+                     SreeEnv.getBooleanProperty("viewsheet.modernVisualization", false, true));
 
          command.setInfo(infoMap);
          // TODO populate assemblyInfo with values from vs.getViewsheetInfo()

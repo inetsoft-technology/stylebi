@@ -55,6 +55,7 @@ public class LookAndFeelService {
       final String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
       boolean asc = "Ascending".equals(SreeEnv.getProperty("repository.tree.sort", false, !globalProperty));
+      boolean modernVisualization = SreeEnv.getBooleanProperty("viewsheet.modernVisualization", false, !globalProperty);
       boolean repositoryTree = manager.getReportListType() == 0;
       boolean expand = manager.isAutoExpand();
       boolean defaultLogo = !manager.hasCustomLogo(globalProperty ? null : orgID);
@@ -131,6 +132,7 @@ public class LookAndFeelService {
                .collect(Collectors.toList())
          )
          .vsEnabled(true)
+         .modernVisualization(modernVisualization)
          .build();
    }
 
@@ -156,6 +158,8 @@ public class LookAndFeelService {
       int repoTree = model.repositoryTree() ? 0 : 1;
 
       SreeEnv.setProperty("repository.tree.sort", sort, !globalSettings);
+      SreeEnv.setProperty("viewsheet.modernVisualization",
+                          Boolean.toString(model.modernVisualization()), !globalSettings);
       manager.setReportListType(repoTree);
       manager.setAutoExpand(model.expand());
 
