@@ -95,8 +95,29 @@ class ScriptValueConverterTest {
       assertSame(scope, v);
    }
 
+   // Bug #75549: symmetry must also hold for array-shaped scopes. An
+   // ArrayProxy-wrapped ScriptArrayScope round-trips back to the underlying
+   // scope, not a flattened Object[] copy — ArrayProxy is a ProxyArray, so
+   // toHost must unwrap it (via isProxyObject) before the generic array branch.
+   @Test void arrayScopeProxyUnwrapsToUnderlyingScope() {
+      ScriptArrayScope scope = new SimpleArrayScope();
+      ctx.getBindings("js").putMember("a", ScriptValueConverter.toGuest(scope));
+      Object v = ScriptValueConverter.toHost(ctx.getBindings("js").getMember("a"));
+      assertSame(scope, v);
+   }
+
    /** Minimal ScriptScope so toGuest produces a ScopeProxy. */
    private static class SimpleScope implements ScriptScope {
+      public Object getMember(String name) { return null; }
+      public boolean hasMember(String name) { return false; }
+      public void putMember(String name, Object value) { }
+      public Object[] getMemberKeys() { return new Object[0]; }
+   }
+
+   /** Minimal ScriptArrayScope so toGuest produces an ArrayProxy. */
+   private static class SimpleArrayScope implements ScriptArrayScope {
+      public long getArraySize() { return 0; }
+      public Object getArrayElement(long index) { return null; }
       public Object getMember(String name) { return null; }
       public boolean hasMember(String name) { return false; }
       public void putMember(String name, Object value) { }
