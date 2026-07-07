@@ -103,6 +103,18 @@ public class SecurityTestDataBuilder {
       return this;
    }
 
+   /**
+    * Creates a role with no organization ({@code IdentityID(name, null)}), matching how the
+    * built-in {@code Administrator}/{@code Organization Administrator} roles are constructed.
+    * {@code DefaultCheckPermissionStrategy.isNotGlobalRole()} treats any role whose
+    * {@code getOrganizationID()} is null as "global" and excludes it from the
+    * SECURITY_ORGANIZATION-ADMIN cascade.
+    */
+   public SecurityTestDataBuilder addGlobalRole(String roleName) {
+      roles.add(new RoleSpec(roleName, null, false, false));
+      return this;
+   }
+
    public SecurityTestDataBuilder addUserToRole(String userName, String roleName, String orgId) {
       userRoles.add(new UserRoleAssignment(userName, roleName, orgId));
       return this;
