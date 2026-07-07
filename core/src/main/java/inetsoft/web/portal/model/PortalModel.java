@@ -52,6 +52,11 @@ public abstract class PortalModel {
       return false;
    }
 
+   @Value.Default
+   public boolean modernVisualization() {
+      return false;
+   }
+
    public static Builder builder() {
       return new Builder();
    }
