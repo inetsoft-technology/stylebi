@@ -322,22 +322,69 @@ per-component row height (layer 1) always wins over the org density mode (layer 
 roadmap §3 "apply modern density to defaults only" and is why no per-component density-mode UI is
 needed (D2).
 
-### Part C — EM property surface
+### Part C — EM property surface — scoped, completes Phase 3
 
-**C1. Add the density mode to Look and Feel** (rides the existing
-`/api/em/settings/presentation/model` GET/POST, same as the Phase 2 checkbox):
+Pure property plumbing that mirrors the Phase 2 `modernVisualization` checkbox end-to-end plus one
+`mat-select`. It lets an admin *set* the `viewsheet.density` value that Part A (DOM) and Part B
+(assemblies) already *consume*. All in `community/` (core + em). `mat-select` is already used in
+`look-and-feel-settings-view.component.html`, so no module-import change is needed.
 
-- `LookAndFeelSettingsModel.java` — `String visualizationDensity();`
-- `LookAndFeelService.getModel/setModel` — read/write `viewsheet.density` with the Phase 2 org-scope
-  pattern (`!globalProperty`).
-- EM view: `look-and-feel-settings-model.ts` field + a `mat-select` (`comfortable`/`compact`/
-  `dense`, default `dense`) in `look-and-feel-settings-view.component.{ts,html}`, enabled only when
-  Modern Visualization is checked.
-- i18n: add `Visualization Density`, `Comfortable`, `Compact`, `Dense` to
-  `core/.../util/srinter.properties` (alphabetical block).
+**C1. Backend (`core`, 3 edits).**
 
-This is an **org-level** default (D2). It does not add per-component density control — components
-keep their existing per-row-height override, which wins (B4).
+- `LookAndFeelSettingsModel.java` (after `modernVisualization()`, ~L54):
+  `@Value.Default default String visualizationDensity() { return "dense"; }` — `@Value.Default` (not
+  a mandatory attribute or `@Nullable`) so the Immutables build never fails on a missing value and
+  the default is centralized. `Value` is already imported.
+- `LookAndFeelService.getModel` (~L59, beside the `modernVisualization` read):
+  `String visualizationDensity = SreeEnv.getProperty("viewsheet.density", false, !globalProperty);`,
+  default `"dense"` if null/empty; add `.visualizationDensity(visualizationDensity)` to the builder
+  (~L138). The `!globalProperty` scope gives density the same per-org (enterprise) / global
+  (community) behavior as the gate, for free.
+- `LookAndFeelService.setModel` (~L164, beside the `modernVisualization` write):
+  `SreeEnv.setProperty("viewsheet.density", model.visualizationDensity(), !globalSettings);`.
+  `setModel` is already `@Audited(OBJECT_TYPE_EMPROPERTY)`, so density changes are audited.
+
+**C2. Frontend (`em`, 3 files).**
+
+- `look-and-feel-settings-model.ts` — add `visualizationDensity: string;` after `modernVisualization`.
+- `look-and-feel-settings-view.component.ts` — mirror `modernVisualization` in 3 spots: form group
+  (`visualizationDensity: ["dense"]`, ~L134); `setModel` populate (~L85, `?? "dense"`) and the
+  null-model branch (~L107, `"dense"`); `emitModel` (~L221).
+- `look-and-feel-settings-view.component.html` — after the checkbox (L38), a `mat-select` shown only
+  when modern is on, mirroring the existing `@if (form.controls.repositoryTree?.value)` pattern for
+  "Expand All Nodes":
+
+```html
+@if (form.controls.modernVisualization?.value) {
+  <mat-form-field appearance="outline" color="accent">
+    <mat-label>_#(Visualization Density)</mat-label>
+    <mat-select formControlName="visualizationDensity">
+      <mat-option value="comfortable">_#(Comfortable)</mat-option>
+      <mat-option value="compact">_#(Compact)</mat-option>
+      <mat-option value="dense">_#(Dense)</mat-option>
+    </mat-select>
+  </mat-form-field>
+}
+```
+
+**Behavior.** Auto-save: `form.valueChanges → emitModel` (200 ms after init) persists on change, like
+the checkbox — no save button. Show/hide via `@if` (matches the sibling "Expand All Nodes"); the
+select reappears at its retained value when modern is re-checked. The select emits exactly
+`comfortable|compact|dense` — the same whitelist as Part A's body class and Part B's `mode()` — which
+closes the hand-typed-value ambiguity (once C ships, the property is UI-constrained). Default `dense`
+everywhere (model `@Value.Default`, TS form default, service fallback), matching A and B.
+
+**i18n.** The Phase 2 `_#(Modern Visualization)` label has **no** `srinter.properties` key (`_#()`
+falls back to the literal), so the four new `_#()` labels need no keys to render in English. Adding
+`Visualization Density`/`Comfortable`/`Compact`/`Dense` keys is optional (localization only);
+matching the Phase 2 precedent, none are added.
+
+This is an **org-level** default (D2). It does not add per-component density control — components keep
+their existing per-row-height override, which wins (B4).
+
+*Verify:* EM → Presentation → Look and Feel → check Modern Visualization → Density select appears
+(default Dense) → set Comfortable → auto-saves → reload shows Comfortable, and viewsheet tables +
+selection lists (B) and DOM lists (A) render at comfortable; uncheck Modern → select hides.
 
 ## Local override boundary (roadmap §4 / design spec)
 
