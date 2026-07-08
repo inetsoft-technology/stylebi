@@ -222,27 +222,50 @@ portal/viewer duplication). A shared helper is a candidate consolidation follow-
 
 ### Part B — Server-side half (viewsheet assemblies — the primary path)
 
-**B1. Density resolver.** New small helper, e.g.
-`core/.../uql/viewsheet/internal/VSDensityDefaults.java`:
+**B1 + B2a (tables) = IMPLEMENTED (2026-07-08); B2b (selection lists) not started.** Core compiles
+clean; gate-off is byte-identical (every substitution short-circuits on `isModern()==false`, the
+default).
 
-- reads `viewsheet.modernVisualization` (gate) and `viewsheet.density` (mode) via `SreeEnv`
-  `getBooleanProperty`/`getProperty` with `orgScope=true` (same resolution as Phase 2, so it is
-  per-org in enterprise and global in community);
-- exposes `defaultRowHeight()`, `defaultHeaderRowHeight()`, `defaultCellHeight()`,
-  `cellPaddingX()/Y()` returning the unified matrix value for the active mode (default `dense` = 20,
-  so gate-on-with-default is parity), or the legacy `AssetUtil.defh` when the gate is off.
+**B1. Density resolver — DONE.** `core/.../uql/viewsheet/internal/VSDensityDefaults.java`:
 
-**B2. Resolve at the two choke points — defaults only.** Do **not** change the stored
-`dataRowHeight`/`cellHeight` fields or serialization (that would rewrite saved sheets). Resolve at
-read/model-build time, preserving user-set values:
+- `isModern()` reads `viewsheet.modernVisualization` and `mode()` reads `viewsheet.density` via
+  `SreeEnv.getBooleanProperty/getProperty(name, false, true)` (`orgScope=true`, same resolution as
+  Phase 2 — per-org in enterprise, global in community);
+- `rowHeight()` / `headerRowHeight()` return the unified matrix value for the active mode
+  (comfortable 28/30, compact 24/26, dense 20/22), or `AssetUtil.defh` when the gate is off. Matches
+  the `_viz-tokens.scss` matrix so DOM, live, and export agree. (Dropped the draft's
+  `defaultCellHeight()`/`cellPaddingX/Y()` — cell height is a B2b concern and padding is DOM-only.)
 
-- `BaseTableService.java:449-495` (live model): when `!userDataRowHeight`/`!userHeaderRowHeight`
-  (i.e. the value still equals `AssetUtil.defh`), substitute `VSDensityDefaults.defaultRowHeight()`
-  / `defaultHeaderRowHeight()` before building `BaseTableModel`.
-- `VsToReportConverter.calculateRowHeights:1193` (export): apply the same substitution where
-  `info.getDataRowHeight() == AssetUtil.defh` (the L1200 "default" branch), so export matches live.
-- Selection lists: the equivalent choke point where `SelectionBaseVSAssemblyInfo.getCellHeight()`
-  still equals `AssetUtil.defh`, in the selection model builder and its export helper.
+**B2. Resolve at the choke points — defaults only.** No change to stored
+`dataRowHeight`/`cellHeight` fields or serialization (would rewrite saved sheets). Resolve at
+read/model-build time, preserving user-set values.
+
+**B2a — Table assemblies — DONE.** Three client/export reads, each guarded by
+`isModern() && !userDataRowHeight/!userHeaderRowHeight && value == AssetUtil.defh` (so user-set,
+per-row/date-comparison overrides, and CSS-dictionary heights all still win):
+
+- `BaseTableService.java` `LoadTableDataCommand` path (~L459): substitute `rowHeight()` for
+  `dataRowHeight` and fill still-default `headerRowHeights[]` with `headerRowHeight()`, **before** the
+  existing CSS-override block so CSS wins.
+- `BaseTableService.loadTableModelProperties` (~L1160): same `dataRowHeight` substitution on the
+  initial `BaseTableModel`, so the object model and the data-load command agree.
+- `VSTableLens.initTableLensRowHeights` (~L1745): the **real shared export choke point** — both the
+  live model (`BaseTableService` calls `lens.initTableGrid`) and every export format helper read row
+  heights through the lens `rows[]`, and it already honours the user flags + CSS. (Correction to the
+  draft: `VsToReportConverter.calculateRowHeights:1193` is **print-layout-only**, so it is not the
+  general export path; the lens is. Not edited.)
+
+**B2b — Selection lists — NOT started (discuss before implementing).** `SelectionBaseVSAssemblyInfo`
+has **no `userCellHeight` flag** (only signal is `cellHeight != AssetUtil.defh`), and
+`getCellHeight()` is read at ~10 sites: the live model (`VSSelectionBaseModel:52`), layout math
+(`VSSelectionListModel:150`, `SelectionValueModel:60`, `SelectionList/TreeVSAssemblyInfo`), **four
+export helpers** (`ExcelSelectionTreeHelper`, `HTMLSelectionListHelper`, `HTMLSelectionTreeHelper`,
+`VSSelectionTreeHelper`, plus `HTMLCoordinateHelper`), **and the composer property dialogs**
+(`SelectionList/TreePropertyDialogService`). Resolving inside `getCellHeight()` would leak density
+into the composer dialog (shown as user-set, persisted on save) and into `maxLines`/min-list-height
+math — so selection needs per-runtime-site resolution across the live model + every export helper,
+leaving composer/design reads untouched. Materially larger + riskier than tables; ship as its own
+commit.
 
 **B3. (Alternative to evaluate, not both) — CSS-dictionary bridge.** The server already honours
 `VSTableLens.getCSSDataRowHeight/getCSSHeaderRowHeight/getCSSRowPadding` from the server-side CSS

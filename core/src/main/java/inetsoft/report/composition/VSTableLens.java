@@ -1770,15 +1770,31 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
          tinfo.setHeaderRowHeights(new int[]{ AssetUtil.defh });
       }
 
-      int dataRowHeight = getCSSDataRowHeight(tinfo);
-      dataRowHeight = dataRowHeight > 0 ? dataRowHeight : tinfo.getDataRowHeight(headerRowCount);
+      int cssDataRowHeight = getCSSDataRowHeight(tinfo);
+      int dataRowHeight = cssDataRowHeight > 0 ? cssDataRowHeight : tinfo.getDataRowHeight(headerRowCount);
       int cssHeaderRowHeight = getCSSHeaderRowHeight(tinfo);
+      int densityHeaderRowHeight = 0;
+
+      // match the live model's org density default so export and view agree; user-set and CSS win
+      if(VSDensityDefaults.isModern()) {
+         if(cssDataRowHeight <= 0 && !tinfo.isUserDataRowHeight() && dataRowHeight == AssetUtil.defh) {
+            dataRowHeight = VSDensityDefaults.rowHeight();
+         }
+
+         if(cssHeaderRowHeight <= 0 && !tinfo.isUserHeaderRowHeight()) {
+            densityHeaderRowHeight = VSDensityDefaults.headerRowHeight();
+         }
+      }
 
       for(int i = 0; i < rows.length; i++) {
          double row = tinfo.getRowHeight(i);
-         int height = i < headerRowCount ?
-            (cssHeaderRowHeight > 0 ? cssHeaderRowHeight : tinfo.getHeaderRowHeight(i)) :
-            dataRowHeight;
+         int headerHeight = cssHeaderRowHeight > 0 ? cssHeaderRowHeight : tinfo.getHeaderRowHeight(i);
+
+         if(densityHeaderRowHeight > 0 && headerHeight == AssetUtil.defh) {
+            headerHeight = densityHeaderRowHeight;
+         }
+
+         int height = i < headerRowCount ? headerHeight : dataRowHeight;
          rows[i] = (Double.isNaN(row) || row < 0) ? height : (int) row;
       }
    }
