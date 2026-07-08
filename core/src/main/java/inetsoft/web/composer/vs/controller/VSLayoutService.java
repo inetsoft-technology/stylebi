@@ -37,7 +37,6 @@ import inetsoft.web.viewsheet.command.UpdateLayoutUndoStateCommand;
 import inetsoft.web.viewsheet.command.UpdateUndoStateCommand;
 import inetsoft.web.viewsheet.model.*;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
@@ -56,11 +55,6 @@ import static inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo.DOUBLE_CALE
 @ClusterProxy
 @Service
 public class VSLayoutService {
-   @Autowired
-   public VSLayoutService(VSObjectModelFactoryService objectModelService) {
-      this.objectModelService = objectModelService;
-   }
-
    public boolean isPrintLayout(String layoutName) {
       return Catalog.getCatalog().getString("Print Layout").equals(layoutName);
    }
@@ -1046,7 +1040,6 @@ public class VSLayoutService {
       }
    }
 
-   private final VSObjectModelFactoryService objectModelService;
    private static final int GAP = 20;
    public static final int HEADER = 0;
    public static final int CONTENT = 1;

@@ -169,8 +169,8 @@ public class IntegrationTestConfiguration {
    }
 
    @Bean
-   public VSLayoutService vsLayoutService(VSObjectModelFactoryService objectModelFactoryService) {
-      return new VSLayoutService(objectModelFactoryService);
+   public VSLayoutService vsLayoutService() {
+      return new VSLayoutService();
    }
 
    @Bean
