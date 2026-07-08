@@ -30,7 +30,7 @@ class WorksheetTableRequestTest {
    void columnDescriptionRoundTrips() throws Exception {
       ObjectMapper mapper = new ObjectMapper();
 
-      WorksheetTableRequest req = mapper.readValue(
+      WorksheetTable req = mapper.readValue(
          """
          {
            "columns": [
@@ -41,10 +41,25 @@ class WorksheetTableRequestTest {
            ]
          }
          """,
-         WorksheetTableRequest.class);
+         WorksheetTable.class);
 
       JsonNode output = mapper.valueToTree(req);
 
       assertEquals("Total sales amount", output.at("/columns/0/description").asText());
+   }
+
+   @Test
+   void batchRequestBindsWorksheetIdAndTables() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+
+      WorksheetTableRequest req = mapper.readValue(
+         """
+         {"worksheetId":"w1","tables":[{"tableName":"A","tableType":"physical table"}]}
+         """,
+         WorksheetTableRequest.class);
+
+      assertEquals("w1", req.getWorksheetId());
+      assertEquals(1, req.getTables().size());
+      assertEquals("A", req.getTables().get(0).getTableName());
    }
 }

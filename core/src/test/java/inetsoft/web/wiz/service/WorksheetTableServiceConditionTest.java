@@ -26,7 +26,7 @@ import inetsoft.uql.ConditionList;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
-import inetsoft.web.wiz.model.WorksheetTableRequest;
+import inetsoft.web.wiz.model.WorksheetTable;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -75,14 +75,14 @@ class WorksheetTableServiceConditionTest {
       return cs;
    }
 
-   private static WorksheetTableRequest request(String json) throws Exception {
-      return MAPPER.readValue(json, WorksheetTableRequest.class);
+   private static WorksheetTable request(String json) throws Exception {
+      return MAPPER.readValue(json, WorksheetTable.class);
    }
 
    @Test
    void compoundConditionWithUnresolvedFieldFailsLoud() throws Exception {
       // Two leaves joined by "and"; the FIRST references a column not in the selection.
-      WorksheetTableRequest req = request("""
+      WorksheetTable req = request("""
          {
            "preAggregateCondition": [
              { "field": "deleted", "operation": "EQUAL_TO", "values": [{ "type": "VALUE", "value": 0 }] },
@@ -104,7 +104,7 @@ class WorksheetTableServiceConditionTest {
    @Test
    void singleConditionWithUnresolvedFieldFailsLoud() throws Exception {
       // Previously silently dropped (no error, filter ignored) — must now fail loud.
-      WorksheetTableRequest req = request("""
+      WorksheetTable req = request("""
          {
            "preAggregateCondition": [
              { "field": "deleted", "operation": "EQUAL_TO", "values": [{ "type": "VALUE", "value": 0 }] }
@@ -121,7 +121,7 @@ class WorksheetTableServiceConditionTest {
    @Test
    void compoundConditionWithResolvedFieldsBuildsAlternatingList() throws Exception {
       // Both columns selected → a well-formed alternating list: Condition, Junction, Condition.
-      WorksheetTableRequest req = request("""
+      WorksheetTable req = request("""
          {
            "preAggregateCondition": [
              { "field": "deleted", "operation": "EQUAL_TO", "values": [{ "type": "VALUE", "value": 0 }] },
