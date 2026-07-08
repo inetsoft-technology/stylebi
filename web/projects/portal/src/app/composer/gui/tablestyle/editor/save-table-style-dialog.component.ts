@@ -15,7 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, NgZone, OnInit, Output } from "@angular/core";
+import { Component, EventEmitter, Input, NgZone, OnDestroy, OnInit, Output } from "@angular/core";
+import { Subscription } from "rxjs";
 import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { SaveTableStyleDialogModel } from "../../../data/tablestyle/save-table-style-dialog-model";
@@ -44,13 +45,14 @@ const CONFIRM_MESSAGE = {
     templateUrl: "save-table-style-dialog.component.html",
     imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, DefaultFocusDirective, AssetTreeComponent]
 })
-export class SaveTableStyleDialog implements OnInit {
+export class SaveTableStyleDialog implements OnInit, OnDestroy {
    @Input() defaultFolder: AssetEntry;
    @Input() model: SaveTableStyleDialogModel;
    @Output() onCommit: EventEmitter<SaveTableStyleDialogModel> = new EventEmitter<SaveTableStyleDialogModel>();
    @Output() onCancel = new EventEmitter();
    form: UntypedFormGroup;
    formValid = () => this.model && this.form && this.form.valid;
+   private checkPermissionSubscription: Subscription;
 
    constructor(private zone: NgZone, private http: HttpClient,
                private modalService: NgbModal) {
@@ -105,8 +107,8 @@ export class SaveTableStyleDialog implements OnInit {
          params = params.set("folder", this.model.folder);
       }
 
-      this.http.get<SaveLibraryDialogModelValidator>("../api/composer/table-style/check-save-as-permission",
-         {params}).subscribe((validator) => {
+      this.checkPermissionSubscription = this.http.get<SaveLibraryDialogModelValidator>(
+         "../api/composer/table-style/check-save-as-permission", {params}).subscribe((validator) => {
          let promise = Promise.resolve(true);
 
          if(!!validator.alreadyExists && !validator.permissionDenied) {
@@ -140,5 +142,9 @@ export class SaveTableStyleDialog implements OnInit {
 
    enter() {
       this.zone.run(() => this.ok());
+   }
+
+   ngOnDestroy(): void {
+      this.checkPermissionSubscription?.unsubscribe();
    }
 }
