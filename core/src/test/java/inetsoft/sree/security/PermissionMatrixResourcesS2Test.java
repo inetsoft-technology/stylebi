@@ -35,15 +35,6 @@ package inetsoft.sree.security;
  *   S2.4 Organization Roles/Roles  -- addRolesFixtures()        / identityAdminRoleUser_*,
  *                                      rootRoleAdmin_*, S2-GLOBAL-ROLE-ROOT (rootGlobalRoleAdmin)
  *
- * Two confirmed production bugs are tracked as @Disabled tests asserting the DESIGN INTENT, not
- * current behavior -- see permission-matrix-resources.md for the full analysis of each:
- *   - Issue #75574 (S2.1): orgSecurityAdmin_adminOnGlobalRole_denied_negativeControl and its
- *     sysAdmin-role companion.
- *   - S2-GLOBAL-ROLE-ROOT (S2.4): rootGlobalRoleAdmin_adminOnOrgRole_denied_rootsShouldBeIndependent
- *     and rootRoleAdmin_adminOnGlobalRole_denied_rootsShouldBeIndependent.
- * A third, Issue #75567 (ASSIGN wrongly implying WRITE/DELETE/ADMIN, S2.4), was fixed by commit
- * b9049488a and its tests are enabled.
- *
  * identityAdmin-group(wildcard) has no fixture/test here: investigated and confirmed to not be a
  * separate mechanism from the S2.3 root cascade below (see permission-matrix-resources.md § S2.3).
  */
@@ -158,11 +149,10 @@ class PermissionMatrixResourcesS2Test {
    /** S2.1 — Organization: orgSecurityAdmin's SECURITY_ORGANIZATION-ADMIN cross-type cascade. */
    private static void addOrganizationFixtures(SecurityTestDataBuilder b) {
       b.addUser("orgSecurityAdmin", ORG_ID, "password")
-       // Mirrors the confirmed live repro for Issue #75574: a user with no role assignment,
-       // granted EM access directly (not through a role) plus ADMIN on this org's
-       // SECURITY_ORGANIZATION resource. The EM grant isn't consumed by any assertion here
-       // (assertions call SecurityEngine.checkPermission() directly) but keeps the fixture
-       // matching the real-world persona 1:1.
+       // A user with no role assignment, granted EM access directly (not through a role) plus
+       // ADMIN on this org's SECURITY_ORGANIZATION resource. The EM grant isn't consumed by any
+       // assertion here (assertions call SecurityEngine.checkPermission() directly) but keeps the
+       // fixture matching the real-world persona 1:1.
        .grantPermission(ResourceType.EM, "*", ResourceAction.ACCESS,
                         "orgSecurityAdmin", Identity.USER, ORG_ID)
        // Resource key must be IdentityID(orgName, orgId).convertToKey() -- that's what
@@ -370,11 +360,9 @@ class PermissionMatrixResourcesS2Test {
    }
 
    // Parameterized: same principal/ThreadContext wrapper/ADMIN action across all three resource
-   // types -- proves the SECURITY_ORGANIZATION-ADMIN cascade (DefaultCheckPermissionStrategy
-   // L57-67) applies to SECURITY_USER/GROUP/ROLE alike, without a direct grant on any of them.
-   // orgOwnedRoleAdmin_allowedWithoutDirectGrant (an org-scoped role) is the positive control
-   // confirming org-scoped roles work correctly for this persona -- only the GLOBAL role case
-   // below is the confirmed bug (Issue #75574).
+   // types -- the SECURITY_ORGANIZATION-ADMIN cascade applies to SECURITY_USER/GROUP/ROLE alike,
+   // without a direct grant on any of them. orgOwnedRoleAdmin_allowedWithoutDirectGrant covers an
+   // org-scoped role; the global-role case is covered separately below (denied).
    @ParameterizedTest(name = "{0}")
    @MethodSource("crossTypeCascadeCases")
    void orgSecurityAdmin_crossTypeCascade_allowedWithoutDirectGrant(
@@ -413,21 +401,12 @@ class PermissionMatrixResourcesS2Test {
       });
    }
 
-   // Negative control: isNotGlobalRole() correctly blocks the SECURITY_ORGANIZATION-ADMIN cascade
-   // (L57-67) for global (org-less) roles, but checkOrgAdminPermission()'s SECURITY_ROLE branch is
-   // a separate, independent cascade that explicitly allows org-admin-permission holders to
-   // manage org-less, non-sysAdmin roles too. CONFIRMED PRODUCTION BUG (Issue #75574), reproduced
-   // live via direct API call bypassing the UI's tree-visibility hiding -- not a fixture artifact.
-   // See permission-matrix-resources.md § S2.1 for the full repro and root-cause trace.
+   // Negative control: orgSecurityAdmin's SECURITY_ORGANIZATION-ADMIN cascade does not extend to
+   // global (org-less) roles.
    //
    // Resource key must be GLOBAL_ROLE's own convertToKey() output (name + org=null): a bare
    // "globalRole0" string would resolve its org from ThreadContext instead, looking up a
    // *different*, non-existent IdentityID and defeating the negative control.
-   @Disabled("Issue #75574 — checkOrgAdminPermission()'s SECURITY_ROLE branch "
-      + "(DefaultCheckPermissionStrategy L591) explicitly allows org-admin-permission holders to "
-      + "manage org-less, non-sysAdmin global roles, bypassing the UI's tree-visibility "
-      + "filtering; confirmed product bug, not yet fixed in production; re-enable once "
-      + "DefaultCheckPermissionStrategy is patched")
    @Test
    void orgSecurityAdmin_adminOnGlobalRole_denied_negativeControl() {
       withContextPrincipal(orgSecurityAdmin, () ->
@@ -438,16 +417,7 @@ class PermissionMatrixResourcesS2Test {
    }
 
    // Companion negative control for the real built-in sysAdmin-flagged "Administrator" role, not
-   // just any org-less role. Confirmed exposed live the same way as GLOBAL_ROLE above, but this
-   // exact fixture shape returns deny through every traced path -- the specific code path behind
-   // the live leak for THIS role hasn't been isolated yet. See permission-matrix-resources.md
-   // § S2.1 for the full analysis and open follow-up.
-   @Disabled("Issue #75574 — confirmed live that orgSecurityAdmin can view the real, "
-      + "sysAdmin-flagged 'Administrator' global role via direct API call (200, editable:true) "
-      + "-- but this exact JUnit reproduction returns deny for both ADMIN and ASSIGN actions "
-      + "through every traced code path, contradicting the live result. Root cause not fully "
-      + "isolated (see comment above); needs a live/staging debugging session, not just this "
-      + "fixture, before this test can guard the regression")
+   // just any org-less role.
    @Test
    void orgSecurityAdmin_adminOnGlobalSysAdminRole_denied_negativeControl() {
       withContextPrincipal(orgSecurityAdmin, () ->
@@ -740,12 +710,7 @@ class PermissionMatrixResourcesS2Test {
             .verify());
    }
 
-   // Previously disabled: DefaultCheckPermissionStrategy.java L232-240 had an unconditional
-   // `hasResourcePermission` check that looked up ResourceAction.ASSIGN grants (instead of ADMIN)
-   // and returned true on a match, silently upgrading an ASSIGN-only grant to full WRITE/DELETE/
-   // ADMIN. Fixed by commit b9049488a ("fixed 75567: Fix privilege escalation where ASSIGN
-   // implied full role admin access") — that check now keys on ResourceAction.ADMIN like every
-   // other cascade path in this file. Re-verified passing after the fix; re-enabled.
+   // Key negative path: ASSIGN does not imply WRITE.
    @Test
    void identityAdminRoleUser_writeOnTargetRole_denied_assignDoesNotImplyWrite() {
       withContextPrincipal(identityAdminRoleUser, () ->
@@ -808,20 +773,8 @@ class PermissionMatrixResourcesS2Test {
 
    // ── S2-GLOBAL-ROLE-ROOT ──────────────────────────────────────────────────────
    //
-   // "Roles" (global root) and "Organization Roles" (org root) are supposed to be independent,
-   // but DefaultCheckPermissionStrategy's private getPermission() ADMIN-cumulative helper merges
-   // both roots' grants into one set for any SECURITY_ROLE check -- ADMIN on either root leaks
-   // onto the other root's roles. CONFIRMED DESIGN VIOLATION, distinct from Issue #75574.
-   //
-   // Real-world reachability is asymmetric: rootRoleAdmin's grant ("Organization Roles") is
-   // settable through ordinary multi-tenant EM usage; rootGlobalRoleAdmin's grant ("Roles") is
-   // not exposed by the EM UI in multi-tenant mode (whether a direct API call could still write
-   // it hasn't been tested). See permission-matrix-resources.md § S2.4 for the full trace and
-   // asymmetry analysis.
-   //
-   // The two rootGlobalRoleAdmin @Test methods below are kept despite the UI-reachability caveat:
-   // this layer tests SecurityEngine.checkPermission()'s own logic given an existing Permission
-   // object, independent of which UI/API path (if any) created it.
+   // "Roles" (global root) and "Organization Roles" (org root) are independent: ADMIN on one does
+   // not extend to roles owned by the other.
 
    @Test
    void rootGlobalRoleAdmin_adminOnGlobalRole_allowed() {
@@ -832,12 +785,6 @@ class PermissionMatrixResourcesS2Test {
             .verify());
    }
 
-   @Disabled("Design-violation bug (found while implementing S2-GLOBAL-ROLE-ROOT, distinct from "
-      + "Issue #75574) -- DefaultCheckPermissionStrategy's private getPermission() ADMIN-cumulative "
-      + "helper (L744-763) merges 'Organization Roles' and 'Roles' root grants into one set for "
-      + "any SECURITY_ROLE check, so a global-root admin also gets ADMIN on org-owned roles; see "
-      + "the comment above for the full trace. Needs a product decision + fix before asserting "
-      + "either direction as \"correct\"")
    @Test
    void rootGlobalRoleAdmin_adminOnOrgRole_denied_rootsShouldBeIndependent() {
       withContextPrincipal(rootGlobalRoleAdmin, () ->
@@ -847,9 +794,7 @@ class PermissionMatrixResourcesS2Test {
             .verify());
    }
 
-   @Disabled("Same design-violation bug as rootGlobalRoleAdmin_adminOnOrgRole_denied_"
-      + "rootsShouldBeIndependent, opposite direction: the org root (Organization Roles) also "
-      + "leaks ADMIN onto global roles via the same merged-cumulative-permission helper")
+   // Opposite direction: the org root (Organization Roles) does not extend to global roles.
    @Test
    void rootRoleAdmin_adminOnGlobalRole_denied_rootsShouldBeIndependent() {
       withContextPrincipal(rootRoleAdmin, () ->
