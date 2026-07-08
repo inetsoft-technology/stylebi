@@ -457,6 +457,24 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
       }
 
       int dataRowHeight = tinfo.getDataRowHeight(lens.getHeaderRowCount());
+
+      // org density default applies only to still-default heights; user-set and CSS heights win
+      if(VSDensityDefaults.isModern()) {
+         if(!tinfo.isUserDataRowHeight() && dataRowHeight == AssetUtil.defh) {
+            dataRowHeight = VSDensityDefaults.rowHeight();
+         }
+
+         if(!tinfo.isUserHeaderRowHeight()) {
+            int headerHeight = VSDensityDefaults.headerRowHeight();
+
+            for(int i = 0; i < headerRowHeights.length; i++) {
+               if(headerRowHeights[i] == AssetUtil.defh) {
+                  headerRowHeights[i] = headerHeight;
+               }
+            }
+         }
+      }
+
       int cssHeaderRowHeight = lens.getCSSHeaderRowHeight(tinfo);
       int cssDataRowHeight = lens.getCSSDataRowHeight(tinfo);
 
@@ -1139,7 +1157,15 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
 
       if(lens != null && tinfo != null) {
          model.setRowCount(lens.getRowCount());
-         model.setDataRowHeight(tinfo.getDataRowHeight());
+         int dataRowHeight = tinfo.getDataRowHeight();
+
+         if(VSDensityDefaults.isModern() && !tinfo.isUserDataRowHeight() &&
+            dataRowHeight == AssetUtil.defh)
+         {
+            dataRowHeight = VSDensityDefaults.rowHeight();
+         }
+
+         model.setDataRowHeight(dataRowHeight);
          model.setHeaderRowCount(lens.getHeaderRowCount());
          model.setColWidths(getColWidths(assembly, lens));
       }
