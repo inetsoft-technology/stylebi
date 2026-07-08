@@ -893,7 +893,7 @@ public class SelectionTreeVSAssemblyInfo extends SelectionBaseVSAssemblyInfo {
       for(int i = 1; i < dispList.size(); i++) {
          SelectionValue svalue = dispList.get(i);
          VSCompositeFormat format = svalue.getFormat();
-         double cellHeight = format == null || !format.isWrapping() ? getCellHeight() :
+         double cellHeight = format == null || !format.isWrapping() ? getEffectiveCellHeight() :
             Common.getWrapTextHeight(svalue.getLabel(), cellWidth,
             format.getFont(), format.getAlignment());
          rowHeights.add(cellHeight);
