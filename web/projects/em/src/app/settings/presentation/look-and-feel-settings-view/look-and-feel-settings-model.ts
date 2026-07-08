@@ -41,4 +41,5 @@ export interface LookAndFeelSettingsModel {
    deleteFontFaces?: FontFaceModel[];
    vsEnabled: boolean;
    modernVisualization: boolean;
+   visualizationDensity: string;
 }

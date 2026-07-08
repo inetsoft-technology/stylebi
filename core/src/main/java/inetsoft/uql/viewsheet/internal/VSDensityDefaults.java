@@ -49,6 +49,14 @@ public final class VSDensityDefaults {
    }
 
    /**
+    * Clamp a density mode to a recognized value, falling back to dense. Single source of truth for
+    * the valid modes, shared by the EM density control and the browser body-class whitelist.
+    */
+   public static String normalizeMode(String mode) {
+      return COMFORTABLE.equals(mode) || COMPACT.equals(mode) || DENSE.equals(mode) ? mode : DENSE;
+   }
+
+   /**
     * Default data-row height for the active mode, or the legacy default when the gate is off.
     */
    public static int rowHeight() {

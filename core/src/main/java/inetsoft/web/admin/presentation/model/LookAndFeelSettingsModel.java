@@ -52,6 +52,7 @@ public interface LookAndFeelSettingsModel {
    List<ViewsheetCSSEntry> viewsheetCSSEntries();
    boolean vsEnabled();
    boolean modernVisualization();
+   @Value.Default default String visualizationDensity() { return "dense"; }
 
    static Builder builder() {
       return new Builder();

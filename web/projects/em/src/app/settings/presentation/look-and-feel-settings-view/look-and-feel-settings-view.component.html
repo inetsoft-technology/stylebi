@@ -36,6 +36,16 @@
           _#(Expand All Nodes)</mat-checkbox>
         }
         <mat-checkbox formControlName="modernVisualization">_#(Modern Visualization)</mat-checkbox>
+        @if (form.controls.modernVisualization?.value) {
+          <mat-form-field appearance="outline" color="accent">
+            <mat-label>_#(Visualization Density)</mat-label>
+            <mat-select formControlName="visualizationDensity">
+              <mat-option value="comfortable">_#(Comfortable)</mat-option>
+              <mat-option value="compact">_#(Compact)</mat-option>
+              <mat-option value="dense">_#(Dense)</mat-option>
+            </mat-select>
+          </mat-form-field>
+        }
         <div class="linked-fields" [class.linked-fields-expanded]="!form.controls.defaultLogo?.value">
           @if (model.customLogoEnabled) {
             <mat-checkbox formControlName="defaultLogo">_#(Default Logo)</mat-checkbox>

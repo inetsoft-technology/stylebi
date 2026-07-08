@@ -83,6 +83,7 @@ export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
          this.form.get("ascending").setValue(model.ascending, {emitEvent: false});
          this.form.get("expand").setValue(model.expand, {emitEvent: false});
          this.form.get("modernVisualization").setValue(model.modernVisualization, {emitEvent: false});
+         this.form.get("visualizationDensity").setValue(model.visualizationDensity ?? "dense", {emitEvent: false});
          this.updateFormFile("Logo", model);
          this.updateFormFile("Favicon", model);
          this.updateFormFile("Viewsheet", model);
@@ -105,6 +106,7 @@ export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
          this.form.get("userformatFile").setValue(null, {emitEvent: false});
          this.form.get("defaultFonts").setValue(true, {emitEvent: false});
          this.form.get("modernVisualization").setValue(false, {emitEvent: false});
+         this.form.get("visualizationDensity").setValue("dense", {emitEvent: false});
       }
    }
 
@@ -131,7 +133,8 @@ export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
             userformatFile: [null],
             defaultFonts: [true],
             selectedTheme: ["default"],
-            modernVisualization: [false]
+            modernVisualization: [false],
+            visualizationDensity: ["dense"]
          },
          {
             validator: [
@@ -219,6 +222,7 @@ export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
       this.model.repositoryTree = GuiTool.isMobileDevice() ? false : true;
       this.model.expand = this.form.get("expand").value;
       this.model.modernVisualization = this.form.get("modernVisualization").value;
+      this.model.visualizationDensity = this.form.get("visualizationDensity").value;
       this.model.defaultFont = this.form.get("defaultFonts").value;
       this.updateModelFile("Logo");
       this.updateModelFile("Favicon");
