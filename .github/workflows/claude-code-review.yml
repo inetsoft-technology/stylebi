@@ -64,7 +64,8 @@ jobs:
 
             Use available tools such as Read/Grep when helpful.
             
-            Skip generated files, lock files, and clearly non-functional formatting-only changes unless they may affect behavior.
+            Skip generated files, lock files, and clearly non-functional
+            formatting-only changes unless they may affect behavior.
 
             Do not mark the review as complete until all relevant files have
             been analyzed.
