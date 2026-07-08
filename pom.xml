@@ -20,7 +20,7 @@
 
   <groupId>com.inetsoft.stylebi</groupId>
   <artifactId>inetsoft-stylebi</artifactId>
-  <version>1.1.0</version>
+  <version>1.1.1-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <name>StyleBI</name>
@@ -51,7 +51,7 @@
     <connection>scm:git:https://github.com/inetsoft-technology/stylebi.git</connection>
     <developerConnection>scm:git:https://github.com/inetsoft-technology/stylebi.git</developerConnection>
     <url>https://github.com/inetsoft-technology/stylebi</url>
-    <tag>v1.1.0</tag>
+    <tag>HEAD</tag>
   </scm>
 
   <repositories>

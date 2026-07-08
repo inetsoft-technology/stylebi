@@ -21,7 +21,7 @@
   <parent>
     <groupId>com.inetsoft.stylebi.connectors</groupId>
     <artifactId>connectors-parent</artifactId>
-    <version>1.1.0</version>
+    <version>1.1.1-SNAPSHOT</version>
   </parent>
 
   <artifactId>inetsoft-r</artifactId>
