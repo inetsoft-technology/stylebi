@@ -17,6 +17,9 @@
  */
 package inetsoft.uql.viewsheet.vslayout;
 
+import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.storage.*;
 import inetsoft.util.ConfigurationContext;
 import inetsoft.util.Tool;
@@ -25,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;
 
 import java.io.InputStream;
+import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -109,6 +113,23 @@ public final class DeviceRegistry {
     */
    public synchronized DeviceInfo getDevice(String id) {
       return storage.get(id);
+   }
+
+   /**
+    * Determines whether the organization associated with the given principal is allowed to
+    * manage device profiles. Device profiles are stored globally rather than per-organization,
+    * so in multi-org enterprise deployments only site admins or users in the default
+    * organization are allowed to edit them -- otherwise an org admin could modify device
+    * profiles used by other organizations.
+    *
+    * @param principal the user attempting to manage device profiles.
+    *
+    * @return <tt>true</tt> if the principal's organization is allowed to manage device profiles.
+    */
+   public static boolean isOrgAllowedToEditDevices(Principal principal) {
+      return !LicenseManager.isEnterprise() ||
+         OrganizationManager.getInstance().isSiteAdmin(principal) ||
+         OrganizationManager.getInstance().getCurrentOrgID().equals(Organization.getDefaultOrganizationID());
    }
 
    private final KeyValueStorage<DeviceInfo> storage;

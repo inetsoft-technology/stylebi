@@ -27,6 +27,7 @@ import inetsoft.web.security.Secured;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Method;
@@ -34,6 +35,8 @@ import java.security.Principal;
 import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 /*
  * DeviceController has no test class predating this one -- see permission-matrix-actions.md's
@@ -55,6 +58,8 @@ class DeviceControllerTest {
    private DeviceRegistry deviceRegistry;
    @Mock
    private DependencyHandler dependencyHandler;
+   @Mock
+   private Principal principal;
 
    private DeviceController controller;
 
@@ -80,6 +85,33 @@ class DeviceControllerTest {
             "\"Edit Mobile Devices\" Security Action check already computed (for UI display " +
             "only) in ViewsheetPropertyDialogService: checkPermission(principal, " +
             "ResourceType.DEVICE, \"*\", ResourceAction.ACCESS)");
+      }
+   }
+
+   /*
+    * Device profiles are stored in a single global DeviceRegistry, not per-organization.
+    * DEVICE:*:ACCESS alone is therefore not sufficient in multi-org enterprise deployments --
+    * an org admin granted that permission within their own org could otherwise modify device
+    * profiles used by every other org. DeviceRegistry.isOrgAllowedToEditDevices() mirrors the
+    * additional (!enterprise || isSiteAdmin || currentOrg == defaultOrg) gate already applied to
+    * the UI control in ViewsheetPropertyDialogService.
+    */
+   @Test
+   void newEditDeleteDevice_orgNotAllowed_rejectsAndDoesNotWrite() {
+      try(MockedStatic<DeviceRegistry> registryStatic = mockStatic(DeviceRegistry.class)) {
+         registryStatic.when(() -> DeviceRegistry.isOrgAllowedToEditDevices(principal))
+            .thenReturn(false);
+
+         ScreenSizeDialogModel device = new ScreenSizeDialogModel();
+         device.setId("d1");
+         device.setLabel("Device 1");
+
+         assertThrows(SecurityException.class, () -> controller.newDevice(device, principal));
+         assertThrows(SecurityException.class, () -> controller.editDevice(device, principal));
+         assertThrows(SecurityException.class, () -> controller.deleteDevice(device, principal));
+
+         verify(deviceRegistry, never()).setDevice(any());
+         verify(deviceRegistry, never()).deleteDevice(any());
       }
    }
 }
