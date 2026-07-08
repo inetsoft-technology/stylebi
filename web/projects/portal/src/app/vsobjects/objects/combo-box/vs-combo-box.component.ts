@@ -388,10 +388,10 @@ export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements 
 
    private isValidDate(date: any): boolean {
       let min: Date = Tool.isEmpty(this.model.minDate)
-         ? new Date(this.defaultMinDate.year, this.defaultMinDate.month, this.defaultMinDate.day)
+         ? new Date(this.defaultMinDate.year, this.defaultMinDate.month - 1, this.defaultMinDate.day)
          : this.getTimeInstant(this.model.minDate);
       let max: Date = Tool.isEmpty(this.model.maxDate)
-         ? new Date(this.defaultMaxDate.year, this.defaultMaxDate.month, this.defaultMaxDate.day)
+         ? new Date(this.defaultMaxDate.year, this.defaultMaxDate.month - 1, this.defaultMaxDate.day)
          : this.getTimeInstant(this.model.maxDate);
 
       return this.getDateTime(date).getTime() >= min.getTime()
