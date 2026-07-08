@@ -50,4 +50,20 @@ class VSDensityDefaultsTest {
       assertEquals(20, VSDensityDefaults.rowHeightForMode("Comfortable"));
       assertEquals(22, VSDensityDefaults.headerRowHeightForMode("bogus"));
    }
+
+   @Test
+   void normalizeModeKeepsRecognizedValues() {
+      assertEquals("comfortable", VSDensityDefaults.normalizeMode("comfortable"));
+      assertEquals("compact", VSDensityDefaults.normalizeMode("compact"));
+      assertEquals("dense", VSDensityDefaults.normalizeMode("dense"));
+   }
+
+   @Test
+   void normalizeModeClampsUnrecognizedToDense() {
+      // guards the EM setModel write against hand-crafted API values
+      assertEquals("dense", VSDensityDefaults.normalizeMode("Comfortable"));
+      assertEquals("dense", VSDensityDefaults.normalizeMode("bogus"));
+      assertEquals("dense", VSDensityDefaults.normalizeMode(""));
+      assertEquals("dense", VSDensityDefaults.normalizeMode(null));
+   }
 }
