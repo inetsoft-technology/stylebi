@@ -655,8 +655,13 @@ public class ScheduleTaskService {
    {
       boolean canSetStartTime = scheduleService.checkPermission(
          principal, ResourceType.SCHEDULE_OPTION, "startTime");
+      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+      boolean multitenant = SUtil.isMultiTenant();
+      boolean timeRangeAllowedForOrg = !multitenant ||
+         OrganizationManager.getInstance().isSiteAdmin(principal) &&
+         Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(principal), pId.orgID);
       boolean canUseTimeRange = scheduleService.checkPermission(
-         principal, ResourceType.SCHEDULE_OPTION, "timeRange");
+         principal, ResourceType.SCHEDULE_OPTION, "timeRange") && timeRangeAllowedForOrg;
 
       if(canSetStartTime && canUseTimeRange) {
          return;
