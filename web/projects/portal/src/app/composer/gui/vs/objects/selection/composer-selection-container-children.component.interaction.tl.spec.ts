@@ -28,7 +28,7 @@
  *   Group 6 [Risk 2] — getObjectTop(), getBodyWidth(), childWithBorder getter
  *   Group 7 [Risk 1] — childChanged, resizeAssembly, isSelected, zIndex getter
  *
- * Confirmed bugs (it.fails):
+ * Fixed bugs:
  *   Bug #75599 (fixed) — onChildUpdate subscription leak (Group 1): ngOnInit subscribed to
  *     selectionContainerChildrenService.onChildUpdate (source line 174) without adding the
  *     subscription to this.subscriptions. After ngOnDestroy, the callback still fired and called

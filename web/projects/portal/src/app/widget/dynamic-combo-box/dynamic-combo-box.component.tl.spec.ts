@@ -33,7 +33,7 @@
  *   Bug #17765: selectType(VARIABLE) is a no-op when isVariableEnabled() is false
  *   Bug #19027: value "$(var1)" -> type stays VARIABLE after ngOnInit
  *
- * Confirmed bugs (it.fails):
+ * Fixed bugs:
  *   Bug #75599 (FIXED) — setTimeout leak (Group 3): selectType(EXPRESSION) queued a 0ms timer that
  *     fired on the dead component because there was no ngOnDestroy to cancel it. Fixed by storing
  *     the timer handle in formulaEditorTimer and clearing it in ngOnDestroy.
