@@ -32,13 +32,13 @@
  *   Group 6 [Risk 2] — removePrintLayout: nulls model.printLayout and updates form control value
  *   Group 7 [Risk 1] — ngOnInit selectedLayout default; onKeyDown arrow-key navigation
  *
- * Confirmed bugs (it.fails):
- *   Bug — initForm valueChanges subscription leak (Group 4): initForm() subscribes to
- *     templateHeight.valueChanges and templateWidth.valueChanges without storing the subscription
- *     references. ScreensPane implements no ngOnDestroy, so callbacks are never unsubscribed.
- *     After the component is destroyed, calling setValue on the form controls still triggers the
- *     callbacks and mutates this.model. Fix: store subscriptions in fields and unsubscribe them in
- *     a new ngOnDestroy hook.
+ * Fixed bugs:
+ *   Bug #75599 (FIXED) — initForm valueChanges subscription leak (Group 4): initForm() subscribed
+ *     to templateHeight.valueChanges and templateWidth.valueChanges without storing the
+ *     subscription references. ScreensPane implemented no ngOnDestroy, so callbacks were never
+ *     unsubscribed. After the component was destroyed, calling setValue on the form controls
+ *     still triggered the callbacks and mutated this.model. Fixed by storing the subscriptions in
+ *     fields and unsubscribing them in a new ngOnDestroy hook.
  *
  * Out of scope:
  *   showViewsheetDeviceLayoutDialog / showViewsheetPrintLayoutDialog — open NgbModal with a
@@ -273,20 +273,20 @@ describe("ScreensPane — initForm / updateEnabledState", () => {
       expect(form.controls["printLayout"]).toBeDefined();
    });
 
-   // Bug: initForm() subscribes to templateHeight.valueChanges and templateWidth.valueChanges
-   // without storing the Subscription. ScreensPane has no ngOnDestroy, so the callbacks are
-   // never cancelled. After the component is destroyed, setValue on the form control still
-   // triggers the callback and mutates this.model. Fix: add an ngOnDestroy that unsubscribes.
-   it.fails("should not mutate model.templateHeight after component is destroyed (valueChanges leak)", async () => {
+   // Bug #75599 (FIXED): initForm() subscribed to templateHeight.valueChanges and
+   // templateWidth.valueChanges without storing the Subscription. ScreensPane had no
+   // ngOnDestroy, so the callbacks were never cancelled. After the component was destroyed,
+   // setValue on the form control still triggered the callback and mutated this.model.
+   // Fixed by storing both subscriptions in fields and unsubscribing them in ngOnDestroy.
+   it("should not mutate model.templateHeight after component is destroyed (valueChanges leak)", async () => {
       const { comp, fixture, form } = await renderComponent();
       const originalHeight = comp.model.templateHeight; // 200
 
-      fixture.destroy(); // no ngOnDestroy → valueChanges subscriptions NOT cancelled
+      fixture.destroy(); // ngOnDestroy unsubscribes the valueChanges subscriptions
 
-      form.controls["templateHeight"].setValue(999); // triggers the live callback
+      form.controls["templateHeight"].setValue(999); // callback is no longer live
 
-      // With fix: model is not mutated after destroy
-      // Currently: FAILS — callback runs and sets model.templateHeight = 999
+      // model is not mutated after destroy
       expect(comp.model.templateHeight).toBe(originalHeight);
    });
 });

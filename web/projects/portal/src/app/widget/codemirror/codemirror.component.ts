@@ -31,6 +31,7 @@ import { CodemirrorHighlightTextInfo } from "../../widget/dialog/codemirror-high
 import { AnalysisResult } from "../../widget/dialog/script-pane/analysis-result";
 import { HttpClient } from "@angular/common/http";
 import { ScriptModel } from "../../composer/data/script/script";
+import { Subscription } from "rxjs";
 
 const LINT_MARKERS = "CodeMirror-lint-markers";
 const URI_OPEN_CODEMIRROR = "../api/codemirror/open";
@@ -67,6 +68,7 @@ export class CodemirrorComponent implements AfterViewInit, AfterViewChecked, OnD
    private currCh: number;
    private list: string[] = [];
    private timer: any;
+   private scriptDefinitionsSubscription: Subscription;
 
    constructor(private codemirrorService: CodemirrorService, private zone: NgZone,
                private analyzerService: FormulaFunctionAnalyzerService,
@@ -144,6 +146,7 @@ export class CodemirrorComponent implements AfterViewInit, AfterViewChecked, OnD
 
    ngOnDestroy(): void {
       this.destroyCodeMirror();
+      this.scriptDefinitionsSubscription?.unsubscribe();
    }
 
    ngAfterViewChecked(): void {
@@ -168,9 +171,10 @@ export class CodemirrorComponent implements AfterViewInit, AfterViewChecked, OnD
    }
 
    ngOnInit(): void {
-      this.http.get<any>(URI_SCRIPT_SCRIPTDEFINITIPN).subscribe((data) => {
-         this.scriptDefinitions = data;
-      });
+      this.scriptDefinitionsSubscription =
+         this.http.get<any>(URI_SCRIPT_SCRIPTDEFINITIPN).subscribe((data) => {
+            this.scriptDefinitions = data;
+         });
    }
 
    ngAfterViewInit(): void {
@@ -503,6 +507,11 @@ export class CodemirrorComponent implements AfterViewInit, AfterViewChecked, OnD
    }
 
    private destroyCodeMirror(): void {
+      if(this.timer) {
+         clearTimeout(this.timer);
+         this.timer = null;
+      }
+
       if(this.cancelAutocomplete) {
          this.cancelAutocomplete();
          this.cancelAutocomplete = null;

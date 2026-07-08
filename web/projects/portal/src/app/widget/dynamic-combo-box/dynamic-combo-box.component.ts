@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, ElementRef, EventEmitter, Input, OnChanges, OnInit, Output,
+import { Component, ElementRef, EventEmitter, Input, OnChanges, OnDestroy, OnInit, Output,
          ViewChild, ViewChildren, QueryList, SimpleChanges } from "@angular/core";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Tool } from "../../../../../shared/util/tool";
@@ -45,7 +45,7 @@ import { NgClass } from "@angular/common";
     TreeComponent
 ]
 })
-export class DynamicComboBox implements OnInit, OnChanges {
+export class DynamicComboBox implements OnInit, OnChanges, OnDestroy {
    public ComboMode = ComboMode;
    public ValueMode = ValueMode;
    @Input() type: ComboMode = ComboMode.VALUE;
@@ -91,6 +91,7 @@ export class DynamicComboBox implements OnInit, OnChanges {
    @ViewChild("textInput") textInput: ElementRef;
    @ViewChild("numberInput") numberInput: ElementRef;
    @ViewChildren(FixedDropdownDirective) dropdowns: QueryList<FixedDropdownDirective>;
+   private formulaEditorTimer: any;
 
    constructor(private dialogService: NgbModal) {
    }
@@ -272,9 +273,13 @@ export class DynamicComboBox implements OnInit, OnChanges {
          }
 
          if(type == ComboMode.EXPRESSION) {
-            setTimeout(() => this.showFormulaEditor(), 0);
+            this.formulaEditorTimer = setTimeout(() => this.showFormulaEditor(), 0);
          }
       }
+   }
+
+   ngOnDestroy(): void {
+      clearTimeout(this.formulaEditorTimer);
    }
 
    showFormulaEditor(): void {

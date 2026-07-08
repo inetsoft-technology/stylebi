@@ -32,12 +32,12 @@
  *   Bug #20163: updateData("getCurrentFormat") must emit "getCurrentFormat" and clear hideFormatPane
  *   Bug #20245: switchTab(FORMAT_PANE) → formatPaneVisible must be true
  *
- * Confirmed bugs (it.fails):
- *   Bug — openConsoleDialog subscription leak (Group 6): ngOnDestroy calls bindingService.clear()
- *     but the modelService.getModel() subscription inside openConsoleDialog() is never stored.
- *     If the component is destroyed before the HTTP response arrives, the callback still fires
- *     and mutates this.messageLevels on the dead component. Fix: store the subscription and
- *     unsubscribe in ngOnDestroy.
+ * Fixed bugs:
+ *   Bug #75599 — openConsoleDialog subscription leak (Group 6): ngOnDestroy called
+ *     bindingService.clear() but the modelService.getModel() subscription inside
+ *     openConsoleDialog() was never stored. If the component was destroyed before the HTTP
+ *     response arrived, the callback still fired and mutated this.messageLevels on the dead
+ *     component. Fixed by storing the subscription in a field and unsubscribing in ngOnDestroy.
  *
  * Out of scope:
  *   openConsoleDialog() full modal flow — requires live NgbModal + ConsoleDialogComponent ViewChild.
@@ -357,11 +357,11 @@ describe("BindingEditor — ngOnDestroy and lifecycle", () => {
       expect(bindingServiceMock.clear).toHaveBeenCalledOnce();
    });
 
-   // Bug: openConsoleDialog() never stores the modelService.getModel() subscription, so
-   // if the component is destroyed before the HTTP response arrives the callback still fires
-   // and mutates this.messageLevels. Fix: store the subscription in a field and unsubscribe
-   // in ngOnDestroy alongside bindingService.clear().
-   it.fails("should not mutate messageLevels after destroy when HTTP response arrives late (openConsoleDialog leak)", async () => {
+   // Bug #75599 (fixed): openConsoleDialog() previously never stored the modelService.getModel()
+   // subscription, so if the component was destroyed before the HTTP response arrived the
+   // callback still fired and mutated this.messageLevels. Fixed by storing the subscription in
+   // a field and unsubscribing in ngOnDestroy alongside bindingService.clear().
+   it("should not mutate messageLevels after destroy when HTTP response arrives late (openConsoleDialog leak)", async () => {
       const lateSource = new Subject<string[]>();
       const { fixture } = await render(BindingEditor, {
          schemas: [NO_ERRORS_SCHEMA],
@@ -380,8 +380,8 @@ describe("BindingEditor — ngOnDestroy and lifecycle", () => {
 
       lateSource.next(["INFO", "WARNING"]); // HTTP response arrives after destroy
 
-      // If properly cleaned up, messageLevels stays []. Currently it's set to ["INFO","WARNING"].
-      expect(comp.messageLevels).toHaveLength(0); // FAILS — proves the leak
+      // Properly cleaned up: messageLevels stays [] instead of being set to ["INFO","WARNING"].
+      expect(comp.messageLevels).toHaveLength(0);
    });
 });
 

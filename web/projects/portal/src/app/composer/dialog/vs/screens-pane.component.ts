@@ -19,12 +19,14 @@ import {
    Component,
    Input,
    OnChanges,
+   OnDestroy,
    OnInit,
    TemplateRef,
    ViewChild,
    ViewEncapsulation,
 } from "@angular/core";
 import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { Subscription } from "rxjs";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Tool } from "../../../../../../shared/util/tool";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
@@ -47,7 +49,7 @@ import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.direct
     styleUrls: ["screens-pane.component.scss"],
     imports: [OutOfZoneDirective, FormsModule, ReactiveFormsModule, LargeFormFieldComponent, GenericSelectableList, ViewsheetDeviceLayoutDialog, ViewsheetPrintLayoutDialog]
 })
-export class ScreensPane implements OnInit, OnChanges {
+export class ScreensPane implements OnInit, OnChanges, OnDestroy {
    @Input() model: ScreensPaneModel;
    @Input() form: UntypedFormGroup;
    @Input() isPrintLayout: boolean = false;
@@ -57,6 +59,8 @@ export class ScreensPane implements OnInit, OnChanges {
    printLayoutModel: ViewsheetPrintLayoutDialogModel;
    @ViewChild("viewsheetDeviceLayoutDialog") viewsheetDeviceLayoutDialog: TemplateRef<any>;
    @ViewChild("viewsheetPrintLayoutDialog") viewsheetPrintLayoutDialog: TemplateRef<any>;
+   private templateHeightSubscription: Subscription;
+   private templateWidthSubscription: Subscription;
 
    constructor(private modalService: NgbModal) {
    }
@@ -82,13 +86,23 @@ export class ScreensPane implements OnInit, OnChanges {
       }
    }
 
+   ngOnDestroy(): void {
+      if(this.templateHeightSubscription) {
+         this.templateHeightSubscription.unsubscribe();
+      }
+
+      if(this.templateWidthSubscription) {
+         this.templateWidthSubscription.unsubscribe();
+      }
+   }
+
    initForm(): void {
       let control = new UntypedFormControl(this.model.templateHeight, FormValidators.positiveIntegerInRange);
-      control.valueChanges.subscribe((value: number) => this.model.templateHeight = value);
+      this.templateHeightSubscription = control.valueChanges.subscribe((value: number) => this.model.templateHeight = value);
       this.form.addControl("templateHeight", control);
 
       control = new UntypedFormControl(this.model.templateWidth, FormValidators.positiveIntegerInRange);
-      control.valueChanges.subscribe((value: number) => this.model.templateWidth = value);
+      this.templateWidthSubscription = control.valueChanges.subscribe((value: number) => this.model.templateWidth = value);
       this.form.addControl("templateWidth", control);
 
       this.form.addControl("layoutForm", new UntypedFormGroup({}));
