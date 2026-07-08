@@ -1,3 +1,24 @@
+# Publish Release
+#
+# Publishes a StyleBI Community release to GitHub Packages when a release tag
+# (v*.*.*) is pushed. It deploys every Maven module (root POM, BOM, build-tools,
+# core, utils, connectors, web, server) to the GitHub Packages Maven registry,
+# builds and pushes the Docker image to ghcr.io via jib, and creates a GitHub
+# release with a community-examples.zip asset (prerelease tags such as
+# v1.0.0-beta-1 are flagged as pre-releases).
+#
+# This workflow is intended to be triggered by the tag that Maven's
+# `release:prepare` goal creates. `release:prepare` builds, tests, and sets the
+# release version in the POMs on the tagged commit before pushing the tag, so:
+#   - Tests are skipped here (-DskipTests) to avoid redundant work; the release
+#     build has already run them.
+#   - The checked-out POMs are already at the release (non-SNAPSHOT) version, so
+#     no version manipulation is needed and artifacts route to the release repo.
+#
+# Requirements:
+#   - The ghcr.io container package must inherit access from (or grant Write to)
+#     this source repository, otherwise the Docker push fails with a 403
+#     write_package error.
 name: Publish Release
 on:
   push:
@@ -11,7 +32,7 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
@@ -75,33 +96,33 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deploy core library
-        run: ./mvnw -B clean deploy -pl core -DaltReleaseDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi -DaltSnapshotDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi
+        run: ./mvnw -B clean deploy -pl core -DskipTests=true -DaltReleaseDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi -DaltSnapshotDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deploy util libraries
-        run: ./mvnw -B clean deploy -f utils -DaltReleaseDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi -DaltSnapshotDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi
+        run: ./mvnw -B clean deploy -f utils -DskipTests=true -DaltReleaseDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi -DaltSnapshotDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deploy connector plugins
-        run: ./mvnw -B clean deploy -f connectors -DaltReleaseDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi -DaltSnapshotDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi
+        run: ./mvnw -B clean deploy -f connectors -DskipTests=true -DaltReleaseDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi -DaltSnapshotDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deploy web library
-        run: ./mvnw -B clean deploy -Pproduction -pl web -DaltReleaseDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi -DaltSnapshotDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi
+        run: ./mvnw -B clean deploy -Pproduction -pl web -DskipTests=true -DaltReleaseDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi -DaltSnapshotDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deploy server library
-        run: ./mvnw -B clean deploy -pl server -DaltReleaseDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi -DaltSnapshotDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi
+        run: ./mvnw -B clean deploy -pl server -DskipTests=true -DaltReleaseDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi -DaltSnapshotDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CI: true
 
       - name: Deploy Docker image
-        run: ./mvnw -B clean package jib:build -DskipTests -Djib.from.auth.username=${{ github.actor }} -Djib.from.auth.password=${{ secrets.GITHUB_TOKEN }} -Djib.to.auth.username=${{ github.actor }} -Djib.to.auth.password=${{ secrets.GITHUB_TOKEN }} -Ddocker.build.version=${{ steps.version.outputs.patch }} -pl docker
+        run: ./mvnw -B clean package jib:build -DskipTests -Djib.serialize=true -Djib.from.auth.username=${{ github.actor }} -Djib.from.auth.password=${{ secrets.GITHUB_TOKEN }} -Djib.to.auth.username=${{ github.actor }} -Djib.to.auth.password=${{ secrets.GITHUB_TOKEN }} -Ddocker.build.version=${{ steps.version.outputs.patch }} -pl docker
         env:
           CI: true
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
