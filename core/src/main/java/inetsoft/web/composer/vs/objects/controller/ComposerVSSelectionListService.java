@@ -101,6 +101,7 @@ public class ComposerVSSelectionListService {
 
       SelectionBaseVSAssemblyInfo info = (SelectionBaseVSAssemblyInfo) assembly.getVSAssemblyInfo();
       info.setCellHeight(cellHeight);
+      info.setUserCellHeight(true);
 
       coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
 

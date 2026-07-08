@@ -63,6 +63,14 @@ public final class VSDensityDefaults {
    }
 
    /**
+    * Default selection-list cell height for the active mode, or the legacy default when the gate
+    * is off. Selection cells are a data surface, so they share the table row-height matrix.
+    */
+   public static int cellHeight() {
+      return isModern() ? rowHeightForMode(mode()) : AssetUtil.defh;
+   }
+
+   /**
     * Data-row height for a density mode. Unrecognized modes fall back to dense.
     */
    static int rowHeightForMode(String mode) {

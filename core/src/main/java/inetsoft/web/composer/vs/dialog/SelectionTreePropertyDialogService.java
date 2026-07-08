@@ -118,7 +118,7 @@ public class SelectionTreePropertyDialogService {
       sizePositionPaneModel.setTitleHeight(selectionTreeAssemblyInfo.getTitleHeightValue());
       sizePositionPaneModel.setContainer(selectionTreeAssembly.getContainer() != null);
 
-      int cellHeight = selectionTreeAssemblyInfo.getCellHeight();
+      int cellHeight = selectionTreeAssemblyInfo.getEffectiveCellHeight();
       sizePositionPaneModel.setCellHeight(cellHeight <= 0 ? AssetUtil.defh : cellHeight);
 
       basicGeneralPaneModel.setName(selectionTreeAssemblyInfo.getAbsoluteName());
@@ -241,7 +241,13 @@ public class SelectionTreePropertyDialogService {
       dialogService.setAssemblySize(streeInfo, sizePositionPaneModel);
       dialogService.setAssemblyPosition(streeInfo, sizePositionPaneModel);
       streeInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
-      streeInfo.setCellHeight(sizePositionPaneModel.getCellHeight());
+
+      // store + mark user-set only when the value differs from the displayed effective height, so
+      // accepting the org density default leaves the stored height at its default and the flag clean
+      if(sizePositionPaneModel.getCellHeight() != streeInfo.getEffectiveCellHeight()) {
+         streeInfo.setUserCellHeight(true);
+         streeInfo.setCellHeight(sizePositionPaneModel.getCellHeight());
+      }
 
       streeInfo.setEnabledValue(generalPropPaneModel.getEnabled());
 
