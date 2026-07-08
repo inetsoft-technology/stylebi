@@ -26,9 +26,10 @@
  *   Group 4 [Risk 2] - selectItem updates/creates params and closeMenu state
  *   Group 5 [Risk 1] - dropdownMinWidth, ok, clear, cancel, okDisabled
  *
- * Confirmed bugs (it.fails):
- *   Bug - loadQueryParameters post-destroy HTTP callback leak (Group 6): the worksheet-parameter
- *     GET subscription is never torn down, so queryParams can still update after fixture.destroy().
+ * Fixed bugs:
+ *   Bug #75599 - loadQueryParameters post-destroy HTTP callback leak (Group 6): the worksheet-parameter
+ *     GET subscription was never torn down, so queryParams could still update after fixture.destroy().
+ *     Fixed by storing the Subscription and unsubscribing it in ngOnDestroy().
  *
  * Out of scope:
  *   enterSubmit keyboard integration - directive wiring only; the dialog contracts are covered
@@ -448,11 +449,13 @@ describe("Group 5 - view helpers and actions", () => {
    });
 });
 
-describe("Group 6 - Confirmed bug (it.fails): post-destroy loadQueryParameters callback", () => {
-   // Expected failure: `expect(comp.queryParams).toBeUndefined()` fails because the worksheet
-   // parameter GET subscription remains active after fixture.destroy() and still writes the
-   // resolved queryParams array back onto the dead component instance.
-   it.fails("should not update queryParams after fixture.destroy()", async () => {
+describe("Group 6 - Fixed bug (Bug #75599): post-destroy loadQueryParameters callback", () => {
+   // Bug #75599 (fixed): the worksheet-parameter GET subscription was never torn down, so it
+   // remained active after fixture.destroy() and still wrote the resolved queryParams array back
+   // onto the dead component instance. Fixed by storing the Subscription returned from
+   // loadQueryParameters()'s http.get(...).subscribe(...) call and unsubscribing it in
+   // ngOnDestroy(), so a late-resolving response can no longer mutate a destroyed component.
+   it("should not update queryParams after fixture.destroy()", async () => {
       let resolveRequest: ((response: any) => void) | undefined;
 
       server.use(
@@ -466,10 +469,13 @@ describe("Group 6 - Confirmed bug (it.fails): post-destroy loadQueryParameters c
       const { comp, fixture } = await renderComponent();
 
       comp.loadQueryParameters(makeEntry({ identifier: "worksheet-leak" }));
+      await waitFor(() => expect(resolveRequest).toBeDefined());
       fixture.destroy();
       resolveRequest!(MswHttpResponse.json({ queryParams: ["late-param"] }));
 
-      await waitFor(() => expect(comp.queryParams).toEqual(["late-param"]));
+      // Give the (now-unsubscribed) HTTP response a chance to flow through before asserting
+      // that it did not reach the destroyed component.
+      await new Promise<void>(resolve => setTimeout(resolve, 50));
       expect(comp.queryParams).toBeUndefined();
    });
 });
