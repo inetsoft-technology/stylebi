@@ -81,7 +81,10 @@ class DeviceRegistryTest {
          OrganizationManager orgManager = mock(OrganizationManager.class);
          orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
          when(orgManager.isSiteAdmin(principal)).thenReturn(false);
-         when(orgManager.getCurrentOrgID()).thenReturn(Organization.getDefaultOrganizationID());
+         // mixed case on purpose: getCurrentOrgID(principal) is not lower-cased by the provider
+         // itself (unlike the no-arg overload), so the comparison must normalize case itself
+         when(orgManager.getCurrentOrgID(principal))
+            .thenReturn(Organization.getDefaultOrganizationID().toUpperCase());
 
          assertTrue(DeviceRegistry.isOrgAllowedToEditDevices(principal));
       }
@@ -96,7 +99,7 @@ class DeviceRegistryTest {
          OrganizationManager orgManager = mock(OrganizationManager.class);
          orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
          when(orgManager.isSiteAdmin(principal)).thenReturn(false);
-         when(orgManager.getCurrentOrgID()).thenReturn("orgB");
+         when(orgManager.getCurrentOrgID(principal)).thenReturn("orgB");
 
          assertFalse(DeviceRegistry.isOrgAllowedToEditDevices(principal));
       }

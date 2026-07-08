@@ -129,7 +129,8 @@ public final class DeviceRegistry {
    public static boolean isOrgAllowedToEditDevices(Principal principal) {
       return !LicenseManager.isEnterprise() ||
          OrganizationManager.getInstance().isSiteAdmin(principal) ||
-         OrganizationManager.getInstance().getCurrentOrgID().equals(Organization.getDefaultOrganizationID());
+         OrganizationManager.getInstance().getCurrentOrgID(principal).toLowerCase()
+            .equals(Organization.getDefaultOrganizationID());
    }
 
    private final KeyValueStorage<DeviceInfo> storage;
