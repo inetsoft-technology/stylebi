@@ -147,7 +147,7 @@ public class VSSelectionListModel extends VSSelectionBaseModel<SelectionListVSAs
 
       if(selectionListValue != null) {
          valueMaxHeight +=
-            selectionListValue.getSelectionValueCount() * selectionListInfo.getCellHeight();
+            selectionListValue.getSelectionValueCount() * selectionListInfo.getEffectiveCellHeight();
       }
 
       return Math.min(height, valueMaxHeight);

@@ -49,7 +49,7 @@ public abstract class VSSelectionBaseModel<T extends AbstractSelectionVSAssembly
       int levels = 1;
 
       listHeight = assemblyInfo.getListHeight();
-      cellHeight = assemblyInfo.getCellHeight();
+      cellHeight = assemblyInfo.getEffectiveCellHeight();
       textWidth = (showText && measure != null) ? assemblyInfo.getMeasureSize() : 0;
       barWidth = (showBar && measure != null) ? assemblyInfo.getBarSize() : 0;
 

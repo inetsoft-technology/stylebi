@@ -95,7 +95,7 @@ public class VSSelectionTreeHelper extends VSSelectionListHelper {
       // here makes them same, both include the first data
       int count = boundsList == null ?
          1 + (int) Math.round(((double) info.getPixelSize().height - info.getTitleHeight()) /
-               info.getCellHeight()) :
+               info.getEffectiveCellHeight()) :
          boundsList.size();
 
       if(boundsList != null) {

@@ -139,7 +139,7 @@ public class HTMLSelectionTreeHelper extends VSSelectionTreeHelper{
       double textWidth = (textsize < 0) ? textArea * ratio : textsize;
       textWidth = Math.min(valueWidth - barWidth, textWidth);
       double labelWidth = textArea - textWidth;
-      String cellHeight = format.isWrapping() ? "auto" : info.getCellHeight() + "";
+      String cellHeight = format.isWrapping() ? "auto" : info.getEffectiveCellHeight() + "";
       Insets cellPadding = info.getCellPadding();
 
       slist.append("<div style='width:100%;position:relative;display:flex;height:" + cellHeight + ";");
