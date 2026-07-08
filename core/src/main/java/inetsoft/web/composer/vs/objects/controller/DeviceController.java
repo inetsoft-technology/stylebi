@@ -19,6 +19,8 @@
 package inetsoft.web.composer.vs.objects.controller;
 
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.viewsheet.vslayout.DeviceInfo;
@@ -26,6 +28,8 @@ import inetsoft.uql.viewsheet.vslayout.DeviceRegistry;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.composer.model.vs.ScreenSizeDialogModel;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -38,6 +42,11 @@ public class DeviceController {
       this.dependencyHandler = dependencyHandler;
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.DEVICE,
+      resource = "*",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/composer/device/new")
    @ResponseBody
    public void newDevice(@RequestBody ScreenSizeDialogModel device, Principal principal) {
@@ -60,6 +69,11 @@ public class DeviceController {
       Audit.getInstance().auditAction(actionRecord, principal);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.DEVICE,
+      resource = "*",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/composer/device/edit")
    @ResponseBody
    public void editDevice(@RequestBody ScreenSizeDialogModel device, Principal principal) {
@@ -82,6 +96,11 @@ public class DeviceController {
       Audit.getInstance().auditAction(actionRecord, principal);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.DEVICE,
+      resource = "*",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/composer/device/delete")
    @ResponseBody
    public void deleteDevice(@RequestBody ScreenSizeDialogModel device, Principal principal) {
