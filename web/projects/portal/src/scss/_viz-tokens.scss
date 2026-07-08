@@ -30,7 +30,7 @@
   --inet-viz-font-size: var(--inet-font-size-base);
 
   // state — live-view DOM overlays only; export-visible state is server-rendered via VSFormat.
-  --inet-viz-hover-bg: var(--inet-ui-neutral-hover-bg-color);
+  --inet-viz-hover-bg: var(--inet-hover-primary-bg-color); // legacy = data-table row-hover hook (gate-off parity)
   --inet-viz-selected-bg: var(--inet-shell-selected-bg-color);
   --inet-viz-selected-text: var(--inet-selected-item-text-color);
   --inet-viz-selected-border: var(--inet-primary-color);
@@ -58,6 +58,29 @@
 .viz-modern,
 [data-viz-theme="v2"] {
   --inet-viz-mode: modern;
+}
+
+// Modern widget-state palette. DOM overlays only; export-visible state (selection-list selected
+// fill, warning/anomaly conditional formatting, chart brush/dimming) is server-rendered via VSFormat
+// and defined-only here — not yet wired to a server render path. Legacy :root defaults above stay
+// unchanged, so gate-off is byte-identical. State values are density-independent, so one block covers
+// all modes. The selection family is a visualization-owned teal, kept distinct from shell/Composer
+// selection; active stays on the primary accent (outline, no fill) so it reads apart from selection.
+.viz-modern,
+[data-viz-theme="v2"] {
+  --inet-viz-hover-bg: #EEF4F6;
+  --inet-viz-selected-bg: #DDF1F5;
+  --inet-viz-selected-border: #BFDDE5;
+  --inet-viz-selected-text: #123C44;
+  --inet-viz-active-border: var(--inet-primary-color); // outline, no fill
+  --inet-viz-context-bg: #F7F3EA;
+  --inet-viz-inline-edit-bg: #FFFFFF;
+  --inet-viz-filtered-bg: #F6E2C8;
+  --inet-viz-sorted-color: #8C5510;
+  --inet-viz-pinned-divider: #C8C2B7;
+  --inet-viz-warning-bg: #F8E8CC;
+  --inet-viz-anomaly-bg: #F7DEDE;
+  // --inet-viz-dimmed-opacity keeps the :root value (0.5); no modern override.
 }
 
 // Modern density matrices (DOM surfaces only). Legacy :root defaults above stay unchanged, so
