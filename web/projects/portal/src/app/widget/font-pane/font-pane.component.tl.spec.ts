@@ -32,10 +32,11 @@
  *   Group 5 [Risk 2] — changeFontSize: debounces checkFontFamily + fireChangeEvent
  *   Group 6 [Risk 1] — defaultFont: delegates to fontService.defaultFont
  *
- * Confirmed bugs (it.fails):
- *   Bug — getFonts() subscribe leak: fontService.getAllFonts().subscribe() stores no Subscription.
- *     If the component is destroyed while the HTTP observable is in-flight, the callback runs
- *     and sets this.fonts on a destroyed component. Fix: store and unsubscribe in ngOnDestroy.
+ * Fixed bugs:
+ *   Bug #75598 — getFonts() subscribe leak: fontService.getAllFonts().subscribe() stored no
+ *     Subscription. If the component was destroyed while the HTTP observable was in-flight, the
+ *     callback ran and set this.fonts on a destroyed component. Fixed by storing and
+ *     unsubscribing in ngOnDestroy.
  *
  * Out of scope:
  *   changeFontFamily — accesses scrollBar ViewChild (template-only); not testable at unit level.
@@ -297,14 +298,15 @@ describe("FontPane — defaultFont", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Memory leak (it.fails)
+// Memory leak (regression test for Bug #75598)
 // ---------------------------------------------------------------------------
 
 describe("FontPane — subscribe leak", () => {
-   // Bug: getFonts() calls fontService.getAllFonts().subscribe() without storing the Subscription.
-   // After component destruction the callback still runs and sets this.fonts on a destroyed
-   // component. Fix: store the subscription and unsubscribe in ngOnDestroy.
-   it.fails("should not update fonts after component is destroyed (subscribe leak)", async () => {
+   // Regression test for Bug #75598: getFonts() called fontService.getAllFonts().subscribe()
+   // without storing the Subscription. After component destruction the callback still ran and set
+   // this.fonts on a destroyed component. Fixed by storing the subscription and unsubscribing in
+   // ngOnDestroy.
+   it("should not update fonts after component is destroyed (subscribe leak)", async () => {
       const subject = new Subject<string[]>();
       FONT_SERVICE_MOCK.getAllFonts.mockReturnValue(subject.asObservable());
 
@@ -327,8 +329,7 @@ describe("FontPane — subscribe leak", () => {
       fixture.destroy();
       subject.next(["Roboto"]);
 
-      // With fix: fonts should remain [] because subscription was unsubscribed before emit
-      // Currently: FAILS — callback still runs after destroy
+      // fonts should remain [] because the subscription was unsubscribed before emit
       expect(comp["fonts"]).toEqual([]);
    });
 });

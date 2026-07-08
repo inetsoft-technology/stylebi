@@ -27,11 +27,11 @@
  *   Group 5 [Risk 1] — ngOnDestroy: super.cleanup() called
  *   Group 6 [Risk 1] — showMiniToolbar, onMouseEnter, contextmenuOpened/Closed delegates
  *
- * Confirmed bugs (it.fails):
- *   Bug — getFormats 250ms timer leak (Group 4): getFormats() schedules a 250ms setTimeout that
- *     emits on this.onUpdateData. ngOnDestroy calls super.cleanup() but does NOT cancel the timer,
- *     so onUpdateData fires on the dead component after destroy. Fix: store the timer ID and call
- *     clearTimeout in ngOnDestroy.
+ * Fixed bugs:
+ *   Bug #75599 — getFormats 250ms timer leak (Group 4): getFormats() scheduled a 250ms setTimeout
+ *     that emitted on this.onUpdateData. ngOnDestroy called super.cleanup() but did NOT cancel the
+ *     timer, so onUpdateData fired on the dead component after destroy. Fixed by storing the timer
+ *     ID in getFormatsTimer and calling clearTimeout(this.getFormatsTimer) in ngOnDestroy.
  *
  * Out of scope:
  *   resizeModelView() — reads DOM dimensions (offsetWidth/offsetHeight) of parent elements; DOM
@@ -244,10 +244,11 @@ describe("VSObjectView — getFormats deferred emit (+memory leak)", () => {
       vi.useRealTimers();
    });
 
-   // Bug: getFormats() calls setTimeout(fn, 250) but ngOnDestroy only calls super.cleanup();
-   // the timer ID is never stored and never cancelled, so onUpdateData fires on the dead component.
-   // Fix: store the timer reference and call clearTimeout in ngOnDestroy.
-   it.fails("should not emit onUpdateData after component is destroyed (250ms timer leak)", async () => {
+   // Bug #75599 (FIXED): getFormats() called setTimeout(fn, 250) but ngOnDestroy only called
+   // super.cleanup(); the timer ID was never stored and never cancelled, so onUpdateData fired
+   // on the dead component. Fixed by storing the timer reference in getFormatsTimer and calling
+   // clearTimeout(this.getFormatsTimer) in ngOnDestroy.
+   it("should not emit onUpdateData after component is destroyed (250ms timer leak)", async () => {
       const { comp, fixture } = await renderComponent();
       const emitted: string[] = [];
       comp.onUpdateData.subscribe(v => emitted.push(v));
@@ -255,9 +256,9 @@ describe("VSObjectView — getFormats deferred emit (+memory leak)", () => {
       vi.useFakeTimers();
       try {
          comp.getFormats(new MouseEvent("click")); // queues 250ms timer
-         fixture.destroy();                         // ngOnDestroy → super.cleanup(); timer NOT cancelled
-         vi.advanceTimersByTime(300);               // timer fires on dead component
-         expect(emitted).toHaveLength(0); // FAILS — "getCurrentFormat" was emitted after destroy
+         fixture.destroy();                         // ngOnDestroy → clearTimeout + super.cleanup()
+         vi.advanceTimersByTime(300);               // timer would have fired on dead component
+         expect(emitted).toHaveLength(0); // timer was cancelled, no emit after destroy
       } finally {
          vi.useRealTimers();
       }

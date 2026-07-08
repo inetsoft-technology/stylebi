@@ -28,6 +28,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.ContainerVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.util.script.*;
+import inetsoft.util.script.graal.ScriptArrayScope;
 import inetsoft.util.script.graal.ScriptFunction;
 import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
@@ -36,6 +37,7 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -949,7 +951,7 @@ public class VSAScriptable
    /**
     * Get tipped assembly's tip condition.
     */
-   protected ScriptScope[] getTipConditions() {
+   protected ScriptArrayScope getTipConditions() {
       ConditionListWrapper wrapper = getVSAssembly().getTipConditionList();
 
       if(wrapper == null || wrapper.isEmpty()) {
@@ -957,7 +959,7 @@ public class VSAScriptable
       }
 
       int size = wrapper.getConditionSize();
-      ArrayList<ScriptScope> items = new ArrayList<>();
+      List<ScriptScope> items = new ArrayList<>();
       ConditionItem item;
       Condition cond;
 
@@ -974,7 +976,7 @@ public class VSAScriptable
          items.add(new TipDataCondition(attr, value));
       }
 
-      return items.toArray(new ScriptScope[0]);
+      return new TipDataConditionArray(items);
    }
 
    protected Map<String, Object> getVarMap() {
@@ -1021,6 +1023,51 @@ public class VSAScriptable
 
       private final String attr;
       private final Object value;
+   }
+
+   /**
+    * Array-shaped scope wrapping the tip/data conditions so that indexed access
+    * (conds[i]) routes each element through ScriptValueConverter.toGuest and is
+    * exposed to scripts as a ScopeProxy. A plain ScriptScope[] would be handed
+    * to GraalJS as a raw host array whose elements bypass the converter, leaving
+    * conds[i].attr / conds[i].value undefined. (#75569)
+    */
+   private static class TipDataConditionArray implements ScriptArrayScope {
+      TipDataConditionArray(List<ScriptScope> items) {
+         this.items = items;
+      }
+
+      @Override
+      public long getArraySize() {
+         return items.size();
+      }
+
+      @Override
+      public Object getArrayElement(long index) {
+         return index >= 0 && index < items.size() ? items.get((int) index) : null;
+      }
+
+      @Override
+      public Object getMember(String id) {
+         return "length".equals(id) ? items.size() : null;
+      }
+
+      @Override
+      public boolean hasMember(String id) {
+         return "length".equals(id);
+      }
+
+      @Override
+      public void putMember(String id, Object value) {
+         // read-only
+      }
+
+      @Override
+      public Object[] getMemberKeys() {
+         return new Object[] {"length"};
+      }
+
+      private final List<ScriptScope> items;
    }
 
    @Override
