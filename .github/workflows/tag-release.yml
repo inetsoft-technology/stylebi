@@ -19,9 +19,11 @@
 #
 #   Setup: create an org-owned GitHub App with Repository permission
 #   "Contents: Read and write", install it on this repository, and store its
-#   credentials as Actions secrets:
-#     - RELEASE_APP_ID          the App's numeric App ID
-#     - RELEASE_APP_PRIVATE_KEY the full contents of the App's private-key .pem
+#   credentials in Actions:
+#     - RELEASE_APP_ID          the App's numeric App ID, as a repository
+#                               VARIABLE (vars.RELEASE_APP_ID); it is not secret
+#     - RELEASE_APP_PRIVATE_KEY the full contents of the App's private-key .pem,
+#                               as a SECRET (secrets.RELEASE_APP_PRIVATE_KEY)
 #   The installation token expires in ~1 hour and is scoped to this repository.
 #   If the release branch is protected, add the App as an allowed bypass actor.
 name: Tag Release
@@ -55,7 +57,7 @@ jobs:
         id: release-token
         uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
         with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
+          app-id: ${{ vars.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
       - name: Checkout repository
