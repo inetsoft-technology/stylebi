@@ -1,0 +1,120 @@
+name: Publish Release
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          server-id: gh-stylebi
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+
+      - name: Extract patch version from tag
+        id: version
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          patch="${version#*.*.}"
+          echo "patch=${patch}" >> "$GITHUB_OUTPUT"
+          if [[ "$patch" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Extracted patch version: ${patch}"
+
+      - name: Cache local Maven repository
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Cache NPM global cache
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('web/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Authenticate with GitHub Packages
+        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
+
+      - name: Deploy root POM
+        run: ./mvnw -B clean deploy -pl . -DskipTests -DaltReleaseDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi -DaltSnapshotDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy dependency BOM
+        run: ./mvnw -B clean deploy -pl bom -DskipTests -DaltReleaseDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi -DaltSnapshotDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy build tools
+        run: ./mvnw -B clean deploy -DskipTests -f build-tools -DaltReleaseDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi -DaltSnapshotDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy core library
+        run: ./mvnw -B clean deploy -pl core -DaltReleaseDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi -DaltSnapshotDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy util libraries
+        run: ./mvnw -B clean deploy -f utils -DaltReleaseDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi -DaltSnapshotDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy connector plugins
+        run: ./mvnw -B clean deploy -f connectors -DaltReleaseDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi -DaltSnapshotDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy web library
+        run: ./mvnw -B clean deploy -Pproduction -pl web -DaltReleaseDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi -DaltSnapshotDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy server library
+        run: ./mvnw -B clean deploy -pl server -DaltReleaseDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi -DaltSnapshotDeploymentRepository=gh-stylebi::https://maven.pkg.github.com/inetsoft-technology/stylebi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI: true
+
+      - name: Deploy Docker image
+        run: ./mvnw -B clean package jib:build -DskipTests -Djib.from.auth.username=${{ github.actor }} -Djib.from.auth.password=${{ secrets.GITHUB_TOKEN }} -Djib.to.auth.username=${{ github.actor }} -Djib.to.auth.password=${{ secrets.GITHUB_TOKEN }} -Ddocker.build.version=${{ steps.version.outputs.patch }} -pl docker
+        env:
+          CI: true
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package community examples
+        run: (cd community-examples && zip -r ../community-examples.zip .)
+
+      - name: Create GitHub release
+        run: >
+          gh release create "$GITHUB_REF_NAME"
+          community-examples.zip
+          --title "$GITHUB_REF_NAME"
+          --generate-notes
+          ${{ steps.version.outputs.prerelease == 'true' && '--prerelease' || '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
