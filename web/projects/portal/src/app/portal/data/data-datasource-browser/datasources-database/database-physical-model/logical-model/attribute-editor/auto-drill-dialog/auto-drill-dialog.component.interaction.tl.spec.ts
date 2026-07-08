@@ -214,11 +214,10 @@ describe("AutoDrillDialog — getNewDrillName()", () => {
       expect(comp.getNewDrillName()).toBe("New Drill");
    });
 
-   // Expected failure: returns "New Drill0" instead of "New Drill" because existIndexs
-   // stays empty when no path matches "New Drill*", and the fallback is
-   // `return newNamePre + existIndexs.length` = "New Drill" + 0. If it fails with a
-   // value other than "New Drill0", the root cause has shifted — re-investigate.
-   it.fails("should return 'New Drill' when existing paths use unrelated names", async () => {
+   // Fixed Issue #75589: the fallback return now special-cases an empty existIndexs
+   // (`existIndexs.length == 0 ? newNamePre : newNamePre + existIndexs.length`),
+   // matching the same index-0 special-casing already used by the gap-search loop above it.
+   it("should return 'New Drill' when existing paths use unrelated names", async () => {
       const { comp } = await renderComp({
          model: makeModel([makeDrillPath({ name: "My Custom Drill" })]),
       });

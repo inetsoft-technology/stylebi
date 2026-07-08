@@ -372,7 +372,9 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
 
    selectAdditional(event: MouseEvent, index: number) {
       if(event.ctrlKey) {
-         this.selectedAdditionalIndex.push(index);
+         if(this.selectedAdditionalIndex.indexOf(index) === -1) {
+            this.selectedAdditionalIndex.push(index);
+         }
       }
       else {
          this.selectedAdditionalIndex = [index];
@@ -598,7 +600,7 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
          let customer: CustomDatabaseInfoModel = <CustomDatabaseInfoModel> info;
          url = customer.customUrl;
 
-         if(url == URL_PREFIX && DatasourceDatabaseType.ACCESS == type) {
+         if((Tool.isEmpty(url) || url == URL_PREFIX) && DatasourceDatabaseType.ACCESS == type) {
             let access: AccessDatabaseInfoModel = <AccessDatabaseInfoModel> info;
             url = URL_PREFIX + access.dataSourceName;
          }
@@ -617,12 +619,12 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
          url = "jdbc:informix-sqli://" + network.hostName + ":" + network.portNumber
             + "/" + informix.databaseName;
 
-         if(!serverName) {
+         if(!Tool.isEmpty(serverName)) {
             url += Tool.isEmpty(dbLocale) ? ":INFORMIXSERVER=" + serverName
                : ":INFORMIXSERVER=" + serverName + ";db_locale=" + dbLocale;
          }
-         else if(!dbLocale) {
-            url += ";dbLocale=" + dbLocale;
+         else if(!Tool.isEmpty(dbLocale)) {
+            url += ";db_locale=" + dbLocale;
          }
       }
       else if(DatasourceDatabaseType.MYSQL == type) {
@@ -777,10 +779,10 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
                let selected: any[] = Tool.clone(this.selectedProperty);
 
                for(let i: number = 0; i < selected.length; i++) {
-                  let prop = selected[i];
-                  delete this.database.info.poolProperties[prop.key];
-                  this.selectedProperty.splice(i, 1);
+                  delete this.database.info.poolProperties[selected[i].key];
                }
+
+               this.selectedProperty = [];
             }
          });
    }

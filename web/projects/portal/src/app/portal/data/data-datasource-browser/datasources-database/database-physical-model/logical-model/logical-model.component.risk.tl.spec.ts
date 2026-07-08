@@ -24,11 +24,13 @@
  *                        originalModel/loading; handles HTTP error gracefully
  *   Group 2 [Risk 3] — refreshModel() race: rapid route-param changes → both GETs
  *                        in-flight; first response must not overwrite a later response
- *                        (it.fails: known bug — no cancellation / takeUntil guard)
+ *                        (fixed Issue #75584: refreshModel() now cancels the prior
+ *                        in-flight subscription before starting a new one)
  *   Group 3 [Risk 2] — getSettings(): GET to /settings with ds param; sets
  *                        logicalModelService.settings
  *   Group 4 [Risk 1] — post-destroy HTTP callbacks should not update component state
- *                        (it.fails: known leak — subscribers not unsubscribed)
+ *                        (fixed Issue #75584: refreshModel()'s subscription is now
+ *                        stored and unsubscribed in ngOnDestroy())
  *
  * Out of scope this pass:
  *   All interaction/lifecycle paths covered in Pass 1 (interaction.tl.spec.ts).
@@ -173,12 +175,9 @@ describe("LogicalModelComponent — refreshModel()", () => {
       expect(url.searchParams.get("parent")).toBe("baseLM");
    });
 
-   // Expected failure: `expect(comp.loading).toBe(false)` fails because the error handler in
-   // refreshModel() is `err => {}` — it never resets the loading flag.
-   // Root cause: missing `this.loading = false` in the error callback.
-   // If the test fails for a reason other than this assertion (e.g. a render exception),
-   // verify the error is an AssertionError on comp.loading, not an unrelated exception.
-   it.fails("loading flag must be cleared after an HTTP error in refreshModel", async () => {
+   // Fixed Issue #75584: the error handler in refreshModel() now resets
+   // `this.loading = false` instead of being a no-op.
+   it("loading flag must be cleared after an HTTP error in refreshModel", async () => {
       server.use(
          http.get("*/api/data/logicalmodel/models", () =>
             MswHttpResponse.json({ error: "Not found" }, { status: 404 })
@@ -195,13 +194,11 @@ describe("LogicalModelComponent — refreshModel()", () => {
 // ---------------------------------------------------------------------------
 
 describe("LogicalModelComponent — refreshModel() race condition", () => {
-   // Expected failure: `expect(comp.logicalModel.name).toBe("SecondLM")` fails because
-   // the stale first-GET response lands last and overwrites logicalModel.name with "FirstLM".
-   // Root cause: no switchMap/takeUntil in refreshModel() — both subscriptions stay live.
-   // If the test fails for a reason other than the assertion (e.g. waitFor times out on
-   // callCount), check that resolveFirst/resolveSecond are wired to the right promise.
+   // Fixed Issue #75584: refreshModel() now unsubscribes the previous in-flight
+   // request before starting a new one, so a stale first-GET response can no
+   // longer overwrite the model set by a newer second-GET response.
 
-   it.fails("stale first-GET response must not overwrite newer second-GET model", async () => {
+   it("stale first-GET response must not overwrite newer second-GET model", async () => {
       let resolveFirst!: (r: MswHttpResponse<any>) => void;
       let resolveSecond!: (r: MswHttpResponse<any>) => void;
 
@@ -264,11 +261,11 @@ describe("LogicalModelComponent — refreshModel() race condition", () => {
       resolveSecond!(MswHttpResponse.json(secondModel) as any);
       await waitFor(() => expect(comp.logicalModel.name).toBe("SecondLM"));
 
-      // First (stale) GET resolves after the second — overwrites model (BUG)
+      // First (stale) GET resolves after the second — must be a no-op now that
+      // refreshModel() cancels the prior subscription before starting a new one.
       resolveFirst!(MswHttpResponse.json(firstModel) as any);
       await new Promise<void>(r => setTimeout(r, 0));
 
-      // SHOULD remain "SecondLM" but currently overwrites with "FirstLM"
       expect(comp.logicalModel.name).toBe("SecondLM");
    });
 });
@@ -381,12 +378,10 @@ describe("LogicalModelComponent — getSettings()", () => {
 // ---------------------------------------------------------------------------
 
 describe("LogicalModelComponent — post-destroy HTTP callback (memory leak)", () => {
-   // Expected failure: `expect(comp.logicalModel.name).not.toBe("PostDestroyLM")` fails
-   // because httpClient.get().subscribe() in refreshModel() has no takeUntilDestroyed guard —
-   // the response updates logicalModel after fixture.destroy(). Root cause: missing ngOnDestroy.
-   // If the test fails for a different reason (e.g. fixture.destroy() throws), verify the
-   // error is an AssertionError on logicalModel.name, not an unrelated exception.
-   it.fails("post-destroy refreshModel response must not update logicalModel", async () => {
+   // Fixed Issue #75584: refreshModel()'s subscription is now stored in
+   // this.modelSubscription and unsubscribed in ngOnDestroy(), so a response
+   // arriving after destroy is dropped instead of mutating component state.
+   it("post-destroy refreshModel response must not update logicalModel", async () => {
       let resolveGet!: (r: MswHttpResponse<any>) => void;
       server.use(
          http.get("*/api/data/logicalmodel/models", () =>

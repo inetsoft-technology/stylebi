@@ -17,14 +17,18 @@
  */
 
 /**
- * LogicalModelExpressionDialog — single-pass (+race+memory leak)
+ * LogicalModelExpressionDialog — single-pass (+memory leak)
  *
  * Risk-first coverage:
  *   Group 1 [Risk 3] — ok(): duplicate-name check → danger; success path → success +
  *                        onCommit; error-body → danger; HTTP error → danger
- *   Group 2 [Risk 3] — loadFields() race: second POST arrives before first resolves →
- *                        last writer wins (it.fails: no cancellation guard)
- *   Group 3 [Risk 3] — Memory leak (it.fails): post-destroy ok() HTTP callback updates state
+ *   Group 3 [Risk 3] — Memory leak (fixed Issue #75586: ok()'s subscription is now
+ *                        stored and unsubscribed in ngOnDestroy())
+ *
+ * Removed: a "loadFields() race condition" case previously here was invalid —
+ *   loadFields() is only ever called once per instance (from ngOnInit(), with no
+ *   reactive re-trigger), so the scenario it tried to exercise across two separate
+ *   component instances can't happen in production.
  *   Group 4 [Risk 2] — ngOnInit: form created; functionTreeRoot/operatorTreeRoot set;
  *                        columnTreeRoot set from loadFields() POST response
  *   Group 5 [Risk 2] — updateExpression(): all 6 branches (no-node, non-leaf, no-data,
@@ -309,67 +313,14 @@ describe("LogicalModelExpressionDialog — ok()", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Group 2 — loadFields() race condition [Risk 3]
-// ---------------------------------------------------------------------------
-
-describe("LogicalModelExpressionDialog — loadFields() race condition", () => {
-   // Expected failure: `expect(comp2.columnTreeRoot?.label).toBe("Fields-Second")` fails
-   // because comp1's stale POST resolves last and overwrites comp2.columnTreeRoot.label with
-   // "Fields-First". Root cause: no takeUntilDestroyed in loadFields() subscription.
-   // If the test fails for a reason other than the assertion (e.g. callCount never reaches 2),
-   // verify the MSW handler wiring for resolveFirst / resolveSecond.
-
-   it.fails("stale first-POST response must not overwrite columnTreeRoot from a later call", async () => {
-      let resolveFirst!: (r: MswHttpResponse<any>) => void;
-      let resolveSecond!: (r: MswHttpResponse<any>) => void;
-      let callCount = 0;
-
-      const firstTree = { label: "Fields-First", expanded: false, leaf: false, children: [] };
-      const secondTree = { label: "Fields-Second", expanded: false, leaf: false, children: [] };
-
-      server.use(
-         http.post("*/api/data/logicalModel/tables/nodes", () => {
-            callCount++;
-            if(callCount === 1) {
-               return new Promise<MswHttpResponse<any>>(res => { resolveFirst = res as any; });
-            }
-            else {
-               return new Promise<MswHttpResponse<any>>(res => { resolveSecond = res as any; });
-            }
-         })
-      );
-
-      // First component render (triggers first POST)
-      await renderComp({ additional: "conn1" });
-      await waitFor(() => expect(callCount).toBe(1));
-
-      // Second render with different params (triggers second POST in a new component instance)
-      const { comp: comp2 } = await renderComp({ additional: "conn2" });
-      await waitFor(() => expect(callCount).toBe(2));
-
-      // Second resolves first with newer data
-      resolveSecond!(MswHttpResponse.json(secondTree) as any);
-      await waitFor(() => expect(comp2.columnTreeRoot?.label).toBe("Fields-Second"));
-
-      // First resolves after — should not overwrite
-      resolveFirst!(MswHttpResponse.json(firstTree) as any);
-      await new Promise<void>(r => setTimeout(r, 0));
-
-      expect(comp2.columnTreeRoot?.label).toBe("Fields-Second");
-   });
-});
-
-// ---------------------------------------------------------------------------
 // Group 3 — Memory leak: post-destroy ok() callback [Risk 3]
 // ---------------------------------------------------------------------------
 
 describe("LogicalModelExpressionDialog — post-destroy HTTP callback (memory leak)", () => {
-   // Expected failure: `expect(onCommitSpy).not.toHaveBeenCalled()` fails because the
-   // httpClient.post().subscribe() in ok() has no takeUntilDestroyed guard — onCommit is
-   // emitted after fixture.destroy(). Root cause: missing ngOnDestroy / DestroyRef.
-   // If the test fails for a reason other than the assertion (e.g. fixture.destroy() throws),
-   // verify the error is an AssertionError on onCommitSpy, not an unrelated exception.
-   it.fails("post-destroy ok() HTTP callback must not emit onCommit or show notification", async () => {
+   // Fixed Issue #75586: ok()'s subscription is now stored in this.okSubscription
+   // and unsubscribed in ngOnDestroy(), so a response arriving after destroy is
+   // dropped instead of emitting onCommit / showing a notification.
+   it("post-destroy ok() HTTP callback must not emit onCommit or show notification", async () => {
       let resolvePost!: (r: MswHttpResponse<any>) => void;
       server.use(
          http.post("*/api/data/logicalModel/attribute/expression", () =>
@@ -381,6 +332,11 @@ describe("LogicalModelExpressionDialog — post-destroy HTTP callback (memory le
       comp.form.get("name")!.setValue("attr1");
       comp.expression = "1+1";
       comp.ok();
+
+      // Wait for the request to actually reach the MSW handler (i.e. be in flight)
+      // before destroying — otherwise ok()'s unsubscribe-on-destroy can abort the
+      // request before resolvePost is even assigned.
+      await waitFor(() => expect(resolvePost).toBeDefined());
 
       fixture.destroy();
 

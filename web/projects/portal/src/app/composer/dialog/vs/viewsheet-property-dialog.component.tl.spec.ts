@@ -153,7 +153,8 @@ describe("ViewsheetPropertyDialog — testScript", () => {
       const emitSpy = vi.spyOn(comp.onCommit, "emit");
 
       comp.testScript();
-      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      await Promise.resolve();
+      await Promise.resolve();
 
       expect(emitSpy).toHaveBeenCalledWith(model);
    });
@@ -165,7 +166,8 @@ describe("ViewsheetPropertyDialog — testScript", () => {
       const emitSpy = vi.spyOn(comp.onCommit, "emit");
 
       comp.testScript();
-      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      await Promise.resolve();
+      await Promise.resolve();
 
       expect(emitSpy).not.toHaveBeenCalled();
    });
@@ -177,7 +179,8 @@ describe("ViewsheetPropertyDialog — testScript", () => {
       const emitSpy = vi.spyOn(comp.onCommit, "emit");
 
       comp.testScript();
-      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      await Promise.resolve();
+      await Promise.resolve();
 
       expect(emitSpy).toHaveBeenCalledWith(model);
    });
@@ -189,7 +192,8 @@ describe("ViewsheetPropertyDialog — testScript", () => {
       const testScriptSpy = vi.spyOn(comp, "testScript");
 
       comp.testScript();
-      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      await Promise.resolve();
+      await Promise.resolve();
 
       // Called once with default arg (true), then once with false after user clicks 'no'
       expect(testScriptSpy).toHaveBeenCalledWith(false);

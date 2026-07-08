@@ -155,6 +155,14 @@ public class ChartVSAScriptableTest {
       chartVSAScriptable.putMember("dataset", data2);
       assert chartVSAScriptable.getMember("dataset") instanceof DefaultDataSet;
 
+      //put dataset as a DataSet instance. Under GraalJS a script-created DataSet
+      //(dataset = new DefaultDataSet(...)) arrives here unwrapped, so it must
+      //still be routed to the creator rather than dropped. (Bug #75580)
+      DefaultDataSet dataSet2 = new DefaultDataSet(
+         new Object[][]{{"State", "Quantity"}, {"NJ", 200}, {"NY", 300}});
+      chartVSAScriptable.putMember("dataset", dataSet2);
+      assertSame(dataSet2, chartVSAScriptable.getMember("dataset"));
+
       //put query
       chartVSAScriptable.putMember("query", "q1");
       assertEquals("q1", chartVSAScriptable.getMember("query"));
