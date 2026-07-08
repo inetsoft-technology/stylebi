@@ -94,7 +94,7 @@ for the open decision on whether this CSS group belongs under `--inet-viz-*` at 
 
 | Token | Legacy default (Phase 1) |
 |---|---|
-| `--inet-viz-hover-bg` | `var(--inet-ui-neutral-hover-bg-color)` |
+| `--inet-viz-hover-bg` | `var(--inet-hover-primary-bg-color)` *(Phase 4 realigned from `--inet-ui-neutral-hover-bg-color` to match the data-table row-hover hook)* |
 | `--inet-viz-selected-bg` | `var(--inet-shell-selected-bg-color)` |
 | `--inet-viz-selected-text` | `var(--inet-selected-item-text-color)` |
 | `--inet-viz-selected-border` | `var(--inet-primary-color)` |
@@ -117,6 +117,14 @@ server-rendered and will not read these tokens: a selection-list's selected-item
 sort/filter indicators on a viewsheet table, come from `VSFormat` / the assembly render path. Phase 4
 adoption must route export-visible state through the server-side half, the same way §2a splits
 density.
+
+**Phase 4 resolution (2026-07-08).** Phase 4 assigned modern values to these tokens under the gate
+(see [visualization-phase4-implementation-plan.md](./visualization-phase4-implementation-plan.md),
+Part A) and proved the contract on one DOM surface, but is **vocabulary-only**: it changes **no
+server render path**, so export-visible state (`selected` fill, `warning`, `anomaly`) is **defined
+here but not yet rendered from these tokens**. Bridging export-visible state into the server-side
+half is deferred — table `selected` fill to **Phase 5**, `warning`/`anomaly` conditional formatting
+to **Phase 8**. Gate-off remains byte-identical.
 
 ### 2c. Chart color — CONCEPTUAL SOURCE OF TRUTH, NOT BROWSER-AUTHORITATIVE
 
