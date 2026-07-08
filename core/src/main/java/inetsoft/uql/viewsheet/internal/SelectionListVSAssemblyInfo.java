@@ -381,7 +381,7 @@ public class SelectionListVSAssemblyInfo extends SelectionBaseVSAssemblyInfo {
                Integer.MAX_VALUE);
 
          for(int i = 0; i < rowCount; i++) {
-            rowHeights.add((double)getCellHeight());
+            rowHeights.add((double)getEffectiveCellHeight());
          }
       }
 

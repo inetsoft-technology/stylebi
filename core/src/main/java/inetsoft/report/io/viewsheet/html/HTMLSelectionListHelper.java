@@ -147,7 +147,7 @@ public class HTMLSelectionListHelper extends VSSelectionListHelper{
       }
 
       //if have scroll bar, rowWidth = selectionWidth - scrollBarWidth(18) - leftAndRightBorder(2).
-      double rowWidth = info.getCellHeight() * nrow > bounds.getHeight() ? bounds.getWidth() - 20 :
+      double rowWidth = info.getEffectiveCellHeight() * nrow > bounds.getHeight() ? bounds.getWidth() - 20 :
         bounds.getWidth() - 2;
 
       for(int k = 0; k < nrow; k++) {
@@ -176,7 +176,7 @@ public class HTMLSelectionListHelper extends VSSelectionListHelper{
    private void writeSelectionValue(SelectionListVSAssemblyInfo info, StringBuffer slist,
       SelectionValue svalue, double valueWidth, double ratio)
    {
-      String cellHeight = info.getCellHeight() + "";
+      String cellHeight = info.getEffectiveCellHeight() + "";
       VSCompositeFormat format = svalue.getFormat();
       Insets padding = info.getCellPadding();
 
