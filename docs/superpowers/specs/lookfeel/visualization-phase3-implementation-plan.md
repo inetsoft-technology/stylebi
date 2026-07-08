@@ -255,17 +255,57 @@ per-row/date-comparison overrides, and CSS-dictionary heights all still win):
   draft: `VsToReportConverter.calculateRowHeights:1193` is **print-layout-only**, so it is not the
   general export path; the lens is. Not edited.)
 
-**B2b — Selection lists — NOT started (discuss before implementing).** `SelectionBaseVSAssemblyInfo`
-has **no `userCellHeight` flag** (only signal is `cellHeight != AssetUtil.defh`), and
-`getCellHeight()` is read at ~10 sites: the live model (`VSSelectionBaseModel:52`), layout math
-(`VSSelectionListModel:150`, `SelectionValueModel:60`, `SelectionList/TreeVSAssemblyInfo`), **four
-export helpers** (`ExcelSelectionTreeHelper`, `HTMLSelectionListHelper`, `HTMLSelectionTreeHelper`,
-`VSSelectionTreeHelper`, plus `HTMLCoordinateHelper`), **and the composer property dialogs**
-(`SelectionList/TreePropertyDialogService`). Resolving inside `getCellHeight()` would leak density
-into the composer dialog (shown as user-set, persisted on save) and into `maxLines`/min-list-height
-math — so selection needs per-runtime-site resolution across the live model + every export helper,
-leaving composer/design reads untouched. Materially larger + riskier than tables; ship as its own
-commit.
+**B2b — Selection lists — scoped, Option A (real dirty flag). Own commit, isolable from B2a.**
+
+`SelectionBaseVSAssemblyInfo` has no user-set flag (unlike tables' `userDataRowHeight`), and
+`getCellHeight()` is read at ~10 sites — render, layout, export, *and* the composer property dialogs.
+Resolving inside `getCellHeight()` would leak density into the dialog's cell-height field (shown as
+user-set, persisted on save) and into `maxLines`/min-list-height math. So the resolution is
+centralized in one new method, and each read site is repointed by role.
+
+*Design — one resolver method.* Add to `SelectionBaseVSAssemblyInfo`:
+
+```java
+public int getEffectiveCellHeight() {
+   return VSDensityDefaults.isModern() && !userCellHeight && cellHeight == AssetUtil.defh
+      ? VSDensityDefaults.cellHeight() : cellHeight;
+}
+```
+
+`getCellHeight()` stays raw. Render/export/layout sites call `getEffectiveCellHeight()`; design-edit
+and serialization sites keep `getCellHeight()`. Add `VSDensityDefaults.cellHeight()` delegating to the
+existing data-surface matrix (`rowHeightForMode`: 20/24/28) — selection default is also `defh=20`, so
+dense = parity.
+
+*Repoint to `getEffectiveCellHeight()` (render — density shows in viewer, export, and composer
+canvas, per the design-time-WYSIWYG rule):* `VSSelectionBaseModel:52` (live + canvas model),
+`VSSelectionListModel:150` (min-list-height), `SelectionValueModel:60` (`maxLines`),
+`SelectionListVSAssemblyInfo:384` + `SelectionTreeVSAssemblyInfo:896` (internal `getRowHeights()`),
+`ExcelSelectionTreeHelper:160,174`, `HTMLSelectionListHelper:150,179`, `HTMLSelectionTreeHelper:142`,
+`VSSelectionTreeHelper:98`. The `maxLines`/min-height sites *must* use the same effective height as
+the row render or wrap/scroll math desyncs.
+
+*Leave RAW `getCellHeight()`:* `SelectionList/TreePropertyDialogService:120/121` (dialog field) and
+`:237/:267` (`minListHeight` validation); **serialization** `SelectionBaseVSAssemblyInfo:530` (write)
+/ `:548` (parse) — the one true hazard: a leaked effective height here rewrites saved sheets;
+`copyInfo`/clone `:759-760`.
+
+*Out of scope:* `HTMLCoordinateHelper:727/748/760` and `VSCompound:109` read
+`ListInputVSAssemblyInfo.getCellHeight()` (checkbox/radio input widgets) — a different assembly
+family, unaffected by selection density.
+
+*Dirty flag (Option A).* Add `userCellHeight` field + write/parse serialization + `copyInfo`. Set
+`true` in `ComposerVSSelectionListService:103` (drag-resize, mirrors the table resize handler at
+`ComposerVSTableService:962/973`). In the two dialog `setModel` paths (`:218`/`:244`) use
+**change-detection** — `if(newCellHeight != info.getCellHeight()) setUserCellHeight(true)` — so a
+no-op OK doesn't freeze the default at `defh`, but an explicit choice (even 20) sticks. This closes
+the "user deliberately picked 20" ambiguity that a bare `cellHeight != defh` heuristic (Option B,
+rejected) cannot.
+
+*Verify:* save a default-height selection list under `comfortable`, reopen with the gate off →
+`cellHeight` still 20 (serialization untouched); HTML/PDF/Excel export parity with the live view;
+composer canvas matches the viewer; a user-set cell height is preserved in every mode; gate-off
+byte-identical.
 
 **B3. (Alternative to evaluate, not both) — CSS-dictionary bridge.** The server already honours
 `VSTableLens.getCSSDataRowHeight/getCSSHeaderRowHeight/getCSSRowPadding` from the server-side CSS

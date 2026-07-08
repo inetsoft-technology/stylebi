@@ -130,6 +130,27 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       this.cellHeight = cellHeight;
    }
 
+   /**
+    * Cell height for rendering: the org density default when the user hasn't set a height,
+    * else the stored value. Render/export paths use this; the property dialog and serialization
+    * use the raw getCellHeight() so the stored value round-trips.
+    */
+   public int getEffectiveCellHeight() {
+      return VSDensityDefaults.isModern() && !userCellHeight && cellHeight == AssetUtil.defh ?
+         VSDensityDefaults.cellHeight() : cellHeight;
+   }
+
+   /**
+    * Whether the user has explicitly set the cell height.
+    */
+   public boolean isUserCellHeight() {
+      return userCellHeight;
+   }
+
+   public void setUserCellHeight(boolean userCellHeight) {
+      this.userCellHeight = userCellHeight;
+   }
+
    public Insets getCellPadding() {
       return cellPadding.get();
    }
@@ -528,6 +549,7 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       writer.print(" showBarValue=\"" + isShowBarValue() + "\"");
       writer.print(" listHeight=\"" + listHeight + "\"");
       writer.print(" cellHeight=\"" + cellHeight + "\"");
+      writer.print(" userCellHeight=\"" + userCellHeight + "\"");
       writer.print(" listHeightScale=\"" + listHeightScale + "\"");
       writer.print(" barSize=\"" + barsize + "\"");
       writer.print(" textSize=\"" + mtextsize + "\"");
@@ -547,6 +569,8 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
       listHeight = text == null ? 6 : Integer.parseInt(text);
       text = Tool.getAttribute(elem, "cellHeight");
       cellHeight = text == null ? AssetUtil.defh : Integer.parseInt(text);
+      text = Tool.getAttribute(elem, "userCellHeight");
+      userCellHeight = text == null ? cellHeight != AssetUtil.defh : "true".equalsIgnoreCase(text);
       text = Tool.getAttribute(elem, "listHeightScale");
       listHeightScale = text == null ? 1D : Double.parseDouble(text);
       text = Tool.getAttribute(elem, "barSize");
@@ -758,6 +782,11 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
 
       if(cellHeight != sinfo.cellHeight) {
          cellHeight = sinfo.cellHeight;
+         result = true;
+      }
+
+      if(userCellHeight != sinfo.userCellHeight) {
+         userCellHeight = sinfo.userCellHeight;
          result = true;
       }
 
@@ -1002,6 +1031,7 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
    private DynamicValue2 showTypeValue = new DynamicValue2("0", XSchema.INTEGER);
    private int listHeight = 6;
    private int cellHeight = AssetUtil.defh;
+   private boolean userCellHeight = false;
    private CompositeValue<Insets> cellPadding = new CompositeValue<>(Insets.class, null);
    private double listHeightScale = 1D;
    private DynamicValue mtextValue = new DynamicValue("true", XSchema.BOOLEAN);

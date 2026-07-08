@@ -117,7 +117,7 @@ public class SelectionListPropertyDialogService {
       sizePositionPaneModel.setTitleHeight(selectionListAssemblyInfo.getTitleHeightValue());
       sizePositionPaneModel.setContainer(selectionListAssembly.getContainer() != null);
 
-      int cellHeight = selectionListAssemblyInfo.getCellHeight();
+      int cellHeight = selectionListAssemblyInfo.getEffectiveCellHeight();
       sizePositionPaneModel.setCellHeight(cellHeight <= 0 ? AssetUtil.defh : cellHeight);
 
       basicGeneralPaneModel.setName(selectionListAssemblyInfo.getAbsoluteName());
@@ -215,7 +215,13 @@ public class SelectionListPropertyDialogService {
       dialogService.setAssemblyPosition(selectionListAssemblyInfo, sizePositionPaneModel);
 
       selectionListAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
-      selectionListAssemblyInfo.setCellHeight(sizePositionPaneModel.getCellHeight());
+
+      // store + mark user-set only when the value differs from the displayed effective height, so
+      // accepting the org density default leaves the stored height at its default and the flag clean
+      if(sizePositionPaneModel.getCellHeight() != selectionListAssemblyInfo.getEffectiveCellHeight()) {
+         selectionListAssemblyInfo.setUserCellHeight(true);
+         selectionListAssemblyInfo.setCellHeight(sizePositionPaneModel.getCellHeight());
+      }
 
       selectionListAssemblyInfo.setPrimary(basicGeneralPaneModel.isPrimary());
       selectionListAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());

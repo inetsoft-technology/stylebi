@@ -57,7 +57,7 @@ public class SelectionValueModel {
          if(svalue.getFormat() != null) {
             if(font != null && wrapping) {
                FontMetrics fm = Common.getFontMetrics(font);
-               int maxLines = info.getCellHeight() / (fm.getAscent() + fm.getDescent());
+               int maxLines = info.getEffectiveCellHeight() / (fm.getAscent() + fm.getDescent());
 
                if(maxLines > 1) {
                   this.maxLines = maxLines;
