@@ -343,14 +343,15 @@ public class VSLayoutService {
    }
 
    public final void sendLayout(RuntimeViewsheet rvs, AbstractLayout layout,
-                          CommandDispatcher dispatcher)
+                          CommandDispatcher dispatcher,
+                          VSObjectModelFactoryService objectModelService)
    {
       VSLayoutModel model;
 
       if(layout instanceof ViewsheetLayout) {
          model = VSLayoutModel.builder()
             .name(((ViewsheetLayout) layout).getName())
-            .objects(getObjects(layout.getVSAssemblyLayouts(), rvs))
+            .objects(getObjects(layout.getVSAssemblyLayouts(), rvs, objectModelService))
             .runtimeID(rvs.getID())
             .build();
       }
@@ -362,7 +363,7 @@ public class VSLayoutService {
 
          model = VSLayoutModel.builder()
             .name(Catalog.getCatalog().getString("Print Layout"))
-            .objects(getObjects(layout.getVSAssemblyLayouts(), rvs))
+            .objects(getObjects(layout.getVSAssemblyLayouts(), rvs, objectModelService))
             .printLayout(true)
             .unit(info.getUnit())
             .marginTop(margin.top)
@@ -373,8 +374,8 @@ public class VSLayoutService {
             .footerFromEdge(info.getFooterFromEdge())
             .width(size.getWidth())
             .height(size.getHeight())
-            .headerObjects(getObjects(printLayout.getHeaderLayouts(), rvs))
-            .footerObjects(getObjects(printLayout.getFooterLayouts(), rvs))
+            .headerObjects(getObjects(printLayout.getHeaderLayouts(), rvs, objectModelService))
+            .footerObjects(getObjects(printLayout.getFooterLayouts(), rvs, objectModelService))
             .horizontal(printLayout.isHorizontalScreen())
             .runtimeID(rvs.getID())
             .build();
@@ -868,7 +869,8 @@ public class VSLayoutService {
    }
 
    private List<VSLayoutObjectModel> getObjects(List<VSAssemblyLayout> layouts,
-                                                RuntimeViewsheet rvs)
+                                                RuntimeViewsheet rvs,
+                                                VSObjectModelFactoryService objectModelService)
    {
       if(layouts == null) {
          return new ArrayList<>();
