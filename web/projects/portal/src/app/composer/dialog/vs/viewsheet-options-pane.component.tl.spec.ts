@@ -25,7 +25,7 @@
  *   Group 2 [Risk 3] — clear(): nullifies dataSource (Bug #10157); clears
  *     model.selectDataSourceDialogModel.dataSource to null
  *   Group 3 [Risk 3] — convertToWorksheet: confirm guard before HTTP call; model updated on
- *     success; MV warning shown when hasMvs=true; subscribe leak (it.fails)
+ *     success; MV warning shown when hasMvs=true; subscribe leak (Bug #75598, fixed)
  *   Group 4 [Risk 2] — ngOnInit: 4 form controls added (maxRows/alias/touchInterval/snapGrid);
  *     alias/description override applied when dataSource has alias (Bug #20438)
  *   Group 5 [Risk 2] — changeServerSideUpdate + isServerSideUpdate: touchInterval enable/disable
@@ -36,11 +36,11 @@
  *   Group 8 [Risk 2] — showSelectDataSourceDialog: model updated + changeSource called on commit
  *   Group 9 [Risk 1] — snapToGrid: reads localStorage "snap-to-grid" key
  *
- * Confirmed bugs (it.fails):
- *   Bug — doConvert() subscribe leak (Group 3): doConvert() calls modelService.getModel().pipe().subscribe()
- *     without storing the Subscription reference. If the component is destroyed while the HTTP call is
- *     in-flight the callback still fires and mutates this.model. Fix: store the subscription in a field
- *     and unsubscribe in ngOnDestroy.
+ * Fixed bugs:
+ *   Bug #75598 — doConvert() subscribe leak (Group 3): doConvert() called modelService.getModel().pipe()
+ *     .subscribe() without storing the Subscription reference. If the component was destroyed while the
+ *     HTTP call was in-flight the callback still fired and mutated this.model. Fixed by storing the
+ *     subscription in a field and unsubscribing in ngOnDestroy.
  *
  * Out of scope:
  *   showViewsheetParametersDialog / showSelectDataSourceDialog full modal flow — depend on
@@ -260,10 +260,11 @@ describe("ViewsheetOptionsPane — convertToWorksheet", () => {
       expect(msgSpy).toHaveBeenCalled();
    });
 
-   // Bug: doConvert() subscribes to modelService.getModel().pipe().subscribe() without storing
-   // the Subscription reference. After the component is destroyed the callback still fires and
-   // mutates this.model. Fix: store the subscription in a field and unsubscribe in ngOnDestroy.
-   it.fails("should not mutate model after component is destroyed (subscribe leak)", async () => {
+   // Regression test for Bug #75598: doConvert() subscribed to
+   // modelService.getModel().pipe().subscribe() without storing the Subscription reference. After
+   // the component was destroyed the callback still fired and mutated this.model. Fixed by
+   // storing the subscription in a field and unsubscribing in ngOnDestroy.
+   it("should not mutate model after component is destroyed (subscribe leak)", async () => {
       const { comp, fixture } = await renderComponent();
       vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
 
@@ -275,13 +276,12 @@ describe("ViewsheetOptionsPane — convertToWorksheet", () => {
 
       const originalSrc = comp.model.selectDataSourceDialogModel;
 
-      fixture.destroy(); // no ngOnDestroy → subscription NOT cancelled
+      fixture.destroy(); // ngOnDestroy unsubscribes before the response arrives
 
       const newSrc = { title: "WS", dataSource: { type: "WORKSHEET", description: "ws/new", alias: null } as any };
       subject.next({ model: newSrc, hasMvs: false });
 
-      // With fix: model unchanged after destroy
-      // Currently: FAILS — callback runs and mutates model
+      // model unchanged after destroy
       expect(comp.model.selectDataSourceDialogModel).toBe(originalSrc);
    });
 });

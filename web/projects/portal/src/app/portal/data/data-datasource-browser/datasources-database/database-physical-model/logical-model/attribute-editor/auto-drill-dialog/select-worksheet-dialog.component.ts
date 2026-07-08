@@ -15,8 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, ElementRef, EventEmitter, Input, Output, ViewChild } from "@angular/core";
+import { Component, ElementRef, EventEmitter, Input, OnDestroy, Output, ViewChild } from "@angular/core";
 import { HttpClient, HttpParams } from "@angular/common/http";
+import { Subscription } from "rxjs";
 import { AssetType } from "../../../../../../../../../../../shared/data/asset-type";
 import { DrillSubQueryModel } from "../../../../../../model/datasources/database/physical-model/logical-model/drill-sub-query-model";
 import { TreeNodeModel } from "../../../../../../../../widget/tree/tree-node-model";
@@ -47,7 +48,7 @@ const LOAD_PARMS_URL = "../api/portal/data/autodrill/worksheet/params";
     styleUrls: ["select-worksheet-dialog.component.scss"],
     imports: [ModalHeaderComponent, EnterSubmitDirective, AssetTreeComponent, FixedDropdownDirective, SelectAttributePaneComponent, SelectQueryFieldPaneComponent]
 })
-export class SelectWorksheetDialog {
+export class SelectWorksheetDialog implements OnDestroy {
    @Input() entities: EntityModel[];
    @Input() fields: QueryFieldModel[];
    @Output() onCommit = new EventEmitter<DrillSubQueryModel>();
@@ -57,6 +58,7 @@ export class SelectWorksheetDialog {
    selectedEntry: AssetEntry;
    queryParams: string[];
    closeMenu: boolean;
+   private queryParametersSubscription: Subscription;
    dropdownOpenState: Record<string, boolean> = {};
 
    @Input() set selectedSubQuery(model: DrillSubQueryModel) {
@@ -89,11 +91,16 @@ export class SelectWorksheetDialog {
          const params: HttpParams = new HttpParams()
             .set("wsIdentifier", entry.identifier);
 
-         this.http.get<AutoDrillWorksheetParameters>(LOAD_PARMS_URL, {params})
+         this.queryParametersSubscription = this.http
+            .get<AutoDrillWorksheetParameters>(LOAD_PARMS_URL, {params})
             .subscribe((res: AutoDrillWorksheetParameters) => {
                this.queryParams = res?.queryParams;
             });
       }
+   }
+
+   ngOnDestroy(): void {
+      this.queryParametersSubscription?.unsubscribe();
    }
 
    getSelectedParamVal(param: string): string {

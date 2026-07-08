@@ -18,6 +18,7 @@
 import {
    Component,
    OnInit,
+   OnDestroy,
    Output,
    EventEmitter,
    Input,
@@ -63,7 +64,7 @@ const VIEWSHEET_PROPERTY_TEST_SCRIPT_URL = "../api/composer/vs/viewsheet-propert
     DialogButtonsDirective
 ]
 })
-export class ViewsheetPropertyDialog extends BaseResizeableDialogComponent implements OnInit {
+export class ViewsheetPropertyDialog extends BaseResizeableDialogComponent implements OnInit, OnDestroy {
    @Input() model: ViewsheetPropertyDialogModel;
    @Input() scriptTreeModel: ScriptPaneTreeModel;
    @Input() viewsheet: Viewsheet;
@@ -74,6 +75,8 @@ export class ViewsheetPropertyDialog extends BaseResizeableDialogComponent imple
       new EventEmitter<ViewsheetPropertyDialogModel>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
    private orgInfo: CommonKVModel<string, string> = null;
+   private orgInfoSubscription: Subscription;
+   private testScriptSubscription: Subscription;
 
    constructor(private httpClient: HttpClient, private modalService: NgbModal,
                protected renderer: Renderer2, protected element: ElementRef,
@@ -81,7 +84,7 @@ export class ViewsheetPropertyDialog extends BaseResizeableDialogComponent imple
    {
       super(renderer, element);
 
-      this.appInfoService.getCurrentOrgInfo().subscribe((orgInfo) => {
+      this.orgInfoSubscription = this.appInfoService.getCurrentOrgInfo().subscribe((orgInfo) => {
          this.orgInfo = orgInfo;
       })
    }
@@ -108,7 +111,8 @@ export class ViewsheetPropertyDialog extends BaseResizeableDialogComponent imple
    testScript(supportTimeout: boolean = true): void {
       const params = new HttpParams().set("runtimeId", this.model.id);
 
-      this.httpClient.post(VIEWSHEET_PROPERTY_TEST_SCRIPT_URL, this.model, { params: params })
+      this.testScriptSubscription = this.httpClient.post(
+         VIEWSHEET_PROPERTY_TEST_SCRIPT_URL, this.model, { params: params })
          .pipe(
            timeout(supportTimeout ? 5000 : null),
             catchError(error => this.handleError(error))
@@ -167,5 +171,10 @@ export class ViewsheetPropertyDialog extends BaseResizeableDialogComponent imple
 
       let assetEntry: AssetEntry = createAssetEntry(this.viewsheet.id);
       return assetEntry?.organization != this.orgInfo.key;
+   }
+
+   ngOnDestroy(): void {
+      this.orgInfoSubscription?.unsubscribe();
+      this.testScriptSubscription?.unsubscribe();
    }
 }

@@ -20,6 +20,8 @@ package inetsoft.report.script.formula;
 import inetsoft.report.internal.table.*;
 import inetsoft.util.script.FormulaContext;
 import inetsoft.util.script.graal.ScriptArrayScope;
+import inetsoft.util.script.graal.ScriptValueConverter;
+import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -93,6 +95,43 @@ public class CalcRef implements ScriptArrayScope {
          // value of the reference is null
          else if(".".equals(id)) {
             return unwrap();
+         }
+         // GraalJS's ToPrimitive coercion (used by ==, string concatenation,
+         // template literals, etc.) probes for callable toString/valueOf
+         // members before falling back to a default conversion. hasMember()
+         // reports true for every id (needed so arbitrary $name@group?cond
+         // specs dispatch here), so without a real implementation the probe
+         // would fall through to getBySpec() below, fail to parse "toString"/
+         // "valueOf" as a CellRange spec, and return non-callable null,
+         // breaking the coercion. Mirrors Rhino's getDefaultValue(Class),
+         // which returned unwrap() directly for the same cases. (#75593)
+         //
+         // unwrap() runs inside the lambda body (invoked later by GraalJS,
+         // after this method's own try/catch has already returned), so it
+         // needs its own try/catch to keep failures degrading to null like
+         // every other accessor in this class instead of propagating as an
+         // uncaught PolyglotException that aborts the whole formula.
+         else if("valueOf".equals(id)) {
+            return (ProxyExecutable) args -> {
+               try {
+                  return ScriptValueConverter.toGuest(unwrap());
+               }
+               catch(Exception ex) {
+                  LOG.warn("Failed to get reference property: " + id, ex);
+                  return null;
+               }
+            };
+         }
+         else if("toString".equals(id)) {
+            return (ProxyExecutable) args -> {
+               try {
+                  return String.valueOf(unwrap());
+               }
+               catch(Exception ex) {
+                  LOG.warn("Failed to get reference property: " + id, ex);
+                  return null;
+               }
+            };
          }
          // check positional reference
          else if(id.length() > 0) {

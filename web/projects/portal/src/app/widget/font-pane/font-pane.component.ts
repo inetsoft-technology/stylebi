@@ -16,9 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {
-   Component, Input, Output, EventEmitter, OnInit, ViewChild,
+   Component, Input, Output, EventEmitter, OnInit, OnDestroy, ViewChild,
    AfterViewInit, SimpleChanges, OnChanges, ChangeDetectorRef
 } from "@angular/core";
+import { Subscription } from "rxjs";
 import { FontInfo } from "../../common/data/format-info-model";
 import { FontService } from "../services/font.service";
 import { DebounceService } from "../services/debounce.service";
@@ -34,7 +35,7 @@ let scrollPos: any;
     styleUrls: ["font-pane.component.scss"],
     imports: [FormsModule, NumberStepperComponent]
 })
-export class FontPane implements OnInit, OnChanges {
+export class FontPane implements OnInit, OnChanges, OnDestroy {
    @Input() fontModel: FontInfo;
    @Input() isOpen: boolean;
    @Input() fonts: string[] = [];
@@ -43,6 +44,7 @@ export class FontPane implements OnInit, OnChanges {
    @ViewChild("scrollBar") scrollBar: any;
    _font: FontInfo;
    private pending: number = 0;
+   private fontsSubscription: Subscription;
 
    get font_family(): string {
       if(this._font == null || this._font.fontFamily == null) {
@@ -117,9 +119,13 @@ export class FontPane implements OnInit, OnChanges {
    getFonts(): void {
       this.fonts = [];
 
-      this.fontService.getAllFonts().subscribe((data: string[]) => {
+      this.fontsSubscription = this.fontService.getAllFonts().subscribe((data: string[]) => {
          this.fonts = data;
       });
+   }
+
+   ngOnDestroy(): void {
+      this.fontsSubscription?.unsubscribe();
    }
 
    get defaultFont(): string {

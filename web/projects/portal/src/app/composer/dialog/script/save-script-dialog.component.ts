@@ -15,7 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, NgZone, OnInit, Output } from "@angular/core";
+import { Component, EventEmitter, Input, NgZone, OnDestroy, OnInit, Output } from "@angular/core";
+import { Subscription } from "rxjs";
 import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { ComponentTool } from "../../../common/util/component-tool";
@@ -53,13 +54,14 @@ const CONFIRM_MESSAGE = {
     AssetTreeComponent
 ]
 })
-export class SaveScriptDialog implements OnInit {
+export class SaveScriptDialog implements OnInit, OnDestroy {
    @Input() defaultFolder: AssetEntry;
    @Input() model: SaveScriptDialogModel;
    @Output() onCommit = new EventEmitter<SaveScriptDialogModel>();
    @Output() onCancel = new EventEmitter<string>();
    form: UntypedFormGroup;
    formValid = () => this.model.name && this.form && this.form.valid;
+   private validateSubscription: Subscription;
 
    constructor(private zone: NgZone,
                private modalService: NgbModal,
@@ -94,7 +96,8 @@ export class SaveScriptDialog implements OnInit {
    }
 
    ok(){
-      this.http.post<SaveLibraryDialogModelValidator>(SAVE_SCRIPT_DIALOG_VALIDATION_URI, this.model).subscribe((res) => {
+      this.validateSubscription = this.http.post<SaveLibraryDialogModelValidator>(
+         SAVE_SCRIPT_DIALOG_VALIDATION_URI, this.model).subscribe((res) => {
          let validator: SaveLibraryDialogModelValidator = res;
          let promise = Promise.resolve(true);
 
@@ -138,5 +141,9 @@ export class SaveScriptDialog implements OnInit {
 
    enter() {
       this.zone.run(() => this.ok());
+   }
+
+   ngOnDestroy(): void {
+      this.validateSubscription?.unsubscribe();
    }
 }

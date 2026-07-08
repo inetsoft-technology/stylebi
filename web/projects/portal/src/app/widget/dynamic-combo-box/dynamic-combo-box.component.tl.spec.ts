@@ -33,10 +33,10 @@
  *   Bug #17765: selectType(VARIABLE) is a no-op when isVariableEnabled() is false
  *   Bug #19027: value "$(var1)" -> type stays VARIABLE after ngOnInit
  *
- * Confirmed bugs (it.fails):
- *   Bug — setTimeout leak (Group 3): selectType(EXPRESSION) queues a 0ms timer that fires on the
- *     dead component because there is no ngOnDestroy to cancel it. Fix: add ngOnDestroy that stores
- *     the timer ID and calls clearTimeout on destroy.
+ * Fixed bugs:
+ *   Bug #75599 (FIXED) — setTimeout leak (Group 3): selectType(EXPRESSION) queued a 0ms timer that
+ *     fired on the dead component because there was no ngOnDestroy to cancel it. Fixed by storing
+ *     the timer handle in formulaEditorTimer and clearing it in ngOnDestroy.
  *
  * Out of scope:
  *   showFormulaEditor() — opens NgbModal overlay; integration-level, requires live modal DOM.
@@ -187,9 +187,10 @@ describe("DynamicComboBox — selectType EXPRESSION deferred dialog (+memory lea
       vi.useRealTimers();
    });
 
-   // Bug: DynamicComboBox has no ngOnDestroy; the 0ms timer queued by selectType(EXPRESSION)
-   // fires on the dead component.  Fix: add ngOnDestroy that clears the pending timer ID.
-   it.fails("should not invoke showFormulaEditor after the component is destroyed", async () => {
+   // Regression test for Bug #75599: DynamicComboBox had no ngOnDestroy, so the 0ms timer queued
+   // by selectType(EXPRESSION) fired on the dead component. Fixed by storing the timer handle
+   // and clearing it in ngOnDestroy.
+   it("should not invoke showFormulaEditor after the component is destroyed", async () => {
       const { fixture } = await render(DynamicComboBox, {
          schemas: [NO_ERRORS_SCHEMA],
          providers: [{ provide: NgbModal, useValue: MODAL_MOCK }],
@@ -202,7 +203,7 @@ describe("DynamicComboBox — selectType EXPRESSION deferred dialog (+memory lea
       comp.selectType(new MouseEvent("click"), ComboMode.EXPRESSION);
       fixture.destroy(); // component destroyed, timer still pending
       vi.advanceTimersByTime(1); // timer fires on dead component
-      expect(showSpy).not.toHaveBeenCalled(); // currently FAILS — proves the leak
+      expect(showSpy).not.toHaveBeenCalled(); // fixed: ngOnDestroy clears the pending timer
       vi.useRealTimers();
    });
 });

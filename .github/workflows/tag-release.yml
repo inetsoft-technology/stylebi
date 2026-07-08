@@ -1,0 +1,118 @@
+# Tag Release
+#
+# Manually-triggered workflow that runs Maven's `release:prepare` to cut a new
+# release: it sets the release version across all module POMs, commits, creates
+# the release tag (e.g. v1.2.3), then sets the next development version and
+# commits, and pushes the commits and tag back to the repository.
+#
+# Because `release:prepare` builds and runs the full test suite across every
+# module, the job uses a long timeout.
+#
+# IMPORTANT — downstream trigger / actor requirement:
+#   Pushing the release tag is meant to trigger the "Publish Release" workflow
+#   (on: push, tags v*.*.*). GitHub deliberately does NOT run workflows for
+#   pushes made with the automatic GITHUB_TOKEN (to prevent recursive runs), so
+#   the tag must be pushed using a separate credential. This workflow mints a
+#   short-lived GitHub App installation token and checks out with it, so that
+#   release:prepare's `git push` is performed under the App identity, allowing
+#   the tag push to trigger Publish Release.
+#
+#   Setup: create an org-owned GitHub App with Repository permission
+#   "Contents: Read and write", install it on this repository, and store its
+#   credentials as Actions secrets:
+#     - RELEASE_APP_ID          the App's numeric App ID
+#     - RELEASE_APP_PRIVATE_KEY the full contents of the App's private-key .pem
+#   The installation token expires in ~1 hour and is scoped to this repository.
+#   If the release branch is protected, add the App as an allowed bypass actor.
+name: Tag Release
+on:
+  workflow_dispatch:
+    inputs:
+      releaseVersion:
+        description: 'Release version (e.g. 1.2.3)'
+        required: true
+        type: string
+      nextDevelopmentVersion:
+        description: 'Next development version (e.g. 1.2.4-SNAPSHOT)'
+        required: true
+        type: string
+      releaseTag:
+        description: 'Release tag (e.g. v1.2.3)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Generate release token
+        id: release-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+          token: ${{ steps.release-token.outputs.token }}
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          server-id: gh-stylebi
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+
+      - name: Cache local Maven repository
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Cache NPM global cache
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('web/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Authenticate with GitHub Packages
+        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
+
+      - name: Look up App bot user id
+        id: bot-user
+        env:
+          GH_TOKEN: ${{ steps.release-token.outputs.token }}
+        run: echo "id=$(gh api "/users/${{ steps.release-token.outputs.app-slug }}[bot]" --jq .id)" >> "$GITHUB_OUTPUT"
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "${{ steps.release-token.outputs.app-slug }}[bot]"
+          git config user.email "${{ steps.bot-user.outputs.id }}+${{ steps.release-token.outputs.app-slug }}[bot]@users.noreply.github.com"
+
+      - name: Prepare release
+        env:
+          RELEASE_VERSION: ${{ inputs.releaseVersion }}
+          DEVELOPMENT_VERSION: ${{ inputs.nextDevelopmentVersion }}
+          RELEASE_TAG: ${{ inputs.releaseTag }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI: true
+        run: >
+          ./mvnw -B release:prepare
+          -DautoVersionSubmodules=true
+          -DreleaseVersion="$RELEASE_VERSION"
+          -DdevelopmentVersion="$DEVELOPMENT_VERSION"
+          -Dtag="$RELEASE_TAG"

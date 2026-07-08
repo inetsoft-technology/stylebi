@@ -16,8 +16,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient } from "@angular/common/http";
-import { Component, EventEmitter, Input, OnInit, Output, ViewChild, ElementRef, AfterViewInit } from "@angular/core";
+import { Component, EventEmitter, Input, OnInit, OnDestroy, Output, ViewChild, ElementRef, AfterViewInit } from "@angular/core";
 import { AbstractControl, UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { Subscription } from "rxjs";
 import { NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
 import { PhysicalTableTreeComponent } from "./physical-table-tree/physical-table-tree.component";
 import { EntityModel } from "../../../../../model/datasources/database/physical-model/logical-model/entity-model";
@@ -35,7 +36,7 @@ const TABLES_URI: string = "../api/data/logicalModel/tables/nodes";
     styleUrls: ["logical-model-attribute-dialog.component.scss"],
     imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, PhysicalTableTreeComponent, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu]
 })
-export class LogicalModelAttributeDialog implements OnInit, AfterViewInit {
+export class LogicalModelAttributeDialog implements OnInit, AfterViewInit, OnDestroy {
    @ViewChild("physicalTree") tree: PhysicalTableTreeComponent;
    @ViewChild("selectFocus") selectFocus: ElementRef;
    @Input() entities: EntityModel[] = [];
@@ -51,6 +52,8 @@ export class LogicalModelAttributeDialog implements OnInit, AfterViewInit {
    tablesRoot: TreeNodeModel;
    selectedColumns: TreeNodeModel[] = [];
    private _newParent = false;
+   private loadTableSubscription: Subscription;
+   private selectColumnsTimer: ReturnType<typeof setTimeout>;
 
    @Input()
    set newParent(value: boolean) {
@@ -81,6 +84,16 @@ export class LogicalModelAttributeDialog implements OnInit, AfterViewInit {
       this.selectFocus.nativeElement.focus();
    }
 
+   ngOnDestroy(): void {
+      if(this.loadTableSubscription) {
+         this.loadTableSubscription.unsubscribe();
+      }
+
+      if(this.selectColumnsTimer) {
+         clearTimeout(this.selectColumnsTimer);
+      }
+   }
+
    /**
     * Load tables and columns tree.
     */
@@ -88,10 +101,10 @@ export class LogicalModelAttributeDialog implements OnInit, AfterViewInit {
       let event = new GetModelEvent(this.databaseName, this.physicalModelName,
          this.logicalModelName, this.parentName, this.additional);
 
-      this.http.post<TreeNodeModel>(TABLES_URI, event).subscribe(
+      this.loadTableSubscription = this.http.post<TreeNodeModel>(TABLES_URI, event).subscribe(
             data => {
                this.tablesRoot = data;
-               setTimeout(() => this.selectColumns());
+               this.selectColumnsTimer = setTimeout(() => this.selectColumns());
             },
             err => {}
          );

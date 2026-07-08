@@ -16,14 +16,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package inetsoft.web.admin.schedule;
-
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.security.Principal;
@@ -34,6 +36,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("core")
 class ScheduleTaskServiceSanitizeTest {
 
    @Mock
@@ -48,6 +51,19 @@ class ScheduleTaskServiceSanitizeTest {
       service = new ScheduleTaskService(null, null, scheduleService, null, null, null, null);
    }
 
+   /**
+    * sanitizeConditions() now consults SUtil.isMultiTenant() unconditionally to gate time
+    * ranges for non-site-admins in multi-tenant mode. Tests exercising the single-tenant
+    * default (the common case) stub it here rather than each hitting the real, Spring-context-
+    * dependent implementation.
+    */
+   private void invokeSanitizeConditions(ScheduleTask task, ScheduleTask original) {
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class)) {
+         sutil.when(SUtil::isMultiTenant).thenReturn(false);
+         service.sanitizeConditions(task, original, principal);
+      }
+   }
+
    // ── sanitizeConditions ────────────────────────────────────────────────────
 
    @Test
@@ -58,7 +74,7 @@ class ScheduleTaskServiceSanitizeTest {
       ScheduleTask task = taskWithEveryDay(10, 0, 0);
       ScheduleTask original = taskWithEveryDay(9, 30, 0);
 
-      service.sanitizeConditions(task, original, principal);
+      invokeSanitizeConditions(task, original);
 
       TimeCondition tc = (TimeCondition) task.getCondition(0);
       assertEquals(10, tc.getHour());
@@ -72,7 +88,7 @@ class ScheduleTaskServiceSanitizeTest {
       ScheduleTask task = taskWithEveryDay(10, 0, 0);
       ScheduleTask original = taskWithEveryDay(9, 30, 0);
 
-      service.sanitizeConditions(task, original, principal);
+      invokeSanitizeConditions(task, original);
 
       assertEquals(1, task.getConditionCount());
       TimeCondition tc = (TimeCondition) task.getCondition(0);
@@ -90,7 +106,7 @@ class ScheduleTaskServiceSanitizeTest {
       ScheduleTask task = taskWithEveryDay(10, 15, 0);
       ScheduleTask original = new ScheduleTask();   // no conditions
 
-      service.sanitizeConditions(task, original, principal);
+      invokeSanitizeConditions(task, original);
 
       assertEquals(1, task.getConditionCount());
       TimeCondition tc = (TimeCondition) task.getCondition(0);
@@ -114,7 +130,7 @@ class ScheduleTaskServiceSanitizeTest {
       origTc.setMinute(0);
       original.addCondition(origTc);
 
-      service.sanitizeConditions(task, original, principal);
+      invokeSanitizeConditions(task, original);
 
       // EVERY_DAY condition is kept (not removed), but time is defaulted
       assertEquals(1, task.getConditionCount());
@@ -137,7 +153,7 @@ class ScheduleTaskServiceSanitizeTest {
       ScheduleTask original = taskWithAt(date);
       TimeCondition origTc = (TimeCondition) original.getCondition(0);
 
-      service.sanitizeConditions(task, original, principal);
+      invokeSanitizeConditions(task, original);
 
       assertEquals(1, task.getConditionCount());
       assertSame(origTc, task.getCondition(0));
@@ -152,7 +168,7 @@ class ScheduleTaskServiceSanitizeTest {
       ScheduleTask task = taskWithAt(new Date());
       ScheduleTask original = taskWithEveryDay(9, 0, 0);
 
-      service.sanitizeConditions(task, original, principal);
+      invokeSanitizeConditions(task, original);
 
       assertEquals(0, task.getConditionCount());
    }
@@ -166,7 +182,7 @@ class ScheduleTaskServiceSanitizeTest {
       ScheduleTask original = taskWithEveryHour(9, 15);
       TimeCondition origTc = (TimeCondition) original.getCondition(0);
 
-      service.sanitizeConditions(task, original, principal);
+      invokeSanitizeConditions(task, original);
 
       assertEquals(1, task.getConditionCount());
       assertSame(origTc, task.getCondition(0));
@@ -180,7 +196,7 @@ class ScheduleTaskServiceSanitizeTest {
       ScheduleTask task = taskWithEveryHour(10, 0);
       ScheduleTask original = taskWithEveryDay(9, 0, 0);
 
-      service.sanitizeConditions(task, original, principal);
+      invokeSanitizeConditions(task, original);
 
       assertEquals(0, task.getConditionCount());
    }
@@ -193,7 +209,7 @@ class ScheduleTaskServiceSanitizeTest {
       ScheduleTask task = taskWithAt(new Date());
       ScheduleTask original = new ScheduleTask();   // empty
 
-      service.sanitizeConditions(task, original, principal);
+      invokeSanitizeConditions(task, original);
 
       assertEquals(0, task.getConditionCount());
    }
@@ -211,7 +227,7 @@ class ScheduleTaskServiceSanitizeTest {
       TimeRange origRange = new TimeRange("server-range", "10:00", "11:00", true);
       ((TimeCondition) original.getCondition(0)).setTimeRange(origRange);
 
-      service.sanitizeConditions(task, original, principal);
+      invokeSanitizeConditions(task, original);
 
       assertEquals(1, task.getConditionCount());
       TimeCondition result = (TimeCondition) task.getCondition(0);
@@ -234,13 +250,42 @@ class ScheduleTaskServiceSanitizeTest {
       origTc.setType(TimeCondition.EVERY_WEEK);
       original.addCondition(origTc);
 
-      service.sanitizeConditions(task, original, principal);
+      invokeSanitizeConditions(task, original);
 
       // EVERY_DAY condition is kept (not removed), but time range is cleared
       assertEquals(1, task.getConditionCount());
       TimeCondition result = (TimeCondition) task.getCondition(0);
       assertEquals(TimeCondition.EVERY_DAY, result.getType());
       assertNull(result.getTimeRange());
+   }
+
+   @Test
+   void sanitizeConditions_orgAdminMultiTenant_stripsTimeRangeDespiteDefaultAllow() {
+      allowStartTime();
+      allowTimeRange();   // SCHEDULE_OPTION defaults to allow when unconfigured -- true even
+                           // for an org admin who was never explicitly granted this action
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class);
+          MockedStatic<OrganizationManager> orgManagerStatic = mockStatic(OrganizationManager.class))
+      {
+         sutil.when(SUtil::isMultiTenant).thenReturn(true);
+         OrganizationManager orgManager = mock(OrganizationManager.class);
+         orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+         when(orgManager.isSiteAdmin(principal)).thenReturn(false);   // org admin, not site admin
+
+         ScheduleTask task = taskWithEveryDay(9, 0, 0);
+         ((TimeCondition) task.getCondition(0))
+            .setTimeRange(new TimeRange("client-range", "08:00", "09:00", false));
+
+         ScheduleTask original = taskWithEveryDay(9, 0, 0);   // server had no time range
+
+         service.sanitizeConditions(task, original, principal);
+
+         TimeCondition result = (TimeCondition) task.getCondition(0);
+         assertNull(result.getTimeRange(),
+            "org admin in multi-tenant mode must not be able to smuggle a time range onto a " +
+            "task even though SCHEDULE_OPTION:timeRange defaults to allow when unconfigured");
+      }
    }
 
    // ── sanitizeAction ────────────────────────────────────────────────────────

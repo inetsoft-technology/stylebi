@@ -28,11 +28,12 @@
  *   Group 6 [Risk 2] — getObjectTop(), getBodyWidth(), childWithBorder getter
  *   Group 7 [Risk 1] — childChanged, resizeAssembly, isSelected, zIndex getter
  *
- * Confirmed bugs (it.fails):
- *   Bug — onChildUpdate subscription leak (Group 1): ngOnInit subscribes to
+ * Fixed bugs:
+ *   Bug #75599 (fixed) — onChildUpdate subscription leak (Group 1): ngOnInit subscribed to
  *     selectionContainerChildrenService.onChildUpdate (source line 174) without adding the
- *     subscription to this.subscriptions. After ngOnDestroy, the callback still fires and calls
- *     setChildrenHeight() on the dead component. Fix: wrap with this.subscriptions.add(...).
+ *     subscription to this.subscriptions. After ngOnDestroy, the callback still fired and called
+ *     setChildrenHeight() on the dead component. Fixed by adding this subscription to the
+ *     existing this.subscriptions container.
  *
  * Out of scope:
  *   onEnter, onLeave, onContainerDragOver — require selectionContainerRef (@Input EditableObjectContainer)
@@ -208,18 +209,19 @@ describe("ComposerSelectionContainerChildren — ngOnInit subscription lifecycle
       expect(unsubSpy).toHaveBeenCalledOnce();
    });
 
-   // Bug: onChildUpdate.subscribe() on line 174 of source is NOT added to this.subscriptions.
-   // After ngOnDestroy, the subscription still fires — calling setChildrenHeight() on a dead component.
-   // Fix: wrap the subscribe call with this.subscriptions.add(...).
-   it.fails("should not call setChildrenHeight after ngOnDestroy via onChildUpdate (leaked subscription)", async () => {
+   // Bug #75599 (fixed): onChildUpdate.subscribe() on line 174 of source was NOT added to
+   // this.subscriptions. After ngOnDestroy, the subscription still fired — calling
+   // setChildrenHeight() on a dead component. Fixed by adding this subscription to the
+   // existing this.subscriptions container.
+   it("should not call setChildrenHeight after ngOnDestroy via onChildUpdate (leaked subscription)", async () => {
       const { comp, fixture } = await renderComponent();
       comp.vsObject = makeVsObject();
       const spy = vi.spyOn(comp, "setChildrenHeight");
 
       fixture.destroy(); // calls ngOnDestroy -> subscriptions.unsubscribe()
-      onChildUpdateSubject.next(0); // fires the un-cleaned-up subscription
+      onChildUpdateSubject.next(0); // subscription is cleaned up, so this is a no-op
 
-      expect(spy).not.toHaveBeenCalled(); // currently FAILS — proves the leak
+      expect(spy).not.toHaveBeenCalled();
    });
 });
 

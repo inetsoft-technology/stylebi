@@ -16,10 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient } from "@angular/common/http";
-import { Component, Input, OnInit, TemplateRef, ViewChild } from "@angular/core";
+import { Component, Input, OnDestroy, OnInit, TemplateRef, ViewChild } from "@angular/core";
 import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
-import { of } from "rxjs";
+import { of, Subscription } from "rxjs";
 import { mergeMap } from "rxjs/operators";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
@@ -51,7 +51,7 @@ import { NumberStepperComponent } from "../../../widget/number-stepper/number-st
 
     imports: [FormsModule, ReactiveFormsModule, ViewsheetParametersDialog, SelectDataSourceDialog, NumberStepperComponent]
 })
-export class ViewsheetOptionsPane implements OnInit {
+export class ViewsheetOptionsPane implements OnInit, OnDestroy {
    @Input() model: ViewsheetOptionsPaneModel;
    @Input() form: UntypedFormGroup;
    @Input() defaultOrgAsset: boolean = false;
@@ -61,6 +61,7 @@ export class ViewsheetOptionsPane implements OnInit {
    viewsheetParametersModel: ViewsheetParametersDialogModel;
    selectDataSourceModel: SelectDataSourceDialogModel;
    dataSource: AssetEntry;
+   private convertSubscription: Subscription;
 
    constructor(private modalService: NgbModal, private http: HttpClient,
                private contextProvider: ContextProvider, private modelService: ModelService)
@@ -174,7 +175,7 @@ export class ViewsheetOptionsPane implements OnInit {
       const url = "../api/composer/vs/viewsheet-property-dialog-model/convert-to-worksheet/" +
          Tool.byteEncode(this.runtimeId);
 
-      this.modelService.getModel<{model: SelectDataSourceDialogModel, hasMvs: boolean}>(url).pipe(
+      this.convertSubscription = this.modelService.getModel<{model: SelectDataSourceDialogModel, hasMvs: boolean}>(url).pipe(
          mergeMap(response => {
             if(response.hasMvs) {
                return ComponentTool.showMessageDialog(this.modalService,
@@ -189,5 +190,9 @@ export class ViewsheetOptionsPane implements OnInit {
             this.model.selectDataSourceDialogModel = model;
             this.dataSource = model.dataSource;
          });
+   }
+
+   ngOnDestroy(): void {
+      this.convertSubscription?.unsubscribe();
    }
 }

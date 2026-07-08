@@ -28,7 +28,6 @@ import inetsoft.report.*;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.PaperSize;
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
@@ -170,11 +169,9 @@ public class ViewsheetPropertyDialogService {
       screensPane.setBalancePadding(info.isBalancePadding());
 
       AssetRepository assetRepository = viewsheetService.getAssetRepository();
-      boolean enterprise = LicenseManager.isEnterprise();
-      screensPane.setEditDevicesAllowed((!enterprise || OrganizationManager.getInstance().isSiteAdmin(principal) ||
-         OrganizationManager.getInstance().getCurrentOrgID().equals(Organization.getDefaultOrganizationID()))
-                                           && assetRepository.checkPermission(
-         principal, ResourceType.DEVICE, "*", EnumSet.of(ResourceAction.ACCESS)));
+      screensPane.setEditDevicesAllowed(DeviceRegistry.isOrgAllowedToEditDevices(principal) &&
+         assetRepository.checkPermission(
+            principal, ResourceType.DEVICE, "*", EnumSet.of(ResourceAction.ACCESS)));
 
       List<DeviceInfo> devices = Arrays.asList(deviceRegistry.getDevices());
 

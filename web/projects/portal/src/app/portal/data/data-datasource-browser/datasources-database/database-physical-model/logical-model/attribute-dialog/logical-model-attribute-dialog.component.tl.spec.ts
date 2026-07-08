@@ -28,13 +28,15 @@
  *   Group 6 [Risk 1] - select() stores exactly the selected nodes array
  *   Group 7 [Risk 3] - ok() emits current entity and only enabled leaf attributes
  *   Group 8 [Risk 1] - cancel() emits "cancel"
- *   Group 9 [Risk 3] - Confirmed bug (it.fails): post-destroy loadTable callback still runs
+ *   Group 9 [Risk 3] - Bug #75599 (fixed): post-destroy loadTable callback no longer runs
  *
- * Confirmed bugs (it.fails):
- *   Bug - loadTable post-destroy timer leak (Group 9): loadTable() schedules
- *     `setTimeout(() => this.selectColumns())` after the successful POST callback. The component
- *     has no ngOnDestroy cleanup for that timer, so selectColumns() still runs after
- *     fixture.destroy(). Fix: store the timeout ID and clear it during destroy.
+ * Fixed bugs:
+ *   Bug #75599 - loadTable post-destroy leak (Group 9): loadTable() schedules
+ *     `setTimeout(() => this.selectColumns())` after the successful POST callback, and the POST
+ *     subscription itself was never stored. The component previously had no ngOnDestroy cleanup,
+ *     so selectColumns() could still run after fixture.destroy(). Fixed by implementing
+ *     OnDestroy, storing the HTTP Subscription and the setTimeout handle, and clearing both in
+ *     ngOnDestroy().
  *
  * Out of scope:
  *   Template focus behavior in ngAfterViewInit - the component calls
@@ -515,12 +517,13 @@ describe("Group 8 - cancel()", () => {
    });
 });
 
-describe("Group 9 - Confirmed bug (it.fails): post-destroy loadTable callback", () => {
-   // Expected failure: `expect(selectSpy).not.toHaveBeenCalled()` fails because the successful
-   // POST callback schedules `setTimeout(() => this.selectColumns())` without destroy cleanup.
-   // If this fails for another reason, check that the failure is the final assertion and not
-   // a fixture/render exception.
-   it.fails("should not run selectColumns after fixture.destroy()", async () => {
+describe("Group 9 - Bug #75599 (fixed): post-destroy loadTable callback", () => {
+   // Bug #75599 (fixed): the successful POST callback used to schedule
+   // `setTimeout(() => this.selectColumns())` without any destroy cleanup, so selectColumns()
+   // would still run after fixture.destroy(). The component now implements OnDestroy, storing
+   // the HTTP Subscription and the setTimeout handle and clearing both in ngOnDestroy(), so
+   // selectColumns() is never invoked after destroy.
+   it("should not run selectColumns after fixture.destroy()", async () => {
       let resolveRequest: ((response: any) => void) | undefined;
       server.use(
          http.post("*/api/data/logicalModel/tables/nodes", () =>
@@ -537,7 +540,11 @@ describe("Group 9 - Confirmed bug (it.fails): post-destroy loadTable callback", 
          fixture.destroy();
          resolveRequest!(MswHttpResponse.json(makeTreeRoot()));
 
-         await waitFor(() => expect(selectSpy).toHaveBeenCalled());
+         // Give the resolved response and any (would-be) timers a chance to run. There is no
+         // affirmative event to wait for here - a fixed settle delay is used to prove absence.
+         await new Promise<void>(resolve => setTimeout(resolve, 0));
+         await new Promise<void>(resolve => setTimeout(resolve, 0));
+
          expect(selectSpy).not.toHaveBeenCalled();
       } finally {
          selectSpy.mockRestore();
