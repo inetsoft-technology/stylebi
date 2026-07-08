@@ -434,6 +434,21 @@ Define tokens and usage rules for:
 - filtered and sorted states are visible without creating header noise
 - warning and anomaly remain meaning-bearing rather than decorative
 
+### Status (implemented 2026-07-08)
+
+Phase 4 is complete as a **vocabulary-only** phase — see
+[visualization-phase4-implementation-plan.md](./visualization-phase4-implementation-plan.md). Modern
+values were assigned to the 13 `--inet-viz-*` state tokens under the gate, the render-location routing
+for all 11 states was recorded, and the contract was proved on one DOM surface (worksheet-detail table
+row hover). **No server render path was changed**, so export-visible state was defined but not yet
+rendered from these tokens. Forward impact on later phases:
+
+- **Phase 5** owns the server-side bridge for export-visible **table/selection state** — notably the
+  selection-list `selected` fill (server `VSFormat`), plus broad DOM adoption of hover/selected/active/
+  sorted/filtered/pinned across tables and lists.
+- **Phase 8** owns the `warning`/`anomaly` **conditional-formatting** bridge into the server-side
+  render path (`VSFormat` / `format.css`), consistent with its chart-color server bridge.
+
 ## Phase 5: Table And Grid Standardization
 
 ### Goal
