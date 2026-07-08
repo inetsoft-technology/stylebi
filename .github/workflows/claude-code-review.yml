@@ -51,10 +51,6 @@ jobs:
             * Check if any regression bugs may be introduced
             * Check if any backward incompatibility
             * Check if any test cases are broken by the changes
-            * Prioritize business logic, API changes, and potential regressions
-              over purely cosmetic changes
-            * Skip generated files, lock files, and non-functional
-              formatting-only changes unless they may affect behavior
             
             Provide detailed feedback using inline comments for specific issues.
             Use top-level comments for general observations or praise.
@@ -67,6 +63,8 @@ jobs:
             permitted and wastes review turns.
 
             Use available tools such as Read/Grep when helpful.
+            
+            Skip generated files, lock files, and clearly non-functional formatting-only changes unless they may affect behavior.
 
             Do not mark the review as complete until all relevant files have
             been analyzed.
