@@ -143,7 +143,7 @@ class ClusterControllerTest {
       when(securityEngine.getSecurityProvider()).thenReturn(securityProvider);
       when(securityProvider.checkPermission(
             eq(principal), eq(ResourceType.EM_COMPONENT),
-            eq("monitoring/cluster/reportCluster"), eq(ResourceAction.ACCESS)))
+            eq("monitoring/cluster"), eq(ResourceAction.ACCESS)))
          .thenReturn(false);
 
       assertThrows(SecurityException.class,
