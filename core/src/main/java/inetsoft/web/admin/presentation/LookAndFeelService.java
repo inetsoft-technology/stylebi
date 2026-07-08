@@ -22,6 +22,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.FontFaceModel;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.uql.viewsheet.internal.VSDensityDefaults;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -57,6 +58,11 @@ public class LookAndFeelService {
       boolean asc = "Ascending".equals(SreeEnv.getProperty("repository.tree.sort", false, !globalProperty));
       boolean customLogoEnabled = SreeEnv.getBooleanProperty("portal.customLogo.enabled", false, !globalProperty);
       boolean modernVisualization = SreeEnv.getBooleanProperty("viewsheet.modernVisualization", false, !globalProperty);
+      String visualizationDensity = SreeEnv.getProperty("viewsheet.density", false, !globalProperty);
+
+      if(visualizationDensity == null || visualizationDensity.isEmpty()) {
+         visualizationDensity = "dense";
+      }
       boolean repositoryTree = manager.getReportListType() == 0;
       boolean expand = manager.isAutoExpand();
       boolean defaultLogo = !customLogoEnabled ||
@@ -136,6 +142,7 @@ public class LookAndFeelService {
          )
          .vsEnabled(true)
          .modernVisualization(modernVisualization)
+         .visualizationDensity(visualizationDensity)
          .build();
    }
 
@@ -163,6 +170,8 @@ public class LookAndFeelService {
       SreeEnv.setProperty("repository.tree.sort", sort);
       SreeEnv.setProperty("viewsheet.modernVisualization",
                           Boolean.toString(model.modernVisualization()), !globalSettings);
+      SreeEnv.setProperty("viewsheet.density",
+                          VSDensityDefaults.normalizeMode(model.visualizationDensity()), !globalSettings);
       manager.setReportListType(repoTree);
       manager.setAutoExpand(model.expand());
 
