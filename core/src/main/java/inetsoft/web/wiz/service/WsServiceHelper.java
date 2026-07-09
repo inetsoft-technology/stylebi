@@ -252,10 +252,30 @@ final class WsServiceHelper {
             DataRef attr = baseCs.getAttribute(i);
             String alias = attr instanceof ColumnRef cr ? cr.getAlias() : null;
             String colName = alias != null ? alias : attr.getAttribute();
+            boolean visible = needAddColumn(composite, cs, ta.getName(), colName);
             AttributeRef attrRef = new AttributeRef(ta.getName(), colName);
             attrRef.setDataType(attr.getDataType());
             ColumnRef col = new ColumnRef(attrRef);
-            col.setVisible(needAddColumn(composite, cs, ta.getName(), colName));
+
+            // Disambiguate a visible column whose NAME collides with one already added from another
+            // base table. Downstream resolution (ColumnSelection.getAttribute / AssetUtil.findColumn)
+            // matches by attribute NAME, ignoring the entity/table qualifier — so two same-named
+            // columns (e.g. a self-join's "month" exposed by both sides) are indistinguishable, which
+            // makes the join render empty cells and any aggregation over it collapse to zero rows.
+            // Suppressed equi-join keys are invisible (needAddColumn == false) and never reach this
+            // branch; only genuinely-distinct duplicates (non-equi joins) do. Give the duplicate a
+            // unique alias so it resolves, without touching the first (clean-named) occurrence.
+            if(visible && cs.getAttribute(colName) != null) {
+               String uniqueAlias = ta.getName() + "_" + colName;
+
+               for(int suffix = 2; cs.getAttribute(uniqueAlias) != null; suffix++) {
+                  uniqueAlias = ta.getName() + "_" + colName + "_" + suffix;
+               }
+
+               col.setAlias(uniqueAlias);
+            }
+
+            col.setVisible(visible);
             cs.addAttribute(col);
          }
       }
