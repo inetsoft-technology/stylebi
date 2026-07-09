@@ -27,6 +27,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.report.internal.binding.*;
 import inetsoft.report.internal.table.*;
 import inetsoft.report.script.TableArray;
+import inetsoft.report.script.formula.CalcRef;
 import inetsoft.report.script.formula.CalcTableScope;
 import inetsoft.report.script.viewsheet.VSAScriptable;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
@@ -1112,10 +1113,18 @@ public class CalcTableLens extends DefaultTableLens {
 
          tableScope.setRow(row);
 
-         return ProfileUtils.addExecutionBreakDownRecord(getReportName(),
+         Object result = ProfileUtils.addExecutionBreakDownRecord(getReportName(),
             ExecutionBreakDownRecord.JAVASCRIPT_PROCESSING_CYCLE, args -> {
                return senv.exec(args[0], args[1], null, null);
             }, script, tableScope);
+
+         // A named-cell reference ($name) in the formula result evaluates to the
+         // live CalcRef proxy under GraalJS; resolve it to the referenced value
+         // so a script host object never leaks into the cached cell data (Rhino
+         // coerced a Scriptable result the same way). Runs while the cell location
+         // is still on the FormulaContext stack (popped in the finally block) so
+         // unwrap() resolves correctly. (#75595)
+         return unwrapCalcRefs(result);
 
          //return senv.exec(script, tableScope);
       }
@@ -1139,6 +1148,31 @@ public class CalcTableLens extends DefaultTableLens {
             }
          }
       }
+   }
+
+   /**
+    * Resolve any CalcRef in a formula result to its referenced value, so a live
+    * script host object never leaks into the cached cell data. A bare $name
+    * result is a CalcRef; an array result (e.g. [$a, $b]) can contain CalcRef
+    * elements, since ScriptValueConverter.toHost unwraps each array element back
+    * to its host object. Must be called while the evaluating cell's location is
+    * still on the FormulaContext stack. (#75595)
+    */
+   // package-private for testing
+   static Object unwrapCalcRefs(Object value) {
+      if(value instanceof CalcRef) {
+         return ((CalcRef) value).unwrap();
+      }
+
+      if(value instanceof Object[]) {
+         Object[] arr = (Object[]) value;
+
+         for(int i = 0; i < arr.length; i++) {
+            arr[i] = unwrapCalcRefs(arr[i]);
+         }
+      }
+
+      return value;
    }
 
    /**
