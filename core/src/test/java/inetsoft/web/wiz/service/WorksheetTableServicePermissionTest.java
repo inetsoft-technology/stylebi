@@ -33,6 +33,8 @@ import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.model.DeleteWorksheetTablesRequest;
 import inetsoft.web.wiz.model.WorksheetTableRequest;
+import inetsoft.web.wiz.model.WorksheetTableResponse;
+import inetsoft.web.wiz.model.WorksheetTablesResponse;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,6 +44,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
@@ -54,19 +58,22 @@ import static org.mockito.Mockito.when;
  * Coverage for the authorization gates added to {@link WorksheetTableService}:
  * <ul>
  *   <li>{@code checkWorksheetActionPermission} — the "Visual Composer -> Data Worksheet" action-level
- *       gate checked at the top of {@code createTable}, {@code getWorksheetModel} and
+ *       gate checked at the top of {@code createTables}, {@code getWorksheetModel} and
  *       {@code deleteTables}.</li>
- *   <li>The datasource READ check inside {@code createTable}'s {@code buildTable} step, gating
+ *   <li>The datasource READ check inside {@code createTables}'s {@code buildTable} step, gating
  *       physical/sql-query tables bound to a {@code physicalSource.datasourcePath}.</li>
  * </ul>
  *
- * <p>These tests only assert on the gate itself — denial short-circuits before any worksheet
- * load/mutation or datasource metadata lookup, and grant lets execution proceed past the check
- * (verified by the mock interaction actually happening), regardless of what unrelated exception
- * the deliberately-minimal downstream mocking then produces.
+ * <p>These tests only assert on the gate itself. The action-level WORKSHEET/ACCESS gate is checked
+ * before the batch loop, so its denial throws. The per-table datasource-READ and FREE_FORM_SQL
+ * gates live inside {@code buildTable}; {@code createTables} catches a failed table and records it
+ * as {@code success=false} with an {@code errorMessage} rather than throwing — so the per-table
+ * cases assert on that response entry (the table was not built) plus the mock interactions that
+ * prove where execution stopped, regardless of what unrelated failure the deliberately-minimal
+ * downstream mocking then produces.
  *
  * <p>Needs the full Sree bootstrap because {@code new Worksheet()} (constructed unconditionally by
- * {@code createTable} before {@code buildTable} runs) reads {@code SreeEnv} in its constructor.
+ * {@code createTables} before {@code buildTable} runs) reads {@code SreeEnv} in its constructor.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -98,6 +105,17 @@ class WorksheetTableServicePermissionTest {
       return MAPPER.readValue(json, WorksheetTableRequest.class);
    }
 
+   /** Wraps a single WorksheetTable JSON object into a one-table batch request. */
+   private static WorksheetTableRequest batchOf(String tableJson) throws Exception {
+      return MAPPER.readValue("{ \"tables\": [ " + tableJson + " ] }", WorksheetTableRequest.class);
+   }
+
+   /** Asserts the batch produced exactly one table result and returns it. */
+   private static WorksheetTableResponse only(WorksheetTablesResponse response) {
+      assertEquals(1, response.getTables().size(), "expected exactly one table result");
+      return response.getTables().get(0);
+   }
+
    private static final Principal USER = mock(Principal.class);
 
    // ─── createTable: WORKSHEET/ACCESS gate ────────────────────────────────────
@@ -111,7 +129,7 @@ class WorksheetTableServicePermissionTest {
 
       WorksheetTableRequest request = tableRequest("{ \"tableType\": \"physical table\" }");
 
-      assertThrows(SecurityException.class, () -> deps.service().createTable(request, USER));
+      assertThrows(SecurityException.class, () -> deps.service().createTables(request, USER));
 
       verifyNoInteractions(deps.viewsheetService);
       verifyNoInteractions(deps.metadataApiService);
@@ -124,12 +142,13 @@ class WorksheetTableServicePermissionTest {
                                                eq(ResourceAction.ACCESS)))
          .thenReturn(true);
 
-      // No tableType => buildTable fails for an unrelated reason once past the gate.
-      WorksheetTableRequest request = tableRequest("{}");
+      // One table with no tableType => past the action gate, the per-table build fails and the
+      // batch records it as a failure (rather than throwing) with the tableType reason.
+      WorksheetTableRequest request = batchOf("{}");
 
-      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-         () -> deps.service().createTable(request, USER));
-      assertTrue(ex.getMessage().contains("tableType"));
+      WorksheetTableResponse table = only(deps.service().createTables(request, USER));
+      assertFalse(table.isSuccess());
+      assertTrue(table.getErrorMessage().contains("tableType"));
 
       verify(deps.securityEngine).checkPermission(eq(USER), eq(ResourceType.WORKSHEET), eq("*"),
                                                    eq(ResourceAction.ACCESS));
@@ -205,7 +224,7 @@ class WorksheetTableServicePermissionTest {
    // ─── createTable -> buildTable: datasource READ gate ───────────────────────
 
    @Test
-   void createTablePhysicalTableThrowsWhenDatasourceReadDenied() throws Exception {
+   void createTablePhysicalTableFailsWhenDatasourceReadDenied() throws Exception {
       Deps deps = new Deps();
       when(deps.securityEngine.checkPermission(eq(USER), eq(ResourceType.WORKSHEET), eq("*"),
                                                eq(ResourceAction.ACCESS)))
@@ -213,7 +232,7 @@ class WorksheetTableServicePermissionTest {
       when(deps.dataSourceService.checkPermission(eq("myds"), eq(ResourceAction.READ), eq(USER)))
          .thenReturn(false);
 
-      WorksheetTableRequest request = tableRequest("""
+      WorksheetTableRequest request = batchOf("""
          {
            "tableName": "t1",
            "tableType": "physical table",
@@ -221,11 +240,12 @@ class WorksheetTableServicePermissionTest {
          }
          """);
 
-      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-         () -> deps.service().createTable(request, USER));
-      assertTrue(ex.getMessage().contains("myds"),
-                 "error should name the denied datasource, got: " + ex.getMessage());
+      WorksheetTableResponse table = only(deps.service().createTables(request, USER));
+      assertFalse(table.isSuccess());
+      assertTrue(table.getErrorMessage().contains("myds"),
+                 "error should name the denied datasource, got: " + table.getErrorMessage());
 
+      // Denial short-circuits before any datasource metadata lookup.
       verifyNoInteractions(deps.metadataApiService);
    }
 
@@ -238,7 +258,7 @@ class WorksheetTableServicePermissionTest {
       when(deps.dataSourceService.checkPermission(eq("myds"), eq(ResourceAction.READ), eq(USER)))
          .thenReturn(true);
 
-      WorksheetTableRequest request = tableRequest("""
+      WorksheetTableRequest request = batchOf("""
          {
            "tableName": "t1",
            "tableType": "physical table",
@@ -247,9 +267,11 @@ class WorksheetTableServicePermissionTest {
          """);
 
       // metadataApiService is an unstubbed mock: getJDBCDatasource/getTableMetaData both return
-      // null, so this fails downstream with "Table not found" — proof execution proceeded past
-      // the datasource gate all the way into buildPhysicalTable.
-      assertThrows(IllegalArgumentException.class, () -> deps.service().createTable(request, USER));
+      // null, so the table fails downstream with "Table not found" — proof execution proceeded
+      // past the datasource gate all the way into buildPhysicalTable. The batch records the
+      // failure rather than throwing.
+      WorksheetTableResponse table = only(deps.service().createTables(request, USER));
+      assertFalse(table.isSuccess());
 
       verify(deps.metadataApiService).getJDBCDatasource(eq("myds"));
       verify(deps.dataSourceService).checkPermission(eq("myds"), eq(ResourceAction.READ), eq(USER));
@@ -258,7 +280,7 @@ class WorksheetTableServicePermissionTest {
    // ─── createTable -> buildTable: sql query table FREE_FORM_SQL gate ─────────
 
    @Test
-   void createTableSqlQueryThrowsWhenFreeFormSqlDenied() throws Exception {
+   void createTableSqlQueryFailsWhenFreeFormSqlDenied() throws Exception {
       Deps deps = new Deps();
       when(deps.securityEngine.checkPermission(eq(USER), eq(ResourceType.WORKSHEET), eq("*"),
                                                eq(ResourceAction.ACCESS)))
@@ -270,7 +292,7 @@ class WorksheetTableServicePermissionTest {
                                                eq(ResourceAction.ACCESS)))
          .thenReturn(false);
 
-      WorksheetTableRequest request = tableRequest("""
+      WorksheetTableRequest request = batchOf("""
          {
            "tableName": "t1",
            "tableType": "sql query table",
@@ -279,7 +301,10 @@ class WorksheetTableServicePermissionTest {
          }
          """);
 
-      assertThrows(SecurityException.class, () -> deps.service().createTable(request, USER));
+      // The Free-Form SQL denial (a SecurityException in buildTable) is caught by the batch and
+      // recorded as a failed table — the table must not be built.
+      WorksheetTableResponse table = only(deps.service().createTables(request, USER));
+      assertFalse(table.isSuccess());
 
       // Denial must short-circuit before buildSqlTable resolves/executes anything.
       verifyNoInteractions(deps.metadataApiService);
@@ -297,7 +322,7 @@ class WorksheetTableServicePermissionTest {
                                                eq(ResourceAction.ACCESS)))
          .thenReturn(true);
 
-      WorksheetTableRequest request = tableRequest("""
+      WorksheetTableRequest request = batchOf("""
          {
            "tableName": "t1",
            "tableType": "sql query table",
@@ -307,10 +332,11 @@ class WorksheetTableServicePermissionTest {
          """);
 
       // All three gates pass, so execution proceeds into buildSqlTable, which then fails on the
-      // deliberately-minimal downstream mocks (getJDBCDatasource returns null). The failure type
-      // is irrelevant — what matters is that the FREE_FORM_SQL gate was passed and buildSqlTable
-      // was entered.
-      assertThrows(Exception.class, () -> deps.service().createTable(request, USER));
+      // deliberately-minimal downstream mocks (getJDBCDatasource returns null). What matters is
+      // that the FREE_FORM_SQL gate was passed and buildSqlTable was entered; the batch records
+      // the downstream failure rather than throwing.
+      WorksheetTableResponse table = only(deps.service().createTables(request, USER));
+      assertFalse(table.isSuccess());
 
       verify(deps.securityEngine).checkPermission(eq(USER), eq(ResourceType.FREE_FORM_SQL), eq("*"),
                                                   eq(ResourceAction.ACCESS));

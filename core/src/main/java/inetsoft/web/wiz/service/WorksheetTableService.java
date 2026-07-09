@@ -634,7 +634,7 @@ public class WorksheetTableService {
       // sql query table both bind to one via physicalSource; mirror/join tables only reference
       // already-in-worksheet assemblies, so there is no new datasource to check for them).
       // Mirrors WorksheetAgentController.addLogicalModelTable's usage of DataSourceService.
-      WorksheetTableRequest.PhysicalSource src = request.getPhysicalSource();
+      WorksheetTable.PhysicalSource src = request.getPhysicalSource();
 
       if(src != null && src.getDatasourcePath() != null &&
          !dataSourceService.checkPermission(src.getDatasourcePath(), ResourceAction.READ, user))
