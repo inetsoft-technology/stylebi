@@ -2094,30 +2094,6 @@ public class SVGAnimationDOMInjector {
          return;
       }
 
-      List<double[]> bounds = nodes.stream()
-         .map(SVGAnimationDOMInjector::annotGroupBounds)
-         .collect(Collectors.toList());
-
-      // Prefer data-y stamped by RelationVO (shape-agnostic screen Y center) over the
-      // bounds-derived center, which fails for non-rect node shapes such as circles.
-      List<Double> nodeCY = new ArrayList<>();
-
-      for(int i = 0; i < nodes.size(); i++) {
-         String yAttr = nodes.get(i).getAttribute("data-" + SVGSupport.ATTR_Y);
-
-         if(!yAttr.isEmpty()) {
-            try {
-               nodeCY.add(Double.parseDouble(yAttr));
-            }
-            catch(NumberFormatException ignored) {
-               nodeCY.add((bounds.get(i)[1] + bounds.get(i)[3]) / 2.0);
-            }
-         }
-         else {
-            nodeCY.add((bounds.get(i)[1] + bounds.get(i)[3]) / 2.0);
-         }
-      }
-
       // Edges carry the source→target topology, so collect them up front: depth is derived from
       // the graph structure (orientation-independent) rather than screen geometry.
       List<Element> edgeGroups = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_RELATION_EDGE);
@@ -2140,6 +2116,32 @@ public class SVGAnimationDOMInjector {
 
       if(levelOf == null) {
          levelOf = new int[nodes.size()];
+
+         // Geometry is only needed for this fallback, so compute it lazily here rather than on
+         // every render (the topological path above is the common case and never reads it).
+         List<double[]> bounds = nodes.stream()
+            .map(SVGAnimationDOMInjector::annotGroupBounds)
+            .collect(Collectors.toList());
+
+         // Prefer data-y stamped by RelationVO (shape-agnostic screen Y center) over the
+         // bounds-derived center, which fails for non-rect node shapes such as circles.
+         List<Double> nodeCY = new ArrayList<>();
+
+         for(int i = 0; i < nodes.size(); i++) {
+            String yAttr = nodes.get(i).getAttribute("data-" + SVGSupport.ATTR_Y);
+
+            if(!yAttr.isEmpty()) {
+               try {
+                  nodeCY.add(Double.parseDouble(yAttr));
+               }
+               catch(NumberFormatException ignored) {
+                  nodeCY.add((bounds.get(i)[1] + bounds.get(i)[3]) / 2.0);
+               }
+            }
+            else {
+               nodeCY.add((bounds.get(i)[1] + bounds.get(i)[3]) / 2.0);
+            }
+         }
 
          // Sort node indices by Y-centre ascending (root = topmost = smallest Y in SVG coords)
          // and cluster into level bands: a gap larger than 50% of the average node height signals
@@ -2310,10 +2312,12 @@ public class SVGAnimationDOMInjector {
             continue;
          }
 
-         // Root nodes are stamped with a sentinel parent ("null") or a source that is not a real
-         // node.  Such an edge must NOT mark its target as having an incoming edge, otherwise the
-         // real root is excluded from the root set and the whole traversal collapses to depth 0.
-         if(!nodeIndexById.containsKey(source)) {
+         // A root's parent is stamped with the literal sentinel id "null" (RelationElement.getId
+         // returns "null" for a null "from" value; that sentinel may itself be rendered as a node).
+         // An edge from that sentinel — or from any source dropped upstream (e.g. maxNodes
+         // truncation) and thus unknown here — must NOT mark its target as having a real incoming
+         // edge, so the actual root is detected as depth 0 rather than a child of the sentinel.
+         if("null".equals(source) || !nodeIndexById.containsKey(source)) {
             continue;
          }
 
@@ -2365,6 +2369,10 @@ public class SVGAnimationDOMInjector {
       for(int i = 0; i < nodes.size(); i++) {
          String id = nodes.get(i).getAttribute("data-" + SVGSupport.ATTR_NODE_ID);
          Integer d = id.isEmpty() ? null : depthById.get(id);
+         // Nodes never reached by BFS — an isolated all-cyclic component while the rest of the
+         // graph has a real root — intentionally default to depth 0 and fade in with the roots.
+         // This is an accepted trade-off: the whole-graph cyclic case is already handled by the
+         // geometry fallback, and a per-node geometry fallback isn't worth the complexity here.
          levelOf[i] = d != null ? d : 0;
       }
 

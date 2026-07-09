@@ -138,6 +138,11 @@ public final class AnimationConstants {
     * entrance time stays bounded and independent of node count even for very deep graphs.  The
     * intra-level spread (up to one {@link #RELATION_LEVEL_STEP}) is added after this cap, so the
     * effective last-node delay can exceed the cap by at most one step.
+    *
+    * <p>Typical charts (a handful of depth levels) finish their entrance in roughly 2s.  The worst
+    * case is bounded, not fixed: a very deep graph reaches {@code RELATION_MAX_STAGGER +
+    * RELATION_LEVEL_STEP} before its last fade begins (≈2.7s here), completing about one
+    * {@link #RELATION_FADE_DURATION} later.
     */
    public static final double RELATION_MAX_STAGGER = 2.4;
 
