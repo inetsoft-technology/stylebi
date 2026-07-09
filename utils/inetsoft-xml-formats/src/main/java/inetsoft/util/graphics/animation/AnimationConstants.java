@@ -120,6 +120,28 @@ public final class AnimationConstants {
    public static final double PIE_TEXT_DURATION = 0.4;
 
    // -------------------------------------------------------------------------
+   // Relation / tree / network chart animation constants
+   // -------------------------------------------------------------------------
+
+   /**
+    * Fade duration for relation/tree/network nodes, edges, and labels (seconds).  Matches the
+    * global {@link #DURATION}; the smooth root→leaf reveal comes from the per-node stagger
+    * ({@link #relationDelay}), not from shortening the fade.
+    */
+   public static final double RELATION_FADE_DURATION = 0.8;
+
+   /** Additional delay applied per tree depth level for the relation stagger (seconds). */
+   public static final double RELATION_LEVEL_STEP = 0.32;
+
+   /**
+    * Maximum relation stagger delay (seconds).  Caps the depth-based <em>base</em> delay so the
+    * entrance time stays bounded and independent of node count even for very deep graphs.  The
+    * intra-level spread (up to one {@link #RELATION_LEVEL_STEP}) is added after this cap, so the
+    * effective last-node delay can exceed the cap by at most one step.
+    */
+   public static final double RELATION_MAX_STAGGER = 2.4;
+
+   // -------------------------------------------------------------------------
    // Sunburst label glyph-matching constants
    // -------------------------------------------------------------------------
 
@@ -162,5 +184,34 @@ public final class AnimationConstants {
       }
 
       return index * (STAGGER_WINDOW / (count - 1));
+   }
+
+   /**
+    * Compute the entrance delay for a relation node at tree {@code depth} (0 = root), spreading
+    * the {@code countInLevel} nodes that share that depth smoothly across one
+    * {@link #RELATION_LEVEL_STEP} by their {@code indexInLevel}.
+    *
+    * <p>The delay has two parts:
+    * <ul>
+    *   <li><b>Base</b> — {@code depth * RELATION_LEVEL_STEP}, capped at {@link #RELATION_MAX_STAGGER},
+    *       giving the root→leaf cascade (root at 0, each level one step later, bounded for deep
+    *       graphs).
+    *   <li><b>Intra-level spread</b> — {@code (indexInLevel / countInLevel) * RELATION_LEVEL_STEP},
+    *       so a level's nodes trickle in individually rather than all firing at the same instant.
+    *       Dividing by {@code countInLevel} (not {@code countInLevel - 1}) makes the last node of a
+    *       level land just before the next level's first node, producing one continuous, evenly
+    *       paced ramp across the whole graph — the smooth, fine-grained reveal users expect.
+    * </ul>
+    *
+    * @param depth        0-based depth of the node (root = 0)
+    * @param indexInLevel 0-based position of this node among nodes at the same depth
+    * @param countInLevel total number of nodes at this depth
+    * @return delay in seconds (≥ 0)
+    */
+   public static double relationDelay(int depth, int indexInLevel, int countInLevel) {
+      double base = Math.min(Math.max(depth, 0) * RELATION_LEVEL_STEP, RELATION_MAX_STAGGER);
+      double intra = countInLevel <= 1
+         ? 0 : ((double) indexInLevel / countInLevel) * RELATION_LEVEL_STEP;
+      return base + intra;
    }
 }
