@@ -47,7 +47,6 @@ import {
 import { SlideOutService } from "../../widget/slide-out/slide-out.service";
 import { AdhocFilterService } from "../../vsobjects/objects/data-tip/adhoc-filter.service";
 import { canDeactivateGuard } from "../../common/services/can-deactivate-guard.service";
-import { EmbedChartComponent } from "./embed-chart.component";
 
 export function EMBED_CHART_URL_MATCHER(url: UrlSegment[]): UrlMatchResult {
    let result: UrlMatchResult = null;
@@ -127,7 +126,7 @@ export function EMBED_CHART_URL_MATCHER(url: UrlSegment[]): UrlMatchResult {
 
 export const embedChartRoutes: Routes = [
    {
-      component: EmbedChartComponent,
+      loadComponent: () => import("./embed-chart.component").then(m => m.EmbedChartComponent),
       canDeactivate: [canDeactivateGuard],
       matcher: EMBED_CHART_URL_MATCHER,
       providers: [

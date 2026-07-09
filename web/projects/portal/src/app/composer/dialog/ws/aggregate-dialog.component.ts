@@ -17,7 +17,7 @@
  */
 
 import { HttpParams } from "@angular/common/http";
-import { Component, EventEmitter, Inject, Input, OnInit, Output, DOCUMENT } from "@angular/core";
+import { Component, EventEmitter, forwardRef, Inject, Input, OnInit, Output, DOCUMENT } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Tool } from "../../../../../../shared/util/tool";
 import { AggregateInfo } from "../../../binding/data/aggregate-info";
@@ -91,7 +91,7 @@ const CHECK_MODEL_TRAP_REST_URI: string = "../api/composer/worksheet/check-model
     selector: "aggregate-dialog",
     templateUrl: "aggregate-dialog.component.html",
     styleUrls: ["aggregate-dialog.component.scss"],
-    imports: [ModalHeaderComponent, EnterSubmitDirective, AggregatePane, CrosstabPane]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, forwardRef(() => AggregatePane), forwardRef(() => CrosstabPane)]
 })
 export class AggregateDialog implements OnInit {
    @Input() runtimeId: string;

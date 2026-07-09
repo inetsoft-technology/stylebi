@@ -54,7 +54,7 @@ import { DebounceService } from "../../../widget/services/debounce.service";
 import { ModelService } from "../../../widget/services/model.service";
 import { ScaleService } from "../../../widget/services/scale/scale-service";
 import { DialogService } from "../../../widget/slide-out/dialog-service.service";
-import { CrosstabActions } from "../../action/crosstab-actions";
+import { CrosstabActions, getCrosstabDrillDirection } from "../../action/crosstab-actions";
 import { ClearSelectionCommand } from "../../command/clear-selection-command";
 import { LoadTableDataCommand } from "../../command/load-table-data-command";
 import { ContextProvider } from "../../context-provider.service";
@@ -1414,19 +1414,13 @@ export class VSCrosstab extends BaseTable<VSCrosstabModel> implements OnInit, On
          drillEvent = DrillEvent.builder(model.absoluteName)
             .row(c.row)
             .col(c.col)
-            .direction(VSCrosstab.getDrillDirection(model, c.row, c.col))
+            .direction(getCrosstabDrillDirection(model, c.row, c.col))
             .drillOp(isDrillUp ? ChartConstants.DRILL_UP_OP : ChartConstants.DRILL_DOWN_OP)
             .drillAll(!drillField)
             .field(c.field)
             .build();
          events.push(drillEvent);
       });
-   }
-
-   public static getDrillDirection(model: VSCrosstabModel, row: number, col: number): string {
-      return row >= model.headerRowCount && col < model.headerColCount
-         ? ChartConstants.DRILL_DIRECTION_Y
-         : ChartConstants.DRILL_DIRECTION_X;
    }
 
    private drillAction(isDrillUp: boolean = false): void {
