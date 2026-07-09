@@ -80,7 +80,7 @@ public class ClusterController {
       throws SecurityException
    {
       if(!securityEngine.getSecurityProvider().checkPermission(
-         principal, ResourceType.EM_COMPONENT, "monitoring/cluster/reportCluster", ResourceAction.ACCESS))
+         principal, ResourceType.EM_COMPONENT, "monitoring/cluster", ResourceAction.ACCESS))
       {
          throw new SecurityException("Unauthorized access to cluster monitoring by user " + principal.getName());
       }
@@ -92,7 +92,7 @@ public class ClusterController {
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
-         resource = "monitoring/cluster/reportCluster",
+         resource = "monitoring/cluster",
          actions = ResourceAction.ACCESS
       )
    )
@@ -104,7 +104,7 @@ public class ClusterController {
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
-         resource = "monitoring/cluster/reportCluster",
+         resource = "monitoring/cluster",
          actions = ResourceAction.ACCESS
       )
    )
@@ -116,7 +116,7 @@ public class ClusterController {
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
-         resource = "monitoring/cluster/reportCluster",
+         resource = "monitoring/cluster",
          actions = ResourceAction.ACCESS
       )
    )
@@ -128,7 +128,7 @@ public class ClusterController {
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,
-         resource = "monitoring/cluster/reportCluster",
+         resource = "monitoring/cluster",
          actions = ResourceAction.ACCESS
       )
    )

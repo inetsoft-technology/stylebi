@@ -25,6 +25,8 @@
  *   Group 3  [Risk 3] - moveDisable: extended logical models require base model in batch
  *   Group 4  [Risk 3] - dataTreeDragToPane: drag/drop filters block self/ancestor/unsupported assets
  *   Group 5  [Risk 3] - disableAction: selection must gate move/delete until folder browser responds
+ *     (includes regression coverage for Bug #75602, FIXED: stale/out-of-order responses no
+ *     longer clobber isdisableAction — see request-token guard in disableAction())
  *   Group 6  [Risk 3] - dropAssetsItems: internal pane drag filters folders and confirms move
  *   Group 7  [Risk 3] - deleteSelected: batch delete must clear selection after commit
  *   Group 8  [Risk 3] - ngOnDestroy: route and service subscriptions must be torn down
@@ -515,7 +517,11 @@ describe("DatabaseDataModelBrowserComponent - disableAction - selection gating [
       expect(comp.moveDisable).toBe(false);
    });
 
-   it.fails("should not re-enable actions when an older folder-browser response arrives after a newer empty one", async () => {
+   // Bug #75602 (FIXED): disableAction() previously had no request-sequencing guard, so an
+   // older in-flight request could resolve after a newer one and unconditionally overwrite
+   // isdisableAction with a stale result. Fixed via a monotonically increasing request token
+   // that causes stale responses to be ignored.
+   it("should not re-enable actions when an older folder-browser response arrives after a newer empty one", async () => {
       const { fixture, httpMock } = await renderBrowser();
       const comp = fixture.componentInstance;
       comp.databaseName = "SalesDB";

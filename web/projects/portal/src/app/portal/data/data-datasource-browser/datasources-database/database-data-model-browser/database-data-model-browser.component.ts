@@ -931,11 +931,20 @@ export class DatabaseDataModelBrowserComponent implements OnDestroy, OnInit {
       });
    }
 
+   private disableActionRequestId = 0;
+
    private disableAction(): void {
+      const requestId = ++this.disableActionRequestId;
       let params = new HttpParams().set("database", this.databaseName);
 
       this.httpClient.get<DataModelBrowserModel>(GET_DATA_MODEL_URI, {params})
           .subscribe(model =>{
+             // Bug #75602: ignore stale responses from superseded selection changes so an
+             // older, slower request can't clobber the result of a newer one.
+             if(requestId !== this.disableActionRequestId) {
+                return;
+             }
+
              if(model.dataModelList.length != 0) {
                 this.isdisableAction = false;
              }

@@ -119,7 +119,7 @@ public class VSLayoutControllerService {
                rvs.addLayoutCheckPoint(layoutClone);
             }
 
-            vsLayoutService.sendLayout(rvsClone, layoutClone, dispatcher);
+            vsLayoutService.sendLayout(rvsClone, layoutClone, dispatcher, objectModelService);
          });
 
          viewsheetService.flushRuntimeSheet(rvsCloneId);
@@ -159,7 +159,7 @@ public class VSLayoutControllerService {
                null, rvs.getViewsheet().getAssemblies(), new ChangedAssemblyList(), true, true, null);
          }
 
-         vsLayoutService.sendLayout(rvs, layoutClone, dispatcher);
+         vsLayoutService.sendLayout(rvs, layoutClone, dispatcher, objectModelService);
          //update client side layout points
          UpdateLayoutUndoStateCommand command = new UpdateLayoutUndoStateCommand();
          command.setLayoutPoint(parentRvs.getLayoutPoint());
@@ -193,7 +193,7 @@ public class VSLayoutControllerService {
                null, rvs.getViewsheet().getAssemblies(), new ChangedAssemblyList(), true, true, null);
          }
 
-         vsLayoutService.sendLayout(rvs, layoutClone, dispatcher);
+         vsLayoutService.sendLayout(rvs, layoutClone, dispatcher, objectModelService);
          //update client side layout points
          UpdateLayoutUndoStateCommand command = new UpdateLayoutUndoStateCommand();
          command.setLayoutPoint(parentRvs.getLayoutPoint());

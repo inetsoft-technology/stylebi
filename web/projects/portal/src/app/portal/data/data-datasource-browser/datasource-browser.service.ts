@@ -156,7 +156,7 @@ export class DatasourceBrowserService {
 
       for(let movingEntry of assets) {
          const parent = this.getParentPath(movingEntry);
-         const name = parent == "/" ? movingEntry.path :
+         const name = (parent == "/" || parent == null) ? movingEntry.path :
             movingEntry.path.substr(parent.length + 1);
          let typeName;
 

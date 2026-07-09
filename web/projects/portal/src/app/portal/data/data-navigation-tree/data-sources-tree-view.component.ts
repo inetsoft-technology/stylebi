@@ -505,7 +505,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
          parent.expanded = true;
       }
 
-      return false;
+      return found;
    }
 
    private loadSelectedDataModelChildren(node: TreeNodeModel): void {

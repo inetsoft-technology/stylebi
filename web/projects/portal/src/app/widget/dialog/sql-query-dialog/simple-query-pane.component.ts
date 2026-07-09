@@ -396,6 +396,14 @@ export class SimpleQueryPaneComponent {
          let tableColumns: ColumnTablePair[] = [];
 
          tableColumnsObs.subscribe((tablePair) => {
+                  // Bug #75600 fix: previously tableColumns.push(tablePair) ran inside this
+                  // forEach, so a table with N non-duplicate columns was queued N times,
+                  // causing addColumns() to receive N^2 duplicate column entries. The dedup
+                  // check against standalone columns still runs per-column below (it decides
+                  // whether the table has any non-duplicate columns to contribute), but the
+                  // tablePair itself is now pushed at most once per dropped table.
+                  let includeTable = false;
+
                   tablePair.columns.forEach((tableColumn) => {
                      let columnIndex = !!columns ?
                            columns.findIndex((columnsPair) => Tool.isEquals(tableColumn, columnsPair.columnEntry)) : -1;
@@ -404,9 +412,13 @@ export class SimpleQueryPaneComponent {
                         columns.splice(columnIndex, 1);
                      }
                      else {
-                        tableColumns.push(tablePair);
+                        includeTable = true;
                      }
                   });
+
+                  if(includeTable) {
+                     tableColumns.push(tablePair);
+                  }
                }, (err) => {
                },
                () => {

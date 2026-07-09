@@ -48,7 +48,7 @@ export class ViewsheetScriptPane implements OnInit {
       if(this.model.onInit && !this.model.onLoad) {
          this.initScriptVisible = true;
       }
-      if(!this.model.onInit && this.model.onLoad) {
+      else if(!this.model.onInit && this.model.onLoad) {
          this.initScriptVisible = false;
       }
       else {

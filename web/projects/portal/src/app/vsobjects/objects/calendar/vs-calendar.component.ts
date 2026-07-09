@@ -22,6 +22,7 @@ import {
    DoCheck,
    ElementRef,
    EventEmitter,
+   forwardRef,
    Input,
    NgZone,
    OnChanges,
@@ -109,8 +110,8 @@ function isCalendarSelectionSource(calendar: unknown): calendar is CalendarSelec
     TooltipIfDirective,
     FormsModule,
     DefaultFocusDirective,
-    MonthCalendar,
-    YearCalendar
+    forwardRef(() => MonthCalendar),
+    forwardRef(() => YearCalendar)
 ]
 })
 export class VSCalendar extends NavigationComponent<VSCalendarModel>

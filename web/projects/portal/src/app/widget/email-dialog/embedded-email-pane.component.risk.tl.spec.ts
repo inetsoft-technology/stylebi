@@ -30,12 +30,14 @@
  * Cross-reference: Group 1 (embeddedOnly=true) and Group 2 (embeddedOnly=false) cover
  *   both branches of the embeddedOnly flag in addressChange().
  *
- * Confirmed bugs (it.fails):
+ * Fixed bugs (Bug #75601):
  *   dead-code guard — embedded-email-pane.component.ts:417: the early-return condition
- *     `addrs[0].substring(0, 7) === "query: "` is never true because addrs[0] is the
- *     substring before the first ":" separator — it can never itself contain ":".
- *     When addresses starts with "query: ...", reset() falls through and pushes
- *     "query" as an identity name instead of returning early.
+ *     `addrs[0].substring(0, 7) === "query: "` was never true because addrs[0] was the
+ *     substring before the first ":" separator — it could never itself contain ":".
+ *     When addresses started with "query: ...", reset() fell through and pushed
+ *     "query" as an identity name instead of returning early. Fixed by checking the
+ *     original (pre-split) `this.addresses` string for the "query: " prefix instead
+ *     of the post-split `addrs[0]` token.
  */
 
 import { waitFor } from "@testing-library/angular";
@@ -181,13 +183,14 @@ describe("addIdentity — GROUP path dedup", () => {
 // ---------------------------------------------------------------------------
 
 describe("reset — embeddedOnly=false", () => {
-   // Dead-code guard: addrs[0] is the substring before the first ":", so it can
-   // never itself contain ":" — making addrs[0].substring(0,7) === "query: " always false.
-   it.fails("'query: ...' prefix returns early with empty addedIdentities — guard is dead code", async () => {
+   // Bug #75601 (fixed): the guard now checks the original `this.addresses` string
+   // for the "query: " prefix instead of the post-split addrs[0] token, so it
+   // correctly fires and returns early.
+   it("'query: ...' prefix returns early with empty addedIdentities — Bug #75601 fixed", async () => {
       const { comp } = await renderEmbeddedEmail({ embeddedOnly: false });
       comp._addresses = "query: SELECT 1";
       comp.reset();
-      // Expected: 0 (early return before push). Actual: 1 because the guard never fires.
+      // Expected: 0 (early return before push).
       expect(comp.addedIdentities).toHaveLength(0);
    });
 
