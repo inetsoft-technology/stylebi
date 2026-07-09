@@ -133,15 +133,25 @@ class PermissionMatrixActionsS6Test {
                                  "orgAdminUser", Identity.USER, ORG_ID);
       }
 
-      // DEVICE is granted too, for the probe below -- it is NOT on orgAdminActionExclusions.
-      // EM_MONITORING_DASHBOARDS is deliberately left ungranted for both orgAdmin and
-      // orgSecurityAdmin -- the role-cascade-vs-permission-cascade pair checks whether each
-      // principal's org-admin *status* alone unlocks it, not an explicit grant.
+      // DEVICE is granted to orgAdminUser for the role-cascade baseline below -- it is NOT on
+      // orgAdminActionExclusions. EM_MONITORING_DASHBOARDS is deliberately left ungranted for
+      // both orgAdmin and orgSecurityAdmin -- the role-cascade-vs-permission-cascade pair checks
+      // whether each principal's org-admin *status* alone unlocks it, not an explicit grant.
+      //
+      // DEVICE is granted to orgSecurityAdminUser too, but for a different reason: orgSecurityAdmin
+      // holds no Organization Administrator role, so checkOrgAdminPermission()'s default-case
+      // guard (`isOrgAdmin && isOrgAdminAction(...)`) evaluates to false and never short-circuits
+      // checkPermission() -- unlike orgAdmin, whose role alone satisfies that guard regardless of
+      // this grant or of SUtil.isMultiTenant(). Granting orgSecurityAdmin is what lets the
+      // isMultiTenant()-gated exclusion check (DefaultCheckPermissionStrategy line ~256) and the
+      // explicit-grant check that follows it actually execute.
       builder
          .grantPermission(ResourceType.DEVICE, DEVICE_RESOURCE, ResourceAction.ACCESS,
                           "orgAdminUser", Identity.USER, ORG_ID)
-         // SCHEDULE_OPTION:timeRange is deliberately left ungranted -- the probe below checks the
-         // unconfigured-default behavior, not an explicit-grant override.
+         .grantPermission(ResourceType.DEVICE, DEVICE_RESOURCE, ResourceAction.ACCESS,
+                          "orgSecurityAdminUser", Identity.USER, ORG_ID)
+         // SCHEDULE_OPTION:timeRange is deliberately left ungranted for both principals -- the
+         // probes below check the unconfigured-default behavior, not an explicit-grant override.
          .setup();
 
       orgAdmin = builder.principalOf("orgAdminUser", ORG_ID);
@@ -216,9 +226,18 @@ class PermissionMatrixActionsS6Test {
    }
 
    // ── DEVICE / SCHEDULE_OPTION probe (§ S6 doc callout) ───────────────────────────────────
+   //
+   // Each resource has two tests below: an orgAdmin "role-cascade baseline" pinning the actual
+   // Issue #75603/#75604 production scenario (orgAdmin's Organization Administrator role alone
+   // satisfies checkOrgAdminPermission()'s default-case guard, short-circuiting checkPermission()
+   // before SUtil.isMultiTenant() or any explicit grant is ever consulted -- same mechanism as
+   // the role-cascade test above, not the isMultiTenant-gated exclusion check), and an
+   // orgSecurityAdmin test that actually exercises that isMultiTenant-gated exclusion check plus
+   // the explicit-grant / unconfigured-default machinery that follows it, since orgSecurityAdmin
+   // holds no Organization Administrator role and so never satisfies that guard.
 
    @Test
-   void orgAdmin_device_allowedByGrant_evenWhenMultiTenant_notInExclusionList() throws Exception {
+   void orgAdmin_device_allowedViaRoleCascade_whenMultiTenant() throws Exception {
       withMultiTenant(true, () ->
          withContextPrincipal(orgAdmin, () ->
             PermissionMatrixVerifier.of(engine())
@@ -228,12 +247,36 @@ class PermissionMatrixActionsS6Test {
    }
 
    @Test
-   void orgAdmin_scheduleOptionTimeRange_allowedByDefault_evenWhenMultiTenant() throws Exception {
+   void orgSecurityAdmin_device_allowedByGrant_whenMultiTenant_notInExclusionList() throws Exception {
+      withMultiTenant(true, () ->
+         withContextPrincipal(orgSecurityAdmin, () ->
+            PermissionMatrixVerifier.of(engine())
+               .resource(ResourceType.DEVICE, DEVICE_RESOURCE)
+                  .expectAllow(orgSecurityAdmin, ResourceAction.ACCESS)
+               .verify()));
+   }
+
+   @Test
+   void orgAdmin_scheduleOptionTimeRange_allowedViaRoleCascade_whenMultiTenant_unconfigured()
+      throws Exception
+   {
       withMultiTenant(true, () ->
          withContextPrincipal(orgAdmin, () ->
             PermissionMatrixVerifier.of(engine())
                .resource(ResourceType.SCHEDULE_OPTION, SCHEDULE_OPTION_TIME_RANGE)
                   .expectAllow(orgAdmin, ResourceAction.READ)
+               .verify()));
+   }
+
+   @Test
+   void orgSecurityAdmin_scheduleOptionTimeRange_allowedByDefault_whenMultiTenant_unconfigured()
+      throws Exception
+   {
+      withMultiTenant(true, () ->
+         withContextPrincipal(orgSecurityAdmin, () ->
+            PermissionMatrixVerifier.of(engine())
+               .resource(ResourceType.SCHEDULE_OPTION, SCHEDULE_OPTION_TIME_RANGE)
+                  .expectAllow(orgSecurityAdmin, ResourceAction.READ)
                .verify()));
    }
 

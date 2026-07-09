@@ -240,6 +240,11 @@ public class SecurityTestDataBuilder {
       for(Map.Entry<String, String> entry : orgs.entrySet()) {
          FSOrganization org = new FSOrganization(entry.getKey());
          org.setName(entry.getValue());
+         // FSOrganization's members field defaults to null (Organization(String, String, boolean)
+         // never initialises it); FileAuthenticationProvider.removeOrganizationMember() does
+         // Arrays.asList(org.getMembers()) unconditionally, so a null here NPEs the first time
+         // teardown() removes a user/group/role/org created by this builder.
+         org.setMembers(new String[0]);
          authcProvider.addOrganization(org);
       }
 
@@ -376,12 +381,54 @@ public class SecurityTestDataBuilder {
    }
 
    /**
-    * Removes SreeEnv properties, closes provider storages, then re-initialises
-    * {@link SecurityEngine} with security disabled so it holds no stale provider references.
+    * Removes every record this builder wrote (permissions, users, groups, roles, orgs), removes
+    * SreeEnv properties, closes provider storages, then re-initialises {@link SecurityEngine}
+    * with security disabled so it holds no stale provider references.
+    *
+    * <p>The explicit removal pass matters because {@link inetsoft.storage.KeyValueStorageManager}
+    * returns the same storage instance for a given store ID regardless of which test class or
+    * Spring context is asking (see class Javadoc); closing the provider only releases that
+    * handle, it does not delete the underlying records. Without this pass, records written under
+    * an org ID/resource path reused by a later test class (e.g. two slice classes in the same
+    * suite that both use {@code "matrix_org_id"}) would still be visible to it.</p>
     */
    public void teardown() {
       SreeEnv.remove("security.enabled");
       SreeEnv.remove("security.users.multiTenant");
+
+      if(authzProvider != null) {
+         Set<PermissionKey> permissionKeys = new LinkedHashSet<>();
+
+         for(PermissionSpec ps : permissions) {
+            permissionKeys.add(new PermissionKey(ps.type(), ps.resource(), ps.orgId()));
+         }
+
+         for(EditedPermissionMarker em : editedPermissions) {
+            permissionKeys.add(new PermissionKey(em.type(), em.resource(), em.orgId()));
+         }
+
+         for(PermissionKey key : permissionKeys) {
+            authzProvider.removePermission(key.type(), key.resource(), key.orgId());
+         }
+      }
+
+      if(authcProvider != null) {
+         for(UserSpec us : users) {
+            authcProvider.removeUser(new IdentityID(us.userName(), us.orgId()));
+         }
+
+         for(GroupSpec gs : groups) {
+            authcProvider.removeGroup(new IdentityID(gs.groupName(), gs.orgId()));
+         }
+
+         for(RoleSpec rs : roles) {
+            authcProvider.removeRole(new IdentityID(rs.roleName(), rs.orgId()));
+         }
+
+         for(String orgId : orgs.keySet()) {
+            authcProvider.removeOrganization(orgId);
+         }
+      }
 
       if(authcProvider != null) {
          authcProvider.tearDown();
@@ -443,4 +490,5 @@ public class SecurityTestDataBuilder {
    private record RoleParentAssignment(String roleName, String parentRoleName, String orgId) {}
    private record GroupRoleAssignment(String roleName, String groupName, String orgId) {}
    private record EditedPermissionMarker(ResourceType type, String resource, String orgId) {}
+   private record PermissionKey(ResourceType type, String resource, String orgId) {}
 }

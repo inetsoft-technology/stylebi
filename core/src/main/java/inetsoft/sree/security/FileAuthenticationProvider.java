@@ -947,6 +947,12 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
    }
 
    private void removeOrganizationMember(IdentityID oldIdentity) {
+      if(oldIdentity.orgID == null) {
+         // Global (org-less) identity, e.g. the built-in Administrator/Organization
+         // Administrator roles -- no organization membership to update.
+         return;
+      }
+
       Organization org = getOrganization(oldIdentity.orgID);
 
       if(org == null) {

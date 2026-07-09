@@ -38,8 +38,14 @@
 
 **`DEVICE`/`SCHEDULE_OPTION`"Time Range" 最小探查：**
 
-> - `DEVICE`：orgAdmin 被显式授予 ACCESS 后，即使 mock `isMultiTenant()=true`，`checkPermission()` 依然放行——`[M8]` `orgAdmin_device_allowedByGrant_evenWhenMultiTenant_notInExclusionList`
-> - `SCHEDULE_OPTION`（`timeRange`）：`SCHEDULE_OPTION` 类型本身在 `DefaultCheckPermissionStrategy` 的"无权限默认放行"兜底分支里，orgAdmin 完全没配置任何授权、mock `isMultiTenant()=true` 时依然默认放行——`[M8]` `orgAdmin_scheduleOptionTimeRange_allowedByDefault_evenWhenMultiTenant`
+> 每个资源两条测试，机制不同（review 澄清后拆开，原先各只有一条 orgAdmin 测试，名称暗示走的是 `isMultiTenant`-gated 排除检查，实际两条都在 `checkOrgAdminPermission()` 的 `default` 分支——`return isOrgAdmin && ActionPermissionService.isOrgAdminAction(type, resource);`——被短路放行，在到达该门禁或显式授权/无权限默认放行检查之前就已经 `return true`，跟 mock 的 `isMultiTenant()` 值、跟 `DEVICE` 是否有显式授权都无关）：
+>
+> - orgAdmin 角色级联基线（钉住 Issue #75603/#75604 的真实生产场景本身——orgAdmin 角色单独满足 `checkOrgAdminPermission()` 的 `default` 分支门禁，在 `checkPermission()` 内部短路放行，跟第一部分"orgAdmin 角色级联 vs orgSecurityAdmin 权限级联"那对测试同一个机制）：
+>   - `DEVICE`：`[M8]` `orgAdmin_device_allowedViaRoleCascade_whenMultiTenant`
+>   - `SCHEDULE_OPTION`（`timeRange`）：`[M8]` `orgAdmin_scheduleOptionTimeRange_allowedViaRoleCascade_whenMultiTenant_unconfigured`
+> - orgSecurityAdmin（无 `Organization Administrator` 角色，`checkOrgAdminPermission()` 的 `default` 分支门禁评估为 false，不会短路，真正走到 `isMultiTenant()`-gated 排除检查 + 其后的显式授权检查/无权限默认放行兜底分支）：
+>   - `DEVICE`：显式授予 ACCESS 后，mock `isMultiTenant()=true` 时仍放行（排除名单不挡、显式授权检查生效）——`[M8]` `orgSecurityAdmin_device_allowedByGrant_whenMultiTenant_notInExclusionList`
+>   - `SCHEDULE_OPTION`（`timeRange`）：完全没配置任何授权，mock `isMultiTenant()=true` 时仍放行（真正落到 `DefaultCheckPermissionStrategy` 的"无权限默认放行"兜底分支）——`[M8]` `orgSecurityAdmin_scheduleOptionTimeRange_allowedByDefault_whenMultiTenant_unconfigured`
 >
 > **结论（Issue #75603、#75604，均已修复）：**
 > - **Issue #75603**：`DeviceController`（`community/core/src/main/java/inetsoft/web/composer/vs/objects/controller/DeviceController.java`）的 `newDevice`/`editDevice`/`deleteDevice` 已加上 `@Secured(@RequiredPermission(resourceType = DEVICE, resource = "*", actions = ACCESS))`，并新增 `checkOrgAllowedToEditDevices()` → `DeviceRegistry.isOrgAllowedToEditDevices()`（`!isEnterprise() || isSiteAdmin || currentOrg == defaultOrg`）挡住非默认 org 的 orgAdmin。回归测试 `DeviceControllerTest`（`newEditDeleteDevice_requireDeviceAccessPermission`、`newEditDeleteDevice_orgNotAllowed_rejectsAndDoesNotWrite`）已通过。
