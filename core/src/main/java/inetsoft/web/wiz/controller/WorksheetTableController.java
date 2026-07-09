@@ -22,10 +22,12 @@ import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.service.WorksheetTableService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import java.util.Map;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -116,6 +118,32 @@ public class WorksheetTableController {
       throws Exception
    {
       return worksheetTableService.getWorksheetModel(wsIdentifier, user);
+   }
+
+   /**
+    * getWorksheetModel is a pure read that does not catch its own exceptions the way
+    * createTable/deleteTables do (they report failure in a 200 response body instead), so a
+    * permission-denied (or any other) failure from the service would otherwise fall through to
+    * an unhandled 500. Mirrors DatasourceMetaApiController's catch-all handler.
+    */
+   // A permission denial must surface as 403, not be swallowed to 400 by the catch-all below.
+   // More specific than the Exception handler, so it wins for SecurityException within this
+   // controller (a local handler also takes precedence over WizControllerErrorHandler).
+   @ExceptionHandler({ inetsoft.sree.security.SecurityException.class, java.lang.SecurityException.class })
+   @ResponseStatus(HttpStatus.FORBIDDEN)
+   @ResponseBody
+   public Map<String, String> handleSecurityException(Exception e) {
+      LOG.warn("Unauthorized worksheet table access: {}", e.getMessage());
+      return Map.of("error", "Forbidden",
+                    "message", e.getMessage() != null ? e.getMessage() : "Forbidden");
+   }
+
+   @ExceptionHandler(Exception.class)
+   @ResponseStatus(HttpStatus.BAD_REQUEST)
+   @ResponseBody
+   public Map<String, String> handleException(Exception e) {
+      LOG.warn("Worksheet table API error: {}", e.getMessage(), e);
+      return Map.of("error", e.getMessage() != null ? e.getMessage() : e.getClass().getName());
    }
 
    private final WorksheetTableService worksheetTableService;

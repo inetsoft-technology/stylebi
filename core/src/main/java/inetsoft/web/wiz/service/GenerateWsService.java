@@ -21,6 +21,10 @@ package inetsoft.web.wiz.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -29,10 +33,12 @@ import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.util.SQLTypes;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
+import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.osi.*;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
@@ -49,7 +55,9 @@ public class GenerateWsService {
                             InnerJoinService innerJoinService,
                             LayoutGraphService layoutGraphService,
                             WsMergeService wsMergeService,
-                            ObjectMapper objectMapper)
+                            ObjectMapper objectMapper,
+                            DataSourceService dataSourceService,
+                            SecurityEngine securityEngine)
    {
       this.viewsheetService = viewsheetService;
       this.metadataApiService = metadataApiService;
@@ -57,6 +65,8 @@ public class GenerateWsService {
       this.layoutGraphService = layoutGraphService;
       this.wsMergeService = wsMergeService;
       this.objectMapper = objectMapper;
+      this.dataSourceService = dataSourceService;
+      this.securityEngine = securityEngine;
    }
 
    private Worksheet getWorksheet(WorksheetConstructionModel model, Principal user) throws Exception {
@@ -103,6 +113,13 @@ public class GenerateWsService {
    public GenerateWsResponse generateWs(WorksheetConstructionModel model, Principal user)
       throws Exception
    {
+      // Action-level gate ("Visual Composer -> Data Worksheet"): checked first, before any
+      // worksheet is created or loaded/merged — mirrors OpenWorksheetController's ordering.
+      if(!securityEngine.checkPermission(user, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       WorksheetBuildResult buildResult = buildFreshWorksheet(model, user);
       Worksheet worksheet = buildResult.worksheet();
       AbstractTableAssembly table = buildResult.primaryTable();
@@ -120,7 +137,7 @@ public class GenerateWsService {
          }
 
          AbstractSheet sheet = viewsheetService.getAssetRepository()
-            .getSheet(existingEntry, user, false, AssetContent.ALL);
+            .getSheet(existingEntry, user, true, AssetContent.ALL);
 
          if(!(sheet instanceof Worksheet dashWS)) {
             throw new IllegalArgumentException(
@@ -186,7 +203,7 @@ public class GenerateWsService {
          }
          else {
             table = new PhysicalBoundTableAssembly(worksheet, model.getName());
-            applyColumnSelection(table, fields);
+            applyColumnSelection(table, fields, user);
          }
 
          worksheet.addAssembly(table);
@@ -206,7 +223,7 @@ public class GenerateWsService {
             Map<String, String> tableMapping = new HashMap<>();
 
             for(WorksheetConstructionModel.JoinPath joinPath : joinPaths) {
-               AbstractTableAssembly joinTable = createJoinTable(worksheet, joinPath, fields, tableMapping);
+               AbstractTableAssembly joinTable = createJoinTable(worksheet, joinPath, fields, tableMapping, user);
                worksheet.addAssembly(joinTable);
 
                if(joinPath == joinPaths.getLast()) {
@@ -223,7 +240,7 @@ public class GenerateWsService {
             final Set<TableAssembly> tableAssemblies = new LinkedHashSet<>();
 
             for(WorksheetConstructionModel.JoinPath joinPath : joinPaths) {
-               noperator.addOperator(createJoinOperator(worksheet, joinPath, fields));
+               noperator.addOperator(createJoinOperator(worksheet, joinPath, fields, user));
                tableAssemblies.add((TableAssembly) worksheet.getAssembly(joinPath.getLeftTable().getName()));
                tableAssemblies.add((TableAssembly) worksheet.getAssembly(joinPath.getRightTable().getName()));
             }
@@ -243,7 +260,7 @@ public class GenerateWsService {
          Map<String, String> tableMapping = new HashMap<>();
 
          for(WorksheetConstructionModel.TableSetOperation tableSetOperation : tableSetOperations) {
-            AbstractTableAssembly concatenatedTable = createConcatenatedTable(worksheet, tableSetOperation, fields, tableMapping);
+            AbstractTableAssembly concatenatedTable = createConcatenatedTable(worksheet, tableSetOperation, fields, tableMapping, user);
 
             worksheet.addAssembly(concatenatedTable);
             tableMapping.put(getTableInfoKey(tableSetOperation.getLeftTable()), concatenatedTable.getName());
@@ -482,10 +499,11 @@ public class GenerateWsService {
    }
 
    private TableAssemblyOperator.Operator createJoinOperator(Worksheet worksheet, WorksheetConstructionModel.JoinPath joinPath,
-                                                             List<WorksheetConstructionModel.QueryField> allFields) throws Exception
+                                                             List<WorksheetConstructionModel.QueryField> allFields,
+                                                             Principal user) throws Exception
    {
-      AbstractTableAssembly leftTable = createJoinBaseTable(worksheet, allFields, joinPath.getLeftTable(), joinPath.getLeftKey(), new HashMap<>());
-      AbstractTableAssembly rightTable = createJoinBaseTable(worksheet, allFields, joinPath.getRightTable(), joinPath.getRightKey(), new HashMap<>());
+      AbstractTableAssembly leftTable = createJoinBaseTable(worksheet, allFields, joinPath.getLeftTable(), joinPath.getLeftKey(), new HashMap<>(), user);
+      AbstractTableAssembly rightTable = createJoinBaseTable(worksheet, allFields, joinPath.getRightTable(), joinPath.getRightKey(), new HashMap<>(), user);
       DataRef leftAttr = resolveJoinKeyAttribute(leftTable, joinPath.getLeftKey());
       DataRef rightAttr = resolveJoinKeyAttribute(rightTable, joinPath.getRightKey());
 
@@ -518,10 +536,11 @@ public class GenerateWsService {
    }
 
    private AbstractTableAssembly createConcatenatedTable(Worksheet worksheet, WorksheetConstructionModel.TableSetOperation tableSetOperation,
-                                                         List<WorksheetConstructionModel.QueryField> allFields, Map<String, String> tableMapping) throws Exception
+                                                         List<WorksheetConstructionModel.QueryField> allFields, Map<String, String> tableMapping,
+                                                         Principal user) throws Exception
    {
-      AbstractTableAssembly leftTable = createConcatenatedBaseTable(worksheet, allFields, tableSetOperation.getLeftTable(), tableMapping);
-      AbstractTableAssembly rightTable = createConcatenatedBaseTable(worksheet, allFields, tableSetOperation.getRightTable(), tableMapping);
+      AbstractTableAssembly leftTable = createConcatenatedBaseTable(worksheet, allFields, tableSetOperation.getLeftTable(), tableMapping, user);
+      AbstractTableAssembly rightTable = createConcatenatedBaseTable(worksheet, allFields, tableSetOperation.getRightTable(), tableMapping, user);
       TableAssemblyOperator.Operator operator = new TableAssemblyOperator.Operator();
       operator.setOperation(getConcatenatedOperationType(tableSetOperation.getOperation()));
       TableAssemblyOperator tableAssemblyOperator = new TableAssemblyOperator();
@@ -539,10 +558,11 @@ public class GenerateWsService {
    }
 
    private AbstractTableAssembly createJoinTable(Worksheet worksheet, WorksheetConstructionModel.JoinPath joinPath,
-                                                 List<WorksheetConstructionModel.QueryField> allFields, Map<String, String> tableMapping) throws Exception
+                                                 List<WorksheetConstructionModel.QueryField> allFields, Map<String, String> tableMapping,
+                                                 Principal user) throws Exception
    {
-      AbstractTableAssembly leftTable = createJoinBaseTable(worksheet, allFields, joinPath.getLeftTable(), joinPath.getLeftKey(), tableMapping);
-      AbstractTableAssembly rightTable = createJoinBaseTable(worksheet, allFields, joinPath.getRightTable(), joinPath.getRightKey(), tableMapping);
+      AbstractTableAssembly leftTable = createJoinBaseTable(worksheet, allFields, joinPath.getLeftTable(), joinPath.getLeftKey(), tableMapping, user);
+      AbstractTableAssembly rightTable = createJoinBaseTable(worksheet, allFields, joinPath.getRightTable(), joinPath.getRightKey(), tableMapping, user);
       DataRef leftAttr = resolveJoinKeyAttribute(leftTable, joinPath.getLeftKey());
       DataRef rightAttr = resolveJoinKeyAttribute(rightTable, joinPath.getRightKey());
 
@@ -649,7 +669,8 @@ public class GenerateWsService {
    private AbstractTableAssembly createJoinBaseTable(Worksheet worksheet,
                                                      List<WorksheetConstructionModel.QueryField> allFields,
                                                      WorksheetConstructionModel.TableInfo tableInfo,
-                                                     String joinKey, Map<String, String> tableMapping) throws Exception
+                                                     String joinKey, Map<String, String> tableMapping,
+                                                     Principal user) throws Exception
    {
       String joinLeafTableName = getBaseTableName(tableInfo, tableMapping);
 
@@ -664,15 +685,15 @@ public class GenerateWsService {
          request.setCatalog(tableInfo.getSource().getCatalog());
          request.setSchema(tableInfo.getSource().getSchema());
          request.setTableName(tableInfo.getName());
-         OsiDataset metaData = metadataApiService.getMetaData(request);
+         OsiDataset metaData = metadataApiService.getMetaData(request, user);
 
          table = new PhysicalBoundTableAssembly(worksheet, tableInfo.getName());
-         applySourceInfo(table, tableInfo);
+         applySourceInfo(table, tableInfo, user);
          Set<WorksheetConstructionModel.QueryField> tableFields = getTableFields(allFields, tableInfo);
 
          addJoinKeyField(tableFields, tableInfo, joinKey);
 
-         applyColumnSelection(table, tableFields.stream().toList(), metaData);
+         applyColumnSelection(table, tableFields.stream().toList(), metaData, user);
          worksheet.addAssembly(table);
 
          return table;
@@ -685,7 +706,8 @@ public class GenerateWsService {
    private AbstractTableAssembly createConcatenatedBaseTable(Worksheet worksheet,
                                                              List<WorksheetConstructionModel.QueryField> allFields,
                                                              WorksheetConstructionModel.TableInfo tableInfo,
-                                                             Map<String, String> tableMapping) throws Exception
+                                                             Map<String, String> tableMapping,
+                                                             Principal user) throws Exception
    {
       String joinLeafTableName = getBaseTableName(tableInfo, tableMapping);
 
@@ -695,9 +717,9 @@ public class GenerateWsService {
          }
 
          AbstractTableAssembly table = new PhysicalBoundTableAssembly(worksheet, tableInfo.getName());
-         applySourceInfo(table, tableInfo);
+         applySourceInfo(table, tableInfo, user);
          Set<WorksheetConstructionModel.QueryField> tableFields = getTableFields(allFields, tableInfo);
-         applyColumnSelection(table, tableFields.stream().toList());
+         applyColumnSelection(table, tableFields.stream().toList(), user);
          worksheet.addAssembly(table);
 
          return table;
@@ -744,14 +766,16 @@ public class GenerateWsService {
    }
 
    private void applyColumnSelection(AbstractTableAssembly table,
-                                     List<WorksheetConstructionModel.QueryField> fields) throws Exception
+                                     List<WorksheetConstructionModel.QueryField> fields,
+                                     Principal user) throws Exception
    {
-      applyColumnSelection(table, fields, null);
+      applyColumnSelection(table, fields, null, user);
    }
 
    private void applyColumnSelection(AbstractTableAssembly table,
                                      List<WorksheetConstructionModel.QueryField> fields,
-                                     OsiDataset metaData)
+                                     OsiDataset metaData,
+                                     Principal user)
       throws Exception
    {
       WorksheetConstructionModel.TableInfo selectTable = null;
@@ -772,7 +796,7 @@ public class GenerateWsService {
       table.setColumnSelection(columns);
 
       if(selectTable != null && table instanceof PhysicalBoundTableAssembly) {
-         applySourceInfo(table, selectTable);
+         applySourceInfo(table, selectTable, user);
       }
    }
 
@@ -848,13 +872,22 @@ public class GenerateWsService {
    }
 
    private void applySourceInfo(AbstractTableAssembly table,
-                                WorksheetConstructionModel.TableInfo selectTable) throws Exception
+                                WorksheetConstructionModel.TableInfo selectTable,
+                                Principal user) throws Exception
    {
       if(selectTable == null) {
          return;
       }
 
       WorksheetConstructionModel.SourceInfo source = selectTable.getSource();
+
+      // Verify READ permission on the datasource before resolving/querying its metadata.
+      // Mirrors WorksheetAgentController.addLogicalModelTable's usage of DataSourceService.
+      if(!dataSourceService.checkPermission(source.getPath(), ResourceAction.READ, user)) {
+         throw new IllegalArgumentException(
+            "Access denied: no READ permission on datasource " + source.getPath());
+      }
+
       JDBCDataSource jdbcDatasource = metadataApiService.getJDBCDatasource(source.getPath());
       XNode tableMetaData = metadataApiService.getTableMetaData(jdbcDatasource, source.getCatalog(), source.getSchema(), selectTable.getName());
 
@@ -1323,7 +1356,9 @@ public class GenerateWsService {
    private final InnerJoinService innerJoinService;
    private final LayoutGraphService layoutGraphService;
    private final WsMergeService wsMergeService;
+   private final DataSourceService dataSourceService;
    private final ObjectMapper objectMapper;
+   private final SecurityEngine securityEngine;
 
    // UUID suffix prevents name collision with user-created folders.
    public static final String WORKSHEET_ROOT_FOLDER_PATH =

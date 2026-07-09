@@ -55,7 +55,7 @@ class WorksheetTableServiceBatchTest {
    private static WorksheetTableService service() {
       // firstMissingDependency uses only its parameters, never instance state, so null
       // dependencies are safe here.
-      return new WorksheetTableService(null, null, null, null, null, null, null);
+      return new WorksheetTableService(null, null, null, null, null, null, null, null, null);
    }
 
    @Test

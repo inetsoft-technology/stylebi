@@ -22,6 +22,8 @@ import inetsoft.graph.aesthetic.ColorFrame;
 import inetsoft.graph.aesthetic.StaticColorFrame;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.ChartRef;
@@ -48,9 +50,11 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -70,15 +74,19 @@ class WizAutoBindingServiceSetChartColorsTest {
    private ViewsheetSandbox box;
    private VSChartAggregateRef yAgg;
    private VSChartAggregateRef rtYAgg;
+   private SecurityEngine securityEngine;
+   private ViewsheetService viewsheetService;
 
    @BeforeEach
    void setUp() throws Exception {
-      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      viewsheetService = mock(ViewsheetService.class);
       WizVsService wizVsService = mock(WizVsService.class);
       // collaborators not used by setChartColors; their classes can't be initialized in
       // a plain unit-test environment (no Spring context), so pass null instead of mocks.
+      securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
       service = new WizAutoBindingService(
-         viewsheetService, null, null, null, null, wizVsService);
+         viewsheetService, null, null, null, null, wizVsService, securityEngine);
 
       // Real Viewsheet/assembly/info objects need SreeEnv (Spring context), so mock the
       // whole chain and hand the service a mock measure ref to capture the applied frame.
@@ -148,5 +156,19 @@ class WizAutoBindingServiceSetChartColorsTest {
       service.setChartColors(staticRed(), null);
 
       verify(box).clearGraph("vs_1");
+   }
+
+   @Test
+   void deniedPermissionThrowsAndSkipsRuntimeLookupAndMutation() throws Exception {
+      // The action gate is the first statement in setChartColors, before the runtime is even
+      // resolved. A denied caller must throw and touch nothing.
+      when(securityEngine.checkPermission(any(), any(), anyString(), any())).thenReturn(false);
+
+      assertThrows(SecurityException.class, () -> service.setChartColors(staticRed(), null));
+
+      verify(viewsheetService, never()).getViewsheet(anyString(), any());
+      verify(yAgg, never()).setColorFrame(any());
+      verify(rtYAgg, never()).setColorFrame(any());
+      verify(box, never()).clearGraph(anyString());
    }
 }

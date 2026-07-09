@@ -28,6 +28,10 @@ import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.internal.graph.ChangeChartTypeProcessor;
 import inetsoft.report.internal.graph.MapData;
 import inetsoft.report.internal.graph.MapHelper;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.DataRef;
@@ -46,6 +50,7 @@ import inetsoft.uql.viewsheet.graph.VSChartGeoRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.graph.VSMapInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.handler.VSChartHandler;
 import inetsoft.web.wiz.WizUtil;
@@ -75,15 +80,26 @@ import java.util.*;
  */
 @Service
 public class WizGeoService {
-   public WizGeoService(ViewsheetService viewsheetService, VSChartHandler chartHandler) {
+   public WizGeoService(ViewsheetService viewsheetService, VSChartHandler chartHandler,
+                        SecurityEngine securityEngine)
+   {
       this.viewsheetService = viewsheetService;
       this.chartHandler = chartHandler;
+      this.securityEngine = securityEngine;
    }
 
    /**
     * Marks {@code column} geographic on the chart and auto-detects its geo type/layer + matching.
     */
    public GeoDetectResponse detect(GeoDetectRequest request, Principal user) throws Exception {
+      // Action-level gate ("Visual Composer -> Data Viewsheet"): opens/mutates a viewsheet runtime
+      // and (in apply) persists it, so require the composer action right. Mirrors the other wiz
+      // viewsheet operations.
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       RuntimeViewsheet rvs =
          getRuntimeViewsheet(request.getRuntimeId(), request.getViewsheetIdentifier(), user);
       Viewsheet vs = rvs.getViewsheet();
@@ -200,6 +216,13 @@ public class WizGeoService {
     * unmatched values.
     */
    public GeoApplyResponse apply(GeoApplyRequest request, Principal user) throws Exception {
+      // Action-level gate ("Visual Composer -> Data Viewsheet"): mutates and persists a viewsheet,
+      // so require the composer action right before touching the runtime.
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       RuntimeViewsheet rvs =
          getRuntimeViewsheet(request.getRuntimeId(), request.getViewsheetIdentifier(), user);
       Viewsheet vs = rvs.getViewsheet();
@@ -300,6 +323,20 @@ public class WizGeoService {
          AssetEntry entry = AssetEntry.createAssetEntry(viewsheetIdentifier);
 
          if(entry != null) {
+            // Restrict writes to the managed wiz folders, mirroring WizVsService.persistViewsheet:
+            // ROOT holds session viewsheets, COMPONENTS holds saved visualizations. Prevents the
+            // mutated (map-converted) viewsheet being written to an arbitrary caller-supplied
+            // identifier outside the wiz-managed area.
+            String path = entry.getPath();
+
+            if(path == null ||
+               !(path.startsWith(WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/") ||
+                 path.startsWith(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/")))
+            {
+               throw new IllegalArgumentException(
+                  "viewsheetIdentifier points outside the managed visualizations folder: " + path);
+            }
+
             viewsheetService.setViewsheet(vs, entry, user, true, true);
          }
       }
@@ -570,6 +607,7 @@ public class WizGeoService {
 
    private final ViewsheetService viewsheetService;
    private final VSChartHandler chartHandler;
+   private final SecurityEngine securityEngine;
 
    private static final Logger LOG = LoggerFactory.getLogger(WizGeoService.class);
 }

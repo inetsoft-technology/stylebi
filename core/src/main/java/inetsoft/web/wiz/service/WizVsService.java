@@ -33,6 +33,10 @@ import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.internal.graph.MapData;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
@@ -42,6 +46,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import inetsoft.web.wiz.WizUtil;
@@ -57,9 +62,12 @@ import java.util.stream.Collectors;
 
 @Service
 public class WizVsService {
-   public WizVsService(ViewsheetService viewsheetService, AssetRepository engine) {
+   public WizVsService(ViewsheetService viewsheetService, AssetRepository engine,
+                       SecurityEngine securityEngine)
+   {
       this.viewsheetService = viewsheetService;
       this.engine = engine;
+      this.securityEngine = securityEngine;
    }
 
    @FunctionalInterface
@@ -98,6 +106,16 @@ public class WizVsService {
                                                          boolean skipExecution,
                                                          PostAssemblyHook hook) throws Exception
    {
+      // Action-level gate ("Visual Composer -> Data Viewsheet"): this path may create a brand-new
+      // temporary viewsheet via viewsheetService.openTemporaryViewsheet below, mirroring the
+      // ComposerViewsheetController.newViewsheet VIEWSHEET/ACCESS check for the UI-driven flow.
+      // Checked unconditionally at the top since this method is reachable from multiple wiz
+      // entry points regardless of whether a new runtime is actually created.
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       String runtimeId = model.getRuntimeId();
       boolean createdRuntimeId = false;
 
@@ -499,6 +517,13 @@ public class WizVsService {
     * @param user  the current user
     */
    public void validateBinding(CreateVisualizationModel model, Principal user) throws Exception {
+      // Action-level gate ("Visual Composer -> Data Viewsheet"): opens and executes a temporary
+      // viewsheet, so require the composer action right before doing any work. Mirrors createViewsheet.
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       String runtimeId = buildAndExecuteFresh(model, user);
 
       try {
@@ -1506,6 +1531,16 @@ public class WizVsService {
    public String persistViewsheet(Viewsheet vs, String existingIdentifier, Principal user)
       throws Exception
    {
+      // Action-level gate ("Visual Composer -> Data Viewsheet"): this is the shared save choke
+      // point for every wiz viewsheet write (createViewsheet, setChartFormat/Colors, and any other
+      // caller). setViewsheet below enforces the per-asset WRITE ACL, but NOT the composer action
+      // right — without this a user denied viewsheet-composer access could still mutate and save a
+      // viewsheet. Mirrors the createViewsheet gate.
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       final AssetEntry entry;
 
       if(!Tool.isEmptyString(existingIdentifier)) {
@@ -3065,6 +3100,14 @@ public class WizVsService {
     * @throws Exception if the repository removal fails
     */
    public void deleteViewsheet(String identifier, Principal user) throws Exception {
+      // Action-level gate ("Visual Composer -> Data Viewsheet"): removeSheet enforces the per-asset
+      // DELETE ACL, but require the composer action right too, consistent with the other wiz
+      // viewsheet operations.
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       AssetEntry entry = AssetEntry.createAssetEntry(identifier);
 
       if(entry == null) {
@@ -3127,6 +3170,13 @@ public class WizVsService {
    public void removeVisualization(String runtimeId, String assemblyName, Principal user)
       throws Exception
    {
+      // Action-level gate ("Visual Composer -> Data Viewsheet"): mutates and persists a viewsheet,
+      // so require the composer action right. The setSheet write below still enforces the WRITE ACL.
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       if(runtimeId == null || runtimeId.isEmpty() || assemblyName == null || assemblyName.isEmpty()) {
          throw new IllegalArgumentException("runtimeId and assemblyName are required");
       }
@@ -3192,6 +3242,7 @@ public class WizVsService {
 
    private final ViewsheetService viewsheetService;
    private final AssetRepository engine;
+   private final SecurityEngine securityEngine;
 
    private static final Logger LOG = LoggerFactory.getLogger(WizVsService.class);
    private static final Map<Class<?>, BiFunction<Viewsheet, String, VSAssembly>> ASSEMBLY_FACTORIES = Map.of(

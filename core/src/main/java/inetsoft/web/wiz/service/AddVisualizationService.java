@@ -21,9 +21,14 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.util.Catalog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -46,11 +51,13 @@ public class AddVisualizationService {
 
    public AddVisualizationService(ViewsheetService viewsheetService,
                                   AssetRepository assetRepository,
-                                  WsMergeService wsMergeService)
+                                  WsMergeService wsMergeService,
+                                  SecurityEngine securityEngine)
    {
       this.viewsheetService = viewsheetService;
       this.assetRepository = assetRepository;
       this.wsMergeService = wsMergeService;
+      this.securityEngine = securityEngine;
    }
 
    /**
@@ -81,6 +88,18 @@ public class AddVisualizationService {
                                    Principal principal)
       throws Exception
    {
+      // Action-level gate ("Visual Composer -> Data Worksheet"): the wiz dashboard runtime
+      // referenced by runtimeId may not yet have a backing worksheet (dashVS.getBaseEntry()
+      // == null on the first visualization added to a freshly created dashboard), in which
+      // case this method creates a brand-new Worksheet() below. That runtime can be reached
+      // via WizVsService.createViewsheet without ever passing through a WORKSHEET-gated
+      // open/create flow, so the check must be enforced here rather than relying on the
+      // caller having already been gated.
+      if(!securityEngine.checkPermission(principal, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
 
       if(rvs == null) {
@@ -98,9 +117,14 @@ public class AddVisualizationService {
          throw new IllegalStateException("Viewsheet is not a wiz dashboard (isWizSheet=false): " + runtimeId);
       }
 
-      // Load visualization VS
+      // Load visualization VS.
+      // permission=true is required: vizEntry comes straight from the client event
+      // (WizComposerController -> AddVisualizationEvent.getEntry()), so the READ ACL must
+      // actually run — otherwise a caller could merge any viewsheet they cannot read
+      // (another user's private viewsheet) into their own dashboard and exfiltrate its data.
+      // Mirrors WizVisualizationService.saveVisualization's permission=true load.
       Viewsheet vizVS = (Viewsheet) assetRepository.getSheet(
-         vizEntry, principal, false, AssetContent.ALL);
+         vizEntry, principal, true, AssetContent.ALL);
 
       if(vizVS == null) {
          throw new Exception("Visualization viewsheet not found: " + vizEntry);
@@ -114,9 +138,12 @@ public class AddVisualizationService {
             "Visualization must be bound to a worksheet datasource: " + vizEntry);
       }
 
-      // Load visualization WS
+      // Load visualization WS.
+      // permission=true for the same reason as the vizVS load above: baseEntry is derived from
+      // the client-supplied vizEntry, so its READ ACL must run to prevent reading the source
+      // tables of a worksheet the caller is not authorized for.
       Worksheet vizWS = (Worksheet) assetRepository.getSheet(
-         baseEntry, principal, false, AssetContent.ALL);
+         baseEntry, principal, true, AssetContent.ALL);
 
       if(vizWS == null) {
          throw new Exception("Could not load worksheet for visualization: " + vizEntry);
@@ -445,6 +472,7 @@ public class AddVisualizationService {
    private final ViewsheetService viewsheetService;
    private final AssetRepository assetRepository;
    private final WsMergeService wsMergeService;
+   private final SecurityEngine securityEngine;
 
    private static final int GRID_COLS = 3;
    private static final int VIZ_GAP = 50;

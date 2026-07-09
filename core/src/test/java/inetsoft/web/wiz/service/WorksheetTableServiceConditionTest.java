@@ -62,7 +62,7 @@ class WorksheetTableServiceConditionTest {
    private static WorksheetTableService service() {
       // buildConditionList and its callees use only their parameters, never instance state,
       // so null dependencies are safe here.
-      return new WorksheetTableService(null, null, null, null, null, null, null);
+      return new WorksheetTableService(null, null, null, null, null, null, null, null, null);
    }
 
    private static ColumnSelection columns(String... names) {

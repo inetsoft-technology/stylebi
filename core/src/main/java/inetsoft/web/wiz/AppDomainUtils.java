@@ -18,6 +18,7 @@
 package inetsoft.web.wiz;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.Tool;
 
@@ -37,6 +38,12 @@ public final class AppDomainUtils {
    }
 
    public static void setAppDomains(OrganizationDomains appDomains, Principal user) {
+      OrganizationManager orgManager = OrganizationManager.getInstance();
+
+      if(!orgManager.isSiteAdmin(user) && !orgManager.isOrgAdmin(user)) {
+         throw new SecurityException("Access denied to app domains configuration.");
+      }
+
       SreeEnv.setProperty(getOrgAppDomainPropKey(user), appDomains.toString(), true);
    }
 
