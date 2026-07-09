@@ -187,12 +187,19 @@ public class SheetJoinService {
    }
 
    /**
-    * Best-effort caller key for attempt throttling: the client IP when an HTTP request is bound
-    * to the current thread (the normal case for this REST-backed join flow), falling back to the
-    * authenticated agent identity when no request context is available (e.g. direct/unit-test
-    * invocation), and finally to a constant key if neither is available.
+    * Caller key for attempt throttling. Prefers the authenticated agent identity: {@code join} is
+    * only reached with a JWT-validated principal (rebuilt by {@code WizServiceAuthenticationFilter}),
+    * so the identity cannot be forged to reset the attempt window. The client IP is used only as a
+    * fallback when there is no authenticated identity (e.g. direct/unit-test invocation), and is
+    * deliberately NOT preferred: {@code Tool.getRemoteAddr} honors the client-supplied
+    * {@code remote_ip} header, which an attacker could vary per request to defeat the lockout when
+    * the deployment's edge does not strip it. Falls back to a constant key if neither is available.
     */
    private static String throttleKey(Principal agentUser) {
+      if(agentUser != null && agentUser.getName() != null) {
+         return "user:" + agentUser.getName();
+      }
+
       try {
          ServletRequestAttributes attrs =
             (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
@@ -204,10 +211,10 @@ public class SheetJoinService {
          }
       }
       catch(IllegalStateException e) {
-         // No servlet request bound to this thread — fall back to caller identity below.
+         // No servlet request bound to this thread and no authenticated identity.
       }
 
-      return "user:" + (agentUser == null ? "anonymous" : agentUser.getName());
+      return "user:anonymous";
    }
 
    private final SheetPairingService pairing;

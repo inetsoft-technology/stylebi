@@ -31,6 +31,10 @@ public final class PairingUtil {
     * matches the ownerIdentity string (IdentityID key format: "name~;~org").
     */
    public static boolean sameLogicalUser(String ownerIdentity, Principal agentUser) {
+      // Fail closed: a non-XPrincipal agent carries no IdentityID key to compare (its plain name
+      // lacks the "name~;~org" form ownerIdentity uses), so we cannot prove a match and must reject
+      // rather than risk a false positive. Not reachable in practice — the join flow's agent is
+      // always the XPrincipal rebuilt from the JWT by WizServiceAuthenticationFilter.
       if (!(agentUser instanceof XPrincipal p)) return false;
       IdentityID agentId = IdentityID.getIdentityIDFromKey(p.getName());
       return ownerIdentity.equals(agentId == null ? p.getName() : agentId.convertToKey());

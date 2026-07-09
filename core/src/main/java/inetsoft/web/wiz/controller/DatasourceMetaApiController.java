@@ -271,6 +271,18 @@ public class DatasourceMetaApiController {
       return result;
    }
 
+   // A permission denial must surface as 403, not be swallowed to 400 by the catch-all below.
+   // More specific than the Exception handler, so it wins for SecurityException within this
+   // controller (a local handler also takes precedence over WizControllerErrorHandler).
+   @ExceptionHandler({ inetsoft.sree.security.SecurityException.class, java.lang.SecurityException.class })
+   @ResponseStatus(org.springframework.http.HttpStatus.FORBIDDEN)
+   @ResponseBody
+   public Map<String, String> handleSecurityException(Exception e) {
+      LOG.warn("Unauthorized datasource metadata access: {}", e.getMessage());
+      return Map.of("error", "Forbidden",
+                    "message", e.getMessage() != null ? e.getMessage() : "Forbidden");
+   }
+
    @ExceptionHandler(Exception.class)
    @ResponseStatus(org.springframework.http.HttpStatus.BAD_REQUEST)
    @ResponseBody

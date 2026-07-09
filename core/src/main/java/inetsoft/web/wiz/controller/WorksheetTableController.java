@@ -126,6 +126,18 @@ public class WorksheetTableController {
     * permission-denied (or any other) failure from the service would otherwise fall through to
     * an unhandled 500. Mirrors DatasourceMetaApiController's catch-all handler.
     */
+   // A permission denial must surface as 403, not be swallowed to 400 by the catch-all below.
+   // More specific than the Exception handler, so it wins for SecurityException within this
+   // controller (a local handler also takes precedence over WizControllerErrorHandler).
+   @ExceptionHandler({ inetsoft.sree.security.SecurityException.class, java.lang.SecurityException.class })
+   @ResponseStatus(HttpStatus.FORBIDDEN)
+   @ResponseBody
+   public Map<String, String> handleSecurityException(Exception e) {
+      LOG.warn("Unauthorized worksheet table access: {}", e.getMessage());
+      return Map.of("error", "Forbidden",
+                    "message", e.getMessage() != null ? e.getMessage() : "Forbidden");
+   }
+
    @ExceptionHandler(Exception.class)
    @ResponseStatus(HttpStatus.BAD_REQUEST)
    @ResponseBody
