@@ -2246,6 +2246,15 @@ public class WizVsService {
          ref.setOrder(base.getOrder());
       }
 
+      // Explicit-binding manual sort order. The auto-binding path applies this via
+      // WizAutoBindingService.applyFieldConfig, but the explicit apply path (used for funnel/pareto/
+      // hierarchy and every other recommender-bypassed chart) never did — so a caller-supplied
+      // manualOrder was silently ignored and the dimension reverted to its default sort. Mirror the
+      // auto path: set the manual order list when present (pair with order == 8 = manual).
+      if(dim != null && dim.getManualOrder() != null && !dim.getManualOrder().isEmpty()) {
+         ref.setManualOrderList(new java.util.ArrayList<>(dim.getManualOrder()));
+      }
+
       if(dim != null && dim.getDateGroupLevel() != null) {
          ref.setDateLevelValue(String.valueOf(getDateGroupLevel(dim.getDateGroupLevel())));
          ref.setTimeSeries(dim.isTimeSeries());
