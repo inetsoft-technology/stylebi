@@ -92,6 +92,14 @@
     --dark-surface-default: #252428;
     --dark-surface-subtle: #2D2B30;
     --dark-border-default: #49454F;
+
+    --viz-gridline: #E8E5DE;
+    --viz-header-bg: #F1EFEA;
+    --viz-header-text: #6A685F;
+
+    --viz-gridline-dark: #3A383D;
+    --viz-header-bg-dark: #2D2B30;
+    --viz-header-text-dark: #CAC4D0;
   }
 
   body {
@@ -534,6 +542,48 @@
         <div class="swatch-name">viz-anomaly-bg</div>
         <div class="swatch-hex">#F7DEDE</div>
         <div class="swatch-use">outlier, anomaly, and exception state</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Table Structure Tokens (Phase 5 Part C)</div>
+  <p class="section-note">Server-rendered viewsheet table structure: gridlines and header hierarchy. Applied as gated modern defaults through the format.css CSS dictionary so the live view and every export format agree. Values map the example mockups' relationships (subtle low-contrast gridlines; a quiet header rather than a heavy fill) into the warm-neutral visualization system rather than copying the mockups' purple/blue theme. Dark-mode variants are reference only — deferred from the first-pass C1 scope, not emitted yet.</p>
+  <div class="swatches">
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--surface-default); color:var(--text-default); border:1px solid var(--viz-gridline);">Gridline</div>
+      <div class="swatch-info">
+        <div class="swatch-name">viz-gridline</div>
+        <div class="swatch-hex">#E8E5DE</div>
+        <div class="swatch-use">subtle cell/row gridline, lighter than today's solid #DADADA</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--viz-header-bg); color:var(--viz-header-text); border-bottom:1px solid var(--viz-gridline);">Header</div>
+      <div class="swatch-info">
+        <div class="swatch-name">viz-header-bg / text</div>
+        <div class="swatch-hex">#F1EFEA / #6A685F</div>
+        <div class="swatch-use">column-header fill + quiet header text, vs today's #f5f5f5</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--viz-header-bg-dark); color:var(--viz-header-text-dark); border-bottom:1px solid var(--viz-gridline-dark);">Header (dark)</div>
+      <div class="swatch-info">
+        <div class="swatch-name">viz-header-bg-dark / text-dark</div>
+        <div class="swatch-hex">#2D2B30 / #CAC4D0</div>
+        <div class="swatch-use">provisional dark-mode header</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--dark-surface-default); color:var(--dark-chart-label); border:1px solid var(--viz-gridline-dark);">Gridline (dark)</div>
+      <div class="swatch-info">
+        <div class="swatch-name">viz-gridline-dark</div>
+        <div class="swatch-hex">#3A383D</div>
+        <div class="swatch-use">provisional dark-mode gridline</div>
       </div>
     </div>
   </div>
