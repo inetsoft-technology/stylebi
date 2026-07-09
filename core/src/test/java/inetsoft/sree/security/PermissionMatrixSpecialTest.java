@@ -96,13 +96,33 @@ package inetsoft.sree.security;
  * wrong reason (same fix MultiTenantIsolationTest.scenario18A applies, and for the same root
  * cause); the "mechanism on" test leaves ThreadContext unset specifically so that ambient org
  * defaults to host-org, which isOpeningShareGlobalAsset() requires.
+ *
+ * Login As -- BasicAuthenticationFilter.checkLoginAs() permission gate (Region 3). This is only
+ * the permission-gating half of the Login As scenario; the other half (the actual identity switch)
+ * is blocked by a confirmed bug in the re-authentication step -- see permission-matrix-special.md's
+ * "Login As 详细场景" section for the full writeup -- so this class does not attempt to test the
+ * end-to-end switch. checkLoginAs() is private, so it is invoked via
+ * org.springframework.test.util.ReflectionTestUtils.invokeMethod() on a BasicAuthenticationFilter
+ * instance built with Mockito-mocked constructor args (neither dependency is read by
+ * checkLoginAs() itself).
+ *
+ * OrganizationManager.getUserOrgId(Principal) -- checkLoginAs()'s "same org" check -- has no
+ * enterprise override on community/core's test classpath, so the community base implementation
+ * (OrganizationManager.java) runs, which unconditionally returns Organization.
+ * getDefaultOrganizationID() regardless of which principal is passed in. So for every non-site-admin
+ * operator tested here, "same org" in practice means "target is in host-org" -- not a per-operator
+ * comparison, structurally, the same kind of community-vs-enterprise classpath gap as
+ * SUtil.isMultiTenant() elsewhere in this suite.
  */
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.support.*;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.test.*;
+import inetsoft.uql.util.Identity;
 import inetsoft.util.ThreadContext;
+import inetsoft.web.security.BasicAuthenticationFilter;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
@@ -110,6 +130,7 @@ import org.mockito.Mockito;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -129,21 +150,55 @@ class PermissionMatrixSpecialTest {
    // deny to contrast against SHARE being on the default-allow list.
    private static final String SHARE_RESOURCE = "specialOrgDefaultsTestShare";
 
+   private static final String HOST_ORG_ID = Organization.getDefaultOrganizationID();
+
    private static SecurityTestDataBuilder builder;
    private static SRPrincipal selfPlainUser;
    private static SRPrincipal createdOrgPlainUser;
 
+   private static SRPrincipal loginAsSiteAdmin;
+   private static SRPrincipal loginAsOperatorWithGrant;
+   private static SRPrincipal loginAsOperatorWithoutGrant;
+   private static IdentityID loginAsTarget;
+   private static IdentityID loginAsTargetInOtherOrg;
+   private static IdentityID loginAsTargetSiteAdmin;
+
    @BeforeAll
    static void setUpAll() throws Exception {
+      loginAsTarget = new IdentityID("loginAsTarget", HOST_ORG_ID);
+      loginAsTargetInOtherOrg = new IdentityID("loginAsTargetInOtherOrg", CREATED_ORG_ID);
+      loginAsTargetSiteAdmin = new IdentityID("loginAsTargetSiteAdmin", HOST_ORG_ID);
+
       builder = SecurityTestDataBuilder.create()
          .addOrg(CREATED_ORG_NAME, CREATED_ORG_ID)
          .addUser("selfPlainUser", Organization.getSelfOrganizationID(), "password")
          .addUser("createdOrgPlainUser", CREATED_ORG_ID, "password")
          .markPermissionEdited(ResourceType.SHARE, SHARE_RESOURCE, CREATED_ORG_ID)
+
+         .addSysAdminRole("LoginAsSiteAdminRole", HOST_ORG_ID)
+         .addUser("loginAsSiteAdmin", HOST_ORG_ID, "password")
+         .addUserToRole("loginAsSiteAdmin", "LoginAsSiteAdminRole", HOST_ORG_ID)
+
+         .addUser("loginAsOperatorWithGrant", HOST_ORG_ID, "password")
+         .addUser("loginAsOperatorWithoutGrant", HOST_ORG_ID, "password")
+         .addUser(loginAsTarget.name, HOST_ORG_ID, "password")
+         .addUser(loginAsTargetInOtherOrg.name, CREATED_ORG_ID, "password")
+
+         .addSysAdminRole("LoginAsTargetAdminRole", HOST_ORG_ID)
+         .addUser(loginAsTargetSiteAdmin.name, HOST_ORG_ID, "password")
+         .addUserToRole(loginAsTargetSiteAdmin.name, "LoginAsTargetAdminRole", HOST_ORG_ID)
+
+         .grantPermission(ResourceType.SECURITY_USER, loginAsTarget.convertToKey(),
+            ResourceAction.ADMIN, "loginAsOperatorWithGrant", Identity.USER, HOST_ORG_ID)
+
          .setup();
 
       selfPlainUser = builder.principalOf("selfPlainUser", Organization.getSelfOrganizationID());
       createdOrgPlainUser = builder.principalOf("createdOrgPlainUser", CREATED_ORG_ID);
+
+      loginAsSiteAdmin = builder.principalOf("loginAsSiteAdmin", HOST_ORG_ID);
+      loginAsOperatorWithGrant = builder.principalOf("loginAsOperatorWithGrant", HOST_ORG_ID);
+      loginAsOperatorWithoutGrant = builder.principalOf("loginAsOperatorWithoutGrant", HOST_ORG_ID);
    }
 
    @AfterAll
@@ -228,6 +283,42 @@ class PermissionMatrixSpecialTest {
       });
    }
 
+   // ── Login As: checkLoginAs() permission gate ────────────────────────────────
+
+   @Test
+   void checkLoginAs_siteAdminOperator_anyTarget_allowed() {
+      assertTrue(checkLoginAs(loginAsSiteAdmin, loginAsTarget),
+         "site admin must be allowed to log in as any target");
+      assertTrue(checkLoginAs(loginAsSiteAdmin, loginAsTargetSiteAdmin),
+         "site admin must be allowed to log in as another site admin");
+      assertTrue(checkLoginAs(loginAsSiteAdmin, loginAsTargetInOtherOrg),
+         "site admin must be allowed to log in as a target in a different org");
+   }
+
+   @Test
+   void checkLoginAs_nonSiteAdminOperator_sameOrgTargetWithSecurityUserAdminGrant_allowed() {
+      assertTrue(checkLoginAs(loginAsOperatorWithGrant, loginAsTarget),
+         "non-site-admin with SECURITY_USER ADMIN on the target must be allowed");
+   }
+
+   @Test
+   void checkLoginAs_nonSiteAdminOperator_sameOrgTargetWithoutGrant_denied() {
+      assertFalse(checkLoginAs(loginAsOperatorWithoutGrant, loginAsTarget),
+         "non-site-admin without SECURITY_USER ADMIN on the target must be denied");
+   }
+
+   @Test
+   void checkLoginAs_nonSiteAdminOperator_targetInDifferentOrg_denied() {
+      assertFalse(checkLoginAs(loginAsOperatorWithGrant, loginAsTargetInOtherOrg),
+         "non-site-admin must be denied for a target outside their own org, regardless of grants");
+   }
+
+   @Test
+   void checkLoginAs_nonSiteAdminOperator_targetIsSiteAdmin_denied() {
+      assertFalse(checkLoginAs(loginAsOperatorWithGrant, loginAsTargetSiteAdmin),
+         "non-site-admin must be denied when the target is a site admin, regardless of grants");
+   }
+
    // ── helpers ────────────────────────────────────────────────────────────────
 
    private interface ThrowingRunnable {
@@ -239,6 +330,14 @@ class PermissionMatrixSpecialTest {
          mocked.when(SUtil::isMultiTenant).thenReturn(multiTenant);
          action.run();
       }
+   }
+
+   private static boolean checkLoginAs(SRPrincipal operator, IdentityID target) {
+      BasicAuthenticationFilter filter = new BasicAuthenticationFilter(
+         Mockito.mock(SessionLicenseServiceProvider.class), Mockito.mock(AuthenticationService.class));
+
+      return ReflectionTestUtils.invokeMethod(
+         filter, "checkLoginAs", operator, engine().getSecurityProvider(), target);
    }
 
    private static SecurityEngine engine() {
