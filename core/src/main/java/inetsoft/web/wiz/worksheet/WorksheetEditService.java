@@ -325,14 +325,34 @@ public class WorksheetEditService {
       /**
        * Adds a new column to the table's public {@link ColumnSelection}.
        *
+       * <p>On an {@link EmbeddedTableAssembly}, {@code name} is optional: a blank
+       * name auto-generates the next available {@code "col" + N}, exactly matching
+       * the Composer UI's "insert column" behavior ({@code InsertDataService}),
+       * since a brand-new spreadsheet-style column has no pre-existing identity to
+       * name it after. On any other table type there is no embedded grid to insert
+       * into — {@code add_column} there means re-adding an existing-but-hidden
+       * column back into the selection, so {@code name} must identify which one and
+       * cannot be defaulted.</p>
+       *
        * @param table the assembly name
-       * @param name  the new column's attribute name
+       * @param name  the new column's attribute name, or blank/{@code null} to
+       *              auto-generate (embedded tables only)
        * @param type  the data type string (e.g. {@code "string"}, {@code "integer"}), or {@code null}
-       * @throws PairingException if no {@link TableAssembly} with {@code table} exists
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists, or if
+       *                          {@code name} is blank on a non-embedded table
        */
       public void addColumn(String table, String name, String type) throws PairingException {
          TableAssembly t = requireTable(table);
          ColumnSelection cs = t.getColumnSelection();
+
+         if(name == null || name.isBlank()) {
+            if(!(t instanceof EmbeddedTableAssembly)) {
+               throw new PairingException(
+                  "name is required for add_column on a non-embedded table.");
+            }
+
+            name = nextEmbeddedColumnName(cs);
+         }
 
          // For embedded tables, also insert the data column into XEmbeddedTable
          // (mirrors InsertDataService.insertData column path).
@@ -355,6 +375,27 @@ public class WorksheetEditService {
          ref.setAlias(alias);
          cs.addAttribute(ref);
          t.setColumnSelection(cs);
+      }
+
+      /**
+       * Finds the next unused {@code "col" + N} identifier, same scheme as
+       * {@code InsertDataService.insertData}'s column-insert path.
+       */
+      private static String nextEmbeddedColumnName(ColumnSelection cs) {
+         String colname;
+         int i = 1;
+
+         while(true) {
+            colname = "col" + i;
+
+            if(cs.getAttribute(colname) == null &&
+               AssetUtil.findColumnConflictingWithAlias(cs, null, colname, true) == null)
+            {
+               return colname;
+            }
+
+            i++;
+         }
       }
 
       /**

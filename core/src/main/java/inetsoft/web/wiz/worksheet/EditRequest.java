@@ -29,7 +29,10 @@ import java.util.Map;
  *
  * <p>Supported {@code op} values:</p>
  * <ul>
- *   <li>{@code add_column} — {@code table}, {@code name}, {@code type}</li>
+ *   <li>{@code add_column} — {@code table}, {@code type}; {@code name} is required unless
+ *       {@code table} is an embedded table, in which case a blank {@code name} auto-generates
+ *       the next available {@code "col" + N} (matching the Composer UI's insert-column
+ *       behavior)</li>
  *   <li>{@code remove_column} — {@code table}, {@code column}</li>
  *   <li>{@code rename_column} — {@code table}, {@code column}, {@code newName}</li>
  *   <li>{@code add_filter} — {@code table}, {@code field}, {@code operation}, {@code values}</li>
@@ -92,7 +95,11 @@ public record EditRequest(
    String table,
    /** Column attribute name (remove_column, rename_column). */
    String column,
-   /** New column / join assembly / expression column name (add_column, rename_column, add_join, add_expression_column). */
+   /**
+    * New column / join assembly / expression column name (add_column, rename_column,
+    * add_join, add_expression_column). Required for all of these EXCEPT add_column on
+    * an embedded table, where a blank value auto-generates {@code "col" + N}.
+    */
    String name,
    /** Data type string, e.g. {@code "string"}, {@code "integer"} (add_column, add_expression_column). */
    String type,

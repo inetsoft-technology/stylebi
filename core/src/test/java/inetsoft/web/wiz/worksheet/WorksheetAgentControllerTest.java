@@ -245,6 +245,180 @@ class WorksheetAgentControllerTest {
                     "column 'y' should still be present");
    }
 
+   @Test
+   void editAddColumnAutoNamesOnEmbeddedTableWithoutName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "x", "y");
+      ws.addAssembly(t);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      JoinSession s = session("TOK-AC");
+      when(sessions.resolve(eq("TOK-AC"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class));
+
+      // "add_column" with no 'name' on an EMBEDDED table must auto-generate the
+      // next available "col" + N, matching the Composer UI's own insert-column
+      // behavior (InsertDataService.insertData) — a brand-new spreadsheet-style
+      // column has no pre-existing identity to name it after.
+      EditRequest req = new EditRequest("add_column", "T", null,
+         null, null, null, null, null, null, null, null, null, null, false,
+         null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null,
+         null, null,
+         null, null,
+         null, null, null);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      ctrl.edit("TOK-AC", req, agent);
+
+      assertNotNull(t.getColumnSelection(false).getAttribute("col1"),
+                    "auto-generated column 'col1' should have been added");
+   }
+
+   @Test
+   void editRejectsAddColumnWithoutNameOnNonEmbeddedTable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "x", "y");
+      ws.addAssembly(t);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      JoinSession s = session("TOK-ACM");
+      when(sessions.resolve(eq("TOK-ACM"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class));
+
+      editSvc.apply("TOK-ACM", agent, editor -> editor.addMirror("M", "T"));
+
+      // "add_column" with no 'name' on a NON-embedded table (here, a mirror) has
+      // no embedded grid to insert a blank column into — it means re-adding an
+      // existing-but-hidden column, so there is no unambiguous default and it
+      // must fail loud rather than poison the column selection with a null name.
+      EditRequest req = new EditRequest("add_column", "M", null,
+         null, null, null, null, null, null, null, null, null, null, false,
+         null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null,
+         null, null,
+         null, null,
+         null, null, null);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-ACM", req, agent));
+      assertTrue(ex.getMessage().contains("name"));
+   }
+
+   @Test
+   void editRejectsAddExpressionColumnWithoutName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "x", "y");
+      ws.addAssembly(t);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      JoinSession s = session("TOK-AEC");
+      when(sessions.resolve(eq("TOK-AEC"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class));
+
+      // Regression for the "alias" vs "name" mixup: calling add_expression_column
+      // without 'name' used to silently succeed and create an unreferenceable
+      // null-named expression column that broke every subsequent field lookup
+      // (set_conditions, set_sort, etc.) on the table.
+      EditRequest req = new EditRequest("add_expression_column", "T", null,
+         null, null, null, null, null, null, null, null, null, null, false,
+         null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null,
+         null, null,
+         null, null,
+         null, null, null);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-AEC", req, agent));
+      assertTrue(ex.getMessage().contains("name"));
+
+      assertTrue(t.getColumnSelection(false).getAttributeCount() == 2,
+         "no column should have been added when 'name' was missing");
+   }
+
+   @Test
+   void editRejectsEditExpressionWithoutName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "x", "y");
+      ws.addAssembly(t);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      JoinSession s = session("TOK-EE");
+      when(sessions.resolve(eq("TOK-EE"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class));
+
+      EditRequest req = new EditRequest("edit_expression", "T", null,
+         null, null, null, null, null, null, null, null, null, null, false,
+         null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null, null, null, null, null, null, null,
+         null, null, null, null,
+         null, null,
+         null, null,
+         null, null, null);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-EE", req, agent));
+      assertTrue(ex.getMessage().contains("name"));
+   }
+
    // ---------------------------------------------------------------------------
    // detach
    // ---------------------------------------------------------------------------

@@ -23,6 +23,9 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.jdbc.SelectTable;
+import inetsoft.uql.jdbc.UniformSQL;
+import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 
@@ -216,6 +219,18 @@ public final class WorksheetMutationSupport {
                                          List<AggregateSpec> aggregates)
       throws inetsoft.web.wiz.pairing.PairingException
    {
+      // Clear aliases left on the column selection by a PRIOR call's aggregate
+      // outputs before resolving anything new. Those aliases exist purely to label
+      // aggregate results; once the AggregateInfo is being replaced they become
+      // stale references that silently shadow the raw column underneath. Concretely:
+      // calling set_group_aggregate a second time on the SAME table using the first
+      // call's output alias as the new field (the standard "average of an average"
+      // chaining attempt, before the caller realizes it needs a mirror) would resolve
+      // that alias back to the un-aggregated raw column and silently compute a flat
+      // aggregate over raw rows instead of failing loud or aggregating the prior
+      // result — a plausible-looking but numerically wrong answer.
+      clearAggregateAliases(t);
+
       if((groups == null || groups.isEmpty()) &&
          (aggregates == null || aggregates.isEmpty()))
       {
@@ -367,6 +382,164 @@ public final class WorksheetMutationSupport {
 
       t.setAggregateInfo(ainfo);
       t.setAggregate(!ainfo.isEmpty());
+   }
+
+   // =========================================================================
+   // SQL query helpers
+   // =========================================================================
+
+   /** Matches a trailing double-quoted identifier, e.g. the {@code title} in {@code "f"."title"}. */
+   private static final java.util.regex.Pattern QUOTED_TAIL =
+      java.util.regex.Pattern.compile("\"([^\"]+)\"$");
+
+   /**
+    * Cleans up column names mangled by the freeform-SQL parser ({@code UniformSQL} /
+    * {@code JDBCSelection}, via {@code QueryManagerService.getColumnSelection}) for
+    * unaliased QUALIFIED column references. A query like {@code SELECT f.title FROM ...}
+    * with no {@code AS} clause can come back with the column's raw attribute name
+    * literally set to {@code "f"."title"} — quote characters and table qualifier baked
+    * into the string, because the parser's alias detection falls back to the fully
+    * quoted qualified expression instead of returning null/empty when no explicit
+    * alias is present (the normal "strip everything before the last dot" logic in
+    * {@code getColumnSelection} only runs in that null/empty branch).
+    *
+    * <p>This is dangerous specifically because it doesn't just look ugly: any {@code
+    * add_sql_query}/{@code edit_sql_query} call that wraps such a query in an outer
+    * {@code SELECT * FROM (...) alias} — the standard pattern for window-function
+    * escape hatches like per-group ranking — silently fails with an unhelpful "table
+    * not found or produced no data," giving no hint the real cause is a mangled column
+    * name several levels down. Live-tested confirmation: fixing only the column's
+    * display {@code alias} was NOT sufficient — {@code ColumnRef.getAttribute()}
+    * delegates straight through to the wrapped {@link AttributeRef}, and it is
+    * {@code getAttribute()} (not the alias) that a {@code SELECT *} expansion over the
+    * derived table actually walks, so the mangled string still reached query
+    * generation. A name containing an embedded double-quote character is never
+    * legitimate, so the fix replaces the wrapped ref outright with a clean
+    * {@link AttributeRef} carrying the same entity and the extracted trailing
+    * identifier, rather than layering a cosmetic alias on top of the broken one.</p>
+    */
+   static void sanitizeSqlColumnNames(ColumnSelection columns) {
+      if(columns == null) {
+         return;
+      }
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         if(!(columns.getAttribute(i) instanceof ColumnRef cr)) {
+            continue;
+         }
+
+         String attr = cr.getAttribute();
+
+         if(attr == null || attr.indexOf('"') < 0) {
+            continue;
+         }
+
+         java.util.regex.Matcher m = QUOTED_TAIL.matcher(attr);
+
+         if(m.find()) {
+            DataRef inner = cr.getDataRef();
+            String entity = inner != null ? inner.getEntity() : null;
+            cr.setDataRef(new AttributeRef(entity, m.group(1)));
+         }
+      }
+   }
+
+   /**
+    * Clears the SAME mangled fallback alias described on {@link #sanitizeSqlColumnNames},
+    * but on the {@code UniformSQL}'s own {@link XSelection} rather than the assembly's
+    * {@link ColumnSelection} — two separate structures that both need to agree.
+    *
+    * <p>Live-testing revealed that fixing only the {@code ColumnSelection} was not
+    * enough: query EXECUTION resolves each output column through {@code
+    * PreAssetQuery}/{@code BoundQuery.getAttributeColumn}, which looks the column up in
+    * {@code XSelection.indexOfColumn} by name against THIS selection, not the
+    * ColumnSelection. That lookup has a dedicated fallback for exactly this case —
+    * matching an unaliased qualified column by its trailing identifier
+    * ({@code column.endsWith("." + name)}) — but the fallback loop explicitly skips
+    * any index where {@code getAlias(i) != null}. Since the mangled alias is
+    * non-null (it's the bogus {@code "f"."title"} string), the fallback never runs,
+    * {@code indexOfColumn} returns -1, and the column is silently dropped from the
+    * executed result — not an error, just a vanished column, which is worse than the
+    * original crash. Clearing the mangled alias here (rather than replacing it, since
+    * {@code XSelection}'s own suffix-matching fallback already does the right thing
+    * once nothing shadows it) restores that fallback.</p>
+    *
+    * <p>Recurses into every derived-table subquery reachable from this {@code UniformSQL}'s
+    * FROM clause. A query like {@code SELECT * FROM (SELECT f.title, ... FROM film f) ranked}
+    * represents the derived table as a NESTED {@code UniformSQL} — {@code
+    * SelectTable.getName()} returns that nested object instead of a plain table-name string
+    * (the same structure {@code UniformSQL} itself already walks recursively in {@code
+    * applyVariableTable(UniformSQL)} and {@code writeXML0}, and that {@code JDBCUtil
+    * .fixUniformSQLInfo} walks when resolving column metadata). The mangled alias lives on
+    * that INNER subquery's own {@link XSelection}, not on the outer query's — for {@code
+    * SELECT * FROM (...) alias}, the outer selection is just the trivial {@code *} entry.
+    * Live-tested: clearing only the outer selection left the inner one untouched, so the
+    * broken fallback in {@code XSelection.indexOfColumn} was never restored for the inner
+    * subquery's columns and {@code title}/{@code rating} kept silently vanishing.</p>
+    */
+   static void sanitizeSqlSelectionAliases(UniformSQL sql) {
+      if(sql == null) {
+         return;
+      }
+
+      sanitizeSelectionAliases(sql.getSelection());
+
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         SelectTable table = sql.getSelectTable(i);
+         Object name = table == null ? null : table.getName();
+
+         if(name instanceof UniformSQL) {
+            sanitizeSqlSelectionAliases((UniformSQL) name);
+         }
+      }
+   }
+
+   /**
+    * Clears the mangled fallback alias (see {@link #sanitizeSqlSelectionAliases}) on a single
+    * {@link XSelection}, without descending into nested subqueries.
+    */
+   private static void sanitizeSelectionAliases(XSelection selection) {
+      if(selection == null) {
+         return;
+      }
+
+      for(int i = 0; i < selection.getColumnCount(); i++) {
+         String alias = selection.getAlias(i);
+
+         if(alias == null || alias.indexOf('"') < 0) {
+            continue;
+         }
+
+         if(QUOTED_TAIL.matcher(alias).find()) {
+            selection.setAlias(i, null);
+         }
+      }
+   }
+
+   /**
+    * Clears the alias on every primary aggregate's underlying {@link ColumnRef} from
+    * the table's CURRENT {@link AggregateInfo}, before it gets replaced.
+    *
+    * <p>{@link #applyAggregateInfo} labels an aggregate's output column by setting an
+    * alias directly on the shared {@link ColumnRef} in the column selection (see the
+    * "First aggregate on this column" branch above). That alias is only meaningful
+    * while THIS AggregateInfo is active — once the table is re-aggregated, the old
+    * alias would otherwise keep pointing at the same, now un-aggregated, raw column.</p>
+    */
+   private static void clearAggregateAliases(TableAssembly t) {
+      AggregateInfo old = t.getAggregateInfo();
+
+      if(old == null || old.isEmpty()) {
+         return;
+      }
+
+      for(int i = 0; i < old.getAggregateCount(); i++) {
+         AggregateRef ar = old.getAggregate(i);
+
+         if(ar.getDataRef() instanceof ColumnRef cr) {
+            cr.setAlias(null);
+         }
+      }
    }
 
    /**

@@ -246,6 +246,13 @@ public class XSelection implements java.io.Serializable, java.lang.Cloneable {
          if(col < aliasmap.size()) {
             aliasmap.set(col, null);
             pathAliases = null;
+            // indexOfColumn's qualified-suffix fallback (see below) is skipped for
+            // any index with a non-null alias, and its result is memoized in
+            // indexmap keyed only by the searched name — so a lookup made while
+            // this column still had an alias set stays cached as a permanent miss
+            // even after the alias is cleared here, unless the cache is invalidated
+            // too (matching setColumn/addColumn/etc., which all already do this).
+            indexmap.clear();
          }
       }
       else {
@@ -259,6 +266,7 @@ public class XSelection implements java.io.Serializable, java.lang.Cloneable {
 
          aliasmap.set(col, alias);
          pathAliases = null;
+         indexmap.clear();
       }
    }
 
