@@ -232,7 +232,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          //if admin permissions to this resource, return true
          boolean hasResourcePermission = provider.getPermission(type, resource, orgID) != null &&
             provider.getPermission(type, resource, orgID)
-               .getOrgScopedUserGrants(ResourceAction.ASSIGN, OrganizationManager.getInstance().getCurrentOrgID())
+               .getOrgScopedUserGrants(ResourceAction.ADMIN, OrganizationManager.getInstance().getCurrentOrgID())
                .contains(pId);
 
          if(hasResourcePermission) {
@@ -329,10 +329,20 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       }
 
       if(type == ResourceType.SECURITY_ROLE) {
-         Permission rolePerm = provider.getPermission(type, new IdentityID("Organization Roles", organization), orgID);
+         // "Organization Roles" admin delegation only covers roles actually scoped to this
+         // org — never org-less/global roles like Administrator or Organization Administrator
+         Role orgRolesTarget = provider.getRole(IdentityID.getIdentityIDFromKey(resource));
+         boolean targetInOrgRoleScope = orgRolesTarget != null &&
+            Tool.equals(orgRolesTarget.getOrganizationID(), organization) &&
+            Arrays.stream(provider.getAllRoles(new IdentityID[]{ orgRolesTarget.getIdentityID() }))
+               .noneMatch(provider::isSystemAdministratorRole);
 
-         if(rolePerm != null && checker.checkPermission(identity, rolePerm, action, true)) {
-            return true;
+         if(targetInOrgRoleScope) {
+            Permission rolePerm = provider.getPermission(type, new IdentityID("Organization Roles", organization), orgID);
+
+            if(rolePerm != null && checker.checkPermission(identity, rolePerm, action, true)) {
+               return true;
+            }
          }
       }
 
@@ -380,10 +390,30 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             type == ResourceType.SECURITY_ROLE)
          {
             if((perm == null) || !perm.hasOrgEditedGrantAll(orgID) || type == ResourceType.SECURITY_ROLE) {
-               Permission orgPerm = provider.getPermission(ResourceType.SECURITY_ORGANIZATION, new IdentityID(organization, organization), orgID);
+               // org admin permission never extends to global (org-less) roles — e.g. the
+               // built-in Administrator and Organization Administrator roles — only to
+               // roles actually owned by this org
+               boolean roleOutOfOrgAdminScope = false;
 
-               if(orgPerm != null && checker.checkPermission(identity, orgPerm, ResourceAction.ADMIN, true)) {
-                  return true;
+               if(type == ResourceType.SECURITY_ROLE) {
+                  Role targetRole = provider.getRole(IdentityID.getIdentityIDFromKey(resource));
+
+                  if(targetRole == null || !Tool.equals(targetRole.getOrganizationID(), organization)) {
+                     roleOutOfOrgAdminScope = true;
+                  }
+                  else {
+                     roleOutOfOrgAdminScope = Arrays.stream(
+                        provider.getAllRoles(new IdentityID[]{ targetRole.getIdentityID() }))
+                        .anyMatch(provider::isSystemAdministratorRole);
+                  }
+               }
+
+               if(!roleOutOfOrgAdminScope) {
+                  Permission orgPerm = provider.getPermission(ResourceType.SECURITY_ORGANIZATION, new IdentityID(organization, organization), orgID);
+
+                  if(orgPerm != null && checker.checkPermission(identity, orgPerm, ResourceAction.ADMIN, true)) {
+                     return true;
+                  }
                }
             }
          }
@@ -570,16 +600,18 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
 
          Role role = currProvider.getRole(resourceID);
 
+         // role doesn't exist, so just equals org name (see Bug #66393 for SECURITY_USER).
          if(role == null) {
-            return false;
+            return Objects.equals(resourceID.getOrgID(), orgID);
          }
 
          IdentityID[] roles = new IdentityID[]{role.getIdentityID()};
          isSiteAdmin = Arrays.stream(currProvider.getAllRoles(roles))
             .anyMatch(currProvider::isSystemAdministratorRole);
 
-         return !isSiteAdmin && (currProvider.getRole(resourceID).getOrganizationID() == null ||
-                 orgID.equals(currProvider.getRole(resourceID).getOrganizationID()));
+         // org admin permission never extends to global (org-less) roles — e.g. the built-in
+         // Administrator and Organization Administrator roles — only to roles owned by this org
+         return !isSiteAdmin && Tool.equals(orgID, role.getOrganizationID());
       case SECURITY_ORGANIZATION:
          if(resource.equals("*")) {
             return false;
@@ -728,17 +760,22 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             }
          }
          else if(currentType == ResourceType.SECURITY_ROLE) {
+            // "Organization Roles" and "Roles" (global) are independent permission roots —
+            // only merge the one that actually owns the checked role (mirrors the guard at
+            // the dedicated root-check block above, lines ~135-154)
+            Role currentRole = provider.getRole(IdentityID.getIdentityIDFromKey(currentResource));
 
-            perm = provider.getPermission(currentType, new IdentityID("Organization Roles", OrganizationManager.getInstance().getCurrentOrgID()));
-
-            if(perm != null) {
-               users.addAll(perm.getOrgScopedUserGrants(action, orgId));
-               roles.addAll(perm.getOrgScopedRoleGrants(action, orgId));
-               groups.addAll(perm.getOrgScopedGroupGrants(action, orgId));
-               organizations.addAll(perm.getOrgScopedOrganizationGrants(action, orgId));
+            if(currentRole != null && currentRole.getOrganizationID() != null &&
+               Tool.equals(currentRole.getOrganizationID(), OrganizationManager.getInstance().getCurrentOrgID()))
+            {
+               perm = provider.getPermission(currentType, new IdentityID("Organization Roles", OrganizationManager.getInstance().getCurrentOrgID()));
             }
-
-            perm = provider.getPermission(currentType, new IdentityID("Roles", OrganizationManager.getInstance().getCurrentOrgID()));
+            else if(currentRole == null || currentRole.getOrganizationID() == null) {
+               perm = provider.getPermission(currentType, new IdentityID("Roles", OrganizationManager.getInstance().getCurrentOrgID()));
+            }
+            else {
+               perm = null; // role belongs to a different org — no cumulative admin merge applies
+            }
 
             if(perm != null) {
                users.addAll(perm.getOrgScopedUserGrants(action, orgId));

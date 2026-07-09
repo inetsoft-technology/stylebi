@@ -15,7 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
+import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angular/core";
+import { Subscription } from "rxjs";
 import { Tool } from "../../../../../shared/util/tool";
 import { ConsoleMessage } from "./console-message";
 import { ModelService } from "../services/model.service";
@@ -35,7 +36,7 @@ const SAVE_MESSAGE_LEVELS_URI = "../api/composer/console-dialog/save-message-lev
     styleUrls: ["./console-dialog.component.scss"],
     imports: [StandardDialogComponent, DialogContentDirective, NgClass, FixedDropdownDirective, FormsModule, DialogButtonsDirective]
 })
-export class ConsoleDialogComponent implements OnInit {
+export class ConsoleDialogComponent implements OnInit, OnDestroy {
    @Input() runtimeId: string;
    @Input() messageLevels: string[] = [];
    @Input() messages: ConsoleMessage[];
@@ -45,6 +46,7 @@ export class ConsoleDialogComponent implements OnInit {
    levelOptions = ["_#(js:Error)", "_#(js:Warning)", "_#(js:Info)"];
    selectedLevels: string[] = [];
    levelButtonLabel: string = "_#(js:All levels)";
+   private saveModelSubscription: Subscription;
 
    constructor(private modelService: ModelService) {
    }
@@ -128,7 +130,8 @@ export class ConsoleDialogComponent implements OnInit {
 
    ok(): void {
       let model = new SaveConsoleMessageLevelsEvent(this.selectedLevels);
-      this.modelService.sendModel(SAVE_MESSAGE_LEVELS_URI + Tool.byteEncodeURLComponent(this.runtimeId), model)
+      this.saveModelSubscription = this.modelService.sendModel(
+         SAVE_MESSAGE_LEVELS_URI + Tool.byteEncodeURLComponent(this.runtimeId), model)
          .subscribe((res: any) => {
             if(res.body) {
                this.messageLevels = Tool.clone(this.selectedLevels);
@@ -138,5 +141,9 @@ export class ConsoleDialogComponent implements OnInit {
                this.onCommit.emit(this.messageLevels);
             }
          });
+   }
+
+   ngOnDestroy(): void {
+      this.saveModelSubscription?.unsubscribe();
    }
 }

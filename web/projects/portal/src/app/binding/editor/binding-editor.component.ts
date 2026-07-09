@@ -50,6 +50,7 @@ import { DataEditorBindingTree } from "../widget/binding-tree/data-editor-bindin
 import { SplitPane } from "../../widget/split-pane/split-pane.component";
 import { EditorTitleBar } from "./editor-title-bar.component";
 import { NgClass } from "@angular/common";
+import { Subscription } from "rxjs";
 
 const GET_MESSAGE_LEVELS_URI = "../api/composer/console-dialog/get-message-levels/";
 
@@ -96,6 +97,7 @@ export class BindingEditor implements OnInit, AfterViewInit, OnDestroy {
    private _bindingModel: BindingModel;
    private _variableValues: string[];
    private _assemblyName: string;
+   private messageLevelsSubscription: Subscription;
 
    constructor(private bindingService: BindingService,
                private uiContextService: UIContextService,
@@ -148,6 +150,7 @@ export class BindingEditor implements OnInit, AfterViewInit, OnDestroy {
 
    ngOnDestroy() {
       this.bindingService.clear();
+      this.messageLevelsSubscription?.unsubscribe();
    }
 
    @Input()
@@ -348,7 +351,7 @@ export class BindingEditor implements OnInit, AfterViewInit, OnDestroy {
          windowClass: "console-dialog"
       };
 
-      this.modelService.getModel(GET_MESSAGE_LEVELS_URI + Tool.byteEncodeURLComponent(this.runtimeId))
+      this.messageLevelsSubscription = this.modelService.getModel(GET_MESSAGE_LEVELS_URI + Tool.byteEncodeURLComponent(this.runtimeId))
          .subscribe((res: any) => {
             this.messageLevels = res;
             this.modalService.open(this.consoleDialog, options).result

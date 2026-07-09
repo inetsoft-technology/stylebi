@@ -19,6 +19,8 @@
 package inetsoft.web.composer.vs.objects.controller;
 
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.viewsheet.vslayout.DeviceInfo;
@@ -26,6 +28,8 @@ import inetsoft.uql.viewsheet.vslayout.DeviceRegistry;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.composer.model.vs.ScreenSizeDialogModel;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -38,9 +42,15 @@ public class DeviceController {
       this.dependencyHandler = dependencyHandler;
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.DEVICE,
+      resource = "*",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/composer/device/new")
    @ResponseBody
    public void newDevice(@RequestBody ScreenSizeDialogModel device, Principal principal) {
+      checkOrgAllowedToEditDevices(principal);
       String userName = SUtil.getUserName(principal);
       Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
       ActionRecord actionRecord = new ActionRecord(userName, ActionRecord.ACTION_NAME_CREATE,
@@ -60,9 +70,15 @@ public class DeviceController {
       Audit.getInstance().auditAction(actionRecord, principal);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.DEVICE,
+      resource = "*",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/composer/device/edit")
    @ResponseBody
    public void editDevice(@RequestBody ScreenSizeDialogModel device, Principal principal) {
+      checkOrgAllowedToEditDevices(principal);
       String userName = SUtil.getUserName(principal);
       Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
       ActionRecord actionRecord = new ActionRecord(userName, ActionRecord.ACTION_NAME_EDIT,
@@ -82,9 +98,15 @@ public class DeviceController {
       Audit.getInstance().auditAction(actionRecord, principal);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.DEVICE,
+      resource = "*",
+      actions = ResourceAction.ACCESS
+   ))
    @PostMapping("/api/composer/device/delete")
    @ResponseBody
    public void deleteDevice(@RequestBody ScreenSizeDialogModel device, Principal principal) {
+      checkOrgAllowedToEditDevices(principal);
       String userName = SUtil.getUserName(principal);
       Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
       ActionRecord actionRecord = new ActionRecord(userName, ActionRecord.ACTION_NAME_DELETE,
@@ -97,6 +119,20 @@ public class DeviceController {
                                         AssetEntry.Type.DEVICE, device.getId(), null);
       dependencyHandler.deleteDependenciesKey(entry);
       Audit.getInstance().auditAction(actionRecord, principal);
+   }
+
+   /**
+    * Device profiles are stored globally rather than per-organization, so in multi-org
+    * enterprise deployments the DEVICE:*:ACCESS permission alone is not sufficient -- an org
+    * admin granted that permission within their own org's security config could otherwise
+    * modify device profiles used by every other organization. This mirrors the additional
+    * gate applied to the UI control in ViewsheetPropertyDialogService.
+    */
+   private void checkOrgAllowedToEditDevices(Principal principal) {
+      if(!DeviceRegistry.isOrgAllowedToEditDevices(principal)) {
+         throw new SecurityException(
+            "Unauthorized access to device profile management by user " + principal.getName());
+      }
    }
 
    private final DeviceRegistry deviceRegistry;

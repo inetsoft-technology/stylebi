@@ -84,6 +84,7 @@ export class LogicalModelComponent implements OnInit, DoCheck, OnDestroy {
    private dataModelNameChangeSubscription: Subscription;
    form: UntypedFormGroup = new UntypedFormGroup({});
    private subscription: Subscription;
+   private modelSubscription: Subscription;
 
    constructor(private dataModelNameChangeService: DataModelNameChangeService,
                private logicalModelService: LogicalModelService,
@@ -177,6 +178,11 @@ export class LogicalModelComponent implements OnInit, DoCheck, OnDestroy {
          this.subscription.unsubscribe();
          this.subscription = null;
       }
+
+      if(this.modelSubscription) {
+         this.modelSubscription.unsubscribe();
+         this.modelSubscription = null;
+      }
    }
 
    ngDoCheck(): void {
@@ -247,8 +253,12 @@ export class LogicalModelComponent implements OnInit, DoCheck, OnDestroy {
          params = params.set("parent", this.parent);
       }
 
+      if(this.modelSubscription) {
+         this.modelSubscription.unsubscribe();
+      }
+
       this.loading = true;
-      this.httpClient
+      this.modelSubscription = this.httpClient
          .get<LogicalModelDefinition>(LOGICAL_MODEL_URI, { params: params})
          .subscribe(
             data => {
@@ -259,7 +269,9 @@ export class LogicalModelComponent implements OnInit, DoCheck, OnDestroy {
                this.loading = false;
                this.expanded = [];
             },
-            err => {}
+            err => {
+               this.loading = false;
+            }
          );
    }
 

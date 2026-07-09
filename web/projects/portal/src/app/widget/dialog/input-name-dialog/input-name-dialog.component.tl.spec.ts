@@ -26,8 +26,10 @@
  *   Group 4 [Risk 2] - cancel() and ngAfterViewInit focus/select behavior
  *   Group 5 [Risk 3] - destroy-time duplicate-check teardown
  *
- * Confirmed bugs (it.fails):
- *   - late duplicate-check emissions still trigger side effects after fixture.destroy()
+ * Fixed bugs:
+ *   - Bug #75599 (FIXED): late duplicate-check emissions no longer trigger side effects after
+ *     fixture.destroy(), now that InputNameDialog implements OnDestroy and unsubscribes the
+ *     stored duplicate-check Subscription.
  *
  * Mocking strategy:
  *   - ModalHeaderComponent and EnterSubmitDirective are stubbed via importOverrides because this
@@ -297,12 +299,11 @@ describe("InputNameDialog - single pass", () => {
    });
 
    describe("Group 5 - destroy-time teardown", () => {
-      // Failing assertion: expect(showMessageDialogSpy).not.toHaveBeenCalled()
-      // Root cause: ok() keeps the duplicate-check subscription alive after fixture.destroy(),
-      // so a late duplicate result still runs dialog side effects on the dead component.
-      // Correct fail signal: the spy is untouched before duplicate$.next(true) and only flips
-      // after the post-destroy emission, proving a teardown leak rather than a setup mistake.
-      it.fails("should ignore late duplicate-check emissions after destroy", async () => {
+      // Bug #75599 (FIXED): ok() previously kept the duplicate-check subscription alive after
+      // fixture.destroy(), so a late duplicate result still ran dialog side effects on the dead
+      // component. The component now implements OnDestroy and unsubscribes the stored
+      // Subscription in ngOnDestroy(), so a post-destroy emission is correctly ignored.
+      it("should ignore late duplicate-check emissions after destroy", async () => {
          const duplicate$ = new Subject<boolean>();
          const showMessageDialogSpy = vi.spyOn(ComponentTool, "showMessageDialog")
             .mockResolvedValue(undefined);

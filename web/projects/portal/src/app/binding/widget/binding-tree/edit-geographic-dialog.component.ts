@@ -15,7 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
+import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angular/core";
+import { Subscription } from "rxjs";
 import { GeoProvider } from "../../../common/data/geo-provider";
 import { ChartGeoRef } from "../../data/chart/chart-geo-ref";
 import { GeoOptionPane } from "../../editor/chart/field/geo-option-pane.component";
@@ -26,7 +27,7 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
     templateUrl: "edit-geographic-dialog.component.html",
     imports: [ModalHeaderComponent, GeoOptionPane]
 })
-export class EditGeographicDialog implements OnInit {
+export class EditGeographicDialog implements OnInit, OnDestroy {
    @Input()
    get provider(): GeoProvider {
       return this._provider;
@@ -43,8 +44,13 @@ export class EditGeographicDialog implements OnInit {
    private _provider: GeoProvider;
    _mapType: string;
    loadData: boolean = false;
+   private changeMapTypeSubscription: Subscription;
 
    ngOnInit(): void {
+   }
+
+   ngOnDestroy(): void {
+      this.changeMapTypeSubscription?.unsubscribe();
    }
 
    updateLoadData(evt: string) {
@@ -68,7 +74,7 @@ export class EditGeographicDialog implements OnInit {
       evt.stopPropagation();
 
       if(this._mapType !== this._provider.getBindingModel().mapType && !this.isGeoRef()) {
-         this._provider.changeMapType(this.refName, this._mapType, null).subscribe(() => {
+         this.changeMapTypeSubscription = this._provider.changeMapType(this.refName, this._mapType, null).subscribe(() => {
             this.onCancel.emit("cancel");
          });
       }

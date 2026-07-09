@@ -24,20 +24,22 @@
  *   Group 2 [Risk 3] - deleteProperty: batch delete must remove data and clear selected rows consistently
  *   Group 3 [Risk 3] - getDBUrl: generated JDBC URLs must match database type-specific contracts
  *
- * Confirmed bugs (it.failing - remove wrapper once fixed Issue #75159):
+ * Fixed bugs (Issue #75583):
  *
  *   Bug A - selectAdditional duplicate ctrl-click (Group 1):
- *     Ctrl-clicking the same additional connection twice appends the same index twice.
+ *     Ctrl-clicking the same additional connection twice appended the same index twice.
  *
  *   Bug B - deleteProperty leaves stale selected rows (Group 2):
- *     The method iterates over a cloned selection but splices the live selectedProperty array by
+ *     The method iterated over a cloned selection but spliced the live selectedProperty array by
  *     the clone index, leaving later selections active after deletion.
  *
  *   Bug C - ACCESS URL ignores dataSourceName (Group 3):
- *     Additional ACCESS connections can display an undefined URL because getDBUrl reads customUrl.
+ *     Additional ACCESS connections could display an undefined URL because getDBUrl only fell back
+ *     to dataSourceName when customUrl equaled an exact sentinel value, not when it was unset.
  *
- *   Bug D - INFORMIX URL branches are inverted (Group 3):
- *     A populated serverName is not emitted as INFORMIXSERVER and an empty locale is emitted.
+ *   Bug D - INFORMIX URL branches were inverted (Group 3):
+ *     A populated serverName was not emitted as INFORMIXSERVER and an empty locale was emitted
+ *     instead.
  *
  * KEY contracts:
  *   Additional connection selection is a multi-select list: normal click replaces selection,
@@ -204,7 +206,7 @@ describe("DatasourcesDatabaseComponent - selectAdditional - multi-select state [
 
    // Regression-sensitive: duplicate selected indexes corrupt delete/edit enablement and selected datasource payloads.
    // Risk Point/Contract: ctrl-click on an already selected row should toggle or preserve uniqueness, not append a duplicate.
-   it.fails("should not append a duplicate index when ctrl-clicking an already selected additional connection", async () => {
+   it("should not append a duplicate index when ctrl-clicking an already selected additional connection", async () => {
       const { fixture } = await renderDatabase();
       const comp = fixture.componentInstance;
 
@@ -245,7 +247,7 @@ describe("DatasourcesDatabaseComponent - deleteProperty - batch delete consisten
 
    // Regression-sensitive: deleting several selected properties must not leave a stale selected row in the UI.
    // Risk Point/Contract: data removal and UI selection clearing are one atomic state transition.
-   it.fails("should remove all selected pool properties and clear the full selection after confirmation", async () => {
+   it("should remove all selected pool properties and clear the full selection after confirmation", async () => {
       const { fixture } = await renderDatabase(createDatabase({
          info: { poolProperties: { fetchSize: "100", maxRows: "500" } } as any,
       }));
@@ -291,7 +293,7 @@ describe("DatasourcesDatabaseComponent - getDBUrl - type-specific JDBC contracts
 
    // Regression-sensitive: ACCESS additional connections must display the selected file path, not undefined.
    // Risk Point/Contract: AccessDatabaseInfoModel stores the file in dataSourceName.
-   it.fails("should build an ACCESS URL from dataSourceName when customUrl is absent", async () => {
+   it("should build an ACCESS URL from dataSourceName when customUrl is absent", async () => {
       const { fixture } = await renderDatabase();
       const comp = fixture.componentInstance;
 
@@ -305,7 +307,7 @@ describe("DatasourcesDatabaseComponent - getDBUrl - type-specific JDBC contracts
 
    // Regression-sensitive: Informix serverName is required connection identity; omitting it points users at the wrong DB.
    // Risk Point/Contract: a populated serverName must be emitted as INFORMIXSERVER.
-   it.fails("should include INFORMIXSERVER for Informix when serverName is populated and db locale is empty", async () => {
+   it("should include INFORMIXSERVER for Informix when serverName is populated and db locale is empty", async () => {
       const { fixture } = await renderDatabase();
       const comp = fixture.componentInstance;
 

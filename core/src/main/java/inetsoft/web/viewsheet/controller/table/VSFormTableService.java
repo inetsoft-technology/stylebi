@@ -26,6 +26,7 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.Util;
 import inetsoft.report.script.viewsheet.ScriptEvent;
 import inetsoft.report.script.viewsheet.VSAScriptable;
+import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
@@ -343,7 +344,7 @@ public class VSFormTableService {
     * Event for viewsheet script, it keeps event source, assembly and other
     * properties.
     */
-   public static final class TableScriptEvent implements ScriptEvent {
+   public static final class TableScriptEvent implements ScriptEvent, ScriptScope {
       /**
        * Constructure.
        */
@@ -367,6 +368,45 @@ public class VSFormTableService {
       @Override
       public void setSource(VSAScriptable source) {
          this.source = source;
+      }
+
+      /**
+       * Get a named member. Exposing the event properties through the scope
+       * interface ensures the source scriptable is wrapped as a ScopeProxy, so
+       * nested access such as event.source.title resolves correctly.
+       */
+      @Override
+      public Object getMember(String id) {
+         switch(id) {
+         case "name":
+            return name;
+         case "type":
+            return type;
+         case "source":
+            return source;
+         case "row":
+            return row;
+         case "column":
+            return column;
+         default:
+            return null;
+         }
+      }
+
+      @Override
+      public boolean hasMember(String id) {
+         return "name".equals(id) || "type".equals(id) || "source".equals(id) ||
+            "row".equals(id) || "column".equals(id);
+      }
+
+      @Override
+      public void putMember(String id, Object value) {
+         // the event object is read-only from scripts
+      }
+
+      @Override
+      public Object[] getMemberKeys() {
+         return new String[]{ "name", "type", "source", "row", "column" };
       }
 
       public VSAScriptable source;     // source scriptable object

@@ -1041,9 +1041,9 @@ export namespace Tool {
    }
 
    export function hasOtherMessage(message: string) {
-      let textPattern = new RegExp(Tool.TEXT_LIMIT_PREFIX + '.*?' +
+      let textPattern = new RegExp(Tool.TEXT_LIMIT_PREFIX + ".*?" +
          Tool.TEXT_LIMIT_SUFFIX, "g");
-      let columnPattern = new RegExp(Tool.COLUMN_LIMIT_PREFIX + '.*?' +
+      let columnPattern = new RegExp(Tool.COLUMN_LIMIT_PREFIX + ".*?" +
          Tool.COLUMN_LIMIT_SUFFIX, "g");
       message = message.replace(textPattern, "");
       message = message.replace(columnPattern, "");

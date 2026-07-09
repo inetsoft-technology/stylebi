@@ -187,7 +187,12 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
             data.table = new DataSetTable(nset);
          }
       }
-      else if(name.equals("dataset") && !(value instanceof DataSet)) {
+      else if(name.equals("dataset")) {
+         // under GraalJS a script-created DataSet arrives unwrapped, so it is
+         // already 'instanceof DataSet' here; createDataSet() returns it as-is,
+         // while non-DataSet values (arrays/tables) are converted. Either way
+         // the result must be set on the creator so the script dataset reaches
+         // the graph. (Bug #75580)
          value = JavaScriptEngine.unwrap(value);
          DataSet nset = PropertyDescriptor.createDataSet(value);
 
@@ -349,6 +354,9 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
 
       addProperty("bindingInfo", bindingInfo = new VSChartBindingScriptable(this));
       addProperty("data", data);
+      // "table" is an alias for "data" resolved in getPropertyValue; it must be
+      // registered so hasMember("table") is true (GraalJS gates getMember on hasMember).
+      addProperty("table", data);
       addProperty("dataset", null);
       addProperty("graph", null);
       addProperty("query", null);

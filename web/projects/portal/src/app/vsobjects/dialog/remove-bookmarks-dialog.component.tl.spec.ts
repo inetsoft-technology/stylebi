@@ -26,10 +26,11 @@
  *   Group 4 [Risk 1] — selectOption, cancelChanges, getFilterOptionLabel, isSelectedOption,
  *                       selectedFilterOptionLabel getter
  *
- * Confirmed bugs (it.fails):
- *   Memory leak — constructor subscribes to filterDate.valueChanges with no ngOnDestroy cleanup;
- *   the subscription remains active after the component is destroyed and continues mutating
- *   condition.filterTime on any subsequent form value change.
+ * Fixed bugs:
+ *   Bug #75599 — Memory leak: constructor subscribed to filterDate.valueChanges with no
+ *   ngOnDestroy cleanup, so the subscription remained active after the component was destroyed
+ *   and continued mutating condition.filterTime on any subsequent form value change. Fixed by
+ *   implementing OnDestroy and unsubscribing the stored Subscription in ngOnDestroy().
  *
  * Out of scope:
  *   dropdownWidth getter — depends on nativeElement.offsetWidth which is always 0 in jsdom
@@ -57,21 +58,19 @@ async function renderComp() {
 
 describe("RemoveBookmarksDialog — memory leak", () => {
 
-   // 🔁 Regression-sensitive: the constructor subscribes to filterDate.valueChanges with no
-   // takeUntilDestroyed/unsubscribe; after destroy the subscription still fires and mutates
-   // condition.filterTime, leaving a potentially stale value visible to any code that holds
-   // a reference to the destroyed instance.
-   // Expected failure: the final `expect(...).toBe(originalTime)` should fail because the
-   // live subscription mutates condition.filterTime to "2024-01-01" after destroy.
-   // If the test fails for any other reason (e.g. fixture.destroy() throws, or the form
-   // control is missing), the it.fails will still pass — check the failure message carefully.
-   it.fails("should not update condition.filterTime after the component is destroyed (ngOnDestroy not implemented)", async () => {
+   // 🔁 Regression-sensitive: Bug #75599 (FIXED) — the constructor subscribes to
+   // filterDate.valueChanges; previously there was no ngOnDestroy/unsubscribe, so after destroy
+   // the subscription kept firing and mutated condition.filterTime, leaving a stale value
+   // visible to any code that held a reference to the destroyed instance. The component now
+   // implements OnDestroy and unsubscribes the stored Subscription in ngOnDestroy(), so
+   // setValue() after destroy no longer propagates.
+   it("should not update condition.filterTime after the component is destroyed (Bug #75599 fixed)", async () => {
       const { comp, fixture } = await renderComp();
       const originalTime = comp.condition.filterTime;
       fixture.destroy();
-      // After destroy, setValue should NOT propagate via the still-active subscription
+      // After destroy, setValue should NOT propagate since ngOnDestroy unsubscribed the control
       comp.form.get("filterDate")?.setValue("2024-01-01");
-      expect(comp.condition.filterTime).toBe(originalTime); // FAILS: subscription still fires
+      expect(comp.condition.filterTime).toBe(originalTime); // subscription is unsubscribed in ngOnDestroy
    });
 });
 

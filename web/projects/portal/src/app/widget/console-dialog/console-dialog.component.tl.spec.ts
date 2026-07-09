@@ -37,10 +37,10 @@
  *   Group 9 [Risk 1] — closeDialog(): emits onClose(messages)
  *   Group 10 [Risk 1] — clearMessages(): emits messagesChange([])
  *
- * Confirmed bugs (it.fails):
- *   Bug — ok() subscribe leak: modelService.sendModel().subscribe() stores no Subscription.
- *     After component destruction the callback still fires and emits onCommit on a destroyed
- *     component. Fix: store the subscription and unsubscribe in ngOnDestroy.
+ * Fixed bugs:
+ *   Bug #75598 — ok() subscribe leak: modelService.sendModel().subscribe() stored no Subscription.
+ *     After component destruction the callback still fired and emitted onCommit on a destroyed
+ *     component. Fixed by storing the subscription and unsubscribing in ngOnDestroy.
  *
  * Out of scope:
  *   Template checkbox binding — FixedDropdownDirective + FormsModule template interaction
@@ -131,10 +131,10 @@ describe("ConsoleDialogComponent — ok", () => {
       expect(emitSpy).toHaveBeenCalledWith(["_#(js:Error)"]);
    });
 
-   // Bug: ok() calls modelService.sendModel().subscribe() without storing the Subscription.
-   // After component destruction the callback still fires and emits onCommit. Fix: store and
-   // unsubscribe in ngOnDestroy.
-   it.fails("should not emit after component is destroyed (subscribe leak)", async () => {
+   // Regression test for Bug #75598: ok() called modelService.sendModel().subscribe() without
+   // storing the Subscription. After component destruction the callback still fired and emitted
+   // onCommit. Fixed by storing and unsubscribing in ngOnDestroy.
+   it("should not emit after component is destroyed (subscribe leak)", async () => {
       const subject = new Subject<any>();
       MODEL_SERVICE_MOCK.sendModel.mockReturnValue(subject.asObservable());
       const { comp, fixture } = await renderComponent();
@@ -146,8 +146,7 @@ describe("ConsoleDialogComponent — ok", () => {
       subject.next({ body: true });
       await Promise.resolve();
 
-      // With fix: emit should NOT have been called after destroy
-      // Currently: FAILS — callback still runs
+      // emit should NOT have been called after destroy
       expect(emitSpy).not.toHaveBeenCalled();
    });
 });

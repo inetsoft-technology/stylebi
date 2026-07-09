@@ -31,8 +31,8 @@
  *   Group 7  [Risk 2] — getDateString: raw vs formatted vs empty
  *   Group 8  [Risk 2] — getDate / getTimeInstant: string parsing, serverTZ branch
  *   Group 9  [Risk 3] — getDateTime: meridian/hour 24h conversion, serverTZ branch
- *   Group 10 [Risk 3] — isValidDate: range check (includes a confirmed off-by-one-month bug in
- *                        the default min/max Date construction — see it.fails)
+ *   Group 10 [Risk 3] — isValidDate: range check (includes a regression test for Bug #75597,
+ *                        an off-by-one-month bug in the default min/max Date construction)
  *   Group 11 [Risk 1] — isSelected boolean getter
  *   Group 12 [Risk 1] — getLabelIndex / getValueIndex
  *   Group 13 [Risk 2] — updateHours / updateMinutes / updateSeconds / updateMeridian (symmetric
@@ -45,12 +45,13 @@
  *                        placeholder attribute, select element's text-align-last style) that
  *                        cannot be observed on a directly-instantiated component.
  *
- * Confirmed bugs (it.fails):
- *   Bug (no ticket found) — isValidDate default bounds (Group 10): defaultMinDate/defaultMaxDate
- *   are declared as {year:1900,month:1,day:1} / {year:2050,month:12,day:31} (1-based NgbDateStruct
- *   month), but isValidDate() passes those fields straight into `new Date(year, month, day)`,
- *   whose month parameter is 0-based. This shifts the effective default bounds to Feb 1, 1900 and
- *   Jan 31, 2051 — a date the UI documents as in-range (e.g. Jan 15, 1900) is incorrectly rejected.
+ * Fixed bugs:
+ *   Bug #75597 — isValidDate default bounds (Group 10): defaultMinDate/defaultMaxDate are declared
+ *   as {year:1900,month:1,day:1} / {year:2050,month:12,day:31} (1-based NgbDateStruct month), but
+ *   isValidDate() passed those fields straight into `new Date(year, month, day)`, whose month
+ *   parameter is 0-based. This shifted the effective default bounds to Feb 1, 1900 and Jan 31,
+ *   2051 — a date the UI documents as in-range (e.g. Jan 15, 1900) was incorrectly rejected. Fixed
+ *   by subtracting 1 from the month, matching the pattern already used in getDateTime().
  *
  * Out of scope this pass: ngOnInit, ngOnChanges, ngOnDestroy, model setter, onChange, onBlur,
  * onInputDate, onEnter, selectItem, toggleDropdown, applySelection, clearCalendar, updateDate,
@@ -423,10 +424,11 @@ describe("VSComboBox — Pass 3: Display", () => {
          expect((comp as any).isValidDate({ year: 1500, month: 1, day: 1 })).toBe(false);
       });
 
-      // Bug: defaultMinDate is documented as Jan 1, 1900 (NgbDateStruct month=1 is January),
-      // but isValidDate() constructs `new Date(1900, 1, 1)` — JS Date's month is 0-based, so
-      // this actually evaluates to Feb 1, 1900. A date the UI treats as in-range is rejected.
-      it.fails("should treat the documented default min date (Jan 1900) as valid", () => {
+      // Regression test for Bug #75597: defaultMinDate is documented as Jan 1, 1900
+      // (NgbDateStruct month=1 is January), but isValidDate() used to construct
+      // `new Date(1900, 1, 1)` — JS Date's month is 0-based, so this evaluated to Feb 1, 1900
+      // and rejected a date the UI treats as in-range.
+      it("should treat the documented default min date (Jan 1900) as valid", () => {
          const { comp } = createComboBoxComponent({ model: { minDate: null, maxDate: null } });
          comp.hours = 10; comp.minutes = 0; comp.seconds = 0;
 

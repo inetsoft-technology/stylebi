@@ -23,20 +23,21 @@
  *   Group 1 [Risk 3] — 3000ms timer set in the "change" handler is not cleared on destroy
  *   Group 2 [Risk 2] — ngOnInit HTTP subscription (scriptDefinition GET) is not stored on destroy
  *
- * Confirmed bugs (it.fails):
- *   Bug — checkSyntax timer leak (Group 1): the codemirror "change" event handler sets
- *     this.timer = setTimeout(() => this.checkSyntax(expr), 3000). destroyCodeMirror() clears
- *     the ternServer, codemirrorInstance, and cancelAutocomplete, but does NOT call
- *     clearTimeout(this.timer). After ngOnDestroy, the timer fires on the dead component and
- *     calls checkSyntax(), which sends an HTTP POST to the backend. Fix: add
+ * Fixed bugs (Bug #75599):
+ *   Bug #75599 — checkSyntax timer leak (Group 1), FIXED: the codemirror "change" event handler
+ *     sets this.timer = setTimeout(() => this.checkSyntax(expr), 3000). destroyCodeMirror()
+ *     previously cleared the ternServer, codemirrorInstance, and cancelAutocomplete, but did NOT
+ *     call clearTimeout(this.timer), so after ngOnDestroy the timer could fire on the dead
+ *     component and call checkSyntax(), sending an HTTP POST to the backend. Fixed by adding
  *     clearTimeout(this.timer) inside destroyCodeMirror().
  *
- *   Bug — ngOnInit HTTP subscription leak (Group 2): ngOnInit subscribes to
- *     this.http.get(URI_SCRIPT_SCRIPTDEFINITIPN) without storing the subscription. After
- *     ngOnDestroy, if the HTTP response arrives it invokes the scriptDefinitions setter which
- *     calls destroyCodeMirror() + initCodeMirror() on the dead component (scriptEditor ViewChild
- *     is null at that point, causing a null-reference crash). Fix: store the subscription in a
- *     field and unsubscribe in ngOnDestroy.
+ *   Bug #75599 — ngOnInit HTTP subscription leak (Group 2), FIXED: ngOnInit previously subscribed
+ *     to this.http.get(URI_SCRIPT_SCRIPTDEFINITIPN) without storing the subscription. After
+ *     ngOnDestroy, if the HTTP response arrived it would invoke the scriptDefinitions setter,
+ *     which calls destroyCodeMirror() + initCodeMirror() on the dead component (scriptEditor
+ *     ViewChild is null at that point, causing a null-reference crash). Fixed by storing the
+ *     subscription in a field (scriptDefinitionsSubscription) and unsubscribing it in
+ *     ngOnDestroy.
  *
  * Out of scope: all interaction paths — covered in codemirror.component.interaction.tl.spec.ts.
  */
@@ -173,10 +174,10 @@ describe("CodemirrorComponent — checkSyntax 3000ms timer leak", () => {
       vi.useRealTimers();
    });
 
-   // Bug: destroyCodeMirror() does not call clearTimeout(this.timer). After ngOnDestroy the
-   // pending 3000ms timer fires and calls checkSyntax() on the dead component, sending an HTTP
-   // POST request to the backend. Fix: add clearTimeout(this.timer) in destroyCodeMirror().
-   it.fails("should not call checkSyntax after component is destroyed (3000ms timer leak)", async () => {
+   // Bug #75599 (FIXED): destroyCodeMirror() now calls clearTimeout(this.timer). After
+   // ngOnDestroy the pending 3000ms timer no longer fires, so checkSyntax() is not called on
+   // the dead component and no HTTP POST request is sent to the backend.
+   it("should not call checkSyntax after component is destroyed (3000ms timer leak)", async () => {
       const { comp, fixture } = await renderComponent();
       const checkSyntaxSpy = vi.spyOn(comp, "checkSyntax").mockImplementation(() => {});
 
@@ -184,11 +185,11 @@ describe("CodemirrorComponent — checkSyntax 3000ms timer leak", () => {
       const changeHandler = cmHandlers["change"];
       changeHandler(mockCmInstance, { text: ["x"], origin: "+input" }); // sets this.timer
 
-      fixture.destroy(); // ngOnDestroy → destroyCodeMirror(); this.timer NOT cleared
+      fixture.destroy(); // ngOnDestroy → destroyCodeMirror(); this.timer cleared
 
-      vi.advanceTimersByTime(3001); // timer fires on dead component
+      vi.advanceTimersByTime(3001); // timer would have fired here if not cleared
 
-      expect(checkSyntaxSpy).not.toHaveBeenCalled(); // FAILS — timer fired after destroy
+      expect(checkSyntaxSpy).not.toHaveBeenCalled();
       vi.useRealTimers();
    });
 });
@@ -205,28 +206,27 @@ describe("CodemirrorComponent — ngOnInit scriptDefinition HTTP subscription le
       expect(comp.scriptDefinitions).toBe(defs);
    });
 
-   // Bug: ngOnInit subscribes to http.get() without storing the subscription reference.
-   // After ngOnDestroy, the HTTP response still triggers the scriptDefinitions setter, which
-   // calls destroyCodeMirror() + initCodeMirror(). initCodeMirror() accesses
-   // this.scriptEditor.nativeElement (ViewChild, cleared by destroy) → null-reference crash.
-   // Fix: store the subscription in a field and unsubscribe it in ngOnDestroy.
-   it.fails("should not invoke the scriptDefinitions setter after component is destroyed (ngOnInit HTTP leak)", async () => {
+   // Bug #75599 (FIXED): ngOnInit now stores the http.get() subscription in
+   // scriptDefinitionsSubscription, and ngOnDestroy unsubscribes it. After ngOnDestroy, a late
+   // HTTP response no longer triggers the scriptDefinitions setter, so destroyCodeMirror() +
+   // initCodeMirror() are not invoked on the dead component and no null-reference crash occurs.
+   it("should not invoke the scriptDefinitions setter after component is destroyed (ngOnInit HTTP leak)", async () => {
       const lateSource = new Subject<any>();
       const httpMock = makeHttpMock(lateSource.asObservable());
       const { comp, fixture } = await renderComponent(httpMock);
 
       // Prevent initCodeMirror from crashing on null ViewChild after destroy,
-      // so the assertion (not the crash) is the observable proof of the leak.
+      // so the assertion (not the crash) is the observable proof of the fix.
       vi.spyOn(comp as any, "destroyCodeMirror").mockImplementation(() => {});
       vi.spyOn(comp as any, "initCodeMirror").mockImplementation(() => {});
 
       const initialDefs = (comp as any)._scriptDefinitions;
-      fixture.destroy(); // ngOnDestroy — subscription NOT unsubscribed
+      fixture.destroy(); // ngOnDestroy — subscription unsubscribed
 
       lateSource.next({ newDef: true }); // HTTP response arrives after destroy
 
-      // If properly cleaned up, _scriptDefinitions stays at its pre-destroy value.
-      // Currently the setter runs and updates it, proving the leak.
-      expect((comp as any)._scriptDefinitions).toBe(initialDefs); // FAILS
+      // _scriptDefinitions stays at its pre-destroy value because the subscription was
+      // torn down, proving the leak is fixed.
+      expect((comp as any)._scriptDefinitions).toBe(initialDefs);
    });
 });

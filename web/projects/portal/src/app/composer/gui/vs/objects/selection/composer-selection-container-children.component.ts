@@ -171,10 +171,10 @@ export class ComposerSelectionContainerChildren extends VSSelectionContainerChil
             }
          }));
 
-      this.selectionContainerChildrenService.onChildUpdate.subscribe((index) => {
+      this.subscriptions.add(this.selectionContainerChildrenService.onChildUpdate.subscribe((index) => {
          this.setChildrenHeight();
          this.updateCachedDimensions();
-      });
+      }));
 
       this.subscriptions.add(this.composerVsSearchService.focusChange().subscribe(obj => {
          if(!this.vsObject?.childrenNames ||  this.vsObject?.childrenNames.indexOf(obj) < 0 ||

@@ -221,6 +221,44 @@ class DefaultCheckPermissionStrategyTest {
    }
 
    // ─────────────────────────────────────────────────────────────────
+   // [Path C] Org admin checking a role that does not exist
+   // ─────────────────────────────────────────────────────────────────
+
+   // checkOrgAdminPermission's SECURITY_ROLE branch (line 571-575) unconditionally returned
+   // false when the target role did not exist, unlike the analogous SECURITY_USER branch
+   // (line 536-538, "Bug #66393") which falls back to comparing orgIDs. This meant an org
+   // admin looking up a non-existent role in their own org got permission denied (401)
+   // instead of reaching the "not found" (404) check in the calling API layer. (Bug #75545)
+   @Test
+   void orgAdminCanCheckNonExistentRoleInOwnOrg() {
+      String resource = new IdentityID("noExistRole", "org0").convertToKey();
+
+      try(MockedStatic<SUtil> mocked = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS)) {
+         mocked.when(SUtil::isMultiTenant).thenReturn(true);
+
+         assertTrue(
+            strategy.checkPermission(org_admin, ResourceType.SECURITY_ROLE, resource, ResourceAction.ADMIN),
+            "org admin should have admin permission over a non-existent role in their own org " +
+            "so the caller can surface a 'not found' rather than 'forbidden' result");
+      }
+   }
+
+   // Security boundary: a missing role in a *different* org must still be denied, so this
+   // doesn't leak role existence/permission across organizations.
+   @Test
+   void orgAdminCannotCheckNonExistentRoleInOtherOrg() {
+      String resource = new IdentityID("noExistRole", "otherOrg").convertToKey();
+
+      try(MockedStatic<SUtil> mocked = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS)) {
+         mocked.when(SUtil::isMultiTenant).thenReturn(true);
+
+         assertFalse(
+            strategy.checkPermission(org_admin, ResourceType.SECURITY_ROLE, resource, ResourceAction.ADMIN),
+            "org admin must not gain permission over a non-existent role outside their own org");
+      }
+   }
+
+   // ─────────────────────────────────────────────────────────────────
    // [Path B] System administrator bypasses all permission checks
    // ─────────────────────────────────────────────────────────────────
 
@@ -332,6 +370,278 @@ class DefaultCheckPermissionStrategyTest {
          // ✗ no permission defined → falls through to return false
          Arguments.of(null, false)
       );
+   }
+
+   // [Path D] SECURITY_ROLE with only ASSIGN must not imply READ/WRITE/DELETE/ADMIN (#75567).
+   // Regression: hasResourcePermission incorrectly checked ASSIGN grants instead of ADMIN,
+   // granting full access to any action when only ASSIGN was configured.
+   @ParameterizedTest
+   @MethodSource("securityRoleAssignOnlyCases")
+   void securityRoleAssignOnlyDoesNotImplyOtherActions(ResourceAction action, boolean expected) {
+      String roleResource = new IdentityID("targetRole", TEST_ORG).convertToKey();
+      Permission assignOnlyPerm = grantedPermission(TEST_USER, TEST_ORG, ResourceAction.ASSIGN, false);
+
+      try(MockedStatic<SUtil> sutilMock = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
+          MockedStatic<OrganizationManager> omMock =
+             Mockito.mockStatic(OrganizationManager.class, Mockito.CALLS_REAL_METHODS))
+      {
+         sutilMock.when(SUtil::isMultiTenant).thenReturn(false);
+         sutilMock.when(() -> SUtil.isInternalUser(any())).thenReturn(false);
+
+         OrganizationManager mockOM = mock(OrganizationManager.class);
+         omMock.when(OrganizationManager::getInstance).thenReturn(mockOM);
+         omMock.when(OrganizationManager::getCurrentOrgName).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID()).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID(any())).thenReturn(TEST_ORG);
+         when(mockOM.isSiteAdmin(any(Principal.class))).thenReturn(false);
+
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_ROLE), eq(roleResource), eq(TEST_ORG)))
+            .thenReturn(assignOnlyPerm);
+
+         assertEquals(expected,
+            mockStrategy.checkPermission(mockUser, ResourceType.SECURITY_ROLE, roleResource, action));
+      }
+   }
+
+   private static Stream<Arguments> securityRoleAssignOnlyCases() {
+      return Stream.of(
+         Arguments.of(ResourceAction.ASSIGN, true),
+         Arguments.of(ResourceAction.READ, false),
+         Arguments.of(ResourceAction.WRITE, false),
+         Arguments.of(ResourceAction.DELETE, false),
+         Arguments.of(ResourceAction.ADMIN, false)
+      );
+   }
+
+   // Bug #75574: an org administrator (SECURITY_ORGANIZATION ADMIN on their own org) must not
+   // be granted SECURITY_ROLE ADMIN on the global system administrator role via the org-admin
+   // fallback (line ~382). That fallback previously granted access to ANY role once the caller
+   // had org-admin permission on their own org, without checking the target role's org or
+   // whether it is the system administrator role.
+   @Test
+   void orgAdminCannotAccessGlobalSystemAdministratorRole() {
+      IdentityID sysAdminRoleId = new IdentityID("Administrator", null);
+      String sysAdminRoleResource = sysAdminRoleId.convertToKey();
+      IdentityID orgIdentityID = new IdentityID(TEST_ORG, TEST_ORG);
+
+      Role sysAdminRole = mock(Role.class);
+      when(sysAdminRole.getIdentityID()).thenReturn(sysAdminRoleId);
+      when(sysAdminRole.getOrganizationID()).thenReturn(null);
+
+      Permission orgAdminPermission = grantedPermission(TEST_USER, TEST_ORG, ResourceAction.ADMIN, false);
+
+      try(MockedStatic<SUtil> sutilMock = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
+          MockedStatic<OrganizationManager> omMock =
+             Mockito.mockStatic(OrganizationManager.class, Mockito.CALLS_REAL_METHODS))
+      {
+         sutilMock.when(SUtil::isMultiTenant).thenReturn(false);
+         sutilMock.when(() -> SUtil.isInternalUser(any())).thenReturn(false);
+
+         OrganizationManager mockOM = mock(OrganizationManager.class);
+         omMock.when(OrganizationManager::getInstance).thenReturn(mockOM);
+         omMock.when(OrganizationManager::getCurrentOrgName).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID()).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID(any())).thenReturn(TEST_ORG);
+         when(mockOM.isSiteAdmin(any(Principal.class))).thenReturn(false);
+
+         when(mockProvider.getRole(eq(sysAdminRoleId))).thenReturn(sysAdminRole);
+         when(mockProvider.isSystemAdministratorRole(eq(sysAdminRoleId))).thenReturn(true);
+         when(mockProvider.isOrgAdministratorRole(eq(new IdentityID(TEST_ROLE, TEST_ORG)))).thenReturn(true);
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_ORGANIZATION), eq(orgIdentityID)))
+            .thenReturn(orgAdminPermission);
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_ORGANIZATION), eq(orgIdentityID), eq(TEST_ORG)))
+            .thenReturn(orgAdminPermission);
+
+         assertFalse(
+            mockStrategy.checkPermission(mockUser, ResourceType.SECURITY_ROLE, sysAdminRoleResource,
+                                         ResourceAction.ADMIN),
+            "org administrator must not gain ADMIN over the global system administrator role");
+      }
+   }
+
+   // Bug #75574 (follow-up): a plain user granted ADMIN specifically on the "Organization Roles"
+   // node of their own org (a standard delegation action, not requiring the org-admin role or
+   // SECURITY_ORGANIZATION permission) must not be able to manage global/org-less roles such as
+   // "Administrator" or "Organization Administrator" through that grant.
+   @Test
+   void organizationRolesDelegationCannotAccessGlobalRole() {
+      IdentityID sysAdminRoleId = new IdentityID("Administrator", null);
+      String sysAdminRoleResource = sysAdminRoleId.convertToKey();
+      IdentityID orgRolesNodeId = new IdentityID("Organization Roles", TEST_ORG);
+
+      Role sysAdminRole = mock(Role.class);
+      when(sysAdminRole.getIdentityID()).thenReturn(sysAdminRoleId);
+      when(sysAdminRole.getOrganizationID()).thenReturn(null);
+
+      Permission orgRolesPermission = grantedPermission(TEST_USER, TEST_ORG, ResourceAction.ADMIN, false);
+
+      try(MockedStatic<SUtil> sutilMock = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
+          MockedStatic<OrganizationManager> omMock =
+             Mockito.mockStatic(OrganizationManager.class, Mockito.CALLS_REAL_METHODS))
+      {
+         sutilMock.when(SUtil::isMultiTenant).thenReturn(false);
+         sutilMock.when(() -> SUtil.isInternalUser(any())).thenReturn(false);
+
+         OrganizationManager mockOM = mock(OrganizationManager.class);
+         omMock.when(OrganizationManager::getInstance).thenReturn(mockOM);
+         omMock.when(OrganizationManager::getCurrentOrgName).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID()).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID(any())).thenReturn(TEST_ORG);
+         when(mockOM.isSiteAdmin(any(Principal.class))).thenReturn(false);
+
+         // mockUser is NOT an org admin — access comes only from the direct "Organization
+         // Roles" node grant, not from any org-admin role or SECURITY_ORGANIZATION permission.
+         when(mockProvider.getRole(eq(sysAdminRoleId))).thenReturn(sysAdminRole);
+         when(mockProvider.isSystemAdministratorRole(eq(sysAdminRoleId))).thenReturn(true);
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_ROLE), eq(orgRolesNodeId), eq(TEST_ORG)))
+            .thenReturn(orgRolesPermission);
+
+         assertFalse(
+            mockStrategy.checkPermission(mockUser, ResourceType.SECURITY_ROLE, sysAdminRoleResource,
+                                         ResourceAction.ADMIN),
+            "\"Organization Roles\" delegation must not extend to global/org-less roles");
+      }
+   }
+
+   // Bug #75574 follow-up [tester-reported Bug 1]: checkOrgAdminPermission()'s SECURITY_ROLE
+   // case previously allowed ANY org-less role through via a "getOrganizationID() == null"
+   // disjunct, gated only by isSiteAdmin (which checks isSystemAdministratorRole). The built-in
+   // "Organization Administrator" role is global (org-less) but is NOT itself flagged as the
+   // system administrator role, so it slipped past that guard — letting any org-admin-permission
+   // holder manage the very role that grants org-admin privilege in the first place.
+   @Test
+   void orgAdminCannotAccessGlobalOrganizationAdministratorRole() {
+      IdentityID orgAdminRoleId = new IdentityID("Organization Administrator", null);
+      String orgAdminRoleResource = orgAdminRoleId.convertToKey();
+      IdentityID orgIdentityID = new IdentityID(TEST_ORG, TEST_ORG);
+
+      Role orgAdminRole = mock(Role.class);
+      when(orgAdminRole.getIdentityID()).thenReturn(orgAdminRoleId);
+      when(orgAdminRole.getOrganizationID()).thenReturn(null);
+
+      Permission orgAdminPermission = grantedPermission(TEST_USER, TEST_ORG, ResourceAction.ADMIN, false);
+
+      try(MockedStatic<SUtil> sutilMock = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
+          MockedStatic<OrganizationManager> omMock =
+             Mockito.mockStatic(OrganizationManager.class, Mockito.CALLS_REAL_METHODS))
+      {
+         sutilMock.when(SUtil::isMultiTenant).thenReturn(false);
+         sutilMock.when(() -> SUtil.isInternalUser(any())).thenReturn(false);
+
+         OrganizationManager mockOM = mock(OrganizationManager.class);
+         omMock.when(OrganizationManager::getInstance).thenReturn(mockOM);
+         omMock.when(OrganizationManager::getCurrentOrgName).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID()).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID(any())).thenReturn(TEST_ORG);
+         when(mockOM.isSiteAdmin(any(Principal.class))).thenReturn(false);
+
+         when(mockProvider.getRole(eq(orgAdminRoleId))).thenReturn(orgAdminRole);
+         // NOT flagged as system administrator — that's exactly the gap: isSiteAdmin checked
+         // isSystemAdministratorRole only, never isOrgAdministratorRole or org-less-ness alone.
+         when(mockProvider.isSystemAdministratorRole(eq(orgAdminRoleId))).thenReturn(false);
+         when(mockProvider.isOrgAdministratorRole(eq(new IdentityID(TEST_ROLE, TEST_ORG)))).thenReturn(true);
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_ORGANIZATION), eq(orgIdentityID)))
+            .thenReturn(orgAdminPermission);
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_ORGANIZATION), eq(orgIdentityID), eq(TEST_ORG)))
+            .thenReturn(orgAdminPermission);
+
+         assertFalse(
+            mockStrategy.checkPermission(mockUser, ResourceType.SECURITY_ROLE, orgAdminRoleResource,
+                                         ResourceAction.ADMIN),
+            "org administrator must not gain ADMIN over the global Organization Administrator role");
+      }
+   }
+
+   // Bug #75574 follow-up [tester-reported Bug 2 / S2-GLOBAL-ROLE-ROOT]: the private ADMIN-
+   // cumulative getPermission() helper unconditionally merged grants from BOTH the
+   // "Organization Roles" and "Roles" (global) permission roots into one synthetic Permission
+   // for any SECURITY_ROLE ADMIN check, regardless of which root the checked role actually
+   // belongs to. An ADMIN grant on an org's "Organization Roles" root must not leak onto a
+   // global (org-less) role, and vice versa.
+   @Test
+   void organizationRolesRootGrantDoesNotLeakOntoGlobalRoleViaAdminCumulativeHelper() {
+      IdentityID globalRoleId = new IdentityID("Designer", null);
+      String globalRoleResource = globalRoleId.convertToKey();
+      IdentityID orgRolesNodeId = new IdentityID("Organization Roles", TEST_ORG);
+
+      Role globalRole = mock(Role.class);
+      when(globalRole.getIdentityID()).thenReturn(globalRoleId);
+      when(globalRole.getOrganizationID()).thenReturn(null);
+
+      Permission orgRolesRootPermission = grantedPermission(TEST_USER, TEST_ORG, ResourceAction.ADMIN, false);
+
+      try(MockedStatic<SUtil> sutilMock = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
+          MockedStatic<OrganizationManager> omMock =
+             Mockito.mockStatic(OrganizationManager.class, Mockito.CALLS_REAL_METHODS))
+      {
+         sutilMock.when(SUtil::isMultiTenant).thenReturn(false);
+         sutilMock.when(() -> SUtil.isInternalUser(any())).thenReturn(false);
+
+         OrganizationManager mockOM = mock(OrganizationManager.class);
+         omMock.when(OrganizationManager::getInstance).thenReturn(mockOM);
+         omMock.when(OrganizationManager::getCurrentOrgName).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID()).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID(any())).thenReturn(TEST_ORG);
+         when(mockOM.isSiteAdmin(any(Principal.class))).thenReturn(false);
+
+         when(mockProvider.getRole(eq(globalRoleId))).thenReturn(globalRole);
+         // grant only exists on the "Organization Roles" root (2-arg lookup, exactly as used
+         // by the ADMIN-cumulative helper) — never on the "Roles" (global) root, and never as
+         // a SECURITY_ORGANIZATION or org-admin-role grant, to isolate this code path.
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_ROLE), eq(orgRolesNodeId)))
+            .thenReturn(orgRolesRootPermission);
+
+         assertFalse(
+            mockStrategy.checkPermission(mockUser, ResourceType.SECURITY_ROLE, globalRoleResource,
+                                         ResourceAction.ADMIN),
+            "ADMIN on the org's \"Organization Roles\" root must not leak onto a global role");
+      }
+   }
+
+   // PR #4187 review follow-up: the ADMIN-cumulative helper's SECURITY_ROLE branch checked only
+   // "does the target role have SOME org" (getOrganizationID() != null), not "does that org match
+   // the current org context" — so an ADMIN grant on org A's "Organization Roles" node leaked
+   // onto a specific role belonging to a completely different org B, a cross-tenant escalation
+   // distinct from the org-less/global-role leak covered above.
+   @Test
+   void organizationRolesRootGrantDoesNotLeakOntoDifferentOrgsRole() {
+      String otherOrg = "otherOrg";
+      IdentityID otherOrgRoleId = new IdentityID("otherOrgRole", otherOrg);
+      String otherOrgRoleResource = otherOrgRoleId.convertToKey();
+      IdentityID orgRolesNodeId = new IdentityID("Organization Roles", TEST_ORG);
+
+      Role otherOrgRole = mock(Role.class);
+      when(otherOrgRole.getIdentityID()).thenReturn(otherOrgRoleId);
+      when(otherOrgRole.getOrganizationID()).thenReturn(otherOrg);
+
+      Permission orgRolesRootPermission = grantedPermission(TEST_USER, TEST_ORG, ResourceAction.ADMIN, false);
+
+      try(MockedStatic<SUtil> sutilMock = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
+          MockedStatic<OrganizationManager> omMock =
+             Mockito.mockStatic(OrganizationManager.class, Mockito.CALLS_REAL_METHODS))
+      {
+         sutilMock.when(SUtil::isMultiTenant).thenReturn(false);
+         sutilMock.when(() -> SUtil.isInternalUser(any())).thenReturn(false);
+
+         OrganizationManager mockOM = mock(OrganizationManager.class);
+         omMock.when(OrganizationManager::getInstance).thenReturn(mockOM);
+         omMock.when(OrganizationManager::getCurrentOrgName).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID()).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID(any())).thenReturn(TEST_ORG);
+         when(mockOM.isSiteAdmin(any(Principal.class))).thenReturn(false);
+
+         when(mockProvider.getRole(eq(otherOrgRoleId))).thenReturn(otherOrgRole);
+         // grant only exists on the caller's own org's "Organization Roles" root — never on the
+         // target role's own org, and never as a SECURITY_ORGANIZATION or org-admin-role grant,
+         // to isolate this code path.
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_ROLE), eq(orgRolesNodeId)))
+            .thenReturn(orgRolesRootPermission);
+
+         assertFalse(
+            mockStrategy.checkPermission(mockUser, ResourceType.SECURITY_ROLE, otherOrgRoleResource,
+                                         ResourceAction.ADMIN),
+            "ADMIN on org A's \"Organization Roles\" root must not leak onto org B's role");
+      }
    }
 
    // ─────────────────────────────────────────────────────────────────

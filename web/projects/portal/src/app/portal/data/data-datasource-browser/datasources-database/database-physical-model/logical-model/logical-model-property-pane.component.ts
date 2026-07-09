@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
+import { Component, EventEmitter, Input, OnDestroy, OnInit, Output, ViewChild } from "@angular/core";
 import { EntityModel } from "../../../../model/datasources/database/physical-model/logical-model/entity-model";
 import { AttributeModel } from "../../../../model/datasources/database/physical-model/logical-model/attribute-model";
 import { SelectedItem } from "./logical-model.component";
@@ -47,6 +47,7 @@ import { ElementTreeNode } from "./element-tree-node/element-tree-node.component
 
 import { FixedDropdownDirective } from "../../../../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { SplitPane } from "../../../../../../widget/split-pane/split-pane.component";
+import { Subscription } from "rxjs";
 
 const LOGICAL_MODEL_CHECK_DEPENDENCIES_URI: string = "../api/data/logicalmodel/checkOuterDependencies";
 
@@ -56,7 +57,7 @@ const LOGICAL_MODEL_CHECK_DEPENDENCIES_URI: string = "../api/data/logicalmodel/c
     styleUrls: ["../database-model-pane.scss", "logical-model-property-pane.component.scss"],
     imports: [SplitPane, FixedDropdownDirective, ElementTreeNode, LoadingIndicatorPaneComponent, LogicalModelEntityEditor, LogicalModelColumnEditor, LogicalModelExpressionEditor]
 })
-export class LogicalModelPropertyPane implements OnInit {
+export class LogicalModelPropertyPane implements OnInit, OnDestroy {
    @Input() databaseName: string;
    @Input() physicalModelName: string;
    @Input() additional: string;
@@ -95,6 +96,7 @@ export class LogicalModelPropertyPane implements OnInit {
    newEntity = false;
    expanded: EntityModel[] = []; // for multi-select with shift.
    private _logicalModel: LogicalModelDefinition;
+   private checkOuterDependenciesSubscription: Subscription;
 
    constructor(private dataModelNameChangeService: DataModelNameChangeService,
                private folderChangeService: FolderChangeService,
@@ -109,6 +111,10 @@ export class LogicalModelPropertyPane implements OnInit {
          entity: -1,
          attribute: -1
       };
+   }
+
+   ngOnDestroy(): void {
+      this.checkOuterDependenciesSubscription?.unsubscribe();
    }
 
    get editingEle() {
@@ -301,28 +307,29 @@ export class LogicalModelPropertyPane implements OnInit {
       event.modelElements = models;
       event.newCreate = !this.editing;
 
-      this.httpClient.post(LOGICAL_MODEL_CHECK_DEPENDENCIES_URI, event).subscribe((result: any) => {
-         if(!!result && !!result.body) {
-            ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)", result.body,
-               {"yes": "_#(js:Yes)", "no": "_#(js:No)"})
-               .then((btn) => {
-                  if(btn == "yes") {
-                     this.deleteSelectedItem0(deleteEles);
-                  }
-               });
-         }
-         else {
-            const title: string = "_#(js:data.logicalmodel.removeElements)";
-            const message: string = "_#(js:data.logicalmodel.confirmRemoveElements)";
+      this.checkOuterDependenciesSubscription =
+         this.httpClient.post(LOGICAL_MODEL_CHECK_DEPENDENCIES_URI, event).subscribe((result: any) => {
+            if(!!result && !!result.body) {
+               ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)", result.body,
+                  {"yes": "_#(js:Yes)", "no": "_#(js:No)"})
+                  .then((btn) => {
+                     if(btn == "yes") {
+                        this.deleteSelectedItem0(deleteEles);
+                     }
+                  });
+            }
+            else {
+               const title: string = "_#(js:data.logicalmodel.removeElements)";
+               const message: string = "_#(js:data.logicalmodel.confirmRemoveElements)";
 
-            ComponentTool.showConfirmDialog(this.modalService, title, message)
-               .then((buttonClicked: string) => {
-                  if(buttonClicked == "ok") {
-                     this.deleteSelectedItem0(deleteEles);
-                  }
-               });
-         }
-      });
+               ComponentTool.showConfirmDialog(this.modalService, title, message)
+                  .then((buttonClicked: string) => {
+                     if(buttonClicked == "ok") {
+                        this.deleteSelectedItem0(deleteEles);
+                     }
+                  });
+            }
+         });
    }
 
    deleteSelectedItem0(deleteEles: SelectedItem[]): void {

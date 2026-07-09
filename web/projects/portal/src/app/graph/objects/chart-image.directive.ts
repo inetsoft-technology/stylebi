@@ -13,14 +13,15 @@
  */
 
 import { HttpClient } from "@angular/common/http";
-import { Directive, ElementRef, EventEmitter, Input, Output, Renderer2 } from "@angular/core";
+import { Directive, ElementRef, EventEmitter, Input, OnDestroy, Output, Renderer2 } from "@angular/core";
 import { SafeValue } from "@angular/platform-browser";
+import { Subscription } from "rxjs";
 
 @Directive({
     selector: "[chartImage]",
     standalone: true
 })
-export class ChartImageDirective {
+export class ChartImageDirective implements OnDestroy {
    @Input()
    get chartImage(): string | SafeValue {
       return this._chartImage;
@@ -29,7 +30,21 @@ export class ChartImageDirective {
    set chartImage(value: string | SafeValue) {
       if(value !== this._chartImage) {
          this._chartImage = value;
-         this.loadImage();
+
+         if(this._loadTimer !== null) {
+            clearTimeout(this._loadTimer);
+            this._loadTimer = null;
+         }
+
+         if(!!value) {
+            this._loadTimer = setTimeout(() => {
+               this._loadTimer = null;
+               this.loadImage();
+            }, 50);
+         }
+         else {
+            this.renderer.removeAttribute(this.element.nativeElement, "src");
+         }
       }
    }
 
@@ -37,11 +52,43 @@ export class ChartImageDirective {
    @Output() onLoaded = new EventEmitter<void>();
    @Output() onError = new EventEmitter<void>();
    private _chartImage: string | SafeValue = null;
+   private _loadTimer: ReturnType<typeof setTimeout> | null = null;
+   private currentBlobUrl: string = null;
+   private loadSubscription: Subscription = null;
+   private retryTimer: ReturnType<typeof setTimeout> | null = null;
 
    constructor(private element: ElementRef, private http: HttpClient, private renderer: Renderer2) {
    }
 
+   ngOnDestroy(): void {
+      if(this.retryTimer != null) {
+         clearTimeout(this.retryTimer);
+         this.retryTimer = null;
+      }
+
+      this.loadSubscription?.unsubscribe();
+      this.loadSubscription = null;
+
+      if(this.currentBlobUrl) {
+         URL.revokeObjectURL(this.currentBlobUrl);
+         this.currentBlobUrl = null;
+      }
+
+      if(this._loadTimer !== null) {
+         clearTimeout(this._loadTimer);
+         this._loadTimer = null;
+      }
+   }
+
    private loadImage(reloading = false): void {
+      if(this.retryTimer != null) {
+         clearTimeout(this.retryTimer);
+         this.retryTimer = null;
+      }
+
+      this.loadSubscription?.unsubscribe();
+      this.loadSubscription = null;
+
       if(!!this.chartImage) {
          if(!reloading) {
             this.onLoading.emit();
@@ -49,15 +96,23 @@ export class ChartImageDirective {
 
          const requestedImage = this._chartImage;
 
-         this.http.get(this.chartImage as string, { observe: "response", responseType: "blob" }).subscribe(
+         this.loadSubscription = this.http.get(this.chartImage as string, { observe: "response", responseType: "blob" }).subscribe(
             response => {
                if(response.headers?.has("Retry-After")) {
                   const interval = parseInt(response.headers.get("Retry-After"), 10) * 1000;
-                  setTimeout(() => this.loadImage(true), interval);
+                  this.retryTimer = setTimeout(() => {
+                     this.retryTimer = null;
+                     this.loadImage(true);
+                  }, interval);
                }
                else if(requestedImage == this.chartImage) {
                   // Do not set if image address changed before the request returned
-                  this.renderer.setAttribute(this.element.nativeElement, "src", URL.createObjectURL(response.body));
+                  if(this.currentBlobUrl) {
+                     URL.revokeObjectURL(this.currentBlobUrl);
+                  }
+
+                  this.currentBlobUrl = URL.createObjectURL(response.body);
+                  this.renderer.setAttribute(this.element.nativeElement, "src", this.currentBlobUrl);
                   this.onLoaded.emit();
                }
             },
