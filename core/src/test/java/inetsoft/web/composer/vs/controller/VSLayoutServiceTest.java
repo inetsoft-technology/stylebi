@@ -43,7 +43,7 @@ class VSLayoutServiceTest {
 
    @BeforeEach
    void setup() {
-      service = new VSLayoutService(objectModelService);
+      service = new VSLayoutService();
    }
 
    @Test
