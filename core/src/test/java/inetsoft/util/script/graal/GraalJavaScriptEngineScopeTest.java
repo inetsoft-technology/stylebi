@@ -115,6 +115,83 @@ class GraalJavaScriptEngineScopeTest {
          engine.exec(engine.compile("typeof viewsheet['Chart1'] === 'undefined'"), null, null));
    }
 
+   // Bug #75596: a top-level `var` declared in one script (e.g. a viewsheet
+   // onInit script) must persist so a later script executed on the same engine
+   // (e.g. an assembly script) can resolve it. Regression from Bug #75550, whose
+   // direct-eval-in-a-function wrapper hoisted such declarations into the
+   // transient wrapper frame where they were discarded.
+   @Test void topLevelVarPersistsAcrossExecutions() throws Exception {
+      MapScope init = new MapScope();
+      engine.exec(engine.compile("var color = [1, 2, 3]"), init, init);
+
+      MapScope assembly = new MapScope();
+      Object result = engine.exec(engine.compile("color"), assembly, assembly);
+      assertNotNull(result, "variable declared in a prior script must be visible");
+      assertEquals(3, ((Object[]) result).length);
+   }
+
+   // Bug #75596: a top-level `function` declared in one script (e.g. a viewsheet
+   // onLoad script) must likewise persist for later scripts to call.
+   @Test void topLevelFunctionPersistsAcrossExecutions() throws Exception {
+      MapScope load = new MapScope();
+      engine.exec(engine.compile("function dbl(v){ return v * 2; }"), load, load);
+
+      MapScope assembly = new MapScope();
+      Object result = engine.exec(engine.compile("dbl(21)"), assembly, assembly);
+      assertEquals(42.0, ((Number) result).doubleValue());
+   }
+
+   // Comma-separated declarators in a single `var` statement must all persist.
+   @Test void multipleVarDeclaratorsPersist() throws Exception {
+      MapScope init = new MapScope();
+      engine.exec(engine.compile("var a = 1, b = 2, c = 3"), init, init);
+
+      MapScope assembly = new MapScope();
+      assertEquals(6.0,
+         ((Number) engine.exec(engine.compile("a + b + c"), assembly, assembly)).doubleValue());
+   }
+
+   // The declaration-hoist must not disturb a script that also uses `this`: the
+   // #75550 this-binding and completion value must both still hold, and a
+   // variable declared in a prior script must remain readable from it.
+   @Test void hoistCoexistsWithThisBindingAndPriorDeclarations() throws Exception {
+      MapScope init = new MapScope();
+      engine.exec(engine.compile("var factor = 10"), init, init);
+
+      MapScope scope = new MapScope();
+      scope.putMember("parameter", makeParam("region", "West"));
+      Object result = engine.exec(
+         engine.compile("this.parameter.region + factor"), scope, scope);
+      assertEquals("West10", result);
+   }
+
+   // The declaration scanner must not mistake the slashes inside a regex literal
+   // for a `//` comment (which would blank the rest of the line and drop a
+   // following declaration). Here the regex contains an escaped slash, so its
+   // last two characters are adjacent slashes.
+   @Test void varAfterRegexWithSlashesOnSameLinePersists() throws Exception {
+      MapScope init = new MapScope();
+      engine.exec(engine.compile("var re = /\\//; var color = [1, 2, 3]"), init, init);
+
+      MapScope assembly = new MapScope();
+      Object result = engine.exec(engine.compile("color"), assembly, assembly);
+      assertNotNull(result, "declaration after a regex literal must still be hoisted");
+      assertEquals(3, ((Object[]) result).length);
+   }
+
+   // The scanner must handle nested template literals (a backtick inside a
+   // `${ ... }` substitution) so a declaration following the template is not
+   // dropped from collection.
+   @Test void varAfterNestedTemplateLiteralPersists() throws Exception {
+      MapScope init = new MapScope();
+      engine.exec(
+         engine.compile("var t = `a ${true ? `b` : `c`} d`; var color = 7"), init, init);
+
+      MapScope assembly = new MapScope();
+      assertEquals(7.0,
+         ((Number) engine.exec(engine.compile("color"), assembly, assembly)).doubleValue());
+   }
+
    private static ScriptScope makeParam(String k, String v) {
       MapScope p = new MapScope();
       p.putMember(k, v);
