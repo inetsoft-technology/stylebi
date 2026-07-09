@@ -40,12 +40,14 @@
  *   Group 18 [Risk 1] — navigate(): SPACE key delegates to openViewsheet
  *   Group 19 [Risk 1] — getEmbeddedVSBounds(): delegates to Rectangle.fromClientRect
  *
- * Confirmed bugs (it.fails):
- *   Bug — ngOnChanges null hyperlinkModel crash (Group 2): HyperlinkViewModel.fromHyperlinkModel()
+ * Fixed bugs:
+ *   Bug #75600 — ngOnChanges null hyperlinkModel crash (Group 2): HyperlinkViewModel.fromHyperlinkModel()
  *     dereferences `hyperlink.disablePrompting` with no null guard. VSViewsheetModel.hyperlinkModel
  *     is typed as required, but TestUtils.createMockVSViewsheetModel() — the shared fixture factory
  *     used across the codebase — defaults it to `null`. Any consumer that forgets to override
- *     hyperlinkModel and triggers ngOnChanges while vsInfo is bound throws a TypeError.
+ *     hyperlinkModel and triggers ngOnChanges while vsInfo is bound threw a TypeError. Fixed by
+ *     guarding the call site in ngOnChanges() with `if(this.model.hyperlinkModel)` so
+ *     fromHyperlinkModel() is never invoked with a null hyperlinkModel.
  *
  * Out of scope this pass:
  *   getAssemblyName() / trackByIdx() / resized() — inherited from AbstractVSObject, not overridden.
@@ -290,14 +292,12 @@ describe("VSViewsheet — ngOnChanges visible/vsInfo0/href", () => {
       expect(comp.mySelectedAssemblies).toEqual([]);
    });
 
-   // Bug: model.hyperlinkModel is null by default in TestUtils.createMockVSViewsheetModel, and
-   // HyperlinkViewModel.fromHyperlinkModel() dereferences hyperlink.disablePrompting unconditionally.
-   // Expected failure: `expect(() => comp.ngOnChanges({})).not.toThrow()` fails because
-   // ngOnChanges() throws a TypeError reading `disablePrompting` off the null hyperlinkModel.
-   // If this instead fails during `renderComponent()`/setup (e.g. a fixture-configuration error)
-   // rather than inside the `expect(...).not.toThrow()` call itself, that is NOT this bug —
-   // investigate the setup change instead of assuming the known issue.
-   it.fails("should not throw when model.hyperlinkModel is null (matches shared test-fixture default)", async () => {
+   // Bug #75600 (fixed): model.hyperlinkModel is null by default in
+   // TestUtils.createMockVSViewsheetModel, and HyperlinkViewModel.fromHyperlinkModel() dereferences
+   // hyperlink.disablePrompting unconditionally. ngOnChanges() now guards the call site with
+   // `if(this.model.hyperlinkModel)` so fromHyperlinkModel() is never invoked with a null
+   // hyperlinkModel, and this no longer throws.
+   it("should not throw when model.hyperlinkModel is null (matches shared test-fixture default)", async () => {
       const model = makeModel({ hyperlinkModel: null });
       const { comp } = await renderComponent({ model }, { viewer: true, preview: false });
       comp.vsInfo = { vsObjects: [model], linkUri: "/uri/" } as any;

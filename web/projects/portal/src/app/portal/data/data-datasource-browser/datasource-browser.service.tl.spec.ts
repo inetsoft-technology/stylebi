@@ -29,9 +29,10 @@
  *   Group 7 [Risk 3, 3, 2] - moveDataSourcesToFolder (3 cases)
  *   Group 8 [Risk 3, 2]    - createDataSourceInfos (2 cases)
  *
- * Confirmed bugs (it.failing - remove wrapper once fixed):
- *   - createDataSourceInfos([root entry]) throws because getParentPath0("/") returns null and
- *     the caller dereferences parent.length.
+ * Fixed bugs:
+ *   - Bug #75600: createDataSourceInfos([root entry]) used to throw because getParentPath0("/")
+ *     returns null and the caller dereferenced parent.length. The name computation now treats a
+ *     null parent the same as "/", so it no longer throws.
  *
  * KEY contracts:
  *   - Public tree/folder change methods emit the payloads callers subscribe to.
@@ -445,9 +446,11 @@ describe("DatasourceBrowserService", () => {
    // Group 8 [Risk 3, 2] - createDataSourceInfos
    // ---------------------------------------------------------------------------
    describe("createDataSourceInfos", () => {
-      it.fails("[Risk 3] should ignore or safely map root entries instead of throwing", () => {
-         // Regression-sensitive: drag/drop payloads can include roots; one malformed entry should
-         // not crash conversion for the whole batch.
+      it("[Risk 3] should ignore or safely map root entries instead of throwing", () => {
+         // Bug #75600 (fixed): drag/drop payloads can include roots; one malformed entry used to
+         // crash conversion for the whole batch because getParentPath0("/") returns null and the
+         // caller dereferenced parent.length. The name computation now also treats a null parent
+         // as "no parent prefix to strip", so this no longer throws.
          expect(() => service.createDataSourceInfos([
             makeEntry("/", AssetType.DATA_SOURCE_FOLDER),
          ])).not.toThrow();

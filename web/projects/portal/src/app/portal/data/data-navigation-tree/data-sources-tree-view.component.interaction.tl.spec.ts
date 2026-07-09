@@ -28,7 +28,7 @@
  * |       |   datasourceChanged, datasourceFolderChanged, onCreateEvent)   |       |
  * | 3     | ngOnInit: router.events NavigationEnd, route.queryParamMap     |   4   |
  * | 4     | processSetComposedDashboardCommand                             |   1   |
- * | 5     | changeDataSourcesTree — confirmed bug (it.fails)               |   1   |
+ * | 5     | changeDataSourcesTree — Bug #75600 (fixed)                      |   1   |
  * | 6     | changeDataSourcesTree — functional behavior                    |   4   |
  * | 7     | changeFolder                                                   |   3   |
  * | 8     | getPrivateWorksheetNodeParent                                  |   2   |
@@ -58,10 +58,11 @@
  *   moveDatasourceAssets, moveDatasourceInfos, moveDataAssets, selectAndExpandToPath,
  *   deleteDataModelFolder, deleteFolder
  *
- * Confirmed bugs (it.fails):
- *   changeDataSourcesTree — data-sources-tree-view.component.ts:369: `return false` is
+ * Fixed bugs:
+ *   Bug #75600 — changeDataSourcesTree — data-sources-tree-view.component.ts:369: `return false` was
  *     hard-coded at the end of the function instead of `return found`. The caller never
- *     learns a node was found, so parent.expanded is never set from a recursive result.
+ *     learned a node was found, so parent.expanded was never set from a recursive result.
+ *     Fixed by returning `found`.
  *
  * Out of scope for Pass 1 (Pass 3):
  *   getEntryLabel, getIconFunction, getAssetIcon
@@ -291,18 +292,15 @@ describe("DataSourcesTreeViewComponent — processSetComposedDashboardCommand", 
 });
 
 // ---------------------------------------------------------------------------
-// Group 5 — changeDataSourcesTree confirmed bug (it.fails) [Risk 3]
+// Group 5 — changeDataSourcesTree Bug #75600 (fixed) [Risk 3]
 // ---------------------------------------------------------------------------
 
-describe("DataSourcesTreeViewComponent — changeDataSourcesTree (confirmed bug)", () => {
-   // 🐛 Bug confirmed: line ~369 returns `return false` unconditionally instead of `return found`.
-   // This means the caller never learns that a node was found, so parent.expanded is never set
-   // from a recursive call result.
-   // Expected failure: `expect(result).toBe(true)` fails because the function always returns false
-   // regardless of whether a match was found. If it fails for another reason (e.g. fixture setup
-   // throws), check that the error is an assertion failure on `result`, not an exception.
-   // Remove this it.fails wrapper once the bug is fixed.
-   it.fails("should return true when a matching node is found in children", async () => {
+describe("DataSourcesTreeViewComponent — changeDataSourcesTree (Bug #75600, fixed)", () => {
+   // Bug #75600 fixed: line ~369 used to return `return false` unconditionally instead of
+   // `return found`. This meant the caller never learned that a node was found, so
+   // parent.expanded was never set from a recursive call result. Now that the method returns
+   // `found`, this assertion passes.
+   it("should return true when a matching node is found in children", async () => {
       const { comp } = await renderComponent();
       await waitFor(() => expect(comp.rootNode).toBeTruthy());
 
@@ -354,7 +352,7 @@ describe("DataSourcesTreeViewComponent — changeDataSourcesTree functional beha
       expect(matchingChild.expanded).toBe(true);
    });
 
-   it("should always return false (the known bug)", async () => {
+   it("should return true when a top-level child matches (Bug #75600, fixed)", async () => {
       const { comp } = await renderComponent();
       await waitFor(() => expect(comp.rootNode).toBeTruthy());
 
@@ -366,8 +364,8 @@ describe("DataSourcesTreeViewComponent — changeDataSourcesTree functional beha
 
       const result = comp.changeDataSourcesTree("/x", "1", PortalDataType.FOLDER, comp.rootNode);
 
-      // Documents current (buggy) behavior
-      expect(result).toBe(false);
+      // Bug #75600 fixed: the method now returns `found` instead of a hard-coded `false`.
+      expect(result).toBe(true);
    });
 
    it("should skip children whose type does not match folderType when searching from root", async () => {

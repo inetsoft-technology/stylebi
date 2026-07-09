@@ -24,10 +24,11 @@
  *   Group 2 [Risk 3] - droppedIntoColumnList/getTableColumns observable completion contract
  *   Group 3 [Risk 3] - updateQueryTab HTTP success, validation error, and network error branches
  *
- * Confirmed bugs (it.fails):
- *   Suspicion A - droppedIntoColumnList stores a whole table pair once for each non-duplicate
- *      column, so addColumns() receives duplicate pairs for multi-column tables (final
- *      model.columns can still look correct because addColumns reorder logic masks it).
+ * Fixed bugs:
+ *   Bug #75600 - droppedIntoColumnList used to store a whole table pair once for each
+ *      non-duplicate column, so addColumns() received duplicate pairs for multi-column tables
+ *      (final model.columns could still look correct because addColumns reorder logic masked
+ *      it). Fixed by pushing the tablePair at most once per dropped table.
  *
  * Out of scope this pass: pure label and branch-matrix helpers.
  */
@@ -119,10 +120,12 @@ describe("SimpleQueryPaneComponent - dropped column async flow [Group 2, Risk 3]
       expect(Object.keys(comp.columnCache)).toEqual(["Orders", "Customers"]);
    });
 
-   // Bug: tableColumns.push(tablePair) runs inside tablePair.columns.forEach, so a table with
-   // multiple non-duplicate columns is queued once per column. addColumns() then receives
-   // duplicate pairs (model.columns may still look correct due to reorder logic in addColumns).
-   it.fails("should pass each table column once to addColumns when dropping a whole table with multiple columns", () => {
+   // Bug #75600 (fixed): tableColumns.push(tablePair) used to run inside
+   // tablePair.columns.forEach, so a table with multiple non-duplicate columns was queued once
+   // per column. addColumns() then received duplicate pairs (model.columns could still look
+   // correct due to reorder logic in addColumns). tableColumns.push(tablePair) now runs once
+   // per dropped table, outside the per-column forEach.
+   it("should pass each table column once to addColumns when dropping a whole table with multiple columns", () => {
       const table = makeTableEntry("Orders");
       const { comp, controller } = createSimpleQueryPane({
          model: makeBasicModel({ columns: [] })
