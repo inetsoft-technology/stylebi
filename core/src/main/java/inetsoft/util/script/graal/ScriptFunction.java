@@ -142,9 +142,16 @@ public class ScriptFunction implements ProxyExecutable {
          return null;
       }
 
-      if(value instanceof Number) {
-         Number n = (Number) value;
+      // A numeric parameter may receive a value that is not already a Number,
+      // e.g. the numeric string "3" from CALC.edate(date, '3'). Rhino's
+      // FunctionObject coerced such arguments via ScriptRuntime.toNumber; without
+      // this, reflective invocation fails with an argument-type mismatch
+      // ("Failed to invoke script function"). Only convert when the declared
+      // parameter is numeric so string/Object parameters keep their value.
+      Number n = (value instanceof Number) ? (Number) value
+         : (isNumericType(ptype) ? toNumber(value) : null);
 
+      if(n != null) {
          if(ptype == int.class || ptype == Integer.class) {
             return n.intValue();
          }
@@ -169,6 +176,51 @@ public class ScriptFunction implements ProxyExecutable {
       }
 
       return value;
+   }
+
+   /**
+    * Whether the given parameter type is a numeric primitive or wrapper that a
+    * script number (or numeric string/boolean) should be coerced to.
+    */
+   private static boolean isNumericType(Class<?> ptype) {
+      return ptype == int.class || ptype == Integer.class ||
+         ptype == long.class || ptype == Long.class ||
+         ptype == double.class || ptype == Double.class ||
+         ptype == float.class || ptype == Float.class ||
+         ptype == short.class || ptype == Short.class ||
+         ptype == byte.class || ptype == Byte.class ||
+         ptype == char.class || ptype == Character.class;
+   }
+
+   /**
+    * Convert a non-Number host value to a Number using JavaScript {@code toNumber}
+    * semantics (mirroring Rhino's {@code ScriptRuntime.toNumber}): a boolean maps
+    * to 1/0; a string is parsed ("" → 0, unparseable → NaN). Any other type
+    * returns {@code null} so the caller passes the value through unchanged.
+    */
+   private static Number toNumber(Object value) {
+      if(value instanceof Number) {
+         return (Number) value;
+      }
+      else if(value instanceof Boolean) {
+         return ((Boolean) value) ? 1 : 0;
+      }
+      else if(value instanceof CharSequence) {
+         String s = value.toString().trim();
+
+         if(s.isEmpty()) {
+            return 0;
+         }
+
+         try {
+            return Double.parseDouble(s);
+         }
+         catch(NumberFormatException ex) {
+            return Double.NaN;
+         }
+      }
+
+      return null;
    }
 
    private final Object target;

@@ -114,6 +114,48 @@ class ScriptFunctionTest {
    }
 
    @Test
+   void numericStringArgIsCoerced() {
+      // Bug #75611: a numeric string (e.g. CALC.edate(date, '3')) passed to an
+      // int parameter must be coerced to a number, matching Rhino's argument
+      // conversion, rather than failing the reflective invocation.
+      Target t = new Target();
+      ctx.getBindings("js").putMember(
+         "setCount", new ScriptFunction(t, Target.class, "setCount", int.class));
+
+      ctx.eval("js", "setCount('3')");
+
+      assertTrue(t.called);
+      assertEquals(3, t.count, "numeric string argument should be coerced to int");
+   }
+
+   @Test
+   void unparseableNumericStringArgBecomesZero() {
+      // Bug #75611: an unparseable string to a numeric parameter degrades to
+      // NaN -> 0 (Rhino ScriptRuntime.toNumber parity), not an invocation error.
+      Target t = new Target();
+      ctx.getBindings("js").putMember(
+         "setCount", new ScriptFunction(t, Target.class, "setCount", int.class));
+
+      ctx.eval("js", "setCount('abc')");
+
+      assertTrue(t.called);
+      assertEquals(0, t.count, "unparseable numeric string should coerce to 0");
+   }
+
+   @Test
+   void numericStringArgIsCoercedToDouble() {
+      // Bug #75611: numeric string coercion also applies to double parameters.
+      Target t = new Target();
+      ctx.getBindings("js").putMember(
+         "setRatio", new ScriptFunction(t, Target.class, "setRatio", double.class));
+
+      ctx.eval("js", "setRatio('2.5')");
+
+      assertTrue(t.called);
+      assertEquals(2.5, t.ratio, 0.0, "numeric string argument should be coerced to double");
+   }
+
+   @Test
    void omittedDoubleArgDefaultsToZero() {
       Target t = new Target();
       ctx.getBindings("js").putMember(
