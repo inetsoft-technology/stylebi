@@ -44,6 +44,7 @@ export abstract class ChartObjectAreaBase<T extends ChartObject>
    @Input() maxMode: boolean;
    @Input() genTime: number;
    @Input() urlPrefix: string;
+   @Input() suppressAnimation: boolean = false;
    @Input() objectIndex = 0;
    @Input() links: string[];
    @Input() isDataTip: boolean = false;
@@ -226,7 +227,8 @@ export abstract class ChartObjectAreaBase<T extends ChartObject>
          "/" + col +
          "/" + this.genTime +
          "/" + true +
-         "?" + NetTool.xsrfToken();
+         "?" + NetTool.xsrfToken() +
+         (this.suppressAnimation ? "&noanim=true" : "");
    }
 
    isTileVisible(tile: ChartTile): boolean {

@@ -2018,11 +2018,20 @@ public class VGraphPair {
     * Get the image for plot.
     */
    public Graphics2D getPlotGraphic(int row, int col) {
+      return getPlotGraphic(row, col, true);
+   }
+
+   /**
+    * Get the image for plot.
+    * @param animate when false, no entrance-animation hint is applied to the SVG. Used to
+    * suppress animation in design-time surfaces (composer canvas, binding editor, wizard editing).
+    */
+   public Graphics2D getPlotGraphic(int row, int col, boolean animate) {
       final VGraph vgraph = getExpandedVGraph();
       final GraphBounds gbounds = new GraphBounds(vgraph, getRealSizeVGraph(), cinfo);
       // Radar charts render PolarAxis (spokes/rings) inside the plot tile, so paintAxes must
       // be true for them. All other types suppress axes to prevent label bleed into plot tiles.
-      return getFlipYSubGraphic(vgraph, gbounds.getPlotBounds(), row, col, true, getEVGraphContext(hasRadarCoord(vgraph), true), true);
+      return getFlipYSubGraphic(vgraph, gbounds.getPlotBounds(), row, col, true, getEVGraphContext(hasRadarCoord(vgraph), true), animate);
    }
 
    /**

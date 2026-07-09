@@ -42,6 +42,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -131,7 +132,7 @@ public class GetImageController {
    {
       vid = Tool.byteDecode(vid);
       AssemblyImageService.ImageRenderResult result = imageServiceProxy.processGetAssemblyImage(
-         vid, aid, width, height, 0, 0, null, 0, 0, 0, principal, true, false);
+         vid, aid, width, height, 0, 0, null, 0, 0, 0, principal, true, false, false);
       imageService.processImageRenderResult(result, request, response);
    }
 
@@ -184,6 +185,7 @@ public class GetImageController {
       @PathVariable("col") int col,
       @PathVariable("genTime") String genTime,
       @PathVariable("svg") boolean svg,
+      @RequestParam(value = "noanim", required = false, defaultValue = "false") boolean noAnimation,
       Principal principal,
       HttpServletRequest request,
       HttpServletResponse response) throws Exception
@@ -192,7 +194,7 @@ public class GetImageController {
             imageServiceProxy.processGetAssemblyImageInHostScope(Tool.byteDecode(vid), aid, width,
                                                                  height, maxWidth, maxHeight, aname,
                                                                  index, row, col, principal, svg,
-                                                                 false);
+                                                                 false, noAnimation);
          imageService.processImageRenderResult(result, request, response);
    }
 
