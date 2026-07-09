@@ -1045,6 +1045,14 @@ export class VSChart extends AbstractVSObject<VSChartModel>
          "/" + Tool.byteEncode(this.getAssemblyName()) : null;
    }
 
+   // Entrance animation should only play in runtime-facing surfaces. Suppress it in the
+   // composer editing canvas, the chart binding editor, and the wizard (editing and its
+   // preview) — but not the composer Preview, which is a runtime simulation (preview, not
+   // composer). See getSrc() in chart-object-area-base.
+   get suppressChartAnimation(): boolean {
+      return this.contextProvider.composer || this.contextProvider.binding;
+   }
+
    saveImageAs(): void {
       let dialog: ImageFormatSelectComponent = ComponentTool.showDialog(this.ngbModalService, ImageFormatSelectComponent, (isSvg: boolean) => {
             if(this.vsInfo && this.vsInfo.linkUri) {

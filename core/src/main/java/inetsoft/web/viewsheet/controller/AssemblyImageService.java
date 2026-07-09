@@ -108,7 +108,7 @@ public class AssemblyImageService {
       throws Exception
    {
       return processGetAssemblyImage(vid, aid, width, height, maxWidth, maxHeight, null,
-                              0, 0, 0, principal, svg, true);
+                              0, 0, 0, principal, svg, true, false);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -118,18 +118,19 @@ public class AssemblyImageService {
                                                                double maxHeight, String aname,
                                                                int index, int row, int col,
                                                                Principal principal, boolean svg,
-                                                               boolean export) throws Exception
+                                                               boolean export, boolean noAnimation)
+      throws Exception
    {
       return VSUtil.globalShareVsRunInHostScope(vid, principal, () -> processGetAssemblyImage(
          vid, aid, width, height, maxWidth, maxHeight, aname, index, row, col, principal, svg,
-         export));
+         export, noAnimation));
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public ImageRenderResult processGetAssemblyImage(@ClusterProxyKey String vid, String aid, double width, double height,
                                        double maxWidth, double maxHeight, String aname,
                                        int index, int row, int col, Principal principal,
-                                       boolean svg, boolean export)
+                                       boolean svg, boolean export, boolean noAnimation)
       throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vid, principal);
@@ -148,7 +149,7 @@ public class AssemblyImageService {
          ProfileUtils.addExecutionBreakDownRecord(box.map(ViewsheetSandbox::getID).orElse(vid),
              ExecutionBreakDownRecord.UI_PROCESSING_CYCLE, args -> {
                ImageRenderResult result = processGetAssemblyImage1(vid, aid, width, height, maxWidth, maxHeight, aname, index,
-                                        row, col, principal, svg, export);
+                                        row, col, principal, svg, export, noAnimation);
               imageResultsRef.set(result);
          });
       }
@@ -571,7 +572,7 @@ public class AssemblyImageService {
    private ImageRenderResult processGetAssemblyImage1(String vid, String aid, double width, double height,
                                          double maxWidth, double maxHeight, String aname,
                                          int index, int row, int col, Principal principal,
-                                         boolean svg, boolean export)
+                                         boolean svg, boolean export, boolean noAnimation)
       throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vid, principal);
@@ -651,7 +652,8 @@ public class AssemblyImageService {
                   }
 
                   if(svg) {
-                     svgGraphics = getChartSVG(aname, row, col, index, pair, box.get(), name, height);
+                     svgGraphics = getChartSVG(aname, row, col, index, pair, box.get(), name, height,
+                                               noAnimation);
 
                      if(svgGraphics == null) {
                         image = getChartImage(aname, row, col, index, pair, box.get(), name, dpi * scale);
@@ -668,7 +670,7 @@ public class AssemblyImageService {
 
                   box.get().clearGraph(name);
                   return processGetAssemblyImage1(vid, aid, width, height, maxWidth, maxHeight, aname,
-                                           index, row, col, principal, svg, export);
+                                           index, row, col, principal, svg, export, noAnimation);
                }
                finally {
                   box.get().unlockRead();
@@ -778,7 +780,8 @@ public class AssemblyImageService {
     * Get chart image.
     */
    private Graphics2D getChartSVG(String aname, int row, int col, int index, VGraphPair pair,
-                                     ViewsheetSandbox box, String name, double tileHeight)
+                                     ViewsheetSandbox box, String name, double tileHeight,
+                                     boolean noAnimation)
    {
       Graphics2D image = null;
 
@@ -820,7 +823,7 @@ public class AssemblyImageService {
          // svg is more expensive than java graphics. very large svg can also crash the
          // browser, so only only use svg when the number of points is not excessive
          if(rcnt < 10000) {
-            image = pair.getPlotGraphic(row, col);
+            image = pair.getPlotGraphic(row, col, !noAnimation);
          }
       }
       else if("x_title".equals(aname)) {

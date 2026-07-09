@@ -106,6 +106,7 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
    @Input() emptyChart = false;
    @Input() backgroundColor: string;
    @Input() urlPrefix: string;
+   @Input() suppressAnimation: boolean = false;
    @Input() format: BaseFormatModel;
    @Input() titleFormat: BaseFormatModel;
    @Input() hideSortIcon: boolean;
