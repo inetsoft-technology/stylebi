@@ -1013,7 +1013,7 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
    }
 
    private isExpressionAes(ref: AestheticInfo) {
-      return ref.dataInfo.columnValue.startsWith("=");
+      return !!ref && !!ref.dataInfo && ref.dataInfo.columnValue.startsWith("=");
    }
 
    private isCrosstab(): boolean {
