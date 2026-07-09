@@ -432,6 +432,14 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // semantics. Names that were not actually declared at the eval's top level
       // (e.g. inside a nested function, or block-scoped let/const confined to the
       // eval) are guarded by `typeof` and simply skipped.
+      //
+      // A top-level `return` in the script body is not a case this needs to
+      // handle: GraalJS rejects it with a SyntaxError ("Invalid return
+      // statement") at eval time, unlike V8/SpiderMonkey/Rhino which permit
+      // `return` inside a direct eval nested in a function. So the hoist can
+      // never be skipped by an early return here — the eval throws before the
+      // hoist statement would matter either way, and that throw is pre-existing
+      // behavior unrelated to this fix.
       String hoist = buildDeclarationHoist(body);
       return Source.newBuilder("js",
          "(function(){with(__scope__){var " + RESULT_VAR + "=eval(" + toJsStringLiteral(body) +
@@ -719,6 +727,14 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * not to be reachable at the eval's top level are skipped) and wrapped in a
     * {@code try/catch} so it can never disrupt the user's script. Returns an
     * empty string when the body declares nothing.
+    * <p>
+    * The copy unconditionally overwrites {@code globalThis[name]}, including any
+    * built-in function/constant of the same name (e.g. a script-local
+    * {@code var trim = ...;} permanently clobbers the built-in {@code trim} for
+    * every later script on this engine/context). This matches the pre-#75550
+    * Rhino behavior being restored here and is not a new regression, but the
+    * blast radius is wider than the transient-wrapper-frame behavior #75550
+    * introduced.
     */
    private static String buildDeclarationHoist(String body) {
       Set<String> names = collectTopLevelDeclarations(body);
@@ -798,6 +814,13 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * {@code i} (just past the {@code var} keyword). Handles simple and
     * comma-separated declarators (e.g. {@code var a, b = 1, c}); stops at the end
     * of the statement. Returns the index at which scanning should resume.
+    * <p>
+    * Known limitation: a line break falling immediately after a bare declarator
+    * name and before its own {@code =} or the following {@code ,} (e.g.
+    * {@code var a\n = 1, b = 2;}) is treated as end-of-statement, so later
+    * declarators in that statement are missed. This is safe — a missed name is
+    * simply not hoisted, since the emitted copy is {@code typeof}-guarded — and
+    * the pattern is not expected in practice.
     */
    private static int collectVarNames(String src, int i, Set<String> names) {
       int n = src.length();
