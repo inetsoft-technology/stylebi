@@ -105,6 +105,6 @@ $stacking-order: (
 
 .table-focus-row {
   > tbody > tr:hover > * {
-    background-color: var(--inet-hover-primary-bg-color) !important;
+    background-color: var(--inet-viz-hover-bg) !important;
   }
 }
