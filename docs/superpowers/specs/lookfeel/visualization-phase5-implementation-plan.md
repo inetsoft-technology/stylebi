@@ -212,19 +212,124 @@ Gate-off byte-identical (both legacy values equal the viz `:root` defaults). Gat
 and cell selection pick up the modern teal palette. **No `vsFormatModel` binding is touched**, so
 export is unchanged.
 
-### Part C — Server-side structure + export-visible state (deferred to follow-up sub-plan, D1)
+### Part C — Server-side structure + export-visible state — SCOPED SUB-PLAN (deferred, needs owner go-ahead)
 
-Scoped here, not implemented in the first pass:
-- **Selection-list `selected` fill server bridge** (carried from Phase 4 D2): resolve the selected-item
-  `VSFormat` fill from the modern palette when the gate is on, defaults-only, gated per-org — same
-  mechanism and precedence as Phase 3 Part B (`VSDensityDefaults`-style resolver + user-set guard).
-- **Server-side table structure defaults**: subtle gridline / header-hierarchy / numeric-alignment
-  defaults via `VSFormat` / the `format.css` CSS dictionary (`VSTableLens.getCSS*` is the existing
-  hook — the Phase 3 B3 convergence point), gated per-org so saved sheets don't reflow with the gate
-  off. Higher risk (touches export + text measuring); own sub-plan.
-- **Sort-glyph normalization** (D3 option b) if the owner wants it — small, but changes gate-off, so
-  it rides with the gated server work or a deliberate normalization pass.
-- `warning`/`anomaly` conditional formatting → **Phase 8**, not Part C.
+Part C is the export-affecting half. **C2 (sort-glyph normalization) is implemented and ships with
+Parts A/B; C1 (server-side table structure) is scoped and pending** (per D1, after A/B validate —
+confirmed correct at runtime, small changeset). Grounding below is verified (2026-07-08) and corrects
+two assumptions carried from Phase 4/5.
+
+**Part C decisions (resolved 2026-07-08 with initiative owner):**
+
+- **Property model:** modern table structure is gated by `viewsheet.modernVisualization` and
+  **defaults on when modern is enabled**, via a dedicated boolean property (e.g.
+  `viewsheet.modernTableStructure`, default `true`, meaningful only when the gate is on) — an admin
+  escape hatch, mirroring the Phase 3 property style but simpler (a toggle, not a mode enum).
+- **Palette:** table-structure colors are added to `visualization-palette-swatches.html` as a
+  **Table Structure Tokens** group (`--viz-gridline`, `--viz-header-bg`, `--viz-header-text`, + `-dark`
+  variants). Values map the example mockups'
+  ([portal-light3/dark3](https://swaker854.github.io/lookfeel/flat/)) *relationships* — very subtle
+  low-contrast gridlines, quiet header — into the warm-neutral visualization system, **not** the
+  mockups' purple/blue hexes. See "Table structure palette — open color decisions" below.
+- **C1 scope:** first pass = **gridline + header hierarchy** on the base table CSS classes
+  (`TABLE`/`TABLE_HEADER`/`TABLE_DETAIL`/`CELL`/`HEADER`/`DETAIL`); crosstab/calc-table-specific
+  region classes (`CROSSTAB`/`CALC_TABLE`/`GRAND_TOTAL`/`GROUP_HEADER`/`SUMMARY`) and cell bg/fg are a
+  later pass. Numeric alignment already done; tabular numerals out.
+- **Route:** the `format.css` CSS-dictionary route (not `setDefaultFormat`).
+- **C2:** ships with A/B (done).
+- **Selection selected-highlight (C-note):** deferred.
+
+**Corrections from grounding (change the scope):**
+
+- **Selection-list `selected` fill is NOT server export-visible.** Each selection value carries one
+  shared cell `VSCompositeFormat` from the `CELLPATH` (`SelectionListVSAQuery.java:349-350` →
+  `AbstractSelectionVSAQuery.refreshFormat:402`, `svalue.setFormat(vfmt)`); the model emits only a
+  `STATE_SELECTED` bit + `formatIndex` (`SelectionValueModel:42-71`), and the HTML/PDF/SVG helpers
+  read that same format and merely toggle the checkbox on `isSelected()` (`HTMLSelectionListHelper.java:180,212`).
+  The *selected highlight* is decided **client-side (CSS)**, and export shows a checkbox, not a fill.
+  So the "selected-fill server bridge" deferred from Phase 4 D2 is a **DOM concern**, not a server one
+  (see C-note below), and does not belong in Part C.
+- **Numeric right-alignment is already server-side and unconditional** (`FormatTableLens2.java:143,150`:
+  `numeric ? H_RIGHT : …` keyed on `XSchema.isNumericType`), shared by every export path. Roadmap
+  Phase 5 Task 1 "right-align numeric columns" is **already satisfied** — nothing to add.
+
+**C1 — Modern table structure defaults via the `format.css` CSS dictionary (primary server task).**
+Drive modern gridline / header-hierarchy / cell color defaults through the **existing** server-side
+CSS-dictionary path rather than editing hardcoded defaults:
+- Mechanism: `CSSTableStyle` already pulls per-region bg/fg/font/border-color from `CSSDictionary`
+  (`CSSDictionary.getForeground/Background/Font/BorderColors`, `CSSTableStyle.setAttributes:349-449`)
+  for the table CSS classes in `CSSConstants` (`TABLE:278`, `TABLE_HEADER:290`, `TABLE_DETAIL:282`,
+  `CELL:54`, `HEADER:182`, `DETAIL:142`, `CROSSTAB:130`, `CALC_TABLE:150`, `GRAND_TOTAL:170`,
+  `GROUP_HEADER:178`, `SUMMARY:270`). `VSAssemblyInfo.setDefaultFormat:1169-1183` already reads the
+  `TableStyle`/`Table`-region CSS border color, so the hook is proven and live+export share it.
+- Part C emits the modern table structure values (subtle gridline vs today's `DEFAULT_BORDER_COLOR
+  = 0xDADADA` at `VSAssemblyInfo.java:1545`; header emphasis vs `DEFAULT_TITLE_BG = 0xf5f5f5`) into
+  those CSS classes **only under the gate**, resolved per-org from the same
+  `viewsheet.modernVisualization` + a structure property, mirroring `VSDensityDefaults`. Defaults-only:
+  a viewsheet whose cells carry user/explicit `VSFormat` borders/bg is untouched.
+- Why the CSS route over editing `setDefaultFormat` (`VSAssemblyInfo.java:1155`,
+  `TableDataVSAssemblyInfo.java:1565`): lower blast radius (the override layer, not the baked default),
+  it converges with the Phase 6/8 `format.css` bridge, and header-vs-data styling already flows through
+  the `TableStyle`/`CSSTableStyle` lens (`FormatTableLens2.mergeFormat:128`), not raw `VSFormat`.
+- Risk: still export-visible and reflows saved default-styled tables, so it **must** be gated per-org
+  (never the browser `.viz-modern` class) and gate-off must be byte-identical. Highest-risk item; own
+  validation pass with PDF/PNG/Excel parity checks.
+
+**C2 — Sort-glyph normalization (from D3) — CSS, gated, active-sort only — ✅ IMPLEMENTED (ships with A/B).**
+The `sorted` color marks the **active** sort state (a meaning-bearing cue), not every sort affordance,
+so it applies only to the persistent asc/desc header arrow. One global gated rule:
+
+```scss
+.viz-modern .vs-header-cell-button-sort.sort-ascending-icon,
+.viz-modern .vs-header-cell-button-sort.sort-descending-icon {
+  color: var(--inet-viz-sorted-color) !important;
+}
+```
+
+Gate-off: unchanged (`#6a685f`). Gate-on: an actively-sorted column's arrow is `--inet-viz-sorted-color`
+(`#8C5510`); the passive hover sort button on unsorted columns (`.sort-icon`, "none" state) stays neutral.
+
+Runtime corrections (2026-07-08/09):
+- The glyph color is **not** `td { color:#333 }` as first grounded — it comes from the ineticons rule
+  `.icon-color-default { color: var(--inet-icon-color) !important }` (`_icons.scss:96`), whose computed
+  value (`#6a685f` = `--inet-text-muted-color`) already equals the `--inet-viz-sorted-color` `:root`
+  default, so gate-off parity holds. The override therefore had to (a) live in the **global** stylesheet,
+  not the component-encapsulated `base-table.scss` (in `vs-table`/`vs-crosstab`/`vs-calctable`
+  `styleUrls`), and (b) carry **`!important`** to beat the icon `!important`.
+- The crosstab in-cell `.table-cell-sort-icon` override was **reverted**: that glyph is `display:none`
+  until `div:hover` — a transient invitation to sort with no persistent active-sort state — so it is
+  not colored as sorted state (left as its original hover affordance).
+
+**C-note — selection-list `selected` highlight (reclassified, not Part C).** Because the selected
+highlight is client-CSS and not in export, adopting the viz selected palette on selection-list items is
+a **DOM adoption** (Part B-style, if a real client selected-highlight selector exists) — but note the
+Phase 5 D2 boundary: a selection list *is* a visualization assembly (BI data surface), so unlike the
+navigation trees this adoption would be in-scope. Making the selected fill actually **appear in export**
+is a separate feature (a new server "selected" format path in `SelectionListVSAQuery` — new plumbing,
+not a mirror of the height resolver); low priority, deferred as a feature, not part of this theming pass.
+
+**Out of Part C:**
+- **Tabular numerals** — no `font-variant-numeric`/font-feature support exists server-side (grep clean);
+  a new capability, and font changes touch measuring/wrapping/export layout (the Phase 3 D3 font-risk).
+  Deferred.
+- **`warning`/`anomaly` conditional formatting** — server-rendered, export-visible → **Phase 8**.
+
+**Part C gated-defaults contract (mirrors Phase 3 Part B):** a `VSDensityDefaults`-style resolver reads
+the gate + a structure property (`SreeEnv orgScope`), returns modern structure colors only when on,
+applied **defaults-only** with user-set/explicit-format guards, at the CSS-dictionary emission point so
+live model and every export format agree. Gate-off byte-identical; saved user-styled tables unchanged.
+
+**Table structure palette — RESOLVED (2026-07-08).** Values confirmed; in the swatches file.
+
+1. **Gridline contrast — `--viz-gridline #E8E5DE`** (subtle warm hairline, lighter than today's solid
+   `#DADADA`).
+2. **Header treatment — soft warm fill `--viz-header-bg #F1EFEA`** + a `viz-gridline` bottom rule
+   (warmer/subtler than today's `#f5f5f5`).
+3. **Header text — `--viz-header-text #6A685F`** (muted, quiet chrome).
+4. **Dark mode — deferred from first-pass C1.** The dark variants (`#3A383D` / `#2D2B30` / `#CAC4D0`)
+   stay in the swatches as reference for a later dark pass but are not emitted by C1.
+
+C1 remains **not implemented**, pending runtime confirmation of the C2 sort-button color change first.
 
 ## Validation
 
@@ -245,8 +350,11 @@ Scoped here, not implemented in the first pass:
 
 ## Deferred / follow-ups
 
-- **Part C server-side work** (selection-list selected-fill bridge, gridline/header/alignment defaults,
-  sort-glyph normalization) — own sub-plan after A+B validate (D1/D3).
+- **Part C** (scoped above) — modern table structure color defaults via the `format.css` CSS
+  dictionary (C1, gated, export-visible), sort-glyph CSS normalization (C2), reclassified selection
+  selected-highlight (C-note). Own sub-plan after A+B validate; needs owner go-ahead (D1).
+  - Numeric right-alignment is **already** done (`FormatTableLens2`); tabular numerals need new
+    server font-feature support (deferred).
 - **`warning`/`anomaly` conditional formatting** — Phase 8 (server-rendered).
 - **DOM gridline/header structure tokens** — add `--inet-viz-gridline` / `--inet-viz-header-*` only if
   the structure follow-up needs them (D4).
