@@ -26,7 +26,7 @@ export function EMBED_CHART_URL_MATCHER(url: UrlSegment[]) {
 
 export const embedChartRoutes: Routes = [
    {
-      component: EmbedChartComponent,
+      loadComponent: () => import("./embed-chart.component").then(m => m.EmbedChartComponent),
       canDeactivate: [canDeactivateGuard],
       matcher: EMBED_CHART_URL_MATCHER
    }

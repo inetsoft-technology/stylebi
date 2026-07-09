@@ -22,6 +22,7 @@ import {
    DoCheck,
    ElementRef,
    EventEmitter,
+   forwardRef,
    Input,
    NgZone,
    OnChanges,
@@ -100,8 +101,8 @@ const FORMATE_CALENDAR_TITLE = "../api/calendar/formatTitle";
     TooltipIfDirective,
     FormsModule,
     DefaultFocusDirective,
-    MonthCalendar,
-    YearCalendar
+    forwardRef(() => MonthCalendar),
+    forwardRef(() => YearCalendar)
 ]
 })
 export class VSCalendar extends NavigationComponent<VSCalendarModel>

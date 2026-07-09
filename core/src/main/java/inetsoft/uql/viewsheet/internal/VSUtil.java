@@ -2194,6 +2194,24 @@ public final class VSUtil {
                   bset.add(obj);
                }
             }
+
+            // Relation (tree/network) chart node color/size dimension fields are intentionally
+            // excluded from getRTFields() (to keep them out of the GROUP BY, see
+            // AbstractChartInfo.getAestheticRefs()) and therefore from getBindingRefs(). For a
+            // logical model source they would otherwise be shrunk away here, leaving ChartVSAQuery
+            // unable to re-add them as MAX aggregates and breaking node color/size. Retain their
+            // columns. (Bug #75562)
+            if(cinfo instanceof RelationChartInfo) {
+               RelationChartInfo rcinfo = (RelationChartInfo) cinfo;
+
+               for(AestheticRef nodeRef :
+                   new AestheticRef[]{ rcinfo.getNodeColorField(), rcinfo.getNodeSizeField() })
+               {
+                  if(nodeRef != null && nodeRef.getDataRef() != null) {
+                     bset.add(nodeRef.getDataRef());
+                  }
+               }
+            }
          }
       }
 

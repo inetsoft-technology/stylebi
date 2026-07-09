@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input, Output, EventEmitter, OnInit } from "@angular/core";
+import { Component, Input, Output, EventEmitter, forwardRef, OnInit } from "@angular/core";
 
 import { XSchema } from "../../../common/data/xschema";
 import { VariableListDialogModel } from "./variable-list-dialog-model";
@@ -28,7 +28,7 @@ import { ModalHeaderComponent } from "../../modal-header/modal-header.component"
     templateUrl: "variable-list-dialog.component.html",
     imports: [
     ModalHeaderComponent,
-    VariableListEditor
+    forwardRef(() => VariableListEditor)
 ]
 })
 export class VariableListDialog implements OnInit {

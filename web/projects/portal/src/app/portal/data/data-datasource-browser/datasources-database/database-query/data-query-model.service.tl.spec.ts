@@ -28,9 +28,10 @@
  *   Group 6 [Risk 2]       - getShiftIndexesRange (1 case)
  *   Group 7 [Risk 2]       - unjoined tables state (1 case)
  *
- * Confirmed bugs (it.failing - remove wrapper once fixed):
- *   - findNextNode compares node.data by JSON value, so duplicate-data siblings make the target
- *     resolve to the first matching sibling and can return the target itself.
+ * Fixed bugs:
+ *   - Bug #75600: findNextNode used to compare node.data by JSON value, so duplicate-data siblings
+ *     resolved to the first matching sibling and could return the target itself. Fixed by
+ *     comparing TreeNodeModel objects by reference instead.
  *
  * KEY contracts:
  *   - modelChange and graphViewChange expose public notification streams.
@@ -308,9 +309,10 @@ describe("DataQueryModelService", () => {
    // Group 5 [Risk 3, 2, 2, 2] - exported tree/name helpers
    // ---------------------------------------------------------------------------
    describe("exported tree/name helpers", () => {
-      it.fails("[Risk 3] should find the next sibling by node identity when siblings have duplicate data", () => {
-         // Regression-sensitive: value-based JSON matching makes duplicate data siblings resolve
-         // to the first match and can return the target node itself.
+      it("[Risk 3] should find the next sibling by node identity when siblings have duplicate data", () => {
+         // Regression test for Bug #75600: findNextNode now compares TreeNodeModel objects by
+         // reference, so duplicate-data siblings no longer resolve to the first match or the
+         // target node itself.
          const first = makeNode({ id: "duplicate" });
          const second = makeNode({ id: "duplicate" });
          const third = makeNode({ id: "third" });
