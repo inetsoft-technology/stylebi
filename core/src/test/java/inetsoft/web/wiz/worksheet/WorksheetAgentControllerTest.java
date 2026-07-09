@@ -263,7 +263,7 @@ class WorksheetAgentControllerTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
 
       // "add_column" with no 'name' on an EMBEDDED table must auto-generate the
       // next available "col" + N, matching the Composer UI's own insert-column
@@ -307,7 +307,7 @@ class WorksheetAgentControllerTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
 
       editSvc.apply("TOK-ACM", agent, editor -> editor.addMirror("M", "T"));
 
@@ -352,7 +352,7 @@ class WorksheetAgentControllerTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
 
       // Regression for the "alias" vs "name" mixup: calling add_expression_column
       // without 'name' used to silently succeed and create an unreferenceable
@@ -398,7 +398,7 @@ class WorksheetAgentControllerTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
 
       EditRequest req = new EditRequest("edit_expression", "T", null,
          null, null, null, null, null, null, null, null, null, null, false,
