@@ -21,6 +21,7 @@ import {
    Component,
    ElementRef,
    EventEmitter,
+   forwardRef,
    Input,
    OnChanges,
    OnDestroy,
@@ -95,7 +96,7 @@ import { VSDataTipDirective } from "./data-tip/vs-data-tip.directive";
     selector: "vs-object-container",
     templateUrl: "vs-object-container.component.html",
     styleUrls: ["vs-object-container.component.scss"],
-    imports: [VSDataTipDirective, VSPopComponentDirective, VSAnnotation, VSCalcTable, VSCalendar, VSChart, VSCheckBox, VSComboBox, VSCrosstab, VSCylinder, VSGauge, VSGroupContainer, VSImage, VSLine, VSOval, VSRadioButton, VSRectangle, VSRangeSlider, VSSelection, VSSelectionContainer, VSSelectionContainerChildren, VSSlider, VSSlidingScale, VSSpinner, VSSubmit, VSTab, VSTable, VSText, VSTextInput, VSThermometer, VSViewsheet, MiniToolbar, PlaceholderDragElement]
+    imports: [VSDataTipDirective, VSPopComponentDirective, VSAnnotation, VSCalcTable, VSCalendar, VSChart, VSCheckBox, VSComboBox, VSCrosstab, VSCylinder, VSGauge, VSGroupContainer, VSImage, VSLine, VSOval, VSRadioButton, VSRectangle, VSRangeSlider, VSSelection, VSSelectionContainer, VSSelectionContainerChildren, VSSlider, VSSlidingScale, VSSpinner, VSSubmit, VSTab, VSTable, VSText, VSTextInput, VSThermometer, forwardRef(() => VSViewsheet), MiniToolbar, PlaceholderDragElement]
 })
 export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    readonly popUpContentBoostZIndex: number = DateTipHelper.getPopUpContentBoostZIndex();
