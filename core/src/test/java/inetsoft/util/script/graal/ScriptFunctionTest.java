@@ -156,6 +156,25 @@ class ScriptFunctionTest {
    }
 
    @Test
+   void booleanArgIsCoercedToNumber() {
+      // Bug #75611 side effect: a JS boolean passed to a numeric parameter
+      // coerces to 1/0 (JS ToNumber / Rhino parity), rather than failing the
+      // reflective invocation. Lock in this widened behavior.
+      Target t1 = new Target();
+      ctx.getBindings("js").putMember(
+         "setCount", new ScriptFunction(t1, Target.class, "setCount", int.class));
+      ctx.eval("js", "setCount(true)");
+      assertTrue(t1.called);
+      assertEquals(1, t1.count, "boolean true should coerce to 1");
+
+      Target t2 = new Target();
+      ctx.getBindings("js").putMember(
+         "setCount", new ScriptFunction(t2, Target.class, "setCount", int.class));
+      ctx.eval("js", "setCount(false)");
+      assertEquals(0, t2.count, "boolean false should coerce to 0");
+   }
+
+   @Test
    void omittedDoubleArgDefaultsToZero() {
       Target t = new Target();
       ctx.getBindings("js").putMember(

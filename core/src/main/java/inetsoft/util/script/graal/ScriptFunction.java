@@ -197,12 +197,15 @@ public class ScriptFunction implements ProxyExecutable {
     * semantics (mirroring Rhino's {@code ScriptRuntime.toNumber}): a boolean maps
     * to 1/0; a string is parsed ("" → 0, unparseable → NaN). Any other type
     * returns {@code null} so the caller passes the value through unchanged.
+    *
+    * <p>String parsing uses {@link Double#parseDouble} and therefore diverges
+    * slightly from JS {@code ToNumber} at the edges: hex-integer strings like
+    * {@code "0x1A"} coerce to {@code NaN} here (JS yields {@code 26}), and
+    * Java-only numeric suffixes like {@code "3.0d"} are accepted here (JS yields
+    * {@code NaN}). These cases do not occur in practice for CALC formula arguments.
     */
    private static Number toNumber(Object value) {
-      if(value instanceof Number) {
-         return (Number) value;
-      }
-      else if(value instanceof Boolean) {
+      if(value instanceof Boolean) {
          return ((Boolean) value) ? 1 : 0;
       }
       else if(value instanceof CharSequence) {
