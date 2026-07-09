@@ -240,12 +240,10 @@ public class ScheduleTaskService {
          return false;
       }
 
-      OrganizationManager organizationManager = OrganizationManager.getInstance();
-
-      if(organizationManager.isSiteAdmin(principal) || organizationManager.isOrgAdmin(principal)) {
-         return true;
-      }
-
+      // Site admins are granted directly by checkPermission(). Org admins must go through
+      // checkPermission() as well so that ActionPermissionService.orgAdminActionExclusions
+      // (e.g. the internal asset file backup/balance tasks/update assets dependencies tasks)
+      // is consulted instead of being bypassed.
       return engine.checkPermission(principal, ResourceType.SCHEDULE_TASK,
          task.getName(), ResourceAction.WRITE);
    }
