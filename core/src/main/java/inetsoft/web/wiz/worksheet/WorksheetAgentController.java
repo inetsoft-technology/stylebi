@@ -23,6 +23,9 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -34,6 +37,7 @@ import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.util.Catalog;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
@@ -77,7 +81,8 @@ public class WorksheetAgentController {
                                    inetsoft.web.wiz.service.MetadataApiService metadataApiService,
                                    QueryManagerService queryManagerService,
                                    LayoutGraphService layoutGraphService,
-                                   DataSourceService dataSourceService)
+                                   DataSourceService dataSourceService,
+                                   SecurityEngine securityEngine)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -93,6 +98,7 @@ public class WorksheetAgentController {
       this.queryManagerService = queryManagerService;
       this.layoutGraphService = layoutGraphService;
       this.dataSourceService = dataSourceService;
+      this.securityEngine = securityEngine;
    }
 
    // ---------------------------------------------------------------------------
@@ -249,6 +255,25 @@ public class WorksheetAgentController {
 
       if(tablePath == null || tablePath.isBlank()) {
          throw new PairingException("table is required for add_table.");
+      }
+
+      // Verify ACCESS permission on physical-table binding ("Visual Composer -> Physical
+      // Table"), mirroring the checks in OpenWorksheetController.checkPermission() and
+      // TableAssemblyModelFactory.createModelFrom().
+      if(!securityEngine.checkPermission(user, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(
+            Catalog.getCatalog().getString("composer.ws.boundPhysicalTableForbidden"));
+      }
+
+      // Verify READ on the datasource BEFORE any JDBC metadata probe. getJDBCDatasource/
+      // getTableMetaData do no permission check of their own, so without this an unauthorized
+      // datasource would still be probed (getTableDetails below only checks READ afterwards).
+      // Mirrors addLogicalModelTable / addSqlQuery.
+      if(datasourceName != null &&
+         !dataSourceService.checkPermission(datasourceName, ResourceAction.READ, user))
+      {
+         throw new PairingException(
+            "Access denied: no READ permission on datasource " + datasourceName);
       }
 
       // Get the qualified table name via metadata lookup.
@@ -959,6 +984,14 @@ public class WorksheetAgentController {
    private void editSqlQuery(String sessionToken, EditRequest req, Principal user)
       throws Exception
    {
+      // Verify ACCESS permission on freeform SQL ("Visual Composer -> Free Form SQL"),
+      // mirroring the check performed for the SQL query dialog (SQLQueryDialogController /
+      // SQLQueryDialogService).
+      if(!securityEngine.checkPermission(user, ResourceType.FREE_FORM_SQL, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(
+            Catalog.getCatalog().getString("composer.authorization.permissionDenied"));
+      }
+
       if(req.table() == null || req.table().isBlank()) {
          throw new PairingException("table is required for edit_sql_query.");
       }
@@ -980,6 +1013,20 @@ public class WorksheetAgentController {
 
          if(info.getQuery() == null) {
             throw new PairingException("Table has no query: " + req.table());
+         }
+
+         // Verify READ permission on the datasource this SQL executes against, mirroring
+         // addSqlQuery (which checks the datasource named in the request). Here the datasource
+         // is the one already bound to the assembly; re-checking it ensures a caller cannot run
+         // arbitrary SQL against a datasource they lack READ on (e.g. via a paired-in runtime).
+         XDataSource boundDs = info.getQuery().getDataSource();
+         String dsName = boundDs != null ? boundDs.getFullName() : null;
+
+         if(dsName != null &&
+            !dataSourceService.checkPermission(dsName, ResourceAction.READ, user))
+         {
+            throw new PairingException(
+               "Access denied: no READ permission on datasource " + dsName);
          }
 
          UniformSQL sql = (UniformSQL) info.getQuery().getSQLDefinition();
@@ -1613,6 +1660,21 @@ public class WorksheetAgentController {
          throw new PairingException("sql is required.");
       }
 
+      // Verify ACCESS permission on freeform SQL ("Visual Composer -> Free Form SQL"),
+      // mirroring the check performed for the SQL query dialog (SQLQueryDialogController /
+      // SQLQueryDialogService).
+      if(!securityEngine.checkPermission(user, ResourceType.FREE_FORM_SQL, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(
+            Catalog.getCatalog().getString("composer.authorization.permissionDenied"));
+      }
+
+      // Verify READ permission on the datasource before resolving/querying it,
+      // mirroring the check in addLogicalModelTable().
+      if(!dataSourceService.checkPermission(body.datasource(), ResourceAction.READ, user)) {
+         throw new PairingException(
+            "Access denied: no READ permission on datasource " + body.datasource());
+      }
+
       XDataSource xds;
 
       try {
@@ -1746,6 +1808,7 @@ public class WorksheetAgentController {
          case SESSION_EXPIRED  -> HttpStatus.NOT_FOUND;
          case USER_MISMATCH,
               FEATURE_DISABLED -> HttpStatus.FORBIDDEN;
+         case RATE_LIMITED     -> HttpStatus.TOO_MANY_REQUESTS;
          case INTERNAL        -> HttpStatus.INTERNAL_SERVER_ERROR;
          default              -> HttpStatus.BAD_REQUEST;
       };
@@ -1773,4 +1836,5 @@ public class WorksheetAgentController {
    private final QueryManagerService queryManagerService;
    private final LayoutGraphService layoutGraphService;
    private final DataSourceService dataSourceService;
+   private final SecurityEngine securityEngine;
 }

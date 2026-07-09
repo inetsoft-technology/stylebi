@@ -20,11 +20,16 @@ package inetsoft.web.wiz.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.wiz.model.CloseViewsheetRequest;
 import inetsoft.web.wiz.model.OpenViewsheetResult;
@@ -46,10 +51,12 @@ import java.security.Principal;
 public class ViewsheetRuntimeController {
 
    public ViewsheetRuntimeController(ViewsheetService viewsheetService,
-                                     WizVsService wizVsService)
+                                     WizVsService wizVsService,
+                                     SecurityEngine securityEngine)
    {
       this.viewsheetService = viewsheetService;
       this.wizVsService = wizVsService;
+      this.securityEngine = securityEngine;
    }
 
    /**
@@ -87,6 +94,16 @@ public class ViewsheetRuntimeController {
       {
          throw new IllegalArgumentException(
             "Viewsheet is not in the managed visualizations folder: " + path);
+      }
+
+      // Action-level gate ("Visual Composer -> Data Viewsheet"): the managed-folder path check
+      // above is an asset-path scoping restriction, not the action permission itself. Enforced
+      // here for consistency/defense-in-depth with the other viewsheet-opening entry points
+      // (ComposerViewsheetController, OpenViewsheetController, VSWizardDialogController), even
+      // though in practice this endpoint only reopens entries wiz itself already created.
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
       }
 
       String runtimeId = viewsheetService.openViewsheet(entry, user, true);
@@ -190,6 +207,14 @@ public class ViewsheetRuntimeController {
       {
          throw new IllegalArgumentException(
             "Viewsheet is not in the managed visualizations folder: " + path);
+      }
+
+      // Action-level gate ("Visual Composer -> Data Viewsheet"), mirroring openViewsheet.
+      // verify is the more sensitive sibling — it opens the runtime AND executes the chart's
+      // query, returning hasData/rowCount — so it must not be more permissive than open.
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
       }
 
       VerifyViewsheetResult result = new VerifyViewsheetResult();
@@ -301,5 +326,6 @@ public class ViewsheetRuntimeController {
 
    private final ViewsheetService viewsheetService;
    private final WizVsService wizVsService;
+   private final SecurityEngine securityEngine;
    private static final Logger log = LoggerFactory.getLogger(ViewsheetRuntimeController.class);
 }

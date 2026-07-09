@@ -93,6 +93,24 @@ public class SheetRuntimeAccess {
       };
    }
 
+   /**
+    * Return the owner principal of the runtime with the given id on this node, or null if the
+    * runtime is not in this node's cache (expired / never opened / hosted on another node) or
+    * has no associated user. Side-effect free: does not touch or audit the runtime.
+    *
+    * <p>Used by SheetJoinService to verify, at join time, that the joining agent is the same
+    * logical user as the runtime's owner — the pairing path otherwise bypasses the per-session
+    * matches() check (see {@link #getSheetForPairing}).
+    */
+   public Principal getRuntimeOwner(SheetType sheetType, String runtimeId) {
+      RuntimeSheet rs = switch (sheetType) {
+         case WORKSHEET -> worksheetAccessor.getSheetDirect(runtimeId);
+         case VIEWSHEET -> viewsheetAccessor.getSheetDirect(runtimeId);
+      };
+
+      return rs == null ? null : rs.getUser();
+   }
+
    private RuntimeWorksheet getWorksheetForPairing(String runtimeId, Principal agentUser)
       throws PairingException
    {

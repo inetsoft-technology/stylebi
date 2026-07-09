@@ -20,11 +20,16 @@ package inetsoft.web.wiz.worksheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.*;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.TableAssemblyInfo;
+import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
@@ -55,11 +60,13 @@ public class WorksheetEditService {
    @Autowired
    public WorksheetEditService(SheetSessionService sessions,
                                SheetRuntimeAccess runtimeAccess,
-                               SheetAgentBroadcastService broadcast)
+                               SheetAgentBroadcastService broadcast,
+                               SecurityEngine securityEngine)
    {
       this.sessions = sessions;
       this.runtimeAccess = runtimeAccess;
       this.broadcast = broadcast;
+      this.securityEngine = securityEngine;
    }
 
    /**
@@ -85,7 +92,7 @@ public class WorksheetEditService {
          SheetType.WORKSHEET, session.runtimeId(), agent);
       applySocketSession(rws, session);
 
-      Editor editor = new Editor(rws.getWorksheet());
+      Editor editor = new Editor(rws.getWorksheet(), agent, securityEngine);
 
       try {
          mutation.accept(editor);
@@ -265,6 +272,7 @@ public class WorksheetEditService {
    private final SheetSessionService sessions;
    private final SheetRuntimeAccess runtimeAccess;
    private final SheetAgentBroadcastService broadcast;
+   private final SecurityEngine securityEngine;
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetEditService.class);
 
    // =========================================================================
@@ -279,8 +287,10 @@ public class WorksheetEditService {
     */
    public static final class Editor {
 
-      Editor(Worksheet ws) {
+      Editor(Worksheet ws, Principal agent, SecurityEngine securityEngine) {
          this.ws = ws;
+         this.agent = agent;
+         this.securityEngine = securityEngine;
       }
 
       /**
@@ -432,8 +442,10 @@ public class WorksheetEditService {
        * @throws PairingException if no {@link TableAssembly} with {@code table} exists
        */
       public void addExpressionColumn(String table, String name, String expression,
-                                      String type, boolean sql) throws PairingException
+                                      String type, boolean sql)
+         throws PairingException, SecurityException
       {
+         requirePermission(ResourceType.WORKSHEET_EXPRESSION_COLUMN);
          WorksheetMutationSupport.addExpressionColumn(requireTable(table), name,
                                                       expression, type, sql);
       }
@@ -484,7 +496,7 @@ public class WorksheetEditService {
                           String rightTable, String rightKey,
                           String joinType,
                           List<String> leftKeys, List<String> rightKeys)
-         throws PairingException
+         throws PairingException, SecurityException
       {
          if("CROSS".equalsIgnoreCase(joinType)) {
             addCrossJoin(name, leftTable, rightTable);
@@ -1020,8 +1032,9 @@ public class WorksheetEditService {
        */
       public void editExpression(String table, String name, String expression,
                                  String type, boolean sql)
-         throws PairingException
+         throws PairingException, SecurityException
       {
+         requirePermission(ResourceType.WORKSHEET_EXPRESSION_COLUMN);
          WorksheetMutationSupport.editExpression(requireTable(table), name, expression, type, sql);
       }
 
@@ -1037,12 +1050,16 @@ public class WorksheetEditService {
        * @param leftKey   the new left-side key column (single-key fallback)
        * @param rightKey  the new right-side key column (single-key fallback)
        * @param joinType  new join type — {@code "INNER"}, {@code "LEFT"}, {@code "RIGHT"},
-       *                  {@code "FULL"} (case-insensitive; defaults to {@code "INNER"})
+       *                  {@code "FULL"}, {@code "CROSS"} (case-insensitive; defaults to
+       *                  {@code "INNER"}). {@code "CROSS"} requires the same CROSS_JOIN
+       *                  permission as {@link #addCrossJoin}.
        * @throws PairingException if the assembly is not found or has no operators
+       * @throws SecurityException if changing to a cross join and the caller lacks
+       *                           CROSS_JOIN permission
        */
       public void editJoin(String name, String leftKey, String rightKey, String joinType,
                            List<String> leftKeys, List<String> rightKeys)
-         throws PairingException
+         throws PairingException, SecurityException
       {
          Assembly a = ws.getAssembly(name);
 
@@ -1069,6 +1086,13 @@ public class WorksheetEditService {
          String leftTable  = existing.getLeftTable();
          String rightTable = existing.getRightTable();
          int operation = parseJoinType(joinType);
+
+         // Changing an existing join into a cross join is as sensitive as creating
+         // one, so it must clear the same permission gate as addCrossJoin(); otherwise
+         // a caller denied CROSS_JOIN could add an INNER join and then edit it to CROSS.
+         if(operation == TableAssemblyOperator.CROSS_JOIN) {
+            requirePermission(ResourceType.CROSS_JOIN);
+         }
 
          // Build a replacement operator with updated keys and join type.
          TableAssemblyOperator newTop = new TableAssemblyOperator();
@@ -1276,8 +1300,9 @@ public class WorksheetEditService {
        * @throws PairingException if either source assembly is not found
        */
       public void addCrossJoin(String name, String leftTable, String rightTable)
-         throws PairingException
+         throws PairingException, SecurityException
       {
+         requirePermission(ResourceType.CROSS_JOIN);
          TableAssembly left  = requireTable(leftTable);
          TableAssembly right = requireTable(rightTable);
 
@@ -1903,6 +1928,15 @@ public class WorksheetEditService {
          }
       }
 
+      private void requirePermission(ResourceType type) throws SecurityException {
+         if(!securityEngine.checkPermission(agent, type, "*", ResourceAction.ACCESS)) {
+            throw new SecurityException(Catalog.getCatalog().getString(
+               "composer.authorization.permissionDenied"));
+         }
+      }
+
       private final Worksheet ws;
+      private final Principal agent;
+      private final SecurityEngine securityEngine;
    }
 }

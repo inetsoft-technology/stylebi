@@ -39,6 +39,10 @@ import static org.mockito.Mockito.when;
  * [codeConsumed]    second join with same code -> PairingException
  * [featureOff]      feature off -> PairingException; code not consumed
  * [viewsheet]       viewsheet code -> PairingException (not yet supported)
+ * [lockout]         8 failed lookups from the same caller -> 9th call (even with a valid code)
+ *                   throws PairingException with Kind.RATE_LIMITED
+ * [differentKeys]   lockout of one caller does not affect a different caller
+ * [resetOnSuccess]  a successful join resets the failure counter for that caller
  */
 @Tag("core")
 @ExtendWith(MockitoExtension.class)
@@ -51,6 +55,9 @@ class SheetJoinServiceTest {
    @Mock
    private SheetAgentFeature feature;
 
+   @Mock
+   private SheetRuntimeAccess runtimeAccess;
+
    private SheetPairingService pairing;
    private SheetSessionService sessions;
    private SheetJoinService svc;
@@ -59,7 +66,7 @@ class SheetJoinServiceTest {
    void setUp() {
       pairing  = new SheetPairingService(() -> FIXED_NOW);
       sessions = new SheetSessionService(() -> FIXED_NOW);
-      svc      = new SheetJoinService(pairing, sessions, feature);
+      svc      = new SheetJoinService(pairing, sessions, feature, runtimeAccess);
    }
 
    // ---------------------------------------------------------------------------
@@ -141,5 +148,134 @@ class SheetJoinServiceTest {
       Principal alice = TestPrincipals.user("alice", "host-org");
 
       assertThrows(PairingException.class, () -> svc.join(code, alice));
+   }
+
+   // ---------------------------------------------------------------------------
+   // 7. lockoutAfterThresholdBlocksSubsequentValidJoin
+   // ---------------------------------------------------------------------------
+   @Test
+   void lockoutAfterThresholdBlocksSubsequentValidJoin() {
+      when(feature.isEnabled()).thenReturn(true);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      // 8 failed lookups (invalid code) from the same caller trip the lockout.
+      for(int i = 0; i < 8; i++) {
+         assertThrows(PairingException.class, () -> svc.join("NOPE", alice));
+      }
+
+      // The 9th call is rejected as rate-limited even though the code is valid — the lockout
+      // blocks all attempts, not just repeats of the same failure.
+      String code = pairing.mint("Worksheet/lockout-1", ALICE_KEY, "sock-lockout-1", null,
+                                  SheetType.WORKSHEET);
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.join(code, alice));
+      assertEquals(PairingException.Kind.RATE_LIMITED, ex.getKind());
+   }
+
+   // ---------------------------------------------------------------------------
+   // 8. differentThrottleKeysDoNotInterfere
+   // ---------------------------------------------------------------------------
+   @Test
+   void differentThrottleKeysDoNotInterfere() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+      Principal bob = TestPrincipals.user("bob", "host-org");
+
+      // Lock out alice.
+      for(int i = 0; i < 8; i++) {
+         assertThrows(PairingException.class, () -> svc.join("NOPE", alice));
+      }
+
+      String aliceCode = pairing.mint("Worksheet/lockout-2a", ALICE_KEY, "sock-lockout-2a", null,
+                                       SheetType.WORKSHEET);
+      PairingException ex = assertThrows(PairingException.class, () -> svc.join(aliceCode, alice));
+      assertEquals(PairingException.Kind.RATE_LIMITED, ex.getKind());
+
+      // bob is a different throttle key (no HTTP request bound in this unit test, so the key
+      // falls back to "user:" + agent name) and must be unaffected by alice's lockout.
+      String bobCode = pairing.mint("Worksheet/lockout-2b", BOB_KEY, "sock-lockout-2b", null,
+                                     SheetType.WORKSHEET);
+      JoinSession session = svc.join(bobCode, bob);
+
+      assertNotNull(session);
+   }
+
+   // ---------------------------------------------------------------------------
+   // 9. successfulJoinResetsFailureCounter
+   // ---------------------------------------------------------------------------
+   @Test
+   void successfulJoinResetsFailureCounter() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      // 5 failures — below the lockout threshold of 8.
+      for(int i = 0; i < 5; i++) {
+         assertThrows(PairingException.class, () -> svc.join("NOPE", alice));
+      }
+
+      String code = pairing.mint("Worksheet/reset-1", ALICE_KEY, "sock-reset-1", null,
+                                  SheetType.WORKSHEET);
+      JoinSession session = svc.join(code, alice);
+      assertNotNull(session);
+
+      // 5 more failures post-success. If the earlier 5 failures had carried over instead of
+      // being reset, this would total 10 cumulative failures and alice would already be locked
+      // out by now.
+      for(int i = 0; i < 5; i++) {
+         assertThrows(PairingException.class, () -> svc.join("NOPE", alice));
+      }
+
+      String code2 = pairing.mint("Worksheet/reset-2", ALICE_KEY, "sock-reset-2", null,
+                                   SheetType.WORKSHEET);
+      JoinSession session2 = svc.join(code2, alice);
+
+      assertNotNull(session2);
+   }
+
+   // ---------------------------------------------------------------------------
+   // 10. runtimeOwnedByAnotherUserIsRejected
+   //
+   // The core IDOR guard: a caller mints a code naming a runtime they do NOT own (the grant's
+   // ownerIdentity is stamped with the CALLER's identity, so the same-logical-user check in
+   // step 4 passes — attacker == attacker). Step 4b must still reject the join because the
+   // runtime's real owner is a different logical user.
+   // ---------------------------------------------------------------------------
+   @Test
+   void runtimeOwnedByAnotherUserIsRejected() {
+      when(feature.isEnabled()).thenReturn(true);
+      // Attacker (alice) mints a code for carol's runtime — grant.ownerIdentity == ALICE_KEY.
+      String code = pairing.mint("Worksheet/victim-1", ALICE_KEY, "sock-idor", null,
+                                 SheetType.WORKSHEET);
+      when(runtimeAccess.getRuntimeOwner(SheetType.WORKSHEET, "Worksheet/victim-1"))
+         .thenReturn(TestPrincipals.user("carol", "host-org"));
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.join(code, alice));
+      assertEquals(PairingException.Kind.USER_MISMATCH, ex.getKind());
+
+      // The code was still consumed (single-use), so a retry also fails.
+      assertNull(pairing.peek(code));
+   }
+
+   // ---------------------------------------------------------------------------
+   // 11. runtimeOwnedBySameUserIsAllowed
+   //
+   // The legitimate case: the runtime's real owner is the same logical user as the agent, even
+   // though they are different Principal objects (browser session vs JWT-rebuilt agent).
+   // ---------------------------------------------------------------------------
+   @Test
+   void runtimeOwnedBySameUserIsAllowed() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      String code = pairing.mint("Worksheet/mine-1", ALICE_KEY, "sock-mine", null,
+                                 SheetType.WORKSHEET);
+      // A distinct Principal object with the same logical identity (name+org) as the agent.
+      when(runtimeAccess.getRuntimeOwner(SheetType.WORKSHEET, "Worksheet/mine-1"))
+         .thenReturn(TestPrincipals.user("alice", "host-org"));
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      JoinSession session = svc.join(code, alice);
+
+      assertNotNull(session);
+      assertEquals("Worksheet/mine-1", session.runtimeId());
    }
 }

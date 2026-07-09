@@ -33,6 +33,7 @@ import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.util.Tool;
+import inetsoft.web.portal.controller.database.DataSourceService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -44,9 +45,12 @@ import java.nio.charset.StandardCharsets;
 
 @Service
 public class RawDataService {
-   public RawDataService(XRepository xrepository, AssetRepository assetRepository) {
+   public RawDataService(XRepository xrepository, AssetRepository assetRepository,
+                         DataSourceService dataSourceService)
+   {
       this.xrepository = xrepository;
       this.assetRepository = assetRepository;
+      this.dataSourceService = dataSourceService;
    }
 
    public void writeWorksheetTableCsvStream(String wsId, String tableName, XPrincipal principal,
@@ -93,6 +97,14 @@ public class RawDataService {
    {
       String datasourcePath = requestData.getDatasourcePath();
       AssetEntry tableEntry = requestData.getTable();
+
+      // Deny before any datasource lookup or query execution; ResponseStatusException (like the
+      // 400 guard below) so the denial surfaces as a clean 403 — RawDataController has no
+      // @ExceptionHandler and a bare SecurityException would become an opaque 500.
+      if(!dataSourceService.checkPermission(datasourcePath, ResourceAction.READ, principal)) {
+         throw new ResponseStatusException(
+            HttpStatus.FORBIDDEN, "Access denied to data source: " + datasourcePath);
+      }
 
       // Fail fast with a diagnosable 400 when the request carries no table asset entry.
       // Callers (e.g. the WIZ annotation profiler) may omit it; without this guard setupTable
@@ -250,6 +262,7 @@ public class RawDataService {
 
    private final XRepository xrepository;
    private final AssetRepository assetRepository;
+   private final DataSourceService dataSourceService;
    private static final int RAW_DATA_MAX_ROW = 10000;
    private static final Logger LOG = LoggerFactory.getLogger(RawDataService.class);
 }

@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.worksheet;
 
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
@@ -58,7 +59,8 @@ class WorksheetEditServiceTest {
       when(runtimeAccess.getSheetForPairing(eq(SheetType.WORKSHEET), eq("Worksheet/foo-7"), eq(agent)))
          .thenReturn(rws);
 
-      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess, broadcast);
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess, broadcast,
+         mock(SecurityEngine.class));
       svc.apply("TOK", agent, ed -> ed.removeColumn("T", "a"));
 
       assertNull(t.getColumnSelection(false).getAttribute("a"));
@@ -70,7 +72,8 @@ class WorksheetEditServiceTest {
       SheetSessionService sessions = mock(SheetSessionService.class);
       when(sessions.resolve(any(), any())).thenReturn(null);
       WorksheetEditService svc = new WorksheetEditService(sessions,
-         mock(SheetRuntimeAccess.class), mock(SheetAgentBroadcastService.class));
+         mock(SheetRuntimeAccess.class), mock(SheetAgentBroadcastService.class),
+         mock(SecurityEngine.class));
       assertThrows(PairingException.class,
          () -> svc.apply("BAD", TestPrincipals.user("alice", "host-org"), ed -> {}));
    }
@@ -93,7 +96,7 @@ class WorksheetEditServiceTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
       svc.apply("TOK", agent, ed -> ed.addColumn("T", "c", "string"));
 
       assertNotNull(t.getColumnSelection(false).getAttribute("c"));
@@ -117,7 +120,7 @@ class WorksheetEditServiceTest {
       when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
 
       WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class));
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class));
       svc.apply("TOK", agent, ed -> ed.renameColumn("T", "a", "alpha"));
 
       ColumnSelection cs = t.getColumnSelection(false);

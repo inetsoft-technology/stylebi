@@ -144,7 +144,7 @@ class BindingSlotsTest {
       CrosstabVSAssembly assembly = new CrosstabVSAssembly();
       assembly.setVSCrosstabInfo(cinfo);
 
-      WizVsService service = new WizVsService(null, null);
+      WizVsService service = new WizVsService(null, null, null);
       CreateViewsheetResult.FlatBinding binding = service.collectFlatBinding(assembly);
 
       assertEquals(1, binding.getDimensions().size());

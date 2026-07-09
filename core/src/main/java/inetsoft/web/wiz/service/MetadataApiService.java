@@ -88,8 +88,13 @@ public class MetadataApiService {
          .build();
    }
 
-   public OsiDataset getMetaData(GetDatabaseTableMetaRequest data) throws Exception {
+   public OsiDataset getMetaData(GetDatabaseTableMetaRequest data, Principal principal) throws Exception {
       String dsName = data.getDsName();
+
+      if(!dataSourceService.checkPermission(dsName, ResourceAction.READ, principal)) {
+         throw new SecurityException("Access denied to data source: " + dsName);
+      }
+
       JDBCDataSource jdbcDataSource = getJDBCDatasource(dsName);
       DefaultMetaDataProvider metaDataProvider = getMetaDataProvider(dsName);
 

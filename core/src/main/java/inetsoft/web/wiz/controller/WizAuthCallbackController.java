@@ -101,7 +101,7 @@ public class WizAuthCallbackController {
     */
    @GetMapping(value = "/v1/auth/pickup", produces = MediaType.APPLICATION_JSON_VALUE)
    public ResponseEntity<Map<String, Object>> pickup(@RequestParam("nonce") String nonce) {
-      if(nonce.isBlank()) {
+      if(nonce.isBlank() || !isWellFormedNonce(nonce)) {
          return ResponseEntity.badRequest().build();
       }
 
@@ -132,6 +132,23 @@ public class WizAuthCallbackController {
    // -------------------------------------------------------------------------
    // Helpers
    // -------------------------------------------------------------------------
+
+   /**
+    * Minimum acceptable length for a pickup nonce. The nonce itself is generated outside this
+    * codebase (by the MCP plugin / login_start flow), so the exact length/format is not
+    * documented here. This is a conservative floor to reject obviously-too-short guesses in
+    * addition to the {@code isBlank()} check, mirroring the length/charset validation style used
+    * for pairing codes (see {@link inetsoft.web.wiz.pairing.SheetPairingService#ALPHABET}).
+    */
+   private static final int MIN_NONCE_LENGTH = 16;
+
+   /** Nonces are expected to be URL-safe tokens (letters, digits, {@code -}, {@code _}). */
+   private static final java.util.regex.Pattern NONCE_PATTERN =
+      java.util.regex.Pattern.compile("^[A-Za-z0-9_-]+$");
+
+   private static boolean isWellFormedNonce(String nonce) {
+      return nonce.length() >= MIN_NONCE_LENGTH && NONCE_PATTERN.matcher(nonce).matches();
+   }
 
    private static void writeHtml(HttpServletResponse response, String html) throws IOException {
       response.setContentType("text/html;charset=UTF-8");

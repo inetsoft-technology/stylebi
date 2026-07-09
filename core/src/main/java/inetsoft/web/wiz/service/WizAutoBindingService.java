@@ -31,6 +31,11 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.graph.aesthetic.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.ColorPalettes;
 import java.awt.Color;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
+import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
 import inetsoft.web.vswizard.model.VSWizardData;
@@ -67,7 +72,8 @@ public class WizAutoBindingService {
                                 VSWizardTemporaryInfoService temporaryInfoService,
                                 VSWizardBindingHandler bindingHandler,
                                 VSDefaultRecommendationFactory defaultRecommendationFactory,
-                                WizVsService wizVsService)
+                                WizVsService wizVsService,
+                                SecurityEngine securityEngine)
    {
       this.viewsheetService = viewsheetService;
       this.engine = engine;
@@ -75,6 +81,7 @@ public class WizAutoBindingService {
       this.bindingHandler = bindingHandler;
       this.defaultRecommendationFactory = defaultRecommendationFactory;
       this.wizVsService = wizVsService;
+      this.securityEngine = securityEngine;
    }
 
    public AutoBindingResponse autoBinding(AutoBindingRequest request, Principal user)
@@ -102,6 +109,16 @@ public class WizAutoBindingService {
                                                    boolean skipExecution)
       throws Exception
    {
+      // Action-level gate ("Visual Composer -> Data Viewsheet"): this method may open a brand-new
+      // temporary viewsheet via viewsheetService.openTemporaryViewsheet below. It is reachable from
+      // two public entry points — autoBinding() directly, and changeType()'s fallback when its
+      // cached recommendation runtime is missing/expired — so the check is enforced here, at the
+      // single choke point both paths share, rather than duplicated in each caller.
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       List<SimpleFieldInfo> fieldConfigs = request.getFieldConfigs() != null
          ? request.getFieldConfigs() : Collections.emptyList();
       String worksheetId = request.getWorksheetId();
@@ -2049,6 +2066,13 @@ public class WizAutoBindingService {
    public CreateViewsheetResult setChartFormat(ChartFormatRequest request, Principal user)
       throws Exception
    {
+      // Action-level gate ("Visual Composer -> Data Viewsheet"): mutates and (below) persists a
+      // viewsheet, so require the composer action right before touching the runtime. Mirrors autoBinding.
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       RuntimeViewsheet rvs = WizUtil.getViewsheetOrRestore(
          viewsheetService, request.getWizRuntimeId(), request.getViewsheetIdentifier(), user);
 
@@ -2243,6 +2267,13 @@ public class WizAutoBindingService {
    public CreateViewsheetResult setChartColors(ChartColorsRequest request, Principal user)
       throws Exception
    {
+      // Action-level gate ("Visual Composer -> Data Viewsheet"): mutates and (below) persists a
+      // viewsheet, so require the composer action right before touching the runtime. Mirrors autoBinding.
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       RuntimeViewsheet rvs = WizUtil.getViewsheetOrRestore(
          viewsheetService, request.getWizRuntimeId(), request.getViewsheetIdentifier(), user);
 
@@ -2499,4 +2530,5 @@ public class WizAutoBindingService {
    private final VSWizardBindingHandler bindingHandler;
    private final VSDefaultRecommendationFactory defaultRecommendationFactory;
    private final WizVsService wizVsService;
+   private final SecurityEngine securityEngine;
 }

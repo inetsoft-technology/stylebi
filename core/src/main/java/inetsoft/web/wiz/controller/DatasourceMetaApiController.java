@@ -82,10 +82,11 @@ public class DatasourceMetaApiController {
 
    @PostMapping("/datasource/table/meta")
    public OsiDataset getDatabaseTableMeta(
-      @RequestBody GetDatabaseTableMetaRequest data)
+      @RequestBody GetDatabaseTableMetaRequest data,
+      Principal principal)
       throws Exception
    {
-      return metadataService.getMetaData(data);
+      return metadataService.getMetaData(data, principal);
    }
 
    @GetMapping("/ws/meta/{id}")

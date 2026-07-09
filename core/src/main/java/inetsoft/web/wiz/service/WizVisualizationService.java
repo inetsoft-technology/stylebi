@@ -120,8 +120,25 @@ public class WizVisualizationService {
             "Cannot parse sourceViewsheetIdentifier: " + event.getSourceViewsheetIdentifier());
       }
 
+      String sourceVsPath = sourceVsEntry.getPath();
+
+      // Restrict to the managed wiz folders, mirroring ViewsheetRuntimeController#openViewsheet /
+      // #verifyViewsheet: VISUALIZATION_ROOT_FOLDER_PATH holds wiz session viewsheets (the
+      // "chat's shared ViewSheet" this method is documented to read from), and
+      // VISUALIZATION_COMPONENTS_FOLDER_PATH holds previously-saved visualizations.
+      if(sourceVsPath == null ||
+         !(sourceVsPath.startsWith(VISUALIZATION_ROOT_FOLDER_PATH + "/") ||
+           sourceVsPath.startsWith(VISUALIZATION_COMPONENTS_FOLDER_PATH + "/")))
+      {
+         throw new IllegalArgumentException(
+            "Source viewsheet is not in the managed visualizations folder: " + sourceVsPath);
+      }
+
+      // permission=true is required here: sourceVsEntry is built directly from an
+      // attacker-controlled request field, so the READ permission check must actually run
+      // (see checkAssetPermission) instead of being silently skipped.
       Viewsheet sourceVs = (Viewsheet) assetRepository.getSheet(
-         sourceVsEntry, principal, false, AssetContent.ALL);
+         sourceVsEntry, principal, true, AssetContent.ALL);
 
       if(sourceVs == null) {
          throw new IllegalStateException(

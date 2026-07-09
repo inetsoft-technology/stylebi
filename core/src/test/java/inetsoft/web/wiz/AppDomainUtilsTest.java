@@ -18,6 +18,7 @@
 package inetsoft.web.wiz;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.XPrincipal;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -97,10 +98,62 @@ class AppDomainUtilsTest {
       OrganizationDomains domains = new OrganizationDomains();
       domains.setId("global.example");
 
-      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class);
+          MockedStatic<OrganizationManager> orgManagerStatic = mockStatic(OrganizationManager.class))
+      {
+         OrganizationManager orgManager = mock(OrganizationManager.class);
+         orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+         when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+
          AppDomainUtils.setAppDomains(domains, principal);
 
          sreeEnv.verify(() -> SreeEnv.setProperty("app.domains", "global.example", true));
+      }
+   }
+
+   @Test
+   void setAppDomainsThrowsForNonAdminUser() {
+      XPrincipal principal = mock(XPrincipal.class);
+      when(principal.getOrgId()).thenReturn("customerOrg");
+
+      OrganizationDomains domains = new OrganizationDomains();
+      domains.setId("attacker.example");
+
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class);
+          MockedStatic<OrganizationManager> orgManagerStatic = mockStatic(OrganizationManager.class))
+      {
+         OrganizationManager orgManager = mock(OrganizationManager.class);
+         orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+         when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+         when(orgManager.isOrgAdmin(principal)).thenReturn(false);
+
+         assertThrows(SecurityException.class,
+                      () -> AppDomainUtils.setAppDomains(domains, principal));
+
+         sreeEnv.verifyNoInteractions();
+      }
+   }
+
+   @Test
+   void setAppDomainsAllowsOrgAdminEvenWhenNotSiteAdmin() {
+      XPrincipal principal = mock(XPrincipal.class);
+      when(principal.getOrgId()).thenReturn("customerOrg");
+
+      OrganizationDomains domains = new OrganizationDomains();
+      domains.setId("customer.example");
+
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class);
+          MockedStatic<OrganizationManager> orgManagerStatic = mockStatic(OrganizationManager.class))
+      {
+         OrganizationManager orgManager = mock(OrganizationManager.class);
+         orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+         when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+         when(orgManager.isOrgAdmin(principal)).thenReturn(true);
+
+         AppDomainUtils.setAppDomains(domains, principal);
+
+         sreeEnv.verify(() -> SreeEnv.setProperty(
+            "app.domains.customerOrg", "customer.example", true));
       }
    }
 
@@ -141,7 +194,13 @@ class AppDomainUtilsTest {
       domains.setId("customer.example");
       domains.setSubDomainIds(List.of("sub.customer.example"));
 
-      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class);
+          MockedStatic<OrganizationManager> orgManagerStatic = mockStatic(OrganizationManager.class))
+      {
+         OrganizationManager orgManager = mock(OrganizationManager.class);
+         orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+         when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+
          AppDomainUtils.setAppDomains(domains, principal);
 
          sreeEnv.verify(() -> SreeEnv.setProperty(

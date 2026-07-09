@@ -22,6 +22,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -37,9 +41,11 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
+import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.osi.*;
@@ -74,7 +80,9 @@ public class WorksheetTableService {
                                 LayoutGraphService layoutGraphService,
                                 QueryManagerService queryManagerService,
                                 XRepository xrepository,
-                                ObjectMapper objectMapper)
+                                ObjectMapper objectMapper,
+                                DataSourceService dataSourceService,
+                                SecurityEngine securityEngine)
    {
       this.viewsheetService = viewsheetService;
       this.metadataApiService = metadataApiService;
@@ -83,6 +91,21 @@ public class WorksheetTableService {
       this.queryManagerService = queryManagerService;
       this.xrepository = xrepository;
       this.objectMapper = objectMapper;
+      this.dataSourceService = dataSourceService;
+      this.securityEngine = securityEngine;
+   }
+
+   /**
+    * Verifies the "Visual Composer -> Data Worksheet" action permission (EM Security -> Actions).
+    * This is the same action-level gate that {@code OpenWorksheetController}/
+    * {@code SaveWorksheetController} apply to every worksheet open/create/save entry point;
+    * it is independent of (and checked before) any asset- or datasource-level permission.
+    */
+   private void checkWorksheetActionPermission(Principal user) throws Exception {
+      if(!securityEngine.checkPermission(user, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
    }
 
    // ─── Public entry point ───────────────────────────────────────────────────
@@ -90,6 +113,10 @@ public class WorksheetTableService {
    public WorksheetTablesResponse createTables(WorksheetTableRequest request, Principal user)
       throws Exception
    {
+      // Action-level gate ("Visual Composer -> Data Worksheet"): checked first, before any
+      // asset- or datasource-level permission and before any worksheet construction/mutation.
+      checkWorksheetActionPermission(user);
+
       // 1. Load or create the worksheet — once for the whole batch.
       Worksheet worksheet;
       AssetEntry worksheetEntry;
@@ -97,7 +124,7 @@ public class WorksheetTableService {
       if(request.getWorksheetId() != null) {
          worksheetEntry = AssetEntry.createAssetEntry(request.getWorksheetId());
          AbstractSheet sheet = viewsheetService.getAssetRepository()
-            .getSheet(worksheetEntry, user, false, AssetContent.ALL);
+            .getSheet(worksheetEntry, user, true, AssetContent.ALL);
 
          if(!(sheet instanceof Worksheet ws)) {
             throw new IllegalArgumentException(
@@ -324,6 +351,8 @@ public class WorksheetTableService {
    public WorksheetModel getWorksheetModel(String wsIdentifier, Principal user)
       throws Exception
    {
+      checkWorksheetActionPermission(user);
+
       if(Tool.isEmptyString(wsIdentifier)) {
          throw new IllegalArgumentException("wsIdentifier is required");
       }
@@ -407,6 +436,8 @@ public class WorksheetTableService {
                                                      Principal user)
       throws Exception
    {
+      checkWorksheetActionPermission(user);
+
       if(request.getWorksheetId() == null) {
          throw new IllegalArgumentException("worksheetId is required");
       }
@@ -417,7 +448,7 @@ public class WorksheetTableService {
 
       AssetEntry worksheetEntry = AssetEntry.createAssetEntry(request.getWorksheetId());
       AbstractSheet sheet = viewsheetService.getAssetRepository()
-         .getSheet(worksheetEntry, user, false, AssetContent.ALL);
+         .getSheet(worksheetEntry, user, true, AssetContent.ALL);
 
       if(!(sheet instanceof Worksheet worksheet)) {
          throw new IllegalArgumentException("worksheetId does not reference a worksheet: "
@@ -599,6 +630,31 @@ public class WorksheetTableService {
          throw new IllegalArgumentException("tableType is required");
       }
 
+      // Verify READ permission on the datasource before resolving/using it (physical table and
+      // sql query table both bind to one via physicalSource; mirror/join tables only reference
+      // already-in-worksheet assemblies, so there is no new datasource to check for them).
+      // Mirrors WorksheetAgentController.addLogicalModelTable's usage of DataSourceService.
+      WorksheetTableRequest.PhysicalSource src = request.getPhysicalSource();
+
+      if(src != null && src.getDatasourcePath() != null &&
+         !dataSourceService.checkPermission(src.getDatasourcePath(), ResourceAction.READ, user))
+      {
+         throw new IllegalArgumentException(
+            "Access denied: no READ permission on datasource " + src.getDatasourcePath());
+      }
+
+      // Free-Form SQL action gate ("Visual Composer -> Free Form SQL"): a raw sql query table
+      // executes caller-authored SQL verbatim against the datasource (parsing disabled), so it
+      // must be gated exactly like the SQL query dialog and WorksheetAgentController.addSqlQuery/
+      // editSqlQuery. WORKSHEET/ACCESS + datasource READ (checked above) are not sufficient — a
+      // user allowed to pick tables but denied free-form SQL must not reach this path.
+      if("sql query table".equals(tableType) &&
+         !securityEngine.checkPermission(user, ResourceType.FREE_FORM_SQL, "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       AbstractTableAssembly table = switch(tableType) {
          case "physical table"        -> buildPhysicalTable(worksheet, request, user);
          case "mirror table"          -> buildMirrorTable(worksheet, request);
@@ -657,7 +713,7 @@ public class WorksheetTableService {
          metaReq.setCatalog(src.getCatalog());
          metaReq.setSchema(src.getSchema());
          metaReq.setTableName(src.getTableName());
-         OsiDataset metaData = metadataApiService.getMetaData(metaReq);
+         OsiDataset metaData = metadataApiService.getMetaData(metaReq, user);
          ColumnSelection cs = buildColumnSelectionFromMeta(metaData);
          table.setColumnSelection(cs);
       }
@@ -1941,7 +1997,7 @@ public class WorksheetTableService {
    {
       AssetEntry worksheetEntry = AssetEntry.createAssetEntry(wsIdentifier);
       AbstractSheet sheet = viewsheetService.getAssetRepository()
-         .getSheet(worksheetEntry, user, false, AssetContent.ALL);
+         .getSheet(worksheetEntry, user, true, AssetContent.ALL);
 
       if(!(sheet instanceof Worksheet worksheet)) {
          throw new IllegalArgumentException(
@@ -2021,6 +2077,8 @@ public class WorksheetTableService {
    private final QueryManagerService queryManagerService;
    private final XRepository xrepository;
    private final ObjectMapper objectMapper;
+   private final DataSourceService dataSourceService;
+   private final SecurityEngine securityEngine;
 
    private static String rootMessage(Throwable t) {
       Throwable root = t;

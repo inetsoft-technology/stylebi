@@ -19,6 +19,8 @@ package inetsoft.web.wiz.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.ExpiredSheetException;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.AssetEntry;
@@ -35,6 +37,7 @@ import java.security.Principal;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -60,6 +63,7 @@ class WizAutoBindingServiceSetChartFormatTest {
    private Viewsheet vs;
    private ChartVSAssemblyInfo info;
    private ViewsheetSandbox box;
+   private SecurityEngine securityEngine;
 
    @BeforeEach
    void setUp() throws Exception {
@@ -67,8 +71,10 @@ class WizAutoBindingServiceSetChartFormatTest {
       wizVsService = mock(WizVsService.class);
       // collaborators not used by setChartFormat; their classes can't be initialized in a plain
       // unit-test environment (no Spring context), so pass null instead of mocks.
+      securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
       service = new WizAutoBindingService(
-         viewsheetService, null, null, null, null, wizVsService);
+         viewsheetService, null, null, null, null, wizVsService, securityEngine);
 
       // getChartInfo() and getVSAssemblyInfo() both return the ChartVSAssemblyInfo for a chart;
       // one mock backs both. A title-only request leaves the descriptor null, so every axis/
@@ -150,6 +156,20 @@ class WizAutoBindingServiceSetChartFormatTest {
       service.setChartFormat(titleRequest(null), null);
 
       verify(info).setTitleValue("Contacts per Account");
+      verify(wizVsService, never()).persistViewsheet(any(), any(), any());
+   }
+
+   @Test
+   void deniedPermissionThrowsAndSkipsRuntimeLookupAndMutation() throws Exception {
+      // The action gate is the first statement in setChartFormat, before the runtime is even
+      // resolved. A denied caller must throw and touch nothing.
+      when(securityEngine.checkPermission(any(), any(), anyString(), any())).thenReturn(false);
+
+      assertThrows(SecurityException.class,
+         () -> service.setChartFormat(titleRequest("visualizations-xyz"), null));
+
+      verify(viewsheetService, never()).getViewsheet(anyString(), any());
+      verify(info, never()).setTitleValue(any());
       verify(wizVsService, never()).persistViewsheet(any(), any(), any());
    }
 }
