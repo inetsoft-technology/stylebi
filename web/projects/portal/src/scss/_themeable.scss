@@ -1262,6 +1262,13 @@ binding-editor {
   background-color: var(--inet-toolbar-bg-color);
 }
 
+// active sort only (asc/desc) — leave the passive hover affordance neutral.
+// !important to beat the ineticons .icon-color-default color set on the glyph.
+.viz-modern .vs-header-cell-button-sort.sort-ascending-icon,
+.viz-modern .vs-header-cell-button-sort.sort-descending-icon {
+  color: var(--inet-viz-sorted-color) !important;
+}
+
 .cancelled-sheet-overlay {
   pointer-events: none;
   width: 100%;
