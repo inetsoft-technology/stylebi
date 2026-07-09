@@ -273,12 +273,19 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       };
 
       putConstantScope(bindings, "Chart", chartcls);
-      putConstantScope(bindings, "GLine", inetsoft.graph.aesthetic.GLine.class);
-      putConstantScope(bindings, "GTexture", inetsoft.graph.aesthetic.GTexture.class);
-      // GShape upgraded to JavaClassProxy so GShape.ImageShape (a public static
-      // nested class) is accessible in chart scripts alongside the static constants.
+      // GLine/GTexture/GShape/SVGShape are Java classes with both public
+      // constructors and public static final constants. Rhino exposed them as a
+      // NativeJavaClass, so scripts both construct them (new GLine(3), used by
+      // elem.setLineFrame(new StaticLineFrame(new GLine(3)))) and read their
+      // constants (GLine.THIN_LINE). A ConstantScope only surfaces the constants
+      // and is not instantiable ("instantiate on ScopeProxy ... Message not
+      // supported"), so register them as JavaClassProxy, which allowPublicAccess
+      // makes serve both the static constants and `new`.
+      putClassProxy(bindings, "GLine", "inetsoft.graph.aesthetic.GLine");
+      putClassProxy(bindings, "GTexture", "inetsoft.graph.aesthetic.GTexture");
+      // GShape also exposes GShape.ImageShape (a public static nested class).
       putClassProxy(bindings, "GShape", "inetsoft.graph.aesthetic.GShape");
-      putConstantScope(bindings, "SVGShape", inetsoft.graph.aesthetic.SVGShape.class);
+      putClassProxy(bindings, "SVGShape", "inetsoft.graph.aesthetic.SVGShape");
 
       installChartClasses(bindings);
 

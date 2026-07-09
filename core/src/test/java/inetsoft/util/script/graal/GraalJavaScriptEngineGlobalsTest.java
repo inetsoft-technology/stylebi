@@ -85,4 +85,32 @@ class GraalJavaScriptEngineGlobalsTest {
       assertInstanceOf(Double.class, result);
       assertEquals(1.0, result);
    }
+
+   // Bug: chart scripts construct these aesthetic classes, e.g.
+   // elem.setLineFrame(new StaticLineFrame(new GLine(3))). GLine/GTexture/SVGShape
+   // are Java classes with both public constructors and public static final
+   // constants; Rhino exposed them as NativeJavaClass (both new and constants).
+   @Test
+   void gLineIsConstructable() throws Exception {
+      Object result = eval("new GLine(3)");
+      assertInstanceOf(inetsoft.graph.aesthetic.GLine.class, result);
+   }
+
+   @Test
+   void gLineConstantStillResolves() throws Exception {
+      Object result = eval("GLine.THIN_LINE");
+      assertInstanceOf(inetsoft.graph.aesthetic.GLine.class, result);
+   }
+
+   @Test
+   void gTextureIsConstructable() throws Exception {
+      Object result = eval("new GTexture()");
+      assertInstanceOf(inetsoft.graph.aesthetic.GTexture.class, result);
+   }
+
+   @Test
+   void svgShapeIsConstructable() throws Exception {
+      Object result = eval("new SVGShape()");
+      assertInstanceOf(inetsoft.graph.aesthetic.SVGShape.class, result);
+   }
 }
