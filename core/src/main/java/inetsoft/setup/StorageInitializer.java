@@ -35,7 +35,6 @@ import inetsoft.util.log.logback.AuditLogFilter;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.context.annotation.*;
-import org.springframework.context.support.AbstractApplicationContext;
 import picocli.CommandLine;
 
 import java.io.*;
@@ -400,8 +399,15 @@ public class StorageInitializer implements Callable<Integer> {
          try {
             InetsoftConfig.bootstrap();
 
-            try(AbstractApplicationContext applicationContext = new AnnotationConfigApplicationContext(ClusterConfig.class)) {
+            try(AnnotationConfigApplicationContext applicationContext = new AnnotationConfigApplicationContext()) {
+               // Register the config and publish the context to ConfigurationContext BEFORE
+               // refreshing. refresh() eagerly instantiates singletons (including the cluster
+               // bean, whose IgniteCluster constructor resolves PasswordEncryption via
+               // ConfigurationContext.getSpringBean). If the context isn't published first,
+               // that lookup sees a null applicationContext and throws ShutdownException.
+               applicationContext.register(ClusterConfig.class);
                configContext.setApplicationContext(applicationContext);
+               applicationContext.refresh();
                Cluster.getInstance().submit("plugins", new LoadKeyValueTask<>("plugins", true));
                context.attributes().put("pluginsInstalled", false);
             }
