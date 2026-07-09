@@ -32,11 +32,11 @@
  *     model + form are both present and valid
  *   Group 5 [Risk 1] — cancel(): emits onCancel
  *
- * Confirmed bugs (it.fails):
- *   Bug — ok() subscribe leak: http.get().subscribe() stores no Subscription reference; if the
- *     component is destroyed while the HTTP call is in-flight the callback still runs and can
- *     emit onCommit on a destroyed component. Fix: store the subscription and unsubscribe
- *     in ngOnDestroy.
+ * Fixed bugs:
+ *   Bug #75598 — ok() subscribe leak: http.get().subscribe() stored no Subscription reference; if
+ *     the component was destroyed while the HTTP call was in-flight the callback still ran and
+ *     could emit onCommit on a destroyed component. Fixed by storing the subscription and
+ *     unsubscribing in ngOnDestroy.
  *
  * Out of scope:
  *   form validators correctness — FormValidators are library-level; only correct-input happy
@@ -195,10 +195,11 @@ describe("SaveTableStyleDialog — ok()", () => {
       expect(emitSpy).not.toHaveBeenCalled();
    });
 
-   // Bug: ok() calls http.get().subscribe() without storing the Subscription. After component
-   // destruction the callback still fires and calls this.onCommit.emit(). Fix: store the
-   // subscription in a field and unsubscribe in ngOnDestroy.
-   it.fails("should not emit after component is destroyed (subscribe leak)", async () => {
+   // Regression test for Bug #75598: ok() called http.get().subscribe() without storing the
+   // Subscription. After component destruction the callback still fired and called
+   // this.onCommit.emit(). Fixed by storing the subscription in a field and unsubscribing in
+   // ngOnDestroy.
+   it("should not emit after component is destroyed (subscribe leak)", async () => {
       const { comp, fixture } = await renderComponent();
       const subject = new Subject<any>();
       HTTP_MOCK.get.mockReturnValue(subject.asObservable());
@@ -210,8 +211,7 @@ describe("SaveTableStyleDialog — ok()", () => {
       subject.next({ alreadyExists: null, permissionDenied: null });
       await Promise.resolve();
 
-      // With fix: emit should NOT have been called after destroy
-      // Currently: FAILS — callback still runs
+      // emit should NOT have been called after destroy
       expect(emitSpy).not.toHaveBeenCalled();
    });
 });

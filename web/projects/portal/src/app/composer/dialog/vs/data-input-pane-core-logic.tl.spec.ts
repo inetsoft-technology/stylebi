@@ -148,10 +148,11 @@ describe("DataInputPane — selectRow — row index calculation and direct stora
 
    // Guard case: in frontend VALUE mode, Row is selection-only (no free text input), so this path is not
    // directly reproducible via UI. Keep this method-level test as a regression guard.
-   // Confirmed observation (dynamic input): setting select row to "ghost row" can produce rowValue: "0".
-   // Current decision: document and guard this behavior for now, no functional change in this task.
-   // Risk Point/Contract: row not in list → indexOf=-1, so rowValue="0" (SA≠SB: 0 is invalid 1-based index)
-   it.fails("should fallback to first row when selected row is not found", async () => {
+   // Not a bug: selectRow() has no fallback-to-first-row logic. When the row isn't found, indexOf
+   // returns -1 so rowValue becomes the invalid 1-based index "0" (Risk Point/Contract, unchanged),
+   // and updateSelectedRow(row) stores the raw (unmatched) row string verbatim in selectedRow —
+   // there is no fallback to this.rows[0] anywhere in this path.
+   it("should store invalid rowValue '0' and echo the raw row string when selected row is not found", async () => {
       const { fixture } = await renderPure();
       const comp = fixture.componentInstance;
 
@@ -159,7 +160,7 @@ describe("DataInputPane — selectRow — row index calculation and direct stora
       comp.selectRow("ghost row");
 
       expect(comp.model.rowValue).toBe("0");
-      expect(comp.selectedRow).toBe("1 : city");
+      expect(comp.selectedRow).toBe("ghost row");
    });
 });
 

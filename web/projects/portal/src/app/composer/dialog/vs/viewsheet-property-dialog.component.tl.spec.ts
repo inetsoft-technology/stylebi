@@ -32,11 +32,15 @@
  *   Group 6 [Risk 1] — isDefaultOrgAsset(): returns false when viewsheet is absent; returns false
  *     when viewsheet.id is absent
  *
- * Confirmed bugs (it.fails):
- *   Bug — constructor subscribe leak: appInfoService.getCurrentOrgInfo().subscribe() stores no
- *     Subscription. If the component is destroyed while the service observable is still live the
- *     callback runs and sets this.orgInfo on a destroyed component. Fix: store the subscription
- *     and unsubscribe in ngOnDestroy.
+ * Fixed bugs (Bug #75598):
+ *   constructor subscribe leak: appInfoService.getCurrentOrgInfo().subscribe() stored no
+ *     Subscription. If the component was destroyed while the service observable was still live
+ *     the callback ran and set this.orgInfo on a destroyed component. Fixed by storing the
+ *     subscription and unsubscribing in ngOnDestroy.
+ *   testScript() subscribe leak: httpClient.post().pipe().subscribe() stored no Subscription
+ *     reference. If the component was destroyed while the HTTP call was in-flight the callback
+ *     still ran and emitted onCommit. Fixed by storing the subscription and unsubscribing
+ *     in ngOnDestroy.
  *
  * Out of scope:
  *   Full modal rendering — tabbed-dialog is complex multi-component; DOM assertions are
@@ -199,10 +203,10 @@ describe("ViewsheetPropertyDialog — testScript", () => {
       expect(testScriptSpy).toHaveBeenCalledWith(false);
    });
 
-   // Bug: httpClient.post().pipe().subscribe() stores no Subscription reference. After component
-   // destruction the callback still runs and emits onCommit. Fix: store the subscription and
-   // unsubscribe in ngOnDestroy.
-   it.fails("should not emit after component is destroyed (subscribe leak)", async () => {
+   // Regression test for Bug #75598: httpClient.post().pipe().subscribe() stored no Subscription
+   // reference. After component destruction the callback still ran and emitted onCommit. Fixed by
+   // storing the subscription and unsubscribing in ngOnDestroy.
+   it("should not emit after component is destroyed (subscribe leak)", async () => {
       const { comp, fixture } = await renderComponent();
       const subject = new Subject<any>();
       HTTP_MOCK.post.mockReturnValue(subject.asObservable());
@@ -214,8 +218,7 @@ describe("ViewsheetPropertyDialog — testScript", () => {
       subject.next(null);
       await Promise.resolve();
 
-      // With fix: emit should NOT have been called after destroy
-      // Currently: FAILS — callback still runs
+      // emit should NOT have been called after destroy
       expect(emitSpy).not.toHaveBeenCalled();
    });
 });
@@ -321,14 +324,15 @@ describe("ViewsheetPropertyDialog — isDefaultOrgAsset", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Constructor subscribe leak (it.fails — tracks unfixed bug)
+// Constructor subscribe leak (regression test for Bug #75598)
 // ---------------------------------------------------------------------------
 
 describe("ViewsheetPropertyDialog — constructor subscribe leak", () => {
-   // Bug: constructor calls appInfoService.getCurrentOrgInfo().subscribe() without storing the
-   // Subscription. After component destruction the callback still runs and sets this.orgInfo.
-   // Fix: store the subscription and unsubscribe in ngOnDestroy.
-   it.fails("should not set orgInfo after component is destroyed (constructor subscribe leak)", async () => {
+   // Regression test for Bug #75598: constructor called appInfoService.getCurrentOrgInfo()
+   // .subscribe() without storing the Subscription. After component destruction the callback
+   // still ran and set this.orgInfo. Fixed by storing the subscription and unsubscribing in
+   // ngOnDestroy.
+   it("should not set orgInfo after component is destroyed (constructor subscribe leak)", async () => {
       const subject = new Subject<{ key: string; value: string }>();
       APP_INFO_MOCK.getCurrentOrgInfo.mockReturnValue(subject.asObservable());
       const { comp, fixture } = await renderComponent();
@@ -337,8 +341,7 @@ describe("ViewsheetPropertyDialog — constructor subscribe leak", () => {
       subject.next({ key: "org2", value: "Org 2" });
       await Promise.resolve();
 
-      // With fix: orgInfo should remain null (subject emitted after destroy)
-      // Currently: FAILS — callback still runs and sets orgInfo
+      // orgInfo should remain null (subject emitted after destroy)
       expect(comp["orgInfo"]).toBeNull();
    });
 });

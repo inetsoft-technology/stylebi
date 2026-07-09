@@ -39,10 +39,11 @@
  *                        editingElement, getSelectedItem, checkModified, getSelectedEntity,
  *                        keyDown
  *
- * Confirmed bugs (it.fails):
- *   Group 10 — post-destroy HTTP callback fires: checkOuterDependencies does not store
- *   the subscription and has no ngOnDestroy, so the POST callback can fire on a destroyed
- *   component when the request resolves after fixture.destroy().
+ * Fixed bugs (Bug #75599):
+ *   Group 10 — post-destroy HTTP callback fired: checkOuterDependencies did not store
+ *   the subscription and the component had no ngOnDestroy, so the POST callback could fire
+ *   on a destroyed component when the request resolved after fixture.destroy(). Fixed by
+ *   storing the Subscription and unsubscribing it in ngOnDestroy().
  *
  * Suspected bugs (out of scope — identified but not reproduced here):
  *   isDuplicateAttribute(): dupColumn check uses `attr.name === attribute.name` — the same
@@ -890,21 +891,19 @@ describe("LogicalModelPropertyPane — isElementSelected, editingElement, getSel
 });
 
 // ---------------------------------------------------------------------------
-// Group 10 — memory leak: HTTP in-flight + destroy [it.fails]
+// Group 10 — memory leak: HTTP in-flight + destroy [fixed, Bug #75599]
 // ---------------------------------------------------------------------------
 
 describe("LogicalModelPropertyPane — subscription leak after destroy", () => {
-   // Expected failure: `expect(NOTIFICATIONS_MOCK.danger).not.toHaveBeenCalled()` fails
-   // because the httpClient.post().subscribe() callback in checkOuterDependencies has no
-   // takeUntilDestroyed guard. When the request resolves after fixture.destroy(), the
-   // callback fires on the dead component, calls ComponentTool.showConfirmDialog, which
-   // eventually cascades to deleteSelectedItem0() and emits checkModify. In this test the
-   // mock confirmDialog resolves to "ok", triggering deleteEntity() which calls
-   // notifications indirectly via checkModified(). The root symptom is that
-   // checkModify.emit() or the modal spy is called after destroy.
-   // If the test fails for a reason OTHER than the expect (e.g. fixture.destroy() throws),
-   // verify the failure is an AssertionError, not an exception.
-   it.fails("post-destroy HTTP callback should not fire deleteSelectedItem0", async () => {
+   // Bug #75599 (FIXED): the httpClient.post().subscribe() callback in
+   // checkOuterDependencies previously had no stored Subscription and the component had no
+   // ngOnDestroy, so when the request resolved after fixture.destroy(), the callback still
+   // fired on the dead component, calling ComponentTool.showConfirmDialog, which cascaded to
+   // deleteSelectedItem0() and emitted checkModify. In this test the mock confirmDialog
+   // resolves to "ok", which would have triggered deleteEntity(). The fix stores the
+   // Subscription returned by subscribe() and unsubscribes it in ngOnDestroy(), so the
+   // callback no longer fires post-destroy.
+   it("post-destroy HTTP callback should not fire deleteSelectedItem0", async () => {
       let resolvePost: (v: Response) => void;
       server.use(
          http.post("*/api/data/logicalmodel/checkOuterDependencies", () =>
@@ -922,6 +921,9 @@ describe("LogicalModelPropertyPane — subscription leak after destroy", () => {
       comp.selectedEles = [{ entity: 0, attribute: -1 }];
       comp.editingEle = { entity: 0, attribute: -1 };
       comp.deleteEntityByIndex(0); // triggers in-flight POST
+
+      // Wait for MSW to actually dispatch the request and capture the resolver before destroying
+      await waitFor(() => expect(resolvePost).toBeDefined());
 
       fixture.destroy();
 

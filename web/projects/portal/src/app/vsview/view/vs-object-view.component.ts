@@ -86,6 +86,7 @@ export class VSObjectView extends CommandProcessor implements OnDestroy, OnInit,
    @ViewChild("objectView") objectView: ElementRef;
    @ViewChild("object") object: AbstractVSObject<VSObjectModel>;
    @ViewChild("calcObject") calcObject: CalcTableLayoutPane;
+   private getFormatsTimer: any;
 
    constructor(private clientService: ViewsheetClientService,
                private actionFactory: AssemblyActionFactory,
@@ -110,6 +111,7 @@ export class VSObjectView extends CommandProcessor implements OnDestroy, OnInit,
    }
 
    ngOnDestroy(): void {
+      clearTimeout(this.getFormatsTimer);
       super.cleanup();
    }
 
@@ -243,7 +245,7 @@ export class VSObjectView extends CommandProcessor implements OnDestroy, OnInit,
 
    @HostListener("click", ["$event"])
    getFormats(event: MouseEvent): void {
-      setTimeout(() => {
+      this.getFormatsTimer = setTimeout(() => {
          this.onUpdateData.emit("getCurrentFormat");
       }, 250);
    }

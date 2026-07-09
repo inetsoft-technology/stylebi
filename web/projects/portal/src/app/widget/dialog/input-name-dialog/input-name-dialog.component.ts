@@ -28,13 +28,14 @@ import {
    NgZone,
    ChangeDetectorRef,
    OnInit,
-   OnChanges
+   OnChanges,
+   OnDestroy
 } from "@angular/core";
 import { UntypedFormControl, ValidatorFn, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { HttpErrorResponse } from "@angular/common/http";
-import { Observable } from "rxjs";
+import { Observable, Subscription } from "rxjs";
 import { ComponentTool } from "../../../common/util/component-tool";
 
 import { EnterSubmitDirective } from "../../directive/enter-submit.directive";
@@ -50,7 +51,7 @@ export interface ValidatorMessageInfo {
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule]
 })
-export class InputNameDialog implements OnChanges, OnInit, AfterViewInit {
+export class InputNameDialog implements OnChanges, OnInit, AfterViewInit, OnDestroy {
    @Input() validators: ValidatorFn[] = [
       FormValidators.required,
       FormValidators.alphanumericalCharacters,
@@ -71,6 +72,7 @@ export class InputNameDialog implements OnChanges, OnInit, AfterViewInit {
 
    control: UntypedFormControl;
    formValid = () => !!this.control && !this.control.errors;
+   private duplicateCheckSubscription: Subscription;
 
    constructor(private zone: NgZone,
                private modalService: NgbModal,
@@ -101,7 +103,7 @@ export class InputNameDialog implements OnChanges, OnInit, AfterViewInit {
       newName = newName.replace(/[\x00-\x1F\x7F]/g, "");
 
       if(!!this.hasDuplicateCheck && this.value != this.control.value.trim()) {
-         this.hasDuplicateCheck(newName).subscribe(
+         this.duplicateCheckSubscription = this.hasDuplicateCheck(newName).subscribe(
             (duplicate: boolean) => {
                if(duplicate) {
                   this.zone.run(() => {
@@ -138,6 +140,10 @@ export class InputNameDialog implements OnChanges, OnInit, AfterViewInit {
 
    cancel(): void {
       this.onCancel.emit("cancel");
+   }
+
+   ngOnDestroy(): void {
+      this.duplicateCheckSubscription?.unsubscribe();
    }
 
    get errorMessage(): string {
