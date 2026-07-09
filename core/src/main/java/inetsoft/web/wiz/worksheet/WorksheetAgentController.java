@@ -782,9 +782,13 @@ public class WorksheetAgentController {
                                                 a.field(), a.formula(), a.alias()))
                                             .toList()
                                         : List.of());
-         case "add_expression_column" ->
+         case "add_expression_column" -> {
+            if(req.name() == null || req.name().isBlank()) {
+               throw new PairingException("name is required for add_expression_column.");
+            }
             editor.addExpressionColumn(req.table(), req.name(), req.expression(),
                                        req.type(), req.sql());
+         }
          case "set_sort" ->
             editor.setSort(req.table(), req.field(), req.direction());
          case "add_join" ->
@@ -800,9 +804,13 @@ public class WorksheetAgentController {
                                  req.values() != null
                                     ? req.values().toArray(new String[0])
                                     : new String[0]);
-         case "edit_expression" ->
+         case "edit_expression" -> {
+            if(req.name() == null || req.name().isBlank()) {
+               throw new PairingException("name is required for edit_expression.");
+            }
             editor.editExpression(req.table(), req.name(), req.expression(),
                                   req.type(), req.sql());
+         }
          case "edit_join" ->
             editor.editJoin(req.name(), req.leftKey(), req.rightKey(), req.joinType(),
                             req.leftKeys(), req.rightKeys());
@@ -1081,6 +1089,8 @@ public class WorksheetAgentController {
                "SQL could not be parsed or no columns detected — check syntax and table references.");
          }
 
+         WorksheetMutationSupport.sanitizeSqlColumnNames(columns);
+         WorksheetMutationSupport.sanitizeSqlSelectionAliases(sql);
          sqlTable.setColumnSelection(columns);
          WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
          return null;
@@ -1778,6 +1788,8 @@ public class WorksheetAgentController {
                "SQL could not be parsed or no columns detected — check syntax and table references.");
          }
 
+         WorksheetMutationSupport.sanitizeSqlColumnNames(columns);
+         WorksheetMutationSupport.sanitizeSqlSelectionAliases(sql);
          assembly.setColumnSelection(columns);
          ws.addAssembly(assembly);
 

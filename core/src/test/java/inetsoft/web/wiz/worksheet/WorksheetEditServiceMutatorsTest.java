@@ -25,6 +25,7 @@ import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
@@ -240,6 +241,103 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    @Test
+   void reAggregatingSameTableClearsStalePriorAlias() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cust", "store", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // First pass: per-customer average, aliased "customer_avg". This sets the alias
+      // directly on the shared "amount" ColumnRef (the output-naming mechanism).
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", List.of("cust", "store"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "AVG", "customer_avg"))));
+
+      // Second pass on the SAME table (no mirror), attempting to chain by referencing
+      // the first pass's output alias as the new aggregate's input field. Before the
+      // fix, "customer_avg" silently resolved back to the raw "amount" ColumnRef (the
+      // alias was still sitting on it) and computed a flat AVG over un-aggregated rows
+      // — numerically indistinguishable from never aggregating by customer at all, but
+      // presented as if it were the average of per-customer averages. It must now fail
+      // loud instead, since "customer_avg" no longer resolves to anything once the
+      // prior aggregate's aliases are cleared.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("T", List.of("store"),
+               List.of(new WorksheetMutationSupport.AggregateSpec(
+                  "customer_avg", "AVG", "avg_of_avgs")))));
+      assertTrue(ex.getMessage().contains("customer_avg"));
+
+      // The raw "amount" column must be usable again under its own name — clearing the
+      // stale alias must not leave the column unreachable.
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", List.of("store"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", "total"))));
+      assertEquals(1, t.getAggregateInfo().getAggregateCount());
+   }
+
+   @Test
+   void renameAliasSurvivesReAggregation() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cust", "store", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Deliberate rename: writes the SAME ColumnRef.alias field that
+      // applyAggregateInfo uses to label aggregate outputs.
+      svc.apply("TOK", agent, ed -> ed.renameColumn("T", "amount", "revenue"));
+
+      // Aggregate the renamed column WITHOUT an explicit output alias, then
+      // re-aggregate. clearAggregateAliases used to wipe every aggregate ref's alias
+      // indiscriminately, destroying the deliberate rename; it must now clear only the
+      // aliases applyAggregateInfo itself recorded.
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", List.of("cust"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", List.of("store"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+
+      ColumnRef base = (ColumnRef) t.getColumnSelection(false).getAttribute("revenue");
+      assertNotNull(base, "the renamed column must still resolve by its alias");
+      assertEquals("revenue", base.getAlias(),
+         "a rename_column alias on an aggregated column must survive re-aggregation");
+   }
+
+   @Test
+   void renameAliasSurvivesReAggregationAfterFailedIntermediateCall() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cust", "store", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("T", "amount", "revenue"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", List.of("cust"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+
+      // A FAILED intermediate call must not consume the alias bookkeeping of the
+      // still-active AggregateInfo — otherwise the next successful call would fall
+      // into the unknown-provenance clear-all fallback and wipe the rename.
+      assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("T", List.of("no_such_group"),
+               List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null)))));
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", List.of("store"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+
+      ColumnRef base = (ColumnRef) t.getColumnSelection(false).getAttribute("revenue");
+      assertNotNull(base, "the renamed column must still resolve by its alias");
+      assertEquals("revenue", base.getAlias(),
+         "a failed aggregate call in between must not cause the rename to be wiped");
+   }
+
+   @Test
    void setGroupAggregateFailsLoudOnUnknownColumn() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val");
@@ -319,6 +417,71 @@ class WorksheetEditServiceMutatorsTest {
       ColumnRef col3 = (ColumnRef) t.getColumnSelection(false).getAttribute("sql_days");
       String expr3 = ((ExpressionRef) col3.getDataRef()).getExpression();
       assertEquals("field['end_date'] - field['start_date']", expr3);
+   }
+
+   // =========================================================================
+   // Duplicate-name rejection tests — add_column / add_expression_column
+   // =========================================================================
+
+   @Test
+   void addColumnRejectsDuplicateName() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Adding anyway used to fall back to AssetUtil.findAlias, which silently
+      // renamed the new column instead of rejecting the collision.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.addColumn("T", "a", null)));
+      assertTrue(ex.getMessage().contains("already exists"));
+
+      int count = t.getColumnSelection(false).getAttributeCount();
+      assertEquals(2, count, "the duplicate column must not have been added");
+   }
+
+   @Test
+   void addColumnRejectsNameCollidingWithAlias() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("T", "a", "x"));
+
+      // Collides with the ALIAS of an existing column, not its attribute name.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.addColumn("T", "x", null)));
+      assertTrue(ex.getMessage().contains("already exists"));
+   }
+
+   @Test
+   void addExpressionColumnRejectsDuplicateName() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addExpressionColumn("T", "computed", "field['a'] * 2", "integer", false));
+
+      // Same name twice: a second ColumnRef sharing the identity would make later
+      // lookups by name (set_conditions, set_sort, edit_expression, ...) ambiguous.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent,
+            ed -> ed.addExpressionColumn("T", "computed", "field['a'] * 3", "integer", false)));
+      assertTrue(ex.getMessage().contains("already exists"));
+      assertTrue(ex.getMessage().contains("edit_expression"),
+         "the error should point at edit_expression as the intended operation");
+
+      // Colliding with an existing RAW column must be rejected too.
+      PairingException ex2 = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent,
+            ed -> ed.addExpressionColumn("T", "a", "field['a'] * 2", "integer", false)));
+      assertTrue(ex2.getMessage().contains("already exists"));
    }
 
    // =========================================================================
@@ -792,5 +955,222 @@ class WorksheetEditServiceMutatorsTest {
          "editing to a LEFT join must succeed even though CROSS_JOIN permission is denied");
       verify(securityEngine, never()).checkPermission(
          eq(agent), eq(ResourceType.CROSS_JOIN), anyString(), any(ResourceAction.class));
+   }
+
+   // =========================================================================
+   // SQL query column-name sanitization
+   // =========================================================================
+
+   @Test
+   void sanitizeSqlColumnNamesCleansMangledQualifiedName() {
+      // Reproduces what QueryManagerService.getColumnSelection() actually returns for
+      // an unaliased qualified column like "SELECT f.title FROM ..." (no AS clause):
+      // the parser's alias-detection falls back to the fully quoted qualified
+      // expression instead of null, so the raw attribute ends up as the literal
+      // string `"f"."title"` — quote characters included.
+      ColumnSelection cs = new ColumnSelection();
+      ColumnRef mangled = new ColumnRef(new AttributeRef("\"f\".\"title\""));
+      cs.addAttribute(mangled);
+
+      WorksheetMutationSupport.sanitizeSqlColumnNames(cs);
+
+      // Regression: an earlier version of this fix only set the display alias,
+      // leaving getAttribute() (which a SELECT * expansion over a derived table
+      // actually walks) still mangled — live-testing against a real per-group-
+      // ranking escape-hatch query ("SELECT * FROM (SELECT f.title, ROW_NUMBER()...)
+      // ranked") confirmed that a downstream wrap of such a query kept failing with
+      // "table not found or produced no data" until the underlying attribute itself
+      // (not just the alias) was replaced.
+      assertEquals("title", mangled.getAttribute());
+   }
+
+   @Test
+   void sanitizeSqlColumnNamesLeavesCleanNamesAlone() {
+      ColumnSelection cs = new ColumnSelection();
+      ColumnRef clean = new ColumnRef(new AttributeRef("revenue"));
+      cs.addAttribute(clean);
+
+      WorksheetMutationSupport.sanitizeSqlColumnNames(cs);
+
+      assertEquals("revenue", clean.getAttribute(),
+                   "a column name with no embedded quote must be left untouched");
+   }
+
+   @Test
+   void sanitizeSqlSelectionAliasesClearsMangledAliasSoIndexOfColumnFallbackRuns() {
+      // Regression for a second layer of the same bug: fixing ColumnSelection alone
+      // (sanitizeSqlColumnNames) left the UniformSQL's OWN XSelection alias intact.
+      // At query-execution time, PreAssetQuery/BoundQuery.getAttributeColumn resolves
+      // each output column via XSelection.indexOfColumn(name, ...), which has a
+      // fallback for exactly this case (an unaliased qualified column, matched by its
+      // trailing identifier) — but that fallback loop skips any index where
+      // getAlias(i) != null. Since the mangled alias is non-null, the fallback never
+      // ran and the column was silently dropped from the executed result — worse than
+      // the original crash, since nothing signaled the loss. Live-tested: a wrapped
+      // "SELECT * FROM (SELECT f.title, ROW_NUMBER()...) ranked" query stopped
+      // crashing after the ColumnSelection fix, but the resulting rows had `rn` only
+      // — `title`/`rating` had vanished entirely.
+      inetsoft.uql.jdbc.UniformSQL sql = new inetsoft.uql.jdbc.UniformSQL();
+      inetsoft.uql.jdbc.JDBCSelection selection = new inetsoft.uql.jdbc.JDBCSelection();
+      int idx = selection.addColumn("f.title");
+      selection.setAlias(idx, "\"f\".\"title\"");
+      sql.setSelection(selection);
+
+      WorksheetMutationSupport.sanitizeSqlSelectionAliases(sql);
+
+      assertNull(selection.getAlias(idx),
+                 "mangled alias must be cleared so XSelection.indexOfColumn's qualified-suffix fallback runs");
+   }
+
+   @Test
+   void sanitizeSqlSelectionAliasesSurvivesAPriorNegativeIndexOfColumnLookup() {
+      // The actual root cause behind 4 straight failed live-test cycles on this bug:
+      // XSelection.indexOfColumn memoizes results — INCLUDING misses (-1) — in a
+      // Map<String, Integer> keyed only by the searched name (XSelection.java ~line
+      // 760-807). QueryManagerService.getColumnSelection's own internal metadata
+      // resolution calls indexOfColumn("title", ...) for this exact column BEFORE
+      // this sanitizer ever runs — while the mangled alias is still in place, so the
+      // qualified-suffix fallback is skipped and the miss gets cached permanently.
+      // Clearing the alias afterward (what this method already did) was correct but
+      // insufficient: XSelection.setAlias() never called indexmap.clear(), unlike
+      // every sibling mutator (setColumn, addColumn, etc.) in the same class — so the
+      // stale cached -1 kept being returned to every later indexOfColumn("title", ...)
+      // call at actual query-execution time, regardless of the alias fix. This is
+      // fixed at the source (XSelection.setAlias, both branches) rather than by
+      // reaching into the selection's cache from here. This test reproduces the
+      // production ordering exactly: populate the negative cache FIRST, sanitize
+      // SECOND, and confirm the fallback is actually reachable afterward — the
+      // previous test only checked the alias field, which stayed green throughout
+      // all 4 failed live cycles and never would have caught this.
+      inetsoft.uql.jdbc.UniformSQL sql = new inetsoft.uql.jdbc.UniformSQL();
+      inetsoft.uql.jdbc.JDBCSelection selection = new inetsoft.uql.jdbc.JDBCSelection();
+      int idx = selection.addColumn("f.title");
+      selection.setAlias(idx, "\"f\".\"title\"");
+      sql.setSelection(selection);
+
+      assertEquals(-1, selection.indexOfColumn("title", false, true),
+                   "sanity check: the mangled alias shadows the qualified-suffix fallback, as production observed");
+
+      WorksheetMutationSupport.sanitizeSqlSelectionAliases(sql);
+
+      assertEquals(idx, selection.indexOfColumn("title", false, true),
+                   "clearing the alias must invalidate the memoized negative lookup, not just the alias field");
+   }
+
+   @Test
+   void sanitizeSqlSelectionAliasesLeavesRealAliasesAlone() {
+      inetsoft.uql.jdbc.UniformSQL sql = new inetsoft.uql.jdbc.UniformSQL();
+      inetsoft.uql.jdbc.JDBCSelection selection = new inetsoft.uql.jdbc.JDBCSelection();
+      int idx = selection.addColumn("ROW_NUMBER() OVER (ORDER BY x)");
+      selection.setAlias(idx, "rn");
+      sql.setSelection(selection);
+
+      WorksheetMutationSupport.sanitizeSqlSelectionAliases(sql);
+
+      assertEquals("rn", selection.getAlias(idx),
+                   "a genuine explicit alias with no embedded quote must be left untouched");
+   }
+
+   @Test
+   void realParserConfirmsDerivedTableSubqueryIsNestedUniformSQL() throws Exception {
+      // Confirms, with the REAL grammar parser (SQLLexer/SQLParser via SQLProcessor — no JDBC
+      // connection, no live server), that a derived-table subquery in the FROM clause is
+      // represented as a NESTED UniformSQL, reachable via SelectTable.getName(). This is the
+      // same structure UniformSQL itself already walks recursively elsewhere — see
+      // UniformSQL.applyVariableTable(UniformSQL) (~line 242-250: "obj instanceof UniformSQL")
+      // and UniformSQL.writeXML0 (~line 967-976: "issql = name instanceof UniformSQL").
+      //
+      // Note on scope: parsing the raw SQL TEXT (this test) needs no datasource and is fully
+      // offline. But the mangled `"f"."title"`-style alias itself is NOT produced at this raw
+      // parse stage — the real parser leaves such unaliased-qualified columns with alias=null
+      // (verified: inner selection has column "f.title" / alias null here). The mangled string
+      // is manufactured later, once a live datasource resolves real column metadata (via
+      // JDBCUtil.fixUniformSQLInfo -> QueryManagerService.getColumnSelection), which cannot be
+      // reproduced without a live DB connection. The next test picks up from the REAL parsed
+      // structure and hand-injects that later-stage mangled alias to verify the fix mechanism.
+      String sqlText =
+         "SELECT * FROM (\n" +
+         "  SELECT f.title, f.rating, ROW_NUMBER() OVER (PARTITION BY f.rating ORDER BY f.rental_rate DESC) AS rn\n" +
+         "  FROM film f\n" +
+         ") ranked WHERE rn <= 2";
+
+      inetsoft.uql.jdbc.UniformSQL sql = new inetsoft.uql.jdbc.UniformSQL();
+      sql.setParseSQL(true);
+
+      synchronized(sql) {
+         sql.setSQLString(sqlText, true);
+         sql.wait(10_000);
+      }
+
+      assertEquals(inetsoft.uql.jdbc.UniformSQL.PARSE_SUCCESS, sql.getParseResult(),
+                   "the real grammar parser should parse this fully offline");
+
+      inetsoft.uql.jdbc.SelectTable[] outerTables = sql.getSelectTable();
+      assertEquals(1, outerTables.length, "outer query should have exactly one FROM-clause table");
+      assertInstanceOf(inetsoft.uql.jdbc.UniformSQL.class, outerTables[0].getName(),
+                       "a derived-table subquery in the FROM clause is represented as a NESTED " +
+                       "UniformSQL stored as SelectTable.getName() — confirms the nested-subquery " +
+                       "hypothesis");
+
+      inetsoft.uql.jdbc.UniformSQL inner = (inetsoft.uql.jdbc.UniformSQL) outerTables[0].getName();
+      inetsoft.uql.path.XSelection innerSelection = inner.getSelection();
+      boolean hasUnaliasedQualifiedTitle = false;
+
+      for(int i = 0; i < innerSelection.getColumnCount(); i++) {
+         if("f.title".equals(innerSelection.getColumn(i)) && innerSelection.getAlias(i) == null) {
+            hasUnaliasedQualifiedTitle = true;
+         }
+      }
+
+      assertTrue(hasUnaliasedQualifiedTitle,
+                "the inner subquery's own selection should contain the unaliased 'f.title' column " +
+                "that a live-datasource metadata pass later mangles into \"f\".\"title\"");
+   }
+
+   @Test
+   void sanitizeSqlSelectionAliasesRecursesIntoNestedSubquerySelection() throws Exception {
+      // Builds on the previous test's confirmed structure (real parser, no JDBC connection) and
+      // hand-injects the mangled alias that a live-datasource metadata pass produces on the
+      // INNER subquery's own selection (not reproducible offline — see previous test's note).
+      // Verifies the fixed sanitizeSqlSelectionAliases recurses into every derived-table
+      // subquery reachable via SelectTable.getName(), not just the outer sql.getSelection().
+      String sqlText =
+         "SELECT * FROM (\n" +
+         "  SELECT f.title, f.rating, ROW_NUMBER() OVER (PARTITION BY f.rating ORDER BY f.rental_rate DESC) AS rn\n" +
+         "  FROM film f\n" +
+         ") ranked WHERE rn <= 2";
+
+      inetsoft.uql.jdbc.UniformSQL sql = new inetsoft.uql.jdbc.UniformSQL();
+      sql.setParseSQL(true);
+
+      synchronized(sql) {
+         sql.setSQLString(sqlText, true);
+         sql.wait(10_000);
+      }
+
+      assertEquals(inetsoft.uql.jdbc.UniformSQL.PARSE_SUCCESS, sql.getParseResult());
+
+      inetsoft.uql.jdbc.SelectTable[] outerTables = sql.getSelectTable();
+      inetsoft.uql.jdbc.UniformSQL inner = (inetsoft.uql.jdbc.UniformSQL) outerTables[0].getName();
+      inetsoft.uql.path.XSelection innerSelection = inner.getSelection();
+      int titleIdx = -1;
+
+      for(int i = 0; i < innerSelection.getColumnCount(); i++) {
+         if("f.title".equals(innerSelection.getColumn(i))) {
+            titleIdx = i;
+         }
+      }
+
+      assertTrue(titleIdx >= 0, "the real parser should produce an 'f.title' column in the inner selection");
+
+      // Hand-inject the later-stage mangled alias onto the REAL, parser-produced inner
+      // selection column (see live-tested symptom documented on sanitizeSqlColumnNames above).
+      innerSelection.setAlias(titleIdx, "\"f\".\"title\"");
+
+      WorksheetMutationSupport.sanitizeSqlSelectionAliases(sql);
+
+      assertNull(innerSelection.getAlias(titleIdx),
+                "fix must recurse into the nested subquery's own selection and clear the mangled " +
+                "alias there, not just on the outer sql.getSelection()");
    }
 }

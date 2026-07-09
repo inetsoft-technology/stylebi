@@ -325,14 +325,43 @@ public class WorksheetEditService {
       /**
        * Adds a new column to the table's public {@link ColumnSelection}.
        *
+       * <p>On an {@link EmbeddedTableAssembly}, {@code name} is optional: a blank
+       * name auto-generates the next available {@code "col" + N}, exactly matching
+       * the Composer UI's "insert column" behavior ({@code InsertDataService}),
+       * since a brand-new spreadsheet-style column has no pre-existing identity to
+       * name it after. On any other table type there is no embedded grid to insert
+       * into — {@code add_column} there means re-adding an existing-but-hidden
+       * column back into the selection, so {@code name} must identify which one and
+       * cannot be defaulted.</p>
+       *
        * @param table the assembly name
-       * @param name  the new column's attribute name
+       * @param name  the new column's attribute name, or blank/{@code null} to
+       *              auto-generate (embedded tables only)
        * @param type  the data type string (e.g. {@code "string"}, {@code "integer"}), or {@code null}
-       * @throws PairingException if no {@link TableAssembly} with {@code table} exists
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists, if
+       *                          {@code name} is blank on a non-embedded table, or if a
+       *                          column named {@code name} already exists on the table
        */
       public void addColumn(String table, String name, String type) throws PairingException {
          TableAssembly t = requireTable(table);
          ColumnSelection cs = t.getColumnSelection();
+
+         if(name == null || name.isBlank()) {
+            if(!(t instanceof EmbeddedTableAssembly)) {
+               throw new PairingException(
+                  "name is required for add_column on a non-embedded table.");
+            }
+
+            name = nextEmbeddedColumnName(cs);
+         }
+         else if(WorksheetMutationSupport.containsColumnNamed(cs, name)) {
+            // Fail loud: adding anyway would create a second ColumnRef sharing the same
+            // identity, making later lookups by name ambiguous — and a hidden column
+            // stays in the selection, so "re-adding" it would silently duplicate it.
+            throw new PairingException(
+               "A column named '" + name + "' already exists on table '" + table +
+               "'. If it is hidden, use set_column_visibility to show it instead.");
+         }
 
          // For embedded tables, also insert the data column into XEmbeddedTable
          // (mirrors InsertDataService.insertData column path).
@@ -355,6 +384,27 @@ public class WorksheetEditService {
          ref.setAlias(alias);
          cs.addAttribute(ref);
          t.setColumnSelection(cs);
+      }
+
+      /**
+       * Finds the next unused {@code "col" + N} identifier, same scheme as
+       * {@code InsertDataService.insertData}'s column-insert path.
+       */
+      private static String nextEmbeddedColumnName(ColumnSelection cs) {
+         String colname;
+         int i = 1;
+
+         while(true) {
+            colname = "col" + i;
+
+            if(cs.getAttribute(colname) == null &&
+               AssetUtil.findColumnConflictingWithAlias(cs, null, colname, true) == null)
+            {
+               return colname;
+            }
+
+            i++;
+         }
       }
 
       /**
@@ -439,15 +489,28 @@ public class WorksheetEditService {
        * @param expression the expression body
        * @param type       the data type string, or {@code null}
        * @param sql        {@code true} if the expression is SQL rather than script
-       * @throws PairingException if no {@link TableAssembly} with {@code table} exists
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists, or
+       *                          if a column named {@code name} already exists on the table
        */
       public void addExpressionColumn(String table, String name, String expression,
                                       String type, boolean sql)
          throws PairingException, SecurityException
       {
          requirePermission(ResourceType.WORKSHEET_EXPRESSION_COLUMN);
-         WorksheetMutationSupport.addExpressionColumn(requireTable(table), name,
-                                                      expression, type, sql);
+         TableAssembly t = requireTable(table);
+
+         if(name != null &&
+            WorksheetMutationSupport.containsColumnNamed(t.getColumnSelection(false), name))
+         {
+            // Fail loud: a second column with the same identity makes later lookups by
+            // name (set_conditions, set_sort, edit_expression, ...) ambiguous. Use
+            // edit_expression to change an existing expression column.
+            throw new PairingException(
+               "A column named '" + name + "' already exists on table '" + table +
+               "'. Use edit_expression to modify an existing expression column.");
+         }
+
+         WorksheetMutationSupport.addExpressionColumn(t, name, expression, type, sql);
       }
 
       // -----------------------------------------------------------------------

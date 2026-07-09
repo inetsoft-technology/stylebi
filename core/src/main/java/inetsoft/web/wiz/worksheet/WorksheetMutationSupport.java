@@ -23,6 +23,9 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.jdbc.SelectTable;
+import inetsoft.uql.jdbc.UniformSQL;
+import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 
@@ -39,6 +42,14 @@ import java.util.*;
 public final class WorksheetMutationSupport {
 
    private WorksheetMutationSupport() {}
+
+   /**
+    * Table property recording the output aliases the LAST {@link #applyAggregateInfo}
+    * call set on shared {@link ColumnRef}s (newline-separated; empty string when that
+    * call applied none). Lets {@link #clearAggregateAliases} distinguish its own
+    * bookkeeping aliases from deliberate {@code rename_column} aliases.
+    */
+   static final String AGGREGATE_OUTPUT_ALIASES = "wiz.aggregate.output.aliases";
 
    // =========================================================================
    // AggregateSpec record
@@ -216,9 +227,22 @@ public final class WorksheetMutationSupport {
                                          List<AggregateSpec> aggregates)
       throws inetsoft.web.wiz.pairing.PairingException
    {
+      // Clear aliases left on the column selection by a PRIOR call's aggregate
+      // outputs before resolving anything new. Those aliases exist purely to label
+      // aggregate results; once the AggregateInfo is being replaced they become
+      // stale references that silently shadow the raw column underneath. Concretely:
+      // calling set_group_aggregate a second time on the SAME table using the first
+      // call's output alias as the new field (the standard "average of an average"
+      // chaining attempt, before the caller realizes it needs a mirror) would resolve
+      // that alias back to the un-aggregated raw column and silently compute a flat
+      // aggregate over raw rows instead of failing loud or aggregating the prior
+      // result — a plausible-looking but numerically wrong answer.
+      clearAggregateAliases(t);
+
       if((groups == null || groups.isEmpty()) &&
          (aggregates == null || aggregates.isEmpty()))
       {
+         t.setProperty(AGGREGATE_OUTPUT_ALIASES, "");
          t.setAggregateInfo(new AggregateInfo());
          t.setAggregate(false);
          return;
@@ -226,6 +250,11 @@ public final class WorksheetMutationSupport {
 
       AggregateInfo ainfo = new AggregateInfo();
       ColumnSelection cs = t.getColumnSelection(false);
+
+      // Aliases set by THIS call to label aggregate outputs; recorded on the table so
+      // the next call's clearAggregateAliases() can tell them apart from aliases set
+      // deliberately via rename_column on a column that also happens to be aggregated.
+      List<String> appliedAliases = new ArrayList<>();
 
       // Build a lookup map of available columns keyed by both raw name and alias,
       // matching the pattern used by AggregateDialogService.getAggregateInfo().
@@ -300,6 +329,7 @@ public final class WorksheetMutationSupport {
 
             if(spec.alias() != null) {
                cloned.setAlias(spec.alias());
+               appliedAliases.add(spec.alias());
             }
 
             ainfo.addSecondaryAggregate(new AggregateRef(cloned, formula));
@@ -309,6 +339,7 @@ public final class WorksheetMutationSupport {
             // column selection — the aggregate output column is named from it.
             if(spec.alias() != null) {
                colRef.setAlias(spec.alias());
+               appliedAliases.add(spec.alias());
             }
 
             ainfo.addAggregate(ar, false);
@@ -365,8 +396,156 @@ public final class WorksheetMutationSupport {
          t.setColumnSelection(cs2);
       }
 
+      // Always set the property (empty string when no output aliases were applied):
+      // its PRESENCE tells the next clearAggregateAliases() call that this
+      // AggregateInfo came through here, so only the recorded aliases are cleared and
+      // a rename_column alias on an aggregated column survives re-aggregation.
+      t.setProperty(AGGREGATE_OUTPUT_ALIASES,
+                    appliedAliases.isEmpty() ? "" : String.join("\n", appliedAliases));
       t.setAggregateInfo(ainfo);
       t.setAggregate(!ainfo.isEmpty());
+   }
+
+   // =========================================================================
+   // SQL query helpers
+   // =========================================================================
+
+   /** Matches a trailing double-quoted identifier, e.g. the {@code title} in {@code "f"."title"}. */
+   private static final java.util.regex.Pattern QUOTED_TAIL =
+      java.util.regex.Pattern.compile("\"([^\"]+)\"$");
+
+   /**
+    * Cleans up column names mangled by the freeform-SQL parser for unaliased QUALIFIED
+    * column references: {@code SELECT f.title} with no {@code AS} clause can come back
+    * with the raw attribute name literally set to {@code "f"."title"}. An embedded
+    * double-quote is never legitimate in a column name, so the wrapped ref is replaced
+    * outright with a clean {@link AttributeRef} (same entity, trailing identifier) —
+    * fixing only the display alias is not enough, because {@code SELECT *} expansion
+    * over a derived table walks {@code getAttribute()}, not the alias.
+    */
+   static void sanitizeSqlColumnNames(ColumnSelection columns) {
+      if(columns == null) {
+         return;
+      }
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         if(!(columns.getAttribute(i) instanceof ColumnRef cr)) {
+            continue;
+         }
+
+         String attr = cr.getAttribute();
+
+         if(attr == null || attr.indexOf('"') < 0) {
+            continue;
+         }
+
+         java.util.regex.Matcher m = QUOTED_TAIL.matcher(attr);
+
+         if(m.find()) {
+            DataRef inner = cr.getDataRef();
+            String entity = inner != null ? inner.getEntity() : null;
+            cr.setDataRef(new AttributeRef(entity, m.group(1)));
+         }
+      }
+   }
+
+   /**
+    * Clears the SAME mangled fallback alias described on {@link #sanitizeSqlColumnNames},
+    * but on the {@code UniformSQL}'s own {@link XSelection} rather than the assembly's
+    * {@link ColumnSelection} — two separate structures that both need to agree. Query
+    * execution resolves output columns via {@code XSelection.indexOfColumn}, whose
+    * qualified-suffix fallback is skipped for any entry with a non-null alias; the
+    * mangled alias therefore shadows the fallback and the column is silently dropped
+    * from the executed result. Clearing the alias (not replacing it) restores the
+    * fallback.
+    *
+    * <p>Recurses into derived-table subqueries ({@code SelectTable.getName()} returning
+    * a nested {@code UniformSQL}): for {@code SELECT * FROM (...) alias} the mangled
+    * alias lives on the INNER subquery's selection, the outer one is just {@code *}.</p>
+    */
+   static void sanitizeSqlSelectionAliases(UniformSQL sql) {
+      if(sql == null) {
+         return;
+      }
+
+      sanitizeSelectionAliases(sql.getSelection());
+
+      for(int i = 0; i < sql.getTableCount(); i++) {
+         SelectTable table = sql.getSelectTable(i);
+         Object name = table == null ? null : table.getName();
+
+         if(name instanceof UniformSQL) {
+            sanitizeSqlSelectionAliases((UniformSQL) name);
+         }
+      }
+   }
+
+   /**
+    * Clears the mangled fallback alias (see {@link #sanitizeSqlSelectionAliases}) on a single
+    * {@link XSelection}, without descending into nested subqueries.
+    */
+   private static void sanitizeSelectionAliases(XSelection selection) {
+      if(selection == null) {
+         return;
+      }
+
+      for(int i = 0; i < selection.getColumnCount(); i++) {
+         String alias = selection.getAlias(i);
+
+         if(alias == null || alias.indexOf('"') < 0) {
+            continue;
+         }
+
+         if(QUOTED_TAIL.matcher(alias).find()) {
+            selection.setAlias(i, null);
+         }
+      }
+   }
+
+   /**
+    * Clears the alias on every primary aggregate's underlying {@link ColumnRef} from
+    * the table's CURRENT {@link AggregateInfo}, before it gets replaced.
+    *
+    * <p>{@link #applyAggregateInfo} labels an aggregate's output column by setting an
+    * alias directly on the shared {@link ColumnRef} in the column selection (see the
+    * "First aggregate on this column" branch above). That alias is only meaningful
+    * while THIS AggregateInfo is active — once the table is re-aggregated, the old
+    * alias would otherwise keep pointing at the same, now un-aggregated, raw column.</p>
+    *
+    * <p>When the {@link #AGGREGATE_OUTPUT_ALIASES} property is present (i.e. the old
+    * AggregateInfo was built by {@link #applyAggregateInfo}), only the aliases recorded
+    * there are cleared, so an alias set deliberately via {@code rename_column} on a
+    * column that also happens to be aggregated survives re-aggregation. Without the
+    * property (AggregateInfo of unknown provenance, e.g. set through the Composer UI)
+    * every aggregate alias is cleared, preferring a loud unresolved-column failure over
+    * a silently wrong chained aggregate.</p>
+    */
+   private static void clearAggregateAliases(TableAssembly t) {
+      AggregateInfo old = t.getAggregateInfo();
+      // Read-only here: the property is only (over)written where a new
+      // AggregateInfo/property pair is committed at the end of applyAggregateInfo. If
+      // the current call throws before that point, the previous AggregateInfo stays
+      // active and its tracking must stay with it — consuming the property up front
+      // would send the NEXT successful call into the clear-all fallback and wipe a
+      // deliberate rename_column alias.
+      String recorded = t.getProperty(AGGREGATE_OUTPUT_ALIASES);
+
+      if(old == null || old.isEmpty()) {
+         return;
+      }
+
+      Set<String> ownAliases = recorded == null ? null :
+         new HashSet<>(Arrays.asList(recorded.split("\n", -1)));
+
+      for(int i = 0; i < old.getAggregateCount(); i++) {
+         AggregateRef ar = old.getAggregate(i);
+
+         if(ar.getDataRef() instanceof ColumnRef cr &&
+            (ownAliases == null || ownAliases.contains(cr.getAlias())))
+         {
+            cr.setAlias(null);
+         }
+      }
    }
 
    /**
@@ -374,7 +553,7 @@ public final class WorksheetMutationSupport {
     * matches {@code name}. Unlike {@link ColumnSelection#getAttribute(String)}, which
     * resolves by display name only, this catches both identities.
     */
-   private static boolean containsColumnNamed(ColumnSelection cs, String name) {
+   static boolean containsColumnNamed(ColumnSelection cs, String name) {
       for(int i = 0; i < cs.getAttributeCount(); i++) {
          if(cs.getAttribute(i) instanceof ColumnRef cr &&
             (name.equals(cr.getAttribute()) || name.equals(cr.getAlias())))
