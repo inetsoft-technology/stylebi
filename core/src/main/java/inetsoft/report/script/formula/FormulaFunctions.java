@@ -1835,6 +1835,13 @@ public class FormulaFunctions {
     */
    private static class Options implements Serializable {
       public Options(String str) {
+         // a script may omit the trailing options argument (e.g. toList(arr)),
+         // which reaches here as null under GraalJS; treat it as no options.
+         // (Rhino coerced the missing arg to the string "undefined".) (#75609)
+         if(str == null) {
+            str = "";
+         }
+
          // options name=value
          List<String> opts = new ArrayList<>();
          int start = 0;

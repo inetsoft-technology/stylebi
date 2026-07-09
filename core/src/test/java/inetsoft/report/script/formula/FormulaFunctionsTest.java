@@ -223,6 +223,18 @@ public class FormulaFunctionsTest {
    }
 
    /**
+    * test toList with omitted (null) options argument (#75609). A calc-table
+    * cell script may call toList(arr) with no options; under GraalJS the missing
+    * String argument reaches toList as null, which must be treated as no options
+    * rather than throwing a NullPointerException.
+    */
+   @Test
+   void testToListWithNullOptions() {
+      Object res = FormulaFunctions.toList(new Object[]{"c", "a", "b", "a"}, null);
+      assertArrayEquals(new Object[]{"a", "b", "c"}, (Object[]) res);
+   }
+
+   /**
     * test union with array
     */
    @ParameterizedTest
