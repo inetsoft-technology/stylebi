@@ -278,6 +278,66 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    @Test
+   void renameAliasSurvivesReAggregation() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cust", "store", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Deliberate rename: writes the SAME ColumnRef.alias field that
+      // applyAggregateInfo uses to label aggregate outputs.
+      svc.apply("TOK", agent, ed -> ed.renameColumn("T", "amount", "revenue"));
+
+      // Aggregate the renamed column WITHOUT an explicit output alias, then
+      // re-aggregate. clearAggregateAliases used to wipe every aggregate ref's alias
+      // indiscriminately, destroying the deliberate rename; it must now clear only the
+      // aliases applyAggregateInfo itself recorded.
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", List.of("cust"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", List.of("store"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+
+      ColumnRef base = (ColumnRef) t.getColumnSelection(false).getAttribute("revenue");
+      assertNotNull(base, "the renamed column must still resolve by its alias");
+      assertEquals("revenue", base.getAlias(),
+         "a rename_column alias on an aggregated column must survive re-aggregation");
+   }
+
+   @Test
+   void renameAliasSurvivesReAggregationAfterFailedIntermediateCall() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cust", "store", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("T", "amount", "revenue"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", List.of("cust"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+
+      // A FAILED intermediate call must not consume the alias bookkeeping of the
+      // still-active AggregateInfo — otherwise the next successful call would fall
+      // into the unknown-provenance clear-all fallback and wipe the rename.
+      assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("T", List.of("no_such_group"),
+               List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null)))));
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", List.of("store"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+
+      ColumnRef base = (ColumnRef) t.getColumnSelection(false).getAttribute("revenue");
+      assertNotNull(base, "the renamed column must still resolve by its alias");
+      assertEquals("revenue", base.getAlias(),
+         "a failed aggregate call in between must not cause the rename to be wiped");
+   }
+
+   @Test
    void setGroupAggregateFailsLoudOnUnknownColumn() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cat", "val");
@@ -357,6 +417,71 @@ class WorksheetEditServiceMutatorsTest {
       ColumnRef col3 = (ColumnRef) t.getColumnSelection(false).getAttribute("sql_days");
       String expr3 = ((ExpressionRef) col3.getDataRef()).getExpression();
       assertEquals("field['end_date'] - field['start_date']", expr3);
+   }
+
+   // =========================================================================
+   // Duplicate-name rejection tests — add_column / add_expression_column
+   // =========================================================================
+
+   @Test
+   void addColumnRejectsDuplicateName() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Adding anyway used to fall back to AssetUtil.findAlias, which silently
+      // renamed the new column instead of rejecting the collision.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.addColumn("T", "a", null)));
+      assertTrue(ex.getMessage().contains("already exists"));
+
+      int count = t.getColumnSelection(false).getAttributeCount();
+      assertEquals(2, count, "the duplicate column must not have been added");
+   }
+
+   @Test
+   void addColumnRejectsNameCollidingWithAlias() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("T", "a", "x"));
+
+      // Collides with the ALIAS of an existing column, not its attribute name.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.addColumn("T", "x", null)));
+      assertTrue(ex.getMessage().contains("already exists"));
+   }
+
+   @Test
+   void addExpressionColumnRejectsDuplicateName() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addExpressionColumn("T", "computed", "field['a'] * 2", "integer", false));
+
+      // Same name twice: a second ColumnRef sharing the identity would make later
+      // lookups by name (set_conditions, set_sort, edit_expression, ...) ambiguous.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent,
+            ed -> ed.addExpressionColumn("T", "computed", "field['a'] * 3", "integer", false)));
+      assertTrue(ex.getMessage().contains("already exists"));
+      assertTrue(ex.getMessage().contains("edit_expression"),
+         "the error should point at edit_expression as the intended operation");
+
+      // Colliding with an existing RAW column must be rejected too.
+      PairingException ex2 = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent,
+            ed -> ed.addExpressionColumn("T", "a", "field['a'] * 2", "integer", false)));
+      assertTrue(ex2.getMessage().contains("already exists"));
    }
 
    // =========================================================================
