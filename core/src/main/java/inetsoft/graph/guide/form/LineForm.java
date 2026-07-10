@@ -96,6 +96,15 @@ public class LineForm extends GeomForm {
    @Override
    public Visualizable createVisual(Coordinate coord) {
       Point2D[] points = getPoints(coord);
+
+      // A form whose tuple doesn't belong to this (sub-)coordinate resolves to no
+      // points (e.g. a waterfall bridge scoped to another facet cell). Skip it so an
+      // empty visual with degenerate origin bounds doesn't perturb in-plot layout.
+      // This mirrors the empty-points handling in the trend-line createVisual. (75624)
+      if(points.length == 0) {
+         return null;
+      }
+
       return createVisual(points);
    }
 
