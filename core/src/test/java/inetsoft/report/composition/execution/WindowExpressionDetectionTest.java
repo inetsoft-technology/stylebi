@@ -18,7 +18,10 @@
 package inetsoft.report.composition.execution;
 
 import inetsoft.test.*;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.SortRef;
+import inetsoft.uql.asset.WindowExpressionRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.ExpressionRef;
 import org.junit.jupiter.api.Tag;
@@ -27,6 +30,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -46,6 +51,21 @@ class WindowExpressionDetectionTest {
    @Test
    void rowNumberOverIsWindowExpression() {
       ColumnRef column = expressionColumn("ROW_NUMBER() OVER (ORDER BY field['x'] DESC)");
+      assertTrue(PreAssetQuery.isWindowExpression(column));
+   }
+
+   @Test
+   void windowExpressionRefColumnIsWindowExpressionByType() {
+      AttributeRef orderAttr = new AttributeRef("x");
+      SortRef orderBy = new SortRef(orderAttr);
+      orderBy.setOrder(XConstants.SORT_DESC);
+
+      WindowExpressionRef winRef = new WindowExpressionRef(
+         "ROW_NUMBER", null, 0, Collections.emptyList(), Collections.singletonList(orderBy));
+      winRef.setName("rn");
+      ColumnRef column = new ColumnRef(winRef);
+      column.setSQL(true);
+
       assertTrue(PreAssetQuery.isWindowExpression(column));
    }
 
