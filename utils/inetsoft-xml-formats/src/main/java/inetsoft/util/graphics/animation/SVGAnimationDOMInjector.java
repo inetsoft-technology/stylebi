@@ -2069,16 +2069,20 @@ public class SVGAnimationDOMInjector {
    // -------------------------------------------------------------------------
 
    /**
-    * Inject fade-in animation for relation/tree charts, ordered root-first (top-to-bottom).
+    * Inject fade-in animation for relation/tree/network charts, ordered root-first.
     *
     * <p>Each {@code inetsoft-relation} annotation group (one per tree node) fades in using
     * the A2 pattern — animation is applied to inner child elements so the group's own opacity
     * is never animated and hover dimming works without a {@code .ready} gate.
     *
-    * <p>Nodes are sorted by their SVG Y-centre (ascending = topmost = root level first) and
-    * clustered into discrete depth bands: consecutive nodes whose Y-centres differ by more than
-    * half the average node height begin a new level.  All nodes in the same band receive the
-    * same stagger delay, so siblings at the same depth appear together.
+    * <p>Node depth (0 = root) is derived from the edge source→target topology via
+    * {@link #computeTopologicalDepth}, which is orientation-independent — root-first ordering is
+    * therefore correct for every tree direction (top-to-bottom, bottom-to-top, left-to-right,
+    * right-to-left, radial).  Only when no usable topology exists (no edges, or a fully cyclic
+    * network graph with no root) does it fall back to clustering by SVG Y-centre.  Delay grows a
+    * fixed, capped amount per depth level ({@link AnimationConstants#relationDelay}), so the total
+    * entrance time is bounded and independent of node count — large graphs no longer trail in over
+    * a long stagger window.  Siblings at the same depth share a delay, so they appear together.
     */
    private static void injectRelationAnimation(Element svgRoot, Document doc) {
       appendStyle(svgRoot, doc,
@@ -2090,109 +2094,131 @@ public class SVGAnimationDOMInjector {
          return;
       }
 
-      List<double[]> bounds = nodes.stream()
-         .map(SVGAnimationDOMInjector::annotGroupBounds)
-         .collect(Collectors.toList());
+      // Edges carry the source→target topology, so collect them up front: depth is derived from
+      // the graph structure (orientation-independent) rather than screen geometry.
+      List<Element> edgeGroups = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_RELATION_EDGE);
 
-      // Prefer data-y stamped by RelationVO (shape-agnostic screen Y center) over the
-      // bounds-derived center, which fails for non-rect node shapes such as circles.
-      List<Double> nodeCY = new ArrayList<>();
-
-      for(int i = 0; i < nodes.size(); i++) {
-         String yAttr = nodes.get(i).getAttribute("data-" + SVGSupport.ATTR_Y);
-
-         if(!yAttr.isEmpty()) {
-            try {
-               nodeCY.add(Double.parseDouble(yAttr));
-            }
-            catch(NumberFormatException ignored) {
-               nodeCY.add((bounds.get(i)[1] + bounds.get(i)[3]) / 2.0);
-            }
-         }
-         else {
-            nodeCY.add((bounds.get(i)[1] + bounds.get(i)[3]) / 2.0);
-         }
-      }
-
-      // Sort node indices by Y-centre ascending (root = topmost = smallest Y in SVG coords).
-      // NOTE: this assumes a vertical (top-to-bottom) tree layout. For horizontal COMPACT_TREE
-      // layouts the level ordering will be approximate (nodes sorted by the width axis instead of
-      // the depth axis), but the animation will still complete correctly — it just won't follow
-      // root-first order on horizontal trees. For force-directed network graph layouts there is
-      // no inherent ordering at all; nodes will stagger in approximate top-to-bottom order.
-      List<Integer> order = new ArrayList<>();
-
-      for(int i = 0; i < nodes.size(); i++) {
-         order.add(i);
-      }
-
-      order.sort(Comparator.comparingDouble(nodeCY::get));
-
-      // Cluster into level bands: a gap larger than 50% of the average node height signals
-      // a new level.  Clamp threshold to at least 5px for degenerate single-pixel nodes.
-      double avgHeight = bounds.stream().mapToDouble(b -> b[3] - b[1]).average().orElse(20.0);
-      double threshold = Math.max(avgHeight * 0.5, 5.0);
-      int[] levelOf = new int[nodes.size()];
-      int numLevels = 0;
-      double prevLevelY = Double.NEGATIVE_INFINITY;
-
-      for(int idx : order) {
-         double cy = nodeCY.get(idx);
-
-         if(numLevels == 0 || cy - prevLevelY > threshold) {
-            prevLevelY = cy;
-            numLevels++;
-         }
-
-         levelOf[idx] = numLevels - 1;
-      }
-
-      // A2 fade staggered by level — root (level 0) appears first, leaves last.
-      for(int i = 0; i < nodes.size(); i++) {
-         double delay = AnimationConstants.staggerDelay(levelOf[i], numLevels);
-         applyAnimStyleToChildren(nodes.get(i), String.format(java.util.Locale.US,
-            "animation:inetsoft-relation-fade %.2fs %s %.2fs both",
-            AnimationConstants.DURATION, AnimationConstants.EASING, delay));
-      }
-
-      // Build node-ID → level map so edges can be assigned the same level as their target node.
-      Map<String, Integer> levelByNodeId = new HashMap<>();
+      // Map node id → node index so both the depth computation and the edge/label passes can
+      // resolve a node from its stamped data-node-id.
+      Map<String, Integer> nodeIndexById = new HashMap<>();
 
       for(int i = 0; i < nodes.size(); i++) {
          String id = nodes.get(i).getAttribute("data-" + SVGSupport.ATTR_NODE_ID);
 
          if(!id.isEmpty()) {
-            levelByNodeId.put(id, levelOf[i]);
+            nodeIndexById.put(id, i);
+         }
+      }
+
+      // Prefer topological depth (root = 0); fall back to Y-centre clustering only when there is
+      // no usable topology (no edges, no node ids, or a fully cyclic graph with no root).
+      int[] levelOf = computeTopologicalDepth(nodes, edgeGroups, nodeIndexById);
+
+      if(levelOf == null) {
+         levelOf = new int[nodes.size()];
+
+         // Geometry is only needed for this fallback, so compute it lazily here rather than on
+         // every render (the topological path above is the common case and never reads it).
+         List<double[]> bounds = nodes.stream()
+            .map(SVGAnimationDOMInjector::annotGroupBounds)
+            .collect(Collectors.toList());
+
+         // Prefer data-y stamped by RelationVO (shape-agnostic screen Y center) over the
+         // bounds-derived center, which fails for non-rect node shapes such as circles.
+         List<Double> nodeCY = new ArrayList<>();
+
+         for(int i = 0; i < nodes.size(); i++) {
+            String yAttr = nodes.get(i).getAttribute("data-" + SVGSupport.ATTR_Y);
+
+            if(!yAttr.isEmpty()) {
+               try {
+                  nodeCY.add(Double.parseDouble(yAttr));
+               }
+               catch(NumberFormatException ignored) {
+                  nodeCY.add((bounds.get(i)[1] + bounds.get(i)[3]) / 2.0);
+               }
+            }
+            else {
+               nodeCY.add((bounds.get(i)[1] + bounds.get(i)[3]) / 2.0);
+            }
+         }
+
+         // Sort node indices by Y-centre ascending (root = topmost = smallest Y in SVG coords)
+         // and cluster into level bands: a gap larger than 50% of the average node height signals
+         // a new level.  Clamp threshold to at least 5px for degenerate single-pixel nodes.  This
+         // approximates root-first order for top-to-bottom layouts only.
+         List<Integer> order = new ArrayList<>();
+
+         for(int i = 0; i < nodes.size(); i++) {
+            order.add(i);
+         }
+
+         order.sort(Comparator.comparingDouble(nodeCY::get));
+
+         double avgHeight = bounds.stream().mapToDouble(b -> b[3] - b[1]).average().orElse(20.0);
+         double threshold = Math.max(avgHeight * 0.5, 5.0);
+         int numLevels = 0;
+         double prevLevelY = Double.NEGATIVE_INFINITY;
+
+         for(int idx : order) {
+            double cy = nodeCY.get(idx);
+
+            if(numLevels == 0 || cy - prevLevelY > threshold) {
+               prevLevelY = cy;
+               numLevels++;
+            }
+
+            levelOf[idx] = numLevels - 1;
+         }
+      }
+
+      // Give each node a precise delay: a per-depth base (root→leaf cascade) plus an intra-level
+      // spread by DOM order, so the nodes of one depth trickle in individually across a step
+      // instead of all popping at the same instant.  This restores the smooth, fine-grained
+      // reveal of the legacy geometry-based stagger while keeping correct root→leaf ordering.
+      double[] delayOf = computeRelationDelays(levelOf);
+
+      for(int i = 0; i < nodes.size(); i++) {
+         applyAnimStyleToChildren(nodes.get(i), String.format(java.util.Locale.US,
+            "animation:inetsoft-relation-fade %.2fs %s %.2fs both",
+            AnimationConstants.RELATION_FADE_DURATION, AnimationConstants.EASING, delayOf[i]));
+      }
+
+      // Build node-ID → delay map so edges/labels inherit their node's exact delay and fade in
+      // together with it (not merely at the same depth band).
+      Map<String, Double> delayByNodeId = new HashMap<>();
+
+      for(int i = 0; i < nodes.size(); i++) {
+         String id = nodes.get(i).getAttribute("data-" + SVGSupport.ATTR_NODE_ID);
+
+         if(!id.isEmpty()) {
+            delayByNodeId.put(id, delayOf[i]);
          }
       }
 
       // Edge animation: each edge fades in with its target (child) node so the edge and
-      // its destination appear together. Falls back to the source node's level, then level 0.
-      List<Element> edgeGroups = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_RELATION_EDGE);
-
+      // its destination appear together. Falls back to the source node's delay, then 0.
       for(Element edgeG : edgeGroups) {
          String targetId = edgeG.getAttribute("data-" + SVGSupport.ATTR_TARGET);
          String sourceId = edgeG.getAttribute("data-" + SVGSupport.ATTR_SOURCE);
-         Integer level = levelByNodeId.get(targetId);
+         Double delay = delayByNodeId.get(targetId);
 
-         if(level == null) {
-            level = levelByNodeId.get(sourceId);
+         if(delay == null) {
+            delay = delayByNodeId.get(sourceId);
          }
 
-         if(level == null) {
-            level = 0;
+         if(delay == null) {
+            delay = 0.0;
          }
 
-         double delay = AnimationConstants.staggerDelay(level, numLevels);
          applyAnimStyleToChildren(edgeG, String.format(java.util.Locale.US,
             "animation:inetsoft-relation-fade %.2fs %s %.2fs both",
-            AnimationConstants.DURATION, AnimationConstants.EASING, delay));
+            AnimationConstants.RELATION_FADE_DURATION, AnimationConstants.EASING, delay));
       }
 
       // Label animation: labels are stamped with class="inetsoft-relation-label" and
       // data-row/data-col directly by RelationVO during rendering, so no geometric matching
-      // is needed — just look them up by data-row and apply the same stagger delay as the
-      // matched node.
+      // is needed — just look them up by data-row and apply the same delay as the matched node.
       Map<String, Integer> nodeIndexByRow = new HashMap<>();
       for(int i = 0; i < nodes.size(); i++) {
          String row = nodes.get(i).getAttribute("data-" + SVGSupport.ATTR_ROW);
@@ -2206,14 +2232,151 @@ public class SVGAnimationDOMInjector {
          String row = labelG.getAttribute("data-" + SVGSupport.ATTR_ROW);
          Integer idx = nodeIndexByRow.get(row);
          if(idx != null) {
-            double delay = AnimationConstants.staggerDelay(levelOf[idx], numLevels);
             // Use A2 pattern (apply to children) for consistency with nodes/edges, so the
             // group's own opacity is never set and hover dim CSS can override without conflict.
             applyAnimStyleToChildren(labelG, String.format(java.util.Locale.US,
                "animation:inetsoft-relation-fade %.2fs %s %.2fs both",
-               AnimationConstants.DURATION, AnimationConstants.EASING, delay));
+               AnimationConstants.RELATION_FADE_DURATION, AnimationConstants.EASING, delayOf[idx]));
          }
       }
+   }
+
+   /**
+    * Compute a per-node entrance delay from each node's depth plus its position within that depth.
+    *
+    * <p>Nodes are walked in DOM order; the k-th node encountered at a given depth becomes that
+    * depth's k-th element.  {@link AnimationConstants#relationDelay(int, int, int)} then adds an
+    * intra-level spread so a depth's nodes fade in one after another instead of simultaneously,
+    * yielding one continuous root→leaf ramp rather than a few large synchronized batches.
+    *
+    * @param levelOf per-node depth array (0 = root), aligned to the node list
+    * @return per-node delay in seconds, aligned to the node list
+    */
+   private static double[] computeRelationDelays(int[] levelOf) {
+      int maxDepth = 0;
+
+      for(int d : levelOf) {
+         maxDepth = Math.max(maxDepth, d);
+      }
+
+      int[] countAtDepth = new int[maxDepth + 1];
+
+      for(int d : levelOf) {
+         countAtDepth[d]++;
+      }
+
+      int[] seenAtDepth = new int[maxDepth + 1];
+      double[] delay = new double[levelOf.length];
+
+      for(int i = 0; i < levelOf.length; i++) {
+         int d = levelOf[i];
+         delay[i] = AnimationConstants.relationDelay(d, seenAtDepth[d]++, countAtDepth[d]);
+      }
+
+      return delay;
+   }
+
+   /**
+    * Compute each relation node's tree depth (0 = root) from the edge source→target topology.
+    *
+    * <p>Depth comes from the graph structure, not screen geometry, so root-first ordering is
+    * correct regardless of tree direction (top-to-bottom, bottom-to-top, left-to-right,
+    * right-to-left, radial).  Roots are nodes with no incoming edge; depth is assigned by a
+    * breadth-first traversal from all roots.  A node is assigned a depth only the first time it
+    * is reached (shortest path from a root), which also guarantees termination on cyclic network
+    * graphs.  Nodes not reachable from any root default to depth 0.
+    *
+    * @param nodes          relation node annotation groups, in DOM order
+    * @param edgeGroups     relation edge annotation groups carrying data-source / data-target
+    * @param nodeIndexById  map of stamped node id → index into {@code nodes}
+    * @return a per-node depth array aligned to {@code nodes}, or {@code null} when no usable
+    *         topology is available (no edges, no node ids, or no roots) so the caller can fall
+    *         back to geometry-based ordering
+    */
+   private static int[] computeTopologicalDepth(List<Element> nodes, List<Element> edgeGroups,
+                                                Map<String, Integer> nodeIndexById)
+   {
+      if(edgeGroups.isEmpty() || nodeIndexById.isEmpty()) {
+         return null;
+      }
+
+      // adjacency: source id → target ids; hasIncoming: ids that are some edge's target.
+      Map<String, List<String>> adjacency = new HashMap<>();
+      Set<String> hasIncoming = new HashSet<>();
+
+      for(Element edgeG : edgeGroups) {
+         String source = edgeG.getAttribute("data-" + SVGSupport.ATTR_SOURCE);
+         String target = edgeG.getAttribute("data-" + SVGSupport.ATTR_TARGET);
+
+         if(source.isEmpty() || target.isEmpty()) {
+            continue;
+         }
+
+         // A root's parent is stamped with the literal sentinel id "null" (RelationElement.getId
+         // returns "null" for a null "from" value; that sentinel may itself be rendered as a node).
+         // An edge from that sentinel — or from any source dropped upstream (e.g. maxNodes
+         // truncation) and thus unknown here — must NOT mark its target as having a real incoming
+         // edge, so the actual root is detected as depth 0 rather than a child of the sentinel.
+         if("null".equals(source) || !nodeIndexById.containsKey(source)) {
+            continue;
+         }
+
+         adjacency.computeIfAbsent(source, k -> new ArrayList<>()).add(target);
+         hasIncoming.add(target);
+      }
+
+      if(hasIncoming.isEmpty()) {
+         return null;
+      }
+
+      // Roots = known nodes that are never an edge target.
+      Deque<String> queue = new ArrayDeque<>();
+      Map<String, Integer> depthById = new HashMap<>();
+
+      for(String id : nodeIndexById.keySet()) {
+         if(!hasIncoming.contains(id)) {
+            depthById.put(id, 0);
+            queue.add(id);
+         }
+      }
+
+      if(queue.isEmpty()) {
+         // Fully cyclic — no root to start from; let the caller fall back to geometry.
+         return null;
+      }
+
+      while(!queue.isEmpty()) {
+         String id = queue.poll();
+         int depth = depthById.get(id);
+         List<String> targets = adjacency.get(id);
+
+         if(targets == null) {
+            continue;
+         }
+
+         for(String target : targets) {
+            // Assign a depth only once (shortest path from a root); the containsKey check also
+            // guarantees termination on cyclic graphs.
+            if(!depthById.containsKey(target)) {
+               depthById.put(target, depth + 1);
+               queue.add(target);
+            }
+         }
+      }
+
+      int[] levelOf = new int[nodes.size()];
+
+      for(int i = 0; i < nodes.size(); i++) {
+         String id = nodes.get(i).getAttribute("data-" + SVGSupport.ATTR_NODE_ID);
+         Integer d = id.isEmpty() ? null : depthById.get(id);
+         // Nodes never reached by BFS — an isolated all-cyclic component while the rest of the
+         // graph has a real root — intentionally default to depth 0 and fade in with the roots.
+         // This is an accepted trade-off: the whole-graph cyclic case is already handled by the
+         // geometry fallback, and a per-node geometry fallback isn't worth the complexity here.
+         levelOf[i] = d != null ? d : 0;
+      }
+
+      return levelOf;
    }
 
    // -------------------------------------------------------------------------

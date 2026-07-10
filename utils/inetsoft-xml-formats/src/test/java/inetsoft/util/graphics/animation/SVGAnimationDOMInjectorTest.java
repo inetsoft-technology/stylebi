@@ -1777,4 +1777,157 @@ class SVGAnimationDOMInjectorTest {
                     "every 3D pie face must receive an animation, including depth quads");
       }
    }
+
+   // -------------------------------------------------------------------------
+   // Relation / tree / network chart tests
+   // -------------------------------------------------------------------------
+
+   /** Adds a relation node annotation group with a stamped id and screen-Y. */
+   private static Element relNode(Document doc, String id, double y) {
+      Map<String, String> attrs = new LinkedHashMap<>();
+      attrs.put(SVGSupport.ATTR_NODE_ID, id);
+      attrs.put(SVGSupport.ATTR_Y, String.valueOf(y));
+      return addAnnotGroup(doc, SVGSupport.ANNOTATION_RELATION, attrs, 0, y, 20, 16);
+   }
+
+   /** Adds a relation edge annotation group linking source→target node ids. */
+   private static Element relEdge(Document doc, String source, String target) {
+      Map<String, String> attrs = new LinkedHashMap<>();
+      attrs.put(SVGSupport.ATTR_SOURCE, source);
+      attrs.put(SVGSupport.ATTR_TARGET, target);
+      return addAnnotGroup(doc, SVGSupport.ANNOTATION_RELATION_EDGE, attrs, 0, 0, 20, 2);
+   }
+
+   /**
+    * A linear tree (root → child → grandchild, one node per depth) staggers strictly root-first:
+    * delay grows by exactly {@link AnimationConstants#RELATION_LEVEL_STEP} per depth level.
+    */
+   @Test
+   void relationTopologyStaggersRootBeforeLeaf() throws Exception {
+      Document doc = newDocument();
+      Element root = relNode(doc, "R", 100);
+      Element child = relNode(doc, "A", 200);
+      Element leaf = relNode(doc, "C", 300);
+      relEdge(doc, "R", "A");
+      relEdge(doc, "A", "C");
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_RELATION);
+
+      double step = AnimationConstants.RELATION_LEVEL_STEP;
+      assertEquals(0.0, parseDelay(firstChildStyle(root)), 0.001, "root → depth 0");
+      assertEquals(step, parseDelay(firstChildStyle(child)), 0.001, "child → depth 1");
+      assertEquals(2 * step, parseDelay(firstChildStyle(leaf)), 0.001, "grandchild → depth 2");
+   }
+
+   /**
+    * Reveal order comes from the edge topology, not screen geometry: a root placed at the BOTTOM
+    * of the chart (largest Y) still reveals first, where the legacy Y-clustering would reveal it
+    * last.  Proves orientation-independence (bottom-up / left-right / radial trees).
+    */
+   @Test
+   void relationDepthIsTopologyNotGeometry() throws Exception {
+      Document doc = newDocument();
+      Element root = relNode(doc, "R", 500);   // bottom of the chart
+      Element child = relNode(doc, "A", 100);  // top of the chart
+      relEdge(doc, "R", "A");
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_RELATION);
+
+      assertEquals(0.0, parseDelay(firstChildStyle(root)), 0.001,
+                   "topological root reveals first even though its Y is largest");
+      assertTrue(parseDelay(firstChildStyle(child)) > parseDelay(firstChildStyle(root)),
+                 "child reveals after its root regardless of geometry");
+   }
+
+   /**
+    * Regression for the null-parent sentinel (Redmine #74993): a root whose parent is stamped with
+    * the literal id {@code "null"} (RelationElement.getId's sentinel for a null "from" value) must
+    * still be detected as a depth-0 root — the sentinel edge must not push it to depth 1.  A
+    * depth-0 node's total delay is always below one {@link AnimationConstants#RELATION_LEVEL_STEP}
+    * (base 0 + intra-level spread &lt; step), whereas a depth-1 node is at or above one step.
+    */
+   @Test
+   void relationNullParentSentinelDetectsRealRoot() throws Exception {
+      Document doc = newDocument();
+      relNode(doc, "null", 50);                // sentinel node getId(...) == "null"
+      Element root = relNode(doc, "R", 100);
+      Element child = relNode(doc, "A", 200);
+      relEdge(doc, "null", "R");               // root's parent is the null sentinel
+      relEdge(doc, "R", "A");                  // a real edge keeps the topology path active
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_RELATION);
+
+      double step = AnimationConstants.RELATION_LEVEL_STEP;
+      assertTrue(parseDelay(firstChildStyle(root)) < step,
+                 "real root stays depth 0 (delay < one step) despite the null-parent sentinel edge");
+      assertEquals(step, parseDelay(firstChildStyle(child)), 0.001,
+                   "child of the real root is depth 1");
+   }
+
+   /**
+    * Siblings at the same depth do not all fire at once: the intra-level spread gives each its own
+    * moment (in DOM order), while keeping them all within one step of the depth base.
+    */
+   @Test
+   void relationIntraLevelSpreadTricklesSiblings() throws Exception {
+      Document doc = newDocument();
+      relNode(doc, "R", 50);
+      Element a = relNode(doc, "A", 100);
+      Element b = relNode(doc, "B", 110);
+      Element c = relNode(doc, "C", 120);
+      relEdge(doc, "R", "A");
+      relEdge(doc, "R", "B");
+      relEdge(doc, "R", "C");
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_RELATION);
+
+      double da = parseDelay(firstChildStyle(a));
+      double db = parseDelay(firstChildStyle(b));
+      double dc = parseDelay(firstChildStyle(c));
+      double step = AnimationConstants.RELATION_LEVEL_STEP;
+
+      assertTrue(da < db && db < dc,
+                 "same-depth siblings stagger individually: " + da + " < " + db + " < " + dc);
+      assertTrue(da >= step - 0.001 && dc < 2 * step,
+                 "sibling delays lie within [depth-1 base, base + one step)");
+   }
+
+   /**
+    * A fully cyclic graph has no root, so depth cannot be derived — the injector falls back to the
+    * geometry (Y-centre) ordering.  It must not throw, every node must still animate, and the
+    * higher (smaller-Y) node must reveal no later than the lower one.
+    */
+   @Test
+   void relationCyclicGraphFallsBackToGeometry() throws Exception {
+      Document doc = newDocument();
+      Element top = relNode(doc, "A", 100);
+      Element bottom = relNode(doc, "B", 300);
+      relEdge(doc, "A", "B");
+      relEdge(doc, "B", "A");   // cycle → no root → geometry fallback
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_RELATION);
+
+      assertTrue(firstChildStyle(top).contains("inetsoft-relation-fade"),
+                 "cyclic-graph nodes still animate via the geometry fallback");
+      assertTrue(firstChildStyle(bottom).contains("inetsoft-relation-fade"), "both nodes animate");
+      assertTrue(parseDelay(firstChildStyle(top)) <= parseDelay(firstChildStyle(bottom)),
+                 "top (smaller Y) reveals before bottom in the geometry fallback");
+   }
+
+   /**
+    * Edges inherit their target (child) node's exact delay so an edge fades in together with the
+    * node it points to, not merely at the same depth band.
+    */
+   @Test
+   void relationEdgeInheritsTargetNodeDelay() throws Exception {
+      Document doc = newDocument();
+      relNode(doc, "R", 100);
+      Element child = relNode(doc, "A", 200);
+      Element edge = relEdge(doc, "R", "A");
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_RELATION);
+
+      assertEquals(parseDelay(firstChildStyle(child)), parseDelay(firstChildStyle(edge)), 0.001,
+                   "edge fades in with its target node (same delay)");
+   }
 }
