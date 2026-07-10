@@ -223,6 +223,13 @@ public class HiddenColumns extends VpmObject {
          return new String[0];
       }
 
+      // A script that returns the unmodified hiddenColumns (or tables/columns)
+      // variable hands back the StringArray scope object itself under GraalJS.
+      // Unwrap it to a String[] as Rhino's Wrapper.unwrap() used to. (#75582)
+      if(result instanceof StringArray) {
+         result = ((StringArray) result).unwrap();
+      }
+
       if(!(result instanceof Object[])) {
          throw new Exception(
             "The script result of hidden columns should be a string array!");
