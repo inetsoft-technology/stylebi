@@ -25,6 +25,9 @@ import inetsoft.sree.web.SessionsExceededException;
 import inetsoft.web.security.support.FilterTestSupport;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -36,6 +39,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.*;
@@ -170,6 +174,94 @@ class BasicAuthFilterHttpTest {
 
       mvc.perform(post("/api/internal/data").header("Authorization", basicAuth("user", "pass")))
          .andExpect(status().isUnauthorized());
+   }
+
+   // ── Login As: LOGIN_AS action grant and checkLoginAs() are ANDed in doFilter() -- neither
+   // alone is sufficient. See permission-matrix-special.md "Login As 的三层门槛".
+   // ─────────────────────────────────────────────────────────────────────────
+
+   // Operator holds the LOGIN_AS action, but has no SECURITY_USER/ADMIN grant on this specific
+   // target, so checkLoginAs() denies -- doFilter() must reject the whole request (401,
+   // viewer.securityexception) rather than fall back to a plain successful login.
+   @Test
+   void loginAs_actionGrantedButCheckLoginAsFails_returns401AndNeverAttemptsIdentitySwitch()
+      throws Exception
+   {
+      SRPrincipal operator = mock(SRPrincipal.class, withSettings().lenient());
+      when(operator.getName()).thenReturn(
+         "operator" + IdentityID.KEY_DELIMITER + Organization.getDefaultOrganizationID());
+      // OrganizationManager.isSiteAdmin(Principal) reads this directly; an unstubbed mock returns
+      // null here (not an empty array), which NPEs inside checkLoginAs().
+      when(operator.getRoles()).thenReturn(new IdentityID[0]);
+      IdentityID target = new IdentityID("target", Organization.getDefaultOrganizationID());
+
+      doReturn(operator).when(authService).authenticate(
+         any(), any(), any(), any(), any(), any(), any(), any(),
+         anyBoolean(), anyBoolean(), any(), any());
+
+      sreeEnvMock.when(() -> SreeEnv.getProperty("login.loginAs")).thenReturn("on");
+      when(mockProvider.isVirtual()).thenReturn(false);
+      when(mockProvider.checkPermission(operator, ResourceType.LOGIN_AS, "*", ResourceAction.ACCESS))
+         .thenReturn(true);
+      when(mockProvider.getUser(target)).thenReturn(mock(User.class, withSettings().lenient()));
+      // OrganizationManager.isSiteAdmin(IdentityID) (checkLoginAs()'s "is the target a site admin"
+      // check) reads these directly; unstubbed mock calls return null, not an empty array.
+      when(mockProvider.getRoles(target)).thenReturn(new IdentityID[0]);
+      when(mockProvider.getAllRoles(any())).thenReturn(new IdentityID[0]);
+      // no SECURITY_USER/ADMIN grant on this specific target -> checkLoginAs() denies
+      when(mockProvider.checkPermission(
+         operator, ResourceType.SECURITY_USER, target.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(false);
+
+      mvc.perform(post("/api/internal/data")
+            .header("Authorization", basicAuth("operator", "secret"))
+            .header("LoginAsUser", target.convertToKey()))
+         .andExpect(status().isUnauthorized());
+
+      // only the operator's own login happened -- the identity-switch authenticate() call was
+      // never reached, so it can't be the one masking the rejection
+      verify(authService, times(1)).authenticate(
+         any(), any(), any(), any(), any(), any(), any(), any(),
+         anyBoolean(), anyBoolean(), any(), any());
+   }
+
+   // Either the LOGIN_AS action isn't granted, or the global login.loginAs toggle is off: in both
+   // cases the outer "checkPermission(LOGIN_AS) && loginAs" gate in doFilter() is false, so
+   // checkLoginAs() is never invoked at all and the request falls through to a plain successful
+   // login as the operator -- no error, no identity switch. Different observable behavior from
+   // the case above (explicit 401) despite both being "login-as didn't happen".
+   @ParameterizedTest(name = "{0}")
+   @MethodSource("outerGateFailureCases")
+   void loginAs_outerGateFails_fallsThroughToSelfLoginWithoutInvokingCheckLoginAs(
+      String caseName, boolean actionGranted, String loginAsProperty) throws Exception
+   {
+      SRPrincipal operator = mock(SRPrincipal.class, withSettings().lenient());
+      IdentityID target = new IdentityID("target", Organization.getDefaultOrganizationID());
+
+      doReturn(operator).when(authService).authenticate(
+         any(), any(), any(), any(), any(), any(), any(), any(),
+         anyBoolean(), anyBoolean(), any(), any());
+
+      sreeEnvMock.when(() -> SreeEnv.getProperty("login.loginAs")).thenReturn(loginAsProperty);
+      when(mockProvider.isVirtual()).thenReturn(false);
+      when(mockProvider.checkPermission(operator, ResourceType.LOGIN_AS, "*", ResourceAction.ACCESS))
+         .thenReturn(actionGranted);
+
+      mvc.perform(post("/api/internal/data")
+            .header("Authorization", basicAuth("operator", "secret"))
+            .header("LoginAsUser", target.convertToKey()))
+         .andExpect(status().isOk());
+
+      // identity switch never attempted -- only the operator's own login happened
+      verify(authService, times(1)).authenticate(
+         any(), any(), any(), any(), any(), any(), any(), any(),
+         anyBoolean(), anyBoolean(), any(), any());
+   }
+
+   private static Stream<Arguments> outerGateFailureCases() {
+      return Stream.of(
+         Arguments.of("LOGIN_AS action not granted", false, "on"),
+         Arguments.of("global login.loginAs toggle off", true, "off"));
    }
 
    // ── helper ────────────────────────────────────────────────────────────────

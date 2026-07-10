@@ -59,6 +59,12 @@ public class SecurityTestDataBuilder {
    private final List<RoleSpec> roles = new ArrayList<>();
    private final List<UserRoleAssignment> userRoles = new ArrayList<>();
    private final List<PermissionSpec> permissions = new ArrayList<>();
+   private final List<GroupSpec> groups = new ArrayList<>();
+   private final List<UserGroupAssignment> userGroups = new ArrayList<>();
+   private final List<GroupParentAssignment> groupParents = new ArrayList<>();
+   private final List<RoleParentAssignment> roleParents = new ArrayList<>();
+   private final List<GroupRoleAssignment> groupRoles = new ArrayList<>();
+   private final List<EditedPermissionMarker> editedPermissions = new ArrayList<>();
 
    private FileAuthenticationProvider authcProvider;
    private FileAuthorizationProvider authzProvider;
@@ -103,8 +109,69 @@ public class SecurityTestDataBuilder {
       return this;
    }
 
+   /**
+    * Creates a role with no organization ({@code IdentityID(name, null)}), matching how the
+    * built-in {@code Administrator}/{@code Organization Administrator} roles are constructed.
+    * {@code DefaultCheckPermissionStrategy.isNotGlobalRole()} treats any role whose
+    * {@code getOrganizationID()} is null as "global" and excludes it from the
+    * SECURITY_ORGANIZATION-ADMIN cascade.
+    */
+   public SecurityTestDataBuilder addGlobalRole(String roleName) {
+      roles.add(new RoleSpec(roleName, null, false, false));
+      return this;
+   }
+
    public SecurityTestDataBuilder addUserToRole(String userName, String roleName, String orgId) {
       userRoles.add(new UserRoleAssignment(userName, roleName, orgId));
+      return this;
+   }
+
+   /**
+    * Makes {@code roleName} a child of {@code parentRoleName} (both in {@code orgId}), i.e.
+    * {@code roleName}'s {@code FSRole.setRoles()} (parent roles) includes {@code parentRoleName}.
+    * {@code PermissionChecker.checkRolePermission()} walks a role identity's own
+    * {@code getRoles()} recursively, so a grant on an ancestor role cascades down to roles that
+    * inherit from it (same shape as {@link #addGroupParent}, but for roles).
+    */
+   public SecurityTestDataBuilder addRoleParent(String roleName, String parentRoleName,
+                                                 String orgId)
+   {
+      roleParents.add(new RoleParentAssignment(roleName, parentRoleName, orgId));
+      return this;
+   }
+
+   public SecurityTestDataBuilder addGroup(String groupName, String orgId) {
+      groups.add(new GroupSpec(groupName, orgId));
+      return this;
+   }
+
+   public SecurityTestDataBuilder addUserToGroup(String userName, String groupName, String orgId) {
+      userGroups.add(new UserGroupAssignment(userName, groupName, orgId));
+      return this;
+   }
+
+   /**
+    * Makes {@code groupName} a child of {@code parentGroupName} (both in {@code orgId}), i.e.
+    * {@code groupName}'s {@code FSGroup.setGroups()} (parent groups) includes
+    * {@code parentGroupName}. {@link PermissionChecker#checkUserGroupPermission} walks this
+    * chain upward from a checked group/user, so a delegated permission on an ancestor group
+    * cascades down to descendants, not the other way around.
+    */
+   public SecurityTestDataBuilder addGroupParent(String groupName, String parentGroupName,
+                                                  String orgId)
+   {
+      groupParents.add(new GroupParentAssignment(groupName, parentGroupName, orgId));
+      return this;
+   }
+
+   /**
+    * Assigns {@code roleName} to {@code groupName} ({@code FSGroup.setRoles()}), so members of
+    * the group inherit the role the same way a user directly holding it would --
+    * {@code PermissionChecker.checkRolePermission()}'s GROUP branch reads {@code identity.
+    * getRoles()} the same as it does for a USER.
+    */
+   public SecurityTestDataBuilder addRoleToGroup(String roleName, String groupName, String orgId) {
+      groupRoles.add(new GroupRoleAssignment(roleName, groupName, orgId));
       return this;
    }
 
@@ -120,6 +187,25 @@ public class SecurityTestDataBuilder {
                                                    String orgId)
    {
       permissions.add(new PermissionSpec(type, resource, action, granteeId, identityType, orgId));
+      return this;
+   }
+
+   /**
+    * Marks {@code resource}'s {@link Permission} as explicitly edited/saved for {@code orgId}
+    * ({@link Permission#updateGrantAllByOrg(String, boolean)}, {@code true}), matching what the
+    * real EM "set permission" endpoints do when an admin actually saves a resource's permission
+    * page (e.g. {@code ResourcePermissionService.setResourceAdminPermissions()} calls
+    * {@code permission.updateGrantAllByOrg(orgId, tableModel.hasOrgEdited())}). Without this,
+    * {@code DefaultCheckPermissionStrategy}'s {@code hasOrgEditedGrantAll()} check is always
+    * false, so the non-ADMIN inheritance walk in {@code checkPermission()} treats every resource
+    * as "never configured" and keeps climbing past it toward the root regardless of any grants
+    * recorded there -- {@link #grantPermission} alone does not reproduce a real saved-permission
+    * state for that walk.
+    */
+   public SecurityTestDataBuilder markPermissionEdited(ResourceType type, String resource,
+                                                        String orgId)
+   {
+      editedPermissions.add(new EditedPermissionMarker(type, resource, orgId));
       return this;
    }
 
@@ -154,14 +240,35 @@ public class SecurityTestDataBuilder {
       for(Map.Entry<String, String> entry : orgs.entrySet()) {
          FSOrganization org = new FSOrganization(entry.getKey());
          org.setName(entry.getValue());
+         // FSOrganization's members field defaults to null (Organization(String, String, boolean)
+         // never initialises it); FileAuthenticationProvider.removeOrganizationMember() does
+         // Arrays.asList(org.getMembers()) unconditionally, so a null here NPEs the first time
+         // teardown() removes a user/group/role/org created by this builder.
+         org.setMembers(new String[0]);
          authcProvider.addOrganization(org);
+      }
+
+      // Build role→parentRoles map before writing roles
+      Map<IdentityID, List<IdentityID>> roleParentMap = new HashMap<>();
+      for(RoleParentAssignment rp : roleParents) {
+         roleParentMap
+            .computeIfAbsent(new IdentityID(rp.roleName(), rp.orgId()), k -> new ArrayList<>())
+            .add(new IdentityID(rp.parentRoleName(), rp.orgId()));
       }
 
       // Write roles
       for(RoleSpec rs : roles) {
-         FSRole role = new FSRole(new IdentityID(rs.roleName(), rs.orgId()));
+         IdentityID roleId = new IdentityID(rs.roleName(), rs.orgId());
+         FSRole role = new FSRole(roleId);
          role.setSysAdmin(rs.sysAdmin());
          role.setOrgAdmin(rs.orgAdmin());
+
+         List<IdentityID> parentRoles = roleParentMap.getOrDefault(roleId, Collections.emptyList());
+
+         if(!parentRoles.isEmpty()) {
+            role.setRoles(parentRoles.toArray(new IdentityID[0]));
+         }
+
          authcProvider.addRole(role);
       }
 
@@ -171,6 +278,50 @@ public class SecurityTestDataBuilder {
          userRoleMap
             .computeIfAbsent(new IdentityID(ur.userName(), ur.orgId()), k -> new ArrayList<>())
             .add(new IdentityID(ur.roleName(), ur.orgId()));
+      }
+
+      // Build group→parentGroups map before writing groups
+      Map<IdentityID, List<String>> groupParentMap = new HashMap<>();
+      for(GroupParentAssignment gp : groupParents) {
+         groupParentMap
+            .computeIfAbsent(new IdentityID(gp.groupName(), gp.orgId()), k -> new ArrayList<>())
+            .add(gp.parentGroupName());
+      }
+
+      // Build group→roles map before writing groups
+      Map<IdentityID, List<IdentityID>> groupRoleMap = new HashMap<>();
+      for(GroupRoleAssignment gr : groupRoles) {
+         groupRoleMap
+            .computeIfAbsent(new IdentityID(gr.groupName(), gr.orgId()), k -> new ArrayList<>())
+            .add(new IdentityID(gr.roleName(), gr.orgId()));
+      }
+
+      // Write groups
+      for(GroupSpec gs : groups) {
+         IdentityID groupId = new IdentityID(gs.groupName(), gs.orgId());
+         FSGroup group = new FSGroup(groupId);
+
+         List<String> parentGroups = groupParentMap.getOrDefault(groupId, Collections.emptyList());
+
+         if(!parentGroups.isEmpty()) {
+            group.setGroups(parentGroups.toArray(new String[0]));
+         }
+
+         List<IdentityID> assignedRoles = groupRoleMap.getOrDefault(groupId, Collections.emptyList());
+
+         if(!assignedRoles.isEmpty()) {
+            group.setRoles(assignedRoles.toArray(new IdentityID[0]));
+         }
+
+         authcProvider.addGroup(group);
+      }
+
+      // Build user→groups map before writing users
+      Map<IdentityID, List<String>> userGroupMap = new HashMap<>();
+      for(UserGroupAssignment ug : userGroups) {
+         userGroupMap
+            .computeIfAbsent(new IdentityID(ug.userName(), ug.orgId()), k -> new ArrayList<>())
+            .add(ug.groupName());
       }
 
       // Write users
@@ -185,6 +336,12 @@ public class SecurityTestDataBuilder {
 
          if(!assignedRoles.isEmpty()) {
             user.setRoles(assignedRoles.toArray(new IdentityID[0]));
+         }
+
+         List<String> assignedGroups = userGroupMap.getOrDefault(userId, Collections.emptyList());
+
+         if(!assignedGroups.isEmpty()) {
+            user.setGroups(assignedGroups.toArray(new String[0]));
          }
 
          authcProvider.addUser(user);
@@ -206,16 +363,72 @@ public class SecurityTestDataBuilder {
          authzProvider.setPermission(ps.type(), ps.resource(), perm, ps.orgId());
       }
 
+      // Mark resources as explicitly edited (see markPermissionEdited() javadoc) -- must run
+      // after the grants loop above so it marks the same Permission object just written, not an
+      // empty one.
+      for(EditedPermissionMarker em : editedPermissions) {
+         Permission perm = authzProvider.getPermission(em.type(), em.resource(), em.orgId());
+
+         if(perm == null) {
+            perm = new Permission();
+         }
+
+         perm.updateGrantAllByOrg(em.orgId(), true);
+         authzProvider.setPermission(em.type(), em.resource(), perm, em.orgId());
+      }
+
       return this;
    }
 
    /**
-    * Removes SreeEnv properties, closes provider storages, then re-initialises
-    * {@link SecurityEngine} with security disabled so it holds no stale provider references.
+    * Removes every record this builder wrote (permissions, users, groups, roles, orgs), removes
+    * SreeEnv properties, closes provider storages, then re-initialises {@link SecurityEngine}
+    * with security disabled so it holds no stale provider references.
+    *
+    * <p>The explicit removal pass matters because {@link inetsoft.storage.KeyValueStorageManager}
+    * returns the same storage instance for a given store ID regardless of which test class or
+    * Spring context is asking (see class Javadoc); closing the provider only releases that
+    * handle, it does not delete the underlying records. Without this pass, records written under
+    * an org ID/resource path reused by a later test class (e.g. two slice classes in the same
+    * suite that both use {@code "matrix_org_id"}) would still be visible to it.</p>
     */
    public void teardown() {
       SreeEnv.remove("security.enabled");
       SreeEnv.remove("security.users.multiTenant");
+
+      if(authzProvider != null) {
+         Set<PermissionKey> permissionKeys = new LinkedHashSet<>();
+
+         for(PermissionSpec ps : permissions) {
+            permissionKeys.add(new PermissionKey(ps.type(), ps.resource(), ps.orgId()));
+         }
+
+         for(EditedPermissionMarker em : editedPermissions) {
+            permissionKeys.add(new PermissionKey(em.type(), em.resource(), em.orgId()));
+         }
+
+         for(PermissionKey key : permissionKeys) {
+            authzProvider.removePermission(key.type(), key.resource(), key.orgId());
+         }
+      }
+
+      if(authcProvider != null) {
+         for(UserSpec us : users) {
+            authcProvider.removeUser(new IdentityID(us.userName(), us.orgId()));
+         }
+
+         for(GroupSpec gs : groups) {
+            authcProvider.removeGroup(new IdentityID(gs.groupName(), gs.orgId()));
+         }
+
+         for(RoleSpec rs : roles) {
+            authcProvider.removeRole(new IdentityID(rs.roleName(), rs.orgId()));
+         }
+
+         for(String orgId : orgs.keySet()) {
+            authcProvider.removeOrganization(orgId);
+         }
+      }
 
       if(authcProvider != null) {
          authcProvider.tearDown();
@@ -271,4 +484,11 @@ public class SecurityTestDataBuilder {
    private record UserRoleAssignment(String userName, String roleName, String orgId) {}
    private record PermissionSpec(ResourceType type, String resource, ResourceAction action,
                                   String granteeId, int identityType, String orgId) {}
+   private record GroupSpec(String groupName, String orgId) {}
+   private record UserGroupAssignment(String userName, String groupName, String orgId) {}
+   private record GroupParentAssignment(String groupName, String parentGroupName, String orgId) {}
+   private record RoleParentAssignment(String roleName, String parentRoleName, String orgId) {}
+   private record GroupRoleAssignment(String roleName, String groupName, String orgId) {}
+   private record EditedPermissionMarker(ResourceType type, String resource, String orgId) {}
+   private record PermissionKey(ResourceType type, String resource, String orgId) {}
 }
