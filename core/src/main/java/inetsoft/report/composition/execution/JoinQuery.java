@@ -319,6 +319,10 @@ public class JoinQuery extends AssetQuery {
       // members synchronously on the calling thread, which already holds the
       // (reentrant) lock. Top-level execution is not inside a script, so it is
       // unaffected and still runs in parallel.
+      // Note: isScriptThread() is true whenever the caller is inside ANY GraalJS
+      // script, not only this worksheet's, so an unrelated in-script caller also
+      // takes the serial path. That is intentional (safe over-conservative): it
+      // never deadlocks, at a small parallelism cost in that uncommon case.
       final boolean serial = JavaScriptEngine.isScriptThread();
       ThreadPoolExecutor executor = serial ? null :
          (ThreadPoolExecutor) Executors.newFixedThreadPool(5, new GroupedThreadFactory());
