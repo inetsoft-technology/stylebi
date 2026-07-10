@@ -119,6 +119,15 @@ public class FormulaEvaluator {
          // env, and only rebuilds on an actual tenant handoff (rare), not per
          // evaluation.
          //
+         // Note the reset key is the org, not the individual render: within one
+         // org the Context (and its globalThis) is intentionally shared across
+         // every viewsheet/report/calc-table render on this thread for the life
+         // of the thread. A formula's top-level var/function bleeding into an
+         // unrelated later same-org render is the accepted tradeoff of #75596-
+         // style Context reuse (org-scoped library functions are already shared
+         // the same way); scoping narrower would reintroduce the per-call
+         // rebuild this change exists to avoid.
+         //
          // Only reconcile at the outermost exec on this thread (depth == 0).
          // exec() is reentrant — a formula/condition can trigger a nested
          // FormulaEvaluator.exec (e.g. NamedCellRange resolving a "="-prefixed
@@ -174,7 +183,7 @@ public class FormulaEvaluator {
       try {
          return OrganizationManager.getInstance().getCurrentOrgID();
       }
-      catch(Throwable ex) {
+      catch(Exception ex) {
          return null;
       }
    }
