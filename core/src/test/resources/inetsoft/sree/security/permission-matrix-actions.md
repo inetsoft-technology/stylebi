@@ -151,7 +151,9 @@
 > - `PHYSICAL_TABLE`（ACCESS）、`MY_DASHBOARDS`（READ）、`PORTAL_REPOSITORY_TREE_DRAG_AND_DROP`（ACCESS）、`MATERIALIZATION`（ACCESS）
 > - Portal Tabs 子树：`DASHBOARD:*`（READ+WRITE）、`SCHEDULER:*`（ACCESS）、`PORTAL_TAB:Report`（READ，标签是"Repository"）、`PORTAL_TAB:Data`（ACCESS）——只有这 4 项，不是"若干项"：`PortalThemesManager` 在测试环境里没有持久化过 `portalthemes.xml`，`loadThemes()` 会回退读 `core/src/main/resources/inetsoft/sree/portal/portalthemes.xml` 这个生产默认配置，里面就是 Dashboard/Report/Schedule/Data 四个 tab，没有 "Design"（原设计草稿猜的"~2 项"和"可能有 Design"都不对）
 > - `SCHEDULE_OPTION` 除 `timeRange` 外的 4 项：notificationEmail/saveToDisk/emailDelivery/startTime（均 READ）
-> - `LOGIN_AS`（ACCESS，遍历前临时把 `login.loginAs` 设成 `"on"` 该节点才会出现，遍历完立即还原，参照 `PermissionMatrixResourcesS4Test` 的 `withAndCondition()` 同款做法）
+> - `LOGIN_AS`（ACCESS，遍历前临时把 `login.loginAs` 设成 `"on"` 该节点才会出现，遍历完立即还原，参照 `PermissionMatrixResourcesS4Test` 的 `withAndCondition()` 同款做法）——**这里测的只是这个 action 本身孤立的 grant/no-grant，不是 login-as 能不能用的完整判断**：生产代码里 `LOGIN_AS` action 授权只是三个 AND 条件之一（另外两个是全局开关 `login.loginAs=on` 和针对具体目标用户的 `checkLoginAs()` 门槛），三者的组合关系见 `permission-matrix-special.md` "Login As 的三层门槛"小节，不在本文档重复
+
+
 > - `SHARE` 7 项：email/facebook/googlechat/linkedin/slack/twitter/**link**（均 ACCESS）
 > - `PROFILE`/`CROSS_JOIN`/`CREATE_DATA_SOURCE`/`VIEWSHEET_CALCULATED_FIELD`/`WORKSHEET_EXPRESSION_COLUMN`（均 ACCESS）
 >

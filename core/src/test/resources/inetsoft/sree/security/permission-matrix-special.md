@@ -1,7 +1,7 @@
 # Permission Test Matrix — 区三/区四：认证上下文与特殊组织默认行为
 
 **关联规格：** `docs/superpowers/specs/2026-06-25-permission-test-architecture-design.md`
-**Phase 2 M9 实现：** Task 7（`MultiTenantTestFixture` 内置 org 扩展）评估后确认无需改动；Task 8（`PermissionMatrixSpecialTest`）区四已落地，区三里 Google OAuth SSO 已落地（Task 8b，enterprise 侧 `StyleBIGoogleSSOFilterTest`），账号非活跃状态评估后确认 `[不补]`，Login As 分析中发现一个已实测确认的认证层 bug（密码校验用错了用户，且失败是静默的），`checkLoginAs()` 权限门槛已落地，端到端身份切换阻塞于该 bug 待补，见 `2026-06-30-permission-test-phase2.md`。
+**Phase 2 M9 实现：** Task 7（`MultiTenantTestFixture` 内置 org 扩展）评估后确认无需改动；Task 8（`PermissionMatrixSpecialTest`）区四已落地，区三里 Google OAuth SSO 已落地（Task 8b，enterprise 侧 `StyleBIGoogleSSOFilterTest`），账号非活跃状态评估后确认 `[不补]`，Login As 分析中发现一个认证层 bug（密码校验用错了用户，导致操作者与目标密码不同时登录直接失败，已验证，**Bug #75613**，[PR #4222](https://github.com/inetsoft-technology/stylebi/pull/4222) 已修复未合并），`checkLoginAs()` 权限门槛已落地，`LOGIN_AS` action 授权与 `checkLoginAs()` 的组合门槛也已在 `BasicAuthFilterHttpTest` 补齐，跨组织 Login As 的架构顾虑已核实为按设计工作（非新风险），端到端身份切换测试待 PR #4222 合并后补齐，见 `2026-06-30-permission-test-phase2.md`。
 **姊妹文档：** 区一 `permission-matrix-resources.md`、区二 `permission-matrix-actions.md`。
 
 图例：✓ = allowed　✗ = denied　— = n/a
@@ -23,7 +23,7 @@
 |---|---|---|---|
 | **Google OAuth SSO** | Google OAuth SSO（`googleUser`）| 认证成功后权限解析与本地用户一致；org 归属、role 映射正确落地；不因认证来源差异绕过权限检查 | `[M9]`（enterprise 侧认证链路已落地，15 个 `@Test` 全部通过，具体方法名见下方"Google OAuth SSO 详细场景"小节；community 侧回归护栏未补，评估为可选） |
 | **账号非活跃状态** | 用户账号被禁用（inactive / disabled）| 登录被拒；已有 session 不会因账号被禁用立即失效——只在下次重新登录时生效 | `[不补]`（详见下方"账号非活跃状态"小节，登录拒绝已有测试覆盖，session 不立即失效是确认的设计行为） |
-| **Login As 代理登录** | siteAdmin / 持有 `LOGIN_AS` Security Action 的用户切换到目标用户身份 | 代理期间权限以**目标用户**的授权为准，而非操作者本身；退出代理后恢复原身份权限；`LOGIN_AS` Action 本身受区二 Security Actions 管控（For Org √）| `[待补]`（详见下方"Login As 详细场景"小节——权限门槛可测，端到端身份切换阻塞于一个已实测确认的认证层 bug） |
+| **Login As 代理登录** | siteAdmin / 持有 `LOGIN_AS` Security Action 的用户切换到目标用户身份 | 代理期间权限以**目标用户**的授权为准，而非操作者本身；退出代理后恢复原身份权限；`LOGIN_AS` Action 本身受区二 Security Actions 管控（For Org √）| `[待补]`（详见下方"Login As 详细场景"小节——权限门槛可测已落地；端到端身份切换阻塞于 **Bug #75613**（[PR #4222](https://github.com/inetsoft-technology/stylebi/pull/4222) 已修复未合并）） |
 
 每个场景通路测试只需验证：
 1. 认证/状态变更后 session 建立或失效符合预期
@@ -41,47 +41,68 @@
 
 ### Login As 详细场景
 
-**确认的产品 bug（已实测复现，不是靠读代码猜的）：** Login As 第二步"切换到目标用户身份"重新走了一遍认证，但密码校验比对的是**目标用户存的密码**，不是管理员自己刚提交的密码——只要两人密码不一样（现实里几乎总是这样），这一步认证就会失败。
+**Bug #75613（[PR #4222](https://github.com/inetsoft-technology/stylebi/pull/4222)，`bug-75613` 分支，已修复未合并）：** Login As 切换身份时的第二次认证，密码校验错误地比对了目标用户的密码 hash，而不是操作者自己刚提交的密码——两人密码不同时，登录直接失败（已验证），不是"界面无报错、实际仍以操作者自己身份继续操作"。根因：第二次 `authenticate()` 一进入就对当前请求执行 `logout(request, false)`，清理掉操作者原有的登录态；随后密码比对又因为比对了错误的用户而失败、返回 `null`，不会创建新 session。`BasicAuthenticationFilter.doFilter()` 里这次调用的返回值被丢弃、`authorized` 仍是操作者第一次登录成功时置的 `true`，但原 session 已被清理，最终效果是登录失败。
 
-调用链：`BasicAuthenticationFilter`（`checkLoginAs()` 通过后）→ `authenticate(request, adminID, adminPassword, targetID, locale, true)` → `AuthenticationService.authenticate(userId=adminID, loginAsUser=targetID, password=adminPassword, ...)`：
+**修复**：`SecurityEngine.authenticate(ClientInfo, Object, SecurityProvider)` 里密码比对的目标从 `user.getLoginUserID()`（目标用户）改成 `credential`（`DefaultTicket`）自带的 `getName()`（操作者自己）——即验证"提交这份密码的人是不是他本人"，不再验证"这份密码是不是目标用户的"。目标用户的身份/角色/组/org 仍然在校验通过后按 `user.getUserIdentity()` 正常构造，不受这次改动影响。
+
+**Login As 规则：**
+
+| | 同组织 | 跨组织 |
+|---|---|---|
+| 权限门槛 | siteAdmin 放行任意目标；非 siteAdmin 需对目标有 `SECURITY_USER`/`ADMIN` 授权，且目标不能是 siteAdmin（`checkLoginAs()`） | 仅 siteAdmin 允许；非 siteAdmin 一律拒绝（`checkLoginAs()` 里 `userOrgId != target.getOrgID()` 分支） |
+| 密码校验（修复后） | 校验操作者自己的密码 vs 操作者自己的 hash | 同左，与目标所在 org 无关 |
+| 切换后身份/org | session principal 的角色/组/org 全部来自目标用户（`provider.getUser(user.getUserIdentity())` → `realUser`） | 同左；`realUser.getOrganizationID()` 直接给出目标 org，不依赖请求域名或 `ORG_COOKIE` |
+| 后续请求的 org 归属 | `RequestPrincipalFilter` 每次请求直接从 session 取回同一个 principal 设进 `ThreadContext`，不读 `ORG_COOKIE`/`OrganizationContextHolder` | 同左，因此同一域名下 login-as 到任意 org 的用户都不会被带偏回操作者自己的 org |
+
+遗留系统性风险（非本 bug 范围，不在本次修复内）：principal 未正确传播到异步/调度/跨节点线程时，`getCurrentOrgId()` 可能解析不到正确 org——这是所有已认证请求共享的通用风险，不是 login-as 特有。
+
+**Login As 的三层门槛（`BasicAuthenticationFilter.doFilter()` 里是 AND 关系，缺一不可）：**
+
 ```java
-IdentityID userName = userId;                          // adminID
-if(login.loginAs=on && loginAsUser != null) {
-   userName = loginAsUser;                              // 变成 targetID
-}
-ClientInfo clientInfo = new ClientInfo(userName, ...);       // userID 字段 = targetID
-clientInfo.setLoginUserName(loginAsUser);                    // loginUser 字段也是 targetID
-DefaultTicket ticket = new DefaultTicket(userId, password);  // ticket 里仍是 adminID + 管理员的密码
-principal = authenticate(clientInfo, ticket);
-```
-→ `SecurityEngine.authenticate()`：`provider.authenticate(user.getLoginUserID() /* = targetID */, credential /* = ticket(adminID, 管理员密码) */)` → `FileAuthenticationProvider.authenticate()`：用 `userIdentity` 参数（targetID）取到**目标用户自己**的密码 hash，去跟 ticket 里的**管理员密码**比对。
-
-**实测确认**（直接调用 `FileAuthenticationProvider.authenticate()`，不是静态读代码）：
-```
-provider.authenticate(targetId, ticket(adminId, adminPassword))   → false
-provider.authenticate(targetId, ticket(targetId, targetPassword)) → true
-provider.authenticate(adminId,  ticket(adminId, adminPassword))   → true
-```
-查过 `LoginController.java`，它只往登录页模板塞一个 `loginAs` 布尔值控制 UI 显示，真正提交凭据走的还是同一个 `BasicAuthenticationFilter`（Basic Auth header），没找到绕开这条路径的现代化 REST 端点。已整理成独立 bug 报告，未修复（本次任务范围是补测试不是修 bug）。
-
-**补充一个更关键的细节**：`BasicAuthenticationFilter.doFilter()` 里调这第二次 `authenticate()`（L318-322）时，**返回值直接被丢弃，完全没有判断成功还是失败**：
-```java
-if(checkLoginAs(principal, provider, loginAsUser)) {
-   authenticate(request, new IdentityID(userKey, recordedOrgID), password, loginAsUser, locale, true);
-   // 返回值没接、没判断
+boolean loginAs = "on".equals(SreeEnv.getProperty("login.loginAs")) && !provider.isVirtual();
+...
+if(provider.checkPermission(principal, ResourceType.LOGIN_AS, "*", ResourceAction.ACCESS) && loginAs) {
+   ...
+   if(checkLoginAs(principal, provider, loginAsUser)) {
+      authenticate(...);   // 真正切换身份
+   }
+   else {
+      // 拒绝：viewer.securityexception
+   }
 }
 ```
-`authorized` 在这之前（L296）已经因为第一次（管理员自己）认证成功被设成了 `true`，不会因为这第二次调用失败而改变。也就是说这个 bug 触发时**不会报错**——请求会带着 `authorized=true` 直接往下走 `chain.doFilter()`，但因为 `authenticate()` 内部认证失败、`principal` 是 `null`，不会创建新 session（`createSession` 只在 `principal != null` 时才执行），管理员自己原来的 session 原样保留。表现出来就是：点了"以某某身份登录"，界面上什么错误都没有，但实际操作用的还是管理员自己的身份/权限——跟你之前说的"权限容易出问题，可能用了 admin 的权限"完全对上了。
 
-**因此本次范围收窄成两块不受这个 bug 影响的独立场景（都是纯逻辑，直接调用相关方法，不用真的走两次 HTTP 认证）：**
+1. **全局开关**：`login.loginAs=on`（sree 属性）且 provider 不是 virtual——整个功能的总闸门，跟具体操作者是谁无关。
+2. **`LOGIN_AS` Security Action 的 `ACCESS` 授权**——操作者本身要被允许"使用 login-as 这个功能"，是一个跟其他功能开关（AI Assistant、Free Form SQL 等）同构的粗粒度 flat action，只回答"这个人能不能打开 login-as 这个入口"，不回答"能 login-as 到谁"。
+3. **`checkLoginAs(principal, provider, target)`**——针对**具体目标用户**的细粒度门槛：siteAdmin 放行任意目标；非 siteAdmin 需要同 org + 对**这个具体目标**有 `SECURITY_USER`/`ADMIN` 授权，且目标不能是 siteAdmin。
 
-| 场景 | 关联机制 | 核心断言 | 测试状态 |
-|---|---|---|---|
-| `checkLoginAs()` 权限门槛 | `BasicAuthenticationFilter.checkLoginAs(principal, provider, targetUser)`（`private`，测试里用 `ReflectionTestUtils.invokeMethod()` 直接调） | siteAdmin 可以代理任何目标；非 siteAdmin 要求同 org + 对目标有 `SECURITY_USER`/`ADMIN` 权限；目标本身是 siteAdmin 时非 siteAdmin 操作者被拒绝 | `[M9]` `checkLoginAs_siteAdminOperator_anyTarget_allowed` / `checkLoginAs_nonSiteAdminOperator_sameOrgTargetWithSecurityUserAdminGrant_allowed` / `checkLoginAs_nonSiteAdminOperator_sameOrgTargetWithoutGrant_denied` / `checkLoginAs_nonSiteAdminOperator_targetInDifferentOrg_denied` / `checkLoginAs_nonSiteAdminOperator_targetIsSiteAdmin_denied` |
-| `LOGIN_AS`/`ACCESS` 权限门槛 | `provider.checkPermission(principal, LOGIN_AS, "*", ACCESS)` | 已在区二 `PermissionMatrixActionsS8Test` 的 S8-SWEEP 覆盖过 | `[不补]`（重复，见 `permission-matrix-actions.md`） |
-| 端到端"代理期间权限以目标用户为准" | 依赖上面确认的 bug 修复后的第二次 `authenticate()` | 目前无法测——身份切换这一步本身会认证失败（且失败是静默的） | `[待补]`（阻塞于上述 bug，修复前无法测） |
+**这三层是 AND 关系，不是"满足其一即可"**：只有 `LOGIN_AS` action 授权、没有通过 `checkLoginAs()`（比如对这个具体目标没有 `SECURITY_USER`/`ADMIN` 授权，或目标是 siteAdmin）——命中 `doFilter()` 的 `else` 分支，显式拒绝（`viewer.securityexception`）；反过来，`LOGIN_AS` action 本身未授权（或全局开关关闭）——`checkLoginAs()` 根本不会被调用，不是显式拒绝，而是静默不生效：请求按操作者自己身份正常登录，不会切换成目标用户，也不报错。"有了 LOGIN_AS action 权限就能 login-as 任意用户"这个理解不准确：该 action 只是必要条件之一，不是充分条件；反之缺了它也不是"报错"，是"这个功能对这个人不存在"。
 
-**`checkLoginAs()` 测试的 classpath 限制**：`OrganizationManager.getUserOrgId(Principal)`（`checkLoginAs()` 的"同 org"判断依据）在 `community/core` 测试 classpath 上没有 enterprise 覆写，社区基类实现**无条件返回 `Organization.getDefaultOrganizationID()`（host-org），完全不看传进来的 principal**。所以这里测的"同 org"实际上对所有非 siteAdmin 操作者都等价于"目标在 host-org"，不是真的按操作者各自的 org 比较——跟 `SUtil.isMultiTenant()` 那种 community/enterprise classpath 差异是同一类问题。
+**这个 AND 组合此前没有被任何测试验证过，现已补齐**：区二 `PermissionMatrixActionsS8Test` 的 S8-SWEEP 只把 `LOGIN_AS` 当成一个独立 flat action 测"grant→允许、无 grant→拒绝"，不涉及具体目标用户，也不经过 `checkLoginAs()`；区三 `checkLoginAs()` 的 5 个用例只测目标相关的门槛本身，不涉及 `LOGIN_AS` action 授权。两组测试各自独立成立，但都没有验证过 `doFilter()` 里这两者（以及全局开关）的组合关系——`BasicAuthFilterHttpTest` 新增的两个用例（见下方测试状态表"组合场景 A/B/C"）补上了这一点，不依赖 Bug #75613 的修复。
+
+**`checkLoginAs()` 测试的 classpath 限制**：`OrganizationManager.getUserOrgId(Principal)` 在 `community/core` 测试 classpath 上没有 enterprise 覆写，社区基类实现**无条件返回 host-org，不看传入的 principal**，所以这里测的"同 org"对所有非 siteAdmin 操作者都等价于"目标在 host-org"——跟 `SUtil.isMultiTenant()` 那类 community/enterprise classpath 差异同源。
+
+**测试状态：**
+
+| 场景 | 核心断言 | 测试状态 |
+|---|---|---|
+| `checkLoginAs()` 权限门槛——同组织 | siteAdmin 放行任意目标；非 siteAdmin 同 org + 授权放行、无授权拒绝；目标是 siteAdmin 时拒绝 | `[M9]` `checkLoginAs_siteAdminOperator_anyTarget_allowed` / `checkLoginAs_nonSiteAdminOperator_sameOrgTargetWithSecurityUserAdminGrant_allowed` / `checkLoginAs_nonSiteAdminOperator_sameOrgTargetWithoutGrant_denied` / `checkLoginAs_nonSiteAdminOperator_targetIsSiteAdmin_denied` |
+| `checkLoginAs()` 权限门槛——跨组织 | 非 siteAdmin 跨组织目标一律拒绝 | `[M9]` `checkLoginAs_nonSiteAdminOperator_targetInDifferentOrg_denied` |
+| `LOGIN_AS` action 本身的 grant/no-grant | 独立 flat action，跟其他功能开关同构，不涉及具体目标 | `[M8]`（区二 `PermissionMatrixActionsS8Test` S8-SWEEP，跟 checkLoginAs() 无重叠，不是重复） |
+| **组合场景 A**——有 `LOGIN_AS` action 授权，但对该具体目标 `checkLoginAs()` 不通过 | 非 siteAdmin 已获 `LOGIN_AS` action 授权，但对目标用户无 `SECURITY_USER`/`ADMIN` 授权 → 命中 `doFilter()` 的 `else` 分支，`viewer.securityexception`，`authorized=false`，**显式拒绝**（401），且身份切换用的第二次 `authenticate()` 从未被调用 | `[M9]` `BasicAuthFilterHttpTest.loginAs_actionGrantedButCheckLoginAsFails_returns401AndNeverAttemptsIdentitySwitch` |
+| **组合场景 B/C**——外层 `checkPermission(LOGIN_AS) && loginAs` 本身就不成立（`LOGIN_AS` action 未授权，或全局开关 `login.loginAs` 不是 `"on"`） | `checkLoginAs()` 根本不会被调用（外层 `if` 短路），`loginAsUserKey` 被忽略，请求按操作者自己身份**正常登录成功**（200）——不是拒绝，是静默不生效；`authenticate()` 全程只被调用一次（操作者自己的登录），从未尝试身份切换 | `[M9]` `BasicAuthFilterHttpTest.loginAs_outerGateFails_fallsThroughToSelfLoginWithoutInvokingCheckLoginAs`（`@ParameterizedTest`，两个 case：action 未授予 / 全局开关关闭） |
+| 端到端身份切换——同组织 | Login-As 后 session principal 是目标用户（角色/组按目标用户），不是操作者 | `[待补]`，阻塞于 PR #4222 合并 |
+| 端到端身份切换——跨组织 | siteAdmin login-as 到其他 org 用户后，session principal 的 org 是目标 org；一次权限判断按目标 org 授权走 | `[待补]`，阻塞于 PR #4222 合并 |
+| 密码校验对象 | 操作者与目标密码不同时，login-as 仍能成功（校验的是操作者自己） | `[待补]`，阻塞于 PR #4222 合并 |
+| 操作者自己密码错误时的失败路径 | 操作者提交的密码本身就不对时，login-as 明确失败（登出/无有效 session），不会残留一个身份/权限对不上的可用 session | `[待补]`，阻塞于 PR #4222 合并 |
+
+**组合场景 A 和 B/C 观察到的行为不一样**：A 命中的是 `doFilter()` 里 `checkLoginAs()` 失败的 `else` 分支（`message=viewer.securityexception`、`authorized=false`，走 HTTP 错误响应，`chain.doFilter()` 不会被调用）；B/C 命中的是外层 `if(checkPermission(...) && loginAs)` 直接为 `false`，整个 login-as 分支被跳过，`authorized` 沿用第一次登录（操作者自己）成功时的 `true`，正常走 `chain.doFilter()`——即请求成功，只是没有发生身份切换。两者都是"当前用户没能 login-as 成功"，但一个有明确错误提示，一个是静默按自己身份登录，行为不一致；本次不额外提单，只在测试里如实断言这个观察到的差异，避免以后有人凭直觉误改成"两者都应该报错"。两个用例都落在 `community/core/src/test/java/inetsoft/web/security/BasicAuthFilterHttpTest.java`（该文件已有的 `FilterTestSupport`/`MockMvc` 基础设施，Mockito mock 出 `SecurityEngine`/`SecurityProvider`/`AuthenticationService`，不需要 `SecurityTestDataBuilder` 那套真实 provider fixture），不依赖 Bug #75613 的修复——拒绝/短路都发生在第二次 `authenticate()` 之前。
+
+**PR #4222 合并后新增用例：**
+
+1. `authenticate_loginAs_sameOrg_validatesOperatorPasswordNotTargetPassword`（`SecurityEngine`/`AuthenticationService` 层）：操作者与目标用户密码不同，走 login-as 路径，断言认证成功且返回的 principal 身份是目标用户。
+2. `authenticate_loginAs_crossOrg_targetOrgResolvedFromRealUser`：siteAdmin login-as 到另一个 org 的用户，断言 principal 的 org 是目标 org，并用一次 `checkPermission()` 断言按目标 org 的授权判定（不是操作者所在 org 的授权）。
+3. `doFilter_loginAs_wrongOperatorPassword_failsCleanly`（Filter 级）：操作者提交的密码本身错误，断言 login-as 明确失败，且请求结束后没有残留任何可用 session（不是操作者、也不是目标用户）。
 
 ### Google OAuth SSO 详细场景
 
