@@ -237,10 +237,12 @@ public abstract class DataVSAQuery extends VSAQuery {
     */
    private void applyModernTableStructure(XTableStyle style) {
       Color gridline = VSTableStructureDefaults.gridlineColor();
+      Color separator = VSTableStructureDefaults.headerSeparator();
       style.put("body.rcolor", gridline);
       style.put("body.ccolor", gridline);
-      style.put("header-row.rcolor", gridline);
+      style.put("header-row.rcolor", separator); // header→body horizontal rule, stronger for hierarchy
       style.put("header-row.ccolor", gridline);
+      style.put("header-col.ccolor", separator); // crosstab row-header vertical rule
       style.put("top-border.color", gridline);
       style.put("bottom-border.color", gridline);
       style.put("left-border.color", gridline);
