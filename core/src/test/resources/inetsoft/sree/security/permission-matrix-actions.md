@@ -38,42 +38,18 @@
 
 **`DEVICE`/`SCHEDULE_OPTION`"Time Range" 最小探查：**
 
-> 每个资源两条测试，机制不同（review 澄清后拆开，原先各只有一条 orgAdmin 测试，名称暗示走的是 `isMultiTenant`-gated 排除检查，实际两条都在 `checkOrgAdminPermission()` 的 `default` 分支——`return isOrgAdmin && ActionPermissionService.isOrgAdminAction(type, resource);`——被短路放行，在到达该门禁或显式授权/无权限默认放行检查之前就已经 `return true`，跟 mock 的 `isMultiTenant()` 值、跟 `DEVICE` 是否有显式授权都无关）：
+> 两条测试机制不同：都在 `checkOrgAdminPermission()` 的 `default` 分支——`return isOrgAdmin && ActionPermissionService.isOrgAdminAction(type, resource);`——被短路放行，跟 mock 的 `isMultiTenant()` 值、跟 `DEVICE` 是否有显式授权都无关。
 >
-> - orgAdmin 角色级联基线（钉住 Issue #75603/#75604 的真实生产场景本身——orgAdmin 角色单独满足 `checkOrgAdminPermission()` 的 `default` 分支门禁，在 `checkPermission()` 内部短路放行，跟第一部分"orgAdmin 角色级联 vs orgSecurityAdmin 权限级联"那对测试同一个机制）：
->   - `DEVICE`：`[M8]` `orgAdmin_device_allowedViaRoleCascade_whenMultiTenant`
->   - `SCHEDULE_OPTION`（`timeRange`）：`[M8]` `orgAdmin_scheduleOptionTimeRange_allowedViaRoleCascade_whenMultiTenant_unconfigured`
-> - orgSecurityAdmin（无 `Organization Administrator` 角色，`checkOrgAdminPermission()` 的 `default` 分支门禁评估为 false，不会短路，真正走到 `isMultiTenant()`-gated 排除检查 + 其后的显式授权检查/无权限默认放行兜底分支）：
->   - `DEVICE`：显式授予 ACCESS 后，mock `isMultiTenant()=true` 时仍放行（排除名单不挡、显式授权检查生效）——`[M8]` `orgSecurityAdmin_device_allowedByGrant_whenMultiTenant_notInExclusionList`
->   - `SCHEDULE_OPTION`（`timeRange`）：完全没配置任何授权，mock `isMultiTenant()=true` 时仍放行（真正落到 `DefaultCheckPermissionStrategy` 的"无权限默认放行"兜底分支）——`[M8]` `orgSecurityAdmin_scheduleOptionTimeRange_allowedByDefault_whenMultiTenant_unconfigured`
->
-> **结论（Issue #75603、#75604，均已修复）：**
-> - **Issue #75603**：`DeviceController`（`community/core/src/main/java/inetsoft/web/composer/vs/objects/controller/DeviceController.java`）的 `newDevice`/`editDevice`/`deleteDevice` 已加上 `@Secured(@RequiredPermission(resourceType = DEVICE, resource = "*", actions = ACCESS))`，并新增 `checkOrgAllowedToEditDevices()` → `DeviceRegistry.isOrgAllowedToEditDevices()`（`!isEnterprise() || isSiteAdmin || currentOrg == defaultOrg`）挡住非默认 org 的 orgAdmin。回归测试 `DeviceControllerTest`（`newEditDeleteDevice_requireDeviceAccessPermission`、`newEditDeleteDevice_orgNotAllowed_rejectsAndDoesNotWrite`）已通过。
-> - **Issue #75604**：`ScheduleTaskService.sanitizeConditions()` 的 `canUseTimeRange` 已叠加 `timeRangeAllowedForOrg = !isMultiTenant() || (isSiteAdmin(principal) && 同 org)`，跟 `createTaskDialogModel()` 算 UI 用的 `timeRangeEnabled` 口径一致。回归测试 `ScheduleTaskServiceSanitizeTest.sanitizeConditions_orgAdminMultiTenant_stripsTimeRangeDespiteDefaultAllow` 已通过。
+> - orgAdmin 角色级联：`[M8]` `orgAdmin_device_allowedViaRoleCascade_whenMultiTenant` / `orgAdmin_scheduleOptionTimeRange_allowedViaRoleCascade_whenMultiTenant_unconfigured`
+> - orgSecurityAdmin（非角色级联路径）：`[M8]` `orgSecurityAdmin_device_allowedByGrant_whenMultiTenant_notInExclusionList` / `orgSecurityAdmin_scheduleOptionTimeRange_allowedByDefault_whenMultiTenant_unconfigured`
 
-**后续系统性排查：DEVICE/SCHEDULE_OPTION 这两个 bug 是不是孤例？（两条排查路线，均已核实）**
+**结论（Issue #75603、#75604、#75605、#75606，均已修复）：**
+- **Issue #75603**（DEVICE 的 EM Actions 树对 org admin 隐藏，但接口未拦截）：`DeviceController` 已加上 `@Secured(@RequiredPermission(resourceType = DEVICE, resource = "*", actions = ACCESS))`，并新增 `checkOrgAllowedToEditDevices()` 挡住非默认 org 的 orgAdmin。回归测试 `DeviceControllerTest`（`newEditDeleteDevice_requireDeviceAccessPermission`、`newEditDeleteDevice_orgNotAllowed_rejectsAndDoesNotWrite`）已通过。
+- **Issue #75604**（SCHEDULE_OPTION Time Range 同上）：`ScheduleTaskService.sanitizeConditions()` 已叠加 `timeRangeAllowedForOrg` 判断。回归测试 `ScheduleTaskServiceSanitizeTest.sanitizeConditions_orgAdminMultiTenant_stripsTimeRangeDespiteDefaultAllow` 已通过。
+- **Issue #75605**（`ClusterController` 的 `@Secured` 资源字符串跟排除名单里的 `"monitoring/cluster"` 对不上，导致 org admin 能绕过排除名单调用集群暂停/恢复接口）：`pause-server`/`resume-server`/`cluster-status`/`cluster-enabled`/STOMP 订阅的资源字符串已统一改为精确的 `"monitoring/cluster"`（commit `368023135`，PR #4200）。回归测试 `ClusterControllerTest`（`pauseServer_delegatesToService`/`resumeServer_delegatesToService`/`getClusterStatus_delegatesToService`/`getClusterEnabled_delegatesToService`/`subscribeClusterStatus_permissionDenied_throwsSecurityException`）已通过。
+- **Issue #75606**（`ScheduleTaskService.canDeleteInternalTask()` 对 org admin 短路放行，绕过排除名单对内部系统任务的保护）：已移除短路，改为始终调用 `engine.checkPermission(SCHEDULE_TASK, WRITE)`（commit `1d37ec037`，PR #4205）。回归测试 `ScheduleTaskServiceSanitizeTest`（`canDeleteInternalTask_nullTask_returnsFalse`/`canDeleteInternalTask_nullPrincipal_returnsFalse`/`canDeleteInternalTask_noRepletEngine_returnsFalse`/`canDeleteInternalTask_engineDenies_returnsFalseRegardlessOfRole`/`canDeleteInternalTask_engineGrants_returnsTrue`）已通过。`ScheduleService.runScheduledTask()` 的类似疑点未深入验证，仍待评估。
 
-> 发现 #75603/#75604 后追问了一个更系统的问题："其他 For-Org-× 项会不会也有类似的『UI 隐藏但接口没真正拦』的问题？"分两条路线查，结论都记录在这里，避免以后重复排查同一个问题。
-
-> **路线 1——`ActionPermissionService.java` 里还有没有其他"用内联 `isSiteAdmin`/`isMultiTenant` 隐藏树节点、但对应资源没进 `orgAdminActionExclusions`"的项（即 DEVICE/SCHEDULE_OPTION 那种模式）？**
->
-> 通读全文件，逐一列出全部用这个内联判断控制 EM Actions 树节点可见性的地方（`getInternalScheduleTasksNode`/`getScheduleOptionsNode`/根节点构建/`isEMActionVisible` 共享辅助方法等），并对照每处的 `ResourceType`+路径是否出现在 `orgAdminActionExclusions` 里。**结论：除了已经报的 DEVICE 和 SCHEDULE_OPTION，其余全部能在排除名单里对上号**（`UPLOAD_DRIVERS`、三个内部调度任务、`notification`/`monitoring/{cache,cluster,summary,log}`/`settings/{general,properties,logging}` 等），属于"UI 藏 + 引擎也真的拒绝"的纵深防御，不是新漏洞。这条路线到此为止。
-
-> **路线 2——已经在排除名单里、引擎层确实会拒绝的这 20 项，各自实际的写入/读取接口是不是真的接了权限检查？（即 `DeviceController` 那种"排除名单本身没错，但接口压根没查"的模式）**
->
-> 逐条找到 20 项各自对应的真实 controller 端点，核对其 `@Secured`/`@RequiredPermission`/显式 `checkPermission()` 用的 `ResourceType`+资源字符串是否跟排除名单里的**精确一致**。18 项核实无误（`UPLOAD_DRIVERS`、`settings/general`、`settings/properties`、`settings/logging`、`settings/content/data-space`、`settings/content/drivers-and-plugins`、`settings/schedule/settings`、`settings/schedule/status`、`notification`、`monitoring/summary`、`monitoring/cache`、`monitoring/log`、`settings/security/provider`、`settings/security/sso`、`settings/presentation/org-settings` 等）。`settings/security/googleSignIn` 的写接口不在 community 模块里（企业版功能），community 里这个功能直接强制关闭，本次排查范围排除。**但另外 2 项发现了真实的、跟 `DeviceController` 同一种模式的越权漏洞，已分别报为 Issue #75605 和 Issue #75606：**
->
-> - **Issue #75605（`monitoring/cluster` 资源字符串对不上）**：排除名单里排除的是精确字符串 `"monitoring/cluster"`，但 `ClusterController.java` 的 `pause-server`/`resume-server`/`cluster-status`/`cluster-enabled` 四个端点的 `@Secured` 用的资源字符串全部是 `"monitoring/cluster/reportCluster"`——`isOrgAdminAction()` 是精确字符串匹配，两者不是同一个字符串，排除名单对这几个端点完全不生效。任何 org admin 都能直接调 `POST /api/em/monitoring/cluster/pause-server`/`resume-server` 暂停/恢复整个共享集群，跟"这个功能 UI 上对 org admin 隐藏"的设计意图完全相反。比 DEVICE/SCHEDULE_OPTION 更严重，因为集群是跨租户共享的基础设施。
-> - **Issue #75606（内部调度任务的保存路径绕过排除名单）**：`orgAdminActionExclusions` 专门排除了三个内部系统任务（`__asset file backup__`/`__balance tasks__`/`__update assets dependencies__`），但保存这些任务时唯一的门禁 `ScheduleTaskService.canDeleteInternalTask()` 是：
->   ```java
->   if(organizationManager.isSiteAdmin(principal) || organizationManager.isOrgAdmin(principal)) {
->      return true;   // 只要是 org admin 角色就直接放行，根本没调 checkPermission(SCHEDULE_TASK, ...)
->   }
->   return engine.checkPermission(principal, ResourceType.SCHEDULE_TASK, task.getName(), ResourceAction.WRITE);
->   ```
->   org admin 角色直接短路掉了引擎检查，能通过 `POST /api/em/schedule/task/save` 改这三个内部系统任务的调度条件（`saveTask` 对 internal task 只处理 conditions，不处理 actions，所以改不了任务本身要做什么，但能改时间/频率），跟排除名单"这三个任务连 org admin 都不该碰"的设计意图相反。另外 `ScheduleService.runScheduledTask()`（手动触发任务执行）也只检查 `hasTaskPermission(owner, READ)`，没有检查 `SCHEDULE_TASK` 权限，可能存在类似问题，但依赖内部任务 owner 身份的具体权限计算方式，本次未深入验证，留作这个 Issue 里的开放问题一并说明。
->
-> 两个 Issue 的守护测试暂不预先补——跟 #75603/#75604 那一对同一个测试层级（`ClusterController` 的 `@Secured` 资源字符串走反射断言、`ScheduleTaskService.canDeleteInternalTask()` 走直接单元测试），等实际修复的时候再一并补上 `@Disabled` 守护用例，不单独提前做。
+排查确认排除名单里其余 18 项（其中 `settings/security/googleSignIn` 因写接口在企业版模块不在本次排查范围）的接口权限检查资源字符串均与排除名单一致，不存在同类问题。
 
 **orgAdmin 角色级联 vs orgSecurityAdmin 权限级联（原计划的 S7，评估后取消独立切片，并入 S6）：**
 

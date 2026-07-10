@@ -3,7 +3,7 @@
 **关联规格：** `docs/superpowers/specs/2026-06-25-permission-test-architecture-design.md`
 **Phase 1 覆盖范围：** `MultiTenantIsolationTest`（场景 13–18B）、`PermissionHierarchyTest`（场景 19–20）
 **Phase 2 M8 实现：** 按切片拆成 4 个测试类——`PermissionMatrixResourcesS2Test`/`S3Test`/`S4Test`/`S5Test`（原计划是单个 `PermissionMatrixResourcesTest` + `MatrixTestCase` 参数化 DSL，已废弃，见 `docs/superpowers/plans/2026-06-30-permission-test-phase2.md` 的"修订说明"）
-**姊妹文档：** 区二 Security Action 权限矩阵（S6-S8，`PermissionMatrixActionsTest`）见 `permission-matrix-actions.md`
+**姊妹文档：** 区二 Security Action 权限矩阵（S6/S8，`PermissionMatrixActionsS6Test`/`S8Test`）见 `permission-matrix-actions.md`
 
 图例：✓ = allowed　✗ = denied　— = n/a　`(ADMIN→)` = 由 ADMIN 隐含授权　`[P1]` = Phase 1 已覆盖
 
