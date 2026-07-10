@@ -554,6 +554,31 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
     * Merge group by clause.
     * @return <tt>true</tt> if fully merged, <tt>false</tt> otherwise.
     */
+   /** Matches a SQL window-function call: the OVER keyword followed by '(' (case-insensitive). */
+   private static final Pattern WINDOW_FN_PATTERN =
+      Pattern.compile("\\bOVER\\s*\\(", Pattern.CASE_INSENSITIVE);
+
+   /**
+    * True if `column` is an expression column whose SQL text contains a window function
+    * (`... OVER (...)`). Such a column is neither a GROUP BY dimension nor a standard aggregate;
+    * mergeGroupBy emits it into the SELECT list without grouping/aggregating it. Package-private
+    * (static, no instance state) so it can be unit-tested directly.
+    */
+   static boolean isWindowExpression(ColumnRef column) {
+      if(column == null || !column.isExpression()) {
+         return false;
+      }
+
+      DataRef ref = column.getDataRef();
+
+      if(!(ref instanceof ExpressionRef)) {
+         return false;
+      }
+
+      String expr = ((ExpressionRef) ref).getExpression();
+      return expr != null && WINDOW_FN_PATTERN.matcher(expr).find();
+   }
+
    protected boolean mergeGroupBy() throws Exception {
       AggregateInfo info = getAggregateInfo();
       GroupRef[] groups = info.getGroups();
@@ -614,6 +639,15 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
 
          if(column.isVisible() && aggs.length > 0) {
             mergeAggregates(nselection, aggs);
+            gcolumns.addAttribute(column);
+         }
+         // A window expression column (e.g. RANK() OVER (ORDER BY SUM(x))) is neither a GROUP BY
+         // dimension nor a standard aggregate. Emit it into the SELECT list as a plain expression
+         // (via mergeColumn, NOT mergeAggregates — so it is not flagged as an aggregate) and leave
+         // it OUT of the GROUP BY list (built below from info.getGroups() only). Without this it is
+         // silently dropped from the SELECT when the table also carries group/aggregates.
+         else if(column.isVisible() && group == null && isWindowExpression(column)) {
+            mergeColumn(nselection, column);
             gcolumns.addAttribute(column);
          }
 
