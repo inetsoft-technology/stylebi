@@ -425,7 +425,12 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
          }
       }
       else if(credential instanceof SRPrincipal ||
-              provider.authenticate(user.getLoginUserID(), credential))
+              // Login-As: the ticket carries the acting admin's own name/password while
+              // user.getLoginUserID() is the target being logged in as. Validate against the
+              // ticket's own identity so the admin's password is checked against the admin's
+              // hash, not the target's.
+              provider.authenticate(credential instanceof DefaultTicket ?
+                 ((DefaultTicket) credential).getName() : user.getLoginUserID(), credential))
       {
          synchronized(this) {
             boolean internal = !(credential instanceof SRPrincipal);

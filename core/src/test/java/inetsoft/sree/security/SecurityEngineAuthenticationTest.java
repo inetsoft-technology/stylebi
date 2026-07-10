@@ -47,6 +47,7 @@ import static org.mockito.Mockito.*;
  *  [Login validity]      login.user requires cache presence               -> valid only when cached
  *  [Logout event]        loggedOut removes cached login principal         -> invalid after logout
  *  [Login event]         successful login event is forwarded to listeners -> listener invoked
+ *  [Login-As]            ticket holds acting user, ClientInfo holds target -> credential checked against acting user
  *
  * Test design:
  *  - keep the Spring context required by SecurityEngine initialization
@@ -147,6 +148,44 @@ class SecurityEngineAuthenticationTest {
       Map<ClientInfo, SRPrincipal> users =
          (Map<ClientInfo, SRPrincipal>) ReflectionTestUtils.getField(engine, "users");
       assertTrue(users.isEmpty());
+   }
+
+   // [Scenario: login-as] DefaultTicket carries the acting user's own name/password while the
+   // ClientInfo (built the same way AuthenticationService does for Login-As) carries the target
+   // identity -> the provider must be asked to authenticate the ticket's own identity (the acting
+   // user), not the target, otherwise the target's stored hash is checked against the acting user's
+   // plaintext password and login-as fails unless the two passwords happen to coincide.
+   // Setup: provider only accepts the acting user's credential; it would reject the target identity
+   @Test
+   void authenticate_loginAsTicket_validatesActingUserCredentialAgainstOwnIdentity() {
+      IdentityID adminId = new IdentityID("admin", "org1");
+      IdentityID targetId = new IdentityID("securityAdmin", "org1");
+      SecurityProvider provider = mock(SecurityProvider.class);
+      DefaultTicket ticket = new DefaultTicket(adminId, "adminPass");
+
+      ClientInfo user = clientInfo(targetId);
+      user.setLoginUserName(targetId);
+
+      User targetUser = new User(targetId, new String[0], new String[0],
+         new IdentityID[] { new IdentityID("Organization Administrator", "org1") }, "", "",
+         true, "Security Admin");
+
+      when(provider.authenticate(adminId, ticket)).thenReturn(true);
+      when(provider.authenticate(targetId, ticket)).thenReturn(false);
+      when(provider.getUser(targetId)).thenReturn(targetUser);
+      when(provider.getRoles(targetId)).thenReturn(
+         new IdentityID[] { new IdentityID("Organization Administrator", "org1") });
+      when(provider.getUserGroups(targetId)).thenReturn(new String[0]);
+
+      Principal principal = engine.authenticate(user, ticket, provider);
+
+      assertNotNull(principal, "login-as must succeed when the acting user's own password is valid");
+      verify(provider).authenticate(adminId, ticket);
+      verify(provider, never()).authenticate(targetId, ticket);
+
+      SRPrincipal srPrincipal = (SRPrincipal) principal;
+      assertEquals(targetId, user.getUserIdentity());
+      assertEquals("Security Admin", srPrincipal.getAlias());
    }
 
    // [Scenario: active session] cached principal with matching user identity -> active user
