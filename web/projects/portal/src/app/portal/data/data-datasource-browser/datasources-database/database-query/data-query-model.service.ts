@@ -273,14 +273,14 @@ export function findNextNode(root: TreeNodeModel, node: TreeNodeModel): TreeNode
 
    // check if node is a child of p
    function isChild(p: TreeNodeModel, c: TreeNodeModel): boolean {
-      return p.children && p.children.some(n => JSON.stringify(n.data) == JSON.stringify(c.data));
+      return p.children && p.children.some(n => n === c);
    }
 
    const parent = GuiTool.findNode(root, n => isChild(n, node));
 
    if(parent) {
       for(let i = 0; i < parent.children.length; i++) {
-         if(JSON.stringify(parent.children[i].data) == JSON.stringify(node.data)) {
+         if(parent.children[i] === node) {
             if(i < parent.children.length - 1) {
                return parent.children[i + 1];
             }

@@ -27,10 +27,20 @@ import { BaseTableCellModel } from "../model/base-table-cell-model";
 import { VSCrosstabModel } from "../model/vs-crosstab-model";
 import { DataTipService } from "../objects/data-tip/data-tip.service";
 import { PopComponentService } from "../objects/data-tip/pop-component.service";
-import { VSCrosstab } from "../objects/table/vs-crosstab.component";
 import { ActionStateProvider } from "./action-state-provider";
 import { BaseTableActions } from "./base-table-actions";
 import { MiniToolbarService } from "../objects/mini-toolbar/mini-toolbar.service";
+
+/**
+ * Kept outside VSCrosstab (rather than calling VSCrosstab.getDrillDirection) so that
+ * this module does not import the component module, which owns a large, easily
+ * circular dependency tree.
+ */
+export function getCrosstabDrillDirection(model: VSCrosstabModel, row: number, col: number): string {
+   return row >= model.headerRowCount && col < model.headerColCount
+      ? ChartConstants.DRILL_DIRECTION_Y
+      : ChartConstants.DRILL_DIRECTION_X;
+}
 
 export class CrosstabActions extends BaseTableActions<VSCrosstabModel> {
    constructor(model: VSCrosstabModel, contextProvider: ContextProvider,
@@ -525,7 +535,7 @@ export class CrosstabActions extends BaseTableActions<VSCrosstabModel> {
          }
       }
 
-      const dir = VSCrosstab.getDrillDirection(
+      const dir = getCrosstabDrillDirection(
          this.model, rowIndex, map.get(this.model.firstSelectedRow)[0]);
 
       return (map.size === 1 && dir == ChartConstants.DRILL_DIRECTION_X ||

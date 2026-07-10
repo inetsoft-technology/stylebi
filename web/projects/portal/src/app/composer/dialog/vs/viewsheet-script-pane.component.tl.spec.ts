@@ -20,9 +20,11 @@
  * ViewsheetScriptPane — single pass
  *
  * Risk-first coverage:
- *   Group 1 [Risk 3] — ngOnInit initScriptVisible: Bug #18853 — the else branch of the second
- *     if/else always overwrites the result of the first if, so when onInit is set and onLoad is
- *     empty the first-if assignment (true) is immediately clobbered by getDefaultTab.
+ *   Group 1 [Risk 3] — ngOnInit initScriptVisible: Bug #75600 (FIXED) — the else branch of the
+ *     second if/else used to always overwrite the result of the first if, so when onInit was set
+ *     and onLoad was empty the first-if assignment (true) was immediately clobbered by
+ *     getDefaultTab. This was fixed by converting the two independent if-blocks into a proper
+ *     if/else-if/else chain.
  *   Group 2 [Risk 2] — onInitClicked / onRefreshClicked: flip initScriptVisible and call
  *     setDefaultTab with the correct key and value.
  *   Group 3 [Risk 2] — onExpressionChange (no node): updates model.onInit or model.onLoad
@@ -30,15 +32,15 @@
  *   Group 4 [Risk 1] — onExpressionChange (node paths): early return for non-leaf nodes;
  *     component-type node builds parentLabel.property path.
  *
- * Confirmed bugs (it.fails):
- *   Bug — ngOnInit initScriptVisible logic (Group 1, Bug #18853): the code has two consecutive
- *     if-blocks. The second block's else branch runs whenever !((!onInit && onLoad)) is true —
- *     i.e., whenever onInit is truthy OR onLoad is falsy. This means that even when the first
- *     if(onInit && !onLoad) fires and correctly sets initScriptVisible=true, the else of the
- *     second if immediately overwrites it with getDefaultTab()==="true". If the user's last-used
- *     tab was onLoad (getDefaultTab returns "false"), the onInit tab is silently hidden despite
- *     the viewsheet having an onInit script. Fix: convert to a proper if/else-if/else chain so
- *     only case 3 (neither script is set) consults the preference store.
+ * Fixed bugs:
+ *   Bug #75600 (FIXED) — ngOnInit initScriptVisible logic (Group 1): the code had two consecutive
+ *     if-blocks. The second block's else branch ran whenever !((!onInit && onLoad)) was true —
+ *     i.e., whenever onInit was truthy OR onLoad was falsy. This meant that even when the first
+ *     if(onInit && !onLoad) fired and correctly set initScriptVisible=true, the else of the
+ *     second if immediately overwrote it with getDefaultTab()==="true". If the user's last-used
+ *     tab was onLoad (getDefaultTab returned "false"), the onInit tab was silently hidden despite
+ *     the viewsheet having an onInit script. Fixed by converting to a proper if/else-if/else
+ *     chain so only case 3 (neither script is set) consults the preference store.
  *
  * No memory leak (+内存泄漏): the component has no subscriptions or timers.
  *
@@ -174,7 +176,7 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 // ---------------------------------------------------------------------------
-// Group 1: ngOnInit — initScriptVisible logic [Risk 3] — Bug #18853
+// Group 1: ngOnInit — initScriptVisible logic [Risk 3] — Bug #75600 (FIXED)
 // ---------------------------------------------------------------------------
 
 describe("ViewsheetScriptPane — ngOnInit initScriptVisible", () => {
@@ -202,19 +204,19 @@ describe("ViewsheetScriptPane — ngOnInit initScriptVisible", () => {
       expect(uiContextServiceMock.getDefaultTab).toHaveBeenCalledWith("vs.onInit", "true");
    });
 
-   // Bug #18853: when onInit is set and onLoad is empty, the first if correctly sets
-   // initScriptVisible=true. However the else of the SECOND if also runs (because
-   // !((!onInit && onLoad)) is true when onInit is truthy). The else overwrites the result
-   // with getDefaultTab()==="true". If getDefaultTab returns "false", initScriptVisible ends
-   // up false even though the viewsheet has an onInit script.
-   // Fix: restructure as if/else-if/else so only the default case consults the preference.
-   it.fails("should set initScriptVisible=true when onInit is set and onLoad is empty regardless of getDefaultTab", async () => {
+   // Bug #75600 (FIXED): when onInit is set and onLoad is empty, the first if correctly sets
+   // initScriptVisible=true. Previously the else of the SECOND if also ran (because
+   // !((!onInit && onLoad)) was true when onInit was truthy), overwriting the result with
+   // getDefaultTab()==="true". If getDefaultTab returned "false", initScriptVisible ended up
+   // false even though the viewsheet had an onInit script.
+   // Fixed by restructuring as if/else-if/else so only the default case consults the preference.
+   it("should set initScriptVisible=true when onInit is set and onLoad is empty regardless of getDefaultTab", async () => {
       uiContextServiceMock.getDefaultTab.mockReturnValue("false");
       const { comp } = await renderComponent({ onInit: "initScript();", onLoad: "" });
       // First if(onInit && !onLoad) → sets true.
-      // Second if/else: else fires (onInit truthy → !(false) = true) → overwrites with "false"==="true" → false.
-      // After the fix this should stay true.
-      expect(comp.initScriptVisible).toBe(true); // FAILS — overwritten to false
+      // Since the fix, the else-if/else chain is skipped entirely once the first if fires,
+      // so the value is no longer overwritten by getDefaultTab().
+      expect(comp.initScriptVisible).toBe(true);
    });
 });
 

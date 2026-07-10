@@ -981,13 +981,13 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
    }
 
    private hasExpression() {
-      if(this.isCrosstab && this.bindingModel) {
+      if(this.isCrosstab() && this.bindingModel) {
          let crosstab = this.bindingModel as CrosstabBindingModel;
 
          return this.hasExpressionRef(crosstab.rows) || this.hasExpressionRef(crosstab.cols) ||
             this.hasExpressionRef(crosstab.aggregates);
       }
-      else if(this.isChart && this.bindingModel) {
+      else if(this.isChart() && this.bindingModel) {
          let chart = this.bindingModel as ChartBindingModel;
 
          return this.hasExpressionRef(chart.xfields) || this.hasExpressionRef(chart.yfields) ||
@@ -1013,7 +1013,7 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
    }
 
    private isExpressionAes(ref: AestheticInfo) {
-      return ref.dataInfo.columnValue.startsWith("=");
+      return !!ref && !!ref.dataInfo && ref.dataInfo.columnValue.startsWith("=");
    }
 
    private isCrosstab(): boolean {

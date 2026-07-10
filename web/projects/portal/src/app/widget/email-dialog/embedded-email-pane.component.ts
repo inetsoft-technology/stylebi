@@ -414,7 +414,7 @@ export class EmbeddedEmailPane implements OnInit, OnDestroy {
          this.addedEmails = [];
          const addrs: string[] = this.addresses ? this.addresses.split(":") : [];
 
-         if(addrs && addrs.length > 0 &&  addrs[0].substring(0, 7) === "query: ") {
+         if(this.addresses && this.addresses.substring(0, 7) === "query: ") {
             return;
          }
 

@@ -27,20 +27,21 @@
  *   Group 5  [Risk 2] — processAssemblyChangedCommand: emits only when pane is closed
  *   Group 6  [Risk 2] — updateData routing: getCurrentFormat / getTextFormat / updateFormat / reset / unknown
  *   Group 7  [Risk 2] — goToWizardVisible: hasDynamic / inEmbeddedViewsheet / isCube guards
- *   Group 8  [it.fails] — hasExpression: dead code (haveDynamicBinding fires first); documents method-reference flaw
+ *   Group 8  [fixed] — hasExpression: Bug #75601 (missing `()` on isCrosstab/isChart method
+ *            references) fixed; verifies VSChart with expression in xfields returns true
  *   Group 9  [baseline] — sourceName / originalMode / haveDynamicBinding getters
  *   Group 10 [baseline] — isChart / isCrosstab / getBindingType mapping
  *   Group 11 [baseline] — messageChange: replaces consoleMessages
  *
- * Confirmed bugs (it.fails): none
+ * Confirmed bugs: Bug #75601 (fixed) — hasExpression used `this.isCrosstab` / `this.isChart`
+ *   as bare method references instead of calling them, so the `if` branch was always taken
+ *   (a function reference is always truthy) and the `isChart` branch was unreachable dead code.
  *
- * Suspected dead code (documented via it.fails):
- *   hasExpression — contains a missing-`()` bug (`this.isCrosstab` used as a method reference)
- *     that causes the method to always return false for VSChart assemblies. However, this method
- *     is effectively dead code: in goToWizardVisible the `!haveDynamicBinding` guard (backed by
- *     objectModel.hasDynamic, set by the server when expression fields exist) short-circuits
- *     the && chain before hasExpression() is ever evaluated. No user-visible impact; no bug
- *     report needed.
+ * Previously suspected dead code (now fixed, Bug #75601):
+ *   hasExpression contained a missing-`()` bug (`this.isCrosstab` / `this.isChart` used as
+ *     method references instead of being called) that caused the method to always evaluate the
+ *     crosstab branch and always return false for VSChart assemblies. This has been fixed by
+ *     calling `this.isCrosstab()` / `this.isChart()`.
  *
  * Out of scope this pass:
  *   closeHandler / closeHandler0 / goToWizard / openWizardPane — require modal + setTimeout
@@ -399,28 +400,23 @@ describe("VSBindingPane — goToWizardVisible", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Group 8 — hasExpression [dead-code documentation, it.fails]
+// Group 8 — hasExpression [Bug #75601, fixed]
 // ---------------------------------------------------------------------------
 
 describe("VSBindingPane — hasExpression", () => {
-   // hasExpression() is dead code in practice:
-   //   goToWizardVisible evaluates `!this.haveDynamicBinding` before `!this.hasExpression()`.
-   //   When expression fields exist the server sets objectModel.hasDynamic = true, so
-   //   haveDynamicBinding returns true and the && chain short-circuits — hasExpression() is
-   //   never called. Confirmed by manual testing: adding an expression field hides "Go to
-   //   Wizard" via hasDynamic, not via hasExpression().
+   // Bug #75601 (fixed): hasExpression() referenced `this.isCrosstab` and `this.isChart`
+   //   as bare method references instead of calling them (`this.isCrosstab()` /
+   //   `this.isChart()`). A bare method reference is always a truthy function object, so the
+   //   `if(this.isCrosstab && ...)` branch was always taken regardless of assembly type, and
+   //   the `else if(this.isChart && ...)` branch was permanently unreachable dead code. For a
+   //   VSChart model with an expression in xfields, this routed into the crosstab-shaped logic,
+   //   which read undefined `rows`/`cols`/`aggregates` off the chart binding model and returned
+   //   false instead of the correct true.
    //
-   // The method nonetheless contains a code-level flaw documented below.
-   //
-   // Expected failure point: the final `expect(...).toBe(true)` fails because
-   //   `this.isCrosstab` (without `()`) is a method reference (always truthy), so the
-   //   isCrosstab branch runs for all assembly types, casting bindingModel to
-   //   CrosstabBindingModel and checking rows/cols/aggregates (all undefined for a chart
-   //   model) → returns false. The isChart branch is unreachable.
-   // If the test fails for an unrelated reason (e.g. fixture throws), it.fails still passes
-   //   — verify the failure message shows the expect().toBe(true) line, not a setup error.
-   it.fails(
-      "should return true for VSChart with expression in xfields (dead-code flaw: isCrosstab used as method reference without ())",
+   // Fixed by adding the missing `()`: `this.isCrosstab()` and `this.isChart()` in
+   //   hasExpression() now correctly dispatch based on the actual assembly type.
+   it(
+      "should return true for VSChart with expression in xfields (Bug #75601: isCrosstab/isChart now called as methods)",
       async () => {
          const { comp } = await renderComponent();
          comp.objectModel = TestUtils.createMockVSChartModel("Chart1");
@@ -435,8 +431,7 @@ describe("VSBindingPane — hasExpression", () => {
             sizeField: noExprRef,
          } as any;
 
-         // Expected: true (isChart branch should detect "=SUM(Sales)" in xfields)
-         // Actual: false (isCrosstab branch runs instead, crosstab.rows is undefined → false)
+         // Expected: true (isChart() branch detects "=SUM(Sales)" in xfields)
          expect((comp as any).hasExpression()).toBe(true);
       }
    );

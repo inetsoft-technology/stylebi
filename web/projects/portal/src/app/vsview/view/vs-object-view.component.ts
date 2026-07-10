@@ -160,6 +160,10 @@ export class VSObjectView extends CommandProcessor implements OnDestroy, OnInit,
 
    //only resize vstable and vscrosstable
    public resizeModelView(): void {
+      if(!this.model) {
+         return;
+      }
+
       if(this.model.objectType == "VSTable" || this.model.objectType == "VSCrosstab" ||
          this.model.objectType == "VSCalcTable")
       {

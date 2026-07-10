@@ -461,6 +461,33 @@ public class RelationVSChartInfo extends MergedVSChartInfo implements RelationCh
       }
 
       super.update(vs, columns, sep, pdim, source, dcInfo);
+
+      // Node color/size aesthetic refs are excluded from getAestheticRefs() (bug #75253, to keep
+      // their dimensions out of the GROUP BY), so VSChartInfo.update() does not resolve them.
+      // Resolve them here so their dataRef matches the runtime column selection; otherwise
+      // ChartVSAQuery.createGroupRef() cannot find the column and the node color/size field is
+      // dropped from the query, breaking node color/size rendering. (Bug #75562)
+      updateNodeAestheticRef(nodeColorField, vs, columns);
+      updateNodeAestheticRef(nodeSizeField, vs, columns);
+   }
+
+   /**
+    * Resolve a relation chart node color/size aesthetic ref against the runtime columns.
+    * Only VSDimensionRef-backed fields are handled: those are the ones excluded from
+    * getAestheticRefs() (bug #75253), so VSChartInfo.update() skips them. VSAggregateRef-backed
+    * node fields still flow through getAestheticRefs() and are already resolved by super.update().
+    */
+   private void updateNodeAestheticRef(AestheticRef ref, Viewsheet vs, ColumnSelection columns) {
+      if(ref instanceof VSAestheticRef && ref.getDataRef() instanceof VSDimensionRef) {
+         try {
+            ((VSAestheticRef) ref).update(vs, columns);
+         }
+         catch(ColumnNotFoundException ex) {
+            if(ref.getDataRef() instanceof VSChartRef && ((VSChartRef) ref.getDataRef()).isScript()) {
+               throw ex;
+            }
+         }
+      }
    }
 
    /**

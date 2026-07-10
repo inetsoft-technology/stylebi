@@ -128,10 +128,13 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
             new ViewsheetInfo(this.vsObjects, this.vsInfo.linkUri, this.vsInfo.metadata,
                               this.vsInfo.runtimeId);
 
-         if(this.model) {
+         if(this.model && this.model.hyperlinkModel) {
             const viewModel = HyperlinkViewModel.fromHyperlinkModel(this.model.hyperlinkModel,
                this.vsInfo.linkUri, null);
             this.href = this.viewer && !this.preview ? viewModel.url : undefined;
+         }
+         else if(this.model) {
+            this.href = undefined;
          }
       }
 

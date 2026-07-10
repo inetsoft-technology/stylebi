@@ -16,6 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package inetsoft.web.admin.schedule;
+import inetsoft.sree.AnalyticRepository;
+import inetsoft.sree.RepletEngine;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.OrganizationManager;
@@ -40,6 +42,10 @@ import static org.mockito.Mockito.*;
 class ScheduleTaskServiceSanitizeTest {
 
    @Mock
+   private AnalyticRepository analyticRepository;
+   @Mock
+   private RepletEngine repletEngine;
+   @Mock
    private ScheduleService scheduleService;
    @Mock
    private Principal principal;
@@ -48,7 +54,7 @@ class ScheduleTaskServiceSanitizeTest {
 
    @BeforeEach
    void setUp() {
-      service = new ScheduleTaskService(null, null, scheduleService, null, null, null, null);
+      service = new ScheduleTaskService(analyticRepository, null, scheduleService, null, null, null, null);
    }
 
    /**
@@ -510,6 +516,69 @@ class ScheduleTaskServiceSanitizeTest {
       assertEquals(0, action.getSaveFormats().length);
       assertFalse(action.isSaveToServerMatch());
       assertFalse(action.isSaveToServerExpandSelections());
+   }
+
+   // ── canDeleteInternalTask ────────────────────────────────────────────────
+   //
+   // Regression coverage: canDeleteInternalTask() must always defer to
+   // RepletEngine.checkPermission() for SCHEDULE_TASK WRITE rather than granting any
+   // Organization Administrator unconditional access. Bypassing checkPermission() let an org
+   // admin save changes to the three internal system tasks
+   // (__asset file backup__/__balance tasks__/__update assets dependencies__) that
+   // ActionPermissionService.orgAdminActionExclusions specifically excludes them from.
+
+   @Test
+   void canDeleteInternalTask_nullTask_returnsFalse() {
+      assertFalse(service.canDeleteInternalTask(null, principal));
+      verifyNoInteractions(repletEngine);
+   }
+
+   @Test
+   void canDeleteInternalTask_nullPrincipal_returnsFalse() {
+      assertFalse(service.canDeleteInternalTask(internalTask("__asset file backup__"), null));
+      verifyNoInteractions(repletEngine);
+   }
+
+   @Test
+   void canDeleteInternalTask_noRepletEngine_returnsFalse() {
+      when(analyticRepository.isWrapperFor(RepletEngine.class)).thenReturn(false);
+
+      assertFalse(service.canDeleteInternalTask(internalTask("__asset file backup__"), principal));
+   }
+
+   @Test
+   void canDeleteInternalTask_engineDenies_returnsFalseRegardlessOfRole() {
+      wireRepletEngine();
+      ScheduleTask task = internalTask("__asset file backup__");
+      when(repletEngine.checkPermission(principal, ResourceType.SCHEDULE_TASK,
+         "__asset file backup__", ResourceAction.WRITE)).thenReturn(false);
+
+      assertFalse(service.canDeleteInternalTask(task, principal),
+         "must defer to checkPermission() instead of granting access by role");
+
+      verify(repletEngine).checkPermission(principal, ResourceType.SCHEDULE_TASK,
+         "__asset file backup__", ResourceAction.WRITE);
+   }
+
+   @Test
+   void canDeleteInternalTask_engineGrants_returnsTrue() {
+      wireRepletEngine();
+      ScheduleTask task = internalTask("some other internal task");
+      when(repletEngine.checkPermission(principal, ResourceType.SCHEDULE_TASK,
+         "some other internal task", ResourceAction.WRITE)).thenReturn(true);
+
+      assertTrue(service.canDeleteInternalTask(task, principal));
+   }
+
+   private void wireRepletEngine() {
+      when(analyticRepository.isWrapperFor(RepletEngine.class)).thenReturn(true);
+      when(analyticRepository.unwrap(RepletEngine.class)).thenReturn(repletEngine);
+   }
+
+   private ScheduleTask internalTask(String name) {
+      ScheduleTask task = new ScheduleTask();
+      task.setName(name);
+      return task;
    }
 
    // ── helpers ───────────────────────────────────────────────────────────────

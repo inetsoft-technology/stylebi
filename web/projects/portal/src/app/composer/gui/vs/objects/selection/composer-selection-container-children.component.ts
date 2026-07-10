@@ -20,6 +20,7 @@ import {
    ChangeDetectorRef,
    ElementRef,
    EventEmitter,
+   forwardRef,
    HostListener,
    Input,
    NgZone,
@@ -85,7 +86,7 @@ const CHECK_TRAP_URI = "../api/composer/viewsheet/objects/checkSelectionTrap";
     selector: "composer-selection-container-children",
     templateUrl: "composer-selection-container-children.component.html",
     styleUrls: ["composer-selection-container-children.component.scss"],
-    imports: [ActionsContextmenuAnchorDirective, OutOfZoneDirective, CurrentSelection, SelectionContainerActionHandlerDirective, EditableObjectContainer, LayoutOptionDialog]
+    imports: [ActionsContextmenuAnchorDirective, OutOfZoneDirective, CurrentSelection, SelectionContainerActionHandlerDirective, forwardRef(() => EditableObjectContainer), LayoutOptionDialog]
 })
 export class ComposerSelectionContainerChildren extends VSSelectionContainerChildren implements OnInit, OnDestroy, OnChanges {
    @Input() viewsheet: Viewsheet;
