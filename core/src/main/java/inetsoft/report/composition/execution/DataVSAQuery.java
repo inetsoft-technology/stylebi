@@ -24,6 +24,9 @@ import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.report.internal.table.TableHyperlinkAttr;
 import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.report.style.TableStyle;
+import inetsoft.report.style.XTableStyle;
+
+import java.awt.Color;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -123,6 +126,17 @@ public abstract class DataVSAQuery extends VSAQuery {
 
             if(style != null) {
                style = (TableStyle) style.clone();
+
+               // overlay the modern structure palette onto the cloned Default Style so it acts as a
+               // default the user cell/column/row format still overrides; non-default styles untouched.
+               // sname is the canonical (non-localized) style name, so the constant match is locale-safe
+               if(style instanceof XTableStyle &&
+                  TableDataVSAssemblyInfo.DEFAULT_STYLE.equals(sname) &&
+                  VSTableStructureDefaults.isModern())
+               {
+                  applyModernTableStructure((XTableStyle) style);
+               }
+
                style.setTable(data);
                data = style;
             }
@@ -214,6 +228,29 @@ public abstract class DataVSAQuery extends VSAQuery {
       finally {
          box.unlockRead();
       }
+   }
+
+   /**
+    * Overlay the modern gridline/header/total colors onto a cloned Default Style. The header-column
+    * and trailer keys affect only crosstabs (plain tables have no header/trailer bands); body borders
+    * fall through for the regions not set explicitly. Every value is a default the user format beats.
+    */
+   private void applyModernTableStructure(XTableStyle style) {
+      Color gridline = VSTableStructureDefaults.gridlineColor();
+      style.put("body.rcolor", gridline);
+      style.put("body.ccolor", gridline);
+      style.put("header-row.rcolor", gridline);
+      style.put("header-row.ccolor", gridline);
+      style.put("top-border.color", gridline);
+      style.put("bottom-border.color", gridline);
+      style.put("left-border.color", gridline);
+      style.put("right-border.color", gridline);
+      style.put("header-row.background", VSTableStructureDefaults.headerBackground());
+      style.put("header-row.foreground", VSTableStructureDefaults.headerForeground());
+      style.put("header-col.background", VSTableStructureDefaults.headerBackground());
+      style.put("header-col.foreground", VSTableStructureDefaults.headerForeground());
+      style.put("trailer-row.background", VSTableStructureDefaults.totalBackground());
+      style.put("trailer-col.background", VSTableStructureDefaults.totalBackground());
    }
 
    /**
