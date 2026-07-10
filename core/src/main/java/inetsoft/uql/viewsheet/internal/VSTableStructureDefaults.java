@@ -59,6 +59,14 @@ public final class VSTableStructureDefaults {
       return HEADER_FG;
    }
 
+   /**
+    * Header→body separator rule — stronger than the interior gridline for hierarchy. Equals the
+    * shell/DOM structural border (#D9D5CC), so the viewsheet header rule matches the rest of the product.
+    */
+   public static Color headerSeparator() {
+      return HEADER_SEPARATOR;
+   }
+
    /** Grand-total (trailer row/column) background. */
    public static Color totalBackground() {
       return TOTAL_BG;
@@ -66,6 +74,7 @@ public final class VSTableStructureDefaults {
 
    // modern warm-neutral structure palette; light mode only, dark deferred
    private static final Color GRIDLINE = new Color(0xE8E5DE);
+   private static final Color HEADER_SEPARATOR = new Color(0xD9D5CC);
    private static final Color HEADER_BG = new Color(0xF1EFEA);
    private static final Color HEADER_FG = new Color(0x6A685F);
    private static final Color TOTAL_BG = new Color(0xE9E4DA);

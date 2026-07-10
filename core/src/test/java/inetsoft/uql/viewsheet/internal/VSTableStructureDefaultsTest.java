@@ -43,6 +43,12 @@ class VSTableStructureDefaultsTest {
    }
 
    @Test
+   void headerSeparatorMatchesShellBorder() {
+      // stronger than the gridline; equals $shell-border-default so the header rule matches the product
+      assertEquals(0xD9D5CC, rgb(VSTableStructureDefaults.headerSeparator()));
+   }
+
+   @Test
    void totalBackgroundValue() {
       assertEquals(0xE9E4DA, rgb(VSTableStructureDefaults.totalBackground()));
    }

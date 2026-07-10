@@ -281,11 +281,12 @@ CSS-dictionary route is **not viable** and was replaced with a Java gated resolv
 - Gate + guard: `viewsheet.modernVisualization` **and** `viewsheet.modernTableStructure` (default on when
   modern is on), and only when `"Default Style".equals(tinfo.getTableStyle())` — a table assigned a
   non-default style is never modernized.
-- Colors: interior gridline + outer frame + header-row separator → `#E8E5DE` (unifies legacy `#E6E6E6`
-  body and `#CCCCCC` frame/header); header-row **and** header-col background → `#F1EFEA`, foreground →
-  `#6A685F`; grand-total (trailer row/col) background → `#E9E4DA` (proposed token, adjustable). Body
-  foreground stays `#404040`. Header-col + trailer keys affect only crosstabs (plain tables have no
-  header/trailer bands).
+- Colors: interior gridline + outer frame → `#E8E5DE` (unifies legacy `#E6E6E6` body and `#CCCCCC`
+  frame); header→body separator → `#D9D5CC` (stronger, = `$shell-border-default`, item 4); header-row
+  **and** header-col background → `#F1EFEA`, foreground → `#6A685F`; grand-total (trailer row/col)
+  background → `#E9E4DA`; subtotal (item 3b) → `#EEEAE1`. Body foreground stays `#404040`. Header-col +
+  separator/trailer keys affect only crosstabs where those bands exist. `#E9E4DA`/`#EEEAE1` are proposed
+  (no design spec).
 - Route correction (why not the CSS-dictionary route the draft chose):
   - The `CSSTableStyle`/`format.css` path (`DataVSAQuery.getTableLens:129-150`) fires **only when no
     table style is found** — but the shipped config always has "Default Style", so that path is dead
@@ -385,8 +386,10 @@ C1b below). Dark mode stays deferred; light-mode gridline `#E8E5DE`, header-bg `
 
 ## Deferred / follow-ups (prioritized: correctness → consistency → best practices → least)
 
-C1, C2, and C1b shipped. The backlog below is ordered by impact; items 1–3 are **done** (C1b) and kept
-here for traceability.
+C1, C2, C1b, and item 4 shipped — **Phase 5 first pass is complete except group-subtotal emphasis
+(item 3b), which is deferred.** The backlog below is ordered by impact; items 1, 2, 4 are **done** and
+item 3 is done except its subtotal sub-item (3b). Everything from
+item 5 down is an intentional deferral to a later pass or another phase, not an unfinished Phase 5 item.
 
 1. ✅ **Value-equality → dirty-flag hardening** — *correctness — RESOLVED (C1b, D7).* Moot: style-layer
    injection makes modern colors defaults that user formats structurally override — no value equality,
@@ -394,14 +397,26 @@ here for traceability.
 2. ✅ **Crosstab header-column treatment** — *consistency — DONE (C1b, D6 full treatment).* `header-col`
    background/foreground set on the modern style; the left dimension column gets tint + muted text and
    zebra is suppressed there.
-3. ◑ **Crosstab/calc region emphasis** — *consistency — PARTIAL (C1b, D8).* Grand-total done (trailer
-   background `#E9E4DA`, positional). **Group-header / summary (interior subtotals) remain** — they are
-   body-position, unreachable by positional style keys, so they need a region-type path
-   (`getTableDataPath().getType()` or `ROW_GROUP_TOTAL`/`COL_GROUP_TOTAL` specs). Deferred as item 3b.
-3b. **Group-header / summary emphasis** — *consistency.* Region-type application (see above); should
-    reuse the total token or a new subtotal token. Next micro-step after C1b validates.
-4. **Header-separator strength decision** — *consistency/design.* Header→body rule is currently the same
-   subtle `#E8E5DE` as interior; decide if it needs a stronger rule (own token).
+3. ◑ **Crosstab/calc region emphasis** — *consistency — grand-total DONE, subtotal DEFERRED (3b).*
+   Grand-total via the positional trailer band (`#E9E4DA`). Group subtotals = item 3b below.
+3b. ⏸ **Group-subtotal emphasis — DEFERRED** (attempted, backed out). Interior subtotals are body
+    position, so not reachable by a positional style band. The attempted fix colored `SUMMARY` cells in
+    `VSTableLens.getFormat` via a per-lens flag set by `DataVSAQuery` — **that does not work**: the flag
+    is a `transient` field on the `VSTableLens` from `getViewTableLens`, but the rendering lens is a
+    different/re-created instance, so the flag is always null at render (verified: coloring every cell on
+    that flag produced no change on any table). The modern structure survives only because it is baked
+    into the shared, cloned *style* (data-borne). **Known-good path for later:** a data-borne group-total
+    `XTableStyle.Specification` (`ROW_GROUP_TOTAL`/`COL_GROUP_TOTAL`, `crosstab.isTotalCell`) added to the
+    cloned style and **prepended ahead of the shipped zebra spec** (since `findSpec` returns the first
+    match, `XTableStyle:586`), looping levels 0–9 for both axes. Lowest-value item (grand total already
+    signals totals), export-visible, and needs a validation cycle — deferred. Token `--viz-subtotal-bg
+    #EEEAE1` (lighter than grand total) stays in the swatches as the recorded color decision.
+4. ✅ **Header-separator strength** — *consistency/design — DONE.* The header→body rule is now the
+   stronger `#D9D5CC` (`headerSeparator()`; `header-row.rcolor` + crosstab `header-col.ccolor`) while the
+   interior gridline stays subtle `#E8E5DE` — a two-tier hierarchy. `#D9D5CC` **equals
+   `$shell-border-default`** (`_variables.scss:41`, the value behind `--inet-default-border-color` /
+   `--inet-table-border-color`), so the viewsheet header rule matches the shell and DOM tables — verified
+   consistent, not an invented value.
 5. **Dark-mode table structure** — *consistency.* Dark variants (`#3A383D`/`#2D2B30`/`#CAC4D0`) are in the
    swatches but C1 is light-only; do with the initiative's dark pass.
 6. **DOM gridline/header structure tokens** — *best practices/contract.* Add `--inet-viz-gridline` /
@@ -465,14 +480,17 @@ item 3b since they are body-position and need a region-type path, not the positi
 
 **Implemented.** `DataVSAQuery.getViewTableLens` overlays the modern palette onto the per-assembly
 Default Style clone (`applyModernTableStructure`) when the gate is on and the assembly uses "Default
-Style". Keys set: `body.rcolor`/`ccolor` + `header-row.rcolor`/`ccolor` + the four outer
-`*-border.color` → gridline `#E8E5DE`; `header-row`/`header-col` background `#F1EFEA`, foreground
-`#6A685F`; `trailer-row`/`trailer-col` background `#E9E4DA`. `VSFormatTableLens` wraps above the style,
-so user formats win (D7 correctness). Header-col + trailer keys no-op on plain tables (no such bands).
-The old `VSTableLens.getFormat` hook + value-equality helpers were removed; `VSTableStructureDefaults`
-now exposes `isModern()` + the four palette accessors. `#E9E4DA` is a **proposed** grand-total color
-(no design spec yet) — adjustable. Not covered: the `style == null` CSS-fallback branch (rare no-style
-tables) and item 3b.
+Style". Keys set: interior gridline `#E8E5DE` (`body.rcolor`/`ccolor`, `header-row.ccolor`, the four
+outer `*-border.color`); **stronger header→body separator `#D9D5CC`** (`header-row.rcolor` + crosstab
+`header-col.ccolor` — item 4, = `$shell-border-default`); `header-row`/`header-col` background `#F1EFEA`,
+foreground `#6A685F`; `trailer-row`/`trailer-col` background `#E9E4DA`. Header-col + trailer keys no-op
+on plain tables (no such bands). `VSFormatTableLens` wraps above the style, so user formats win (D7
+correctness).
+
+`VSTableStructureDefaults` exposes `isModern()` + five palette accessors (gridline, header separator,
+header bg, header fg, total bg). `#E9E4DA` (grand total) is **proposed** — no design spec yet. Not
+covered: the `style == null` CSS-fallback branch (rare no-style tables), and group **subtotal**
+emphasis (item 3b — deferred; a lens-field attempt was backed out, see the deferred list).
 
 ## Branching (per CLAUDE.md)
 
