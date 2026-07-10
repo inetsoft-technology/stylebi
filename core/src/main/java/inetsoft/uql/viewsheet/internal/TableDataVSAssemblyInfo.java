@@ -1625,7 +1625,8 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       this.keepRowHeightOnPrint = keepRowHeightOnPrint;
    }
 
-   private static final String DEFAULT_STYLE = "Default Style";
+   // canonical (non-localized) name of the built-in default table style
+   public static final String DEFAULT_STYLE = "Default Style";
 
    private DynamicValue styleValue = new DynamicValue();
    private TitleInfo titleInfo = new TitleInfo("Table");
