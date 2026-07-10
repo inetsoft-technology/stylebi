@@ -35,6 +35,7 @@ import inetsoft.uql.path.XSelection;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
+import inetsoft.util.script.JavaScriptEngine;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -309,7 +310,17 @@ public class JoinQuery extends AssetQuery {
    protected TableLens getPostBaseTableLens0(final VariableTable vars)
       throws Exception
    {
-      ThreadPoolExecutor executor =
+      // @by Bug #75614: when this runs inside a script execution (a worksheet
+      // formula/expression column whose script references another table), the
+      // calling thread already holds the per-worksheet GraalJS engine lock.
+      // Fanning the member queries out to a pool would deadlock: each pool thread
+      // blocks on that same engine lock to evaluate its own formula columns while
+      // this thread holds it and waits on their results. In that case run the
+      // members synchronously on the calling thread, which already holds the
+      // (reentrant) lock. Top-level execution is not inside a script, so it is
+      // unaffected and still runs in parallel.
+      final boolean serial = JavaScriptEngine.isScriptThread();
+      ThreadPoolExecutor executor = serial ? null :
          (ThreadPoolExecutor) Executors.newFixedThreadPool(5, new GroupedThreadFactory());
 
       try {
@@ -320,10 +331,16 @@ public class JoinQuery extends AssetQuery {
 
          for(AssetQuery query : queries) {
             final AssetQuery q = query;
-            results.add(executor.submit(() -> {
+            Callable<TableLens> task = () -> {
                q.setSubQuery(false);
                q.setTimeLimited(isTimeLimited());
                q.setQueryManager(getQueryManager());
+
+               // preserve the caller's sandbox rather than blindly clearing it, so
+               // the synchronous (in-script) path does not wipe the sandbox the
+               // calling thread still needs. On a fresh pool thread prev is null,
+               // so this is equivalent to the previous clear-to-null behavior.
+               final AssetQuerySandbox prevBox = WSExecution.getAssetQuerySandbox();
 
                try {
                   WSExecution.setAssetQuerySandbox(box);
@@ -351,9 +368,20 @@ public class JoinQuery extends AssetQuery {
                   return AssetQuery.shuckOffFormat(lens);
                }
                finally {
-                  WSExecution.setAssetQuerySandbox(null);
+                  WSExecution.setAssetQuerySandbox(prevBox);
                }
-            }));
+            };
+
+            if(serial) {
+               // run on the calling thread; FutureTask captures any exception so
+               // downstream results.get(i).get() sees identical semantics.
+               FutureTask<TableLens> ftask = new FutureTask<>(task);
+               ftask.run();
+               results.add(ftask);
+            }
+            else {
+               results.add(executor.submit(task));
+            }
          }
 
          TableLens table = results.get(0).get();
@@ -562,7 +590,7 @@ public class JoinQuery extends AssetQuery {
       }
       finally {
          // @by stephenwebster, Reclaim resources to prevent thread leak.
-         if(!executor.isShutdown()) {
+         if(executor != null && !executor.isShutdown()) {
             executor.shutdown();
          }
       }
