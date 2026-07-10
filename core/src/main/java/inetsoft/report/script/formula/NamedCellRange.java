@@ -442,22 +442,24 @@ public class NamedCellRange extends CellRange {
 
       if(rowDimIdx >= 0) {
          for(int r = table.getHeaderRowCount(); r < table.getRowCount(); r++) {
-            Object[] row = table.getRowTuple(r).getRow();
+            CrossFilter.Tuple tuple = table.getRowTuple(r);
+            Object[] row = tuple == null ? null : tuple.getRow();
 
             // subtotal/grand-total tuples leave the outer grouping position(s)
             // unset (null) -- only collect positions populated by real data.
-            if(rowDimIdx < row.length && row[rowDimIdx] != null) {
+            if(row != null && rowDimIdx < row.length && row[rowDimIdx] != null) {
                values.add(row[rowDimIdx]);
             }
          }
       }
       else {
          for(int c = table.getHeaderColCount(); c < table.getColCount(); c++) {
-            Object[] row = table.getColTuple(c).getRow();
+            CrossFilter.Tuple tuple = table.getColTuple(c);
+            Object[] row = tuple == null ? null : tuple.getRow();
 
             // subtotal/grand-total tuples leave the outer grouping position(s)
             // unset (null) -- only collect positions populated by real data.
-            if(colDimIdx < row.length && row[colDimIdx] != null) {
+            if(row != null && colDimIdx < row.length && row[colDimIdx] != null) {
                values.add(row[colDimIdx]);
             }
          }
