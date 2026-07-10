@@ -45,11 +45,15 @@ package inetsoft.util;
  * Cases deferred - require integration context:
  *
  * updateMasterPassword() — reads/writes SreeEnv password.hash.key; needs mockStatic or full context
- * getJwtSigningKey() / getSSOKeyPair() — Cluster distributed lock + SreeEnv persistence
+ * getSSOKeyPair() — Cluster distributed lock + SreeEnv persistence
  * encryptPassword() / decryptPassword() — getSecretKey() lifecycle + SreeEnv round-trip
+ *
+ * getJwtSigningKey() self-heal path (Bug #75541) is covered by
+ * getJwtSigningKey_undersizedLegacyKey_regeneratesAndPersists.
  */
 
 import com.nimbusds.jose.*;
+import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -61,6 +65,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.util.Arrays;
@@ -231,6 +236,29 @@ class FipsPasswordEncryptionTest {
          JWSObject jws = new JWSObject(new JWSHeader(JWSAlgorithm.HS512), new Payload("payload"));
          jws.sign(encryption.createJwsSigner(key));
          assertTrue(jws.verify(encryption.createJwsVerifier(key)));
+      }
+
+      // Bug #75541: self-heal path — an upgraded FIPS deployment with a persisted 128-bit
+      // key must have getJwtSigningKey() regenerate and re-persist a 512-bit (64-byte) key.
+      @Test
+      void getJwtSigningKey_undersizedLegacyKey_regeneratesAndPersists() throws Exception {
+         SecretKey legacyKey = new SecretKeySpec(new byte[16], "HmacSHA512");
+         byte[] encrypted = encryption.encryptJwtSigningKey(legacyKey, encryption.getMasterKey());
+         SreeEnv.setProperty("jwt.signing.key", Base64.getEncoder().encodeToString(encrypted));
+
+         try {
+            SecretKey healed = encryption.getJwtSigningKey();
+            assertEquals(64, healed.getEncoded().length,
+               "Bug #75541: undersized key must be regenerated at 512 bits");
+
+            // the regenerated key must be re-persisted, not just returned in-memory
+            String persisted = SreeEnv.getProperty("jwt.signing.key");
+            SecretKey reloaded = encryption.decryptJwtSigningKey(persisted, encryption.getMasterKey());
+            assertEquals(64, reloaded.getEncoded().length);
+         }
+         finally {
+            SreeEnv.remove("jwt.signing.key");
+         }
       }
 
       @Test

@@ -236,27 +236,41 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
 
    @Override
    public final SecretKey getJwtSigningKey() throws IOException {
-      SecretKey signingKey;
-      String property = SreeEnv.getProperty("jwt.signing.key");
+      // Guard the read-check-regenerate sequence with the cluster lock, matching
+      // getSSOKeyPair(). Without it, an upgraded clustered FIPS deployment could have every
+      // node independently regenerate and persist a different key at once (the self-heal
+      // branch below), causing transient cross-node JWT verification failures. Reading the
+      // property inside the lock also double-checks: once one node re-persists a valid key,
+      // the next node reads it and skips a redundant regeneration.
+      Lock lock = Cluster.getInstance().getLock(LOCK_NAME);
+      lock.lock();
 
-      if(property == null) {
-         signingKey = createAndStoreJwtSigningKey();
-      }
-      else {
-         signingKey = decryptJwtSigningKey(property, getMasterKey());
+      try {
+         SecretKey signingKey;
+         String property = SreeEnv.getProperty("jwt.signing.key");
 
-         // Bug #75541: earlier FIPS builds persisted an undersized (128-bit) HmacSHA512
-         // signing key, which HS512 sign/verify rejects (>= 256 bits required). Regenerate
-         // it so upgraded deployments recover. JWTs are short-lived and do not survive a
-         // restart, so replacing the key has no impact.
-         byte[] encoded = signingKey == null ? null : signingKey.getEncoded();
-
-         if(encoded == null || encoded.length < JWT_SIGNING_KEY_MIN_BYTES) {
+         if(property == null) {
             signingKey = createAndStoreJwtSigningKey();
          }
-      }
+         else {
+            signingKey = decryptJwtSigningKey(property, getMasterKey());
 
-      return signingKey;
+            // Bug #75541: earlier FIPS builds persisted an undersized (128-bit) HmacSHA512
+            // signing key, which HS512 sign/verify rejects (>= 256 bits required). Regenerate
+            // it so upgraded deployments recover. JWTs are short-lived and do not survive a
+            // restart, so replacing the key has no impact.
+            byte[] encoded = signingKey == null ? null : signingKey.getEncoded();
+
+            if(encoded == null || encoded.length < JWT_SIGNING_KEY_MIN_BYTES) {
+               signingKey = createAndStoreJwtSigningKey();
+            }
+         }
+
+         return signingKey;
+      }
+      finally {
+         lock.unlock();
+      }
    }
 
    private SecretKey createAndStoreJwtSigningKey() throws IOException {
