@@ -268,14 +268,24 @@ CSS-dictionary route is **not viable** and was replaced with a Java gated resolv
   odd-row **#F5F5F5**, outer border **#CCCCCC**. `VSTableLens.getFormat(r,c,spanRow)`
   (`VSTableLens.java:110-188`) emits these per-cell and is shared by the live model **and** every
   exporter — the correct single injection point.
-- Implementation: a new `VSTableStructureDefaults` resolver (sibling of `VSDensityDefaults`) exposes
-  `isModern()` (`viewsheet.modernVisualization` **and** `viewsheet.modernTableStructure`, default `true`
-  when modern is on) and `applyModern(VSFormat, boolean header)`. `getFormat` calls it just before
-  returning `userfmt`. **Defaults-only by value equality**: a border color is remapped only when it
-  still equals the shipped Default Style value (gridline `#E6E6E6` → `#E8E5DE`); header background
-  `#FFFFFF` → `#F1EFEA` and header foreground `#404040` → `#6A685F`, only on header rows
-  (`r < getHeaderRowCount()`). Any cell carrying a user/explicit or non-Default-Style color differs and
-  is left untouched — the analog of density's `cellHeight == AssetUtil.defh` guard.
+- Implementation (revised at C1b, 2026-07-10 — see "C1b" below): the initial C1 remapped merged colors
+  by value equality in `VSTableLens.getFormat`; that was **superseded** by **style-layer injection** in
+  `DataVSAQuery.getViewTableLens`. The Default Style is already cloned per-assembly there
+  (`DataVSAQuery.java:125`), so when the gate is on and the assembly uses "Default Style" the modern
+  palette is overlaid onto that clone via `XTableStyle.put(...)` (`applyModernTableStructure`). Because
+  the user-format lens (`VSFormatTableLens`) wraps **above** the style, user cell/column/row formats
+  merge on top and win — the modern colors are true defaults, and the value-equality guesswork (and its
+  edge case) is gone. `VSTableStructureDefaults` now exposes `isModern()` + the palette
+  (`gridlineColor`/`headerBackground`/`headerForeground`/`totalBackground`); the `getFormat` hook was
+  removed.
+- Gate + guard: `viewsheet.modernVisualization` **and** `viewsheet.modernTableStructure` (default on when
+  modern is on), and only when `"Default Style".equals(tinfo.getTableStyle())` — a table assigned a
+  non-default style is never modernized.
+- Colors: interior gridline + outer frame + header-row separator → `#E8E5DE` (unifies legacy `#E6E6E6`
+  body and `#CCCCCC` frame/header); header-row **and** header-col background → `#F1EFEA`, foreground →
+  `#6A685F`; grand-total (trailer row/col) background → `#E9E4DA` (proposed token, adjustable). Body
+  foreground stays `#404040`. Header-col + trailer keys affect only crosstabs (plain tables have no
+  header/trailer bands).
 - Route correction (why not the CSS-dictionary route the draft chose):
   - The `CSSTableStyle`/`format.css` path (`DataVSAQuery.getTableLens:129-150`) fires **only when no
     table style is found** — but the shipped config always has "Default Style", so that path is dead
@@ -289,23 +299,12 @@ CSS-dictionary route is **not viable** and was replaced with a Java gated resolv
     therefore cannot carry the required gate. The route that actually mirrors `VSDensityDefaults` is the
     Java resolver at the shared lens layer, which is what the density work itself uses
     (`VSTableLens.java:1779`).
-- Uniform across table/crosstab/calc: value-equality naturally scopes to cells that carry the shipped
-  Default Style appearance, so basic gridline/header modernization applies wherever that look is present
-  — not just plain `VSTable`. Region-specific emphasis (crosstab grand-total, group header) remains a
-  later pass. Both shipped border colors are unified onto the one gridline token: `#E6E6E6` (body
-  interior) **and** `#CCCCCC` (header-row separator + outer frame) → `#E8E5DE`.
-- **Known limitation (accepted).** Unlike the density resolver — which consults an explicit user-set
-  flag (`isUserDataRowHeight`/`isUserHeaderRowHeight`/`userCellHeight`) and so ignores a height the user
-  set back to the default — the color remap has only value equality. Merged cell colors carry no
-  user-set flag at the `VSTableLens.getFormat` layer (the user-vs-style split lives one layer down in
-  `VSCompositeFormat.getUserDefinedFormat()`), so a color a user *deliberately* set to a legacy default
-  (`#E6E6E6`/`#CCCCCC`/`#FFFFFF`/`#404040`) is indistinguishable from the untouched default and will be
-  modernized under the gate. Narrow and low-impact (the result is visually identical to leaving it
-  default, and the gate is opt-in per org); a `getUserDefinedFormat`/`FormatInfo` dirty check would
-  close it but adds per-cell lookups — deferred unless it proves problematic.
-- Risk: still export-visible and reflows saved default-styled tables, so it **must** be gated per-org
-  (never the browser `.viz-modern` class) and gate-off must be byte-identical (both booleans off →
-  `getFormat` returns exactly today's values). Highest-risk item; own validation pass with PDF/PNG/Excel
+- Correctness (resolved at C1b): the earlier value-equality edge case (a color a user deliberately set
+  to a legacy default would be modernized) is **gone** — style-layer injection makes the modern colors
+  defaults that user formats structurally override, so there is no guessing and no dirty-flag needed.
+- Risk: export-visible and reflows saved default-styled tables, so it **must** be gated per-org (never
+  the browser `.viz-modern` class) and gate-off must be byte-identical (the cloned Default Style is left
+  exactly as shipped when the gate is off). Highest-risk item; own validation pass with PDF/PNG/Excel
   parity checks.
 
 **C2 — Sort-glyph normalization (from D3) — CSS, gated, active-sort only — ✅ IMPLEMENTED (ships with A/B).**
@@ -362,8 +361,10 @@ live model and every export format agree. Gate-off byte-identical; saved user-st
 4. **Dark mode — deferred from first-pass C1.** The dark variants (`#3A383D` / `#2D2B30` / `#CAC4D0`)
    stay in the swatches as reference for a later dark pass but are not emitted by C1.
 
-C1 is **implemented** (2026-07-09) via the gated `VSTableLens` resolver — see C1 above. Dark mode
-stays deferred; light-mode gridline `#E8E5DE`, header-bg `#F1EFEA`, header-text `#6A685F`.
+C1 is **implemented** — initially (2026-07-09) via a `VSTableLens.getFormat` value-equality resolver,
+then **migrated to style-layer injection in `DataVSAQuery`** at C1b (2026-07-10) after grounding (see
+C1b below). Dark mode stays deferred; light-mode gridline `#E8E5DE`, header-bg `#F1EFEA`, header-text
+`#6A685F`, grand-total `#E9E4DA`.
 
 ## Validation
 
@@ -382,20 +383,96 @@ stays deferred; light-mode gridline `#E8E5DE`, header-bg `#F1EFEA`, header-text 
 6. **Regression:** saved viewsheets and exports byte-identical in all modes for Parts A/B (server
    untouched).
 
-## Deferred / follow-ups
+## Deferred / follow-ups (prioritized: correctness → consistency → best practices → least)
 
-- **Part C** (scoped above) — modern table structure color defaults via the `format.css` CSS
-  dictionary (C1, gated, export-visible), sort-glyph CSS normalization (C2), reclassified selection
-  selected-highlight (C-note). Own sub-plan after A+B validate; needs owner go-ahead (D1).
-  - Numeric right-alignment is **already** done (`FormatTableLens2`); tabular numerals need new
-    server font-feature support (deferred).
-- **`warning`/`anomaly` conditional formatting** — Phase 8 (server-rendered).
-- **DOM gridline/header structure tokens** — add `--inet-viz-gridline` / `--inet-viz-header-*` only if
-  the structure follow-up needs them (D4).
-- **EM Material tables** — cross-project plumbing; deferred (D5).
-- **WS-detail virtual-scroll row-height JS constants** — TS→token refactor; deferred since Phase 3.
-- **Filter indicator on assembly columns** — none exists in the table component; filtering is separate
-  assemblies, no Phase 5 action.
+C1, C2, and C1b shipped. The backlog below is ordered by impact; items 1–3 are **done** (C1b) and kept
+here for traceability.
+
+1. ✅ **Value-equality → dirty-flag hardening** — *correctness — RESOLVED (C1b, D7).* Moot: style-layer
+   injection makes modern colors defaults that user formats structurally override — no value equality,
+   no dirty flag needed.
+2. ✅ **Crosstab header-column treatment** — *consistency — DONE (C1b, D6 full treatment).* `header-col`
+   background/foreground set on the modern style; the left dimension column gets tint + muted text and
+   zebra is suppressed there.
+3. ◑ **Crosstab/calc region emphasis** — *consistency — PARTIAL (C1b, D8).* Grand-total done (trailer
+   background `#E9E4DA`, positional). **Group-header / summary (interior subtotals) remain** — they are
+   body-position, unreachable by positional style keys, so they need a region-type path
+   (`getTableDataPath().getType()` or `ROW_GROUP_TOTAL`/`COL_GROUP_TOTAL` specs). Deferred as item 3b.
+3b. **Group-header / summary emphasis** — *consistency.* Region-type application (see above); should
+    reuse the total token or a new subtotal token. Next micro-step after C1b validates.
+4. **Header-separator strength decision** — *consistency/design.* Header→body rule is currently the same
+   subtle `#E8E5DE` as interior; decide if it needs a stronger rule (own token).
+5. **Dark-mode table structure** — *consistency.* Dark variants (`#3A383D`/`#2D2B30`/`#CAC4D0`) are in the
+   swatches but C1 is light-only; do with the initiative's dark pass.
+6. **DOM gridline/header structure tokens** — *best practices/contract.* Add `--inet-viz-gridline` /
+   `--inet-viz-header-*` only if a browser-DOM structure follow-up needs them (D4).
+7. **Selection-list selected-highlight in export** — *best practices/completeness.* Selected fill is
+   client-CSS only; export-visible selection is a new `SelectionListVSAQuery` server path (C-note).
+8. **Tabular numerals** — *best practices/enhancement.* No server `font-variant-numeric` support; needs a
+   font-feature capability and touches measuring/wrapping/export (font risk). Own spike.
+9. **WS-detail virtual-scroll row-height JS constants** — *tech-debt.* TS→token refactor; since Phase 3.
+10. **EM Material tables** — *least/scope.* Separate build, admin chrome, never exported; cross-project
+    token plumbing (D5).
+11. **`warning`/`anomaly` conditional formatting** — *separate phase.* Server-rendered, export-visible →
+    Phase 8.
+
+(Numeric right-alignment is already done — `FormatTableLens2`. Filter indicator: none exists in the table
+component; filtering lives in separate assemblies — no action.)
+
+### C1b — grounded, decided, and IMPLEMENTED (2026-07-10)
+
+Decisions D6/D7/D8 below were resolved with the owner and implemented; the change **migrated C1 from the
+`getFormat` value-equality resolver to style-layer injection** in `DataVSAQuery`. Same org gate;
+gate-off byte-identical (the cloned Default Style is left exactly as shipped).
+
+**Grounding (2026-07-10) revised all three items.** Root finding: `XTableStyle` resolves cell
+colors/fonts **positionally** — outer border → header row → trailer row → header col → trailer col →
+per-cell zebra spec → body (`XTableStyle.java:790-1041`; predicates `TableStyle.java:168-199`) — and
+**never by semantic region type**. The shipped Default Style defines specs for only `header-row`
+(bg `#FFFFFF`, bold), `body` (fg `#404040`, gridline `#E6E6E6`), the odd-row zebra (`#F5F5F5`), and the
+outer border (`#CCCCCC`); every other position falls through to `body`. This invalidates the original
+C1b-2/C1b-3 value-equality assumptions and turns each item into an open decision:
+
+- **C1b-2 — Crosstab row-header (left dimension) column — DECISION D6.** These cells are header
+  *columns* positionally, but the Default Style has no `header-col` spec, so they render as **body**:
+  fg `#404040` (coincidentally the header value), background body/zebra (`#F5F5F5` odd rows), **not**
+  the header `#FFFFFF` fill and **not** bold (`XTableStyle` fall-through; `CrossTabFilter.java:558-571`
+  bands; `CrosstabVSAQuery` sets no colors). So the earlier "just widen the predicate to
+  `c < getHeaderColCount()`" plan only remaps the *text* (`#404040`→`#6A685F`), giving muted text on a
+  zebra body — a partial, possibly-odd look. A real header appearance requires *affirmatively* applying
+  the header fill where none exists (overriding zebra on those cells) — a new visual, not a
+  value-equality modernization. Options: (a) leave as body-region; (b) muted-text-only via predicate
+  widen; (c) full header treatment (affirmative tint + muted text, suppresses zebra there).
+- **C1b-1 — Dirty-flag hardening (correctness) — DECISION D7.** API reachable (`getFormatInfo()`,
+  `VSFormat.isBorderColorsDefined/isBackgroundDefined/isForegroundDefined`), but `FormatInfo.getFormat`
+  is **exact-path match** (`FormatInfo.java:234` `fmtmap.get(tpath)`), so a correct "user set this color"
+  check must walk the cell→column→row→object chain per cell (more code + per-cell cost). Cleaner
+  alternative: inject modern colors at the **Default Style application layer** (`DataVSAQuery`
+  per-assembly) so user formats — merged on top — win naturally; inherently correct, no value equality,
+  but a different/larger injection point. Options: (a) keep value-equality as-is (accepted limitation);
+  (b) path-chain user-defined check; (c) style-layer injection.
+- **C1b-3 — Region emphasis (grand-total / group-header / summary) — DECISION D8.** These regions carry
+  **no distinct default colors** — all inherit body (`#404040`/`#E6E6E6`; grand totals land in the
+  style's trailer positions but the Default Style has no trailer spec → body). So there is nothing to
+  remap by equality; emphasis must be applied **affirmatively** by region type
+  (`getTableDataPath(r,c).getType()` — `HEADER`/`DETAIL`/`GRAND_TOTAL`(=`TRAILER`, same value
+  `0x0400`)/`GROUP_HEADER`/`SUMMARY`; `TableDataPath.java:42-102`, `CrossFilterDataDescriptor.java:193-297`),
+  which needs **new modern palette tokens** (total/group-header bg) from the design.
+
+**Decisions resolved (2026-07-10):** D6 = (c) **full header treatment**; D7 = (c) **style-layer
+injection**; D8 = **define token now + implement** (grand-total done; group-header/summary deferred as
+item 3b since they are body-position and need a region-type path, not the positional style layer).
+
+**Implemented.** `DataVSAQuery.getViewTableLens` overlays the modern palette onto the per-assembly
+Default Style clone (`applyModernTableStructure`) when the gate is on and the assembly uses "Default
+Style". Keys set: `body.rcolor`/`ccolor` + `header-row.rcolor`/`ccolor` + the four outer
+`*-border.color` → gridline `#E8E5DE`; `header-row`/`header-col` background `#F1EFEA`, foreground
+`#6A685F`; `trailer-row`/`trailer-col` background `#E9E4DA`. `VSFormatTableLens` wraps above the style,
+so user formats win (D7 correctness). Header-col + trailer keys no-op on plain tables (no such bands).
+The old `VSTableLens.getFormat` hook + value-equality helpers were removed; `VSTableStructureDefaults`
+now exposes `isModern()` + the four palette accessors. `#E9E4DA` is a **proposed** grand-total color
+(no design spec yet) — adjustable. Not covered: the `style == null` CSS-fallback branch (rare no-style
+tables) and item 3b.
 
 ## Branching (per CLAUDE.md)
 

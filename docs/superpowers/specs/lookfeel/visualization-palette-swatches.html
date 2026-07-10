@@ -96,6 +96,7 @@
     --viz-gridline: #E8E5DE;
     --viz-header-bg: #F1EFEA;
     --viz-header-text: #6A685F;
+    --viz-total-bg: #E9E4DA;
 
     --viz-gridline-dark: #3A383D;
     --viz-header-bg-dark: #2D2B30;
@@ -549,7 +550,7 @@
 
 <div class="section">
   <div class="section-title">Table Structure Tokens (Phase 5 Part C)</div>
-  <p class="section-note">Server-rendered viewsheet table structure: gridlines and header hierarchy. Applied as gated modern defaults through the format.css CSS dictionary so the live view and every export format agree. Values map the example mockups' relationships (subtle low-contrast gridlines; a quiet header rather than a heavy fill) into the warm-neutral visualization system rather than copying the mockups' purple/blue theme. Dark-mode variants are reference only — deferred from the first-pass C1 scope, not emitted yet.</p>
+  <p class="section-note">Server-rendered viewsheet table structure: gridlines, header hierarchy, and grand-total emphasis. Applied as gated modern defaults by overlaying a per-assembly clone of the shipped "Default Style" in DataVSAQuery, so the live view and every export format agree and user cell formats still win. Values map the example mockups' relationships (subtle low-contrast gridlines; a quiet header rather than a heavy fill) into the warm-neutral visualization system rather than copying the mockups' purple/blue theme. Grand-total (#E9E4DA) is a proposed value with no design spec yet. Dark-mode variants are reference only — deferred, not emitted yet.</p>
   <div class="swatches">
     <div class="swatch">
       <div class="swatch-color has-text" style="background:var(--surface-default); color:var(--text-default); border:1px solid var(--viz-gridline);">Gridline</div>
@@ -566,6 +567,15 @@
         <div class="swatch-name">viz-header-bg / text</div>
         <div class="swatch-hex">#F1EFEA / #6A685F</div>
         <div class="swatch-use">column-header fill + quiet header text, vs today's #f5f5f5</div>
+      </div>
+    </div>
+
+    <div class="swatch">
+      <div class="swatch-color has-text" style="background:var(--viz-total-bg); color:var(--viz-header-text); border-top:1px solid var(--viz-gridline);">Grand total</div>
+      <div class="swatch-info">
+        <div class="swatch-name">viz-total-bg</div>
+        <div class="swatch-hex">#E9E4DA</div>
+        <div class="swatch-use">grand-total (trailer) fill, a touch deeper than header — proposed, adjustable</div>
       </div>
     </div>
 
