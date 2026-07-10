@@ -54,6 +54,12 @@ public class GraalJavaScriptEnv implements ScriptEnv {
          }
          catch(Exception ex) {
             LOG.error("Failed to reset GraalJavaScriptEngine", ex);
+            // init(vars) closes the old Context before building the replacement,
+            // so a failure here leaves engine referencing a closed Context that
+            // init() (a no-op while engine != null) would never rebuild. Drop
+            // the engine so the next compile()/exec() rebuilds it from scratch
+            // rather than poisoning this (now long-lived, per-thread) env.
+            engine = null;
          }
       }
    }
@@ -313,6 +319,12 @@ public class GraalJavaScriptEnv implements ScriptEnv {
          }
          catch(Exception e) {
             LOG.error("Failed to init GraalJavaScriptEngine", e);
+            // init(vars) may close/replace the Context; a failure here leaves
+            // engine referencing a broken/closed Context that this method (a
+            // no-op while engine != null) would never rebuild. Drop it so the
+            // next compile()/exec() rebuilds from scratch rather than poisoning
+            // this (now long-lived, per-thread) env. Mirrors the reset() fix.
+            engine = null;
          }
       }
    }
