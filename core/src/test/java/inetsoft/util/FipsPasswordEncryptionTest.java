@@ -32,14 +32,13 @@ package inetsoft.util;
  *            with a WARN log so legacy passwords remain valid during migration.
  *            Verified by checkHashedPassword_noneAlgorithm.
  *
- * Known bug (production — see Redmine/GitHub issue)
+ * Fixed bug (see Redmine #75541)
  *
- * [Bug #75541] FipsPasswordEncryption.createHmacKey() generates a 128-bit HmacSHA512 key
- *       (FipsPasswordEncryption.java:117), but JoseJwtService signs tokens with HS512
- *       (JoseJwtService.java:137), and Nimbus MACSigner/MACVerifier require >= 256 bits.
- *       Non-FIPS JcePasswordEncryption uses 512-bit keys (JcePasswordEncryption.java:72).
- *       Impact: JWT/API token sign/verify fails when secrets.fipsComplianceMode=true.
- *       Guard: jwsHs512SignVerify_roundTrip (@Disabled until fixed).
+ * [Bug #75541] FipsPasswordEncryption.createHmacKey() previously generated a 128-bit
+ *       HmacSHA512 key, but JoseJwtService signs tokens with HS512 (JoseJwtService.java:137),
+ *       and Nimbus MACSigner/MACVerifier require >= 256 bits. The key is now generated at
+ *       512 bits, matching non-FIPS JcePasswordEncryption.
+ *       Guard: jwsHs512SignVerify_roundTrip.
  */
 
 /*
@@ -143,7 +142,7 @@ class FipsPasswordEncryptionTest {
    class KeyGeneration {
 
       // Documents current key material (algorithm + length), not HS512 correctness.
-      // Companion: jwsHs512SignVerify_roundTrip (@Disabled) is the real HS512 guard.
+      // Companion: jwsHs512SignVerify_roundTrip is the real HS512 guard.
       @Test
       void createJwtSigningKey_producesHmacSha512Key() {
          SecretKey key = encryption.createJwtSigningKey();
@@ -151,10 +150,9 @@ class FipsPasswordEncryptionTest {
             () -> assertNotNull(key),
             () -> assertEquals("HmacSHA512", key.getAlgorithm()),
             () -> assertNotNull(key.getEncoded()),
-            // Bug #75541: key is only 128 bits; HS512 requires >= 256 bits.
-            // Change to assertEquals(32, ...) once createHmacKey() is fixed.
-            () -> assertEquals(16, key.getEncoded().length,
-               "Bug #75541: currently 128-bit, needs 256-bit for HS512")
+            // Bug #75541: key must be 512 bits (64 bytes); HS512 requires >= 256 bits.
+            () -> assertEquals(64, key.getEncoded().length,
+               "Bug #75541: key must be 512-bit to satisfy HS512")
          );
       }
 
@@ -224,9 +222,9 @@ class FipsPasswordEncryptionTest {
          assertEquals("HmacSHA512", restored.getAlgorithm());
       }
 
-      // Companion: createJwtSigningKey_producesHmacSha512Key documents the 128-bit key length.
+      // Companion: createJwtSigningKey_producesHmacSha512Key documents the 512-bit key length.
       // via: createJwsSigner() / createJwsVerifier() — same path as JoseJwtService HS512 tokens
-      @Disabled("Bug #75541: KeyLength >= 256 bits required for HS512 - FipsPasswordEncryption:117; Fix: keyGenerator.init(256, random)")
+      // Bug #75541: HS512 requires a key of >= 256 bits; guards the 512-bit key fix.
       @Test
       void jwsHs512SignVerify_roundTrip() throws Exception {
          SecretKey key = encryption.createJwtSigningKey();
