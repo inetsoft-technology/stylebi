@@ -128,6 +128,10 @@ public class DerbyHelper extends SQLHelper {
     */
    @Override
    public boolean supportsOperation(String op) {
+      if(WINDOW_FUNCTION.equals(op)) {
+         return false;
+      }
+
       if(expgrp && EXPRESSION_GROUPBY.equals(op)) {
          return true;
       }

@@ -47,6 +47,10 @@ public class MongoHelper extends SQLHelper {
 
    @Override
    public boolean supportsOperation(String op, String info) {
+      if(WINDOW_FUNCTION.equals(op)) {
+         return false;
+      }
+
       // nested queries with unity driver is very problematic. just do post processing for now.
       // (56329, 56311, 56313)
       if(MIRROR_TABLE.equals(op)) {

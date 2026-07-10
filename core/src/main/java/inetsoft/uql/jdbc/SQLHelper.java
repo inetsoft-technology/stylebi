@@ -128,6 +128,12 @@ public class SQLHelper implements KeywordProvider {
    public static final String GROUP_ORDERED = "group_ordered";
 
    /**
+    * SQL window function (OVER clause). Default = supported (ANSI SQL:2003); dialects without
+    * window functions override supportsOperation to gate it off, and MySQL version-gates it.
+    */
+   public static final String WINDOW_FUNCTION = "window_function";
+
+   /**
     * Year date function.
     */
    public static final String YEAR_FUNCTION = "year";
