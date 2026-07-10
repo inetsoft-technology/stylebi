@@ -184,7 +184,24 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
          while(table instanceof TableFilter);
       }
 
+      // match the org modern table structure so export and view agree; only the shipped
+      // Default Style colors are remapped, so user/explicit formats win
+      if(isModernStructure()) {
+         VSTableStructureDefaults.applyModern(userfmt, r < getHeaderRowCount());
+      }
+
       return userfmt;
+   }
+
+   // cache the org gate for the lens lifetime; getFormat is called per cell
+   private boolean isModernStructure() {
+      Boolean m = modernStructure;
+
+      if(m == null) {
+         modernStructure = m = VSTableStructureDefaults.isModern();
+      }
+
+      return m;
    }
 
    private void setFormat(VSFormat userfmt, int row, int col) {
@@ -2233,6 +2250,7 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
    private final Map<String, Boolean> isIncludedInSpan = new HashMap<>();
    public float rscaleFont = 1;
    private boolean userDataRowHeight = false;
+   private transient Boolean modernStructure;
    private transient TableLens spanTable;
    private transient HTMLPresenter html;
    private transient Object formTable;
