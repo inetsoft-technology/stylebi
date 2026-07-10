@@ -146,6 +146,12 @@ class PermissionMatrixSpecialTest {
    private static final String CREATED_ORG_NAME = "acme";
    private static final String CREATED_ORG_ID = "acme_id";
 
+   // Second, unrelated non-host-org org -- exists only to prove the org-scoped
+   // "security.<orgID>.exposeDefaultOrgToAll" property does not leak to an org other than the
+   // one it names.
+   private static final String OTHER_ORG_NAME = "widgets";
+   private static final String OTHER_ORG_ID = "widgets_id";
+
    // Never granted -- exists only so scenario 5's baseline (mechanism off) has a real, explicit
    // deny to contrast against SHARE being on the default-allow list.
    private static final String SHARE_RESOURCE = "specialOrgDefaultsTestShare";
@@ -155,6 +161,7 @@ class PermissionMatrixSpecialTest {
    private static SecurityTestDataBuilder builder;
    private static SRPrincipal selfPlainUser;
    private static SRPrincipal createdOrgPlainUser;
+   private static SRPrincipal otherOrgPlainUser;
 
    private static SRPrincipal loginAsSiteAdmin;
    private static SRPrincipal loginAsOperatorWithGrant;
@@ -171,8 +178,10 @@ class PermissionMatrixSpecialTest {
 
       builder = SecurityTestDataBuilder.create()
          .addOrg(CREATED_ORG_NAME, CREATED_ORG_ID)
+         .addOrg(OTHER_ORG_NAME, OTHER_ORG_ID)
          .addUser("selfPlainUser", Organization.getSelfOrganizationID(), "password")
          .addUser("createdOrgPlainUser", CREATED_ORG_ID, "password")
+         .addUser("otherOrgPlainUser", OTHER_ORG_ID, "password")
          .markPermissionEdited(ResourceType.SHARE, SHARE_RESOURCE, CREATED_ORG_ID)
 
          .addSysAdminRole("LoginAsSiteAdminRole", HOST_ORG_ID)
@@ -195,6 +204,7 @@ class PermissionMatrixSpecialTest {
 
       selfPlainUser = builder.principalOf("selfPlainUser", Organization.getSelfOrganizationID());
       createdOrgPlainUser = builder.principalOf("createdOrgPlainUser", CREATED_ORG_ID);
+      otherOrgPlainUser = builder.principalOf("otherOrgPlainUser", OTHER_ORG_ID);
 
       loginAsSiteAdmin = builder.principalOf("loginAsSiteAdmin", HOST_ORG_ID);
       loginAsOperatorWithGrant = builder.principalOf("loginAsOperatorWithGrant", HOST_ORG_ID);
@@ -279,6 +289,35 @@ class PermissionMatrixSpecialTest {
          }
          finally {
             SreeEnv.remove("security.exposeDefaultOrgToAll");
+         }
+      });
+   }
+
+   @Test
+   void nonHostOrgUser_shareDefaultVisibility_orgScopedPropertyOnlyAllowsNamedOrg() throws Exception {
+      // See permission-matrix-special.md "host-org 全局共享 Viewsheet 详细场景" -- 生效范围.
+      // "security.<orgID>.exposeDefaultOrgToAll" must allow the org it names without the global
+      // flag being set, and must NOT leak to a different non-host-org org that has no scoped
+      // property of its own. Targets SUtil.isDefaultVSGloballyVisible(Principal) directly --
+      // that is the exact mechanism this rule describes -- rather than routing through
+      // SecurityEngine.checkPermission()/DefaultCheckPermissionStrategy: SHARE's own inheritance-
+      // walk and org-admin bypass logic interact with SUtil.isMultiTenant() in ways unrelated to
+      // this property (confirmed empirically), which would make a checkPermission()-level
+      // assertion fragile and not actually about the rule being tested.
+      withMultiTenant(true, () -> {
+         SreeEnv.setProperty("security." + CREATED_ORG_ID + ".exposeDefaultOrgToAll", "true");
+
+         try {
+            assertTrue(
+               SUtil.isDefaultVSGloballyVisible(createdOrgPlainUser),
+               "org-scoped exposeDefaultOrgToAll must allow the org it names");
+            assertFalse(
+               SUtil.isDefaultVSGloballyVisible(otherOrgPlainUser),
+               "org-scoped exposeDefaultOrgToAll for one org must not leak to a different org " +
+               "with no scoped property of its own, despite the global flag also being off");
+         }
+         finally {
+            SreeEnv.remove("security." + CREATED_ORG_ID + ".exposeDefaultOrgToAll");
          }
       });
    }

@@ -1,8 +1,10 @@
 # Permission Test Matrix — 区三/区四：认证上下文与特殊组织默认行为
 
 **关联规格：** `docs/superpowers/specs/2026-06-25-permission-test-architecture-design.md`
-**Phase 2 M9 实现：** Task 7（`MultiTenantTestFixture` 内置 org 扩展）评估后确认无需改动；Task 8（`PermissionMatrixSpecialTest`）区四已落地，区三里 Google OAuth SSO 已落地（Task 8b，enterprise 侧 `StyleBIGoogleSSOFilterTest`），账号非活跃状态评估后确认 `[不补]`，Login As 分析中发现一个认证层 bug（密码校验用错了用户，导致操作者与目标密码不同时登录直接失败，已验证，**Bug #75613**，[PR #4222](https://github.com/inetsoft-technology/stylebi/pull/4222) 已修复未合并），`checkLoginAs()` 权限门槛已落地，`LOGIN_AS` action 授权与 `checkLoginAs()` 的组合门槛也已在 `BasicAuthFilterHttpTest` 补齐，跨组织 Login As 的架构顾虑已核实为按设计工作（非新风险），端到端身份切换测试待 PR #4222 合并后补齐，见 `2026-06-30-permission-test-phase2.md`。
+**Phase 2 M9 实现：** Task 7（`MultiTenantTestFixture` 内置 org 扩展）评估后确认无需改动；Task 8（`PermissionMatrixSpecialTest`）区四已落地，区三里 Google OAuth SSO 已落地（Task 8b，enterprise 侧 `StyleBIGoogleSSOFilterTest`），账号非活跃状态评估后确认 `[不补]`，Login As 分析中发现一个认证层 bug（密码校验用错了用户，导致操作者与目标密码不同时登录直接失败，已验证，**Bug #75613**，[PR #4222](https://github.com/inetsoft-technology/stylebi/pull/4222) 已修复未合并），`checkLoginAs()` 权限门槛已落地，`LOGIN_AS` action 授权与 `checkLoginAs()` 的组合门槛也已在 `BasicAuthFilterHttpTest` 补齐，跨组织 Login As 的架构顾虑已核实为按设计工作（非新风险），端到端身份切换测试待 PR #4222 合并后补齐，见 `2026-06-30-permission-test-phase2.md`；区四新增 `exposeDefaultOrgToAll` host-org 全局共享 Viewsheet 的完整行为矩阵分析（Repository 展示范围、依赖资源可见性边界、Portal/EM/Composer 差异化限制、clone-org 场景），6 条描述规则均已用源码核实；生效范围（org 专属属性隔离）、写入限制（Composer Save As 预取拒绝）、关联操作限制（VSO 导出拒绝）三项已补齐测试（`PermissionMatrixSpecialTest`/`SaveViewsheetDialogServiceTest`/`VSExportServiceTest`），clone-org 场景与 Repository 树可枚举性评估后确认 `[不补]`（前者已有静态证据+现有测试泛化覆盖，后者层次不符），Composer 内数据可见性标记 `[不确定]`待运行时验证，见下方"host-org 全局共享 Viewsheet 详细场景"小节。
 **姊妹文档：** 区一 `permission-matrix-resources.md`、区二 `permission-matrix-actions.md`。
+
+> ⚠️ **本轮排查中发现一个尚未修复的权限漏洞，已提单 Issue #75631**：`checkAssetPermission0()` 的 host-org 全局共享 READ bypass 未按资源类型限制，非 host-org 用户可绕开"只共享 viewsheet"的意图，通过 `/ws/open` 直接打开 host-org 的 WORKSHEET（完整结构，非受限视图）。已端到端验证可复现，详见下方"⚠️ 已知安全漏洞"小节。
 
 图例：✓ = allowed　✗ = denied　— = n/a
 
@@ -153,6 +155,64 @@ Google SSO 的整条 filter 链（`StyleBIGoogleSSOFilter`/`OpenIDFilterBaseFilt
 | SELF `DATA_SOURCE_FOLDER` 回退不对称 | 原文档误标于 `SecurityEngine.checkPermission(Principal, ResourceType, String, ResourceAction)` — 实际 `isSelfAndNotAdmin` 分支只存在于姊妹重载 `checkPermission(Principal, ResourceType, IdentityID, ResourceAction)` | SELF 非 admin 用户，`DATA_SOURCE_FOLDER` 未配置权限 | 走生产真实调用路径（String 重载）的默认 READ：SELF 和普通创建 org 用户**都是** ✓，无不对称 | `[不补]`（查证 `DatasourcesTreeService`/`DataSourceBrowserService`/`GettingStartedService` 等全部生产调用点，DATA_SOURCE_FOLDER 检查一律走 String 重载；`isSelfAndNotAdmin` 所在的 IdentityID 重载对这个资源类型没有任何生产调用点，是不可达死代码，不值得测） |
 | SELF 默认权限清单 | `FileAuthorizationProvider.addDefaultPermissionForSelfOrg()` L416-436 | SELF org 用户，未经任何显式 `grantPermission` | 默认放行 `CREATE_DATA_SOURCE`（通配符）、`PHYSICAL_TABLE`（通配符）、`CROSS_JOIN`（通配符）、`FREE_FORM_SQL`（通配符）、`PORTAL_TAB:Data`（均 ACCESS）、`REPORT:/`、`ASSET:/`（均 READ）；普通创建 org 同样未配置时全部 ✗（对照） | `[M9]` `selfOrgUser_defaultPermissionList_allowedWithoutAnyExplicitGrant` |
 | host-org CHART_TYPE/SHARE 全局默认可见性 | `DefaultCheckPermissionStrategy.isOpeningShareGlobalAsset()` L511-517 + `isAllowedDefaultGlobalVSAction()` L493-509 | 非 host-org 用户 + 当前 org 上下文 = host-org（`ThreadContext` 未设置时的默认值）+ `SUtil.isDefaultVSGloballyVisible()` 为真 | 机制关闭时该用户对 SHARE 资源的显式空授权按预期拒绝；机制开启时同一用户同一资源无条件放行（不看任何显式授权） | `[M9]` `nonHostOrgUser_shareDefaultVisibility_deniedWhenMechanismOff` / `nonHostOrgUser_shareDefaultVisibility_allowedWhenMechanismOn` |
+| host-org 全局共享 Viewsheet 完整行为矩阵（Repository 展示/依赖资源可见性/Portal-only/EM-Composer 限制/clone-org） | 同上 `SUtil.isDefaultVSGloballyVisible()`/`isSharedDefaultOrgDashboard()` 为基础门槛，行为层还涉及 `VSUtil`/`RepletEngine`/`AbstractAssetEngine`/`SaveViewsheetDialogService` 等十余处调用点 | 见下方"host-org 全局共享 Viewsheet 详细场景"小节 | 见下方小节的规则表 | `[待补]`（上面两条 `[M9]` 只测了 `checkPermission()` 这一层的 SHARE/CHART_TYPE 默认放行，不覆盖 Repository 树注入、依赖资源可见性范围、Portal/EM/Composer 差异化限制、clone-org 场景——详见下方分析与候选用例） |
+
+### host-org 全局共享 Viewsheet（`exposeDefaultOrgToAll`）详细场景
+
+**基础门槛（`SUtil.java` L3010-3046）：** `security.exposeDefaultOrgToAll=true`（全局）或 `security.<orgID>.exposeDefaultOrgToAll=true`（org 专属，key 里的 `<orgID>` 取的是**当前查看者**的 org，不是资源所在 org）二选一为真，且 `isMultiTenant()` 为真，且查看者不是 siteAdmin（`isDefaultVSGloballyVisible(Principal)` 才有这条，无参重载没有）——才会把 host-org 的 viewsheet 以只读方式暴露给该查看者。`isSharedDefaultOrgDashboard(AssetEntry)`（L3035-3046）在此基础上再加一条"资源本身确实是 host-org 的、且和当前 org 不同"，是各处业务代码常用的组合判断。
+
+**规则与衍生行为整理（按主题分类，结论，均已在源码核实；已去重——原"全局属性 vs org 专属属性"与"org 专属属性只放行该 org"是同一段代码的重复描述，合并为一行）：**
+
+| 分类 | 结论 | 关键代码位置 |
+|---|---|---|
+| **生效范围**（属性怎么控制放行给谁） | `security.exposeDefaultOrgToAll=true` 对所有非 host-org 用户生效；`security.<orgID>.exposeDefaultOrgToAll=true` 只对**当前查看者所在 org 恰好是 `<orgID>`** 时生效——两者是 OR 关系，任一为真即放行；其他 org（既无全局开关、自己的 org 专属开关也没开）拿不到任何访问权 | `SUtil.isDefaultVSGloballyVisible()`/`(Principal)` L3010-3033 |
+| **可见性范围**（哪些内容会被看到） | Portal Repository 树里专门注入的"全局根节点"会枚举 host-org 的 folder + viewsheet（`RepletEngine.getDefaultOrgRepositoryEntries()` → `getRepositoryEntries(..., isDefaultOrgAsset=true)`），但依赖资源（MV/WS/数据源/library/format/shape/bookmark）不作为独立可浏览项——只在**渲染共享 dashboard 本身**时按已知名称/id 懒加载回退到 host-org（`MVManager`/`SubMV`/`SubMVTask`/`SnapshotEmbeddedTableAssembly`/`TableViewStylePaneController`/`ImageShapes`/`ShapeFrameWrapper`），不是枚举式列表；Composer 的资源树（`AssetTreeController`/`AssetTreeService`）完全不引用这套机制，普通 Data/Library/Format/Shape 面板或树看不到 host-org 内容。`checkAssetPermission0()` 的 READ 放行是权限层面的放行，不等于枚举层面可见——两者是两套独立机制 | `AbstractAssetEngine.checkAssetPermission0()` L3517-3536；`RepletEngine.java` L664-816 |
+| **界面访问范围**（能在哪打开） | Portal 能打开（Repository 树 / Edit 图标），EM/Composer 没有浏览入口去发现它——但"不可打开"更准确的说法是"没有浏览入口 + 写入被硬拒绝"的组合效果，**不是**某个统一入口处判断"这是不是 Portal 请求"：Edit 图标本身可以正常从 Portal 进 Composer 查看/改布局（走查看者自己 org 的常规 Toolbar Action 权限，`isAllowedDefaultGlobalVSAction()` L493-509 只是把 `"Edit"`/`"Import"`/`"Schedule"` 排除在自动放行清单外，没有专门拦截）；触发 org 上下文临时切换的 `ViewsheetEngine.openViewsheet(entry, user, viewer)` 判断本身不看 `viewer` 这个布尔参数，STOMP 层的 `MessageScopeInterceptor`/`EventAspect` 的 `@SwitchOrg` 切面同样不区分 Portal 会话还是 Composer 会话。因此"进 Composer 后是否真的看不到数据"**仍未从静态代码找到确凿证据**，需运行时验证 | `ViewsheetEngine.openViewsheet()` L299-329；`EventAspect.java` L534-555（`@SwitchOrg`） |
+| **写入限制**（能不能保存） | Composer 里 Save 和 Save As **都会失败**，都会弹出错误提示，不是只拒绝直接覆盖：Save As 对话框在打开前会先调 `getSaveViewsheetInfo()` 预取表单数据，这一步就已经对**原 host-org entry**做 WRITE 校验并失败（对话框根本不会弹出）；直接 Save（`saveViewsheet()`）同样对原 entry 做 WRITE 校验、同样失败。两条路径抛的都是 `MessageException("deny.access.write.globally.visible")`（文案 "Cannot save Dashboard of Default Organization"），前端 `ModelService.handleError()`/STOMP 侧通用错误处理会弹出可见的 "Error" 提示框，不是静默失败。结论：非 host-org 用户在 Composer 里对共享 viewsheet **没有任何方式能把改动保存下来**（覆盖不行，另存为新副本也不行） | `SaveViewsheetDialogService.getSaveViewsheetInfo()` L71-80；`ComposerViewsheetService.saveViewsheet()` L129-196；前端 `composer-main.component.ts` `saveViewsheetAs0()`/`saveViewsheet0()`；`ModelService.handleError()` |
+| **关联操作限制**（写入之外，其他动作也被收紧） | MV 按需重建被强制关闭（`mv.ondemand` 开关对共享 dashboard 无效，非 host-org 查看者能看但不能触发 MV 创建/重建）；导出：PDF/PNG/Excel/CSV 等常规格式放行（重定向到真实 host-org `AssetEntry`），VSO 快照格式显式拒绝；Bookmark 标记只读，且拒绝新增 bookmark | `ViewsheetPropertyDialogService.java` L104-105；`PortalMVController.isOrgAccessingGlobalResourceMV()` L93-99；`VSExportService.handleAttemptExportGloballyVisibleAsset()` L427-467（拒绝时抛 `deny.access.export.vso.globally.visible`）；`VSBookmarkService.java`（`readOnly=true`/`checkAddBookmark` 拒绝） |
+| **组织克隆**（clone-org 场景） | `copyOrganization()`/`copyDataSpace()` 只把**新 org 自己名下**的 dataspace 内容复制成独立新副本，不触碰原 host-org 资源的 `orgID` 或任何 `SreeEnv` 属性；共享判断（`entry.getOrgID() == host-org` && 查看者 org 专属或全局开关开启）跟 clone 操作完全正交，clone 出来的新 org 用户仍能看到 host-org 原有的共享 viewsheet，和 clone 之前一样 | `AbstractEditableAuthenticationProvider.java` L98-146（`copyOrganization`/`copyOrganizationInternal`）、L444-464（`copyDataSpace`） |
+
+**测试状态（按上表同一分类分组）：**
+
+| 分类 | 场景 | 核心断言 | 测试状态 |
+|---|---|---|---|
+| 生效范围 | 全局属性开启，非 host-org 用户对 host-org SHARE 资源默认放行 | 已被现有 `[M9]` 用例覆盖（见上方场景表） | `[M9]`（`nonHostOrgUser_shareDefaultVisibility_allowedWhenMechanismOn`，同一机制） |
+| 生效范围 | org 专属属性只放行指定 org，其余 org 仍拒绝 | `SUtil.isDefaultVSGloballyVisible(Principal)` 直测：org-scoped 属性只对 A 生效，对没有设置任何属性的 B 不生效——不经过 `checkPermission()`/SHARE，因为 SHARE 的继承走查/org-admin 分支跟 `isMultiTenant()` 有实测无关的交互（会让基于 SHARE 的组合断言变脆弱，见附注新增一条），直测该方法才是对这条规则本身的验证 | `[M9]` `nonHostOrgUser_shareDefaultVisibility_orgScopedPropertyOnlyAllowsNamedOrg` |
+| 可见性范围 | `checkAssetPermission0` 的 READ 放行不代表可枚举 | 直接调用底层 `checkAssetPermission(READ)` 对 host-org 资源放行，但 `AssetTreeController`/普通 Data 树查询返回结果不含 host-org 条目 | `[不补]`（涉及 Spring MVC 树查询控制器层，跟本类"直调 `SecurityEngine.checkPermission()`"的定位不符；"Composer 资源树不引用这套机制"这一事实已通过 grep 静态确认为零引用，是可验证的确定性事实，不是需要运行时兜底的猜测，为这一点单独搭建控制器级测试基础设施收益不成比例。**但这条"没有浏览树"只是没有 UI 入口，不是访问控制——见下方"⚠️ 已知安全漏洞"小节，该 bypass 本身没有按资源类型限制，可以绕开树/UI 直接命中**） |
+| 写入限制 | Composer Save As 预取阶段即因 WRITE 硬拒绝失败（对话框根本不弹出） | 非 host-org 用户对共享 host-org entry 调用 `getSaveViewsheetInfo()` 断言抛出 `deny.access.write.globally.visible`（文案 "Cannot save Dashboard of Default Organization"）；对照用例确认同 org（非共享）时该 WRITE 校验整段跳过，未被误拦 | `[M9]` `SaveViewsheetDialogServiceTest.getSaveViewsheetInfo_nonHostOrgUser_sharedHostOrgEntry_deniedBeforeDialogPopulated` / `getSaveViewsheetInfo_sameOrgUser_ownEntry_writeCheckNotBypassed`（直接 Save 的 `ComposerViewsheetService.saveViewsheet()` 路径未覆盖，逻辑同构，评估为可选） |
+| 关联操作限制 | VSO 快照导出拒绝，常规格式放行 | 同一共享 viewsheet 分别请求 VSO 导出（拒绝，`deny.access.export.vso.globally.visible`）和 PDF 导出（放行并重定向到真实 host-org entry） | `[M9]` `VSExportServiceTest.handleAttemptExportGloballyVisibleAsset_vsoSnapshot_deniedDespiteEntryResolving` / `handleAttemptExportGloballyVisibleAsset_pdfFormat_allowedAndRedirectsToRealHostOrgEntry` |
+| 组织克隆 | clone-org 后共享行为不变 | 静态代码确认：`copyScopedProperties()` 只匹配 `inetsoft.org.<fromOrgId>` 前缀的属性键，跟 `security.<orgID>.exposeDefaultOrgToAll` 这个键的命名空间结构性不相交，clone 不可能复制/触发/清除这个属性；`copyDataSpace()` 只搬运新 org 自己名下的路径，不改原 host-org 资源的 `orgID`。两点结合已经是确定性证明，不是需要运行时验证的猜测 | `[不补]`（已通过静态代码证明，且 `AbstractEditableAuthenticationProviderStaticDepTest` 已有 `copyScopedProperties_noMatchingProperty_onlyFinalSaveCalled` 等测试泛化覆盖"不匹配前缀的属性不受影响"这一路径；再为 `exposeDefaultOrgToAll` 这一个具体属性单独立一个组合测试是重复覆盖） |
+| 界面访问范围 | Composer 内是否真的看不到数据 | 需要运行时/集成级验证，静态代码未能确认 viewer 与 composer 在数据加载路径上有实质区别 | `[不确定]`（不建议在 `PermissionMatrixSpecialTest` 这类直调权限方法的单元测试里验证，需要更贴近真实渲染管线的集成测试；是否值得单独立项待用户确认） |
+
+### ⚠️ 已知安全漏洞：`checkAssetPermission0` 的 READ bypass 未按资源类型限制（**Issue #75631**，已提单未修复）
+
+**结论：** `AbstractAssetEngine.checkAssetPermission0()`（L3526-3530）里"host-org 全局共享"的 READ 放行分支完全不检查 `entry.getType()`——只要 `entry.getOrgID()` 是 host-org，任意类型的 `AssetEntry`（不只是 VIEWSHEET，也包括 WORKSHEET、library/script、table style 等）对任何非 host-org、非 siteAdmin 用户都放行 READ。区四场景表"可见性范围"一行描述的"依赖资源不可独立浏览"只是**没有浏览树 UI 去发现它**，不是访问控制——这条 bypass 本身就是敞开的。
+
+```java
+// AbstractAssetEngine.java:3526-3530
+if(Tool.equals(permission, ResourceAction.READ) && SUtil.isDefaultVSGloballyVisible(user) &&
+   Organization.getDefaultOrganizationID().equals(entry.getOrgID()) &&
+   user != null && !((XPrincipal)user).getOrgId().equals(Organization.getDefaultOrganizationID())) {
+   return true;
+}
+```
+
+**完整复现链路（已逐跳读码验证，非推测）：**
+
+1. `OpenWorksheetController.openWorksheet()`（`/ws/open` STOMP 端点，`community/core/src/main/java/inetsoft/web/composer/ws/OpenWorksheetController.java:92-107`）：唯一前置检查是 `checkPermission(principal, ResourceType.WORKSHEET, "*", ACCESS)`——跟具体资源、跟 org 都无关的功能总开关，任何有 composer 权限的普通用户都满足。随后 `AssetEntry entry = AssetEntry.createAssetEntry(event.id())`，`event.id()` 是客户端原始提交的字符串，未做任何签名/校验。
+2. `AssetEntry.createAssetEntry(String identifier, String orgID, boolean forceUpdateOrgID)`（`AssetEntry.java:472-473`）：`orgID = forceUpdateOrgID || index==-1 || scope==TEMPORARY_SCOPE ? orgID : identifier.substring(index+1)`——`OpenWorksheetController` 调用的是 `forceUpdateOrgID=false` 的重载，标识符末段 `^orgID` 会被原样采信。客户端可以直接构造一个以 `^host-org` 结尾的标识符字符串。
+3. `WorksheetEngine.openSheet()`（`permission = !"true".equals(entry.getProperty("isDashboard"))` = true，该属性从未被 `/ws/open` 设置）→ `AbstractAssetEngine.getSheet()`（`AbstractAssetEngine.java:2371`）：`checkAssetPermission(user, entry, READ, true)` → 命中上面的 bypass → 放行。
+4. 全链路没有任何一层能拦下来：`@SwitchOrg` 切面不作用于本 controller 的方法；`MessageScopeInterceptor` 只在 STOMP 帧带 `sheetRuntimeId`（已开 runtime）时才生效，新开 worksheet 的请求没有这个 header；`getForbiddenSourcesMessage()` 的按数据源二次校验只在 `POST /api/ws/open` 的"是否提示恢复自动保存"预检接口里跑，真正打开走的 STOMP `/ws/open` 完全不经过它。
+
+**标识符不需要猜——可以合法拿到：** 非 host-org 用户按上方"界面访问范围"一行走 Portal Edit 图标进 Composer 打开共享的 host-org viewsheet 后，`ViewsheetPropertyDialogService.getViewsheetInfo()`（`ViewsheetPropertyDialogService.java:118`：`newVSDialogModel.setDataSource(viewsheet.getBaseEntry())`）会把底层 worksheet 的完整 `AssetEntry`（含 `orgID=host-org`）原样序列化进返回给前端的 JSON。拿到这个标识符后原样回放到 `/ws/open`，就能在自己的 Composer 里把这个 worksheet **完整打开**——table assembly、字段绑定、SQL/query binding、mirror 引用全部可见，不是"只能看布局、看不到数据"那种受限体验（那个限制只针对 Edit 图标直接进入的那个 viewsheet 本身，对通过标识符另开的底层 worksheet 完全不适用）。
+
+**影响范围：**
+- 波及：WORKSHEET（已验证端到端可复现）；理论上同样波及 library/script、table style 等其他 `AssetEntry` 类型，只要存在类似"按客户端标识符直接打开"的入口（未逐一验证）。
+- 不波及：`ResourceType.DATA_SOURCE`（数据源连接定义/凭据）——数据源走的是完全独立的 `SecurityEngine.checkPermission(DATA_SOURCE,...)`/`DefaultCheckPermissionStrategy` 机制，`isAllowedDefaultGlobalVSAction()` 的放行清单里明确只有 `CHART_TYPE`/`SHARE`/`VIEWSHEET_TOOLBAR_ACTION` 三项，不含 `DATA_SOURCE`，因此凭据不在泄露面内。
+
+**建议修复方向：** 给 `checkAssetPermission0()` 这段 bypass 加类型限制（如 `entry.isViewsheet()`），只放行 VIEWSHEET，匹配文档一直描述的"只共享 dashboard"初衷；修复后补一条回归测试，断言 WORKSHEET（以及其他非 viewsheet 类型）在 `exposeDefaultOrgToAll` 开启时仍然拒绝。
+
+**测试状态：** `[待补]`（阻塞于 **Issue #75631** 修复本身——修复前写"应该拒绝"的测试会红；建议随修复一起提交）
 
 ### 附注
 
@@ -161,3 +221,4 @@ Google SSO 的整条 filter 链（`StyleBIGoogleSSOFilter`/`OpenIDFilterBaseFilt
 - SHARE 资源类型本身在 `DefaultCheckPermissionStrategy` 的默认放行清单上（跟 `CHART_TYPE_FOLDER` 等同属一批），所以测试对照用的 SHARE 资源需要 `markPermissionEdited()` 显式标记成"已配置但无授权"，才能拿到真实的 baseline 拒绝；`CHART_TYPE` 未选用，因为它有自己已测过的另一套默认放行机制（`SecurityEngine` 的 CHART_TYPE 父级重试回退，Bug #70538），混在一起会分不清是哪个机制起作用。
 - `hasOrgEditedGrantAll()` 的 org 判断走的是 `OrganizationManager.getCurrentOrgID()`（ThreadContext 相关的当前上下文 org），不是被检查用户自己的 org——跟 `MultiTenantIsolationTest.scenario18A` 遇到的问题同源。"机制关闭"用例必须显式 `ThreadContext.setContextPrincipal(该用户)` 让两者对齐，否则会因为默认落到 host-org 而误触发跟本场景无关的默认放行清单；"机制开启"用例则相反，必须保持 `ThreadContext` 为空，让当前 org 上下文默认落到 host-org，这正是 `isOpeningShareGlobalAsset()` 需要的条件。
 - SELF 和 host-org 都会在 `FileAuthorizationProvider.LoadPermissionsTask.initialize()`（L335-341）里各自跑一遍 `addDefaultAdminPermissions()` + `addDefaultRoleGrants()`，两者共享的默认授权路径（`COMPOSER`/`WORKSHEET`/`VIEWSHEET`/`DASHBOARD`/`SCHEDULE_TIME_RANGE`）走的是角色/组织授权，不是本文档要覆盖的差异点；本文档只聚焦 SELF **额外**拿到的 `addDefaultPermissionForSelfOrg()` 授权，以及 host-org **专属**的 `isOpeningShareGlobalAsset()` 机制。
+- **`security.<orgID>.exposeDefaultOrgToAll` 不适合通过 SHARE 资源 + `checkPermission()` 来验证 org 隔离**：实测发现，当 `SUtil.isMultiTenant()` 为真时，`DefaultCheckPermissionStrategy.checkPermission()` 对 SHARE 类型走的继承查找/org-admin 分支会产出跟这个属性完全无关的放行结果（具体触发条件未能在排查预算内定位到单一根因，怀疑是 `ActionPermissionService.isOrgAdminAction()`/`checkOrgAdminPermission()` 组合路径），即使目标 org 的 SHARE 资源已用 `markPermissionEdited()` 标记成"已配置但无授权"也拦不住。这条规则改为直测 `SUtil.isDefaultVSGloballyVisible(Principal)` 本身（见上表"生效范围"行），绕开这套无关交互；`isOpeningShareGlobalAsset()`/`isAllowedDefaultGlobalVSAction()` 层面的验证仍由已落地的两条 `[M9]` 用例覆盖（同一张表"host-org CHART_TYPE/SHARE 全局默认可见性"行），不受影响。
