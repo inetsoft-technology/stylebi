@@ -1,0 +1,221 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.uql.asset;
+
+import inetsoft.test.*;
+import inetsoft.uql.XConstants;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+
+import java.io.*;
+import java.util.*;
+import javax.xml.parsers.DocumentBuilderFactory;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Unit tests for {@link WindowExpressionRef}. These pin the pushdown-parity contract: the
+ * synthesized {@link WindowExpressionRef#getExpression()} text must be byte-for-byte identical
+ * to what the wiz {@code expandWindowColumns} helper (wiz-services/src/v1/services/windowColumns.ts)
+ * produces today.
+ */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
+class WindowExpressionRefTest {
+
+   private static SortRef sort(String attr, int order) {
+      SortRef sortRef = new SortRef(new AttributeRef(attr));
+      sortRef.setOrder(order);
+      return sortRef;
+   }
+
+   // ---- getExpression() parity ------------------------------------------------------------
+
+   @Test
+   void rowNumber_withPartitionAndOrder() {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "ROW_NUMBER", null, 0,
+         List.of(new AttributeRef("stage")),
+         List.of(sort("amount", XConstants.SORT_DESC)));
+
+      assertEquals("ROW_NUMBER() OVER (PARTITION BY field['stage'] ORDER BY field['amount'] DESC)",
+                   ref.getExpression());
+   }
+
+   @Test
+   void ntile_withOrderOnly() {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "NTILE", null, 4,
+         List.of(),
+         List.of(sort("amount", XConstants.SORT_DESC)));
+
+      assertEquals("NTILE(4) OVER (ORDER BY field['amount'] DESC)", ref.getExpression());
+   }
+
+   @Test
+   void lag_withOffsetAndOrder() {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "LAG", new AttributeRef("amount"), 1,
+         List.of(),
+         List.of(sort("t", XConstants.SORT_ASC)));
+
+      assertEquals("LAG(field['amount'], 1) OVER (ORDER BY field['t'] ASC)", ref.getExpression());
+   }
+
+   @Test
+   void sum_withPartitionOnly_noOrderBy() {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "SUM", new AttributeRef("amount"), 0,
+         List.of(new AttributeRef("stage")),
+         List.of());
+
+      assertEquals("SUM(field['amount']) OVER (PARTITION BY field['stage'])", ref.getExpression());
+   }
+
+   @Test
+   void neitherPartitionNorOrder_emitsEmptyParens() {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "SUM", new AttributeRef("amount"), 0, List.of(), List.of());
+
+      assertEquals("SUM(field['amount']) OVER ()", ref.getExpression());
+   }
+
+   @Test
+   void lag_withoutOffset_omitsComma() {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "LAG", new AttributeRef("amount"), 0,
+         List.of(),
+         List.of(sort("t", XConstants.SORT_ASC)));
+
+      assertEquals("LAG(field['amount']) OVER (ORDER BY field['t'] ASC)", ref.getExpression());
+   }
+
+   // ---- isSQL() ------------------------------------------------------------------------------
+
+   @Test
+   void isSQL_isTrue() {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "ROW_NUMBER", null, 0, List.of(), List.of(sort("t", XConstants.SORT_ASC)));
+      assertTrue(ref.isSQL());
+   }
+
+   // ---- XML round-trip -----------------------------------------------------------------------
+
+   @Test
+   void xmlRoundTrip_preservesAllFields() throws Exception {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "ROW_NUMBER", null, 0,
+         List.of(new AttributeRef("stage")),
+         List.of(sort("amount", XConstants.SORT_DESC)));
+
+      WindowExpressionRef copy = (WindowExpressionRef) writeAndParse(ref);
+
+      assertEquals(ref.getFn(), copy.getFn());
+      assertEquals(ref.getN(), copy.getN());
+      assertNull(copy.getArgRef());
+      assertEquals(1, copy.getPartitionBy().size());
+      assertEquals("stage", copy.getPartitionBy().get(0).getName());
+      assertEquals(1, copy.getOrderBy().size());
+      assertEquals("amount", copy.getOrderBy().get(0).getName());
+      assertEquals(XConstants.SORT_DESC, copy.getOrderBy().get(0).getOrder());
+      assertEquals(ref.getExpression(), copy.getExpression());
+   }
+
+   @Test
+   void xmlRoundTrip_preservesArgRef() throws Exception {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "LAG", new AttributeRef("amount"), 1, List.of(), List.of(sort("t", XConstants.SORT_ASC)));
+
+      WindowExpressionRef copy = (WindowExpressionRef) writeAndParse(ref);
+
+      assertNotNull(copy.getArgRef());
+      assertEquals("amount", copy.getArgRef().getName());
+      assertEquals(1, copy.getN());
+      assertEquals(ref.getExpression(), copy.getExpression());
+   }
+
+   private static DataRef writeAndParse(WindowExpressionRef ref) throws Exception {
+      StringWriter sw = new StringWriter();
+      PrintWriter writer = new PrintWriter(sw);
+      ref.writeXML(writer);
+      writer.flush();
+
+      DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+      Document doc = factory.newDocumentBuilder().parse(
+         new ByteArrayInputStream(sw.toString().getBytes()));
+      Element elem = doc.getDocumentElement();
+
+      return inetsoft.uql.erm.AbstractDataRef.createDataRef(elem);
+   }
+
+   // ---- clone() deep-copies the lists ---------------------------------------------------------
+
+   @Test
+   void clone_deepCopiesPartitionByList() {
+      List<DataRef> partitionBy = new ArrayList<>(List.of(new AttributeRef("stage")));
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "SUM", new AttributeRef("amount"), 0, partitionBy, new ArrayList<>());
+
+      WindowExpressionRef clone = (WindowExpressionRef) ref.clone();
+      clone.getPartitionBy().add(new AttributeRef("region"));
+
+      assertEquals(1, ref.getPartitionBy().size(), "mutating the clone must not affect the original");
+      assertEquals(2, clone.getPartitionBy().size());
+   }
+
+   @Test
+   void clone_deepCopiesOrderByList() {
+      List<SortRef> orderBy = new ArrayList<>(List.of(sort("amount", XConstants.SORT_DESC)));
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "ROW_NUMBER", null, 0, new ArrayList<>(), orderBy);
+
+      WindowExpressionRef clone = (WindowExpressionRef) ref.clone();
+      clone.getOrderBy().add(sort("t", XConstants.SORT_ASC));
+
+      assertEquals(1, ref.getOrderBy().size(), "mutating the clone must not affect the original");
+      assertEquals(2, clone.getOrderBy().size());
+   }
+
+   @Test
+   void clone_deepCopiesArgRef() {
+      // ColumnRef.clone() always allocates a new instance (unlike AttributeRef, which returns
+      // `this` as a documented immutability optimization), so it is the right vehicle to prove
+      // WindowExpressionRef.clone() actually calls argRef.clone() rather than sharing the
+      // reference.
+      ColumnRef argRef = new ColumnRef(new AttributeRef("amount"));
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "SUM", argRef, 0, new ArrayList<>(), new ArrayList<>());
+
+      WindowExpressionRef clone = (WindowExpressionRef) ref.clone();
+
+      assertNotSame(ref.getArgRef(), clone.getArgRef(),
+                    "argRef must be deep-copied, not shared by reference");
+      assertEquals(ref.getArgRef().getName(), clone.getArgRef().getName());
+   }
+}
