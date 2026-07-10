@@ -721,6 +721,7 @@ public class WorksheetTableService {
       // Expression columns are only meaningful on non-aggregated mirror tables;
       // log a warning but don't fail if someone passes them here.
       applyExpressionColumns(table, request.getExpressionColumns());
+      applyWindowColumns(table, request.getWindowColumns());
 
       worksheet.addAssembly(table);
       return table;
@@ -896,6 +897,7 @@ public class WorksheetTableService {
 
       if(!hasAggregation) {
          applyExpressionColumns(mirror, request.getExpressionColumns());
+         applyWindowColumns(mirror, request.getWindowColumns());
       }
 
       worksheet.addAssembly(mirror);
@@ -1063,6 +1065,101 @@ public class WorksheetTableService {
          if(Boolean.FALSE.equals(col.getVisible())) {
             colRef.setVisible(false);
          }
+
+         if(!Tool.isEmptyString(col.getType())) {
+            colRef.setDataType(col.getType());
+         }
+
+         cs.addAttribute(colRef);
+      }
+
+      table.setColumnSelection(cs, false);
+   }
+
+   /**
+    * Apply structured window (analytic) function columns — the {@link WindowExpressionRef}-backed
+    * counterpart of {@link #applyExpressionColumns}. Each entry resolves its {@code column},
+    * {@code partitionBy}, and {@code orderBy} field names against the table's own column
+    * selection (same resolution mechanism as {@code cs.getAttribute(name)} used throughout this
+    * class, e.g. {@link #applyAggregateInfo}), builds a {@link WindowExpressionRef}, and adds it
+    * to the selection as a {@code sql:true} {@link ColumnRef} so {@code PreAssetQuery} inlines the
+    * generated {@code OVER(...)} text verbatim.
+    * <p>
+    * Package-private (not private) so {@code WorksheetTableServiceWindowColumnsTest} can invoke it
+    * directly without standing up the full {@code createTable} dependency graph, mirroring how
+    * {@link #buildConditionList} is tested.
+    */
+   void applyWindowColumns(AbstractTableAssembly table,
+                           List<WorksheetTable.WindowColumnInfo> winCols)
+   {
+      if(winCols == null || winCols.isEmpty()) {
+         return;
+      }
+
+      ColumnSelection cs = table.getColumnSelection(false);
+
+      for(WorksheetTable.WindowColumnInfo col : winCols) {
+         String colName = col.getName();
+
+         if(Tool.isEmptyString(colName)) {
+            throw new IllegalArgumentException("windowColumns[].name is required");
+         }
+
+         if(Tool.isEmptyString(col.getFn())) {
+            throw new IllegalArgumentException("windowColumns['" + colName + "'].fn is required");
+         }
+
+         DataRef argRef = null;
+
+         if(!Tool.isEmptyString(col.getColumn())) {
+            argRef = cs.getAttribute(col.getColumn());
+
+            if(argRef == null) {
+               throw new IllegalArgumentException(
+                  "windowColumns['" + colName + "'].column not found: " + col.getColumn());
+            }
+         }
+
+         List<DataRef> partitionRefs = new ArrayList<>();
+
+         if(col.getPartitionBy() != null) {
+            for(String p : col.getPartitionBy()) {
+               DataRef pref = cs.getAttribute(p);
+
+               if(pref == null) {
+                  throw new IllegalArgumentException(
+                     "windowColumns['" + colName + "'].partitionBy column not found: " + p);
+               }
+
+               partitionRefs.add(pref);
+            }
+         }
+
+         List<SortRef> orderRefs = new ArrayList<>();
+
+         if(col.getOrderBy() != null) {
+            for(WorksheetTable.OrderByInfo ob : col.getOrderBy()) {
+               DataRef oref = cs.getAttribute(ob.getField());
+
+               if(oref == null) {
+                  throw new IllegalArgumentException(
+                     "windowColumns['" + colName + "'].orderBy field not found: " + ob.getField());
+               }
+
+               SortRef sort = new SortRef(oref);
+               sort.setOrder("ASC".equalsIgnoreCase(ob.getDirection())
+                                ? XConstants.SORT_ASC : XConstants.SORT_DESC);
+               orderRefs.add(sort);
+            }
+         }
+
+         int n = col.getN() != null ? col.getN() : 0;
+         WindowExpressionRef winRef =
+            new WindowExpressionRef(col.getFn(), argRef, n, partitionRefs, orderRefs);
+         winRef.setName(colName);
+
+         ColumnRef colRef = new ColumnRef(winRef);
+         colRef.setSQL(true);
 
          if(!Tool.isEmptyString(col.getType())) {
             colRef.setDataType(col.getType());

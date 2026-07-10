@@ -22,6 +22,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 @Tag("core")
@@ -61,5 +63,37 @@ class WorksheetTableRequestTest {
       assertEquals("w1", req.getWorksheetId());
       assertEquals(1, req.getTables().size());
       assertEquals("A", req.getTables().get(0).getTableName());
+   }
+
+   @Test
+   void windowColumnRoundTrips() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+
+      WorksheetTable table = mapper.readValue(
+         """
+         {
+           "windowColumns": [
+             {
+               "name": "rn",
+               "fn": "ROW_NUMBER",
+               "partitionBy": ["stage"],
+               "orderBy": [ { "field": "amount", "direction": "DESC" } ]
+             }
+           ]
+         }
+         """,
+         WorksheetTable.class);
+
+      assertEquals(1, table.getWindowColumns().size());
+      WorksheetTable.WindowColumnInfo win = table.getWindowColumns().get(0);
+      assertEquals("rn", win.getName());
+      assertEquals("ROW_NUMBER", win.getFn());
+      assertEquals(List.of("stage"), win.getPartitionBy());
+      assertEquals(1, win.getOrderBy().size());
+      assertEquals("amount", win.getOrderBy().get(0).getField());
+      assertEquals("DESC", win.getOrderBy().get(0).getDirection());
+
+      JsonNode output = mapper.valueToTree(table);
+      assertEquals("ROW_NUMBER", output.at("/windowColumns/0/fn").asText());
    }
 }

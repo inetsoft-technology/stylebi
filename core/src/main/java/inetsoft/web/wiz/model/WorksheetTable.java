@@ -50,6 +50,8 @@ public class WorksheetTable {
    private List<ColumnInfo> columns;
    /** Expression columns (only valid on non-aggregated mirror tables). */
    private List<ExpressionColumnInfo> expressionColumns;
+   /** Structured window (analytic) function columns, e.g. ROW_NUMBER/RANK/NTILE/LAG/SUM OVER(...). */
+   private List<WindowColumnInfo> windowColumns;
 
    // ─── SQL-query-table field ────────────────────────────────────────────────
 
@@ -104,6 +106,9 @@ public class WorksheetTable {
 
    public List<ExpressionColumnInfo> getExpressionColumns() { return expressionColumns; }
    public void setExpressionColumns(List<ExpressionColumnInfo> expressionColumns) { this.expressionColumns = expressionColumns; }
+
+   public List<WindowColumnInfo> getWindowColumns() { return windowColumns; }
+   public void setWindowColumns(List<WindowColumnInfo> windowColumns) { this.windowColumns = windowColumns; }
 
    public String getSqlExpression() { return sqlExpression; }
    public void setSqlExpression(String sqlExpression) { this.sqlExpression = sqlExpression; }
@@ -181,6 +186,58 @@ public class WorksheetTable {
       public void setExpression(String expression) { this.expression = expression; }
       public boolean isSql() { return sql; }
       public void setSql(boolean sql) { this.sql = sql; }
+   }
+
+   // ─── Nested: window (analytic) function column ───────────────────────────
+
+   /**
+    * Structured window (analytic) function column, e.g.
+    * {@code ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...)}. Consumed by
+    * {@code WorksheetTableService.applyWindowColumns}, which builds a
+    * {@link inetsoft.uql.asset.WindowExpressionRef}-backed column — the structured
+    * counterpart of {@link ExpressionColumnInfo}'s free-text {@code sql:true} expression.
+    */
+   @JsonIgnoreProperties(ignoreUnknown = true)
+   public static class WindowColumnInfo {
+      private String name;
+      /** Window function name, e.g. "ROW_NUMBER", "RANK", "NTILE", "LAG", "LEAD", "SUM". */
+      private String fn;
+      /** Column argument for LAG/LEAD/SUM/AVG/COUNT/MIN/MAX/FIRST_VALUE; omit for ROW_NUMBER/RANK/etc. */
+      private String column;
+      /** NTILE bucket count, or LAG/LEAD offset; omit/`<= 0` means unspecified. */
+      private Integer n;
+      /** PARTITION BY column names, in order; may be omitted/empty. */
+      private List<String> partitionBy;
+      /** ORDER BY clauses, in order; may be omitted/empty. */
+      private List<OrderByInfo> orderBy;
+      private String type;
+
+      public String getName() { return name; }
+      public void setName(String name) { this.name = name; }
+      public String getFn() { return fn; }
+      public void setFn(String fn) { this.fn = fn; }
+      public String getColumn() { return column; }
+      public void setColumn(String column) { this.column = column; }
+      public Integer getN() { return n; }
+      public void setN(Integer n) { this.n = n; }
+      public List<String> getPartitionBy() { return partitionBy; }
+      public void setPartitionBy(List<String> partitionBy) { this.partitionBy = partitionBy; }
+      public List<OrderByInfo> getOrderBy() { return orderBy; }
+      public void setOrderBy(List<OrderByInfo> orderBy) { this.orderBy = orderBy; }
+      public String getType() { return type; }
+      public void setType(String type) { this.type = type; }
+   }
+
+   @JsonIgnoreProperties(ignoreUnknown = true)
+   public static class OrderByInfo {
+      private String field;
+      /** "ASC" | "DESC" (default DESC when unrecognized, matching StyleBI's descending-default sort UX). */
+      private String direction;
+
+      public String getField() { return field; }
+      public void setField(String field) { this.field = field; }
+      public String getDirection() { return direction; }
+      public void setDirection(String direction) { this.direction = direction; }
    }
 
    // ─── Nested: join path ────────────────────────────────────────────────────
