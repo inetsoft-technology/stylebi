@@ -18,6 +18,7 @@
 package inetsoft.report.script;
 
 import inetsoft.report.*;
+import inetsoft.report.filter.CrossFilter;
 import inetsoft.report.internal.*;
 import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.report.lens.SubTableLens;
@@ -98,6 +99,15 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
       if(id.indexOf('@') >= 0 || id.indexOf('?') >= 0 || id.indexOf(':') >= 0 ||
          id.indexOf("^_^") >= 0 || id.startsWith("*"))
       {
+         return true;
+      }
+
+      // A crosstab flattens its own row/col dimension values into headers, so a bare
+      // reference to the dimension's name (e.g. data['city']) never appears as literal
+      // column/header text and Util.findColumn below can't find it -- only the
+      // dimension's values (e.g. "Aachen") do. Defer to getMember, which resolves
+      // dimension names directly against the crosstab (see NamedCellRange).
+      if(lens instanceof CrossFilter) {
          return true;
       }
 
