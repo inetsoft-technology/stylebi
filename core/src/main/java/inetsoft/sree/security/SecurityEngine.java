@@ -374,6 +374,11 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
     */
    Principal authenticate(ClientInfo user, Object credential, SecurityProvider provider) {
       SRPrincipal principal = null;
+      // Login-As: the ticket carries the acting admin's own name/password while user.getLoginUserID()
+      // is the target being logged in as. Validate against the ticket's own identity so the admin's
+      // password is checked against the admin's hash, not the target's.
+      IdentityID credentialOwner = credential instanceof DefaultTicket ?
+         ((DefaultTicket) credential).getName() : user.getLoginUserID();
 
       if(provider == null ||
          ClientInfo.ANONYMOUS.equals(user.getLoginUserID().name) &&
@@ -425,7 +430,7 @@ public class SecurityEngine implements MessageListener, AutoCloseable {
          }
       }
       else if(credential instanceof SRPrincipal ||
-              provider.authenticate(user.getLoginUserID(), credential))
+              provider.authenticate(credentialOwner, credential))
       {
          synchronized(this) {
             boolean internal = !(credential instanceof SRPrincipal);
