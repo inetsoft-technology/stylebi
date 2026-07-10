@@ -539,22 +539,6 @@ describe("SecuritySettingsPageComponent — SECURITY: SecurityMswHandlers person
       );
    }
 
-   /** orgAdmin's fixed child-key permission map for the "settings/security" path. */
-   function useOrgAdminChildPermissions(): void {
-      server.use(
-         http.get("*/api/em/authz", () =>
-            MswHttpResponse.json({
-               permissions: {
-                  provider: false, sso: false, googleSignIn: false,
-                  actions: true, users: true,
-               },
-               labels: {},
-               multiTenancyHiddenComponents: {},
-            })
-         )
-      );
-   }
-
    /** [accessible tab name, expected visible under orgAdmin] for all 5 security tabs. */
    const ORG_ADMIN_ITEM_VISIBILITY: Array<[name: string, expectedVisible: boolean]> = [
       ["_#(Security Providers)", false],
@@ -599,7 +583,6 @@ describe("SecuritySettingsPageComponent — SECURITY: SecurityMswHandlers person
    describe("asOrgAdmin — item visibility boundary", () => {
       it.each(ORG_ADMIN_ITEM_VISIBILITY)("%s should be visible=%s", async (name, expectedVisible) => {
          server.use(...SecurityMswHandlers.asOrgAdmin());
-         useOrgAdminChildPermissions();
          useSecurityEnabled();
 
          await renderComponentAsPersona();

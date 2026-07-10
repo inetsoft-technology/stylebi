@@ -41,9 +41,6 @@
  * relabeled to "_#(js:Settings)", regardless of isMultiTenant. This spec is intentionally
  * asserting the renamed label, not "_#(js:Global Settings)".
  *
- * NOTE on the authz child-key contract: same "layer an authz override on top of
- * SecurityMswHandlers" pattern used in monitoring-sidenav / content-settings-view.
- *
  * NOTE on negative assertions: `visibleLinks` starts as `undefined` (nothing renders) and is
  * only assigned once inside the isEnterprise -> authz -> isMultiTenant callback chain, so
  * (unlike ContentSettingsViewComponent) the initial state here is fail-closed, not fail-open.
@@ -60,7 +57,6 @@ import { provideHttpClient } from "@angular/common/http";
 import { provideRouter } from "@angular/router";
 import { provideNoopAnimations } from "@angular/platform-browser/animations";
 import { render, screen, waitFor } from "@testing-library/angular";
-import { http, HttpResponse } from "msw";
 import { of, config as rxjsConfig } from "rxjs";
 
 import { server } from "@test-mocks/server";
@@ -71,23 +67,6 @@ import { AppInfoService } from "../../../../../../shared/util/app-info.service";
 
 // Templates use the raw "_#(...)" i18n placeholder syntax; no translation pipe runs in this
 // test environment, so the accessible name is the untranslated placeholder text.
-
-/** orgAdmin's fixed child-key permission map for the "settings/presentation" path. */
-function useOrgAdminChildPermissions(): void {
-   server.use(
-      http.get("*/api/em/authz", () =>
-         HttpResponse.json({
-            permissions: {
-               "org-settings": false,
-               "settings": true,
-               "themes": true,
-            },
-            labels: {},
-            multiTenancyHiddenComponents: {},
-         })
-      )
-   );
-}
 
 /** [accessible tab name, expected visible under orgAdmin] for all 3 presentation tabs. */
 const ORG_ADMIN_ITEM_VISIBILITY: Array<[name: string, expectedVisible: boolean]> = [
@@ -142,7 +121,6 @@ describe("PresentationNavViewComponent — SECURITY: SecurityMswHandlers persona
    describe("asOrgAdmin — item visibility boundary", () => {
       it.each(ORG_ADMIN_ITEM_VISIBILITY)("%s should be visible=%s", async (name, expectedVisible) => {
          server.use(...SecurityMswHandlers.asOrgAdmin());
-         useOrgAdminChildPermissions();
 
          await renderComponent();
 

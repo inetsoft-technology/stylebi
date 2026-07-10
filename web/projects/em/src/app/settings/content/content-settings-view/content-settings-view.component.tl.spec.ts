@@ -28,11 +28,6 @@
  * Testing strategy: only orgAdmin is tested per item — one parameterized table whose
  * rows mix For-Org-x/For-Org-ok proves the filter binding in both directions.
  *
- * NOTE on the authz child-key contract: SecurityMswHandlers.asOrgAdmin() keys its authz response
- * by the requested path itself; since ContentSettingsViewComponent requests the parent path
- * ("settings/content"), this spec layers a child-key authz override on top, same as the
- * monitoring-sidenav spec.
- *
  * NOTE on negative assertions: `visibleLinks` is initialized to the unfiltered `links` array
  * (all 4 tabs), so a For-Org-x tab is present in the DOM before the authz response resolves.
  * Negative cases must therefore poll with `waitFor` until the tab disappears rather than using
@@ -52,7 +47,6 @@ import { provideHttpClient } from "@angular/common/http";
 import { provideRouter } from "@angular/router";
 import { provideNoopAnimations } from "@angular/platform-browser/animations";
 import { render, screen, waitFor } from "@testing-library/angular";
-import { http, HttpResponse } from "msw";
 import { config as rxjsConfig } from "rxjs";
 
 import { server } from "@test-mocks/server";
@@ -62,24 +56,6 @@ import { PageHeaderService } from "../../../page-header/page-header.service";
 
 // Templates use the raw "_#(...)" i18n placeholder syntax; no translation pipe runs in this
 // test environment, so the accessible name is the untranslated placeholder text.
-
-/** orgAdmin's fixed child-key permission map for the "settings/content" path. */
-function useOrgAdminChildPermissions(): void {
-   server.use(
-      http.get("*/api/em/authz", () =>
-         HttpResponse.json({
-            permissions: {
-               "drivers-and-plugins": false,
-               "data-space": false,
-               "materialized-views": true,
-               "repository": true,
-            },
-            labels: {},
-            multiTenancyHiddenComponents: {},
-         })
-      )
-   );
-}
 
 /** [accessible tab name, expected visible under orgAdmin] for all 4 content tabs. */
 const ORG_ADMIN_ITEM_VISIBILITY: Array<[name: string, expectedVisible: boolean]> = [
@@ -106,7 +82,6 @@ describe("ContentSettingsViewComponent — SECURITY: SecurityMswHandlers persona
    describe("asOrgAdmin — item visibility boundary", () => {
       it.each(ORG_ADMIN_ITEM_VISIBILITY)("%s should be visible=%s", async (name, expectedVisible) => {
          server.use(...SecurityMswHandlers.asOrgAdmin());
-         useOrgAdminChildPermissions();
 
          await renderComponent();
 

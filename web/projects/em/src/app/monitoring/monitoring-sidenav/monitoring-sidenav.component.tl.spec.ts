@@ -62,7 +62,6 @@ import { provideHttpClient } from "@angular/common/http";
 import { provideRouter } from "@angular/router";
 import { provideNoopAnimations } from "@angular/platform-browser/animations";
 import { render, screen, waitFor } from "@testing-library/angular";
-import { http, HttpResponse } from "msw";
 import { of, config as rxjsConfig } from "rxjs";
 
 import { server } from "@test-mocks/server";
@@ -79,27 +78,6 @@ class MockPageHeaderComponent {}
 
 /** monitoring/queries — For-Org-ok item used as a resolution anchor for negative assertions. */
 const QUERIES_LINK_NAME = "_#(Queries)";
-
-/**
- * orgAdmin's fixed child-key permission map for the "monitoring" path, per
- * SITE_ADMIN_ONLY_PATHS in security-permission.handlers.ts: Summary/Cluster/Log/Cache are
- * For-Org-x (denied); Viewsheets/Queries/Users are For-Org-ok (allowed). This is the same for
- * every case in the describe block below — only which item a given case asserts on varies.
- */
-function useOrgAdminChildPermissions(): void {
-   server.use(
-      http.get("*/api/em/authz", () =>
-         HttpResponse.json({
-            permissions: {
-               summary: false, cluster: false, log: false, cache: false,
-               viewsheets: true, queries: true, users: true,
-            },
-            labels: {},
-            multiTenancyHiddenComponents: {},
-         })
-      )
-   );
-}
 
 /** [accessible link name, expected visible under orgAdmin] for all 7 monitoring items. */
 const ORG_ADMIN_ITEM_VISIBILITY: Array<[name: string, expectedVisible: boolean]> = [
@@ -157,7 +135,6 @@ describe("MonitoringSidenavComponent — SECURITY: SecurityMswHandlers personas"
    describe("asOrgAdmin — item visibility boundary", () => {
       it.each(ORG_ADMIN_ITEM_VISIBILITY)("%s should be visible=%s", async (name, expectedVisible) => {
          server.use(...SecurityMswHandlers.asOrgAdmin());
-         useOrgAdminChildPermissions();
 
          await renderComponent();
 
@@ -176,7 +153,6 @@ describe("MonitoringSidenavComponent — SECURITY: SecurityMswHandlers personas"
    // asOrgAdmin — navbar isOrgAdminOnly=true flag is served correctly.
    it("asOrgAdmin serves isOrgAdminOnly=true on the navbar endpoint", async () => {
       server.use(...SecurityMswHandlers.asOrgAdmin());
-      useOrgAdminChildPermissions();
 
       const isOrgAdminOnly = await fetch("/api/em/navbar/isOrgAdminOnly").then(r => r.json());
       expect(isOrgAdminOnly).toBe(true);

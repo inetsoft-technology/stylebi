@@ -18,31 +18,42 @@
  * for the relevant permission endpoints. Handlers are reset after each test by
  * the vitest-setup-tl.ts afterEach hook (server.resetHandlers()).
  *
- * Paths in SITE_ADMIN_ONLY_PATHS correspond to the For-Org-× items in the
- * permission-test-architecture-design.md 区二（Actions）矩阵。
+ * AuthorizationService.getPermissions(parent) returns permissions keyed by bare child
+ * name relative to `parent` (see its own doc comment); real callers (sidenav/tab-bar
+ * components, authorization-guard.service.ts) always read `p.permissions[child]`, never
+ * a compound "parent/child" string. ORG_ADMIN_CHILD_PERMISSIONS below is therefore keyed
+ * by parent path, each value a full child map, so the mock can respond correctly no matter
+ * which parent path a given component requests. `false` entries are the For-Org-× items in
+ * the permission-matrix-actions.md capability matrix; everything else is For-Org-√ (true).
  */
 
 import { http, HttpResponse } from "msw";
 import type { RequestHandler } from "msw";
 
-const SITE_ADMIN_ONLY_PATHS = new Set([
-   "monitoring/cache",
-   "monitoring/cluster",
-   "monitoring/log",
-   "monitoring/summary",
-   "settings/content/drivers-and-plugins",
-   "settings/content/data-space",
-   "settings/presentation/orgSettings",
-   "settings/schedule/settings",
-   "settings/schedule/status",
-   "settings/security/providers",
-   "settings/security/sso",
-   "settings/security/googleSignIn",
-   "settings/general",
-   "settings/logging",
-   "settings/allProperties",
-   "notification",
-]);
+const ORG_ADMIN_CHILD_PERMISSIONS: Record<string, Record<string, boolean>> = {
+   "": { auditing: true, monitoring: true, settings: true, notification: false },
+   "monitoring": {
+      summary: false, cluster: false, log: false, cache: false,
+      viewsheets: true, queries: true, users: true,
+   },
+   "settings": {
+      general: false, logging: false, properties: false,
+      security: true, content: true, schedule: true, presentation: true,
+   },
+   "settings/content": {
+      "drivers-and-plugins": false, "data-space": false,
+      "materialized-views": true, "repository": true,
+   },
+   "settings/presentation": {
+      "org-settings": false, "settings": true, "themes": true,
+   },
+   "settings/schedule": {
+      "settings": false, "status": false, "tasks": true, "cycles": true,
+   },
+   "settings/security": {
+      provider: false, sso: false, googleSignIn: false, actions: true, users: true,
+   },
+};
 
 function navbarHandlers(isSiteAdmin: boolean, isOrgAdminOnly: boolean, isMultiTenant: boolean): RequestHandler[] {
    return [
@@ -75,12 +86,19 @@ export const SecurityMswHandlers = {
    asOrgAdmin: (): RequestHandler[] => [
       http.get("*/api/em/authz", ({ request }) => {
          const path = new URL(request.url).searchParams.get("path") ?? "";
-         const denied = SITE_ADMIN_ONLY_PATHS.has(path);
-         return HttpResponse.json({
-            permissions: denied ? {} : { [path]: true },
-            labels: {},
-            multiTenancyHiddenComponents: denied ? { [path]: true } : {},
-         });
+         const childPermissions = ORG_ADMIN_CHILD_PERMISSIONS[path];
+         const permissions = childPermissions ? { ...childPermissions } : { [path]: true };
+         const multiTenancyHiddenComponents: Record<string, boolean> = {};
+
+         if(childPermissions) {
+            Object.keys(childPermissions).forEach(child => {
+               if(!childPermissions[child]) {
+                  multiTenancyHiddenComponents[child] = true;
+               }
+            });
+         }
+
+         return HttpResponse.json({ permissions, labels: {}, multiTenancyHiddenComponents });
       }),
       ...navbarHandlers(false, true, true),
    ],

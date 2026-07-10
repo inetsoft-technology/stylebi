@@ -35,10 +35,6 @@
  * Testing strategy: only orgAdmin is tested per item, same rationale as
  * monitoring-sidenav — one parameterized table whose rows mix For-Org-x/For-Org-ok proves the
  * `@if` binding in both directions without a separate siteAdmin pass.
- *
- * NOTE on the authz child-key contract: same "layer a child-key authz override on top of
- * SecurityMswHandlers" pattern used in monitoring-sidenav, since this component also requests
- * the parent path ("settings") rather than per-item paths.
  */
 
 import { NO_ERRORS_SCHEMA, Component } from "@angular/core";
@@ -46,7 +42,6 @@ import { provideHttpClient } from "@angular/common/http";
 import { provideRouter } from "@angular/router";
 import { provideNoopAnimations } from "@angular/platform-browser/animations";
 import { render, screen, waitFor } from "@testing-library/angular";
-import { http, HttpResponse } from "msw";
 import { config as rxjsConfig } from "rxjs";
 
 import { server } from "@test-mocks/server";
@@ -59,22 +54,6 @@ class MockPageHeaderComponent {}
 
 // Templates use the raw "_#(...)" i18n placeholder syntax; no translation pipe runs in this
 // test environment, so the accessible name is the untranslated placeholder text.
-
-/** orgAdmin's fixed child-key permission map for the "settings" path. */
-function useOrgAdminChildPermissions(): void {
-   server.use(
-      http.get("*/api/em/authz", () =>
-         HttpResponse.json({
-            permissions: {
-               general: false, logging: false, properties: false,
-               security: true, content: true, schedule: true, presentation: true,
-            },
-            labels: {},
-            multiTenancyHiddenComponents: {},
-         })
-      )
-   );
-}
 
 /** [accessible link name, expected visible under orgAdmin] for all 7 settings items. */
 const ORG_ADMIN_ITEM_VISIBILITY: Array<[name: string, expectedVisible: boolean]> = [
@@ -126,7 +105,6 @@ describe("SettingsSidenavComponent — SECURITY: SecurityMswHandlers personas", 
    describe("asOrgAdmin — item visibility boundary", () => {
       it.each(ORG_ADMIN_ITEM_VISIBILITY)("%s should be visible=%s", async (name, expectedVisible) => {
          server.use(...SecurityMswHandlers.asOrgAdmin());
-         useOrgAdminChildPermissions();
 
          await renderComponent();
 
@@ -145,7 +123,6 @@ describe("SettingsSidenavComponent — SECURITY: SecurityMswHandlers personas", 
    // asOrgAdmin — navbar isOrgAdminOnly=true flag is served correctly.
    it("asOrgAdmin serves isOrgAdminOnly=true on the navbar endpoint", async () => {
       server.use(...SecurityMswHandlers.asOrgAdmin());
-      useOrgAdminChildPermissions();
 
       const isOrgAdminOnly = await fetch("/api/em/navbar/isOrgAdminOnly").then(r => r.json());
       expect(isOrgAdminOnly).toBe(true);
