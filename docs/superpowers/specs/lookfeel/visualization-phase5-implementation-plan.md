@@ -235,7 +235,9 @@ two assumptions carried from Phase 4/5.
   (`TABLE`/`TABLE_HEADER`/`TABLE_DETAIL`/`CELL`/`HEADER`/`DETAIL`); crosstab/calc-table-specific
   region classes (`CROSSTAB`/`CALC_TABLE`/`GRAND_TOTAL`/`GROUP_HEADER`/`SUMMARY`) and cell bg/fg are a
   later pass. Numeric alignment already done; tabular numerals out.
-- **Route:** the `format.css` CSS-dictionary route (not `setDefaultFormat`).
+- **Route:** ~~the `format.css` CSS-dictionary route~~ **corrected to a gated `VSTableLens` resolver
+  after code verification** (2026-07-09) — the CSS route is dead for the default (Default-Style)
+  case and cannot carry the SreeEnv gate. See C1 "Route correction".
 - **C2:** ships with A/B (done).
 - **Selection selected-highlight (C-note):** deferred.
 
@@ -253,27 +255,58 @@ two assumptions carried from Phase 4/5.
   `numeric ? H_RIGHT : …` keyed on `XSchema.isNumericType`), shared by every export path. Roadmap
   Phase 5 Task 1 "right-align numeric columns" is **already satisfied** — nothing to add.
 
-**C1 — Modern table structure defaults via the `format.css` CSS dictionary (primary server task).**
-Drive modern gridline / header-hierarchy / cell color defaults through the **existing** server-side
-CSS-dictionary path rather than editing hardcoded defaults:
-- Mechanism: `CSSTableStyle` already pulls per-region bg/fg/font/border-color from `CSSDictionary`
-  (`CSSDictionary.getForeground/Background/Font/BorderColors`, `CSSTableStyle.setAttributes:349-449`)
-  for the table CSS classes in `CSSConstants` (`TABLE:278`, `TABLE_HEADER:290`, `TABLE_DETAIL:282`,
-  `CELL:54`, `HEADER:182`, `DETAIL:142`, `CROSSTAB:130`, `CALC_TABLE:150`, `GRAND_TOTAL:170`,
-  `GROUP_HEADER:178`, `SUMMARY:270`). `VSAssemblyInfo.setDefaultFormat:1169-1183` already reads the
-  `TableStyle`/`Table`-region CSS border color, so the hook is proven and live+export share it.
-- Part C emits the modern table structure values (subtle gridline vs today's `DEFAULT_BORDER_COLOR
-  = 0xDADADA` at `VSAssemblyInfo.java:1545`; header emphasis vs `DEFAULT_TITLE_BG = 0xf5f5f5`) into
-  those CSS classes **only under the gate**, resolved per-org from the same
-  `viewsheet.modernVisualization` + a structure property, mirroring `VSDensityDefaults`. Defaults-only:
-  a viewsheet whose cells carry user/explicit `VSFormat` borders/bg is untouched.
-- Why the CSS route over editing `setDefaultFormat` (`VSAssemblyInfo.java:1155`,
-  `TableDataVSAssemblyInfo.java:1565`): lower blast radius (the override layer, not the baked default),
-  it converges with the Phase 6/8 `format.css` bridge, and header-vs-data styling already flows through
-  the `TableStyle`/`CSSTableStyle` lens (`FormatTableLens2.mergeFormat:128`), not raw `VSFormat`.
+**C1 — Modern table structure defaults via a gated `VSTableLens` resolver (primary server task).**
+Route **corrected after code verification (2026-07-09)**: the originally-planned `format.css`
+CSS-dictionary route is **not viable** and was replaced with a Java gated resolver that mirrors
+`VSDensityDefaults` — see "Route correction" below for why.
+
+- Mechanism (verified): a default table's structure comes from the shipped **"Default Style"
+  `XTableStyle`** (a serialized library blob `style/Default Style`, loaded by `LibManager`, applied in
+  `DataVSAQuery.getTableLens:120-128`), **not** from the two constants the earlier draft cited. The
+  Default Style values are: interior gridlines **#E6E6E6** (body `rcolor`/`ccolor`, `THIN_LINE`),
+  header-row background **#FFFFFF** + bold, body foreground **#404040** (header inherits it), zebra
+  odd-row **#F5F5F5**, outer border **#CCCCCC**. `VSTableLens.getFormat(r,c,spanRow)`
+  (`VSTableLens.java:110-188`) emits these per-cell and is shared by the live model **and** every
+  exporter — the correct single injection point.
+- Implementation: a new `VSTableStructureDefaults` resolver (sibling of `VSDensityDefaults`) exposes
+  `isModern()` (`viewsheet.modernVisualization` **and** `viewsheet.modernTableStructure`, default `true`
+  when modern is on) and `applyModern(VSFormat, boolean header)`. `getFormat` calls it just before
+  returning `userfmt`. **Defaults-only by value equality**: a border color is remapped only when it
+  still equals the shipped Default Style value (gridline `#E6E6E6` → `#E8E5DE`); header background
+  `#FFFFFF` → `#F1EFEA` and header foreground `#404040` → `#6A685F`, only on header rows
+  (`r < getHeaderRowCount()`). Any cell carrying a user/explicit or non-Default-Style color differs and
+  is left untouched — the analog of density's `cellHeight == AssetUtil.defh` guard.
+- Route correction (why not the CSS-dictionary route the draft chose):
+  - The `CSSTableStyle`/`format.css` path (`DataVSAQuery.getTableLens:129-150`) fires **only when no
+    table style is found** — but the shipped config always has "Default Style", so that path is dead
+    for the default case; editing `format.css` would change nothing.
+  - The cited constants were mis-mapped: `DEFAULT_BORDER_COLOR = 0xDADADA` (`VSAssemblyInfo.java:1545`)
+    is the assembly's **outer** border (`objfmt`) + the unstyled interior fallback, **not** the
+    interior gridlines of a Default-Style table; `DEFAULT_TITLE_BG = 0xf5f5f5` is the assembly **title
+    bar** (`TITLEPATH`), **not** the column-header row.
+  - `CSSDictionary` has **no** `viewsheet.modernVisualization` SreeEnv gate — it is file/theme-driven
+    per-org (`PortalThemesManager` CSS entries), with no programmatic per-org style injection. It
+    therefore cannot carry the required gate. The route that actually mirrors `VSDensityDefaults` is the
+    Java resolver at the shared lens layer, which is what the density work itself uses
+    (`VSTableLens.java:1779`).
+- Uniform across table/crosstab/calc: value-equality naturally scopes to cells that carry the shipped
+  Default Style appearance, so basic gridline/header modernization applies wherever that look is present
+  — not just plain `VSTable`. Region-specific emphasis (crosstab grand-total, group header) remains a
+  later pass. Both shipped border colors are unified onto the one gridline token: `#E6E6E6` (body
+  interior) **and** `#CCCCCC` (header-row separator + outer frame) → `#E8E5DE`.
+- **Known limitation (accepted).** Unlike the density resolver — which consults an explicit user-set
+  flag (`isUserDataRowHeight`/`isUserHeaderRowHeight`/`userCellHeight`) and so ignores a height the user
+  set back to the default — the color remap has only value equality. Merged cell colors carry no
+  user-set flag at the `VSTableLens.getFormat` layer (the user-vs-style split lives one layer down in
+  `VSCompositeFormat.getUserDefinedFormat()`), so a color a user *deliberately* set to a legacy default
+  (`#E6E6E6`/`#CCCCCC`/`#FFFFFF`/`#404040`) is indistinguishable from the untouched default and will be
+  modernized under the gate. Narrow and low-impact (the result is visually identical to leaving it
+  default, and the gate is opt-in per org); a `getUserDefinedFormat`/`FormatInfo` dirty check would
+  close it but adds per-cell lookups — deferred unless it proves problematic.
 - Risk: still export-visible and reflows saved default-styled tables, so it **must** be gated per-org
-  (never the browser `.viz-modern` class) and gate-off must be byte-identical. Highest-risk item; own
-  validation pass with PDF/PNG/Excel parity checks.
+  (never the browser `.viz-modern` class) and gate-off must be byte-identical (both booleans off →
+  `getFormat` returns exactly today's values). Highest-risk item; own validation pass with PDF/PNG/Excel
+  parity checks.
 
 **C2 — Sort-glyph normalization (from D3) — CSS, gated, active-sort only — ✅ IMPLEMENTED (ships with A/B).**
 The `sorted` color marks the **active** sort state (a meaning-bearing cue), not every sort affordance,
@@ -329,7 +362,8 @@ live model and every export format agree. Gate-off byte-identical; saved user-st
 4. **Dark mode — deferred from first-pass C1.** The dark variants (`#3A383D` / `#2D2B30` / `#CAC4D0`)
    stay in the swatches as reference for a later dark pass but are not emitted by C1.
 
-C1 remains **not implemented**, pending runtime confirmation of the C2 sort-button color change first.
+C1 is **implemented** (2026-07-09) via the gated `VSTableLens` resolver — see C1 above. Dark mode
+stays deferred; light-mode gridline `#E8E5DE`, header-bg `#F1EFEA`, header-text `#6A685F`.
 
 ## Validation
 
