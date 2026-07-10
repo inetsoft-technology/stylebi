@@ -319,6 +319,12 @@ public class GraalJavaScriptEnv implements ScriptEnv {
          }
          catch(Exception e) {
             LOG.error("Failed to init GraalJavaScriptEngine", e);
+            // init(vars) may close/replace the Context; a failure here leaves
+            // engine referencing a broken/closed Context that this method (a
+            // no-op while engine != null) would never rebuild. Drop it so the
+            // next compile()/exec() rebuilds from scratch rather than poisoning
+            // this (now long-lived, per-thread) env. Mirrors the reset() fix.
+            engine = null;
          }
       }
    }
