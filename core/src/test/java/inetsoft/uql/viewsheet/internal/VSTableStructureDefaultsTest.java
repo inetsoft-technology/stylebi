@@ -25,66 +25,29 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @Tag("core")
 class VSTableStructureDefaultsTest {
+   // pins the modern structure palette; the values are overlaid onto the Default Style clone in
+   // DataVSAQuery, so a change here is an export-visible change and must be intentional
    @Test
-   void bodyGridlineRemappedToModern() {
-      assertEquals(MODERN_GRIDLINE, rgb(VSTableStructureDefaults.modernGridline(new Color(LEGACY_GRIDLINE))));
+   void gridlineColorValue() {
+      assertEquals(0xE8E5DE, rgb(VSTableStructureDefaults.gridlineColor()));
    }
 
    @Test
-   void outerAndHeaderBorderRemappedToModern() {
-      // #CCCCCC (header separator + outer frame) unifies onto the same gridline token
-      assertEquals(MODERN_GRIDLINE, rgb(VSTableStructureDefaults.modernGridline(new Color(LEGACY_BORDER))));
+   void headerBackgroundValue() {
+      assertEquals(0xF1EFEA, rgb(VSTableStructureDefaults.headerBackground()));
    }
 
    @Test
-   void nonDefaultBorderLeftUntouched() {
-      Color custom = new Color(0x123456);
-      assertSame(custom, VSTableStructureDefaults.modernGridline(custom));
+   void headerForegroundValue() {
+      assertEquals(0x6A685F, rgb(VSTableStructureDefaults.headerForeground()));
    }
 
    @Test
-   void nullBorderLeftUntouched() {
-      assertNull(VSTableStructureDefaults.modernGridline(null));
-   }
-
-   @Test
-   void headerBackgroundRemapped() {
-      assertEquals(MODERN_HEADER_BG,
-                   rgb(VSTableStructureDefaults.modernHeaderBackground(new Color(LEGACY_HEADER_BG))));
-   }
-
-   @Test
-   void headerForegroundRemapped() {
-      assertEquals(MODERN_HEADER_FG,
-                   rgb(VSTableStructureDefaults.modernHeaderForeground(new Color(LEGACY_HEADER_FG))));
-   }
-
-   @Test
-   void nonDefaultHeaderColorsLeftUntouched() {
-      Color bg = new Color(0x223344);
-      Color fg = new Color(0x556677);
-      assertSame(bg, VSTableStructureDefaults.modernHeaderBackground(bg));
-      assertSame(fg, VSTableStructureDefaults.modernHeaderForeground(fg));
-   }
-
-   @Test
-   void headerBackgroundIsNotTreatedAsGridlineAndViceVersa() {
-      // white is a header-bg default, not a gridline default; the gridline default is not a header bg
-      assertSame(WHITE, VSTableStructureDefaults.modernGridline(WHITE));
-      Color gridline = new Color(LEGACY_GRIDLINE);
-      assertSame(gridline, VSTableStructureDefaults.modernHeaderBackground(gridline));
+   void totalBackgroundValue() {
+      assertEquals(0xE9E4DA, rgb(VSTableStructureDefaults.totalBackground()));
    }
 
    private static int rgb(Color c) {
       return c.getRGB() & 0xFFFFFF;
    }
-
-   private static final Color WHITE = new Color(0xFFFFFF);
-   private static final int LEGACY_GRIDLINE = 0xE6E6E6;
-   private static final int LEGACY_BORDER = 0xCCCCCC;
-   private static final int LEGACY_HEADER_BG = 0xFFFFFF;
-   private static final int LEGACY_HEADER_FG = 0x404040;
-   private static final int MODERN_GRIDLINE = 0xE8E5DE;
-   private static final int MODERN_HEADER_BG = 0xF1EFEA;
-   private static final int MODERN_HEADER_FG = 0x6A685F;
 }
