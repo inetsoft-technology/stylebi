@@ -3018,21 +3018,28 @@ public abstract class AssetQuery extends PreAssetQuery {
    }
 
    /**
-    * Fail loud if the collected specs declare mutually-incompatible non-empty PARTITION BY or
-    * ORDER BY grammars. WindowTableLens sorts its rows once, by the first spec that declares a
+    * Fail loud if the collected specs declare mutually-incompatible PARTITION BY or ORDER BY
+    * grammars. WindowTableLens sorts its rows once, by the first spec that declares a
     * partition/order (see WindowTableLens.partCols()/orderCols()) — two window columns on the
-    * same table with divergent (both non-empty but unequal) partitioning or ordering would
-    * silently mis-sort whichever one loses. Specs that all share the same partition/order, or
-    * where only one declares order (e.g. one running aggregate plus one partition-total
-    * aggregate), are the common case and remain allowed.
+    * same table with divergent (both non-empty but unequal) partitioning would silently
+    * mis-sort whichever one loses, and non-uniform partition PRESENCE (some specs empty,
+    * others not) would silently apply the partitioned spec's grammar to the un-partitioned
+    * one (WindowTableLens.partCols() always returns the first non-empty partCols found).
+    * Non-uniform ORDER presence, by contrast, is the common and correct case (e.g. one
+    * running aggregate plus one partition-total aggregate) and remains allowed — only
+    * both-non-empty-and-unequal ORDER BY grammars throw.
     */
    private static void checkCompatiblePartitionAndOrder(List<WindowTableLens.Spec> specs) {
       int[] partition = null;
       int[] orderCols = null;
       boolean[] orderAsc = null;
+      boolean sawEmptyPartition = false;
+      boolean sawNonEmptyPartition = false;
 
       for(WindowTableLens.Spec s : specs) {
          if(s.partCols.length > 0) {
+            sawNonEmptyPartition = true;
+
             if(partition == null) {
                partition = s.partCols;
             }
@@ -3041,6 +3048,15 @@ public abstract class AssetQuery extends PreAssetQuery {
                   "PARTITION BY/ORDER BY grammar per table (Phase 2); found divergent " +
                   "PARTITION BY clauses among window columns on the same table.");
             }
+         }
+         else {
+            sawEmptyPartition = true;
+         }
+
+         if(sawEmptyPartition && sawNonEmptyPartition) {
+            throw new RuntimeException("in-memory window computation requires all window " +
+               "columns on a table to share the same PARTITION BY (mixing a global/" +
+               "un-partitioned window with a partitioned one is not supported in Phase 2)");
          }
 
          if(s.orderCols.length > 0) {

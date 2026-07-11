@@ -123,6 +123,42 @@ class WindowRoutingTest {
    }
 
    @Test
+   void divergentPartitionPresenceAcrossSpecsThrows() {
+      // One window column with no PARTITION BY (global) and another with a non-empty
+      // PARTITION BY on the same table — WindowTableLens.partCols() applies the first
+      // non-empty partition grammar found to EVERY spec, so the un-partitioned spec would
+      // silently be partitioned too (e.g. ROW_NUMBER() OVER (ORDER BY amount DESC) wrongly
+      // resetting per stage instead of numbering globally). Must fail loud instead.
+      ColumnRef stage = new ColumnRef(new AttributeRef(null, "stage"));
+      ColumnRef amount = new ColumnRef(new AttributeRef(null, "amount"));
+
+      WindowExpressionRef win1 = new WindowExpressionRef(
+         "ROW_NUMBER", null, 0, List.of(),
+         List.of(desc(new ColumnRef(new AttributeRef(null, "amount")))));
+      win1.setName("rn1");
+      ColumnRef rn1 = new ColumnRef(win1);
+      rn1.setSQL(true);
+
+      WindowExpressionRef win2 = new WindowExpressionRef(
+         "SUM", new ColumnRef(new AttributeRef(null, "amount")), 0,
+         List.of(new ColumnRef(new AttributeRef(null, "stage"))),
+         List.of());
+      win2.setName("rn2");
+      ColumnRef rn2 = new ColumnRef(win2);
+      rn2.setSQL(true);
+
+      ColumnSelection cols = new ColumnSelection();
+      cols.addAttribute(stage);
+      cols.addAttribute(amount);
+      cols.addAttribute(rn1);
+      cols.addAttribute(rn2);
+
+      RuntimeException ex = assertThrows(RuntimeException.class,
+         () -> AssetQuery.buildWindowSpecs(cols));
+      assertTrue(ex.getMessage().contains("PARTITION BY"));
+   }
+
+   @Test
    void unresolvedPartitionByColumnThrows() {
       // partitionBy references "missing", which is not in the column selection — buildWindowSpecs
       // must fail loud with a named error instead of letting a -1 index flow into

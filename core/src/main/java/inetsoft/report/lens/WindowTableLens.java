@@ -126,9 +126,12 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
       switch(fn) {
       case "ROW_NUMBER": case "RANK": case "DENSE_RANK": case "NTILE": case "COUNT":
          return Integer.class;
-      case "PERCENT_RANK": case "CUME_DIST": case "AVG":
+      case "PERCENT_RANK": case "CUME_DIST": case "AVG": case "SUM": case "MIN": case "MAX":
+         // the kernels for these always return boxed Double (see kernel()), regardless of the
+         // argument column's declared type — reporting the true runtime type here avoids a
+         // downstream ClassCastException from a consumer that casts on the declared col type.
          return Double.class;
-      default: // LAG/LEAD/FIRST_VALUE/SUM/MIN/MAX → follow the argument column type
+      default: // LAG/LEAD/FIRST_VALUE → return the original object, so its type is correct
          int a = specs[col - ncols].argCol;
          return a >= 0 ? table.getColType(a) : Double.class;
       }
@@ -146,7 +149,10 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
          return specs[col - ncols].header;   // header cell
       }
 
-      validate();
+      if(!validated) {
+         validate();
+      }
+
       return computed[col - ncols][row - hrows];
    }
 

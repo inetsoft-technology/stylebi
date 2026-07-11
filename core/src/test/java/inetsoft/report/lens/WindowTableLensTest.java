@@ -149,6 +149,32 @@ class WindowTableLensTest {
    }
 
    @Test
+   void percentRank_tiesShareFirstPosition() {
+      // A desc, tied: 30,30,10 → rank(first-tied-position) 1,1,3 over n=3
+      // PERCENT_RANK = (rank-1)/(n-1): (1-1)/2=0.0, (1-1)/2=0.0, (3-1)/2=1.0
+      WindowTableLens.Spec pr = new WindowTableLens.Spec(
+         "pr", "PERCENT_RANK", -1, 0, new int[]{0}, new int[]{1}, new boolean[]{false});
+      WindowTableLens lens = new WindowTableLens(tiedBase(), new WindowTableLens.Spec[]{pr});
+      assertEquals(0.0, cell(lens, 0, 2)); // A/30
+      assertEquals(0.0, cell(lens, 1, 2)); // A/30 tie
+      assertEquals(1.0, cell(lens, 2, 2)); // A/10
+      assertEquals(0.0, cell(lens, 3, 2)); // B/7 — sole row in its partition, size<=1 → 0.0
+   }
+
+   @Test
+   void cumeDist_tiesShareUpperBound() {
+      // A desc, tied: 30,30,10 → rows with order key <= current (in desc direction):
+      // 30 → {30,30} = 2/3 ; 30 → 2/3 ; 10 → {30,30,10} = 3/3 = 1.0
+      WindowTableLens.Spec cd = new WindowTableLens.Spec(
+         "cd", "CUME_DIST", -1, 0, new int[]{0}, new int[]{1}, new boolean[]{false});
+      WindowTableLens lens = new WindowTableLens(tiedBase(), new WindowTableLens.Spec[]{cd});
+      assertEquals(2.0 / 3, cell(lens, 0, 2)); // A/30
+      assertEquals(2.0 / 3, cell(lens, 1, 2)); // A/30 tie
+      assertEquals(1.0, cell(lens, 2, 2));     // A/10
+      assertEquals(1.0, cell(lens, 3, 2));     // B/7 — sole row in its partition
+   }
+
+   @Test
    void countAvgMinMax_partitionWide() {
       Object[][] data = {{"stage","amount"},{"A",10.0},{"A",30.0}};
       DefaultTableLens t = new DefaultTableLens(data); t.setHeaderRowCount(1);
