@@ -559,10 +559,15 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       Pattern.compile("\\bOVER\\s*\\(", Pattern.CASE_INSENSITIVE);
 
    /**
-    * True if `column` is an expression column whose SQL text contains a window function
-    * (`... OVER (...)`). Such a column is neither a GROUP BY dimension nor a standard aggregate;
-    * mergeGroupBy emits it into the SELECT list without grouping/aggregating it. Package-private
-    * (static, no instance state) so it can be unit-tested directly.
+    * True if `column` is a window (analytic) function column. Detection is structural first: a
+    * {@link WindowExpressionRef}-wrapped column (the first-class structured node built by
+    * {@code /ws/table}'s {@code windowColumns}) is always a window column, no text inspection
+    * needed. As a fallback — for a hand-authored {@code sql query table} column whose raw SQL
+    * text contains an {@code OVER (...)} call but isn't a {@code WindowExpressionRef} — the
+    * regex is still applied, preserving prior behavior. Such a column is neither a GROUP BY
+    * dimension nor a standard aggregate; mergeGroupBy emits it into the SELECT list without
+    * grouping/aggregating it. Package-private (static, no instance state) so it can be
+    * unit-tested directly.
     */
    static boolean isWindowExpression(ColumnRef column) {
       if(column == null || !column.isExpression()) {
@@ -570,6 +575,10 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       }
 
       DataRef ref = column.getDataRef();
+
+      if(ref instanceof WindowExpressionRef) {
+         return true;
+      }
 
       if(!(ref instanceof ExpressionRef)) {
          return false;

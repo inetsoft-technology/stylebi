@@ -1554,6 +1554,19 @@ public abstract class AssetQuery extends PreAssetQuery {
       name = name == null ? column.getAttribute() : name;
       DataRef bref = getBaseAttribute(column);
 
+      // Window (analytic) function columns are SQL-pushdown-only (Phase 1 design):
+      // PreAssetQuery.mergeGroupBy always inlines a WindowExpressionRef into the generated SQL
+      // on a mergeable source, so this JS-formula path is only reached when SQL merge did NOT
+      // happen for it (e.g. an unrelated column/condition on the same table made the overall
+      // query non-mergeable). Its emitted text is `fn(...) OVER (...)` SQL, not JS — handing it
+      // to the script engine would produce a cryptic syntax error. Fail loud with a clear
+      // message instead.
+      if(bref instanceof WindowExpressionRef) {
+         throw new RuntimeException("Window function column '" + column.getName() +
+            "' could not be pushed down to SQL; window functions require a fully " +
+            "SQL-mergeable source");
+      }
+
       if(!(bref instanceof ExpressionRef)) {
          return;
       }
