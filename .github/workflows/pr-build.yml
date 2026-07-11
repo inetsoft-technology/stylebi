@@ -46,8 +46,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-npm-
 
+      # The workflow's repo-scoped GITHUB_TOKEN can only read GitHub Packages owned by / granted to
+      # this repo. The wiz-feature frontend (web/package.json) also depends on packages published by
+      # other repos — @inetsoft-technology/stylebi-wiz-ai-chat and stylebi-wiz-portal — which
+      # GITHUB_TOKEN cannot read, so `npm ci` fails (main is green because it doesn't need them).
+      #
+      # Fix requires ONE org/admin action, then this workflow uses it automatically:
+      #   Option A (no secret): grant this repo *Actions access* to those two packages
+      #     (each package -> Settings -> Manage Actions access -> add inetsoft-technology/stylebi).
+      #     GITHUB_TOKEN then reads them and the fallback below is sufficient.
+      #   Option B: add a secret GH_PACKAGES_TOKEN = a PAT (or app token) with read:packages for the
+      #     @inetsoft-technology scope. It is preferred here when present.
+      # Regression-safe: with neither in place this is identical to the previous GITHUB_TOKEN auth.
       - name: Authenticate with GitHub Packages
-        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
+        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GH_PACKAGES_TOKEN || secrets.GITHUB_TOKEN }}" >> ~/.npmrc
 
       - name: Build with Maven
         run: ./mvnw --batch-mode clean install
