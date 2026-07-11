@@ -973,6 +973,9 @@ public abstract class AssetQuery extends PreAssetQuery {
          base = getRankingTableLens(base, vars);
       }
 
+      // compute window functions in-memory for non-pushdown sources (no-op when merged)
+      base = getWindowTableLens(base, vars);
+
       // get visible table lens
       base = getVisibleTableLens(base, vars);
 
@@ -1403,6 +1406,14 @@ public abstract class AssetQuery extends PreAssetQuery {
 
       for(int i = 0; i < columns.getAttributeCount(); i++) {
          ColumnRef column = (ColumnRef) columns.getAttribute(i);
+
+         // window-function columns are computed by getWindowTableLens (in-memory) or pushed
+         // down as SQL; never evaluate them as JS formula columns (addExpression fails loud
+         // on a WindowExpressionRef, since its emitted text is SQL, not JS).
+         if(column.getDataRef() instanceof WindowExpressionRef) {
+            continue;
+         }
+
          boolean groupedExpression = isGroupedExpression(column);
          columns0.addAttribute(column);
 
@@ -2929,6 +2940,136 @@ public abstract class AssetQuery extends PreAssetQuery {
       rtable.setTopRanking(condition.getOperation() == XCondition.TOP_N);
 
       return rtable;
+   }
+
+   /**
+    * Build WindowTableLens specs from the window-expression columns in a column selection,
+    * resolving each partitionBy/orderBy/arg ref to its index in that same selection. Returns an
+    * empty array if there are no window columns.
+    * <p>
+    * Package-private and static so it can be unit-tested directly (see WindowRoutingTest)
+    * without a live query.
+    * @param cols the column selection to scan for WindowExpressionRef columns.
+    * @return the resolved specs, one per window column, in selection order.
+    */
+   static WindowTableLens.Spec[] buildWindowSpecs(ColumnSelection cols) {
+      List<WindowTableLens.Spec> specs = new ArrayList<>();
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         DataRef ref = cols.getAttribute(i);
+
+         if(!(ref instanceof ColumnRef)) {
+            continue;
+         }
+
+         DataRef base = ((ColumnRef) ref).getDataRef();
+
+         if(!(base instanceof WindowExpressionRef)) {
+            continue;
+         }
+
+         WindowExpressionRef w = (WindowExpressionRef) base;
+         int arg = w.getArgRef() == null ? -1 : indexOf(cols, w.getArgRef());
+         int[] parts = w.getPartitionBy().stream().mapToInt(p -> indexOf(cols, p)).toArray();
+         List<SortRef> obs = w.getOrderBy();
+         int[] ocols = new int[obs.size()];
+         boolean[] oasc = new boolean[obs.size()];
+
+         for(int k = 0; k < obs.size(); k++) {
+            ocols[k] = indexOf(cols, obs.get(k).getDataRef());
+            oasc[k] = obs.get(k).getOrder() == XConstants.SORT_ASC;
+         }
+
+         specs.add(new WindowTableLens.Spec(
+            ref.getName(), w.getFn(), arg, w.getN(), parts, ocols, oasc));
+      }
+
+      checkCompatiblePartitionAndOrder(specs);
+      return specs.toArray(new WindowTableLens.Spec[0]);
+   }
+
+   /**
+    * Fail loud if the collected specs declare mutually-incompatible non-empty PARTITION BY or
+    * ORDER BY grammars. WindowTableLens sorts its rows once, by the first spec that declares a
+    * partition/order (see WindowTableLens.partCols()/orderCols()) — two window columns on the
+    * same table with divergent (both non-empty but unequal) partitioning or ordering would
+    * silently mis-sort whichever one loses. Specs that all share the same partition/order, or
+    * where only one declares order (e.g. one running aggregate plus one partition-total
+    * aggregate), are the common case and remain allowed.
+    */
+   private static void checkCompatiblePartitionAndOrder(List<WindowTableLens.Spec> specs) {
+      int[] partition = null;
+      int[] orderCols = null;
+      boolean[] orderAsc = null;
+
+      for(WindowTableLens.Spec s : specs) {
+         if(s.partCols.length > 0) {
+            if(partition == null) {
+               partition = s.partCols;
+            }
+            else if(!Arrays.equals(partition, s.partCols)) {
+               throw new RuntimeException("In-memory window computation supports one " +
+                  "PARTITION BY/ORDER BY grammar per table (Phase 2); found divergent " +
+                  "PARTITION BY clauses among window columns on the same table.");
+            }
+         }
+
+         if(s.orderCols.length > 0) {
+            if(orderCols == null) {
+               orderCols = s.orderCols;
+               orderAsc = s.orderAsc;
+            }
+            else if(!Arrays.equals(orderCols, s.orderCols) || !Arrays.equals(orderAsc, s.orderAsc)) {
+               throw new RuntimeException("In-memory window computation supports one " +
+                  "PARTITION BY/ORDER BY grammar per table (Phase 2); found divergent " +
+                  "ORDER BY clauses among window columns on the same table.");
+            }
+         }
+      }
+   }
+
+   /** Index of the column in the selection matching ref by attribute (name), or -1. */
+   private static int indexOf(ColumnSelection cols, DataRef ref) {
+      String name = ref.getName();
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         if(name != null && name.equals(cols.getAttribute(i).getName())) {
+            return i;
+         }
+      }
+
+      return -1;
+   }
+
+   /**
+    * In-memory window computation for non-pushdown sources. No-op when the query pushed the
+    * window down (mergeable JDBC) — the OVER is already in the SELECT. For a tabular /
+    * non-mergeable source, wrap the fully post-processed base in a WindowTableLens.
+    * @param base the specified base table.
+    * @param vars the specified variable table.
+    * @return the window table lens, or base unchanged if there is nothing to compute in-memory.
+    */
+   private TableLens getWindowTableLens(TableLens base, VariableTable vars) throws Exception {
+      // if the query merged (pushed down), the window is in the SQL SELECT already, nothing to do
+      if(isQueryMergeable(false)) {
+         return base;
+      }
+
+      ColumnSelection cols = getTable().getColumnSelection(false);
+      WindowTableLens.Spec[] specs = buildWindowSpecs(cols);
+
+      if(specs.length == 0) {
+         return base;
+      }
+
+      // guard: every referenced index must resolve in the post-processed base
+      for(WindowTableLens.Spec s : specs) {
+         if(s.argCol >= base.getColCount()) {
+            return base;
+         }
+      }
+
+      return new WindowTableLens(base, specs);
    }
 
    /**
