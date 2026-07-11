@@ -122,6 +122,56 @@ class WindowRoutingTest {
       assertThrows(RuntimeException.class, () -> AssetQuery.buildWindowSpecs(cols));
    }
 
+   @Test
+   void unresolvedPartitionByColumnThrows() {
+      // partitionBy references "missing", which is not in the column selection — buildWindowSpecs
+      // must fail loud with a named error instead of letting a -1 index flow into
+      // WindowTableLens and surface as a cryptic ArrayIndexOutOfBoundsException later.
+      ColumnRef stage = new ColumnRef(new AttributeRef(null, "stage"));
+      ColumnRef amount = new ColumnRef(new AttributeRef(null, "amount"));
+      WindowExpressionRef win = new WindowExpressionRef(
+         "ROW_NUMBER", null, 0,
+         List.of(new ColumnRef(new AttributeRef(null, "missing"))),
+         List.of(desc(new ColumnRef(new AttributeRef(null, "amount")))));
+      win.setName("rn");
+      ColumnRef rn = new ColumnRef(win);
+      rn.setSQL(true);
+
+      ColumnSelection cols = new ColumnSelection();
+      cols.addAttribute(stage);
+      cols.addAttribute(amount);
+      cols.addAttribute(rn);
+
+      RuntimeException ex = assertThrows(RuntimeException.class,
+         () -> AssetQuery.buildWindowSpecs(cols));
+      assertTrue(ex.getMessage().contains("missing"));
+      assertTrue(ex.getMessage().contains("rn"));
+   }
+
+   @Test
+   void unresolvedOrderByColumnThrows() {
+      // orderBy references "missing", which is not in the column selection.
+      ColumnRef stage = new ColumnRef(new AttributeRef(null, "stage"));
+      ColumnRef amount = new ColumnRef(new AttributeRef(null, "amount"));
+      WindowExpressionRef win = new WindowExpressionRef(
+         "ROW_NUMBER", null, 0,
+         List.of(new ColumnRef(new AttributeRef(null, "stage"))),
+         List.of(desc(new ColumnRef(new AttributeRef(null, "missing")))));
+      win.setName("rn");
+      ColumnRef rn = new ColumnRef(win);
+      rn.setSQL(true);
+
+      ColumnSelection cols = new ColumnSelection();
+      cols.addAttribute(stage);
+      cols.addAttribute(amount);
+      cols.addAttribute(rn);
+
+      RuntimeException ex = assertThrows(RuntimeException.class,
+         () -> AssetQuery.buildWindowSpecs(cols));
+      assertTrue(ex.getMessage().contains("missing"));
+      assertTrue(ex.getMessage().contains("rn"));
+   }
+
    private static SortRef desc(DataRef ref) {
       SortRef s = new SortRef(ref);
       s.setOrder(XConstants.SORT_DESC);

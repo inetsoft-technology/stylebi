@@ -2969,8 +2969,10 @@ public abstract class AssetQuery extends PreAssetQuery {
          }
 
          WindowExpressionRef w = (WindowExpressionRef) base;
-         int arg = w.getArgRef() == null ? -1 : indexOf(cols, w.getArgRef());
-         int[] parts = w.getPartitionBy().stream().mapToInt(p -> indexOf(cols, p)).toArray();
+         DataRef argRef = w.getArgRef();
+         int arg = argRef == null ? -1 : indexOf(cols, argRef);
+         List<DataRef> partRefs = w.getPartitionBy();
+         int[] parts = partRefs.stream().mapToInt(p -> indexOf(cols, p)).toArray();
          List<SortRef> obs = w.getOrderBy();
          int[] ocols = new int[obs.size()];
          boolean[] oasc = new boolean[obs.size()];
@@ -2978,6 +2980,33 @@ public abstract class AssetQuery extends PreAssetQuery {
          for(int k = 0; k < obs.size(); k++) {
             ocols[k] = indexOf(cols, obs.get(k).getDataRef());
             oasc[k] = obs.get(k).getOrder() == XConstants.SORT_ASC;
+         }
+
+         // fail loud: an unresolved (-1) partitionBy/orderBy/argument ref must not silently
+         // flow into WindowTableLens, where it surfaces as a cryptic
+         // ArrayIndexOutOfBoundsException from table.getObject(row, -1). argCol == -1 is only
+         // an error when an argument was actually expected (argRef != null) — ROW_NUMBER/RANK
+         // legitimately have no argument and use -1 as the "no argument" sentinel.
+         if(argRef != null && arg < 0) {
+            throw new RuntimeException("Window column '" + ref.getName() +
+               "': could not resolve argument column '" + argRef.getName() +
+               "' in the query output");
+         }
+
+         for(int k = 0; k < parts.length; k++) {
+            if(parts[k] < 0) {
+               throw new RuntimeException("Window column '" + ref.getName() +
+                  "': could not resolve partitionBy column '" + partRefs.get(k).getName() +
+                  "' in the query output");
+            }
+         }
+
+         for(int k = 0; k < ocols.length; k++) {
+            if(ocols[k] < 0) {
+               throw new RuntimeException("Window column '" + ref.getName() +
+                  "': could not resolve orderBy column '" + obs.get(k).getDataRef().getName() +
+                  "' in the query output");
+            }
          }
 
          specs.add(new WindowTableLens.Spec(
@@ -3062,10 +3091,16 @@ public abstract class AssetQuery extends PreAssetQuery {
          return base;
       }
 
-      // guard: every referenced index must resolve in the post-processed base
+      // guard: every referenced index must resolve in the post-processed base. This is not a
+      // genuine no-op — it means a window column's argument couldn't be located in the base
+      // table actually produced for this query, so silently returning base would silently drop
+      // the window column instead of computing it. Fail loud instead.
       for(WindowTableLens.Spec s : specs) {
          if(s.argCol >= base.getColCount()) {
-            return base;
+            throw new RuntimeException("Window column '" + s.header +
+               "': argument column index " + s.argCol +
+               " is out of bounds for the post-processed base table (" +
+               base.getColCount() + " columns)");
          }
       }
 
