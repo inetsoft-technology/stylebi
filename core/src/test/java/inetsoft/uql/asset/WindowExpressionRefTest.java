@@ -148,6 +148,28 @@ class WindowExpressionRefTest {
    }
 
    @Test
+   void xmlRoundTrip_preservesName() throws Exception {
+      // The column name/alias (e.g. "rnk") is a base-class ExpressionRef attribute set by the
+      // wire (WorksheetTableService.applyWindowColumns -> setName). It MUST survive the
+      // worksheet's XML serialize/reload cycle, otherwise the column reloads nameless and cannot
+      // be bound by create_viewsheet ("Unknown field []").
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "ROW_NUMBER", null, 0,
+         List.of(new AttributeRef("stage")),
+         List.of(sort("amount", XConstants.SORT_DESC)));
+      ref.setName("rnk");
+      ref.setDataType(inetsoft.uql.schema.XSchema.INTEGER);
+
+      WindowExpressionRef copy = (WindowExpressionRef) writeAndParse(ref);
+
+      assertEquals("rnk", copy.getName(),
+                   "the window column name must survive XML serialization");
+      assertEquals(inetsoft.uql.schema.XSchema.INTEGER, copy.getDataType(),
+                   "the window column data type must survive XML serialization");
+      assertEquals(ref.getExpression(), copy.getExpression());
+   }
+
+   @Test
    void xmlRoundTrip_preservesArgRef() throws Exception {
       WindowExpressionRef ref = new WindowExpressionRef(
          "LAG", new AttributeRef("amount"), 1, List.of(), List.of(sort("t", XConstants.SORT_ASC)));
@@ -172,6 +194,59 @@ class WindowExpressionRefTest {
       Element elem = doc.getDocumentElement();
 
       return inetsoft.uql.erm.AbstractDataRef.createDataRef(elem);
+   }
+
+   // ---- getBaseAttribute must not unwrap past the window ref ---------------------------------
+
+   @Test
+   void getBaseAttribute_stopsAtWindowRef_forNoArgFunction() {
+      // ROW_NUMBER has a null argRef. WindowExpressionRef must NOT be a DataRefWrapper — otherwise
+      // AssetUtil.getBaseAttribute unwraps a ColumnRef(WindowExpressionRef) straight past the window
+      // ref to its null argRef, and query validation NPEs (PreAssetQuery.getContainedAttributes ->
+      // attr.isExpression() on null). It must be treated as a base expression attribute, exactly
+      // like a plain ExpressionRef (and like the AssetQuery window-pushdown guard assumes).
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "ROW_NUMBER", null, 0,
+         List.of(new AttributeRef("stage")),
+         List.of(sort("amount", XConstants.SORT_DESC)));
+      ColumnRef col = new ColumnRef(ref);
+
+      DataRef base = inetsoft.uql.asset.internal.AssetUtil.getBaseAttribute(col);
+
+      assertNotNull(base, "getBaseAttribute must not unwrap past a no-arg window ref to a null argRef");
+      assertInstanceOf(WindowExpressionRef.class, base,
+                       "getBaseAttribute must return the WindowExpressionRef itself");
+      assertTrue(base.isExpression());
+   }
+
+   // ---- getAttributes() must yield AttributeRefs (framework contract) ------------------------
+
+   @Test
+   void getAttributes_yieldsAttributeRefs_notColumnRefs() {
+      // The wire (WorksheetTableService.applyWindowColumns) passes ColumnRefs for partitionBy/
+      // orderBy (from ColumnSelection.getAttribute). getAttributes() must yield AttributeRefs
+      // parsed from the field['..'] tokens (the ExpressionRef contract) — the query framework
+      // casts each contained ref to AttributeRef (PreAssetQuery.getExprAttributes), so a ColumnRef
+      // there is a ClassCastException during column-selection validation.
+      ColumnRef stage = new ColumnRef(new AttributeRef("sales_stage"));
+      SortRef amountSort = new SortRef(new ColumnRef(new AttributeRef("amount")));
+      amountSort.setOrder(XConstants.SORT_DESC);
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "ROW_NUMBER", null, 0, List.of(stage), List.of(amountSort));
+
+      List<String> names = new ArrayList<>();
+      Enumeration<?> e = ref.getAttributes();
+
+      while(e.hasMoreElements()) {
+         DataRef r = (DataRef) e.nextElement();
+         assertInstanceOf(AttributeRef.class, r,
+            "contained refs must be AttributeRefs parsed from field[..] tokens, not "
+               + r.getClass().getSimpleName());
+         names.add(r.getName());
+      }
+
+      assertTrue(names.contains("sales_stage"), "partitionBy column must be a contained attribute");
+      assertTrue(names.contains("amount"), "orderBy column must be a contained attribute");
    }
 
    // ---- clone() deep-copies the lists ---------------------------------------------------------

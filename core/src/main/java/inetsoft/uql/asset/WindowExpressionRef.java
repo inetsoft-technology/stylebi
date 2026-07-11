@@ -42,9 +42,15 @@ import java.util.*;
  * @version 14.0
  * @author InetSoft Technology Corp
  */
-public final class WindowExpressionRef extends ExpressionRef implements SQLExpressionRef,
-   DataRefWrapper
+public final class WindowExpressionRef extends ExpressionRef implements SQLExpressionRef
 {
+   // NOTE: intentionally NOT a DataRefWrapper. A window function references MULTIPLE columns
+   // (arg + partitionBy + orderBy), exposed via getAttributes() — not a single wrapped ref. If it
+   // were a DataRefWrapper, AssetUtil.getBaseAttribute would unwrap a ColumnRef(WindowExpressionRef)
+   // straight past this ref to getDataRef()==argRef, which is null for ROW_NUMBER/RANK/DENSE_RANK/
+   // NTILE/PERCENT_RANK/CUME_DIST — NPE-ing query validation and defeating the AssetQuery window
+   // pushdown guard (which relies on getBaseAttribute returning this ref). Treated as a plain
+   // expression attribute instead, exactly like ExpressionRef / DateRangeRef.
    /**
     * Constructor.
     */
@@ -165,17 +171,16 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
    }
 
    /**
-    * Get the contained data ref (the column argument ref).
+    * Get the contained data ref (the column argument ref). Alias for {@link #getArgRef()};
+    * retained for callers that discover an expression's single wrapped ref generically.
     */
-   @Override
    public DataRef getDataRef() {
       return argRef;
    }
 
    /**
-    * Set the contained data ref (the column argument ref).
+    * Set the contained data ref (the column argument ref). Alias for {@link #setArgRef(DataRef)}.
     */
-   @Override
    public void setDataRef(DataRef ref) {
       this.argRef = ref;
    }
@@ -321,30 +326,13 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
       return true;
    }
 
-   /**
-    * Get a list of all attributes that are referenced by this object.
-    * @return an Enumeration containing DataRef objects.
-    */
-   @Override
-   public Enumeration getAttributes() {
-      Vector list = new Vector();
-
-      if(argRef != null) {
-         list.add(argRef);
-      }
-
-      if(partitionBy != null) {
-         list.addAll(partitionBy);
-      }
-
-      if(orderBy != null) {
-         for(SortRef sort : orderBy) {
-            list.add(sort.getDataRef());
-         }
-      }
-
-      return list.elements();
-   }
+   // getAttributes() is intentionally NOT overridden. The inherited ExpressionRef implementation
+   // parses the field['..'] tokens out of getExpression() and yields AttributeRefs — which is the
+   // contract the query framework relies on (PreAssetQuery.getExprAttributes casts each contained
+   // ref to AttributeRef). Every column this window references (arg + partitionBy + orderBy) is
+   // emitted as a field['..'] token by getExpression(), so token-parsing captures them all. An
+   // override returning the structured ColumnRefs (from the wire's ColumnSelection.getAttribute)
+   // would ClassCastException during column-selection validation.
 
    /**
     * Write the attributes of this object.
@@ -352,6 +340,12 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
     */
    @Override
    protected void writeAttributes(PrintWriter writer) {
+      // Chain to ExpressionRef so the base attributes (name/dataType/refType) are persisted.
+      // Unlike DateRangeRef (which derives getName() from its option+attr and so needs no stored
+      // name), this ref carries a caller-assigned column name/alias — dropping super here would
+      // lose it across the worksheet's XML serialize/reload cycle, and the column would reload
+      // nameless (unbindable by create_viewsheet).
+      super.writeAttributes(writer);
       writer.print(" fn=\"" + Tool.escape(fn) + "\"");
       writer.print(" n=\"" + n + "\"");
 
@@ -370,6 +364,8 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
     */
    @Override
    protected void parseAttributes(Element tag) throws Exception {
+      // Restore the base attributes (name/dataType/refType) written by super.writeAttributes.
+      super.parseAttributes(tag);
       fn = Tool.getAttribute(tag, "fn");
       String nstr = Tool.getAttribute(tag, "n");
       n = nstr == null ? 0 : Integer.parseInt(nstr);
