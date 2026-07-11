@@ -279,9 +279,65 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
       switch(spec.fn) {
       case "ROW_NUMBER":
          return p + 1;
+      case "RANK": {
+         // rank of a tie = position of the first row sharing its order key
+         int first = p;
+
+         while(first > 0 && orderKeyCompare(idx[start + first - 1], idx[start + p]) == 0) {
+            first--;
+         }
+
+         return first + 1;
+      }
+      case "DENSE_RANK": {
+         int dr = 1;
+
+         for(int q = 1; q <= p; q++) {
+            if(orderKeyCompare(idx[start + q - 1], idx[start + q]) != 0) {
+               dr++;
+            }
+         }
+
+         return dr;
+      }
+      case "NTILE": {
+         int size = end - start;
+         int k = Math.max(1, spec.n);
+         int base = size / k, rem = size % k;   // first `rem` buckets get one extra (front-loaded)
+         int bucket, cum = 0;
+
+         for(bucket = 1; bucket <= k; bucket++) {
+            int bsize = base + (bucket <= rem ? 1 : 0);
+
+            if(p < cum + bsize) {
+               break;
+            }
+
+            cum += bsize;
+         }
+
+         return bucket;
+      }
       default:
          return null;   // other kernels added in Tasks 2-4
       }
+   }
+
+   /** Compare two data rows (0-based) by the order-by key only (0 = same order key = tie). */
+   private int orderKeyCompare(int a, int b) {
+      int hrows = table.getHeaderRowCount();
+      int[] ocols = orderCols();
+      boolean[] oasc = orderAsc();
+
+      for(int i = 0; i < ocols.length; i++) {
+         int r = Tool.compare(table.getObject(a + hrows, ocols[i]), table.getObject(b + hrows, ocols[i]), true, true);
+
+         if(r != 0) {
+            return oasc[i] ? r : -r;
+         }
+      }
+
+      return 0;
    }
 
    private TableLens table;

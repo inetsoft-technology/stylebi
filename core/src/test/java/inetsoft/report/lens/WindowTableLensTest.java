@@ -68,4 +68,47 @@ class WindowTableLensTest {
       assertEquals("A", cell(lens, 2, 0)); assertEquals(2, cell(lens, 2, 2)); // A/20 → 2
       assertEquals("B", cell(lens, 3, 0)); assertEquals(1, cell(lens, 3, 2)); // B/5  → 1
    }
+
+   /** Base with an intentional tie in the order key. cols: stage(0), amount(1). */
+   private static DefaultTableLens tiedBase() {
+      Object[][] data = {
+         {"stage", "amount"},
+         {"A", 30.0},
+         {"A", 30.0},   // tie with row above on amount
+         {"A", 10.0},
+         {"B", 7.0},
+      };
+      DefaultTableLens t = new DefaultTableLens(data);
+      t.setHeaderRowCount(1);
+      return t;
+   }
+
+   @Test
+   void rank_and_denseRank_shareTiesButDifferOnGaps() {
+      WindowTableLens.Spec rank = new WindowTableLens.Spec(
+         "rk", "RANK", -1, 0, new int[]{0}, new int[]{1}, new boolean[]{false});
+      WindowTableLens.Spec dense = new WindowTableLens.Spec(
+         "dr", "DENSE_RANK", -1, 0, new int[]{0}, new int[]{1}, new boolean[]{false});
+      WindowTableLens lens = new WindowTableLens(tiedBase(), new WindowTableLens.Spec[]{rank, dense});
+      // A desc: 30(tie),30(tie),10 → RANK 1,1,3 ; DENSE_RANK 1,1,2. B: 7 → 1,1
+      assertEquals(1, cell(lens, 0, 2)); assertEquals(1, cell(lens, 0, 3)); // A/30
+      assertEquals(1, cell(lens, 1, 2)); assertEquals(1, cell(lens, 1, 3)); // A/30 tie
+      assertEquals(3, cell(lens, 2, 2)); assertEquals(2, cell(lens, 2, 3)); // A/10 (RANK skips 2)
+      assertEquals(1, cell(lens, 3, 2)); assertEquals(1, cell(lens, 3, 3)); // B/7
+   }
+
+   @Test
+   void ntile_frontLoadsRemainder() {
+      // 4 rows / 3 buckets → sizes 2,1,1 (front-loaded). Global window (no partition).
+      Object[][] data = {{"amount"},{40.0},{30.0},{20.0},{10.0}};
+      DefaultTableLens t = new DefaultTableLens(data); t.setHeaderRowCount(1);
+      WindowTableLens.Spec ntile = new WindowTableLens.Spec(
+         "b", "NTILE", -1, 3, new int[0], new int[]{0}, new boolean[]{false});
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{ntile});
+      // desc: 40,30,20,10 → buckets 1,1,2,3
+      assertEquals(1, cell(lens, 0, 1)); // 40
+      assertEquals(1, cell(lens, 1, 1)); // 30
+      assertEquals(2, cell(lens, 2, 1)); // 20
+      assertEquals(3, cell(lens, 3, 1)); // 10
+   }
 }
