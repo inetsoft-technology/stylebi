@@ -76,6 +76,28 @@ public class MySQLHelper extends SQLHelper {
     */
    @Override
    public boolean supportsOperation(String op, String info) {
+      if(WINDOW_FUNCTION.equals(op)) {
+         JDBCDataSource wdx = uniformSql == null ? null : uniformSql.getDataSource();
+         String wver = wdx == null ? null : wdx.getProductVersion();
+
+         if(wver == null) {
+            return super.supportsOperation(op, info);   // can't prove too old -> permissive
+         }
+
+         // MariaDB reports via the MySQL protocol as "5.5.5-10.x.y-MariaDB"; strip the fake
+         // 5.5.5- prefix so we read the real major (10), not 5.
+         String v = wver.startsWith("5.5.5-") ? wver.substring(6) : wver;
+
+         try {
+            int major = Integer.parseInt(v.split("\\.")[0]);
+            // MySQL >= 8 and MariaDB >= 10 support window functions.
+            return major >= 8;
+         }
+         catch(Exception ex) {
+            return super.supportsOperation(op, info);   // unparseable -> permissive
+         }
+      }
+
       if(MAXROWS.equals(op) && WHERE_SUBQUERY.equals(info)) {
          return false;
       }

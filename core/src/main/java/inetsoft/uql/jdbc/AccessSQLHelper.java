@@ -39,6 +39,15 @@ public class AccessSQLHelper extends SQLHelper {
       return "access";
    }
 
+   @Override
+   public boolean supportsOperation(String op) {
+      if(WINDOW_FUNCTION.equals(op)) {
+         return false;
+      }
+
+      return super.supportsOperation(op);
+   }
+
    /**
     * Get the order by column of a field.
     */
