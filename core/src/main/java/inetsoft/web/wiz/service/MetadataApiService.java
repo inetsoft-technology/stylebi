@@ -27,6 +27,7 @@ import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.*;
+import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.jdbc.util.SQLTypes;
 import inetsoft.uql.schema.XSchema;
@@ -551,6 +552,360 @@ public class MetadataApiService {
       }
 
       return joinInfo;
+   }
+
+   /**
+    * Walks a worksheet's table assemblies into a full structural description — columns,
+    * source, base tables, joins, conditions, and aggregate — for the wiz worksheet-structure
+    * introspection endpoint. Mirrors {@link #getWorksheetMetaData} but captures per-table
+    * provenance detail rather than just names/columns.
+    */
+   public WorksheetStructure getWorksheetStructure(String wsId, XPrincipal principal)
+      throws Exception
+   {
+      if(wsId == null || Tool.isEmptyString(wsId)) {
+         throw new Exception("Invalid request.");
+      }
+
+      AssetEntry entry = AssetEntry.createAssetEntry(wsId);
+      AbstractSheet sheet = assetRepository.getSheet(entry, principal, true, AssetContent.ALL);
+
+      if(!(sheet instanceof Worksheet worksheet)) {
+         throw new Exception("Worksheet " + wsId + " not found.");
+      }
+
+      List<WorksheetStructure.StructureTable> tables = new ArrayList<>();
+
+      for(Assembly assembly : sheet.getAssemblies()) {
+         if(!(assembly instanceof TableAssembly tableAssembly)) {
+            continue;
+         }
+
+         try {
+            tables.add(buildStructureTable(tableAssembly));
+         }
+         catch(Exception ex) {
+            // Best-effort: one malformed/unexpected assembly shouldn't fail the whole call.
+            WorksheetStructure.StructureTable partial = new WorksheetStructure.StructureTable();
+            partial.setName(tableAssembly.getName());
+            tables.add(partial);
+            log.debug("Failed to fully map worksheet assembly '{}'", tableAssembly.getName(), ex);
+         }
+      }
+
+      WorksheetStructure structure = new WorksheetStructure();
+      structure.setPath(entry.getPath());
+      structure.setName(entry.getName());
+      structure.setTables(tables);
+
+      WSAssembly primaryAssembly = worksheet.getPrimaryAssembly();
+
+      if(primaryAssembly != null) {
+         structure.setPrimaryTable(primaryAssembly.getName());
+      }
+
+      return structure;
+   }
+
+   private WorksheetStructure.StructureTable buildStructureTable(TableAssembly tableAssembly) {
+      WorksheetStructure.StructureTable table = new WorksheetStructure.StructureTable();
+      table.setName(tableAssembly.getName());
+      table.setTableType(structureTableType(tableAssembly));
+      table.setColumns(extractStructureColumns(tableAssembly));
+      table.setSource(extractStructureSource(tableAssembly));
+      table.setBaseTables(extractStructureBaseTables(tableAssembly));
+      table.setJoins(extractStructureJoins(tableAssembly));
+      table.setConditions(extractStructureConditions(tableAssembly));
+      table.setAggregate(extractStructureAggregate(tableAssembly.getAggregateInfo()));
+      return table;
+   }
+
+   /**
+    * Mirrors {@link WorksheetTableService}'s private {@code getTableType} strings exactly, so
+    * the construction and introspection endpoints speak the same vocabulary.
+    */
+   static String structureTableType(TableAssembly tableAssembly) {
+      if(tableAssembly instanceof PhysicalBoundTableAssembly) {
+         return "physical table";
+      }
+      else if(tableAssembly instanceof MirrorTableAssembly) {
+         return "mirror table";
+      }
+      else if(tableAssembly instanceof RelationalJoinTableAssembly) {
+         return "relational join table";
+      }
+      else if(tableAssembly instanceof SQLBoundTableAssembly) {
+         return "sql query table";
+      }
+
+      return tableAssembly.getClass().getSimpleName();
+   }
+
+   static List<WorksheetStructure.Column> extractStructureColumns(TableAssembly tableAssembly) {
+      List<WorksheetStructure.Column> columns = new ArrayList<>();
+      ColumnSelection selection = tableAssembly.getColumnSelection(true);
+
+      if(selection == null) {
+         return columns;
+      }
+
+      for(int i = 0; i < selection.getAttributeCount(); i++) {
+         DataRef ref = selection.getAttribute(i);
+
+         if(ref instanceof ColumnRef columnRef) {
+            columns.add(createStructureColumn(columnRef));
+         }
+      }
+
+      return columns;
+   }
+
+   private static WorksheetStructure.Column createStructureColumn(ColumnRef columnRef) {
+      WorksheetStructure.Column column = new WorksheetStructure.Column();
+      column.setName(columnRef.getAttribute());
+      column.setAlias(columnRef.getAlias());
+      column.setRefType(columnRef.getRefType());
+
+      if(columnRef.getTypeNode() != null) {
+         column.setType(columnRef.getTypeNode().getType());
+      }
+
+      if(columnRef.isExpression() && columnRef.getDataRef() instanceof ExpressionRef expressionRef) {
+         column.setExpression(expressionRef.getExpression());
+      }
+
+      return column;
+   }
+
+   /**
+    * Source of a bound/sql table. Returns {@code null} for tables with no direct physical
+    * source (mirror/join/rotated/unpivot/embedded), matching {@code StructureTable.source}'s
+    * documented "null unless a bound/sql table" contract.
+    */
+   static WorksheetStructure.SourceRef extractStructureSource(TableAssembly tableAssembly) {
+      if(!(tableAssembly instanceof BoundTableAssembly boundTable) ||
+         boundTable.getSourceInfo() == null)
+      {
+         return null;
+      }
+
+      SourceInfo sourceInfo = boundTable.getSourceInfo();
+      WorksheetStructure.SourceRef source = new WorksheetStructure.SourceRef();
+      source.setDatasource(sourceInfo.getPrefix());
+      source.setTable(sourceInfo.getSource());
+      source.setSourceType(sourceInfo.getType());
+
+      if(tableAssembly instanceof SQLBoundTableAssembly &&
+         tableAssembly.getInfo() instanceof SQLBoundTableAssemblyInfo sqlInfo &&
+         sqlInfo.getQuery() != null && sqlInfo.getQuery().getSQLDefinition() != null)
+      {
+         source.setSqlText(sqlInfo.getQuery().getSQLDefinition().getSQLString());
+      }
+
+      return source;
+   }
+
+   /**
+    * Names of the tables a composed assembly (mirror/join/rotated/unpivot) is built from.
+    * Reuses the same {@code ComposedTableAssembly.getTableNames()} accessor as
+    * {@code WorksheetTableService#getBaseTables}.
+    */
+   static List<String> extractStructureBaseTables(TableAssembly tableAssembly) {
+      if(!(tableAssembly instanceof ComposedTableAssembly composed)) {
+         return new ArrayList<>();
+      }
+
+      String[] names = composed.getTableNames();
+      return names == null ? new ArrayList<>() : new ArrayList<>(Arrays.asList(names));
+   }
+
+   static List<WorksheetStructure.JoinEdge> extractStructureJoins(TableAssembly tableAssembly) {
+      List<WorksheetStructure.JoinEdge> joins = new ArrayList<>();
+
+      if(!(tableAssembly instanceof AbstractJoinTableAssembly joinTable)) {
+         return joins;
+      }
+
+      Enumeration<TableAssemblyOperator> operators = joinTable.getOperators();
+
+      if(operators == null) {
+         return joins;
+      }
+
+      while(operators.hasMoreElements()) {
+         TableAssemblyOperator operator = operators.nextElement();
+
+         if(operator == null) {
+            continue;
+         }
+
+         for(TableAssemblyOperator.Operator operatorOperator : operator.getOperators()) {
+            if(operatorOperator == null || operatorOperator.getLeftTable() == null ||
+               operatorOperator.getRightTable() == null)
+            {
+               continue;
+            }
+
+            WorksheetStructure.JoinEdge join = new WorksheetStructure.JoinEdge();
+            join.setLeftTable(operatorOperator.getLeftTable());
+            join.setRightTable(operatorOperator.getRightTable());
+
+            if(operatorOperator.getLeftAttribute() != null) {
+               join.setLeftColumn(operatorOperator.getLeftAttribute().getAttribute());
+            }
+
+            if(operatorOperator.getRightAttribute() != null) {
+               join.setRightColumn(operatorOperator.getRightAttribute().getAttribute());
+            }
+
+            // Same accessor createJoinInfo() uses for its JoinInfo.joinType (operator display
+            // name, e.g. "Inner Join"/"Left Outer Join").
+            join.setJoinType(operatorOperator.getName());
+            joins.add(join);
+         }
+      }
+
+      return joins;
+   }
+
+   static List<WorksheetStructure.ConditionLeaf> extractStructureConditions(
+      TableAssembly tableAssembly)
+   {
+      List<WorksheetStructure.ConditionLeaf> conditions = new ArrayList<>();
+      collectStructureConditions(tableAssembly.getPreConditionList(), "pre", conditions);
+      collectStructureConditions(
+         tableAssembly.getPreRuntimeConditionList(), "preRuntime", conditions);
+      collectStructureConditions(tableAssembly.getPostConditionList(), "post", conditions);
+      collectStructureConditions(tableAssembly.getRankingConditionList(), "ranking", conditions);
+      return conditions;
+   }
+
+   /**
+    * Walks one {@link ConditionListWrapper}'s alternating ConditionItem/JunctionOperator list.
+    * Non-{@link Condition} {@link XCondition} implementations (e.g. correlated/asset conditions)
+    * still yield a leaf with field/operation/negated/phase — just no values, since
+    * {@code getValueCount()}/{@code getValue(int)} aren't declared on the {@code XCondition}
+    * interface itself.
+    */
+   static void collectStructureConditions(ConditionListWrapper wrapper, String phase,
+                                          List<WorksheetStructure.ConditionLeaf> out)
+   {
+      if(wrapper == null || wrapper.getConditionList() == null) {
+         return;
+      }
+
+      ConditionList list = wrapper.getConditionList();
+
+      for(int i = 0; i < list.getSize(); i++) {
+         if(!list.isConditionItem(i)) {
+            continue;
+         }
+
+         ConditionItem item = list.getConditionItem(i);
+         XCondition xCondition = item.getXCondition();
+
+         if(xCondition == null) {
+            continue;
+         }
+
+         WorksheetStructure.ConditionLeaf leaf = new WorksheetStructure.ConditionLeaf();
+         leaf.setField(item.getAttribute() != null ? item.getAttribute().getAttribute() : null);
+         leaf.setOperation(structureOperationName(xCondition.getOperation()));
+         leaf.setNegated(xCondition.isNegated());
+         leaf.setPhase(phase);
+
+         // The junction PRECEDING this item (joining it to the previous leaf) sits at i - 1;
+         // the first leaf in a phase has none.
+         if(i > 0 && list.isJunctionOperator(i - 1)) {
+            leaf.setJunction(list.getJunction(i - 1) == JunctionOperator.OR ? "OR" : "AND");
+         }
+
+         if(xCondition instanceof Condition condition) {
+            List<String> values = new ArrayList<>();
+
+            for(int v = 0; v < condition.getValueCount(); v++) {
+               Object value = condition.getValue(v);
+
+               // Only stringify plain scalar values; skip parameter/session/sub-query objects
+               // (e.g. UserVariable, DataRef) rather than dumping an opaque toString().
+               if(value instanceof String || value instanceof Number ||
+                  value instanceof Boolean || value instanceof java.util.Date)
+               {
+                  values.add(String.valueOf(value));
+               }
+            }
+
+            leaf.setValues(values);
+         }
+
+         out.add(leaf);
+      }
+   }
+
+   /**
+    * No StyleBI helper converts an {@link XCondition} operation int to a name (confirmed: no
+    * {@code getOperationName} exists anywhere in this codebase; {@link Condition#toString()}
+    * inlines a private, localized switch). Uses the {@link XCondition} constant names
+    * themselves so the vocabulary is stable and self-documenting for API consumers.
+    */
+   private static String structureOperationName(int operation) {
+      return switch(operation) {
+         case XCondition.EQUAL_TO -> "EQUAL_TO";
+         case XCondition.ONE_OF -> "ONE_OF";
+         case XCondition.LESS_THAN -> "LESS_THAN";
+         case XCondition.GREATER_THAN -> "GREATER_THAN";
+         case XCondition.BETWEEN -> "BETWEEN";
+         case XCondition.STARTING_WITH -> "STARTING_WITH";
+         case XCondition.CONTAINS -> "CONTAINS";
+         case XCondition.NULL -> "NULL";
+         case XCondition.TOP_N -> "TOP_N";
+         case XCondition.BOTTOM_N -> "BOTTOM_N";
+         case XCondition.DATE_IN -> "DATE_IN";
+         case XCondition.PSEUDO -> "PSEUDO";
+         case XCondition.LIKE -> "LIKE";
+         default -> "UNKNOWN(" + operation + ")";
+      };
+   }
+
+   /**
+    * Uses {@link WizDateLevelUtil#getDateGroupLevelName(int)} (package-private in this same
+    * package) for date-level names, so the introspection endpoint reports the same vocabulary
+    * as the rest of the wiz service layer.
+    */
+   static WorksheetStructure.AggregateSummary extractStructureAggregate(
+      AggregateInfo aggregateInfo)
+   {
+      if(aggregateInfo == null || aggregateInfo.isEmpty()) {
+         return null;
+      }
+
+      WorksheetStructure.AggregateSummary summary = new WorksheetStructure.AggregateSummary();
+
+      for(GroupRef groupRef : aggregateInfo.getGroups()) {
+         WorksheetStructure.AggGroupBy groupBy = new WorksheetStructure.AggGroupBy();
+         groupBy.setField(groupRef.getName());
+         groupBy.setDateLevel(WizDateLevelUtil.getDateGroupLevelName(groupRef.getDateGroup()));
+         summary.getGroupBy().add(groupBy);
+      }
+
+      for(AggregateRef aggregateRef : aggregateInfo.getAggregates()) {
+         WorksheetStructure.AggMeasure measure = new WorksheetStructure.AggMeasure();
+         measure.setField(aggregateRef.getName());
+         measure.setFormula(
+            aggregateRef.getFormula() != null ? aggregateRef.getFormula().getName() : null);
+
+         if(aggregateRef.getSecondaryColumn() != null) {
+            measure.setSecondaryField(aggregateRef.getSecondaryColumn().getName());
+         }
+
+         if(aggregateRef.getN() > 0) {
+            measure.setN(String.valueOf(aggregateRef.getN()));
+         }
+
+         summary.getAggregates().add(measure);
+      }
+
+      return summary;
    }
 
    /**

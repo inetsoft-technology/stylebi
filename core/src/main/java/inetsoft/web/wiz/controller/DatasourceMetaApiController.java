@@ -97,6 +97,14 @@ public class DatasourceMetaApiController {
       return metadataService.getWorksheetMetaData(WizUtil.decodeId(worksheetId), (XPrincipal) principal);
    }
 
+   @GetMapping("/ws/structure/{id}")
+   public WorksheetStructure getWorksheetStructure(
+      @PathVariable("id") String worksheetId,
+      Principal principal) throws Exception
+   {
+      return metadataService.getWorksheetStructure(WizUtil.decodeId(worksheetId), (XPrincipal) principal);
+   }
+
    /**
     * Gets all tables and FK relationships for the specified datasource.
     *
