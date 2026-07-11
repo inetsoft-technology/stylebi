@@ -333,8 +333,60 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
          int hrows = table.getHeaderRowCount();
          return table.getObject(idx[start] + hrows, spec.argCol);
       }
+      case "SUM": case "AVG": case "COUNT": case "MIN": case "MAX": {
+         // running vs. whole-partition is per-spec (this spec's own ORDER BY presence),
+         // not the table-wide sort order — a table may mix an ordered running aggregate
+         // with an order-less partition-total aggregate (see WindowTableLensTest).
+         boolean running = spec.orderCols.length > 0;
+         int from = start, to = running ? (start + p + 1) : end;   // running → up to current row
+         int hrows = table.getHeaderRowCount();
+         double sum = 0, min = Double.POSITIVE_INFINITY, max = Double.NEGATIVE_INFINITY;
+         int cnt = 0;
+
+         for(int q = from; q < to; q++) {
+            Object v = table.getObject(idx[q] + hrows, spec.argCol);
+
+            if(v == null) {
+               continue;
+            }
+
+            double d = ((Number) v).doubleValue();
+            sum += d;
+            cnt++;
+            min = Math.min(min, d);
+            max = Math.max(max, d);
+         }
+
+         switch(spec.fn) {
+         case "COUNT": return cnt;
+         case "SUM":   return sum;
+         case "AVG":   return cnt == 0 ? null : sum / cnt;
+         case "MIN":   return cnt == 0 ? null : min;
+         default:      return cnt == 0 ? null : max;   // MAX
+         }
+      }
+      case "PERCENT_RANK": {
+         int sz = end - start;
+         int first = p;
+
+         while(first > 0 && orderKeyCompare(idx[start + first - 1], idx[start + p]) == 0) {
+            first--;
+         }
+
+         return sz <= 1 ? 0.0 : ((double) first) / (sz - 1);   // (rank-1)/(n-1)
+      }
+      case "CUME_DIST": {
+         int sz = end - start;
+         int last = p;   // number of rows with order key <= current, minus 1
+
+         while(last + 1 < sz && orderKeyCompare(idx[start + last + 1], idx[start + p]) == 0) {
+            last++;
+         }
+
+         return ((double) (last + 1)) / sz;
+      }
       default:
-         return null;   // other kernels added in Task 4
+         return null;
       }
    }
 

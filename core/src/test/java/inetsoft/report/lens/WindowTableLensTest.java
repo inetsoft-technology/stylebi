@@ -133,4 +133,35 @@ class WindowTableLensTest {
       assertNull(cell(lens, 2, 2));                  // LEAD(30) → none after
       assertEquals(10.0, cell(lens, 2, 3));          // FIRST_VALUE → 10
    }
+
+   @Test
+   void windowedSum_runningWhenOrdered_partitionTotalWhenNot() {
+      Object[][] data = {{"stage","amount"},{"A",10.0},{"A",20.0},{"A",30.0}};
+      DefaultTableLens t = new DefaultTableLens(data); t.setHeaderRowCount(1);
+      // running SUM ordered asc: 10,30,60
+      WindowTableLens.Spec run = new WindowTableLens.Spec("rt","SUM",1,0,new int[]{0}, new int[]{1}, new boolean[]{true});
+      // partition-total SUM (no order): 60,60,60
+      WindowTableLens.Spec tot = new WindowTableLens.Spec("pt","SUM",1,0,new int[]{0}, new int[0], new boolean[0]);
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{run, tot});
+      assertEquals(10.0, cell(lens,0,2)); assertEquals(60.0, cell(lens,0,3));
+      assertEquals(30.0, cell(lens,1,2)); assertEquals(60.0, cell(lens,1,3));
+      assertEquals(60.0, cell(lens,2,2)); assertEquals(60.0, cell(lens,2,3));
+   }
+
+   @Test
+   void countAvgMinMax_partitionWide() {
+      Object[][] data = {{"stage","amount"},{"A",10.0},{"A",30.0}};
+      DefaultTableLens t = new DefaultTableLens(data); t.setHeaderRowCount(1);
+      WindowTableLens.Spec[] s = {
+         new WindowTableLens.Spec("c","COUNT",1,0,new int[]{0},new int[0],new boolean[0]),
+         new WindowTableLens.Spec("a","AVG",1,0,new int[]{0},new int[0],new boolean[0]),
+         new WindowTableLens.Spec("mn","MIN",1,0,new int[]{0},new int[0],new boolean[0]),
+         new WindowTableLens.Spec("mx","MAX",1,0,new int[]{0},new int[0],new boolean[0]),
+      };
+      WindowTableLens lens = new WindowTableLens(t, s);
+      assertEquals(2, cell(lens,0,2));      // COUNT
+      assertEquals(20.0, cell(lens,0,3));   // AVG
+      assertEquals(10.0, cell(lens,0,4));   // MIN
+      assertEquals(30.0, cell(lens,0,5));   // MAX
+   }
 }
