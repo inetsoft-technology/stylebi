@@ -318,8 +318,23 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
 
          return bucket;
       }
+      case "LAG": case "LEAD": {
+         int off = spec.n > 0 ? spec.n : 1;
+         int q = spec.fn.equals("LAG") ? p - off : p + off;
+
+         if(q < 0 || q >= (end - start)) {
+            return null;
+         }
+
+         int hrows = table.getHeaderRowCount();
+         return table.getObject(idx[start + q] + hrows, spec.argCol);
+      }
+      case "FIRST_VALUE": {
+         int hrows = table.getHeaderRowCount();
+         return table.getObject(idx[start] + hrows, spec.argCol);
+      }
       default:
-         return null;   // other kernels added in Tasks 2-4
+         return null;   // other kernels added in Task 4
       }
    }
 

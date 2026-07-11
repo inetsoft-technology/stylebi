@@ -27,6 +27,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -110,5 +111,26 @@ class WindowTableLensTest {
       assertEquals(1, cell(lens, 1, 1)); // 30
       assertEquals(2, cell(lens, 2, 1)); // 20
       assertEquals(3, cell(lens, 3, 1)); // 10
+   }
+
+   @Test
+   void lag_lead_firstValue_withEdgeNulls() {
+      // one partition, ordered by amount ASC: 10,20,30
+      Object[][] data = {{"amount"},{10.0},{20.0},{30.0}};
+      DefaultTableLens t = new DefaultTableLens(data); t.setHeaderRowCount(1);
+      WindowTableLens.Spec lag  = new WindowTableLens.Spec("lg","LAG", 0, 1, new int[0], new int[]{0}, new boolean[]{true});
+      WindowTableLens.Spec lead = new WindowTableLens.Spec("ld","LEAD",0, 1, new int[0], new int[]{0}, new boolean[]{true});
+      WindowTableLens.Spec fv   = new WindowTableLens.Spec("fv","FIRST_VALUE",0,0,new int[0], new int[]{0}, new boolean[]{true});
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{lag, lead, fv});
+      // rows in base order == asc order here: 10,20,30
+      assertNull(cell(lens, 0, 1));                  // LAG(10) → none before
+      assertEquals(20.0, cell(lens, 0, 2));          // LEAD(10) → 20
+      assertEquals(10.0, cell(lens, 0, 3));          // FIRST_VALUE → 10
+      assertEquals(10.0, cell(lens, 1, 1));          // LAG(20) → 10
+      assertEquals(30.0, cell(lens, 1, 2));          // LEAD(20) → 30
+      assertEquals(10.0, cell(lens, 1, 3));          // FIRST_VALUE → 10
+      assertEquals(20.0, cell(lens, 2, 1));          // LAG(30) → 20
+      assertNull(cell(lens, 2, 2));                  // LEAD(30) → none after
+      assertEquals(10.0, cell(lens, 2, 3));          // FIRST_VALUE → 10
    }
 }
