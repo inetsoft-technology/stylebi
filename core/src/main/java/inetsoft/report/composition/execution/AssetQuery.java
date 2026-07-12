@@ -2957,12 +2957,45 @@ public abstract class AssetQuery extends PreAssetQuery {
     * entity+attribute / header (the codebase convention), not a bare name scan of the selection.
     * <p>
     * Package-private and static so it can be unit-tested directly (see WindowRoutingTest)
-    * without a live query.
+    * without a live query. Builds a spec for EVERY window column in {@code cols}, regardless of
+    * whether its frame is pushable on any particular dialect — use the 3-arg overload to filter
+    * out pushed-down columns for the production in-memory routing path (see
+    * {@link #buildWindowSpecs(XTable, ColumnSelection, SQLHelper)}).
     * @param base the runtime base table the WindowTableLens will wrap and read from.
     * @param cols the column selection to scan for WindowExpressionRef columns.
     * @return the resolved specs, one per window column, in selection order.
     */
    static WindowTableLens.Spec[] buildWindowSpecs(XTable base, ColumnSelection cols) {
+      return buildWindowSpecs(base, cols, null, false);
+   }
+
+   /**
+    * Like {@link #buildWindowSpecs(XTable, ColumnSelection)}, but SKIPS a window column whose
+    * frame is pushable on {@code helper}'s dialect (see
+    * {@link #framePushable(String, SQLHelper)}) — i.e. one already merged into the pushed-down
+    * SQL by {@link #mergeColumn}. Used by the mixed-pushability routing case in
+    * {@link #getWindowTableLens}: when a query is mergeable but not every window column's frame
+    * is pushable (e.g. one ROWS column + one RANGE column on a non-Postgres source), the ROWS
+    * column is already in the generated SQL and must NOT also be recomputed here — building a
+    * spec for it would (1) double-compute it and (2) subject it to
+    * {@link #checkCompatiblePartitionAndOrder} alongside the non-pushed column, which can throw
+    * for two window columns with divergent PARTITION BY that previously worked fine via
+    * independent SQL {@code OVER()} clauses. A pushable column is thus computed exactly once (in
+    * SQL); a non-pushable one exactly once (in memory).
+    * @param base the runtime base table the WindowTableLens will wrap and read from.
+    * @param cols the column selection to scan for WindowExpressionRef columns.
+    * @param helper the source dialect's SQL helper (may be {@code null}).
+    * @return the resolved specs for the NON-pushable window columns only, in selection order.
+    */
+   static WindowTableLens.Spec[] buildWindowSpecs(XTable base, ColumnSelection cols,
+                                                   SQLHelper helper)
+   {
+      return buildWindowSpecs(base, cols, helper, true);
+   }
+
+   private static WindowTableLens.Spec[] buildWindowSpecs(XTable base, ColumnSelection cols,
+                                                           SQLHelper helper, boolean skipPushable)
+   {
       List<WindowTableLens.Spec> specs = new ArrayList<>();
 
       for(int i = 0; i < cols.getAttributeCount(); i++) {
@@ -2979,6 +3012,13 @@ public abstract class AssetQuery extends PreAssetQuery {
          }
 
          WindowExpressionRef w = (WindowExpressionRef) bref;
+
+         if(skipPushable && framePushable(w.getFrameMode(), helper)) {
+            // Already merged into the pushed-down SQL by mergeColumn — do not also compute it
+            // in memory (see javadoc above).
+            continue;
+         }
+
          DataRef argRef = w.getArgRef();
          int arg = argRef == null ? -1 : AssetUtil.findColumn(base, argRef);
          List<DataRef> partRefs = w.getPartitionBy();
@@ -3118,15 +3158,43 @@ public abstract class AssetQuery extends PreAssetQuery {
    }
 
    /**
+    * Like {@link #buildWindowLens(TableLens, ColumnSelection)}, but builds specs ONLY for window
+    * columns that are NOT pushable on {@code helper}'s dialect — see
+    * {@link #buildWindowSpecs(XTable, ColumnSelection, SQLHelper)}. Used for the mixed-pushability
+    * routing case (a mergeable query where some, but not all, window columns' frames are
+    * pushable).
+    * @param base the fully post-processed runtime base table (already includes any pushed-down
+    *             window columns computed in SQL).
+    * @param cols the output column selection (source of the WindowExpressionRef columns).
+    * @param helper the source dialect's SQL helper (may be {@code null}).
+    * @return {@code base} wrapped in a WindowTableLens computing only the non-pushed columns, or
+    *         {@code base} unchanged when there is nothing left to compute in-memory.
+    */
+   static TableLens buildWindowLens(TableLens base, ColumnSelection cols, SQLHelper helper) {
+      WindowTableLens.Spec[] specs = buildWindowSpecs(base, cols, helper);
+
+      if(specs.length == 0) {
+         return base;
+      }
+
+      return new WindowTableLens(base, specs);
+   }
+
+   /**
     * In-memory window computation for non-pushdown sources. No-op when the query pushed the
     * window down (mergeable JDBC) AND every window column's frame is pushable on the source
-    * dialect — the OVER is already in the SELECT. For a tabular / non-mergeable source, OR a
-    * mergeable source where some window column's frame mode (RANGE/GROUPS) is not supported by
-    * the source dialect (see {@link #framePushable(String, SQLHelper)}), wrap the fully
-    * post-processed base in a WindowTableLens. {@link #mergeColumn} refuses to inline a
-    * non-pushable window column into the generated SQL in the first place (see there), so this
-    * method and that gate must agree: a window column is computed exactly once, either in the
-    * pushed-down SQL or here in memory, never both.
+    * dialect — the OVER is already in the SELECT (byte-parity: {@link #buildWindowLens} is not
+    * even reached in this case). For a mergeable source where SOME but not all window columns'
+    * frame modes (RANGE/GROUPS) are pushable on the source dialect (see
+    * {@link #framePushable(String, SQLHelper)}), the pushable ones are already merged into the
+    * SQL by {@link #mergeColumn} — only the non-pushable ones still need computing, so this
+    * routes through the helper-aware {@link #buildWindowLens(TableLens, ColumnSelection, SQLHelper)}
+    * overload, which builds specs ONLY for those (see {@link #buildWindowSpecs(XTable,
+    * ColumnSelection, SQLHelper)}): a pushable column must not also be recomputed in memory
+    * (double-compute) or dragged into {@link #checkCompatiblePartitionAndOrder} alongside an
+    * unrelated non-pushed column. For a tabular / non-mergeable source, NOTHING was pushed down
+    * at all — every window column (any frame mode) must be computed here, so this falls through
+    * to the unfiltered {@link #buildWindowLens(TableLens, ColumnSelection)} overload.
     * @param base the specified base table.
     * @param vars the specified variable table.
     * @return the window table lens, or base unchanged if there is nothing to compute in-memory.
@@ -3134,12 +3202,21 @@ public abstract class AssetQuery extends PreAssetQuery {
    private TableLens getWindowTableLens(TableLens base, VariableTable vars) throws Exception {
       ColumnSelection cols = getTable().getColumnSelection(false);
 
-      // if the query merged (pushed down) and every window frame is pushable on this dialect,
-      // the window is in the SQL SELECT already, nothing to do
-      if(isQueryMergeable(false) && windowFramesAllPushable(cols)) {
-         return base;
+      if(isQueryMergeable(false)) {
+         // if every window frame is pushable on this dialect, the window is in the SQL SELECT
+         // already, nothing to do
+         if(windowFramesAllPushable(cols)) {
+            return base;
+         }
+
+         // mixed pushability: some window columns were merged into the pushed-down SQL, others
+         // were not (mergeColumn refused to inline them) — build in-memory specs ONLY for the
+         // latter so a pushable column is computed exactly once (in SQL).
+         SQLHelper helper = AssetUtil.getSQLHelper(getTable());
+         return buildWindowLens(base, cols, helper);
       }
 
+      // non-mergeable (tabular) source: nothing was pushed down, compute every window column here
       return buildWindowLens(base, cols);
    }
 

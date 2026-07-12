@@ -690,15 +690,22 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
       int lastGroup = g;
       int pGroup = groupOf[p];
 
-      int startGroup = groupBound(spec.startBound, spec.startOffset, pGroup, lastGroup);
-      int endGroup = groupBound(spec.endBound, spec.endOffset, pGroup, lastGroup);
+      int rawStartGroup = groupBound(spec.startBound, spec.startOffset, pGroup, lastGroup);
+      int rawEndGroup = groupBound(spec.endBound, spec.endOffset, pGroup, lastGroup);
 
-      startGroup = Math.max(0, Math.min(lastGroup, startGroup));
-      endGroup = Math.max(0, Math.min(lastGroup, endGroup));
-
-      if(startGroup > endGroup) {
+      // Detect emptiness on the RAW (pre-clamp) group indices, before clamping either bound
+      // into [0,lastGroup]. Clamping first (the pre-fix behavior) silently turned an
+      // out-of-range frame into a real one: e.g. GROUPS BETWEEN 2 PRECEDING AND 1 PRECEDING at
+      // the FIRST group has raw start=-2, end=-1 — both clamp to 0, yielding group 0 instead of
+      // the correct empty frame (Postgres: no rows). Symmetric at the LAST group for
+      // N FOLLOWING .. M FOLLOWING (rawStartGroup > lastGroup). A frame is empty when it lies
+      // entirely before group 0, entirely after the last group, or is inverted.
+      if(rawEndGroup < 0 || rawStartGroup > lastGroup || rawStartGroup > rawEndGroup) {
          return new int[]{ 0, -1 };   // empty frame — clamps to null in frameSlice
       }
+
+      int startGroup = Math.max(0, rawStartGroup);
+      int endGroup = Math.min(lastGroup, rawEndGroup);
 
       int lo = -1, hi = -1;
 
@@ -740,6 +747,15 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
     * is null-safe via {@link #orderKeyCompare}/{@link Tool#compare}) — fail loud rather than NPE.
     */
    private double orderValue(Spec spec, int dataRow) {
+      if(spec.orderCols.length == 0) {
+         // Defense-in-depth: the validated wire path (WorksheetTableService) always requires
+         // exactly one ORDER BY column for a RANGE/GROUPS value-offset frame, so this is
+         // unreachable in practice — fail loud with a named error rather than an
+         // ArrayIndexOutOfBoundsException on orderCols[0] if that invariant is ever violated.
+         throw new RuntimeException(
+            "RANGE/GROUPS value-offset frame requires exactly one ORDER BY column (none present)");
+      }
+
       Object v = table.getObject(dataRow + table.getHeaderRowCount(), spec.orderCols[0]);
 
       if(v == null) {
@@ -764,6 +780,12 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
     * 30-day delta.
     */
    private double offsetOrderValue(Spec spec, int dataRow, int signedOffset) {
+      if(spec.orderCols.length == 0) {
+         // Defense-in-depth — see orderValue.
+         throw new RuntimeException(
+            "RANGE/GROUPS value-offset frame requires exactly one ORDER BY column (none present)");
+      }
+
       Object v = table.getObject(dataRow + table.getHeaderRowCount(), spec.orderCols[0]);
 
       if(v == null) {
@@ -780,7 +802,13 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
 
    private static double dateOffsetMs(java.util.Date v, String unit, int signedOffset) {
       if(unit == null) {
-         return v.getTime() + signedOffset;   // defensive: no unit given, treat as raw ms
+         // Unreachable for a validated frame: WorksheetTableService.applyWindowColumns rejects a
+         // RANGE value-offset whose single ORDER BY key is date/time-typed and offsetUnit is
+         // missing (a numeric offset on a date key is meaningless in SQL — it needs an
+         // INTERVAL). Fail loud rather than silently treating the offset as raw milliseconds,
+         // matching this file's fail-loud style, in case that invariant is ever violated.
+         throw new RuntimeException(
+            "RANGE offset on a date/time order key requires an offsetUnit");
       }
 
       // Fixed-width units apply a raw millisecond delta. This is exact for a date /

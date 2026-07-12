@@ -430,21 +430,55 @@ class WindowTableLensTest {
 
    @Test
    void groups_precedingRange() {
-      // amount asc 10,10,20,30,40 -> distinct groups {10,10},{20},{30},{40} (0,1,2,3). SUM
-      // GROUPS BETWEEN 2 PRECEDING AND 1 PRECEDING -> current group's own group is excluded
-      // (end = 1 PRECEDING is strictly before the current group). Before the fix, endBound=
-      // "PRECEDING" hit the `default: throw` in groupBoundEnd -> RED.
+      // amount asc 10,10,20,30,40 -> distinct groups {10,10}=g0,{20}=g1,{30}=g2,{40}=g3
+      // (lastGroup=3). SUM GROUPS BETWEEN 2 PRECEDING AND 1 PRECEDING -> current group's own
+      // group is excluded (end = 1 PRECEDING is strictly before the current group).
+      //   g0 rows (pGroup=0): raw start=0-2=-2, raw end=0-1=-1 -> rawEnd<0 -> EMPTY (null).
+      //   Per Postgres GROUPS semantics this frame lies entirely before group 0 and returns no
+      //   rows (SUM of no rows is NULL) — NOT clamped to group 0's own {10,10}. Before the fix,
+      //   BOTH raw indices were clamped into [0,lastGroup] before the empty check, so -2/-1 both
+      //   clamped to 0 and wrongly returned group 0 (20.0) instead of null.
+      //   g1 (20, pGroup=1): raw start=1-2=-1, raw end=1-1=0 -> not empty; clamp start to 0,
+      //   end stays 0 -> frame=group0={10,10}=20.0 (unchanged by the fix: this frame is only
+      //   PARTIALLY out of range, which is legitimately clamped, not empty).
+      //   g2 (30, pGroup=2): raw start=0, raw end=1 -> frame=groups0..1={10,10,20}=40.0.
+      //   g3 (40, pGroup=3): raw start=1, raw end=2 -> frame=groups1..2={20,30}=50.0.
       Object[][] d = {{"amount"}, {10.0}, {10.0}, {20.0}, {30.0}, {40.0}};
       DefaultTableLens t = new DefaultTableLens(d); t.setHeaderRowCount(1);
       WindowTableLens.Spec sum = new WindowTableLens.Spec(
          "s", "SUM", 0, 0, new int[0], new int[]{0}, new boolean[]{true},
          "PRECEDING", 2, "PRECEDING", 1, "GROUPS", null);
       WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{sum});
-      assertEquals(20.0, cell(lens, 0, 1));   // group0 (10,10): start&end clamp to group0 -> {10,10}
-      assertEquals(20.0, cell(lens, 1, 1));   // group0 (10,10): same
+      assertNull(cell(lens, 0, 1));           // group0 (10,10): frame entirely before group0 -> empty
+      assertNull(cell(lens, 1, 1));           // group0 (10,10): same
       assertEquals(20.0, cell(lens, 2, 1));   // group1 (20): [group(-1)->0, group0] -> {10,10}
       assertEquals(40.0, cell(lens, 3, 1));   // group2 (30): [group0, group1] -> {10,10,20}
       assertEquals(50.0, cell(lens, 4, 1));   // group3 (40): [group1, group2] -> {20,30}
+   }
+
+   @Test
+   void groups_followingRange_lastGroupEmpty() {
+      // Symmetric to groups_precedingRange: amount asc 10,10,20,30,40 -> groups
+      // {10,10}=g0,{20}=g1,{30}=g2,{40}=g3 (lastGroup=3). SUM GROUPS BETWEEN 1 FOLLOWING AND
+      // 2 FOLLOWING.
+      //   g0 rows (pGroup=0): start=1,end=2 -> frame=groups1..2={20,30}=50.0.
+      //   g1 (20, pGroup=1): start=2,end=3 -> frame=groups2..3={30,40}=70.0.
+      //   g2 (30, pGroup=2): start=3,end=4 -> not empty (rawStart==lastGroup); clamp end to 3
+      //   -> frame=group3={40}=40.0.
+      //   g3 (40, pGroup=3, the LAST group): start=4,end=5 -> rawStart(4) > lastGroup(3) ->
+      //   EMPTY (null). Before the fix, both raw indices would clamp into [0,3] (start=3,
+      //   end=3) and wrongly return group3's own value (40.0) instead of null.
+      Object[][] d = {{"amount"}, {10.0}, {10.0}, {20.0}, {30.0}, {40.0}};
+      DefaultTableLens t = new DefaultTableLens(d); t.setHeaderRowCount(1);
+      WindowTableLens.Spec sum = new WindowTableLens.Spec(
+         "s", "SUM", 0, 0, new int[0], new int[]{0}, new boolean[]{true},
+         "FOLLOWING", 1, "FOLLOWING", 2, "GROUPS", null);
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{sum});
+      assertEquals(50.0, cell(lens, 0, 1));   // group0
+      assertEquals(50.0, cell(lens, 1, 1));   // group0
+      assertEquals(70.0, cell(lens, 2, 1));   // group1
+      assertEquals(40.0, cell(lens, 3, 1));   // group2
+      assertNull(cell(lens, 4, 1));           // group3 (LAST group) -> empty
    }
 
    @Test
