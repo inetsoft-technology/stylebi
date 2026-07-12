@@ -490,13 +490,16 @@ class WorksheetTableServiceWindowColumnsTest {
    }
 
    @Test
-   void groupsWholePartition_noOrderBy_succeeds() throws Exception {
-      // Whole-partition GROUPS frame (UNBOUNDED_PRECEDING..UNBOUNDED_FOLLOWING) needs no
-      // peer-group ordering — it covers every row regardless of order, exactly like a
-      // whole-partition ROWS/RANGE frame. Review fix: the GROUPS-requires-orderBy guard used to
-      // fire unconditionally, rejecting this legitimate whole-partition case too; it is now
-      // gated on !isWholePartitionFrame(frame), consistent with the general bounded-frame
-      // "requires orderBy" guard a few lines above it.
+   void groupsWholePartition_noOrderBy_throws() throws Exception {
+      // Review fix (Fix 1): GROUPS mode ALWAYS requires an ORDER BY, even for a whole-partition
+      // frame (UNBOUNDED_PRECEDING..UNBOUNDED_FOLLOWING). Unlike ROWS/RANGE, GROUPS defines its
+      // peer groups purely from the order-by key — with no orderBy there is no notion of a
+      // "group" at all, so a whole-partition exemption (as used for the general bounded-frame
+      // check) is invalid SQL on Postgres/ANSI and diverges from the wiz TS validator, which
+      // rejects ANY GROUPS frame without orderBy. This test used to assert the OPPOSITE
+      // ("...succeeds") — that encoded the bug (a `!isWholePartitionFrame(frame)` exemption on
+      // the GROUPS branch); it is inverted here to lock in the corrected, always-required
+      // behavior.
       WorksheetTable req = request("""
          { "windowColumns":[ {"name":"s","fn":"SUM","column":"amount","partitionBy":["stage"],
            "frame":{"mode":"GROUPS","startBound":"UNBOUNDED_PRECEDING",
@@ -510,12 +513,10 @@ class WorksheetTableServiceWindowColumnsTest {
       cs.addAttribute(new ColumnRef(new AttributeRef(null, "stage")));
       table.setColumnSelection(cs);
 
-      service().applyWindowColumns(table, req.getWindowColumns());
-
-      ColumnRef added = (ColumnRef) table.getColumnSelection(false).getAttribute("s");
-      String expr = ((WindowExpressionRef) added.getDataRef()).getExpression();
-      assertTrue(expr.contains("GROUPS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING"),
-                 "unexpected expression: " + expr);
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service().applyWindowColumns(table, req.getWindowColumns()));
+      assertTrue(ex.getMessage().contains("s"));
+      assertTrue(ex.getMessage().contains("GROUPS"), "unexpected message: " + ex.getMessage());
    }
 
    @Test
@@ -581,7 +582,10 @@ class WorksheetTableServiceWindowColumnsTest {
    void rangeValueOffset_onNumericOrderKey_missingOffsetUnit_stillSucceeds() throws Exception {
       // Byte-parity / no-regression check: a RANGE value-offset on a NON-date (numeric) order
       // key with no offsetUnit is the normal, long-supported case (a plain numeric threshold)
-      // and must still succeed — the new Fix C guard only rejects a date/time order key.
+      // and must still succeed — the new Fix 2 guard only rejects a non-numeric, non-date order
+      // key. NOTE: the order key must be explicitly typed numeric here — AttributeRef.getDataType()
+      // defaults an untyped ref to XSchema.STRING, which would otherwise (correctly) trip the
+      // new guard and turn this byte-parity case into a false failure.
       WorksheetTable req = request("""
          { "windowColumns":[ {"name":"s","fn":"SUM","column":"amount","partitionBy":["stage"],
            "orderBy":[{"field":"amount","direction":"ASC"}],
@@ -592,7 +596,9 @@ class WorksheetTableServiceWindowColumnsTest {
       Worksheet ws = new Worksheet();
       PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
       ColumnSelection cs = new ColumnSelection();
-      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      AttributeRef amountRef = new AttributeRef(null, "amount");
+      amountRef.setDataType(inetsoft.uql.schema.XSchema.DOUBLE);
+      cs.addAttribute(new ColumnRef(amountRef));
       cs.addAttribute(new ColumnRef(new AttributeRef(null, "stage")));
       table.setColumnSelection(cs);
 
@@ -602,5 +608,37 @@ class WorksheetTableServiceWindowColumnsTest {
       String expr = ((WindowExpressionRef) added.getDataRef()).getExpression();
       assertTrue(expr.contains("RANGE BETWEEN 5 PRECEDING AND CURRENT ROW"),
                  "unexpected expression: " + expr);
+   }
+
+   @Test
+   void numericRangeValueOffset_stringOrderKey_throws() throws Exception {
+      // Review fix (Fix 2): the converse of rangeValueOffset_onDateOrderKey_missingOffsetUnit_throws
+      // above. A RANGE value-offset (PRECEDING/FOLLOWING n) with no offsetUnit is a bare numeric
+      // threshold; ordering by a non-numeric, non-date key (e.g. a plain string column) makes
+      // that threshold meaningless and must fail loud, matching the wiz TS validator, instead of
+      // silently emitting a nonsensical "RANGE BETWEEN n PRECEDING" against a string column.
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"s","fn":"SUM","column":"amount","partitionBy":["stage"],
+           "orderBy":[{"field":"stage","direction":"ASC"}],
+           "frame":{"mode":"RANGE","startBound":"PRECEDING","startOffset":5,
+                     "endBound":"CURRENT_ROW"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      AttributeRef amountRef = new AttributeRef(null, "amount");
+      amountRef.setDataType(inetsoft.uql.schema.XSchema.DOUBLE);
+      cs.addAttribute(new ColumnRef(amountRef));
+      AttributeRef stageRef = new AttributeRef(null, "stage");
+      stageRef.setDataType(inetsoft.uql.schema.XSchema.STRING);
+      cs.addAttribute(new ColumnRef(stageRef));
+      table.setColumnSelection(cs);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service().applyWindowColumns(table, req.getWindowColumns()));
+      assertTrue(ex.getMessage().contains("s"));
+      assertTrue(ex.getMessage().contains("numeric order key"),
+                 "unexpected message: " + ex.getMessage());
    }
 }
