@@ -155,15 +155,16 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
    }
 
    /**
-    * Get the ROWS frame start bound, e.g. {@code "PRECEDING"}, {@code "UNBOUNDED_PRECEDING"},
-    * {@code "CURRENT_ROW"}. {@code null} means no explicit frame was set.
+    * Get the window frame start bound, e.g. {@code "PRECEDING"}, {@code "UNBOUNDED_PRECEDING"},
+    * {@code "CURRENT_ROW"}. {@code null} means no explicit frame was set. Applies to any frame
+    * mode (ROWS, RANGE, or GROUPS) — see {@link #getFrameMode()}.
     */
    public String getFrameStartBound() {
       return frameStartBound;
    }
 
    /**
-    * Get the ROWS frame start offset (meaningful only when {@link #getFrameStartBound()} is
+    * Get the window frame start offset (meaningful only when {@link #getFrameStartBound()} is
     * {@code "PRECEDING"} or {@code "FOLLOWING"}).
     */
    public int getFrameStartOffset() {
@@ -171,15 +172,16 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
    }
 
    /**
-    * Get the ROWS frame end bound, e.g. {@code "FOLLOWING"}, {@code "UNBOUNDED_FOLLOWING"},
-    * {@code "CURRENT_ROW"}. {@code null} means no explicit frame was set.
+    * Get the window frame end bound, e.g. {@code "FOLLOWING"}, {@code "UNBOUNDED_FOLLOWING"},
+    * {@code "CURRENT_ROW"}. {@code null} means no explicit frame was set. Applies to any frame
+    * mode (ROWS, RANGE, or GROUPS) — see {@link #getFrameMode()}.
     */
    public String getFrameEndBound() {
       return frameEndBound;
    }
 
    /**
-    * Get the ROWS frame end offset (meaningful only when {@link #getFrameEndBound()} is
+    * Get the window frame end offset (meaningful only when {@link #getFrameEndBound()} is
     * {@code "PRECEDING"} or {@code "FOLLOWING"}).
     */
    public int getFrameEndOffset() {
@@ -187,7 +189,8 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
    }
 
    /**
-    * Check whether an explicit ROWS frame was set via {@link #setFrame}.
+    * Check whether an explicit window frame (ROWS, RANGE, or GROUPS) was set via
+    * {@link #setFrame}.
     */
    public boolean hasExplicitFrame() {
       return frameStartBound != null;
@@ -244,7 +247,14 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
    {
       requireValidFrameBound(startBound, startOffset);
       requireValidFrameBound(endBound, endOffset);
-      this.frameMode = (mode == null) ? "ROWS" : mode.toUpperCase();
+      String resolved = (mode == null) ? "ROWS" : mode.toUpperCase();
+      requireValidFrameMode(resolved);
+      requireValidFrameOffsetUnit(offsetUnit);
+      // Store null for the default ROWS mode (not the resolved "ROWS" string) so writeAttributes'
+      // `if(frameMode != null)` guard only emits the frameMode attribute for RANGE/GROUPS. This
+      // preserves XML byte-parity with Phase 3 ROWS-frame worksheets, which never wrote this
+      // attribute. getFrameMode() already maps a null field back to "ROWS".
+      this.frameMode = "ROWS".equals(resolved) ? null : resolved;
       this.frameStartBound = startBound;
       this.frameStartOffset = startOffset;
       this.frameEndBound = endBound;
@@ -255,6 +265,13 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
    /** Recognized ROWS frame bound tokens (see {@link #setFrame}). */
    private static final Set<String> VALID_FRAME_BOUNDS = Set.of(
       "UNBOUNDED_PRECEDING", "PRECEDING", "CURRENT_ROW", "FOLLOWING", "UNBOUNDED_FOLLOWING");
+
+   /** Recognized frame mode tokens (see {@link #setFrame}). */
+   private static final Set<String> VALID_FRAME_MODES = Set.of("ROWS", "RANGE", "GROUPS");
+
+   /** Recognized frame offset unit tokens (see {@link #setFrame}). */
+   private static final Set<String> VALID_FRAME_OFFSET_UNITS = Set.of(
+      "year", "quarter", "month", "week", "day", "hour", "minute", "second");
 
    /**
     * Guard against a caller constructing a {@code WindowExpressionRef} frame directly (bypassing
@@ -271,6 +288,28 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
       if(("PRECEDING".equals(bound) || "FOLLOWING".equals(bound)) && offset <= 0) {
          throw new IllegalArgumentException(
             "window frame bound '" + bound + "' requires a positive offset");
+      }
+   }
+
+   /**
+    * Guard against a caller constructing a {@code WindowExpressionRef} frame directly with an
+    * unrecognized mode token, mirroring {@link #requireValidFrameBound}. {@code mode} must
+    * already be uppercased/resolved (i.e. never {@code null}) by the caller.
+    */
+   private static void requireValidFrameMode(String mode) {
+      if(!VALID_FRAME_MODES.contains(mode)) {
+         throw new IllegalArgumentException("invalid window frame mode: " + mode);
+      }
+   }
+
+   /**
+    * Guard against a caller constructing a {@code WindowExpressionRef} frame directly with an
+    * unrecognized offset unit token, mirroring {@link #requireValidFrameBound}. {@code null} is
+    * always valid (a bare-integer offset).
+    */
+   private static void requireValidFrameOffsetUnit(String unit) {
+      if(unit != null && !VALID_FRAME_OFFSET_UNITS.contains(unit)) {
+         throw new IllegalArgumentException("invalid window frame offset unit: " + unit);
       }
    }
 
@@ -419,8 +458,8 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
    }
 
    /**
-    * Get the {@code ROWS BETWEEN ... AND ...} frame fragment, or "" if no frame clause should be
-    * emitted.
+    * Get the {@code ROWS|RANGE|GROUPS BETWEEN ... AND ...} window frame fragment, or "" if no
+    * frame clause should be emitted.
     * <p>
     * Frame-less aggregates and {@code FIRST_VALUE} emit no frame clause (byte-parity with the
     * pre-frame pushdown text — the database's default frame is what today's behavior relies on).

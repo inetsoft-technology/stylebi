@@ -436,4 +436,72 @@ class WindowExpressionRefTest {
       assertEquals("ROWS", ref.getFrameMode());
       assertNull(ref.getFrameOffsetUnit());
    }
+
+   // ---- code-review fixes (Phase 4 Task 1) ----------------------------------------------------
+
+   @Test
+   void rowsFrame_serializesWithoutModeAttribute() throws Exception {
+      // A plain ROWS frame (legacy 4-arg setFrame, or the 6-arg overload with mode="ROWS"/null)
+      // must NOT emit a frameMode attribute -- otherwise an existing Phase-3 ROWS-frame worksheet
+      // gains a new frameMode="ROWS" attribute on save (serialization drift / XML byte-parity).
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "SUM", new AttributeRef("amt"), 0, List.of(new AttributeRef("stage")),
+         List.of(sort("d", XConstants.SORT_ASC)));
+      ref.setFrame("PRECEDING", 2, "CURRENT_ROW", 0);
+
+      StringWriter sw = new StringWriter();
+      PrintWriter writer = new PrintWriter(sw);
+      ref.writeXML(writer);
+      writer.flush();
+      String xml = sw.toString();
+
+      assertFalse(xml.contains("frameMode"),
+                  "a plain ROWS frame must not emit a frameMode attribute: " + xml);
+      assertFalse(xml.contains("frameOffsetUnit"),
+                  "a plain ROWS frame must not emit a frameOffsetUnit attribute: " + xml);
+
+      WindowExpressionRef copy = (WindowExpressionRef) writeAndParse(ref);
+      assertEquals("ROWS", copy.getFrameMode(),
+                   "a missing frameMode attribute must parse back as ROWS");
+   }
+
+   @Test
+   void rangeFrame_serializesModeAttribute() throws Exception {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "SUM", new AttributeRef("amt"), 0, List.of(new AttributeRef("stage")),
+         List.of(sort("d", XConstants.SORT_ASC)));
+      ref.setFrame("RANGE", "PRECEDING", 1000, "CURRENT_ROW", 0, null);
+
+      StringWriter sw = new StringWriter();
+      PrintWriter writer = new PrintWriter(sw);
+      ref.writeXML(writer);
+      writer.flush();
+      String xml = sw.toString();
+
+      assertTrue(xml.contains("frameMode=\"RANGE\""),
+                 "a RANGE frame must emit a frameMode attribute: " + xml);
+
+      WindowExpressionRef copy = (WindowExpressionRef) writeAndParse(ref);
+      assertEquals("RANGE", copy.getFrameMode());
+   }
+
+   @Test
+   void setFrame_invalidMode_throws() {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "SUM", new AttributeRef("amount"), 0, List.of(), List.of(sort("t", XConstants.SORT_ASC)));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> ref.setFrame("BOGUS_MODE", "PRECEDING", 2, "CURRENT_ROW", 0, null));
+      assertTrue(ex.getMessage().contains("BOGUS_MODE"));
+   }
+
+   @Test
+   void setFrame_invalidOffsetUnit_throws() {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "SUM", new AttributeRef("amount"), 0, List.of(), List.of(sort("t", XConstants.SORT_ASC)));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> ref.setFrame("RANGE", "PRECEDING", 2, "CURRENT_ROW", 0, "fortnight"));
+      assertTrue(ex.getMessage().contains("fortnight"));
+   }
 }
