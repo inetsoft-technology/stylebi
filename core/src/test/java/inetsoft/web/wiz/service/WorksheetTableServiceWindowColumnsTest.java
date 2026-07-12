@@ -436,4 +436,105 @@ class WorksheetTableServiceWindowColumnsTest {
       assertFalse(expr.contains("RANGE"));
       assertFalse(expr.contains("GROUPS"));
    }
+
+   // ─── Task 2 review fixes ───────────────────────────────────────────────────
+
+   @Test
+   void rangeWholePartition_offsetUnit_noOrderBy_throwsIllegalArgument() throws Exception {
+      // Whole-partition RANGE frame is exempt from the Phase-3 "bounded frame requires orderBy"
+      // guard. Before the fix, offsetUnit validation unconditionally called
+      // requireDateOrderKey(colName, orderRefs) -> orderRefs.get(0) on an EMPTY list, throwing
+      // IndexOutOfBoundsException instead of a field-named IllegalArgumentException.
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"s","fn":"SUM","column":"amount","partitionBy":["stage"],
+           "frame":{"mode":"RANGE","startBound":"UNBOUNDED_PRECEDING",
+                     "endBound":"UNBOUNDED_FOLLOWING","offsetUnit":"day"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "stage")));
+      table.setColumnSelection(cs);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service().applyWindowColumns(table, req.getWindowColumns()));
+      assertTrue(ex.getMessage().contains("s"));
+   }
+
+   @Test
+   void offsetUnit_withoutValueOffsetBound_throws() throws Exception {
+      // CURRENT_ROW .. CURRENT_ROW carries no PRECEDING/FOLLOWING value-offset bound, so
+      // offsetUnit is meaningless even though orderBy is present and date-typed.
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"s","fn":"SUM","column":"amount","partitionBy":["stage"],
+           "orderBy":[{"field":"d","direction":"ASC"}],
+           "frame":{"mode":"RANGE","startBound":"CURRENT_ROW",
+                     "endBound":"CURRENT_ROW","offsetUnit":"day"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "stage")));
+      AttributeRef dRef = new AttributeRef(null, "d");
+      dRef.setDataType(inetsoft.uql.schema.XSchema.TIME_INSTANT);
+      cs.addAttribute(new ColumnRef(dRef));
+      table.setColumnSelection(cs);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service().applyWindowColumns(table, req.getWindowColumns()));
+      assertTrue(ex.getMessage().contains("s"));
+   }
+
+   @Test
+   void groupsWholePartition_noOrderBy_throws() throws Exception {
+      // Whole-partition GROUPS frame bypasses the Phase-3 bounded-frame guard, isolating the
+      // Phase-4 GROUPS-requires-orderBy branch (the existing groupsOrRangeValue_withoutOrderBy_throws
+      // test uses a BOUNDED frame, so the Phase-3 guard fires first and this branch is never hit).
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"s","fn":"SUM","column":"amount","partitionBy":["stage"],
+           "frame":{"mode":"GROUPS","startBound":"UNBOUNDED_PRECEDING",
+                     "endBound":"UNBOUNDED_FOLLOWING"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "stage")));
+      table.setColumnSelection(cs);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service().applyWindowColumns(table, req.getWindowColumns()));
+      assertTrue(ex.getMessage().contains("s"));
+   }
+
+   @Test
+   void offsetUnit_caseInsensitive_accepted() throws Exception {
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"s","fn":"SUM","column":"amount","partitionBy":["stage"],
+           "orderBy":[{"field":"d","direction":"ASC"}],
+           "frame":{"mode":"RANGE","startBound":"PRECEDING","startOffset":7,
+                     "endBound":"CURRENT_ROW","offsetUnit":"Day"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "stage")));
+      AttributeRef dRef = new AttributeRef(null, "d");
+      dRef.setDataType(inetsoft.uql.schema.XSchema.TIME_INSTANT);
+      cs.addAttribute(new ColumnRef(dRef));
+      table.setColumnSelection(cs);
+
+      service().applyWindowColumns(table, req.getWindowColumns());
+
+      ColumnRef added = (ColumnRef) table.getColumnSelection(false).getAttribute("s");
+      String expr = ((WindowExpressionRef) added.getDataRef()).getExpression();
+      assertTrue(expr.contains("INTERVAL '7 day'"), "unexpected expression: " + expr);
+   }
 }

@@ -1205,7 +1205,11 @@ public class WorksheetTableService {
                   "']: a RANGE value-offset frame requires exactly one orderBy column");
             }
 
-            // offsetUnit: only for RANGE, only on a date/time order key.
+            // offsetUnit: only meaningful when the frame has a real value-offset bound (a
+            // PRECEDING/FOLLOWING with an offset) — gate on valueOffset BEFORE consulting
+            // orderRefs, since a whole-partition RANGE/GROUPS frame legitimately carries no
+            // orderBy at all (requireDateOrderKey's orderRefs.get(0) would otherwise throw
+            // IndexOutOfBoundsException instead of a field-named IllegalArgumentException).
             String unit = frame.getOffsetUnit();
 
             if(unit != null) {
@@ -1215,12 +1219,23 @@ public class WorksheetTableService {
                      "']: frame.offsetUnit is only valid for a RANGE frame");
                }
 
-               if(!VALID_OFFSET_UNITS.contains(unit)) {
+               if(!valueOffset) {
+                  throw new IllegalArgumentException(
+                     "windowColumns['" + colName +
+                     "']: frame.offsetUnit requires a PRECEDING/FOLLOWING value-offset bound");
+               }
+
+               String u = unit.toLowerCase();
+
+               if(!VALID_OFFSET_UNITS.contains(u)) {
                   throw new IllegalArgumentException(
                      "windowColumns['" + colName + "']: invalid frame.offsetUnit: " + unit);
                }
 
+               // Safe: a value-offset RANGE frame already requires exactly one orderBy column
+               // (guard above), so orderRefs is never empty here.
                requireDateOrderKey(colName, orderRefs);
+               unit = u;
             }
 
             winRef.setFrame(mode, frame.getStartBound(), startOffset, frame.getEndBound(),
