@@ -26,6 +26,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.sql.Date;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -287,5 +289,103 @@ class WindowTableLensTest {
       assertEquals(30.0, cell(lens,0,1));    // [10,20]
       assertEquals(60.0, cell(lens,1,1));    // [10,20,30]
       assertEquals(50.0, cell(lens,2,1));    // [20,30]
+   }
+
+   // ── Phase 4: RANGE / GROUPS frame modes ─────────────────────────────────────
+
+   @Test
+   void rows_byteParity_unchanged() {
+      // Same as movingAverage_2precedingToCurrent (Phase 3) — the new ctor overload defaults to
+      // mode="ROWS" via the Phase-3 11-arg ctor, so this must still yield the Phase-3 numbers.
+      Object[][] d = {{"amount"},{10.0},{20.0},{30.0},{40.0}};
+      DefaultTableLens t = new DefaultTableLens(d); t.setHeaderRowCount(1);
+      WindowTableLens.Spec ma = new WindowTableLens.Spec(
+         "ma","AVG",0,0,new int[0],new int[]{0},new boolean[]{true}, "PRECEDING",2,"CURRENT_ROW",0);
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{ma});
+      assertEquals(10.0, cell(lens,0,1));                 // [10]
+      assertEquals(15.0, cell(lens,1,1));                 // [10,20]
+      assertEquals(20.0, cell(lens,2,1));                 // [10,20,30]
+      assertEquals(30.0, cell(lens,3,1));                 // [20,30,40]
+   }
+
+   @Test
+   void range_numeric_valueOffset() {
+      // amount asc 10,20,25,40 in one partition; SUM RANGE BETWEEN 5 PRECEDING AND CURRENT ROW.
+      // Per row, include rows whose amount is within [amt-5, amt]:
+      //   10 -> {10} = 10 ; 20 -> {20} = 20 ; 25 -> {20,25} = 45 ; 40 -> {40} = 40
+      Object[][] d = {{"amount"},{10.0},{20.0},{25.0},{40.0}};
+      DefaultTableLens t = new DefaultTableLens(d); t.setHeaderRowCount(1);
+      WindowTableLens.Spec sum = new WindowTableLens.Spec(
+         "s", "SUM", 0, 0, new int[0], new int[]{0}, new boolean[]{true},
+         "PRECEDING", 5, "CURRENT_ROW", 0, "RANGE", null);
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{sum});
+      assertEquals(10.0, cell(lens, 0, 1));   // amt=10 -> {10}
+      assertEquals(20.0, cell(lens, 1, 1));   // amt=20 -> {20}
+      assertEquals(45.0, cell(lens, 2, 1));   // amt=25 -> {20,25}
+      assertEquals(40.0, cell(lens, 3, 1));   // amt=40 -> {40}
+   }
+
+   @Test
+   void range_date_valueOffset_days() {
+      // dates spaced 0,1,3,10 days apart, ordered asc. SUM RANGE BETWEEN INTERVAL '2 day'
+      // PRECEDING AND CURRENT ROW (offsetUnit=day, offset=2). Row at d0+3 includes rows with
+      // date in [d0+1, d0+3] -> the d0+1 and d0+3 rows: amount 20 + 30 = 50.
+      Date d0 = Date.valueOf("2026-01-01");
+      Date d1 = Date.valueOf("2026-01-02");   // d0+1
+      Date d3 = Date.valueOf("2026-01-04");   // d0+3
+      Date d10 = Date.valueOf("2026-01-11");  // d0+10
+      Object[][] d = {
+         {"date", "amount"},
+         {d0,  10.0},
+         {d1,  20.0},
+         {d3,  30.0},
+         {d10, 40.0},
+      };
+      DefaultTableLens t = new DefaultTableLens(d); t.setHeaderRowCount(1);
+      WindowTableLens.Spec sum = new WindowTableLens.Spec(
+         "s", "SUM", 1, 0, new int[0], new int[]{0}, new boolean[]{true},
+         "PRECEDING", 2, "CURRENT_ROW", 0, "RANGE", "day");
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{sum});
+      assertEquals(10.0, cell(lens, 0, 2));   // d0        -> {d0}                    = 10
+      assertEquals(30.0, cell(lens, 1, 2));   // d0+1      -> {d0,d0+1}                = 10+20
+      assertEquals(50.0, cell(lens, 2, 2));   // d0+3      -> {d0+1,d0+3}              = 20+30
+      assertEquals(40.0, cell(lens, 3, 2));   // d0+10     -> {d0+10}                  = 40
+   }
+
+   @Test
+   void range_peer_currentRowIncludesTies() {
+      // order key desc with a tie: 30,30,10. Running SUM RANGE BETWEEN UNBOUNDED PRECEDING AND
+      // CURRENT ROW -> both 30-rows see the combined peer group (60), the 10-row sees all (70).
+      // This specifically exercises the DESCENDING-order peer-vs-value-threshold distinction:
+      // a naive "value <= current" threshold would wrongly include the 10 for the 30-rows too.
+      Object[][] d = {{"amount"},{30.0},{30.0},{10.0}};
+      DefaultTableLens t = new DefaultTableLens(d); t.setHeaderRowCount(1);
+      WindowTableLens.Spec sum = new WindowTableLens.Spec(
+         "s", "SUM", 0, 0, new int[0], new int[]{0}, new boolean[]{false},
+         "UNBOUNDED_PRECEDING", 0, "CURRENT_ROW", 0, "RANGE", null);
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{sum});
+      assertEquals(60.0, cell(lens, 0, 1));   // 30 (first tie) -> {30,30}
+      assertEquals(60.0, cell(lens, 1, 1));   // 30 (second tie) -> {30,30}
+      assertEquals(70.0, cell(lens, 2, 1));   // 10 -> {30,30,10}
+   }
+
+   @Test
+   void groups_peerGroupCount() {
+      // amount asc with a tied group: 10,10,20,30 -> distinct groups {10},{20},{30} (0,1,2).
+      // SUM GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW: the current group plus the one
+      // preceding distinct-value group.
+      //   group0 (10,10): no preceding group -> just group0 = {10,10} = 20 for both rows
+      //   group1 (20):    group0+group1 = {10,10,20} = 40
+      //   group2 (30):    group1+group2 = {20,30} = 50
+      Object[][] d = {{"amount"},{10.0},{10.0},{20.0},{30.0}};
+      DefaultTableLens t = new DefaultTableLens(d); t.setHeaderRowCount(1);
+      WindowTableLens.Spec sum = new WindowTableLens.Spec(
+         "s", "SUM", 0, 0, new int[0], new int[]{0}, new boolean[]{true},
+         "PRECEDING", 1, "CURRENT_ROW", 0, "GROUPS", null);
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{sum});
+      assertEquals(20.0, cell(lens, 0, 1));   // 10 (first of tied group) -> {10,10}
+      assertEquals(20.0, cell(lens, 1, 1));   // 10 (second of tied group) -> {10,10}
+      assertEquals(40.0, cell(lens, 2, 1));   // 20 -> {10,10,20}
+      assertEquals(50.0, cell(lens, 3, 1));   // 30 -> {20,30}
    }
 }
