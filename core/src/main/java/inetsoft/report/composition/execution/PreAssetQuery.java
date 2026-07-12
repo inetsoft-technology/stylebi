@@ -656,8 +656,19 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          // it OUT of the GROUP BY list (built below from info.getGroups() only). Without this it is
          // silently dropped from the SELECT when the table also carries group/aggregates.
          else if(column.isVisible() && group == null && isWindowExpression(column)) {
-            mergeColumn(nselection, column);
-            gcolumns.addAttribute(column);
+            // Use the 3-arg boolean mergeColumn (not the 2-arg void variant, which always
+            // emits) so a window column that AssetQuery's override refuses to push down (a
+            // non-pushable RANGE/GROUPS frame on a non-Postgres dialect) is kept OUT of
+            // gcolumns when it's absent from the SELECT list — otherwise gcolumns count would
+            // not match the emitted SQL columns on that hybrid grouped-SQL + in-memory-window
+            // path. The 2-arg mergeColumn this replaces delegates with a hardcoded true, and
+            // mergeGroupBy already returned false above when !isAggregateInfoMergeable(), so
+            // passing true here is byte-identical to the prior unconditional
+            // mergeColumn(nselection, column) + gcolumns.addAttribute(column) for every dialect
+            // that CAN push the frame down (all-Postgres included).
+            if(mergeColumn(nselection, column, true)) {
+               gcolumns.addAttribute(column);
+            }
          }
 
          // if we have no aggs or one agg for a column, increase the count by 1

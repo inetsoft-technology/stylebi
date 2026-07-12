@@ -1192,12 +1192,13 @@ public class WorksheetTableService {
                || "PRECEDING".equals(frame.getEndBound()) || "FOLLOWING".equals(frame.getEndBound());
 
             // RANGE value-offset and GROUPS need an ORDER BY; RANGE value-offset needs exactly
-            // one. A whole-partition GROUPS frame (UNBOUNDED_PRECEDING..UNBOUNDED_FOLLOWING) is
-            // exempt, same as the general bounded-frame check above — it needs no peer-group
-            // ordering since it covers every row regardless of order.
-            if(("RANGE".equals(mode) && valueOffset) ||
-               ("GROUPS".equals(mode) && !isWholePartitionFrame(frame)))
-            {
+            // one. Unlike the general bounded-frame check above, GROUPS has NO whole-partition
+            // exemption: Postgres (and ANSI) require an ORDER BY for GROUPS mode regardless of
+            // bounds, since GROUPS defines its peer groups purely from the order-by key — with no
+            // orderBy there is no notion of a "group" to count PRECEDING/FOLLOWING, even when the
+            // frame spans the whole partition. The wiz TS validator rejects ANY GROUPS frame
+            // without orderBy for the same reason; this mirrors it.
+            if(("RANGE".equals(mode) && valueOffset) || "GROUPS".equals(mode)) {
                if(orderRefs.isEmpty()) {
                   throw new IllegalArgumentException(
                      "windowColumns['" + colName + "']: a " + mode + " frame requires orderBy");
@@ -1257,6 +1258,17 @@ public class WorksheetTableService {
                   throw new IllegalArgumentException(
                      "windowColumns['" + colName + "']: a RANGE value-offset on a date/time " +
                      "order key requires frame.offsetUnit (e.g. day/month)");
+               }
+               // Converse case: with no offsetUnit, a RANGE value-offset is a bare numeric
+               // threshold applied against the single order key. A non-numeric, non-date order
+               // key (e.g. string/boolean) makes that threshold meaningless — fail loud instead
+               // of emitting a nonsensical "RANGE BETWEEN n PRECEDING" against e.g. a string
+               // column. Deferred (not thrown) when dt is unresolvable (null), matching the
+               // best-effort pattern used throughout this method.
+               else if(dt != null && !XSchema.isNumericType(dt)) {
+                  throw new IllegalArgumentException(
+                     "windowColumns['" + colName + "']: a numeric RANGE value-offset requires " +
+                     "a numeric order key");
                }
             }
 
