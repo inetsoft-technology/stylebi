@@ -2972,8 +2972,8 @@ public abstract class AssetQuery extends PreAssetQuery {
    /**
     * Like {@link #buildWindowSpecs(XTable, ColumnSelection)}, but SKIPS a window column whose
     * frame is pushable on {@code helper}'s dialect (see
-    * {@link #framePushable(String, SQLHelper)}) — i.e. one already merged into the pushed-down
-    * SQL by {@link #mergeColumn}. Used by the mixed-pushability routing case in
+    * {@link #framePushable(WindowExpressionRef, SQLHelper)}) — i.e. one already merged into the
+    * pushed-down SQL by {@link #mergeColumn}. Used by the mixed-pushability routing case in
     * {@link #getWindowTableLens}: when a query is mergeable but not every window column's frame
     * is pushable (e.g. one ROWS column + one RANGE column on a non-Postgres source), the ROWS
     * column is already in the generated SQL and must NOT also be recomputed here — building a
@@ -3013,7 +3013,7 @@ public abstract class AssetQuery extends PreAssetQuery {
 
          WindowExpressionRef w = (WindowExpressionRef) bref;
 
-         if(skipPushable && framePushable(w.getFrameMode(), helper)) {
+         if(skipPushable && framePushable(w, helper)) {
             // Already merged into the pushed-down SQL by mergeColumn — do not also compute it
             // in memory (see javadoc above).
             continue;
@@ -3186,8 +3186,9 @@ public abstract class AssetQuery extends PreAssetQuery {
     * dialect — the OVER is already in the SELECT (byte-parity: {@link #buildWindowLens} is not
     * even reached in this case). For a mergeable source where SOME but not all window columns'
     * frame modes (RANGE/GROUPS) are pushable on the source dialect (see
-    * {@link #framePushable(String, SQLHelper)}), the pushable ones are already merged into the
-    * SQL by {@link #mergeColumn} — only the non-pushable ones still need computing, so this
+    * {@link #framePushable(WindowExpressionRef, SQLHelper)}), the pushable ones are already
+    * merged into the SQL by {@link #mergeColumn} — only the non-pushable ones still need
+    * computing, so this
     * routes through the helper-aware {@link #buildWindowLens(TableLens, ColumnSelection, SQLHelper)}
     * overload, which builds specs ONLY for those (see {@link #buildWindowSpecs(XTable,
     * ColumnSelection, SQLHelper)}): a pushable column must not also be recomputed in memory
@@ -3221,33 +3222,33 @@ public abstract class AssetQuery extends PreAssetQuery {
    }
 
    /**
-    * v1 dialect capability map: frame modes {@code postgresql} can push down as SQL (Phase 4).
-    * Every other dialect only pushes {@code ROWS} (Phase 3); {@code RANGE}/{@code GROUPS} fall
-    * back to the in-memory {@link WindowTableLens} engine there.
-    */
-   private static final Set<String> PG_PUSHABLE = Set.of("ROWS", "RANGE", "GROUPS");
-
-   /**
-    * Can {@code mode} be pushed down as SQL on the dialect behind {@code helper}?
-    * {@code ROWS} pushes on every dialect (Phase 3, unchanged). {@code RANGE}/{@code GROUPS}
-    * push only on PostgreSQL (v1 capability map — see {@link #PG_PUSHABLE}); every other
-    * dialect (including a {@code null} helper, e.g. a non-JDBC tabular source) routes them to
-    * the in-memory engine.
+    * Can {@code w}'s frame be pushed down as SQL on the dialect behind {@code helper}? Derives
+    * the frame's shape (mode, whether a real value offset is present, whether it is a date
+    * INTERVAL) from the ref and delegates the dialect decision to
+    * {@link SQLHelper#supportsWindowFrame}. A frame-less ref (no explicit frame — e.g. a bare
+    * ROW_NUMBER/RANK, or the Phase-3 default) is always "pushable": it emits no dialect-specific
+    * frame syntax at all, so there is nothing for the dialect to refuse.
     * <p>
     * Package-private so {@code WindowRoutingTest} can exercise it directly with lightweight
     * {@link SQLHelper} instances (no live connection required).
-    * @param mode the frame mode: {@code ROWS}, {@code RANGE}, or {@code GROUPS}.
+    * @param w the window column whose frame is being routed.
     * @param helper the source dialect's SQL helper, or {@code null} if there is none (e.g. a
-    *               tabular/non-JDBC source, which is never frame-pushable beyond ROWS).
-    * @return {@code true} if {@code mode} can be emitted as a pushed-down SQL frame clause.
+    *               tabular/non-JDBC source, which is never frame-pushable beyond a frame-less
+    *               ref or ROWS).
+    * @return {@code true} if {@code w}'s frame can be emitted as a pushed-down SQL frame clause.
     */
-   static boolean framePushable(String mode, SQLHelper helper) {
-      if("ROWS".equals(mode)) {
-         return true;
+   static boolean framePushable(WindowExpressionRef w, SQLHelper helper) {
+      if(!w.hasExplicitFrame()) {
+         return true;   // frame-less / LAST_VALUE default — no dialect-specific frame syntax
       }
 
-      String type = helper == null ? null : helper.getSQLHelperType();
-      return "postgresql".equals(type) && PG_PUSHABLE.contains(mode);
+      String mode = w.getFrameMode();
+      boolean hasValueOffset =
+         "PRECEDING".equals(w.getFrameStartBound()) || "FOLLOWING".equals(w.getFrameStartBound())
+         || "PRECEDING".equals(w.getFrameEndBound()) || "FOLLOWING".equals(w.getFrameEndBound());
+      boolean dateOffset = w.getFrameOffsetUnit() != null;
+
+      return helper != null && helper.supportsWindowFrame(mode, hasValueOffset, dateOffset);
    }
 
    /**
@@ -3271,7 +3272,7 @@ public abstract class AssetQuery extends PreAssetQuery {
          DataRef bref = ((ColumnRef) ref).getDataRef();
 
          if(bref instanceof WindowExpressionRef &&
-            !framePushable(((WindowExpressionRef) bref).getFrameMode(), helper))
+            !framePushable((WindowExpressionRef) bref, helper))
          {
             return false;
          }
@@ -3281,16 +3282,16 @@ public abstract class AssetQuery extends PreAssetQuery {
    }
 
    /**
-    * Dialect capability gate (Phase 4): refuse to inline a {@link WindowExpressionRef} column
-    * into the pushed-down SQL when its frame mode is not pushable on this query's source
-    * dialect (see {@link #framePushable(String, SQLHelper)}) — e.g. a RANGE/GROUPS frame on a
-    * non-PostgreSQL source. Returning {@code false} here leaves the column out of the SQL
-    * SELECT and {@code column.isProcessed()} false; {@link #getWindowTableLens} then computes
-    * it in memory instead, so it is never both inlined AND lens-computed.
+    * Dialect capability gate (Phase 4/5): refuse to inline a {@link WindowExpressionRef} column
+    * into the pushed-down SQL when its frame is not pushable on this query's source dialect
+    * (see {@link #framePushable(WindowExpressionRef, SQLHelper)}) — e.g. a RANGE/GROUPS frame on
+    * a dialect that doesn't support it. Returning {@code false} here leaves the column out of
+    * the SQL SELECT and {@code column.isProcessed()} false; {@link #getWindowTableLens} then
+    * computes it in memory instead, so it is never both inlined AND lens-computed.
     * <p>
-    * ROWS frames (and every frame on PostgreSQL) are unaffected — this override delegates to
-    * {@code super.mergeColumn} exactly as before, so pushdown SQL text is byte-for-byte
-    * identical to pre-Phase-4 behavior for those cases (byte-parity requirement).
+    * ROWS frames (and every frame the dialect opts into) are unaffected — this override
+    * delegates to {@code super.mergeColumn} exactly as before, so pushdown SQL text is
+    * byte-for-byte identical to pre-Phase-4 behavior for those cases (byte-parity requirement).
     */
    @Override
    protected boolean mergeColumn(XSelection nselection, ColumnRef column,
@@ -3301,7 +3302,7 @@ public abstract class AssetQuery extends PreAssetQuery {
       if(bref instanceof WindowExpressionRef) {
          SQLHelper helper = AssetUtil.getSQLHelper(getTable());
 
-         if(!framePushable(((WindowExpressionRef) bref).getFrameMode(), helper)) {
+         if(!framePushable((WindowExpressionRef) bref, helper)) {
             return false;
          }
       }
