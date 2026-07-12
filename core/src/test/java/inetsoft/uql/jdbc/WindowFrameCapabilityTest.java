@@ -355,4 +355,67 @@ class WindowFrameCapabilityTest {
       assertFalse(h.supportsWindowFrame("RANGE", true, true));
       assertFalse(h.supportsWindowFrame("GROUPS", false, false));
    }
+
+   // ── PR #4237 review finding A: capability<->render coupling ─────────────────────────────
+   // supportsWindowFrame("RANGE", true, true) (date-offset RANGE pushdown) and
+   // formatWindowFrameInterval(...) (the dialect's INTERVAL literal renderer) are two separate
+   // methods maintained by hand; nothing in the compiler ties them together. If a future dialect
+   // opts into date-RANGE pushdown but forgets to override formatWindowFrameInterval, it would
+   // silently fall through to the base INTERVAL '<n> <unit>' literal -- which happens to be
+   // Postgres/ANSI syntax -- and emit a DB syntax error at query time instead of failing a build.
+   // PostgreSQLHelper is the one dialect that legitimately opts in AND legitimately inherits the
+   // base literal (its own syntax IS the base syntax), so it is the sole, explicit allow-list
+   // exemption. Every other date-RANGE opt-in dialect must render something other than the base
+   // literal.
+   @Test
+   void dateRangeOptIn_requiresNonBaseIntervalRenderer_exceptPostgres() {
+      String baseLiteral = new SQLHelper().formatWindowFrameInterval(7, "day");
+      assertEquals("INTERVAL '7 day'", baseLiteral);
+
+      SQLHelper[] helpers = new SQLHelper[] {
+         new SQLHelper(),
+         new PostgreSQLHelper(),
+         new OracleSQLHelper(),
+         new MySQLHelper(),
+         new DB2SQLHelper(),
+         new DatabricksHelper(),
+         new VerticaHelper(),
+         new GoogleBigQueryHelper(),
+         new InformixSQLHelper(),
+         new SQLServerHelper(),
+         new SnowflakeHelper(),
+      };
+
+      for(SQLHelper h : helpers) {
+         if(!h.supportsWindowFrame("RANGE", true, true)) {
+            // this dialect doesn't opt into date-offset RANGE pushdown at all; the coupling
+            // doesn't apply (nothing will ever be pushed down for it to mis-render).
+            continue;
+         }
+
+         if(h instanceof PostgreSQLHelper) {
+            // the one intentional base-inheritor: skip the mismatch assertion below, but
+            // confirm (outside the loop) that it really does opt in and really does inherit.
+            continue;
+         }
+
+         assertNotEquals(baseLiteral, h.formatWindowFrameInterval(7, "day"),
+            h.getClass().getSimpleName() + " opts into date-offset RANGE pushdown " +
+            "(supportsWindowFrame(\"RANGE\", true, true) == true) but formatWindowFrameInterval " +
+            "renders the base Postgres/ANSI literal (" + baseLiteral + ") -- it is missing its " +
+            "own formatWindowFrameInterval override and would emit invalid syntax for its " +
+            "dialect at query time.");
+      }
+
+      // Document that PostgreSQL is the deliberate exception, not a silently-skipped dialect:
+      // it DOES opt into date-RANGE pushdown, and it DOES render the base literal on purpose.
+      PostgreSQLHelper pg = new PostgreSQLHelper();
+      assertTrue(pg.supportsWindowFrame("RANGE", true, true),
+         "PostgreSQL is expected to opt into date-offset RANGE pushdown");
+      assertEquals(baseLiteral, pg.formatWindowFrameInterval(7, "day"),
+         "PostgreSQL is the intentional base-literal inheritor (its native syntax IS the base " +
+         "ANSI syntax); if this ever fails, PostgreSQLHelper picked up its own " +
+         "formatWindowFrameInterval override and the allow-list carve-out above should be " +
+         "revisited.");
+   }
 }
