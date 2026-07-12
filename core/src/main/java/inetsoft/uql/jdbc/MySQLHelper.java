@@ -126,6 +126,34 @@ public class MySQLHelper extends SQLHelper {
    }
 
    /**
+    * MySQL >= 8 (and MariaDB >= 10, via the version gate on {@link #WINDOW_FUNCTION} above)
+    * supports RANGE frames with a numeric or date/time (INTERVAL) value offset, e.g.
+    * {@code RANGE BETWEEN INTERVAL 7 DAY PRECEDING AND CURRENT ROW}. The GROUPS frame unit is
+    * parsed but not implemented by MySQL; left denied here (falls back to the correct
+    * in-memory engine).
+    */
+   @Override
+   public boolean supportsWindowFrame(String mode, boolean hasValueOffset, boolean dateOffset) {
+      if(!supportsOperation(WINDOW_FUNCTION)) {
+         return false;
+      }
+
+      if("RANGE".equals(mode)) {
+         return true;   // peer, numeric value, and date INTERVAL offsets all supported
+      }
+
+      return super.supportsWindowFrame(mode, hasValueOffset, dateOffset);   // ROWS true, GROUPS false
+   }
+
+   /**
+    * MySQL's interval literal has no surrounding quotes: {@code INTERVAL 7 DAY}.
+    */
+   @Override
+   public String formatWindowFrameInterval(int offset, String unit) {
+      return "INTERVAL " + offset + " " + unit.toUpperCase();
+   }
+
+   /**
     * Get a sql string for replacing the table name so a row limit is added
     * to restrict the number of rows from the table.
     */

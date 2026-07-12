@@ -321,6 +321,33 @@ class OracleSQLHelper extends SQLHelper {
       return 1000;
    }
 
+   /**
+    * Oracle supports RANGE frames with a numeric or date/time (INTERVAL) value offset, e.g.
+    * {@code RANGE BETWEEN INTERVAL '7' DAY PRECEDING AND CURRENT ROW}. GROUPS frames were only
+    * added in Oracle 21c; left denied here (falls back to the correct in-memory engine).
+    */
+   @Override
+   public boolean supportsWindowFrame(String mode, boolean hasValueOffset, boolean dateOffset) {
+      if(!supportsOperation(WINDOW_FUNCTION)) {
+         return false;
+      }
+
+      if("RANGE".equals(mode)) {
+         return true;   // peer, numeric value, and date INTERVAL offsets all supported
+      }
+
+      return super.supportsWindowFrame(mode, hasValueOffset, dateOffset);   // ROWS true, GROUPS false
+   }
+
+   /**
+    * Oracle's date/time interval literal quotes only the numeral; the unit keyword is
+    * unquoted and conventionally upper-cased, e.g. {@code INTERVAL '7' DAY}.
+    */
+   @Override
+   public String formatWindowFrameInterval(int offset, String unit) {
+      return "INTERVAL '" + offset + "' " + unit.toUpperCase();
+   }
+
    private static Set keywords = new HashSet(); // keywords
 
    static {

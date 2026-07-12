@@ -116,4 +116,32 @@ public class DatabricksHelper extends SQLHelper {
    protected boolean supportsMapKeySubqueryAliasing() {
       return true;
    }
+
+   /**
+    * Databricks/Spark SQL supports RANGE frames with a numeric or date/time (INTERVAL) value
+    * offset, e.g. {@code RANGE BETWEEN INTERVAL 7 DAYS PRECEDING AND CURRENT ROW}. GROUPS
+    * frames are not part of Spark's window-frame grammar; left denied here (falls back to
+    * the correct in-memory engine).
+    */
+   @Override
+   public boolean supportsWindowFrame(String mode, boolean hasValueOffset, boolean dateOffset) {
+      if(!supportsOperation(WINDOW_FUNCTION)) {
+         return false;
+      }
+
+      if("RANGE".equals(mode)) {
+         return true;   // peer, numeric value, and date INTERVAL offsets all supported
+      }
+
+      return super.supportsWindowFrame(mode, hasValueOffset, dateOffset);   // ROWS true, GROUPS false
+   }
+
+   /**
+    * Spark SQL's multi-unit interval literal is unquoted with a plural unit keyword, e.g.
+    * {@code INTERVAL 7 DAYS}.
+    */
+   @Override
+   public String formatWindowFrameInterval(int offset, String unit) {
+      return "INTERVAL " + offset + " " + unit.toUpperCase() + "S";
+   }
 }

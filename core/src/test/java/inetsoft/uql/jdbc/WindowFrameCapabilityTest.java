@@ -70,4 +70,73 @@ class WindowFrameCapabilityTest {
       assertTrue(h.supportsWindowFrame("GROUPS", false, false));   // PG >= 11 (default permissive when version unknown)
       assertEquals("INTERVAL '7 day'", h.formatWindowFrameInterval(7, "day"));   // inherits base literal
    }
+
+   // ── Strong tier: opt-in RANGE value/date pushdown, GROUPS still denied ──
+
+   @Test
+   void oracle_rangeValueAndDate_noGroups() {
+      OracleSQLHelper h = new OracleSQLHelper();
+      assertTrue(h.supportsWindowFrame("ROWS", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", false, false));   // peer
+      assertTrue(h.supportsWindowFrame("RANGE", true, false));    // numeric value
+      assertTrue(h.supportsWindowFrame("RANGE", true, true));     // date INTERVAL
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));
+      assertEquals("INTERVAL '7' DAY", h.formatWindowFrameInterval(7, "day"));
+   }
+
+   @Test
+   void mysql_rangeValueAndDate_noGroups() {
+      MySQLHelper h = new MySQLHelper();
+      // no UniformSQL wired -> getDataSource() is null -> WINDOW_FUNCTION version gate is
+      // permissive (see MySQLHelper#supportsOperation), same as WindowFunctionCapabilityTest.
+      assertTrue(h.supportsWindowFrame("ROWS", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", false, false));
+      assertTrue(h.supportsWindowFrame("RANGE", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", true, true));
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));
+      assertEquals("INTERVAL 7 DAY", h.formatWindowFrameInterval(7, "day"));
+   }
+
+   @Test
+   void db2_rangeValueAndDate_noGroups() {
+      DB2SQLHelper h = new DB2SQLHelper();
+      assertTrue(h.supportsWindowFrame("ROWS", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", false, false));
+      assertTrue(h.supportsWindowFrame("RANGE", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", true, true));
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));
+      assertEquals("7 DAYS", h.formatWindowFrameInterval(7, "day"));   // labeled duration, no INTERVAL keyword
+   }
+
+   @Test
+   void databricks_rangeValueAndDate_noGroups() {
+      DatabricksHelper h = new DatabricksHelper();
+      assertTrue(h.supportsWindowFrame("ROWS", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", false, false));
+      assertTrue(h.supportsWindowFrame("RANGE", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", true, true));
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));
+      assertEquals("INTERVAL 7 DAYS", h.formatWindowFrameInterval(7, "day"));
+   }
+
+   @Test
+   void vertica_rangeValueAndDate_noGroups() {
+      VerticaHelper h = new VerticaHelper();
+      assertTrue(h.supportsWindowFrame("ROWS", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", false, false));
+      assertTrue(h.supportsWindowFrame("RANGE", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", true, true));
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));
+      assertEquals("INTERVAL '7 days'", h.formatWindowFrameInterval(7, "day"));
+   }
+
+   @Test
+   void bigquery_numericRangeOnly_noInterval() {
+      GoogleBigQueryHelper h = new GoogleBigQueryHelper();
+      assertTrue(h.supportsWindowFrame("ROWS", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", false, false));
+      assertTrue(h.supportsWindowFrame("RANGE", true, false));    // numeric
+      assertFalse(h.supportsWindowFrame("RANGE", true, true));    // no date INTERVAL frame
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));
+   }
 }

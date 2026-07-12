@@ -55,4 +55,32 @@ public class VerticaHelper extends SQLHelper {
    public boolean isApplyMaxRowsToTopLevel() {
       return true;
    }
+
+   /**
+    * Vertica supports RANGE frames with a numeric or date/time (INTERVAL) value offset, e.g.
+    * {@code RANGE BETWEEN INTERVAL '7 days' PRECEDING AND CURRENT ROW}. GROUPS frames are not
+    * part of Vertica's documented window-frame grammar; left denied here (falls back to the
+    * correct in-memory engine).
+    */
+   @Override
+   public boolean supportsWindowFrame(String mode, boolean hasValueOffset, boolean dateOffset) {
+      if(!supportsOperation(WINDOW_FUNCTION)) {
+         return false;
+      }
+
+      if("RANGE".equals(mode)) {
+         return true;   // peer, numeric value, and date INTERVAL offsets all supported
+      }
+
+      return super.supportsWindowFrame(mode, hasValueOffset, dateOffset);   // ROWS true, GROUPS false
+   }
+
+   /**
+    * Vertica's interval literal quotes the quantity and unit together, with a plural,
+    * lower-cased unit, e.g. {@code INTERVAL '7 days'}.
+    */
+   @Override
+   public String formatWindowFrameInterval(int offset, String unit) {
+      return "INTERVAL '" + offset + " " + unit.toLowerCase() + "s'";
+   }
 }

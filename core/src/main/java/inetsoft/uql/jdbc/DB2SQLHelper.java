@@ -98,6 +98,35 @@ class DB2SQLHelper extends SQLHelper {
       return true;
    }
 
+   /**
+    * DB2 (LUW) supports RANGE frames with a numeric or date/time (labeled duration) value
+    * offset, e.g. {@code RANGE BETWEEN 7 DAYS PRECEDING AND CURRENT ROW}. GROUPS frames are
+    * not part of DB2's documented window-frame grammar; left denied here (falls back to the
+    * correct in-memory engine).
+    */
+   @Override
+   public boolean supportsWindowFrame(String mode, boolean hasValueOffset, boolean dateOffset) {
+      if(!supportsOperation(WINDOW_FUNCTION)) {
+         return false;
+      }
+
+      if("RANGE".equals(mode)) {
+         return true;   // peer, numeric value, and date (labeled duration) offsets all supported
+      }
+
+      return super.supportsWindowFrame(mode, hasValueOffset, dateOffset);   // ROWS true, GROUPS false
+   }
+
+   /**
+    * DB2 has no ISO INTERVAL literal type; date/time offsets are expressed as a labeled
+    * duration (the same mechanism used for date arithmetic elsewhere in DB2), e.g.
+    * {@code 7 DAYS} -- no {@code INTERVAL} keyword, plural unit.
+    */
+   @Override
+   public String formatWindowFrameInterval(int offset, String unit) {
+      return offset + " " + unit.toUpperCase() + "S";
+   }
+
    private static Set keywords = new HashSet(); // keywords
 
    static {
