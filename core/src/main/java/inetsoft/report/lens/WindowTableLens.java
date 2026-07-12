@@ -367,10 +367,11 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
          int[] fr = frameSlice(spec, start, end, p);
 
          if(fr == null) {
+            // Empty frame: COUNT is 0; every other aggregate is NULL over zero rows
+            // (ANSI SQL / JDBC-pushdown parity — SUM of no rows is NULL, not 0).
             switch(spec.fn) {
             case "COUNT": return 0;
-            case "SUM":   return 0.0;
-            default:      return null;   // AVG/MIN/MAX
+            default:      return null;   // SUM/AVG/MIN/MAX
             }
          }
 
@@ -394,7 +395,7 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
 
          switch(spec.fn) {
          case "COUNT": return cnt;
-         case "SUM":   return sum;
+         case "SUM":   return cnt == 0 ? null : sum;
          case "AVG":   return cnt == 0 ? null : sum / cnt;
          case "MIN":   return cnt == 0 ? null : min;
          default:      return cnt == 0 ? null : max;   // MAX

@@ -203,10 +203,34 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
     * @param endOffset the frame end offset (used for PRECEDING/FOLLOWING).
     */
    public void setFrame(String startBound, int startOffset, String endBound, int endOffset) {
+      requireValidFrameBound(startBound, startOffset);
+      requireValidFrameBound(endBound, endOffset);
       this.frameStartBound = startBound;
       this.frameStartOffset = startOffset;
       this.frameEndBound = endBound;
       this.frameEndOffset = endOffset;
+   }
+
+   /** Recognized ROWS frame bound tokens (see {@link #setFrame}). */
+   private static final Set<String> VALID_FRAME_BOUNDS = Set.of(
+      "UNBOUNDED_PRECEDING", "PRECEDING", "CURRENT_ROW", "FOLLOWING", "UNBOUNDED_FOLLOWING");
+
+   /**
+    * Guard against a caller constructing a {@code WindowExpressionRef} frame directly (bypassing
+    * the wire-level validation in {@code WorksheetTableService}): reject an unrecognized bound
+    * token, or a non-positive offset on a {@code PRECEDING}/{@code FOLLOWING} bound. Fixed bounds
+    * (the two UNBOUNDED bounds and CURRENT_ROW) are not required to carry offset {@code 0} here
+    * -- the normal gateway already normalizes those.
+    */
+   private static void requireValidFrameBound(String bound, int offset) {
+      if(bound == null || !VALID_FRAME_BOUNDS.contains(bound)) {
+         throw new IllegalArgumentException("invalid window frame bound: " + bound);
+      }
+
+      if(("PRECEDING".equals(bound) || "FOLLOWING".equals(bound)) && offset <= 0) {
+         throw new IllegalArgumentException(
+            "window frame bound '" + bound + "' requires a positive offset");
+      }
    }
 
    /**
@@ -366,7 +390,7 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
     */
    private String getFrameFragment() {
       if(frameStartBound == null) {
-         return "LAST_VALUE".equals(fn) ?
+         return "LAST_VALUE".equalsIgnoreCase(fn) ?
             "ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING" : "";
       }
 

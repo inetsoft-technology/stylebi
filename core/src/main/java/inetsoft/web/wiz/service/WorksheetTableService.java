@@ -1226,6 +1226,12 @@ public class WorksheetTableService {
          return offset;
       }
 
+      if(offset != null) {
+         throw new IllegalArgumentException(
+            "windowColumns['" + colName + "']: frame bound '" + bound +
+            "' must not carry an offset");
+      }
+
       return 0;
    }
 
@@ -1238,6 +1244,16 @@ public class WorksheetTableService {
    private static void validateFrameOrder(String colName, String startBound, int startOffset,
                                           String endBound, int endOffset)
    {
+      if("UNBOUNDED_FOLLOWING".equals(startBound)) {
+         throw new IllegalArgumentException(
+            "windowColumns['" + colName + "']: frame start bound cannot be UNBOUNDED_FOLLOWING");
+      }
+
+      if("UNBOUNDED_PRECEDING".equals(endBound)) {
+         throw new IllegalArgumentException(
+            "windowColumns['" + colName + "']: frame end bound cannot be UNBOUNDED_PRECEDING");
+      }
+
       if(frameBoundRank(startBound, startOffset) > frameBoundRank(endBound, endOffset)) {
          throw new IllegalArgumentException(
             "windowColumns['" + colName + "']: frame start (" + startBound +

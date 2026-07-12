@@ -262,6 +262,22 @@ class WindowTableLensTest {
    }
 
    @Test
+   void emptyFrame_sumIsNull_countIsZero_notSumZero() {
+      // single partition, ordered asc: 10,20,30. ROWS BETWEEN 2 FOLLOWING AND 3 FOLLOWING.
+      // For the LAST row (p=2, size=3) both bounds fall past the end of the partition → empty
+      // frame. SUM/AVG/MIN/MAX must be NULL (ANSI/JDBC parity), NOT 0.0; COUNT must be 0.
+      Object[][] d = {{"amount"},{10.0},{20.0},{30.0}};
+      DefaultTableLens t = new DefaultTableLens(d); t.setHeaderRowCount(1);
+      WindowTableLens.Spec sum = new WindowTableLens.Spec(
+         "s","SUM",0,0,new int[0],new int[]{0},new boolean[]{true},"FOLLOWING",2,"FOLLOWING",3);
+      WindowTableLens.Spec cnt = new WindowTableLens.Spec(
+         "c","COUNT",0,0,new int[0],new int[]{0},new boolean[]{true},"FOLLOWING",2,"FOLLOWING",3);
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{sum, cnt});
+      assertNull(cell(lens, 2, 1));         // SUM over empty frame on last row → null, not 0.0
+      assertEquals(0, cell(lens, 2, 2));    // COUNT over empty frame on last row → 0
+   }
+
+   @Test
    void centeredFrame_1precedingTo1following() {
       Object[][] d = {{"amount"},{10.0},{20.0},{30.0}};
       DefaultTableLens t = new DefaultTableLens(d); t.setHeaderRowCount(1);

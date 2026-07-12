@@ -340,6 +340,43 @@ class WindowExpressionRefTest {
    }
 
    @Test
+   void setFrame_precedingWithZeroOffset_throws() {
+      // PRECEDING/FOLLOWING require a positive offset — setFrame is a programmatic-construction
+      // entry point that bypasses WorksheetTableService's wire-level validation, so it must guard
+      // itself: the in-memory WindowTableLens.boundPos does raw p+/-offset arithmetic and trusts
+      // whatever is stored here.
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "SUM", new AttributeRef("amount"), 0, List.of(), List.of(sort("t", XConstants.SORT_ASC)));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> ref.setFrame("PRECEDING", 0, "CURRENT_ROW", 0));
+      assertTrue(ex.getMessage().contains("PRECEDING"));
+   }
+
+   @Test
+   void setFrame_invalidBoundToken_throws() {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "SUM", new AttributeRef("amount"), 0, List.of(), List.of(sort("t", XConstants.SORT_ASC)));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> ref.setFrame("BOGUS_BOUND", 0, "CURRENT_ROW", 0));
+      assertTrue(ex.getMessage().contains("BOGUS_BOUND"));
+   }
+
+   @Test
+   void lastValue_lowercaseFn_stillDefaultsToWholePartition() {
+      // A raw /ws/table caller sending lowercase fn must not silently lose the whole-partition
+      // frame synthesis (Fix 5) — "last_value".equals("LAST_VALUE") is false, so the frame-less
+      // branch must use equalsIgnoreCase.
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "last_value", new AttributeRef("amount"), 0, List.of(new AttributeRef("stage")),
+         List.of(sort("t", XConstants.SORT_ASC)));
+      assertTrue(ref.getExpression().contains(
+         "ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING"),
+         "lowercase-fn LAST_VALUE must still emit the whole-partition frame: " + ref.getExpression());
+   }
+
+   @Test
    void frame_xmlRoundTrip() throws Exception {
       WindowExpressionRef ref = new WindowExpressionRef(
          "SUM", new AttributeRef("amount"), 0, List.of(), List.of(sort("t", XConstants.SORT_ASC)));
