@@ -175,6 +175,34 @@ class WindowTableLensTest {
    }
 
    @Test
+   void rankWithNoOrder_tiesWholePartition_evenWhenSharingLensWithOrderedAggregate() {
+      // A RANK() OVER (PARTITION BY stage) with NO ORDER BY, sharing the lens with a running
+      // SUM that DOES declare ORDER BY amount. The lens sorts rows once by the shared order
+      // (amount); the rank kernel must key off ITS OWN (empty) order — so the whole partition
+      // ties (RANK = 1 for every row), NOT rank by the SUM's amount order (which would give
+      // 1,2,3 within partition A). This test FAILS if the rank kernel uses the shared order.
+      Object[][] data = {{"stage","amount"},{"A",10.0},{"A",20.0},{"A",30.0},{"B",5.0}};
+      DefaultTableLens t = new DefaultTableLens(data); t.setHeaderRowCount(1);
+      // running SUM ordered asc by amount (partition by stage)
+      WindowTableLens.Spec run = new WindowTableLens.Spec(
+         "rt", "SUM", 1, 0, new int[]{0}, new int[]{1}, new boolean[]{true});
+      // RANK partitioned by stage with NO order → whole partition ties at 1
+      WindowTableLens.Spec rk = new WindowTableLens.Spec(
+         "rk", "RANK", -1, 0, new int[]{0}, new int[0], new boolean[0]);
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{run, rk});
+      // running SUM (col 2): A → 10,30,60 ; B → 5
+      assertEquals(10.0, cell(lens, 0, 2));
+      assertEquals(30.0, cell(lens, 1, 2));
+      assertEquals(60.0, cell(lens, 2, 2));
+      assertEquals(5.0,  cell(lens, 3, 2));
+      // RANK (col 3): every row ties within its partition → all 1
+      assertEquals(1, cell(lens, 0, 3));
+      assertEquals(1, cell(lens, 1, 3));
+      assertEquals(1, cell(lens, 2, 3));
+      assertEquals(1, cell(lens, 3, 3));
+   }
+
+   @Test
    void countAvgMinMax_partitionWide() {
       Object[][] data = {{"stage","amount"},{"A",10.0},{"A",30.0}};
       DefaultTableLens t = new DefaultTableLens(data); t.setHeaderRowCount(1);

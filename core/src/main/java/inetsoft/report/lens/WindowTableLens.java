@@ -289,7 +289,7 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
          // rank of a tie = position of the first row sharing its order key
          int first = p;
 
-         while(first > 0 && orderKeyCompare(idx[start + first - 1], idx[start + p]) == 0) {
+         while(first > 0 && orderKeyCompare(spec, idx[start + first - 1], idx[start + p]) == 0) {
             first--;
          }
 
@@ -299,7 +299,7 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
          int dr = 1;
 
          for(int q = 1; q <= p; q++) {
-            if(orderKeyCompare(idx[start + q - 1], idx[start + q]) != 0) {
+            if(orderKeyCompare(spec, idx[start + q - 1], idx[start + q]) != 0) {
                dr++;
             }
          }
@@ -375,7 +375,7 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
          int sz = end - start;
          int first = p;
 
-         while(first > 0 && orderKeyCompare(idx[start + first - 1], idx[start + p]) == 0) {
+         while(first > 0 && orderKeyCompare(spec, idx[start + first - 1], idx[start + p]) == 0) {
             first--;
          }
 
@@ -385,7 +385,7 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
          int sz = end - start;
          int last = p;   // number of rows with order key <= current, minus 1
 
-         while(last + 1 < sz && orderKeyCompare(idx[start + last + 1], idx[start + p]) == 0) {
+         while(last + 1 < sz && orderKeyCompare(spec, idx[start + last + 1], idx[start + p]) == 0) {
             last++;
          }
 
@@ -396,11 +396,19 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
       }
    }
 
-   /** Compare two data rows (0-based) by the order-by key only (0 = same order key = tie). */
-   private int orderKeyCompare(int a, int b) {
+   /**
+    * Compare two data rows (0-based) by the ORDER BY key of a SPECIFIC spec (0 = same order key
+    * = tie). Rank/dist kernels must tie on their OWN order, not the table-shared order: a
+    * RANK/DENSE_RANK/PERCENT_RANK/CUME_DIST window with NO ORDER BY ties the whole partition
+    * (spec.orderCols is empty → the loop below never runs → always 0), even when it shares the
+    * lens with an ordered running aggregate. When the spec's own order is non-empty it equals
+    * the table-shared order (divergent non-empty orders are rejected upstream in
+    * AssetQuery.checkCompatiblePartitionAndOrder), so no behavior changes for ordered specs.
+    */
+   private int orderKeyCompare(Spec spec, int a, int b) {
       int hrows = table.getHeaderRowCount();
-      int[] ocols = orderCols();
-      boolean[] oasc = orderAsc();
+      int[] ocols = spec.orderCols;
+      boolean[] oasc = spec.orderAsc;
 
       for(int i = 0; i < ocols.length; i++) {
          int r = Tool.compare(table.getObject(a + hrows, ocols[i]), table.getObject(b + hrows, ocols[i]), true, true);

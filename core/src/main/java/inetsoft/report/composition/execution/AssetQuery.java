@@ -2944,15 +2944,24 @@ public abstract class AssetQuery extends PreAssetQuery {
 
    /**
     * Build WindowTableLens specs from the window-expression columns in a column selection,
-    * resolving each partitionBy/orderBy/arg ref to its index in that same selection. Returns an
-    * empty array if there are no window columns.
+    * resolving each partitionBy/orderBy/arg ref to its index IN {@code base} — the runtime
+    * table the window lens will actually read. Returns an empty array if there are no window
+    * columns.
+    * <p>
+    * The column selection and {@code base} are DIFFERENT coordinate spaces: getFormulaTableLens
+    * skips WindowExpressionRef columns, so {@code base} does not contain the window columns at
+    * all, and a name-only index into the selection would silently point at the wrong base column
+    * (or out of bounds). We therefore resolve every ref against {@code base} with
+    * {@link AssetUtil#findColumn(XTable, DataRef)}, which matches by full identifier /
+    * entity+attribute / header (the codebase convention), not a bare name scan of the selection.
     * <p>
     * Package-private and static so it can be unit-tested directly (see WindowRoutingTest)
     * without a live query.
+    * @param base the runtime base table the WindowTableLens will wrap and read from.
     * @param cols the column selection to scan for WindowExpressionRef columns.
     * @return the resolved specs, one per window column, in selection order.
     */
-   static WindowTableLens.Spec[] buildWindowSpecs(ColumnSelection cols) {
+   static WindowTableLens.Spec[] buildWindowSpecs(XTable base, ColumnSelection cols) {
       List<WindowTableLens.Spec> specs = new ArrayList<>();
 
       for(int i = 0; i < cols.getAttributeCount(); i++) {
@@ -2962,31 +2971,32 @@ public abstract class AssetQuery extends PreAssetQuery {
             continue;
          }
 
-         DataRef base = ((ColumnRef) ref).getDataRef();
+         DataRef bref = ((ColumnRef) ref).getDataRef();
 
-         if(!(base instanceof WindowExpressionRef)) {
+         if(!(bref instanceof WindowExpressionRef)) {
             continue;
          }
 
-         WindowExpressionRef w = (WindowExpressionRef) base;
+         WindowExpressionRef w = (WindowExpressionRef) bref;
          DataRef argRef = w.getArgRef();
-         int arg = argRef == null ? -1 : indexOf(cols, argRef);
+         int arg = argRef == null ? -1 : AssetUtil.findColumn(base, argRef);
          List<DataRef> partRefs = w.getPartitionBy();
-         int[] parts = partRefs.stream().mapToInt(p -> indexOf(cols, p)).toArray();
+         int[] parts = partRefs.stream().mapToInt(p -> AssetUtil.findColumn(base, p)).toArray();
          List<SortRef> obs = w.getOrderBy();
          int[] ocols = new int[obs.size()];
          boolean[] oasc = new boolean[obs.size()];
 
          for(int k = 0; k < obs.size(); k++) {
-            ocols[k] = indexOf(cols, obs.get(k).getDataRef());
+            ocols[k] = AssetUtil.findColumn(base, obs.get(k).getDataRef());
             oasc[k] = obs.get(k).getOrder() == XConstants.SORT_ASC;
          }
 
-         // fail loud: an unresolved (-1) partitionBy/orderBy/argument ref must not silently
-         // flow into WindowTableLens, where it surfaces as a cryptic
-         // ArrayIndexOutOfBoundsException from table.getObject(row, -1). argCol == -1 is only
-         // an error when an argument was actually expected (argRef != null) — ROW_NUMBER/RANK
-         // legitimately have no argument and use -1 as the "no argument" sentinel.
+         // fail loud: a ref that does not resolve in `base` (findColumn returns -1) must not
+         // silently flow into WindowTableLens, where it surfaces as a cryptic
+         // ArrayIndexOutOfBoundsException from table.getObject(row, -1) — or, worse, an in-range
+         // but WRONG index that reads a different column silently. argCol == -1 is only an error
+         // when an argument was actually expected (argRef != null) — ROW_NUMBER/RANK legitimately
+         // have no argument and use -1 as the "no argument" sentinel.
          if(argRef != null && arg < 0) {
             throw new RuntimeException("Window column '" + ref.getName() +
                "': could not resolve argument column '" + argRef.getName() +
@@ -3073,17 +3083,28 @@ public abstract class AssetQuery extends PreAssetQuery {
       }
    }
 
-   /** Index of the column in the selection matching ref by attribute (name), or -1. */
-   private static int indexOf(ColumnSelection cols, DataRef ref) {
-      String name = ref.getName();
+   /**
+    * Resolve the window columns in {@code cols} against {@code base} and, if any exist, wrap
+    * {@code base} in a WindowTableLens that computes them in memory. All partitionBy/orderBy/arg
+    * indices are resolved against {@code base} (see {@link #buildWindowSpecs(XTable, ColumnSelection)})
+    * and validated there (unresolved refs throw a named RuntimeException), so a spec reaching the
+    * lens is guaranteed to reference only valid base columns — no cryptic downstream AIOOBE.
+    * <p>
+    * Package-private and static so it can be exercised as an integration seam (base coordinate
+    * space + value computation) without a live query — see WindowRoutingTest.
+    * @param base the fully post-processed runtime base table.
+    * @param cols the output column selection (source of the WindowExpressionRef columns).
+    * @return {@code base} wrapped in a WindowTableLens, or {@code base} unchanged when there are
+    *         no window columns to compute.
+    */
+   static TableLens buildWindowLens(TableLens base, ColumnSelection cols) {
+      WindowTableLens.Spec[] specs = buildWindowSpecs(base, cols);
 
-      for(int i = 0; i < cols.getAttributeCount(); i++) {
-         if(name != null && name.equals(cols.getAttribute(i).getName())) {
-            return i;
-         }
+      if(specs.length == 0) {
+         return base;
       }
 
-      return -1;
+      return new WindowTableLens(base, specs);
    }
 
    /**
@@ -3100,27 +3121,7 @@ public abstract class AssetQuery extends PreAssetQuery {
          return base;
       }
 
-      ColumnSelection cols = getTable().getColumnSelection(false);
-      WindowTableLens.Spec[] specs = buildWindowSpecs(cols);
-
-      if(specs.length == 0) {
-         return base;
-      }
-
-      // guard: every referenced index must resolve in the post-processed base. This is not a
-      // genuine no-op — it means a window column's argument couldn't be located in the base
-      // table actually produced for this query, so silently returning base would silently drop
-      // the window column instead of computing it. Fail loud instead.
-      for(WindowTableLens.Spec s : specs) {
-         if(s.argCol >= base.getColCount()) {
-            throw new RuntimeException("Window column '" + s.header +
-               "': argument column index " + s.argCol +
-               " is out of bounds for the post-processed base table (" +
-               base.getColCount() + " columns)");
-         }
-      }
-
-      return new WindowTableLens(base, specs);
+      return buildWindowLens(base, getTable().getColumnSelection(false));
    }
 
    /**
