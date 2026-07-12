@@ -155,6 +155,61 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
    }
 
    /**
+    * Get the ROWS frame start bound, e.g. {@code "PRECEDING"}, {@code "UNBOUNDED_PRECEDING"},
+    * {@code "CURRENT_ROW"}. {@code null} means no explicit frame was set.
+    */
+   public String getFrameStartBound() {
+      return frameStartBound;
+   }
+
+   /**
+    * Get the ROWS frame start offset (meaningful only when {@link #getFrameStartBound()} is
+    * {@code "PRECEDING"} or {@code "FOLLOWING"}).
+    */
+   public int getFrameStartOffset() {
+      return frameStartOffset;
+   }
+
+   /**
+    * Get the ROWS frame end bound, e.g. {@code "FOLLOWING"}, {@code "UNBOUNDED_FOLLOWING"},
+    * {@code "CURRENT_ROW"}. {@code null} means no explicit frame was set.
+    */
+   public String getFrameEndBound() {
+      return frameEndBound;
+   }
+
+   /**
+    * Get the ROWS frame end offset (meaningful only when {@link #getFrameEndBound()} is
+    * {@code "PRECEDING"} or {@code "FOLLOWING"}).
+    */
+   public int getFrameEndOffset() {
+      return frameEndOffset;
+   }
+
+   /**
+    * Check whether an explicit ROWS frame was set via {@link #setFrame}.
+    */
+   public boolean hasExplicitFrame() {
+      return frameStartBound != null;
+   }
+
+   /**
+    * Set an explicit ROWS frame. Bound values must be one of {@code UNBOUNDED_PRECEDING},
+    * {@code PRECEDING}, {@code CURRENT_ROW}, {@code FOLLOWING}, {@code UNBOUNDED_FOLLOWING}.
+    *
+    * @param startBound the frame start bound.
+    * @param startOffset the frame start offset (used for PRECEDING/FOLLOWING).
+    * @param endBound the frame end bound.
+    * @param endOffset the frame end offset (used for PRECEDING/FOLLOWING).
+    */
+   public void setFrame(String startBound, int startOffset, String endBound, int endOffset) {
+      this.frameStartBound = startBound;
+      this.frameStartOffset = startOffset;
+      this.frameEndBound = endBound;
+      this.frameEndOffset = endOffset;
+   }
+
+   /**
     * Get the database version.
     */
    @Override
@@ -229,17 +284,27 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
 
    /**
     * Get the OVER clause body (without the surrounding parens): the space-joined concatenation
-    * of the PARTITION BY and ORDER BY fragments, omitting either when empty.
+    * of the non-empty PARTITION BY, ORDER BY, and ROWS frame fragments.
     */
    private String getOverBody() {
+      List<String> fragments = new ArrayList<>();
       String partitionFrag = getPartitionFragment();
       String orderFrag = getOrderFragment();
+      String frameFrag = getFrameFragment();
 
-      if(!partitionFrag.isEmpty() && !orderFrag.isEmpty()) {
-         return partitionFrag + " " + orderFrag;
+      if(!partitionFrag.isEmpty()) {
+         fragments.add(partitionFrag);
       }
 
-      return partitionFrag + orderFrag;
+      if(!orderFrag.isEmpty()) {
+         fragments.add(orderFrag);
+      }
+
+      if(!frameFrag.isEmpty()) {
+         fragments.add(frameFrag);
+      }
+
+      return String.join(" ", fragments);
    }
 
    /**
@@ -286,6 +351,47 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
       }
 
       return sb.toString();
+   }
+
+   /**
+    * Get the {@code ROWS BETWEEN ... AND ...} frame fragment, or "" if no frame clause should be
+    * emitted.
+    * <p>
+    * Frame-less aggregates and {@code FIRST_VALUE} emit no frame clause (byte-parity with the
+    * pre-frame pushdown text — the database's default frame is what today's behavior relies on).
+    * Frame-less {@code LAST_VALUE} is the one exception: without an explicit frame, most databases
+    * default to {@code RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW}, which makes
+    * {@code LAST_VALUE} return the current row instead of the last row of the partition — so an
+    * explicit whole-partition frame is synthesized to give the function its expected semantics.
+    */
+   private String getFrameFragment() {
+      if(frameStartBound == null) {
+         return "LAST_VALUE".equals(fn) ?
+            "ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING" : "";
+      }
+
+      return "ROWS BETWEEN " + frameBoundSql(frameStartBound, frameStartOffset)
+         + " AND " + frameBoundSql(frameEndBound, frameEndOffset);
+   }
+
+   /**
+    * Get the SQL text for a single frame bound.
+    */
+   private static String frameBoundSql(String bound, int offset) {
+      switch(bound) {
+      case "UNBOUNDED_PRECEDING":
+         return "UNBOUNDED PRECEDING";
+      case "UNBOUNDED_FOLLOWING":
+         return "UNBOUNDED FOLLOWING";
+      case "CURRENT_ROW":
+         return "CURRENT ROW";
+      case "PRECEDING":
+         return offset + " PRECEDING";
+      case "FOLLOWING":
+         return offset + " FOLLOWING";
+      default:
+         throw new RuntimeException("invalid window frame bound: " + bound);
+      }
    }
 
    /**
@@ -349,6 +455,13 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
       writer.print(" fn=\"" + Tool.escape(fn) + "\"");
       writer.print(" n=\"" + n + "\"");
 
+      if(frameStartBound != null) {
+         writer.print(" frameStartBound=\"" + Tool.escape(frameStartBound) + "\"");
+         writer.print(" frameStartOffset=\"" + frameStartOffset + "\"");
+         writer.print(" frameEndBound=\"" + Tool.escape(frameEndBound) + "\"");
+         writer.print(" frameEndOffset=\"" + frameEndOffset + "\"");
+      }
+
       if(getDBType() != null) {
          writer.print(" dbType=\"" + Tool.escape(getDBType()) + "\"");
       }
@@ -369,6 +482,12 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
       fn = Tool.getAttribute(tag, "fn");
       String nstr = Tool.getAttribute(tag, "n");
       n = nstr == null ? 0 : Integer.parseInt(nstr);
+      frameStartBound = Tool.getAttribute(tag, "frameStartBound");
+      String startOffsetStr = Tool.getAttribute(tag, "frameStartOffset");
+      frameStartOffset = startOffsetStr == null ? 0 : Integer.parseInt(startOffsetStr);
+      frameEndBound = Tool.getAttribute(tag, "frameEndBound");
+      String endOffsetStr = Tool.getAttribute(tag, "frameEndOffset");
+      frameEndOffset = endOffsetStr == null ? 0 : Integer.parseInt(endOffsetStr);
       setDBType(Tool.getAttribute(tag, "dbType"));
       dbversion = Tool.getAttribute(tag, "dbVersion");
    }
@@ -473,4 +592,8 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
    private List<DataRef> partitionBy = new ArrayList<>();
    private List<SortRef> orderBy = new ArrayList<>();
    private transient String dbversion;
+   private String frameStartBound;   // null = no explicit frame
+   private int frameStartOffset;
+   private String frameEndBound;
+   private int frameEndOffset;
 }

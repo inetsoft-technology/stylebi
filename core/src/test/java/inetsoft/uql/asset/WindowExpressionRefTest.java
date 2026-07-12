@@ -293,4 +293,62 @@ class WindowExpressionRefTest {
                     "argRef must be deep-copied, not shared by reference");
       assertEquals(ref.getArgRef().getName(), clone.getArgRef().getName());
    }
+
+   // ---- ROWS frame (Phase 3 Task 1) -----------------------------------------------------------
+
+   @Test
+   void explicitRowsFrame_emitted() {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "SUM", new AttributeRef("amount"), 0, List.of(new AttributeRef("stage")),
+         List.of(sort("t", XConstants.SORT_ASC)));
+      ref.setFrame("PRECEDING", 2, "CURRENT_ROW", 0);
+      assertEquals(
+         "SUM(field['amount']) OVER (PARTITION BY field['stage'] ORDER BY field['t'] ASC "
+         + "ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)",
+         ref.getExpression());
+   }
+
+   @Test
+   void lastValue_frameless_defaultsToWholePartition() {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "LAST_VALUE", new AttributeRef("amount"), 0, List.of(new AttributeRef("stage")),
+         List.of(sort("t", XConstants.SORT_ASC)));
+      assertEquals(
+         "LAST_VALUE(field['amount']) OVER (PARTITION BY field['stage'] ORDER BY field['t'] ASC "
+         + "ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)",
+         ref.getExpression());
+   }
+
+   @Test
+   void firstValue_frameless_emitsNoFrame_byteParity() {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "FIRST_VALUE", new AttributeRef("amount"), 0, List.of(new AttributeRef("stage")),
+         List.of(sort("t", XConstants.SORT_ASC)));
+      assertEquals(
+         "FIRST_VALUE(field['amount']) OVER (PARTITION BY field['stage'] ORDER BY field['t'] ASC)",
+         ref.getExpression());
+   }
+
+   @Test
+   void frameless_aggregate_byteParity_unchanged() {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "SUM", new AttributeRef("amount"), 0, List.of(new AttributeRef("stage")),
+         List.of(sort("t", XConstants.SORT_ASC)));
+      assertEquals(
+         "SUM(field['amount']) OVER (PARTITION BY field['stage'] ORDER BY field['t'] ASC)",
+         ref.getExpression());
+   }
+
+   @Test
+   void frame_xmlRoundTrip() throws Exception {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "SUM", new AttributeRef("amount"), 0, List.of(), List.of(sort("t", XConstants.SORT_ASC)));
+      ref.setFrame("PRECEDING", 3, "FOLLOWING", 1);
+      WindowExpressionRef copy = (WindowExpressionRef) writeAndParse(ref);
+      assertEquals("PRECEDING", copy.getFrameStartBound());
+      assertEquals(3, copy.getFrameStartOffset());
+      assertEquals("FOLLOWING", copy.getFrameEndBound());
+      assertEquals(1, copy.getFrameEndOffset());
+      assertEquals(ref.getExpression(), copy.getExpression());
+   }
 }
