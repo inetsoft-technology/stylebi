@@ -28,6 +28,8 @@ import inetsoft.uql.asset.SortRef;
 import inetsoft.uql.asset.WindowExpressionRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.jdbc.PostgreSQLHelper;
+import inetsoft.uql.jdbc.SQLHelper;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -143,6 +145,49 @@ class WindowRoutingTest {
       assertEquals(2, specs[0].startOffset);
       assertEquals("CURRENT_ROW", specs[0].endBound);
       assertEquals(0, specs[0].endOffset);
+   }
+
+   @Test
+   void buildWindowSpecs_carriesModeAndUnit() {
+      // trailing = SUM(amount) OVER (ORDER BY amount RANGE BETWEEN INTERVAL '7 day' PRECEDING
+      //            AND CURRENT ROW)
+      WindowExpressionRef range = new WindowExpressionRef(
+         "SUM", new ColumnRef(new AttributeRef(null, "amount")), 0,
+         List.of(), List.of(asc(new ColumnRef(new AttributeRef(null, "amount")))));
+      range.setFrame("RANGE", "PRECEDING", 7, "CURRENT_ROW", 0, "day");
+      range.setName("trailing");
+      ColumnRef trailing = new ColumnRef(range);
+      trailing.setSQL(true);
+
+      ColumnSelection cols = new ColumnSelection();
+      cols.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      cols.addAttribute(trailing);
+
+      WindowTableLens.Spec[] specs = AssetQuery.buildWindowSpecs(stageAmountBase(), cols);
+
+      assertEquals(1, specs.length);
+      assertEquals("RANGE", specs[0].mode);
+      assertEquals("day", specs[0].offsetUnit);
+
+      // a frame-less / ROWS ref resolves mode "ROWS" and a null offsetUnit
+      WindowExpressionRef rowNum = new WindowExpressionRef(
+         "ROW_NUMBER", null, 0,
+         List.of(new ColumnRef(new AttributeRef(null, "stage"))),
+         List.of(desc(new ColumnRef(new AttributeRef(null, "amount")))));
+      rowNum.setName("rn");
+      ColumnRef rn = new ColumnRef(rowNum);
+      rn.setSQL(true);
+
+      ColumnSelection cols2 = new ColumnSelection();
+      cols2.addAttribute(new ColumnRef(new AttributeRef(null, "stage")));
+      cols2.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      cols2.addAttribute(rn);
+
+      WindowTableLens.Spec[] specs2 = AssetQuery.buildWindowSpecs(stageAmountBase(), cols2);
+
+      assertEquals(1, specs2.length);
+      assertEquals("ROWS", specs2[0].mode);
+      assertNull(specs2[0].offsetUnit);
    }
 
    @Test
@@ -351,6 +396,26 @@ class WindowRoutingTest {
          () -> AssetQuery.buildWindowLens(base, cols));
       assertTrue(ex.getMessage().contains("region"));
       assertTrue(ex.getMessage().contains("rn"));
+   }
+
+   /**
+    * Dialect capability gate (Phase 4): PostgreSQL pushes RANGE/GROUPS down as SQL; every other
+    * dialect falls back to the in-memory {@link WindowTableLens} engine for those modes. ROWS
+    * pushes on every dialect, unchanged from Phase 3.
+    */
+   @Test
+   void framePushable_postgresYesOthersNo() {
+      SQLHelper postgresHelper = new PostgreSQLHelper();
+      SQLHelper otherHelper = new SQLHelper();   // getSQLHelperType() == "default"
+
+      assertTrue(AssetQuery.framePushable("RANGE", postgresHelper));
+      assertTrue(AssetQuery.framePushable("GROUPS", postgresHelper));
+      assertFalse(AssetQuery.framePushable("RANGE", otherHelper));
+      assertFalse(AssetQuery.framePushable("GROUPS", otherHelper));
+      assertTrue(AssetQuery.framePushable("ROWS", otherHelper));    // ROWS pushes everywhere
+      assertTrue(AssetQuery.framePushable("ROWS", postgresHelper));
+      assertTrue(AssetQuery.framePushable("ROWS", null));           // no dialect (tabular source)
+      assertFalse(AssetQuery.framePushable("RANGE", null));
    }
 
    private static SortRef desc(DataRef ref) {

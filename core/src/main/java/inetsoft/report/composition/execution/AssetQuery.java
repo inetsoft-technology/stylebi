@@ -37,6 +37,7 @@ import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.jdbc.*;
+import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.util.*;
@@ -3023,7 +3024,8 @@ public abstract class AssetQuery extends PreAssetQuery {
             specs.add(new WindowTableLens.Spec(
                ref.getName(), w.getFn(), arg, w.getN(), parts, ocols, oasc,
                w.getFrameStartBound(), w.getFrameStartOffset(),
-               w.getFrameEndBound(), w.getFrameEndOffset()));
+               w.getFrameEndBound(), w.getFrameEndOffset(),
+               w.getFrameMode(), w.getFrameOffsetUnit()));
          }
          else {
             specs.add(new WindowTableLens.Spec(
@@ -3117,19 +3119,117 @@ public abstract class AssetQuery extends PreAssetQuery {
 
    /**
     * In-memory window computation for non-pushdown sources. No-op when the query pushed the
-    * window down (mergeable JDBC) — the OVER is already in the SELECT. For a tabular /
-    * non-mergeable source, wrap the fully post-processed base in a WindowTableLens.
+    * window down (mergeable JDBC) AND every window column's frame is pushable on the source
+    * dialect — the OVER is already in the SELECT. For a tabular / non-mergeable source, OR a
+    * mergeable source where some window column's frame mode (RANGE/GROUPS) is not supported by
+    * the source dialect (see {@link #framePushable(String, SQLHelper)}), wrap the fully
+    * post-processed base in a WindowTableLens. {@link #mergeColumn} refuses to inline a
+    * non-pushable window column into the generated SQL in the first place (see there), so this
+    * method and that gate must agree: a window column is computed exactly once, either in the
+    * pushed-down SQL or here in memory, never both.
     * @param base the specified base table.
     * @param vars the specified variable table.
     * @return the window table lens, or base unchanged if there is nothing to compute in-memory.
     */
    private TableLens getWindowTableLens(TableLens base, VariableTable vars) throws Exception {
-      // if the query merged (pushed down), the window is in the SQL SELECT already, nothing to do
-      if(isQueryMergeable(false)) {
+      ColumnSelection cols = getTable().getColumnSelection(false);
+
+      // if the query merged (pushed down) and every window frame is pushable on this dialect,
+      // the window is in the SQL SELECT already, nothing to do
+      if(isQueryMergeable(false) && windowFramesAllPushable(cols)) {
          return base;
       }
 
-      return buildWindowLens(base, getTable().getColumnSelection(false));
+      return buildWindowLens(base, cols);
+   }
+
+   /**
+    * v1 dialect capability map: frame modes {@code postgresql} can push down as SQL (Phase 4).
+    * Every other dialect only pushes {@code ROWS} (Phase 3); {@code RANGE}/{@code GROUPS} fall
+    * back to the in-memory {@link WindowTableLens} engine there.
+    */
+   private static final Set<String> PG_PUSHABLE = Set.of("ROWS", "RANGE", "GROUPS");
+
+   /**
+    * Can {@code mode} be pushed down as SQL on the dialect behind {@code helper}?
+    * {@code ROWS} pushes on every dialect (Phase 3, unchanged). {@code RANGE}/{@code GROUPS}
+    * push only on PostgreSQL (v1 capability map — see {@link #PG_PUSHABLE}); every other
+    * dialect (including a {@code null} helper, e.g. a non-JDBC tabular source) routes them to
+    * the in-memory engine.
+    * <p>
+    * Package-private so {@code WindowRoutingTest} can exercise it directly with lightweight
+    * {@link SQLHelper} instances (no live connection required).
+    * @param mode the frame mode: {@code ROWS}, {@code RANGE}, or {@code GROUPS}.
+    * @param helper the source dialect's SQL helper, or {@code null} if there is none (e.g. a
+    *               tabular/non-JDBC source, which is never frame-pushable beyond ROWS).
+    * @return {@code true} if {@code mode} can be emitted as a pushed-down SQL frame clause.
+    */
+   static boolean framePushable(String mode, SQLHelper helper) {
+      if("ROWS".equals(mode)) {
+         return true;
+      }
+
+      String type = helper == null ? null : helper.getSQLHelperType();
+      return "postgresql".equals(type) && PG_PUSHABLE.contains(mode);
+   }
+
+   /**
+    * Scan {@code cs} for a {@link WindowExpressionRef} column whose frame is not pushable on
+    * this query's source dialect. Used to force the in-memory routing (see
+    * {@link #getWindowTableLens}) and to gate SQL inlining (see {@link #mergeColumn}) for a
+    * dialect that cannot express a RANGE/GROUPS frame natively.
+    * @param cs the column selection to scan.
+    * @return {@code true} if every window column's frame (if any) is pushable on this dialect.
+    */
+   private boolean windowFramesAllPushable(ColumnSelection cs) {
+      SQLHelper helper = AssetUtil.getSQLHelper(getTable());
+
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         DataRef ref = cs.getAttribute(i);
+
+         if(!(ref instanceof ColumnRef)) {
+            continue;
+         }
+
+         DataRef bref = ((ColumnRef) ref).getDataRef();
+
+         if(bref instanceof WindowExpressionRef &&
+            !framePushable(((WindowExpressionRef) bref).getFrameMode(), helper))
+         {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
+    * Dialect capability gate (Phase 4): refuse to inline a {@link WindowExpressionRef} column
+    * into the pushed-down SQL when its frame mode is not pushable on this query's source
+    * dialect (see {@link #framePushable(String, SQLHelper)}) — e.g. a RANGE/GROUPS frame on a
+    * non-PostgreSQL source. Returning {@code false} here leaves the column out of the SQL
+    * SELECT and {@code column.isProcessed()} false; {@link #getWindowTableLens} then computes
+    * it in memory instead, so it is never both inlined AND lens-computed.
+    * <p>
+    * ROWS frames (and every frame on PostgreSQL) are unaffected — this override delegates to
+    * {@code super.mergeColumn} exactly as before, so pushdown SQL text is byte-for-byte
+    * identical to pre-Phase-4 behavior for those cases (byte-parity requirement).
+    */
+   @Override
+   protected boolean mergeColumn(XSelection nselection, ColumnRef column,
+                                  boolean isAggregateInfoMergeable)
+   {
+      DataRef bref = column.getDataRef();
+
+      if(bref instanceof WindowExpressionRef) {
+         SQLHelper helper = AssetUtil.getSQLHelper(getTable());
+
+         if(!framePushable(((WindowExpressionRef) bref).getFrameMode(), helper)) {
+            return false;
+         }
+      }
+
+      return super.mergeColumn(nselection, column, isAggregateInfoMergeable);
    }
 
    /**
