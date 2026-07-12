@@ -404,14 +404,31 @@ class WindowExpressionRefTest {
    }
 
    @Test
-   void rangeDateFrame_emitsIntervalSql() {
+   void rangeDateFrame_emitsCanonicalIntervalToken() {
+      // Phase 5 Task 3: WindowExpressionRef no longer pre-renders the Postgres INTERVAL literal
+      // itself -- it emits a canonical WINFRAME_INTERVAL(<n>,<unit>) token that the dialect-rewrite
+      // seam (PreAssetQuery.getExpressionColumn / expandWindowFrameTokens) expands per dialect at
+      // render time. See PreAssetQueryWindowFrameTokenTest for the token -> literal expansion.
       WindowExpressionRef ref = new WindowExpressionRef(
          "SUM", new AttributeRef("amt"), 0, List.of(new AttributeRef("stage")),
          List.of(sort("d", XConstants.SORT_ASC)));
       ref.setFrame("RANGE", "PRECEDING", 7, "CURRENT_ROW", 0, "day");
       assertTrue(ref.getExpression().contains(
-         "RANGE BETWEEN INTERVAL '7 day' PRECEDING AND CURRENT ROW"));
+         "RANGE BETWEEN WINFRAME_INTERVAL(7,day) PRECEDING AND CURRENT ROW"));
+      assertFalse(ref.getExpression().contains("INTERVAL '7 day'"),
+         "the ref must no longer pre-render the Postgres literal itself: " + ref.getExpression());
       assertEquals("day", ref.getFrameOffsetUnit());
+   }
+
+   @Test
+   void dateOffset_emitsCanonicalIntervalToken() {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "SUM", new AttributeRef("amt"), 0, List.of(new AttributeRef("stage")),
+         List.of(sort("d", XConstants.SORT_ASC)));
+      ref.setFrame("RANGE", "PRECEDING", 7, "CURRENT_ROW", 0, "day");
+
+      assertTrue(ref.getExpression().contains("WINFRAME_INTERVAL(7,day)"));
+      assertFalse(ref.getExpression().contains("INTERVAL '7 day'"));
    }
 
    @Test
