@@ -697,6 +697,63 @@ public class SQLHelper implements KeywordProvider {
       return !unsupported.contains(key);
    }
 
+   /**
+    * Whether this dialect can push a window frame of the given shape down as SQL.
+    * @param mode "ROWS" | "RANGE" | "GROUPS".
+    * @param hasValueOffset a PRECEDING/FOLLOWING bound with a real offset is present
+    *        (false = pure peer frame: only UNBOUNDED/CURRENT ROW bounds).
+    * @param dateOffset the value offset is a date/time INTERVAL (offsetUnit set), not numeric.
+    * Base default: deny unless near-universal — ROWS and RANGE-peer only, and only where
+    * window functions are supported at all. Dialects override to opt into more.
+    */
+   public boolean supportsWindowFrame(String mode, boolean hasValueOffset, boolean dateOffset) {
+      if(!supportsOperation(WINDOW_FUNCTION)) {
+         return false;
+      }
+
+      switch(mode) {
+      case "ROWS":
+         return true;                         // row-count frames are universal
+      case "RANGE":
+         return !hasValueOffset;              // peer frame only; value/date offsets are opt-in
+      default:                                // GROUPS and anything else
+         return false;
+      }
+   }
+
+   /**
+    * Normalize a frame interval offset+unit to a universally-supported ANSI interval field:
+    * {@code quarter} -> 3 * offset months, {@code week} -> 7 * offset days (both exact
+    * equivalents). All other units pass through unchanged.
+    * <p>
+    * {@code quarter} and {@code week} are not valid {@code INTERVAL} literal fields on every
+    * dialect (e.g. {@code quarter} is rejected by base/PostgreSQL, Oracle, Databricks/Spark, and
+    * Vertica; {@code week} is rejected by Oracle), so every {@code formatWindowFrameInterval}
+    * implementation must normalize BEFORE rendering, ensuring only the six universally-valid
+    * ANSI interval fields (year/month/day/hour/minute/second) ever reach the literal.
+    * @return a 2-element array: {@code {normalizedOffset, normalizedUnit}}.
+    */
+   protected static Object[] normalizeFrameInterval(int offset, String unit) {
+      if("quarter".equalsIgnoreCase(unit)) {
+         return new Object[] { offset * 3, "month" };
+      }
+
+      if("week".equalsIgnoreCase(unit)) {
+         return new Object[] { offset * 7, "day" };
+      }
+
+      return new Object[] { offset, unit };
+   }
+
+   /**
+    * Render a date/time window-frame offset as this dialect's INTERVAL literal.
+    * Base (ANSI / Postgres): {@code INTERVAL '<n> <unit>'}. Overridden where syntax differs.
+    */
+   public String formatWindowFrameInterval(int offset, String unit) {
+      Object[] normalized = normalizeFrameInterval(offset, unit);
+      return "INTERVAL '" + normalized[0] + " " + normalized[1] + "'";
+   }
+
    public String getConnectionTestQuery() {
       return SQLHelper.getConnectionTestQuery(getSQLHelperType());
    }

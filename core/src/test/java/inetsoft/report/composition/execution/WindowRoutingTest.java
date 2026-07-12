@@ -399,23 +399,124 @@ class WindowRoutingTest {
    }
 
    /**
-    * Dialect capability gate (Phase 4): PostgreSQL pushes RANGE/GROUPS down as SQL; every other
-    * dialect falls back to the in-memory {@link WindowTableLens} engine for those modes. ROWS
-    * pushes on every dialect, unchanged from Phase 3.
+    * Phase 5: {@link AssetQuery#framePushable(WindowExpressionRef, SQLHelper)} no longer
+    * hardcodes a Postgres-only gate — it derives the frame's shape (mode, value-offset
+    * presence, date-INTERVAL-ness) from the ref and consults
+    * {@link SQLHelper#supportsWindowFrame}. PostgreSQL opts in fully (ROWS/RANGE/GROUPS,
+    * including a date-valued RANGE offset); the base {@link SQLHelper} grants only ROWS and a
+    * peer (no-value-offset) RANGE, denying a date-valued RANGE offset and GROUPS — byte-parity
+    * with the retired {@code PG_PUSHABLE} v1 capability map for PostgreSQL, per
+    * {@link inetsoft.uql.jdbc.PostgreSQLHelper#supportsWindowFrame}.
     */
    @Test
-   void framePushable_postgresYesOthersNo() {
-      SQLHelper postgresHelper = new PostgreSQLHelper();
-      SQLHelper otherHelper = new SQLHelper();   // getSQLHelperType() == "default"
+   void framePushable_consultsHelper() {
+      WindowExpressionRef pgRange = rangeDateRef();         // RANGE, offsetUnit=day
+      assertTrue(AssetQuery.framePushable(pgRange, new PostgreSQLHelper()));
+      assertFalse(AssetQuery.framePushable(pgRange, new SQLHelper()));   // base denies date-RANGE
 
-      assertTrue(AssetQuery.framePushable("RANGE", postgresHelper));
-      assertTrue(AssetQuery.framePushable("GROUPS", postgresHelper));
-      assertFalse(AssetQuery.framePushable("RANGE", otherHelper));
-      assertFalse(AssetQuery.framePushable("GROUPS", otherHelper));
-      assertTrue(AssetQuery.framePushable("ROWS", otherHelper));    // ROWS pushes everywhere
-      assertTrue(AssetQuery.framePushable("ROWS", postgresHelper));
-      assertTrue(AssetQuery.framePushable("ROWS", null));           // no dialect (tabular source)
-      assertFalse(AssetQuery.framePushable("RANGE", null));
+      WindowExpressionRef rows = rowsRef();
+      assertTrue(AssetQuery.framePushable(rows, new SQLHelper()));       // ROWS everywhere
+      assertTrue(AssetQuery.framePushable(rows, new PostgreSQLHelper()));
+
+      WindowExpressionRef groups = groupsRef();
+      assertTrue(AssetQuery.framePushable(groups, new PostgreSQLHelper()));
+      assertFalse(AssetQuery.framePushable(groups, new SQLHelper()));    // base denies GROUPS
+
+      // frame-less ref: always pushable (no dialect-specific frame syntax emitted at all)
+      WindowExpressionRef frameLess = new WindowExpressionRef(
+         "ROW_NUMBER", null, 0,
+         List.of(new ColumnRef(new AttributeRef(null, "stage"))),
+         List.of(desc(new ColumnRef(new AttributeRef(null, "amount")))));
+      frameLess.setName("rn");
+      assertTrue(AssetQuery.framePushable(frameLess, new SQLHelper()));
+      assertTrue(AssetQuery.framePushable(frameLess, null));
+   }
+
+   /**
+    * Phase 5 Task 3: {@link PreAssetQuery#expandWindowFrameTokens} is the dialect-rewrite seam
+    * (piggybacking on the same pass that rewrites {@code field['..']} identifier tokens in
+    * {@code PreAssetQuery.getExpressionColumn}) that expands the canonical
+    * {@code WINFRAME_INTERVAL(<n>,<unit>)} token {@code WindowExpressionRef} now emits for a
+    * date-valued RANGE frame offset into the dialect's real {@code INTERVAL} literal.
+    * <p>
+    * Byte-parity gate: PostgreSQL's {@code formatWindowFrameInterval} inherits the base
+    * {@code INTERVAL '<n> <unit>'} literal unchanged (Task 1), so this must render byte-identical
+    * to the pre-Phase-5 hardcoded Postgres literal.
+    */
+   @Test
+   void expandWindowFrameTokens_expandsTokenPerDialect_postgresByteParity() {
+      WindowExpressionRef ref = rangeDateRef();   // RANGE, PRECEDING 7 day .. CURRENT ROW
+
+      String rendered = PreAssetQuery.expandWindowFrameTokens(ref.getExpression(), new PostgreSQLHelper());
+
+      assertTrue(rendered.contains("RANGE BETWEEN INTERVAL '7 day' PRECEDING AND CURRENT ROW"),
+         "PostgreSQL must render the byte-identical Phase 4 literal via the token seam: " + rendered);
+      assertFalse(rendered.contains("WINFRAME_INTERVAL"),
+         "no raw token may survive expansion: " + rendered);
+   }
+
+   @Test
+   void expandWindowFrameTokens_noTokenPassesThroughUnchanged() {
+      String noToken =
+         "ROW_NUMBER() OVER (PARTITION BY field['stage'] ORDER BY field['amount'] DESC)";
+      assertEquals(noToken, PreAssetQuery.expandWindowFrameTokens(noToken, new PostgreSQLHelper()),
+         "an expression with no window-frame token must be returned unchanged");
+      assertEquals(noToken, PreAssetQuery.expandWindowFrameTokens(noToken, null),
+         "a null helper must not affect token-less expressions either");
+   }
+
+   @Test
+   void expandWindowFrameTokens_numericOffset_hasNoTokenToExpand() {
+      // Numeric-offset frames never emit a WINFRAME_INTERVAL token in the first place (frameOffsetSql
+      // returns a bare integer when frameOffsetUnit is null) -- this pins that the rewrite pass is a
+      // pure no-op on that output, i.e. it never mistakes a numeric RANGE frame's bare offset for a
+      // token.
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "SUM", new ColumnRef(new AttributeRef(null, "amount")), 0,
+         List.of(), List.of(asc(new ColumnRef(new AttributeRef(null, "amount")))));
+      ref.setFrame("RANGE", "PRECEDING", 1000, "CURRENT_ROW", 0, null);
+
+      String expr = ref.getExpression();
+      assertEquals(expr, PreAssetQuery.expandWindowFrameTokens(expr, new PostgreSQLHelper()));
+   }
+
+   @Test
+   void expandWindowFrameTokens_nullHelperFallsBackToAnsiDefault() {
+      String withToken =
+         "SUM(x) OVER (RANGE BETWEEN WINFRAME_INTERVAL(3,month) PRECEDING AND CURRENT ROW)";
+      String rendered = PreAssetQuery.expandWindowFrameTokens(withToken, null);
+      assertEquals(
+         "SUM(x) OVER (RANGE BETWEEN INTERVAL '3 month' PRECEDING AND CURRENT ROW)", rendered);
+   }
+
+   /** RANGE frame with a date-valued (INTERVAL) offset — e.g. a 7-day trailing window. */
+   private static WindowExpressionRef rangeDateRef() {
+      WindowExpressionRef w = new WindowExpressionRef(
+         "SUM", new ColumnRef(new AttributeRef(null, "amount")), 0,
+         List.of(), List.of(asc(new ColumnRef(new AttributeRef(null, "amount")))));
+      w.setFrame("RANGE", "PRECEDING", 7, "CURRENT_ROW", 0, "day");
+      w.setName("trailing");
+      return w;
+   }
+
+   /** ROWS frame with a value offset — pushable on every dialect. */
+   private static WindowExpressionRef rowsRef() {
+      WindowExpressionRef w = new WindowExpressionRef(
+         "AVG", new ColumnRef(new AttributeRef(null, "amount")), 0,
+         List.of(), List.of(desc(new ColumnRef(new AttributeRef(null, "amount")))));
+      w.setFrame("PRECEDING", 2, "CURRENT_ROW", 0);
+      w.setName("ma");
+      return w;
+   }
+
+   /** GROUPS frame — PostgreSQL 11+ only; the base helper denies it. */
+   private static WindowExpressionRef groupsRef() {
+      WindowExpressionRef w = new WindowExpressionRef(
+         "SUM", new ColumnRef(new AttributeRef(null, "amount")), 0,
+         List.of(), List.of(asc(new ColumnRef(new AttributeRef(null, "amount")))));
+      w.setFrame("GROUPS", "PRECEDING", 1, "CURRENT_ROW", 0, null);
+      w.setName("grp");
+      return w;
    }
 
    /**

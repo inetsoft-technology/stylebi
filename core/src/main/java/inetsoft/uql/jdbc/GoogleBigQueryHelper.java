@@ -82,5 +82,24 @@ public class GoogleBigQueryHelper extends SQLHelper {
       return alias == null || super.isValidAlias(alias) && !containsSpecialChar(alias);
    }
 
+   /**
+    * BigQuery's RANGE frame only supports a single numeric (INT64) ORDER BY expression and
+    * offset -- date/timestamp ORDER BY expressions are not permitted in a RANGE frame at all,
+    * so a date offset is always denied. GROUPS frames are not part of BigQuery's window-frame
+    * grammar; left denied here (falls back to the correct in-memory engine).
+    */
+   @Override
+   public boolean supportsWindowFrame(String mode, boolean hasValueOffset, boolean dateOffset) {
+      if(!supportsOperation(WINDOW_FUNCTION)) {
+         return false;
+      }
+
+      if("RANGE".equals(mode)) {
+         return !dateOffset;   // peer + numeric value offsets supported; no date INTERVAL frame
+      }
+
+      return super.supportsWindowFrame(mode, hasValueOffset, dateOffset);   // ROWS true, GROUPS false
+   }
+
    private Pattern special;
 }

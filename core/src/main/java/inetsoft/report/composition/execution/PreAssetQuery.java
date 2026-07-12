@@ -2597,7 +2597,67 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       }
 
       expstr.append(exp);
-      return expstr.toString();
+      return expandWindowFrameTokens(expstr.toString(), helper);
+   }
+
+   /**
+    * Prefix of the canonical window-frame date-interval token emitted by
+    * {@code WindowExpressionRef.frameOffsetSql} for a date-valued RANGE frame offset, e.g.
+    * {@code WINFRAME_INTERVAL(7,day)}. Mirrors the {@code field['} token convention: a
+    * database-agnostic placeholder embedded in the expression text that this rewrite pass expands
+    * into the dialect's real SQL syntax.
+    */
+   private static final String WINFRAME_INTERVAL_TOKEN = "WINFRAME_INTERVAL(";
+
+   /**
+    * Expand every {@code WINFRAME_INTERVAL(<n>,<unit>)} token in {@code exp} into the given
+    * dialect's {@code INTERVAL} literal via {@link SQLHelper#formatWindowFrameInterval}. Mirrors
+    * the {@code field['..']} rewrite loop above: a simple, well-bounded left-to-right scan that
+    * leaves everything else in the expression untouched.
+    * <p>
+    * {@code helper} may be {@code null} (no resolvable dialect, e.g. no backing SQL) — the base
+    * {@link SQLHelper} (ANSI/Postgres-literal default) is used in that case, matching the fallback
+    * already used elsewhere in this class when no dialect-specific helper is available.
+    *
+    * @param exp the expression text, possibly containing zero or more window-frame interval tokens.
+    * @param helper the dialect's {@code SQLHelper}, or {@code null} to use the ANSI default.
+    * @return {@code exp} with every token replaced by its dialect-rendered literal; unchanged
+    *         (same content) if no token is present.
+    */
+   static String expandWindowFrameTokens(String exp, SQLHelper helper) {
+      if(exp == null || !exp.contains(WINFRAME_INTERVAL_TOKEN)) {
+         return exp;
+      }
+
+      SQLHelper dialect = helper == null ? new SQLHelper() : helper;
+      StringBuilder result = new StringBuilder();
+      int start;
+
+      while((start = exp.indexOf(WINFRAME_INTERVAL_TOKEN)) != -1) {
+         int end = exp.indexOf(")", start + WINFRAME_INTERVAL_TOKEN.length());
+
+         if(end == -1) {
+            break;
+         }
+
+         String args = exp.substring(start + WINFRAME_INTERVAL_TOKEN.length(), end);
+         int comma = args.indexOf(',');
+
+         if(comma == -1) {
+            break;
+         }
+
+         result.append(exp, 0, start);
+
+         int offset = Integer.parseInt(args.substring(0, comma).trim());
+         String unit = args.substring(comma + 1).trim();
+         result.append(dialect.formatWindowFrameInterval(offset, unit));
+
+         exp = exp.substring(end + 1);
+      }
+
+      result.append(exp);
+      return result.toString();
    }
 
    /**

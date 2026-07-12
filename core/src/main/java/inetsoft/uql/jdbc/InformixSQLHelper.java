@@ -45,6 +45,31 @@ public class InformixSQLHelper extends DB2SQLHelper {
    }
 
    /**
+    * Informix extends {@link DB2SQLHelper} only for SQL-generation quirks unrelated to window
+    * frames (MAXROWS-clause suppression, alias-length limiting, keyword list). IBM Informix is a
+    * distinct product from DB2 (LUW), and its window-frame RANGE-value-offset support has not
+    * been independently verified against Informix's own SQL reference, so this class must NOT
+    * silently inherit {@code DB2SQLHelper}'s RANGE-value opt-in (added for Task 4). Fail-safe
+    * default-deny: reproduce the conservative {@link SQLHelper} base behavior directly (ROWS and
+    * RANGE-peer allowed; RANGE-value/date and GROUPS denied -> in-memory {@code WindowTableLens}).
+    */
+   @Override
+   public boolean supportsWindowFrame(String mode, boolean hasValueOffset, boolean dateOffset) {
+      if(!supportsOperation(WINDOW_FUNCTION)) {
+         return false;
+      }
+
+      switch(mode) {
+      case "ROWS":
+         return true;
+      case "RANGE":
+         return !hasValueOffset;
+      default:
+         return false;
+      }
+   }
+
+   /**
     * Generate condition string for XBinaryCondition.
     * @param condition
     * @return condition string

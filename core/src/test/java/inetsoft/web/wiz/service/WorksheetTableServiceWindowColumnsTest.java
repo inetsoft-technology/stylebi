@@ -253,7 +253,10 @@ class WorksheetTableServiceWindowColumnsTest {
 
       ColumnRef added = (ColumnRef) table.getColumnSelection(false).getAttribute("s");
       String expr = ((WindowExpressionRef) added.getDataRef()).getExpression();
-      assertTrue(expr.contains("RANGE BETWEEN INTERVAL '7 day' PRECEDING AND CURRENT ROW"),
+      // Phase 5 Task 3: getExpression() now emits the canonical WINFRAME_INTERVAL token, not the
+      // pre-rendered Postgres literal -- the dialect-rewrite seam (PreAssetQuery.getExpressionColumn)
+      // expands it to "INTERVAL '7 day'" for Postgres at render time.
+      assertTrue(expr.contains("RANGE BETWEEN WINFRAME_INTERVAL(7,day) PRECEDING AND CURRENT ROW"),
                  "unexpected expression: " + expr);
    }
 
@@ -542,7 +545,8 @@ class WorksheetTableServiceWindowColumnsTest {
 
       ColumnRef added = (ColumnRef) table.getColumnSelection(false).getAttribute("s");
       String expr = ((WindowExpressionRef) added.getDataRef()).getExpression();
-      assertTrue(expr.contains("INTERVAL '7 day'"), "unexpected expression: " + expr);
+      // Case-normalization happens before frame storage; the emitted token is unaffected either way.
+      assertTrue(expr.contains("WINFRAME_INTERVAL(7,day)"), "unexpected expression: " + expr);
    }
 
    // ─── PR #4235 review Fix C: numeric RANGE offset on a date/time order key ────────────────
