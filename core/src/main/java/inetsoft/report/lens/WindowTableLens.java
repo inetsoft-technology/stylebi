@@ -43,9 +43,23 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
       public final int[] partCols;   // PARTITION BY base col indices (may be empty)
       public final int[] orderCols;  // ORDER BY base col indices (may be empty)
       public final boolean[] orderAsc;
+      // ROWS frame bounds. startBound == null means "frame-less" — the kernel falls back to the
+      // Phase-1/2 default (running for an ordered aggregate, whole partition otherwise, whole
+      // partition for FIRST_VALUE/LAST_VALUE). Bound tokens: UNBOUNDED_PRECEDING,
+      // UNBOUNDED_FOLLOWING, CURRENT_ROW, PRECEDING (with offset), FOLLOWING (with offset).
+      public final String startBound;
+      public final int startOffset;
+      public final String endBound;
+      public final int endOffset;
 
       public Spec(String header, String fn, int argCol, int n,
                   int[] partCols, int[] orderCols, boolean[] orderAsc) {
+         this(header, fn, argCol, n, partCols, orderCols, orderAsc, null, 0, null, 0);
+      }
+
+      public Spec(String header, String fn, int argCol, int n,
+                  int[] partCols, int[] orderCols, boolean[] orderAsc,
+                  String startBound, int startOffset, String endBound, int endOffset) {
          this.header = header;
          this.fn = fn == null ? "" : fn.toUpperCase();
          this.argCol = argCol;
@@ -53,6 +67,10 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
          this.partCols = partCols == null ? new int[0] : partCols;
          this.orderCols = orderCols == null ? new int[0] : orderCols;
          this.orderAsc = orderAsc == null ? new boolean[0] : orderAsc;
+         this.startBound = startBound;
+         this.startOffset = startOffset;
+         this.endBound = endBound;
+         this.endOffset = endOffset;
       }
    }
 
@@ -336,20 +354,31 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
          return table.getObject(idx[start + q] + hrows, spec.argCol);
       }
       case "FIRST_VALUE": {
+         int[] fr = frameSlice(spec, start, end, p);
          int hrows = table.getHeaderRowCount();
-         return table.getObject(idx[start] + hrows, spec.argCol);
+         return fr == null ? null : table.getObject(idx[fr[0]] + hrows, spec.argCol);
+      }
+      case "LAST_VALUE": {
+         int[] fr = frameSlice(spec, start, end, p);
+         int hrows = table.getHeaderRowCount();
+         return fr == null ? null : table.getObject(idx[fr[1]] + hrows, spec.argCol);
       }
       case "SUM": case "AVG": case "COUNT": case "MIN": case "MAX": {
-         // running vs. whole-partition is per-spec (this spec's own ORDER BY presence),
-         // not the table-wide sort order — a table may mix an ordered running aggregate
-         // with an order-less partition-total aggregate (see WindowTableLensTest).
-         boolean running = spec.orderCols.length > 0;
-         int from = start, to = running ? (start + p + 1) : end;   // running → up to current row
+         int[] fr = frameSlice(spec, start, end, p);
+
+         if(fr == null) {
+            switch(spec.fn) {
+            case "COUNT": return 0;
+            case "SUM":   return 0.0;
+            default:      return null;   // AVG/MIN/MAX
+            }
+         }
+
          int hrows = table.getHeaderRowCount();
          double sum = 0, min = Double.POSITIVE_INFINITY, max = Double.NEGATIVE_INFINITY;
          int cnt = 0;
 
-         for(int q = from; q < to; q++) {
+         for(int q = fr[0]; q <= fr[1]; q++) {
             Object v = table.getObject(idx[q] + hrows, spec.argCol);
 
             if(v == null) {
@@ -393,11 +422,61 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
       }
       default:
          // Fail loud rather than silently returning null for every row. Every window function this
-         // lens supports has an explicit case above; anything else (e.g. LAST_VALUE, which the SQL
-         // path emits but the in-memory path cannot without a frame clause, or an unknown fn) must
-         // not be silently mis-computed on the in-memory path.
+         // lens supports has an explicit case above; anything genuinely unsupported must not be
+         // silently mis-computed on the in-memory path.
          throw new RuntimeException(
             "window function '" + spec.fn + "' is not supported for in-memory computation");
+      }
+   }
+
+   /**
+    * The ROWS frame for {@code spec} at sorted position {@code p} within partition
+    * {@code [start,end)}, as absolute indices into {@code idx} (inclusive), or {@code null} if
+    * the frame is empty for this row.
+    * <p>Frame-less ({@code spec.startBound == null}) reproduces the Phase-1/2 defaults exactly:
+    * FIRST_VALUE/LAST_VALUE and an order-less aggregate see the whole partition; an aggregate
+    * with an ORDER BY sees the running frame {@code [0,p]}.
+    */
+   private static int[] frameSlice(Spec spec, int start, int end, int p) {
+      int size = end - start;
+      int lo, hi;
+
+      if(spec.startBound == null) {
+         boolean valueFn = "FIRST_VALUE".equals(spec.fn) || "LAST_VALUE".equals(spec.fn);
+
+         if(valueFn || spec.orderCols.length == 0) {
+            lo = 0;
+            hi = size - 1;         // whole partition
+         }
+         else {
+            lo = 0;
+            hi = p;                 // running
+         }
+      }
+      else {
+         lo = boundPos(spec.startBound, spec.startOffset, p, size);
+         hi = boundPos(spec.endBound, spec.endOffset, p, size);
+      }
+
+      int loc = Math.max(0, lo);
+      int hic = Math.min(size - 1, hi);
+
+      if(loc > hic) {
+         return null;   // empty frame
+      }
+
+      return new int[]{ start + loc, start + hic };
+   }
+
+   private static int boundPos(String bound, int offset, int p, int size) {
+      switch(bound) {
+      case "UNBOUNDED_PRECEDING": return 0;
+      case "UNBOUNDED_FOLLOWING": return size - 1;
+      case "CURRENT_ROW":         return p;
+      case "PRECEDING":           return p - offset;
+      case "FOLLOWING":           return p + offset;
+      default:
+         throw new RuntimeException("invalid window frame bound: " + bound);
       }
    }
 
