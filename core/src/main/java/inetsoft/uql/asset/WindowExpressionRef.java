@@ -194,8 +194,27 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
    }
 
    /**
-    * Set an explicit ROWS frame. Bound values must be one of {@code UNBOUNDED_PRECEDING},
-    * {@code PRECEDING}, {@code CURRENT_ROW}, {@code FOLLOWING}, {@code UNBOUNDED_FOLLOWING}.
+    * Get the frame mode: {@code ROWS}, {@code RANGE}, or {@code GROUPS}. Defaults to
+    * {@code "ROWS"} when no explicit mode was set (Phase 3 frames / frame-less refs).
+    */
+   public String getFrameMode() {
+      return frameMode == null ? "ROWS" : frameMode;
+   }
+
+   /**
+    * Get the frame offset unit (e.g. {@code "day"}), used to render a date-valued {@code RANGE}
+    * frame's {@code PRECEDING}/{@code FOLLOWING} offset as a Postgres {@code INTERVAL} literal
+    * instead of a bare integer. {@code null} for ROWS/GROUPS and numeric RANGE frames.
+    */
+   public String getFrameOffsetUnit() {
+      return frameOffsetUnit;
+   }
+
+   /**
+    * Set an explicit ROWS frame (legacy Phase-3 entry point). Bound values must be one of
+    * {@code UNBOUNDED_PRECEDING}, {@code PRECEDING}, {@code CURRENT_ROW}, {@code FOLLOWING},
+    * {@code UNBOUNDED_FOLLOWING}. Delegates to the 6-arg {@link #setFrame(String, String, int,
+    * String, int, String)} with {@code mode="ROWS"} and no offset unit.
     *
     * @param startBound the frame start bound.
     * @param startOffset the frame start offset (used for PRECEDING/FOLLOWING).
@@ -203,12 +222,34 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
     * @param endOffset the frame end offset (used for PRECEDING/FOLLOWING).
     */
    public void setFrame(String startBound, int startOffset, String endBound, int endOffset) {
+      setFrame("ROWS", startBound, startOffset, endBound, endOffset, null);
+   }
+
+   /**
+    * Set an explicit frame. Bound values must be one of {@code UNBOUNDED_PRECEDING},
+    * {@code PRECEDING}, {@code CURRENT_ROW}, {@code FOLLOWING}, {@code UNBOUNDED_FOLLOWING}.
+    *
+    * @param mode the frame mode: {@code ROWS}, {@code RANGE}, or {@code GROUPS}. {@code null} is
+    *             normalized to {@code "ROWS"}.
+    * @param startBound the frame start bound.
+    * @param startOffset the frame start offset (used for PRECEDING/FOLLOWING).
+    * @param endBound the frame end bound.
+    * @param endOffset the frame end offset (used for PRECEDING/FOLLOWING).
+    * @param offsetUnit the date interval unit (e.g. {@code "day"}) for a date-valued RANGE frame's
+    *                   PRECEDING/FOLLOWING offset; {@code null} for a bare-integer offset (ROWS,
+    *                   GROUPS, and numeric RANGE frames).
+    */
+   public void setFrame(String mode, String startBound, int startOffset, String endBound,
+                         int endOffset, String offsetUnit)
+   {
       requireValidFrameBound(startBound, startOffset);
       requireValidFrameBound(endBound, endOffset);
+      this.frameMode = (mode == null) ? "ROWS" : mode.toUpperCase();
       this.frameStartBound = startBound;
       this.frameStartOffset = startOffset;
       this.frameEndBound = endBound;
       this.frameEndOffset = endOffset;
+      this.frameOffsetUnit = offsetUnit;
    }
 
    /** Recognized ROWS frame bound tokens (see {@link #setFrame}). */
@@ -394,14 +435,15 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
             "ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING" : "";
       }
 
-      return "ROWS BETWEEN " + frameBoundSql(frameStartBound, frameStartOffset)
+      String mode = getFrameMode();   // ROWS | RANGE | GROUPS
+      return mode + " BETWEEN " + frameBoundSql(frameStartBound, frameStartOffset)
          + " AND " + frameBoundSql(frameEndBound, frameEndOffset);
    }
 
    /**
     * Get the SQL text for a single frame bound.
     */
-   private static String frameBoundSql(String bound, int offset) {
+   private String frameBoundSql(String bound, int offset) {
       switch(bound) {
       case "UNBOUNDED_PRECEDING":
          return "UNBOUNDED PRECEDING";
@@ -410,12 +452,25 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
       case "CURRENT_ROW":
          return "CURRENT ROW";
       case "PRECEDING":
-         return offset + " PRECEDING";
+         return frameOffsetSql(offset) + " PRECEDING";
       case "FOLLOWING":
-         return offset + " FOLLOWING";
+         return frameOffsetSql(offset) + " FOLLOWING";
       default:
          throw new RuntimeException("invalid window frame bound: " + bound);
       }
+   }
+
+   /**
+    * Render the PRECEDING/FOLLOWING offset: a bare integer for ROWS/GROUPS/numeric-RANGE frames,
+    * or a Postgres {@code INTERVAL '<n> <unit>'} literal when {@link #frameOffsetUnit} is set
+    * (a date-valued RANGE frame).
+    */
+   private String frameOffsetSql(int offset) {
+      if(frameOffsetUnit != null) {
+         return "INTERVAL '" + offset + " " + frameOffsetUnit + "'";
+      }
+
+      return Integer.toString(offset);
    }
 
    /**
@@ -484,6 +539,14 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
          writer.print(" frameStartOffset=\"" + frameStartOffset + "\"");
          writer.print(" frameEndBound=\"" + Tool.escape(frameEndBound) + "\"");
          writer.print(" frameEndOffset=\"" + frameEndOffset + "\"");
+
+         if(frameMode != null) {
+            writer.print(" frameMode=\"" + Tool.escape(frameMode) + "\"");
+         }
+
+         if(frameOffsetUnit != null) {
+            writer.print(" frameOffsetUnit=\"" + Tool.escape(frameOffsetUnit) + "\"");
+         }
       }
 
       if(getDBType() != null) {
@@ -512,6 +575,8 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
       frameEndBound = Tool.getAttribute(tag, "frameEndBound");
       String endOffsetStr = Tool.getAttribute(tag, "frameEndOffset");
       frameEndOffset = endOffsetStr == null ? 0 : Integer.parseInt(endOffsetStr);
+      frameMode = Tool.getAttribute(tag, "frameMode");
+      frameOffsetUnit = Tool.getAttribute(tag, "frameOffsetUnit");
       setDBType(Tool.getAttribute(tag, "dbType"));
       dbversion = Tool.getAttribute(tag, "dbVersion");
    }
@@ -620,4 +685,6 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
    private int frameStartOffset;
    private String frameEndBound;
    private int frameEndOffset;
+   private String frameMode;         // null = ROWS (default)
+   private String frameOffsetUnit;   // non-null only for date-valued RANGE
 }

@@ -388,4 +388,52 @@ class WindowExpressionRefTest {
       assertEquals(1, copy.getFrameEndOffset());
       assertEquals(ref.getExpression(), copy.getExpression());
    }
+
+   // ---- RANGE/GROUPS frame (Phase 4 Task 1) ---------------------------------------------------
+
+   @Test
+   void rangeNumericFrame_emitsRangeSql() {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "SUM", new AttributeRef("amount"), 0, List.of(new AttributeRef("stage")),
+         List.of(sort("amount", XConstants.SORT_ASC)));
+      ref.setFrame("RANGE", "PRECEDING", 1000, "CURRENT_ROW", 0, null);
+      assertTrue(ref.getExpression().contains(
+         "RANGE BETWEEN 1000 PRECEDING AND CURRENT ROW"));
+      assertEquals("RANGE", ref.getFrameMode());
+      assertNull(ref.getFrameOffsetUnit());
+   }
+
+   @Test
+   void rangeDateFrame_emitsIntervalSql() {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "SUM", new AttributeRef("amt"), 0, List.of(new AttributeRef("stage")),
+         List.of(sort("d", XConstants.SORT_ASC)));
+      ref.setFrame("RANGE", "PRECEDING", 7, "CURRENT_ROW", 0, "day");
+      assertTrue(ref.getExpression().contains(
+         "RANGE BETWEEN INTERVAL '7 day' PRECEDING AND CURRENT ROW"));
+      assertEquals("day", ref.getFrameOffsetUnit());
+   }
+
+   @Test
+   void groupsFrame_emitsGroupsSql() {
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "SUM", new AttributeRef("amt"), 0, List.of(new AttributeRef("stage")),
+         List.of(sort("d", XConstants.SORT_ASC)));
+      ref.setFrame("GROUPS", "PRECEDING", 2, "CURRENT_ROW", 0, null);
+      assertTrue(ref.getExpression().contains(
+         "GROUPS BETWEEN 2 PRECEDING AND CURRENT ROW"));
+      assertEquals("GROUPS", ref.getFrameMode());
+   }
+
+   @Test
+   void rowsFrame_byteParityWithPhase3() {
+      // mode omitted / legacy 4-arg overload -- ROWS output must be byte-identical to Phase 3.
+      WindowExpressionRef ref = new WindowExpressionRef(
+         "SUM", new AttributeRef("amt"), 0, List.of(new AttributeRef("stage")),
+         List.of(sort("d", XConstants.SORT_ASC)));
+      ref.setFrame("PRECEDING", 2, "CURRENT_ROW", 0);
+      assertTrue(ref.getExpression().contains("ROWS BETWEEN 2 PRECEDING AND CURRENT ROW"));
+      assertEquals("ROWS", ref.getFrameMode());
+      assertNull(ref.getFrameOffsetUnit());
+   }
 }
