@@ -122,6 +122,54 @@ class WindowRoutingTest {
    }
 
    @Test
+   void buildWindowSpecs_carriesFrame() {
+      // ma = AVG(amount) OVER (ORDER BY amount DESC ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)
+      WindowExpressionRef w = new WindowExpressionRef(
+         "AVG", new ColumnRef(new AttributeRef(null, "amount")), 0,
+         List.of(), List.of(desc(new ColumnRef(new AttributeRef(null, "amount")))));
+      w.setFrame("PRECEDING", 2, "CURRENT_ROW", 0);
+      w.setName("ma");
+      ColumnRef ma = new ColumnRef(w);
+      ma.setSQL(true);
+
+      ColumnSelection cols = new ColumnSelection();
+      cols.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      cols.addAttribute(ma);
+
+      WindowTableLens.Spec[] specs = AssetQuery.buildWindowSpecs(stageAmountBase(), cols);
+
+      assertEquals(1, specs.length);
+      assertEquals("PRECEDING", specs[0].startBound);
+      assertEquals(2, specs[0].startOffset);
+      assertEquals("CURRENT_ROW", specs[0].endBound);
+      assertEquals(0, specs[0].endOffset);
+   }
+
+   @Test
+   void buildWindowSpecs_frameLessYieldsNullStartBound() {
+      WindowExpressionRef win = new WindowExpressionRef(
+         "ROW_NUMBER", null, 0,
+         List.of(new ColumnRef(new AttributeRef(null, "stage"))),
+         List.of(desc(new ColumnRef(new AttributeRef(null, "amount")))));
+      win.setName("rn");
+      ColumnRef rn = new ColumnRef(win);
+      rn.setSQL(true);
+
+      ColumnSelection cols = new ColumnSelection();
+      cols.addAttribute(new ColumnRef(new AttributeRef(null, "stage")));
+      cols.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      cols.addAttribute(rn);
+
+      WindowTableLens.Spec[] specs = AssetQuery.buildWindowSpecs(stageAmountBase(), cols);
+
+      assertEquals(1, specs.length);
+      assertNull(specs[0].startBound);
+      assertEquals(0, specs[0].startOffset);
+      assertNull(specs[0].endBound);
+      assertEquals(0, specs[0].endOffset);
+   }
+
+   @Test
    void noWindowColumnsYieldsEmptySpecs() {
       ColumnSelection cols = new ColumnSelection();
       cols.addAttribute(new ColumnRef(new AttributeRef(null, "stage")));

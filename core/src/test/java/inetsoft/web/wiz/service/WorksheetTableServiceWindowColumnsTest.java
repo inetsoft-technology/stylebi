@@ -102,4 +102,129 @@ class WorksheetTableServiceWindowColumnsTest {
          winRef.getExpression());
       assertTrue(winRef.isSQL());
    }
+
+   @Test
+   void framedWindowColumnBuildsRowsClause() throws Exception {
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"ma","fn":"AVG","column":"amount",
+           "orderBy":[{"field":"amount","direction":"ASC"}],
+           "frame":{"startBound":"PRECEDING","startOffset":2,"endBound":"CURRENT_ROW"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      table.setColumnSelection(cs);
+
+      service().applyWindowColumns(table, req.getWindowColumns());
+
+      ColumnRef added = (ColumnRef) table.getColumnSelection(false).getAttribute("ma");
+      assertTrue(((WindowExpressionRef) added.getDataRef()).getExpression()
+         .contains("ROWS BETWEEN 2 PRECEDING AND CURRENT ROW"));
+   }
+
+   @Test
+   void frameOnRowNumberThrows() throws Exception {
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"rn","fn":"ROW_NUMBER",
+           "orderBy":[{"field":"amount","direction":"ASC"}],
+           "frame":{"startBound":"PRECEDING","startOffset":2,"endBound":"CURRENT_ROW"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      table.setColumnSelection(cs);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service().applyWindowColumns(table, req.getWindowColumns()));
+      assertTrue(ex.getMessage().contains("rn"));
+   }
+
+   @Test
+   void boundedFrameWithoutOrderByThrows() throws Exception {
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"ma","fn":"AVG","column":"amount",
+           "frame":{"startBound":"PRECEDING","startOffset":2,"endBound":"CURRENT_ROW"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      table.setColumnSelection(cs);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service().applyWindowColumns(table, req.getWindowColumns()));
+      assertTrue(ex.getMessage().contains("ma"));
+   }
+
+   @Test
+   void strayOffsetOnFixedBoundThrows() throws Exception {
+      // CURRENT_ROW is a fixed bound; it must not carry an offset. Silently ignoring a stray
+      // offset (the pre-fix behavior) would mask a caller bug — mirrors the wiz TS validator.
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"ma","fn":"AVG","column":"amount",
+           "orderBy":[{"field":"amount","direction":"ASC"}],
+           "frame":{"startBound":"PRECEDING","startOffset":2,
+                     "endBound":"CURRENT_ROW","endOffset":5}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      table.setColumnSelection(cs);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service().applyWindowColumns(table, req.getWindowColumns()));
+      assertTrue(ex.getMessage().contains("ma"));
+      assertTrue(ex.getMessage().contains("CURRENT_ROW"));
+   }
+
+   @Test
+   void unboundedFollowingAsStartBoundThrows() throws Exception {
+      // Per ANSI ROWS grammar, frame start can never be UNBOUNDED_FOLLOWING, regardless of the
+      // end bound — the {@code frameBoundRank} comparison alone misses this case because both
+      // UNBOUNDED_PRECEDING and UNBOUNDED_FOLLOWING as start/end can independently rank as
+      // +/-MAX.
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"ma","fn":"AVG","column":"amount",
+           "orderBy":[{"field":"amount","direction":"ASC"}],
+           "frame":{"startBound":"UNBOUNDED_FOLLOWING","endBound":"UNBOUNDED_FOLLOWING"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      table.setColumnSelection(cs);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service().applyWindowColumns(table, req.getWindowColumns()));
+      assertTrue(ex.getMessage().contains("ma"));
+      assertTrue(ex.getMessage().contains("UNBOUNDED_FOLLOWING"));
+   }
+
+   @Test
+   void unboundedPrecedingAsEndBoundThrows() throws Exception {
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"ma","fn":"AVG","column":"amount",
+           "orderBy":[{"field":"amount","direction":"ASC"}],
+           "frame":{"startBound":"UNBOUNDED_PRECEDING","endBound":"UNBOUNDED_PRECEDING"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      table.setColumnSelection(cs);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service().applyWindowColumns(table, req.getWindowColumns()));
+      assertTrue(ex.getMessage().contains("ma"));
+      assertTrue(ex.getMessage().contains("UNBOUNDED_PRECEDING"));
+   }
 }

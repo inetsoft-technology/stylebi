@@ -96,4 +96,22 @@ class WorksheetTableRequestTest {
       JsonNode output = mapper.valueToTree(table);
       assertEquals("ROW_NUMBER", output.at("/windowColumns/0/fn").asText());
    }
+
+   @Test
+   void windowColumnFrameRoundTrips() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+
+      WorksheetTable t = mapper.readValue(
+         """
+         { "windowColumns": [ { "name":"ma","fn":"AVG","column":"amount",
+           "orderBy":[{"field":"t","direction":"ASC"}],
+           "frame":{"startBound":"PRECEDING","startOffset":2,"endBound":"CURRENT_ROW"} } ] }
+         """,
+         WorksheetTable.class);
+
+      var f = t.getWindowColumns().get(0).getFrame();
+      assertEquals("PRECEDING", f.getStartBound());
+      assertEquals(2, f.getStartOffset());
+      assertEquals("CURRENT_ROW", f.getEndBound());
+   }
 }

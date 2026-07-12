@@ -223,13 +223,69 @@ class WindowTableLensTest {
 
    @Test
    void unsupportedFunction_failsLoud_notSilentNull() {
-      // LAST_VALUE (and any fn the in-memory kernel does not implement) must throw, not silently
-      // return null for every row — the SQL path emits it, so a silent null would diverge.
+      // Any fn the in-memory kernel does not implement must throw, not silently return null for
+      // every row — the SQL path may emit fns this lens doesn't support, so a silent null would
+      // diverge. (LAST_VALUE moved to its own supported case in Phase 3 — see lastValue_* tests.)
       WindowTableLens.Spec last = new WindowTableLens.Spec(
-         "lv", "LAST_VALUE", 1, 0, new int[0], new int[]{1}, new boolean[]{true});
+         "md", "MEDIAN", 1, 0, new int[0], new int[]{1}, new boolean[]{true});
       WindowTableLens lens = new WindowTableLens(base(), new WindowTableLens.Spec[]{last});
       RuntimeException ex = assertThrows(RuntimeException.class, () -> cell(lens, 0, 2));
-      assertTrue(ex.getMessage().contains("LAST_VALUE"),
+      assertTrue(ex.getMessage().contains("MEDIAN"),
                  "error should name the unsupported function: " + ex.getMessage());
+   }
+
+   @Test
+   void movingAverage_2precedingToCurrent() {
+      // amount asc 10,20,30,40 in one partition; AVG ROWS 2 PRECEDING..CURRENT ROW
+      Object[][] d = {{"amount"},{10.0},{20.0},{30.0},{40.0}};
+      DefaultTableLens t = new DefaultTableLens(d); t.setHeaderRowCount(1);
+      WindowTableLens.Spec ma = new WindowTableLens.Spec(
+         "ma","AVG",0,0,new int[0],new int[]{0},new boolean[]{true}, "PRECEDING",2,"CURRENT_ROW",0);
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{ma});
+      assertEquals(10.0, cell(lens,0,1));                 // [10]
+      assertEquals(15.0, cell(lens,1,1));                 // [10,20]
+      assertEquals(20.0, cell(lens,2,1));                 // [10,20,30]
+      assertEquals(30.0, cell(lens,3,1));                 // [20,30,40]
+   }
+
+   @Test
+   void lastValue_wholePartition() {
+      Object[][] d = {{"stage","amount"},{"A",10.0},{"A",30.0},{"A",20.0}};
+      DefaultTableLens t = new DefaultTableLens(d); t.setHeaderRowCount(1);
+      WindowTableLens.Spec lv = new WindowTableLens.Spec(   // frame-less LAST_VALUE, ordered asc
+         "lv","LAST_VALUE",1,0,new int[]{0},new int[]{1},new boolean[]{true});  // no-frame ctor
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{lv});
+      // asc order 10,20,30 → last = 30 for every row
+      assertEquals(30.0, cell(lens,0,2));
+      assertEquals(30.0, cell(lens,1,2));
+      assertEquals(30.0, cell(lens,2,2));
+   }
+
+   @Test
+   void emptyFrame_sumIsNull_countIsZero_notSumZero() {
+      // single partition, ordered asc: 10,20,30. ROWS BETWEEN 2 FOLLOWING AND 3 FOLLOWING.
+      // For the LAST row (p=2, size=3) both bounds fall past the end of the partition → empty
+      // frame. SUM/AVG/MIN/MAX must be NULL (ANSI/JDBC parity), NOT 0.0; COUNT must be 0.
+      Object[][] d = {{"amount"},{10.0},{20.0},{30.0}};
+      DefaultTableLens t = new DefaultTableLens(d); t.setHeaderRowCount(1);
+      WindowTableLens.Spec sum = new WindowTableLens.Spec(
+         "s","SUM",0,0,new int[0],new int[]{0},new boolean[]{true},"FOLLOWING",2,"FOLLOWING",3);
+      WindowTableLens.Spec cnt = new WindowTableLens.Spec(
+         "c","COUNT",0,0,new int[0],new int[]{0},new boolean[]{true},"FOLLOWING",2,"FOLLOWING",3);
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{sum, cnt});
+      assertNull(cell(lens, 2, 1));         // SUM over empty frame on last row → null, not 0.0
+      assertEquals(0, cell(lens, 2, 2));    // COUNT over empty frame on last row → 0
+   }
+
+   @Test
+   void centeredFrame_1precedingTo1following() {
+      Object[][] d = {{"amount"},{10.0},{20.0},{30.0}};
+      DefaultTableLens t = new DefaultTableLens(d); t.setHeaderRowCount(1);
+      WindowTableLens.Spec s = new WindowTableLens.Spec(
+         "c","SUM",0,0,new int[0],new int[]{0},new boolean[]{true},"PRECEDING",1,"FOLLOWING",1);
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{s});
+      assertEquals(30.0, cell(lens,0,1));    // [10,20]
+      assertEquals(60.0, cell(lens,1,1));    // [10,20,30]
+      assertEquals(50.0, cell(lens,2,1));    // [20,30]
    }
 }

@@ -3019,8 +3019,16 @@ public abstract class AssetQuery extends PreAssetQuery {
             }
          }
 
-         specs.add(new WindowTableLens.Spec(
-            ref.getName(), w.getFn(), arg, w.getN(), parts, ocols, oasc));
+         if(w.hasExplicitFrame()) {
+            specs.add(new WindowTableLens.Spec(
+               ref.getName(), w.getFn(), arg, w.getN(), parts, ocols, oasc,
+               w.getFrameStartBound(), w.getFrameStartOffset(),
+               w.getFrameEndBound(), w.getFrameEndOffset()));
+         }
+         else {
+            specs.add(new WindowTableLens.Spec(
+               ref.getName(), w.getFn(), arg, w.getN(), parts, ocols, oasc));
+         }
       }
 
       checkCompatiblePartitionAndOrder(specs);
