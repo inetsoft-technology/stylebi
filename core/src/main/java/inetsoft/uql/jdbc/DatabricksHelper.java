@@ -138,10 +138,12 @@ public class DatabricksHelper extends SQLHelper {
 
    /**
     * Spark SQL's multi-unit interval literal is unquoted with a plural unit keyword, e.g.
-    * {@code INTERVAL 7 DAYS}.
+    * {@code INTERVAL 7 DAYS}. Spark's INTERVAL literal doesn't accept QUARTER (or WEEK), so
+    * quarter/week are normalized first (see {@link SQLHelper#normalizeFrameInterval}).
     */
    @Override
    public String formatWindowFrameInterval(int offset, String unit) {
-      return "INTERVAL " + offset + " " + unit.toUpperCase() + "S";
+      Object[] normalized = normalizeFrameInterval(offset, unit);
+      return "INTERVAL " + normalized[0] + " " + ((String) normalized[1]).toUpperCase() + "S";
    }
 }

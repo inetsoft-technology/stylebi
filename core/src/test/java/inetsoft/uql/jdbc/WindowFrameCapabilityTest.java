@@ -60,6 +60,20 @@ class WindowFrameCapabilityTest {
       assertEquals("INTERVAL '7 day'", new SQLHelper().formatWindowFrameInterval(7, "day"));
    }
 
+   // ── quarter/week normalization: neither is a valid ANSI interval field on every dialect
+   // (quarter fails on base/PG, Oracle, Databricks/Spark, Vertica; week fails on Oracle), so
+   // both are normalized to an exact equivalent (quarter -> 3*offset month, week -> 7*offset
+   // day) BEFORE rendering, universally across dialects. day/month/etc. offsets are byte-
+   // identical to pre-normalization behavior (pass through unchanged).
+
+   @Test
+   void base_interval_quarterAndWeek_normalizedToMonthAndDay() {
+      SQLHelper h = new SQLHelper();
+      assertEquals("INTERVAL '21 month'", h.formatWindowFrameInterval(7, "quarter"));
+      assertEquals("INTERVAL '14 day'", h.formatWindowFrameInterval(2, "week"));
+      assertEquals("INTERVAL '7 day'", h.formatWindowFrameInterval(7, "day"));   // unchanged
+   }
+
    // ── PostgreSQL: opts into everything (byte-parity anchor) ───────────────
 
    @Test
@@ -69,6 +83,9 @@ class WindowFrameCapabilityTest {
       assertTrue(h.supportsWindowFrame("RANGE", true, true));
       assertTrue(h.supportsWindowFrame("GROUPS", false, false));   // PG >= 11 (default permissive when version unknown)
       assertEquals("INTERVAL '7 day'", h.formatWindowFrameInterval(7, "day"));   // inherits base literal
+      // PG rejects INTERVAL '<n> quarter'; normalized to month (inherits base normalization).
+      assertEquals("INTERVAL '21 month'", h.formatWindowFrameInterval(7, "quarter"));
+      assertEquals("INTERVAL '14 day'", h.formatWindowFrameInterval(2, "week"));
    }
 
    // ── Strong tier: opt-in RANGE value/date pushdown, GROUPS still denied ──
@@ -82,6 +99,10 @@ class WindowFrameCapabilityTest {
       assertTrue(h.supportsWindowFrame("RANGE", true, true));     // date INTERVAL
       assertFalse(h.supportsWindowFrame("GROUPS", false, false));
       assertEquals("INTERVAL '7' DAY", h.formatWindowFrameInterval(7, "day"));
+      // Oracle's INTERVAL literal only accepts YEAR/MONTH/DAY/HOUR/MINUTE/SECOND; quarter and
+      // week are normalized to month/day before rendering.
+      assertEquals("INTERVAL '21' MONTH", h.formatWindowFrameInterval(7, "quarter"));
+      assertEquals("INTERVAL '14' DAY", h.formatWindowFrameInterval(2, "week"));
    }
 
    @Test
@@ -95,6 +116,10 @@ class WindowFrameCapabilityTest {
       assertTrue(h.supportsWindowFrame("RANGE", true, true));
       assertFalse(h.supportsWindowFrame("GROUPS", false, false));
       assertEquals("INTERVAL 7 DAY", h.formatWindowFrameInterval(7, "day"));
+      // MySQL happens to support "quarter" natively, but normalizing to month is still correct
+      // (exact equivalent) and keeps the rendering path uniform across dialects.
+      assertEquals("INTERVAL 21 MONTH", h.formatWindowFrameInterval(7, "quarter"));
+      assertEquals("INTERVAL 14 DAY", h.formatWindowFrameInterval(2, "week"));
    }
 
    @Test
@@ -116,6 +141,8 @@ class WindowFrameCapabilityTest {
       assertTrue(h.supportsWindowFrame("RANGE", true, true));
       assertFalse(h.supportsWindowFrame("GROUPS", false, false));
       assertEquals("INTERVAL 7 DAYS", h.formatWindowFrameInterval(7, "day"));
+      // Spark's INTERVAL literal doesn't accept "quarter"; normalized to month before rendering.
+      assertEquals("INTERVAL 21 MONTHS", h.formatWindowFrameInterval(7, "quarter"));
    }
 
    @Test
@@ -127,6 +154,8 @@ class WindowFrameCapabilityTest {
       assertTrue(h.supportsWindowFrame("RANGE", true, true));
       assertFalse(h.supportsWindowFrame("GROUPS", false, false));
       assertEquals("INTERVAL '7 days'", h.formatWindowFrameInterval(7, "day"));
+      // Vertica's INTERVAL literal doesn't accept "quarter"; normalized to month before rendering.
+      assertEquals("INTERVAL '21 months'", h.formatWindowFrameInterval(7, "quarter"));
    }
 
    @Test

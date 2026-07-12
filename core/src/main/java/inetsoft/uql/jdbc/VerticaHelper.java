@@ -77,10 +77,13 @@ public class VerticaHelper extends SQLHelper {
 
    /**
     * Vertica's interval literal quotes the quantity and unit together, with a plural,
-    * lower-cased unit, e.g. {@code INTERVAL '7 days'}.
+    * lower-cased unit, e.g. {@code INTERVAL '7 days'}. Vertica's INTERVAL literal doesn't
+    * accept QUARTER, so quarter/week are normalized first
+    * (see {@link SQLHelper#normalizeFrameInterval}).
     */
    @Override
    public String formatWindowFrameInterval(int offset, String unit) {
-      return "INTERVAL '" + offset + " " + unit.toLowerCase() + "s'";
+      Object[] normalized = normalizeFrameInterval(offset, unit);
+      return "INTERVAL '" + normalized[0] + " " + ((String) normalized[1]).toLowerCase() + "s'";
    }
 }

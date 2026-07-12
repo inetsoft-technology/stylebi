@@ -146,11 +146,14 @@ public class MySQLHelper extends SQLHelper {
    }
 
    /**
-    * MySQL's interval literal has no surrounding quotes: {@code INTERVAL 7 DAY}.
+    * MySQL's interval literal has no surrounding quotes: {@code INTERVAL 7 DAY}. MySQL happens
+    * to support QUARTER natively, but quarter/week are still normalized to month/day first
+    * (see {@link SQLHelper#normalizeFrameInterval}) to keep rendering uniform across dialects.
     */
    @Override
    public String formatWindowFrameInterval(int offset, String unit) {
-      return "INTERVAL " + offset + " " + unit.toUpperCase();
+      Object[] normalized = normalizeFrameInterval(offset, unit);
+      return "INTERVAL " + normalized[0] + " " + ((String) normalized[1]).toUpperCase();
    }
 
    /**

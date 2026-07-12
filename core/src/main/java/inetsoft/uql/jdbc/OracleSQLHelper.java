@@ -341,11 +341,14 @@ class OracleSQLHelper extends SQLHelper {
 
    /**
     * Oracle's date/time interval literal quotes only the numeral; the unit keyword is
-    * unquoted and conventionally upper-cased, e.g. {@code INTERVAL '7' DAY}.
+    * unquoted and conventionally upper-cased, e.g. {@code INTERVAL '7' DAY}. Oracle's
+    * INTERVAL literal only accepts YEAR/MONTH/DAY/HOUR/MINUTE/SECOND (no QUARTER or WEEK),
+    * so quarter/week are normalized first (see {@link SQLHelper#normalizeFrameInterval}).
     */
    @Override
    public String formatWindowFrameInterval(int offset, String unit) {
-      return "INTERVAL '" + offset + "' " + unit.toUpperCase();
+      Object[] normalized = normalizeFrameInterval(offset, unit);
+      return "INTERVAL '" + normalized[0] + "' " + ((String) normalized[1]).toUpperCase();
    }
 
    private static Set keywords = new HashSet(); // keywords
