@@ -98,14 +98,13 @@ class WindowFrameCapabilityTest {
    }
 
    @Test
-   void db2_rangeValueAndDate_noGroups() {
+   void db2_rangeNumericOnly_dateDenied_noGroups() {
       DB2SQLHelper h = new DB2SQLHelper();
       assertTrue(h.supportsWindowFrame("ROWS", true, false));
-      assertTrue(h.supportsWindowFrame("RANGE", false, false));
-      assertTrue(h.supportsWindowFrame("RANGE", true, false));
-      assertTrue(h.supportsWindowFrame("RANGE", true, true));
+      assertTrue(h.supportsWindowFrame("RANGE", false, false));    // peer
+      assertTrue(h.supportsWindowFrame("RANGE", true, false));     // numeric value offset (ANSI, well-established)
+      assertFalse(h.supportsWindowFrame("RANGE", true, true));     // date offset: unverified syntax, deny (fail-safe)
       assertFalse(h.supportsWindowFrame("GROUPS", false, false));
-      assertEquals("7 DAYS", h.formatWindowFrameInterval(7, "day"));   // labeled duration, no INTERVAL keyword
    }
 
    @Test
