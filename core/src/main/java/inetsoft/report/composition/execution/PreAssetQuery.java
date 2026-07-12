@@ -661,11 +661,12 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
             // non-pushable RANGE/GROUPS frame on a non-Postgres dialect) is kept OUT of
             // gcolumns when it's absent from the SELECT list — otherwise gcolumns count would
             // not match the emitted SQL columns on that hybrid grouped-SQL + in-memory-window
-            // path. isAggregateInfoMergeable() is always true here (mergeGroupBy already
-            // returned false above when it isn't), so this is byte-identical to the prior
-            // unconditional mergeColumn(nselection, column) + gcolumns.addAttribute(column) for
-            // every dialect that CAN push the frame down (all-Postgres included).
-            if(mergeColumn(nselection, column, isAggregateInfoMergeable())) {
+            // path. The 2-arg mergeColumn this replaces delegates with a hardcoded true, and
+            // mergeGroupBy already returned false above when !isAggregateInfoMergeable(), so
+            // passing true here is byte-identical to the prior unconditional
+            // mergeColumn(nselection, column) + gcolumns.addAttribute(column) for every dialect
+            // that CAN push the frame down (all-Postgres included).
+            if(mergeColumn(nselection, column, true)) {
                gcolumns.addAttribute(column);
             }
          }
