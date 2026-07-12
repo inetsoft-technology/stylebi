@@ -227,4 +227,213 @@ class WorksheetTableServiceWindowColumnsTest {
       assertTrue(ex.getMessage().contains("ma"));
       assertTrue(ex.getMessage().contains("UNBOUNDED_PRECEDING"));
    }
+
+   // ─── Phase 4: RANGE / GROUPS frame mode + offsetUnit ──────────────────────
+
+   @Test
+   void rangeDateFrame_buildsRangeExpressionWithInterval() throws Exception {
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"s","fn":"SUM","column":"amount","partitionBy":["stage"],
+           "orderBy":[{"field":"d","direction":"ASC"}],
+           "frame":{"mode":"RANGE","startBound":"PRECEDING","startOffset":7,
+                     "endBound":"CURRENT_ROW","offsetUnit":"day"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "stage")));
+      AttributeRef dRef = new AttributeRef(null, "d");
+      dRef.setDataType(inetsoft.uql.schema.XSchema.TIME_INSTANT);
+      cs.addAttribute(new ColumnRef(dRef));
+      table.setColumnSelection(cs);
+
+      service().applyWindowColumns(table, req.getWindowColumns());
+
+      ColumnRef added = (ColumnRef) table.getColumnSelection(false).getAttribute("s");
+      String expr = ((WindowExpressionRef) added.getDataRef()).getExpression();
+      assertTrue(expr.contains("RANGE BETWEEN INTERVAL '7 day' PRECEDING AND CURRENT ROW"),
+                 "unexpected expression: " + expr);
+   }
+
+   @Test
+   void groupsFrame_buildsGroupsExpression() throws Exception {
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"s","fn":"SUM","column":"amount","partitionBy":["stage"],
+           "orderBy":[{"field":"d","direction":"ASC"}],
+           "frame":{"mode":"GROUPS","startBound":"PRECEDING","startOffset":2,
+                     "endBound":"CURRENT_ROW"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "stage")));
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "d")));
+      table.setColumnSelection(cs);
+
+      service().applyWindowColumns(table, req.getWindowColumns());
+
+      ColumnRef added = (ColumnRef) table.getColumnSelection(false).getAttribute("s");
+      String expr = ((WindowExpressionRef) added.getDataRef()).getExpression();
+      assertTrue(expr.contains("GROUPS BETWEEN 2 PRECEDING AND CURRENT ROW"),
+                 "unexpected expression: " + expr);
+   }
+
+   @Test
+   void rangeValueOffset_requiresSingleOrderKey() throws Exception {
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"s","fn":"SUM","column":"amount","partitionBy":["stage"],
+           "orderBy":[{"field":"d","direction":"ASC"},{"field":"amount","direction":"ASC"}],
+           "frame":{"mode":"RANGE","startBound":"PRECEDING","startOffset":7,
+                     "endBound":"CURRENT_ROW","offsetUnit":"day"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "stage")));
+      AttributeRef dRef = new AttributeRef(null, "d");
+      dRef.setDataType(inetsoft.uql.schema.XSchema.TIME_INSTANT);
+      cs.addAttribute(new ColumnRef(dRef));
+      table.setColumnSelection(cs);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service().applyWindowColumns(table, req.getWindowColumns()));
+      assertTrue(ex.getMessage().contains("s"));
+   }
+
+   @Test
+   void offsetUnit_onRows_throws() throws Exception {
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"s","fn":"SUM","column":"amount","partitionBy":["stage"],
+           "orderBy":[{"field":"d","direction":"ASC"}],
+           "frame":{"mode":"ROWS","startBound":"PRECEDING","startOffset":7,
+                     "endBound":"CURRENT_ROW","offsetUnit":"day"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "stage")));
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "d")));
+      table.setColumnSelection(cs);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service().applyWindowColumns(table, req.getWindowColumns()));
+      assertTrue(ex.getMessage().contains("s"));
+   }
+
+   @Test
+   void groupsOrRangeValue_withoutOrderBy_throws() throws Exception {
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"s","fn":"SUM","column":"amount","partitionBy":["stage"],
+           "frame":{"mode":"GROUPS","startBound":"PRECEDING","startOffset":2,
+                     "endBound":"CURRENT_ROW"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "stage")));
+      table.setColumnSelection(cs);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service().applyWindowColumns(table, req.getWindowColumns()));
+      assertTrue(ex.getMessage().contains("s"));
+   }
+
+   @Test
+   void invalidFrameMode_throws() throws Exception {
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"s","fn":"SUM","column":"amount",
+           "orderBy":[{"field":"amount","direction":"ASC"}],
+           "frame":{"mode":"BOGUS","startBound":"PRECEDING","startOffset":2,
+                     "endBound":"CURRENT_ROW"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      table.setColumnSelection(cs);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service().applyWindowColumns(table, req.getWindowColumns()));
+      assertTrue(ex.getMessage().contains("s"));
+   }
+
+   @Test
+   void offsetUnit_onNonDateOrderKey_throws() throws Exception {
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"s","fn":"SUM","column":"amount","partitionBy":["stage"],
+           "orderBy":[{"field":"amount","direction":"ASC"}],
+           "frame":{"mode":"RANGE","startBound":"PRECEDING","startOffset":7,
+                     "endBound":"CURRENT_ROW","offsetUnit":"day"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "stage")));
+      table.setColumnSelection(cs);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service().applyWindowColumns(table, req.getWindowColumns()));
+      assertTrue(ex.getMessage().contains("s"));
+   }
+
+   @Test
+   void invalidOffsetUnit_throws() throws Exception {
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"s","fn":"SUM","column":"amount","partitionBy":["stage"],
+           "orderBy":[{"field":"d","direction":"ASC"}],
+           "frame":{"mode":"RANGE","startBound":"PRECEDING","startOffset":7,
+                     "endBound":"CURRENT_ROW","offsetUnit":"fortnight"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "stage")));
+      AttributeRef dRef = new AttributeRef(null, "d");
+      dRef.setDataType(inetsoft.uql.schema.XSchema.TIME_INSTANT);
+      cs.addAttribute(new ColumnRef(dRef));
+      table.setColumnSelection(cs);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service().applyWindowColumns(table, req.getWindowColumns()));
+      assertTrue(ex.getMessage().contains("s"));
+   }
+
+   @Test
+   void rowsFrame_byteParityWithOmittedMode() throws Exception {
+      // A ROWS/omitted-mode frame must produce identical output to Phase 3 (no regression).
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"ma","fn":"AVG","column":"amount",
+           "orderBy":[{"field":"amount","direction":"ASC"}],
+           "frame":{"startBound":"PRECEDING","startOffset":2,"endBound":"CURRENT_ROW"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      table.setColumnSelection(cs);
+
+      service().applyWindowColumns(table, req.getWindowColumns());
+
+      ColumnRef added = (ColumnRef) table.getColumnSelection(false).getAttribute("ma");
+      String expr = ((WindowExpressionRef) added.getDataRef()).getExpression();
+      assertTrue(expr.contains("ROWS BETWEEN 2 PRECEDING AND CURRENT ROW"));
+      assertFalse(expr.contains("RANGE"));
+      assertFalse(expr.contains("GROUPS"));
+   }
 }

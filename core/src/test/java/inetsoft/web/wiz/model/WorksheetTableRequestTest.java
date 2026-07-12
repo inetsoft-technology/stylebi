@@ -113,5 +113,33 @@ class WorksheetTableRequestTest {
       assertEquals("PRECEDING", f.getStartBound());
       assertEquals(2, f.getStartOffset());
       assertEquals("CURRENT_ROW", f.getEndBound());
+      // Omitted mode/offsetUnit deserialize to null (WorksheetTableService normalizes null → ROWS).
+      assertNull(f.getMode());
+      assertNull(f.getOffsetUnit());
+   }
+
+   @Test
+   void windowColumnFrameModeAndOffsetUnitRoundTrip() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+
+      WorksheetTable t = mapper.readValue(
+         """
+         { "windowColumns": [ { "name":"s","fn":"SUM","column":"amount",
+           "orderBy":[{"field":"d","direction":"ASC"}],
+           "frame":{"mode":"RANGE","startBound":"PRECEDING","startOffset":7,
+                     "endBound":"CURRENT_ROW","offsetUnit":"day"} } ] }
+         """,
+         WorksheetTable.class);
+
+      var f = t.getWindowColumns().get(0).getFrame();
+      assertEquals("RANGE", f.getMode());
+      assertEquals("day", f.getOffsetUnit());
+      assertEquals("PRECEDING", f.getStartBound());
+      assertEquals(7, f.getStartOffset());
+      assertEquals("CURRENT_ROW", f.getEndBound());
+
+      JsonNode output = mapper.valueToTree(t);
+      assertEquals("RANGE", output.at("/windowColumns/0/frame/mode").asText());
+      assertEquals("day", output.at("/windowColumns/0/frame/offsetUnit").asText());
    }
 }
