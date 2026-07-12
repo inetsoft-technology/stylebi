@@ -138,4 +138,192 @@ class WindowFrameCapabilityTest {
       assertFalse(h.supportsWindowFrame("RANGE", true, true));    // no date INTERVAL frame
       assertFalse(h.supportsWindowFrame("GROUPS", false, false));
    }
+
+   // ── Conservative tier: ROWS + RANGE-peer only (base default, unmodified) ────
+   // These dialects have WINDOW_FUNCTION == true (no supportsOperation override found for any
+   // of them) and no supportsWindowFrame override, so they land on the base matrix row exactly:
+   // ROWS true, RANGE-peer true, RANGE-value/date false, GROUPS false. No code change; these
+   // tests confirm + lock the contract.
+
+   @Test
+   void sqlServer_rowsAndRangePeer_denyValueDateAndGroups() {
+      SQLServerHelper h = new SQLServerHelper();
+      assertTrue(h.supportsWindowFrame("ROWS", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", false, false));    // peer
+      assertFalse(h.supportsWindowFrame("RANGE", true, false));    // no value-offset RANGE
+      assertFalse(h.supportsWindowFrame("RANGE", true, true));     // no date INTERVAL frame
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));  // no GROUPS
+   }
+
+   @Test
+   void snowflake_rowsAndRangePeer_denyValueDateAndGroups() {
+      SnowflakeHelper h = new SnowflakeHelper();
+      assertTrue(h.supportsWindowFrame("ROWS", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", false, false));    // peer
+      assertFalse(h.supportsWindowFrame("RANGE", true, false));    // Snowflake RANGE is peer-only
+      assertFalse(h.supportsWindowFrame("RANGE", true, true));
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));
+   }
+
+   @Test
+   void clickhouse_rowsAndRangePeer_denyValueDateAndGroups() {
+      ClickhouseHelper h = new ClickhouseHelper();
+      assertTrue(h.supportsWindowFrame("ROWS", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", false, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, true));
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));
+   }
+
+   @Test
+   void hive_rowsAndRangePeer_denyValueDateAndGroups() {
+      HiveHelper h = new HiveHelper();
+      assertTrue(h.supportsWindowFrame("ROWS", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", false, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, true));
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));
+   }
+
+   @Test
+   void impala_rowsAndRangePeer_denyValueDateAndGroups() {
+      ImpalaHelper h = new ImpalaHelper();
+      assertTrue(h.supportsWindowFrame("ROWS", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", false, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, true));
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));
+   }
+
+   @Test
+   void exasol_rowsAndRangePeer_denyValueDateAndGroups() {
+      ExasolHelper h = new ExasolHelper();
+      assertTrue(h.supportsWindowFrame("ROWS", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", false, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, true));
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));
+   }
+
+   // ── No window functions at all: base denies everything ──────────────────────
+
+   @Test
+   void access_noWindowFunctions_denyEverything() {
+      AccessSQLHelper h = new AccessSQLHelper();
+      // Access has no window functions; AccessSQLHelper.supportsOperation(WINDOW_FUNCTION)
+      // already returns false, so the base capability gate denies ROWS/RANGE-peer too.
+      assertFalse(h.supportsWindowFrame("ROWS", true, false));
+      assertFalse(h.supportsWindowFrame("RANGE", false, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, true));
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));
+   }
+
+   @Test
+   void mongo_noWindowFunctions_denyEverything() {
+      MongoHelper h = new MongoHelper();
+      // MongoHelper already gates WINDOW_FUNCTION off (supportsOperation(op, info) override).
+      assertFalse(h.supportsWindowFrame("ROWS", true, false));
+      assertFalse(h.supportsWindowFrame("RANGE", false, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, true));
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));
+   }
+
+   @Test
+   void derby_noWindowFunctions_denyEverything() {
+      // Note: unlike the rest of the "long tail" below, DerbyHelper unconditionally denies
+      // WINDOW_FUNCTION (not version-gated), so it lands in the no-window-function tier
+      // alongside Access/Mongo -- base denies ROWS/RANGE-peer too, not just RANGE-value/GROUPS.
+      DerbyHelper h = new DerbyHelper();
+      assertFalse(h.supportsWindowFrame("ROWS", true, false));
+      assertFalse(h.supportsWindowFrame("RANGE", false, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, true));
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));
+   }
+
+   // ── Long tail: inherit base (ROWS/RANGE-peer true, RANGE-value/date/GROUPS false) ───────
+   // Verified via source: none of these override supportsOperation(WINDOW_FUNCTION) or
+   // supportsWindowFrame, so WINDOW_FUNCTION defaults true and the base matrix row applies in
+   // full (including ROWS/RANGE-peer, safe to assert here since it was independently verified,
+   // not merely assumed).
+
+   @Test
+   void h2_inheritsBase_rowsAndRangePeerTrue_denyValueDateAndGroups() {
+      H2Helper h = new H2Helper();
+      assertTrue(h.supportsWindowFrame("ROWS", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", false, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, true));
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));
+   }
+
+   @Test
+   void sybase_inheritsBase_rowsAndRangePeerTrue_denyValueDateAndGroups() {
+      SybaseHelper h = new SybaseHelper();
+      assertTrue(h.supportsWindowFrame("ROWS", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", false, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, true));
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));
+   }
+
+   @Test
+   void denodo_inheritsBase_rowsAndRangePeerTrue_denyValueDateAndGroups() {
+      DenodoSQLHelper h = new DenodoSQLHelper();
+      assertTrue(h.supportsWindowFrame("ROWS", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", false, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, true));
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));
+   }
+
+   @Test
+   void dremio_inheritsBase_rowsAndRangePeerTrue_denyValueDateAndGroups() {
+      DremioHelper h = new DremioHelper();
+      assertTrue(h.supportsWindowFrame("ROWS", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", false, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, true));
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));
+   }
+
+   @Test
+   void ingres_inheritsBase_rowsAndRangePeerTrue_denyValueDateAndGroups() {
+      IngresHelper h = new IngresHelper();
+      assertTrue(h.supportsWindowFrame("ROWS", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", false, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, true));
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));
+   }
+
+   @Test
+   void luciddb_inheritsBase_rowsAndRangePeerTrue_denyValueDateAndGroups() {
+      LucidDbHelper h = new LucidDbHelper();
+      assertTrue(h.supportsWindowFrame("ROWS", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", false, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, false));
+      assertFalse(h.supportsWindowFrame("RANGE", true, true));
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));
+   }
+
+   // ── Informix: genuine divergence found + fixed ───────────────────────────────
+   // InformixSQLHelper extends DB2SQLHelper for unrelated SQL-generation quirks (MAXROWS
+   // suppression, alias-length limiting, keyword list) -- NOT because Informix and DB2 (LUW)
+   // share verified window-frame syntax. Without its own override, Informix would silently
+   // inherit DB2SQLHelper's Task-4 RANGE-value opt-in (a claim never researched for Informix
+   // specifically). InformixSQLHelper now overrides supportsWindowFrame to reproduce the
+   // conservative base row directly instead of falling through to DB2SQLHelper's override.
+
+   @Test
+   void informix_doesNotInheritDb2RangeValueOptIn_deniesValueDateAndGroups() {
+      InformixSQLHelper h = new InformixSQLHelper();
+      assertTrue(h.supportsWindowFrame("ROWS", true, false));
+      assertTrue(h.supportsWindowFrame("RANGE", false, false));     // peer
+      assertFalse(h.supportsWindowFrame("RANGE", true, false));     // NOT DB2's numeric opt-in
+      assertFalse(h.supportsWindowFrame("RANGE", true, true));
+      assertFalse(h.supportsWindowFrame("GROUPS", false, false));
+   }
 }
