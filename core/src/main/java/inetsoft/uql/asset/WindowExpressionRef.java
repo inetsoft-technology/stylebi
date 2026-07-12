@@ -207,7 +207,7 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
    /**
     * Get the frame offset unit (e.g. {@code "day"}), used to render a date-valued {@code RANGE}
     * frame's {@code PRECEDING}/{@code FOLLOWING} offset as a dialect-specific {@code INTERVAL}
-    * literal (via the {@code WINFRAME_INTERVAL(..)} token, expanded downstream by
+    * literal (via the {@code __WIZ_WINFRAME_INTERVAL(..)} token, expanded downstream by
     * {@code SQLHelper.formatWindowFrameInterval}) instead of a bare integer. {@code null} for
     * ROWS/GROUPS and numeric RANGE frames.
     */
@@ -504,17 +504,20 @@ public final class WindowExpressionRef extends ExpressionRef implements SQLExpre
    /**
     * Render the PRECEDING/FOLLOWING offset: a bare integer for ROWS/GROUPS/numeric-RANGE frames,
     * or -- when {@link #frameOffsetUnit} is set (a date-valued RANGE frame) -- a canonical
-    * {@code WINFRAME_INTERVAL(<n>,<unit>)} token. This is deliberately NOT a rendered SQL literal:
-    * the dialect-appropriate {@code INTERVAL} syntax varies (Postgres: {@code INTERVAL '<n> <unit>'};
-    * other dialects differ), so this ref stays database-agnostic and defers to the dialect-rewrite
-    * pass ({@code PreAssetQuery.getExpressionColumn}, via {@code SQLHelper.formatWindowFrameInterval})
-    * that already rewrites this expression's {@code field['..']} tokens per dialect. Kept
-    * token-shaped (parenthesized call syntax, like a function) so it survives that rewrite intact
-    * and is unambiguous to scan for.
+    * {@code __WIZ_WINFRAME_INTERVAL(<n>,<unit>)} token. This is deliberately NOT a rendered SQL
+    * literal: the dialect-appropriate {@code INTERVAL} syntax varies (Postgres:
+    * {@code INTERVAL '<n> <unit>'}; other dialects differ), so this ref stays database-agnostic
+    * and defers to the dialect-rewrite pass ({@code PreAssetQuery.getExpressionColumn}, via
+    * {@code SQLHelper.formatWindowFrameInterval}) that already rewrites this expression's
+    * {@code field['..']} tokens per dialect. Kept token-shaped (parenthesized call syntax, like a
+    * function) so it survives that rewrite intact and is unambiguous to scan for. The
+    * {@code __WIZ_} prefix namespaces the token so it can never collide with user-authored
+    * {@code sql:true} expression-column text (which shares this string namespace) -- a user would
+    * never author this exact identifier by accident.
     */
    private String frameOffsetSql(int offset) {
       if(frameOffsetUnit != null) {
-         return "WINFRAME_INTERVAL(" + offset + "," + frameOffsetUnit + ")";
+         return "__WIZ_WINFRAME_INTERVAL(" + offset + "," + frameOffsetUnit + ")";
       }
 
       return Integer.toString(offset);   // numeric offset — ANSI-standard, no rewrite needed

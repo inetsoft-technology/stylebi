@@ -436,8 +436,10 @@ class WindowRoutingTest {
     * Phase 5 Task 3: {@link PreAssetQuery#expandWindowFrameTokens} is the dialect-rewrite seam
     * (piggybacking on the same pass that rewrites {@code field['..']} identifier tokens in
     * {@code PreAssetQuery.getExpressionColumn}) that expands the canonical
-    * {@code WINFRAME_INTERVAL(<n>,<unit>)} token {@code WindowExpressionRef} now emits for a
-    * date-valued RANGE frame offset into the dialect's real {@code INTERVAL} literal.
+    * {@code __WIZ_WINFRAME_INTERVAL(<n>,<unit>)} token {@code WindowExpressionRef} now emits for a
+    * date-valued RANGE frame offset into the dialect's real {@code INTERVAL} literal. Finding B
+    * (PR #4237 review): the {@code __WIZ_} prefix namespaces the token against collision with
+    * user-authored {@code sql:true} expression text.
     * <p>
     * Byte-parity gate: PostgreSQL's {@code formatWindowFrameInterval} inherits the base
     * {@code INTERVAL '<n> <unit>'} literal unchanged (Task 1), so this must render byte-identical
@@ -483,10 +485,58 @@ class WindowRoutingTest {
    @Test
    void expandWindowFrameTokens_nullHelperFallsBackToAnsiDefault() {
       String withToken =
-         "SUM(x) OVER (RANGE BETWEEN WINFRAME_INTERVAL(3,month) PRECEDING AND CURRENT ROW)";
+         "SUM(x) OVER (RANGE BETWEEN __WIZ_WINFRAME_INTERVAL(3,month) PRECEDING AND CURRENT ROW)";
       String rendered = PreAssetQuery.expandWindowFrameTokens(withToken, null);
       assertEquals(
          "SUM(x) OVER (RANGE BETWEEN INTERVAL '3 month' PRECEDING AND CURRENT ROW)", rendered);
+   }
+
+   // ─── PR #4237 review Finding C: malformed token must fail loud, not silently degrade ─────────
+
+   /**
+    * {@code expandWindowFrameTokens} only ever receives a {@code __WIZ_WINFRAME_INTERVAL(..)}
+    * token that {@code WindowExpressionRef.frameOffsetSql} produced with validated
+    * {@code (offset, unit)} inputs. A malformed occurrence here signals a producer bug, not bad
+    * user input -- previously the scan silently gave up and left the raw token in the emitted SQL
+    * (an opaque database syntax error downstream); it must now fail loud with a named
+    * {@link RuntimeException} instead.
+    */
+   @Test
+   void expandWindowFrameTokens_missingClosingParen_throws() {
+      // no ")" anywhere after the token start -- end-of-token scan must fail loud, not truncate.
+      String malformed = "SUM(x) OVER (RANGE BETWEEN __WIZ_WINFRAME_INTERVAL(7,day PRECEDING AND CURRENT ROW";
+      RuntimeException ex = assertThrows(RuntimeException.class,
+         () -> PreAssetQuery.expandWindowFrameTokens(malformed, new PostgreSQLHelper()));
+      assertTrue(ex.getMessage().contains("malformed window-frame interval token"),
+         "unexpected message: " + ex.getMessage());
+   }
+
+   @Test
+   void expandWindowFrameTokens_missingCommaSeparator_throws() {
+      String malformed = "SUM(x) OVER (RANGE BETWEEN __WIZ_WINFRAME_INTERVAL(7day) PRECEDING)";
+      RuntimeException ex = assertThrows(RuntimeException.class,
+         () -> PreAssetQuery.expandWindowFrameTokens(malformed, new PostgreSQLHelper()));
+      assertTrue(ex.getMessage().contains("malformed window-frame interval token"),
+         "unexpected message: " + ex.getMessage());
+   }
+
+   @Test
+   void expandWindowFrameTokens_nonIntegerOffset_throws() {
+      String malformed = "SUM(x) OVER (RANGE BETWEEN __WIZ_WINFRAME_INTERVAL(seven,day) PRECEDING)";
+      RuntimeException ex = assertThrows(RuntimeException.class,
+         () -> PreAssetQuery.expandWindowFrameTokens(malformed, new PostgreSQLHelper()));
+      assertTrue(ex.getMessage().contains("malformed window-frame interval token"),
+         "unexpected message: " + ex.getMessage());
+   }
+
+   /** No false positive: a well-formed token must still expand correctly (happy path untouched). */
+   @Test
+   void expandWindowFrameTokens_wellFormedToken_stillExpandsCorrectly() {
+      String wellFormed =
+         "SUM(x) OVER (RANGE BETWEEN __WIZ_WINFRAME_INTERVAL(7,day) PRECEDING AND CURRENT ROW)";
+      String rendered = PreAssetQuery.expandWindowFrameTokens(wellFormed, new PostgreSQLHelper());
+      assertEquals(
+         "SUM(x) OVER (RANGE BETWEEN INTERVAL '7 day' PRECEDING AND CURRENT ROW)", rendered);
    }
 
    /** RANGE frame with a date-valued (INTERVAL) offset — e.g. a 7-day trailing window. */

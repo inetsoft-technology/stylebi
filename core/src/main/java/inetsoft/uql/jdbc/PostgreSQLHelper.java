@@ -129,6 +129,16 @@ public class PostgreSQLHelper extends SQLHelper {
     * unconditionally, and GROUPS frames from version 11 onward.
     * formatWindowFrameInterval inherits the base {@code INTERVAL '<n> <unit>'} literal, which
     * is correct PostgreSQL syntax.
+    * <p>
+    * Byte-parity note: Phase 4 pushed GROUPS down unconditionally on every PostgreSQL version
+    * (which would error at the database on PG &lt; 11, since GROUPS didn't exist yet). Phase 5
+    * gates GROUPS on {@link #pgVersionAtLeast(int) pgVersionAtLeast(11)}, which is permissive
+    * (returns {@code true}) when the version can't be determined. So for PG &ge; 11, and for an
+    * unresolvable/unknown version, behavior is unchanged from Phase 4 (GROUPS still pushed down,
+    * byte-identical output). The only behavior change is a resolvable PG &lt; 11: that case now
+    * correctly falls back to in-memory evaluation instead of emitting a pushed-down GROUPS frame
+    * the database would reject -- a bug fix, not a regression, so it does not violate
+    * byte-for-byte parity with Phase 4 for any input that previously worked.
     */
    @Override
    public boolean supportsWindowFrame(String mode, boolean hasValueOffset, boolean dateOffset) {

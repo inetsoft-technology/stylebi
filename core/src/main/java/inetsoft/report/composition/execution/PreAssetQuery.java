@@ -2603,17 +2603,27 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
    /**
     * Prefix of the canonical window-frame date-interval token emitted by
     * {@code WindowExpressionRef.frameOffsetSql} for a date-valued RANGE frame offset, e.g.
-    * {@code WINFRAME_INTERVAL(7,day)}. Mirrors the {@code field['} token convention: a
+    * {@code __WIZ_WINFRAME_INTERVAL(7,day)}. Mirrors the {@code field['} token convention: a
     * database-agnostic placeholder embedded in the expression text that this rewrite pass expands
-    * into the dialect's real SQL syntax.
+    * into the dialect's real SQL syntax. The {@code __WIZ_} prefix namespaces the token so it
+    * can never collide with user-authored {@code sql:true} expression-column text, which shares
+    * this same string namespace (unlike {@code field['..']}, whose bracket syntax a user could
+    * not accidentally type as literal SQL).
     */
-   private static final String WINFRAME_INTERVAL_TOKEN = "WINFRAME_INTERVAL(";
+   private static final String WINFRAME_INTERVAL_TOKEN = "__WIZ_WINFRAME_INTERVAL(";
 
    /**
-    * Expand every {@code WINFRAME_INTERVAL(<n>,<unit>)} token in {@code exp} into the given
+    * Expand every {@code __WIZ_WINFRAME_INTERVAL(<n>,<unit>)} token in {@code exp} into the given
     * dialect's {@code INTERVAL} literal via {@link SQLHelper#formatWindowFrameInterval}. Mirrors
     * the {@code field['..']} rewrite loop above: a simple, well-bounded left-to-right scan that
     * leaves everything else in the expression untouched.
+    * <p>
+    * This token is only ever produced internally (by {@code WindowExpressionRef.frameOffsetSql})
+    * with validated {@code (offset, unit)} inputs, so a malformed occurrence here -- missing the
+    * closing {@code )}, missing the {@code ,} separator, or a non-integer offset -- signals a
+    * producer bug, not bad user input. Rather than silently leaving the raw token in the emitted
+    * SQL (which would surface as an opaque database syntax error), this fails loud with a named
+    * {@link RuntimeException} identifying the offending token substring.
     * <p>
     * {@code helper} may be {@code null} (no resolvable dialect, e.g. no backing SQL) — the base
     * {@link SQLHelper} (ANSI/Postgres-literal default) is used in that case, matching the fallback
@@ -2637,19 +2647,30 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          int end = exp.indexOf(")", start + WINFRAME_INTERVAL_TOKEN.length());
 
          if(end == -1) {
-            break;
+            throw new RuntimeException(
+               "malformed window-frame interval token: " + exp.substring(start));
          }
 
          String args = exp.substring(start + WINFRAME_INTERVAL_TOKEN.length(), end);
          int comma = args.indexOf(',');
 
          if(comma == -1) {
-            break;
+            throw new RuntimeException(
+               "malformed window-frame interval token: " + exp.substring(start, end + 1));
          }
 
          result.append(exp, 0, start);
 
-         int offset = Integer.parseInt(args.substring(0, comma).trim());
+         int offset;
+
+         try {
+            offset = Integer.parseInt(args.substring(0, comma).trim());
+         }
+         catch(NumberFormatException e) {
+            throw new RuntimeException(
+               "malformed window-frame interval token: " + exp.substring(start, end + 1), e);
+         }
+
          String unit = args.substring(comma + 1).trim();
          result.append(dialect.formatWindowFrameInterval(offset, unit));
 
