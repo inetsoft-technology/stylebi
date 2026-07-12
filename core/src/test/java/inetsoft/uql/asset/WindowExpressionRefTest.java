@@ -406,15 +406,17 @@ class WindowExpressionRefTest {
    @Test
    void rangeDateFrame_emitsCanonicalIntervalToken() {
       // Phase 5 Task 3: WindowExpressionRef no longer pre-renders the Postgres INTERVAL literal
-      // itself -- it emits a canonical WINFRAME_INTERVAL(<n>,<unit>) token that the dialect-rewrite
-      // seam (PreAssetQuery.getExpressionColumn / expandWindowFrameTokens) expands per dialect at
-      // render time. See PreAssetQueryWindowFrameTokenTest for the token -> literal expansion.
+      // itself -- it emits a canonical __WIZ_WINFRAME_INTERVAL(<n>,<unit>) token that the
+      // dialect-rewrite seam (PreAssetQuery.getExpressionColumn / expandWindowFrameTokens) expands
+      // per dialect at render time. See WindowRoutingTest for the token -> literal expansion.
+      // Finding B (PR #4237 review): the __WIZ_ prefix namespaces the token so it can't collide
+      // with user-authored sql:true expression-column text.
       WindowExpressionRef ref = new WindowExpressionRef(
          "SUM", new AttributeRef("amt"), 0, List.of(new AttributeRef("stage")),
          List.of(sort("d", XConstants.SORT_ASC)));
       ref.setFrame("RANGE", "PRECEDING", 7, "CURRENT_ROW", 0, "day");
       assertTrue(ref.getExpression().contains(
-         "RANGE BETWEEN WINFRAME_INTERVAL(7,day) PRECEDING AND CURRENT ROW"));
+         "RANGE BETWEEN __WIZ_WINFRAME_INTERVAL(7,day) PRECEDING AND CURRENT ROW"));
       assertFalse(ref.getExpression().contains("INTERVAL '7 day'"),
          "the ref must no longer pre-render the Postgres literal itself: " + ref.getExpression());
       assertEquals("day", ref.getFrameOffsetUnit());
@@ -427,7 +429,7 @@ class WindowExpressionRefTest {
          List.of(sort("d", XConstants.SORT_ASC)));
       ref.setFrame("RANGE", "PRECEDING", 7, "CURRENT_ROW", 0, "day");
 
-      assertTrue(ref.getExpression().contains("WINFRAME_INTERVAL(7,day)"));
+      assertTrue(ref.getExpression().contains("__WIZ_WINFRAME_INTERVAL(7,day)"));
       assertFalse(ref.getExpression().contains("INTERVAL '7 day'"));
    }
 

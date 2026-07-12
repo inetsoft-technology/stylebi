@@ -253,11 +253,13 @@ class WorksheetTableServiceWindowColumnsTest {
 
       ColumnRef added = (ColumnRef) table.getColumnSelection(false).getAttribute("s");
       String expr = ((WindowExpressionRef) added.getDataRef()).getExpression();
-      // Phase 5 Task 3: getExpression() now emits the canonical WINFRAME_INTERVAL token, not the
-      // pre-rendered Postgres literal -- the dialect-rewrite seam (PreAssetQuery.getExpressionColumn)
-      // expands it to "INTERVAL '7 day'" for Postgres at render time.
-      assertTrue(expr.contains("RANGE BETWEEN WINFRAME_INTERVAL(7,day) PRECEDING AND CURRENT ROW"),
-                 "unexpected expression: " + expr);
+      // Phase 5 Task 3: getExpression() now emits the canonical __WIZ_WINFRAME_INTERVAL token, not
+      // the pre-rendered Postgres literal -- the dialect-rewrite seam
+      // (PreAssetQuery.getExpressionColumn) expands it to "INTERVAL '7 day'" for Postgres at
+      // render time. Finding B (PR #4237 review): __WIZ_ prefix namespaces the token.
+      assertTrue(
+         expr.contains("RANGE BETWEEN __WIZ_WINFRAME_INTERVAL(7,day) PRECEDING AND CURRENT ROW"),
+         "unexpected expression: " + expr);
    }
 
    @Test
@@ -546,7 +548,7 @@ class WorksheetTableServiceWindowColumnsTest {
       ColumnRef added = (ColumnRef) table.getColumnSelection(false).getAttribute("s");
       String expr = ((WindowExpressionRef) added.getDataRef()).getExpression();
       // Case-normalization happens before frame storage; the emitted token is unaffected either way.
-      assertTrue(expr.contains("WINFRAME_INTERVAL(7,day)"), "unexpected expression: " + expr);
+      assertTrue(expr.contains("__WIZ_WINFRAME_INTERVAL(7,day)"), "unexpected expression: " + expr);
    }
 
    // ─── PR #4235 review Fix C: numeric RANGE offset on a date/time order key ────────────────
