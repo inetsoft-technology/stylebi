@@ -392,7 +392,12 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
          return ((double) (last + 1)) / sz;
       }
       default:
-         return null;
+         // Fail loud rather than silently returning null for every row. Every window function this
+         // lens supports has an explicit case above; anything else (e.g. LAST_VALUE, which the SQL
+         // path emits but the in-memory path cannot without a frame clause, or an unknown fn) must
+         // not be silently mis-computed on the in-memory path.
+         throw new RuntimeException(
+            "window function '" + spec.fn + "' is not supported for in-memory computation");
       }
    }
 

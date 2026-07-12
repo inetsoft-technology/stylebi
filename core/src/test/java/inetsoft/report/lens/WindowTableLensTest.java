@@ -28,6 +28,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -217,5 +219,17 @@ class WindowTableLensTest {
       assertEquals(20.0, cell(lens,0,3));   // AVG
       assertEquals(10.0, cell(lens,0,4));   // MIN
       assertEquals(30.0, cell(lens,0,5));   // MAX
+   }
+
+   @Test
+   void unsupportedFunction_failsLoud_notSilentNull() {
+      // LAST_VALUE (and any fn the in-memory kernel does not implement) must throw, not silently
+      // return null for every row — the SQL path emits it, so a silent null would diverge.
+      WindowTableLens.Spec last = new WindowTableLens.Spec(
+         "lv", "LAST_VALUE", 1, 0, new int[0], new int[]{1}, new boolean[]{true});
+      WindowTableLens lens = new WindowTableLens(base(), new WindowTableLens.Spec[]{last});
+      RuntimeException ex = assertThrows(RuntimeException.class, () -> cell(lens, 0, 2));
+      assertTrue(ex.getMessage().contains("LAST_VALUE"),
+                 "error should name the unsupported function: " + ex.getMessage());
    }
 }
