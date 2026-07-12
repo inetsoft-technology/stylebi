@@ -211,6 +211,8 @@ public class WorksheetTable {
       /** ORDER BY clauses, in order; may be omitted/empty. */
       private List<OrderByInfo> orderBy;
       private String type;
+      /** ROWS frame, e.g. {@code 2 PRECEDING .. CURRENT ROW}; omit for the function's default. */
+      private WindowFrameInfo frame;
 
       public String getName() { return name; }
       public void setName(String name) { this.name = name; }
@@ -226,6 +228,35 @@ public class WorksheetTable {
       public void setOrderBy(List<OrderByInfo> orderBy) { this.orderBy = orderBy; }
       public String getType() { return type; }
       public void setType(String type) { this.type = type; }
+      public WindowFrameInfo getFrame() { return frame; }
+      public void setFrame(WindowFrameInfo frame) { this.frame = frame; }
+   }
+
+   /**
+    * Structured ROWS frame for a {@link WindowColumnInfo}, e.g.
+    * {@code {"startBound":"PRECEDING","startOffset":2,"endBound":"CURRENT_ROW"}} for
+    * {@code ROWS BETWEEN 2 PRECEDING AND CURRENT ROW}.
+    * <p>
+    * Bound values: {@code UNBOUNDED_PRECEDING} | {@code PRECEDING} | {@code CURRENT_ROW} |
+    * {@code FOLLOWING} | {@code UNBOUNDED_FOLLOWING}. {@code startOffset}/{@code endOffset} are
+    * required (and must be positive) when the corresponding bound is {@code PRECEDING} or
+    * {@code FOLLOWING}; ignored otherwise.
+    */
+   @JsonIgnoreProperties(ignoreUnknown = true)
+   public static class WindowFrameInfo {
+      private String startBound;
+      private Integer startOffset;
+      private String endBound;
+      private Integer endOffset;
+
+      public String getStartBound() { return startBound; }
+      public void setStartBound(String startBound) { this.startBound = startBound; }
+      public Integer getStartOffset() { return startOffset; }
+      public void setStartOffset(Integer startOffset) { this.startOffset = startOffset; }
+      public String getEndBound() { return endBound; }
+      public void setEndBound(String endBound) { this.endBound = endBound; }
+      public Integer getEndOffset() { return endOffset; }
+      public void setEndOffset(Integer endOffset) { this.endOffset = endOffset; }
    }
 
    @JsonIgnoreProperties(ignoreUnknown = true)

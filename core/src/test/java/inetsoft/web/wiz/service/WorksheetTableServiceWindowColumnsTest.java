@@ -102,4 +102,62 @@ class WorksheetTableServiceWindowColumnsTest {
          winRef.getExpression());
       assertTrue(winRef.isSQL());
    }
+
+   @Test
+   void framedWindowColumnBuildsRowsClause() throws Exception {
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"ma","fn":"AVG","column":"amount",
+           "orderBy":[{"field":"amount","direction":"ASC"}],
+           "frame":{"startBound":"PRECEDING","startOffset":2,"endBound":"CURRENT_ROW"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      table.setColumnSelection(cs);
+
+      service().applyWindowColumns(table, req.getWindowColumns());
+
+      ColumnRef added = (ColumnRef) table.getColumnSelection(false).getAttribute("ma");
+      assertTrue(((WindowExpressionRef) added.getDataRef()).getExpression()
+         .contains("ROWS BETWEEN 2 PRECEDING AND CURRENT ROW"));
+   }
+
+   @Test
+   void frameOnRowNumberThrows() throws Exception {
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"rn","fn":"ROW_NUMBER",
+           "orderBy":[{"field":"amount","direction":"ASC"}],
+           "frame":{"startBound":"PRECEDING","startOffset":2,"endBound":"CURRENT_ROW"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      table.setColumnSelection(cs);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service().applyWindowColumns(table, req.getWindowColumns()));
+      assertTrue(ex.getMessage().contains("rn"));
+   }
+
+   @Test
+   void boundedFrameWithoutOrderByThrows() throws Exception {
+      WorksheetTable req = request("""
+         { "windowColumns":[ {"name":"ma","fn":"AVG","column":"amount",
+           "frame":{"startBound":"PRECEDING","startOffset":2,"endBound":"CURRENT_ROW"}} ] }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      table.setColumnSelection(cs);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service().applyWindowColumns(table, req.getWindowColumns()));
+      assertTrue(ex.getMessage().contains("ma"));
+   }
 }

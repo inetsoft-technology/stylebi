@@ -1158,6 +1158,28 @@ public class WorksheetTableService {
             new WindowExpressionRef(col.getFn(), argRef, n, partitionRefs, orderRefs);
          winRef.setName(colName);
 
+         WorksheetTable.WindowFrameInfo frame = col.getFrame();
+
+         if(frame != null) {
+            if(!FRAMEABLE_FNS.contains(col.getFn())) {
+               throw new IllegalArgumentException(
+                  "windowColumns['" + colName +
+                  "']: frame is only valid on aggregate/FIRST_VALUE/LAST_VALUE functions");
+            }
+
+            int startOffset = requireFrameOffset(colName, frame.getStartBound(), frame.getStartOffset());
+            int endOffset = requireFrameOffset(colName, frame.getEndBound(), frame.getEndOffset());
+            validateFrameOrder(colName, frame.getStartBound(), startOffset,
+                                frame.getEndBound(), endOffset);
+
+            if(!isWholePartitionFrame(frame) && orderRefs.isEmpty()) {
+               throw new IllegalArgumentException(
+                  "windowColumns['" + colName + "']: a bounded frame requires orderBy");
+            }
+
+            winRef.setFrame(frame.getStartBound(), startOffset, frame.getEndBound(), endOffset);
+         }
+
          ColumnRef colRef = new ColumnRef(winRef);
          colRef.setSQL(true);
 
@@ -1169,6 +1191,87 @@ public class WorksheetTableService {
       }
 
       table.setColumnSelection(cs, false);
+   }
+
+   /** Window functions a ROWS frame may be attached to (aggregates + FIRST_VALUE/LAST_VALUE). */
+   private static final Set<String> FRAMEABLE_FNS =
+      Set.of("SUM", "AVG", "COUNT", "MIN", "MAX", "FIRST_VALUE", "LAST_VALUE");
+
+   /** Recognized {@link WorksheetTable.WindowFrameInfo} bound tokens. */
+   private static final Set<String> VALID_FRAME_BOUNDS = Set.of(
+      "UNBOUNDED_PRECEDING", "PRECEDING", "CURRENT_ROW", "FOLLOWING", "UNBOUNDED_FOLLOWING");
+
+   /**
+    * Validate one frame bound + its offset and return the effective offset to pass to
+    * {@link WindowExpressionRef#setFrame}: the given offset (required, must be positive) when
+    * {@code bound} is {@code PRECEDING}/{@code FOLLOWING}, else {@code 0} (ignored for the other
+    * bounds). Throws a wire-clear {@link IllegalArgumentException} naming the column for an
+    * unrecognized bound or a missing/non-positive offset — validated here so an invalid bound
+    * never reaches {@code WindowExpressionRef}'s internal {@code frameBoundSql}, whose failure
+    * mode is a bare {@code RuntimeException}.
+    */
+   private static int requireFrameOffset(String colName, String bound, Integer offset) {
+      if(bound == null || !VALID_FRAME_BOUNDS.contains(bound)) {
+         throw new IllegalArgumentException(
+            "windowColumns['" + colName + "']: invalid frame bound: " + bound);
+      }
+
+      if("PRECEDING".equals(bound) || "FOLLOWING".equals(bound)) {
+         if(offset == null || offset <= 0) {
+            throw new IllegalArgumentException(
+               "windowColumns['" + colName + "']: frame bound '" + bound +
+               "' requires a positive offset");
+         }
+
+         return offset;
+      }
+
+      return 0;
+   }
+
+   /**
+    * Reject a frame whose start bound is ordered after its end bound. Frame order is
+    * {@code UNBOUNDED_PRECEDING < N PRECEDING < CURRENT_ROW < N FOLLOWING < UNBOUNDED_FOLLOWING},
+    * with a larger offset sorting earlier among two {@code PRECEDING} bounds and a smaller offset
+    * sorting earlier among two {@code FOLLOWING} bounds.
+    */
+   private static void validateFrameOrder(String colName, String startBound, int startOffset,
+                                          String endBound, int endOffset)
+   {
+      if(frameBoundRank(startBound, startOffset) > frameBoundRank(endBound, endOffset)) {
+         throw new IllegalArgumentException(
+            "windowColumns['" + colName + "']: frame start (" + startBound +
+            (startOffset != 0 ? " " + startOffset : "") + ") must not be after frame end (" +
+            endBound + (endOffset != 0 ? " " + endOffset : "") + ")");
+      }
+   }
+
+   /**
+    * Map a validated frame bound + offset to a comparable rank for {@link #validateFrameOrder}.
+    * Bound validity is assumed to have already been checked by {@link #requireFrameOffset}.
+    */
+   private static int frameBoundRank(String bound, int offset) {
+      switch(bound) {
+      case "UNBOUNDED_PRECEDING":
+         return Integer.MIN_VALUE;
+      case "PRECEDING":
+         return -offset;
+      case "CURRENT_ROW":
+         return 0;
+      case "FOLLOWING":
+         return offset;
+      case "UNBOUNDED_FOLLOWING":
+         return Integer.MAX_VALUE;
+      default:
+         // Unreachable: requireFrameOffset already rejected unrecognized bounds.
+         throw new IllegalArgumentException("invalid window frame bound: " + bound);
+      }
+   }
+
+   /** True for the whole-partition frame ({@code UNBOUNDED_PRECEDING .. UNBOUNDED_FOLLOWING}). */
+   private static boolean isWholePartitionFrame(WorksheetTable.WindowFrameInfo frame) {
+      return "UNBOUNDED_PRECEDING".equals(frame.getStartBound())
+         && "UNBOUNDED_FOLLOWING".equals(frame.getEndBound());
    }
 
    // ─── Aggregate info ───────────────────────────────────────────────────────
