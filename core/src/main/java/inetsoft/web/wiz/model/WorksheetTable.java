@@ -233,7 +233,7 @@ public class WorksheetTable {
    }
 
    /**
-    * Structured ROWS frame for a {@link WindowColumnInfo}, e.g.
+    * Structured frame for a {@link WindowColumnInfo}, e.g.
     * {@code {"startBound":"PRECEDING","startOffset":2,"endBound":"CURRENT_ROW"}} for
     * {@code ROWS BETWEEN 2 PRECEDING AND CURRENT ROW}.
     * <p>
@@ -241,6 +241,13 @@ public class WorksheetTable {
     * {@code FOLLOWING} | {@code UNBOUNDED_FOLLOWING}. {@code startOffset}/{@code endOffset} are
     * required (and must be positive) when the corresponding bound is {@code PRECEDING} or
     * {@code FOLLOWING}; ignored otherwise.
+    * <p>
+    * {@code mode}: {@code ROWS} | {@code RANGE} | {@code GROUPS}; {@code null} defaults to
+    * {@code ROWS} (Phase 3 behavior, byte-parity). {@code offsetUnit}: a date interval unit
+    * (e.g. {@code "day"}) for a date-valued {@code RANGE} frame's {@code PRECEDING}/
+    * {@code FOLLOWING} offset; {@code null} for a bare-integer offset (ROWS, GROUPS, and
+    * numeric RANGE frames) — see {@code WorksheetTableService.applyWindowColumns} for the
+    * validation rules.
     */
    @JsonIgnoreProperties(ignoreUnknown = true)
    public static class WindowFrameInfo {
@@ -248,6 +255,8 @@ public class WorksheetTable {
       private Integer startOffset;
       private String endBound;
       private Integer endOffset;
+      private String mode;
+      private String offsetUnit;
 
       public String getStartBound() { return startBound; }
       public void setStartBound(String startBound) { this.startBound = startBound; }
@@ -257,6 +266,10 @@ public class WorksheetTable {
       public void setEndBound(String endBound) { this.endBound = endBound; }
       public Integer getEndOffset() { return endOffset; }
       public void setEndOffset(Integer endOffset) { this.endOffset = endOffset; }
+      public String getMode() { return mode; }
+      public void setMode(String mode) { this.mode = mode; }
+      public String getOffsetUnit() { return offsetUnit; }
+      public void setOffsetUnit(String offsetUnit) { this.offsetUnit = offsetUnit; }
    }
 
    @JsonIgnoreProperties(ignoreUnknown = true)

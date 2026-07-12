@@ -1177,7 +1177,91 @@ public class WorksheetTableService {
                   "windowColumns['" + colName + "']: a bounded frame requires orderBy");
             }
 
-            winRef.setFrame(frame.getStartBound(), startOffset, frame.getEndBound(), endOffset);
+            // Phase 4: RANGE/GROUPS frame mode + offsetUnit.
+            String mode = frame.getMode() == null ? "ROWS" : frame.getMode().toUpperCase();
+
+            if(!VALID_FRAME_MODES.contains(mode)) {
+               throw new IllegalArgumentException(
+                  "windowColumns['" + colName + "']: invalid frame mode: " + frame.getMode());
+            }
+
+            // A PRECEDING/FOLLOWING bound carries a real offset (as opposed to a fixed bound
+            // like CURRENT_ROW/UNBOUNDED_*).
+            boolean valueOffset =
+               "PRECEDING".equals(frame.getStartBound()) || "FOLLOWING".equals(frame.getStartBound())
+               || "PRECEDING".equals(frame.getEndBound()) || "FOLLOWING".equals(frame.getEndBound());
+
+            // RANGE value-offset and GROUPS need an ORDER BY; RANGE value-offset needs exactly
+            // one. A whole-partition GROUPS frame (UNBOUNDED_PRECEDING..UNBOUNDED_FOLLOWING) is
+            // exempt, same as the general bounded-frame check above — it needs no peer-group
+            // ordering since it covers every row regardless of order.
+            if(("RANGE".equals(mode) && valueOffset) ||
+               ("GROUPS".equals(mode) && !isWholePartitionFrame(frame)))
+            {
+               if(orderRefs.isEmpty()) {
+                  throw new IllegalArgumentException(
+                     "windowColumns['" + colName + "']: a " + mode + " frame requires orderBy");
+               }
+            }
+
+            if("RANGE".equals(mode) && valueOffset && orderRefs.size() != 1) {
+               throw new IllegalArgumentException(
+                  "windowColumns['" + colName +
+                  "']: a RANGE value-offset frame requires exactly one orderBy column");
+            }
+
+            // offsetUnit: only meaningful when the frame has a real value-offset bound (a
+            // PRECEDING/FOLLOWING with an offset) — gate on valueOffset BEFORE consulting
+            // orderRefs, since a whole-partition RANGE/GROUPS frame legitimately carries no
+            // orderBy at all (requireDateOrderKey's orderRefs.get(0) would otherwise throw
+            // IndexOutOfBoundsException instead of a field-named IllegalArgumentException).
+            String unit = frame.getOffsetUnit();
+
+            if(unit != null) {
+               if(!"RANGE".equals(mode)) {
+                  throw new IllegalArgumentException(
+                     "windowColumns['" + colName +
+                     "']: frame.offsetUnit is only valid for a RANGE frame");
+               }
+
+               if(!valueOffset) {
+                  throw new IllegalArgumentException(
+                     "windowColumns['" + colName +
+                     "']: frame.offsetUnit requires a PRECEDING/FOLLOWING value-offset bound");
+               }
+
+               String u = unit.toLowerCase();
+
+               if(!VALID_OFFSET_UNITS.contains(u)) {
+                  throw new IllegalArgumentException(
+                     "windowColumns['" + colName + "']: invalid frame.offsetUnit: " + unit);
+               }
+
+               // Safe: a value-offset RANGE frame already requires exactly one orderBy column
+               // (guard above), so orderRefs is never empty here.
+               requireDateOrderKey(colName, orderRefs);
+               unit = u;
+            }
+            else if("RANGE".equals(mode) && valueOffset && orderRefs.size() == 1) {
+               // Converse of requireDateOrderKey above: a RANGE value-offset (PRECEDING/
+               // FOLLOWING n) whose single ORDER BY key is date/time-typed but carries NO
+               // offsetUnit is meaningless in SQL — a bare numeric offset against a date/
+               // timestamp column needs an INTERVAL, not a raw number. Left unguarded, the
+               // in-memory path silently treats the offset as raw milliseconds (dateOffsetMs's
+               // unit==null branch) and a pushdown would emit an invalid date RANGE. Fail loud
+               // here (the authoritative gateway) rather than letting either path mis-render.
+               DataRef oref = orderRefs.get(0).getDataRef();
+               String dt = oref == null ? null : oref.getDataType();
+
+               if(XSchema.isDateType(dt)) {
+                  throw new IllegalArgumentException(
+                     "windowColumns['" + colName + "']: a RANGE value-offset on a date/time " +
+                     "order key requires frame.offsetUnit (e.g. day/month)");
+               }
+            }
+
+            winRef.setFrame(mode, frame.getStartBound(), startOffset, frame.getEndBound(),
+                             endOffset, unit);
          }
 
          ColumnRef colRef = new ColumnRef(winRef);
@@ -1196,6 +1280,30 @@ public class WorksheetTableService {
    /** Window functions a ROWS frame may be attached to (aggregates + FIRST_VALUE/LAST_VALUE). */
    private static final Set<String> FRAMEABLE_FNS =
       Set.of("SUM", "AVG", "COUNT", "MIN", "MAX", "FIRST_VALUE", "LAST_VALUE");
+
+   /** Recognized {@link WorksheetTable.WindowFrameInfo} frame mode tokens (Phase 4). */
+   private static final Set<String> VALID_FRAME_MODES = Set.of("ROWS", "RANGE", "GROUPS");
+
+   /** Recognized {@link WorksheetTable.WindowFrameInfo} offset unit tokens (Phase 4). */
+   private static final Set<String> VALID_OFFSET_UNITS = Set.of(
+      "year", "quarter", "month", "week", "day", "hour", "minute", "second");
+
+   /**
+    * Validate that the (single) orderBy column of a date-valued RANGE frame is actually a
+    * date/time-typed column — {@code offsetUnit} is only meaningful (and only rendered as a
+    * Postgres {@code INTERVAL '<n> <unit>'} literal) when the ORDER BY key it measures the
+    * offset against is itself a date/time value.
+    */
+   private static void requireDateOrderKey(String colName, List<SortRef> orderRefs) {
+      SortRef s = orderRefs.get(0);
+      DataRef ref = s.getDataRef();
+      String dt = ref == null ? null : ref.getDataType();
+
+      if(!XSchema.isDateType(dt)) {
+         throw new IllegalArgumentException(
+            "windowColumns['" + colName + "']: frame.offsetUnit requires a date/time orderBy column");
+      }
+   }
 
    /** Recognized {@link WorksheetTable.WindowFrameInfo} bound tokens. */
    private static final Set<String> VALID_FRAME_BOUNDS = Set.of(

@@ -28,6 +28,8 @@ import inetsoft.uql.asset.SortRef;
 import inetsoft.uql.asset.WindowExpressionRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.jdbc.PostgreSQLHelper;
+import inetsoft.uql.jdbc.SQLHelper;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -143,6 +145,49 @@ class WindowRoutingTest {
       assertEquals(2, specs[0].startOffset);
       assertEquals("CURRENT_ROW", specs[0].endBound);
       assertEquals(0, specs[0].endOffset);
+   }
+
+   @Test
+   void buildWindowSpecs_carriesModeAndUnit() {
+      // trailing = SUM(amount) OVER (ORDER BY amount RANGE BETWEEN INTERVAL '7 day' PRECEDING
+      //            AND CURRENT ROW)
+      WindowExpressionRef range = new WindowExpressionRef(
+         "SUM", new ColumnRef(new AttributeRef(null, "amount")), 0,
+         List.of(), List.of(asc(new ColumnRef(new AttributeRef(null, "amount")))));
+      range.setFrame("RANGE", "PRECEDING", 7, "CURRENT_ROW", 0, "day");
+      range.setName("trailing");
+      ColumnRef trailing = new ColumnRef(range);
+      trailing.setSQL(true);
+
+      ColumnSelection cols = new ColumnSelection();
+      cols.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      cols.addAttribute(trailing);
+
+      WindowTableLens.Spec[] specs = AssetQuery.buildWindowSpecs(stageAmountBase(), cols);
+
+      assertEquals(1, specs.length);
+      assertEquals("RANGE", specs[0].mode);
+      assertEquals("day", specs[0].offsetUnit);
+
+      // a frame-less / ROWS ref resolves mode "ROWS" and a null offsetUnit
+      WindowExpressionRef rowNum = new WindowExpressionRef(
+         "ROW_NUMBER", null, 0,
+         List.of(new ColumnRef(new AttributeRef(null, "stage"))),
+         List.of(desc(new ColumnRef(new AttributeRef(null, "amount")))));
+      rowNum.setName("rn");
+      ColumnRef rn = new ColumnRef(rowNum);
+      rn.setSQL(true);
+
+      ColumnSelection cols2 = new ColumnSelection();
+      cols2.addAttribute(new ColumnRef(new AttributeRef(null, "stage")));
+      cols2.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      cols2.addAttribute(rn);
+
+      WindowTableLens.Spec[] specs2 = AssetQuery.buildWindowSpecs(stageAmountBase(), cols2);
+
+      assertEquals(1, specs2.length);
+      assertEquals("ROWS", specs2[0].mode);
+      assertNull(specs2[0].offsetUnit);
    }
 
    @Test
@@ -351,6 +396,82 @@ class WindowRoutingTest {
          () -> AssetQuery.buildWindowLens(base, cols));
       assertTrue(ex.getMessage().contains("region"));
       assertTrue(ex.getMessage().contains("rn"));
+   }
+
+   /**
+    * Dialect capability gate (Phase 4): PostgreSQL pushes RANGE/GROUPS down as SQL; every other
+    * dialect falls back to the in-memory {@link WindowTableLens} engine for those modes. ROWS
+    * pushes on every dialect, unchanged from Phase 3.
+    */
+   @Test
+   void framePushable_postgresYesOthersNo() {
+      SQLHelper postgresHelper = new PostgreSQLHelper();
+      SQLHelper otherHelper = new SQLHelper();   // getSQLHelperType() == "default"
+
+      assertTrue(AssetQuery.framePushable("RANGE", postgresHelper));
+      assertTrue(AssetQuery.framePushable("GROUPS", postgresHelper));
+      assertFalse(AssetQuery.framePushable("RANGE", otherHelper));
+      assertFalse(AssetQuery.framePushable("GROUPS", otherHelper));
+      assertTrue(AssetQuery.framePushable("ROWS", otherHelper));    // ROWS pushes everywhere
+      assertTrue(AssetQuery.framePushable("ROWS", postgresHelper));
+      assertTrue(AssetQuery.framePushable("ROWS", null));           // no dialect (tabular source)
+      assertFalse(AssetQuery.framePushable("RANGE", null));
+   }
+
+   /**
+    * PR #4235 review Fix B: on the mixed-pushability in-memory route (a mergeable query where
+    * some, but not all, window columns' frames are pushable on the source dialect), the
+    * helper-aware {@link AssetQuery#buildWindowSpecs(inetsoft.uql.XTable, ColumnSelection,
+    * SQLHelper)} overload must build a spec ONLY for the non-pushable column. Building one for
+    * the already-pushed ROWS column too would (1) double-compute it and (2) drag it into
+    * {@link AssetQuery#checkCompatiblePartitionAndOrder} alongside the non-pushed column, which
+    * can throw for two window columns with divergent PARTITION BY that previously worked fine
+    * via independent SQL {@code OVER()} clauses (exercised here: the ROWS column partitions by
+    * "stage", the GROUPS column has no partition at all — divergent presence, which would throw
+    * if both were scanned together, per {@link #divergentPartitionPresenceAcrossSpecsThrows}).
+    */
+   @Test
+   void buildWindowSpecs_helperAware_skipsPushableColumn_onMixedSelection() {
+      SQLHelper otherHelper = new SQLHelper();   // non-Postgres: ROWS pushable, GROUPS/RANGE not
+
+      // rows = ROW_NUMBER() OVER (PARTITION BY stage ORDER BY amount DESC) — pushable everywhere
+      WindowExpressionRef rowsRef = new WindowExpressionRef(
+         "ROW_NUMBER", null, 0,
+         List.of(new ColumnRef(new AttributeRef(null, "stage"))),
+         List.of(desc(new ColumnRef(new AttributeRef(null, "amount")))));
+      rowsRef.setName("rn");
+      ColumnRef rn = new ColumnRef(rowsRef);
+      rn.setSQL(true);
+
+      // grp = SUM(amount) OVER (ORDER BY amount GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW) —
+      // NOT pushable on a non-Postgres dialect; no PARTITION BY (divergent from rn's).
+      WindowExpressionRef groupsRef = new WindowExpressionRef(
+         "SUM", new ColumnRef(new AttributeRef(null, "amount")), 0,
+         List.of(), List.of(asc(new ColumnRef(new AttributeRef(null, "amount")))));
+      groupsRef.setFrame("GROUPS", "PRECEDING", 1, "CURRENT_ROW", 0, null);
+      groupsRef.setName("grp");
+      ColumnRef grp = new ColumnRef(groupsRef);
+      grp.setSQL(true);
+
+      ColumnSelection cols = new ColumnSelection();
+      cols.addAttribute(new ColumnRef(new AttributeRef(null, "stage")));
+      cols.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      cols.addAttribute(rn);
+      cols.addAttribute(grp);
+
+      WindowTableLens.Spec[] specs =
+         AssetQuery.buildWindowSpecs(stageAmountBase(), cols, otherHelper);
+
+      assertEquals(1, specs.length, "only the non-pushable (GROUPS) column should get a spec");
+      assertEquals("grp", specs[0].header);
+      assertEquals("GROUPS", specs[0].mode);
+
+      // Sanity / regression demonstration: the unfiltered (helper-less) overload scans BOTH
+      // columns and hits checkCompatiblePartitionAndOrder's divergent-partition-presence guard
+      // — exactly the failure Fix B avoids by filtering out the already-pushed rn column before
+      // the pair is ever compared.
+      assertThrows(RuntimeException.class,
+         () -> AssetQuery.buildWindowSpecs(stageAmountBase(), cols));
    }
 
    private static SortRef desc(DataRef ref) {
