@@ -388,4 +388,120 @@ class WindowTableLensTest {
       assertEquals(40.0, cell(lens, 2, 1));   // 20 -> {10,10,20}
       assertEquals(50.0, cell(lens, 3, 1));   // 30 -> {20,30}
    }
+
+   // ── Phase 4 review Task 3: symmetric RANGE/GROUPS bounds + null-order-value guard ──────────
+
+   @Test
+   void range_symmetricPreceding() {
+      // amount asc 10,12,14,16,18 (spacing 2), one partition. SUM RANGE BETWEEN 5 PRECEDING AND
+      // 2 PRECEDING -> per row, include rows with amount in [v-5, v-2] (excludes current row,
+      // since v-2 < v). Before the fix, endBound="PRECEDING" hit the `default: throw` in
+      // rangeEnd (only UNBOUNDED_FOLLOWING/CURRENT_ROW/FOLLOWING were accepted) -> RED.
+      Object[][] d = {{"amount"}, {10.0}, {12.0}, {14.0}, {16.0}, {18.0}};
+      DefaultTableLens t = new DefaultTableLens(d); t.setHeaderRowCount(1);
+      WindowTableLens.Spec sum = new WindowTableLens.Spec(
+         "s", "SUM", 0, 0, new int[0], new int[]{0}, new boolean[]{true},
+         "PRECEDING", 5, "PRECEDING", 2, "RANGE", null);
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{sum});
+      assertNull(cell(lens, 0, 1));           // v=10 -> [5,8]   -> {}        = null
+      assertEquals(10.0, cell(lens, 1, 1));   // v=12 -> [7,10]  -> {10}      = 10
+      assertEquals(22.0, cell(lens, 2, 1));   // v=14 -> [9,12]  -> {10,12}   = 22
+      assertEquals(26.0, cell(lens, 3, 1));   // v=16 -> [11,14] -> {12,14}   = 26
+      assertEquals(30.0, cell(lens, 4, 1));   // v=18 -> [13,16] -> {14,16}   = 30
+   }
+
+   @Test
+   void range_symmetricFollowing() {
+      // amount asc 10,11,12,13,14 (spacing 1), one partition. SUM RANGE BETWEEN 1 FOLLOWING AND
+      // 3 FOLLOWING -> per row, include rows with amount in [v+1, v+3]. Before the fix,
+      // startBound="FOLLOWING" hit the `default: throw` in rangeStart -> RED.
+      Object[][] d = {{"amount"}, {10.0}, {11.0}, {12.0}, {13.0}, {14.0}};
+      DefaultTableLens t = new DefaultTableLens(d); t.setHeaderRowCount(1);
+      WindowTableLens.Spec sum = new WindowTableLens.Spec(
+         "s", "SUM", 0, 0, new int[0], new int[]{0}, new boolean[]{true},
+         "FOLLOWING", 1, "FOLLOWING", 3, "RANGE", null);
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{sum});
+      assertEquals(36.0, cell(lens, 0, 1));   // v=10 -> [11,13] -> {11,12,13} = 36
+      assertEquals(39.0, cell(lens, 1, 1));   // v=11 -> [12,14] -> {12,13,14} = 39
+      assertEquals(27.0, cell(lens, 2, 1));   // v=12 -> [13,15] -> {13,14}    = 27
+      assertEquals(14.0, cell(lens, 3, 1));   // v=13 -> [14,16] -> {14}       = 14
+      assertNull(cell(lens, 4, 1));           // v=14 -> [15,17] -> {}        = null
+   }
+
+   @Test
+   void groups_precedingRange() {
+      // amount asc 10,10,20,30,40 -> distinct groups {10,10},{20},{30},{40} (0,1,2,3). SUM
+      // GROUPS BETWEEN 2 PRECEDING AND 1 PRECEDING -> current group's own group is excluded
+      // (end = 1 PRECEDING is strictly before the current group). Before the fix, endBound=
+      // "PRECEDING" hit the `default: throw` in groupBoundEnd -> RED.
+      Object[][] d = {{"amount"}, {10.0}, {10.0}, {20.0}, {30.0}, {40.0}};
+      DefaultTableLens t = new DefaultTableLens(d); t.setHeaderRowCount(1);
+      WindowTableLens.Spec sum = new WindowTableLens.Spec(
+         "s", "SUM", 0, 0, new int[0], new int[]{0}, new boolean[]{true},
+         "PRECEDING", 2, "PRECEDING", 1, "GROUPS", null);
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{sum});
+      assertEquals(20.0, cell(lens, 0, 1));   // group0 (10,10): start&end clamp to group0 -> {10,10}
+      assertEquals(20.0, cell(lens, 1, 1));   // group0 (10,10): same
+      assertEquals(20.0, cell(lens, 2, 1));   // group1 (20): [group(-1)->0, group0] -> {10,10}
+      assertEquals(40.0, cell(lens, 3, 1));   // group2 (30): [group0, group1] -> {10,10,20}
+      assertEquals(50.0, cell(lens, 4, 1));   // group3 (40): [group1, group2] -> {20,30}
+   }
+
+   @Test
+   void range_descValueOffset() {
+      // amount asc in base order 5,10,15,20 but ORDER BY amount DESC -> sorted 20,15,10,5. SUM
+      // RANGE BETWEEN 5 PRECEDING AND CURRENT ROW: for a DESC key, "PRECEDING" is a LARGER
+      // value, so the frame per row v is {rows with value in [v, v+5]}.
+      Object[][] d = {{"amount"}, {5.0}, {10.0}, {15.0}, {20.0}};
+      DefaultTableLens t = new DefaultTableLens(d); t.setHeaderRowCount(1);
+      WindowTableLens.Spec sum = new WindowTableLens.Spec(
+         "s", "SUM", 0, 0, new int[0], new int[]{0}, new boolean[]{false},
+         "PRECEDING", 5, "CURRENT_ROW", 0, "RANGE", null);
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{sum});
+      assertEquals(15.0, cell(lens, 0, 1));   // v=5  -> [5,10]  -> {10,5}     = 15
+      assertEquals(25.0, cell(lens, 1, 1));   // v=10 -> [10,15] -> {15,10}    = 25
+      assertEquals(35.0, cell(lens, 2, 1));   // v=15 -> [15,20] -> {20,15}    = 35
+      assertEquals(20.0, cell(lens, 3, 1));   // v=20 -> [20,25] -> {20}       = 20
+   }
+
+   @Test
+   void range_dateMonth() {
+      // end-of-month dates Jan31/Feb28/Mar31 (2026, not a leap year), asc. SUM RANGE BETWEEN
+      // INTERVAL '1 month' PRECEDING AND CURRENT ROW must use calendar-month arithmetic (Fix 1's
+      // rewritten rangeStart/rangeEnd must still route PRECEDING+CURRENT_ROW through the
+      // existing offsetOrderValue/dateOffsetMs month logic unchanged): Mar31 - 1 month = Feb28
+      // (Mar 31 clamps to the shorter Feb), so Mar31's frame must EXCLUDE Jan31.
+      java.sql.Date jan31 = java.sql.Date.valueOf("2026-01-31");
+      java.sql.Date feb28 = java.sql.Date.valueOf("2026-02-28");
+      java.sql.Date mar31 = java.sql.Date.valueOf("2026-03-31");
+      Object[][] d = {
+         {"date", "amount"},
+         {jan31, 100.0},
+         {feb28, 200.0},
+         {mar31, 300.0},
+      };
+      DefaultTableLens t = new DefaultTableLens(d); t.setHeaderRowCount(1);
+      WindowTableLens.Spec sum = new WindowTableLens.Spec(
+         "s", "SUM", 1, 0, new int[0], new int[]{0}, new boolean[]{true},
+         "PRECEDING", 1, "CURRENT_ROW", 0, "RANGE", "month");
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{sum});
+      assertEquals(100.0, cell(lens, 0, 2));   // Jan31 -> {Jan31}               = 100
+      assertEquals(300.0, cell(lens, 1, 2));   // Feb28 -> {Jan31,Feb28}         = 300
+      assertEquals(500.0, cell(lens, 2, 2));   // Mar31 -> {Feb28,Mar31}, no Jan31 = 500
+   }
+
+   @Test
+   void range_nullOrderValue_failsLoud() {
+      // a null in the numeric ORDER BY column with a RANGE value-threshold frame must fail
+      // loud (NULLS handling is deferred), not NPE inside orderValue/offsetOrderValue.
+      Object[][] d = {{"amount"}, {10.0}, {null}};
+      DefaultTableLens t = new DefaultTableLens(d); t.setHeaderRowCount(1);
+      WindowTableLens.Spec sum = new WindowTableLens.Spec(
+         "s", "SUM", 0, 0, new int[0], new int[]{0}, new boolean[]{true},
+         "PRECEDING", 5, "CURRENT_ROW", 0, "RANGE", null);
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{sum});
+      RuntimeException ex = assertThrows(RuntimeException.class, () -> cell(lens, 0, 1));
+      assertTrue(ex.getMessage().contains("null ORDER BY"),
+                 "error should name the null-order-value cause: " + ex.getMessage());
+   }
 }

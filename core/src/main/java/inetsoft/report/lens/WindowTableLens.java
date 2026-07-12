@@ -528,11 +528,17 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
     * 30-peer-group (frame {30,30}, NOT {30,30,10}), even though the row with value 10
     * numerically satisfies "value ≤ 30"; a peer group is a POSITION in the sorted sequence, not
     * a value threshold, and the two only coincide for ASCENDING order.
-    * <p>{@code PRECEDING}/{@code FOLLOWING} WITH an offset are genuine value bounds. Per the SQL
-    * RANGE standard, the offset direction is relative to the ORDER BY SEQUENCE, not raw
-    * arithmetic sign: for an ASCENDING key, {@code n PRECEDING} means "value ≥ current − n"; for
-    * a DESCENDING key it means "value ≤ current + n" (preceding in a descending sequence is a
-    * LARGER value). {@link #rangeStart}/{@link #rangeEnd} apply this directly.
+    * <p>{@code PRECEDING}/{@code FOLLOWING} WITH an offset are genuine value bounds, and either
+    * token is valid on EITHER side (e.g. {@code RANGE BETWEEN 5 PRECEDING AND 2 PRECEDING} or
+    * {@code RANGE BETWEEN 1 FOLLOWING AND 3 FOLLOWING}) — a frame need not straddle the current
+    * row. Per the SQL RANGE standard, the offset direction is relative to the ORDER BY SEQUENCE,
+    * not raw arithmetic sign: for an ASCENDING key, {@code n PRECEDING} means "value = current −
+    * n" and {@code n FOLLOWING} means "value = current + n"; for a DESCENDING key the signs
+    * flip (preceding in a descending sequence is a LARGER value) — see {@link #rangeThreshold}.
+    * Because {@code p} itself need not lie inside a symmetric-offset frame (e.g. both bounds
+    * FOLLOWING excludes the current row entirely), the threshold crossing is found by scanning
+    * the whole (monotonic-by-construction) partition rather than expanding outward from
+    * {@code p} — see {@link #rangeLoScan}/{@link #rangeHiScan}.
     */
    private int[] rangeSlice(Spec spec, Integer[] idx, int start, int end, int p) {
       int size = end - start;
@@ -542,70 +548,101 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
       return new int[]{ lo, hi };
    }
 
-   /** RANGE start-bound resolution (partition-relative). See {@link #rangeSlice}. */
+   /**
+    * RANGE start-bound (LO index) resolution (partition-relative). Accepts all five bound
+    * tokens — see {@link #rangeSlice}.
+    */
    private int rangeStart(Spec spec, Integer[] idx, int start, int size, int p, boolean asc) {
       switch(spec.startBound) {
       case "UNBOUNDED_PRECEDING":
          return 0;
+      case "UNBOUNDED_FOLLOWING":
+         // starts after the last row: always empty once combined with any end bound.
+         return size;
       case "CURRENT_ROW":
          return peerWalkLeft(spec, idx, start, p);
-      case "PRECEDING": {
-         int dataRowP = idx[start + p];
-         int q = p;
-
-         if(asc) {
-            double threshold = offsetOrderValue(spec, dataRowP, -spec.startOffset);
-
-            while(q > 0 && orderValue(spec, idx[start + q - 1]) >= threshold) {
-               q--;
-            }
-         }
-         else {
-            double threshold = offsetOrderValue(spec, dataRowP, spec.startOffset);
-
-            while(q > 0 && orderValue(spec, idx[start + q - 1]) <= threshold) {
-               q--;
-            }
-         }
-
-         return q;
+      case "PRECEDING": case "FOLLOWING": {
+         double threshold =
+            rangeThreshold(spec, idx[start + p], spec.startBound, spec.startOffset, asc);
+         return rangeLoScan(spec, idx, start, size, threshold, asc);
       }
       default:
          throw new RuntimeException("invalid RANGE start bound: " + spec.startBound);
       }
    }
 
-   /** RANGE end-bound resolution (partition-relative). See {@link #rangeSlice}. */
+   /**
+    * RANGE end-bound (HI index) resolution (partition-relative). Accepts all five bound
+    * tokens — see {@link #rangeSlice}.
+    */
    private int rangeEnd(Spec spec, Integer[] idx, int start, int size, int p, boolean asc) {
       switch(spec.endBound) {
       case "UNBOUNDED_FOLLOWING":
          return size - 1;
+      case "UNBOUNDED_PRECEDING":
+         // ends before the first row: always empty once combined with any start bound.
+         return -1;
       case "CURRENT_ROW":
          return peerWalkRight(spec, idx, start, size, p);
-      case "FOLLOWING": {
-         int dataRowP = idx[start + p];
-         int q = p;
-
-         if(asc) {
-            double threshold = offsetOrderValue(spec, dataRowP, spec.endOffset);
-
-            while(q < size - 1 && orderValue(spec, idx[start + q + 1]) <= threshold) {
-               q++;
-            }
-         }
-         else {
-            double threshold = offsetOrderValue(spec, dataRowP, -spec.endOffset);
-
-            while(q < size - 1 && orderValue(spec, idx[start + q + 1]) >= threshold) {
-               q++;
-            }
-         }
-
-         return q;
+      case "PRECEDING": case "FOLLOWING": {
+         double threshold =
+            rangeThreshold(spec, idx[start + p], spec.endBound, spec.endOffset, asc);
+         return rangeHiScan(spec, idx, start, size, threshold, asc);
       }
       default:
          throw new RuntimeException("invalid RANGE end bound: " + spec.endBound);
       }
+   }
+
+   /**
+    * The value threshold for a {@code PRECEDING}/{@code FOLLOWING} RANGE bound at row
+    * {@code dataRowP}, sign-adjusted for the ORDER BY direction (same rule for either side —
+    * see {@link #rangeSlice}): {@code PRECEDING n} → {@code val(p) − n} under ASC,
+    * {@code val(p) + n} under DESC; {@code FOLLOWING n} → {@code val(p) + n} under ASC,
+    * {@code val(p) − n} under DESC.
+    */
+   private double rangeThreshold(Spec spec, int dataRowP, String bound, int offset, boolean asc) {
+      boolean preceding = "PRECEDING".equals(bound);
+      int signedOffset = (preceding == asc) ? -offset : offset;
+      return offsetOrderValue(spec, dataRowP, signedOffset);
+   }
+
+   /**
+    * Leftmost partition-relative index in {@code [0,size)} whose order value is within-range
+    * at/after {@code threshold} (ASC: {@code value ≥ threshold}; DESC: {@code value ≤
+    * threshold}), or {@code size} if no row qualifies (an empty frame once combined with any
+    * HI). Order values are monotonic across the partition by construction (the lens sorted by
+    * this order key), so this condition is a single threshold crossing; scanning the whole
+    * partition (rather than expanding outward from {@code p}) is required because a symmetric
+    * offset frame (e.g. both bounds {@code FOLLOWING}) need not contain {@code p}.
+    */
+   private int rangeLoScan(Spec spec, Integer[] idx, int start, int size, double threshold, boolean asc) {
+      for(int q = 0; q < size; q++) {
+         double v = orderValue(spec, idx[start + q]);
+
+         if(asc ? v >= threshold : v <= threshold) {
+            return q;
+         }
+      }
+
+      return size;
+   }
+
+   /**
+    * Rightmost partition-relative index in {@code [0,size)} whose order value is within-range
+    * at/before {@code threshold} (ASC: {@code value ≤ threshold}; DESC: {@code value ≥
+    * threshold}), or {@code -1} if no row qualifies. See {@link #rangeLoScan}.
+    */
+   private int rangeHiScan(Spec spec, Integer[] idx, int start, int size, double threshold, boolean asc) {
+      for(int q = size - 1; q >= 0; q--) {
+         double v = orderValue(spec, idx[start + q]);
+
+         if(asc ? v <= threshold : v >= threshold) {
+            return q;
+         }
+      }
+
+      return -1;
    }
 
    /** Walk left (decreasing partition-relative index) from {@code p} while tied on order key. */
@@ -653,8 +690,8 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
       int lastGroup = g;
       int pGroup = groupOf[p];
 
-      int startGroup = groupBoundStart(spec.startBound, spec.startOffset, pGroup);
-      int endGroup = groupBoundEnd(spec.endBound, spec.endOffset, pGroup, lastGroup);
+      int startGroup = groupBound(spec.startBound, spec.startOffset, pGroup, lastGroup);
+      int endGroup = groupBound(spec.endBound, spec.endOffset, pGroup, lastGroup);
 
       startGroup = Math.max(0, Math.min(lastGroup, startGroup));
       endGroup = Math.max(0, Math.min(lastGroup, endGroup));
@@ -678,29 +715,37 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
       return new int[]{ lo, hi };
    }
 
-   private int groupBoundStart(String bound, int offset, int pGroup) {
+   /**
+    * GROUPS bound → group index, for EITHER side (start or end): {@code PRECEDING n} = earlier
+    * groups ({@code pGroup − n}), {@code FOLLOWING n} = later groups ({@code pGroup + n}), in
+    * ORDER BY sequence — both tokens are valid on either side (e.g. {@code GROUPS BETWEEN 2
+    * PRECEDING AND 1 PRECEDING}). Accepts all five bound tokens; the caller clamps the result to
+    * {@code [0,lastGroup]}.
+    */
+   private int groupBound(String bound, int offset, int pGroup, int lastGroup) {
       switch(bound) {
       case "UNBOUNDED_PRECEDING": return 0;
-      case "CURRENT_ROW":         return pGroup;
-      case "PRECEDING":           return pGroup - offset;
-      default:
-         throw new RuntimeException("invalid GROUPS start bound: " + bound);
-      }
-   }
-
-   private int groupBoundEnd(String bound, int offset, int pGroup, int lastGroup) {
-      switch(bound) {
       case "UNBOUNDED_FOLLOWING": return lastGroup;
       case "CURRENT_ROW":         return pGroup;
+      case "PRECEDING":           return pGroup - offset;
       case "FOLLOWING":           return pGroup + offset;
       default:
-         throw new RuntimeException("invalid GROUPS end bound: " + bound);
+         throw new RuntimeException("invalid GROUPS bound: " + bound);
       }
    }
 
-   /** value(dataRow) as a double for a numeric order key, or epoch-ms for a date/time key. */
+   /**
+    * value(dataRow) as a double for a numeric order key, or epoch-ms for a date/time key.
+    * NULLS handling is deferred for RANGE value frames (unlike the peer/UNBOUNDED path, which
+    * is null-safe via {@link #orderKeyCompare}/{@link Tool#compare}) — fail loud rather than NPE.
+    */
    private double orderValue(Spec spec, int dataRow) {
       Object v = table.getObject(dataRow + table.getHeaderRowCount(), spec.orderCols[0]);
+
+      if(v == null) {
+         throw new RuntimeException(
+            "RANGE value frame does not support null ORDER BY values (NULLS handling not implemented)");
+      }
 
       if(v instanceof java.util.Date) {
          return ((java.util.Date) v).getTime();
@@ -721,6 +766,11 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
    private double offsetOrderValue(Spec spec, int dataRow, int signedOffset) {
       Object v = table.getObject(dataRow + table.getHeaderRowCount(), spec.orderCols[0]);
 
+      if(v == null) {
+         throw new RuntimeException(
+            "RANGE value frame does not support null ORDER BY values (NULLS handling not implemented)");
+      }
+
       if(v instanceof java.util.Date) {
          return dateOffsetMs((java.util.Date) v, spec.offsetUnit, signedOffset);
       }
@@ -733,6 +783,11 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
          return v.getTime() + signedOffset;   // defensive: no unit given, treat as raw ms
       }
 
+      // Fixed-width units apply a raw millisecond delta. This is exact for a date /
+      // timestamp-without-timezone order key (the common case, no DST shift), but for a
+      // timestamptz key whose offset window crosses a DST boundary, this fixed-width delta can
+      // differ by an hour from Postgres's zone-aware INTERVAL arithmetic (which adds wall-clock
+      // time, not a fixed duration).
       switch(unit.toLowerCase()) {
       case "second": return v.getTime() + signedOffset * 1000L;
       case "minute": return v.getTime() + signedOffset * 60_000L;
