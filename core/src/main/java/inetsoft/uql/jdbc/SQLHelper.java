@@ -697,6 +697,38 @@ public class SQLHelper implements KeywordProvider {
       return !unsupported.contains(key);
    }
 
+   /**
+    * Whether this dialect can push a window frame of the given shape down as SQL.
+    * @param mode "ROWS" | "RANGE" | "GROUPS".
+    * @param hasValueOffset a PRECEDING/FOLLOWING bound with a real offset is present
+    *        (false = pure peer frame: only UNBOUNDED/CURRENT ROW bounds).
+    * @param dateOffset the value offset is a date/time INTERVAL (offsetUnit set), not numeric.
+    * Base default: deny unless near-universal — ROWS and RANGE-peer only, and only where
+    * window functions are supported at all. Dialects override to opt into more.
+    */
+   public boolean supportsWindowFrame(String mode, boolean hasValueOffset, boolean dateOffset) {
+      if(!supportsOperation(WINDOW_FUNCTION)) {
+         return false;
+      }
+
+      switch(mode) {
+      case "ROWS":
+         return true;                         // row-count frames are universal
+      case "RANGE":
+         return !hasValueOffset;              // peer frame only; value/date offsets are opt-in
+      default:                                // GROUPS and anything else
+         return false;
+      }
+   }
+
+   /**
+    * Render a date/time window-frame offset as this dialect's INTERVAL literal.
+    * Base (ANSI / Postgres): {@code INTERVAL '<n> <unit>'}. Overridden where syntax differs.
+    */
+   public String formatWindowFrameInterval(int offset, String unit) {
+      return "INTERVAL '" + offset + " " + unit + "'";
+   }
+
    public String getConnectionTestQuery() {
       return SQLHelper.getConnectionTestQuery(getSQLHelperType());
    }

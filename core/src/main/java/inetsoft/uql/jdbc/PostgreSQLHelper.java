@@ -124,6 +124,47 @@ public class PostgreSQLHelper extends SQLHelper {
       return sql;
    }
 
+   /**
+    * PostgreSQL supports ROWS + RANGE (peer, numeric, and date INTERVAL) window frames
+    * unconditionally, and GROUPS frames from version 11 onward.
+    * formatWindowFrameInterval inherits the base {@code INTERVAL '<n> <unit>'} literal, which
+    * is correct PostgreSQL syntax.
+    */
+   @Override
+   public boolean supportsWindowFrame(String mode, boolean hasValueOffset, boolean dateOffset) {
+      if(!supportsOperation(WINDOW_FUNCTION)) {
+         return false;
+      }
+
+      if("GROUPS".equals(mode)) {
+         return pgVersionAtLeast(11);   // GROUPS is Postgres 11+
+      }
+
+      return true;   // ROWS + RANGE (peer, numeric, and date INTERVAL) all supported
+   }
+
+   /**
+    * Check if the connected PostgreSQL version is at least the given major version. Mirrors
+    * the version-parse pattern in {@link MySQLHelper#supportsOperation(String, String)}:
+    * permissive (returns true) when the version is unknown or unparseable.
+    */
+   private boolean pgVersionAtLeast(int major) {
+      JDBCDataSource dx = uniformSql == null ? null : uniformSql.getDataSource();
+      String version = dx == null ? null : dx.getProductVersion();
+
+      if(version == null) {
+         return true;   // can't prove too old -> permissive
+      }
+
+      try {
+         int actualMajor = Integer.parseInt(version.split("\\.")[0]);
+         return actualMajor >= major;
+      }
+      catch(Exception ex) {
+         return true;   // unparseable -> permissive
+      }
+   }
+
    private static Set keywords = new HashSet(); // keywords
 
    static {
