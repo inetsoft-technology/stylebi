@@ -26,6 +26,7 @@ import inetsoft.graph.data.DataSet;
 import inetsoft.graph.data.SortedDataSet;
 import inetsoft.graph.geometry.IntervalGeometry;
 import inetsoft.graph.geometry.Pie3DGeometry;
+import inetsoft.graph.guide.form.GraphForm;
 import inetsoft.graph.guide.form.LineForm;
 import inetsoft.graph.internal.GDefaults;
 import inetsoft.graph.scale.LinearScale;
@@ -228,8 +229,14 @@ public class IntervalElement extends StackableElement {
                   !Double.isNaN(top) && getDimCount() > 0)
                {
                   String vname0 = getVar(v);
-                  Object xVal = data.getData(getDim(0), i);
-                  Scale xscale = graph.getScale(getDim(0));
+                  // Use the innermost dimension (the bar x axis), not getDim(0): in a facet
+                  // the outer/facet dimension(s) come first, so getDim(0) is the facet
+                  // dimension and would map the total to the wrong x (its facet index),
+                  // yielding a negative step so no bridge is drawn. The last dim is the
+                  // plot x axis, and equals getDim(0) when there is no facet. (75624)
+                  String xdim = getDim(getDimCount() - 1);
+                  Object xVal = data.getData(xdim, i);
+                  Scale xscale = graph.getScale(xdim);
                   Scale yscale = graph.getScale(vname0);
 
                   if(xVal != null && xscale != null && yscale != null && data.getData(vname0, i) == null) {
@@ -241,7 +248,7 @@ public class IntervalElement extends StackableElement {
                      double step = sumX - prevBridgeX[v];
 
                      if(step > 0) {
-                        addBridgeForm(graph, prevBridgeX[v], sumX, bridgeY, step);
+                        addBridgeForm(graph, prevBridgeX[v], sumX, bridgeY);
                      }
                      // NaN suppresses any bridge drawn from the total bar to subsequent bars.
                      prevBridgeX[v] = Double.NaN;
@@ -365,7 +372,7 @@ public class IntervalElement extends StackableElement {
                   double step = vtuple[0] - prevBridgeX[v];
 
                   if(step > 0) {
-                     addBridgeForm(graph, prevBridgeX[v], vtuple[0], vtuple[1], step);
+                     addBridgeForm(graph, prevBridgeX[v], vtuple[0], vtuple[1]);
                   }
                }
 
@@ -803,20 +810,43 @@ public class IntervalElement extends StackableElement {
    }
 
    // halfWidth controls how far from each bar's center the bridge endpoint sits.
-   // Larger halfWidth → shorter bridge. At r=0.3 (default) this equals 0.25*step
-   // (geometric bar edge). Higher radius shrinks halfWidth so the bridge grows
-   // longer to visually cover the rounded corner gap; lower radius extends it
-   // so the bridge doesn't over-run a sharp-cornered bar.
-   private void addBridgeForm(GGraph graph, double fromX, double toX, double bridgeY, double step) {
-      double halfWidth = Math.max(0, step * (0.40 - 0.5 * cornerRadius));
+   // Larger halfWidth → shorter bridge. Adjacent categories are one scaled unit
+   // apart and a bar's width is fixed, so the inset is a fraction of a single
+   // category width and must NOT scale with the distance between the two bars:
+   // when the bridge spans a gap of missing categories (fromX/toX more than one
+   // unit apart) the endpoints must still land just outside each bar rather than
+   // shrinking to a stub in the middle of the gap. Higher corner radius shrinks
+   // halfWidth so the bridge grows longer to visually cover the rounded corner
+   // gap; lower radius extends it so the bridge doesn't over-run a sharp-cornered
+   // bar. (75624)
+   private void addBridgeForm(GGraph graph, double fromX, double toX, double bridgeY) {
+      double halfWidth = Math.max(0, 0.40 - 0.5 * cornerRadius);
+      // In a facet, createGeometry runs once per facet cell and each cell adds its
+      // own bridge forms to the shared EGraph. A form is only scoped to a single
+      // sub-coordinate when its tuple length matches the full scale count; with a
+      // bare [x, y] tuple the facet-matching check is skipped and the bridge is
+      // replicated across every facet cell. Prepend the cell's facet nesting
+      // indices so the bridge is drawn only in its own sub-coordinate. (75624)
+      double[] nest = GraphForm.getNestTuple(graph.getCoordinate());
       LineForm bridge = new LineForm(
-         new double[]{fromX + halfWidth, bridgeY},
-         new double[]{toX - halfWidth, bridgeY});
+         bridgePoint(nest, fromX + halfWidth, bridgeY),
+         bridgePoint(nest, toX - halfWidth, bridgeY));
       bridge.setColor(bridgeLineColor != null ? bridgeLineColor : GDefaults.DEFAULT_LINE_COLOR);
       bridge.setLine(bridgeLineStyle.getStyle());
       bridge.setZIndex(GDefaults.GRIDLINE_Z_INDEX + 1);
       bridge.setInPlot(true);
       graph.getEGraph().addForm(bridge);
+   }
+
+   // Build a bridge endpoint tuple by prepending the facet nesting indices to the
+   // scaled (x, y) position. In a non-faceted chart nest is empty and the tuple is
+   // just {x, y}.
+   private static double[] bridgePoint(double[] nest, double x, double y) {
+      double[] tuple = new double[nest.length + 2];
+      System.arraycopy(nest, 0, tuple, 0, nest.length);
+      tuple[nest.length] = x;
+      tuple[nest.length + 1] = y;
+      return tuple;
    }
 
    private List<String> bases = new Vector<>(); // interval base columns

@@ -339,8 +339,12 @@ public abstract class GraphForm extends Graphable {
 
    /**
     * Get the tuple for the parent coordinates that identify this nested coord.
+    * The returned tuple contains the facet nesting indices (row/column) of the
+    * coordinate within its enclosing facet, in outer-to-inner order. It is empty
+    * for a non-faceted coordinate.
+    * @hidden
     */
-   private double[] getNestTuple(Coordinate coord) {
+   public static double[] getNestTuple(Coordinate coord) {
       List<Double> tuple = new ArrayList<>();
 
       while(coord != null) {
