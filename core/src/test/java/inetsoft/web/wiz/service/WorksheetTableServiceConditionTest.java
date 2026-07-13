@@ -22,10 +22,13 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.Condition;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.ExpressionValue;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.web.wiz.model.WorksheetTable;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -140,5 +143,58 @@ class WorksheetTableServiceConditionTest {
       assertTrue(list.isConditionItem(0), "index 0 must be a ConditionItem");
       assertTrue(list.isJunctionOperator(1), "index 1 must be a JunctionOperator");
       assertTrue(list.isConditionItem(2), "index 2 must be a ConditionItem");
+   }
+
+   // ── FIELD operand (compare a column against another column, e.g. amount > stage_avg). Regression
+   // for the silent match-all bug: the FIELD arm used to wrap the bare column name in a JAVASCRIPT
+   // ExpressionValue (an undefined JS identifier), so the operand evaluated to nothing and the filter
+   // matched ALL rows. It must resolve to the referenced column's DataRef instead. ──
+
+   @Test
+   void fieldOperandResolvesToDataRefNotExpressionValue() throws Exception {
+      WorksheetTable req = request("""
+         {
+           "preAggregateCondition": [
+             { "field": "amount", "operation": "GREATER_THAN",
+               "values": [{ "type": "FIELD", "value": "stage_avg" }] }
+           ]
+         }
+         """);
+
+      ColumnSelection cs = columns("amount", "stage_avg");
+
+      ConditionList list = service().buildConditionList(
+         cs, req.getPreAggregateCondition(), new Worksheet(), false);
+
+      Condition cond = list.getConditionItem(0).getCondition();
+      assertEquals(1, cond.getValueCount(), "FIELD operand => exactly one operand value");
+
+      Object operand = cond.getValue(0);
+      assertFalse(operand instanceof ExpressionValue,
+                  "FIELD operand must NOT be a JS ExpressionValue (the bug)");
+      assertTrue(operand instanceof DataRef,
+                 "FIELD operand must be a DataRef, got: " + operand.getClass().getName());
+      assertEquals("stage_avg", ((DataRef) operand).getName(),
+                   "resolved DataRef must be the referenced column");
+   }
+
+   @Test
+   void fieldOperandUnknownColumnFailsLoud() throws Exception {
+      // An unresolvable FIELD column must throw (naming it), not silently drop to a no-op operand.
+      WorksheetTable req = request("""
+         {
+           "preAggregateCondition": [
+             { "field": "amount", "operation": "GREATER_THAN",
+               "values": [{ "type": "FIELD", "value": "nonexistent_col" }] }
+           ]
+         }
+         """);
+
+      ColumnSelection cs = columns("amount", "stage_avg");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         service().buildConditionList(cs, req.getPreAggregateCondition(), new Worksheet(), false));
+      assertTrue(ex.getMessage().contains("nonexistent_col"),
+                 "error should name the unresolved FIELD column, got: " + ex.getMessage());
    }
 }
