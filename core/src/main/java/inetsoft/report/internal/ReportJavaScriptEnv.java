@@ -56,6 +56,14 @@ public class ReportJavaScriptEnv extends GraalJavaScriptEnv
          catch(Exception ex) {
             LOG.error("Failed to initialize script engine when " +
                "resetting environment", ex);
+            // init(vars) closes the old Context before building the replacement,
+            // so a failure here leaves rengine referencing a closed Context that
+            // init() (a no-op while rengine != null) would never rebuild. Drop
+            // the engine so the next init()/exec() rebuilds it from scratch
+            // rather than poisoning a long-lived env. (mirrors the base
+            // GraalJavaScriptEnv.reset() fix)
+            rengine = null;
+            engine = null;
          }
       }
    }
@@ -139,6 +147,13 @@ public class ReportJavaScriptEnv extends GraalJavaScriptEnv
          catch(Exception e) {
             LOG.error("Failed to initialize script engine when " +
                "initializing environment", e);
+            // init(vars) may close/replace the Context; a failure here leaves
+            // rengine referencing a broken/closed Context that this method (a
+            // no-op while rengine != null) would never rebuild. Drop it so the
+            // next init()/exec() rebuilds from scratch rather than poisoning
+            // this (now long-lived, per-thread) env. Mirrors the reset() fix.
+            rengine = null;
+            engine = null;
          }
       }
    }

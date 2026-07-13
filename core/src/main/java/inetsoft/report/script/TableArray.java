@@ -18,6 +18,7 @@
 package inetsoft.report.script;
 
 import inetsoft.report.*;
+import inetsoft.report.filter.CrossFilter;
 import inetsoft.report.internal.*;
 import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.report.lens.SubTableLens;
@@ -101,7 +102,37 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
          return true;
       }
 
+      // A crosstab flattens its own row/col dimension values into headers, so a bare
+      // reference to the dimension's name (e.g. data['city']) never appears as literal
+      // column/header text and Util.findColumn below can't find it -- only the
+      // dimension's values (e.g. "Aachen") do. Defer to getMember, which resolves
+      // dimension names directly against the crosstab (see NamedCellRange), but only
+      // for ids that actually name a row/col dimension -- a genuinely nonexistent
+      // property should still report absent, not be over-claimed as present.
+      if(lens instanceof CrossFilter && isCrosstabDimension((CrossFilter) lens, id)) {
+         return true;
+      }
+
       return Util.findColumn(lens, id) >= 0;
+   }
+
+   /**
+    * Check if id names one of the crosstab's own row or column dimensions.
+    */
+   private static boolean isCrosstabDimension(CrossFilter table, String id) {
+      for(int i = 0; i < table.getRowHeaderCount(); i++) {
+         if(Tool.equals(table.getRowHeader(i), id)) {
+            return true;
+         }
+      }
+
+      for(int i = 0; i < table.getColHeaderCount(); i++) {
+         if(Tool.equals(table.getColHeader(i), id)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
