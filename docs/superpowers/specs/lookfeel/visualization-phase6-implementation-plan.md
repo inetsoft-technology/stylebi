@@ -48,9 +48,11 @@ chrome color ships in Phase 6 (as neutral defaults) or waits for Phase 8.
   (Toolbar compaction was attempted and **deferred** — the mini-toolbar's geometry is JS-computed, so a
   CSS-only resize desyncs its positioning; see A1 below.)
 - **Part B — Server-side in-graph chrome neutrals + the gated resolver (server bridge).** The hard,
-  export-affecting half: a `VSChartChromeDefaults` resolver + neutral defaults for axis/gridline/
-  legend/title/label. Scoped here but **recommended as its own follow-up sub-plan** after Part A
-  validates (mirrors Phase 5's D1). This is the mechanism Phase 8 depends on.
+  export-affecting half: a `VSChartChromeDefaults` resolver + neutral chrome defaults, grounded into
+  **three seams** — **B1** gridline/facet/legend-border color (clean, one method, ready), **B2** chrome
+  text colors (second seam, scoped), **B3** axis line/plot border (plain `Color`, guard-or-defer).
+  Recommended as its own follow-up sub-plan after Part A validates (mirrors Phase 5's D1); it is the
+  mechanism Phase 8 depends on.
 
 Phase 6 does **not**:
 
@@ -197,6 +199,13 @@ persisted descriptor.
   `initDefaultFormat()` inside `fixChartFormat` (e.g. L1240/1268/1282/1316/1346), re-seeded per render
   so it never leaks to saved state
 
+**Refinement (grounded 2026-07-13) — these are TWO seams, not one.** `CSSChartStyles.apply` sets only
+the `CompositeValue` chrome (gridline/legend border) — it does **not** touch text colors. So the
+CompositeValue chrome (B1) and the `CompositeTextFormat` text colors (B2) are injected at different
+places (`CSSChartStyles.apply` vs the `initDefaultFormat` seeding). B1's exact injection ordering (CSS-tier
+baseline *before* the format.css dictionary block, so customer CSS wins) is grounded under **Part B / B1**
+below. Treat this D4 list as the element inventory; Part B B1/B2/B3 is the implementation spec.
+
 **The two exceptions (plain `Color`, serialized — value-equality unavoidable):**
 - **`AxisDescriptor.lineColor`** (`:893`, plain `Color`, no user-set flag; UI writes it directly via
   `AxisPropertyDialogModel:257`) — **and, correcting an earlier assumption, `PlotDescriptor.borderColor`
@@ -207,12 +216,11 @@ persisted descriptor.
   fragile pattern Phase 5 C1 abandoned) and (b) apply the modern value to a per-render **clone** /
   `RTAxisDescriptor` since the field is serialized.
 
-**Recommendation for the Part B sub-plan:** do the four clean element groups via the CSS/default-format
-tiers at the `fixChartFormat`/`CSSChartStyles.apply` seam (covers gridlines, legend border, and all
-chrome text). For axis line + plot border, either (i) accept the isolated value-equality guard on those
-two fields, or (ii) **defer them** — a modern gridline+legend+text pass is already most of the visual
-win, and the axis/plot border lines currently share the same `#EEEEEE` as gridlines, so recoloring
-gridlines alone still reads coherent. Decide (i) vs (ii) when the sub-plan is taken.
+**Recommendation for the Part B sub-plan:** lead with **B1** (gridline + facet + legend border via the
+CSS-tier baseline in `CSSChartStyles.apply`) — one method, export-consistent, gate-off byte-identical,
+no clone; follow with **B2** (text colors at the `initDefaultFormat` seam) once grounded; treat **B3**
+(axis line + plot border, plain `Color`) as guard-or-defer since it needs value-equality on a clone. See
+**Part B** below for the full spec and the exact B1 ordering.
 
 ### D5 — EM Material chrome deferred → **RECOMMEND YES** (unchanged from Phase 3/5)
 
@@ -337,44 +345,108 @@ coordinated TS+CSS change, not a CSS tweak. No surround color tokens are invente
 calls for a distinct surround surface, `--inet-viz-tooltip-*` is added to the contract then
 (Deferred 4).
 
-### Part B — Server-side in-graph chrome neutrals + gated resolver (scoped sub-plan; needs owner go-ahead)
+### Part B — Server-side in-graph chrome neutrals + gated resolver (grounded 2026-07-13; needs owner go-ahead)
 
-**Mechanism:** add `VSChartChromeDefaults` (stateless, `uql/viewsheet/internal/`) mirroring
-`VSTableStructureDefaults`:
-- `isModern()` = `VSDensityDefaults.isModern()` **AND** `viewsheet.modernChartChrome` not `"false"`
-  (org-scoped, defaults ON when modern is on) — an admin escape hatch, same shape as
-  `viewsheet.modernTableStructure`.
-- color accessors returning warm-neutral chrome (light-mode first; dark deferred): `axisLineColor()`,
-  `gridlineColor()`, `legendBorderColor()`, `axisLabelColor()` / `axisTitleColor()`,
-  `legendTextColor()`, `plotLabelColor()`.
+Export-affecting server work. Grounding **refined the scope**: what D4 treated as one seam is actually
+**three**, because `CSSChartStyles.apply` covers only the `CompositeValue` chrome (gridlines, legend
+border) — **not** chrome text *colors* (separate `CompositeTextFormat` seam) and **not** the plain-`Color`
+axis line. Split accordingly, lead with the clean single-seam win.
 
-**Proposed neutral values** (align with the Phase 5 table-structure palette and shell; **proposed — no
-design spec yet**, add a "Chart Chrome Tokens" group to `visualization-palette-swatches.html` as Phase 5
-did for table structure):
-- axis line + gridline + legend border → **`#E8E5DE`** (= table `gridlineColor`, unifies all hairline
-  chrome; warmer + subtler than today's `#EEEEEE`)
-- axis tick/label + legend content text → **`#6A685F`** (= table `headerForeground` / shell text-muted;
-  quiet chrome, verify legibility on white plot)
-- axis/legend title text → **`#35342F`** (= shell text-default; slightly stronger than labels, warm,
-  quieter than today's near-black `#2B2B2B`)
-- legend background → leave `Color.WHITE` α50 (transparent-ish); no change first pass
+**Gate (`VSChartChromeDefaults`, `uql/viewsheet/internal/`, mirrors `VSTableStructureDefaults`).**
+`isModern()` = `VSDensityDefaults.isModern()` **AND** `SreeEnv.getProperty("viewsheet.modernChartChrome", …, true)`
+not `"false"` (org-scoped, defaults ON when modern is on — admin escape hatch, same shape as
+`viewsheet.modernTableStructure`). Color accessors: `gridlineColor()`, `legendBorderColor()`,
+`axisLabelColor()`/`axisTitleColor()`/`legendTextColor()`/`plotLabelColor()` (B2), `axisLineColor()` (B3).
 
-**Injection (grounded — D4):** write the modern chrome to the **CSS tier** of the `CompositeValue`
-chrome and the **default-format** tier of the chrome text formats, inside
-`VGraphPair.fixChartFormat` / `CSSChartStyles.apply`, gated by `VSChartChromeDefaults.isModern()`.
-These tiers are reset-and-reapplied every render and never serialized, so it is defaults-only (USER
-wins) and cannot dirty saved state — no clone needed. Covers gridlines, legend border, and all chrome
-text cleanly. `AxisDescriptor.lineColor` and `PlotDescriptor.borderColor` are plain serialized `Color`
-fields (no tier) — either guarded by value-equality on a clone, or deferred (D4 (i)/(ii)).
+**Proposed neutral values** (**proposed — no design spec yet**; add a "Chart Chrome Tokens" group to
+`visualization-palette-swatches.html` as Phase 5 did for table structure):
+- gridline + facet + legend border + axis line → **`#E8E5DE`** (= table `gridlineColor`, unifies all
+  hairline chrome; warmer/subtler than today's `#EEEEEE`)
+- axis tick/label + legend content text → **`#6A685F`** (= table `headerForeground`; verify legibility)
+- axis/legend title text → **`#35342F`** (= shell text-default; quieter than today's `#2B2B2B`)
+- legend background → leave `Color.WHITE` α50; no change
 
-**Why not the `defaults.css`/`format.css` CSS route** (mirrors Phase 5's route correction): the CSS
-dictionary has **no `viewsheet.modernVisualization` SreeEnv gate** — it is file/theme-driven per-org
-(`PortalThemesManager`), so it cannot carry the required programmatic per-org gate. The Java resolver
-at the descriptor-construction seam is the route that mirrors `VSDensityDefaults`/`VSTableStructureDefaults`.
+#### B1 — gridline + facet + legend-border color (the clean first pass) — ✅ IMPLEMENTED (2026-07-13)
 
-**Risk:** export-visible; reflows saved charts that rely on default chrome color. **Must** be gated
-per-org (never the browser `.viz-modern` class), gate-off byte-identical, its own validation pass with
-PDF/PNG/SVG/Excel parity checks. Highest-risk item in Phase 6.
+Added `VSChartChromeDefaults` (`uql/viewsheet/internal/`, mirrors `VSTableStructureDefaults`:
+`isModern()` = density gate AND `viewsheet.modernChartChrome` ≠ `"false"`; `gridlineColor()` /
+`legendBorderColor()` = `#E8E5DE`) and the CSS-tier baseline in `CSSChartStyles.apply` — one gate read,
+then `setXGridColor`/`setYGridColor`/`setFacetGridColor` and `setBorderColor` on the CSS tier after each
+`resetCompositeValues(CSS)` and before the dictionary block. `core` compiles clean;
+`CSSChartStylesModernChromeTest` (3 tests) verifies gate-off = legacy `GDefaults`, gate-on = `#E8E5DE`
+gridline/facet/legend-border, and a USER-tier grid color still winning. Grounding below is the spec it
+was built from.
+
+**Dialog round-trip — grounded SAFE (no leak).** The chart-properties **Line** pane reads the *resolved*
+color (`getXGridColor()`/`getFacetGridColor()`/`getBorderColor()` = `USER > CSS > DEFAULT`), so with the
+gate on it may *display* the modern `#E8E5DE`. But its OK path calls the `setXxxColor(color, force=false)`
+overloads, which **only write the USER tier when the color differs from the current resolved value**
+(`PlotDescriptor.setXGridColor/​setFacetGridColor`, `LegendsDescriptor.setBorderColor`). So leaving the
+modern default unchanged and clicking OK **does not** persist it as a user value — gate-off still falls to
+`GDefaults`. Only an actual color change is persisted (deliberate). This is the same guard that already
+prevents a `format.css` chrome value from being frozen on OK, so B1 introduces no new leak, and the
+descriptor-instance identity (whether the dialog reads a CSS-applied descriptor) is moot for correctness.
+
+
+- **Seam:** `CSSChartStyles.apply(ChartDescriptor, ChartInfo, …)`
+  (`core/.../uql/viewsheet/graph/CSSChartStyles.java:88`) — the one method that already sets these
+  `CompositeValue` chrome colors, called on **both** the live path (`VGraphPair.java:1339`) **and the
+  export/report path (`CSSProcessor.java:301`)**, so a single change is export-consistent. (Also the
+  composer-DnD clone path `VSChartDndService.java:224`.)
+- **Injection = a CSS-tier baseline, written after each `resetCompositeValues(CSS)` and *before* the
+  format.css dictionary block.** Precedence is `USER > CSS > DEFAULT` (`CompositeValue.get()`:41). Order:
+  1. `resetCompositeValues(Type.CSS)` (already there — L103/134/262/301/373) clears the CSS tier.
+  2. **(new)** if `VSChartChromeDefaults.isModern()`, set modern color on the **CSS tier**:
+     `plotDesc.setXGridColor/setYGridColor/setFacetGridColor(c, Type.CSS)` (`PlotDescriptor` :172/213/480),
+     `legendsDesc.setBorderColor(c, Type.CSS)` (`LegendsDescriptor` :143).
+  3. the existing `if(cssStyle != null)` dictionary block runs — a customer's `format.css` chrome value
+     **overwrites** the modern baseline (customer wins).
+- **Why this ordering is correct on every axis:**
+  - *Customer `format.css` chrome* → written after → wins. ✓
+  - *User picker* → USER tier → wins over CSS. ✓
+  - *Gate off* → step 2 skipped → after reset, `cssDefined=false` → `get()` returns the DEFAULT tier
+    (GDefaults `#EEEEEE`) → **byte-identical to today**. ✓
+  - *Persistence* → the **CSS tier is never serialized** (`CompositeValue.toString()`:166-179 writes only
+    `userValue`, + `defaultValue` iff `saveDefault`; these fields are `saveDefault=false`), so no saved
+    XML changes and **no clone is needed** — unlike Phase 5's table style, which had no tier system.
+  - *Inverted graphs* → x/y are swapped by the dictionary code, but modern sets both grid colors to the
+    same neutral, so inversion is a no-op.
+- Covers the most prominent chrome (gridlines + legend border). This is the recommended first server
+  sub-pass: one method, export-consistent, gate-off byte-identical, no clone, no value-equality.
+
+#### B2 — chrome text colors (follow-up, second seam)
+
+Axis label/title, legend content/title, and plot-label colors are **not** in `CSSChartStyles.apply` —
+they live in each descriptor's `CompositeTextFormat` default format (`getColor()` precedence
+`USER > CSS > DEFAULT`, `CompositeTextFormat.java:121-124`), seeded from `GDefaults` in the descriptors'
+`initDefaultFormat()` and re-seeded per render inside `VGraphPair.fixChartFormat` (`:1240/1268/1282/…`).
+Modern text color would be written to the **default-format tier** (`getDefaultFormat().setColor(c)`) right
+after each `initDefaultFormat()`, gated. Needs its own grounding of the fixChartFormat text-seeding order
+and the CSS-format interplay before implementing. Export-visible; lower priority than B1 and a legibility
+judgement (lighter labels). Scoped, not yet grounded to code.
+
+#### B3 — axis line + plot border color (deferred / value-equality)
+
+`AxisDescriptor.lineColor` (`:893`) and `PlotDescriptor.borderColor` (`:1943`) are **plain `Color`
+fields, serialized, with no tier** and no user-set flag, so a defaults-only override needs
+value-equality vs `ChartLineColor.getAxisLineColor(GDefaults.DEFAULT_LINE_COLOR)` on a per-render
+clone / `RTAxisDescriptor` (the fragile Phase 5 C1 pattern). Plot border also feeds the auto/"fake"
+axis line (`GraphGenerator.java:526`). Because axis line and gridline currently share `#EEEEEE`,
+shipping B1 alone leaves the axis line at legacy `#EEEEEE` while gridlines go `#E8E5DE` — a **subtle**
+near-white mismatch, acceptable for a first pass; B3 closes it. Decide guard-vs-defer when taken.
+
+**Why not the `format.css` CSS-dictionary route** (mirrors Phase 5's correction): `CSSDictionary` has
+**no `viewsheet.modernVisualization` SreeEnv gate** — it's file/theme-driven per-org
+(`PortalThemesManager`), so it can't carry the programmatic per-org gate. The `VSChartChromeDefaults`
+Java resolver injected at the shared `CSSChartStyles.apply` seam mirrors `VSDensityDefaults`/
+`VSTableStructureDefaults` and *rides on top of* the dictionary (customer CSS still wins).
+
+**Risk / validation:** export-visible; changes the default chrome color of saved charts when the gate is
+enabled (intended, org-gated). Must be gated per-org (never the browser `.viz-modern` class), gate-off
+byte-identical, and validated with **PDF/PNG/SVG/Excel parity** plus a customer-`format.css`-chrome case
+(confirm customer values still win) and a user-picker case. Confirm `isModern()`'s org-scoped `SreeEnv`
+read resolves correctly on the **export/scheduled** path (`CSSProcessor`), as the density defaults already
+do. Highest-risk item in Phase 6.
 
 ## Validation
 
@@ -408,11 +480,12 @@ PDF/PNG/SVG/Excel parity checks. Highest-risk item in Phase 6.
 5. **Dark-mode chart chrome** — Part B is light-first; dark variants ride the initiative's dark pass
    (as with Phase 5 table structure).
 6. **EM Material chrome** — separate build, admin, never exported (D5).
-7. **Axis line + plot border color (Part B tail)** — the two plain-`Color`, serialized fields
+7. **Axis line + plot border color (Part B / B3)** — the two plain-`Color`, serialized fields
    (`AxisDescriptor.lineColor`, `PlotDescriptor.borderColor`) have no tier to hold a default, so they
    need value-equality-vs-`GDefaults` on a cloned/RT descriptor (the fragile Phase 5 C1 pattern) —
-   decided (i) guard vs (ii) defer when the Part B sub-plan is taken (D4). The clean Part B elements
-   (gridlines, facet, legend border, all chrome text) do **not** depend on this.
+   decided (i) guard vs (ii) defer when the Part B sub-plan is taken. B1 (gridline/facet/legend border)
+   and B2 (text colors) do **not** depend on this; shipping B1 alone leaves the axis line at legacy
+   `#EEEEEE` vs modern gridline `#E8E5DE` — a subtle near-white mismatch B3 closes.
 8. **Compact chart mini-toolbar (A1)** — the toolbar's geometry is JS-computed: vertical position uses
    the fixed constant `GuiTool.MINI_TOOLBAR_HEIGHT = 28` (`topY = top − 28 − adj`) and width/alignment
    use `miniToolbarService.getActionsWidth()`. A CSS-only resize desyncs both (overlap/gap vertically,
