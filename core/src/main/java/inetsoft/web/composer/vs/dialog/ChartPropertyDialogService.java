@@ -218,7 +218,12 @@ public class ChartPropertyDialogService {
          tipCustomizeDialogModel.setCombinedTip(true);
       }
 
-      tipCustomizeDialogModel.setTooltipStyle(vsChartInfo.getTooltipStyleValue());
+      // The two-radio dialog has no AUTO option; preselect the resolved value so a
+      // radio is selected. Saving then persists an explicit DEFAULT/CARD (a deliberate
+      // choice), collapsing AUTO.
+      ChartInfo.TooltipStyle designTipStyle = vsChartInfo.getTooltipStyleValue();
+      tipCustomizeDialogModel.setTooltipStyle(designTipStyle == ChartInfo.TooltipStyle.AUTO
+         ? vsChartInfo.getTooltipStyle() : designTipStyle);
 
       tipCustomizeDialogModel.setSnapTooltip(vsChartInfo.getSnapTooltipValue());
       tipCustomizeDialogModel.setSnapSupported(vsChartInfo.supportsSnapTooltip());
