@@ -20,6 +20,7 @@ package inetsoft.graph.element;
 import com.inetsoft.build.tern.*;
 import inetsoft.graph.GGraph;
 import inetsoft.graph.aesthetic.GLine;
+import inetsoft.graph.aesthetic.SizeFrame;
 import inetsoft.graph.aesthetic.VisualModel;
 import inetsoft.graph.coord.*;
 import inetsoft.graph.data.DataSet;
@@ -206,6 +207,9 @@ public class IntervalElement extends StackableElement {
       double posIntervalSum = 0; // cumulative interval for positive stack
       double negIntervalSum = 0; // cumulative interval for negative stack
       double[] prevBridgeX = (bridgeLineStyle != null) ? new double[getVarCount()] : null;
+      // Half-width (in category-slot units) of the bar at prevBridgeX, so a bridge
+      // can inset each end by its own bar's width. (75626)
+      double[] prevBridgeHalf = (bridgeLineStyle != null) ? new double[getVarCount()] : null;
       List<IntervalGeometry> posStackGeoms = new ArrayList<>();
       List<IntervalGeometry> negStackGeoms = new ArrayList<>();
 
@@ -248,7 +252,10 @@ public class IntervalElement extends StackableElement {
                      double step = sumX - prevBridgeX[v];
 
                      if(step > 0) {
-                        addBridgeForm(graph, prevBridgeX[v], sumX, bridgeY);
+                        // The total is drawn by a separate element, so its geometry is
+                        // not available here; use the nominal bar half-width for that end.
+                        addBridgeForm(graph, prevBridgeX[v], prevBridgeHalf[v],
+                                      sumX, bridgeBarHalfWidth(coord), bridgeY);
                      }
                      // NaN suppresses any bridge drawn from the total bar to subsequent bars.
                      prevBridgeX[v] = Double.NaN;
@@ -367,21 +374,23 @@ public class IntervalElement extends StackableElement {
                interval = coord.getValue(tuple, 1);
                from = (interval < base && negGrp) ? negtop : top;
                vtuple = new double[] {coord.getValue(tuple, 0), getBase(scale, from)};
-
-               if(prevBridgeX != null && !Double.isNaN(prevBridgeX[v])) {
-                  double step = vtuple[0] - prevBridgeX[v];
-
-                  if(step > 0) {
-                     addBridgeForm(graph, prevBridgeX[v], vtuple[0], vtuple[1]);
-                  }
-               }
+               interval2 = getInterval(scale, from, interval, base, first);
+               // Build the geometry before the bridge so its rendered width (which
+               // depends on this bar's size aesthetic) is available for the endpoint. (75626)
+               gobj = new IntervalGeometry(this, graph, vname, i, vmodel, vtuple, interval2);
 
                if(prevBridgeX != null) {
+                  double curHalf = bridgeBarHalfWidth(coord, gobj);
+
+                  if(!Double.isNaN(prevBridgeX[v]) && vtuple[0] - prevBridgeX[v] > 0) {
+                     addBridgeForm(graph, prevBridgeX[v], prevBridgeHalf[v],
+                                   vtuple[0], curHalf, vtuple[1]);
+                  }
+
                   prevBridgeX[v] = vtuple[0];
+                  prevBridgeHalf[v] = curHalf;
                }
 
-               interval2 = getInterval(scale, from, interval, base, first);
-               gobj = new IntervalGeometry(this, graph, vname, i, vmodel, vtuple, interval2);
                break;
             case 3:
                // No per-group boundary detection here: Bar3DVO is always excluded from
@@ -809,18 +818,27 @@ public class IntervalElement extends StackableElement {
       this.bridgeLineStyle = lineStyle;
    }
 
-   // halfWidth controls how far from each bar's center the bridge endpoint sits.
-   // Larger halfWidth → shorter bridge. Adjacent categories are one scaled unit
-   // apart and a bar's width is fixed, so the inset is a fraction of a single
-   // category width and must NOT scale with the distance between the two bars:
-   // when the bridge spans a gap of missing categories (fromX/toX more than one
+   // Each bridge endpoint is inset from its bar's center by that bar's own half-width
+   // plus a gap, so the line adapts to different-size bars: a narrower bar leaves a
+   // wider gap and a longer line, and the two bars a bridge connects are inset
+   // independently (fromHalf/toHalf), so one end can clear a wide bar while the other
+   // hugs a narrow one. The inset must NOT scale with the distance between the two
+   // bars: when the bridge spans a gap of missing categories (fromX/toX more than one
    // unit apart) the endpoints must still land just outside each bar rather than
-   // shrinking to a stub in the middle of the gap. Higher corner radius shrinks
-   // halfWidth so the bridge grows longer to visually cover the rounded corner
-   // gap; lower radius extends it so the bridge doesn't over-run a sharp-cornered
-   // bar. (75624)
-   private void addBridgeForm(GGraph graph, double fromX, double toX, double bridgeY) {
-      double halfWidth = Math.max(0, 0.40 - 0.5 * cornerRadius);
+   // shrinking to a stub in the middle. (75624, 75626)
+   private void addBridgeForm(GGraph graph, double fromX, double fromHalf,
+                              double toX, double toHalf, double bridgeY)
+   {
+      double left = fromX + bridgeInset(fromHalf);
+      double right = toX - bridgeInset(toHalf);
+
+      // If the two insets leave no forward room, the bars are wide enough to touch
+      // and there is no gap to bridge — skip rather than draw a reversed/degenerate
+      // line. Normal (half-slot) bars always have room. (75626)
+      if(left >= right) {
+         return;
+      }
+
       // In a facet, createGeometry runs once per facet cell and each cell adds its
       // own bridge forms to the shared EGraph. A form is only scoped to a single
       // sub-coordinate when its tuple length matches the full scale count; with a
@@ -829,13 +847,57 @@ public class IntervalElement extends StackableElement {
       // indices so the bridge is drawn only in its own sub-coordinate. (75624)
       double[] nest = GraphForm.getNestTuple(graph.getCoordinate());
       LineForm bridge = new LineForm(
-         bridgePoint(nest, fromX + halfWidth, bridgeY),
-         bridgePoint(nest, toX - halfWidth, bridgeY));
+         bridgePoint(nest, left, bridgeY),
+         bridgePoint(nest, right, bridgeY));
       bridge.setColor(bridgeLineColor != null ? bridgeLineColor : GDefaults.DEFAULT_LINE_COLOR);
       bridge.setLine(bridgeLineStyle.getStyle());
       bridge.setZIndex(GDefaults.GRIDLINE_Z_INDEX + 1);
       bridge.setInPlot(true);
       graph.getEGraph().addForm(bridge);
+   }
+
+   // How far a bridge endpoint sits from its bar's center, given that bar's half-width
+   // (in category-slot units). The endpoint stays OUTSIDE the bar's full-width
+   // silhouette so the line never touches the bar (75626): a rounded bar is still
+   // barHalfWidth wide at its mid height even though its top/bottom taper to a
+   // narrower cap, and the horizontal bridge would graze that cap if placed inside the
+   // silhouette. So the endpoint sits a constant gap BEYOND the bar edge and only
+   // eases in a little as the corner radius grows; the BRIDGE_MIN_GAP floor keeps it
+   // strictly outside the silhouette at every radius.
+   private double bridgeInset(double barHalfWidth) {
+      double inset = barHalfWidth + BRIDGE_GAP - BRIDGE_RADIUS_EASE * cornerRadius;
+      return Math.max(barHalfWidth + BRIDGE_MIN_GAP, inset);
+   }
+
+   // The nominal bar half-width as a fraction of one category slot, used when no bar
+   // geometry is available (e.g. the total bar, drawn by a separate element). (75626)
+   private double bridgeBarHalfWidth(Coordinate coord) {
+      return bridgeBarHalfWidth(coord, null);
+   }
+
+   // The half-width of a specific bar as a fraction of one category slot (the unit the
+   // bridge x coordinates use, adjacent categories being one unit apart), mirroring
+   // the width BarVO renders it at (BarVO.getBarSize): half the slot by default, or a
+   // size-aesthetic-scaled width when a varying SizeFrame is bound. (75626)
+   private double bridgeBarHalfWidth(Coordinate coord, IntervalGeometry geom) {
+      double maxbar = coord.getMaxWidth();
+
+      if(maxbar <= 0) {
+         return 0.25;
+      }
+
+      double barWidth = Math.max(1, maxbar / 2);
+      SizeFrame frame = getSizeFrame();
+
+      if(geom != null && frame != null && frame.getMax() != 0 &&
+         frame.getLargest() != frame.getSmallest())
+      {
+         double minwidth = maxbar * frame.getSmallest() / frame.getMax();
+         double w = maxbar - minwidth;
+         barWidth = Math.max(1, minwidth + w * geom.getSize(0) / frame.getMax());
+      }
+
+      return (barWidth / maxbar) / 2;
    }
 
    // Build a bridge endpoint tuple by prepending the facet nesting indices to the
@@ -856,5 +918,14 @@ public class IntervalElement extends StackableElement {
    private Boolean visualStacked;
    private Color bridgeLineColor = null;
    private GLine bridgeLineStyle = null;
+   // Bridge endpoint placement, in fractions of a category slot, measured beyond the
+   // bar edge (bridgeBarHalfWidth) so the connector never touches the bar. (75626)
+   // BRIDGE_GAP: the slight gap at corner radius 0. BRIDGE_RADIUS_EASE: how much the
+   // endpoint eases toward the bar as radius grows (radius is in [0, 0.5]).
+   // BRIDGE_MIN_GAP: floor that keeps the endpoint strictly outside the bar
+   // silhouette at every radius, guaranteeing no touch.
+   private static final double BRIDGE_GAP = 0.13;
+   private static final double BRIDGE_RADIUS_EASE = 0.06;
+   private static final double BRIDGE_MIN_GAP = 0.09;
    private static final long serialVersionUID = 1L;
 }
