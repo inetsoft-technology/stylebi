@@ -878,9 +878,10 @@ public interface ChartInfo extends AssetObject, ChartBindable {
    }
 
    /**
-    * Visual style for chart tooltips.
+    * Visual style for chart tooltips. AUTO defers to the org modern-visualization
+    * default (resolved at runtime), and is never itself a rendered style.
     */
-   enum TooltipStyle { DEFAULT, CARD }
+   enum TooltipStyle { DEFAULT, CARD, AUTO }
 
    /**
     * Get the tooltip visual style (runtime).

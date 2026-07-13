@@ -553,6 +553,56 @@ Standardize, respecting the rendering boundary above:
 - chart containers and chrome that frame data without competing with it
 - explicit routing of each chrome surface to its correct theming system so live and export stay in sync
 
+## Phase 6A: Assembly Title-Bar / Object-Chrome Defaults (server-side)
+
+Inserted as a distinct pass (numbered `6A` to avoid renumbering Phases 7–10, which the phase plans and
+design spec cross-reference). Surfaced during Phase 6 scoping — see
+[visualization-phase6-implementation-plan.md](./visualization-phase6-implementation-plan.md) D3.
+
+### Goal
+
+Modernize the **viewsheet object title bar** (and any equivalent server-rendered object chrome) as a
+gated server-side default, product-wide across every assembly type.
+
+### Why it is its own pass, not Phase 6 or Phase 8
+
+- It is **not** browser-DOM chart surround. Phase 6 grounding verified the title bar is rendered from
+  `titleFormat` (a server `VSFormat`) with inline styles and **no CSS token hook**
+  (`vs-title.component.html`), so it **appears in viewsheet export** — a browser `--inet-viz-*` change
+  cannot drive it. It is server-owned like a table cell.
+- It is **not** analytical color, so it does not belong in Phase 8. The title bar is **neutral
+  chrome**, and it spans **all** assembly types (table, chart, gauge, text, image, selection, …), not
+  charts alone. Folding it into Phase 8 would mix a product-wide chrome-default concern into a
+  data-color phase.
+- It is shaped exactly like **Phase 5's `VSTableStructureDefaults`**: a gated server-side
+  `VSFormat`-default resolver, defaults-only, export-consistent, per-org gated.
+
+### Tasks
+
+- add a `VSTitleChromeDefaults` resolver mirroring `VSDensityDefaults` / `VSTableStructureDefaults`:
+  gate on `viewsheet.modernVisualization` plus a secondary escape-hatch property (e.g.
+  `viewsheet.modernObjectChrome`), org-scoped, returning modern title background/foreground/border/
+  height **defaults**
+- apply it **defaults-only** at the server-side `titleFormat`/`VSFormat` default seam so user-set
+  title formats still win, and so the live model and every export format resolve the same values
+- keep gate-off byte-identical; because it changes a default that reflows saved sheets, gate it
+  per-org/theme (never the browser `.viz-modern` class), the same rule as Phase 3 density and Phase 5
+  table structure
+- define the modern title-chrome palette in the swatches (warm-neutral, quiet — "widget chrome stays
+  quieter than the data"), coordinated with the Phase 5 table-structure and Phase 6 chart-chrome
+  neutrals
+
+### Dependencies / sequencing
+
+Independent of Phase 6 Part A (CSS) and Phase 8 (data color). Naturally sequenced alongside or after
+the Phase 6 Part B server bridge, since both are gated server-side `VSFormat`/descriptor default
+resolvers and should share the modern-mode selection mechanism and neutral palette.
+
+### Output
+
+- a modern, gated, export-consistent object title-bar default applied product-wide, with user title
+  formats preserved
+
 ## Phase 7: KPI And Embedded Controls
 
 ### Goal
@@ -734,6 +784,13 @@ These should not block the first visualization implementation phase:
 - optional density modes beyond the primary BI baseline
 - deeper visualization-authoring coordination inside Composer-specific editing UIs
 - exhaustive cleanup of every legacy visualization naming hook in one pass
+- **compact chart mini-toolbar under modern density** — attempted in Phase 6 Part A and deferred: the
+  mini-toolbar is absolutely positioned with JS-computed geometry (vertical offset from the fixed
+  constant `GuiTool.MINI_TOOLBAR_HEIGHT`, horizontal size/alignment from
+  `miniToolbarService.getActionsWidth()`), so a CSS-only resize desyncs its positioning (overlap or
+  gap). Requires a coordinated TS+CSS change that makes those geometry values density-mode-aware — not
+  a CSS-only tweak. See [visualization-phase6-implementation-plan.md](./visualization-phase6-implementation-plan.md)
+  A1 / Deferred 8.
 
 ## Recommended First Sprint
 
