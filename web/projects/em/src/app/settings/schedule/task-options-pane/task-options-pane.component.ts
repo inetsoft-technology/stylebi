@@ -231,17 +231,23 @@ export class TaskOptionsPane {
    }
 
    /**
-    * ignore the owner because the sso user do not in the provider.
+    * ignore the owner only when sso is enabled, because the sso user do not in the provider.
     */
    private formValidIgnoreOwner(): boolean {
       if(this.optionsForm.valid) {
          return true;
       }
 
+      // honor group-level errors (e.g. dateGreaterThan from the dateSmallerThan validator),
+      // which are not attached to any individual control
+      if(this.optionsForm.errors) {
+         return false;
+      }
+
       for(let controlsKey in this.optionsForm.controls) {
          let control = this.optionsForm.controls[controlsKey];
 
-         if(!control || "owner" == controlsKey) {
+         if(!control || ("owner" == controlsKey && this.ssoEnable)) {
             continue;
          }
 
