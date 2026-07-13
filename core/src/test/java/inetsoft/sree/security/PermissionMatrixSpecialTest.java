@@ -115,12 +115,16 @@ package inetsoft.sree.security;
  * SUtil.isMultiTenant() elsewhere in this suite.
  */
 
+import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.support.*;
 import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.test.*;
+import inetsoft.uql.asset.*;
 import inetsoft.uql.util.Identity;
+import inetsoft.util.MessageException;
 import inetsoft.util.ThreadContext;
 import inetsoft.web.security.BasicAuthenticationFilter;
 import org.junit.jupiter.api.*;
@@ -132,7 +136,11 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.security.Principal;
+
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(SpringExtension.class)
@@ -322,6 +330,45 @@ class PermissionMatrixSpecialTest {
       });
    }
 
+   // ── Bug #75631: host-org global-visibility READ bypass is scoped by resource type ──
+
+   @Test
+   void nonHostOrgUser_defaultVisibility_readAllowedForViewsheetButDeniedForWorksheet() throws Exception {
+      // Regression for Bug #75631. AbstractAssetEngine.checkAssetPermission0()'s
+      // "expose default org to all" READ bypass must be scoped to viewsheet-type entries only.
+      // A non-host-org, non-site-admin user under exposeDefaultOrgToAll may READ a host-org
+      // VIEWSHEET (the feature shares viewsheets read-only) but must NOT READ a host-org
+      // WORKSHEET (or any other dependent asset type) directly.
+      ThreadContext.setContextPrincipal(null);
+
+      AbstractAssetEngine engine = new StubAssetEngine();
+      AssetEntry hostOrgViewsheet = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "bug75631Vs", null, HOST_ORG_ID);
+      AssetEntry hostOrgWorksheet = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, "bug75631Ws", null, HOST_ORG_ID);
+
+      withMultiTenant(true, () -> {
+         SreeEnv.setProperty("security.exposeDefaultOrgToAll", "true");
+
+         try {
+            assertDoesNotThrow(
+               () -> engine.checkAssetPermission(
+                  createdOrgPlainUser, hostOrgViewsheet, ResourceAction.READ, false),
+               "a host-org viewsheet must remain READ-able by a non-host-org user under " +
+               "exposeDefaultOrgToAll (the feature shares viewsheets read-only)");
+
+            assertThrows(MessageException.class,
+               () -> engine.checkAssetPermission(
+                  createdOrgPlainUser, hostOrgWorksheet, ResourceAction.READ, false),
+               "a host-org worksheet must NOT be READ-able by a non-host-org user under " +
+               "exposeDefaultOrgToAll; the bypass is scoped to viewsheet-type entries (Bug #75631)");
+         }
+         finally {
+            SreeEnv.remove("security.exposeDefaultOrgToAll");
+         }
+      });
+   }
+
    // ── Login As: checkLoginAs() permission gate ────────────────────────────────
 
    @Test
@@ -381,5 +428,42 @@ class PermissionMatrixSpecialTest {
 
    private static SecurityEngine engine() {
       return SecurityEngine.getSecurity();
+   }
+
+   /**
+    * Minimal concrete AbstractAssetEngine used only to exercise the resource-type scoping of
+    * checkAssetPermission0()'s host-org global-visibility READ bypass (Bug #75631). The tested
+    * paths (viewsheet -> allow, worksheet -> cross-org deny) return before touching any storage
+    * or asset-model dependency, so no real engine initialization is required.
+    */
+   private static final class StubAssetEngine extends AbstractAssetEngine {
+      StubAssetEngine() {
+         super((LibManagerProvider) null, (Cluster) null);
+      }
+
+      @Override
+      protected boolean checkDataModelFolderPermission(String folder, String source, Principal user) {
+         return false;
+      }
+
+      @Override
+      protected boolean checkQueryFolderPermission(String folder, String source, Principal user) {
+         return false;
+      }
+
+      @Override
+      protected boolean checkQueryPermission(String query, Principal user) {
+         return false;
+      }
+
+      @Override
+      protected boolean checkDataSourcePermission(String dname, Principal user) {
+         return false;
+      }
+
+      @Override
+      protected boolean checkDataSourceFolderPermission(String folder, Principal user) {
+         return false;
+      }
    }
 }
