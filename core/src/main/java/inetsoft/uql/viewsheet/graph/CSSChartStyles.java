@@ -25,6 +25,7 @@ import inetsoft.uql.CompositeValue;
 import inetsoft.uql.viewsheet.XAggregateRef;
 import inetsoft.uql.viewsheet.graph.aesthetic.SizeFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.StaticSizeFrameWrapper;
+import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
 import inetsoft.util.css.*;
 
 import java.awt.*;
@@ -96,11 +97,24 @@ public class CSSChartStyles {
          cssDictionary = CSSDictionary.getDictionary();
       }
 
+      // Modern in-graph chrome baseline (B1): when the org gate is on, seed the CSS tier of the
+      // gridline/legend-border CompositeValues with the modern neutral before the format.css block
+      // below overrides it. Precedence is USER > CSS > DEFAULT, so a customer's format.css chrome and
+      // a user picker both still win; gate off skips this, leaving the GDefaults default. The CSS tier
+      // is not serialized, so this is a default that never dirties saved charts.
+      boolean modernChrome = VSChartChromeDefaults.isModern();
+
       ChartType chartType = getChartType(info);
       LegendsDescriptor legendsDesc = desc.getLegendsDescriptor();
 
       if(legendsDesc != null) {
          legendsDesc.resetCompositeValues(CompositeValue.Type.CSS);
+
+         if(modernChrome) {
+            legendsDesc.setBorderColor(VSChartChromeDefaults.legendBorderColor(),
+                                       CompositeValue.Type.CSS);
+         }
+
          CSSStyle cssStyle = cssDictionary.getStyle(
             CSSParameter.getAllCSSParams(parentParams, new CSSParameter(CSSConstants.CHART_LEGEND,
                                                                         null, null, null)));
@@ -132,6 +146,15 @@ public class CSSChartStyles {
 
       if(plotDesc != null) {
          plotDesc.resetCompositeValues(CompositeValue.Type.CSS);
+
+         if(modernChrome) {
+            // set both x and y so graph inversion (which swaps them) is a no-op
+            Color gridColor = VSChartChromeDefaults.gridlineColor();
+            plotDesc.setXGridColor(gridColor, CompositeValue.Type.CSS);
+            plotDesc.setYGridColor(gridColor, CompositeValue.Type.CSS);
+            plotDesc.setFacetGridColor(gridColor, CompositeValue.Type.CSS);
+         }
+
          CSSStyle cssStyle = cssDictionary.getStyle(
             CSSParameter.getAllCSSParams(parentParams, new CSSParameter(CSSConstants.CHART_PLOT,
                                                                         null, null, null)));
