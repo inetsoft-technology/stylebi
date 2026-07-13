@@ -861,6 +861,20 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
    }
 
    /**
+    * The chart's effective tooltip style, resolved once per render. getTooltipStyle()
+    * resolves the AUTO default through an org-scoped property read, and is queried once
+    * per element/text here, so cache it — this PlotArea is built fresh per render for a
+    * single chart, so the value is stable for its lifetime.
+    */
+   private ChartInfo.TooltipStyle getResolvedTooltipStyle() {
+      if(resolvedTooltipStyle == null) {
+         resolvedTooltipStyle = chartInfo.getTooltipStyle();
+      }
+
+      return resolvedTooltipStyle;
+   }
+
+   /**
     * Get tool tip for the object.
     * @param evo the element visual object to get tool tip.
     * @param col the column of the indexes in the visual object, specified used
@@ -870,7 +884,7 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
                                    boolean isText, VOText vtext, boolean showFullTotalName)
    {
       ChartToolTip tooltip = new ChartToolTip();
-      tooltip.setStyle(chartInfo.getTooltipStyle());
+      tooltip.setStyle(getResolvedTooltipStyle());
 
       if(evo == null || !(vobj instanceof VGraph) || isLightWeight() ||
          !chartInfo.isTooltipVisible() ||
@@ -1429,7 +1443,7 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          if(isGantt) {
             dims = ganttDimsYFirst(dims, chartInfo);
 
-            if(chartInfo.getTooltipStyle() == ChartInfo.TooltipStyle.CARD) {
+            if(getResolvedTooltipStyle() == ChartInfo.TooltipStyle.CARD) {
                ganttHeadline = ganttInnermostYDim(chartInfo, allfields);
             }
          }
@@ -1617,7 +1631,7 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          // Scatter: the color/shape identity dim (if any) leads at tier-1 and the
          // co-equal coordinate measures + remaining dims group at tier-2; with no
          // identity dim every row renders at a uniform tier (flat default tooltip).
-         if(chartInfo.getTooltipStyle() == ChartInfo.TooltipStyle.CARD && isScatter) {
+         if(getResolvedTooltipStyle() == ChartInfo.TooltipStyle.CARD && isScatter) {
             boolean hasIdentityDim = Arrays.stream(dims)
                .anyMatch(d -> d != null && allfields.contains(d));
 
@@ -1634,7 +1648,7 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          // and only the Start/End/Milestone dates group at tier-2 as core interval
          // data; outer Y dims, X dims, and aesthetics fall to tier-3. With no Y dim
          // there is no bar identity, so render every row at a uniform tier.
-         else if(chartInfo.getTooltipStyle() == ChartInfo.TooltipStyle.CARD && isGantt) {
+         else if(getResolvedTooltipStyle() == ChartInfo.TooltipStyle.CARD && isGantt) {
             if(ganttHeadline != null) {
                tooltip.setGroupedTiers(true);
                tooltip.setTier2GroupSize(measurePairs);
@@ -2057,7 +2071,7 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          dimIndexes[i] = palette.put(dims[i]);
       }
 
-      captureCombinedCardHeader(resultTooltip, dimIndexes, chartInfo.getTooltipStyle());
+      captureCombinedCardHeader(resultTooltip, dimIndexes, getResolvedTooltipStyle());
 
       List<Integer> pidxs = rowIndexMap.get(rowValue);
 
@@ -2134,7 +2148,7 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          dimIndexes[i] = palette.put(dims[i]);
       }
 
-      captureCombinedCardHeader(resultTooltip, dimIndexes, chartInfo.getTooltipStyle());
+      captureCombinedCardHeader(resultTooltip, dimIndexes, getResolvedTooltipStyle());
 
       ChartToolTip tempTip;
       ElementVO tempVO;
@@ -4155,6 +4169,7 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
    private final Map<Point, String> tooltipsContainer;
    private final LineSet lines = new LineSet();
    private final ChartInfo chartInfo;
+   private ChartInfo.TooltipStyle resolvedTooltipStyle; // lazily resolved once per render
    private final FixedSizeSparseMatrix linkcache; // hyperlink cache
    // dimension label shape -> hyperlink
    private final Map<Shape, Hyperlink.Ref> dlinks = new HashMap<>();
