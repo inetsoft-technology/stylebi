@@ -65,6 +65,7 @@ export interface ChartModel {
    noData?: boolean;
    errorFormat?: FormatInfoModel;
    readonly mapInfo?: boolean;
+   // server-resolved effective style; never "AUTO" (the design-only default is resolved server-side)
    tooltipStyle?: "DEFAULT" | "CARD";
    snapTooltip?: boolean;
 }

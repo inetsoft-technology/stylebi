@@ -35,6 +35,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.*;
+import inetsoft.uql.viewsheet.internal.VSDensityDefaults;
 import inetsoft.util.ContentObject;
 import inetsoft.util.Tool;
 import org.apache.commons.lang3.ArrayUtils;
@@ -2828,13 +2829,13 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
       mapType = Tool.getAttribute(elem, "mapType");
       donut = "true".equals(Tool.getAttribute(elem, "donut"));
       tooltipVisible = !"false".equals(Tool.getAttribute(elem, "tooltipVisible"));
-      // Legacy charts (attribute absent) keep the original tooltip look. A chart
-      // round-tripped through an older server will also lose its CARD setting,
-      // since the older writer strips the unknown attribute. Future-unknown
-      // values are normalized to DEFAULT here so dvalue is always a valid enum
-      // name and equalsContent doesn't see spurious differences.
+      // Absent attribute = legacy chart with no explicit choice: defer to the org
+      // modern-visualization default via AUTO (resolved at runtime in getTooltipStyle).
+      // A present-but-unknown value (e.g. from a future version) normalizes to DEFAULT
+      // so dvalue is always a valid enum name and equalsContent sees no spurious diffs.
       String tooltipStyleAttr = Tool.getAttribute(elem, "tooltipStyle");
-      tooltipStyle.setDValue(parseTooltipStyle(tooltipStyleAttr).name());
+      tooltipStyle.setDValue(tooltipStyleAttr == null
+         ? TooltipStyle.AUTO.name() : parseTooltipStyle(tooltipStyleAttr).name());
       // Absent attribute = off (legacy charts preserve no-snap behavior).
       snapTooltip.setDValue("true".equals(Tool.getAttribute(elem, "snapTooltip")) + "");
    }
@@ -3734,7 +3735,14 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
 
    @Override
    public TooltipStyle getTooltipStyle() {
-      return parseTooltipStyle(tooltipStyle.getStringValue(false, tooltipStyle.getDValue()));
+      TooltipStyle style =
+         parseTooltipStyle(tooltipStyle.getStringValue(false, tooltipStyle.getDValue()));
+      // AUTO is never a rendered style: resolve it to the org modern-visualization
+      // default so every runtime consumer (PlotArea tooltip content, GraphBuilder model)
+      // agrees. The design value (getTooltipStyleValue) stays AUTO for persistence.
+      return style == TooltipStyle.AUTO
+         ? (VSDensityDefaults.isModern() ? TooltipStyle.CARD : TooltipStyle.DEFAULT)
+         : style;
    }
 
    @Override
@@ -4068,7 +4076,7 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
    private transient ChartDescriptor chartDescriptor;
    private String customTooltip;
    private boolean tooltipVisible = true;
-   private DynamicValue2 tooltipStyle = new DynamicValue2("CARD", XSchema.STRING);
+   private DynamicValue2 tooltipStyle = new DynamicValue2("AUTO", XSchema.STRING);
    private DynamicValue2 snapTooltip = new DynamicValue2("false", XSchema.BOOLEAN);
    private HighlightGroup highlightGroup;
    private HighlightGroup textHL;
