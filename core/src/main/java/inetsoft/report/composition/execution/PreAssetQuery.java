@@ -1629,7 +1629,15 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          UniformSQL sql = getUniformSQL();
 
          if(sql == null) {
-            return false;
+            // The UniformSQL may not be built yet on an early mergeability probe. Most
+            // SQLExpressionRefs (DateRangeRef/NumericRangeRef/NamedRangeRef) can't decide without the
+            // dbtype the helper supplies, so stay conservative for them. A WindowExpressionRef is
+            // unconditionally mergeable and DB-type-independent (its OVER(...) with field['..'] tokens
+            // is always rewritable), so a null-SQL probe must not report it non-mergeable — doing so
+            // froze the whole base query as non-mergeable depending on probe/build ordering, making a
+            // sql=true expression layered over a window mirror intermittently fall back to in-memory
+            // JS evaluation instead of SQL pushdown.
+            return exp instanceof WindowExpressionRef;
          }
 
          SQLHelper helper = getSQLHelper(sql);
