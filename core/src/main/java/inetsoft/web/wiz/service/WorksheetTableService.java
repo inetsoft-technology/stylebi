@@ -1788,11 +1788,22 @@ public class WorksheetTableService {
          }
 
          case "FIELD" -> {
-            ExpressionValue ev = new ExpressionValue();
-            String expressoin = v.getValue() != null ? v.getValue().toString() : "";
-            ev.setExpression(expressoin);
-            ev.setType(ExpressionValue.JAVASCRIPT);
-            condition.addValue(ev);
+            // A FIELD operand compares the condition column against ANOTHER column (e.g.
+            // amount > stage_avg). Resolve the referenced column name to a DataRef against the
+            // table's ColumnSelection (same mechanism as appendRankingConditionItem) and add that
+            // as the operand value: Condition serializes a DataRef operand via its isfield branch,
+            // and reverseValue maps it back to "FIELD". Previously this wrapped the bare column name
+            // in a JavaScript ExpressionValue (an undefined identifier), so the comparison never
+            // became a column reference and the filter silently matched ALL rows.
+            String name = v.getValue() != null ? v.getValue().toString() : null;
+            DataRef ref = name != null ? columns.getAttribute(name) : null;
+
+            if(ref == null) {
+               throw new IllegalArgumentException(
+                  "FIELD condition operand references unknown column \"" + name + "\".");
+            }
+
+            condition.addValue(ref);
          }
 
          case "SUBQUERY" -> {
