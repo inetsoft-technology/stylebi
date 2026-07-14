@@ -105,8 +105,15 @@ class SecurityHeaderFilterTest {
    }
 
    @AfterEach
-   void tearDown() {
+   void tearDown() throws Exception {
       sreeEnvMock.close();
+      // doFilter_allowIframeTrue_omitsXFrameOptions leaves this static cache holding "true" (see
+      // setUp()'s comment). Once sreeEnvMock is closed above, SreeEnv.getProperty() reverts to its
+      // real implementation, but the cache won't re-query it for up to 10s -- long enough to leak
+      // a bogus "iframe allowed" reading into an unrelated test class (e.g. CsrfFilterUnitTest,
+      // which also calls isSecurityAllowIframe() via CSRFFilter's SameSite decision) if it happens
+      // to run next within that window. Reset again here so nothing after this class inherits it.
+      resetStaticSreeEnvValueCache(AbstractSecurityFilter.securityAllowIframe);
    }
 
    // ── X-Frame-Options ────────────────────────────────────────────────────────
