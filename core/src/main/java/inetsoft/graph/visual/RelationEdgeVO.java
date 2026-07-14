@@ -198,9 +198,13 @@ public class RelationEdgeVO extends ElementVO {
    }
 
    // Find where the ray from 'from' toward 'to' exits the shape boundary. Uses a flattening path
-   // iterator so it works for polygons and curved shapes alike. Returns the intersection farthest
-   // from 'from' (the outermost crossing, correct for concave shapes such as star/cross).
-   private static Point2D clipToBoundary(Shape shape, Point2D from, Point2D to) {
+   // iterator so it works for polygons and curved shapes alike. Returns the boundary crossing
+   // farthest from 'from' along the segment. This is exact for convex shapes (triangle, diamond,
+   // square, circle). For concave outlines (star, cross) the segment may cross the boundary more
+   // than twice, and the farthest crossing isn't guaranteed to be the outer silhouette; it remains
+   // a strict improvement over the pre-fix gap and is acceptable for these node shapes.
+   // Package-private for direct unit testing (see RelationEdgeVOClipTest).
+   static Point2D clipToBoundary(Shape shape, Point2D from, Point2D to) {
       PathIterator it = shape.getPathIterator(null, 0.5);
       double[] coords = new double[6];
       double px = 0, py = 0, sx = 0, sy = 0;
@@ -247,8 +251,9 @@ public class RelationEdgeVO extends ElementVO {
    }
 
    // Intersection point of segment p1-p2 and segment (x3,y3)-(x4,y4), or null if they don't cross.
-   private static Point2D segIntersect(Point2D p1, Point2D p2, double x3, double y3,
-                                       double x4, double y4)
+   // Package-private for direct unit testing (see RelationEdgeVOClipTest).
+   static Point2D segIntersect(Point2D p1, Point2D p2, double x3, double y3,
+                               double x4, double y4)
    {
       double x1 = p1.getX(), y1 = p1.getY(), x2 = p2.getX(), y2 = p2.getY();
       double denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
