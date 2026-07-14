@@ -21,6 +21,7 @@ package inetsoft.web.wiz.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.TableLens;
+import inetsoft.report.composition.execution.AssetQuery;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -258,6 +259,17 @@ public class WorksheetTableService {
          table.setRankingConditionList(rankList);
       }
 
+      // 7. windowColumns require the base table to be fully SQL-mergeable — the pushed-down
+      // OVER(...) SQL (see WindowExpressionRef) has no non-SQL evaluation fallback. An upstream
+      // JS-evaluated expression column anywhere in the lineage silently breaks mergeability
+      // several hops back, and the window then computes against what the query engine treats as
+      // an empty mergeable base — no exception, just a wrongly-empty result the general probe
+      // below can't catch (it only detects a failed-query fallback lens, not a "successful but
+      // empty" one). Verify eagerly so this fails loud with a named cause instead.
+      if(request.getWindowColumns() != null && !request.getWindowColumns().isEmpty()) {
+         requireWindowColumnsMergeable(worksheet, table, user);
+      }
+
       // 8. Execution probe for render-time-executable tables.
       if(shouldProbe(request)) {
          probeExecutable(worksheet, table, user);
@@ -294,17 +306,65 @@ public class WorksheetTableService {
     * Whether {@link #addOneTable} should run the execution probe for this request. A {@code sql query
     * table} always executes its raw SQL at render time, and a table carrying expression columns (JS or
     * {@code sql:true}) evaluates them at render time — both can be structurally valid yet fail on
-    * execution. Pure physical / mirror / join tables with no expression columns carry no render-time
-    * execution risk beyond what structural creation already validates, so they are not probed (zero
-    * added latency).
+    * execution. {@code windowColumns} carry the same risk: the pushed-down {@code OVER(...)} SQL
+    * (see {@link WindowExpressionRef}) requires its base table to fully SQL-merge, which silently
+    * fails when the lineage contains an upstream JS-evaluated expression column — the window then
+    * produces an empty result at render time instead of the fail-loud error this class otherwise
+    * guarantees. Pure physical / mirror / join tables with no expression or window columns carry no
+    * render-time execution risk beyond what structural creation already validates, so they are not
+    * probed (zero added latency).
     */
-   private boolean shouldProbe(WorksheetTable request) {
+   // Package-private for unit testing (WorksheetTableServiceShouldProbeTest).
+   boolean shouldProbe(WorksheetTable request) {
       if("sql query table".equals(request.getTableType())) {
          return true;
       }
 
       List<WorksheetTable.ExpressionColumnInfo> exprCols = request.getExpressionColumns();
-      return exprCols != null && !exprCols.isEmpty();
+
+      if(exprCols != null && !exprCols.isEmpty()) {
+         return true;
+      }
+
+      List<WorksheetTable.WindowColumnInfo> winCols = request.getWindowColumns();
+      return winCols != null && !winCols.isEmpty();
+   }
+
+   /**
+    * Verify that {@code table} is fully SQL-mergeable, which {@code windowColumns} requires in
+    * order to actually push its {@code OVER(...)} SQL down to the database.
+    * {@link WindowExpressionRef#isMergeable()} unconditionally reports {@code true} regardless of
+    * the base table, so it can't be used to detect this — the real, transitively-computed answer
+    * comes from {@link AssetQuery#isSourceMergeable0()}, the same authoritative check the runtime
+    * query-planning path relies on (mirrors the pattern {@link AssetQuerySandbox#executeQuery}
+    * uses). When the base is NOT mergeable (e.g. an upstream JS-evaluated expression column blocks
+    * the merge several hops back in the lineage), the pushed-down window silently computes as if
+    * its base were empty instead of throwing, so this check runs eagerly at construction time and
+    * fails loud with a named cause.
+    */
+   private void requireWindowColumnsMergeable(Worksheet worksheet, AbstractTableAssembly table,
+                                              Principal user)
+      throws Exception
+   {
+      AssetQuerySandbox box = new AssetQuerySandbox(worksheet);
+      box.setBaseUser(user);
+
+      try {
+         AssetQuery query = AssetQuery.createAssetQuery(
+            table, AssetQuerySandbox.RUNTIME_MODE, box, false, -1L, true, false);
+
+         if(!query.isSourceMergeable0()) {
+            throw new IllegalArgumentException(
+               "windowColumns on table \"" + table.getName() + "\" cannot be computed: its base " +
+               "data is not fully SQL-mergeable (it likely contains an upstream JS-evaluated " +
+               "expression column). windowColumns require a pure SQL-mergeable base — remove " +
+               "windowColumns from this table, or move the JS-derived value into a \"sql query " +
+               "table\" that computes it in SQL instead of JavaScript.");
+         }
+      }
+      finally {
+         box.dispose();
+      }
    }
 
    /**
