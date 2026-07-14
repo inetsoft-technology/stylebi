@@ -15,11 +15,11 @@ It covers:
 
 This spec is meant to work alongside:
 
-- [theme-strategy-overview.md](E:\home\dev\github\lookfeel\specs\theme-strategy-overview.md)
-- [shell-design-spec.md](E:\home\dev\github\lookfeel\specs\shell-design-spec.md)
-- [shell-palette-spec.md](E:\home\dev\github\lookfeel\specs\shell-palette-spec.md)
-- [palette-coordination-recommendations.md](E:\home\dev\github\lookfeel\specs\palette-coordination-recommendations.md)
-- [visualization-implementation-roadmap.md](E:\home\dev\github\lookfeel\specs\visualization-implementation-roadmap.md)
+- [theme-strategy-overview.md](theme-strategy-overview.md)
+- [shell-design-spec.md](shell-design-spec.md)
+- [shell-palette-spec.md](shell-palette-spec.md)
+- [palette-coordination-recommendations.md](palette-coordination-recommendations.md)
+- [visualization-implementation-roadmap.md](visualization-implementation-roadmap.md)
 
 ## Scope and Architecture
 
@@ -196,7 +196,7 @@ re-derive them. Re-confirm against current source before editing — line number
 | **Live choke point** (builds client model) | `core/.../web/viewsheet/controller/table/BaseTableService.java:449-495` | Reads `getDataRowHeight`/`getHeaderRowHeights`, feeds `BaseTableModel.dataRowHeight`/`headerRowHeights`. |
 | **Export choke point** (same values) | `core/.../uql/viewsheet/internal/VsToReportConverter.java:1193` | `calculateRowHeights(...)`; rows at `AssetUtil.defh` treated as "default" (L1200, L1209-1211). Sharing these two choke points is why live and export stay in sync. |
 | Existing runtime override hook | `VSTableLens.getCSSDataRowHeight/getCSSHeaderRowHeight/getCSSRowPadding`, consumed at `BaseTableService.java:460-478` | Server-side CSS dictionary (`format.css`) can already override row height/padding — the natural convergence point for the Phase 6/8 `format.css` bridge. |
-| Gate is client-forward only today | `getBooleanProperty("viewsheet.modernVisualization")` at `CoreLifecycleService:306`, `PortalController:116`, `LookAndFeelService:59` (+write L164-165) | All three only forward the flag to the client; **no** render path consumes it. Phase 3's server half is the first to read the gate on the render path. |
+| Gate is read on server render paths (as of Phase 3/6) | `getBooleanProperty("viewsheet.modernVisualization")` forwarded to the client at `CoreLifecycleService:306`, `PortalController:116`, `LookAndFeelService:59`, **and consumed server-side** by `VSDensityDefaults.isModern()` (org-scoped) | Superseded: `VSDensityDefaults`/`VSTableStructureDefaults`/`VSChartChromeDefaults` (via `VSTableLens`, `SelectionBaseVSAssemblyInfo`, `BaseTableService`, `DataVSAQuery`, `CSSChartStyles`) **do** consume the gate on the render path. "Client-forward only" was true at Phase 2 baseline but stale as of Phase 3 (density) and Phase 6 (chart chrome). |
 
 ### Browser-DOM density caveats (verified)
 
@@ -242,7 +242,7 @@ Use this document to understand:
 - how tables, charts, KPIs, and embedded controls should differ from ordinary shell UI
 - how the compatibility gate should work during migration
 
-Use [visualization-implementation-roadmap.md](E:\home\dev\github\lookfeel\specs\visualization-implementation-roadmap.md) for file targets, token rollout, compatibility gating, validation, and implementation sequencing.
+Use [visualization-implementation-roadmap.md](visualization-implementation-roadmap.md) for file targets, token rollout, compatibility gating, validation, and implementation sequencing.
 
 ## Adoption And Compatibility Strategy
 
@@ -727,6 +727,8 @@ Visualization should eventually define explicit token groups such as:
 - `--inet-viz-cell-padding-y`
 - `--inet-viz-toolbar-height`
 - `--inet-viz-control-height`
+- `--inet-viz-chrome-row-height`
+- `--inet-viz-font-size`
 
 ### State
 
@@ -790,8 +792,8 @@ The experience should feel:
 
 ## Related Specs
 
-- [theme-strategy-overview.md](E:\home\dev\github\lookfeel\specs\theme-strategy-overview.md)
-- [shell-design-spec.md](E:\home\dev\github\lookfeel\specs\shell-design-spec.md)
-- [shell-palette-spec.md](E:\home\dev\github\lookfeel\specs\shell-palette-spec.md)
-- [palette-coordination-recommendations.md](E:\home\dev\github\lookfeel\specs\palette-coordination-recommendations.md)
-- [visualization-implementation-roadmap.md](E:\home\dev\github\lookfeel\specs\visualization-implementation-roadmap.md)
+- [theme-strategy-overview.md](theme-strategy-overview.md)
+- [shell-design-spec.md](shell-design-spec.md)
+- [shell-palette-spec.md](shell-palette-spec.md)
+- [palette-coordination-recommendations.md](palette-coordination-recommendations.md)
+- [visualization-implementation-roadmap.md](visualization-implementation-roadmap.md)

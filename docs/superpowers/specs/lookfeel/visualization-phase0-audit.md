@@ -60,7 +60,7 @@ adjustment is the split within "charts" (Task 4).
 
 ### Task 2 — Treat compatibility gating as the first architectural requirement
 
-**Outcome: greenfield. No gate exists yet, so there is nothing to unwind — but also no safety net today.**
+**Outcome: greenfield. No gate exists yet, so there is nothing to unwind — but also no safety net today.** *(Superseded by Phases 1–3: the `--inet-viz-*` namespace, the `.viz-modern` gate, and server-side `VSDensityDefaults.isModern()` now exist. The baseline reasoning stands; the tree state does not.)*
 
 Searches for `inet-viz`, `viz-modern`, `data-viz-theme`, and `viz-legacy` return **no matches**.
 There is:
@@ -177,7 +177,7 @@ height is a user-settable property (`TableDataVSAssemblyInfo.getRowHeight/setRow
 `AssetUtil.defh`); selection-list cell height likewise (`SelectionBaseVSAssemblyInfo.getCellHeight/
 setCellHeight`, serialized `cellHeight=`, default `AssetUtil.defh`); cell font/size comes from
 `VSFormat`/`VSFormatModel` (default `Util.DEFAULT_FONT`). These are carried to the client in the
-assembly model (`BaseTableModel.dataRowHeight`/`rowHeights`) **and** used by the exporter
+assembly model (`BaseTableModel.dataRowHeight`/`headerRowHeights`; note `rowHeights` lives on `SimpleTableModel`) **and** used by the exporter
 (`VsToReportConverter.calculateRowHeights`). So `--inet-viz-*` density tokens cannot drive
 viewsheet-assembly density and cannot affect export. This is the density analog of the chart
 render-location finding in Task 4. (Correction: an earlier draft grouped selection lists under

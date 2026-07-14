@@ -52,7 +52,7 @@ selector consumers** today (verified), so Phase 3 is the first adoption.
 | **Single live choke point** (both interactive + populates model) | `BaseTableService.java:449-495` reads `tinfo.getDataRowHeight(...)`/`getHeaderRowHeights(...)`, applies existing CSS overrides (`getCSSHeaderRowHeight`/`getCSSDataRowHeight`/`getCSSRowPadding`, L460-478), feeds `BaseTableModel.dataRowHeight`/`headerRowHeights` |
 | **Single export choke point** (reads same values) | `VsToReportConverter.calculateRowHeights(TableDataVSAssemblyInfo, VSTableLens)` L1193; rows at `AssetUtil.defh` are treated as "default" (L1200, L1209-1211) |
 | Existing runtime override hook already exists | `VSTableLens.getCSSDataRowHeight/getCSSHeaderRowHeight/getCSSRowPadding` (server-side CSS dictionary), consumed at `BaseTableService.java:460-478` |
-| No render path reads the gate today | only 3 reads of `getBooleanProperty("viewsheet.modernVisualization")`: `CoreLifecycleService:306`, `PortalController:116`, `LookAndFeelService:59` — all forward the flag to the client; none touch height/font |
+| Gate reads (superseded baseline) | at Phase 3 baseline only 3 forwarding reads existed (`CoreLifecycleService:306`, `PortalController:116`, `LookAndFeelService:59`); **this phase added the first render-path read** — `VSDensityDefaults.isModern()` (org-scoped) drives row/header/cell height in the live model and export, and Phase 6 added `VSChartChromeDefaults`. Render paths now read the gate and touch height/color. |
 | No existing configurable density/row-height property | searches for `table.row.height`/`viewsheet.*.height`/`density` found no `SreeEnv` key |
 
 ### Browser-DOM density facts
