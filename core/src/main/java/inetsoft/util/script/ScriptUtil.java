@@ -33,6 +33,18 @@ public class ScriptUtil {
       if(obj instanceof Value) {
          obj = ScriptValueConverter.toHost((Value) obj);
       }
+      // A JS Date coerced to an Object target (e.g. an element of the Object[][]
+      // passed to new DefaultDataSet([["Date","Qty"],[new Date(),200]])) arrives
+      // as a foreign polyglot object rather than a Value or a java.util.Date, so
+      // the branch above misses it and the date-ness is lost. Recover it here so
+      // downstream code (e.g. TimeScale.init) sees a real Date. (#75633)
+      else if(obj != null) {
+         Date date = ScriptValueConverter.toHostDate(obj);
+
+         if(date != null) {
+            return date;
+         }
+      }
 
       // Restore the legacy Rhino Wrapper.unwrap() behavior: an XTableArray
       // (the scriptable returned by XUtil.runQuery) unwraps to its underlying

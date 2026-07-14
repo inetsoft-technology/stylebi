@@ -103,7 +103,11 @@ export class DateComparisonPaneComponent {
       let granularityVal = this.dateComparisonPaneModel.intervalPaneModel.granularity;
 
       let intervalLevel = this.dcIntervalLevelToDateGroupLevel(intervalVal);
-      let contextLevel = this.dcIntervalLevelToDateGroupLevel(contextLevelVal);
+      // Bug #75654 (fixed): contextLevel already stores a plain XConstants date-group value
+      // (unlike interval/granularity, which are IntervalLevel bitmasks) - decoding it with
+      // dcIntervalLevelToDateGroupLevel's bitmask logic silently miscalculated it for Year/
+      // Quarter/Month values (Week/Day happened to decode correctly by numeric coincidence).
+      let contextLevel = this.contextLevelToDateGroupLevel(contextLevelVal);
       let granularity = this.dcIntervalLevelToDateGroupLevel(granularityVal);
 
       if(contextLevel != -1 && contextLevel == intervalLevel && contextLevel == granularity) {
@@ -156,6 +160,16 @@ export class DateComparisonPaneComponent {
       }
 
       return -1;
+   }
+
+   // contextLevel is stored directly as an XConstants date-group value, not an IntervalLevel
+   // bitmask, so it must not go through dcIntervalLevelToDateGroupLevel's bit-decoding logic.
+   private contextLevelToDateGroupLevel(contextValue: DynamicValueModel): number {
+      if(contextValue.type != ValueTypes.VALUE) {
+         return -1;
+      }
+
+      return parseInt(contextValue.value, 10);
    }
 
 

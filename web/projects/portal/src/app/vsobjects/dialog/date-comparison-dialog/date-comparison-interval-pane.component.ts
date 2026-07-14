@@ -185,7 +185,11 @@ export class DateComparisonIntervalPaneComponent implements OnInit{
       if(intervalContextLevel?.type == ValueTypes.VALUE) {
          const contextLevel = levels
             .find(level => parseInt(level.value, 10) === parseInt(intervalContextLevel.value, 10));
-         const value = !!contextLevel ? contextLevel.value : levels[0].value;
+         // Bug #75653 (fixed): getContextLevels() can return an empty array (e.g.
+         // standardPeriodLevel=DAY_DATE_GROUP, which has no matching entry in contextLevels),
+         // so levels[0] must be guarded instead of dereferenced unconditionally.
+         const value = !!contextLevel ? contextLevel.value :
+            (levels.length ? levels[0].value : intervalContextLevel.value);
          intervalContextLevel.value = value;
 
          return value;
@@ -196,7 +200,7 @@ export class DateComparisonIntervalPaneComponent implements OnInit{
          return intervalContextLevel.value;
       }
 
-      return levels[0].value;
+      return levels.length ? levels[0].value : null;
    }
 
    getIntervalLevels(): Array<any> {
