@@ -414,16 +414,87 @@ descriptor-instance identity (whether the dialog reads a CSS-applied descriptor)
 - Covers the most prominent chrome (gridlines + legend border). This is the recommended first server
   sub-pass: one method, export-consistent, gate-off byte-identical, no clone, no value-equality.
 
-#### B2 — chrome text colors (follow-up, second seam)
+#### B2 — chrome text colors — ✅ IMPLEMENTED (2026-07-13)
 
-Axis label/title, legend content/title, and plot-label colors are **not** in `CSSChartStyles.apply` —
-they live in each descriptor's `CompositeTextFormat` default format (`getColor()` precedence
-`USER > CSS > DEFAULT`, `CompositeTextFormat.java:121-124`), seeded from `GDefaults` in the descriptors'
-`initDefaultFormat()` and re-seeded per render inside `VGraphPair.fixChartFormat` (`:1240/1268/1282/…`).
-Modern text color would be written to the **default-format tier** (`getDefaultFormat().setColor(c)`) right
-after each `initDefaultFormat()`, gated. Needs its own grounding of the fixChartFormat text-seeding order
-and the CSS-format interplay before implementing. Export-visible; lower priority than B1 and a legibility
-judgement (lighter labels). Scoped, not yet grounded to code.
+Axis labels, axis titles, legend title, legend content. Modern text neutrals are seeded in each chrome
+descriptor's `initDefaultFormat(vs)`, gated `vs && VSChartChromeDefaults.isModern()`. `VSChartChromeDefaults`
+gained `labelColor()` = `#6A685F` and `titleColor()` = `#35342F`. Changed: `AxisDescriptor` +
+`ChartRefImpl` (axis labels) → label; `LegendDescriptor` (legend content) → label; `TitleDescriptor`
+(axis titles) + `LegendsDescriptor` (legend title) → title. `core` compiles clean;
+`ChartChromeTextColorTest` (3 tests) verifies gate-off = legacy `GDefaults`, gate-on = modern label/title,
+and the **report path (`vs=false`) stays legacy**. Grounding and decisions below.
+
+**Fix found in eye-test (2026-07-13) — value (Y) axis was still legacy.** The measure/value axis renders
+from the **runtime** descriptor `VSChartInfo.getRTAxisDescriptor()` (`GraphGenerator.getAxisDescriptor0`),
+which `createRTAxisDescriptor` clones during VS execution **before** `fixChartFormat` seeds the design
+descriptor — so `fixChartFormat` seeding only `chartInfo.getAxisDescriptor()` (design) left the rendered
+RT value axis on the legacy color (dimension axes were fine — their per-ref RT is lazily cloned from the
+already-seeded design). Fix: `VGraphPair.fixChartFormat` now also seeds
+`chartInfo.getRTAxisDescriptor()`/`getRTAxisDescriptor2()`. Robust either way — if the RT is null,
+`GraphGenerator` falls back to the seeded design; gate-off seeds `GDefaults` on both. (RT descriptors are
+transient/not serialized.) Verified visually; unit tests cover the descriptor seeding, not the render
+path, so this RT gap is an eye-test finding.
+
+**Scope correction — `PlotDescriptor` (plot value labels) EXCLUDED.** `PlotDescriptor`'s text format
+colors the on-mark **data value labels** ("Show Values" text), which are **data annotations, not chrome**
+(the spec's chrome/data split puts data color in Phase 8). Recoloring them muted would hurt data
+readability and blur the Phase 6/8 boundary, so B2 leaves them at their legacy `GDefaults` color.
+
+**Decisions (resolved 2026-07-13 with owner):**
+- **Palette — APPROVED:** labels `#6A685F` (= table `headerForeground`), titles `#35342F` (= shell
+  text-default). (Unifies both chart titles at `#35342F`; note legend title moves from its legacy
+  `#4B4B4B` to the stronger `#35342F`, and axis titles from `#2B2B2B` slightly lighter — both land on the
+  one modern title neutral.)
+- **Report scope — RESOLVED, no `vs=false` needed.** `VsToReportConverter` (VS→PDF with print layout)
+  builds the chart via `box.getVGraphPair(...)` — the **viewsheet** render path (`VGraphPair` →
+  `initDefaultFormat(true)`), then just wraps the pre-built `VGraph` in a report `ChartElementDef`. So a
+  print-layout export renders as `vs=true` and **is covered** by the `vs && isModern()` gate. The
+  `vs=false` path (`CSSProcessor` + `initDefaultFormat(false)`) is the standalone report-chart path, which
+  is dead — correctly left legacy. (Retroactive B1 note: B1's shared `CSSChartStyles.apply` also reaches
+  the dead `CSSProcessor` path; harmless.)
+- **Dialog round-trip — to verify post-creation (owner).** The chart text-format editor reads `getColor()`
+  (resolved, incl. `deffmt`), so with the gate on it may *display* the modern color; confirm its OK path
+  only persists a *changed* value (the B1 `force=false`-style guard) so it doesn't freeze the modern
+  default into `userfmt`. Tracked as a follow-up verification.
+
+**How chrome text color resolves (verified).** Each chrome text element carries a `CompositeTextFormat`
+with three sub-formats — `deffmt`, `cssfmt`, `userfmt`; `getColor()` = `userfmt ▸ cssfmt ▸ deffmt`
+(`CompositeTextFormat.java:121-124`). Per render, `VGraphPair.fixChartFormat` does, for **every** text
+element (legend title/content, x/x2/y/y2 axis labels, plot labels, targets, and per-ref aggregate/dim
+labels — ~15 sites, L1023-1140):
+1. `descriptor.initDefaultFormat(true)` → `deffmt.setColor(GDefaults.DEFAULT_TEXT_COLOR)` (labels,
+   `#4B4B4B`) or `DEFAULT_TITLE_COLOR` (titles, `#2B2B2B`);
+2. `copyDefaultFormat(deffmt, objFmt)` (`VGraphPair`) → overlays the **chart object's foreground onto
+   `deffmt` only if the object's CSS or user format defines one** (`isForegroundValueDefined`).
+
+So the effective text default = object foreground (if the chart's own format sets it) else the GDefaults
+neutral, then `cssfmt` (`format.css` text color) and `userfmt` (user text format) override via `getColor()`.
+
+**Seam — seed the modern color inside each descriptor's `initDefaultFormat(vs)`** (one line each),
+*before* the object-foreground overlay, gated `vs && VSChartChromeDefaults.isModern()`:
+- `AxisDescriptor.initDefaultFormat(vs)` and `ChartRefImpl.initDefaultFormat(vs)` (per-ref axis labels)
+  → `labelColor()`
+- `LegendDescriptor.initDefaultFormat(vs)` (legend content) → `labelColor()`
+- `TitleDescriptor.initDefaultFormat(vs)` (axis titles) → `titleColor()`
+- `LegendsDescriptor.initDefaultFormat(vs)` (legend title) → `titleColor()`
+- `PlotDescriptor.initDefaultFormat(vs)` (plot value labels) → **excluded** (data, not chrome — see above)
+
+**Why this precedence is correct.** `initDefaultFormat` runs *before* `copyDefaultFormat`, so an explicit
+chart-object foreground still overrides the modern default (object ▸ modern ▸ GDefaults), and `format.css`
+(`cssfmt`) and a user text format (`userfmt`) still win via `getColor()`. **Gate off → `initDefaultFormat`
+seeds exactly the GDefaults colors it does today → byte-identical.**
+
+**Serialization is NOT a blocker (verified, but note the asymmetry with B1).** `CompositeTextFormat`
+serializes **all three** sub-formats including `deffmt` (`writeContents` L296-311) — there is **no
+non-serialized tier** like B1's CompositeValue CSS tier. But `deffmt` is **re-seeded every render** by
+`initDefaultFormat`, so: gate-off always seeds GDefaults (identical to today, no dirty), and a gate-on
+save persisting a modern `deffmt` is harmless because the next render re-seeds it per the gate. This is
+the *same* render-time `deffmt` mutation `copyDefaultFormat` already performs, so it introduces no new
+dirty-state behavior (`ChartDescriptor.equalsContent` compares the descriptors, but the render rewrites
+`deffmt` every pass regardless of gate).
+
+Remaining follow-up: the **dialog round-trip** verification above (post-creation, owner). Everything else
+(palette, report scope, `PlotDescriptor` exclusion) is resolved and built.
 
 #### B3 — axis line + plot border color (deferred / value-equality)
 

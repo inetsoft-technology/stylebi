@@ -22,13 +22,15 @@ import inetsoft.sree.SreeEnv;
 import java.awt.Color;
 
 /**
- * Supplies the modern in-graph chart-chrome palette (gridline, facet grid, legend border) for
- * viewsheet charts, gated by the org modern-visualization setting.
+ * Supplies the modern in-graph chart-chrome palette for viewsheet charts, gated by the org
+ * modern-visualization setting: gridline / facet-grid / legend-border colors, and the axis/legend
+ * label and title text colors.
  *
- * The colors are written to the CSS tier of the descriptor CompositeValues in CSSChartStyles.apply,
- * as a baseline the format.css dictionary overrides and a user picker (USER tier) beats. The CSS tier
- * is not serialized, so this behaves as a default without dirtying saved charts. Mirrors
- * VSTableStructureDefaults' gate. Text colors (B2) and the plain-Color axis line (B3) are separate.
+ * The gridline and legend-border colors are written to the CSS tier of the descriptor CompositeValues
+ * (in CSSChartStyles.apply) as a baseline that the format.css dictionary overrides and a user picker
+ * (USER tier) beats; the CSS tier is not serialized, so this behaves as a default without dirtying
+ * saved charts. The label/title text colors seed descriptor default formats. Mirrors
+ * VSTableStructureDefaults' gate.
  */
 public final class VSChartChromeDefaults {
    private VSChartChromeDefaults() {
@@ -55,7 +57,21 @@ public final class VSChartChromeDefaults {
       return GRIDLINE;
    }
 
+   /** Chrome label text color (axis tick labels, legend content) — quiet muted neutral. */
+   public static Color labelColor() {
+      return LABEL;
+   }
+
+   /** Chrome title text color (axis titles, legend title) — slightly stronger than labels. */
+   public static Color titleColor() {
+      return TITLE;
+   }
+
    // modern warm-neutral chrome; light mode only, dark deferred. Warmer/subtler than the legacy
    // GDefaults #EEEEEE, and equal to VSTableStructureDefaults.gridlineColor().
    private static final Color GRIDLINE = new Color(0xE8E5DE);
+   // label = shell muted text (= table headerForeground); title = shell default text. Quieter than
+   // today's GDefaults #4B4B4B label / #2B2B2B title while staying legible.
+   private static final Color LABEL = new Color(0x6A685F);
+   private static final Color TITLE = new Color(0x35342F);
 }
