@@ -65,6 +65,19 @@ public class NamedCellRangeTest {
    }
 
    /**
+    * #75663: the base-table-reference flag defaults off and is settable, and drives
+    * whether a by-name worksheet-table column read bypasses grouped/crosstab
+    * summary routing in getCells.
+    */
+   @Test
+   void testBaseTableReferenceFlag() throws Exception {
+      NamedCellRange range = new NamedCellRange("col");
+      assertFalse(range.isBaseTableReference());
+      range.setBaseTableReference(true);
+      assertTrue(range.isBaseTableReference());
+   }
+
+   /**
     * test when summary is true will  throw exception
     */
    @Test

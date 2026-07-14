@@ -175,8 +175,15 @@ public class NamedCellRange extends CellRange {
    public Collection getCells(XTable table, boolean position) {
       TableDataDescriptor desc = (table instanceof TableLens) ? table.getDescriptor() : null;
 
+      // A worksheet table referenced by name from a script (e.g. table['col'])
+      // should return the column's values as a flat table. Skip the grouped/
+      // crosstab summary routing for such references: a shared source table may
+      // carry a runtime crosstab/aggregate structure (e.g. pushed down by a
+      // crosstab-optimized freehand table) that would otherwise collapse the
+      // reference to summary cells instead of the underlying column values.
+      // (#75663)
       if(summary ||
-         desc != null && !processCalc &&
+         desc != null && !processCalc && !baseTableRef &&
          (desc.getType() == TableDataDescriptor.GROUPED_TABLE ||
           desc.getType() == TableDataDescriptor.CROSSTAB_TABLE))
       {

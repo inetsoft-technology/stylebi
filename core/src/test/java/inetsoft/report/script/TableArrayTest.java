@@ -83,6 +83,14 @@ class TableArrayTest {
    }
 
    @Test
+   void isBaseTableReferenceDefaultsFalse() {
+      // #75663: a plain TableArray (e.g. a calc-table's own `data`, or a chart/
+      // table-bound array) is NOT a by-name worksheet-table reference, so it must
+      // retain the grouped/crosstab summary-cell routing in NamedCellRange.
+      assertFalse(new TableArray(table()).isBaseTableReference());
+   }
+
+   @Test
    void unwrapReturnsUnderlyingXTable() {
       // #75576: ScriptUtil.unwrap must unwrap a TableArray to its XTable so host
       // code (toList/mapList/etc.) can process a data['*@...'] subtable reference
