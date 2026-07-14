@@ -496,15 +496,59 @@ dirty-state behavior (`ChartDescriptor.equalsContent` compares the descriptors, 
 Remaining follow-up: the **dialog round-trip** verification above (post-creation, owner). Everything else
 (palette, report scope, `PlotDescriptor` exclusion) is resolved and built.
 
-#### B3 — axis line + plot border color (deferred / value-equality)
+#### B3 — axis line color — ✅ IMPLEMENTED (2026-07-14)
 
-`AxisDescriptor.lineColor` (`:893`) and `PlotDescriptor.borderColor` (`:1943`) are **plain `Color`
-fields, serialized, with no tier** and no user-set flag, so a defaults-only override needs
-value-equality vs `ChartLineColor.getAxisLineColor(GDefaults.DEFAULT_LINE_COLOR)` on a per-render
-clone / `RTAxisDescriptor` (the fragile Phase 5 C1 pattern). Plot border also feeds the auto/"fake"
-axis line (`GraphGenerator.java:526`). Because axis line and gridline currently share `#EEEEEE`,
-shipping B1 alone leaves the axis line at legacy `#EEEEEE` while gridlines go `#E8E5DE` — a **subtle**
-near-white mismatch, acceptable for a first pass; B3 closes it. Decide guard-vs-defer when taken.
+Closes the residual mismatch: after B1, gridlines are `#E8E5DE` but the axis line stayed legacy
+`#EEEEEE`. B3 unifies the axis line to `#E8E5DE`. Added `VSChartChromeDefaults.resolveAxisLineColor(Color)`
+(gate + value-equality vs `GDefaults.DEFAULT_LINE_COLOR` → `gridlineColor()`, else unchanged) and call it
+at `GraphGenerator.setupAxisSpec` (`axis.setLineColor(...)`). No descriptor mutation, no clone. `core`
+compiles clean; `CSSChartStylesModernChromeTest` gained 2 resolver tests (gate-on default→modern,
+custom/null preserved; gate-off unchanged). Grounding (with B2's pipeline knowledge) **shrank the scope
+and changed the mechanism** — details below.
+
+**Scope reduced to the axis line only — plot border drops out.** `PlotDescriptor.borderColor` (`:1943`,
+plain `Color`, default `GDefaults.DEFAULT_LINE_COLOR` `#EEEEEE`) has only two consumers, neither needing
+action: (a) `GraphGenerator:3739` (circle-packing element border) **explicitly skips the default color**
+(`if(!GDefaults.DEFAULT_LINE_COLOR.equals(borderColor))`), so the default is never drawn; (b)
+`GraphGenerator:526` feeds a fake/auto axis's `lineColor` from the plot border — which then flows through
+the axis-line substitution below. There is **no general plot-area border draw** off `borderColor`. So B3
+= **axis line only**.
+
+**Mechanism — render-output substitution at the application point, NOT descriptor mutation.** The axis
+line color is applied at **`GraphGenerator.setupAxisSpec` → `axis.setLineColor(axisD.getLineColor())`**
+(`:2578`). Substitute there:
+
+```java
+Color lineColor = axisD.getLineColor();
+if(VSChartChromeDefaults.isModern() && Tool.equals(lineColor, GDefaults.DEFAULT_LINE_COLOR)) {
+   lineColor = VSChartChromeDefaults.gridlineColor(); // #E8E5DE, unify with gridlines
+}
+axis.setLineColor(lineColor);
+```
+
+Recommend wrapping the test+substitute in a unit-testable resolver on `VSChartChromeDefaults`
+(e.g. `resolveAxisLineColor(Color current)` → modern iff gate on and `current` is the legacy default),
+mirroring the tooltip `AUTO` resolution so it has coverage without a full render.
+
+**Why this is clean (and better than the plan's earlier clone idea).** B2 showed descriptor mutation
+drags in the RT-copy, per-column, and serialization/dirty tangle. Substituting at the single
+application point sidesteps all of it: the descriptor is **never mutated**, so gate-off is trivially
+byte-identical and there is no persistence/dirty concern. `setupAxisSpec` is called with the resolved
+`axisD` (RT or design, whichever renders), so it catches every axis; fake axes inherit via `:526`/`:2660`.
+
+**Value-equality is safe here (unlike Phase 5 C1).** It is a **single** comparison against the hardcoded
+fallback `GDefaults.DEFAULT_LINE_COLOR` (`#EEEEEE`):
+- unset (no CSS, no user) → `#EEEEEE` → matches → modernized ✓
+- customer `format.css ChartAxisLine` → resolves to a non-`#EEEEEE` color → **skipped**, customer wins ✓
+- user axis-line picker (`AxisPropertyDialogModel`) → non-`#EEEEEE` → **skipped**, user wins ✓
+- only false-positive: a user who explicitly picks `#EEEEEE` — astronomically rare, and substituting the
+  modern neutral under the gate is a defensible default. Far less fragile than Phase 5's multi-color
+  style equality.
+
+**Gate/color/risk.** Gate `VSChartChromeDefaults.isModern()` (same as B1/B2); color `gridlineColor()`
+`#E8E5DE`; gate-off skips the substitution entirely (byte-identical). **Visual impact is subtle**
+(`#EEEEEE` → `#E8E5DE`, near-white hairlines) — this is low-priority polish that completes chrome
+unification; the owner may reasonably defer it.
 
 **Why not the `format.css` CSS-dictionary route** (mirrors Phase 5's correction): `CSSDictionary` has
 **no `viewsheet.modernVisualization` SreeEnv gate** — it's file/theme-driven per-org
@@ -551,12 +595,12 @@ do. Highest-risk item in Phase 6.
 5. **Dark-mode chart chrome** — Part B is light-first; dark variants ride the initiative's dark pass
    (as with Phase 5 table structure).
 6. **EM Material chrome** — separate build, admin, never exported (D5).
-7. **Axis line + plot border color (Part B / B3)** — the two plain-`Color`, serialized fields
-   (`AxisDescriptor.lineColor`, `PlotDescriptor.borderColor`) have no tier to hold a default, so they
-   need value-equality-vs-`GDefaults` on a cloned/RT descriptor (the fragile Phase 5 C1 pattern) —
-   decided (i) guard vs (ii) defer when the Part B sub-plan is taken. B1 (gridline/facet/legend border)
-   and B2 (text colors) do **not** depend on this; shipping B1 alone leaves the axis line at legacy
-   `#EEEEEE` vs modern gridline `#E8E5DE` — a subtle near-white mismatch B3 closes.
+7. **Axis line color (Part B / B3)** — GROUNDED and scoped (see B3 above): reduced to the axis line
+   only (plot border is moot — its default is never drawn and its fake-axis feed flows through the axis
+   substitution), implemented as a **render-output substitution at `setupAxisSpec`** (no descriptor
+   mutation, no clone), value-equality vs `GDefaults.DEFAULT_LINE_COLOR` behind the gate. Independent of
+   B1/B2. Ready to implement; **low-priority polish** (subtle `#EEEEEE`→`#E8E5DE` hairline) — owner
+   decides implement vs defer.
 8. **Compact chart mini-toolbar (A1)** — the toolbar's geometry is JS-computed: vertical position uses
    the fixed constant `GuiTool.MINI_TOOLBAR_HEIGHT = 28` (`topY = top − 28 − adj`) and width/alignment
    use `miniToolbarService.getActionsWidth()`. A CSS-only resize desyncs both (overlap/gap vertically,
