@@ -146,4 +146,38 @@ class CSSChartStylesModernChromeTest {
          SreeEnv.setProperty("viewsheet.modernVisualization", saved);
       }
    }
+
+   @Test
+   void axisLineResolvesToModernWhenGateOnAndDefault() {
+      String saved = SreeEnv.getProperty("viewsheet.modernVisualization");
+
+      try {
+         SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+         assertEquals(VSChartChromeDefaults.gridlineColor(),
+                      VSChartChromeDefaults.resolveAxisLineColor(GDefaults.DEFAULT_LINE_COLOR),
+                      "legacy-default axis line unifies with the gridlines under the gate");
+         assertEquals(Color.RED, VSChartChromeDefaults.resolveAxisLineColor(Color.RED),
+                      "a customer/user axis-line color is preserved");
+         assertNull(VSChartChromeDefaults.resolveAxisLineColor(null),
+                    "null (no line color) stays null");
+      }
+      finally {
+         SreeEnv.setProperty("viewsheet.modernVisualization", saved);
+      }
+   }
+
+   @Test
+   void axisLineUnchangedWhenGateOff() {
+      String saved = SreeEnv.getProperty("viewsheet.modernVisualization");
+
+      try {
+         SreeEnv.setProperty("viewsheet.modernVisualization", "false");
+         assertEquals(GDefaults.DEFAULT_LINE_COLOR,
+                      VSChartChromeDefaults.resolveAxisLineColor(GDefaults.DEFAULT_LINE_COLOR),
+                      "gate off leaves the legacy axis-line color unchanged");
+      }
+      finally {
+         SreeEnv.setProperty("viewsheet.modernVisualization", saved);
+      }
+   }
 }
