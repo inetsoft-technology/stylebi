@@ -112,6 +112,13 @@ export class DateComparisonStandardPeriodsComponent implements OnChanges {
    }
 
    get toDateLabel(): string {
+      // Bug #75653 (fixed): toDateVisible guards a null dateLevel with `!!dateLevel` before
+      // falling back to `!!this.toDateLabel`, implying a null dateLevel is an anticipated
+      // state here too - but this getter previously dereferenced dateLevel.type unconditionally.
+      if(!this.standardPeriodPaneModel?.dateLevel) {
+         return null;
+      }
+
       if(this.standardPeriodPaneModel.dateLevel.type == ValueTypes.EXPRESSION ||
          this.standardPeriodPaneModel.dateLevel.type == ValueTypes.VARIABLE)
       {

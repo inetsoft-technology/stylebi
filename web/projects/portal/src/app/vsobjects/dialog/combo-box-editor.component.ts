@@ -62,7 +62,10 @@ export class ComboBoxEditor implements OnInit, OnChanges {
    @Output() isInputValid: EventEmitter<boolean> = new EventEmitter<boolean>();
    readonly dataTypeList = XSchema.standardDataTypeList;
    readonly DATE_PATTERN = /^([0-9]{4})-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$/;
-   readonly DATETIME_PATTERN = /^([0-9]{4})-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])(\s+)([01]?[0-9]|2[0-3]):[0-5]?[0-9]:[0-5]?[0-9]$/;
+   // Bug #75651: minutes/seconds must be captured (not just matched) so validateDateRange()
+   // can actually compare them - previously only year/month/day/hour were captured, so a
+   // minute/second-level range violation within the same hour went undetected.
+   readonly DATETIME_PATTERN = /^([0-9]{4})-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])(\s+)([01]?[0-9]|2[0-3]):([0-5]?[0-9]):([0-5]?[0-9])$/;
    readonly TIME_PATTERN = /^([01]?[0-9]|2[0-3]):[0-5]?[0-9]:[0-5]?[0-9]$/;
    valueList: ComboBoxDefaultValueListModel[];
    get datePrompt(): string {
@@ -295,7 +298,7 @@ export class ComboBoxEditor implements OnInit, OnChanges {
          const pattern = this.currentPattern;
          const minValues = minDate.match(pattern);
          const maxValues = maxDate.match(pattern);
-         const maxSize = this.isDate ? 4 : 6;
+         const maxSize = this.isDate ? 4 : 8;
 
          if(minValues.length == maxSize && maxValues.length == maxSize) {
             let i = 1;

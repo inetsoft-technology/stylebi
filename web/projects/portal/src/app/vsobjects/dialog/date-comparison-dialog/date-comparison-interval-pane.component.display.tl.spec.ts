@@ -32,11 +32,12 @@
  *   Group 10 [Risk 2] — toDate: end-date source selection, null/type guards, format parsing
  *   Group 11 [Risk 1] — getToDateLabel: dead code, always returns null
  *
- * Confirmed bugs (it.fails):
- *   Bug A — contextLevelValue (Group 3): throws a TypeError reading levels[0].value when
- *   getContextLevels() returns an empty array. Reachable via a real input combination
- *   (standardPeriodLevel=DAY_DATE_GROUP with a VALUE-type interval level), and crashes ngOnInit,
- *   breaking the whole component rather than degrading gracefully.
+ * Fixed bugs (previously it.fails, now passing):
+ *   Bug #75653 — contextLevelValue (Group 3): used to throw a TypeError reading
+ *   levels[0].value when getContextLevels() returns an empty array. Reachable via a real input
+ *   combination (standardPeriodLevel=DAY_DATE_GROUP with a VALUE-type interval level), and
+ *   crashed ngOnInit, breaking the whole component rather than degrading gracefully. Fixed by
+ *   guarding both levels[0] accesses and falling back to the raw contextLevel value / null.
  *
  * Suspected bugs (header only):
  *   Suspicion A — visibleGranularity (Group 2): unlike visibleIntervalLevel and contextLevelValue, this getter
@@ -170,24 +171,25 @@ describe("DateComparisonIntervalPaneComponent — contextLevelValue", () => {
       expect(comp.contextLevelValue).toBe("CVar");
    });
 
-   // Bug A — confirmed: getContextLevels() applies a ceiling of standardPeriodLevel.value, but
-   // contextLevels only contains {YEAR:5, QUARTER:4, MONTH:3, WEEK:2} (no DAY entry). Whenever
-   // standardPeriodLevel is DAY_DATE_GROUP(1) (a real, selectable "Period" option) and the
-   // interval level is a plain VALUE type, the ceiling filter empties the list, and
-   // contextLevelValue unconditionally reads levels[0].value with no empty-array guard. This
-   // throws inside ngOnInit itself, breaking the whole component instead of falling back.
-   // Expected failure: renderComponent() itself throws an uncaught TypeError ("Cannot read
-   // properties of undefined (reading 'value')") during ngOnInit's change-detection pass,
-   // before this test body reaches its end — there is no explicit failing expect(). If this
-   // test instead fails with a different error message or an assertion mismatch, the bug has
-   // changed shape and this comment/test need to be re-verified against the current source.
-   it.fails("should not throw when getContextLevels() returns an empty array (standardPeriodLevel=DAY_DATE_GROUP)", async () => {
+   // Bug #75653 (fixed): getContextLevels() applies a ceiling of
+   // standardPeriodLevel.value, but contextLevels only contains {YEAR:5, QUARTER:4, MONTH:3,
+   // WEEK:2} (no DAY entry). Whenever standardPeriodLevel is DAY_DATE_GROUP(1) (a real,
+   // selectable "Period" option) and the interval level is a plain VALUE type, the ceiling
+   // filter empties the list. contextLevelValue used to unconditionally read levels[0].value
+   // with no empty-array guard, throwing inside ngOnInit itself. The fix falls back to the
+   // raw (unmatched) contextLevel value instead of dereferencing the empty list.
+   it("should not throw when getContextLevels() returns an empty array (standardPeriodLevel=DAY_DATE_GROUP) (Bug #75653)", async () => {
       const model = makeIntervalPaneModel({ level: makeDynamicValue(IntervalLevel.YEAR_TO_DATE + "") });
 
-      await renderComponent({
+      const { comp } = await renderComponent({
          intervalPaneModel: model,
          standardPeriodLevel: makeDynamicValue(XConstants.DAY_DATE_GROUP),
       });
+
+      // No entry in contextLevels matches or survives the (now-empty) ceiling filter, so the
+      // getter falls back to the model's existing (unmatched) contextLevel value rather than
+      // dereferencing levels[0].
+      expect(comp.contextLevelValue).toBe(XConstants.YEAR_DATE_GROUP);
    });
 });
 

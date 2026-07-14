@@ -39,7 +39,11 @@
  *   Group 6 [Risk 2] — updateCalendar: embedded vs non-embedded dispatch, range cleanup
  *   Remaining groups [Risk 1/2] — single-purpose getters/setters and dispatch tables
  *
- * Confirmed bugs (it.fails): none
+ * Fixed bugs (previously it.fails, now passing):
+ *   Bug #75651 — validateDateRange() did not compare minutes/seconds for TIME_INSTANT;
+ *   DATETIME_PATTERN lacked capturing groups for them, so a minute/second-level range
+ *   violation within the same hour went undetected. Fixed by capturing those groups and
+ *   updating maxSize to match.
  *
  * Mocking strategy: DialogService.open() is mocked to return `{ result: Promise }`,
  * matching the NgbModalRef-like shape the component calls `.result.then(onResolve,
@@ -697,16 +701,15 @@ describe("ComboBoxEditor — validateDateRange", () => {
       expect(comp.validateDateRange("2024-01-01 09:00:00", "2024-01-01 10:00:00")).toBe(true);
    });
 
-   // BUG: DATETIME_PATTERN has no capturing groups for minutes/seconds — only year/month/day/
-   // whitespace/hour are captured (5 groups), so the match array's length (6, including the
-   // full match) happens to equal maxSize (6) for non-DATE types. The comparison loop in
-   // validateDateRange only ever reads real values at indices 1-5; index 6 is undefined on
-   // both sides, which the `==` branch treats as "equal" and exits the loop without ever
-   // inspecting minutes/seconds. A minute-level difference within the same hour is silently
-   // treated as a valid range.
-   it.fails("does not actually detect a minute-level range violation for TIME_INSTANT", () => {
+   // Bug #75651 (fixed): DATETIME_PATTERN previously had no capturing groups for
+   // minutes/seconds, so validateDateRange's comparison loop never inspected them and a
+   // minute-level difference within the same hour was silently treated as a valid range.
+   it("should compare down to the minute and second for TIME_INSTANT (Bug #75651)", () => {
       const { comp } = createComponent({ dataType: XSchema.TIME_INSTANT });
       expect(comp.validateDateRange("2024-01-01 10:05:00", "2024-01-01 10:02:00")).toBe(false);
+      expect(comp.validateDateRange("2024-01-01 10:02:00", "2024-01-01 10:05:00")).toBe(true);
+      expect(comp.validateDateRange("2024-01-01 10:05:07", "2024-01-01 10:05:03")).toBe(false);
+      expect(comp.validateDateRange("2024-01-01 10:05:03", "2024-01-01 10:05:07")).toBe(true);
    });
 });
 

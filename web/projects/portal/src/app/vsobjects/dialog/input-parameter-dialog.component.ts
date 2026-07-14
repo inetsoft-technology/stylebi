@@ -82,11 +82,17 @@ export class InputParameterDialog implements OnInit {
       }
 
       if(this._model && this.form) {
+         // Bug #75652 (fixed): capture the intended value before syncing the "type" control -
+         // setting "type" triggers changeType(), which for numeric/STRING/CHARACTER types
+         // blanks alphaNumericValue (cascading into model.value) before this method gets a
+         // chance to write the real value below. Without capturing it first, the final
+         // `this.alphaNumericValue = this.model.value` re-reads the already-blanked value.
+         const modelValue = this._model.value;
          this.form.controls["name"].setValue(this.model.name);
          this.form.controls["type"].setValue(this.model.type);
          this.dateValue = this.date;
          this.timeValue = this.time;
-         this.alphaNumericValue = this.model.value;
+         this.alphaNumericValue = modelValue;
       }
    }
 
@@ -295,15 +301,19 @@ export class InputParameterDialog implements OnInit {
       if(val == "constant") {
          this.model.valueSource = "constant";
          this.model.value = "";
+         this.changeType();
       }
       else {
          this.model.valueSource = "field";
-         this.model.value = !!this.fields && this.fields.length > 0 ?
-            this.fields[0].attribute : "";
          this.model.type = XSchema.STRING;
-      }
+         this.changeType();
 
-      this.changeType();
+         // Bug #75652 (fixed): changeType() above blanks alphaNumericValue (cascading into
+         // model.value) for the new STRING type, so the field-derived value must be set
+         // afterward - setting it beforehand would just get silently discarded by that cascade.
+         this.alphaNumericValue = !!this.fields && this.fields.length > 0 ?
+            this.fields[0].attribute : "";
+      }
    }
 
    set alphaNumericValue(value: any) {
@@ -368,7 +378,10 @@ export class InputParameterDialog implements OnInit {
          else {
             const idx = this.fields.findIndex(field => field.name == this._model.value);
 
-            if(idx < 0) {
+            // Bug #75653 (fixed): guard against an empty `fields` array - previously this
+            // unconditionally dereferenced fields[0] whenever no match was found, crashing on
+            // a stale field-sourced model with zero available fields.
+            if(idx < 0 && this.fields.length) {
                this.model.value = this.fields[0].name;
             }
          }
