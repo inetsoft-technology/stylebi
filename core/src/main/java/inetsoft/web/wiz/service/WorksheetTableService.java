@@ -376,10 +376,12 @@ public class WorksheetTableService {
          if(!query.isSourceMergeable0()) {
             throw new IllegalArgumentException(
                "windowColumns on table \"" + table.getName() + "\" cannot be computed: its base " +
-               "data is not fully SQL-mergeable (it likely contains an upstream JS-evaluated " +
-               "expression column). windowColumns require a pure SQL-mergeable base — remove " +
-               "windowColumns from this table, or move the JS-derived value into a \"sql query " +
-               "table\" that computes it in SQL instead of JavaScript.");
+               "data is not fully SQL-mergeable. A common cause is a windowColumns partitionBy/" +
+               "orderBy/column ref pointing at an ALIASED aggregate (e.g. ORDER BY a Sum(...) " +
+               "alias) — try referencing a plain (non-aggregate) column instead, or removing " +
+               "windowColumns from this table. Other causes (an upstream JS-evaluated expression " +
+               "column, an unsupported subquery shape, etc.) can also block SQL merging — if " +
+               "none of those apply, compute this table's logic in a \"sql query table\" instead.");
          }
       }
       finally {
