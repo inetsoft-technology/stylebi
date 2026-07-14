@@ -44,6 +44,8 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.DateCompareAbleAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Catalog;
@@ -83,6 +85,90 @@ public class WizVsService {
                                                 PostAssemblyHook hook) throws Exception
    {
       return createViewsheetInternal(model, user, false, hook);
+   }
+
+   /**
+    * Applies a date comparison (period-over-period) to an existing runtime chart and returns the
+    * recomputed result in the same shape as {@code /viewsheet/create}.
+    *
+    * <p>Mirrors {@code DateComparisonDialogService.setDateComparison} for the mutate step:
+    * it casts the assembly info to {@link DateCompareAbleAssemblyInfo} and calls
+    * {@code setDateComparisonInfo(info)}, where {@code info} is produced by StyleBI's own
+    * {@code DateComparisonPaneModel.toDateComparisonInfo()} (no re-derivation here). The comparison
+    * series (prior-period + change columns) are expanded by {@code DateComparisonUtil} during query
+    * building, so reusing the wiz {@code executeAndExtract} -> {@code box.executeView} path picks
+    * them up without a STOMP {@code CommandDispatcher}.
+    *
+    * <p><b>Re-execution path (Step-4 sub-spike):</b> PRIMARY path used here is plain
+    * {@code executeAndExtract} (-> {@code box.executeView(name, true)}); this resets the data map and
+    * graph for the assembly first, so the next view build runs the date-comparison query expansion.
+    * FALLBACK (if the smoke test shows only the base columns and no comparison series): the native
+    * service expands inside {@code vsAssemblyInfoHandler.apply(rvs, assemblyInfo, viewsheetService,
+    * false, false, true, false, dispatcher, null, null, linkUri, null)}; that path requires a
+    * (possibly headless / no-op) {@code CommandDispatcher}. Switch to it only if {@code executeView}
+    * does not surface the comparison columns.
+    */
+   public CreateViewsheetResult applyDateComparison(ApplyDateComparisonModel model, Principal user)
+      throws Exception
+   {
+      if(model.getDateComparisonModel() == null ||
+         model.getDateComparisonModel().getDateComparisonPaneModel() == null)
+      {
+         throw new IllegalArgumentException("dateComparisonModel.dateComparisonPaneModel is required");
+      }
+
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(model.getRuntimeId(), user);
+      Viewsheet vs = getValidatedViewsheet(rvs);
+      VSAssembly assembly = resolveChartAssembly(vs, model.getAssemblyName());
+
+      VSAssemblyInfo assemblyInfo = assembly.getVSAssemblyInfo();
+
+      if(!(assemblyInfo instanceof DateCompareAbleAssemblyInfo)) {
+         throw new IllegalArgumentException(
+            "Assembly '" + assembly.getName() + "' does not support date comparison");
+      }
+
+      // REUSE StyleBI's own JSON->DateComparisonInfo conversion (do not re-derive).
+      DateComparisonInfo info = model.getDateComparisonModel().getDateComparisonPaneModel()
+         .toDateComparisonInfo();
+
+      // color aesthetic may change (mirrors DateComparisonDialogService.setDateComparison).
+      vs.clearSharedFrames();
+      ((DateCompareAbleAssemblyInfo) assemblyInfo).setDateComparisonInfo(info);
+
+      int sampleMaxRows = model.getSampleMaxRows() != null ? model.getSampleMaxRows() : 0;
+      CreateViewsheetResult result = executeAndExtract(rvs, assembly, sampleMaxRows);
+      // Order matters: executeAndExtract runs executeView, which populates the chart's RT refs;
+      // collectFlatBinding prefers RT refs, so it must come after. The binding itself is unchanged
+      // by the comparison, but recomputing it keeps the response shape identical to /viewsheet/create.
+      result.setBinding(collectFlatBinding(assembly));
+      result.setAssemblyName(assembly.getName());
+      result.setHasData(computeHasData(rvs.getViewsheet().getViewsheetInfo().isMetadata(), result));
+      return result;
+   }
+
+   /**
+    * Resolves the chart assembly to apply the comparison to: the named assembly if {@code name} is
+    * provided, otherwise the sole {@link ChartVSAssembly} in the viewsheet.
+    */
+   private VSAssembly resolveChartAssembly(Viewsheet vs, String name) {
+      if(name != null && !name.isEmpty()) {
+         VSAssembly a = vs.getAssembly(name);
+
+         if(a == null) {
+            throw new IllegalArgumentException("No assembly named '" + name + "'");
+         }
+
+         return a;
+      }
+
+      for(Assembly a : vs.getAssemblies()) {
+         if(a instanceof ChartVSAssembly) {
+            return (VSAssembly) a;
+         }
+      }
+
+      throw new IllegalArgumentException("No chart assembly found in viewsheet");
    }
 
    /**
