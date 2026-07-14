@@ -269,7 +269,21 @@ public class WizVsService {
                VSAssembly clone = (VSAssembly) sourceAssembly.clone();
                clone.getVSAssemblyInfo().setName(
                   AssetUtil.getNextName(targetVs, clone.getAssemblyType()));
+
+               // clone() deep-copies the source's VSAssemblyInfo, which carries isPrimary=true,
+               // so both source and clone would report isPrimary()==true. Demote every existing
+               // primary (the source) before promoting the clone, keeping exactly one primary.
+               // The clone becomes the new primary so the next turn's findPrimaryAssembly()
+               // returns it and clones build on the prior turn's edit instead of branching from
+               // the stale original state each time.
+               for(Assembly a : targetVs.getAssemblies()) {
+                  if(a instanceof VSAssembly va && va.isPrimary()) {
+                     va.setPrimary(false);
+                  }
+               }
+
                targetVs.addAssembly(clone);
+               clone.setPrimary(true);
                // The clone becomes the active chart; the source stays untouched and visible.
                assembly = clone;
             }
