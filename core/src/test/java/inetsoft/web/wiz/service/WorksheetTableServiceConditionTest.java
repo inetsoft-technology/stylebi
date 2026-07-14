@@ -25,6 +25,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.Condition;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.asset.ExpressionValue;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
@@ -196,5 +197,121 @@ class WorksheetTableServiceConditionTest {
          service().buildConditionList(cs, req.getPreAggregateCondition(), new Worksheet(), false));
       assertTrue(ex.getMessage().contains("nonexistent_col"),
                  "error should name the unresolved FIELD column, got: " + ex.getMessage());
+   }
+
+   // ── dateGroupLevel on a condition. Regression for the silent match-all bug: a condition's
+   // dateGroupLevel wraps the column in a DateRangeRef but — unlike the working GROUP BY path in
+   // applyAggregateInfo — never registered the synthetic column into the table's private
+   // ColumnSelection. An unregistered column that fails to SQL-merge falls back to StyleBI's
+   // in-memory evaluation, which can't resolve it and defaults to matching every row. The fix
+   // threads the private ColumnSelection down so the synthetic column gets registered exactly
+   // like applyAggregateInfo's GROUP BY wrap does. ──
+
+   @Test
+   void conditionWithIntervalDateGroupLevelRegistersSyntheticColumn() throws Exception {
+      WorksheetTable req = request("""
+         {
+           "preAggregateCondition": [
+             { "field": "order_date", "operation": "EQUAL_TO", "dateGroupLevel": "year",
+               "values": [{ "type": "VALUE", "value": 2025 }] }
+           ]
+         }
+         """);
+
+      ColumnSelection cs = columns("order_date");
+      ColumnSelection privateCs = columns("order_date");
+
+      ConditionList list = service().buildConditionList(
+         cs, req.getPreAggregateCondition(), new Worksheet(), false, privateCs);
+
+      String expectedName = DateRangeRef.getName(
+         "order_date", inetsoft.web.wiz.service.WizDateLevelUtil.getDateGroupLevel("year"));
+
+      DataRef conditionRef = list.getConditionItem(0).getAttribute();
+      assertEquals(expectedName, conditionRef.getName(),
+                   "condition must reference the date-grouped synthetic column");
+
+      DataRef registered = privateCs.getAttribute(expectedName);
+      assertNotNull(registered,
+                     "synthetic date-group column must be registered into the private " +
+                     "ColumnSelection so the query engine can resolve it");
+      assertTrue(registered instanceof ColumnRef && !((ColumnRef) registered).isVisible(),
+                 "synthetic date-group column must be a hidden helper, not an output column");
+   }
+
+   @Test
+   void conditionWithPartDateGroupLevelRegistersSyntheticColumn() throws Exception {
+      WorksheetTable req = request("""
+         {
+           "preAggregateCondition": [
+             { "field": "order_date", "operation": "LESS_THAN", "dateGroupLevel": "month of year",
+               "values": [{ "type": "VALUE", "value": 5 }] }
+           ]
+         }
+         """);
+
+      ColumnSelection cs = columns("order_date");
+      ColumnSelection privateCs = columns("order_date");
+
+      ConditionList list = service().buildConditionList(
+         cs, req.getPreAggregateCondition(), new Worksheet(), false, privateCs);
+
+      String expectedName = DateRangeRef.getName(
+         "order_date", inetsoft.web.wiz.service.WizDateLevelUtil.getDateGroupLevel("month of year"));
+
+      DataRef conditionRef = list.getConditionItem(0).getAttribute();
+      assertEquals(expectedName, conditionRef.getName(),
+                   "condition must reference the date-grouped synthetic column");
+
+      DataRef registered = privateCs.getAttribute(expectedName);
+      assertNotNull(registered,
+                     "Part-type dateGroupLevel synthetic column must also be registered — this " +
+                     "is the case that previously silently matched every row");
+   }
+
+   @Test
+   void conditionDateGroupLevelReusesRegisteredColumnAcrossLeaves() throws Exception {
+      // Two leaves on the same field + level must not create two private-selection entries.
+      WorksheetTable req = request("""
+         {
+           "preAggregateCondition": [
+             { "field": "order_date", "operation": "GREATER_THAN", "dateGroupLevel": "year",
+               "values": [{ "type": "VALUE", "value": 2020 }] },
+             { "field": "order_date", "operation": "LESS_THAN", "dateGroupLevel": "year",
+               "junction": "and",
+               "values": [{ "type": "VALUE", "value": 2026 }] }
+           ]
+         }
+         """);
+
+      ColumnSelection cs = columns("order_date");
+      ColumnSelection privateCs = columns("order_date");
+      int before = privateCs.getAttributeCount();
+
+      service().buildConditionList(cs, req.getPreAggregateCondition(), new Worksheet(), false, privateCs);
+
+      assertEquals(before + 1, privateCs.getAttributeCount(),
+                   "the same synthetic date-group column must be reused, not duplicated");
+   }
+
+   @Test
+   void conditionWithoutDateGroupLevelLeavesPrivateSelectionUntouched() throws Exception {
+      // No dateGroupLevel => no synthetic column, and a null privateCs (as existing callers pass)
+      // must remain safe.
+      WorksheetTable req = request("""
+         {
+           "preAggregateCondition": [
+             { "field": "sales_stage", "operation": "EQUAL_TO",
+               "values": [{ "type": "VALUE", "value": "Closed Won" }] }
+           ]
+         }
+         """);
+
+      ColumnSelection cs = columns("sales_stage");
+
+      ConditionList list = service().buildConditionList(
+         cs, req.getPreAggregateCondition(), new Worksheet(), false, null);
+
+      assertEquals("sales_stage", list.getConditionItem(0).getAttribute().getName());
    }
 }
