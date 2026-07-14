@@ -192,6 +192,50 @@ class GraalJavaScriptEngineScopeTest {
          ((Number) engine.exec(engine.compile("color"), assembly, assembly)).doubleValue());
    }
 
+   // Bug #75625: a body that does not reference `this` must compile to the fast
+   // top-level `with(__scope__){...}` form (parsed once and reused), not the
+   // direct-eval wrapper that re-parses the body on every execution. Pinning the
+   // emitted wrapper guards the branch decision itself.
+   @Test void bodyWithoutThisUsesFastWithWrapper() throws Exception {
+      String code = compiledSource("parameter.region");
+      assertFalse(code.contains("eval("), "this-free body must not use the eval wrapper");
+      assertTrue(code.contains("with(__scope__)"), "this-free body must use the with wrapper");
+   }
+
+   // Bug #75625: a body that references `this` must still compile to the
+   // direct-eval-in-a-function form so top-level `this` binds to the scope (the
+   // #75550 behavior the fast path cannot provide).
+   @Test void bodyWithThisUsesEvalWrapper() throws Exception {
+      String code = compiledSource("this.parameter.region");
+      assertTrue(code.contains("eval("), "this-referencing body must keep the eval wrapper");
+   }
+
+   // Bug #75625: `this` appearing only inside a string literal is not a real
+   // this-reference, but the conservative detector still routes it to the eval
+   // form. This must remain correct (result unchanged); it is merely not the fast
+   // path.
+   @Test void thisInsideStringStillEvaluatesCorrectly() throws Exception {
+      MapScope scope = new MapScope();
+      Object src = engine.compile("\"this is text\"");
+      assertEquals("this is text", engine.exec(src, scope, scope));
+   }
+
+   // Bug #75625: the fast path must preserve the statement-list completion value
+   // for a multi-statement, this-free body (value/expression bindings depend on
+   // it) — the same guarantee the eval form provided.
+   @Test void fastPathPreservesStatementListCompletionValue() throws Exception {
+      String code = compiledSource("var y = 5;\ny * 2");
+      assertFalse(code.contains("eval("), "multi-statement this-free body must use the fast path");
+
+      MapScope scope = new MapScope();
+      assertEquals(10.0,
+         ((Number) engine.exec(engine.compile("var y = 5;\ny * 2"), scope, scope)).doubleValue());
+   }
+
+   private String compiledSource(String cmd) throws Exception {
+      return ((org.graalvm.polyglot.Source) engine.compile(cmd)).getCharacters().toString();
+   }
+
    private static ScriptScope makeParam(String k, String v) {
       MapScope p = new MapScope();
       p.putMember(k, v);
