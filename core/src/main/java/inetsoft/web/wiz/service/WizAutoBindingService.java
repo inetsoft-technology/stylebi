@@ -318,6 +318,7 @@ public class WizAutoBindingService {
             // #75456: carry the data-mode (full vs sampled) into the render so the chart aggregates
             // the chosen amount of data; null/<=0 = full (the agent always omits this).
             vsModel.setSampleMaxRows(request.getSampleMaxRows());
+            vsModel.setPortal(request.isPortal());
 
             WizVsService.PostAssemblyHook hook = (wizRvs, asm) -> {
                if(asm instanceof ChartVSAssembly) {

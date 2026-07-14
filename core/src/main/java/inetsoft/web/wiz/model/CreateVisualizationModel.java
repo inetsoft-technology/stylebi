@@ -96,12 +96,29 @@ public class CreateVisualizationModel {
       this.sampleMaxRows = sampleMaxRows;
    }
 
+   /**
+    * True when the request originates from a Portal chat conversation (as opposed to an MCP tool
+    * call). In that mode every turn ADDS a NEW assembly to the conversation's viewsheet — cloning the
+    * existing primary and applying the new condition to the clone in the modification-only path, or
+    * binding a fresh assembly alongside the existing ones in the standard path — instead of mutating
+    * the single existing chart in place, so multiple states coexist for comparison. When false the
+    * legacy single-assembly, modify-in-place behavior is kept.
+    */
+   public boolean isPortal() {
+      return portal;
+   }
+
+   public void setPortal(boolean portal) {
+      this.portal = portal;
+   }
+
    private String visualizationType;
    private VisualizationConfig config;
    private String runtimeId;
    private String viewsheetIdentifier;
    private VisualizationConditionModel conditionModel;
    private Integer sampleMaxRows;
+   private boolean portal;
    private transient VSAssembly primaryAssembly;
    private transient boolean keepCondition;
 }

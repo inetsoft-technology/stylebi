@@ -39,6 +39,7 @@ import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.*;
@@ -258,16 +259,32 @@ public class WizVsService {
             if(sourceAssembly instanceof DataVSAssembly dataAsm) {
                SourceInfo srcInfo = dataAsm.getSourceInfo();
                wsTableName = srcInfo != null ? srcInfo.getSource() : null;
-               // Snapshot the existing condition so a failure can roll back the in-place change.
-               previousCondition = dataAsm.getPreConditionList() != null
-                  ? dataAsm.getPreConditionList().clone() : null;
             }
 
-            // Apply the filter to the EXISTING primary assembly in place — keep its name and
-            // identity. Copying to a unique "<name>_1" assembly (the old behavior) broke
-            // save_viewsheet: save loads the persisted viewsheet and looks the assembly up by name,
-            // so it never found the renamed copy, and every filter call churned a new assembly.
-            assembly = sourceAssembly;
+            if(model.isPortal()) {
+               // Portal multi-assembly: DO NOT mutate the existing chart. Clone the primary assembly
+               // (same binding) into a NEW assembly and add it to the viewsheet; the new condition is
+               // applied to the clone only, so the prior state and the new state coexist for comparison.
+               // Layout of the added assembly is handled by StyleBI, not positioned here.
+               VSAssembly clone = (VSAssembly) sourceAssembly.clone();
+               clone.getVSAssemblyInfo().setName(
+                  AssetUtil.getNextName(targetVs, clone.getAssemblyType()));
+               targetVs.addAssembly(clone);
+               // The clone becomes the active chart; the source stays untouched and visible.
+               assembly = clone;
+            }
+            else {
+               // Legacy in-place filter: apply to the EXISTING primary assembly, keeping its name and
+               // identity. Copying to a unique "<name>_1" assembly (an older behavior) broke
+               // save_viewsheet, which looks the assembly up by name and never found the renamed copy.
+               if(sourceAssembly instanceof DataVSAssembly dataAsm) {
+                  // Snapshot the existing condition so a failure can roll back the in-place change.
+                  previousCondition = dataAsm.getPreConditionList() != null
+                     ? dataAsm.getPreConditionList().clone() : null;
+               }
+
+               assembly = sourceAssembly;
+            }
          }
          else {
             SourceContext ctx = resolveSourceContext(model, user);
@@ -565,7 +582,12 @@ public class WizVsService {
             }
 
             if(!createdRuntimeId) {
-               if(modificationOnly) {
+               if(modificationOnly && model.isPortal()) {
+                  // Portal clone: the change this call made was a freshly ADDED assembly, so undo it by
+                  // removing that clone. The original assembly was never touched.
+                  previousVs.removeAssembly(assembly.getName());
+               }
+               else if(modificationOnly) {
                   // In-place filter: restore the assembly's prior condition rather than removing
                   // the (existing) assembly, which was mutated, not added, this call.
                   if(assembly instanceof DataVSAssembly dataAsm) {

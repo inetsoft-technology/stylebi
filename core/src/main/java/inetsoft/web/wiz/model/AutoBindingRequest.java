@@ -139,6 +139,14 @@ public class AutoBindingRequest {
       this.sampleMaxRows = sampleMaxRows;
    }
 
+   public boolean isPortal() {
+      return portal;
+   }
+
+   public void setPortal(boolean portal) {
+      this.portal = portal;
+   }
+
    /**
     * Recommendation-computation RVS ID. Null on first call; returned by the server
     * and passed back on subsequent calls to reuse the same RVS.
@@ -169,4 +177,14 @@ public class AutoBindingRequest {
     * #75456: sampled-preview row cap; null/&lt;=0 = full data (default).
     */
    private Integer sampleMaxRows;
+
+   /**
+    * True when the request originates from a Portal chat conversation (as opposed to an MCP tool
+    * call). In that mode every turn ADDS a NEW assembly to the conversation's viewsheet — cloning the
+    * existing primary and applying the new condition to the clone in the modification-only path, or
+    * binding a fresh assembly alongside the existing ones in the standard path — instead of mutating
+    * the single existing chart in place, so multiple states coexist for comparison. When false the
+    * legacy single-assembly, modify-in-place behavior is kept.
+    */
+   private boolean portal;
 }
