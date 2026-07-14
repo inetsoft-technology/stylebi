@@ -46,7 +46,9 @@ public class WizBrowseDataService {
     * Browse distinct values for a worksheet table column, accessed via a VS runtimeId.
     *
     * @param runtimeId           the VS runtime ID (vsId)
-    * @param assemblyName        the worksheet table/assembly name that owns the column
+    * @param assemblyName        the VS chart/table assembly's own presentation name (e.g.
+    *                            "Chart1") — the underlying worksheet table it's bound to is
+    *                            resolved internally from the assembly's {@code SourceInfo}
     * @param viewsheetIdentifier the durable asset id, used to restore a reaped runtime; may be null
     * @param dataRefModel        the column ref describing which column to browse
     * @param principal           the current user
@@ -70,13 +72,53 @@ public class WizBrowseDataService {
          throw new IllegalStateException("No RuntimeWorksheet found for VS runtimeId=" + runtimeId);
       }
 
-      // `assemblyName` here is the VS chart's own presentation name (e.g. "Chart1"), not the
-      // worksheet table it's bound to — BrowseDataController.process() looks the name up against
-      // the base WORKSHEET's assemblies, so passing the chart name through unresolved always
-      // misses (silently: it returns null instead of erroring). Resolve the real worksheet table
-      // name from the chart assembly's SourceInfo first, mirroring the same resolution
-      // WizVsService does for aggregate-condition handling.
-      Viewsheet vs = rvs.getViewsheet();
+      String wsTableName = resolveWorksheetTableName(rvs.getViewsheet(), assemblyName);
+
+      BrowseDataController browseDataController = new BrowseDataController();
+      DataRef dataRef = dataRefModel.createDataRef();
+
+      if(dataRef == null) {
+         throw new IllegalArgumentException("DataRefModel produced a null DataRef");
+      }
+
+      ColumnRef columnRef = dataRef instanceof ColumnRef ? (ColumnRef) dataRef : new ColumnRef(dataRef);
+
+      browseDataController.setColumn(columnRef);
+      browseDataController.setName(wsTableName);
+
+      BrowseDataModel model = browseDataController.process(rws.getAssetQuerySandbox());
+
+      // process() returns null for several distinct reasons (an unresolved column, the table lens
+      // not being ready yet, or an exception swallowed and only logged inside
+      // executeByDataSource()) — none of which we can tell apart here, so the message stays
+      // deliberately generic rather than guessing "unknown column" for every case.
+      if(model == null) {
+         throw new IllegalArgumentException(
+            "Browse data returned no result for column '" + columnRef.getAttribute() +
+            "' on worksheet table '" + wsTableName + "'");
+      }
+
+      WizBrowseDataResponse response = new WizBrowseDataResponse();
+      response.setValues(model.values());
+
+      // Echo the runtimeId only when a reaped runtime was restored (id changed) so the client adopts
+      // the live runtime for its next edit instead of triggering a second restore.
+      if(!runtimeId.equals(rvs.getID())) {
+         response.setRuntimeId(rvs.getID());
+      }
+
+      return response;
+   }
+
+   /**
+    * Resolves the worksheet table name that {@code assemblyName} (the VS chart's own presentation
+    * name, e.g. "Chart1") is bound to. {@link BrowseDataController#process} looks its {@code name}
+    * up against the base WORKSHEET's own assemblies — a different namespace — so passing the chart
+    * name through unresolved always misses (silently: it returns null instead of erroring). Mirrors
+    * the same {@code DataVSAssembly} → {@code SourceInfo} → {@code getSource()} resolution
+    * {@code WizVsService} does for aggregate-condition handling. Package-private for unit testing.
+    */
+   String resolveWorksheetTableName(Viewsheet vs, String assemblyName) {
       VSAssembly chartAssembly = vs != null ? vs.getAssembly(assemblyName) : null;
 
       if(!(chartAssembly instanceof DataVSAssembly dataAssembly)) {
@@ -92,38 +134,7 @@ public class WizBrowseDataService {
             "Chart assembly '" + assemblyName + "' has no bound worksheet table");
       }
 
-      BrowseDataController browseDataController = new BrowseDataController();
-      DataRef dataRef = dataRefModel.createDataRef();
-
-      if(dataRef == null) {
-         throw new IllegalArgumentException("DataRefModel produced a null DataRef");
-      }
-
-      if(!(dataRef instanceof ColumnRef)) {
-         dataRef = new ColumnRef(dataRef);
-      }
-
-      browseDataController.setColumn((ColumnRef) dataRef);
-      browseDataController.setName(wsTableName);
-
-      BrowseDataModel model = browseDataController.process(rws.getAssetQuerySandbox());
-
-      if(model == null) {
-         throw new IllegalArgumentException(
-            "Could not find column '" + ((ColumnRef) dataRef).getAttribute() +
-            "' on worksheet table '" + wsTableName + "'");
-      }
-
-      WizBrowseDataResponse response = new WizBrowseDataResponse();
-      response.setValues(model.values());
-
-      // Echo the runtimeId only when a reaped runtime was restored (id changed) so the client adopts
-      // the live runtime for its next edit instead of triggering a second restore.
-      if(!runtimeId.equals(rvs.getID())) {
-         response.setRuntimeId(rvs.getID());
-      }
-
-      return response;
+      return wsTableName;
    }
 
    private final ViewsheetService viewsheetService;
