@@ -259,13 +259,23 @@ public class WorksheetTableService {
          table.setRankingConditionList(rankList);
       }
 
-      // 7. windowColumns require the base table to be fully SQL-mergeable — the pushed-down
-      // OVER(...) SQL (see WindowExpressionRef) has no non-SQL evaluation fallback. An upstream
-      // JS-evaluated expression column anywhere in the lineage silently breaks mergeability
-      // several hops back, and the window then computes against what the query engine treats as
-      // an empty mergeable base — no exception, just a wrongly-empty result the general probe
-      // below can't catch (it only detects a failed-query fallback lens, not a "successful but
-      // empty" one). Verify eagerly so this fails loud with a named cause instead.
+      // 7. Conservative gate: reject windowColumns when the base table can't fully SQL-merge.
+      // AssetQuery DOES have an in-memory fallback for a non-mergeable base (getWindowTableLens →
+      // buildWindowLens → WindowTableLens), so this is not a hard product limitation in general.
+      // But when the window's partitionBy/orderBy/arg references an ALIASED aggregate column (e.g.
+      // ORDER BY a SUM(...) AS product_revenue), the non-merged aggregation path silently drops
+      // that alias — AssetQuery.getAggCalcHeader only preserves a caller alias for a
+      // CalcFieldFormula, not a plain SumFormula/CountFormula/etc — so buildWindowSpecs then can't
+      // resolve the ref by name and throws. That thrown RuntimeException should fail loud, but
+      // WizVsService.extractChartData's catch-all currently downgrades any non-IllegalArgumentException
+      // failure to a silent empty CreateViewsheetResult instead of surfacing it — which is how this
+      // reached the viewer as a wrongly-empty chart with no error anywhere. Both of those are real
+      // StyleBI-core bugs (well beyond this wiz-only service) that are NOT fixed here — this gate is
+      // a narrow, conservative mitigation scoped to windowColumns until they are. It can reject a
+      // windowColumns table whose base is non-mergeable but whose window refs are all plain
+      // (non-aliased-aggregate) columns, which the in-memory path could likely compute correctly —
+      // that's an accepted false-positive tradeoff for turning a silent wrong/empty result into a
+      // clear, actionable error today.
       if(request.getWindowColumns() != null && !request.getWindowColumns().isEmpty()) {
          requireWindowColumnsMergeable(worksheet, table, user);
       }
@@ -331,16 +341,26 @@ public class WorksheetTableService {
    }
 
    /**
-    * Verify that {@code table} is fully SQL-mergeable, which {@code windowColumns} requires in
-    * order to actually push its {@code OVER(...)} SQL down to the database.
-    * {@link WindowExpressionRef#isMergeable()} unconditionally reports {@code true} regardless of
-    * the base table, so it can't be used to detect this — the real, transitively-computed answer
-    * comes from {@link AssetQuery#isSourceMergeable0()}, the same authoritative check the runtime
-    * query-planning path relies on (mirrors the pattern {@link AssetQuerySandbox#executeQuery}
-    * uses). When the base is NOT mergeable (e.g. an upstream JS-evaluated expression column blocks
-    * the merge several hops back in the lineage), the pushed-down window silently computes as if
-    * its base were empty instead of throwing, so this check runs eagerly at construction time and
-    * fails loud with a named cause.
+    * Conservatively require {@code table} to be fully SQL-mergeable before allowing
+    * {@code windowColumns} on it. This is NOT because a non-mergeable base is fundamentally
+    * uncomputable — {@code AssetQuery} has a genuine in-memory fallback for that
+    * ({@code getWindowTableLens} → {@code buildWindowLens} → {@code WindowTableLens}). The gate
+    * exists because, in the current codebase, a window whose {@code partitionBy}/{@code orderBy}/
+    * arg references an ALIASED aggregate column (e.g. {@code ORDER BY SUM(...) AS revenue}) hits a
+    * real bug on that in-memory path: {@code AssetQuery.getAggCalcHeader} only preserves a caller
+    * alias for a {@code CalcFieldFormula}, not a plain {@code SumFormula}/{@code CountFormula}/etc,
+    * so the non-merged aggregate's header silently reverts to the pre-aggregate column's raw name
+    * and {@code buildWindowSpecs} can't resolve the alias — it throws, but that exception is then
+    * swallowed by {@code WizVsService.extractChartData}'s catch-all (which downgrades any
+    * non-{@link IllegalArgumentException} failure to a silently-empty result) rather than
+    * surfacing it. Both of those are StyleBI-core bugs with a blast radius well beyond this
+    * wiz-only service and are NOT fixed here — this check is a narrow, conservative mitigation
+    * until they are, using the same authoritative {@link AssetQuery#isSourceMergeable0()} the
+    * runtime query-planning path relies on (mirrors the pattern
+    * {@link AssetQuerySandbox#executeQuery} uses). It can over-reject a windowColumns table whose
+    * base is non-mergeable but whose window refs are all plain (non-aliased-aggregate) columns —
+    * an accepted false-positive tradeoff for turning today's silent wrong/empty result into a
+    * clear, actionable error.
     */
    private void requireWindowColumnsMergeable(Worksheet worksheet, AbstractTableAssembly table,
                                               Principal user)
