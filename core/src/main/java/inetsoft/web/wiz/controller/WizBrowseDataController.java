@@ -37,7 +37,9 @@ public class WizBrowseDataController {
     * the underlying worksheet.
     *
     * @param runtimeId           VS runtime ID (vsId)
-    * @param assemblyName        worksheet table/assembly name that owns the column
+    * @param assemblyName        the VS chart/table assembly's own presentation name (e.g.
+    *                            "Chart1") — the underlying worksheet table it's bound to is
+    *                            resolved internally from the assembly's {@code SourceInfo}
     * @param viewsheetIdentifier durable asset id, used to restore a reaped runtime (optional)
     * @param dataRefModel        column descriptor (classType, name, attribute, …)
     * @param principal           current user
