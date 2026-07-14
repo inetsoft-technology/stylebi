@@ -1100,10 +1100,12 @@ public class PolarCoord extends Coordinate {
     * When enabled, concentric grid rings and the polar axis boundary are drawn
     * as N-sided polygons where N equals the number of theta-axis categories.
     */
+   @TernMethod
    public void setWebGrid(boolean webGrid) {
       this.webGrid = webGrid;
    }
 
+   @TernMethod
    public boolean isWebGrid() {
       return webGrid;
    }
