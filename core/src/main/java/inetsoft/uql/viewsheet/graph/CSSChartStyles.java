@@ -97,7 +97,7 @@ public class CSSChartStyles {
          cssDictionary = CSSDictionary.getDictionary();
       }
 
-      // Modern in-graph chrome baseline (B1): when the org gate is on, seed the CSS tier of the
+      // Modern in-graph chrome baseline: when the org gate is on, seed the CSS tier of the
       // gridline/legend-border CompositeValues with the modern neutral before the format.css block
       // below overrides it. Precedence is USER > CSS > DEFAULT, so a customer's format.css chrome and
       // a user picker both still win; gate off skips this, leaving the GDefaults default. The CSS tier

@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet.graph;
 
 import inetsoft.graph.internal.GDefaults;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.util.css.CSSConstants;
@@ -54,7 +55,8 @@ public class ChartRefImpl implements Cloneable, Serializable {
 
    public void initDefaultFormat(boolean vs) {
       TextFormat deffmt = fmt.getDefaultFormat();
-      deffmt.setColor(GDefaults.DEFAULT_TEXT_COLOR);
+      deffmt.setColor(vs && VSChartChromeDefaults.isModern() ?
+                         VSChartChromeDefaults.labelColor() : GDefaults.DEFAULT_TEXT_COLOR);
       deffmt.setFont(vs ? VSAssemblyInfo.getDefaultFont(VSUtil.getDefaultFont()) :
                         VSUtil.getDefaultFont());
    }
