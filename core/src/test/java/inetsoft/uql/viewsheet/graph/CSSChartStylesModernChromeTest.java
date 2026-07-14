@@ -43,7 +43,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Phase 6 Part B1: the modern in-graph chrome baseline written by CSSChartStyles.apply. Gate off
+ * The modern in-graph chrome baseline written by CSSChartStyles.apply. Gate off
  * leaves the legacy GDefaults chrome; gate on recolors gridline/facet/legend-border to the modern
  * neutral on the CSS tier, and a user value (USER tier) still wins.
  */

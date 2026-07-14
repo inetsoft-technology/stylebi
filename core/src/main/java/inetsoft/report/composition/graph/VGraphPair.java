@@ -1329,6 +1329,14 @@ public class VGraphPair {
          copyDefaultFormat(objFmt, parentParams, axisDesc);
          copyDefaultFormat(objFmt, parentParams, axisDesc2);
 
+         // the value axis renders from the runtime descriptor, cloned during execution before this
+         // formatting pass, so seed it too or its labels keep the legacy default color. Gated so
+         // gate-off leaves the runtime descriptor untouched, exactly as today.
+         if(VSChartChromeDefaults.isModern()) {
+            copyDefaultFormat(objFmt, parentParams, chartInfo.getRTAxisDescriptor());
+            copyDefaultFormat(objFmt, parentParams, chartInfo.getRTAxisDescriptor2());
+         }
+
          if(chartInfo.getTextField() != null && chartInfo.getTextField().getDataRef() instanceof ChartRef) {
             ChartRef ref = (ChartRef) chartInfo.getTextField().getDataRef();
 
@@ -1349,6 +1357,26 @@ public class VGraphPair {
          axisDesc.initDefaultFormat(true);
          copyDefaultFormat(axisDesc.getAxisLabelTextFormat().getDefaultFormat(), objFmt);
          axisDesc.getAxisLabelTextFormat().getCSSFormat().setParentCSSParams(parentParams);
+
+         // the measure axis resolves its labels through a per-column format, not the axis-wide one;
+         // under the modern gate, seed those too or they keep the legacy default color (mirrors the
+         // per-ref loop). Gated so gate-off leaves the value-axis per-column formats exactly as today.
+         if(VSChartChromeDefaults.isModern()) {
+            for(String col : axisDesc.getColumnLabelTextFormatColumns()) {
+               CompositeTextFormat colFmt = axisDesc.getColumnLabelTextFormat(col);
+
+               if(colFmt != null) {
+                  if(StyleFont.isDefaultFont(colFmt.getDefaultFormat().getFont())) {
+                     colFmt.getDefaultFormat().setFont(
+                        axisDesc.getAxisLabelTextFormat().getDefaultFormat().getFont());
+                  }
+
+                  initDefaultFormat(colFmt);
+                  copyDefaultFormat(colFmt.getDefaultFormat(), objFmt);
+                  colFmt.getCSSFormat().setParentCSSParams(parentParams);
+               }
+            }
+         }
       }
    }
 
@@ -1367,7 +1395,10 @@ public class VGraphPair {
       }
 
       TextFormat deffmt = format.getDefaultFormat();
-      deffmt.setColor(GDefaults.DEFAULT_TEXT_COLOR);
+      // match the modern chrome label default so per-column axis-label formats (e.g. the measure
+      // axis, which resolves through a per-column format) aren't left on the legacy color
+      deffmt.setColor(VSChartChromeDefaults.isModern() ?
+                         VSChartChromeDefaults.labelColor() : GDefaults.DEFAULT_TEXT_COLOR);
    }
 
    /**
