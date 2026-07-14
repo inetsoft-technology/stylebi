@@ -18,7 +18,13 @@
 package inetsoft.web.wiz.pairing;
 
 import inetsoft.report.composition.RuntimeSheet;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.uql.viewsheet.TextVSAssembly;
+import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.viewsheet.model.VSObjectModel;
+import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CommandDispatcherService;
 import org.junit.jupiter.api.Tag;
@@ -28,6 +34,7 @@ import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 
 import java.security.Principal;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -35,10 +42,14 @@ import static org.mockito.Mockito.*;
 @Tag("core")
 class SheetAgentBroadcastServiceTest {
 
+   private static VSObjectModelFactoryService noopModelFactory() {
+      return mock(VSObjectModelFactoryService.class);
+   }
+
    @Test
    void worksheetBroadcastTargetsSocketSessionWithoutClientId() {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
-      SheetAgentBroadcastService svc = new SheetAgentBroadcastService(dispatcher);
+      SheetAgentBroadcastService svc = new SheetAgentBroadcastService(dispatcher, noopModelFactory());
 
       RuntimeWorksheet rs = mock(RuntimeWorksheet.class);
       when(rs.getSocketSessionId()).thenReturn("stomp-1");
@@ -65,7 +76,7 @@ class SheetAgentBroadcastServiceTest {
    @Test
    void nullSocketSessionSkipsBroadcast() {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
-      SheetAgentBroadcastService svc = new SheetAgentBroadcastService(dispatcher);
+      SheetAgentBroadcastService svc = new SheetAgentBroadcastService(dispatcher, noopModelFactory());
 
       RuntimeSheet rs = mock(RuntimeSheet.class);
       when(rs.getSocketSessionId()).thenReturn(null);
@@ -77,25 +88,40 @@ class SheetAgentBroadcastServiceTest {
    }
 
    @Test
-   void viewsheetBranchThrowsUnsupported() {
+   void viewsheetBroadcastSendsOneRefreshVSObjectCommandPerVisibleAssembly() {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
-      SheetAgentBroadcastService svc = new SheetAgentBroadcastService(dispatcher);
+      VSObjectModelFactoryService modelFactory = mock(VSObjectModelFactoryService.class);
+      SheetAgentBroadcastService svc = new SheetAgentBroadcastService(dispatcher, modelFactory);
 
-      RuntimeSheet rs = mock(RuntimeSheet.class);
-      when(rs.getSocketSessionId()).thenReturn("stomp-vs-1");
-      when(rs.getSocketUserName()).thenReturn("alice~;~host-org");
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getSocketSessionId()).thenReturn("stomp-vs-1");
+      when(rvs.getSocketUserName()).thenReturn("alice~;~host-org");
 
-      assertThrows(UnsupportedOperationException.class, () ->
-         svc.broadcastRefresh(rs, SheetType.VIEWSHEET, "ViewsheetRuntime/bar-9",
-                              TestPrincipals.user("alice", "host-org")));
+      Viewsheet vs = mock(Viewsheet.class);
+      VSAssembly visible = mock(TextVSAssembly.class);
+      when(visible.isVisible()).thenReturn(true);
+      when(visible.getName()).thenReturn("Text1");
+      VSAssembly hidden = mock(TextVSAssembly.class);
+      when(hidden.isVisible()).thenReturn(false);
+      when(vs.getAssemblies()).thenReturn(new inetsoft.uql.asset.Assembly[]{ visible, hidden });
+      when(rvs.getViewsheet()).thenReturn(vs);
 
-      verifyNoInteractions(dispatcher);
+      VSObjectModel<?> model = mock(VSObjectModel.class);
+      when(modelFactory.createModel(visible, rvs)).thenReturn(model);
+
+      svc.broadcastRefresh(rvs, SheetType.VIEWSHEET, "ViewsheetRuntime/bar-9",
+                           TestPrincipals.user("alice", "host-org"));
+
+      // Only the visible assembly gets a command; the hidden one is skipped.
+      verify(modelFactory, times(1)).createModel(any(), eq(rvs));
+      verify(dispatcher, times(1)).convertAndSendToUser(
+         eq("alice~;~host-org"), eq(CommandDispatcher.COMMANDS_TOPIC), any(), any());
    }
 
    @Test
    void fallsBackToOwnerNameWhenSocketUserNameIsNull() {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
-      SheetAgentBroadcastService svc = new SheetAgentBroadcastService(dispatcher);
+      SheetAgentBroadcastService svc = new SheetAgentBroadcastService(dispatcher, noopModelFactory());
 
       RuntimeWorksheet rs = mock(RuntimeWorksheet.class);
       when(rs.getSocketSessionId()).thenReturn("stomp-2");

@@ -86,6 +86,27 @@ public class VSScriptableService {
                                          boolean isCondition, Principal principal) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
+      return getScriptDefinition(rvs, assemblyName, tableName, isCondition);
+   }
+
+   /**
+    * Same as {@link #getScriptDefinition(String, String, String, boolean, Principal)} but for a
+    * caller that already holds an authorized {@link RuntimeViewsheet} and must not re-resolve it
+    * via {@code ViewsheetEngine.getViewsheet(vsId, principal)} — that re-resolution enforces the
+    * normal session {@code matches()} check, which rejects a caller whose principal isn't the
+    * exact browser session that opened the runtime (e.g. a pairing-authorized agent, whose
+    * rebuilt principal has a different per-connection identity than the browser's).
+    *
+    * <p><b>Precondition — security-relevant:</b> this overload performs NO ownership check of
+    * its own. The caller MUST have independently verified the caller is allowed to access
+    * {@code rvs} before invoking it (e.g. via {@code SheetRuntimeAccess.getSheetForPairing},
+    * which itself requires a verified {@code PairingGrant} — see {@code SheetJoinService}'s
+    * same-logical-user + runtime-ownership checks). Do not call this with an unauthorized or
+    * unverified {@link RuntimeViewsheet}.</p>
+    */
+   public ObjectNode getScriptDefinition(RuntimeViewsheet rvs, String assemblyName, String tableName,
+                                         boolean isCondition) throws Exception
+   {
       Viewsheet viewsheet = rvs.getViewsheet();
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       String vsName = null;
@@ -130,6 +151,25 @@ public class VSScriptableService {
                                       boolean isCondition, boolean isVSOption, Principal principal) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
+      return getColumnTree(rvs, assemblyName, tableName, isCondition, isVSOption, principal);
+   }
+
+   /**
+    * Same as {@link #getColumnTree(String, String, String, boolean, boolean, Principal)} but for
+    * a caller that already holds an authorized {@link RuntimeViewsheet} and must not re-resolve
+    * it via {@code ViewsheetEngine.getViewsheet(vsId, principal)} — see
+    * {@link #getScriptDefinition(RuntimeViewsheet, String, String, boolean)}'s javadoc for why.
+    * {@code principal} here is only used for locale/permission lookups (e.g.
+    * {@code Catalog.getCatalog}), not runtime resolution, so no re-authorization risk.
+    *
+    * <p><b>Precondition — security-relevant:</b> same as the {@code RuntimeViewsheet} overload
+    * of {@code getScriptDefinition} — the caller must have independently verified access to
+    * {@code rvs} before calling this.</p>
+    */
+   public TreeNodeModel getColumnTree(RuntimeViewsheet rvs, String assemblyName, String tableName,
+                                      boolean isCondition, boolean isVSOption, Principal principal)
+      throws Exception
+   {
       return VSUtil.globalShareVsRunInHostScope(
          rvs.getID(), principal,
          () -> getColumnTree0(assemblyName, tableName, isCondition, isVSOption, rvs, principal));

@@ -86,8 +86,6 @@ public class SheetJoinService {
       }
 
       // 2. Consume the code (single-use).
-      // Peek at the grant type before consuming so we can reject unsupported sheet types
-      // with a clean 4xx rather than a 500 from SheetAgentBroadcastService later.
       PairingGrant grant = pairing.consume(code);
       if(grant == null) {
          recordFailedAttempt(throttleKey, now);
@@ -96,15 +94,7 @@ public class SheetJoinService {
          throw new PairingException(PairingException.Kind.SESSION_EXPIRED, "Invalid or expired pairing code");
       }
 
-      // 3. Reject unsupported sheet types before the session is opened.
-      if(grant.sheetType() == SheetType.VIEWSHEET) {
-         LOG.warn("Sheet agent pairing join rejected: viewsheet not supported (agent={})",
-                  agentUser == null ? "?" : agentUser.getName());
-         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
-            "Viewsheet agent pairing is not yet supported — use a worksheet pairing code.");
-      }
-
-      // 4. Same-logical-user check: the agent must be the identity recorded at mint time.
+      // 3. Same-logical-user check: the agent must be the identity recorded at mint time.
       if(!PairingUtil.sameLogicalUser(grant.ownerIdentity(), agentUser)) {
          recordFailedAttempt(throttleKey, now);
          LOG.warn("Sheet agent pairing join rejected: user mismatch (owner={}, agent={})",
@@ -112,9 +102,9 @@ public class SheetJoinService {
          throw new PairingException(PairingException.Kind.USER_MISMATCH, "Pairing code does not belong to this user");
       }
 
-      // 4b. Runtime-ownership check. Step 4 only proves agent == the identity recorded at mint;
+      // 3b. Runtime-ownership check. Step 3 only proves agent == the identity recorded at mint;
       // that identity is the CALLER's, taken from the mint request, NOT from the runtime. So a
-      // user could mint a code naming another user's runtimeId and pass step 4 (attacker ==
+      // user could mint a code naming another user's runtimeId and pass step 3 (attacker ==
       // attacker). The pairing access path (SheetRuntimeAccess.getSheetForPairing) deliberately
       // bypasses the per-session matches() check, so this is the one place that binds the grant
       // to the runtime's real owner. Compare logical identity (name+org) against the runtime's
@@ -134,7 +124,7 @@ public class SheetJoinService {
                                     "Pairing code does not belong to this user");
       }
 
-      // 5. Open a reusable session, carrying the browser's socket session ID for broadcast.
+      // 4. Open a reusable session, carrying the browser's socket session ID for broadcast.
       JoinSession session = sessions.open(grant.runtimeId(), grant.ownerIdentity(),
                                           grant.sheetType(), grant.socketSessionId(),
                                           grant.socketUserName());

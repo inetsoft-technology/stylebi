@@ -527,6 +527,14 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
     * @param nname the specified new name.
     */
    public void renameDepended(String oname, String nname, Viewsheet vs) {
+      // TEMPORARY DIAGNOSTIC — tracking down a case where an assembly's script text gets
+      // rewritten to reference a different name than the assembly's own getName(), without
+      // the assembly itself being renamed. Remove once root-caused.
+      if(getScript() != null && !getScript().isEmpty()) {
+         LOG.error("DIAG renameDepended: oname={}, nname={}, thisAssemblyName={}, script={}",
+                   oname, nname, getName(), getScript(), new Exception("DIAG stack trace"));
+      }
+
       VSUtil.renameDynamicValueDepended(oname, nname, enabledValue, vs);
       VSUtil.renameDynamicValueDepended(oname, nname, visibleValue, vs);
 

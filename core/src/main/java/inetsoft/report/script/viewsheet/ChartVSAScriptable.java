@@ -163,7 +163,9 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
       }
       else if(name.equals("chartStyle")) {
          value = JavaScriptEngine.unwrap(value);
-         getInfo().setChartStyle((Integer) value);
+         // unwrap() normalizes GraalJS numbers to Double (JS has no separate int type), so a
+         // hard (Integer) cast always throws ClassCastException here — narrow via Number instead.
+         getInfo().setChartStyle(((Number) value).intValue());
          return;
       }
       // support: data = runQuery(...) in the same way as in reports

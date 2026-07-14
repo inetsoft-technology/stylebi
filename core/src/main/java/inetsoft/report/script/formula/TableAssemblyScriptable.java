@@ -118,8 +118,15 @@ public class TableAssemblyScriptable extends TableArray {
       // @by billh, fix customer bug bug1300398961679
       // Handle table changes properly
       try {
+         LOG.debug("getElementTable() tname=" + tname + " mode=" + mode);
          TableLens table = box.getTableLens(tname, mode, null);
          table = AssetQuery.shuckOffFormat(table);
+
+         if(table != null) {
+            LOG.debug("getElementTable() tname=" + tname + " mode=" + mode + " -> rows=" +
+               table.getRowCount() + " cols=" + table.getColCount());
+         }
+
          return table;
       }
       catch(Exception ex) {
