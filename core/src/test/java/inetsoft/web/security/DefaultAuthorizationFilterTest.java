@@ -70,13 +70,17 @@ package inetsoft.web.security;
  *             delimiter comes after the name), and both AbstractSecurityFilter.isAnonymousPrincipal()
  *             and AbstractLogoutFilter.isGuestLogin() correctly parse the key via
  *             IdentityID.getIdentityIDFromKey(...).getName() first -- line 73 is the outlier. See
- *             doFilter_anonymousPrincipal_orgDisallowsAnonymous_actuallyPassesThrough_confirmsSuspect3
- *             below, and SecurityFilterChainOrderingTest's
- *             reversedOrder_anonymousFilterBeforeAuthorizationFilter_stillEstablishesAnAnonymousSession
- *             test, which demonstrates the full, concrete consequence: once AnonymousUserFilter
- *             establishes a session (which it will do unconditionally if it runs before this
- *             filter -- see AnonymousUserFilterTest), this bug lets that anonymous session sail
- *             through as authorized on every later request, not just the one that created it.
+ *             doFilter_anonymousPrincipal_orgDisallowsAnonymous_redirectsToLogin_guardsSuspect3Fix
+ *             below (the @Disabled regression guard for this exact bug), and
+ *             SecurityFilterChainOrderingTest's two paired tests --
+ *             reversedOrder_anonymousFilterBeforeAuthorizationFilter_atLeastStillAttemptsAnonymousAuth
+ *             (enabled; order-independent fact) and
+ *             reversedOrder_anonymousFilterBeforeAuthorizationFilter_stillRejectedAfterSuspect3Fix
+ *             (@Disabled; correct post-fix behavior) -- which demonstrate the full, concrete
+ *             consequence: once AnonymousUserFilter establishes a session (which it will do
+ *             unconditionally if it runs before this filter -- see AnonymousUserFilterTest), this
+ *             bug lets that anonymous session sail through as authorized on every later request,
+ *             not just the one that created it.
  *             Tracked as Redmine #75656. Confirmed live against current source (re-verified: see
  *             SRPrincipal.getName() -> IdentityID.convertToKey(), which unconditionally appends
  *             KEY_DELIMITER + org with no code path that omits it).

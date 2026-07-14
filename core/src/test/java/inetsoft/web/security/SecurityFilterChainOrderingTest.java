@@ -31,8 +31,11 @@ package inetsoft.web.security;
  *
  * Real order this test draws from (see claude/security.md and SecurityFilterChain.java /
  * StandardFilterChain.java): ... invalidateSessionFilter -> AuthenticationFilterChain
- * (LogoutFilter -> BasicAuthenticationFilter -> DefaultAuthorizationFilter ->
- * AnonymousUserFilter) -> CSRFFilter -> RequestPrincipalFilter.
+ * (LogoutFilter -> OptionalBeanFilter("styleBIGoogleSSOFilter") -> BasicAuthenticationFilter ->
+ * DefaultAuthorizationFilter -> AnonymousUserFilter) -> CSRFFilter -> RequestPrincipalFilter.
+ * (OptionalBeanFilter is a no-op passthrough when the named bean isn't configured -- e.g. Google
+ * SSO isn't set up -- so it doesn't change any of the orderings this test exercises; included here
+ * only for accuracy against StandardFilterChain.java:41-45.)
  *
  * Note: the reversed-order test originally written here ("reordering only wastes a session, the
  * response is still rejected") did NOT confirm what it expected. It instead surfaced
@@ -82,7 +85,7 @@ class SecurityFilterChainOrderingTest {
    private SecurityProvider mockProvider;
 
    @BeforeEach
-   void setUp() {
+   void setUp() throws Exception {
       sreeEnvMock = mockStatic(SreeEnv.class, withSettings().strictness(Strictness.LENIENT));
       sreeEnvMock.when(() -> SreeEnv.getProperty(eq("csrf.filter.enabled"), anyString()))
          .thenReturn("true");
@@ -101,12 +104,27 @@ class SecurityFilterChainOrderingTest {
       // tests in this package for the same gotcha).
       when(mockProvider.getAuthenticationProvider()).thenReturn(mockProvider);
       securityEngineMock.when(SecurityEngine::getSecurity).thenReturn(mockEngine);
+
+      // CSRFFilter.applyToken() and DefaultAuthorizationFilter.getOrgCookie() both read the same
+      // *static* AbstractSecurityFilter.securityAllowIframe cache that SecurityHeaderFilterTest
+      // mutates (see that class for the full explanation). No assertion in this class currently
+      // depends on the SameSite/Secure attributes those two methods set, so nothing here has
+      // actually been observed to flip -- but resetting defensively, the same way its sibling
+      // does, avoids relying on that staying true if a future assertion here does touch it.
+      resetStaticSreeEnvValueCache(AbstractSecurityFilter.securityAllowIframe);
+   }
+
+   private static void resetStaticSreeEnvValueCache(SreeEnv.Value value) throws Exception {
+      java.lang.reflect.Field tsField = SreeEnv.Value.class.getDeclaredField("ts");
+      tsField.setAccessible(true);
+      tsField.setLong(value, 0L);
    }
 
    @AfterEach
-   void tearDown() {
+   void tearDown() throws Exception {
       securityEngineMock.close();
       sreeEnvMock.close();
+      resetStaticSreeEnvValueCache(AbstractSecurityFilter.securityAllowIframe);
    }
 
    // ── DefaultAuthorizationFilter must reject before CSRFFilter ever runs ───

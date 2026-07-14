@@ -107,6 +107,11 @@ class InvalidateSessionFilterTest {
       filter.doFilter(request, response, chain);
 
       verify(chain).doFilter(request, response);
+      // Safe despite setUp() stubbing mockEngine.getSecurityProvider() / mockProvider
+      // .getAuthenticationProvider() via when(...): Mockito excludes invocations made purely to
+      // set up a stub from interaction verification (verifyNoInteractions/verifyNoMoreInteractions
+      // only count invocations made by the code under test). Confirmed empirically -- this test
+      // passes both in isolation and as part of the full class.
       verifyNoInteractions(mockEngine, mockProvider);
    }
 
@@ -128,6 +133,26 @@ class InvalidateSessionFilterTest {
       MockHttpServletRequest request = request("POST", "/api/public/login");
       request.getSession(true).setAttribute(
          RepletRepository.PRINCIPAL_COOKIE, stalePrincipal());
+      MockHttpServletResponse response = new MockHttpServletResponse();
+
+      filter.doFilter(request, response, chain);
+
+      verify(chain).doFilter(request, response);
+      verify(mockEngine, never()).isActiveUser(any());
+   }
+
+   @Test
+   void doFilter_publicResource_activePrincipal_stillSkipsCheck_neverCallsIsActiveUser()
+      throws Exception
+   {
+      // The two tests above only ever used a principal whose isActiveUser() outcome was never
+      // stubbed (so implicitly "stale" by Mockito's boolean default) -- proving the path exemption
+      // also holds for an *explicitly active* principal closes the gap: the bypass is a path-level
+      // short-circuit, not something that happens to work only because the principal was stale.
+      MockHttpServletRequest request = request("GET", "/index.html");
+      SRPrincipal principal = stalePrincipal();
+      when(mockEngine.isActiveUser(principal)).thenReturn(true);
+      request.getSession(true).setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
       MockHttpServletResponse response = new MockHttpServletResponse();
 
       filter.doFilter(request, response, chain);
@@ -239,6 +264,31 @@ class InvalidateSessionFilterTest {
       assertDoesNotThrow(() -> filter.doFilter(request, response, chain));
 
       assertFalse(session.isInvalid());
+      verify(chain).doFilter(request, response);
+   }
+
+   @Test
+   void doFilter_staleUser_appRequest_invalidatesSessionAndClearsCurrOrgIdInTheSameRequest()
+      throws Exception
+   {
+      // The staleness check and the curr_org_id cleanup are two independent "if" blocks under the
+      // same "if(principal != null)" in doFilter() -- not mutually exclusive -- but no prior test
+      // combined them: doFilter_staleUser_nonExemptPath_invalidatesSession_butStillCallsChain
+      // never sets curr_org_id, and doFilter_appRequest_nonEmPrincipal_clearsCurrOrgIdWhenSet
+      // deliberately uses an active (non-stale) principal to isolate the cleanup from
+      // invalidation. This confirms both actually fire together in one pass.
+      MockHttpServletRequest request = request("GET", "/app/portal");
+      MockHttpSession session = (MockHttpSession) request.getSession(true);
+      SRPrincipal principal = stalePrincipal();
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+      when(mockEngine.isActiveUser(principal)).thenReturn(false);
+      when(principal.getProperty("curr_org_id")).thenReturn("someOrg");
+      MockHttpServletResponse response = new MockHttpServletResponse();
+
+      filter.doFilter(request, response, chain);
+
+      assertTrue(session.isInvalid());
+      verify(principal).setProperty("curr_org_id", null);
       verify(chain).doFilter(request, response);
    }
 

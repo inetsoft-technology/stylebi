@@ -247,6 +247,16 @@ class SecurityHeaderFilterTest {
     * field uses the 2-arg {@code Value(name, timeout)} constructor (no default), which resolves
     * through the 1-arg overload instead -- stubbing both avoids having to track which shape each
     * property happens to use.
+    *
+    * <p>Note on the {@code ..._default_...}-named tests below: they call this method with the
+    * documented default value (e.g. {@code "false"}) rather than leaving the property unstubbed.
+    * That's deliberate, not an oversight -- {@code SreeEnv} is entirely mocked out here, so an
+    * unstubbed call would return Mockito's {@code null} default, not the real value {@code
+    * SreeEnv.Value}'s own {@code def} fallback would produce against a real (unmocked) {@code
+    * SreeEnv}. Either way, those tests never exercise {@code SreeEnv}'s actual default-resolution
+    * code path; they inject the documented default value directly and verify {@link
+    * SecurityHeaderFilter#doFilter} branches on it correctly, which is the only thing under test
+    * in this class.
     */
    private void stubProperty(String key, String value) {
       sreeEnvMock.when(() -> SreeEnv.getProperty(eq(key))).thenReturn(value);

@@ -67,6 +67,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -206,6 +207,28 @@ class AnonymousUserFilterTest {
          session.getAttribute(AbstractSecurityFilter.FRESH_ANONYMOUS_SESSION_ATTR));
    }
 
+   @Test
+   void doFilter_noPrincipal_anonymousAuthProbeReturnsNull_callsChainWithoutEstablishingSession()
+      throws Exception
+   {
+      // authenticateAnonymous() returning null (rather than throwing) is the other side of the
+      // "if(principal != null)" gate at doFilter() -- previously uncovered. No follow-up
+      // authenticate(...) call should be attempted, and the request just falls through to the
+      // chain with no session ever established.
+      doReturn(null).when(authService).authenticate(any(ClientInfo.class), isNull());
+      MockHttpServletRequest request = request("GET", "/portal/dashboard");
+      MockHttpServletResponse response = new MockHttpServletResponse();
+
+      filter.doFilter(request, response, chain);
+
+      verify(chain).doFilter(eq(request), eq(response));
+      verify(authService, never()).authenticate(
+         any(), any(), any(), any(), any(), any(), any(), any(),
+         anyBoolean(), anyBoolean(), any(), any());
+      MockHttpSession session = (MockHttpSession) request.getSession(false);
+      assertNull(session.getAttribute(RepletRepository.PRINCIPAL_COOKIE));
+   }
+
    // ── session-limit failures raised by the follow-up authenticate() call ───
 
    @Test
@@ -323,7 +346,12 @@ class AnonymousUserFilterTest {
       filter.doFilter(request, response, chain);
 
       verify(chain).doFilter(eq(request), eq(response));
-      verify(authService).authenticate(any(ClientInfo.class), isNull());
+      // Capture (not just any(ClientInfo.class)) to actually prove the forged cookie value made
+      // it into the authentication call -- a bare any() match would pass identically even if
+      // getCookieRecordedOrgID() ignored the cookie entirely and fell back to the default org.
+      ArgumentCaptor<ClientInfo> clientInfoCaptor = ArgumentCaptor.forClass(ClientInfo.class);
+      verify(authService).authenticate(clientInfoCaptor.capture(), isNull());
+      assertEquals("org-nobody-vetted", clientInfoCaptor.getValue().getUserIdentity().getOrgID());
    }
 
    // ── helpers ────────────────────────────────────────────────────────────────
