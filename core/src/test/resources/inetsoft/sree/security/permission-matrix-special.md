@@ -1,10 +1,8 @@
 # Permission Test Matrix — 区三/区四：认证上下文与特殊组织默认行为
 
 **关联规格：** `docs/superpowers/specs/2026-06-25-permission-test-architecture-design.md`
-**Phase 2 M9 实现：** Task 7（`MultiTenantTestFixture` 内置 org 扩展）评估后确认无需改动；Task 8（`PermissionMatrixSpecialTest`）区四已落地，区三里 Google OAuth SSO 已落地（Task 8b，enterprise 侧 `StyleBIGoogleSSOFilterTest`），账号非活跃状态评估后确认 `[不补]`，Login As 分析中发现一个认证层 bug（密码校验用错了用户，导致操作者与目标密码不同时登录直接失败，已验证，**Bug #75613**，[PR #4222](https://github.com/inetsoft-technology/stylebi/pull/4222) 已修复未合并），`checkLoginAs()` 权限门槛已落地，`LOGIN_AS` action 授权与 `checkLoginAs()` 的组合门槛也已在 `BasicAuthFilterHttpTest` 补齐，跨组织 Login As 的架构顾虑已核实为按设计工作（非新风险），端到端身份切换测试待 PR #4222 合并后补齐，见 `2026-06-30-permission-test-phase2.md`；区四新增 `exposeDefaultOrgToAll` host-org 全局共享 Viewsheet 的完整行为矩阵分析（Repository 展示范围、依赖资源可见性边界、Portal/EM/Composer 差异化限制、clone-org 场景），6 条描述规则均已用源码核实；生效范围（org 专属属性隔离）、写入限制（Composer Save As 预取拒绝）、关联操作限制（VSO 导出拒绝）三项已补齐测试（`PermissionMatrixSpecialTest`/`SaveViewsheetDialogServiceTest`/`VSExportServiceTest`），clone-org 场景与 Repository 树可枚举性评估后确认 `[不补]`（前者已有静态证据+现有测试泛化覆盖，后者层次不符），Composer 内数据可见性标记 `[不确定]`待运行时验证，见下方"host-org 全局共享 Viewsheet 详细场景"小节。
+**Phase 2 M9 实现：** Task 7（`MultiTenantTestFixture` 内置 org 扩展）评估后确认无需改动；Task 8（`PermissionMatrixSpecialTest`）区四已落地，区三里 Google OAuth SSO 已落地（Task 8b，enterprise 侧 `StyleBIGoogleSSOFilterTest`），账号非活跃状态评估后确认 `[不补]`，Login As 分析中发现一个认证层 bug（密码校验用错了用户，导致操作者与目标密码不同时登录直接失败，已验证，**Bug #75613**，[PR #4222](https://github.com/inetsoft-technology/stylebi/pull/4222) 已修复并合并，commit `9b02e3953`），`checkLoginAs()` 权限门槛已落地，`LOGIN_AS` action 授权与 `checkLoginAs()` 的组合门槛也已在 `BasicAuthFilterHttpTest` 补齐，跨组织 Login As 的架构顾虑已核实为按设计工作（非新风险），同组织/跨组织端到端身份切换、密码校验对象、操作者密码错误路径均已随 PR #4222 落地（`SecurityEngineAuthenticationTest`，方法名见下方"Login As 详细场景"小节），见 `2026-06-30-permission-test-phase2.md`；区四新增 `exposeDefaultOrgToAll` host-org 全局共享 Viewsheet 的完整行为矩阵分析（Repository 展示范围、依赖资源可见性边界、Portal/EM/Composer 差异化限制、clone-org 场景），6 条描述规则均已用源码核实；生效范围（org 专属属性隔离）、写入限制（Composer Save As 预取拒绝）、关联操作限制（VSO 导出拒绝）三项已补齐测试（`PermissionMatrixSpecialTest`/`SaveViewsheetDialogServiceTest`/`VSExportServiceTest`），clone-org 场景、Repository 树可枚举性、Composer 内数据可见性评估后均确认 `[不补]`（前两者已有静态证据+现有测试泛化覆盖，Composer 内数据可见性是未证实的细节、非已验证越权，为此单独搭建集成级渲染管线测试收益不成比例），见下方"host-org 全局共享 Viewsheet 详细场景"小节。
 **姊妹文档：** 区一 `permission-matrix-resources.md`、区二 `permission-matrix-actions.md`。
-
-> ⚠️ **本轮排查中发现一个尚未修复的权限漏洞，已提单 Issue #75631**：`checkAssetPermission0()` 的 host-org 全局共享 READ bypass 未按资源类型限制，非 host-org 用户可绕开"只共享 viewsheet"的意图，通过 `/ws/open` 直接打开 host-org 的 WORKSHEET（完整结构，非受限视图）。已端到端验证可复现，详见下方"⚠️ 已知安全漏洞"小节。
 
 图例：✓ = allowed　✗ = denied　— = n/a
 
@@ -25,7 +23,7 @@
 |---|---|---|---|
 | **Google OAuth SSO** | Google OAuth SSO（`googleUser`）| 认证成功后权限解析与本地用户一致；org 归属、role 映射正确落地；不因认证来源差异绕过权限检查 | `[M9]`（enterprise 侧认证链路已落地，15 个 `@Test` 全部通过，具体方法名见下方"Google OAuth SSO 详细场景"小节；community 侧回归护栏未补，评估为可选） |
 | **账号非活跃状态** | 用户账号被禁用（inactive / disabled）| 登录被拒；已有 session 不会因账号被禁用立即失效——只在下次重新登录时生效 | `[不补]`（详见下方"账号非活跃状态"小节，登录拒绝已有测试覆盖，session 不立即失效是确认的设计行为） |
-| **Login As 代理登录** | siteAdmin / 持有 `LOGIN_AS` Security Action 的用户切换到目标用户身份 | 代理期间权限以**目标用户**的授权为准，而非操作者本身；退出代理后恢复原身份权限；`LOGIN_AS` Action 本身受区二 Security Actions 管控（For Org √）| `[待补]`（详见下方"Login As 详细场景"小节——权限门槛可测已落地；端到端身份切换阻塞于 **Bug #75613**（[PR #4222](https://github.com/inetsoft-technology/stylebi/pull/4222) 已修复未合并）） |
+| **Login As 代理登录** | siteAdmin / 持有 `LOGIN_AS` Security Action 的用户切换到目标用户身份 | 代理期间权限以**目标用户**的授权为准，而非操作者本身；退出代理后恢复原身份权限；`LOGIN_AS` Action 本身受区二 Security Actions 管控（For Org √）| `[M9]`（详见下方"Login As 详细场景"小节——权限门槛可测、同组织/跨组织身份切换、密码校验对象、操作者密码错误路径均已随 **Bug #75613**（[PR #4222](https://github.com/inetsoft-technology/stylebi/pull/4222) 已修复并合并）落地） |
 
 每个场景通路测试只需验证：
 1. 认证/状态变更后 session 建立或失效符合预期
@@ -43,9 +41,7 @@
 
 ### Login As 详细场景
 
-**Bug #75613（[PR #4222](https://github.com/inetsoft-technology/stylebi/pull/4222)，`bug-75613` 分支，已修复未合并）：** Login As 切换身份时的第二次认证，密码校验错误地比对了目标用户的密码 hash，而不是操作者自己刚提交的密码——两人密码不同时，登录直接失败（已验证），不是"界面无报错、实际仍以操作者自己身份继续操作"。根因：第二次 `authenticate()` 一进入就对当前请求执行 `logout(request, false)`，清理掉操作者原有的登录态；随后密码比对又因为比对了错误的用户而失败、返回 `null`，不会创建新 session。`BasicAuthenticationFilter.doFilter()` 里这次调用的返回值被丢弃、`authorized` 仍是操作者第一次登录成功时置的 `true`，但原 session 已被清理，最终效果是登录失败。
-
-**修复**：`SecurityEngine.authenticate(ClientInfo, Object, SecurityProvider)` 里密码比对的目标从 `user.getLoginUserID()`（目标用户）改成 `credential`（`DefaultTicket`）自带的 `getName()`（操作者自己）——即验证"提交这份密码的人是不是他本人"，不再验证"这份密码是不是目标用户的"。目标用户的身份/角色/组/org 仍然在校验通过后按 `user.getUserIdentity()` 正常构造，不受这次改动影响。
+**Bug #75613（[PR #4222](https://github.com/inetsoft-technology/stylebi/pull/4222)，`bug-75613` 分支，已修复并合并，commit `9b02e3953`）：** Login As 第二次认证曾误比对目标用户密码而非操作者自己的密码；已改为校验 `credential`（`DefaultTicket`）自带身份，目标用户身份/角色/组/org 构造不受影响。
 
 **Login As 规则：**
 
@@ -93,18 +89,12 @@ if(provider.checkPermission(principal, ResourceType.LOGIN_AS, "*", ResourceActio
 | `LOGIN_AS` action 本身的 grant/no-grant | 独立 flat action，跟其他功能开关同构，不涉及具体目标 | `[M8]`（区二 `PermissionMatrixActionsS8Test` S8-SWEEP，跟 checkLoginAs() 无重叠，不是重复） |
 | **组合场景 A**——有 `LOGIN_AS` action 授权，但对该具体目标 `checkLoginAs()` 不通过 | 非 siteAdmin 已获 `LOGIN_AS` action 授权，但对目标用户无 `SECURITY_USER`/`ADMIN` 授权 → 命中 `doFilter()` 的 `else` 分支，`viewer.securityexception`，`authorized=false`，**显式拒绝**（401），且身份切换用的第二次 `authenticate()` 从未被调用 | `[M9]` `BasicAuthFilterHttpTest.loginAs_actionGrantedButCheckLoginAsFails_returns401AndNeverAttemptsIdentitySwitch` |
 | **组合场景 B/C**——外层 `checkPermission(LOGIN_AS) && loginAs` 本身就不成立（`LOGIN_AS` action 未授权，或全局开关 `login.loginAs` 不是 `"on"`） | `checkLoginAs()` 根本不会被调用（外层 `if` 短路），`loginAsUserKey` 被忽略，请求按操作者自己身份**正常登录成功**（200）——不是拒绝，是静默不生效；`authenticate()` 全程只被调用一次（操作者自己的登录），从未尝试身份切换 | `[M9]` `BasicAuthFilterHttpTest.loginAs_outerGateFails_fallsThroughToSelfLoginWithoutInvokingCheckLoginAs`（`@ParameterizedTest`，两个 case：action 未授予 / 全局开关关闭） |
-| 端到端身份切换——同组织 | Login-As 后 session principal 是目标用户（角色/组按目标用户），不是操作者 | `[待补]`，阻塞于 PR #4222 合并 |
-| 端到端身份切换——跨组织 | siteAdmin login-as 到其他 org 用户后，session principal 的 org 是目标 org；一次权限判断按目标 org 授权走 | `[待补]`，阻塞于 PR #4222 合并 |
-| 密码校验对象 | 操作者与目标密码不同时，login-as 仍能成功（校验的是操作者自己） | `[待补]`，阻塞于 PR #4222 合并 |
-| 操作者自己密码错误时的失败路径 | 操作者提交的密码本身就不对时，login-as 明确失败（登出/无有效 session），不会残留一个身份/权限对不上的可用 session | `[待补]`，阻塞于 PR #4222 合并 |
+| 端到端身份切换——同组织 | Login-As 后 session principal 是目标用户（角色/组按目标用户），不是操作者 | `[M9]` `SecurityEngineAuthenticationTest.authenticate_loginAsTicket_validatesActingUserCredentialAgainstOwnIdentity`（断言 `user.getUserIdentity()` 和 `srPrincipal.getAlias()` 均落在目标用户上） |
+| 端到端身份切换——跨组织 | siteAdmin login-as 到其他 org 用户后，session principal 的 org 是目标 org；一次权限判断按目标 org 授权走 | `[M9]` `SecurityEngineAuthenticationTest.authenticate_loginAsTicket_crossOrg_targetOrgResolvedFromRealUserAndPermissionFollowsTargetOrg` |
+| 密码校验对象 | 操作者与目标密码不同时，login-as 仍能成功（校验的是操作者自己） | `[M9]` `SecurityEngineAuthenticationTest.authenticate_loginAsTicket_validatesActingUserCredentialAgainstOwnIdentity`（mock `provider.authenticate(adminId,...)=true`、`provider.authenticate(targetId,...)=false`，断言认证成功且从未校验过目标密码） |
+| 操作者自己密码错误时的失败路径 | 操作者提交的密码本身就不对时，login-as 明确失败（登出/无有效 session），不会残留一个身份/权限对不上的可用 session | `[M9]` `SecurityEngineAuthenticationTest.authenticate_loginAsTicket_wrongOperatorPassword_returnsNullAndLeavesNoSession` |
 
 **组合场景 A 和 B/C 观察到的行为不一样**：A 命中的是 `doFilter()` 里 `checkLoginAs()` 失败的 `else` 分支（`message=viewer.securityexception`、`authorized=false`，走 HTTP 错误响应，`chain.doFilter()` 不会被调用）；B/C 命中的是外层 `if(checkPermission(...) && loginAs)` 直接为 `false`，整个 login-as 分支被跳过，`authorized` 沿用第一次登录（操作者自己）成功时的 `true`，正常走 `chain.doFilter()`——即请求成功，只是没有发生身份切换。两者都是"当前用户没能 login-as 成功"，但一个有明确错误提示，一个是静默按自己身份登录，行为不一致；本次不额外提单，只在测试里如实断言这个观察到的差异，避免以后有人凭直觉误改成"两者都应该报错"。两个用例都落在 `community/core/src/test/java/inetsoft/web/security/BasicAuthFilterHttpTest.java`（该文件已有的 `FilterTestSupport`/`MockMvc` 基础设施，Mockito mock 出 `SecurityEngine`/`SecurityProvider`/`AuthenticationService`，不需要 `SecurityTestDataBuilder` 那套真实 provider fixture），不依赖 Bug #75613 的修复——拒绝/短路都发生在第二次 `authenticate()` 之前。
-
-**PR #4222 合并后新增用例：**
-
-1. `authenticate_loginAs_sameOrg_validatesOperatorPasswordNotTargetPassword`（`SecurityEngine`/`AuthenticationService` 层）：操作者与目标用户密码不同，走 login-as 路径，断言认证成功且返回的 principal 身份是目标用户。
-2. `authenticate_loginAs_crossOrg_targetOrgResolvedFromRealUser`：siteAdmin login-as 到另一个 org 的用户，断言 principal 的 org 是目标 org，并用一次 `checkPermission()` 断言按目标 org 的授权判定（不是操作者所在 org 的授权）。
-3. `doFilter_loginAs_wrongOperatorPassword_failsCleanly`（Filter 级）：操作者提交的密码本身错误，断言 login-as 明确失败，且请求结束后没有残留任何可用 session（不是操作者、也不是目标用户）。
 
 ### Google OAuth SSO 详细场景
 
@@ -155,7 +145,7 @@ Google SSO 的整条 filter 链（`StyleBIGoogleSSOFilter`/`OpenIDFilterBaseFilt
 | SELF `DATA_SOURCE_FOLDER` 回退不对称 | 原文档误标于 `SecurityEngine.checkPermission(Principal, ResourceType, String, ResourceAction)` — 实际 `isSelfAndNotAdmin` 分支只存在于姊妹重载 `checkPermission(Principal, ResourceType, IdentityID, ResourceAction)` | SELF 非 admin 用户，`DATA_SOURCE_FOLDER` 未配置权限 | 走生产真实调用路径（String 重载）的默认 READ：SELF 和普通创建 org 用户**都是** ✓，无不对称 | `[不补]`（查证 `DatasourcesTreeService`/`DataSourceBrowserService`/`GettingStartedService` 等全部生产调用点，DATA_SOURCE_FOLDER 检查一律走 String 重载；`isSelfAndNotAdmin` 所在的 IdentityID 重载对这个资源类型没有任何生产调用点，是不可达死代码，不值得测） |
 | SELF 默认权限清单 | `FileAuthorizationProvider.addDefaultPermissionForSelfOrg()` L416-436 | SELF org 用户，未经任何显式 `grantPermission` | 默认放行 `CREATE_DATA_SOURCE`（通配符）、`PHYSICAL_TABLE`（通配符）、`CROSS_JOIN`（通配符）、`FREE_FORM_SQL`（通配符）、`PORTAL_TAB:Data`（均 ACCESS）、`REPORT:/`、`ASSET:/`（均 READ）；普通创建 org 同样未配置时全部 ✗（对照） | `[M9]` `selfOrgUser_defaultPermissionList_allowedWithoutAnyExplicitGrant` |
 | host-org CHART_TYPE/SHARE 全局默认可见性 | `DefaultCheckPermissionStrategy.isOpeningShareGlobalAsset()` L511-517 + `isAllowedDefaultGlobalVSAction()` L493-509 | 非 host-org 用户 + 当前 org 上下文 = host-org（`ThreadContext` 未设置时的默认值）+ `SUtil.isDefaultVSGloballyVisible()` 为真 | 机制关闭时该用户对 SHARE 资源的显式空授权按预期拒绝；机制开启时同一用户同一资源无条件放行（不看任何显式授权） | `[M9]` `nonHostOrgUser_shareDefaultVisibility_deniedWhenMechanismOff` / `nonHostOrgUser_shareDefaultVisibility_allowedWhenMechanismOn` |
-| host-org 全局共享 Viewsheet 完整行为矩阵（Repository 展示/依赖资源可见性/Portal-only/EM-Composer 限制/clone-org） | 同上 `SUtil.isDefaultVSGloballyVisible()`/`isSharedDefaultOrgDashboard()` 为基础门槛，行为层还涉及 `VSUtil`/`RepletEngine`/`AbstractAssetEngine`/`SaveViewsheetDialogService` 等十余处调用点 | 见下方"host-org 全局共享 Viewsheet 详细场景"小节 | 见下方小节的规则表 | `[待补]`（上面两条 `[M9]` 只测了 `checkPermission()` 这一层的 SHARE/CHART_TYPE 默认放行，不覆盖 Repository 树注入、依赖资源可见性范围、Portal/EM/Composer 差异化限制、clone-org 场景——详见下方分析与候选用例） |
+| host-org 全局共享 Viewsheet 完整行为矩阵（Repository 展示/依赖资源可见性/Portal-only/EM-Composer 限制/clone-org） | 同上 `SUtil.isDefaultVSGloballyVisible()`/`isSharedDefaultOrgDashboard()` 为基础门槛，行为层还涉及 `VSUtil`/`RepletEngine`/`AbstractAssetEngine`/`SaveViewsheetDialogService` 等十余处调用点 | 见下方"host-org 全局共享 Viewsheet 详细场景"小节 | 见下方小节的规则表 | `[M9]`（写入限制/关联操作限制/生效范围/READ bypass 资源类型限制（**Bug #75631**，PR #4226）已补齐测试；Repository 树注入/clone-org/Composer 内数据可见性均评估后确认 `[不补]`——详见下方分析） |
 
 ### host-org 全局共享 Viewsheet（`exposeDefaultOrgToAll`）详细场景
 
@@ -178,41 +168,12 @@ Google SSO 的整条 filter 链（`StyleBIGoogleSSOFilter`/`OpenIDFilterBaseFilt
 |---|---|---|---|
 | 生效范围 | 全局属性开启，非 host-org 用户对 host-org SHARE 资源默认放行 | 已被现有 `[M9]` 用例覆盖（见上方场景表） | `[M9]`（`nonHostOrgUser_shareDefaultVisibility_allowedWhenMechanismOn`，同一机制） |
 | 生效范围 | org 专属属性只放行指定 org，其余 org 仍拒绝 | `SUtil.isDefaultVSGloballyVisible(Principal)` 直测：org-scoped 属性只对 A 生效，对没有设置任何属性的 B 不生效——不经过 `checkPermission()`/SHARE，因为 SHARE 的继承走查/org-admin 分支跟 `isMultiTenant()` 有实测无关的交互（会让基于 SHARE 的组合断言变脆弱，见附注新增一条），直测该方法才是对这条规则本身的验证 | `[M9]` `nonHostOrgUser_shareDefaultVisibility_orgScopedPropertyOnlyAllowsNamedOrg` |
-| 可见性范围 | `checkAssetPermission0` 的 READ 放行不代表可枚举 | 直接调用底层 `checkAssetPermission(READ)` 对 host-org 资源放行，但 `AssetTreeController`/普通 Data 树查询返回结果不含 host-org 条目 | `[不补]`（涉及 Spring MVC 树查询控制器层，跟本类"直调 `SecurityEngine.checkPermission()`"的定位不符；"Composer 资源树不引用这套机制"这一事实已通过 grep 静态确认为零引用，是可验证的确定性事实，不是需要运行时兜底的猜测，为这一点单独搭建控制器级测试基础设施收益不成比例。**但这条"没有浏览树"只是没有 UI 入口，不是访问控制——见下方"⚠️ 已知安全漏洞"小节，该 bypass 本身没有按资源类型限制，可以绕开树/UI 直接命中**） |
+| 可见性范围 | `checkAssetPermission0` 的 READ 放行不代表可枚举 | 直接调用底层 `checkAssetPermission(READ)` 对 host-org 资源放行，但 `AssetTreeController`/普通 Data 树查询返回结果不含 host-org 条目 | `[不补]`（涉及 Spring MVC 树查询控制器层，跟本类"直调 `SecurityEngine.checkPermission()`"的定位不符；"Composer 资源树不引用这套机制"这一事实已通过 grep 静态确认为零引用） |
+| 可见性范围 | `checkAssetPermission0` 的 READ bypass 未按资源类型限制，非 host-org 用户可越权 READ host-org 的 WORKSHEET（不只是 viewsheet） | 非 host-org 用户对 host-org VIEWSHEET 的 `checkAssetPermission(READ)` 仍放行，对 host-org WORKSHEET 的同一调用被拒绝 | `[M9]`（**Bug #75631**，[PR #4226](https://github.com/inetsoft-technology/stylebi/pull/4226) 已修复并合并，commit `f2b7ac628`）`PermissionMatrixSpecialTest.nonHostOrgUser_defaultVisibility_readAllowedForViewsheetButDeniedForWorksheet` |
 | 写入限制 | Composer Save As 预取阶段即因 WRITE 硬拒绝失败（对话框根本不弹出） | 非 host-org 用户对共享 host-org entry 调用 `getSaveViewsheetInfo()` 断言抛出 `deny.access.write.globally.visible`（文案 "Cannot save Dashboard of Default Organization"）；对照用例确认同 org（非共享）时该 WRITE 校验整段跳过，未被误拦 | `[M9]` `SaveViewsheetDialogServiceTest.getSaveViewsheetInfo_nonHostOrgUser_sharedHostOrgEntry_deniedBeforeDialogPopulated` / `getSaveViewsheetInfo_sameOrgUser_ownEntry_writeCheckNotBypassed`（直接 Save 的 `ComposerViewsheetService.saveViewsheet()` 路径未覆盖，逻辑同构，评估为可选） |
 | 关联操作限制 | VSO 快照导出拒绝，常规格式放行 | 同一共享 viewsheet 分别请求 VSO 导出（拒绝，`deny.access.export.vso.globally.visible`）和 PDF 导出（放行并重定向到真实 host-org entry） | `[M9]` `VSExportServiceTest.handleAttemptExportGloballyVisibleAsset_vsoSnapshot_deniedDespiteEntryResolving` / `handleAttemptExportGloballyVisibleAsset_pdfFormat_allowedAndRedirectsToRealHostOrgEntry` |
 | 组织克隆 | clone-org 后共享行为不变 | 静态代码确认：`copyScopedProperties()` 只匹配 `inetsoft.org.<fromOrgId>` 前缀的属性键，跟 `security.<orgID>.exposeDefaultOrgToAll` 这个键的命名空间结构性不相交，clone 不可能复制/触发/清除这个属性；`copyDataSpace()` 只搬运新 org 自己名下的路径，不改原 host-org 资源的 `orgID`。两点结合已经是确定性证明，不是需要运行时验证的猜测 | `[不补]`（已通过静态代码证明，且 `AbstractEditableAuthenticationProviderStaticDepTest` 已有 `copyScopedProperties_noMatchingProperty_onlyFinalSaveCalled` 等测试泛化覆盖"不匹配前缀的属性不受影响"这一路径；再为 `exposeDefaultOrgToAll` 这一个具体属性单独立一个组合测试是重复覆盖） |
-| 界面访问范围 | Composer 内是否真的看不到数据 | 需要运行时/集成级验证，静态代码未能确认 viewer 与 composer 在数据加载路径上有实质区别 | `[不确定]`（不建议在 `PermissionMatrixSpecialTest` 这类直调权限方法的单元测试里验证，需要更贴近真实渲染管线的集成测试；是否值得单独立项待用户确认） |
-
-### ⚠️ 已知安全漏洞：`checkAssetPermission0` 的 READ bypass 未按资源类型限制（**Issue #75631**，已提单未修复）
-
-**结论：** `AbstractAssetEngine.checkAssetPermission0()`（L3526-3530）里"host-org 全局共享"的 READ 放行分支完全不检查 `entry.getType()`——只要 `entry.getOrgID()` 是 host-org，任意类型的 `AssetEntry`（不只是 VIEWSHEET，也包括 WORKSHEET、library/script、table style 等）对任何非 host-org、非 siteAdmin 用户都放行 READ。区四场景表"可见性范围"一行描述的"依赖资源不可独立浏览"只是**没有浏览树 UI 去发现它**，不是访问控制——这条 bypass 本身就是敞开的。
-
-```java
-// AbstractAssetEngine.java:3526-3530
-if(Tool.equals(permission, ResourceAction.READ) && SUtil.isDefaultVSGloballyVisible(user) &&
-   Organization.getDefaultOrganizationID().equals(entry.getOrgID()) &&
-   user != null && !((XPrincipal)user).getOrgId().equals(Organization.getDefaultOrganizationID())) {
-   return true;
-}
-```
-
-**完整复现链路（已逐跳读码验证，非推测）：**
-
-1. `OpenWorksheetController.openWorksheet()`（`/ws/open` STOMP 端点，`community/core/src/main/java/inetsoft/web/composer/ws/OpenWorksheetController.java:92-107`）：唯一前置检查是 `checkPermission(principal, ResourceType.WORKSHEET, "*", ACCESS)`——跟具体资源、跟 org 都无关的功能总开关，任何有 composer 权限的普通用户都满足。随后 `AssetEntry entry = AssetEntry.createAssetEntry(event.id())`，`event.id()` 是客户端原始提交的字符串，未做任何签名/校验。
-2. `AssetEntry.createAssetEntry(String identifier, String orgID, boolean forceUpdateOrgID)`（`AssetEntry.java:472-473`）：`orgID = forceUpdateOrgID || index==-1 || scope==TEMPORARY_SCOPE ? orgID : identifier.substring(index+1)`——`OpenWorksheetController` 调用的是 `forceUpdateOrgID=false` 的重载，标识符末段 `^orgID` 会被原样采信。客户端可以直接构造一个以 `^host-org` 结尾的标识符字符串。
-3. `WorksheetEngine.openSheet()`（`permission = !"true".equals(entry.getProperty("isDashboard"))` = true，该属性从未被 `/ws/open` 设置）→ `AbstractAssetEngine.getSheet()`（`AbstractAssetEngine.java:2371`）：`checkAssetPermission(user, entry, READ, true)` → 命中上面的 bypass → 放行。
-4. 全链路没有任何一层能拦下来：`@SwitchOrg` 切面不作用于本 controller 的方法；`MessageScopeInterceptor` 只在 STOMP 帧带 `sheetRuntimeId`（已开 runtime）时才生效，新开 worksheet 的请求没有这个 header；`getForbiddenSourcesMessage()` 的按数据源二次校验只在 `POST /api/ws/open` 的"是否提示恢复自动保存"预检接口里跑，真正打开走的 STOMP `/ws/open` 完全不经过它。
-
-**标识符不需要猜——可以合法拿到：** 非 host-org 用户按上方"界面访问范围"一行走 Portal Edit 图标进 Composer 打开共享的 host-org viewsheet 后，`ViewsheetPropertyDialogService.getViewsheetInfo()`（`ViewsheetPropertyDialogService.java:118`：`newVSDialogModel.setDataSource(viewsheet.getBaseEntry())`）会把底层 worksheet 的完整 `AssetEntry`（含 `orgID=host-org`）原样序列化进返回给前端的 JSON。拿到这个标识符后原样回放到 `/ws/open`，就能在自己的 Composer 里把这个 worksheet **完整打开**——table assembly、字段绑定、SQL/query binding、mirror 引用全部可见，不是"只能看布局、看不到数据"那种受限体验（那个限制只针对 Edit 图标直接进入的那个 viewsheet 本身，对通过标识符另开的底层 worksheet 完全不适用）。
-
-**影响范围：**
-- 波及：WORKSHEET（已验证端到端可复现）；理论上同样波及 library/script、table style 等其他 `AssetEntry` 类型，只要存在类似"按客户端标识符直接打开"的入口（未逐一验证）。
-- 不波及：`ResourceType.DATA_SOURCE`（数据源连接定义/凭据）——数据源走的是完全独立的 `SecurityEngine.checkPermission(DATA_SOURCE,...)`/`DefaultCheckPermissionStrategy` 机制，`isAllowedDefaultGlobalVSAction()` 的放行清单里明确只有 `CHART_TYPE`/`SHARE`/`VIEWSHEET_TOOLBAR_ACTION` 三项，不含 `DATA_SOURCE`，因此凭据不在泄露面内。
-
-**建议修复方向：** 给 `checkAssetPermission0()` 这段 bypass 加类型限制（如 `entry.isViewsheet()`），只放行 VIEWSHEET，匹配文档一直描述的"只共享 dashboard"初衷；修复后补一条回归测试，断言 WORKSHEET（以及其他非 viewsheet 类型）在 `exposeDefaultOrgToAll` 开启时仍然拒绝。
-
-**测试状态：** `[待补]`（阻塞于 **Issue #75631** 修复本身——修复前写"应该拒绝"的测试会红；建议随修复一起提交）
+| 界面访问范围 | Composer 内是否真的看不到数据 | 需要运行时/集成级验证，静态代码未能确认 viewer 与 composer 在数据加载路径上有实质区别 | `[不补]`（没有浏览入口 + 写入被硬拒绝已是确认行为，这里只是"进 Composer 后数据是否也被拦"这一未确认细节；不是已验证的越权，跟 Bug #75631 那种可复现的访问控制缺口性质不同，为一个未证实的细节单独搭建集成级渲染管线测试收益不成比例） |
 
 ### 附注
 

@@ -3522,8 +3522,12 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          return true;
       }
 
-      //give permission if default org globally visible
-      if(Tool.equals(permission, ResourceAction.READ) && SUtil.isDefaultVSGloballyVisible(user) &&
+      //give permission if default org globally visible. Scope this bypass to viewsheet-type
+      //entries only (VIEWSHEET/VIEWSHEET_SNAPSHOT): the "expose default org to all" feature shares
+      //host-org viewsheets read-only, and dependent resources (worksheets, libraries, etc.) must
+      //not become independently readable across orgs through this grant.
+      if(Tool.equals(permission, ResourceAction.READ) && entry.isViewsheet() &&
+                           SUtil.isDefaultVSGloballyVisible(user) &&
                            Organization.getDefaultOrganizationID().equals(entry.getOrgID()) &&
                            user != null && !((XPrincipal)user).getOrgId().equals(Organization.getDefaultOrganizationID())) {
          return true;

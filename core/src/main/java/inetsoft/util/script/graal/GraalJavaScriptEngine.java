@@ -74,6 +74,16 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    private static final String RESULT_VAR = "__inetsoft_script_result__";
    private static final String HOIST_ERR_VAR = "__inetsoft_hoist_err__";
 
+   // Bug #75625: matches the `this` keyword as an identifier token. Used to decide
+   // whether a script body needs the (slower) direct-eval wrapper that binds
+   // top-level `this` to the scope (#75550). The match is deliberately
+   // conservative — a `this` inside a string literal or comment also matches and
+   // merely routes the body to the eval form, which is correct, just not the fast
+   // path. A `this`-binding cannot be used without writing the `this` token, so
+   // there are no false negatives.
+   private static final java.util.regex.Pattern THIS_REF =
+      java.util.regex.Pattern.compile("\\bthis\\b");
+
    // JS reserved words that must never be emitted as an unguarded identifier in
    // the generated hoist statements (typeof <keyword> is a SyntaxError, which
    // would break compilation of the whole script). A declared name can never be
@@ -427,6 +437,24 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // the body to strict eval, changing assignment/scope semantics — so remove
       // it to preserve the prior behavior.
       String body = stripStrictDirectives(cmd);
+
+      // Bug #75625: the direct-eval wrapper below re-parses the script body on
+      // *every* execution — GraalJS does not cache a direct eval's argument — so
+      // per-row/per-cell formula evaluation (calc/freehand tables, value and
+      // expression bindings) is ~7x slower and can leave a viewsheet "loading"
+      // for 10-20s. The eval form exists only to bind top-level `this` to the
+      // scope (#75550). When the body does not reference `this`, a plain
+      // top-level `with(__scope__){ ... }` script is equivalent and is parsed
+      // once and reused: it preserves the statement-list completion value (value/
+      // expression bindings) and top-level `var`/`function` declarations persist
+      // to the context global across executions naturally (so #75596 holds
+      // without the declaration hoist). Block-vs-object completion semantics
+      // (e.g. a bare `{a:1}`) are identical to the eval form because the body is
+      // still evaluated in statement position, not wrapped in `return (...)`.
+      if(!THIS_REF.matcher(body).find()) {
+         return Source.newBuilder("js", "with(__scope__){\n" + body + "\n}", "<cmd>")
+            .buildLiteral();
+      }
 
       // Bug #75596: top-level `var`/`function` declarations must persist across
       // executions on the same engine so a later script (e.g. an assembly script

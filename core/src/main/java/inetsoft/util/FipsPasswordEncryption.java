@@ -114,7 +114,9 @@ class FipsPasswordEncryption extends LocalPasswordEncryption {
    private SecretKey createHmacKey() {
       try {
          KeyGenerator keyGenerator = KeyGenerator.getInstance("HmacSHA512", "BCFIPS");
-         keyGenerator.init(128, random);
+         // HS512 (used to sign JWT tokens) requires a key of at least 256 bits; use 512 bits
+         // to match JcePasswordEncryption and provide the full security strength of SHA-512.
+         keyGenerator.init(512, random);
          return keyGenerator.generateKey();
       }
       catch(Exception e) {
