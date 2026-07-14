@@ -15,7 +15,7 @@ It is intended to answer:
 
 This roadmap assumes shell and Composer token work are already underway or complete. It should not be used to replace shell or Composer roadmaps.
 
-Use [visualization-design-spec.md](E:\home\dev\github\lookfeel\specs\visualization-design-spec.md) for visualization layer behavior, surface rules, state vocabulary, and compatibility intent.
+Use [visualization-design-spec.md](visualization-design-spec.md) for visualization layer behavior, surface rules, state vocabulary, and compatibility intent.
 
 ## Shell And Composer Boundary
 
@@ -34,15 +34,15 @@ This roadmap does not redefine:
 - generic shell dialogs, tabs, forms, and navigation
 - every chart-type-specific visual rule in the first pass
 
-For shell-first work such as buttons, inputs, dialogs, nav, tabs, toolbars, and shell tables, use [shell-implementation-roadmap.md](E:\home\dev\github\lookfeel\specs\shell-implementation-roadmap.md).
+For shell-first work such as buttons, inputs, dialogs, nav, tabs, toolbars, and shell tables, use [shell-implementation-roadmap.md](shell-implementation-roadmap.md).
 
 ## Related Specs
 
-- [theme-strategy-overview.md](E:\home\dev\github\lookfeel\specs\theme-strategy-overview.md)
-- [shell-design-spec.md](E:\home\dev\github\lookfeel\specs\shell-design-spec.md)
-- [shell-implementation-roadmap.md](E:\home\dev\github\lookfeel\specs\shell-implementation-roadmap.md)
-- [palette-coordination-recommendations.md](E:\home\dev\github\lookfeel\specs\palette-coordination-recommendations.md)
-- [visualization-design-spec.md](E:\home\dev\github\lookfeel\specs\visualization-design-spec.md)
+- [theme-strategy-overview.md](theme-strategy-overview.md)
+- [shell-design-spec.md](shell-design-spec.md)
+- [shell-implementation-roadmap.md](shell-implementation-roadmap.md)
+- [palette-coordination-recommendations.md](palette-coordination-recommendations.md)
+- [visualization-design-spec.md](visualization-design-spec.md)
 
 ## Delivery Model
 
@@ -61,9 +61,9 @@ Use four change types throughout this roadmap:
 
 Unless otherwise noted:
 
-- inherited shell values come from [shell-design-spec.md](E:\home\dev\github\lookfeel\specs\shell-design-spec.md) and [shell-implementation-roadmap.md](E:\home\dev\github\lookfeel\specs\shell-implementation-roadmap.md)
-- visualization behavior, state usage, and density guidance come from [visualization-design-spec.md](E:\home\dev\github\lookfeel\specs\visualization-design-spec.md)
-- cross-layer color rules come from [palette-coordination-recommendations.md](E:\home\dev\github\lookfeel\specs\palette-coordination-recommendations.md)
+- inherited shell values come from [shell-design-spec.md](shell-design-spec.md) and [shell-implementation-roadmap.md](shell-implementation-roadmap.md)
+- visualization behavior, state usage, and density guidance come from [visualization-design-spec.md](visualization-design-spec.md)
+- cross-layer color rules come from [palette-coordination-recommendations.md](palette-coordination-recommendations.md)
 
 Inline `Default / alias` values in this roadmap are meant to make implementation self-sufficient. When a row needs special clarification, the source should be called out explicitly in that row or subsection.
 
@@ -122,7 +122,7 @@ The primary work areas are:
 
 ## Visualization Surface Implementation Map
 
-Use [visualization-design-spec.md](E:\home\dev\github\lookfeel\specs\visualization-design-spec.md) for the surface model and state-distribution rules.
+Use [visualization-design-spec.md](visualization-design-spec.md) for the surface model and state-distribution rules.
 
 This roadmap keeps only the implementation-facing mapping:
 
@@ -607,32 +607,76 @@ resolvers and should share the modern-mode selection mechanism and neutral palet
 
 ### Goal
 
-Standardize KPI widgets and embedded widget controls around analytical hierarchy and compact interaction.
+Standardize KPI and embedded-control surfaces around analytical hierarchy and compact interaction.
+
+See [visualization-phase7-implementation-plan.md](visualization-phase7-implementation-plan.md) for
+the grounded, code-verified plan (Part A / Part B, file:line anchors, decisions).
+
+### Scoping correction: "KPI widget" is not an assembly
+
+There is no KPI/scorecard assembly in StyleBI. A KPI is an authoring composition of unrelated
+assembly types with different render mechanisms, so this phase must be scoped per assembly type, not
+as one widget family:
+
+- primary/comparison/secondary value text — Text / Output assemblies (DOM, styled from server
+  `VSFormat`)
+- gauge / range-output KPI — Gauge / Thermometer / Cylinder / SlidingScale (server-produced image)
+- sparkline / trend — a small Chart assembly (server SVG/image), not a standalone primitive
+- semantic emphasis — the existing server-side `HighlightGroup` on `OutputVSAssemblyInfo`
+  (conditional formatting)
+
+### Rendering boundary: KPI/control surfaces are server-owned assemblies
+
+Like Phases 3/5/6/8, this phase crosses the render-location boundary (see the Rendering And Theming
+Architecture section of [visualization-design-spec.md](visualization-design-spec.md) and the Phase 0
+audit, Task 4). Every Phase 7 surface (gauge, text/output, embedded input controls) extends
+`AbstractVSAssembly`, so it is server-rendered and appears in export.
+
+- **Server-rendered (defaults-only, gated resolver — the export-visible half):** KPI value
+  hierarchy/emphasis and any control-box default that must survive export. Gauges are server images
+  with no CSS surface at all; Text/Output/input controls are DOM but painted from server `VSFormat`
+  inline styles that override `--inet-viz-*` and re-render identically in export.
+- **Browser DOM (`--inet-viz-*` CSS — not exported):** only transient interactive chrome — the combo
+  dropdown pick list, embedded-filter overlays, slider track/handle, hover/on/filtered overlays.
 
 ### Tasks
 
-#### 1. KPI hierarchy
+#### 1. KPI hierarchy (server-side)
 
-Define behavior for:
-
-- primary value
-- comparison value
-- semantic emphasis
-- sparkline or trend treatment
-- secondary metadata
+Encode primary-value emphasis, subordinate comparison/secondary metadata, and semantic emphasis as
+gated server-side `VSFormat` defaults per assembly type (a new `VSOutputChromeDefaults` resolver
+mirroring `VSTableStructureDefaults` / `VSChartChromeDefaults`, applied at the
+`TextVSAssemblyInfo.setDefaultFormat` seam), defaults-only. Semantic/threshold color rides the
+existing highlight mechanism; its modern color set is Phase 8, not here.
 
 #### 2. Embedded controls
 
-Define embedded filters and controls using:
+- **DOM interactive chrome (CSS):** repoint the combo dropdown and embedded-filter overlays to the
+  visualization density (`--inet-viz-control-height`) and state tokens (`--inet-viz-hover-bg`,
+  `--inet-viz-selected-bg/-text`, `--inet-viz-filtered-bg` — its first consumers); adopt explicit
+  filtered/on states on live overlays only.
+- **Server control-box defaults (gated resolver):** any control-box appearance that must appear in
+  export is a server `VSFormat` default, not a CSS token.
+- keep passive chrome (radio/checkbox borders, input-box outline) shell-neutral.
 
-- visualization density
-- shell-derived control language
-- explicit filtered/on states
-- neutral passive chrome
+### Dependencies and sequencing
+
+- The server-side modern-mode gate this phase's server half needs **already exists** —
+  `VSDensityDefaults.isModern()` (org-scoped), consumed by the Phase 3/5/6 resolvers. Part B mirrors
+  it; it does not re-invent it.
+- **Phase 6A (`VSTitleChromeDefaults`) is a hard prerequisite** for KPI framing and is not yet built;
+  a KPI value body modernized without its title bar reads as half-themed. Sequence Part B alongside
+  or after Phase 6A, sharing the modern-mode gate and neutral palette.
+- Semantic/threshold KPI color overlaps Phase 8 (conditional formatting); resolve the ownership
+  before shipping semantic emphasis.
+
+Recommended order: Part A (CSS, shippable now) → Phase 6A title chrome → Phase 7 Part B KPI-body
+defaults.
 
 ### Output
 
-- KPI and embedded-control patterns that feel analytical rather than shell-card-driven
+- KPI and embedded-control patterns that feel analytical rather than shell-card-driven, correctly
+  split by render location so live view and export stay in sync
 
 ## Phase 8: Analytical Color Systems
 
