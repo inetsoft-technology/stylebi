@@ -22,6 +22,7 @@ import inetsoft.graph.aesthetic.TextFrame;
 import inetsoft.graph.internal.GDefaults;
 import inetsoft.uql.CompositeValue;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.css.CSSConstants;
@@ -61,7 +62,8 @@ public class AxisDescriptor implements Cloneable, Serializable, XMLSerializable,
 
    public void initDefaultFormat(boolean vs) {
       TextFormat deffmt = fmt.getDefaultFormat();
-      deffmt.setColor(GDefaults.DEFAULT_TEXT_COLOR);
+      deffmt.setColor(vs && VSChartChromeDefaults.isModern() ?
+                         VSChartChromeDefaults.labelColor() : GDefaults.DEFAULT_TEXT_COLOR);
       deffmt.setFont(vs ? VSAssemblyInfo.getDefaultFont(VSUtil.getDefaultFont()) :
                         VSUtil.getDefaultFont());
    }
