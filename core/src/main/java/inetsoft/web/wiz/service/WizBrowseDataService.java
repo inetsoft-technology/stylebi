@@ -21,7 +21,11 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.*;
 import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.viewsheet.DataVSAssembly;
+import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.BrowseDataController;
 import inetsoft.web.composer.model.BrowseDataModel;
@@ -66,6 +70,28 @@ public class WizBrowseDataService {
          throw new IllegalStateException("No RuntimeWorksheet found for VS runtimeId=" + runtimeId);
       }
 
+      // `assemblyName` here is the VS chart's own presentation name (e.g. "Chart1"), not the
+      // worksheet table it's bound to — BrowseDataController.process() looks the name up against
+      // the base WORKSHEET's assemblies, so passing the chart name through unresolved always
+      // misses (silently: it returns null instead of erroring). Resolve the real worksheet table
+      // name from the chart assembly's SourceInfo first, mirroring the same resolution
+      // WizVsService does for aggregate-condition handling.
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly chartAssembly = vs != null ? vs.getAssembly(assemblyName) : null;
+
+      if(!(chartAssembly instanceof DataVSAssembly dataAssembly)) {
+         throw new IllegalArgumentException(
+            "No chart assembly named '" + assemblyName + "' found in the viewsheet");
+      }
+
+      SourceInfo sourceInfo = dataAssembly.getSourceInfo();
+      String wsTableName = sourceInfo != null ? sourceInfo.getSource() : null;
+
+      if(wsTableName == null) {
+         throw new IllegalStateException(
+            "Chart assembly '" + assemblyName + "' has no bound worksheet table");
+      }
+
       BrowseDataController browseDataController = new BrowseDataController();
       DataRef dataRef = dataRefModel.createDataRef();
 
@@ -78,12 +104,18 @@ public class WizBrowseDataService {
       }
 
       browseDataController.setColumn((ColumnRef) dataRef);
-      browseDataController.setName(assemblyName);
+      browseDataController.setName(wsTableName);
 
       BrowseDataModel model = browseDataController.process(rws.getAssetQuerySandbox());
 
+      if(model == null) {
+         throw new IllegalArgumentException(
+            "Could not find column '" + ((ColumnRef) dataRef).getAttribute() +
+            "' on worksheet table '" + wsTableName + "'");
+      }
+
       WizBrowseDataResponse response = new WizBrowseDataResponse();
-      response.setValues(model != null ? model.values() : null);
+      response.setValues(model.values());
 
       // Echo the runtimeId only when a reaped runtime was restored (id changed) so the client adopts
       // the live runtime for its next edit instead of triggering a second restore.
