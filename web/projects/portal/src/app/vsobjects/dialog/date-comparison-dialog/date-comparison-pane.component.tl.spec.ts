@@ -29,17 +29,20 @@
  *   Group 7  [Risk 3] — isOnlyShowRecentDateVisible: nested dispatch, showPartLevelAsDate delegation
  *   Group 8  [Risk 2] — dcIntervalLevelToDateGroupLevel (private, via cast): bit-mask dispatch
  *
- * Confirmed bugs (it.fails):
- *   Bug A — isOnlyShowRecentDateVisible (Group 7): dcIntervalLevelToDateGroupLevel() is a
- *   bit-mask decoder written for the IntervalLevel domain (level/granularity store bit-flags:
- *   YEAR=16, QUARTER=8, MONTH=4, WEEK=2, DAY=1), but isOnlyShowRecentDateVisible() also calls it
- *   on contextLevel, which stores direct XConstants group values (YEAR_DATE_GROUP=5,
- *   QUARTER_DATE_GROUP=4, MONTH_DATE_GROUP=3, WEEK_DATE_GROUP=2) — a different domain. Because
- *   3 of those 4 values numerically overlap with unrelated IntervalLevel bits (5=MONTH|DAY,
- *   4=MONTH, 3=WEEK|DAY), the decoded "contextLevel" is silently wrong whenever the user's
- *   context-level selection is Year, Quarter, or Month (only Week, value 2, coincidentally
- *   decodes correctly). This flips the "Only Show Most Recent Date" checkbox's visibility to
- *   the wrong value instead of delegating to showPartLevelAsDate() as intended.
+ * Fixed bugs (previously it.fails, now passing):
+ *   Bug #75654 — isOnlyShowRecentDateVisible (Group 7): dcIntervalLevelToDateGroupLevel()
+ *   is a bit-mask decoder written for the IntervalLevel domain (level/granularity store
+ *   bit-flags: YEAR=16, QUARTER=8, MONTH=4, WEEK=2, DAY=1), but isOnlyShowRecentDateVisible()
+ *   used to also call it on contextLevel, which stores direct XConstants group values
+ *   (YEAR_DATE_GROUP=5, QUARTER_DATE_GROUP=4, MONTH_DATE_GROUP=3, WEEK_DATE_GROUP=2) — a
+ *   different domain. Because 3 of those 4 values numerically overlapped with unrelated
+ *   IntervalLevel bits (5=MONTH|DAY, 4=MONTH, 3=WEEK|DAY), the decoded "contextLevel" was
+ *   silently wrong whenever the user's context-level selection was Year, Quarter, or Month
+ *   (only Week, value 2, coincidentally decoded correctly), flipping the "Only Show Most Recent
+ *   Date" checkbox's visibility to the wrong value instead of delegating to
+ *   showPartLevelAsDate() as intended. Fixed by decoding contextLevel with a dedicated
+ *   `contextLevelToDateGroupLevel()` that just parses the raw XConstants value directly,
+ *   instead of running it through the IntervalLevel bit-mask decoder.
  *
  * Out of scope: NgbNav tab switching (`(navChange)` inline template binding that flips
  * dateComparisonPaneModel.periodPaneModel.custom) — library-level, tested via ngb's own tests,
@@ -477,9 +480,8 @@ describe("DateComparisonPaneComponent — isOnlyShowRecentDateVisible", () => {
       expect(comp.isOnlyShowRecentDateVisible()).toBe(true);
    });
 
-   // contextLevel=WEEK_DATE_GROUP(2) is the one value dcIntervalLevelToDateGroupLevel decodes
-   // correctly for the contextLevel field (see Bug A) — used here to reach the "all equal"
-   // branch as actually intended, isolating the showPartLevelAsDate() delegation from the bug.
+   // contextLevel=WEEK_DATE_GROUP(2) — used here to reach the "all equal" branch as intended,
+   // isolating the showPartLevelAsDate() delegation.
    it("should delegate to showPartLevelAsDate()=true when context/interval/granularity groups all match", async () => {
       const model = makeDateComparisonPaneModel({
          periodPaneModel: makePeriodPaneModel({
@@ -587,14 +589,12 @@ describe("DateComparisonPaneComponent — isOnlyShowRecentDateVisible", () => {
       expect(comp.isOnlyShowRecentDateVisible()).toBe(false);
    });
 
-   // Expected failure: the assertion below encodes the CORRECT behavior (delegating to
-   // showPartLevelAsDate()=false because context/interval/granularity all resolve to the YEAR
-   // group). The actual (buggy) code instead computes contextLevel=MONTH_DATE_GROUP(3) — see
-   // "Bug A" above — which makes contextLevel != intervalLevel(5), so the "all equal" branch is
-   // skipped and periodVal(5) != contextLevel(3) short-circuits the final OR to true. If this
-   // test instead fails with a thrown exception (not a value mismatch), the bug has changed
-   // shape and this comment/test need to be re-verified against the current source.
-   it.fails("should delegate to showPartLevelAsDate() when context/interval/granularity all represent the YEAR group (Bug A)", async () => {
+   // Bug #75654 (fixed): context/interval/granularity all genuinely resolve to the YEAR group
+   // here, so this should reach the "all equal" branch and delegate to showPartLevelAsDate().
+   // Before the fix, contextLevel was miscalculated as MONTH_DATE_GROUP(3) via the wrong
+   // bit-mask decoder, so contextLevel != intervalLevel(5), skipping the "all equal" branch
+   // and short-circuiting the final OR to true via periodVal(5) != contextLevel(3).
+   it("should delegate to showPartLevelAsDate() when context/interval/granularity all represent the YEAR group (Bug #75654)", async () => {
       const model = makeDateComparisonPaneModel({
          periodPaneModel: makePeriodPaneModel({
             custom: false,

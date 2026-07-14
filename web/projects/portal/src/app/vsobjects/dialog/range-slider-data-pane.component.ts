@@ -255,7 +255,11 @@ export class RangeSliderDataPane extends TreeDataPane implements AfterViewInit {
          parentType = "folder";
       }
 
-      while(parentType != parentNode.type) {
+      // Bug #75653 (fixed): guard against `parentNode` becoming null before a matching
+      // ancestor type is found - previously this dereferenced `parentNode.type` unconditionally
+      // every iteration, crashing instead of producing the null that getParentFolderLabel()
+      // already expects. Matches the guarded pattern in the base class's getParentTable().
+      while(parentNode && parentType != parentNode.type) {
          parentNode = this.tree.getParentNode(parentNode);
       }
 

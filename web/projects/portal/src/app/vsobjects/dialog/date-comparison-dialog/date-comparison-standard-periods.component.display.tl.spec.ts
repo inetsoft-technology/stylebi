@@ -27,6 +27,12 @@
  * in each test rather than hand-guessed, since the untranslated "_#(js:...)" catalog keys
  * used in this codebase don't contain the "%s$N" placeholders formatCatalogString actually
  * substitutes, so interpolated values often don't appear in the unlocalized test output.
+ *
+ * Fixed bugs (previously it.fails, now passing):
+ *   Bug #75653 — toDateVisible guards a null dateLevel with `!!dateLevel` before falling back
+ *   to `!!this.toDateLabel`, implying null is an anticipated state — but toDateLabel
+ *   dereferenced `dateLevel.type` unguarded, throwing on that same null value. Fixed by adding
+ *   a matching null guard to toDateLabel.
  */
 
 import { ValueTypes } from "../../model/dynamic-value-model";
@@ -114,15 +120,18 @@ describe("DateComparisonStandardPeriodsComponent — toDateVisible", () => {
       expect(comp.toDateVisible).toBe(true);
    });
 
-   // Bug: toDateVisible guards its own DAY_DATE_GROUP shortcut with `!!dateLevel`, implying
-   // a null dateLevel is an anticipated state — but the fallback path it takes instead
-   // (`!!this.toDateLabel`) calls straight into toDateLabel's unguarded
-   // `this.standardPeriodPaneModel.dateLevel.type`, which throws on that same null value.
-   it.fails("should not crash when dateLevel is null (currently throws inside toDateLabel)", () => {
+   // Bug #75653 (fixed): toDateVisible guards its own DAY_DATE_GROUP shortcut with
+   // `!!dateLevel`, implying a null dateLevel is an anticipated state — but the fallback path
+   // it took instead (`!!this.toDateLabel`) called straight into toDateLabel's previously
+   // unguarded `this.standardPeriodPaneModel.dateLevel.type`, which threw on that same null
+   // value. toDateLabel now short-circuits to null on a null dateLevel, so toDateVisible
+   // correctly resolves to false (nothing to show) instead of crashing.
+   it("should not crash when dateLevel is null and should resolve to not-visible (Bug #75653)", () => {
       const { comp } = createComponent({
          model: makeStandardPeriodModel({ dateLevel: null as any }),
       });
       expect(() => comp.toDateVisible).not.toThrow();
+      expect(comp.toDateVisible).toBe(false);
    });
 });
 

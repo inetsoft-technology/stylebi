@@ -34,7 +34,13 @@
  *   Group 1 [Risk 2] — model setter: DATE/TIME/TIME_INSTANT parsing branches
  *   Remaining groups [Risk 1] — single-purpose emitters/setters
  *
- * Confirmed bugs (it.fails): none
+ * Fixed bugs (previously it.fails, now passing):
+ *   Bug #75652 — the model setter and changeValueSource("field") both silently discarded the
+ *   value they had just assigned, via changeType()'s alphaNumericValue-blanking cascade
+ *   looping back into model.value. Fixed by capturing the intended value before triggering
+ *   the cascade and re-applying it afterward.
+ *   Bug #75653 — ok()'s field-fallback branch unconditionally dereferenced fields[0], crashing
+ *   on a stale field-sourced model with zero available fields. Fixed with a length guard.
  *
  * Out of scope this pass (covered in
  * input-parameter-dialog.component.risk/display.tl.spec.ts):
@@ -118,20 +124,22 @@ describe("InputParameterDialog — model setter", () => {
       expect(comp.form.controls["type"].value).toBe(XSchema.INTEGER);
    });
 
-   // Bug: the setter syncs the "type" control before assigning `this.alphaNumericValue =
-   // this.model.value`. Setting "type" fires its own ngOnInit subscription, which calls
-   // changeType() — and for numeric/STRING/CHARACTER types, changeType() resets
-   // alphaNumericValue to "". That reset cascades back through the alphaNumericValue
-   // control's own subscription into updateValue(""), which overwrites model.value with ""
-   // — silently discarding the value the caller just assigned via the model setter, any
-   // time the assigned model changes both `type` and `value` together.
-   it.fails("should sync the alphaNumericValue form control to the new model's value when the form already exists", () => {
+   // Bug #75652 (fixed): the setter used to sync the "type" control before assigning
+   // `this.alphaNumericValue = this.model.value`. Setting "type" fires its own ngOnInit
+   // subscription, which calls changeType() — and for numeric/STRING/CHARACTER types,
+   // changeType() resets alphaNumericValue to "". That reset cascaded back through the
+   // alphaNumericValue control's own subscription into updateValue(""), overwriting
+   // model.value with "" — silently discarding the value the caller just assigned via the
+   // model setter, any time the assigned model changed both `type` and `value` together. The
+   // fix captures the intended value before the type-control sync and restores it afterward.
+   it("should sync the alphaNumericValue form control to the new model's value when the form already exists (Bug #75652)", () => {
       const { comp } = createComponent();
       comp.ngOnInit();
 
       comp.model = makeModel({ name: "newName", type: XSchema.INTEGER, value: "42" });
 
       expect(comp.form.controls["alphaNumericValue"].value).toBe("42");
+      expect(comp.model.value).toBe("42");
    });
 });
 
@@ -248,12 +256,12 @@ describe("InputParameterDialog — ngOnInit form wiring", () => {
 // ---------------------------------------------------------------------------
 
 describe("InputParameterDialog — ok()", () => {
-   // Bug: both branches of the `valueSource === "field"` fallback (empty-value and
-   // no-longer-matches) unconditionally dereference `this.fields[0].name` without checking
-   // that `fields` is non-empty first. ngOnInit() normally resets valueSource back to
-   // "constant" when there are no fields, but ok() itself doesn't re-check that invariant,
-   // so calling it with a stale/manually-set field-sourced model and zero fields crashes.
-   it.fails("should not crash for a field-sourced model with an empty value and zero available fields", () => {
+   // Bug #75653 (fixed): the "no-longer-matches" branch of the `valueSource === "field"`
+   // fallback unconditionally dereferenced `this.fields[0].name` without checking that
+   // `fields` is non-empty first. ngOnInit() normally resets valueSource back to "constant"
+   // when there are no fields, but ok() itself didn't re-check that invariant, so calling it
+   // with a stale/manually-set field-sourced model and zero fields crashed.
+   it("should not crash for a field-sourced model with an empty value and zero available fields (Bug #75653)", () => {
       const { comp } = createComponent({
          fields: [], model: makeModel({ valueSource: "field", value: "" }),
       });
@@ -357,12 +365,14 @@ describe("InputParameterDialog — changeValueSource", () => {
       expect(comp.model.type).toBe(XSchema.STRING);
    });
 
-   // Bug: same root cause as the model-setter bug above. changeValueSource() sets
-   // model.value to the first field's attribute, then unconditionally calls changeType()
-   // as its last step. For the new STRING type, changeType() resets alphaNumericValue to
-   // "" — which cascades through the alphaNumericValue control's ngOnInit subscription into
-   // updateValue(""), overwriting the field-derived value with "" immediately after it was set.
-   it.fails("should default the value to the first field when switching to a field value source", () => {
+   // Bug #75652 (fixed): same root cause as the model-setter bug above. changeValueSource()
+   // used to set model.value to the first field's attribute, then unconditionally call
+   // changeType() as its last step. For the new STRING type, changeType() reset
+   // alphaNumericValue to "" — which cascaded through the alphaNumericValue control's
+   // subscription into updateValue(""), overwriting the field-derived value with "" right
+   // after it was set. The fix now calls changeType() first, then sets the field-derived
+   // value afterward via the alphaNumericValue setter.
+   it("should default the value to the first field when switching to a field value source (Bug #75652)", () => {
       const field = makeField({ attribute: "city" });
       const { comp } = createComponent({ fields: [field], model: makeModel({ valueSource: "constant", type: XSchema.INTEGER }) });
       comp.ngOnInit();

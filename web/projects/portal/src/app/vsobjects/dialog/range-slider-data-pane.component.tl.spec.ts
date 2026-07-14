@@ -47,12 +47,14 @@
  *   Group 9 [Risk 2] — isSameSourceOfTwoNodes: the "same source" predicate's branches
  *   Remaining groups [Risk 1/2] — single-purpose setters/mutators
  *
- * Confirmed bugs (it.fails):
- *   Bug — getParentFolderLabel (Group 6): getParentFolderLabel explicitly handles a null
- *   getParentFolder() result (`parentNode == null ? null : ...`), implying null is an
- *   anticipated outcome — but getParentFolder's own while-loop dereferences `parentNode.type`
- *   on every iteration including the first, so a getParentNode() that returns null before a
- *   matching ancestor type is found throws instead of ever producing that anticipated null.
+ * Fixed bugs (previously it.fails, now passing):
+ *   Bug #75653 — getParentFolderLabel (Group 6): getParentFolderLabel explicitly handled a
+ *   null getParentFolder() result (`parentNode == null ? null : ...`), implying null is an
+ *   anticipated outcome — but getParentFolder's own while-loop dereferenced
+ *   `parentNode.type` on every iteration including the first, so a getParentNode() that
+ *   returns null before a matching ancestor type is found threw instead of ever producing that
+ *   anticipated null. Fixed by guarding the loop with `parentNode &&`, matching the base
+ *   class's already-correct pattern.
  */
 
 import { SourceInfoType } from "../../binding/data/source-info-type";
@@ -520,12 +522,12 @@ describe("RangeSliderDataPane — getParentFolder / getParentFolderLabel", () =>
       expect(result).toBe(tableNode);
    });
 
-   // Bug: getParentFolderLabel explicitly handles a null getParentFolder() result
-   // (`parentNode == null ? null : ...`), implying null is an anticipated outcome — but
-   // getParentFolder's own while-loop dereferences `parentNode.type` on every iteration
-   // including the first, so a getParentNode() that returns null before a matching
-   // ancestor type is found crashes instead of ever producing that anticipated null.
-   it.fails("should return null from getParentFolderLabel instead of crashing when no ancestor of the expected type exists", () => {
+   // Bug #75653 (fixed): getParentFolderLabel explicitly handles a null getParentFolder()
+   // result (`parentNode == null ? null : ...`), implying null is an anticipated outcome — but
+   // getParentFolder's own while-loop used to dereference `parentNode.type` on every
+   // iteration including the first, so a getParentNode() that returns null before a matching
+   // ancestor type is found crashed instead of ever producing that anticipated null.
+   it("should return null from getParentFolderLabel instead of crashing when no ancestor of the expected type exists (Bug #75653)", () => {
       const { comp } = createComponent();
       (comp.tree.getTopAncestor as any).mockReturnValue({ type: "folder" });
       (comp.tree.getParentNode as any).mockReturnValue(null);
