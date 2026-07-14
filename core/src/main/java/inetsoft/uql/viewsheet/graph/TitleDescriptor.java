@@ -22,6 +22,7 @@ import inetsoft.uql.CompositeValue;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.viewsheet.DynamicValue;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
 import inetsoft.util.ContentObject;
 import inetsoft.util.Tool;
 import inetsoft.util.css.CSSConstants;
@@ -63,7 +64,8 @@ public class TitleDescriptor implements AssetObject, ContentObject{
 
    public void initDefaultFormat(boolean vs) {
       TextFormat deffmt = fmt.getDefaultFormat();
-      deffmt.setColor(GDefaults.DEFAULT_TITLE_COLOR);
+      deffmt.setColor(vs && VSChartChromeDefaults.isModern() ?
+                         VSChartChromeDefaults.titleColor() : GDefaults.DEFAULT_TITLE_COLOR);
       deffmt.setFont(vs ? VSAssemblyInfo.getDefaultFont(GDefaults.DEFAULT_TITLE_FONT) :
                         GDefaults.DEFAULT_TITLE_FONT);
       fmt.setDefaultFormat(deffmt);

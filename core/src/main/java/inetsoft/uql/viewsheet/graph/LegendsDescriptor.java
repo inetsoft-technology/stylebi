@@ -24,6 +24,7 @@ import inetsoft.uql.CompositeValue;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.viewsheet.DynamicValue;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.ContentObject;
 import inetsoft.util.Tool;
@@ -93,7 +94,8 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
 
    public void initDefaultFormat(boolean vs) {
       TextFormat deffmt = fmt.getDefaultFormat();
-      deffmt.setColor(GDefaults.DEFAULT_TEXT_COLOR);
+      deffmt.setColor(vs && VSChartChromeDefaults.isModern() ?
+                         VSChartChromeDefaults.titleColor() : GDefaults.DEFAULT_TEXT_COLOR);
       deffmt.setFont(vs ? VSAssemblyInfo.getDefaultFont(VSUtil.getDefaultFont()) :
                         VSUtil.getDefaultFont());
       deffmt.setBackground(Color.WHITE);
