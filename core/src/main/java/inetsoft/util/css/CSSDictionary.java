@@ -1024,6 +1024,9 @@ public class CSSDictionary {
          // reinitialize css dictionary
          init();
       }
+      catch(ShutdownException ex) {
+         LOG.debug("CSS Dictionary re-initialized during shutdown", ex);
+      }
       catch(Exception ex) {
          LOG.error("Failed to re-initialize CSS", ex);
       }
