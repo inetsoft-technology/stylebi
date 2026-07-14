@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.internal.GDefaults;
 import inetsoft.sree.SreeEnv;
 
 import java.awt.Color;
@@ -65,6 +66,16 @@ public final class VSChartChromeDefaults {
    /** Chrome title text color (axis titles, legend title) — slightly stronger than labels. */
    public static Color titleColor() {
       return TITLE;
+   }
+
+   /**
+    * Resolve an axis-line color: when the gate is on and the color is still the legacy default,
+    * substitute the modern gridline neutral so the axis line unifies with the gridlines; otherwise
+    * (a customer/user color, or gate off) leave it unchanged. Compared against the hardcoded fallback
+    * so a format.css or user-picker color, which resolves to something else, is preserved.
+    */
+   public static Color resolveAxisLineColor(Color current) {
+      return isModern() && GDefaults.DEFAULT_LINE_COLOR.equals(current) ? GRIDLINE : current;
    }
 
    // modern warm-neutral chrome; light mode only, dark deferred. Warmer/subtler than the legacy
