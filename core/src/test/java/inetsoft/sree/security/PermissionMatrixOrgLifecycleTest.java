@@ -60,6 +60,7 @@ import inetsoft.web.admin.security.user.EditOrganizationPaneModel;
 import inetsoft.web.admin.security.user.UserTreeService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.ContextConfiguration;
@@ -345,58 +346,70 @@ class PermissionMatrixOrgLifecycleTest {
       Organization fromOrg = fileProvider.getOrganization(fromOrgId);
 
       try {
-         // Drives the real copy(replace=false) entry point — AbstractEditableAuthenticationProvider
-         // .copyOrganization() — rather than a hand-picked sub-method, because the question this
-         // scenario asks ("does the overall copy path preserve content permission grants?") is
-         // exactly the kind of question a hand-picked sub-method could answer wrong by omission.
-         // Only securityEngine + securityProvider are needed for the permission-copying parts
-         // (identityService.getPermission()/setIdentityPermissions() read securityProvider
-         // directly, not securityEngine.getSecurityProvider()); IdentityThemeService/
-         // DashboardRegistryManager/DataCycleManager are for themes/dashboards/data-cycles, all
-         // out of scope (see design doc's TODO list) and passed null.
-         IdentityService identityService = new IdentityService(
-            SecurityEngine.getSecurity(), SecurityEngine.getSecurity().getSecurityProvider(),
-            null, null, null, null, null, null, null, null, null, null, null, null, // positions 3-14
-            Optional.empty(),                                                    // position 15
-            null, null, null, null, null, null, null, null, null, null, null, null, null, // 16-28
-            Optional.empty());                                                   // position 29
+         try {
+            // Drives the real copy(replace=false) entry point — AbstractEditableAuthenticationProvider
+            // .copyOrganization() — rather than a hand-picked sub-method, because the question this
+            // scenario asks ("does the overall copy path preserve content permission grants?") is
+            // exactly the kind of question a hand-picked sub-method could answer wrong by omission.
+            // Only securityEngine + securityProvider are needed for the permission-copying parts
+            // (identityService.getPermission()/setIdentityPermissions() read securityProvider
+            // directly, not securityEngine.getSecurityProvider()); IdentityThemeService/
+            // DashboardRegistryManager/DataCycleManager are for themes/dashboards/data-cycles, all
+            // out of scope (see design doc's TODO list) and passed null.
+            IdentityService identityService = new IdentityService(
+               SecurityEngine.getSecurity(), SecurityEngine.getSecurity().getSecurityProvider(),
+               null, null, null, null, null, null, null, null, null, null, null, null, // positions 3-14
+               Optional.empty(),                                                    // position 15
+               null, null, null, null, null, null, null, null, null, null, null, null, null, // 16-28
+               Optional.empty());                                                   // position 29
 
-         fileProvider.copyOrganization(fromOrg, toOrgId, identityService, null, null, null,
-                                       admin, false, "TestCopyPassw0rd!");
+            fileProvider.copyOrganization(fromOrg, toOrgId, identityService, null, null, null,
+                                          admin, false, "TestCopyPassw0rd!");
+         }
+         catch(NoSuchBeanDefinitionException expected) {
+            // copyThemes() (unrelated to permission copying — theme handling, out of scope) fails in
+            // this minimal test context because CustomThemesManager.getManager()'s static Spring-bean
+            // lookup finds nothing. It runs AFTER addCopiedIdentityPermission() (the step that
+            // copies/migrates permissions, including our VIEWSHEET grant), so this catch does not
+            // affect the permission-layer result below. Narrowly typed so an unrelated RuntimeException
+            // elsewhere in copyOrganization() fails loudly here instead of being masked.
+         }
+
+         // See permission-matrix-org-lifecycle.md scenario 5 for the full writeup:
+         // copyOrganization(replace=false) calls
+         // addCopiedIdentityPermission(..., Identity.ORGANIZATION, replace=false), which reaches
+         // IdentityService.updateIdentityPermissions() -> updateOrgIdentitiesPermission() ->
+         // Permission.setRoleGrantsForOrg(action, roles, oldOrgId, newOrgId). That method mutates a
+         // Permission instance fetched via FileAuthorizationProvider.getPermissions() (strips the
+         // oldOrgId-scoped grant, adds a newOrgId-scoped one) and persists the mutated instance under
+         // the new org's key. Production's Cluster.getReplicatedMap() is backed by a real
+         // IgniteCache, which defaults to copyOnRead=true (this project's
+         // IgniteCluster.getCacheConfiguration() never overrides it to false) -- every get() returns
+         // an independent deserialized copy, so mutating it can never affect what's already
+         // persisted under a different (or the same) key. This test runs against
+         // CopyOnReadClusterConfig (below), which reproduces that guarantee, so the assertions below
+         // reflect the actual production behavior: the source org keeps its own grant untouched,
+         // and the new org gets its own independent, equivalent grant.
+         assertTrue(hasViewerReadGrant(chain, toOrgId),
+                   "the new org gets a working grant, scoped to itself, as Rule 1 intends");
+         assertTrue(hasViewerReadGrant(chain, fromOrgId),
+                   "the source org's own grant must be untouched by a supposedly non-destructive copy");
       }
-      catch(RuntimeException expected) {
-         // copyThemes() (unrelated to permission copying — theme handling, out of scope) fails in
-         // this minimal test context because CustomThemesManager.getManager()'s static Spring-bean
-         // lookup finds nothing (NoSuchBeanDefinitionException). It runs AFTER
-         // addCopiedIdentityPermission() (the step that copies/migrates permissions, including our
-         // VIEWSHEET grant), so this catch does not affect the permission-layer result below.
+      finally {
+         // copyOrganization(replace=false) creates toOrgId itself plus its own copies of
+         // fromOrgId's "viewer"/"Administrator" roles and "admin" user (see
+         // copyRoleToOrganization()/copyUserToOrganization()) — none of that is tracked by
+         // SecurityTestDataBuilder, since only fromOrgId was registered via .addOrg(). Without
+         // explicit cleanup here, the org, its roles/user, and the migrated permission below
+         // would all leak into later tests sharing the same KeyValueStorage-backed
+         // FileAuthenticationProvider. Runs in `finally` so it happens even if an assertion above
+         // fails.
+         chain.removePermission(ResourceType.VIEWSHEET, RESOURCE, toOrgId);
+         fileProvider.removeUser(new IdentityID("admin", toOrgId));
+         fileProvider.removeRole(new IdentityID("Administrator", toOrgId));
+         fileProvider.removeRole(new IdentityID("viewer", toOrgId));
+         fileProvider.removeOrganization(toOrgId);
       }
-
-      // CORRECTED (see permission-matrix-org-lifecycle.md scenario 5 for the full writeup):
-      // copyOrganization(replace=false) calls
-      // addCopiedIdentityPermission(..., Identity.ORGANIZATION, replace=false), which reaches
-      // IdentityService.updateIdentityPermissions() -> updateOrgIdentitiesPermission() ->
-      // Permission.setRoleGrantsForOrg(action, roles, oldOrgId, newOrgId). That method mutates a
-      // Permission instance fetched via FileAuthorizationProvider.getPermissions() (strips the
-      // oldOrgId-scoped grant, adds a newOrgId-scoped one) and persists the mutated instance under
-      // the new org's key. An earlier version of this test asserted that this ALSO corrupted the
-      // grant still stored under the source org's key — that held under MockCluster's plain
-      // ConcurrentHashMap-backed replicated map (get() returns the literal stored reference, so
-      // the fetched-and-mutated instance IS the one still keyed under fromOrgId), but did not
-      // reproduce in the real application. Root cause: production's Cluster.getReplicatedMap() is
-      // backed by a real IgniteCache, which defaults to copyOnRead=true (this project's
-      // IgniteCluster.getCacheConfiguration() never overrides it to false) -- every get() returns
-      // an independent deserialized copy, so mutating it can never affect what's already
-      // persisted under a different (or the same) key. This test now runs against
-      // CopyOnReadClusterConfig (below), which reproduces that guarantee, so the assertions below
-      // reflect the actual, correct production behavior: the source org keeps its own grant
-      // untouched, and the new org gets its own independent, equivalent grant.
-      assertTrue(hasViewerReadGrant(chain, toOrgId),
-                "the new org gets a working grant, scoped to itself, as Rule 1 intends");
-      assertTrue(hasViewerReadGrant(chain, fromOrgId),
-                "the source org's own grant must be untouched by a supposedly non-destructive copy");
-
-      chain.removePermission(ResourceType.VIEWSHEET, RESOURCE, toOrgId);
    }
 
    // ── scenario 6: copying an org strips a member's global Administrator role, keeps ordinary
