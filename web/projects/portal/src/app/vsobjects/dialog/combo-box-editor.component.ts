@@ -305,10 +305,22 @@ export class ComboBoxEditor implements OnInit, OnChanges {
 
             //Compare year, month, and day
             while (i < maxSize + 1) {
-               if(minValues[i] > maxValues[i]) {
+               // Bug #75651 follow-up: compare numerically, not lexicographically - captured
+               // fields like hour/minute/second aren't zero-padded (e.g. `[01]?[0-9]` also
+               // matches a single digit), so a raw string compare like "5" > "12" incorrectly
+               // evaluates to true. Non-numeric captures (e.g. the DATETIME whitespace
+               // separator) fall back to a direct string comparison, since parseInt on them
+               // yields NaN on both sides.
+               const minNum = parseInt(minValues[i], 10);
+               const maxNum = parseInt(maxValues[i], 10);
+               const useNumeric = !isNaN(minNum) && !isNaN(maxNum);
+               const minCompare: string | number = useNumeric ? minNum : minValues[i];
+               const maxCompare: string | number = useNumeric ? maxNum : maxValues[i];
+
+               if(minCompare > maxCompare) {
                   return false;
                }
-               else if(minValues[i] == maxValues[i]) {
+               else if(minCompare == maxCompare) {
                   i ++;
                }
                else {

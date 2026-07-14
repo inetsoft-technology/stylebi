@@ -43,7 +43,10 @@
  *   Bug #75651 — validateDateRange() did not compare minutes/seconds for TIME_INSTANT;
  *   DATETIME_PATTERN lacked capturing groups for them, so a minute/second-level range
  *   violation within the same hour went undetected. Fixed by capturing those groups and
- *   updating maxSize to match.
+ *   updating maxSize to match. Follow-up (same bug): hour/minute/second aren't zero-padded
+ *   in the pattern, so the existing lexicographic string comparison would wrongly treat e.g.
+ *   "5" as greater than "12" — fixed by comparing numerically (with a string-compare fallback
+ *   for the one non-numeric capture, the datetime whitespace separator).
  *
  * Mocking strategy: DialogService.open() is mocked to return `{ result: Promise }`,
  * matching the NgbModalRef-like shape the component calls `.result.then(onResolve,
@@ -710,6 +713,15 @@ describe("ComboBoxEditor — validateDateRange", () => {
       expect(comp.validateDateRange("2024-01-01 10:02:00", "2024-01-01 10:05:00")).toBe(true);
       expect(comp.validateDateRange("2024-01-01 10:05:07", "2024-01-01 10:05:03")).toBe(false);
       expect(comp.validateDateRange("2024-01-01 10:05:03", "2024-01-01 10:05:07")).toBe(true);
+   });
+
+   // Bug #75651 follow-up: hour/minute/second aren't zero-padded in the pattern
+   // (`[01]?[0-9]` etc. also match a single digit), so a lexicographic string compare would
+   // wrongly treat "5" as greater than "12". Must compare numerically.
+   it("should compare single-digit minute values numerically, not lexicographically", () => {
+      const { comp } = createComponent({ dataType: XSchema.TIME_INSTANT });
+      expect(comp.validateDateRange("2024-01-01 10:5:00", "2024-01-01 10:12:00")).toBe(true);
+      expect(comp.validateDateRange("2024-01-01 10:12:00", "2024-01-01 10:5:00")).toBe(false);
    });
 });
 
