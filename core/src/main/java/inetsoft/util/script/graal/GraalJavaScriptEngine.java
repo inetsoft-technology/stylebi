@@ -1407,12 +1407,20 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       putClassProxy(bindings, "AxisSpec",   "inetsoft.graph.AxisSpec");
       putClassProxy(bindings, "PlotSpec",   "inetsoft.graph.PlotSpec");
 
-      // elements
+      // elements. Rhino auto-imported the whole inetsoft.graph.element package, so
+      // every concrete element type must be registered here or chart scripts that
+      // reference it by simple name (e.g. new TreemapElement(),
+      // TreemapElement.Orientation.TOP_RIGHT) fail with "X is not defined".
       putClassProxy(bindings, "IntervalElement", "inetsoft.graph.element.IntervalElement");
       putClassProxy(bindings, "LineElement",     "inetsoft.graph.element.LineElement");
       putClassProxy(bindings, "SchemaElement",   "inetsoft.graph.element.SchemaElement");
       putClassProxy(bindings, "PointElement",    "inetsoft.graph.element.PointElement");
       putClassProxy(bindings, "AreaElement",     "inetsoft.graph.element.AreaElement");
+      putClassProxy(bindings, "TreemapElement",  "inetsoft.graph.element.TreemapElement");
+      putClassProxy(bindings, "MekkoElement",    "inetsoft.graph.element.MekkoElement");
+      putClassProxy(bindings, "ParaboxElement",  "inetsoft.graph.element.ParaboxElement");
+      putClassProxy(bindings, "PolygonElement",  "inetsoft.graph.element.PolygonElement");
+      putClassProxy(bindings, "RelationElement", "inetsoft.graph.element.RelationElement");
 
       // coords
       putClassProxy(bindings, "PolarCoord",    "inetsoft.graph.coord.PolarCoord");

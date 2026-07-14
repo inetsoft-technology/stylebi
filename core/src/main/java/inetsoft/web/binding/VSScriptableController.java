@@ -100,7 +100,9 @@ public class VSScriptableController {
    public static final String[] CHART_CLASSES = new String[] {
       "EGraph", "LegendSpec", "TitleSpec", "TextSpec", "AxisSpec",
       "PlotSpec", "IntervalElement", "LineElement",
-      "SchemaElement", "PointElement", "AreaElement", "PolarCoord",
+      "SchemaElement", "PointElement", "AreaElement", "TreemapElement",
+      "MekkoElement", "ParaboxElement", "PolygonElement", "RelationElement",
+      "PolarCoord",
       "RectCoord", "Rect25Coord", "ParallelCoord", "TriCoord",
       "FacetCoord", "LinearScale", "LogScale",
       "PowerScale", "TimeScale", "CategoricalScale", "LinearRange",
