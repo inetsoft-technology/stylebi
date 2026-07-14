@@ -392,9 +392,6 @@ public class CSSDictionary {
     */
    @SuppressWarnings("UnusedParameters")
    protected synchronized void init() {
-      // clear contains out-of-date css
-      clear();
-
       // clear data change listeners
       dmgr.clear();
 
@@ -423,6 +420,13 @@ public class CSSDictionary {
             }
          }
 
+         // parse into a local so this.css is never observed in a partially
+         // built (or null) state by concurrent readers. The change listener
+         // fires init() on the blob-storage callback thread; publishing the
+         // fully merged stylesheet in a single assignment at the end keeps
+         // getStyle() from returning null styles during re-initialization.
+         CascadingStyleSheet userCSS = null;
+
          if(cssDir != null && cssFile != null) {
             if(!space.exists(cssDir, cssFile)) {
                try {
@@ -436,18 +440,18 @@ public class CSSDictionary {
 
             this.ts = space.getLastModified(cssDir, cssFile);
             dmgr.addChangeListener(space, cssDir, cssFile, changeListener);
-            css = parse(cssDir, cssFile, false);
+            userCSS = parse(cssDir, cssFile, false);
          }
 
-         if(defaultReportCSS != null && !defaultReportCSS.equals(css)) {
+         if(defaultReportCSS != null && !defaultReportCSS.equals(userCSS)) {
             for(ICSSTopLevelRule rule : defaultReportCSS.getAllStyleRules()) {
                assert defaultCSS != null;
                defaultCSS.addRule(rule);
             }
          }
 
-         if(css != null) {
-            for(ICSSTopLevelRule rule : css.getAllStyleRules()) {
+         if(userCSS != null) {
+            for(ICSSTopLevelRule rule : userCSS.getAllStyleRules()) {
                assert defaultCSS != null;
                defaultCSS.addRule(rule);
             }
@@ -472,9 +476,13 @@ public class CSSDictionary {
             }
          }
 
+         // publish the fully built stylesheet in a single assignment, then
+         // rebuild the derived maps and drop any stale cached styles
          css = defaultCSS;
          initCSSClasses();
          initCSSIDs();
+         styleCache.clear();
+         selectorPresentCache.clear();
       }
       catch(Exception ex) {
          LOG.error("Failed to read {} from {}", cssFile, cssDir, ex);
