@@ -236,7 +236,8 @@ public class WorksheetTableService {
       // 3. Pre-aggregate conditions (WHERE).
       if(request.getPreAggregateCondition() != null && !request.getPreAggregateCondition().isEmpty()) {
          ConditionList preList = buildConditionList(
-            table.getColumnSelection(true), request.getPreAggregateCondition(), worksheet, false);
+            table.getColumnSelection(true), request.getPreAggregateCondition(), worksheet, false,
+            table.getColumnSelection(false));
          table.setPreConditionList(preList);
       }
 
@@ -248,18 +249,33 @@ public class WorksheetTableService {
       // 5. Post-aggregate conditions (HAVING).
       if(request.getPostAggregateCondition() != null && !request.getPostAggregateCondition().isEmpty()) {
          ConditionList postList = buildConditionList(
-            table.getColumnSelection(true), request.getPostAggregateCondition(), worksheet, true);
+            table.getColumnSelection(true), request.getPostAggregateCondition(), worksheet, true,
+            table.getColumnSelection(false));
          table.setPostConditionList(postList);
       }
 
       // 6. Ranking / top-N.
       if(request.getRankingCondition() != null && !request.getRankingCondition().isEmpty()) {
          ConditionList rankList = buildRankingConditionList(
-            table.getColumnSelection(true), request.getRankingCondition());
+            table.getColumnSelection(true), request.getRankingCondition(),
+            table.getColumnSelection(false));
          table.setRankingConditionList(rankList);
       }
 
-      // 7. Conservative gate: reject windowColumns when the base table can't fully SQL-merge.
+      // 7. Persist any synthetic date-part column(s) that a condition/ranking dateGroupLevel
+      // registered into the private column selection (see applyDateGroupLevel). Mirrors the
+      // finalize step in applyAggregateInfo — without re-running setColumnSelection, the query
+      // engine's merge-eligibility check can't see the newly added column, and an unresolvable
+      // column falls back to StyleBI's in-memory condition evaluation, which defaults to
+      // matching every row instead of filtering or erroring.
+      if(hasDateGroupLevel(request.getPreAggregateCondition()) ||
+         hasDateGroupLevel(request.getPostAggregateCondition()) ||
+         hasDateGroupLevel(request.getRankingCondition()))
+      {
+         table.setColumnSelection(table.getColumnSelection(false), false);
+      }
+
+      // 8. Conservative gate: reject windowColumns when the base table can't fully SQL-merge.
       // AssetQuery DOES have an in-memory fallback for a non-mergeable base (getWindowTableLens →
       // buildWindowLens → WindowTableLens), so this is not a hard product limitation in general.
       // But when the window's partitionBy/orderBy/arg references an ALIASED aggregate column (e.g.
@@ -280,7 +296,7 @@ public class WorksheetTableService {
          requireWindowColumnsMergeable(worksheet, table, user);
       }
 
-      // 8. Execution probe for render-time-executable tables.
+      // 9. Execution probe for render-time-executable tables.
       if(shouldProbe(request)) {
          probeExecutable(worksheet, table, user);
       }
@@ -1666,6 +1682,22 @@ public class WorksheetTableService {
                                     Worksheet worksheet,
                                     boolean isHaving)
    {
+      return buildConditionList(columns, items, worksheet, isHaving, null);
+   }
+
+   /**
+    * @param privateCs the table's private column selection, used to register a synthetic
+    *                  date-part column created by a {@code dateGroupLevel} (see
+    *                  {@link #applyDateGroupLevel}) so it can be resolved at query time. May be
+    *                  {@code null} (e.g. from unit tests that don't exercise dateGroupLevel),
+    *                  in which case the wrapped column is built but not registered.
+    */
+   ConditionList buildConditionList(ColumnSelection columns,
+                                    List<WorksheetTable.ConditionItem> items,
+                                    Worksheet worksheet,
+                                    boolean isHaving,
+                                    ColumnSelection privateCs)
+   {
       ConditionList list = new ConditionList();
 
       for(WorksheetTable.ConditionItem item : items) {
@@ -1676,14 +1708,16 @@ public class WorksheetTableService {
             list.append(new JunctionOperator(junctionType, item.resolveJunctionLevel()));
          }
 
-         appendConditionItem(list, item, columns, worksheet, isHaving);
+         appendConditionItem(list, item, columns, worksheet, isHaving, privateCs);
       }
 
       return list;
    }
 
-   private ConditionList buildRankingConditionList(ColumnSelection columns,
-                                                   List<WorksheetTable.ConditionItem> items)
+   // Package-private for unit testing (WorksheetTableServiceConditionTest).
+   ConditionList buildRankingConditionList(ColumnSelection columns,
+                                           List<WorksheetTable.ConditionItem> items,
+                                           ColumnSelection privateCs)
    {
       ConditionList list = new ConditionList();
 
@@ -1694,15 +1728,71 @@ public class WorksheetTableService {
             list.append(new JunctionOperator(junctionType, item.resolveJunctionLevel()));
          }
 
-         appendRankingConditionItem(list, item, columns);
+         appendRankingConditionItem(list, item, columns, privateCs);
       }
 
       return list;
    }
 
+   /** True if any item in {@code items} carries a {@code dateGroupLevel}. Null-safe. */
+   private static boolean hasDateGroupLevel(List<WorksheetTable.ConditionItem> items) {
+      return items != null && items.stream().anyMatch(i -> i.getDateGroupLevel() != null);
+   }
+
+   /**
+    * Wraps {@code ref} in a {@link DateRangeRef} truncated/extracted to {@code dateGroupLevel} (e.g.
+    * "year", "month of year"), so a condition/ranking compares the date part instead of the raw
+    * timestamp — mirrors the grouping wrap in {@link #applyAggregateInfo}. No-op when
+    * {@code dateGroupLevel} is null or {@code ref} isn't a plain column.
+    *
+    * <p>When {@code privateCs} is non-null, also registers the synthetic column into it (mirroring
+    * {@link #applyAggregateInfo}'s GROUP BY registration) so the query engine can resolve it — an
+    * unregistered synthetic column that fails to SQL-merge falls back to StyleBI's in-memory
+    * condition evaluation, which can't find it by name and defaults to matching every row. The
+    * synthetic column is marked not-visible so it never leaks into the table's output columns.
+    */
+   private DataRef applyDateGroupLevel(DataRef ref, String dateGroupLevel, ColumnSelection privateCs) {
+      if(dateGroupLevel == null || !(ref instanceof ColumnRef column)) {
+         return ref;
+      }
+
+      int dgroup = getDateGroupLevel(dateGroupLevel);
+      String name = DateRangeRef.getName(column.getName(), dgroup);
+
+      // Reuse an already-registered synthetic column for the same base field + level (e.g. two
+      // condition leaves on the same date field/level) instead of adding a duplicate entry.
+      if(privateCs != null) {
+         DataRef existing = privateCs.getAttribute(name);
+
+         if(existing instanceof ColumnRef) {
+            return existing;
+         }
+      }
+
+      DateRangeRef rangeRef = new DateRangeRef(name, column.getDataRef(), dgroup);
+      rangeRef.setOriginalType(column.getDataType());
+      ColumnRef dateColumn = new ColumnRef(rangeRef);
+      dateColumn.setDataType(rangeRef.getDataType());
+      dateColumn.setVisible(false);
+
+      if(privateCs != null) {
+         int baseIdx = privateCs.indexOfAttribute(column);
+
+         if(baseIdx >= 0) {
+            privateCs.addAttribute(baseIdx, dateColumn);
+         }
+         else {
+            privateCs.addAttribute(dateColumn);
+         }
+      }
+
+      return dateColumn;
+   }
+
    private void appendRankingConditionItem(ConditionList list,
                                            WorksheetTable.ConditionItem item,
-                                           ColumnSelection columns)
+                                           ColumnSelection columns,
+                                           ColumnSelection privateCs)
    {
       if(item.getField() == null || item.getOperation() == null) {
          return;
@@ -1713,6 +1803,8 @@ public class WorksheetTableService {
       if(ref == null) {
          return;
       }
+
+      ref = applyDateGroupLevel(ref, item.getDateGroupLevel(), privateCs);
 
       int op = switch(item.getOperation()) {
          case "TOP_N"    -> XCondition.TOP_N;
@@ -1743,7 +1835,8 @@ public class WorksheetTableService {
                                     WorksheetTable.ConditionItem item,
                                     ColumnSelection columns,
                                     Worksheet worksheet,
-                                    boolean isHaving)
+                                    boolean isHaving,
+                                    ColumnSelection privateCs)
    {
       // Fail loud rather than silently skipping. A skipped item leaves a dangling JunctionOperator
       // in the ConditionList (the operator for this item was already appended by buildConditionList),
@@ -1766,6 +1859,12 @@ public class WorksheetTableService {
             "column selection. Add it to the table's columns (or omit columns to select all), " +
             "and reference it exactly as it appears in the selection.");
       }
+
+      // Truncate/extract to the requested date part BEFORE comparing, mirroring applyAggregateInfo's
+      // grouping wrap. Without this, a condition's dateGroupLevel was silently ignored: the raw
+      // timestamp column was compared directly against a date-part literal (e.g. "2025-01-01"),
+      // which never matches, silently zeroing every row instead of erroring.
+      ref = applyDateGroupLevel(ref, item.getDateGroupLevel(), privateCs);
 
       // For HAVING conditions, wrap the column in an AggregateRef when a formula is present.
       if(isHaving && item.getAggregateFormula() != null &&
