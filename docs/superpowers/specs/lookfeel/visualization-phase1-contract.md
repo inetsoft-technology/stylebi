@@ -194,7 +194,7 @@ Lock the contract into code with one additive file. No selectors change; nothing
   --inet-viz-font-size: var(--inet-font-size-base);
 
   // state (Phase 4 assigns modern values)
-  --inet-viz-hover-bg: var(--inet-ui-neutral-hover-bg-color);
+  --inet-viz-hover-bg: var(--inet-hover-primary-bg-color);
   --inet-viz-selected-bg: var(--inet-shell-selected-bg-color);
   --inet-viz-selected-text: var(--inet-selected-item-text-color);
   --inet-viz-selected-border: var(--inet-primary-color);
