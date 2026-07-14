@@ -48,6 +48,9 @@ import static org.mockito.Mockito.*;
  *  [Logout event]        loggedOut removes cached login principal         -> invalid after logout
  *  [Login event]         successful login event is forwarded to listeners -> listener invoked
  *  [Login-As]            ticket holds acting user, ClientInfo holds target -> credential checked against acting user
+ *  [Login-As cross-org]  target user is in a different org than the acting admin -> principal org
+ *                        and permission checks follow the target, not the admin
+ *  [Login-As bad pass]   acting user's own submitted password is wrong -> null, no leftover session
  *
  * Test design:
  *  - keep the Spring context required by SecurityEngine initialization
@@ -186,6 +189,78 @@ class SecurityEngineAuthenticationTest {
       SRPrincipal srPrincipal = (SRPrincipal) principal;
       assertEquals(targetId, user.getUserIdentity());
       assertEquals("Security Admin", srPrincipal.getAlias());
+   }
+
+   // [Scenario: login-as, cross-org] siteAdmin logs in as a user in a different org -> the
+   // resulting principal's org comes from the target's own identity (realUser.getOrganizationID()),
+   // not the acting admin's org, and a subsequent checkPermission() call is authorized against a
+   // grant scoped to the target's own org key rather than the admin's.
+   // Setup: provider only grants a SECURITY_USER permission keyed to the target's own org
+   @Test
+   void authenticate_loginAsTicket_crossOrg_targetOrgResolvedFromRealUserAndPermissionFollowsTargetOrg()
+      throws SecurityException
+   {
+      IdentityID adminId = new IdentityID("siteAdmin", "org1");
+      IdentityID targetId = new IdentityID("orgUser", "org2");
+      SecurityProvider provider = mock(SecurityProvider.class);
+      DefaultTicket ticket = new DefaultTicket(adminId, "adminPass");
+
+      ClientInfo user = clientInfo(targetId);
+      user.setLoginUserName(targetId);
+
+      User targetUser = new User(targetId, new String[0], new String[0], new IdentityID[0], "", "",
+         true, "Org2 User");
+
+      when(provider.authenticate(adminId, ticket)).thenReturn(true);
+      when(provider.getUser(targetId)).thenReturn(targetUser);
+      when(provider.getRoles(targetId)).thenReturn(new IdentityID[0]);
+      when(provider.getUserGroups(targetId)).thenReturn(new String[0]);
+      // the grant is keyed to the target's own org; nothing is granted under the admin's org1 key
+      when(provider.checkPermission(any(), eq(ResourceType.SECURITY_USER),
+         eq(targetId.convertToKey()), eq(ResourceAction.ADMIN))).thenReturn(true);
+
+      Principal principal = engine.authenticate(user, ticket, provider);
+
+      assertNotNull(principal, "login-as must succeed across orgs when the acting user's own password is valid");
+      SRPrincipal srPrincipal = (SRPrincipal) principal;
+      assertEquals("org2", srPrincipal.getOrgId(),
+         "principal org must be resolved from the target user (realUser.getOrganizationID()), not the acting admin's org");
+
+      ReflectionTestUtils.setField(engine, "provider", provider);
+
+      assertTrue(engine.checkPermission(principal, ResourceType.SECURITY_USER, targetId, ResourceAction.ADMIN),
+         "permission check after cross-org login-as must be authorized against the target org's grant");
+      verify(provider).checkPermission(principal, ResourceType.SECURITY_USER, targetId.convertToKey(),
+         ResourceAction.ADMIN);
+   }
+
+   // [Scenario: login-as, wrong operator password] the acting user's own submitted password is
+   // wrong -> login-as must fail cleanly: no principal is returned and no session (neither the
+   // acting user's nor the target's) is left behind in the cache.
+   // Setup: provider rejects the ticket's own identity; the target identity is never even queried
+   @Test
+   void authenticate_loginAsTicket_wrongOperatorPassword_returnsNullAndLeavesNoSession() {
+      IdentityID adminId = new IdentityID("admin", "org1");
+      IdentityID targetId = new IdentityID("securityAdmin", "org1");
+      SecurityProvider provider = mock(SecurityProvider.class);
+      DefaultTicket ticket = new DefaultTicket(adminId, "wrongPass");
+
+      ClientInfo user = clientInfo(targetId);
+      user.setLoginUserName(targetId);
+
+      when(provider.authenticate(adminId, ticket)).thenReturn(false);
+
+      Principal principal = engine.authenticate(user, ticket, provider);
+
+      assertNull(principal, "login-as must fail cleanly when the acting user's own password is wrong");
+      verify(provider, never()).authenticate(targetId, ticket);
+      verify(provider, never()).getUser(any());
+
+      @SuppressWarnings("unchecked")
+      Map<ClientInfo, SRPrincipal> users =
+         (Map<ClientInfo, SRPrincipal>) ReflectionTestUtils.getField(engine, "users");
+      assertTrue(users.isEmpty(),
+         "no session for either the acting user or the target may be left behind after a failed login-as");
    }
 
    // [Scenario: active session] cached principal with matching user identity -> active user
