@@ -144,6 +144,21 @@ public class WizVsService {
       result.setBinding(collectFlatBinding(assembly));
       result.setAssemblyName(assembly.getName());
       result.setHasData(computeHasData(rvs.getViewsheet().getViewsheetInfo().isMetadata(), result));
+
+      // Persist the mutated DateComparisonInfo so it survives a subsequent save_viewsheet, which
+      // rebuilds the saved copy from the STORED shared viewsheet, not this live runtime (mirrors the
+      // same guarded write-back in removeVisualization — a transient/unsaved runtime has no
+      // persistent entry and is left runtime-only).
+      AssetEntry entry = rvs.getEntry();
+      String path = entry != null ? entry.getPath() : null;
+
+      if(path != null &&
+         (path.startsWith(WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/") ||
+          path.startsWith(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/")))
+      {
+         engine.setSheet(entry, vs, user, true);
+      }
+
       return result;
    }
 
