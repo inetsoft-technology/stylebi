@@ -79,7 +79,9 @@ export class DynamicValueEditorStub {
 // Model fixtures
 // ---------------------------------------------------------------------------
 
-export function makeDynamicValue(value: any, type: string = ValueTypes.VALUE): DynamicValueModel {
+export function makeDynamicValue(
+   value: string | number, type: string = ValueTypes.VALUE
+): DynamicValueModel {
    return { type, value };
 }
 

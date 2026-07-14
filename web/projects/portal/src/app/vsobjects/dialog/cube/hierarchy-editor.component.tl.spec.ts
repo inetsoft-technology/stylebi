@@ -120,6 +120,19 @@ describe("HierarchyEditor - Group 1: selectedColumn setter", () => {
       expect(comp.disableTime).toBe(false);
    });
 
+   it("should assign the selected member but leave both fieldsets disabled for a non-date/time type", async () => {
+      // option-bearing member whose dataType matches none of the DATE/TIME/TIME_INSTANT
+      // branches: selectedMember still gets assigned (the `if` condition itself only checks
+      // `option`), but disableDate/disableTime keep their initial-reset value of true since no
+      // else-if branch runs.
+      const member = makeMember({ dataRef: makeDataRef({ dataType: XSchema.STRING }) });
+      const { comp } = await renderComponent({ selectedColumn: member });
+
+      expect(comp.selectedMember).toBe(member);
+      expect(comp.disableDate).toBe(true);
+      expect(comp.disableTime).toBe(true);
+   });
+
    it("should reset to an empty selected member when selectedColumn is not a valid option-bearing member", async () => {
       const { comp } = await renderComponent({ selectedColumn: { dataRef: makeDataRef({ dataType: XSchema.DATE }) } });
 

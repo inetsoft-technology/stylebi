@@ -17,7 +17,7 @@
  */
 
 /**
- * RangeSliderEditDialog — single pass (+内存泄漏)
+ * RangeSliderEditDialog — single pass (+ memory-leak coverage)
  *
  * Risk-first coverage:
  *   Group 1 [Risk 2] — initForm (numeric branch): control creation, initial values, validator wiring

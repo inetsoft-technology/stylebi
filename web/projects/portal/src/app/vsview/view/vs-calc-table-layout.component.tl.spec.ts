@@ -384,6 +384,28 @@ describe("CalcTableLayoutPane — setSpanCellStyle", () => {
       expect(style["border-bottom-color"]).toBeUndefined();
    });
 
+   it("should mark only the right border for a span that is wide but not tall (width>1 in isolation)", () => {
+      const { comp } = createComponent();
+      const cell = makeCell(0, 0, { span: { width: 2, height: 1 } as any });
+      const style: any = {};
+
+      comp.setSpanCellStyle(style, cell, 0, 0);
+
+      expect(style["border-right-color"]).toBe("#bbbec0");
+      expect(style["border-bottom-color"]).toBeUndefined();
+   });
+
+   it("should mark only the bottom border for a span that is tall but not wide (height>1 in isolation)", () => {
+      const { comp } = createComponent();
+      const cell = makeCell(0, 0, { span: { width: 1, height: 2 } as any });
+      const style: any = {};
+
+      comp.setSpanCellStyle(style, cell, 0, 0);
+
+      expect(style["border-right-color"]).toBeUndefined();
+      expect(style["border-bottom-color"]).toBe("#bbbec0");
+   });
+
    it("should mark interior left/right borders for a covered cell in the middle columns of its span", () => {
       const { comp } = createComponent();
       // baseInfo: Rectangle(x=row=0, y=col=1, width=3 columns, height=1 row) — a span covering
@@ -696,10 +718,23 @@ describe("CalcTableLayoutPane — command processors", () => {
       oldLayout.selectedRect = new Rectangle(0, 0, 1, 1);
       editorService.getTableLayout.mockReturnValue(oldLayout);
       const newLayout = makeTableModel(1, 1);
+      // replaceObject() calls addSelectCells() BEFORE `this.tableModel` is reassigned to the
+      // new layout, so addSelectCells() recomputes selectedCells against whatever
+      // `comp.tableModel` currently is. The real invariant going into this command is that the
+      // component's live tableModel already matches what editorService.getTableLayout() just
+      // returned — without seeding it here, the selectedCells/selectedRect getters fall back to
+      // their "no tableModel" defaults ([] / a zero-size Rectangle) and the recomputation loop
+      // never iterates, silently degenerating into a no-op.
+      comp.tableModel = oldLayout;
 
       (comp as any).processGetTableLayoutCommand({ layout: newLayout, cellBindings: {} } as GetTableLayoutCommand);
 
       expect(comp.tableModel.selectedRect).toBe(oldLayout.selectedRect);
+      // selectedCells is the SAME array reference shared between old and new layout
+      // (`newModel.selectedCells = oldModel.selectedCells`); addSelectCells() clears then
+      // repopulates it from the real 1x1 grid geometry — asserting its content (not just the
+      // rect reference) proves the recomputation loop actually ran.
+      expect(comp.tableModel.selectedCells).toEqual([oldLayout.tableRows[0].tableCells[0]]);
       expect(editorService.loadCellBinding).toHaveBeenCalled();
    });
 

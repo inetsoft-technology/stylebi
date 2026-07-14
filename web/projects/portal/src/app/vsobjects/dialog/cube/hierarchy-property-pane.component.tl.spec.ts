@@ -127,15 +127,20 @@ describe("HierarchyPropertyPane — ngOnInit / initLocalColumnList", () => {
 
    it("should detect IE from the user agent string", () => {
       const uaSpy = vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (Trident/7.0)");
-      const comp = createComponent();
 
-      comp.ngOnInit();
+      try {
+         const comp = createComponent();
 
-      // Bypass: isIE is private with no public getter; verified indirectly elsewhere via
-      // columnDragStart's dataTransfer.setData skip, but checked directly here since this
-      // is the one test whose whole point is the detection itself.
-      expect((comp as any).isIE).toBe(true);
-      uaSpy.mockRestore();
+         comp.ngOnInit();
+
+         // Bypass: isIE is private with no public getter; verified indirectly elsewhere via
+         // columnDragStart's dataTransfer.setData skip, but checked directly here since this
+         // is the one test whose whole point is the detection itself.
+         expect((comp as any).isIE).toBe(true);
+      }
+      finally {
+         uaSpy.mockRestore();
+      }
    });
 });
 
@@ -541,6 +546,43 @@ describe("HierarchyPropertyPane — contentDragEnter", () => {
 
       expect(dim.members).toHaveLength(2); // unchanged — bailed out before any splice
    });
+
+   it("should proceed when the date target has no later duplicate (droppable), even from the column list", () => {
+      // Isolates the SECOND operand of the bail-out guard (!isDateDroppable) being false alone
+      // — the target is still a date column and sourceEl.className still lacks
+      // "hierarchy-content-item" (both other operands remain true).
+      const comp = createComponent();
+      const dateRef = makeColumn({ name: "d", dataType: XSchema.DATE });
+      const sourceRef = makeMember({ dataRef: dateRef, option: DateRangeRef.YEAR_INTERVAL });
+      const targetMember = makeMember({ dataRef: dateRef, option: DateRangeRef.YEAR_INTERVAL });
+      const dim = makeDimension({ members: [targetMember] }); // no member after index 0 to match
+      primeDrag(comp, sourceRef, comp.localColumnList);
+
+      comp.contentDragEnter({}, dim, 0, 0);
+
+      expect(dim.members).toHaveLength(2); // ghost inserted — did not bail out
+   });
+
+   it("should proceed when dragging from within hierarchy content, even for a non-droppable date target", () => {
+      // Isolates the THIRD operand of the bail-out guard (className lacks
+      // "hierarchy-content-item") being false alone — the target is still a date column and
+      // isDateDroppable still returns false (both other operands remain true).
+      const comp = createComponent();
+      const dateRef = makeColumn({ name: "d", dataType: XSchema.DATE });
+      const sourceRef = makeMember({ dataRef: dateRef, option: DateRangeRef.YEAR_INTERVAL });
+      const laterDuplicate = makeMember({ dataRef: dateRef, option: DateRangeRef.YEAR_INTERVAL });
+      const targetMember = makeMember({ dataRef: dateRef, option: DateRangeRef.YEAR_INTERVAL });
+      const dim = makeDimension({ members: [targetMember, laterDuplicate] });
+      comp.dragSourceEl = {
+         sourceEl: { className: "hierarchy-content-item" },
+         sourceRef, sourceList: comp.localColumnList, sourceIndex: 0,
+         dropList: null, dropIndex: null,
+      };
+
+      comp.contentDragEnter({}, dim, 0, 0);
+
+      expect(dim.members).toHaveLength(3); // ghost inserted — did not bail out
+   });
 });
 
 // ---------------------------------------------------------------------------
@@ -743,11 +785,15 @@ describe("HierarchyPropertyPane — contentDrop", () => {
       const sourceRef = makeMember({ dataRef });
       const comp = createComponent();
       const dim = makeDimension({ members: [sourceRef] });
+      // sourceList must be assigned AFTER localColumnList is set, so it is the SAME array
+      // reference as comp.localColumnList — the guard being tested compares references
+      // (sourceList == this.localColumnList), so a stale/orphaned reference here would make
+      // the assertion pass regardless of whether the guard exists.
+      comp.localColumnList = [dataRef];
       comp.dragSourceEl = {
          sourceRef, sourceList: comp.localColumnList, sourceIndex: 0,
          dropList: dim.members, dropIndex: 0,
       };
-      comp.localColumnList = [dataRef];
 
       comp.contentDrop({}, dim, 0, 0);
 
@@ -767,9 +813,12 @@ describe("HierarchyPropertyPane — contentDrop", () => {
 
       comp.contentDrop({}, dim, 0, 0);
 
-      // sourceItemIndex shifts from 1 to 2 (out of bounds by the time of removal), so the
-      // original "keep" entry survives the splice — confirms the +1 compensation ran.
-      expect(dim.members.some(m => m.dataRef.name === "keep")).toBe(true);
+      // With the +1 shift, sourceItemIndex becomes 2 — out of bounds for a 2-element array —
+      // so splice(2, 1) is a no-op and both members survive untouched. Without the shift,
+      // sourceItemIndex would stay 1 and splice(1, 1) would remove sourceRef, leaving only
+      // "keep" — asserting the full array (not just that "keep" is present) is what actually
+      // discriminates between the two behaviors.
+      expect(dim.members).toEqual([keep, sourceRef]);
    });
 
    it("should remove a stray duplicate at the drop position when a date column already exists elsewhere in the dimension", () => {

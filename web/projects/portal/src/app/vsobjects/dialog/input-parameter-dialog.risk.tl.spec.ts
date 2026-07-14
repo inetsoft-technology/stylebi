@@ -161,12 +161,18 @@ describe("InputParameterDialog — model setter before ngOnInit", () => {
       expect(comp.model.name).toBe("para1");
    });
 
-   it("should still parse DATE/TIME/TIME_INSTANT fields correctly even without a form", () => {
+   it("should skip the guarded form-sync block without crashing while still running the unguarded date-parsing step", () => {
+      // Distinct from the interaction-spec DATE test (form present): this proves the
+      // `this._model && this.form` guard on the form-control-sync block is what's actually
+      // skipping that code when form is null — not that parsing "just happens to work" — by
+      // asserting form stays null (never touched) alongside the parse result.
       const { comp, ngbDateParserFormatter } = createComponent();
+      expect(comp.form).toBeNull();
 
       comp.model = makeModel({ type: XSchema.DATE, value: "2024-03-15" });
 
       expect(ngbDateParserFormatter.parse).toHaveBeenCalledWith("2024-03-15");
       expect(comp.date).toEqual({ year: 2024, month: 3, day: 15 });
+      expect(comp.form).toBeNull();
    });
 });

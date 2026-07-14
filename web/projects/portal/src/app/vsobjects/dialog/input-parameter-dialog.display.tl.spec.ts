@@ -114,7 +114,7 @@ describe("InputParameterDialog — changeType", () => {
       expect(comp.form.controls["alphaNumericValue"].value).toBe(true);
    });
 
-   it("should always run changeValidators for the current type", () => {
+   it("should always run changeValidators for the current type via changeType", () => {
       const { comp } = createComponent({ model: makeModel({ type: XSchema.INTEGER }) });
       comp.ngOnInit();
       const spy = vi.spyOn(comp, "changeValidators");
@@ -180,7 +180,7 @@ describe("InputParameterDialog — updateValue", () => {
       expect(comp.model.value).toBe("raw");
    });
 
-   it("should always run changeValidators for the current type", () => {
+   it("should always run changeValidators for the current type via updateValue", () => {
       const { comp } = createComponent({ model: makeModel({ type: XSchema.STRING }) });
       comp.ngOnInit();
       const spy = vi.spyOn(comp, "changeValidators");
@@ -387,6 +387,16 @@ describe("InputParameterDialog — isFormInvalid", () => {
       comp.form.controls["alphaNumericValue"].setValue("ok");
 
       expect(comp.isFormInvalid()).toBe(false);
+   });
+
+   it("should be invalid when the value is invalid even if the name control is fine (first OR operand alone)", () => {
+      // makeModel()'s defaults leave value: "" (isInvalid() = true, since !model.value) while
+      // name: "param1" keeps the name control valid — isolates the LEFT operand of
+      // isFormInvalid()'s OR contributing true entirely on its own.
+      const { comp } = createComponent({ model: makeModel({ type: XSchema.STRING }) });
+      comp.ngOnInit();
+
+      expect(comp.isFormInvalid()).toBe(true);
    });
 });
 

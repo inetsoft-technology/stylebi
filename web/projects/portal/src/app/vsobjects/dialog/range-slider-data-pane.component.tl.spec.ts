@@ -264,6 +264,9 @@ describe("RangeSliderDataPane — selectColumn", () => {
    it("should set the NUMBER range type for a numeric column", () => {
       const column = makeColumn({ dataType: XSchema.INTEGER });
       const { comp } = createComponent();
+      // Seed a non-default value first — NUMBER is already the fixture's default, so leaving
+      // it untouched wouldn't prove the numeric-dispatch branch actually ran.
+      comp.sizeModel.rangeType = TimeInfoType.MONTH;
 
       comp.selectColumn(makeTreeNode({ data: column }));
 
@@ -333,12 +336,16 @@ describe("RangeSliderDataPane — selectTreeCompositeNodes", () => {
       const { comp } = createComponent();
       const emitted: boolean[] = [];
       comp.validData.subscribe((v: boolean) => emitted.push(v));
-      const columnNode = makeTreeNode({ type: "columnNode" });
 
-      comp.selectTreeCompositeNodes([columnNode]);
+      for(const type of ["columnNode", "table", "folder", "worksheet"]) {
+         const node = makeTreeNode({ type });
 
-      expect(comp.selectedTreeCompositeNodes).toEqual([columnNode]);
-      expect(emitted).toEqual([false]);
+         comp.selectTreeCompositeNodes([node]);
+
+         expect(comp.selectedTreeCompositeNodes).toEqual([node]);
+      }
+
+      expect(emitted).toEqual([false, false, false, false]);
    });
 
    it("should replace unrecognized node types with an empty placeholder", () => {

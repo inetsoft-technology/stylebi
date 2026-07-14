@@ -27,7 +27,7 @@
  * reset, private — exercised through its public callers), updateType, resetValid,
  * calendarEnabled, updateCalendar, toggleQuery, onDateRangeChanged, onDefaultvalueChanged,
  * currentPattern, validateDateValue, validateDateRange, showDateRangeWarning,
- * showDateRanges, changeNodefault, isDefaultValue.
+ * showDateRanges, changeNodefault, isDefaultValue, datePrompt, dropdownMinWidth.
  *
  * Risk-first coverage:
  *   Group 4 [Risk 3] — updatDefaultValues (via showSelectionListDialog/toggleQuery):
@@ -542,6 +542,20 @@ describe("ComboBoxEditor — onDateRangeChanged", () => {
       expect(emitted).toEqual([false, true]);
    });
 
+   it("should emit valid=false when the min endpoint is fine but the max endpoint's value is malformed", () => {
+      // Isolates the SECOND `&&` operand (validateDateValue(max)) alone being false — the
+      // previous test only covers the first operand (min) failing.
+      const { comp } = createComponent({
+         calendar: true, dataType: XSchema.DATE, minDate: "2024-01-01", maxDate: "not-a-date-but-not-dynamic",
+      });
+      const emitted: boolean[] = [];
+      comp.isInputValid.subscribe((v: boolean) => emitted.push(v));
+
+      comp.onDateRangeChanged();
+
+      expect(emitted).toEqual([false, true]);
+   });
+
    it("should re-evaluate the default value's validity as its last step", () => {
       const { comp } = createComponent({ calendar: false });
       const spy = vi.spyOn(comp, "onDefaultvalueChanged");
@@ -677,10 +691,22 @@ describe("ComboBoxEditor — validateDateRange", () => {
       expect(comp.validateDateRange("z", "a")).toBe(true);
    });
 
-   it("should compare down to seconds for TIME_INSTANT", () => {
+   it("should compare down to the hour for TIME_INSTANT", () => {
       const { comp } = createComponent({ dataType: XSchema.TIME_INSTANT });
       expect(comp.validateDateRange("2024-01-01 10:00:00", "2024-01-01 09:00:00")).toBe(false);
       expect(comp.validateDateRange("2024-01-01 09:00:00", "2024-01-01 10:00:00")).toBe(true);
+   });
+
+   // BUG: DATETIME_PATTERN has no capturing groups for minutes/seconds — only year/month/day/
+   // whitespace/hour are captured (5 groups), so the match array's length (6, including the
+   // full match) happens to equal maxSize (6) for non-DATE types. The comparison loop in
+   // validateDateRange only ever reads real values at indices 1-5; index 6 is undefined on
+   // both sides, which the `==` branch treats as "equal" and exits the loop without ever
+   // inspecting minutes/seconds. A minute-level difference within the same hour is silently
+   // treated as a valid range.
+   it.fails("does not actually detect a minute-level range violation for TIME_INSTANT", () => {
+      const { comp } = createComponent({ dataType: XSchema.TIME_INSTANT });
+      expect(comp.validateDateRange("2024-01-01 10:05:00", "2024-01-01 10:02:00")).toBe(false);
    });
 });
 
@@ -778,5 +804,40 @@ describe("ComboBoxEditor — isDefaultValue", () => {
       // so the actual return value here is "" rather than a strict `false` — toBeFalsy() per
       // the A2 rule instead of toBe(false).
       expect(comp.isDefaultValue("2024-01-01")).toBeFalsy();
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 12: datePrompt / dropdownMinWidth [Risk 1]
+// ---------------------------------------------------------------------------
+
+describe("ComboBoxEditor — datePrompt", () => {
+   it("should prompt for a date-only format for DATE", () => {
+      const { comp } = createComponent({ dataType: XSchema.DATE });
+      expect(comp.datePrompt).toBe("yyyy-mm-dd");
+   });
+
+   it("should prompt for a full datetime format for any non-TIME, non-DATE type", () => {
+      const { comp } = createComponent({ dataType: XSchema.TIME_INSTANT });
+      expect(comp.datePrompt).toBe("yyyy-MM-dd HH:mm:ss");
+   });
+
+   it("should prompt for a time-only format for TIME", () => {
+      const { comp } = createComponent({ dataType: XSchema.TIME });
+      expect(comp.datePrompt).toBe("HH:mm:ss");
+   });
+});
+
+describe("ComboBoxEditor — dropdownMinWidth", () => {
+   it("should be null when the dropdown body ViewChild hasn't been resolved", () => {
+      const { comp } = createComponent();
+      expect(comp.dropdownMinWidth).toBeNull();
+   });
+
+   it("should read the first element child's offsetWidth once the dropdown body is present", () => {
+      const { comp } = createComponent();
+      (comp as any).dropdownBody = { nativeElement: { firstElementChild: { offsetWidth: 42 } } };
+
+      expect(comp.dropdownMinWidth).toBe(42);
    });
 });

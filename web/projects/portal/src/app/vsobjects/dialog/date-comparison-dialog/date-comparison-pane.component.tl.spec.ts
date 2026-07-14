@@ -611,6 +611,32 @@ describe("DateComparisonPaneComponent — isOnlyShowRecentDateVisible", () => {
       // showPartLevelAsDate() would return false: granularity "16" is neither DAY("1") nor WEEK("2").
       expect(comp.isOnlyShowRecentDateVisible()).toBe(false);
    });
+
+   it("should short-circuit past the \"all equal\" branch when interval/context/granularity are all unrecognized (-1)", async () => {
+      // Isolates the FIRST operand of the "all equal" guard (contextLevel != -1) being false
+      // alone. All three dynamic values here have a non-VALUE type, so
+      // dcIntervalLevelToDateGroupLevel returns -1 for all of them. Without the `contextLevel
+      // != -1 &&` guard, `contextLevel==intervalLevel && contextLevel==granularity` would be
+      // true (-1==-1==-1) and wrongly delegate to showPartLevelAsDate().
+      const model = makeDateComparisonPaneModel({
+         periodPaneModel: makePeriodPaneModel({
+            custom: false,
+            standardPeriodPaneModel: makeStandardPeriodPaneModel({ dateLevel: makeDynamicValue(XConstants.MONTH_DATE_GROUP + "") }),
+         }),
+         intervalPaneModel: makeIntervalPaneModel({
+            level: makeDynamicValue("", ValueTypes.VARIABLE), // -> -1
+            contextLevel: makeDynamicValue("", ValueTypes.VARIABLE), // -> -1
+            granularity: makeDynamicValue("", ValueTypes.VARIABLE), // -> -1
+         }),
+      });
+      const { comp } = await renderComponent({ assemblyType: "VSChart", dateComparisonPaneModel: model });
+
+      // Guarded (real) path: contextLevel(-1) != -1 is false, so the "all equal" branch is
+      // skipped; falls to periodVal("3") != contextLevel(-1) -> true -> result true. Without
+      // the guard, showPartLevelAsDate() would instead be delegated to and return false
+      // (dateLevel=MONTH_DATE_GROUP is neither YEAR nor QUARTER) — the two paths diverge.
+      expect(comp.isOnlyShowRecentDateVisible()).toBe(true);
+   });
 });
 
 // ---------------------------------------------------------------------------

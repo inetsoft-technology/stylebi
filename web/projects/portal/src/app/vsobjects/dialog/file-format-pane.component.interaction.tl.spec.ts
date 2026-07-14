@@ -38,20 +38,16 @@
  * Out of scope this pass (covered in file-format-pane.component.display.tl.spec.ts):
  *   getExport (7-way dispatch), matchLayoutVisible (3-condition boolean).
  *
- * C4: MessageDialog.lastMessage/lastMessageTS are reset in beforeEach since
- * changeFormatType's CSV branch goes through ComponentTool.showMessageDialog, which
- * de-dupes identical messages fired within 500ms using those static fields.
+ * Note: changeFormatType's CSV branch goes through ComponentTool.showMessageDialog, which
+ * de-dupes identical messages fired within 500ms via the MessageDialog.lastMessage/
+ * lastMessageTS static fields — but every test below fully mocks showMessageDialog with
+ * vi.spyOn(...).mockResolvedValue(...), so that real dedup body (and those statics) never
+ * runs; there is nothing here that needs resetting between tests.
  */
 
 import { ComponentTool } from "../../common/util/component-tool";
-import { MessageDialog } from "../../widget/dialog/message-dialog/message-dialog.component";
 import { FileFormatType } from "../model/file-format-type";
 import { createComponent, makeModel } from "./file-format-pane.component.test-helpers";
-
-beforeEach(() => {
-   MessageDialog.lastMessage = null;
-   MessageDialog.lastMessageTS = 0;
-});
 
 afterEach(() => vi.restoreAllMocks());
 
