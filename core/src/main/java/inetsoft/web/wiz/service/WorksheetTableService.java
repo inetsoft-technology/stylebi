@@ -1632,9 +1632,10 @@ public class WorksheetTableService {
       return list;
    }
 
-   private ConditionList buildRankingConditionList(ColumnSelection columns,
-                                                   List<WorksheetTable.ConditionItem> items,
-                                                   ColumnSelection privateCs)
+   // Package-private for unit testing (WorksheetTableServiceConditionTest).
+   ConditionList buildRankingConditionList(ColumnSelection columns,
+                                           List<WorksheetTable.ConditionItem> items,
+                                           ColumnSelection privateCs)
    {
       ConditionList list = new ConditionList();
 

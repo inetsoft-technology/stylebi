@@ -270,6 +270,39 @@ class WorksheetTableServiceConditionTest {
    }
 
    @Test
+   void rankingConditionWithPartDateGroupLevelRegistersSyntheticColumn() throws Exception {
+      // Mirrors conditionWithPartDateGroupLevelRegistersSyntheticColumn but through
+      // buildRankingConditionList (TOP_N), the ranking-condition path appendRankingConditionItem
+      // also had to thread privateCs through.
+      WorksheetTable req = request("""
+         {
+           "rankingCondition": [
+             { "field": "order_date", "operation": "TOP_N", "dateGroupLevel": "month of year",
+               "values": [{ "type": "VALUE", "value": 3 }] }
+           ]
+         }
+         """);
+
+      ColumnSelection cs = columns("order_date");
+      ColumnSelection privateCs = columns("order_date");
+
+      ConditionList list = service().buildRankingConditionList(
+         cs, req.getRankingCondition(), privateCs);
+
+      String expectedName = DateRangeRef.getName(
+         "order_date", inetsoft.web.wiz.service.WizDateLevelUtil.getDateGroupLevel("month of year"));
+
+      DataRef conditionRef = list.getConditionItem(0).getAttribute();
+      assertEquals(expectedName, conditionRef.getName(),
+                   "ranking condition must reference the date-grouped synthetic column");
+
+      DataRef registered = privateCs.getAttribute(expectedName);
+      assertNotNull(registered,
+                     "ranking condition's Part-type dateGroupLevel synthetic column must also " +
+                     "be registered into the private ColumnSelection");
+   }
+
+   @Test
    void conditionDateGroupLevelReusesRegisteredColumnAcrossLeaves() throws Exception {
       // Two leaves on the same field + level must not create two private-selection entries.
       WorksheetTable req = request("""
