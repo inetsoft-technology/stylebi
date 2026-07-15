@@ -63,6 +63,14 @@ public class SVGAnimationDOMInjector {
 
       appendHoverCSS(svgRoot, doc);
 
+      // Hover-only mode (design-time surfaces): the hover-dim CSS injected above is enough for
+      // highlighting to work, but the entrance animation must be suppressed. Return before
+      // injecting any animation and without setting data-animated, so the Angular directive adds
+      // the .ready class immediately (the .ready-gated A1 types highlight without a delay).
+      if(animHint.contains(":" + SVGSupport.ANIMATION_FLAG_NOANIM)) {
+         return;
+      }
+
       // animated = true for every branch that injects animation (even single-element charts
       // where staggerDelay(0,1)=0, so lastDelay would stay 0 and cannot be used as a signal).
       // Pie is excluded: it has no inetsoft-active hover so no .ready gate is needed.

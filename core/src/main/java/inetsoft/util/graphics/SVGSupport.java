@@ -70,6 +70,11 @@ public interface SVGSupport {
    /** Gantt chart: milestone points fade in after the bars. Example hint: "grow:gantt". */
    String ANIMATION_FLAG_GANTT = "gantt";
 
+   /** Suppress the entrance animation but still inject hover-dim CSS. Appended to the base hint
+    *  for design-time surfaces (composer canvas, binding editor, wizard) so hover highlighting
+    *  works while the entrance animation is skipped. Example hint: "grow:noanim". */
+   String ANIMATION_FLAG_NOANIM = "noanim";
+
    // -------------------------------------------------------------------------
    // Semantic annotation constants (stamped on <g> elements during rendering)
    // -------------------------------------------------------------------------
