@@ -18,34 +18,32 @@
 package inetsoft.web.security;
 
 /*
- * Intent vs implementation suspects
+ * Redmine #75658 -- open redirect + logout CSRF (FIXED)
  *
- * [Suspect 1] (#75658) AbstractLogoutFilter.getLogoutRedirectUri() (reached via
- *             LogoutFilter.logout()/handleSessionExpired()) -> intent: compute a safe post-logout
- *             redirect target (the default portal/EM page, or the configured
- *             "portal.logout.url").
- *             FIXED: when the query string carries fromEm=true and the request is a plain GET
- *             with a "redirectUri" parameter, that parameter is now only honored if it targets
- *             this application's own origin (an app-relative path, or an absolute URL that starts
- *             with LinkUriArgumentResolver.getLinkUri(request)); anything else -- an external
- *             absolute URL, a protocol-relative "//host/..." URL, or a backslash-obfuscated
- *             variant browsers normalize to protocol-relative -- falls back to the same
- *             "<contextPath>/em" target already used for non-GET requests. See the
- *             "redirectUri same-origin validation" tests below.
+ * AbstractLogoutFilter.getLogoutRedirectUri() computed the post-logout redirect target from a
+ * client-supplied "redirectUri" GET parameter (when fromEm=true) with no validation at all,
+ * letting a plain GET redirect to an arbitrary external URL. Combined with LogoutFilter accepting
+ * any HTTP method and running ahead of CSRFFilter in the chain, a third-party page could force a
+ * visitor's logout and redirect them via a bare `<img>` tag, with zero script and zero user
+ * interaction beyond viewing the page.
  *
- * [Suspect 2] (#75658) LogoutFilter.doFilter() -> intent: unclear from the code itself, but
- *             "/logout" is filter #1 inside StandardFilterChain, which is nested inside
- *             AuthenticationFilterChain (#6 in the outer SecurityFilterChain); CSRFFilter is #7,
- *             strictly after. doFilter() also never inspects the HTTP method.
- *             actual: any request method to "/logout" (GET included) executes a full logout with
- *             no CSRF token required at all. NOT YET FIXED here: CSRFFilter's own SAFE_METHODS
- *             exemption (GET/HEAD/OPTIONS/TRACE) and its isApi()-scoped enforcement mean simply
- *             reordering the chain would not add protection either -- closing this gap needs an
- *             explicit product decision (e.g. POST-only logout with a frontend change, or
- *             extending CSRFFilter's scope to cover "/logout"). Left as a pinned characterization
- *             test -- see doFilter_logout_anyHttpMethod_triggersLogoutWithNoMethodOrTokenCheck --
- *             pending that decision. With Suspect 1 fixed, this alone is logout CSRF only (forces
- *             a re-login), not the zero-click external-redirect chain described in #75658.
+ * Fix: getLogoutRedirectUri() now runs the requested redirectUri through
+ * isSameOriginRedirectUri() before honoring it -- only an app-relative path or an absolute URL
+ * within this application's own origin (LinkUriArgumentResolver.getLinkUri(request)) is accepted.
+ * Protocol-relative ("//host/...") targets and backslash-obfuscated equivalents that browsers
+ * normalize to protocol-relative are rejected. Anything rejected falls back to
+ * "<contextPath>/em", the same fallback already used for non-GET requests. Both "/logout" and
+ * "/sessionexpired" share this fix. See the "redirectUri same-origin validation" tests below.
+ *
+ * Residual, lower-severity item (tracked separately, not fixed here): LogoutFilter.doFilter()
+ * still accepts any HTTP method and short-circuits the chain ahead of CSRFFilter (see
+ * SecurityFilterChainOrderingTest.logoutFilter_shortCircuitsChain_realCsrfFilterNeverInvokedAtAll).
+ * CSRFFilter itself exempts GET/HEAD/OPTIONS/TRACE and only enforces on "/api/**" paths, so
+ * reordering the chain alone would not close this -- it needs a product decision (e.g. POST-only
+ * logout with a frontend change, or extending CSRFFilter's scope to cover "/logout"). With the
+ * redirect fixed above, this alone is logout CSRF only (forces a re-login), not the zero-click
+ * external-redirect chain #75658 originally described. Left as a pinned characterization test --
+ * see doFilter_logout_anyHttpMethod_triggersLogoutWithNoMethodOrTokenCheck.
  */
 
 import inetsoft.sree.RepletRepository;
