@@ -17,6 +17,7 @@
  */
 package com.inetsoft.build.tern;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.auto.common.*;
@@ -159,16 +160,28 @@ public class TernAnnotationProcessor extends AbstractProcessor {
 
    private void generateDefinitionFile() {
       ObjectMapper mapper = new ObjectMapper();
-      ObjectNode definitionRoot = mapper.createObjectNode();
-
-      for(Map.Entry<String, ClassDef> e : definitions.entrySet()) {
-         definitionRoot.set(e.getKey(), e.getValue().toJson(mapper));
-      }
 
       try {
          FileObject file = processingEnv.getFiler().createResource(
             StandardLocation.CLASS_OUTPUT, "",
             processingEnv.getOptions().get("tern.outputFile"));
+
+         // Incremental compilation only presents the classes recompiled in this round,
+         // so this processor would otherwise overwrite the definition file with just that
+         // subset, dropping definitions for every class that wasn't recompiled (breaking
+         // script auto-complete for them). Seed the output with whatever was generated on a
+         // prior (e.g. clean) build and overlay the current round's classes on top so
+         // definitions accumulate instead of being clobbered. createResource() does not
+         // truncate the file until openOutputStream() is called, so the previous content is
+         // still readable here; read it with plain java.io to avoid the Filer restriction
+         // against reading and (re)creating the same path in one round. A clean build has no
+         // prior file and simply starts fresh. Trade-off: a class removed or renamed leaves a
+         // stale entry in an incrementally-built file until the next clean build.
+         ObjectNode definitionRoot = readExistingDefinitions(mapper, file);
+
+         for(Map.Entry<String, ClassDef> e : definitions.entrySet()) {
+            definitionRoot.set(e.getKey(), e.getValue().toJson(mapper));
+         }
 
          try(OutputStream output = file.openOutputStream()) {
             mapper.writerWithDefaultPrettyPrinter().writeValue(output, definitionRoot);
@@ -179,6 +192,25 @@ public class TernAnnotationProcessor extends AbstractProcessor {
       catch(Exception e) {
          logError("Failed to create definition file", e);
       }
+   }
+
+   private ObjectNode readExistingDefinitions(ObjectMapper mapper, FileObject file) {
+      try {
+         File existing = new File(file.toUri());
+
+         if(existing.isFile()) {
+            JsonNode node = mapper.readTree(existing);
+
+            if(node instanceof ObjectNode) {
+               return (ObjectNode) node;
+            }
+         }
+      }
+      catch(Exception e) {
+         // no readable prior file (e.g. clean build) - start fresh
+      }
+
+      return mapper.createObjectNode();
    }
 
    private void logInfo(String message) {
