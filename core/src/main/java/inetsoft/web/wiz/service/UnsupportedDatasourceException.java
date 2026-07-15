@@ -30,18 +30,26 @@ package inetsoft.web.wiz.service;
  */
 public class UnsupportedDatasourceException extends Exception {
    public UnsupportedDatasourceException(String datasourceName, String datasourceType) {
+      // Normalize before calling super() so Throwable's own detailMessage field is populated too
+      // (not just recoverable via an overridden getMessage()) — a static helper can run before
+      // `this` exists, which super(...) as the first statement otherwise wouldn't allow.
+      //
       // XDataSource.getType() can in principle return null for some implementations. Normalize
       // once and reuse everywhere below — the message ("...for 'null' datasources...") isn't the
       // only thing at stake: wiz-services' handler for this exception treats a non-empty
       // datasourceType as the discriminator that confirms a 422 really is this case, so a null
       // here would also make that response silently fail to be recognized as friendly at all.
+      super(buildMessage(normalizeType(datasourceType)));
       this.datasourceName = datasourceName;
-      this.datasourceType = datasourceType != null ? datasourceType : "unknown";
+      this.datasourceType = normalizeType(datasourceType);
    }
 
-   @Override
-   public String getMessage() {
-      return "Operation failed. Annotations are currently not supported for '" + datasourceType +
+   private static String normalizeType(String datasourceType) {
+      return datasourceType != null ? datasourceType : "unknown";
+   }
+
+   private static String buildMessage(String normalizedType) {
+      return "Operation failed. Annotations are currently not supported for '" + normalizedType +
          "' datasources. Please check the datasource type or contact your administrator.";
    }
 

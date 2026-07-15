@@ -57,12 +57,17 @@ public class WizControllerErrorHandler {
    // getJDBCDatasource() (MetadataApiService) is called from several wiz controllers/services
    // beyond DatasourceMetaApiController (which has its own local override of this same handler,
    // since a local @ExceptionHandler always wins over this ControllerAdvice — see that class).
-   // Catching it here too means any OTHER wiz controller that reaches a non-JDBC datasource and
-   // has no local catch-all of its own (e.g. WorksheetAgentController, WorksheetGenerateController)
-   // gets the same friendly 422 instead of whatever its default fallback would otherwise produce.
-   // A controller with its own local catch-all Exception.class handler (e.g.
-   // WorksheetTableController) still needs its own local override to get this treatment, exactly
-   // like the SecurityException case above.
+   // Catching it here benefits WorksheetAgentController.addBoundTable specifically: that method
+   // declares throws Exception with no catch of its own, so an UnsupportedDatasourceException
+   // genuinely propagates here and gets the friendly 422.
+   //
+   // NOT every other getJDBCDatasource caller benefits, though — verify the actual call chain
+   // before assuming one does. WorksheetGenerateController.generateWs() and
+   // WorksheetTableController.createTables() both wrap their whole service call in their own
+   // catch(Exception e) (the latter one layer deeper, inside WorksheetTableService's per-table
+   // try/catch) and always return 200 with errorMessage set — this exception never reaches
+   // either controller, let alone this advice. Making those paths return a real 422 would mean
+   // changing that per-item/per-request error-handling design, not just adding a handler.
    @ExceptionHandler(UnsupportedDatasourceException.class)
    public ResponseEntity<Map<String, String>> handleUnsupportedDatasource(
       UnsupportedDatasourceException e)

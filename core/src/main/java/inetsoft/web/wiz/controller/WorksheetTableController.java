@@ -19,7 +19,6 @@
 package inetsoft.web.wiz.controller;
 
 import inetsoft.web.wiz.model.*;
-import inetsoft.web.wiz.service.UnsupportedDatasourceException;
 import inetsoft.web.wiz.service.WorksheetTableService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -139,21 +138,16 @@ public class WorksheetTableController {
                     "message", e.getMessage() != null ? e.getMessage() : "Forbidden");
    }
 
-   // More specific than the catch-all below, so it wins for a datasource that exists but is
-   // non-relational (e.g. MongoDB) — mirrors DatasourceMetaApiController's local override of
-   // the same WizControllerErrorHandler advice, needed for the same reason: a local handler
-   // always wins over the shared advice, so without this override the catch-all below would
-   // swallow it as a generic 400 instead of the intended 422 + datasourceType.
-   @ExceptionHandler(UnsupportedDatasourceException.class)
-   @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
-   @ResponseBody
-   public Map<String, String> handleUnsupportedDatasource(UnsupportedDatasourceException e) {
-      LOG.warn("Unsupported datasource for worksheet table: {} ({})",
-               e.getDatasourceName(), e.getDatasourceType());
-      return Map.of("error", e.getMessage(),
-                    "datasourceType", e.getDatasourceType());
-   }
-
+   // NOTE: this controller does NOT have a local UnsupportedDatasourceException handler, unlike
+   // DatasourceMetaApiController. createTables() (the only endpoint that reaches
+   // getJDBCDatasource, via WorksheetTableService.addOneTable -> buildPhysicalTable/
+   // buildSqlTable) already catches per-table exceptions inside the service, before they can
+   // ever bubble out to this controller — they're converted to a 200 response with
+   // success=false + errorMessage per table instead (see createTables() below and
+   // WorksheetTableService.createTables()'s per-table try/catch). A local override here would
+   // be unreachable dead code; it was added and then removed after tracing the actual call
+   // chain. If a hard 422 is ever wanted for this endpoint too, that requires changing
+   // WorksheetTableService's per-table error-handling semantics, not just adding a handler here.
    @ExceptionHandler(Exception.class)
    @ResponseStatus(HttpStatus.BAD_REQUEST)
    @ResponseBody
