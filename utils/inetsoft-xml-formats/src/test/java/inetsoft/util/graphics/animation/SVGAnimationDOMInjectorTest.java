@@ -306,6 +306,68 @@ class SVGAnimationDOMInjectorTest {
    }
 
    // -------------------------------------------------------------------------
+   // noanim flag tests (design-time surfaces: hover CSS injected, animation suppressed)
+   // -------------------------------------------------------------------------
+
+   /**
+    * A "grow:noanim" hint (bar chart in a design-time surface) must still inject the hover-dim
+    * CSS, but must NOT inject any entrance animation, and must leave {@code data-animated} unset
+    * so the client adds {@code .ready} immediately. This is the core mechanism of bug #75692:
+    * hover highlighting must work in the binding pane even though animation is suppressed.
+    */
+   @Test
+   void noAnimHintInjectsHoverCssButSuppressesBarAnimation() throws Exception {
+      Document doc = newDocument();
+      Element bar = addAnnotGroup(doc, SVGSupport.ANNOTATION_BAR,
+                                  Map.of("row", "0", "col", "0"), 0, 0, 100, 100);
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(),
+         SVGSupport.ANIMATION_GROW + ":" + SVGSupport.ANIMATION_FLAG_NOANIM);
+      String css = allStyleContent(doc.getDocumentElement());
+
+      // Hover-dim CSS for bars must be present.
+      assertTrue(
+         css.contains(".inetsoft-bar.inetsoft-active") &&
+         css.contains(".inetsoft-bar:not(.inetsoft-active)"),
+         "noanim hint must still inject the bar :has() hover-dim rule");
+
+      // No entrance animation may be injected: appendHoverCSS emits no @keyframes, while every
+      // animation branch does, so the absence of @keyframes proves no animation was applied.
+      assertFalse(css.contains("@keyframes"),
+                  "noanim hint must not inject any animation @keyframes");
+      String childStyle = firstChildStyle(bar);
+      assertTrue(childStyle == null || childStyle.isEmpty(),
+                 "noanim hint must not apply an animation style to the bar's inner children");
+
+      // data-animated must be absent so the directive adds .ready immediately.
+      assertFalse(doc.getDocumentElement().hasAttribute("data-animated"),
+                  "noanim hint must leave data-animated unset");
+   }
+
+   /**
+    * A "point:noanim" hint (A1 type in a design-time surface) must inject the ready-gated point
+    * hover-dim CSS with no animation. The A1 types gate hover on {@code svg.ready}; with
+    * {@code data-animated} absent the client applies {@code .ready} immediately, so hover works.
+    */
+   @Test
+   void noAnimHintInjectsHoverCssForPoint() throws Exception {
+      Document doc = newDocument();
+      addAnnotGroup(doc, SVGSupport.ANNOTATION_POINT,
+                    Map.of("row", "0", "col", "0"), 0, 0, 10, 10);
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(),
+         SVGSupport.ANIMATION_POINT + ":" + SVGSupport.ANIMATION_FLAG_NOANIM);
+      String css = allStyleContent(doc.getDocumentElement());
+
+      assertTrue(
+         css.contains(".inetsoft-point.inetsoft-active") &&
+         css.contains(".inetsoft-point:not(.inetsoft-active)"),
+         "noanim hint must still inject the point :has() hover-dim rule");
+      assertFalse(css.contains("@keyframes"),
+                  "noanim hint must not inject any animation @keyframes");
+      assertFalse(doc.getDocumentElement().hasAttribute("data-animated"),
+                  "noanim hint must leave data-animated unset");
+   }
+
+   // -------------------------------------------------------------------------
    // Treemap animation tests
    // -------------------------------------------------------------------------
 
