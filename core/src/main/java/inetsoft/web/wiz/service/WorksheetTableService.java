@@ -488,6 +488,7 @@ public class WorksheetTableService {
       }
 
       Set<String> deleteSet = new LinkedHashSet<>(request.getTableNames());
+      String previousPrimary = worksheet.getPrimaryAssemblyName();
 
       DeleteWorksheetTablesResponse response = new DeleteWorksheetTablesResponse();
       List<String> deleted = new ArrayList<>();
@@ -521,6 +522,16 @@ public class WorksheetTableService {
          deleted.add(name);
       }
 
+      // Worksheet.removeAssembly() clears the primary assembly to null when the deleted
+      // table was primary, with no replacement — restore it when there's an unambiguous
+      // candidate so a leaf table's own deletion doesn't orphan chart creation on the
+      // worksheet (see restorePrimaryAssembly()).
+      if(previousPrimary != null && deleted.contains(previousPrimary)
+         && worksheet.getPrimaryAssemblyName() == null)
+      {
+         restorePrimaryAssembly(worksheet);
+      }
+
       // Persist only when something changed.
       if(!deleted.isEmpty()) {
          WsServiceHelper.layoutGraph(layoutGraphService, worksheet);
@@ -532,7 +543,35 @@ public class WorksheetTableService {
       response.setNotFound(notFound);
       response.setSkipped(skipped);
       response.setSuccess(true);
+      response.setPrimaryTable(worksheet.getPrimaryAssemblyName());
       return response;
+   }
+
+   /**
+    * Reassigns the worksheet's primary table after its previous primary was deleted.
+    * Only acts when exactly one remaining table has no other remaining table depending
+    * on it (an unambiguous leaf) — mirrors the "don't guess" convention used when a
+    * batch's intended primary fails to build (see {@code addOneTable}): zero or multiple
+    * candidates leave the worksheet without a primary rather than silently picking one.
+    */
+   // Package-private (not private) so WorksheetTableServiceDeleteTablesTest can exercise it
+   // directly, mirroring the shouldProbe/applyWindowColumns test convention in this package.
+   void restorePrimaryAssembly(Worksheet worksheet) {
+      List<String> leaves = new ArrayList<>();
+
+      for(Assembly asm : worksheet.getAssemblies()) {
+         if(!(asm instanceof TableAssembly)) {
+            continue;
+         }
+
+         if(findExternalDependent(worksheet, asm.getName(), Collections.emptySet()) == null) {
+            leaves.add(asm.getName());
+         }
+      }
+
+      if(leaves.size() == 1) {
+         worksheet.setPrimaryAssembly(leaves.get(0));
+      }
    }
 
    /**
