@@ -113,4 +113,28 @@ class GraalJavaScriptEngineGlobalsTest {
       Object result = eval("new SVGShape()");
       assertInstanceOf(inetsoft.graph.aesthetic.SVGShape.class, result);
    }
+
+   // Bug: Rhino auto-imported the whole inetsoft.graph.element package, so every
+   // element type resolved by simple name. The GraalJS class whitelist
+   // (installChartClasses) omitted the newer element types, so chart scripts such
+   // as elem.setOrientation(TreemapElement.Orientation.TOP_RIGHT) failed with
+   // "TreemapElement is not defined".
+   @Test
+   void treemapElementResolves() throws Exception {
+      // exact real-script usage: elem.setOrientation(TreemapElement.Orientation.TOP_RIGHT)
+      assertEquals("TOP_RIGHT", eval("String(TreemapElement.Orientation.TOP_RIGHT)"));
+   }
+
+   // The element types resolve to class proxies (typeof != 'undefined'). Actually
+   // constructing them pulls in inetsoft.graph.internal.GDefaults, whose static
+   // init needs a full graphics environment unavailable in this headless test, so
+   // only name resolution is asserted here.
+   @Test
+   void newChartElementTypesResolve() throws Exception {
+      assertNotEquals("undefined", eval("typeof TreemapElement"));
+      assertNotEquals("undefined", eval("typeof MekkoElement"));
+      assertNotEquals("undefined", eval("typeof ParaboxElement"));
+      assertNotEquals("undefined", eval("typeof PolygonElement"));
+      assertNotEquals("undefined", eval("typeof RelationElement"));
+   }
 }
