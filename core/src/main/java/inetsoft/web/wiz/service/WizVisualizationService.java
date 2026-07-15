@@ -22,16 +22,22 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.WizUtil;
+import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
 import inetsoft.web.viewsheet.service.ExportResponse;
 import inetsoft.web.viewsheet.service.VSExportService;
+import inetsoft.web.wiz.model.WizVisualizationRenderEvent;
+import inetsoft.web.wiz.model.WizVisualizationRenderResult;
 import inetsoft.web.wiz.model.WizVisualizationSaveEvent;
 import inetsoft.web.wiz.model.WizVisualizationSaveResult;
 import org.slf4j.Logger;
@@ -57,13 +63,15 @@ public class WizVisualizationService {
                                    AssetRepository assetRepository,
                                    AssemblyImageService assemblyImageService,
                                    BinaryTransferService binaryTransferService,
-                                   VSExportService vsExportService)
+                                   VSExportService vsExportService,
+                                   SecurityEngine securityEngine)
    {
       this.viewsheetService = viewsheetService;
       this.assetRepository = assetRepository;
       this.assemblyImageService = assemblyImageService;
       this.binaryTransferService = binaryTransferService;
       this.vsExportService = vsExportService;
+      this.securityEngine = securityEngine;
    }
 
    /**
@@ -300,6 +308,131 @@ public class WizVisualizationService {
       }
 
       return result;
+   }
+
+   /**
+    * Renders a previously-saved wiz visualization to a standalone image (POST
+    * /api/wiz/visualization/render). Mirrors
+    * {@code inetsoft.web.wiz.controller.ViewsheetRuntimeController#verifyViewsheet}'s
+    * managed-folder guard and permission check, then opens the viewsheet, resolves its primary
+    * assembly, and renders it via the shared {@link #renderAssemblyToImage} path used by
+    * save-time thumbnails — retrying a bounded number of times if the chart graph is not yet
+    * ready ({@link RenderNotReadyException}).
+    *
+    * @throws RenderNotReadyException if the chart graph is still not ready after all retries;
+    *         callers should map this to a 503 + Retry-After.
+    */
+   public WizVisualizationRenderResult renderVisualization(WizVisualizationRenderEvent event,
+                                                            Principal principal)
+      throws Exception
+   {
+      if(event == null || Tool.isEmptyString(event.getIdentifier())) {
+         throw new IllegalArgumentException("identifier is required");
+      }
+
+      AssetEntry entry = AssetEntry.createAssetEntry(event.getIdentifier());
+
+      if(entry == null) {
+         throw new IllegalArgumentException("Invalid viewsheet identifier: " + event.getIdentifier());
+      }
+
+      String path = entry.getPath();
+
+      // Accept the same managed folders as ViewsheetRuntimeController#verifyViewsheet/openViewsheet.
+      if(path == null ||
+         !(path.startsWith(VISUALIZATION_ROOT_FOLDER_PATH + "/") ||
+           path.startsWith(VISUALIZATION_COMPONENTS_FOLDER_PATH + "/")))
+      {
+         throw new IllegalArgumentException(
+            "Viewsheet is not in the managed visualizations folder: " + path);
+      }
+
+      // Action-level gate ("Visual Composer -> Data Viewsheet"), mirroring verifyViewsheet.
+      if(!securityEngine.checkPermission(principal, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(
+            Catalog.getCatalog().getString("composer.authorization.permissionDenied"));
+      }
+
+      int width = event.getWidth() != null && event.getWidth() > 0
+         ? event.getWidth() : DEFAULT_RENDER_WIDTH;
+      int height = event.getHeight() != null && event.getHeight() > 0
+         ? event.getHeight() : DEFAULT_RENDER_HEIGHT;
+      // "auto"/"svg"/null → svg-first; only an explicit "png" forces the raster path.
+      boolean preferSvg = !"png".equalsIgnoreCase(event.getFormat());
+
+      String runtimeId = viewsheetService.openViewsheet(entry, principal, true);
+
+      try {
+         String assemblyName = resolvePrimaryAssemblyName(runtimeId, principal);
+
+         if(assemblyName == null) {
+            throw new IllegalStateException("No renderable assembly found in the saved visualization");
+         }
+
+         String[] rendered = null;
+         RenderNotReadyException lastNotReady = null;
+
+         for(int attempt = 0; attempt < RENDER_MAX_ATTEMPTS && rendered == null; attempt++) {
+            try {
+               rendered = renderAssemblyToImage(runtimeId, assemblyName, width, height, preferSvg, principal);
+            }
+            catch(RenderNotReadyException notReady) {
+               lastNotReady = notReady;
+               Thread.sleep(RENDER_RETRY_SLEEP_MS);
+            }
+         }
+
+         if(rendered == null && lastNotReady != null) {
+            // Let the controller map this to a 503 + Retry-After.
+            throw lastNotReady;
+         }
+
+         if(rendered == null) {
+            throw new IllegalStateException("Failed to render visualization image");
+         }
+
+         WizVisualizationRenderResult result = new WizVisualizationRenderResult();
+         result.setImage(rendered[0]);
+         result.setFormat(rendered[1]);
+         return result;
+      }
+      finally {
+         try {
+            viewsheetService.closeViewsheet(runtimeId, principal);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to close runtime [{}] after render", runtimeId, e);
+         }
+      }
+   }
+
+   /**
+    * Resolves the assembly to render for a saved wiz visualization: the first
+    * {@link ChartVSAssembly}, else the first {@link VSAssembly} — saved wiz visualizations are
+    * single-assembly, so this is unambiguous in practice.
+    */
+   private String resolvePrimaryAssemblyName(String runtimeId, Principal principal) {
+      try {
+         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+         Viewsheet vs = rvs != null ? rvs.getViewsheet() : null;
+         Assembly[] assemblies = vs != null ? vs.getAssemblies() : null;
+
+         if(assemblies == null || assemblies.length == 0) {
+            return null;
+         }
+
+         for(Assembly assembly : assemblies) {
+            if(assembly instanceof ChartVSAssembly chart) {
+               return chart.getName();
+            }
+         }
+
+         return assemblies[0] instanceof VSAssembly vsAssembly ? vsAssembly.getName() : null;
+      }
+      catch(Exception e) {
+         LOG.warn("Could not resolve assembly for runtime {}: {}", runtimeId, e.getMessage());
+         return null;
+      }
    }
 
    // ── Private helpers ───────────────────────────────────────────────────────────
@@ -912,9 +1045,16 @@ public class WizVisualizationService {
    private final AssemblyImageService assemblyImageService;
    private final BinaryTransferService binaryTransferService;
    private final VSExportService vsExportService;
+   private final SecurityEngine securityEngine;
    private static final Logger LOG = LoggerFactory.getLogger(WizVisualizationService.class);
    private static final int THUMBNAIL_WIDTH  = 400;
    private static final int THUMBNAIL_HEIGHT = 300;
+   /** Default render dimensions for /visualization/render when the request omits width/height. */
+   private static final int DEFAULT_RENDER_WIDTH = 800;
+   private static final int DEFAULT_RENDER_HEIGHT = 600;
+   /** Bounded retry for the render endpoint when the chart graph is not yet ready. */
+   private static final int RENDER_MAX_ATTEMPTS = 4;
+   private static final long RENDER_RETRY_SLEEP_MS = 500;
    private static final String SVG_NS = "http://www.w3.org/2000/svg";
    /** Drop SVG thumbnails larger than 512 KB to prevent oversized response payloads. */
    private static final int MAX_SVG_THUMBNAIL_BYTES = 512 * 1024;

@@ -19,6 +19,9 @@ package inetsoft.web.wiz.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -31,6 +34,7 @@ import inetsoft.util.MessageException;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
 import inetsoft.web.viewsheet.service.VSExportService;
+import inetsoft.web.wiz.model.WizVisualizationRenderEvent;
 import inetsoft.web.wiz.model.WizVisualizationSaveEvent;
 import inetsoft.web.wiz.model.WizVisualizationSaveResult;
 import org.junit.jupiter.api.Tag;
@@ -66,7 +70,7 @@ import static org.mockito.Mockito.*;
 @Tag("core")
 class WizVisualizationServiceTest {
    @Test
-   void rejectsSourcePathOutsideManagedFolders() {
+   void rejectsSourcePathOutsideManagedFolders() throws Exception {
       ViewsheetService viewsheetService = mock(ViewsheetService.class);
       AssetRepository assetRepository = mock(AssetRepository.class);
       WizVisualizationService service = createService(viewsheetService, assetRepository);
@@ -158,13 +162,72 @@ class WizVisualizationServiceTest {
          any(Viewsheet.class), any(AssetEntry.class), eq(principal), eq(true), eq(true));
    }
 
+   // ── renderVisualization: guard + permission branches ─────────────────────────
+   //
+   // The happy-path render (open → resolve assembly → renderAssemblyToImage → build result)
+   // cannot be unit-tested here: it requires a live rendering engine (real RuntimeViewsheet
+   // with a real VGraphPair) that this mocked-dependency harness does not provide. That path
+   // is verified end-to-end after the image rebuild (Task A5). This test class covers only
+   // the guard and permission-check branches, which are the logic this task owns.
+
+   @Test
+   void renderRejectsIdentifierOutsideManagedFolders() throws Exception {
+      WizVisualizationService service = createService(mock(ViewsheetService.class), mock(AssetRepository.class));
+
+      AssetEntry outside = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "some/unmanaged/vs1", null);
+
+      WizVisualizationRenderEvent ev = new WizVisualizationRenderEvent();
+      ev.setIdentifier(outside.toIdentifier());
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> service.renderVisualization(ev, mock(Principal.class)));
+   }
+
+   @Test
+   void renderThrowsSecurityExceptionWhenPermissionDenied() throws Exception {
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(
+         any(Principal.class), eq(ResourceType.VIEWSHEET), anyString(), eq(ResourceAction.ACCESS)))
+         .thenReturn(false);
+
+      WizVisualizationService service = createService(
+         mock(ViewsheetService.class), mock(AssetRepository.class), securityEngine);
+
+      // Build an identifier UNDER VISUALIZATION_COMPONENTS_FOLDER_PATH so the folder guard
+      // passes and the permission check is actually reached.
+      AssetEntry inside = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+         WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/vs1", null);
+
+      WizVisualizationRenderEvent ev = new WizVisualizationRenderEvent();
+      ev.setIdentifier(inside.toIdentifier());
+
+      assertThrows(inetsoft.sree.security.SecurityException.class,
+                   () -> service.renderVisualization(ev, mock(Principal.class)));
+   }
+
    private static WizVisualizationService createService(ViewsheetService viewsheetService,
                                                           AssetRepository assetRepository)
+      throws Exception
+   {
+      SecurityEngine defaultSecurityEngine = mock(SecurityEngine.class);
+      when(defaultSecurityEngine.checkPermission(
+         any(Principal.class), any(ResourceType.class), anyString(), any(ResourceAction.class)))
+         .thenReturn(true);
+
+      return createService(viewsheetService, assetRepository, defaultSecurityEngine);
+   }
+
+   private static WizVisualizationService createService(ViewsheetService viewsheetService,
+                                                          AssetRepository assetRepository,
+                                                          SecurityEngine securityEngine)
    {
       return new WizVisualizationService(
          viewsheetService, assetRepository,
          mock(AssemblyImageService.class),
          mock(BinaryTransferService.class),
-         mock(VSExportService.class));
+         mock(VSExportService.class),
+         securityEngine);
    }
 }
