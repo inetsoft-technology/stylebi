@@ -291,6 +291,21 @@ public class DatasourceMetaApiController {
                     "message", e.getMessage() != null ? e.getMessage() : "Forbidden");
    }
 
+   // More specific than the catch-all below, so it wins for a datasource that exists but is
+   // non-relational (e.g. MongoDB) — surfaces a clear, actionable message and a semantically
+   // distinct status instead of letting the underlying failure leak out as a raw 500.
+   @ExceptionHandler(inetsoft.web.wiz.service.UnsupportedDatasourceException.class)
+   @ResponseStatus(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY)
+   @ResponseBody
+   public Map<String, String> handleUnsupportedDatasource(
+      inetsoft.web.wiz.service.UnsupportedDatasourceException e)
+   {
+      LOG.warn("Unsupported datasource for annotation: {} ({})",
+               e.getDatasourceName(), e.getDatasourceType());
+      return Map.of("error", e.getMessage(),
+                    "datasourceType", e.getDatasourceType());
+   }
+
    @ExceptionHandler(Exception.class)
    @ResponseStatus(org.springframework.http.HttpStatus.BAD_REQUEST)
    @ResponseBody
