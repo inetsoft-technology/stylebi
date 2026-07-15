@@ -1422,7 +1422,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       putClassProxy(bindings, "TriCoord",      "inetsoft.graph.coord.TriCoord");
       putClassProxy(bindings, "FacetCoord",    "inetsoft.graph.coord.FacetCoord");
 
-      // scales / ranges
+      // scales / ranges. Scale is the abstract base class; scripts don't
+      // construct it but reference its scale-option constants (Scale.TICKS,
+      // Scale.ZERO, ...) passed to Scale.setScaleOption(int) (Bug #75684).
+      putClassProxy(bindings, "Scale",            "inetsoft.graph.scale.Scale");
       putClassProxy(bindings, "LinearScale",      "inetsoft.graph.scale.LinearScale");
       putClassProxy(bindings, "LogScale",          "inetsoft.graph.scale.LogScale");
       putClassProxy(bindings, "PowerScale",        "inetsoft.graph.scale.PowerScale");

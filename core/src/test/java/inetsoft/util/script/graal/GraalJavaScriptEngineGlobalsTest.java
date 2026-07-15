@@ -113,4 +113,16 @@ class GraalJavaScriptEngineGlobalsTest {
       Object result = eval("new SVGShape()");
       assertInstanceOf(inetsoft.graph.aesthetic.SVGShape.class, result);
    }
+
+   // Bug #75684: chart scripts reference the abstract Scale base class for its
+   // scale-option constants, e.g. qscale.setScaleOption(Scale.TICKS). Scale was
+   // not registered as a global (only its subclasses were), so the script failed
+   // with "ReferenceError: Scale is not defined".
+   @Test
+   void scaleConstantResolves() throws Exception {
+      // Scale.TICKS == 1 (a public static final int on the abstract base class)
+      Object result = eval("Scale.TICKS");
+      assertInstanceOf(Double.class, result);
+      assertEquals(1.0, result);
+   }
 }
