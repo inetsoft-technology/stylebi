@@ -675,7 +675,13 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       ColumnSelection columns = getTable().getColumnSelection();
       ConditionListWrapper wrapper = getPostConditionList();
       ConditionList conds = wrapper.getConditionList();
-      AggregateInfo aggregateInfo = getAggregateInfo();
+      // mergeGroupBy() (called before this method in merge()) clears the AggregateInfo
+      // returned by getAggregateInfo() in place once it successfully merges a real GROUP
+      // BY (gmerged == true), so getAggregateInfo() would look empty here even for a
+      // genuinely aggregating level. Use the pre-merge snapshot in that case, matching
+      // the existing gmerged ? ginfo : getAggregateInfo() idiom used elsewhere (see
+      // getAggregate()).
+      AggregateInfo aggregateInfo = gmerged ? ginfo : getAggregateInfo();
 
       // add required columns for post process
       // condition hide by vpm? do not merge it
