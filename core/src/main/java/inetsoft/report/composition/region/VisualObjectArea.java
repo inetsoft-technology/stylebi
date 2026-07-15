@@ -289,12 +289,12 @@ public class VisualObjectArea extends InteractiveArea implements MenuArea {
          region = new AreaRegion(tshape);
       }
       else if(vobj instanceof RelationVO && shape instanceof Path2D
-         && !new Area(shape).isEmpty())
+         && isClosedNodeShape(shape))
       {
-         // Custom relation node shapes (triangle, diamond, …) are closed paths; keep the
-         // outline so the selection highlight matches the rendered node (Bug #75650).
-         // Open/stroked node shapes (cross, star) enclose no area and fall through to the
-         // bounding-box branch below.
+         // Custom relation node shapes (triangle, diamond, …) are single closed contours;
+         // keep the outline so the selection highlight matches the rendered node (Bug #75650).
+         // Open polylines (V/L/unfilled arrow) and multi-subpath strokes (cross/star/stick)
+         // fall through to the bounding-box branch below.
          Shape tshape = trans.createTransformedShape(shape);
          tshape = AffineTransform.getTranslateInstance(-p.getX(), -p.getY())
             .createTransformedShape(tshape);
@@ -361,6 +361,51 @@ public class VisualObjectArea extends InteractiveArea implements MenuArea {
       }
 
       return false;
+   }
+
+   /**
+    * A relation node shape yields an exact selection outline only when it is a single
+    * closed contour (triangle, diamond). Open polylines (V/L/unfilled arrow) whose start
+    * and end points differ would form a spurious filled polygon when Area implicitly
+    * closes them, and multi-subpath strokes (cross/star/stick) are not filled regions;
+    * both fall back to the bounding box (Bug #75650).
+    */
+   private static boolean isClosedNodeShape(Shape shape) {
+      double[] coords = new double[6];
+      double firstX = 0, firstY = 0, lastX = 0, lastY = 0;
+      int moveCount = 0;
+      boolean sawClose = false;
+
+      for(PathIterator it = shape.getPathIterator(null); !it.isDone(); it.next()) {
+         switch(it.currentSegment(coords)) {
+         case PathIterator.SEG_MOVETO:
+            if(++moveCount > 1) {
+               return false; // multiple subpaths -> stroke, not a single filled contour
+            }
+
+            firstX = lastX = coords[0];
+            firstY = lastY = coords[1];
+            break;
+         case PathIterator.SEG_CLOSE:
+            sawClose = true;
+            break;
+         case PathIterator.SEG_QUADTO:
+            lastX = coords[2];
+            lastY = coords[3];
+            break;
+         case PathIterator.SEG_CUBICTO:
+            lastX = coords[4];
+            lastY = coords[5];
+            break;
+         default: // SEG_LINETO
+            lastX = coords[0];
+            lastY = coords[1];
+         }
+      }
+
+      boolean closed = sawClose ||
+         (Math.abs(lastX - firstX) < 1e-6 && Math.abs(lastY - firstY) < 1e-6);
+      return closed && !new Area(shape).isEmpty();
    }
 
    /**

@@ -121,7 +121,7 @@ public class RelationVO extends ElementVO {
          GTool.setRenderingHint(g2, false);
 
          Shape shape = screenShape;
-         Shape custom = resolveNodeShape(b);
+         Shape custom = resolveNodeShape(b, elem);
 
          if(custom != null) {
             shape = custom;
@@ -358,7 +358,8 @@ public class RelationVO extends ElementVO {
       }
 
       Rectangle2D b = getScreenTransform().createTransformedShape(this.shape).getBounds2D();
-      Shape custom = resolveNodeShape(b);
+      RelationElement elem = (RelationElement) ((RelationGeometry) getGeometry()).getElement();
+      Shape custom = resolveNodeShape(b, elem);
       return new Shape[] { custom != null ? custom : b };
    }
 
@@ -368,8 +369,7 @@ public class RelationVO extends ElementVO {
     * so the selection region matches what is drawn. GShape.NIL returns null from getShape()
     * and therefore also falls back to the rectangle.
     */
-   private Shape resolveNodeShape(Rectangle2D b) {
-      RelationElement elem = (RelationElement) ((RelationGeometry) getGeometry()).getElement();
+   static Shape resolveNodeShape(Rectangle2D b, RelationElement elem) {
       GShape nodeShape = elem.getNodeShape();
 
       if(nodeShape != null) {
