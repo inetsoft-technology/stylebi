@@ -181,7 +181,12 @@ public class NamedCellRange extends CellRange {
       // carry a runtime crosstab/aggregate structure (e.g. pushed down by a
       // crosstab-optimized freehand table) that would otherwise collapse the
       // reference to summary cells instead of the underlying column values.
-      // (#75663)
+      // Note baseTableRef only suppresses the findSummaryTable walk below; the
+      // instanceof dispatch that follows is unchanged, so a top-level grouped or
+      // crosstab lens (a genuinely aggregated worksheet table) is still routed to
+      // the summary path. Only a lens that merely *reports* a grouped/crosstab
+      // descriptor while nesting the grouped/crosstab table under a non-summary
+      // filter -- the pushdown-pollution case -- is affected. (#75663)
       if(summary ||
          desc != null && !processCalc && !baseTableRef &&
          (desc.getType() == TableDataDescriptor.GROUPED_TABLE ||
