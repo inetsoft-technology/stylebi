@@ -53,5 +53,26 @@ public class WizControllerErrorHandler {
       return new ResponseEntity<>(payload, null, HttpStatus.FORBIDDEN);
    }
 
+   // getJDBCDatasource() (MetadataApiService) is called from several wiz controllers/services
+   // beyond DatasourceMetaApiController (which has its own local override of this same handler,
+   // since a local @ExceptionHandler always wins over this ControllerAdvice — see that class).
+   // Catching it here too means any OTHER wiz controller that reaches a non-JDBC datasource and
+   // has no local catch-all of its own (e.g. WorksheetAgentController, WorksheetGenerateController)
+   // gets the same friendly 422 instead of whatever its default fallback would otherwise produce.
+   // A controller with its own local catch-all Exception.class handler (e.g.
+   // WorksheetTableController) still needs its own local override to get this treatment, exactly
+   // like the SecurityException case above.
+   @ExceptionHandler(inetsoft.web.wiz.service.UnsupportedDatasourceException.class)
+   public ResponseEntity<Map<String, String>> handleUnsupportedDatasource(
+      inetsoft.web.wiz.service.UnsupportedDatasourceException e)
+   {
+      LOG.warn("Unsupported datasource: {} ({})", e.getDatasourceName(), e.getDatasourceType());
+
+      Map<String, String> payload = new HashMap<>();
+      payload.put("error", e.getMessage());
+      payload.put("datasourceType", e.getDatasourceType());
+      return new ResponseEntity<>(payload, null, HttpStatus.UNPROCESSABLE_ENTITY);
+   }
+
    private static final Logger LOG = LoggerFactory.getLogger(WizControllerErrorHandler.class);
 }

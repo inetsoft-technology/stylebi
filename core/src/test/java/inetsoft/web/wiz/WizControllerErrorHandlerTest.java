@@ -62,12 +62,34 @@ class WizControllerErrorHandlerTest {
          .andExpect(content().string(containsString("Forbidden")));
    }
 
+   /**
+    * Confirms the shared advice benefits controllers with NO local catch-all of their own
+    * (e.g. WorksheetAgentController, WorksheetGenerateController) — only DatasourceMetaApiController
+    * has its own local override of this same handler, needed because a local
+    * {@code @ExceptionHandler} always wins over this advice.
+    */
+   @Test
+   void unsupportedDatasourceExceptionMapsToUnprocessableEntityWithDatasourceType() throws Exception {
+      // Content negotiation here defaults to XML (no Accept header, no @ResponseBody producer
+      // configured on the test double), so assert on substrings rather than exact JSON syntax —
+      // mirrors the loose containsString checks the SecurityException cases above already use.
+      mvc.perform(get("/wiz-test/throw").param("type", "unsupported"))
+         .andExpect(status().isUnprocessableEntity())
+         .andExpect(content().string(containsString("not supported")))
+         .andExpect(content().string(containsString("datasourceType")))
+         .andExpect(content().string(containsString("Mongo")));
+   }
+
    @RestController
    private static class ThrowingController {
       @GetMapping("/wiz-test/throw")
       public String throwIt(@RequestParam("type") String type) throws Exception {
          if("sree".equals(type)) {
             throw new inetsoft.sree.security.SecurityException("denied");
+         }
+
+         if("unsupported".equals(type)) {
+            throw new inetsoft.web.wiz.service.UnsupportedDatasourceException("MongoDB REST", "Mongo");
          }
 
          throw new java.lang.SecurityException("denied");
