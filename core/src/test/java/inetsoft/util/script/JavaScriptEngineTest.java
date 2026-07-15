@@ -83,6 +83,65 @@ class JavaScriptEngineTest {
    }
 
    @Test
+   void dateDiffAcceptsFullWordIntervalAliases() {
+      // Regression: dateDiff("day", …) used to silently return 0 because only the VBScript short
+      // token "d" was recognized — a plausible-but-wrong result. Full words (matching the wiz
+      // plugin's dateGroupLevel vocabulary) now map to the canonical token.
+      java.util.Date d1 = toDate("2021-03-05T00:00:00");
+      java.util.Date d2 = toDate("2021-03-10T00:00:00");
+      assertEquals(JavaScriptEngine.dateDiff("d", d1, d2), JavaScriptEngine.dateDiff("day", d1, d2));
+      assertEquals(5, JavaScriptEngine.dateDiff("day", d1, d2));
+      assertEquals(5, JavaScriptEngine.dateDiff("DAYS", d1, d2)); // case-insensitive + plural
+
+      java.util.Date m1 = toDate("2021-01-15T00:00:00");
+      java.util.Date m2 = toDate("2021-04-15T00:00:00");
+      assertEquals(JavaScriptEngine.dateDiff("m", m1, m2), JavaScriptEngine.dateDiff("month", m1, m2));
+      assertEquals(1, JavaScriptEngine.dateDiff("quarter", m1, m2));
+      // "week"/"weeks" must map to real calendar weeks ("ww"), NOT the short "w" (which counts DAYS).
+      assertEquals(JavaScriptEngine.dateDiff("ww", d1, d2), JavaScriptEngine.dateDiff("week", d1, d2));
+   }
+
+   @Test
+   void dateAddAcceptsFullWordIntervalAliases() {
+      java.util.Date base = toDate("2021-03-05T00:00:00");
+      assertEquals(JavaScriptEngine.dateAdd("d", 5, base), JavaScriptEngine.dateAdd("day", 5, base));
+      assertEquals(JavaScriptEngine.dateAdd("m", 2, base), JavaScriptEngine.dateAdd("months", 2, base));
+      assertEquals(JavaScriptEngine.dateAdd("q", 1, base), JavaScriptEngine.dateAdd("quarter", 1, base));
+   }
+
+   @Test
+   void dateDiffFailsLoudOnUnknownInterval() {
+      // Fail loud instead of silently returning 0 for a genuinely unrecognized token.
+      java.util.Date d1 = toDate("2021-03-05T00:00:00");
+      java.util.Date d2 = toDate("2021-03-10T00:00:00");
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> JavaScriptEngine.dateDiff("fortnight", d1, d2));
+      assertTrue(ex.getMessage().contains("fortnight"), "message should name the bad token: " + ex.getMessage());
+   }
+
+   @Test
+   void dateAddFailsLoudOnUnknownInterval() {
+      java.util.Date base = toDate("2021-03-05T00:00:00");
+      assertThrows(IllegalArgumentException.class,
+         () -> JavaScriptEngine.dateAdd("fortnight", 3, base));
+   }
+
+   @Test
+   void datePartFailsLoudOnUnknownInterval() {
+      java.util.Date base = toDate("2021-03-05T00:00:00");
+      assertThrows(IllegalArgumentException.class,
+         () -> JavaScriptEngine.datePart("bogus", base, false));
+   }
+
+   @Test
+   void datePartStillAcceptsSpecializedTokens() {
+      // The datePart-only tokens (mq/wq/wy/dq/wm/…) must survive normalization untouched.
+      java.util.Date base = toDate("2021-08-15T00:00:00");   // August → Q3, month-of-quarter = 2
+      assertEquals(2, JavaScriptEngine.datePart("mq", base, false));
+      assertEquals(3, JavaScriptEngine.datePart("q", base, false));
+   }
+
+   @Test
    void DSTBoundaryIs23HourDiff() {
       java.util.Date d1 = toDate("2021-03-13T12:00");
       java.util.Date d2 = toDate("2021-03-14T12:00");
