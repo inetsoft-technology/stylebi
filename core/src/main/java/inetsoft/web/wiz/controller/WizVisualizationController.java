@@ -18,12 +18,17 @@
 
 package inetsoft.web.wiz.controller;
 
+import inetsoft.sree.security.SecurityException;
 import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.wiz.model.WizVisualizationRenderEvent;
+import inetsoft.web.wiz.model.WizVisualizationRenderResult;
 import inetsoft.web.wiz.model.WizVisualizationSaveEvent;
 import inetsoft.web.wiz.model.WizVisualizationSaveResult;
+import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.WizVisualizationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -65,6 +70,33 @@ public class WizVisualizationController {
       }
       catch(Exception e) {
          LOG.error("Failed to save visualization", e);
+         return ResponseEntity.internalServerError().body(Map.of("error", "An unexpected error occurred. Please try again."));
+      }
+   }
+
+   /**
+    * Renders a single saved visualization to an image (SVG or PNG) for the WIZ chat live-preview
+    * / embed flows.
+    */
+   @PostMapping(value = "/render", produces = MediaType.APPLICATION_JSON_VALUE)
+   public ResponseEntity<?> render(@RequestBody WizVisualizationRenderEvent event, Principal principal) {
+      try {
+         WizVisualizationRenderResult result = wizVisualizationService.renderVisualization(event, principal);
+         return ResponseEntity.ok(result);
+      }
+      catch(RenderNotReadyException e) {
+         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+            .header("Retry-After", String.valueOf(Math.max(1, e.getRetryAfter())))
+            .body(Map.of("error", "Chart image not ready, retry shortly"));
+      }
+      catch(SecurityException e) {
+         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
+      }
+      catch(IllegalArgumentException e) {
+         return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+      }
+      catch(Exception e) {
+         LOG.error("Failed to render visualization", e);
          return ResponseEntity.internalServerError().body(Map.of("error", "An unexpected error occurred. Please try again."));
       }
    }
