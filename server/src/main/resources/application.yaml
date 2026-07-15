@@ -118,5 +118,10 @@ management:
     port: 8081
 server:
   shutdown: graceful
+  # Only trust X-Forwarded-* headers when the immediate TCP peer is a trusted proxy. Tomcat's
+  # RemoteIpValve (auto-configured by the "native" strategy) defaults internal-proxies to RFC1918
+  # private ranges + loopback, which covers standard container/LB topologies. Override via
+  # server.tomcat.remoteip.internal-proxies if the reverse proxy sits on a public IP.
+  forward-headers-strategy: native
   servlet:
     register-default-servlet: true

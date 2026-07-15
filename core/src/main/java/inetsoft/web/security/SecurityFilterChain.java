@@ -21,7 +21,6 @@ import inetsoft.sree.security.AuthenticationService;
 import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.web.ThreadLocalCleanupFilter;
 import inetsoft.web.cluster.PauseClusterFilter;
-import org.springframework.web.filter.ForwardedHeaderFilter;
 
 import java.util.Arrays;
 
@@ -30,7 +29,6 @@ public class SecurityFilterChain extends DelegatingFilterChain {
                               AuthenticationService authenticationService)
    {
       super(Arrays.asList(
-         new ForwardedHeaderFilter(),
          new ThreadLocalCleanupFilter(),
          new SessionRefreshDisabledFilter(sessionLicenseServiceProvider, authenticationService),
          new SecurityHeaderFilter(sessionLicenseServiceProvider, authenticationService),
