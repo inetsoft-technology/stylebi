@@ -117,6 +117,14 @@ class GraalJavaScriptEngineGlobalsTest {
       assertInstanceOf(inetsoft.graph.aesthetic.GLine.class, result);
    }
 
+   // Bug #75682: GraphElement (abstract base of the element classes) holds the
+   // HINT_* constants used by elem.setHint(...); it must resolve as a bare global.
+   @Test
+   void graphElementHintConstantResolves() throws Exception {
+      assertEquals("shine", eval("GraphElement.HINT_SHINE"));
+      assertEquals("alpha", eval("GraphElement.HINT_ALPHA"));
+   }
+
    @Test
    void gTextureIsConstructable() throws Exception {
       Object result = eval("new GTexture()");

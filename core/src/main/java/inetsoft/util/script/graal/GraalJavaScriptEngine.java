@@ -1428,6 +1428,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       putClassProxy(bindings, "PlotSpec",   "inetsoft.graph.PlotSpec");
 
       // elements
+      putClassProxy(bindings, "GraphElement",    "inetsoft.graph.element.GraphElement");
       putClassProxy(bindings, "IntervalElement", "inetsoft.graph.element.IntervalElement");
       putClassProxy(bindings, "LineElement",     "inetsoft.graph.element.LineElement");
       putClassProxy(bindings, "SchemaElement",   "inetsoft.graph.element.SchemaElement");
