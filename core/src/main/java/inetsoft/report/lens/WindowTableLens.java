@@ -148,6 +148,35 @@ public class WindowTableLens extends AbstractTableLens implements TableFilter {
       return table.getHeaderColCount();
    }
 
+   /**
+    * Delegate the column identifier of a pass-through (base) column to the underlying table,
+    * mirroring {@link #getColType}. This is required for correctness, not just cosmetics:
+    * downstream column resolution (e.g. {@code AssetQuery.getVisibleTableLens} ->
+    * {@code AssetUtil.findColumn}) matches a table-qualified identifier (e.g.
+    * {@code "ROUND_JS.product_id"}) against the lens, and only falls back to a header match when
+    * the identifier is present but different. The base table's headers are the bare, unqualified
+    * names, so if this lens reported a {@code null} identifier for its pass-through columns (the
+    * default from {@link AbstractTableLens}, which reads a local map this lens never populates),
+    * those columns fail to resolve and get silently projected away — leaving only the window
+    * column(s) and an empty/near-empty result. A locally-set identifier (via
+    * {@link #setColumnIdentifier}) still wins; otherwise we delegate base columns to the
+    * underlying table and give window columns their spec header as a sensible default.
+    */
+   @Override
+   public String getColumnIdentifier(int col) {
+      String local = super.getColumnIdentifier(col);
+
+      if(local != null) {
+         return local;
+      }
+
+      if(col < ncols) {
+         return table.getColumnIdentifier(col);
+      }
+
+      return specs[col - ncols].header;
+   }
+
    @Override
    public Class<?> getColType(int col) {
       if(col < ncols) {
