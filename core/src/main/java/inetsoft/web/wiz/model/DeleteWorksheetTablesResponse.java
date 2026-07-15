@@ -50,6 +50,13 @@ public class DeleteWorksheetTablesResponse {
    private boolean success;
    private String errorMessage;
 
+   /**
+    * The worksheet's primary table after this delete, or {@code null} if it has none
+    * (either it never had one, or its primary was deleted and no unambiguous
+    * replacement could be picked).
+    */
+   private String primaryTable;
+
    public String getWsId() {
       return wsId;
    }
@@ -96,5 +103,13 @@ public class DeleteWorksheetTablesResponse {
 
    public void setErrorMessage(String errorMessage) {
       this.errorMessage = errorMessage;
+   }
+
+   public String getPrimaryTable() {
+      return primaryTable;
+   }
+
+   public void setPrimaryTable(String primaryTable) {
+      this.primaryTable = primaryTable;
    }
 }
