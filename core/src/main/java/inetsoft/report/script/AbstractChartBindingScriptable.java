@@ -345,7 +345,7 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
 
          if(ChartConstants.DATE.equals(ctype)) {
             int level = arr.length == 3 ?
-               Integer.parseInt(arr[2].toString()) :
+               Double.valueOf(arr[2].toString()).intValue() :
                DateRangeRef.YEAR_INTERVAL;
             ((BaseField) ref).setDataType(ctype);
             setDateLevelValue(dim, level);
@@ -377,7 +377,7 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
          // and formula
          if(arr.length >= 2) {
             String cname = arr[0].toString();
-            int btype = Integer.parseInt(arr[1].toString());
+            int btype = Double.valueOf(arr[1].toString()).intValue();
             DataRef ref = createDataRef(cname);
             String formula = arr.length >= 3 ? arr[2].toString() : null;
             int poption = arr.length >= 4 ?
@@ -460,11 +460,11 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
          // and formula
          if(arr.length >= 2) {
             String cname = arr[0].toString();
-            int btype = Integer.parseInt(arr[1].toString());
+            int btype = Double.valueOf(arr[1].toString()).intValue();
             DataRef ref = createDataRef(cname);
             String formula = arr.length >= 3 ? arr[2].toString() : null;
             int poption = arr.length >= 4 ?
-               Integer.parseInt(arr[3].toString()) :
+               Double.valueOf(arr[3].toString()).intValue() :
                XConstants.PERCENTAGE_NONE;
             String field2 = arr.length == 5 ? arr[4].toString() : null;
             DataRef secCol = field2 == null || "".equals(field2) ? null :
