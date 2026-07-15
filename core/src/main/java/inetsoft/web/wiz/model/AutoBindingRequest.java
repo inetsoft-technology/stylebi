@@ -139,6 +139,14 @@ public class AutoBindingRequest {
       this.sampleMaxRows = sampleMaxRows;
    }
 
+   public boolean isReplacePrevious() {
+      return replacePrevious;
+   }
+
+   public void setReplacePrevious(boolean replacePrevious) {
+      this.replacePrevious = replacePrevious;
+   }
+
    /**
     * Recommendation-computation RVS ID. Null on first call; returned by the server
     * and passed back on subsequent calls to reuse the same RVS.
@@ -169,4 +177,11 @@ public class AutoBindingRequest {
     * #75456: sampled-preview row cap; null/&lt;=0 = full data (default).
     */
    private Integer sampleMaxRows;
+
+   /**
+    * Only set by {@code changeType}'s fallback path. {@code true} = in-place replace (remove the
+    * displaced primary); {@code false} (default, and always for the public autoBinding entry point)
+    * = keep the previous assembly and add the new one alongside it.
+    */
+   private boolean replacePrevious;
 }

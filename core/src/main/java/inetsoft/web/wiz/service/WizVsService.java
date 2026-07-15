@@ -537,9 +537,13 @@ public class WizVsService {
                result.setRuntimeId(runtimeId);
             }
 
-            // For skipExecution (changeType): remove the displaced primary before persisting
-            // so the stored viewsheet contains only the new assembly.
-            if(skipExecution && previousPrimaryAssembly != null && !createdRuntimeId) {
+            // Removal is gated purely by intent: replacePrevious=true means "replace the current chart
+            // in place" (the front-end click), so drop the displaced primary and keep a single
+            // visualization. replacePrevious=false (the agent/MCP default) keeps the old assembly —
+            // already demoted to non-primary above — and adds the new one alongside it. This is
+            // deliberately independent of skipExecution (which only controls sandbox execution): the
+            // two concerns are orthogonal, and replacePrevious is the single source of truth for delete.
+            if(model.isReplacePrevious() && previousPrimaryAssembly != null && !createdRuntimeId) {
                targetVs.removeAssembly(previousPrimaryAssembly.getName());
                removedPreviousPrimary = true;
             }

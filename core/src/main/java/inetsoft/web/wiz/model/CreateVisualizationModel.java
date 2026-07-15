@@ -84,6 +84,20 @@ public class CreateVisualizationModel {
    }
 
    /**
+    * In-place replace: when {@code true}, {@code WizVsService} removes the displaced primary so the
+    * viewsheet keeps a single visualization (the front-end click semantics). When {@code false}
+    * (the default), the previous assembly is kept and the new one is added alongside it (the
+    * agent/MCP "create a new visualization" semantics).
+    */
+   public boolean isReplacePrevious() {
+      return replacePrevious;
+   }
+
+   public void setReplacePrevious(boolean replacePrevious) {
+      this.replacePrevious = replacePrevious;
+   }
+
+   /**
     * #75456: row cap for sampled-preview mode. Null or &lt;=0 = full data (the default and the
     * agent path); &gt;0 = aggregate at most this many detail rows (faster on heavy/non-mergeable
     * sources, but Sum/Count may be approximate).
@@ -104,4 +118,5 @@ public class CreateVisualizationModel {
    private Integer sampleMaxRows;
    private transient VSAssembly primaryAssembly;
    private transient boolean keepCondition;
+   private transient boolean replacePrevious;
 }

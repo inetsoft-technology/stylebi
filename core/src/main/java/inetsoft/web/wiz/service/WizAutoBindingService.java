@@ -318,6 +318,9 @@ public class WizAutoBindingService {
             // #75456: carry the data-mode (full vs sampled) into the render so the chart aggregates
             // the chosen amount of data; null/<=0 = full (the agent always omits this).
             vsModel.setSampleMaxRows(request.getSampleMaxRows());
+            // Default false for the public autoBinding entry point; only changeType's fallback
+            // sets it to request an in-place replace of the displaced primary.
+            vsModel.setReplacePrevious(request.isReplacePrevious());
 
             WizVsService.PostAssemblyHook hook = (wizRvs, asm) -> {
                if(asm instanceof ChartVSAssembly) {
@@ -1948,6 +1951,8 @@ public class WizAutoBindingService {
          // autoBindingInternal() would skip creating a new RVS and fail on the same dead id again.
          fallback.setWizRuntimeId(wizRuntimeId);
          fallback.setViewsheetIdentifier(viewsheetIdentifier);
+         // Carry the in-place-replace intent into the fallback so the rebuilt path honors it too.
+         fallback.setReplacePrevious(request.isReplacePrevious());
          AutoBindingResponse resp = autoBindingInternal(fallback, user, true);
          CreateViewsheetResult result = resp.getVisualizationResult();
 
@@ -2021,6 +2026,9 @@ public class WizAutoBindingService {
       vsModel.setRuntimeId(wizRuntimeId);
       vsModel.setViewsheetIdentifier(viewsheetIdentifier);
       vsModel.setKeepCondition(true);
+      // Front-end click passes replacePrevious=true to replace in place; agent/MCP omit it so the
+      // old assembly is kept and the new one is added alongside it.
+      vsModel.setReplacePrevious(request.isReplacePrevious());
 
       final RuntimeViewsheet autoRvsForHook = capturedAutoBindingRvs;
       CreateViewsheetResult result = wizVsService.createViewsheetSkipExecution(vsModel, user,

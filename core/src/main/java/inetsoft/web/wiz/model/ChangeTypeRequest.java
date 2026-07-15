@@ -64,6 +64,14 @@ public class ChangeTypeRequest {
       this.viewsheetIdentifier = viewsheetIdentifier;
    }
 
+   public boolean isReplacePrevious() {
+      return replacePrevious;
+   }
+
+   public void setReplacePrevious(boolean replacePrevious) {
+      this.replacePrevious = replacePrevious;
+   }
+
    private String worksheetId;
    private String visualizationType;
    /**
@@ -82,4 +90,10 @@ public class ChangeTypeRequest {
     * Passed back so the viewsheet entry is overwritten in place rather than duplicated.
     */
    private String viewsheetIdentifier;
+   /**
+    * {@code true} = in-place replace (remove the previous primary, keep a single visualization) —
+    * the front-end click semantics. {@code false} (default) = keep the previous assembly and add
+    * the new one alongside it — the agent/MCP "create a new visualization" semantics.
+    */
+   private boolean replacePrevious;
 }
