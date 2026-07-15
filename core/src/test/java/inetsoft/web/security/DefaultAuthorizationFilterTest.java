@@ -49,51 +49,15 @@ package inetsoft.web.security;
  *             that org's intended guest scope, not arbitrary cross-tenant admin access. Worth
  *             hardening for multi-tenant deployments; not a high-severity dump by itself.
  *
- * [Suspect 3] (#75656) DefaultAuthorizationFilter.doFilter() line 73 -> intent: treat an
- *             already-anonymous principal the same as "no principal" for the generic auth gate
- *             (i.e. still subject to containsAnonymous(orgID))
- *             actual: the check is `principal.getName().equals(XPrincipal.ANONYMOUS)` -- a literal
- *             equals against the bare string "anonymous". SRPrincipal.getName() always returns
- *             client.getUserIdentity().convertToKey(), which (IdentityID.convertToKey(),
- *             unconditionally) appends KEY_DELIMITER + org -- e.g. "anonymous~;~default" -- never
- *             the bare literal. So this comparison is essentially never true for a real
- *             SRPrincipal, regardless of org. Once ANY anonymous session already exists in a
- *             request's HttpSession (created for any org, at any earlier time, by any path), every
- *             *subsequent* request in that same session sails through this filter's generic gate
- *             as if it were a fully authenticated, non-anonymous user -- containsAnonymous(orgID)
- *             was never even consulted for it. This was a materially worse version of the ordering
- *             RISK noted in AnonymousUserFilterTest: it was not just "AnonymousUserFilter has no
- *             gate of its own", it was that DefaultAuthorizationFilter's *own* re-check of an
- *             established anonymous principal didn't work either. Notably, this exact file already
- *             had the correct pattern nearby: line 139-140 uses
- *             `principal.getName().startsWith(ClientInfo.ANONYMOUS)` (which does work, since the
- *             delimiter comes after the name), and both AbstractSecurityFilter.isAnonymousPrincipal()
- *             and AbstractLogoutFilter.isGuestLogin() correctly parse the key via
- *             IdentityID.getIdentityIDFromKey(...).getName() first -- line 73 was the outlier. See
+ * [Suspect 3] (#75656) FIXED -- DefaultAuthorizationFilter.doFilter() used to compare
+ *             principal.getName() (the raw "name~;~org" key) directly against the bare literal
+ *             XPrincipal.ANONYMOUS, so it never matched a real anonymous principal. Now fixed via
+ *             isAnonymousPrincipal(), which parses the key first. See
  *             doFilter_anonymousPrincipal_orgDisallowsAnonymous_redirectsToLogin_guardsSuspect3Fix
- *             below (the regression guard for this exact bug), and
- *             SecurityFilterChainOrderingTest's two paired tests --
- *             reversedOrder_anonymousFilterBeforeAuthorizationFilter_atLeastStillAttemptsAnonymousAuth
- *             (order-independent fact) and
- *             reversedOrder_anonymousFilterBeforeAuthorizationFilter_stillRejectedAfterSuspect3Fix
- *             (correct post-fix behavior) -- which demonstrate the full, concrete consequence that
- *             existed before the fix: once AnonymousUserFilter establishes a session (which it will
- *             do unconditionally if it runs before this filter -- see AnonymousUserFilterTest),
- *             the bug let that anonymous session sail through as authorized on every later request,
- *             not just the one that created it.
- *             Tracked as Redmine #75656.
+ *             below and SecurityFilterChainOrderingTest's
+ *             reversedOrder_anonymousFilterBeforeAuthorizationFilter_stillRejectedAfterSuspect3Fix.
  *
- * FIXED: Suspect 3 (#75656) has been fixed. DefaultAuthorizationFilter.doFilter() now calls the
- * shared AbstractSecurityFilter.isAnonymousPrincipal(principal) helper (made protected for reuse)
- * at both the generic gate (line 72) and the EM else-if branch (line 80), which parses the
- * identity key via IdentityID.getIdentityIDFromKey(...).getName() before comparing to
- * XPrincipal.ANONYMOUS, instead of comparing the raw key. The two regression-guard tests --
- * doFilter_anonymousPrincipal_orgDisallowsAnonymous_redirectsToLogin_guardsSuspect3Fix here and
- * SecurityFilterChainOrderingTest's reversedOrder_..._stillRejectedAfterSuspect3Fix -- are enabled
- * and now pass, pinning down the fixed behavior. Suspect 1 and Suspect 2 remain unpatched in the
- * production filter and are pinned down as passing characterization tests below (not disabled).
- * See also the matching suspects in AnonymousUserFilterTest, and the write-up in
- * docs/superpowers/specs/2026-07-14-penetration-filter-test-plan.md §2.1.
+ * Suspect 1 and Suspect 2 remain unpatched; pinned down as passing characterization tests below.
  */
 
 import inetsoft.sree.ClientInfo;
@@ -393,10 +357,7 @@ class DefaultAuthorizationFilterTest {
 
    private static SRPrincipal anonymousPrincipal() {
       SRPrincipal principal = mock(SRPrincipal.class, withSettings().lenient());
-      // Real SRPrincipal.getName() always returns client.getUserIdentity().convertToKey(), which
-      // (IdentityID.convertToKey(), unconditionally) appends KEY_DELIMITER + org -- it is never
-      // the bare "anonymous" literal. See the file-header Suspect 3 note: this distinction is
-      // exactly what exposes the broken equals() check at doFilter() line 73.
+      // SRPrincipal.getName() returns the "name~;~org" identity key, not the bare literal.
       when(principal.getName()).thenReturn(XPrincipal.ANONYMOUS + IdentityID.KEY_DELIMITER + "default");
       return principal;
    }

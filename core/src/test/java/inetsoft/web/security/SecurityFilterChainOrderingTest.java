@@ -37,15 +37,8 @@ package inetsoft.web.security;
  * SSO isn't set up -- so it doesn't change any of the orderings this test exercises; included here
  * only for accuracy against StandardFilterChain.java:41-45.)
  *
- * Note: the reversed-order test originally written here ("reordering only wastes a session, the
- * response is still rejected") did NOT confirm what it expected at the time. It instead surfaced
- * DefaultAuthorizationFilterTest's Suspect 3 (#75656, a broken anonymous-principal equals() check)
- * in its full, concrete form: reordering AnonymousUserFilter before DefaultAuthorizationFilter was
- * a complete authorization bypass, not just a wasted session. That finding was split into two
- * tests below: one confirming the order-independent fact (AnonymousUserFilter always attempts
- * anonymous auth when it runs first, bug or no bug), and one asserting the correct post-fix
- * behavior (still rejected, even in the wrong order). #75656 is now fixed (see
- * DefaultAuthorizationFilter.isAnonymousPrincipal() usage) and both tests are enabled and passing.
+ * Note: #75656 (DefaultAuthorizationFilterTest's Suspect 3) is fixed -- see
+ * reversedOrder_anonymousFilterBeforeAuthorizationFilter_stillRejectedAfterSuspect3Fix below.
  *
  * No production code is touched here; this class only observes the composed behavior.
  */
@@ -205,14 +198,8 @@ class SecurityFilterChainOrderingTest {
    void reversedOrder_anonymousFilterBeforeAuthorizationFilter_atLeastStillAttemptsAnonymousAuth()
       throws Exception
    {
-      // Same org-disallows-anonymous setup as the correctly-ordered test above, but with the two
-      // filters registered in the *wrong* order, as if a future refactor accidentally swapped
-      // them. This much is independent of Suspect 3 / #75656 and stays true either way:
-      // AnonymousUserFilter has no org gate of its own (see AnonymousUserFilterTest), so it
-      // unconditionally attempts anonymous authentication when it runs first. The observable
-      // *consequence* of that (does the request ultimately get rejected or not) depends on
-      // whether DefaultAuthorizationFilter's own re-check of an established anonymous principal
-      // works -- see the test right below, which is the more informative one.
+      // Filters registered in the wrong order: AnonymousUserFilter has no org gate of its own, so
+      // it always attempts anonymous auth when it runs first, regardless of #75656.
       when(mockEngine.containsAnonymous(any())).thenReturn(false);
       SRPrincipal anonymousPrincipal = anonymousPrincipal();
       doReturn(anonymousPrincipal).when(authService).authenticate(any(ClientInfo.class), isNull());
