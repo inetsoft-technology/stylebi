@@ -707,16 +707,38 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       ConditionListHandler handler = new PostConditionListHandler();
       XUtil.convertDateCondition(conds, vars);
       XFilterNode fnode = createXFilterNode(handler, conds, nsql, vars);
-      XFilterNode oroot = nsql.getHaving();
 
-      if(oroot == null) {
-         nsql.setHaving(fnode);
+      // If this query level doesn't aggregate on its own (e.g. a mirror/pass-through
+      // over an already-aggregated subquery), the referenced columns are plain values
+      // from this level's perspective, so the condition must be a WHERE. A HAVING with
+      // no GROUP BY implicitly treats the whole result as one aggregate group, which
+      // strict dialects (e.g. Derby) reject once the SELECT list has non-aggregate
+      // columns.
+      if(aggregateInfo.isEmpty()) {
+         XFilterNode oroot = nsql.getWhere();
+
+         if(oroot == null) {
+            nsql.setWhere(fnode);
+         }
+         else {
+            XSet nroot = new XSet(XSet.AND);
+            nroot.addChild(oroot);
+            nroot.addChild(fnode);
+            nsql.setWhere(nroot);
+         }
       }
       else {
-         XSet nroot = new XSet(XSet.AND);
-         nroot.addChild(oroot);
-         nroot.addChild(fnode);
-         nsql.setHaving(nroot);
+         XFilterNode oroot = nsql.getHaving();
+
+         if(oroot == null) {
+            nsql.setHaving(fnode);
+         }
+         else {
+            XSet nroot = new XSet(XSet.AND);
+            nroot.addChild(oroot);
+            nroot.addChild(fnode);
+            nsql.setHaving(nroot);
+         }
       }
 
       conds.removeAllItems();

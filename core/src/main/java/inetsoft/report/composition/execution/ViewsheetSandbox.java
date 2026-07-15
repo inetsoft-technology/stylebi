@@ -4345,8 +4345,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
 
          // if is a crosstab or a rotated table, the condition list has to be
-         // post processed, otherwise we should check if aggregate info exists
-         boolean post = !tassembly.isPlain();
+         // post processed, otherwise we should check if aggregate info exists.
+         // isPlain() only reflects the crosstab UI flag, so also check for a
+         // non-empty AggregateInfo (e.g. a chart-bound table with group/aggregate
+         // columns) to avoid pushing a condition on an aggregated column into the
+         // SQL WHERE clause, which produces an invalid non-aggregate SELECT column.
+         boolean post = !tassembly.isPlain() || !tassembly.getAggregateInfo().isEmpty();
          ColumnSelection columns = tassembly.getColumnSelection(post);
          conds = VSUtil.normalizeConditionList(columns, conds);
 
