@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz;
 
+import inetsoft.web.wiz.service.UnsupportedDatasourceException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -89,7 +90,7 @@ class WizControllerErrorHandlerTest {
          }
 
          if("unsupported".equals(type)) {
-            throw new inetsoft.web.wiz.service.UnsupportedDatasourceException("MongoDB REST", "Mongo");
+            throw new UnsupportedDatasourceException("MongoDB REST", "Mongo");
          }
 
          throw new java.lang.SecurityException("denied");

@@ -19,6 +19,7 @@
 package inetsoft.web.wiz.controller;
 
 import inetsoft.web.wiz.model.*;
+import inetsoft.web.wiz.service.UnsupportedDatasourceException;
 import inetsoft.web.wiz.service.WorksheetTableService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -143,12 +144,10 @@ public class WorksheetTableController {
    // the same WizControllerErrorHandler advice, needed for the same reason: a local handler
    // always wins over the shared advice, so without this override the catch-all below would
    // swallow it as a generic 400 instead of the intended 422 + datasourceType.
-   @ExceptionHandler(inetsoft.web.wiz.service.UnsupportedDatasourceException.class)
+   @ExceptionHandler(UnsupportedDatasourceException.class)
    @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
    @ResponseBody
-   public Map<String, String> handleUnsupportedDatasource(
-      inetsoft.web.wiz.service.UnsupportedDatasourceException e)
-   {
+   public Map<String, String> handleUnsupportedDatasource(UnsupportedDatasourceException e) {
       LOG.warn("Unsupported datasource for worksheet table: {} ({})",
                e.getDatasourceName(), e.getDatasourceType());
       return Map.of("error", e.getMessage(),

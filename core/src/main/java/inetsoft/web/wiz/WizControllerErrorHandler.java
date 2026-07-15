@@ -18,6 +18,7 @@
 package inetsoft.web.wiz;
 
 import inetsoft.util.Catalog;
+import inetsoft.web.wiz.service.UnsupportedDatasourceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -62,9 +63,9 @@ public class WizControllerErrorHandler {
    // A controller with its own local catch-all Exception.class handler (e.g.
    // WorksheetTableController) still needs its own local override to get this treatment, exactly
    // like the SecurityException case above.
-   @ExceptionHandler(inetsoft.web.wiz.service.UnsupportedDatasourceException.class)
+   @ExceptionHandler(UnsupportedDatasourceException.class)
    public ResponseEntity<Map<String, String>> handleUnsupportedDatasource(
-      inetsoft.web.wiz.service.UnsupportedDatasourceException e)
+      UnsupportedDatasourceException e)
    {
       LOG.warn("Unsupported datasource: {} ({})", e.getDatasourceName(), e.getDatasourceType());
 

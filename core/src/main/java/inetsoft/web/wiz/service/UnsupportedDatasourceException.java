@@ -30,10 +30,19 @@ package inetsoft.web.wiz.service;
  */
 public class UnsupportedDatasourceException extends Exception {
    public UnsupportedDatasourceException(String datasourceName, String datasourceType) {
-      super("Operation failed. Annotations are currently not supported for '" + datasourceType +
-         "' datasources. Please check the datasource type or contact your administrator.");
+      // XDataSource.getType() can in principle return null for some implementations. Normalize
+      // once and reuse everywhere below — the message ("...for 'null' datasources...") isn't the
+      // only thing at stake: wiz-services' handler for this exception treats a non-empty
+      // datasourceType as the discriminator that confirms a 422 really is this case, so a null
+      // here would also make that response silently fail to be recognized as friendly at all.
       this.datasourceName = datasourceName;
-      this.datasourceType = datasourceType;
+      this.datasourceType = datasourceType != null ? datasourceType : "unknown";
+   }
+
+   @Override
+   public String getMessage() {
+      return "Operation failed. Annotations are currently not supported for '" + datasourceType +
+         "' datasources. Please check the datasource type or contact your administrator.";
    }
 
    public String getDatasourceName() {

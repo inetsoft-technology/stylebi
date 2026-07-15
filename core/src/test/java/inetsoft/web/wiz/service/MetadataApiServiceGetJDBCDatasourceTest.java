@@ -84,6 +84,26 @@ class MetadataApiServiceGetJDBCDatasourceTest {
       assertTrue(ex.getMessage().toLowerCase().contains("not supported"));
    }
 
+   // XDataSource.getType() can in principle return null for some implementations. Without a
+   // fallback, the message would read "...for 'null' datasources..." AND — more importantly —
+   // the serialized datasourceType would be null, which would make wiz-services' discriminator
+   // check for this exact 422 shape silently fail to recognize it as friendly at all.
+   @Test
+   void getJDBCDatasource_normalizesANullDatasourceTypeInsteadOfSayingNull() throws Exception {
+      XRepository xrepository = mock(XRepository.class);
+      XDataSource untypedDataSource = mock(XDataSource.class);
+      when(untypedDataSource.getType()).thenReturn(null);
+      when(xrepository.getDataSource("Weird REST")).thenReturn(untypedDataSource);
+
+      MetadataApiService service = createService(xrepository);
+
+      UnsupportedDatasourceException ex = assertThrows(UnsupportedDatasourceException.class,
+         () -> service.getJDBCDatasource("Weird REST"));
+
+      assertNotNull(ex.getDatasourceType());
+      assertFalse(ex.getMessage().contains("'null'"));
+   }
+
    @Test
    void getJDBCDatasource_returnsTheJDBCDatasourceWhenRelational() throws Exception {
       XRepository xrepository = mock(XRepository.class);
