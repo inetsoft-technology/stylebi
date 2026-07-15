@@ -18,6 +18,7 @@
 package inetsoft.report.script;
 
 import inetsoft.report.*;
+import inetsoft.report.filter.CalcFilter;
 import inetsoft.report.filter.CrossFilter;
 import inetsoft.report.internal.*;
 import inetsoft.report.lens.AttributeTableLens;
@@ -110,6 +111,19 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
       // for ids that actually name a row/col dimension -- a genuinely nonexistent
       // property should still report absent, not be over-claimed as present.
       if(lens instanceof CrossFilter && isCrosstabDimension((CrossFilter) lens, id)) {
+         return true;
+      }
+
+      // A bare (unqualified) reference to one of the crosstab's own measure/aggregate
+      // names, e.g. data['Sum(category_id)'] with no "@group:value" qualifier -- as
+      // generated for a calc table's grand-total cell, which has no row/col group to
+      // qualify with. The measure name never appears as a literal column header either
+      // (it varies per data cell path, not per fixed column), so without this check
+      // Util.findColumn below fails to find it, hasMember() reports it absent, and
+      // GraalJS never calls getMember() at all -- the reference silently resolves to
+      // undefined instead of dispatching to NamedCellRange/CrosstabGroupSelector, which
+      // do know how to resolve it.
+      if(lens instanceof CalcFilter && ((CalcFilter) lens).getMeasureHeaders().contains(id)) {
          return true;
       }
 
