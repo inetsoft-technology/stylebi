@@ -87,10 +87,10 @@ class SecurityEnginePermissionTest {
    @AfterEach
    void tearDown() {
       SreeEnv.setProperty("security.enabled", "false");
-      SreeEnv.setProperty("security.datasource.everyone", "false");
-      SreeEnv.setProperty("security.script.everyone", "false");
-      SreeEnv.setProperty("security.tablestyle.everyone", "false");
-      SreeEnv.setProperty("security.scheduletask.everyone", "false");
+      SreeEnv.remove("security.datasource.everyone");
+      SreeEnv.remove("security.script.everyone");
+      SreeEnv.remove("security.tablestyle.everyone");
+      SreeEnv.remove("security.scheduletask.everyone");
 
       SecurityEngine.updateSecurityDatasourceEveryoneValue();
       SecurityEngine.updateSecurityScriptEveryoneValue();

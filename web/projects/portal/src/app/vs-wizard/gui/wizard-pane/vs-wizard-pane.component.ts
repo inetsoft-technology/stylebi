@@ -132,6 +132,7 @@ export class VsWizardPane extends CommandProcessor implements OnInit, AfterViewI
    private draggableRestrictionRects: Map<any, {left: number, top: number, right: number, bottom: number}>;
    private subscriptions: Subscription = new Subscription();
    private keydownListener: () => void;
+   private mouseupListener: () => void;
    bottomFollowRestriction: {top, left, right, bottom};
    rightFollowRestriction: {top, left, right, bottom};
    private defaultObjectModel: WizardNewObjectModel = {
@@ -250,7 +251,7 @@ export class VsWizardPane extends CommandProcessor implements OnInit, AfterViewI
          }));
 
       this.zone.runOutsideAngular(() => {
-         this.renderer.listen(
+         this.mouseupListener = this.renderer.listen(
             "document", "mouseup", (evt: MouseEvent) => {
                const html: any = window.document.getElementsByTagName("html")[0];
                html.style.cursor = "";
@@ -287,6 +288,12 @@ export class VsWizardPane extends CommandProcessor implements OnInit, AfterViewI
 
    ngOnDestroy(): void {
       this.removeKeydownListener();
+
+      if(!!this.mouseupListener) {
+         this.mouseupListener();
+         this.mouseupListener = null;
+      }
+
       this.cleanup();
       this.subscriptions.unsubscribe();
    }
