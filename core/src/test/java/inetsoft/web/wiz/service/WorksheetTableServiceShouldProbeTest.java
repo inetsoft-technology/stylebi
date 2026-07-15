@@ -35,12 +35,12 @@ import static org.junit.jupiter.api.Assertions.*;
  * Regression tests for {@link WorksheetTableService#shouldProbe}.
  *
  * <p>The bug: a {@code windowColumns}-bearing request was never probed, so a render-time failure
- * in the pushed-down {@code OVER(...)} SQL (e.g. when the base table can't fully SQL-merge because
- * an upstream JS-evaluated expression column blocks the merge) never got the chance to surface at
- * construction time — it silently reached the viewer as an empty result instead. The fix extends
- * {@code shouldProbe} to also probe {@code windowColumns} requests, mirroring the existing
- * {@code expressionColumns} check (see also {@link WorksheetTableService#requireWindowColumnsMergeable}
- * for the eager fail-loud mergeability gate this pairs with).
+ * in the {@code OVER(...)} evaluation (whether pushed down as SQL, or computed in-memory when the
+ * base table can't fully SQL-merge — e.g. an upstream JS-evaluated expression column blocks the
+ * merge) never got the chance to surface at construction time. The fix extends {@code shouldProbe}
+ * to also probe {@code windowColumns} requests, mirroring the existing {@code expressionColumns}
+ * check, so a genuine render-time failure fails loud at creation instead of reaching the viewer as
+ * an empty result.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
