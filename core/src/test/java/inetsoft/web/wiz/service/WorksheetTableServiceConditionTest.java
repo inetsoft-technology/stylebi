@@ -146,6 +146,83 @@ class WorksheetTableServiceConditionTest {
       assertTrue(list.isConditionItem(2), "index 2 must be a ConditionItem");
    }
 
+   // ── equal=true expansion nesting. Regression for a silent-wrong-result bug: a >=/<= condition
+   // expands to "(> OR =)", and that internal OR used to be emitted at the SAME level as the
+   // surrounding AND junctions. XConditionGroup evaluates a flat ConditionList by level, so the OR
+   // re-associated with its neighbours and silently rewrote the logic — e.g.
+   // "seq=1 AND date>=lo AND date<hi" collapsed to "(seq=1 AND date>lo) OR (date=lo AND date<hi)",
+   // dropping the date<hi bound and returning out-of-range rows with no error. The fix nests the
+   // expanded pair one level deeper so it forms a self-contained group. ──
+
+   @Test
+   void equalExpansionNestsDeeperThanSurroundingJunctions() throws Exception {
+      WorksheetTable req = request("""
+         {
+           "preAggregateCondition": [
+             { "field": "seq", "operation": "EQUAL_TO", "values": [{ "type": "VALUE", "value": 1 }] },
+             { "field": "d", "operation": "GREATER_THAN", "equal": true, "junction": "and",
+               "values": [{ "type": "VALUE", "value": "2025-10-01" }] },
+             { "field": "d", "operation": "LESS_THAN", "junction": "and",
+               "values": [{ "type": "VALUE", "value": "2026-01-01" }] }
+           ]
+         }
+         """);
+
+      ColumnSelection cs = columns("seq", "d");
+
+      ConditionList list = service().buildConditionList(
+         cs, req.getPreAggregateCondition(), new Worksheet(), false);
+
+      // seq=1 AND (d>lo OR d=lo) AND d<hi  →  7 elements.
+      assertEquals(7, list.getSize(), "3 leaves, with the middle >= expanded to (> OR =), => 7 elements");
+      assertTrue(list.isConditionItem(0), "0: seq condition");
+      assertTrue(list.isJunctionOperator(1), "1: AND before the date-range");
+      assertTrue(list.isConditionItem(2), "2: d > lo");
+      assertTrue(list.isJunctionOperator(3), "3: the equal-expansion OR");
+      assertTrue(list.isConditionItem(4), "4: d = lo");
+      assertTrue(list.isJunctionOperator(5), "5: AND before the upper bound");
+      assertTrue(list.isConditionItem(6), "6: d < hi");
+
+      int expansionOrLevel = list.getItem(3).getLevel();
+      int andBeforeRange = list.getItem(1).getLevel();
+      int andBeforeUpper = list.getItem(5).getLevel();
+
+      // The expansion OR must bind TIGHTER (deeper level) than the surrounding ANDs — otherwise it
+      // leaks out and re-associates the neighbouring conditions (the bug).
+      assertTrue(expansionOrLevel > andBeforeRange && expansionOrLevel > andBeforeUpper,
+                 "the equal-expansion OR (level " + expansionOrLevel + ") must nest deeper than the " +
+                 "surrounding AND junctions (levels " + andBeforeRange + ", " + andBeforeUpper + ")");
+      // The two expanded ConditionItems sit at the same deeper level as their OR.
+      assertEquals(expansionOrLevel, list.getItem(2).getLevel(), "d>lo at the expansion level");
+      assertEquals(expansionOrLevel, list.getItem(4).getLevel(), "d=lo at the expansion level");
+   }
+
+   @Test
+   void standaloneEqualExpansionStillBuildsOrPair() throws Exception {
+      // A lone >= must still expand to "(> OR =)" (size 3, uniform level) — no regression for the
+      // common single-condition case.
+      WorksheetTable req = request("""
+         {
+           "preAggregateCondition": [
+             { "field": "amount", "operation": "GREATER_THAN", "equal": true,
+               "values": [{ "type": "VALUE", "value": 100 }] }
+           ]
+         }
+         """);
+
+      ColumnSelection cs = columns("amount");
+
+      ConditionList list = service().buildConditionList(
+         cs, req.getPreAggregateCondition(), new Worksheet(), false);
+
+      assertEquals(3, list.getSize(), "lone >= expands to Condition, OR, Condition");
+      assertTrue(list.isConditionItem(0));
+      assertTrue(list.isJunctionOperator(1));
+      assertTrue(list.isConditionItem(2));
+      assertEquals(list.getItem(0).getLevel(), list.getItem(2).getLevel(),
+                   "both expanded items share one uniform level (evaluates as a plain >=)");
+   }
+
    // ── FIELD operand (compare a column against another column, e.g. amount > stage_avg). Regression
    // for the silent match-all bug: the FIELD arm used to wrap the bare column name in a JAVASCRIPT
    // ExpressionValue (an undefined JS identifier), so the operand evaluated to nothing and the filter

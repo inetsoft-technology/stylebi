@@ -1864,12 +1864,22 @@ public class WorksheetTableService {
       List<Integer> ops = mapOperation(item.getOperation(), item.getEqual());
       String dataType = ref.getDataType() != null ? ref.getDataType() : XSchema.STRING;
 
+      // When equal=true expands one operator into two (e.g. >= becomes "> OR ="), that internal OR
+      // must bind ONLY the expanded pair. XConditionGroup evaluates a flat ConditionList by level
+      // (higher level = tighter grouping), so if the pair's OR sits at the item's own level it
+      // re-associates with the surrounding AND/OR junctions (which buildConditionList appends at
+      // item.resolveJunctionLevel() == the item's level). That silently rewrites the logic — e.g.
+      // "a AND b>=x AND c" (intended "a AND (b>x OR b=x) AND c") collapses to
+      // "(a AND b>x) OR (b=x AND c)", dropping the c bound entirely. Nest the expanded pair one
+      // level deeper so it forms a self-contained "(> OR =)" group. A single-op condition is
+      // unchanged (keeps the item's level).
+      int opLevel = ops.size() > 1 ? item.getConditionLevel() + 1 : item.getConditionLevel();
       boolean firstOp = true;
 
       for(int op : ops) {
          if(!firstOp) {
             // LESS_THAN/GREATER_THAN with equal=true expand to two ops joined by OR (e.g. < OR =).
-            list.append(new JunctionOperator(JunctionOperator.OR, item.getConditionLevel()));
+            list.append(new JunctionOperator(JunctionOperator.OR, opLevel));
          }
 
          firstOp = false;
@@ -1884,7 +1894,7 @@ public class WorksheetTableService {
             }
          }
 
-         list.append(new ConditionItem(ref, ac, item.getConditionLevel()));
+         list.append(new ConditionItem(ref, ac, opLevel));
       }
    }
 
