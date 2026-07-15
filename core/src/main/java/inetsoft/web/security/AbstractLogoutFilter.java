@@ -65,8 +65,11 @@ public abstract class AbstractLogoutFilter extends AbstractSecurityFilter {
 
       // for SSO only redirect to EM when portal.logout.url is not set
       if(fromEm && (!isSSO() || redirectUri.equals(defRedirectUri))) {
-         if("GET".equals(request.getMethod()) && request.getParameter("redirectUri") != null) {
-            redirectUri = request.getParameter("redirectUri");
+         String requestedRedirectUri = "GET".equals(request.getMethod()) ?
+            request.getParameter("redirectUri") : null;
+
+         if(requestedRedirectUri != null && isSameOriginRedirectUri(request, requestedRedirectUri)) {
+            redirectUri = requestedRedirectUri;
          }
          else {
             redirectUri = request.getContextPath() + "/em";
@@ -85,6 +88,27 @@ public abstract class AbstractLogoutFilter extends AbstractSecurityFilter {
       }
 
       return redirectUri;
+   }
+
+   /**
+    * Determines whether a client-supplied redirect target is safe to honor: either an
+    * app-relative path or an absolute URL within this application's own origin. Rejects
+    * protocol-relative ("//host/...") targets and backslash variants that browsers normalize to
+    * protocol-relative, since both resolve to an external host despite lacking a scheme.
+    */
+   private boolean isSameOriginRedirectUri(HttpServletRequest request, String redirectUri) {
+      if(redirectUri.isEmpty()) {
+         return false;
+      }
+
+      char first = redirectUri.charAt(0);
+
+      if(first == '/' || first == '\\') {
+         return redirectUri.length() < 2 ||
+            (redirectUri.charAt(1) != '/' && redirectUri.charAt(1) != '\\');
+      }
+
+      return redirectUri.startsWith(LinkUriArgumentResolver.getLinkUri(request));
    }
 
    private boolean isFromEm(Map<String, String[]> queryParameters) {
