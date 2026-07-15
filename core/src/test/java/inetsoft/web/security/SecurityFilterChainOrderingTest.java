@@ -38,15 +38,14 @@ package inetsoft.web.security;
  * only for accuracy against StandardFilterChain.java:41-45.)
  *
  * Note: the reversed-order test originally written here ("reordering only wastes a session, the
- * response is still rejected") did NOT confirm what it expected. It instead surfaced
+ * response is still rejected") did NOT confirm what it expected at the time. It instead surfaced
  * DefaultAuthorizationFilterTest's Suspect 3 (#75656, a broken anonymous-principal equals() check)
- * in its full, concrete form: reordering AnonymousUserFilter before DefaultAuthorizationFilter is
- * a complete authorization bypass today, not just a wasted session. That finding is now split into
- * two tests below: an enabled one confirming the order-independent fact (AnonymousUserFilter
- * always attempts anonymous auth when it runs first, bug or no bug), and a @Disabled one asserting
- * the correct post-fix behavior (still rejected, even in the wrong order) -- remove its @Disabled
- * once DefaultAuthorizationFilter.java:73 is fixed, per the same #75656 fix referenced in
- * DefaultAuthorizationFilterTest.
+ * in its full, concrete form: reordering AnonymousUserFilter before DefaultAuthorizationFilter was
+ * a complete authorization bypass, not just a wasted session. That finding was split into two
+ * tests below: one confirming the order-independent fact (AnonymousUserFilter always attempts
+ * anonymous auth when it runs first, bug or no bug), and one asserting the correct post-fix
+ * behavior (still rejected, even in the wrong order). #75656 is now fixed (see
+ * DefaultAuthorizationFilter.isAnonymousPrincipal() usage) and both tests are enabled and passing.
  *
  * No production code is touched here; this class only observes the composed behavior.
  */
@@ -213,7 +212,7 @@ class SecurityFilterChainOrderingTest {
       // unconditionally attempts anonymous authentication when it runs first. The observable
       // *consequence* of that (does the request ultimately get rejected or not) depends on
       // whether DefaultAuthorizationFilter's own re-check of an established anonymous principal
-      // works -- see the @Disabled test right below, which is currently the more informative one.
+      // works -- see the test right below, which is the more informative one.
       when(mockEngine.containsAnonymous(any())).thenReturn(false);
       SRPrincipal anonymousPrincipal = anonymousPrincipal();
       doReturn(anonymousPrincipal).when(authService).authenticate(any(ClientInfo.class), isNull());
@@ -232,17 +231,6 @@ class SecurityFilterChainOrderingTest {
    }
 
    @Test
-   @Disabled("Suspect 3 (#75656): with AnonymousUserFilter and DefaultAuthorizationFilter "
-      + "registered in the wrong order, DefaultAuthorizationFilter.java:73's broken "
-      + "equals(XPrincipal.ANONYMOUS) check currently fails to recognize the anonymous principal "
-      + "AnonymousUserFilter just established, so containsAnonymous(orgID) is never re-consulted "
-      + "and the request incorrectly reaches the protected resource (200) even though the org "
-      + "never allowed anonymous access -- a full authorization bypass, not just a wasted session. "
-      + "Fix at DefaultAuthorizationFilter.java:73 (see DefaultAuthorizationFilterTest's "
-      + "doFilter_anonymousPrincipal_orgDisallowsAnonymous_redirectsToLogin_guardsSuspect3Fix for "
-      + "the suggested fix). Remove this @Disabled once fixed -- the assertion below already "
-      + "describes the correct behavior (still rejected, even in the wrong filter order) and "
-      + "should pass unmodified.")
    void reversedOrder_anonymousFilterBeforeAuthorizationFilter_stillRejectedAfterSuspect3Fix()
       throws Exception
    {

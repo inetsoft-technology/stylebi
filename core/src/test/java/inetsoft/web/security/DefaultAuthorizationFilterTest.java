@@ -61,39 +61,38 @@ package inetsoft.web.security;
  *             request's HttpSession (created for any org, at any earlier time, by any path), every
  *             *subsequent* request in that same session sails through this filter's generic gate
  *             as if it were a fully authenticated, non-anonymous user -- containsAnonymous(orgID)
- *             is never even consulted for it. This is a materially worse version of the ordering
- *             RISK noted in AnonymousUserFilterTest: it is not just "AnonymousUserFilter has no
- *             gate of its own", it is that DefaultAuthorizationFilter's *own* re-check of an
- *             established anonymous principal doesn't work either. Notably, this exact file has
- *             the correct pattern nearby: line 139-140 uses
+ *             was never even consulted for it. This was a materially worse version of the ordering
+ *             RISK noted in AnonymousUserFilterTest: it was not just "AnonymousUserFilter has no
+ *             gate of its own", it was that DefaultAuthorizationFilter's *own* re-check of an
+ *             established anonymous principal didn't work either. Notably, this exact file already
+ *             had the correct pattern nearby: line 139-140 uses
  *             `principal.getName().startsWith(ClientInfo.ANONYMOUS)` (which does work, since the
  *             delimiter comes after the name), and both AbstractSecurityFilter.isAnonymousPrincipal()
  *             and AbstractLogoutFilter.isGuestLogin() correctly parse the key via
- *             IdentityID.getIdentityIDFromKey(...).getName() first -- line 73 is the outlier. See
+ *             IdentityID.getIdentityIDFromKey(...).getName() first -- line 73 was the outlier. See
  *             doFilter_anonymousPrincipal_orgDisallowsAnonymous_redirectsToLogin_guardsSuspect3Fix
- *             below (the @Disabled regression guard for this exact bug), and
+ *             below (the regression guard for this exact bug), and
  *             SecurityFilterChainOrderingTest's two paired tests --
  *             reversedOrder_anonymousFilterBeforeAuthorizationFilter_atLeastStillAttemptsAnonymousAuth
- *             (enabled; order-independent fact) and
+ *             (order-independent fact) and
  *             reversedOrder_anonymousFilterBeforeAuthorizationFilter_stillRejectedAfterSuspect3Fix
- *             (@Disabled; correct post-fix behavior) -- which demonstrate the full, concrete
- *             consequence: once AnonymousUserFilter establishes a session (which it will do
- *             unconditionally if it runs before this filter -- see AnonymousUserFilterTest), this
- *             bug lets that anonymous session sail through as authorized on every later request,
+ *             (correct post-fix behavior) -- which demonstrate the full, concrete consequence that
+ *             existed before the fix: once AnonymousUserFilter establishes a session (which it will
+ *             do unconditionally if it runs before this filter -- see AnonymousUserFilterTest),
+ *             the bug let that anonymous session sail through as authorized on every later request,
  *             not just the one that created it.
- *             Tracked as Redmine #75656. Confirmed live against current source (re-verified: see
- *             SRPrincipal.getName() -> IdentityID.convertToKey(), which unconditionally appends
- *             KEY_DELIMITER + org with no code path that omits it).
+ *             Tracked as Redmine #75656.
  *
- * Neither Suspect 1 nor Suspect 2 is patched in the production filter here; both are pinned down
- * as passing characterization tests below (not disabled). Suspect 3 (#75656) is now a CONFIRMED
- * defect: doFilter_anonymousPrincipal_orgDisallowsAnonymous_redirectsToLogin_guardsSuspect3Fix
- * below asserts the *correct* (intended) behavior and is marked @Disabled with the bug/fix
- * pointer, per this repo's test-generation convention for a single confirmed defect. Once
- * DefaultAuthorizationFilter.java:73 is fixed (see the @Disabled reason on that test for the
- * suggested fix), remove the @Disabled annotation -- the test should then pass unmodified and
- * becomes the permanent regression guard for this bug. See also the matching suspects in
- * AnonymousUserFilterTest, and the write-up in
+ * FIXED: Suspect 3 (#75656) has been fixed. DefaultAuthorizationFilter.doFilter() now calls the
+ * shared AbstractSecurityFilter.isAnonymousPrincipal(principal) helper (made protected for reuse)
+ * at both the generic gate (line 72) and the EM else-if branch (line 80), which parses the
+ * identity key via IdentityID.getIdentityIDFromKey(...).getName() before comparing to
+ * XPrincipal.ANONYMOUS, instead of comparing the raw key. The two regression-guard tests --
+ * doFilter_anonymousPrincipal_orgDisallowsAnonymous_redirectsToLogin_guardsSuspect3Fix here and
+ * SecurityFilterChainOrderingTest's reversedOrder_..._stillRejectedAfterSuspect3Fix -- are enabled
+ * and now pass, pinning down the fixed behavior. Suspect 1 and Suspect 2 remain unpatched in the
+ * production filter and are pinned down as passing characterization tests below (not disabled).
+ * See also the matching suspects in AnonymousUserFilterTest, and the write-up in
  * docs/superpowers/specs/2026-07-14-penetration-filter-test-plan.md §2.1.
  */
 
@@ -189,15 +188,6 @@ class DefaultAuthorizationFilterTest {
    }
 
    @Test
-   @Disabled("Suspect 3 (#75656): principal.getName().equals(XPrincipal.ANONYMOUS) at "
-      + "DefaultAuthorizationFilter.java:73 compares the raw identity key (name+delimiter+org), "
-      + "which SRPrincipal.getName()/IdentityID.convertToKey() always produce -- it is never "
-      + "equal to the bare \"anonymous\" literal, so this redirect never fires for a real "
-      + "anonymous principal today (currently passes through as if authenticated instead). "
-      + "Fix: parse the key first, e.g. IdentityID.getIdentityIDFromKey(principal.getName())"
-      + ".getName().equals(XPrincipal.ANONYMOUS), matching the startsWith(ClientInfo.ANONYMOUS) "
-      + "pattern already used a few lines down at line 139-140. Remove this @Disabled once fixed "
-      + "-- the assertions below already describe the correct behavior and should pass unmodified.")
    void doFilter_anonymousPrincipal_orgDisallowsAnonymous_redirectsToLogin_guardsSuspect3Fix()
       throws Exception
    {
