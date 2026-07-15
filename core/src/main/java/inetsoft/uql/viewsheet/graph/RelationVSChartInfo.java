@@ -423,6 +423,25 @@ public class RelationVSChartInfo extends MergedVSChartInfo implements RelationCh
          list.addAll(targetField.getDynamicValues());
       }
 
+      // VSDimensionRef-backed node color/size aesthetic refs are excluded from getAestheticRefs()
+      // (bug #75253), so super.getDynamicValues() does not cover them. Add their dynamic values
+      // here so a node color/size bound to a variable or script expression is executed; otherwise
+      // the runtime value is never resolved and graph generation falls back to the literal
+      // expression as a column name, causing "Column not found". VSAggregateRef-backed node fields
+      // still flow through getAestheticRefs() and are already covered, so guard on VSDimensionRef
+      // to avoid executing them twice. (Bug #75670)
+      if(nodeColorField instanceof VSAestheticRef &&
+         nodeColorField.getDataRef() instanceof VSDimensionRef)
+      {
+         list.addAll(((VSAestheticRef) nodeColorField).getDynamicValues());
+      }
+
+      if(nodeSizeField instanceof VSAestheticRef &&
+         nodeSizeField.getDataRef() instanceof VSDimensionRef)
+      {
+         list.addAll(((VSAestheticRef) nodeSizeField).getDynamicValues());
+      }
+
       return list;
    }
 
