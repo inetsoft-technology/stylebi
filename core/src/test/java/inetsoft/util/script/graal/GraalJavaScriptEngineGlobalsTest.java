@@ -148,4 +148,36 @@ class GraalJavaScriptEngineGlobalsTest {
       assertInstanceOf(Double.class, result);
       assertEquals(1.0, result);
    }
+
+   // Bug #75685: Rhino resolved unqualified CALC/statistical functions
+   // case-insensitively (Calc was the global scope's prototype and Calc.get()
+   // lowercases the key). Existing scripts call them in PascalCase, e.g.
+   // NthMostFrequent, PthPercentile, Sum. The GraalJS migration only copied the
+   // functions into the (case-sensitive) global bindings under their lowercase
+   // names, so PascalCase names threw "ReferenceError: X is not defined".
+   @Test
+   void calcFunctionsResolveCaseInsensitively() throws Exception {
+      // exact lowercase resolves and executes (unchanged behavior)
+      assertEquals(6.0, eval("sum([1,2,3])"));
+      // PascalCase names used by existing scripts now resolve + execute
+      assertEquals(6.0, eval("Sum([1,2,3])"));
+      assertEquals(2.0, eval("Average([1,2,3])"));
+      // formula-backed CALC functions (NthLargest/NthSmallest/NthMostFrequent/
+      // PthPercentile) instantiate report Formulas that need the Spring context
+      // to execute, which is unavailable in this unit test — but the bug is name
+      // resolution, so assert they resolve to a callable regardless of case.
+      assertEquals("function", eval("typeof NthLargest"));
+      assertEquals("function", eval("typeof NthSmallest"));
+      assertEquals("function", eval("typeof NthMostFrequent"));
+      assertEquals("function", eval("typeof PthPercentile"));
+      assertEquals("function", eval("typeof First"));
+   }
+
+   // The case-insensitive last-resort must not shadow JS builtins: Calc has a
+   // 'date' function, but the global Date constructor is an own property of the
+   // global object, so it must still win over the (prototype) Calc.date.
+   @Test
+   void builtinDateNotShadowedByCalc() throws Exception {
+      assertInstanceOf(java.util.Date.class, eval("new Date(0)"));
+   }
 }
