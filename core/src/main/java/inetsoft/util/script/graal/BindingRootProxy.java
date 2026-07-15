@@ -136,11 +136,16 @@ public class BindingRootProxy implements ProxyObject {
 
       // case-insensitive CALC functions (Rhino's global-scope prototype). Only
       // when the name has no exact global binding, so JS builtins (Date) and the
-      // lowercase CALC copies are never shadowed. The cheap case-insensitive
-      // lookup is tested first so non-CALC names skip the global-binding check.
-      // (#75685)
-      if(builtinScope != null && builtinScope.hasMember(name) && !hasGlobalBinding(name)) {
-         return builtinScope.getMember(name);
+      // lowercase CALC copies are never shadowed. This is only reached after the
+      // full chain (global/exec/imports) already missed — the terminal miss path
+      // — so a single case-insensitive lookup here (null means absent) matches
+      // Rhino's Calc-as-prototype cost and adds no repeated work on hits. (#75685)
+      if(builtinScope != null) {
+         Object builtin = builtinScope.getMember(name);
+
+         if(builtin != null && !hasGlobalBinding(name)) {
+            return builtin;
+         }
       }
 
       return NOT_FOUND;

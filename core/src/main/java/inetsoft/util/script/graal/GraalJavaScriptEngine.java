@@ -285,12 +285,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          // case-sensitive, so the lowercase copies above only match exact-case
          // names. Expose the Calc scope to the __scope__ proxy so a name with no
          // exact global binding (JS builtins and the lowercase copies above
-         // still win) resolves case-insensitively as a last resort. (#75685)
+         // still win) resolves case-insensitively as a last resort. The proxy is
+         // (re)created and wired with this scope in ensureScopeProxy(), which
+         // always runs after this method during initScope(). (#75685)
          calcScope = calc;
-
-         if(scopeProxy != null) {
-            scopeProxy.setBuiltinScope(calc);
-         }
       }
       catch(Throwable ex) {
          LOG.warn("Failed to install CALC functions", ex);
