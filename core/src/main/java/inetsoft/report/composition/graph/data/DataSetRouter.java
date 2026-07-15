@@ -18,6 +18,11 @@
 package inetsoft.report.composition.graph.data;
 
 import inetsoft.graph.data.DataSet;
+import inetsoft.graph.data.DataSetFilter;
+import inetsoft.report.composition.graph.VSDataSet;
+import inetsoft.uql.XConstants;
+import inetsoft.uql.viewsheet.VSDataRef;
+import inetsoft.uql.viewsheet.XDimensionRef;
 
 import java.util.*;
 
@@ -55,12 +60,46 @@ public class DataSetRouter extends AbstractRouter {
 
       comp = data.getComparator(field);
 
+      if(comp == null) {
+         comp = getPartDateGroupComparator(data, field);
+      }
+
       if(comp != null) {
          Collections.sort(v, comp);
       }
 
       values = new Object[v.size()];
       v.toArray(values);
+   }
+
+   /**
+    * Fallback natural-order comparator for part-date-group dimensions (HourOfDay, DayOfWeek,
+    * MonthOfYear, Quarter, etc.) when no explicit sort comparator is configured. Values for
+    * these dimensions are always emitted as Integer, so numeric order is the natural calendar
+    * order. Scoped to previous/next calc navigation only (this router) — does not affect
+    * axis/legend ordering, which is controlled separately by CategoricalScale.
+    */
+   private static Comparator getPartDateGroupComparator(DataSet data, String field) {
+      DataSet root = data instanceof DataSetFilter
+         ? ((DataSetFilter) data).getRootDataSet() : data;
+
+      if(!(root instanceof VSDataSet)) {
+         return null;
+      }
+
+      VSDataRef ref = ((VSDataSet) root).getDataRef(field);
+
+      if(!(ref instanceof XDimensionRef)) {
+         return null;
+      }
+
+      XDimensionRef dim = (XDimensionRef) ref;
+
+      if((dim.getDateLevel() & XConstants.PART_DATE_GROUP) == 0) {
+         return null;
+      }
+
+      return Comparator.nullsLast(Comparator.comparingInt(val -> ((Number) val).intValue()));
    }
 
    @Override
