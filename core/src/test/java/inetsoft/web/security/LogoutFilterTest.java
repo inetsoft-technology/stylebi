@@ -35,6 +35,14 @@ package inetsoft.web.security;
  * "<contextPath>/em", the same fallback already used for non-GET requests. Both "/logout" and
  * "/sessionexpired" share this fix. See the "redirectUri same-origin validation" tests below.
  *
+ * Follow-up hardening: the initial fix's app-relative check only inspected the literal second
+ * character for "/" or "\\". Per the WHATWG URL Standard, a browser strips every ASCII tab/CR/LF
+ * from the whole URL string as its first normalization step, before scheme/authority parsing --
+ * so "/\t/attacker.example" passed the original check (charAt(1) is a tab, not "/" or "\\") while
+ * resolving to the protocol-relative "//attacker.example" once the browser processed the Location
+ * header. isSameOriginRedirectUri() now rejects any redirectUri containing an embedded tab, CR,
+ * or LF outright. See the "TabObfuscated"/"NewlineObfuscated" tests below.
+ *
  * Residual, lower-severity item (tracked separately, not fixed here): LogoutFilter.doFilter()
  * still accepts any HTTP method and short-circuits the chain ahead of CSRFFilter (see
  * SecurityFilterChainOrderingTest.logoutFilter_shortCircuitsChain_realCsrfFilterNeverInvokedAtAll).
@@ -243,6 +251,46 @@ class LogoutFilterTest {
       MockHttpServletRequest request = request("GET", "/logout");
       request.setQueryString("fromEm=true");
       request.setParameter("redirectUri", "/\\attacker.example/evil");
+      MockHttpSession session = (MockHttpSession) request.getSession(true);
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, namedPrincipal());
+      MockHttpServletResponse response = new MockHttpServletResponse();
+
+      filter.doFilter(request, response, chain);
+
+      assertEquals("/em", response.getRedirectedUrl());
+   }
+
+   @Test
+   void doFilter_logout_fromEmGetWithTabObfuscatedRedirectUriParam_securityDisabled_fallsBackToEmPath()
+      throws Exception
+   {
+      // Per the WHATWG URL Standard, a browser strips every ASCII tab/CR/LF from the whole URL
+      // string as its very first normalization step, before scheme/authority parsing. So
+      // "/\t/attacker.example" -- which looks app-relative to a naive "second char isn't / or \"
+      // check -- is exactly "//attacker.example" once the browser processes the Location header:
+      // a protocol-relative bypass of the check added for the plain "//" and "/\" cases.
+      when(mockEngine.isSecurityEnabled()).thenReturn(false);
+      MockHttpServletRequest request = request("GET", "/logout");
+      request.setQueryString("fromEm=true");
+      request.setParameter("redirectUri", "/\t/attacker.example");
+      MockHttpSession session = (MockHttpSession) request.getSession(true);
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, namedPrincipal());
+      MockHttpServletResponse response = new MockHttpServletResponse();
+
+      filter.doFilter(request, response, chain);
+
+      assertEquals("/em", response.getRedirectedUrl());
+   }
+
+   @Test
+   void doFilter_logout_fromEmGetWithNewlineObfuscatedRedirectUriParam_securityDisabled_fallsBackToEmPath()
+      throws Exception
+   {
+      // Same bypass technique with an embedded CR/LF instead of a tab.
+      when(mockEngine.isSecurityEnabled()).thenReturn(false);
+      MockHttpServletRequest request = request("GET", "/logout");
+      request.setQueryString("fromEm=true");
+      request.setParameter("redirectUri", "/\r\n/attacker.example");
       MockHttpSession session = (MockHttpSession) request.getSession(true);
       session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, namedPrincipal());
       MockHttpServletResponse response = new MockHttpServletResponse();
