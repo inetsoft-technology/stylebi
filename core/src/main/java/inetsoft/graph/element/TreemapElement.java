@@ -135,7 +135,9 @@ public class TreemapElement extends GraphElement {
 
    /**
     * Get the treemap item anchor orientation. Defaults to {@link Orientation#TOP_LEFT}.
-    * Only meaningful for {@link Type#TREEMAP}; ignored by CIRCLE, SUNBURST, and ICICLE types.
+    * Only meaningful for {@link Type#TREEMAP} with the {@link Algorithm#SQUARIFIED} algorithm;
+    * ignored by CIRCLE, SUNBURST, and ICICLE types and by the SLICE and BINARY algorithms
+    * (which do not anchor the largest tile in a corner).
     */
    public Orientation getOrientation() {
       return orientation;
@@ -143,7 +145,9 @@ public class TreemapElement extends GraphElement {
 
    /**
     * Set the treemap item anchor orientation.
-    * Only meaningful for {@link Type#TREEMAP}; ignored by CIRCLE, SUNBURST, and ICICLE types.
+    * Only meaningful for {@link Type#TREEMAP} with the {@link Algorithm#SQUARIFIED} algorithm;
+    * ignored by CIRCLE, SUNBURST, and ICICLE types and by the SLICE and BINARY algorithms
+    * (which do not anchor the largest tile in a corner).
     * @param orientation non-null orientation value
     */
    public void setOrientation(Orientation orientation) {
@@ -540,7 +544,17 @@ public class TreemapElement extends GraphElement {
    // Apply orientation after layout by flipping coordinates.
    // VGraph.paintGraph() applies a global y-inversion (y=0 at visual bottom),
    // so TOP_LEFT/TOP_RIGHT require a pre-flip so the largest item lands at the visual top.
+   //
+   // Orientation only has a well-defined "which corner does the largest tile sit in" meaning
+   // for SQUARIFIED, which sorts descending and anchors the largest tile at the layout origin.
+   // SLICE and BINARY partition space into full-edge strips / by index, so the largest tile is
+   // never anchored to a corner and the mirror produces no meaningful (or no visible) change.
+   // Skip the flip for those algorithms so they keep their natural, deterministic order. (75683)
    private void applyOrientation(TreeModel node) {
+      if(algorithm != Algorithm.SQUARIFIED) {
+         return;
+      }
+
       boolean flipY = orientation == Orientation.TOP_LEFT || orientation == Orientation.TOP_RIGHT;
       boolean flipX = orientation == Orientation.TOP_RIGHT || orientation == Orientation.BOTTOM_RIGHT;
 
