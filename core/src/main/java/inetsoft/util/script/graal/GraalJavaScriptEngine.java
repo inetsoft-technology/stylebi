@@ -347,10 +347,30 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    private void putConstantScope(Value bindings, String name, Class<?>... classes) {
       try {
          ConstantScope scope = new ConstantScope(classes);
+         installMapTypeConstants(scope);
          bindings.putMember(name, ScriptValueConverter.toGuest(scope));
       }
       catch(Throwable ex) {
          LOG.warn("Failed to install constant object " + name, ex);
+      }
+   }
+
+   /**
+    * Register the dynamic {@code MAP_TYPE_<TYPE>} constants (e.g.
+    * {@code MAP_TYPE_U.S.} = "U.S.") derived from the installed map data. These
+    * are not {@code public static final} fields, so the reflected
+    * {@link ConstantScope} does not pick them up; Rhino added them explicitly to
+    * both the {@code Chart} and {@code StyleConstant} scopes, so restore them
+    * here to keep {@code mapType = Chart["MAP_TYPE_U.S."]} working. (#75679)
+    */
+   private void installMapTypeConstants(ConstantScope scope) {
+      try {
+         for(String type : inetsoft.report.internal.graph.MapData.getMapTypes()) {
+            scope.putConstant("MAP_TYPE_" + type.toUpperCase(), type);
+         }
+      }
+      catch(Throwable ex) {
+         LOG.warn("Failed to install map type constants", ex);
       }
    }
 

@@ -163,7 +163,10 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
       }
       else if(name.equals("chartStyle")) {
          value = JavaScriptEngine.unwrap(value);
-         getInfo().setChartStyle((Integer) value);
+         // under GraalJS every JS number unwraps to a Double (ScriptValueConverter
+         // .toHost), so a hard (Integer) cast throws ClassCastException. Coerce via
+         // Number so both the Rhino Integer and GraalJS Double forms work. (#75679)
+         getInfo().setChartStyle(((Number) value).intValue());
          return;
       }
       // support: data = runQuery(...) in the same way as in reports
