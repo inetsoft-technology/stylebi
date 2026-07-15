@@ -288,6 +288,18 @@ public class VisualObjectArea extends InteractiveArea implements MenuArea {
             .createTransformedShape(tshape);
          region = new AreaRegion(tshape);
       }
+      else if(vobj instanceof RelationVO && shape instanceof Path2D
+         && !new Area(shape).isEmpty())
+      {
+         // Custom relation node shapes (triangle, diamond, …) are closed paths; keep the
+         // outline so the selection highlight matches the rendered node (Bug #75650).
+         // Open/stroked node shapes (cross, star) enclose no area and fall through to the
+         // bounding-box branch below.
+         Shape tshape = trans.createTransformedShape(shape);
+         tshape = AffineTransform.getTranslateInstance(-p.getX(), -p.getY())
+            .createTransformedShape(tshape);
+         region = new AreaRegion(tshape);
+      }
       else {
          boolean isLine = shape instanceof Line2D;
          Rectangle2D.Double rect =

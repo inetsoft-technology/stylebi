@@ -121,27 +121,15 @@ public class RelationVO extends ElementVO {
          GTool.setRenderingHint(g2, false);
 
          Shape shape = screenShape;
-         GShape nodeShape = elem.getNodeShape();
+         Shape custom = resolveNodeShape(b);
 
-         if(nodeShape != null) {
-            Shape s = nodeShape.getShape(b.getX(), b.getY(), b.getWidth(), b.getHeight());
+         if(custom != null) {
+            shape = custom;
 
-            // GShape.NIL returns null, so the node falls back to the default rectangle.
-            if(s != null) {
-               // Custom shapes may be curved; enable anti-aliasing for smooth rendering.
+            // Custom shapes may be curved; enable anti-aliasing for smooth rendering.
+            // The rounded-rectangle fallback (no nodeShape set) keeps the default hint.
+            if(elem.getNodeShape() != null) {
                GTool.setRenderingHint(g2, true);
-               shape = s;
-            }
-         }
-         else {
-            double r = elem.getNodeCornerRadius();
-
-            if(r > 0) {
-               double shortDim = Math.min(b.getWidth(), b.getHeight());
-               // r is in [0, 0.5]; arc is the corner ellipse diameter
-               double arc = r * shortDim * 2;
-               shape = new RoundRectangle2D.Double(b.getX(), b.getY(),
-                                                   b.getWidth(), b.getHeight(), arc, arc);
             }
          }
 
@@ -358,9 +346,10 @@ public class RelationVO extends ElementVO {
 
    /**
     * Get linkable shapes.
-    * Note: always returns the bounding rectangle regardless of any custom nodeShape set on the
-    * element. For non-convex shapes (e.g. CROSS, XSHAPE) this means click/tooltip events will
-    * also fire in the empty corners — an acceptable bounding-box trade-off.
+    * Returns the rendered node shape (circle, triangle, …) when a custom nodeShape or
+    * corner radius is set, so the selection region matches the drawn node (Bug #75650);
+    * otherwise the bounding rectangle. GShape.NIL and open/stroked shapes still resolve
+    * to the bounding rectangle.
     */
    @Override
    public Shape[] getShapes() {
@@ -368,8 +357,36 @@ public class RelationVO extends ElementVO {
          return new Shape[0];
       }
 
-      Rectangle2D shape = getScreenTransform().createTransformedShape(this.shape).getBounds2D();
-      return new Shape[] { shape };
+      Rectangle2D b = getScreenTransform().createTransformedShape(this.shape).getBounds2D();
+      Shape custom = resolveNodeShape(b);
+      return new Shape[] { custom != null ? custom : b };
+   }
+
+   /**
+    * Resolve the custom node shape within the given screen-space bounds, or null when the
+    * node uses the default bounding rectangle. Mirrors the shape selection in {@link #paint}
+    * so the selection region matches what is drawn. GShape.NIL returns null from getShape()
+    * and therefore also falls back to the rectangle.
+    */
+   private Shape resolveNodeShape(Rectangle2D b) {
+      RelationElement elem = (RelationElement) ((RelationGeometry) getGeometry()).getElement();
+      GShape nodeShape = elem.getNodeShape();
+
+      if(nodeShape != null) {
+         return nodeShape.getShape(b.getX(), b.getY(), b.getWidth(), b.getHeight());
+      }
+
+      double r = elem.getNodeCornerRadius();
+
+      if(r > 0) {
+         double shortDim = Math.min(b.getWidth(), b.getHeight());
+         // r is in [0, 0.5]; arc is the corner ellipse diameter
+         double arc = r * shortDim * 2;
+         return new RoundRectangle2D.Double(b.getX(), b.getY(),
+                                            b.getWidth(), b.getHeight(), arc, arc);
+      }
+
+      return null;
    }
 
    @Override
