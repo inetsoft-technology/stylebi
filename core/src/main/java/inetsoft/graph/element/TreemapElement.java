@@ -17,6 +17,7 @@
  */
 package inetsoft.graph.element;
 
+import com.inetsoft.build.tern.*;
 import inetsoft.graph.GGraph;
 import inetsoft.graph.GraphConstants;
 import inetsoft.graph.aesthetic.VisualModel;
@@ -47,6 +48,7 @@ import java.util.stream.Collectors;
  * @version 10.0
  * @author InetSoft Technology Corp
  */
+@TernClass(url = "#cshid=TreemapElement")
 public class TreemapElement extends GraphElement {
   /**
     * Treemap layout algorithms.
@@ -58,7 +60,13 @@ public class TreemapElement extends GraphElement {
     * VGraph applies a global y-flip (y=0 at bottom), so TOP_LEFT requires a pre-flip of y
     * coordinates after layout.
     */
-   public enum Orientation { TOP_LEFT, BOTTOM_LEFT, TOP_RIGHT, BOTTOM_RIGHT }
+   @TernClass
+   public enum Orientation {
+      @TernField TOP_LEFT,
+      @TernField BOTTOM_LEFT,
+      @TernField TOP_RIGHT,
+      @TernField BOTTOM_RIGHT
+   }
 
    /**
     * Types of tree visualization.
@@ -137,6 +145,7 @@ public class TreemapElement extends GraphElement {
     * Get the treemap item anchor orientation. Defaults to {@link Orientation#TOP_LEFT}.
     * Only meaningful for {@link Type#TREEMAP}; ignored by CIRCLE, SUNBURST, and ICICLE types.
     */
+   @TernMethod
    public Orientation getOrientation() {
       return orientation;
    }
@@ -146,6 +155,7 @@ public class TreemapElement extends GraphElement {
     * Only meaningful for {@link Type#TREEMAP}; ignored by CIRCLE, SUNBURST, and ICICLE types.
     * @param orientation non-null orientation value
     */
+   @TernMethod
    public void setOrientation(Orientation orientation) {
       if(orientation == null) {
          throw new IllegalArgumentException("orientation must not be null");

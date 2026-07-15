@@ -227,15 +227,11 @@ public class TernAnnotationProcessor extends AbstractProcessor {
    }
 
    private String getEnclosingClassName(Element element) {
-      Element classElement = element.getEnclosingElement();
-      TypeElement classType = MoreElements.asType(classElement);
-      String name = classType.getSimpleName().toString();
-
-      if(classType.getNestingKind() == NestingKind.MEMBER) {
-         name = name + "." + getEnclosingClassName(classType);
-      }
-
-      return name;
+      // Delegate to getClassName so nested (member) enclosing classes are qualified
+      // parent-first (e.g. "TreemapElement.Orientation"), matching the keys registered
+      // for @TernClass. Building the name child-first here would mis-key static members
+      // of nested classes (e.g. enum constants).
+      return getClassName(element.getEnclosingElement());
    }
 
    private Set<ClassDef> getEnclosingClasses(Element element, Map<String, Set<String>> superClasses) {
