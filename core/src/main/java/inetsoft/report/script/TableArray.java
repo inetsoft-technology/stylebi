@@ -168,6 +168,7 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
          CellRange range = CellRange.parse(id);
          id = Tool.replaceAll(id, "^_^", ":");
          range.setProcessCalc(calcArray);
+         range.setBaseTableReference(isBaseTableReference());
          boolean subtable = id.startsWith("*");
          Collection cells = range.getCells(getTable(), subtable);
 
@@ -211,7 +212,15 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
                }
             };
 
-            return new TableArray(sub);
+            // Propagate the base-table-reference flag so a chained column access
+            // on the returned subtable (e.g. table['*']['col']) keeps reading flat
+            // rather than re-routing through crosstab/grouped summary cells. (#75663)
+            return new TableArray(sub) {
+               @Override
+               protected boolean isBaseTableReference() {
+                  return TableArray.this.isBaseTableReference();
+               }
+            };
          }
          else {
             return range.getCollectionValue(cells, calcArray);
@@ -346,6 +355,17 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
       result[length + 1] = "size";
 
       return result;
+   }
+
+   /**
+    * Check whether this array is a worksheet table referenced by name from a
+    * script (e.g. {@code table['col']}). Subclasses that represent a by-name
+    * worksheet table override this so a bare column reference reads the table's
+    * column values as a flat table instead of grouped/crosstab summary cells.
+    * (#75663)
+    */
+   protected boolean isBaseTableReference() {
+      return false;
    }
 
    /**
