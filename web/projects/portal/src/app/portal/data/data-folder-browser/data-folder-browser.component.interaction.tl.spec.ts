@@ -90,6 +90,7 @@
  */
 
 import { waitFor } from "@testing-library/angular";
+import { config as rxjsConfig } from "rxjs";
 import { http, HttpResponse } from "msw";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../../shared/data/asset-type";
@@ -171,10 +172,13 @@ describe("DataFolderBrowserComponent – refreshFolderBrowser [Group 1, Risk 3]"
    });
 
    it("should set unauthorizedAccess=true and clear lists when browser returns 403", async () => {
-      // zone.js re-throws the RxJS error asynchronously; suppress console noise
-      // without swallowing test-framework errors.
-      const origConsoleError = console.error;
-      console.error = vi.fn();
+      // handleBrowserRefreshError re-throws (`return throwError(error)`) and the outer
+      // subscribe() has no error callback, so RxJS's reportUnhandledError schedules an
+      // async re-throw that zone.js turns into an uncaught exception after the test ends
+      // (Vitest reports it as a run-level "Unhandled Error" regardless of console.error
+      // stubbing). Route it through RxJS's own hook instead of letting it schedule a throw.
+      const origOnUnhandledError = rxjsConfig.onUnhandledError;
+      rxjsConfig.onUnhandledError = () => {};
       try {
          server.use(
             http.get("*/api/portal/data/browser", () =>
@@ -188,17 +192,24 @@ describe("DataFolderBrowserComponent – refreshFolderBrowser [Group 1, Risk 3]"
          expect(comp.folders).toEqual([]);
          expect(comp.datasets).toEqual([]);
          expect(comp.currentFolderPath).toEqual([]);
+
+         // RxJS's reportUnhandledError schedules its call to onUnhandledError via a real
+         // setTimeout(0), queued when the HTTP response arrived (before the assertions
+         // above ran). Yield one real macrotask so that scheduled call fires — and is
+         // swallowed by our no-op hook — before it's restored below.
+         await new Promise(resolve => setTimeout(resolve, 0));
       }
       finally {
-         console.error = origConsoleError;
+         rxjsConfig.onUnhandledError = origOnUnhandledError;
       }
    });
 
    it("should set unauthorizedAccess=false and fire danger notification on non-403 browser error", async () => {
-      // zone.js re-throws the RxJS error asynchronously; suppress console noise
-      // without swallowing test-framework errors.
-      const origConsoleError = console.error;
-      console.error = vi.fn();
+      // See the 403 test above — handleBrowserRefreshError's re-thrown error has no
+      // subscribe() error callback, so it must be routed through RxJS's onUnhandledError
+      // hook to avoid a Vitest run-level "Unhandled Error" after this test completes.
+      const origOnUnhandledError = rxjsConfig.onUnhandledError;
+      rxjsConfig.onUnhandledError = () => {};
       try {
          server.use(
             http.get("*/api/portal/data/browser", () =>
@@ -212,9 +223,13 @@ describe("DataFolderBrowserComponent – refreshFolderBrowser [Group 1, Risk 3]"
          );
 
          expect(comp.unauthorizedAccess).toBe(false);
+
+         // See the 403 test above for why this extra macrotask tick is needed before
+         // restoring onUnhandledError.
+         await new Promise(resolve => setTimeout(resolve, 0));
       }
       finally {
-         console.error = origConsoleError;
+         rxjsConfig.onUnhandledError = origOnUnhandledError;
       }
    });
 

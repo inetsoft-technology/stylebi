@@ -146,25 +146,36 @@ export async function renderComponent(
    const result = await render(ComposerMainComponent, {
       componentProperties: { deployed: true, ...componentProperties },
       componentImports: [],
-      componentProviders: [
-         { provide: ComposerClientService, useValue: mocks.composerClient },
-         { provide: ScaleService, useValue: {} },
-         { provide: ComposerObjectService, useValue: mocks.composerObjectService },
-         { provide: EventQueueService, useValue: {} },
-         { provide: LineAnchorService, useValue: {} },
-         { provide: ResizeHandlerService, useValue: mocks.resizeHandlerService },
-         { provide: ClipboardService, useValue: mocks.clipboardService },
-         { provide: ScriptService, useValue: {} },
-         { provide: ShowHyperlinkService, useValue: mocks.hyperLinkService },
-         { provide: MiniToolbarService, useValue: {} },
-         { provide: VSTabService, useValue: {} },
-         { provide: SelectionMobileService, useValue: {} },
-         { provide: FormInputService, useValue: {} },
-         { provide: GlobalSubmitService, useValue: {} },
-         { provide: CheckFormDataService, useValue: {} },
-         { provide: FullScreenService, useValue: {} },
-         { provide: RichTextService, useValue: {} },
-      ],
+      // ShowHyperlinkService et al. are component-level providers on ComposerMainComponent
+      // (@Component({ providers: [...] })), so componentProviders (which uses
+      // TestBed.overrideProvider under the hood) can't replace them — that API only overrides
+      // providers registered above the component's own element injector. Use
+      // TestBed.overrideComponent to actually replace the component's providers metadata instead.
+      configureTestBed: testBed => {
+         testBed.overrideComponent(ComposerMainComponent, {
+            set: {
+               providers: [
+                  { provide: ComposerClientService, useValue: mocks.composerClient },
+                  { provide: ScaleService, useValue: {} },
+                  { provide: ComposerObjectService, useValue: mocks.composerObjectService },
+                  { provide: EventQueueService, useValue: {} },
+                  { provide: LineAnchorService, useValue: {} },
+                  { provide: ResizeHandlerService, useValue: mocks.resizeHandlerService },
+                  { provide: ClipboardService, useValue: mocks.clipboardService },
+                  { provide: ScriptService, useValue: {} },
+                  { provide: ShowHyperlinkService, useValue: mocks.hyperLinkService },
+                  { provide: MiniToolbarService, useValue: {} },
+                  { provide: VSTabService, useValue: {} },
+                  { provide: SelectionMobileService, useValue: {} },
+                  { provide: FormInputService, useValue: {} },
+                  { provide: GlobalSubmitService, useValue: {} },
+                  { provide: CheckFormDataService, useValue: {} },
+                  { provide: FullScreenService, useValue: {} },
+                  { provide: RichTextService, useValue: {} },
+               ],
+            },
+         });
+      },
       providers: [
          { provide: NgbModal, useValue: mocks.modalService },
          { provide: ModelService, useValue: mocks.modelService },
