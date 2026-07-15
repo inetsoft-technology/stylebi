@@ -57,6 +57,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    // (see exec). Recreated on (re)init because it is bound to the current context.
    private BindingRootProxy scopeProxy;
 
+   // The CALC function scope (case-insensitive member lookup). Installed as the
+   // __scope__ proxy's case-insensitive last-resort so unqualified CALC/statistical
+   // functions resolve regardless of case, matching Rhino (see installGlobalScope,
+   // ensureScopeProxy). (#75685)
+   private ScriptScope calcScope;
+
    // These config props are read on the per-script hot path (exec runs hundreds
    // of thousands of times for data-driven worksheet formula columns), and a raw
    // SreeEnv lookup per call is a measurable cost. SreeEnv.Value caches the value
@@ -269,6 +275,21 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             if(!bindings.hasMember(name)) {
                bindings.putMember(name, calc.getMember(name));
             }
+         }
+
+         // Rhino set the Calc scope as the global scope's prototype
+         // (globalscope.setPrototype(new Calc())), and Calc's member lookup is
+         // case-insensitive (funcmap.get(id.toLowerCase())). So unqualified
+         // CALC/statistical functions resolved regardless of case, e.g.
+         // NthMostFrequent, PthPercentile, Sum. GraalJS global bindings are
+         // case-sensitive, so the lowercase copies above only match exact-case
+         // names. Expose the Calc scope to the __scope__ proxy so a name with no
+         // exact global binding (JS builtins and the lowercase copies above
+         // still win) resolves case-insensitively as a last resort. (#75685)
+         calcScope = calc;
+
+         if(scopeProxy != null) {
+            scopeProxy.setBuiltinScope(calc);
          }
       }
       catch(Throwable ex) {
@@ -652,6 +673,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          scopeProxy = new BindingRootProxy(EMPTY_SCOPE,
                                            inetsoft.util.script.FormulaContext::getExecScriptScope,
                                            classFilter, context);
+         scopeProxy.setBuiltinScope(calcScope);
          context.getBindings("js").putMember("__scope__", scopeProxy);
       }
    }

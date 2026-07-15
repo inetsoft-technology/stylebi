@@ -37,6 +37,7 @@ public class BindingRootProxy implements ProxyObject {
    private final Predicate<String> classFilter;
    private final Context context;
    private LegacyJavaShim.ImportScope imports;
+   private ScriptScope builtinScope;
 
    public BindingRootProxy(ScriptScope global, Supplier<ScriptScope> execScopeSupplier) {
       this(global, execScopeSupplier, null, null);
@@ -49,6 +50,19 @@ public class BindingRootProxy implements ProxyObject {
       this.execScopeSupplier = execScopeSupplier;
       this.classFilter = classFilter;
       this.context = context;
+   }
+
+   /**
+    * Case-insensitive last-resort scope for unqualified names (the CALC function
+    * scope). Consulted only after the normal chain, exec scope and legacy imports
+    * fail, and only for a name that has no exact global binding — so JS builtins
+    * (e.g. Date, whose lowercase 'date' is a CALC function) and the case-sensitive
+    * lowercase CALC copies always win. Rhino resolved these case-insensitively via
+    * the Calc global-scope prototype; GraalJS global bindings are case-sensitive,
+    * dropping PascalCase names like NthMostFrequent/Sum. (#75685)
+    */
+   public void setBuiltinScope(ScriptScope builtinScope) {
+      this.builtinScope = builtinScope;
    }
 
    /**
@@ -120,7 +134,21 @@ public class BindingRootProxy implements ProxyObject {
          }
       }
 
+      // case-insensitive CALC functions (Rhino's global-scope prototype). Only
+      // when the name has no exact global binding, so JS builtins (Date) and the
+      // lowercase CALC copies are never shadowed. The cheap case-insensitive
+      // lookup is tested first so non-CALC names skip the global-binding check.
+      // (#75685)
+      if(builtinScope != null && builtinScope.hasMember(name) && !hasGlobalBinding(name)) {
+         return builtinScope.getMember(name);
+      }
+
       return NOT_FOUND;
+   }
+
+   /** Whether {@code name} is an exact (case-sensitive) member of the JS global scope. */
+   private boolean hasGlobalBinding(String name) {
+      return context != null && context.getBindings("js").hasMember(name);
    }
 
    /** Resolve a name through the full chain; returns null if not found. */
