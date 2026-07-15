@@ -18,47 +18,40 @@
 package inetsoft.web.security;
 
 /*
- * Intent vs implementation suspects
+ * Redmine #75658 -- open redirect + logout CSRF (FIXED)
  *
- * [Suspect 1] (#75658) AbstractLogoutFilter.getLogoutRedirectUri() line 66-74 (reached via
- *             LogoutFilter.logout()/handleSessionExpired()) -> intent: compute a safe post-logout
- *             redirect target (the default portal/EM page, or the configured
- *             "portal.logout.url")
- *             actual: when the query string carries fromEm=true and the request is a plain GET
- *             with a "redirectUri" parameter, that parameter is used AS THE REDIRECT TARGET with
- *             no validation whatsoever (no same-origin check, no allow-list). If
- *             SecurityEngine.isSecurityEnabled()==false (or showLogin/guestLogin conditions are
- *             not met), that attacker-controlled value flows straight into
- *             response.sendRedirect(...) in AbstractLogoutFilter.logout() -- a classic open
- *             redirect. When the later "wrap into login.html?requestedUrl=..." branch fires
- *             instead (line 81-85), the attacker-controlled value is merely relocated into the
- *             requestedUrl parameter, not removed; whether that is ultimately exploitable depends
- *             on the login page's client-side handling of requestedUrl (out of scope for this
- *             filter test, but worth checking separately). See
- *             doFilter_logout_fromEmGetWithRedirectUriParam_securityDisabled_openRedirectsToAttackerUrl
- *             and doFilter_logout_fromEmGetWithRedirectUriParam_securityEnabled_attackerUrlPreservedInRequestedUrl
- *             below.
+ * AbstractLogoutFilter.getLogoutRedirectUri() computed the post-logout redirect target from a
+ * client-supplied "redirectUri" GET parameter (when fromEm=true) with no validation at all,
+ * letting a plain GET redirect to an arbitrary external URL. Combined with LogoutFilter accepting
+ * any HTTP method and running ahead of CSRFFilter in the chain, a third-party page could force a
+ * visitor's logout and redirect them via a bare `<img>` tag, with zero script and zero user
+ * interaction beyond viewing the page.
  *
- * [Suspect 2] (#75658) LogoutFilter.doFilter() -> intent: unclear from the code itself, but
- *             "/logout" is filter #1 inside StandardFilterChain, which is nested inside
- *             AuthenticationFilterChain (#6 in the outer SecurityFilterChain); CSRFFilter is #7,
- *             strictly after. doFilter() also never inspects the HTTP method.
- *             actual: any request method to "/logout" (GET included) executes a full logout with
- *             no CSRF token required at all -- a classic "logout CSRF" that becomes materially
- *             worse combined with Suspect 1: a third-party page that merely loads
- *             `<img src=".../logout?fromEm=true&redirectUri=https://attacker.example/...">` logs
- *             an already-authenticated visitor out and redirects their browser to an
- *             attacker-controlled URL, with no script execution and no user interaction beyond
- *             viewing the page. See
- *             doFilter_logout_anyHttpMethod_triggersLogoutWithNoMethodOrTokenCheck below (proves
- *             the method-agnostic part from within this filter; the "ahead of CSRFFilter in the
- *             chain" part is an architectural fact that can only be demonstrated by a real
- *             multi-filter ordering test -- see docs/superpowers/specs/2026-07-14-penetration-filter-test-plan.md
- *             §2.6).
+ * Fix: getLogoutRedirectUri() now runs the requested redirectUri through
+ * isSameOriginRedirectUri() before honoring it -- only an app-relative path or an absolute URL
+ * within this application's own origin (LinkUriArgumentResolver.getLinkUri(request)) is accepted.
+ * Protocol-relative ("//host/...") targets and backslash-obfuscated equivalents that browsers
+ * normalize to protocol-relative are rejected. Anything rejected falls back to
+ * "<contextPath>/em", the same fallback already used for non-GET requests. Both "/logout" and
+ * "/sessionexpired" share this fix. See the "redirectUri same-origin validation" tests below.
  *
- * Neither suspect is patched in the production filter here; both are pinned down as passing
- * characterization tests below. Tracked together as Redmine #75658 (open redirect + logout CSRF /
- * method-agnostic logout ahead of CSRFFilter).
+ * Follow-up hardening: the initial fix's app-relative check only inspected the literal second
+ * character for "/" or "\\". Per the WHATWG URL Standard, a browser strips every ASCII tab/CR/LF
+ * from the whole URL string as its first normalization step, before scheme/authority parsing --
+ * so "/\t/attacker.example" passed the original check (charAt(1) is a tab, not "/" or "\\") while
+ * resolving to the protocol-relative "//attacker.example" once the browser processed the Location
+ * header. isSameOriginRedirectUri() now rejects any redirectUri containing an embedded tab, CR,
+ * or LF outright. See the "TabObfuscated"/"NewlineObfuscated" tests below.
+ *
+ * Residual, lower-severity item (tracked separately, not fixed here): LogoutFilter.doFilter()
+ * still accepts any HTTP method and short-circuits the chain ahead of CSRFFilter (see
+ * SecurityFilterChainOrderingTest.logoutFilter_shortCircuitsChain_realCsrfFilterNeverInvokedAtAll).
+ * CSRFFilter itself exempts GET/HEAD/OPTIONS/TRACE and only enforces on "/api/**" paths, so
+ * reordering the chain alone would not close this -- it needs a product decision (e.g. POST-only
+ * logout with a frontend change, or extending CSRFFilter's scope to cover "/logout"). With the
+ * redirect fixed above, this alone is logout CSRF only (forces a re-login), not the zero-click
+ * external-redirect chain #75658 originally described. Left as a pinned characterization test --
+ * see doFilter_logout_anyHttpMethod_triggersLogoutWithNoMethodOrTokenCheck.
  */
 
 import inetsoft.sree.RepletRepository;
@@ -169,10 +162,10 @@ class LogoutFilterTest {
       verifyNoInteractions(chain);
    }
 
-   // ── suspect 1 (#75658): open redirect via fromEm + redirectUri ─────────────
+   // ── suspect 1 (#75658): redirectUri same-origin validation ─────────────────
 
    @Test
-   void doFilter_logout_fromEmGetWithRedirectUriParam_securityDisabled_openRedirectsToAttackerUrl()
+   void doFilter_logout_fromEmGetWithCrossOriginRedirectUriParam_securityDisabled_fallsBackToEmPath()
       throws Exception
    {
       when(mockEngine.isSecurityEnabled()).thenReturn(false);
@@ -185,12 +178,12 @@ class LogoutFilterTest {
 
       filter.doFilter(request, response, chain);
 
-      // The server issues a 302 straight to the attacker's URL -- no wrapping, no validation.
-      assertEquals(ATTACKER_URL, response.getRedirectedUrl());
+      // An external redirectUri is rejected -- same fallback as the POST case below.
+      assertEquals("/em", response.getRedirectedUrl());
    }
 
    @Test
-   void doFilter_logout_fromEmGetWithRedirectUriParam_securityEnabled_attackerUrlPreservedInRequestedUrl()
+   void doFilter_logout_fromEmGetWithCrossOriginRedirectUriParam_securityEnabled_wrapsSanitizedFallback()
       throws Exception
    {
       when(mockEngine.isSecurityEnabled()).thenReturn(true);
@@ -203,19 +196,19 @@ class LogoutFilterTest {
 
       filter.doFilter(request, response, chain);
 
-      // Not a raw redirect this time, but the attacker's URL is still carried forward verbatim
-      // (URL-encoded) inside requestedUrl -- the payload is relocated, not removed.
+      // The attacker URL must not appear anywhere in the redirect target, sanitized or not.
       String redirected = response.getRedirectedUrl();
       assertNotNull(redirected);
       assertTrue(redirected.startsWith("http://localhost/login.html?requestedUrl="));
-      assertTrue(redirected.contains(java.net.URLEncoder.encode(ATTACKER_URL, "UTF-8")));
+      assertFalse(redirected.contains(java.net.URLEncoder.encode(ATTACKER_URL, "UTF-8")));
+      assertTrue(redirected.contains(java.net.URLEncoder.encode("/em", "UTF-8")));
    }
 
    @Test
-   void doFilter_sessionExpired_fromEmGetWithRedirectUriParam_securityDisabled_alsoOpenRedirects()
+   void doFilter_sessionExpired_fromEmGetWithCrossOriginRedirectUriParam_securityDisabled_alsoFallsBack()
       throws Exception
    {
-      // Same vulnerable getLogoutRedirectUri() is shared by both entry points.
+      // Same sanitized getLogoutRedirectUri() is shared by both entry points.
       when(mockEngine.isSecurityEnabled()).thenReturn(false);
       MockHttpServletRequest request = request("GET", "/sessionexpired");
       request.setQueryString("fromEm=true");
@@ -226,17 +219,133 @@ class LogoutFilterTest {
 
       filter.doFilter(request, response, chain);
 
-      assertEquals(ATTACKER_URL, response.getRedirectedUrl());
+      assertEquals("/em", response.getRedirectedUrl());
+   }
+
+   @Test
+   void doFilter_logout_fromEmGetWithProtocolRelativeRedirectUriParam_securityDisabled_fallsBackToEmPath()
+      throws Exception
+   {
+      // "//attacker.example/evil" has no scheme but browsers resolve it against the current
+      // scheme, making it just as dangerous as a fully-qualified external URL.
+      when(mockEngine.isSecurityEnabled()).thenReturn(false);
+      MockHttpServletRequest request = request("GET", "/logout");
+      request.setQueryString("fromEm=true");
+      request.setParameter("redirectUri", "//attacker.example/evil");
+      MockHttpSession session = (MockHttpSession) request.getSession(true);
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, namedPrincipal());
+      MockHttpServletResponse response = new MockHttpServletResponse();
+
+      filter.doFilter(request, response, chain);
+
+      assertEquals("/em", response.getRedirectedUrl());
+   }
+
+   @Test
+   void doFilter_logout_fromEmGetWithBackslashObfuscatedRedirectUriParam_securityDisabled_fallsBackToEmPath()
+      throws Exception
+   {
+      // Browsers normalize a leading "/\" (or "\\") into "//", turning this into a
+      // protocol-relative external redirect just like the plain "//" case.
+      when(mockEngine.isSecurityEnabled()).thenReturn(false);
+      MockHttpServletRequest request = request("GET", "/logout");
+      request.setQueryString("fromEm=true");
+      request.setParameter("redirectUri", "/\\attacker.example/evil");
+      MockHttpSession session = (MockHttpSession) request.getSession(true);
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, namedPrincipal());
+      MockHttpServletResponse response = new MockHttpServletResponse();
+
+      filter.doFilter(request, response, chain);
+
+      assertEquals("/em", response.getRedirectedUrl());
+   }
+
+   @Test
+   void doFilter_logout_fromEmGetWithTabObfuscatedRedirectUriParam_securityDisabled_fallsBackToEmPath()
+      throws Exception
+   {
+      // Per the WHATWG URL Standard, a browser strips every ASCII tab/CR/LF from the whole URL
+      // string as its very first normalization step, before scheme/authority parsing. So
+      // "/\t/attacker.example" -- which looks app-relative to a naive "second char isn't / or \"
+      // check -- is exactly "//attacker.example" once the browser processes the Location header:
+      // a protocol-relative bypass of the check added for the plain "//" and "/\" cases.
+      when(mockEngine.isSecurityEnabled()).thenReturn(false);
+      MockHttpServletRequest request = request("GET", "/logout");
+      request.setQueryString("fromEm=true");
+      request.setParameter("redirectUri", "/\t/attacker.example");
+      MockHttpSession session = (MockHttpSession) request.getSession(true);
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, namedPrincipal());
+      MockHttpServletResponse response = new MockHttpServletResponse();
+
+      filter.doFilter(request, response, chain);
+
+      assertEquals("/em", response.getRedirectedUrl());
+   }
+
+   @Test
+   void doFilter_logout_fromEmGetWithNewlineObfuscatedRedirectUriParam_securityDisabled_fallsBackToEmPath()
+      throws Exception
+   {
+      // Same bypass technique with an embedded CR/LF instead of a tab.
+      when(mockEngine.isSecurityEnabled()).thenReturn(false);
+      MockHttpServletRequest request = request("GET", "/logout");
+      request.setQueryString("fromEm=true");
+      request.setParameter("redirectUri", "/\r\n/attacker.example");
+      MockHttpSession session = (MockHttpSession) request.getSession(true);
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, namedPrincipal());
+      MockHttpServletResponse response = new MockHttpServletResponse();
+
+      filter.doFilter(request, response, chain);
+
+      assertEquals("/em", response.getRedirectedUrl());
+   }
+
+   @Test
+   void doFilter_logout_fromEmGetWithAppRelativeRedirectUriParam_securityDisabled_isHonored()
+      throws Exception
+   {
+      // A plain app-relative path is legitimate (e.g. deep-linking back into the portal) and must
+      // still work after the fix.
+      when(mockEngine.isSecurityEnabled()).thenReturn(false);
+      MockHttpServletRequest request = request("GET", "/logout");
+      request.setQueryString("fromEm=true");
+      request.setParameter("redirectUri", "/portal/embed");
+      MockHttpSession session = (MockHttpSession) request.getSession(true);
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, namedPrincipal());
+      MockHttpServletResponse response = new MockHttpServletResponse();
+
+      filter.doFilter(request, response, chain);
+
+      assertEquals("/portal/embed", response.getRedirectedUrl());
+   }
+
+   @Test
+   void doFilter_logout_fromEmGetWithSameOriginAbsoluteRedirectUriParam_securityDisabled_isHonored()
+      throws Exception
+   {
+      // AdminPageController builds redirectUri from LinkUriArgumentResolver.transformUri(request)
+      // -- a same-origin absolute URL -- for the SSO logout link on the restricted-access page.
+      // That legitimate flow must keep working.
+      when(mockEngine.isSecurityEnabled()).thenReturn(false);
+      MockHttpServletRequest request = request("GET", "/logout");
+      request.setQueryString("fromEm=true");
+      request.setParameter("redirectUri", "http://localhost/em/");
+      MockHttpSession session = (MockHttpSession) request.getSession(true);
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, namedPrincipal());
+      MockHttpServletResponse response = new MockHttpServletResponse();
+
+      filter.doFilter(request, response, chain);
+
+      assertEquals("http://localhost/em/", response.getRedirectedUrl());
    }
 
    @Test
    void doFilter_logout_fromEmPostRequest_redirectUriParamIgnored_fallsBackToEmPath()
       throws Exception
    {
-      // The vulnerable branch is gated on "GET".equals(request.getMethod()) -- a POST with the
-      // same parameters does NOT get hijacked, it falls back to the plain "/em" path instead. This
-      // is exactly what makes the GET variant the practical attack vector: it is trivially
-      // deliverable via a plain <img>/<a> tag with no script and no user interaction.
+      // The redirectUri-from-parameter branch is gated on "GET".equals(request.getMethod()) -- a
+      // POST with the same parameters does NOT read the parameter at all, it falls back to the
+      // plain "/em" path instead.
       when(mockEngine.isSecurityEnabled()).thenReturn(false);
       MockHttpServletRequest request = request("POST", "/logout");
       request.setQueryString("fromEm=true");

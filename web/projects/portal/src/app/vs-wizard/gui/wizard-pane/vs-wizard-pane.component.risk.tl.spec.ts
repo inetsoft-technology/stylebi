@@ -211,6 +211,22 @@ describe("VsWizardPane — removeKeydownListener after ngOnDestroy", () => {
 
       expect(CLIENT_SERVICE_MOCK.sendEvent).not.toHaveBeenCalled();
    });
+
+   // 🔁 Regression-sensitive: Bug #75687 — the mouseup listener registered in ngOnInit
+   // (this.renderer.listen("document", "mouseup", ...)) was never captured/removed in
+   // ngOnDestroy, unlike the keydown listener above. Every wizard-pane open/close cycle left a
+   // permanent listener on document bound to the destroyed instance, which fired clearFocused()
+   // on stale state for every later mouseup anywhere in the app.
+   it("should deregister the mouseup listener so clearFocused no longer fires after destroy", async () => {
+      const { comp, fixture } = await renderComponent();
+      const clearFocusedSpy = vi.spyOn(comp, "clearFocused");
+
+      fixture.destroy(); // triggers ngOnDestroy → mouseupListener()
+
+      document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+
+      expect(clearFocusedSpy).not.toHaveBeenCalled();
+   });
 });
 
 // ---------------------------------------------------------------------------

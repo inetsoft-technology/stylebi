@@ -1189,35 +1189,15 @@ public class CalcTableVSAQuery extends DataVSAQuery {
     * Check if there exist grand total aggregate.
     */
    private boolean hasGrandTotal(TableLayout layout, XNode root) {
-      boolean hasAgg = false;
-      boolean hasGrp = false;
-
-      if(root != null) {
-         for(int i = 0; i < root.getChildCount(); i++) {
-            XNode child = root.getChild(i);
-            CalcAttr cattr = child == null ? null : (CalcAttr) child.getValue();
-
-            if(cattr == null) {
-               continue;
-            }
-
-            CellBinding bind = layout.getCellBinding(cattr.getRow(),
-                                                     cattr.getCol());
-
-            if(bind != null && bind.getType() == CellBinding.BIND_COLUMN &&
-               !bind.isEmpty())
-            {
-               if(bind.getBType() == CellBinding.SUMMARY) {
-                  hasAgg = true;
-               }
-               else if(bind.getBType() == CellBinding.GROUP) {
-                  hasGrp = true;
-               }
-            }
-         }
+      if(root == null) {
+         return false;
       }
 
-      return hasGrp && hasAgg;
+      Set<Integer> glevels = new HashSet<>();
+      Set<Integer> alevels = new HashSet<>();
+      collectLevels(layout, root, 0, glevels, alevels);
+
+      return !glevels.isEmpty() && !alevels.isEmpty();
    }
 
    /**

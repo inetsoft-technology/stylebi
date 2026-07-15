@@ -59,7 +59,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static inetsoft.util.Tool.buildString;
-import static inetsoft.util.Tool.isNumberClass;
 
 /**
  * Common utility methods without dependency on any inetsoft packages.
@@ -1732,13 +1731,8 @@ public class CoreTool {
             return null;
          }
       }
-      else if(isNumberClass(val.getClass())) {
-         try {
-            return new java.sql.Time(Long.parseLong(val.toString()));
-         }
-         catch(Exception e) {
-            return null;
-         }
+      else if(val instanceof Number) {
+         return new java.sql.Time(((Number) val).longValue());
       }
       else {
          return null;

@@ -691,7 +691,7 @@ public abstract class AbstractSecurityFilter
       return true;
    }
 
-   private boolean isAnonymousPrincipal(SRPrincipal principal) {
+   protected boolean isAnonymousPrincipal(SRPrincipal principal) {
       if(principal == null || principal.getName() == null) {
          return false;
       }
