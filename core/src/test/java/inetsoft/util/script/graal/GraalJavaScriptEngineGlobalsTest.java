@@ -86,6 +86,21 @@ class GraalJavaScriptEngineGlobalsTest {
       assertEquals(1.0, result);
    }
 
+   @Test
+   void chartMapTypeConstantResolves() throws Exception {
+      // MAP_TYPE_<TYPE> constants (e.g. Chart["MAP_TYPE_U.S."] == "U.S.") are
+      // derived dynamically from the installed map data, not from static final
+      // fields, so the reflected ConstantScope does not pick them up. The engine
+      // must register them explicitly (as Rhino did) for map scripts such as
+      // mapType = Chart["MAP_TYPE_U.S."] to work. (Bug #75679)
+      String[] types = inetsoft.report.internal.graph.MapData.getMapTypes();
+      Assumptions.assumeTrue(types.length > 0, "no map data installed");
+
+      String type = types[0];
+      Object result = eval("Chart['MAP_TYPE_" + type.toUpperCase() + "']");
+      assertEquals(type, result);
+   }
+
    // Bug: chart scripts construct these aesthetic classes, e.g.
    // elem.setLineFrame(new StaticLineFrame(new GLine(3))). GLine/GTexture/SVGShape
    // are Java classes with both public constructors and public static final
