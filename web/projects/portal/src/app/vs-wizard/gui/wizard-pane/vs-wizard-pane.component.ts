@@ -132,6 +132,7 @@ export class VsWizardPane extends CommandProcessor implements OnInit, AfterViewI
    private draggableRestrictionRects: Map<any, {left: number, top: number, right: number, bottom: number}>;
    private subscriptions: Subscription = new Subscription();
    private keydownListener: () => void;
+   private mouseupListener: () => void;
    bottomFollowRestriction: {top, left, right, bottom};
    rightFollowRestriction: {top, left, right, bottom};
    private defaultObjectModel: WizardNewObjectModel = {
@@ -250,7 +251,7 @@ export class VsWizardPane extends CommandProcessor implements OnInit, AfterViewI
          }));
 
       this.zone.runOutsideAngular(() => {
-         this.renderer.listen(
+         this.mouseupListener = this.renderer.listen(
             "document", "mouseup", (evt: MouseEvent) => {
                const html: any = window.document.getElementsByTagName("html")[0];
                html.style.cursor = "";
@@ -287,6 +288,7 @@ export class VsWizardPane extends CommandProcessor implements OnInit, AfterViewI
 
    ngOnDestroy(): void {
       this.removeKeydownListener();
+      this.removeMouseupListener();
       this.cleanup();
       this.subscriptions.unsubscribe();
    }
@@ -336,6 +338,13 @@ export class VsWizardPane extends CommandProcessor implements OnInit, AfterViewI
       if(!!this.keydownListener) {
          this.keydownListener();
          this.keydownListener = null;
+      }
+   }
+
+   private removeMouseupListener() {
+      if(!!this.mouseupListener) {
+         this.mouseupListener();
+         this.mouseupListener = null;
       }
    }
 
@@ -1025,9 +1034,11 @@ export class VsWizardPane extends CommandProcessor implements OnInit, AfterViewI
    }
 
    private shouldClearFocused(event: any): boolean {
-      return !!event && !!event.target && !!event.target.classList &&
-         event.target.classList.contains("vs-grid-table-cell") ||
-         event.target.classList.contains("wizard-add");
+      // Parentheses required: without them `||` binds after `&&` and can call
+      // `.contains` when `event.target` / `classList` is missing (TL cross-test mouseups).
+      const classList = event?.target?.classList;
+      return !!classList &&
+         (classList.contains("vs-grid-table-cell") || classList.contains("wizard-add"));
    }
 
    onSelectionBox(event: SelectionBoxEvent): void {

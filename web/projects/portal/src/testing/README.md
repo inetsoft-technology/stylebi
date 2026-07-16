@@ -4,6 +4,8 @@ Shared helpers for `*.tl.spec.ts` live here. Setup runs via `vitest-setup-tl.ts`
 (`isTouchDevice` mock, `vi.useRealTimers()`, schedule `clearStoredCondition()`,
 `testTimeout: 15000` buffer).
 
+**Verification (2026-07-16):** Full portal TL suite (`ng run portal:test-tl`) — **7/7** consecutive green runs (0 failed, 0 unhandled). CI/dev entry: `npm run test:portal` (runs unit `*.spec.ts` then TL `*.tl.spec.ts`). See plan Task 5.
+
 ## Prefer
 
 | Need | Use |
@@ -33,6 +35,7 @@ Treat them as suite defects:
 | Child `ngOnInit` HTTP (e.g. DimensionEditor → `date-level-examples`) | Mock the service in helpers **or** add a global MSW handler under `community/web/mocks/handlers/` |
 | `modalService.open is not a function` | Provide `NgbModal` with `open()` (see `createNgbModalMock` in aesthetic `field-mc-test-helpers.ts`) — real `ModelService` / `ComponentTool` may call it on HTTP errors |
 | Intentional 4xx/5xx still “Uncaught” | Handle in UI then complete with `EMPTY` (or subscribe `error` callback); do not `throwError` when nobody listens |
+| `classList.contains` / DOM handler after another file | Document/`Renderer2.listen` must be removed in `ngOnDestroy`; null-check `event?.target` (operator precedence: wrap `\|\|` groups) |
 
 Global MSW defaults that already cover common editor noise: `POST */api/date-level-examples`, `GET */api/composer/imageShapes` (`model.handlers.ts`).
 

@@ -22,6 +22,7 @@ import { AssetType } from "../../../../../../shared/data/asset-type";
 import { JoinItem } from "../../../composer/data/ws/join-item";
 import { BasicSqlQueryModel } from "../../../composer/data/ws/basic-sql-query-model";
 import { SqlQueryDialogModel } from "../../../composer/data/ws/sql-query-dialog-model";
+import { syncResolve } from "../../../../testing/tl-async.util";
 import { SimpleQueryPaneComponent } from "./simple-query-pane.component";
 
 export function makeTableEntry(table: string = "Orders"): AssetEntry {
@@ -113,7 +114,8 @@ export function createSimpleQueryPane(options: {
 } = {}) {
    const model = options.model || makeBasicModel();
    const modal = {
-      open: vi.fn(() => ({ result: options.modalResult || Promise.resolve({}) }))
+      // syncResolve: modal.result.then must complete in-stack under Zone + vitest-patch
+      open: vi.fn(() => ({ result: options.modalResult || syncResolve({}) }))
    };
    const http = {
       post: vi.fn(() => of({}))
