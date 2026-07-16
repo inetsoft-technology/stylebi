@@ -64,16 +64,17 @@ import static org.junit.jupiter.api.Assertions.*;
  * Intent vs implementation suspects
  * -----------------------------------------------------------------------------------------------
  *
- * [Suspect 1] "tomorrow" in isInDateRange uses `(d1 + 1) == d2` — same as "yesterday", so
- *             real tomorrow is false and yesterday is true for "tomorrow". Fix: `(d1 - 1) == d2`.
- *             -> KnownBugs.isInDateRangeTomorrowActuallyChecksYesterday (disabled).
+ * [Fixed] "tomorrow" in isInDateRange used `(d1 + 1) == d2` — same as "yesterday", so real
+ *         tomorrow was false and yesterday was true for "tomorrow". Fixed to `(d1 - 1) == d2`.
+ *         -> KnownBugs.isInDateRangeTomorrowActuallyChecksYesterday /
+ *            isInDateRangeTomorrowDoesNotMatchYesterday now assert the corrected behavior.
  *
  * [Note] stringValue's Object[] comma-join branch looks unreachable: evaluate() unwraps arrays and
  *        normalizeValue() already takes the first element. Only ROLE + STARTING_WITH/CONTAINS/LIKE
  *        could hit it; no known UI path — not tested.
  */
 @Tag("core")
-class ConditionTest2 {
+class ConditionTest {
 
    // =============================================================================================
    // SECTION 1: evaluate() - operator-specific branches (each is an independent decision-tree
