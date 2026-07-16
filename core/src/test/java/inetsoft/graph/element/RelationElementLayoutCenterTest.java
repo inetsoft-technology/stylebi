@@ -37,6 +37,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.geom.Point2D;
 import java.util.ArrayList;
 import java.util.List;
@@ -202,6 +203,77 @@ class RelationElementLayoutCenterTest {
 
       assertEquals(1, ggraph.getEGraph().getFormCount(),
          "addShapeBorder must register exactly one BorderForm in the EGraph after layout");
+   }
+
+   /**
+    * Regression guard for #75648: with a border ring configured, a circular layout whose ring
+    * bulges past the node bounding box (odd node count -> no node at the min-x/min-y cardinal
+    * point) must be shifted so the ring's bounding box starts at non-negative coordinates;
+    * otherwise the arc is clipped and unreachable via scrolling. Also verifies the shift is a
+    * pure translation (every node stays on the ring, i.e. equidistant from the shifted center).
+    */
+   @Test
+   void borderRingBoundingBoxStartsAtNonNegativeCoordinates_circular() {
+      // Three nodes -> 120-degree spacing, so no node sits at the circle's min-x/min-y cardinal
+      // point; the ring therefore extends past the node bounding box and, without the shift,
+      // would land at a negative coordinate.
+      DefaultDataSet data = new DefaultDataSet(new Object[][]{
+         { "From", "To" },
+         { "A",    "B"  },
+         { "B",    "C"  },
+         { "C",    "A"  },
+      });
+
+      RelationElement element = new RelationElement("From", "To");
+      element.setAlgorithm(RelationElement.Algorithm.CIRCLE);
+      element.setSizeFrame(new StaticSizeFrame(5));
+      element.setNodeSizeFrame(new StaticSizeFrame(5));
+      // Large layout + small nodes so the ring radius dominates the node size: the ring then
+      // bulges left past the leftmost node (which sits at 150 degrees, not at the 180-degree
+      // cardinal), driving centerX - radius negative before the #75648 shift.
+      element.setNodeWidth(5);
+      element.setNodeHeight(5);
+      element.setLayoutSize(new Dimension(1000, 1000));
+      element.addShapeBorder(GShape.CIRCLE, Color.GRAY, GLine.MEDIUM_DASH);
+
+      EGraph egraph = new EGraph();
+      egraph.addElement(element);
+      RelationCoord coord = new RelationCoord();
+      egraph.setCoordinate(coord);
+      GGraph ggraph = egraph.createGGraph(coord, data);
+
+      List<RelationGeometry> nodes = new ArrayList<>();
+
+      for(int i = 0; i < ggraph.getGeometryCount(); i++) {
+         if(ggraph.getGeometry(i) instanceof RelationGeometry) {
+            nodes.add((RelationGeometry) ggraph.getGeometry(i));
+         }
+      }
+
+      Point2D center = element.getLayoutCenter();
+      double radius = element.getLayoutRadius();
+
+      assertNotNull(center, "circular layout with a border must populate layoutCenter");
+      assertTrue(radius > 0, "three-node circular layout must produce a positive radius");
+
+      // (1) The ring's bounding box (center +/- radius) must not start at a negative coordinate,
+      // so the whole ring stays inside the scrollable plot area.
+      assertTrue(center.getX() - radius >= -1e-6,
+         "ring min-x edge (centerX - radius) must be >= 0 after the #75648 shift, was "
+            + (center.getX() - radius));
+      assertTrue(center.getY() - radius >= -1e-6,
+         "ring min-y edge (centerY - radius) must be >= 0 after the #75648 shift, was "
+            + (center.getY() - radius));
+
+      // (2) The shift must be a pure translation: every node center stays on the ring, i.e.
+      // equidistant (== radius) from the shifted layoutCenter.
+      for(RelationGeometry n : nodes) {
+         mxGeometry g = n.getMxCell().getGeometry();
+         double d = center.distance(g.getX() + g.getWidth() / 2.0,
+                                    g.getY() + g.getHeight() / 2.0);
+         assertEquals(radius, d, 1e-6,
+            "node center must remain on the ring (equidistant from the shifted center)");
+      }
    }
 
    @Test
