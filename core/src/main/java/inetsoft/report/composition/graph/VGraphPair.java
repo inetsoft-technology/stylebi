@@ -870,15 +870,10 @@ public class VGraphPair {
       if(vlegends != null && evlegends != null) {
          // vgraph and evgraph are built from independently generated EGraphs, so a
          // shared-color legend may resolve to a different legend count in each. Only
-         // sync sizes for legends that exist in both to avoid an NPE (bug#75702).
+         // sync sizes for legends that exist in both to avoid an NPE (bug#75696).
          for(int i = 0; i < vlegends.getLegendCount() && i < evlegends.getLegendCount(); i++) {
             Legend vlegend = vlegends.getLegend(i);
             Legend evlegend = evlegends.getLegend(i);
-
-            if(vlegend == null || evlegend == null) {
-               continue;
-            }
-
             Rectangle2D vbounds = vlegend.getBounds();
             DimensionD psize = new DimensionD(vbounds.getWidth(), vbounds.getHeight());
             LegendSpec spec = evlegend.getVisualFrame().getLegendSpec();
