@@ -193,10 +193,12 @@ public class WizVsService {
       }
 
       // Prefer the restore-aware resolver so a reaped runtime is transparently reopened; echo the
-      // (possibly new) runtimeId back so the next edit targets the live runtime.
+      // (possibly new) runtimeId back so the next edit targets the live runtime. runtimeId may be
+      // null when the client only carries a durable viewsheetIdentifier, so compare null-safely.
+      String runtimeId = model.getRuntimeId();
       RuntimeViewsheet rvs = WizUtil.getViewsheetOrRestore(
-         viewsheetService, model.getRuntimeId(), model.getViewsheetIdentifier(), user);
-      boolean restored = !model.getRuntimeId().equals(rvs.getID());
+         viewsheetService, runtimeId, model.getViewsheetIdentifier(), user);
+      boolean restored = !Objects.equals(runtimeId, rvs.getID());
       Viewsheet vs = getValidatedViewsheet(rvs);
       VSAssembly assembly = resolveTargetAssembly(vs, model.getAssemblyName());
       VSAssemblyInfo assemblyInfo = assembly.getVSAssemblyInfo();
@@ -216,8 +218,9 @@ public class WizVsService {
          // regenerate the runtime refs as clones that carry the group, so it survives the re-render.
          List<VSChartAggregateRef> measureRefs = new ArrayList<>();
 
+         // VSChartAggregateRef implements HighlightRef, so matching it is sufficient.
          for(ChartRef ref : chartInfo.getBindingRefs(false)) {
-            if(ref instanceof VSChartAggregateRef aggRef && ref instanceof HighlightRef) {
+            if(ref instanceof VSChartAggregateRef aggRef) {
                measureRefs.add(aggRef);
             }
          }
@@ -425,16 +428,24 @@ public class WizVsService {
       VSAssembly chart = null;
       VSAssembly sole = null;
       int count = 0;
+      int chartCount = 0;
 
       for(Assembly a : vs.getAssemblies()) {
          if(a instanceof VSAssembly va) {
             if(a instanceof ChartVSAssembly) {
                chart = va;
+               chartCount++;
             }
 
             sole = va;
             count++;
          }
+      }
+
+      // Fail loud on ambiguity rather than silently picking an arbitrary chart.
+      if(chartCount > 1) {
+         throw new IllegalArgumentException(
+            "Viewsheet has multiple charts; pass assemblyName to choose the target");
       }
 
       if(chart != null) {
