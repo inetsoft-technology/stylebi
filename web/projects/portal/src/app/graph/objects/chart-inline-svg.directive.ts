@@ -477,12 +477,20 @@ export class ChartInlineSvgDirective implements OnDestroy {
       if(!childRowsAttr) return; // leaf node — nothing nested to keep undimmed
 
       const childRows = new Set(childRowsAttr.split(","));
+      // data-subrow is shared along a "first-descended" chain (root→leaf created in one pass share
+      // one sub-row), so a container's subrow can also equal an ancestor's. Requiring a strictly
+      // smaller data-level (leaf=0, root=highest) keeps only genuine descendants and excludes those
+      // ancestors (and same-level siblings), which would otherwise stay undimmed.
+      const containerLevel = Number(containerEl.getAttribute("data-level"));
 
       for(const node of this.treemapGroups) {
          if(node === containerEl) continue; // already activated by activateKeys
 
          const sub = node.getAttribute("data-subrow");
-         if(sub == null || !childRows.has(sub)) continue;
+         const level = Number(node.getAttribute("data-level"));
+         if(sub == null || Number.isNaN(level) || level >= containerLevel || !childRows.has(sub)) {
+            continue;
+         }
 
          node.classList.add("inetsoft-active");
          this.activeTreemapDescendants.push(node);

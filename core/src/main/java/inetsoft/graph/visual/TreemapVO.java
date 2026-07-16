@@ -36,6 +36,7 @@ import java.awt.geom.*;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
@@ -198,18 +199,9 @@ public class TreemapVO extends ElementVO {
 
          int[] childRows = gobj.getChildRows();
 
-         if(childRows != null && childRows.length > 0) {
-            StringBuilder sb = new StringBuilder();
-
-            for(int r : childRows) {
-               if(sb.length() > 0) {
-                  sb.append(',');
-               }
-
-               sb.append(r);
-            }
-
-            attrs.put(SVGSupport.ATTR_CHILDROWS, sb.toString());
+         if(childRows.length > 0) {
+            attrs.put(SVGSupport.ATTR_CHILDROWS,
+               IntStream.of(childRows).mapToObj(String::valueOf).collect(Collectors.joining(",")));
          }
 
          svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_TREEMAP, attrs);
