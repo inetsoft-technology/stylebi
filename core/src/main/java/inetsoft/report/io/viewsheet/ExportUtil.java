@@ -107,6 +107,7 @@ public class ExportUtil {
     */
    public static Color getBackGroundColor(VSCompositeFormat titleFormat,
                                           VSCompositeFormat objFormat) {
+      titleFormat = VSTitleChromeDefaults.applyModernDefaults(titleFormat);
       return titleFormat != null && titleFormat.getBackground() != null ?
          titleFormat.getBackground() : objFormat != null &&
          objFormat.getBackground() != null ? objFormat.getBackground() : null;

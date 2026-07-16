@@ -1389,7 +1389,6 @@ public abstract class AbstractVSExporter implements VSExporter {
                      String title = info.getTitle();
                      int theight = info.getTitleHeight();
                      TableDataPath tpath = new TableDataPath(-1, TableDataPath.TITLE);
-                     VSCompositeFormat tformat = info.getFormatInfo().getFormat(tpath);
 
                      titleObj = new TextVSAssembly();
                      TextVSAssemblyInfo titleInfo = (TextVSAssemblyInfo) titleObj.getInfo();
@@ -1401,6 +1400,33 @@ public abstract class AbstractVSExporter implements VSExporter {
                         new Dimension(size.width - padding.left - padding.right, theight));
                      titleObj.setTextValue(title);
                      titleInfo.setFormatInfo(info.getFormatInfo());
+
+                     // the chart title is drawn via writeText using its OBJECT format, so seed the
+                     // resolved modern title background/foreground onto a private object-format copy
+                     // (the chart body format is untouched); gated + defaults-only, gate-off is
+                     // byte-identical
+                     if(VSTitleChromeDefaults.isModern()) {
+                        VSCompositeFormat titleFmt = VSTitleChromeDefaults.applyModernDefaults(
+                           info.getFormatInfo().getFormat(tpath, false));
+                        FormatInfo titleFmtInfo = titleInfo.getFormatInfo().clone();
+                        VSCompositeFormat objFmt =
+                           titleFmtInfo.getFormat(VSAssemblyInfo.OBJECTPATH);
+                        objFmt = objFmt == null ? new VSCompositeFormat() : objFmt.clone();
+
+                        if(titleFmt != null && titleFmt.getBackground() != null) {
+                           objFmt.getDefaultFormat().setBackgroundValue(String.format(
+                              "0x%06x", titleFmt.getBackground().getRGB() & 0xFFFFFF));
+                        }
+
+                        if(titleFmt != null && titleFmt.getForeground() != null) {
+                           objFmt.getDefaultFormat().setForegroundValue(String.format(
+                              "0x%06x", titleFmt.getForeground().getRGB() & 0xFFFFFF));
+                        }
+
+                        titleFmtInfo.setFormat(VSAssemblyInfo.OBJECTPATH, objFmt);
+                        titleInfo.setFormatInfo(titleFmtInfo);
+                     }
+
                      titleInfo.setPadding(info.getTitlePadding());
                      titleInfo.setZIndex(info.getZIndex());
 
@@ -1764,6 +1790,17 @@ public abstract class AbstractVSExporter implements VSExporter {
             }
          }
       }
+
+      // Modernize the object title-bar default on the export copy (the viewsheet is cloned upstream,
+      // so this mutates nothing persisted). Every per-widget / per-format title draw reads the title
+      // format from this one assembly, so doing it here covers all titled assemblies at once. Gated +
+      // defaults-only: no-op with the gate off, and a user / format.css title color still wins.
+      VSAssemblyInfo vinfo = assembly.getVSAssemblyInfo();
+
+      if(vinfo instanceof TitledVSAssemblyInfo && vinfo.getFormatInfo() != null) {
+         VSTitleChromeDefaults.applyModernDefaultsInPlace(
+            vinfo.getFormatInfo().getFormat(VSAssemblyInfo.TITLEPATH));
+      }
    }
 
    /**
@@ -1858,7 +1895,7 @@ public abstract class AbstractVSExporter implements VSExporter {
 
          if(CSSConstants.CHART.equals(fmt.getCSSFormat().getCSSType())) {
             TableDataPath tpath = new TableDataPath(-1, TableDataPath.TITLE);
-            chartTitleFormat = formatInfo.getFormat(tpath, false);
+            chartTitleFormat = VSTitleChromeDefaults.applyModernDefaults(formatInfo.getFormat(tpath, false));
          }
       }
 
@@ -2646,8 +2683,8 @@ public abstract class AbstractVSExporter implements VSExporter {
       if(finfo != null) {
          VSCompositeFormat oformat = finfo.getFormat(
             new TableDataPath(-1, TableDataPath.OBJECT));
-         format = finfo.getFormat(
-            new TableDataPath(-1, TableDataPath.TITLE));
+         format = VSTitleChromeDefaults.applyModernDefaults(finfo.getFormat(
+            new TableDataPath(-1, TableDataPath.TITLE)));
          Insets oborder = oformat.getBorders();
          BorderColors ocolor = oformat.getBorderColors();
          Insets border = format.getBorders();
