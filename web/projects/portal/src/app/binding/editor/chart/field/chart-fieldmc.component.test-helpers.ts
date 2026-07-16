@@ -28,7 +28,6 @@ import { DndService } from "../../../../common/dnd/dnd.service";
 import { DateComparisonService } from "../../../../vsobjects/util/date-comparison.service";
 import { DateLevelExamplesService } from "../../../../common/services/date-level-examples.service";
 import { UIContextService } from "../../../../common/services/ui-context.service";
-import { DateLevelExamplesService } from "../../../../common/services/date-level-examples.service";
 import { TestUtils } from "../../../../common/test/test-utils";
 import { ChartBindingModel } from "../../../data/chart/chart-binding-model";
 import { ChartConstants } from "../../../../common/util/chart-constants";
@@ -143,7 +142,6 @@ export async function renderChartFieldmc(props: Record<string, any> = {}) {
          { provide: DateComparisonService, useValue: dcServiceMock },
          { provide: DateLevelExamplesService, useValue: dateLevelExamplesMock },
          { provide: UIContextService, useValue: uiContextMock },
-         { provide: DateLevelExamplesService, useValue: dateLevelExamplesMock },
       ],
       componentProperties: renderProps,
    });

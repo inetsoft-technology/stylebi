@@ -18,7 +18,6 @@
 
 import { of, Subject } from "rxjs";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { Subject } from "rxjs";
 import { BindingTreeService } from "../../../widget/binding-tree/binding-tree.service";
 import { BindingService } from "../../../services/binding.service";
 import { RecentColorService } from "../../../../widget/color-picker/recent-color.service";
