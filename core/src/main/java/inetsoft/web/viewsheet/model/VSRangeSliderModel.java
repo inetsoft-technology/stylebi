@@ -105,7 +105,7 @@ public class VSRangeSliderModel extends VSObjectModel<TimeSliderVSAssembly> {
       renderSizeWithParentMaxMode(assembly.getContainer());
       TableDataPath titlepath = new TableDataPath(-1, TableDataPath.TITLE);
       VSCompositeFormat compositeTitleFormat =
-         assemblyInfo.getFormatInfo().getFormat(titlepath, false);
+         VSTitleChromeDefaults.applyModernDefaults(assemblyInfo.getFormatInfo().getFormat(titlepath, false));
       titleFormat = new VSFormatModel(compositeTitleFormat, assemblyInfo);
       int titleHeight = assemblyInfo.getTitleHeight();
       Dimension size = new Dimension((int) getObjectFormat().getWidth(), titleHeight);
