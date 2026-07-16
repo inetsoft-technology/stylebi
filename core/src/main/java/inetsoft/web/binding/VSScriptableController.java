@@ -104,7 +104,7 @@ public class VSScriptableController {
       "MekkoElement", "ParaboxElement", "PolygonElement", "RelationElement",
       "PolarCoord",
       "RectCoord", "Rect25Coord", "ParallelCoord", "TriCoord",
-      "FacetCoord", "LinearScale", "LogScale",
+      "FacetCoord", "Scale", "LinearScale", "LogScale",
       "PowerScale", "TimeScale", "CategoricalScale", "LinearRange",
       "StackRange", "MultiTextFrame", "PieShapeFrame",
       "BrightnessColorFrame",

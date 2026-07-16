@@ -57,6 +57,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    // (see exec). Recreated on (re)init because it is bound to the current context.
    private BindingRootProxy scopeProxy;
 
+   // The CALC function scope (case-insensitive member lookup). Installed as the
+   // __scope__ proxy's case-insensitive last-resort so unqualified CALC/statistical
+   // functions resolve regardless of case, matching Rhino (see installGlobalScope,
+   // ensureScopeProxy). (#75685)
+   private ScriptScope calcScope;
+
    // These config props are read on the per-script hot path (exec runs hundreds
    // of thousands of times for data-driven worksheet formula columns), and a raw
    // SreeEnv lookup per call is a measurable cost. SreeEnv.Value caches the value
@@ -270,6 +276,19 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                bindings.putMember(name, calc.getMember(name));
             }
          }
+
+         // Rhino set the Calc scope as the global scope's prototype
+         // (globalscope.setPrototype(new Calc())), and Calc's member lookup is
+         // case-insensitive (funcmap.get(id.toLowerCase())). So unqualified
+         // CALC/statistical functions resolved regardless of case, e.g.
+         // NthMostFrequent, PthPercentile, Sum. GraalJS global bindings are
+         // case-sensitive, so the lowercase copies above only match exact-case
+         // names. Expose the Calc scope to the __scope__ proxy so a name with no
+         // exact global binding (JS builtins and the lowercase copies above
+         // still win) resolves case-insensitively as a last resort. The proxy is
+         // (re)created and wired with this scope in ensureScopeProxy(), which
+         // always runs after this method during initScope(). (#75685)
+         calcScope = calc;
       }
       catch(Throwable ex) {
          LOG.warn("Failed to install CALC functions", ex);
@@ -347,10 +366,30 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    private void putConstantScope(Value bindings, String name, Class<?>... classes) {
       try {
          ConstantScope scope = new ConstantScope(classes);
+         installMapTypeConstants(scope);
          bindings.putMember(name, ScriptValueConverter.toGuest(scope));
       }
       catch(Throwable ex) {
          LOG.warn("Failed to install constant object " + name, ex);
+      }
+   }
+
+   /**
+    * Register the dynamic {@code MAP_TYPE_<TYPE>} constants (e.g.
+    * {@code MAP_TYPE_U.S.} = "U.S.") derived from the installed map data. These
+    * are not {@code public static final} fields, so the reflected
+    * {@link ConstantScope} does not pick them up; Rhino added them explicitly to
+    * both the {@code Chart} and {@code StyleConstant} scopes, so restore them
+    * here to keep {@code mapType = Chart["MAP_TYPE_U.S."]} working. (#75679)
+    */
+   private void installMapTypeConstants(ConstantScope scope) {
+      try {
+         for(String type : inetsoft.report.internal.graph.MapData.getMapTypes()) {
+            scope.putConstant("MAP_TYPE_" + type.toUpperCase(), type);
+         }
+      }
+      catch(Throwable ex) {
+         LOG.warn("Failed to install map type constants", ex);
       }
    }
 
@@ -632,6 +671,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          scopeProxy = new BindingRootProxy(EMPTY_SCOPE,
                                            inetsoft.util.script.FormulaContext::getExecScriptScope,
                                            classFilter, context);
+         scopeProxy.setBuiltinScope(calcScope);
          context.getBindings("js").putMember("__scope__", scopeProxy);
       }
    }
@@ -1407,10 +1447,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       putClassProxy(bindings, "AxisSpec",   "inetsoft.graph.AxisSpec");
       putClassProxy(bindings, "PlotSpec",   "inetsoft.graph.PlotSpec");
 
-      // elements. Rhino auto-imported the whole inetsoft.graph.element package, so
-      // every concrete element type must be registered here or chart scripts that
-      // reference it by simple name (e.g. new TreemapElement(),
-      // TreemapElement.Orientation.TOP_RIGHT) fail with "X is not defined".
+      // elements
+      putClassProxy(bindings, "GraphElement",    "inetsoft.graph.element.GraphElement");
       putClassProxy(bindings, "IntervalElement", "inetsoft.graph.element.IntervalElement");
       putClassProxy(bindings, "LineElement",     "inetsoft.graph.element.LineElement");
       putClassProxy(bindings, "SchemaElement",   "inetsoft.graph.element.SchemaElement");
@@ -1430,7 +1468,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       putClassProxy(bindings, "TriCoord",      "inetsoft.graph.coord.TriCoord");
       putClassProxy(bindings, "FacetCoord",    "inetsoft.graph.coord.FacetCoord");
 
-      // scales / ranges
+      // scales / ranges. Scale is the abstract base class; scripts don't
+      // construct it but reference its scale-option constants (Scale.TICKS,
+      // Scale.ZERO, ...) passed to Scale.setScaleOption(int) (Bug #75684).
+      putClassProxy(bindings, "Scale",            "inetsoft.graph.scale.Scale");
       putClassProxy(bindings, "LinearScale",      "inetsoft.graph.scale.LinearScale");
       putClassProxy(bindings, "LogScale",          "inetsoft.graph.scale.LogScale");
       putClassProxy(bindings, "PowerScale",        "inetsoft.graph.scale.PowerScale");
