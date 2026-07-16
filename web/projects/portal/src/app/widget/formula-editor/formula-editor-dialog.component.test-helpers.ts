@@ -23,72 +23,18 @@ import { FormulaType } from "../../common/data/formula-type";
 import { ActionsContextmenuComponent } from "../fixed-dropdown/actions-contextmenu.component";
 import { FixedDropdownService } from "../fixed-dropdown/fixed-dropdown.service";
 import { TreeNodeModel } from "../tree/tree-node-model";
+import {
+   flushMicrotasks,
+   syncReject,
+   syncResolve,
+} from "../../../testing/tl-async.util";
 import { FormulaEditorDialog } from "./formula-editor-dialog.component";
 import { FormulaEditorService } from "./formula-editor.service";
 
-/**
- * Thenable that invokes callbacks synchronously.
- * Prefer this over Promise.resolve under the full TL suite: Zone/vitest-patch can
- * hang for 30s+ when a worker still has pending macrotasks and a test awaits
- * setTimeout(0) / real Promises.
- */
-export function syncResolve<T>(value: T): Promise<T> {
-   const thenable: PromiseLike<T> = {
-      then(onFulfilled?: ((v: T) => any) | null, onRejected?: ((e: any) => any) | null) {
-         try {
-            if(!onFulfilled) {
-               return syncResolve(value as any);
-            }
+export { syncResolve, syncReject } from "../../../testing/tl-async.util";
 
-            const next = onFulfilled(value);
-
-            if(next && typeof (next as PromiseLike<unknown>).then === "function") {
-               return next;
-            }
-
-            return syncResolve(next);
-         }
-         catch(err) {
-            if(onRejected) {
-               return syncResolve(onRejected(err));
-            }
-
-            throw err;
-         }
-      },
-   };
-   return thenable as Promise<T>;
-}
-
-export function syncReject(reason: unknown = "dismissed"): Promise<never> {
-   const thenable: PromiseLike<never> = {
-      then(_onFulfilled?: any, onRejected?: ((e: any) => any) | null) {
-         try {
-            if(!onRejected) {
-               throw reason;
-            }
-
-            const next = onRejected(reason);
-
-            if(next && typeof (next as PromiseLike<unknown>).then === "function") {
-               return next;
-            }
-
-            return syncResolve(next);
-         }
-         catch(err) {
-            throw err;
-         }
-      },
-   };
-   return thenable as Promise<never>;
-}
-
-/** Microtask-only flush (no setTimeout) — safer under a loaded Zone worker. */
-export async function flushPromises(): Promise<void> {
-   await Promise.resolve();
-   await Promise.resolve();
-}
+/** @deprecated Prefer flushMicrotasks from testing/tl-async.util — alias kept for local imports. */
+export const flushPromises = flushMicrotasks;
 
 export function createDialog() {
    const editorService = {

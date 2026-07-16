@@ -23,16 +23,23 @@ import { server } from "@test-mocks/server";
 import { GuiTool } from "./app/common/util/gui-tool";
 import { clearStoredCondition } from "./app/common/util/schedule-condition.util";
 
+// Buffer only — do not rely on this instead of syncResolve / no setTimeout(0).
+vi.setConfig({ testTimeout: 15000 });
+
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 
-// Real isTouchDevice() uses setTimeout + Subject.toPromise(); under a loaded
-// Vitest worker that leaves Zone busy and inflates async TL tests past 5s.
 beforeEach(() => {
+   // Prevent fake timers left by other suites from blocking setTimeout-based waits.
+   vi.useRealTimers();
+   // Real isTouchDevice() uses setTimeout + Subject.toPromise(); under a loaded
+   // Vitest worker that leaves Zone busy and inflates async TL tests.
    vi.spyOn(GuiTool, "isTouchDevice").mockImplementation(() => Promise.resolve(false));
 });
 
 afterEach(() => {
    server.resetHandlers();
    clearStoredCondition();
+   vi.useRealTimers();
 });
+
 afterAll(() => server.close());

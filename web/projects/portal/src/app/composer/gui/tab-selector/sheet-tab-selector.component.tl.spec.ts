@@ -39,6 +39,7 @@ import { ComponentTool } from "../../../common/util/component-tool";
 import { ComposerTabModel } from "../composer-tab-model";
 import { Sheet } from "../../data/sheet";
 import { LibraryAsset } from "../../data/library-asset";
+import { syncResolve } from "../../../../testing/tl-async.util";
 
 const MODEL_SERVICE_MOCK = { getModel: vi.fn() };
 const MODAL_SERVICE_MOCK = {};
@@ -204,22 +205,20 @@ describe("SheetTabSelectorComponent — closeTab viewsheet, no form tables", () 
 });
 
 describe("SheetTabSelectorComponent — closeTab viewsheet, form tables, user confirms", () => {
-   // 🔁 Regression-sensitive: confirmation dialog must be shown when form tables have unsaved
-   // data, and the tab must close only after user clicks "ok".
+   // Dialog outcome (ok → close), not a timing/race check.
+   // syncResolve: closeTab uses from(promise); completes in-stack — no setTimeout(0).
    it("should emit onTabClosed after user confirms the dialog", async () => {
       const { fixture } = await renderComponent();
       const comp = fixture.componentInstance;
       const tab = makeViewsheetTab(false);
 
       MODEL_SERVICE_MOCK.getModel.mockReturnValue(of(true));
-      vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
+      vi.spyOn(ComponentTool, "showConfirmDialog").mockImplementation(() => syncResolve("ok"));
 
       const emitted: ComposerTabModel[] = [];
       comp.onTabClosed.subscribe((t) => emitted.push(t));
 
       comp.closeTab(tab);
-      // Allow the async promise chain to resolve
-      await new Promise(resolve => setTimeout(resolve, 0));
 
       expect(ComponentTool.showConfirmDialog).toHaveBeenCalled();
       expect(emitted).toHaveLength(1);
@@ -234,13 +233,12 @@ describe("SheetTabSelectorComponent — closeTab viewsheet, form tables, user ca
       const tab = makeViewsheetTab(false);
 
       MODEL_SERVICE_MOCK.getModel.mockReturnValue(of(true));
-      vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("cancel");
+      vi.spyOn(ComponentTool, "showConfirmDialog").mockImplementation(() => syncResolve("cancel"));
 
       const emitted: ComposerTabModel[] = [];
       comp.onTabClosed.subscribe((t) => emitted.push(t));
 
       comp.closeTab(tab);
-      await new Promise(resolve => setTimeout(resolve, 0));
 
       expect(ComponentTool.showConfirmDialog).toHaveBeenCalled();
       expect(emitted).toHaveLength(0);

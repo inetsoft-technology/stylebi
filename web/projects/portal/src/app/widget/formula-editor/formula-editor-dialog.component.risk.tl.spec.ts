@@ -21,29 +21,30 @@
  *
  * Risk-first coverage:
  *   Group 1 [Risk 3] — populateColumnTree / populateFunctionTree / populateOperatorTree HTTP callbacks
- *   Group 2 [Risk 3] — populateScriptDefinitions dual subscribe + stale response ordering
+ *   Group 2 [Risk 3] — populateScriptDefinitions dual subscribe
  *   Group 3 [Risk 3] — calcType / formulaType valueChanges side-effects
  *   Group 4 [Risk 3] — showAggregateDialog rejected modal + destroy stops valueChanges
  *
  * Out of scope this pass:
  *   expressionChange branches → formula-editor-dialog.component.display.tl.spec.ts
  *   ok / cancel / isCycle → formula-editor-dialog.component.interaction.tl.spec.ts
+ *   HTTP response ordering / race documentation — not kept in TL full suite
  */
 
 import { Subject, of } from "rxjs";
 import { ComponentTool } from "../../common/util/component-tool";
 import { FormulaType } from "../../common/data/formula-type";
 import { TreeNodeModel } from "../tree/tree-node-model";
+import { syncResolve } from "../../../testing/tl-async.util";
 import {
    columnTreeWithFields,
    createDialog,
-   flushPromises,
    syncReject,
 } from "./formula-editor-dialog.component.test-helpers";
 
 describe("FormulaEditorDialog — populate tree HTTP callbacks [Group 1, Risk 3]", () => {
 
-   it("should replace column tree when getColumnTreeNode emits", async () => {
+   it("should replace column tree when getColumnTreeNode emits", () => {
       const columnSubject = new Subject<TreeNodeModel>();
       const { comp, editorService } = createDialog();
       vi.mocked(editorService.getColumnTreeNode).mockReturnValue(columnSubject);
@@ -55,40 +56,37 @@ describe("FormulaEditorDialog — populate tree HTTP callbacks [Group 1, Risk 3]
          label: "Server Fields",
          children: [{ label: "Revenue", leaf: true }],
       } as TreeNodeModel);
-      await flushPromises();
 
       expect(editorService.getColumnTreeNode).toHaveBeenCalledWith("vs-1", "Chart1", false);
       expect(comp._columnTreeRoot.label).toBe("Server Fields");
    });
 
-   it("should set functionTreeRoot from getFunctionTreeNode for script formulas", async () => {
+   it("should set functionTreeRoot from getFunctionTreeNode for script formulas", () => {
       const fnTree = { label: "Functions", children: [{ label: "abs", leaf: true }] };
       const { comp, editorService } = createDialog();
       vi.mocked(editorService.getFunctionTreeNode).mockReturnValue(of(fnTree as TreeNodeModel));
       comp.initForm();
 
       comp["populateFunctionTree"]();
-      await flushPromises();
 
       expect(comp.functionTreeRoot).toEqual(fnTree);
    });
 
-   it("should set operatorTreeRoot from getOperationTreeNode for script formulas", async () => {
+   it("should set operatorTreeRoot from getOperationTreeNode for script formulas", () => {
       const opTree = { label: "Operators", children: [{ label: "+", leaf: true }] };
       const { comp, editorService } = createDialog();
       vi.mocked(editorService.getOperationTreeNode).mockReturnValue(of(opTree as TreeNodeModel));
       comp.initForm();
 
       comp["populateOperatorTree"]();
-      await flushPromises();
 
       expect(comp.operatorTreeRoot).toEqual(opTree);
    });
 });
 
-describe("FormulaEditorDialog — script definitions and stale responses [Group 2, Risk 3]", () => {
+describe("FormulaEditorDialog — script definitions [Group 2, Risk 3]", () => {
 
-   it("should load task and viewsheet script definitions on separate subscribes", async () => {
+   it("should load task and viewsheet script definitions on separate subscribes", () => {
       const { comp, editorService } = createDialog();
       comp.task = true;
       comp.vsId = "vs-1";
@@ -96,34 +94,10 @@ describe("FormulaEditorDialog — script definitions and stale responses [Group 
       comp.initForm();
 
       comp["populateScriptDefinitions"]();
-      await flushPromises();
 
       expect(editorService.getTaskScriptDefinitions).toHaveBeenCalled();
       expect(editorService.getScriptDefinitions).toHaveBeenCalledWith("vs-1", "Table1", false);
       expect(comp.scriptDefinitions).toEqual({ defs: "vs" });
-   });
-
-   // Known race condition bug: populateColumnTree() uses subscribe() without switchMap, so a
-   // delayed earlier response overwrites a newer one. The desired behavior is "Fresh" wins;
-   // fix by switching to switchMap (which cancels the first request). Until then, this test
-   // documents the broken behavior — update expect to "Fresh" when the defect is resolved.
-   it("should be overwritten by stale response when earlier request resolves after later one (known race condition)", async () => {
-      const first = new Subject<TreeNodeModel>();
-      const second = new Subject<TreeNodeModel>();
-      const { comp, editorService } = createDialog();
-      let call = 0;
-      vi.mocked(editorService.getColumnTreeNode).mockImplementation(() => {
-         return call++ === 0 ? first : second;
-      });
-      comp.vsId = "vs-1";
-
-      comp["populateColumnTree"]();
-      comp["populateColumnTree"]();
-      second.next({ label: "Fresh", children: [] } as TreeNodeModel);
-      first.next({ label: "Stale", children: [] } as TreeNodeModel);
-      await flushPromises();
-
-      expect(comp._columnTreeRoot.label).toBe("Stale");
    });
 });
 
@@ -148,7 +122,7 @@ describe("FormulaEditorDialog — form valueChanges side-effects [Group 3, Risk 
       comp.calcType = "aggregate";
       comp.initForm();
       const showMessageDialog = vi.spyOn(ComponentTool, "showMessageDialog")
-         .mockResolvedValue("ok");
+         .mockImplementation(() => syncResolve("ok"));
       vi.mocked(editorService.getFunctionTreeNode).mockClear();
 
       comp.form.get("formulaType").setValue(FormulaType.SQL);

@@ -17,31 +17,21 @@
  */
 
 /**
- * LogicalModelAttributeDialog - single-pass (+race + memory leak)
+ * LogicalModelAttributeDialog - single-pass (behavior / DOM / emit)
  *
  * Risk-first coverage:
  *   Group 1 [Risk 2] - ngOnInit: POST payload, tablesRoot assignment, parent defaulting
  *   Group 2 [Risk 2] - newParent setter after init toggles parentControl enabled state
- *   Group 3 [Risk 3] - loadTable success schedules selectColumns through the async callback bridge
  *   Group 4 [Risk 2] - selectColumns re-selects current parent attributes through tree API
  *   Group 5 [Risk 2] - entityChange switches parent and re-runs selection for the new entity
  *   Group 6 [Risk 1] - select() stores exactly the selected nodes array
  *   Group 7 [Risk 3] - ok() emits current entity and only enabled leaf attributes
  *   Group 8 [Risk 1] - cancel() emits "cancel"
- *   Group 9 [Risk 3] - Bug #75599 (fixed): post-destroy loadTable callback no longer runs
  *
- * Fixed bugs:
- *   Bug #75599 - loadTable post-destroy leak (Group 9): loadTable() schedules
- *     `setTimeout(() => this.selectColumns())` after the successful POST callback, and the POST
- *     subscription itself was never stored. The component previously had no ngOnDestroy cleanup,
- *     so selectColumns() could still run after fixture.destroy(). Fixed by implementing
- *     OnDestroy, storing the HTTP Subscription and the setTimeout handle, and clearing both in
- *     ngOnDestroy().
- *
- * Out of scope:
- *   Template focus behavior in ngAfterViewInit - the component calls
- *     `this.selectFocus.nativeElement.focus()`; jsdom focus integration is not the target of this
- *     file and does not affect the attribute-selection or commit contracts covered here.
+ * Out of scope (timing — see logical-model-attribute-dialog.component.spec.ts):
+ *   loadTable → setTimeout → selectColumns bridge
+ *   Bug #75599 post-destroy / timer cleanup
+ *   Template focus behavior in ngAfterViewInit
  *
  * Mocking strategy:
  *   - HttpClient is injected directly, so render helper uses provideHttpClient() + MSW.
@@ -315,33 +305,8 @@ describe("Group 2 - newParent setter", () => {
    });
 });
 
-describe("Group 3 - loadTable success schedules selectColumns", () => {
-   it("should invoke selectColumns after the successful POST callback resolves", async () => {
-      let resolveRequest: ((response: any) => void) | undefined;
-
-      server.use(
-         http.post("*/api/data/logicalModel/tables/nodes", () =>
-            new Promise<any>((resolve) => {
-               resolveRequest = resolve;
-            })
-         )
-      );
-
-      const { comp } = await renderComponent({
-         entities: makeEntities(),
-         parent: 0,
-      });
-      const selectSpy = vi.spyOn(comp, "selectColumns").mockImplementation(() => {});
-
-      try {
-         resolveRequest!(MswHttpResponse.json(makeTreeRoot()));
-
-         await waitFor(() => expect(selectSpy).toHaveBeenCalledTimes(1));
-      } finally {
-         selectSpy.mockRestore();
-      }
-   });
-});
+// Group 3 (loadTable → setTimeout → selectColumns) moved to
+// logical-model-attribute-dialog.component.spec.ts (fake timers).
 
 // WHY private bypass: ATL + importOverrides does not reliably populate the `tree` ViewChild for
 // this child stub. These tests target selectColumns/entityChange behavior, so they inject a stub
@@ -517,37 +482,5 @@ describe("Group 8 - cancel()", () => {
    });
 });
 
-describe("Group 9 - Bug #75599 (fixed): post-destroy loadTable callback", () => {
-   // Bug #75599 (fixed): the successful POST callback used to schedule
-   // `setTimeout(() => this.selectColumns())` without any destroy cleanup, so selectColumns()
-   // would still run after fixture.destroy(). The component now implements OnDestroy, storing
-   // the HTTP Subscription and the setTimeout handle and clearing both in ngOnDestroy(), so
-   // selectColumns() is never invoked after destroy.
-   it("should not run selectColumns after fixture.destroy()", async () => {
-      let resolveRequest: ((response: any) => void) | undefined;
-      server.use(
-         http.post("*/api/data/logicalModel/tables/nodes", () =>
-            new Promise<any>((resolve) => {
-               resolveRequest = resolve;
-            })
-         )
-      );
-
-      const { comp, fixture } = await renderComponent();
-      const selectSpy = vi.spyOn(comp, "selectColumns").mockImplementation(() => {});
-
-      try {
-         fixture.destroy();
-         resolveRequest!(MswHttpResponse.json(makeTreeRoot()));
-
-         // Give the resolved response and any (would-be) timers a chance to run. There is no
-         // affirmative event to wait for here - a fixed settle delay is used to prove absence.
-         await new Promise<void>(resolve => setTimeout(resolve, 0));
-         await new Promise<void>(resolve => setTimeout(resolve, 0));
-
-         expect(selectSpy).not.toHaveBeenCalled();
-      } finally {
-         selectSpy.mockRestore();
-      }
-   });
-});
+// Group 9 (#75599 post-destroy / timer cleanup) moved to
+// logical-model-attribute-dialog.component.spec.ts (fake timers).
