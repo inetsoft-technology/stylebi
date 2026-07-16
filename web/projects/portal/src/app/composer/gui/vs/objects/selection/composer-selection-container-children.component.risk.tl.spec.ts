@@ -32,6 +32,7 @@ import { render } from "@testing-library/angular";
 import { Subject } from "rxjs";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ComposerSelectionContainerChildren } from "./composer-selection-container-children.component";
+import { VSSelectionContainerChildren } from "../../../../../vsobjects/objects/selection/vs-selection-container-children.component";
 import { ViewsheetClientService } from "../../../../../common/viewsheet-client";
 import { AssemblyActionFactory } from "../../../../../vsobjects/action/assembly-action-factory.service";
 import { SelectionContainerChildrenService } from "../../../../../vsobjects/objects/selection/services/selection-container-children.service";
@@ -43,8 +44,14 @@ import { DragService } from "../../../../../widget/services/drag.service";
 import { ComposerVsSearchService } from "../../composer-vs-search.service";
 import { VSObjectModel } from "../../../../../vsobjects/model/vs-object-model";
 
+const domServiceMock = {
+   requestRead: (cb: () => void) => { cb(); return 0; },
+   requestWrite: (cb: () => void) => { cb(); return 0; },
+};
+
 async function renderComponent() {
-   vi.spyOn(ComposerSelectionContainerChildren.prototype as any, "getBodyHeight").mockReturnValue(120);
+   // Spy on the base class — child class binding can still be mid-init under ESM order.
+   vi.spyOn(VSSelectionContainerChildren.prototype as any, "getBodyHeight").mockReturnValue(120);
 
    const { fixture } = await render(ComposerSelectionContainerChildren, {
       schemas: [NO_ERRORS_SCHEMA],
@@ -69,7 +76,7 @@ async function renderComponent() {
          { provide: VSTrapService, useValue: { checkTrap: vi.fn() } },
          { provide: NgbModal, useValue: { open: vi.fn() } },
          { provide: ComposerObjectService, useValue: { getObjectType: vi.fn() } },
-         { provide: DomService, useValue: {} },
+         { provide: DomService, useValue: domServiceMock },
          { provide: DragService, useValue: { getDragData: vi.fn().mockReturnValue({}) } },
          { provide: ComposerVsSearchService, useValue: {
             focusChange: vi.fn().mockReturnValue(new Subject<any>()),

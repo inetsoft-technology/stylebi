@@ -54,7 +54,9 @@ import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { render } from "@testing-library/angular";
 import { Subject } from "rxjs";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { ComposerSelectionContainerChildren, DragBorderType } from "./composer-selection-container-children.component";
+import { ComposerSelectionContainerChildren } from "./composer-selection-container-children.component";
+import { DragBorderType } from "./drag-border-type";
+import { VSSelectionContainerChildren } from "../../../../../vsobjects/objects/selection/vs-selection-container-children.component";
 import { ViewsheetClientService } from "../../../../../common/viewsheet-client";
 import { AssemblyActionFactory } from "../../../../../vsobjects/action/assembly-action-factory.service";
 import { SelectionContainerChildrenService } from "../../../../../vsobjects/objects/selection/services/selection-container-children.service";
@@ -130,9 +132,14 @@ function makeVsObject(overrides: any = {}) {
    } as any;
 }
 
+const domServiceMock = {
+   requestRead: (cb: () => void) => { cb(); return 0; },
+   requestWrite: (cb: () => void) => { cb(); return 0; },
+};
+
 async function renderComponent(extraProps: any = {}) {
-   // Spy on parent-owned method before instance creation so vsObject setter doesn't throw.
-   vi.spyOn(ComposerSelectionContainerChildren.prototype as any, "getBodyHeight").mockReturnValue(120);
+   // Spy on base class — avoids undefined child.prototype under CI ESM load order.
+   vi.spyOn(VSSelectionContainerChildren.prototype as any, "getBodyHeight").mockReturnValue(120);
 
    const { fixture } = await render(ComposerSelectionContainerChildren, {
       schemas: [NO_ERRORS_SCHEMA],
@@ -147,7 +154,7 @@ async function renderComponent(extraProps: any = {}) {
          { provide: VSTrapService, useValue: { checkTrap: vi.fn() } },
          { provide: NgbModal, useValue: { open: vi.fn() } },
          { provide: ComposerObjectService, useValue: composerObjectServiceMock },
-         { provide: DomService, useValue: {} },
+         { provide: DomService, useValue: domServiceMock },
          { provide: DragService, useValue: dragServiceMock },
          { provide: ComposerVsSearchService, useValue: composerVsSearchServiceMock },
       ],
