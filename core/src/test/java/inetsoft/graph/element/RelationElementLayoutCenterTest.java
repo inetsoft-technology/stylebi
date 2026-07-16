@@ -26,8 +26,15 @@ import inetsoft.graph.coord.RelationCoord;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.geometry.RelationGeometry;
 import inetsoft.graph.mxgraph.model.mxGeometry;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Color;
 import java.awt.geom.Point2D;
@@ -42,7 +49,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * the edge geometry will subsequently report. Required by RelationEdgeGeometry.getEdges()
  * to bend smooth edges toward a meaningful pull point.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
+@Tag("core")
 class RelationElementLayoutCenterTest {
    @Test
    void mxLayoutPopulatesLayoutCenterAsNodeCentroid_circular() {
