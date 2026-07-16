@@ -66,7 +66,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * [Fixed] "tomorrow" in isInDateRange used `(d1 + 1) == d2` — same as "yesterday", so real
  *         tomorrow was false and yesterday was true for "tomorrow". Fixed to `(d1 - 1) == d2`.
- *         -> KnownBugs.isInDateRangeTomorrowActuallyChecksYesterday /
+ *         -> RegressionTests.isInDateRangeTomorrowActuallyChecksYesterday /
  *            isInDateRangeTomorrowDoesNotMatchYesterday now assert the corrected behavior.
  *
  * [Note] stringValue's Object[] comma-join branch looks unreachable: evaluate() unwraps arrays and
@@ -581,10 +581,14 @@ class ConditionTest {
       @Test
       void toDate_year_quarter_month() {
          Condition cond = new Condition();
-         // "now" is trivially within its own year/quarter/month-to-date range
-         assertTrue(cond.isInDateRange("year to date", new Date()));
-         assertTrue(cond.isInDateRange("quarter to date", new Date()));
-         assertTrue(cond.isInDateRange("month to date", new Date()));
+         // A moment just before "now" is trivially within its own year/quarter/month-to-date
+         // range. Using new Date() directly is flaky: the range's end boundary is resampled
+         // via System.currentTimeMillis() inside isInDateRange, and the comparison is a strict
+         // `<`, so a value equal to that internally-resampled "now" (same millisecond) fails.
+         Date justBeforeNow = new Date(System.currentTimeMillis() - 1000);
+         assertTrue(cond.isInDateRange("year to date", justBeforeNow));
+         assertTrue(cond.isInDateRange("quarter to date", justBeforeNow));
+         assertTrue(cond.isInDateRange("month to date", justBeforeNow));
       }
 
       // "last N months" family: last 1/3/6/12/18/24/36/48/60/72/84/96/108/120 months are all the
@@ -1389,11 +1393,11 @@ class ConditionTest {
    }
 
    // =============================================================================================
-   // SECTION 4: known, confirmed defects (documented, not fixed in this pass)
+   // SECTION 4: regression tests for previously-fixed defects
    // =============================================================================================
 
    @Nested
-   class KnownBugs {
+   class RegressionTests {
 
       // Fixed: Condition.java:1296-1300 "tomorrow" branch used the same formula as "yesterday"
       // (d1 + 1 == d2); corrected to `result = (d1 - 1) == d2;`
