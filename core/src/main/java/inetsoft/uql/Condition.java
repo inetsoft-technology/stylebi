@@ -1296,7 +1296,7 @@ public class Condition extends AbstractCondition {
       else if(str.equalsIgnoreCase("tomorrow")) {
          d1 = getDays(date);
          d2 = getDays(now);
-         result = (d1 + 1) == d2;
+         result = (d1 - 1) == d2;
       }
       else if(str.equalsIgnoreCase("yesterday")) {
          d1 = getDays(date);
