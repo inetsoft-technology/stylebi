@@ -33,6 +33,7 @@ import inetsoft.util.graphics.SVGSupport;
 
 import java.awt.*;
 import java.awt.geom.*;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.IntStream;
@@ -187,11 +188,31 @@ public class TreemapVO extends ElementVO {
       SVGSupport svg = SVGSupport.isSVGContext(g) ? SVGSupport.getInstance() : null;
 
       if(svg != null) {
-         svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_TREEMAP, Map.of(
-            SVGSupport.ATTR_ROW,   String.valueOf(getRowIndex()),
-            SVGSupport.ATTR_COL,   String.valueOf(getColIndex()),
-            SVGSupport.ATTR_LEVEL, String.valueOf(level)
-         ));
+         Map<String, String> attrs = new LinkedHashMap<>();
+         attrs.put(SVGSupport.ATTR_ROW,    String.valueOf(getRowIndex()));
+         attrs.put(SVGSupport.ATTR_COL,    String.valueOf(getColIndex()));
+         attrs.put(SVGSupport.ATTR_LEVEL,  String.valueOf(level));
+         // sub-row index (and, for containers, the descendant leaves' sub-rows) lets the hover
+         // handler keep the whole hovered subtree undimmed instead of just the hovered node.
+         attrs.put(SVGSupport.ATTR_SUBROW, String.valueOf(gobj.getSubRowIndex()));
+
+         int[] childRows = gobj.getChildRows();
+
+         if(childRows != null && childRows.length > 0) {
+            StringBuilder sb = new StringBuilder();
+
+            for(int r : childRows) {
+               if(sb.length() > 0) {
+                  sb.append(',');
+               }
+
+               sb.append(r);
+            }
+
+            attrs.put(SVGSupport.ATTR_CHILDROWS, sb.toString());
+         }
+
+         svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_TREEMAP, attrs);
       }
 
       try {
