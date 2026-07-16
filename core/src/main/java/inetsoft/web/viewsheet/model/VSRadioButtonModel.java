@@ -21,6 +21,7 @@ import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.RadioButtonVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSTitleChromeDefaults;
 import org.springframework.stereotype.Component;
 
 import java.awt.*;
@@ -32,7 +33,7 @@ public class VSRadioButtonModel extends ListInputModel<RadioButtonVSAssembly> {
          (RadioButtonVSAssemblyInfo) assembly.getVSAssemblyInfo();
       FormatInfo fmtInfo = assemblyInfo.getFormatInfo();
       TableDataPath titlepath = new TableDataPath(-1, TableDataPath.TITLE);
-      VSCompositeFormat compositeTitleFormat = fmtInfo.getFormat(titlepath, false);
+      VSCompositeFormat compositeTitleFormat = VSTitleChromeDefaults.applyModernDefaults(fmtInfo.getFormat(titlepath, false));
       TableDataPath datapath = new TableDataPath(-1, TableDataPath.DETAIL);
       VSCompositeFormat compositeDetailFormat = fmtInfo.getFormat(datapath, false);
 

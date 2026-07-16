@@ -59,15 +59,35 @@ and would produce a live/export mismatch.
 | Title CSS type | `cssfmt.setCSSType(getObjCSSType() + CSSConstants.TITLE)` (`:1216`) | per-assembly TITLE CSS class |
 | Title height | CSS-driven at `:1427-1430` (`isHeightDefined`→`setTitleHeightValue`), else `TitledVSAssemblyInfo` default | assembly default |
 
-### Where the render-time CSS tier is applied (the injection point)
+### The injection point (corrected 2026-07-14 after grounding — supersedes the CSS-tier plan)
 
-`VSAssemblyInfo` already resolves title CSS values onto the non-serialized CSS tier at render:
+The first draft proposed writing the modern colors to the title format's **CSS tier**
+(`CompositeValue.Type.CSS`), mirroring `VSChartChromeDefaults`. **Grounding proved that is not
+viable for a `VSFormat`:** the title CSS tier is **dictionary-backed and read-only from code** —
+`VSCSSFormat.getBackgroundValue()`/`isBackgroundValueDefined()` compute live from the CSS dictionary
+(`VSCSSFormat.java:265-268`, `:503-504`); the CSS tier *is* `format.css`, with no writable slot. And
+the proposed hook, `setCSSDefaults()`, runs only at assembly **creation/binding/wizard**
+(`initDefaultFormat` callers), not per-open, so it could not modernize existing saved viewsheets;
+`updateCSSValues()` has only embedded-viewsheet callers, also not the general per-open path.
 
-| Anchor | Location | Note |
+Correct mechanism = **read-time substitution, defaults-only** (the `VSDensityDefaults` two-choke-point
+shape, not the chart CSS-tier shape). `VSCompositeFormat.getBackground()` resolves
+**user → CSS(dictionary) → default** (`VSCompositeFormat.java:77-92`), so substituting the modern
+neutral **only when the resolved color still equals the legacy default** (`DEFAULT_TITLE_BG`)
+automatically preserves a user title format and a customer `format.css` TITLE class, and never mutates
+or serializes anything. The seams (no single shared chokepoint — title spans several render paths):
+
+| Seam | Location | Note |
 |---|---|---|
-| Title CSS visibility/height from dictionary | `VSAssemblyInfo.java:1413-1432` (`if(this instanceof TitledVSAssemblyInfo)` block inside the setCSS pass) | reads `getFormat(TITLEPATH)`, applies `setTitleVisibleValue`/`setTitleHeightValue` from `CSSDictionary` — the render-time seam |
-| Title CSS padding | `VSAssemblyInfo.updateCSSValues()` `:1440-1454` | writes padding via `CompositeValue.Type.CSS` — **the exact non-serialized tier pattern to mirror** |
+| Legacy default background | `VSAssemblyInfo.DEFAULT_TITLE_BG = "0xf5f5f5"` (`:1546`), seeded in `setDefaultFormat` (`:1210`) | the "still default" comparison value (`new Color(0xF5F5F5)`) |
 | `TITLEPATH` constant | `VSAssemblyInfo.java:1538` | `new TableDataPath(-1, TableDataPath.TITLE)` |
+| **Live model — composite assemblies** | `VSCompositeModel` ctor `:36` (`new VSFormatModel(finfo.getFormat(TITLEPATH, false), info)`) | shared by tables/crosstab/calc, selection list/tree/container, calendar, range slider, checkbox, radio |
+| **Live model — chart** | `VSChartModel.setTitleFormat` `:370` | chart title |
+| **Export** | per-type helpers reading `titleFormat.getBackground()` — `ExportUtil.getBackGroundColor(titleFormat, objFormat)` `:108-112`, `VSTableHelper`/`VSCrosstabHelper`/`VSSelectionListHelper`/`VSCurrentSelectionHelper` (+ PDF/SVG/HTML variants) | **no single shared chokepoint — each helper's title draw is a separate seam** |
+
+`VSFormatModel.background` is a CSS **string** (`VSFormatModel.java:314`, built via `VSCSSUtil`), so the
+substitution is done at the `Color` level (comparable to `DEFAULT_TITLE_BG`) before the DTO is built /
+at the export color read, via the resolver's `resolve*(Color)` methods.
 
 ### The gated resolver pattern to mirror
 
@@ -77,20 +97,25 @@ and would produce a live/export mismatch.
 | Table structure | `VSTableStructureDefaults.isModern()` (`:40-45`) | density gate **AND** `viewsheet.modernTableStructure` ≠ `"false"`; overlays a per-assembly Default-Style clone in `DataVSAQuery` (defaults-only, not serialized) |
 | Chart chrome | `VSChartChromeDefaults.isModern()` (`:44-49`) | density gate **AND** `viewsheet.modernChartChrome` ≠ `"false"`; **writes to the CSS tier of descriptor CompositeValues in `CSSChartStyles.apply`** (not serialized; format.css and user picker still win) |
 
-Phase 6A is the CSS-tier variant: it mirrors `VSChartChromeDefaults` most closely, because the title
-format already has a live CSS tier (`updateCSSValues`, `CompositeValue.Type.CSS`) to write into.
+Phase 6A reuses these resolvers' **gate** (`isModern()` shape, org-scoped property + escape hatch) but
+**not** their write mechanism: `VSTableStructureDefaults` overlays a Default-Style clone at query time
+and `VSChartChromeDefaults` writes descriptor CompositeValue CSS-tier slots — neither maps to a
+`VSFormat` title (see the corrected injection point above), so Phase 6A substitutes at read time
+instead.
 
 ## Decisions (proposed — resolve with initiative owner)
 
-### D1 — Inject at the render-time CSS tier, NOT by mutating `setDefaultFormat` → **RECOMMEND YES**
+### D1 — Read-time substitution (defaults-only), NOT a CSS-tier write and NOT `setDefaultFormat` → **RECOMMEND YES** (revised)
 
-`setDefaultFormat` runs at assembly **creation** and its `fmtInfo` is **serialized** with the sheet, so
-seeding modern values there would (a) only affect newly created assemblies, not existing saved
-viewsheets, and (b) dirty saved sheets. Instead, write the modern title bg/fg/border to the **CSS
-tier** (`CompositeValue.Type.CSS`) of the `TITLEPATH` `VSCompositeFormat` on the render path (the
-`:1413-1432` / `updateCSSValues` seam), defaults-only. This is exactly how `VSChartChromeDefaults`
-avoids serialization: the CSS tier is not saved, is beaten by the USER tier (an explicit user title
-format) and by a customer `format.css` `*TITLE` class, and is read by both the live model and export.
+Neither of the first-draft options works (see the corrected injection point): `setDefaultFormat` is
+creation-time + serialized (misses existing sheets, dirties saved sheets), and the title CSS tier is
+dictionary-backed with no writable slot. Instead substitute the modern neutral **at read time** — when
+the live title `VSFormatModel` is built and when export draws the title — **only when the resolved
+color still equals the legacy default**. Because `VSCompositeFormat.getBackground()` resolves
+user → CSS(dictionary) → default, this preserves a user title format and a customer `format.css` TITLE
+class for free, mutates nothing, and serializes nothing. The trade-off vs the chart case is there is
+**no single shared chokepoint**: the live side is a few model builders and the export side is several
+per-type helpers.
 
 ### D2 — Scope = `TitledVSAssemblyInfo` only; gauge/text/image excluded → **RECOMMEND YES**
 
@@ -119,11 +144,12 @@ reflows layout). Only background/foreground/border are neutral-repointed.
 Both are gated server-side `VSFormat`-default resolvers over overlapping assemblies. Land 6A first (or
 together with 7B) so a modern KPI's title bar and value body modernize as one system.
 
-## Changes — PROPOSED
+## Changes
 
-### 1. New resolver `VSTitleChromeDefaults` (`core/.../uql/viewsheet/internal/`)
+### 1. New resolver `VSTitleChromeDefaults` (`core/.../uql/viewsheet/internal/`) — DONE (2026-07-14)
 
-Mirror `VSChartChromeDefaults` exactly:
+Mirrors `VSChartChromeDefaults`' gate + `resolveAxisLineColor` substitution shape. Pure, no render
+dependency:
 
 ```java
 public static boolean isModern() {
@@ -133,24 +159,115 @@ public static boolean isModern() {
 public static Color titleBackground() { return TITLE_BG; }      // 0xF1EFEA
 public static Color titleForeground() { return TITLE_FG; }      // 0x6A685F
 public static Color titleBorderColor() { return TITLE_BORDER; } // 0xD9D5CC
+// defaults-only substitution: modern iff gate on AND current is still the legacy default
+public static Color resolveBackground(Color current) { … LEGACY_TITLE_BG.equals(current) … }
+public static Color resolveForeground(Color current) { … current == null … }
 ```
 
-### 2. Apply defaults-only at the title CSS-tier seam (`VSAssemblyInfo`)
+Unit test `VSTitleChromeDefaultsTest` (Spring/`@SreeHome` harness like `CSSChartStylesModernChromeTest`):
+6 tests, all passing — palette pins, gate-off pass-through, gate-on defaults-only substitution, and
+the `modernObjectChrome=false` escape hatch.
 
-In the `TitledVSAssemblyInfo` render-time CSS block (`:1413-1432` / alongside `updateCSSValues`), when
-`VSTitleChromeDefaults.isModern()`, write the modern title background/foreground/bottom-border to the
-CSS tier of the `TITLEPATH` `VSCompositeFormat` via `CompositeValue.Type.CSS` — **only where the value
-is still the legacy default** (background still `DEFAULT_TITLE_BG`, no USER-tier override). This keeps
-the USER tier and any customer `format.css` `*TITLE` class winning, and is not serialized.
+### 2. Wire the read-time substitution seams — DONE (2026-07-14; `core` compiles clean)
 
-### 3. Palette swatches
+Each title-format fetch is wrapped with `VSTitleChromeDefaults.applyModernDefaults(...)` (gate-off /
+non-default returns the original object → byte-identical). Verified: every titled assembly builds its
+live title independently (NOT all through `VSCompositeModel`), so each was wired:
+
+- **Live model:** `BaseTableModel` (tables/crosstab/calc), `VSChartModel` (chart), `VSCompositeModel`
+  (selection list/tree via `VSSelectionBaseModel`, current-selection container via
+  `VSSelectionContainerModel`), `VSCheckBoxModel`, `VSRadioButtonModel`, `VSRangeSliderModel`,
+  `VSCalendarModel`.
+- **Export:** `VSTableDataHelper` (table/crosstab), `VSSelectionListHelper`, `VSSelectionTreeHelper`,
+  `AbstractVSExporter` (chart title→TextVSAssembly, chart title format, calendar title),
+  `ExportUtil.getBackGroundColor` (range slider / current selection background).
+
+First pass substitutes **background + foreground** only; the bottom-border neutral (`titleBorderColor`)
+is available on the resolver but not yet applied (border affects title layout — deferred to keep the
+first pass parity-safe).
+
+#### Eye-test round 1 findings (2026-07-14, PDF export)
+
+- **`isModern()` confirmed true at export** — the modern chart chrome (`#6a685f`/`#35342f`/`#e8e5de`)
+  is baked into the PDF, so the org gate resolves on the export thread. Not a gate problem.
+- **Background substitution mechanism verified** end-to-end by unit test
+  (`applyModernDefaultsResolvesModernBackground`): a title format with the legacy default bg resolves
+  `getBackground()` → `#f1efea`.
+- **Foreground bug fixed** — an un-customized title foreground resolves to **black**, not `null`, so
+  the original `current == null` check never fired. `resolveForeground` now treats null-or-black as
+  the default.
+- **Chart title needed a special seam** — the chart title is exported as a synthesized
+  `TextVSAssembly` drawn via `writeText`, which uses the assembly's **OBJECT** format, not the title
+  format. Wrapping the title `getFormat` there was dead code. Fixed by giving the synthesized
+  title-text a private (cloned) `FormatInfo` whose OBJECT background/foreground carry the resolved
+  modern title colors (chart body format untouched, gate-off byte-identical),
+  `AbstractVSExporter` chart-title block.
+- Other export helpers (calendar `drawTextBox`, table/selection `writeText(bounds, format, …)`) draw
+  from the title format directly, so their `applyModernDefaults` wrap is effective as-is.
+
+#### Eye-test round 2 findings (2026-07-14, PDF export) — unified export seam
+
+Round-1 fixes landed chart + table titles, but calendar / checkbox / selection-list object titles
+stayed legacy. Root cause: export draws titles at **~15 per-widget / per-format sites** (base +
+`pdf/` + `svg/` + `html/` helpers — e.g. `PDFSelectionListHelper`, `PDFCurrentSelectionHelper`,
+`HTMLCoordinateHelper`), and the base-helper wraps only covered a few; several widgets (checkbox,
+standalone selection list, calendar object title) draw through paths that were never wrapped.
+
+Fix — **one unified seam instead of 15**: the exporter clones the whole viewsheet
+(`AbstractVSExporter` `viewsheet = viewsheet.clone()`) and calls `prepareAssembly(assembly)` per
+assembly before drawing. `prepareAssembly` now calls `VSTitleChromeDefaults.applyModernDefaultsInPlace`
+on the title format of every `TitledVSAssemblyInfo`, mutating the **cloned** assembly's title-format
+default tier — so every downstream title draw (any widget, any format) reads the modern chrome from
+the one shared format. Gated + defaults-only; mutates nothing persisted (export copy). The chart title
+keeps its dedicated fix (it renders as a synthesized `TextVSAssembly`, not a titled assembly).
+
+The earlier per-site export wraps are now redundant (they see an already-modern format and pass
+through) — harmless, flagged for cleanup after the eye-test confirms.
+
+#### Eye-test round 3 findings (2026-07-14) — print-layout is a third pipeline
+
+Non-print PDF export now correct, but **print-layout PDF** kept legacy titles. Cause: print-layout
+export uses a **separate converter**, `VsToReportConverter` (not `AbstractVSExporter`), which builds
+the title as a report textbox in `createTitle` and fetches the title format at its own seam. Fixed by
+wrapping that fetch (`VsToReportConverter.createTitle`, the `getFormat(TITLE)` call) with
+`applyModernDefaults` — gated + defaults-only, non-mutating. Chart/table/selection/calendar take the
+textbox's `detailfmt` directly so they modernize; checkbox/radio are `CompoundVSAssembly` and null
+their title bg by design (unchanged), their title text still modernizes.
+
+So the title chrome now has **three** render entry points, each wired: live model builders,
+`AbstractVSExporter.prepareAssembly` (interactive/normal export), and `VsToReportConverter.createTitle`
+(print-layout export).
+
+#### Eye-test round 4 findings (2026-07-14) — resolver too narrow + chart print path
+
+Print-layout fixed checkbox but not chart/calendar. Two causes:
+
+1. **Resolver was keyed on `bg == #f5f5f5`**, but legacy title default backgrounds **vary by widget**:
+   chart `#ffffff`, calendar `#f5f5f5`, selection-list / checkbox transparent (null). So the substitution
+   only fired for calendar-like defaults. **Redesigned:** substitute the modern neutral whenever the
+   **user (USER tier) / format.css (CSS tier) has *not* set the value** — regardless of the default
+   color — so all widgets get one consistent modern title bar, and only an explicit user/format.css
+   color is preserved. (`isBackgroundCustomized`/`isForegroundCustomized`.) The old `resolveBackground`/
+   `resolveForeground(Color)` are removed (they couldn't see the tiers).
+2. **Print-layout chart title uses `addChart` → `addTextBoxElement0`**, not `createTitle`, so nothing
+   reached it. Wired via `applyModernDefaultsInPlace` on the cloned chart's title format
+   (`VsToReportConverter.addChart`).
+
+Print-layout title paths now both wired: `VsToReportConverter.createTitle` (table / selection /
+checkbox / current-selection) and `VsToReportConverter.addChart` (chart). Checkbox/radio still null
+their title bg by design in print layout (their title text modernizes).
+
+Still requires a render/export **parity eye-test** (clean rebuild) before merge.
+
+### 3. Palette swatches — PENDING
 
 Add the "Object / Title Chrome Tokens" group (D3) coordinated with the table-structure and
 chart-chrome neutrals.
 
-**Gate off:** byte-identical (resolver short-circuits on `isModern()==false`; no CSS-tier write).
-**Gate on:** titled assemblies render the warm-neutral title bar in the live model and every export
-format; user-set title formats and customer `format.css` TITLE classes still win.
+**Gate off:** byte-identical (`resolve*` short-circuits on `isModern()==false`, returning the input
+unchanged — proven by the unit test). **Gate on (after wiring):** titled assemblies render the
+warm-neutral title bar in the live model and every export format; user-set title formats and customer
+`format.css` TITLE classes still win.
 
 ## Validation
 
