@@ -24,6 +24,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CalendarUtil;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSTitleChromeDefaults;
 import inetsoft.web.viewsheet.model.*;
 import org.springframework.stereotype.Component;
 
@@ -40,7 +41,7 @@ public class VSCalendarModel extends VSObjectModel<CalendarVSAssembly> {
         (CalendarVSAssemblyInfo) assembly.getVSAssemblyInfo();
       FormatInfo fmtInfo = assemblyInfo.getFormatInfo();
       TableDataPath dataPath = new TableDataPath(-1, TableDataPath.TITLE);
-      VSCompositeFormat compositeFormat = fmtInfo.getFormat(dataPath, false);
+      VSCompositeFormat compositeFormat = VSTitleChromeDefaults.applyModernDefaults(fmtInfo.getFormat(dataPath, false));
       titleFormat = new VSFormatModel(compositeFormat, assemblyInfo);
 
       dataPath = new TableDataPath(-1, TableDataPath.CALENDAR_TITLE);
