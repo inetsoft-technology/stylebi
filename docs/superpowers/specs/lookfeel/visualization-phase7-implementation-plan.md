@@ -287,6 +287,48 @@ because StyleBI's controls render most of their appearance from the server `VSFo
 component CSS. That is expected and correct — the bulk of KPI/control theming is inherently Part B
 (server-side), and Part A is the thin, safe, live-only slice.
 
+**Implementation status (as executed 2026-07-16, `viz-updates`, community CSS only).** The
+parity-safe slice actually shipped is even thinner than proposed — A1 colors + A4 only:
+
+- **A1 (shipped, colors only).** `.dropdown-item` hover/selected repointed to
+  `--inet-viz-hover-bg` / `--inet-viz-selected-bg` / `--inet-viz-selected-text`, all gate-off
+  byte-identical, crossing the body-portal via the custom-property cascade (NOT `:host-context` —
+  the dropdown is appended to `document.body` by `fixed-dropdown.service`, so a `:host-context`
+  ancestor selector cannot reach it). **A1-density deferred** (token `:root` ≠ current padding, and
+  CDK `[itemSize]="35"` pins row height).
+- **A1 real-world limitation (native `<select>`).** `.dropdown-item` is only rendered when
+  `model.labels.length > 500` (`vs-combo-box.component.html:71`); the common `≤ 500` path is a
+  native `<select>`/`<option>` (`:60-69`) whose hover/selected highlight is **browser/OS-owned and
+  not CSS-themeable** (`accent-color` does not cover `<select>` options; `appearance: base-select`
+  is Chromium-only). So A1 is effectively inert for typical combos and reaches only large
+  (>500-option) combos. Making all combos adopt the modern state would require always using the
+  custom dropdown — an interaction/accessibility change (keyboard nav, ARIA, dynamic height vs the
+  fixed `min-height:350px`), out of scope for a theming pass and not appropriate to couple to a
+  visual gate. Treat native `<select>` option styling as a native-control boundary, analogous to
+  the server-render boundary.
+- **A2 deferred (no CSS anchor).** combo/spinner/text-input all render at `height:100%` of their
+  server-sized assembly box; there is no CSS control-height to repoint. Embedded-control density is
+  inherently server-side (`VSDensityDefaults`).
+- **A3 deferred (no live-DOM consumer).** `--inet-viz-filtered-bg` still has zero consumers: the
+  selection item state is inline `cellFormat.background` from server `VSFormat`
+  (`selection-list-cell.component.html:21`) and the range-slider band is a PNG asset. No CSS overlay
+  layer exists to attach the token to without either the Part B server seam or a new
+  double-rendering overlay.
+- **A4 (shipped, gate-scoped).** `:host-context(.viz-modern)` block in `vs-slider.component.scss`
+  repoints `--slider-*` to warm-neutrals (`#E8E5DE` inactive / `#C8C2B7` active / `#6A685F`
+  handle+tick+label). Live view only. **Export mismatch is expected** — see B4.
+
+**B4 — Slider server-render counterpart (export parity for A4).** The exported/server-image slider
+is painted by `VSSlider.java`, which **hardcodes the same four colors** as the CSS (see
+`VSSlider.java:366-375`, comment "mirror vs-slider.component.scss": `INACTIVE_TRACK 224,224,224` /
+`ACTIVE_TRACK 158,158,158` / `HANDLE 158,158,158` / `TICK 0,0,0,97`). Under the modern gate these
+should swap to the A4 warm-neutrals so live and every export format agree. Lower-risk than the KPI
+`VSFormat` seam because these are **pure chrome constants, not user-formattable** (only the tick
+label uses `format.getForeground()`), so gating them touches no user-format merge and is gate-off
+byte-identical. Gate on `VSDensityDefaults.isModern()` (or the `VSOutputChromeDefaults` gate);
+validate PDF/PNG/SVG/Excel parity. A `VSTimeSlider.java` counterpart likely carries the same
+constants for the range-slider band (verify).
+
 ### Part B — Server-side KPI hierarchy/emphasis + control-box defaults (gated resolver; needs owner go-ahead + Phase 6A coordination)
 
 Export-affecting server work. Mirrors `VSTableStructureDefaults` / `VSChartChromeDefaults`.
@@ -375,8 +417,11 @@ item in Phase 7.
    Phase 8).
 4. **Object title-bar modernization (Phase 6A)** — `VSTitleChromeDefaults`, unbuilt; a hard
    coordination dependency for Part B (KPI/control title bars). Sequence Part B alongside or after it.
-5. **Slider neutral repoint (Part A / A4)** — hardcoded track/handle colors, not parity-safe;
-   gate-scoped only or defer (D3).
+5. **Slider server-render counterpart (B4)** — A4 shipped the live-view CSS neutrals (gate-scoped);
+   the exported/server-image slider is still legacy because `VSSlider.java` hardcodes the mirror
+   colors. Gate those four constants on the modern flag for live/export parity (pure chrome, not
+   user-formattable → low-risk, gate-off byte-identical). Check `VSTimeSlider.java` for the
+   range-slider band. Export-affecting → needs owner go-ahead + PDF/PNG/SVG/Excel parity.
 6. **Gauge face modernization** — a themed asset + descriptor pass, distinct from the `VSFormat` seam
    (D8); Part B may seed a neutral value-fill but the modern face is deferred.
 7. **Input control-box server defaults (Part B / B3)** — low value; controls rarely carry exported
