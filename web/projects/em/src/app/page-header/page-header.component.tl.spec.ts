@@ -80,7 +80,11 @@ function makeModel(overrides: Omit<Partial<EmPageHeaderModel>, "isMultiTenant"> 
    };
 }
 
-type OnRefreshEvent = { provider?: string; providerChanged?: boolean; renameOnly?: boolean };
+interface OnRefreshEvent {
+   provider?: string;
+   providerChanged?: boolean;
+   renameOnly?: boolean;
+}
 
 interface RenderOptions {
    modelProvider: () => EmPageHeaderModel;

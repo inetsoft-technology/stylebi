@@ -42,6 +42,14 @@
  * than a few illustrative examples: if a future edit moves any of these titles into (or a
  * currently-listed title out of) `orgPages`, this file breaks.
  *
+ * That grep pattern misses two real titles because their components inject the service under a
+ * different parameter name (`pageHeader` / `pageTitleService` instead of `pageTitle`); both are
+ * still real and still not allow-listed, so they're included below despite not matching the grep:
+ * - sso-settings-page.component.ts:126 (constructor, param `pageHeader`) sets
+ *   "_#(js:Security Settings: SSO)".
+ * - search-results-view.component.ts:45 (ngOnInit, param `pageTitleService`) sets
+ *   "_#(js:Search Results)".
+ *
  * Two components set their title conditionally rather than once in ngOnInit:
  * - presentation-settings-view.component.ts:116-122 sets "_#(js:Organization Presentation
  *   Settings)" when `@Input() orgSettings` is true (allow-listed — the "shows" side, already
@@ -49,8 +57,8 @@
  *   Settings tab — not allow-listed, listed below).
  * - security-settings-page.component.ts:88 sets the parent "_#(js:Security Settings)" title in
  *   its own ngOnInit(); the Users/Actions/Provider/Google-sign-in child tabs each override it in
- *   their own ngOnInit(), but sso-settings-page.component.ts never sets its own title, so it's the
- *   one child tab where the parent's (non-allow-listed) title is what's actually visible.
+ *   their own ngOnInit(), and sso-settings-page.component.ts overrides it too (see above) — so
+ *   the parent's own title is never actually the one shown for any of its child tabs.
  *
  * A few parent/wrapper components (content-settings-view.component.ts:61, schedule-settings-
  * page.component.ts:64) set a plain, non-i18n-wrapped literal ("Content Settings"/"Schedule
@@ -77,6 +85,7 @@ const NON_ORG_PAGE_TITLES: Array<[label: string, title: string]> = [
    ["Security Settings Provider", "_#(js:Security Settings Provider)"],
    ["Security Settings (SSO's inherited parent title)", "_#(js:Security Settings)"],
    ["Security Settings: Sign In With Google", "_#(js:Security Settings:Sign In With Google)"],
+   ["Security Settings: SSO", "_#(js:Security Settings: SSO)"],
 
    // Settings — Content
    ["Content: Data Space", "_#(js:Data Space)"],
@@ -103,6 +112,9 @@ const NON_ORG_PAGE_TITLES: Array<[label: string, title: string]> = [
    // Monitoring (Auditing has none: every one of its 12 sub-pages is allow-listed — see header)
    ["Monitoring (summary parent wrapper)", "_#(js:Monitoring)"],
    ["Monitoring: Logs", "_#(js:Logs)"],
+
+   // Search
+   ["Search Results", "_#(js:Search Results)"],
 
    // Misc
    ["Manage Favorites", "_#(js:Manage Favorites)"],
