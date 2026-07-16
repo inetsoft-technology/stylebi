@@ -159,6 +159,38 @@ class ScriptHostAccessTest {
       }
    }
 
+   /**
+    * Bug #75690 (follow-up): the fix is intentionally general (any
+    * {@code @FunctionalInterface}), not just Predicate/Consumer. Verify a
+    * Comparator — a single-method interface whose method returns int rather than
+    * boolean/void — also adapts from a JS function.
+    */
+   @Test void jsFunctionAdaptsToComparator() {
+      try(Context ctx = newContext()) {
+         ctx.getBindings("js").putMember("h", new Sample());
+         // natural-order Comparator; the JS function's numeric result adapts to int
+         Object max = ScriptValueConverter.toHost(
+            ctx.eval("js", "h.maxBy((a, b) => a - b)"));
+         assertEquals(3, ((Number) max).intValue());
+      }
+   }
+
+   /**
+    * Bug #75690 (follow-up): the allowance is scoped to
+    * {@code @FunctionalInterface} types. A JS object must NOT be able to satisfy a
+    * plain multi-method interface, confirming the widening did not open arbitrary
+    * interface implementation.
+    */
+   @Test void jsObjectDoesNotSatisfyMultiMethodInterface() {
+      try(Context ctx = newContext()) {
+         ctx.getBindings("js").putMember("h", new Sample());
+         assertThrows(PolyglotException.class,
+            () -> ctx.eval("js",
+               "h.useMulti({ first: function() { return 'a'; }, " +
+               "second: function() { return 'b'; } })"));
+      }
+   }
+
    public static class Sample {
       @org.graalvm.polyglot.HostAccess.Export public String allowed() { return "ok"; }
       public String denied() { return "no"; }
@@ -166,5 +198,19 @@ class ScriptHostAccessTest {
       public java.util.stream.Stream<Integer> numbers() {
          return java.util.stream.Stream.of(1, 2, 3);
       }
+      @org.graalvm.polyglot.HostAccess.Export
+      public int maxBy(java.util.Comparator<Integer> cmp) {
+         return java.util.stream.Stream.of(1, 2, 3).max(cmp).get();
+      }
+      @org.graalvm.polyglot.HostAccess.Export
+      public String useMulti(MultiMethod m) {
+         return m.first() + m.second();
+      }
+   }
+
+   /** Plain (non-@FunctionalInterface) multi-method interface for the negative case. */
+   public interface MultiMethod {
+      String first();
+      String second();
    }
 }
