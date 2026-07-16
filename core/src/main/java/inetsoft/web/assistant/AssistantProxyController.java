@@ -147,26 +147,12 @@ public class AssistantProxyController {
       // Without these the assistant only sees its internal hostname (e.g. assistant-client)
       // instead of the public StyleBI hostname, causing redirect validation to fail in
       // non-localhost production deployments.
-      // Prefer an X-Forwarded-Host already set by an upstream trusted proxy; only fall back to
-      // the raw Host header when StyleBI is contacted directly. This prevents a client from
-      // spoofing the forwarded host when StyleBI is behind a load balancer that sets this header.
-      String forwardedHost = request.getHeader("x-forwarded-host");
-
-      if(forwardedHost == null) {
-         forwardedHost = request.getHeader(HttpHeaders.HOST);
-      }
-
-      if(forwardedHost != null) {
-         proxyRequest.setHeader("x-forwarded-host", forwardedHost);
-      }
-
-      String forwardedProto = request.getHeader("x-forwarded-proto");
-
-      if(forwardedProto == null) {
-         forwardedProto = request.getScheme();
-      }
-
-      proxyRequest.setHeader("x-forwarded-proto", forwardedProto);
+      // request.getServerName()/getScheme() already reflect X-Forwarded-Host/Proto when the
+      // connecting peer is a trusted proxy (server.forward-headers-strategy=native, Tomcat's
+      // RemoteIpValve), and the raw connection values otherwise, so these are safe to forward
+      // as-is without re-reading the inbound headers directly.
+      proxyRequest.setHeader("x-forwarded-host", LinkUriArgumentResolver.getRequestHost(request));
+      proxyRequest.setHeader("x-forwarded-proto", request.getScheme());
 
       // Disable compression so the response can be streamed incrementally.
       // Gzip requires buffering the full stream before decompression.

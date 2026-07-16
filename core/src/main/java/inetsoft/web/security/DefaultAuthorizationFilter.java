@@ -21,7 +21,6 @@ import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.SessionLicenseServiceProvider;
-import inetsoft.uql.XPrincipal;
 import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
@@ -70,7 +69,7 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
          recordedOrgID = recordedOrgID == null ? SUtil.getLoginOrganization(httpRequest) : recordedOrgID;
          recordedOrgID = recordedOrgID == null ? getCookieRecordedOrgID((HttpServletRequest) request) : recordedOrgID;
 
-         if((principal == null || principal.getName().equals(XPrincipal.ANONYMOUS)) &&
+         if((principal == null || isAnonymousPrincipal(principal)) &&
             // if there is a user explicitly named "anonymous", it is an allowed guest login
             (engine == null || !engine.containsAnonymous(recordedOrgID)))
          {
@@ -78,7 +77,7 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
          }
       }
       else if(isEnterpriseManager(httpRequest)) {
-         if(principal == null || principal.getName().equals(XPrincipal.ANONYMOUS) ||
+         if(principal == null || isAnonymousPrincipal(principal) ||
             !provider.checkPermission(principal, ResourceType.EM, "*", ResourceAction.ACCESS))
          {
             unauthorized = true;

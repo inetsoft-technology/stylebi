@@ -113,6 +113,17 @@ public class TableAssemblyScriptable extends TableArray {
       }
    }
 
+   /**
+    * A worksheet table referenced by name from a script represents the table's
+    * own data, so a bare column reference should return that column's values as
+    * a flat table rather than being routed to grouped/crosstab summary cells.
+    * (#75663)
+    */
+   @Override
+   protected boolean isBaseTableReference() {
+      return true;
+   }
+
    @Override
    public XTable getElementTable() {
       // @by billh, fix customer bug bug1300398961679

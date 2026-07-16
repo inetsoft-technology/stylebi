@@ -16,11 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import { of, Subject } from "rxjs";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subject } from "rxjs";
 import { BindingTreeService } from "../../../widget/binding-tree/binding-tree.service";
 import { BindingService } from "../../../services/binding.service";
 import { RecentColorService } from "../../../../widget/color-picker/recent-color.service";
+import { DateLevelExamplesService } from "../../../../common/services/date-level-examples.service";
+import { ModelService } from "../../../../widget/services/model.service";
 
 /** Minimal NgbModal mock — ModelService.handleError → ComponentTool.showMessageDialog needs open(). */
 export function createNgbModalMock() {
