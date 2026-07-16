@@ -729,7 +729,13 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       ColumnSelection columns = getTable().getColumnSelection();
       ConditionListWrapper wrapper = getPostConditionList();
       ConditionList conds = wrapper.getConditionList();
-      AggregateInfo aggregateInfo = getAggregateInfo();
+      // mergeGroupBy() (called before this method in merge()) clears the AggregateInfo
+      // returned by getAggregateInfo() in place once it successfully merges a real GROUP
+      // BY (gmerged == true), so getAggregateInfo() would look empty here even for a
+      // genuinely aggregating level. Use the pre-merge snapshot in that case, matching
+      // the existing gmerged ? ginfo : getAggregateInfo() idiom used elsewhere (see
+      // getAggregate()).
+      AggregateInfo aggregateInfo = gmerged ? ginfo : getAggregateInfo();
 
       // add required columns for post process
       // condition hide by vpm? do not merge it
@@ -761,16 +767,38 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       ConditionListHandler handler = new PostConditionListHandler();
       XUtil.convertDateCondition(conds, vars);
       XFilterNode fnode = createXFilterNode(handler, conds, nsql, vars);
-      XFilterNode oroot = nsql.getHaving();
 
-      if(oroot == null) {
-         nsql.setHaving(fnode);
+      // If this query level doesn't aggregate on its own (e.g. a mirror/pass-through
+      // over an already-aggregated subquery), the referenced columns are plain values
+      // from this level's perspective, so the condition must be a WHERE. A HAVING with
+      // no GROUP BY implicitly treats the whole result as one aggregate group, which
+      // strict dialects (e.g. Derby) reject once the SELECT list has non-aggregate
+      // columns.
+      if(aggregateInfo.isEmpty()) {
+         XFilterNode oroot = nsql.getWhere();
+
+         if(oroot == null) {
+            nsql.setWhere(fnode);
+         }
+         else {
+            XSet nroot = new XSet(XSet.AND);
+            nroot.addChild(oroot);
+            nroot.addChild(fnode);
+            nsql.setWhere(nroot);
+         }
       }
       else {
-         XSet nroot = new XSet(XSet.AND);
-         nroot.addChild(oroot);
-         nroot.addChild(fnode);
-         nsql.setHaving(nroot);
+         XFilterNode oroot = nsql.getHaving();
+
+         if(oroot == null) {
+            nsql.setHaving(fnode);
+         }
+         else {
+            XSet nroot = new XSet(XSet.AND);
+            nroot.addChild(oroot);
+            nroot.addChild(fnode);
+            nsql.setHaving(nroot);
+         }
       }
 
       conds.removeAllItems();

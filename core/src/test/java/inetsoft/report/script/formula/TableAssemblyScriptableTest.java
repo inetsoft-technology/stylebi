@@ -20,6 +20,9 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.*;
 
+import inetsoft.report.TableLens;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -115,6 +118,28 @@ class TableAssemblyScriptableTest {
       //test put object
       tableAssemblyScriptable.putMember("table", objData);
       assertNull(tableAssemblyScriptable.getElementTable());
+   }
+
+   /**
+    * #75663: a worksheet table referenced by name from a script reads its column
+    * values as a flat table, so its bare-column access must bypass the grouped/
+    * crosstab summary-cell routing (a shared source table can carry a spurious
+    * runtime crosstab descriptor pushed down by a crosstab-optimized freehand).
+    */
+   @Test
+   void isBaseTableReferenceTrueForWorksheetTable() {
+      assertTrue(tableAssemblyScriptable.isBaseTableReference());
+   }
+
+   /**
+    * #75663: a cube/OLAP table is genuinely pivot-shaped, so its by-name reference
+    * must retain the crosstab summary-cell routing (must NOT read flat).
+    */
+   @Test
+   void isBaseTableReferenceFalseForCubeTable() {
+      CubeTableAssemblyScriptable cube = new CubeTableAssemblyScriptable(
+         "testTable", mockSandbox, AssetQuerySandbox.LIVE_MODE, mock(TableLens.class));
+      assertFalse(cube.isBaseTableReference());
    }
 
    // Custom log appender for testing

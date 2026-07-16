@@ -17,6 +17,7 @@
  */
 package inetsoft.report.script;
 
+import inetsoft.report.filter.CalcFilter;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
@@ -26,6 +27,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.util.Arrays;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -80,6 +84,52 @@ class TableArrayTest {
       assertFalse(arr.hasMember("nonexistent"));
       assertFalse(arr.hasMember("toString"));
       assertFalse(arr.hasMember("then"));
+   }
+
+   /**
+    * Minimal {@code CalcFilter} (e.g. a crosstab) stub exposing a fixed set of
+    * measure/aggregate headers, without needing a full CrossTabFilter setup.
+    */
+   private static class MeasureTableLens extends DefaultTableLens implements CalcFilter {
+      MeasureTableLens() {
+         super(new Object[][] {
+            { "col1", "col2" },
+            { "a", 1 }
+         });
+      }
+
+      @Override
+      public void setMeasureNames(String[] names) {
+      }
+
+      @Override
+      public List<String> getMeasureHeaders() {
+         return Arrays.asList("Sum(category_id)", "Sum(customer_id)");
+      }
+   }
+
+   @Test
+   void hasMemberReportsBareMeasureNamesPresent() {
+      // #75647: a calc table's grand-total cell has no row/col group, so its formula
+      // is a bare reference like data['Sum(category_id)'] with no "@group:value"
+      // qualifier. The measure name never appears as a literal column header (that
+      // identity varies per data cell, not per fixed column), so hasMember must
+      // special-case it the same way it already does for bare dimension names.
+      TableArray arr = new TableArray(new MeasureTableLens());
+
+      assertTrue(arr.hasMember("Sum(category_id)"),
+         "bare measure name must be present so GraalJS dispatches getMember");
+      assertTrue(arr.hasMember("Sum(customer_id)"));
+      assertFalse(arr.hasMember("Sum(nonexistent)"),
+         "a name that isn't a measure header must not be over-claimed as present");
+   }
+
+   @Test
+   void isBaseTableReferenceDefaultsFalse() {
+      // #75663: a plain TableArray (e.g. a calc-table's own `data`, or a chart/
+      // table-bound array) is NOT a by-name worksheet-table reference, so it must
+      // retain the grouped/crosstab summary-cell routing in NamedCellRange.
+      assertFalse(new TableArray(table()).isBaseTableReference());
    }
 
    @Test

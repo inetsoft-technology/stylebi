@@ -170,6 +170,12 @@ public class ChartVSAScriptableTest {
       //put chart style
       chartVSAScriptable.putMember("chartStyle", StyleConstants.CHART_LINE);
       assertEquals(StyleConstants.CHART_LINE, chartVSAssemblyInfo.getChartStyle());
+
+      //under GraalJS a numeric constant (e.g. Chart.CHART_MAP) unwraps to a
+      //Double, so chartStyle must be coerced via Number rather than a hard
+      //(Integer) cast that throws ClassCastException. (Bug #75679)
+      chartVSAScriptable.putMember("chartStyle", (double) StyleConstants.CHART_BAR);
+      assertEquals(StyleConstants.CHART_BAR, chartVSAssemblyInfo.getChartStyle());
    }
 
    @Test
