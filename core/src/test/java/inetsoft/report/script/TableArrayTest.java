@@ -77,6 +77,21 @@ class TableArrayTest {
    }
 
    @Test
+   void hasMemberReportsExpressionAndSummaryRangesPresent() {
+      // #75662: table['=<expr>'] (expression range, evaluated per row) and
+      // table['{<agg>}'] (summary range) are resolved lazily in getMember via
+      // NamedCellRange. Util.findColumn can never match them as literal columns,
+      // so hasMember must report them present -- otherwise the reference reads as
+      // undefined and indexing it (e.g. table['=col2 + col3'][row]) throws.
+      TableArray arr = new TableArray(table());
+
+      assertTrue(arr.hasMember("=col1 + col2"),
+         "leading-'=' expression range must be present so GraalJS dispatches getMember");
+      assertTrue(arr.hasMember("{Sum(col2)}"),
+         "'{...}' summary range must be present so GraalJS dispatches getMember");
+   }
+
+   @Test
    void hasMemberRejectsNonColumns() {
       TableArray arr = new TableArray(table());
 
