@@ -24,7 +24,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -79,6 +81,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    // be unlikely to collide with any user-declared identifier. (#75596)
    private static final String RESULT_VAR = "__inetsoft_script_result__";
    private static final String HOIST_ERR_VAR = "__inetsoft_hoist_err__";
+   // Holds each top-level statement's value in the multi-statement completion
+   // wrapper (#75688). Same collision-avoidance rationale as RESULT_VAR.
+   private static final String VALUE_VAR = "__inetsoft_script_value__";
 
    // Bug #75625: matches the `this` keyword as an identifier token. Used to decide
    // whether a script body needs the (slower) direct-eval wrapper that binds
@@ -477,6 +482,42 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // it to preserve the prior behavior.
       String body = stripStrictDirectives(cmd);
 
+      // Bug #75688: Rhino preserved the "last non-empty" statement-list
+      // completion value — an `if(false)` with no `else`, or a loop that never
+      // entered its body, produced an *empty* completion, so a value-producing
+      // statement followed by such a control-flow statement kept the earlier
+      // value. GraalJS follows current ECMAScript, where those statements
+      // complete with `undefined`, which *overwrites* the earlier value
+      // (§14.6.7 IfStatement + the StatementList UpdateEmpty rule). Script-based
+      // value and format bindings depend on the old semantics — e.g. a
+      // cell-background formula
+      //     if(price > 500) { [237,211,237] }  if(row > 1) { ... }
+      // whose intended color is the first array whenever the trailing `if` does
+      // not itself yield a value (see ViewsheetSandbox.executeDynamicValue).
+      //
+      // The completion value only diverges from Rhino when a value-producing
+      // statement is followed by another top-level statement whose completion can
+      // be empty — a control-flow statement whose body is not entered
+      // (`if(false)`, an unrun loop, an empty block) or a declaration. Only then
+      // does ECMAScript discard the earlier value that Rhino would have kept.
+      // splitTopLevelStatements breaks the body precisely before such statements
+      // (a plain expression statement is never split off, since its value is the
+      // completion in both engines). So when it yields more than one piece, at
+      // least one such statement follows an earlier one: evaluate each piece in
+      // order and keep the last non-`undefined` result, restoring the Rhino
+      // behavior. A single-piece body — no top-level statement that can complete
+      // empty follows another — falls through to the fast paths below unchanged,
+      // so the #75625 parse-once optimization is preserved for the hot path
+      // (value/expression bindings, per-row/per-cell formulas). Each piece is
+      // parse-validated (piecesAllParse); a body that does not split cleanly
+      // falls back to the single-eval path, so this can never turn valid source
+      // into an invalid statement piece.
+      List<String> statements = splitTopLevelStatements(body);
+
+      if(statements.size() > 1 && piecesAllParse(statements)) {
+         return buildCompletionPreservingSource(body, statements);
+      }
+
       // Bug #75625: the direct-eval wrapper below re-parses the script body on
       // *every* execution — GraalJS does not cache a direct eval's argument — so
       // per-row/per-cell formula evaluation (calc/freehand tables, value and
@@ -519,6 +560,398 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          "(function(){with(__scope__){var " + RESULT_VAR + "=eval(" + toJsStringLiteral(body) +
             ");" + hoist + "return " + RESULT_VAR + ";}}).call(__scope__)", "<cmd>")
          .buildLiteral();
+   }
+
+   /**
+    * Build a completion-value-preserving {@code Source} for a body that has more
+    * than one top-level statement (#75688). Each statement is evaluated in order
+    * inside a single {@code with(__scope__)} function whose {@code this} is the
+    * scope (matching the {@link #compile} eval wrapper), keeping the last
+    * non-{@code undefined} result — the Rhino "last non-empty completion"
+    * behavior. Top-level {@code var}/{@code function} declarations still persist
+    * across scripts via {@link #buildDeclarationHoist} (#75596), and — because
+    * each piece is a direct, non-strict {@code eval} in the same function — such
+    * declarations remain visible to later pieces just as they were in a single
+    * evaluation. (Top-level {@code let}/{@code const}/{@code class} are confined
+    * to their own piece; this is immaterial for the legacy {@code var}-based
+    * binding scripts this restores.)
+    */
+   private Object buildCompletionPreservingSource(String body, List<String> statements) {
+      StringBuilder sb = new StringBuilder();
+      sb.append("(function(){with(__scope__){var ").append(RESULT_VAR).append(",")
+         .append(VALUE_VAR).append(";");
+
+      for(String stmt : statements) {
+         sb.append(VALUE_VAR).append("=eval(").append(toJsStringLiteral(stmt))
+            .append(");if(").append(VALUE_VAR).append("!==undefined){")
+            .append(RESULT_VAR).append("=").append(VALUE_VAR).append(";}");
+      }
+
+      sb.append(buildDeclarationHoist(body));
+      sb.append("return ").append(RESULT_VAR).append(";}}).call(__scope__)");
+
+      return Source.newBuilder("js", sb.toString(), "<cmd>").buildLiteral();
+   }
+
+   // Keywords that begin a statement whose completion value can be *empty* — the
+   // only statements before which the completion wrapper needs a boundary. A
+   // plain expression statement is never split off (its value is the completion
+   // in both engines), so pieces break only immediately before one of these.
+   private static final Set<String> STATEMENT_STARTERS = Set.of(
+      "if", "for", "while", "do", "switch", "try", "var", "let", "const",
+      "function", "class", "return", "throw", "with", "debugger", "break",
+      "continue", "import", "export");
+
+   // Keywords after which the following token continues the *same* construct or
+   // expression rather than beginning a new statement, so no boundary may be
+   // placed after them: control keywords that introduce a sub-statement
+   // (`else`/`do`), operators that take an operand (`return x`, `new C`,
+   // `typeof f`, `a in b`, …), and `case`. Blends with the prevSig/`)` checks in
+   // splitTopLevelStatements to avoid mistaking a sub-statement/operand for a
+   // sibling statement (e.g. `else if`, `new function(){}`, `return function(){}`).
+   private static final Set<String> SUPPRESS_BOUNDARY_AFTER = Set.of(
+      "return", "throw", "typeof", "void", "delete", "new", "yield", "await",
+      "else", "do", "in", "of", "instanceof", "case");
+
+   // prevSig sentinel: a string/regex/template literal just ended (a value-ender
+   // for both regex-vs-division disambiguation and statement-boundary decisions).
+   private static final char LITERAL_END = '\u0001';
+
+   /**
+    * Split {@code body} into top-level statements for the completion-value
+    * wrapper (#75688), so each can be evaluated in order. This is a lightweight
+    * lexer, not a parser: it walks the source tracking string/regex/template
+    * literals and comments, brace/paren/bracket depth, and the preceding
+    * significant token, and places a boundary immediately before a depth-0
+    * {@link #STATEMENT_STARTERS} keyword when the preceding token completed a
+    * statement or expression.
+    *
+    * <p>Consecutive expression statements are deliberately <em>not</em> split
+    * from one another — their combined completion value is naturally the last
+    * one, so a boundary is only needed before a statement whose completion can be
+    * empty (control-flow/declaration), which is exactly what
+    * {@code STATEMENT_STARTERS} enumerates. A boundary is suppressed when the
+    * preceding significant char is {@code (}…{@code )} (ambiguous with a
+    * control-flow header such as {@code if(...)} whose next statement is the
+    * body), when the previous token is in {@link #SUPPRESS_BOUNDARY_AFTER}
+    * (`else if`, `new function`, …), when a {@code while} closes an open
+    * {@code do} (its trailing {@code while}), and after a member {@code .} (a
+    * keyword used as a property name).
+    *
+    * <p>The result is validated by {@link #piecesAllParse} before use, so even a
+    * mis-placed boundary can never turn valid source into an invalid piece — it
+    * falls back to the single-eval path instead. Under-splitting (leaving pieces
+    * joined) likewise only forgoes the fix for that shape; it never corrupts.
+    */
+   private static List<String> splitTopLevelStatements(String body) {
+      List<String> out = new ArrayList<>();
+      int n = body.length();
+      int depth = 0;
+      int start = 0;
+      int openDo = 0;          // depth-0 `do`s awaiting their trailing `while`
+      char prevSig = 0;        // previous significant char (LITERAL_END for a literal)
+      String prevWord = null;  // previous identifier/keyword token, else null
+      int i = 0;
+
+      while(i < n) {
+         char c = body.charAt(i);
+
+         // line comment
+         if(c == '/' && i + 1 < n && body.charAt(i + 1) == '/') {
+            i += 2;
+
+            while(i < n && !isLineBreak(body.charAt(i))) {
+               i++;
+            }
+
+            continue;
+         }
+
+         // block comment
+         if(c == '/' && i + 1 < n && body.charAt(i + 1) == '*') {
+            i += 2;
+
+            while(i + 1 < n && !(body.charAt(i) == '*' && body.charAt(i + 1) == '/')) {
+               i++;
+            }
+
+            i = Math.min(i + 2, n);
+            continue;
+         }
+
+         // regex literal (only where a `/` cannot be division)
+         if(c == '/' && regexAllowed(body, i, prevSig == LITERAL_END ? ')' : prevSig)) {
+            int end = scanRegexEnd(body, i);
+
+            if(end > 0) {
+               i = end;
+               prevSig = LITERAL_END;
+               prevWord = null;
+               continue;
+            }
+         }
+
+         // string literal
+         if(c == '"' || c == '\'') {
+            i = skipStringLiteral(body, i + 1, c);
+            prevSig = LITERAL_END;
+            prevWord = null;
+            continue;
+         }
+
+         // template literal
+         if(c == '`') {
+            i = skipTemplateLiteral(body, i + 1);
+            prevSig = LITERAL_END;
+            prevWord = null;
+            continue;
+         }
+
+         if(Character.isWhitespace(c)) {
+            i++;
+            continue;
+         }
+
+         // identifier / keyword
+         if(isIdentStart(c)) {
+            int s = i;
+            i++;
+
+            while(i < n && isIdentPart(body.charAt(i))) {
+               i++;
+            }
+
+            String word = body.substring(s, i);
+            boolean afterDot = prevSig == '.';
+
+            if(depth == 0 && !afterDot) {
+               boolean whileTail = word.equals("while") && openDo > 0;
+               // A label (`name:` at statement position, e.g. `outer: for(...)`)
+               // begins a statement whose completion can be empty, but the label
+               // identifier is not itself a keyword; detect it so the boundary is
+               // placed before the label, keeping `label: stmt` together. At
+               // depth 0 an identifier directly followed by `:` is unambiguously a
+               // label (a ternary `:` is always preceded by `?`, i.e. prevSig
+               // there is not boundary-permitting).
+               boolean label = nextSignificantChar(body, i) == ':';
+
+               if(((!whileTail && STATEMENT_STARTERS.contains(word)) || label) &&
+                  s > start && boundaryAllowedBefore(prevSig) &&
+                  (prevWord == null || !SUPPRESS_BOUNDARY_AFTER.contains(prevWord)))
+               {
+                  addStatement(out, body.substring(start, s));
+                  start = s;
+               }
+
+               if(word.equals("do")) {
+                  openDo++;
+               }
+               else if(whileTail) {
+                  openDo--;
+               }
+            }
+
+            prevSig = body.charAt(i - 1);
+            prevWord = afterDot ? null : word;   // a property name isn't a keyword
+            continue;
+         }
+
+         if(c == '(' || c == '[' || c == '{') {
+            depth++;
+         }
+         else if(c == ')' || c == ']' || c == '}') {
+            if(depth > 0) {
+               depth--;
+            }
+         }
+
+         prevSig = c;
+         prevWord = null;
+         i++;
+      }
+
+      if(start < n) {
+         addStatement(out, body.substring(start));
+      }
+
+      return out;
+   }
+
+   /** Add {@code stmt} to {@code out} unless it is blank (whitespace only). */
+   private static void addStatement(List<String> out, String stmt) {
+      if(!stmt.trim().isEmpty()) {
+         out.add(stmt);
+      }
+   }
+
+   /**
+    * Whether the previous significant char {@code prevSig} completed a
+    * statement/expression, so a boundary may precede a following statement
+    * keyword. True for a literal end, {@code ]}, {@code }}, {@code ;} and an
+    * identifier/number char. Notably excludes {@code )} — ambiguous with a
+    * control-flow header — and any operator/punctuation that would make the
+    * keyword an operand or continuation.
+    */
+   private static boolean boundaryAllowedBefore(char prevSig) {
+      return prevSig == LITERAL_END || prevSig == ']' || prevSig == '}' ||
+         prevSig == ';' || isIdentPart(prevSig);
+   }
+
+   /**
+    * The next significant character at or after {@code from}, skipping whitespace
+    * and {@code //}/{@code /* *}{@code /} comments; {@code 0} at end of input.
+    * Used to recognize a label ({@code name:}) in the statement splitter.
+    */
+   private static char nextSignificantChar(String s, int from) {
+      int i = from;
+      int n = s.length();
+
+      while(i < n) {
+         char c = s.charAt(i);
+
+         if(Character.isWhitespace(c)) {
+            i++;
+         }
+         else if(c == '/' && i + 1 < n && s.charAt(i + 1) == '/') {
+            i += 2;
+
+            while(i < n && !isLineBreak(s.charAt(i))) {
+               i++;
+            }
+         }
+         else if(c == '/' && i + 1 < n && s.charAt(i + 1) == '*') {
+            i += 2;
+
+            while(i + 1 < n && !(s.charAt(i) == '*' && s.charAt(i + 1) == '/')) {
+               i++;
+            }
+
+            i = Math.min(i + 2, n);
+         }
+         else {
+            return c;
+         }
+      }
+
+      return 0;
+   }
+
+   /**
+    * Skip a single/double-quoted string starting at {@code i} (just past the
+    * opening quote {@code q}); returns the index just past the closing quote.
+    */
+   private static int skipStringLiteral(String s, int i, char q) {
+      int n = s.length();
+
+      while(i < n) {
+         char c = s.charAt(i);
+
+         if(c == '\\') {
+            i += 2;
+            continue;
+         }
+
+         if(c == q) {
+            return i + 1;
+         }
+
+         i++;
+      }
+
+      return i;
+   }
+
+   /**
+    * Skip a template literal starting at {@code i} (just past the opening
+    * backtick); returns the index just past the closing backtick. Handles
+    * {@code ${ ... }} substitutions — including nested braces, strings and nested
+    * templates within them — so their code (and any braces it contains) does not
+    * disturb the caller's depth tracking.
+    */
+   private static int skipTemplateLiteral(String s, int i) {
+      int n = s.length();
+
+      while(i < n) {
+         char c = s.charAt(i);
+
+         if(c == '\\') {
+            i += 2;
+            continue;
+         }
+
+         if(c == '`') {
+            return i + 1;
+         }
+
+         if(c == '$' && i + 1 < n && s.charAt(i + 1) == '{') {
+            i += 2;
+            int braces = 1;
+
+            while(i < n && braces > 0) {
+               char d = s.charAt(i);
+
+               if(d == '\\') {
+                  i += 2;
+               }
+               else if(d == '{') {
+                  braces++;
+                  i++;
+               }
+               else if(d == '}') {
+                  braces--;
+                  i++;
+               }
+               else if(d == '`') {
+                  i = skipTemplateLiteral(s, i + 1);
+               }
+               else if(d == '"' || d == '\'') {
+                  i = skipStringLiteral(s, i + 1, d);
+               }
+               else {
+                  i++;
+               }
+            }
+
+            continue;
+         }
+
+         i++;
+      }
+
+      return i;
+   }
+
+   /**
+    * Parse-validate every piece of a proposed split (#75688) so a mis-placed
+    * boundary can never turn valid source into an invalid statement piece: if any
+    * piece fails to parse, the caller falls back to the single-eval path. Parsing
+    * is syntax-only (no evaluation) and must hold the engine {@code lock} like
+    * every other {@code context} access; {@code compile()} does not hold it, so it
+    * is acquired here. If the context is not yet built, validation fails safe
+    * (no split).
+    */
+   private boolean piecesAllParse(List<String> pieces) {
+      lock.lock();
+
+      try {
+         if(context == null) {
+            return false;
+         }
+
+         for(String piece : pieces) {
+            try {
+               context.parse("js", piece);
+            }
+            catch(Exception ex) {
+               return false;
+            }
+         }
+
+         return true;
+      }
+      finally {
+         lock.unlock();
+      }
    }
 
    /**
@@ -992,7 +1425,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // reserved words can never be declared names in valid source; excluding
       // them keeps the generated `typeof <name>` from being a SyntaxError.
       if(!name.isEmpty() && !RESERVED_WORDS.contains(name) &&
-         !name.equals(RESULT_VAR) && !name.equals(HOIST_ERR_VAR))
+         !name.equals(RESULT_VAR) && !name.equals(HOIST_ERR_VAR) &&
+         !name.equals(VALUE_VAR))
       {
          names.add(name);
       }
