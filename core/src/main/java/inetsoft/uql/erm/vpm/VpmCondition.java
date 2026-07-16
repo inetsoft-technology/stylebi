@@ -304,6 +304,18 @@ public class VpmCondition extends VpmObject {
          }
       }
 
+      // Bug #75669: A VPM trigger script activates its condition by referencing (or
+      // assigning) the `condition` variable, relying on that value becoming the script's
+      // completion value. Under Rhino a trailing statement that produced no value (e.g. a
+      // non-matching if in the last loop iteration) left the completion value intact;
+      // GraalJS follows current ECMAScript rules where such a statement yields undefined
+      // and clobbers the loop's completion value, so the reference no longer surfaces as
+      // the result. When the script used `condition` but the completion value came back
+      // null, fall back to the (possibly reassigned) condition value.
+      if(result == null && scope.isConditionUsed()) {
+         result = scope.getMember("condition");
+      }
+
       if(result == null) {
          return null;
       }

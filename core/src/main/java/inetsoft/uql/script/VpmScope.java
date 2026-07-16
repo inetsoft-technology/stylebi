@@ -45,6 +45,10 @@ public class VpmScope implements ScriptScope {
       throws Exception
    {
       Object script = null;
+      // Bug #75669: reset the condition-used flag so it only reflects access made by
+      // this script execution (the setUp putMember("condition", ...) in
+      // VpmCondition.evaluate happens before this call and must not count).
+      scope.conditionUsed = false;
       ScriptEnv senv = ScriptEnvRepository.getScriptEnv();
       senv.init();
       senv.put("vpm", new inetsoft.util.script.graal.ScopeProxy(scope));
@@ -173,6 +177,17 @@ public class VpmScope implements ScriptScope {
          return user == null ? null : XUtil.getUserName(user);
       }
 
+      // Bug #75669: record that the script referenced `condition`. Under Rhino a VPM
+      // trigger script activated its condition simply by referencing (or assigning)
+      // `condition`, relying on that value becoming the script's completion value. GraalJS
+      // follows current ECMAScript completion-value semantics (e.g. a trailing if(false)
+      // yields undefined, clobbering a loop's completion value), so the reference alone
+      // may no longer surface as the result; VpmCondition falls back to the condition
+      // value when it was used. See VpmCondition.evaluate().
+      if(CONDITION.equals(id)) {
+         conditionUsed = true;
+      }
+
       // the ScopeProxy/HostAccess layer now handles array wrapping
       return members.get(id);
    }
@@ -182,7 +197,20 @@ public class VpmScope implements ScriptScope {
     */
    @Override
    public void putMember(String id, Object value) {
+      // Bug #75669: assigning `condition` in the script also counts as using it.
+      if(CONDITION.equals(id)) {
+         conditionUsed = true;
+      }
+
       members.put(id, value);
+   }
+
+   /**
+    * Determine whether the most recently executed script referenced or assigned the
+    * <code>condition</code> variable. Reset at the start of each {@link #execute}.
+    */
+   public boolean isConditionUsed() {
+      return conditionUsed;
    }
 
    /**
@@ -227,7 +255,10 @@ public class VpmScope implements ScriptScope {
    private Principal user;
    private VariableTable vars;
    private ScriptScope parent;
+   private boolean conditionUsed;
    private final Map<String, Object> members = new LinkedHashMap<>();
+
+   private static final String CONDITION = "condition";
 
    private static final Logger LOG =
       LoggerFactory.getLogger(VpmScope.class);
