@@ -17,13 +17,31 @@
  */
 
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { Subject } from "rxjs";
 import { BindingTreeService } from "../../../widget/binding-tree/binding-tree.service";
 import { BindingService } from "../../../services/binding.service";
 import { RecentColorService } from "../../../../widget/color-picker/recent-color.service";
+
+/** Minimal NgbModal mock — ModelService.handleError → ComponentTool.showMessageDialog needs open(). */
+export function createNgbModalMock() {
+   return {
+      open: vi.fn(() => ({
+         componentInstance: {
+            options: [] as unknown[],
+            title: "",
+            message: "",
+            onCommit: new Subject<string>(),
+         },
+         result: Promise.resolve("ok"),
+         close: vi.fn(),
+         dismiss: vi.fn(),
+      })),
+   };
+}
 
 export const FIELD_MC_PROVIDERS = [
    { provide: BindingService, useValue: { bindingModel: { availableFields: [] }, getURLParams: vi.fn(() => null) } },
    { provide: BindingTreeService, useValue: { root: null, treeChanged: { subscribe: vi.fn() }, getSelection: vi.fn(), setSelection: vi.fn() } },
    { provide: RecentColorService, useValue: { getRecentColors: vi.fn(() => []), addColor: vi.fn() } },
-   { provide: NgbModal, useValue: {} }
+   { provide: NgbModal, useValue: createNgbModalMock() }
 ];

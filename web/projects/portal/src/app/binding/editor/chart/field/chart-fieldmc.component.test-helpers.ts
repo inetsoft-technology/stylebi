@@ -26,6 +26,7 @@ import { BindingService } from "../../../services/binding.service";
 import { ChartEditorService } from "../../../services/chart/chart-editor.service";
 import { DndService } from "../../../../common/dnd/dnd.service";
 import { DateComparisonService } from "../../../../vsobjects/util/date-comparison.service";
+import { DateLevelExamplesService } from "../../../../common/services/date-level-examples.service";
 import { UIContextService } from "../../../../common/services/ui-context.service";
 import { TestUtils } from "../../../../common/test/test-utils";
 import { ChartBindingModel } from "../../../data/chart/chart-binding-model";
@@ -87,6 +88,11 @@ export const uiContextMock = {
    isSqlServer: vi.fn().mockReturnValue(false),
 };
 
+/** DimensionEditor.ngOnInit posts here; keep display/interaction TL free of real HTTP. */
+export const dateLevelExamplesMock = {
+   loadDateLevelExamples: vi.fn(() => of({ dateLevelExamples: {} })),
+};
+
 /** createMockBindingRef merges DataRef last and clears classType; restore it for chart refs. */
 export function normalizeChartFieldRef(field: { classType?: string; measure?: boolean }): void {
    if(field.measure) {
@@ -133,6 +139,7 @@ export async function renderChartFieldmc(props: Record<string, any> = {}) {
          { provide: DndService, useValue: dndServiceMock },
          { provide: NgbModal, useValue: modalMock },
          { provide: DateComparisonService, useValue: dcServiceMock },
+         { provide: DateLevelExamplesService, useValue: dateLevelExamplesMock },
          { provide: UIContextService, useValue: uiContextMock },
       ],
       componentProperties: renderProps,
