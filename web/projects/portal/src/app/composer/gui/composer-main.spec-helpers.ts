@@ -48,6 +48,9 @@ import { MiniToolbarService } from "../../vsobjects/objects/mini-toolbar/mini-to
 import { SelectionMobileService } from "../../vsobjects/objects/selection/services/selection-mobile.service";
 import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
 import { VSTabService } from "../../vsobjects/util/vs-tab.service";
+import { ViewDataService } from "../../viewer/services/view-data.service";
+import { SsoHeartbeatService } from "../../../../../shared/sso/sso-heartbeat.service";
+import { StompClientService } from "../../../../../shared/stomp/stomp-client.service";
 import { ClipboardService } from "./clipboard.service";
 import { ComposerClientService } from "./composer-client.service";
 import { ComposerMainComponent } from "./composer-main.component";
@@ -57,6 +60,24 @@ import { LineAnchorService } from "../services/line-anchor.service";
 import { ResizeHandlerService } from "./resize-handler.service";
 import { ScriptService } from "./script/script.service";
 import { ComposerObjectService } from "./vs/composer-object.service";
+
+/**
+ * One-time env setup for composer-main TL suites.
+ * Call from each file's beforeAll. Safe to call again after vi.restoreAllMocks().
+ */
+export function setupComposerMainTlEnv(): void {
+   // Real isTouchDevice() uses setTimeout + Subject.toPromise(); under a loaded
+   // Vitest worker that can leave Zone busy and inflate ATL render past 5s.
+   vi.spyOn(GuiTool, "isTouchDevice").mockImplementation(() => Promise.resolve(false));
+
+   (window as any).BroadcastChannel = (window as any).BroadcastChannel ?? class {
+      onmessage: any = null;
+      postMessage() {}
+      close() {}
+      addEventListener() {}
+      removeEventListener() {}
+   };
+}
 
 export function makeMocks() {
    return {
@@ -141,30 +162,43 @@ export async function renderComponent(
    componentProperties: Record<string, any> = {},
    mocks = makeMocks()
 ) {
-   vi.spyOn(GuiTool, "isTouchDevice").mockResolvedValue(false);
+   // Re-apply after vitest restoreMocks / afterEach restoreAllMocks.
+   setupComposerMainTlEnv();
+
+   // ATL's componentProviders uses TestBed.overrideProvider(), which does NOT replace
+   // providers declared on @Component.providers. ComposerMainComponent declares
+   // ShowHyperlinkService there, so we must overrideComponent({ set: { providers } })
+   // to make the mock actually inject into the component.
+   const componentLevelProviders = [
+      { provide: ComposerClientService, useValue: mocks.composerClient },
+      { provide: ScaleService, useValue: {} },
+      { provide: ComposerObjectService, useValue: mocks.composerObjectService },
+      { provide: EventQueueService, useValue: {} },
+      { provide: LineAnchorService, useValue: {} },
+      { provide: ResizeHandlerService, useValue: mocks.resizeHandlerService },
+      { provide: ClipboardService, useValue: mocks.clipboardService },
+      { provide: ScriptService, useValue: {} },
+      { provide: ShowHyperlinkService, useValue: mocks.hyperLinkService },
+      { provide: MiniToolbarService, useValue: {} },
+      { provide: VSTabService, useValue: {} },
+      { provide: SelectionMobileService, useValue: {} },
+      { provide: FormInputService, useValue: {} },
+      { provide: GlobalSubmitService, useValue: {} },
+      { provide: CheckFormDataService, useValue: {} },
+      { provide: FullScreenService, useValue: {} },
+      { provide: RichTextService, useValue: {} },
+   ];
 
    const result = await render(ComposerMainComponent, {
       componentProperties: { deployed: true, ...componentProperties },
       componentImports: [],
-      componentProviders: [
-         { provide: ComposerClientService, useValue: mocks.composerClient },
-         { provide: ScaleService, useValue: {} },
-         { provide: ComposerObjectService, useValue: mocks.composerObjectService },
-         { provide: EventQueueService, useValue: {} },
-         { provide: LineAnchorService, useValue: {} },
-         { provide: ResizeHandlerService, useValue: mocks.resizeHandlerService },
-         { provide: ClipboardService, useValue: mocks.clipboardService },
-         { provide: ScriptService, useValue: {} },
-         { provide: ShowHyperlinkService, useValue: mocks.hyperLinkService },
-         { provide: MiniToolbarService, useValue: {} },
-         { provide: VSTabService, useValue: {} },
-         { provide: SelectionMobileService, useValue: {} },
-         { provide: FormInputService, useValue: {} },
-         { provide: GlobalSubmitService, useValue: {} },
-         { provide: CheckFormDataService, useValue: {} },
-         { provide: FullScreenService, useValue: {} },
-         { provide: RichTextService, useValue: {} },
-      ],
+      // Avoid ATL event-wrapper CD under Zone; these specs drive the instance directly.
+      autoDetectChanges: false,
+      configureTestBed: (testBed) => {
+         testBed.overrideComponent(ComposerMainComponent, {
+            set: { providers: componentLevelProviders },
+         });
+      },
       providers: [
          { provide: NgbModal, useValue: mocks.modalService },
          { provide: ModelService, useValue: mocks.modelService },
@@ -176,6 +210,13 @@ export async function renderComponent(
          { provide: Router, useValue: mocks.router },
          { provide: AiAssistantService, useValue: mocks.aiAssistantService },
          { provide: AiAssistantDialogService, useValue: mocks.aiAssistantDialogService },
+         // ViewerAppComponent (in ComposerMain imports) / ShowHyperlinkService need this.
+         // Not providedIn:'root', so tests must supply it once the ESM cycle is fixed and
+         // ViewerAppComponent can fully initialize.
+         { provide: ViewDataService, useValue: { data: null } },
+         // StompClientService is providedIn:'root' but depends on SsoHeartbeatService which is not.
+         { provide: SsoHeartbeatService, useValue: { heartbeats: EMPTY } },
+         { provide: StompClientService, useValue: {} },
          provideHttpClient(),
       ],
       schemas: [NO_ERRORS_SCHEMA],

@@ -18,9 +18,21 @@
 
 // TL (testing-library) test setup for the portal project. Starts the MSW server
 // lifecycle so all *.tl.spec.ts files in portal can intercept HTTP requests.
-import { afterAll, afterEach, beforeAll } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach } from "vitest";
 import { server } from "@test-mocks/server";
+import { GuiTool } from "./app/common/util/gui-tool";
+import { clearStoredCondition } from "./app/common/util/schedule-condition.util";
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
-afterEach(() => server.resetHandlers());
+
+// Real isTouchDevice() uses setTimeout + Subject.toPromise(); under a loaded
+// Vitest worker that leaves Zone busy and inflates async TL tests past 5s.
+beforeEach(() => {
+   vi.spyOn(GuiTool, "isTouchDevice").mockImplementation(() => Promise.resolve(false));
+});
+
+afterEach(() => {
+   server.resetHandlers();
+   clearStoredCondition();
+});
 afterAll(() => server.close());

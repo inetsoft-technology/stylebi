@@ -38,6 +38,7 @@ import {
    columnTreeWithFields,
    createDialog,
    flushPromises,
+   syncReject,
 } from "./formula-editor-dialog.component.test-helpers";
 
 describe("FormulaEditorDialog — populate tree HTTP callbacks [Group 1, Risk 3]", () => {
@@ -179,19 +180,18 @@ describe("FormulaEditorDialog — form valueChanges side-effects [Group 3, Risk 
 
 describe("FormulaEditorDialog — modal promise handling [Group 4, Risk 3]", () => {
 
-   it("should not emit aggregateModify when new aggregate dialog is dismissed", async () => {
+   it("should not emit aggregateModify when new aggregate dialog is dismissed", () => {
       const { comp, modalService } = createDialog();
       comp.columnTreeRoot = columnTreeWithFields();
       comp._columnTreeRoot = comp.columnTreeRoot;
       comp.columns = [{ name: "Sales", dataType: "double" } as any];
       comp.newAggrDialog = {} as any;
       vi.mocked(modalService.open).mockReturnValue({
-         result: Promise.reject("dismissed"),
+         result: syncReject("dismissed"),
       } as any);
       const emitSpy = vi.spyOn(comp.aggregateModify, "emit");
 
       comp.showAggregateDialog();
-      await flushPromises();
 
       expect(emitSpy).not.toHaveBeenCalled();
    });

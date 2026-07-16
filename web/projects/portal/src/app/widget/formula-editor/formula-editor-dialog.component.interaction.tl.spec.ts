@@ -41,17 +41,17 @@ import { FormulaType } from "../../common/data/formula-type";
 import { ActionsContextmenuComponent } from "../fixed-dropdown/actions-contextmenu.component";
 import { TreeNodeModel } from "../tree/tree-node-model";
 import { FormulaEditorService } from "./formula-editor.service";
-import { createDialog, flushPromises } from "./formula-editor-dialog.component.test-helpers";
+import { createDialog, syncResolve } from "./formula-editor-dialog.component.test-helpers";
 
 describe("FormulaEditorDialog — ok and cancel [Group 1, Risk 3]", () => {
 
-   it("should emit onCommit when form is valid and submitCallback resolves true", async () => {
+   // Sync thenables — do not await Promises/setTimeout (Zone hang under loaded TL workers).
+   it("should emit onCommit when form is valid and submitCallback resolves true", () => {
       const { comp } = createDialog();
       comp.initForm();
       const emitSpy = vi.spyOn(comp.onCommit, "emit");
 
       comp.ok();
-      await flushPromises();
 
       expect(emitSpy).toHaveBeenCalledWith(expect.objectContaining({
          expression: "1 + 1",
@@ -60,14 +60,13 @@ describe("FormulaEditorDialog — ok and cancel [Group 1, Risk 3]", () => {
       }));
    });
 
-   it("should not emit onCommit when submitCallback resolves false", async () => {
+   it("should not emit onCommit when submitCallback resolves false", () => {
       const { comp } = createDialog();
-      comp.submitCallback = () => Promise.resolve(false);
+      comp.submitCallback = () => syncResolve(false);
       comp.initForm();
       const emitSpy = vi.spyOn(comp.onCommit, "emit");
 
       comp.ok();
-      await flushPromises();
 
       expect(emitSpy).not.toHaveBeenCalled();
    });
@@ -229,14 +228,14 @@ describe("FormulaEditorDialog — aggregate dialog and context menu [Group 4, Ri
       };
    }
 
-   it("should add aggregate to tree and emit aggregateModify after modal confirms", async () => {
+   it("should add aggregate to tree and emit aggregateModify after modal confirms", () => {
       const { comp, modalService } = createDialog();
       comp.columnTreeRoot = columnTreeWithFields();
       comp._columnTreeRoot = comp.columnTreeRoot;
       comp.columns = [{ name: "Sales", dataType: "double" } as any];
       comp.newAggrDialog = {} as TemplateRef<unknown>;
       vi.mocked(modalService.open).mockReturnValue({
-         result: Promise.resolve({
+         result: syncResolve({
             field: "Sales",
             aggregate: "Sum",
             numValue: "0",
@@ -245,7 +244,6 @@ describe("FormulaEditorDialog — aggregate dialog and context menu [Group 4, Ri
       const emitSpy = vi.spyOn(comp.aggregateModify, "emit");
 
       comp.showAggregateDialog();
-      await flushPromises();
 
       expect(modalService.open).toHaveBeenCalled();
       expect(emitSpy).toHaveBeenCalledWith(expect.objectContaining({
@@ -354,18 +352,20 @@ describe("FormulaEditorDialog — lifecycle and initForm [Group 5, Risk 3]", () 
       expect(comp.subscriptions).toBeNull();
    });
 
-   it("should run checkValid after view init when formulaType control exists", async () => {
+   it("should run checkValid after view init when formulaType control exists", () => {
       const { comp } = createDialog();
       comp.resizeable = false;
       comp.isCalc = true;
       comp.calcType = "aggregate";
-      comp.initForm();
-      comp.form.get("formulaType").setValue(FormulaType.SQL);
+      // Spy before setValue — formulaType valueChanges calls checkValid immediately.
+      // Sync thenable: avoid Zone hang from Promise.resolve under a loaded TL worker.
       const showMessageDialog = vi.spyOn(ComponentTool, "showMessageDialog")
-         .mockResolvedValue("ok");
-
-      comp.ngAfterViewInit();
-      await flushPromises();
+         .mockImplementation(() => syncResolve("ok"));
+      comp.initForm();
+      showMessageDialog.mockClear();
+      // Exercise the same path ngAfterViewInit schedules (Promise.then → checkValid),
+      // but synchronously so the suite does not depend on Zone draining.
+      comp.form.get("formulaType").setValue(FormulaType.SQL);
 
       expect(showMessageDialog).toHaveBeenCalledWith(
          expect.anything(),

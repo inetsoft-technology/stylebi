@@ -1087,7 +1087,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       let elementRef = this.selectionListSearchInputElementRef;
 
       setTimeout(function() {
-         elementRef.nativeElement.focus();
+         elementRef?.nativeElement?.focus();
       }, 200);
    }
 

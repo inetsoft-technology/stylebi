@@ -26,8 +26,68 @@ import { TreeNodeModel } from "../tree/tree-node-model";
 import { FormulaEditorDialog } from "./formula-editor-dialog.component";
 import { FormulaEditorService } from "./formula-editor.service";
 
-export function flushPromises(): Promise<void> {
-   return new Promise(resolve => setTimeout(resolve, 0));
+/**
+ * Thenable that invokes callbacks synchronously.
+ * Prefer this over Promise.resolve under the full TL suite: Zone/vitest-patch can
+ * hang for 30s+ when a worker still has pending macrotasks and a test awaits
+ * setTimeout(0) / real Promises.
+ */
+export function syncResolve<T>(value: T): Promise<T> {
+   const thenable: PromiseLike<T> = {
+      then(onFulfilled?: ((v: T) => any) | null, onRejected?: ((e: any) => any) | null) {
+         try {
+            if(!onFulfilled) {
+               return syncResolve(value as any);
+            }
+
+            const next = onFulfilled(value);
+
+            if(next && typeof (next as PromiseLike<unknown>).then === "function") {
+               return next;
+            }
+
+            return syncResolve(next);
+         }
+         catch(err) {
+            if(onRejected) {
+               return syncResolve(onRejected(err));
+            }
+
+            throw err;
+         }
+      },
+   };
+   return thenable as Promise<T>;
+}
+
+export function syncReject(reason: unknown = "dismissed"): Promise<never> {
+   const thenable: PromiseLike<never> = {
+      then(_onFulfilled?: any, onRejected?: ((e: any) => any) | null) {
+         try {
+            if(!onRejected) {
+               throw reason;
+            }
+
+            const next = onRejected(reason);
+
+            if(next && typeof (next as PromiseLike<unknown>).then === "function") {
+               return next;
+            }
+
+            return syncResolve(next);
+         }
+         catch(err) {
+            throw err;
+         }
+      },
+   };
+   return thenable as Promise<never>;
+}
+
+/** Microtask-only flush (no setTimeout) — safer under a loaded Zone worker. */
+export async function flushPromises(): Promise<void> {
+   await Promise.resolve();
+   await Promise.resolve();
 }
 
 export function createDialog() {
@@ -38,7 +98,22 @@ export function createDialog() {
       getScriptDefinitions: vi.fn(() => of({ defs: "vs" })),
       getTaskScriptDefinitions: vi.fn(() => of({ defs: "task" })),
    };
-   const modalService = { open: vi.fn() };
+   // Default open() must return a settled sync result so accidental showMessageDialog
+   // calls cannot leave Zone waiting on an unresolved modal promise.
+   const modalService = {
+      open: vi.fn(() => ({
+         componentInstance: {
+            options: null,
+            title: null,
+            message: null,
+            onCommit: { subscribe: () => ({ unsubscribe() {} }) },
+            onCancel: { subscribe: () => ({ unsubscribe() {} }) },
+         },
+         result: syncResolve("ok"),
+         close: vi.fn(),
+         dismiss: vi.fn(),
+      })),
+   };
    const dropdownService = {
       open: vi.fn(() => ({
          componentInstance: {} as ActionsContextmenuComponent,
@@ -71,7 +146,7 @@ export function createDialog() {
    };
    comp._columnTreeRoot = comp.columnTreeRoot;
    comp.originalColumnTreeRoot = comp.columnTreeRoot;
-   comp.submitCallback = () => Promise.resolve(true);
+   comp.submitCallback = () => syncResolve(true);
    return { comp, editorService, modalService, dropdownService, renderer };
 }
 
@@ -119,7 +194,7 @@ export function columnTreeWithFields(): TreeNodeModel {
 
 export function mockAggrDialogOpen(modalService: { open: ReturnType<typeof vi.fn> }) {
    vi.mocked(modalService.open).mockReturnValue({
-      result: Promise.resolve({
+      result: syncResolve({
          field: "Sales",
          aggregate: "Sum",
          numValue: "0",
