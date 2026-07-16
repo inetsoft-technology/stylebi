@@ -206,10 +206,14 @@ public class IntervalElement extends StackableElement {
       IntervalGeometry firstNegative = null; // first negative segment added to the current bar's stack
       double posIntervalSum = 0; // cumulative interval for positive stack
       double negIntervalSum = 0; // cumulative interval for negative stack
-      double[] prevBridgeX = (bridgeLineStyle != null) ? new double[getVarCount()] : null;
+      // Bridge lines are a waterfall-only feature. setBridgeLine() is a script-callable
+      // (@TernMethod) API on IntervalElement, which is shared by regular bar charts and
+      // waterfall charts; guard on the waterfall flag so a script enabling bridge lines on
+      // a non-waterfall bar chart is a no-op. (75628)
+      double[] prevBridgeX = (bridgeLineStyle != null && waterfall) ? new double[getVarCount()] : null;
       // Half-width (in category-slot units) of the bar at prevBridgeX, so a bridge
       // can inset each end by its own bar's width. (75626)
-      double[] prevBridgeHalf = (bridgeLineStyle != null) ? new double[getVarCount()] : null;
+      double[] prevBridgeHalf = (bridgeLineStyle != null && waterfall) ? new double[getVarCount()] : null;
       List<IntervalGeometry> posStackGeoms = new ArrayList<>();
       List<IntervalGeometry> negStackGeoms = new ArrayList<>();
 
@@ -783,7 +787,8 @@ public class IntervalElement extends StackableElement {
             Objects.equals(visualStacked, elem.visualStacked) &&
             cornerRadius == elem.cornerRadius && roundAllCorners == elem.roundAllCorners &&
             Objects.equals(bridgeLineColor, elem.bridgeLineColor) &&
-            Objects.equals(bridgeLineStyle, elem.bridgeLineStyle);
+            Objects.equals(bridgeLineStyle, elem.bridgeLineStyle) &&
+            waterfall == elem.waterfall;
       }
 
       return false;
@@ -816,6 +821,22 @@ public class IntervalElement extends StackableElement {
    public void setBridgeLine(Color lineColor, GLine lineStyle) {
       this.bridgeLineColor = lineColor;
       this.bridgeLineStyle = lineStyle;
+   }
+
+   /**
+    * Check whether this interval element belongs to a waterfall chart. Bridge lines are
+    * only drawn for waterfall charts.
+    */
+   public boolean isWaterfall() {
+      return waterfall;
+   }
+
+   /**
+    * Mark this interval element as belonging to a waterfall chart. Set by the graph
+    * generator; enables waterfall-only behavior such as bridge lines. (75628)
+    */
+   public void setWaterfall(boolean waterfall) {
+      this.waterfall = waterfall;
    }
 
    // Each bridge endpoint is inset from its bar's center by that bar's own half-width
@@ -918,6 +939,7 @@ public class IntervalElement extends StackableElement {
    private Boolean visualStacked;
    private Color bridgeLineColor = null;
    private GLine bridgeLineStyle = null;
+   private boolean waterfall = false;
    // Bridge endpoint placement, in fractions of a category slot, measured beyond the
    // bar edge (bridgeBarHalfWidth) so the connector never touches the bar. (75626)
    // BRIDGE_GAP: the slight gap at corner radius 0. BRIDGE_RADIUS_EASE: how much the

@@ -3671,6 +3671,12 @@ public abstract class GraphGenerator {
          IntervalElement bar = new IntervalElement();
          IntervalElement sumBar = new IntervalElement();
 
+         // Mark both elements as waterfall so bridge lines (a waterfall-only feature
+         // enabled via the shared setBridgeLine script API) render for these bars but
+         // not for regular bar charts, which use IntervalElement too. (75628)
+         bar.setWaterfall(true);
+         sumBar.setWaterfall(true);
+
          bar.setCollisionModifier(GraphElement.STACK_SYMMETRIC);
          bar.setStackNegative(false);
          bar.setStackGroup(false);
