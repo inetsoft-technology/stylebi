@@ -3777,7 +3777,7 @@ public abstract class GraphGenerator {
             // PlotDescriptor.smoothLines is reused here as the chord-curve toggle for
             // CIRCULAR; the element-side flag is smoothEdges (bends edges, not lines).
             elem.setSmoothEdges(desc.getPlotDescriptor().isSmoothLines());
-            elem.addShapeBorder(GShape.CIRCLE, GDefaults.DEFAULT_LINE_COLOR, GLine.MEDIUM_DASH);
+            elem.addShapeBorder(GShape.CIRCLE, Color.LIGHT_GRAY, GLine.MEDIUM_DASH);
             break;
          }
 
