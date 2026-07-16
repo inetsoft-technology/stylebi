@@ -31,6 +31,9 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.report.composition.graph.VSDataSet;
+import inetsoft.report.filter.Highlight;
+import inetsoft.report.filter.HighlightGroup;
+import inetsoft.report.filter.TextHighlight;
 import inetsoft.report.internal.graph.MapData;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
@@ -44,8 +47,10 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateCompareAbleAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
+import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Catalog;
@@ -57,6 +62,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.awt.Color;
+import java.awt.Font;
 import java.security.Principal;
 import java.util.*;
 import java.util.function.BiFunction;
@@ -160,6 +167,286 @@ public class WizVsService {
       }
 
       return result;
+   }
+
+   /**
+    * Applies conditional highlight styling to an existing runtime assembly and returns the recomputed
+    * result in the same shape as {@code /viewsheet/create}.
+    *
+    * <p>REPLACE semantics (mirrors {@code apply_filter}): the supplied rules become the assembly's whole
+    * highlight; any previous highlight on the assembly is overwritten. Each rule's {@code conditions}
+    * reuse the shared {@link VisualizationConditionModel} tree and are converted via {@link
+    * #buildConditionList} — the same converter the filter path uses — so a rule actually applies rather
+    * than silently no-opping.
+    *
+    * <p>Chart and output assemblies are supported. Table/crosstab highlighting keys a {@code HighlightGroup}
+    * to a per-column {@code TableDataPath} and is not yet wired through this REST path — it fails loud
+    * rather than mis-applying.
+    */
+   public CreateViewsheetResult applyHighlight(ApplyHighlightModel model, Principal user)
+      throws Exception
+   {
+      ApplyHighlightModel.HighlightModel hm = model.getHighlightModel();
+
+      if(hm == null || hm.getHighlights() == null || hm.getHighlights().isEmpty()) {
+         throw new IllegalArgumentException("highlightModel.highlights is required and must be non-empty");
+      }
+
+      // Prefer the restore-aware resolver so a reaped runtime is transparently reopened; echo the
+      // (possibly new) runtimeId back so the next edit targets the live runtime.
+      RuntimeViewsheet rvs = WizUtil.getViewsheetOrRestore(
+         viewsheetService, model.getRuntimeId(), model.getViewsheetIdentifier(), user);
+      boolean restored = !model.getRuntimeId().equals(rvs.getID());
+      Viewsheet vs = getValidatedViewsheet(rvs);
+      VSAssembly assembly = resolveTargetAssembly(vs, model.getAssemblyName());
+      VSAssemblyInfo assemblyInfo = assembly.getVSAssemblyInfo();
+
+      // Resolve the assembly's candidate condition fields so condition values are coerced to each
+      // field's data type (see buildConditionItem); null is acceptable (e.g. output assemblies).
+      ColumnSelection columns = assembly instanceof DataVSAssembly dataAssembly
+         ? VSUtil.getBaseColumns(dataAssembly, true) : null;
+
+      if(assemblyInfo instanceof ChartVSAssemblyInfo chartAssemblyInfo) {
+         VSChartInfo chartInfo = chartAssemblyInfo.getVSChartInfo();
+
+         // A chart colors its marks/labels from the highlight group on each MEASURE ref
+         // (VSChartAggregateRef, a HighlightRef) — NOT the chart-info-level group, which the renderer only
+         // consults for merged charts (GraphGenerator.applyHighlight reads ((HighlightRef) ref).getHighlightGroup()
+         // per runtime measure). Attach on the DESIGN refs (getBindingRefs(false)); clearRuntime()/executeView
+         // regenerate the runtime refs as clones that carry the group, so it survives the re-render.
+         List<VSChartAggregateRef> measureRefs = new ArrayList<>();
+
+         for(ChartRef ref : chartInfo.getBindingRefs(false)) {
+            if(ref instanceof VSChartAggregateRef aggRef && ref instanceof HighlightRef) {
+               measureRefs.add(aggRef);
+            }
+         }
+
+         if(measureRefs.isEmpty()) {
+            throw new IllegalArgumentException(
+               "Chart '" + assembly.getName() + "' has no measure to highlight.");
+         }
+
+         // REPLACE semantics: clear any existing highlight on every measure ref first.
+         for(VSChartAggregateRef aggRef : measureRefs) {
+            aggRef.setHighlightGroup(null);
+            aggRef.setTextHighlightGroup(null);
+         }
+
+         // A rule with applyArea=dataLabel styles the labels (text highlight); otherwise the marks (point
+         // highlight). The color frame is keyed per measure ref, so apply each rule to every measure ref —
+         // correct for the common single-measure chart; a multi-measure chart colors each series by the
+         // condition. A fresh clone per ref avoids sharing one Highlight instance across groups.
+         Map<VSChartAggregateRef, HighlightGroup> pointGroups = new LinkedHashMap<>();
+         Map<VSChartAggregateRef, HighlightGroup> textGroups = new LinkedHashMap<>();
+         Set<String> usedNames = new HashSet<>();
+
+         for(ApplyHighlightModel.Highlight rule : hm.getHighlights()) {
+            String name = uniqueName(rule.getName(), usedNames);
+            Highlight hl = buildHighlight(rule, name, columns);
+            boolean isText = "dataLabel".equals(rule.getApplyArea());
+            Map<VSChartAggregateRef, HighlightGroup> sink = isText ? textGroups : pointGroups;
+
+            for(VSChartAggregateRef aggRef : measureRefs) {
+               HighlightGroup group = sink.computeIfAbsent(aggRef, k -> new HighlightGroup());
+               group.addHighlight(name, hl.clone());
+            }
+         }
+
+         for(VSChartAggregateRef aggRef : measureRefs) {
+            HighlightGroup pg = pointGroups.get(aggRef);
+            HighlightGroup tg = textGroups.get(aggRef);
+
+            if(pg != null) {
+               aggRef.setHighlightGroup(pg);
+            }
+
+            if(tg != null) {
+               aggRef.setTextHighlightGroup(tg);
+            }
+         }
+
+         // Drop cached runtime refs so the next executeView regenerates them (as clones carrying the group).
+         chartInfo.clearRuntime();
+      }
+      else if(assemblyInfo instanceof OutputVSAssemblyInfo outputInfo) {
+         HighlightGroup group = new HighlightGroup();
+         Set<String> usedNames = new HashSet<>();
+
+         for(ApplyHighlightModel.Highlight rule : hm.getHighlights()) {
+            String name = uniqueName(rule.getName(), usedNames);
+            group.addHighlight(name, buildHighlight(rule, name, columns));
+         }
+
+         outputInfo.setHighlightGroup(group);
+      }
+      else if(assembly instanceof TableVSAssembly || assembly instanceof CrosstabVSAssembly) {
+         throw new IllegalArgumentException(
+            "Highlighting table/crosstab assemblies is not yet supported via the wiz REST path " +
+            "(it must key a HighlightGroup to a per-column TableDataPath). Assembly '" +
+            assembly.getName() + "'.");
+      }
+      else {
+         throw new IllegalArgumentException(
+            "Assembly '" + assembly.getName() + "' (" + assemblyInfo.getClass().getSimpleName() +
+            ") does not support highlighting.");
+      }
+
+      int sampleMaxRows = model.getSampleMaxRows() != null ? model.getSampleMaxRows() : 0;
+      CreateViewsheetResult result = executeAndExtract(rvs, assembly, sampleMaxRows);
+      // Order matters: executeAndExtract runs executeView (populates RT refs); collectFlatBinding prefers
+      // RT refs, so it must come after. The binding is unchanged by highlighting, but recomputing it keeps
+      // the response shape identical to /viewsheet/create.
+      result.setBinding(collectFlatBinding(assembly));
+      result.setAssemblyName(assembly.getName());
+      result.setHasData(computeHasData(rvs.getViewsheet().getViewsheetInfo().isMetadata(), result));
+
+      if(restored) {
+         result.setRuntimeId(rvs.getID());
+      }
+
+      // Persist the mutated highlight so it survives a subsequent save_viewsheet, which rebuilds the saved
+      // copy from the STORED shared viewsheet, not this live runtime (same guarded write-back as
+      // applyDateComparison / removeVisualization; a transient/unsaved runtime has no persistent entry).
+      AssetEntry entry = rvs.getEntry();
+      String path = entry != null ? entry.getPath() : null;
+
+      if(path != null &&
+         (path.startsWith(WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/") ||
+          path.startsWith(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/")))
+      {
+         engine.setSheet(entry, vs, user, true);
+      }
+
+      return result;
+   }
+
+   /**
+    * Builds a StyleBI {@link Highlight} from a wiz highlight rule: converts its condition tree to a
+    * {@link ConditionList} with the shared filter converter and applies name/colors/font. Throws
+    * (naming the rule) on a missing condition tree or an unparseable color.
+    */
+   private Highlight buildHighlight(ApplyHighlightModel.Highlight rule, String name,
+                                    ColumnSelection columns)
+   {
+      String label = name != null && !name.isEmpty()
+         ? "highlight '" + name + "'"
+         : rule.getField() != null ? "highlight on '" + rule.getField() + "'" : "highlight";
+
+      if(rule.getConditions() == null || rule.getConditions().isEmpty()) {
+         throw new IllegalArgumentException(label + " is missing a non-empty conditions array");
+      }
+
+      VisualizationConditionModel cm = new VisualizationConditionModel();
+      cm.setBaseConditions(rule.getConditions());
+      ConditionList conditionGroup = buildConditionList(cm, columns);
+
+      if(conditionGroup.isEmpty()) {
+         throw new IllegalArgumentException(
+            label + " produced no usable condition — check each leaf names a field and a valid operation");
+      }
+
+      Highlight highlight = new TextHighlight();
+      highlight.setName(name);
+      highlight.setForeground(parseColor(rule.getForeground(), label + " foreground"));
+      highlight.setBackground(parseColor(rule.getBackground(), label + " background"));
+      highlight.setFont(toFont(rule.getFontInfo()));
+      highlight.setConditionGroup(conditionGroup);
+      return highlight;
+   }
+
+   /** Parse a hex color string (e.g. {@code "#FF0000"}) to a {@link Color}; null/empty → null (no color).
+    *  Fails loud (naming the rule field) on an unparseable value rather than silently dropping it. */
+   private static Color parseColor(String hex, String where) {
+      if(hex == null || hex.isEmpty()) {
+         return null;
+      }
+
+      try {
+         // Normalize to #RRGGBB the same way HighlightService does, so 0x / decimal forms also parse.
+         return Tool.getColorFromHexString(String.format("#%06x", Integer.decode(hex)));
+      }
+      catch(NumberFormatException e) {
+         throw new IllegalArgumentException(
+            where + " is not a valid color: \"" + hex + "\". Use a hex string like \"#FF0000\".");
+      }
+   }
+
+   /** Build a {@link Font} from a rule's font spec; null when no spec is given. */
+   private static Font toFont(ApplyHighlightModel.FontInfo fontInfo) {
+      if(fontInfo == null) {
+         return null;
+      }
+
+      int style = (fontInfo.isBold() ? Font.BOLD : 0) | (fontInfo.isItalic() ? Font.ITALIC : 0);
+      int size = 11;
+
+      if(fontInfo.getFontSize() != null && !fontInfo.getFontSize().isEmpty()) {
+         try {
+            size = (int) Math.round(Double.parseDouble(fontInfo.getFontSize()));
+         }
+         catch(NumberFormatException ignore) {
+         }
+      }
+
+      String family = fontInfo.getFontFamily() != null && !fontInfo.getFontFamily().isEmpty()
+         ? fontInfo.getFontFamily() : "Roboto";
+      return new Font(family, style, size);
+   }
+
+   /** Ensure a highlight name is present and unique within one apply (HighlightGroup keys by name). */
+   private static String uniqueName(String name, Set<String> used) {
+      String base = name != null && !name.isEmpty() ? name : "highlight";
+      String candidate = base;
+      int n = 2;
+
+      while(!used.add(candidate)) {
+         candidate = base + "_" + n++;
+      }
+
+      return candidate;
+   }
+
+   /**
+    * Resolves the target assembly: the named assembly if {@code name} is provided, otherwise the sole
+    * {@link ChartVSAssembly}, falling back to the sole assembly when the viewsheet holds exactly one.
+    */
+   private VSAssembly resolveTargetAssembly(Viewsheet vs, String name) {
+      if(name != null && !name.isEmpty()) {
+         VSAssembly a = vs.getAssembly(name);
+
+         if(a == null) {
+            throw new IllegalArgumentException("No assembly named '" + name + "'");
+         }
+
+         return a;
+      }
+
+      VSAssembly chart = null;
+      VSAssembly sole = null;
+      int count = 0;
+
+      for(Assembly a : vs.getAssemblies()) {
+         if(a instanceof VSAssembly va) {
+            if(a instanceof ChartVSAssembly) {
+               chart = va;
+            }
+
+            sole = va;
+            count++;
+         }
+      }
+
+      if(chart != null) {
+         return chart;
+      }
+
+      if(count == 1) {
+         return sole;
+      }
+
+      throw new IllegalArgumentException(
+         "Could not resolve a single target assembly; pass assemblyName explicitly");
    }
 
    /**
