@@ -30,6 +30,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.VSTitleChromeDefaults;
 import inetsoft.report.internal.Util;
 import inetsoft.util.MessageException;
 import inetsoft.web.adhoc.model.FormatInfoModel;
@@ -54,7 +55,7 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
 
       ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) assembly.getInfo();
       TableDataPath titlePath = new TableDataPath(-1, TableDataPath.TITLE);
-      VSCompositeFormat compositeFormat = info.getFormatInfo().getFormat(titlePath, false);
+      VSCompositeFormat compositeFormat = VSTitleChromeDefaults.applyModernDefaults(info.getFormatInfo().getFormat(titlePath, false));
 
       int titleHeight = info.getTitleHeight();
 
