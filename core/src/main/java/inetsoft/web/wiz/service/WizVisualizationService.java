@@ -278,8 +278,10 @@ public class WizVisualizationService {
          // after get() succeeds, eliminating any cross-thread mutation race.
          Future<String[]> thumbnailFuture = THUMBNAIL_EXECUTOR.submit(() -> {
             try {
+               // enforceSizeCaps=true: preserve today's thumbnail behavior exactly — an
+               // over-cap image is skipped (returns null) rather than persisted.
                return renderAssemblyToImage(runtimeId, event.getAssemblyName(),
-                                             THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, true, principal);
+                                             THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, true, true, principal);
             }
             catch(Exception e) {
                LOG.warn("Failed to generate thumbnail for '{}' (non-fatal): {}",
@@ -357,6 +359,10 @@ public class WizVisualizationService {
          ? event.getWidth() : DEFAULT_RENDER_WIDTH;
       int height = event.getHeight() != null && event.getHeight() > 0
          ? event.getHeight() : DEFAULT_RENDER_HEIGHT;
+      // Clamp caller-supplied dimensions so an oversized request can't drive a
+      // resource-exhaustion render.
+      width = Math.min(width, MAX_RENDER_DIMENSION);
+      height = Math.min(height, MAX_RENDER_DIMENSION);
       // "auto"/"svg"/null → svg-first; only an explicit "png" forces the raster path.
       boolean preferSvg = !"png".equalsIgnoreCase(event.getFormat());
 
@@ -371,10 +377,20 @@ public class WizVisualizationService {
 
          String[] rendered = null;
          RenderNotReadyException lastNotReady = null;
+         boolean unrenderable = false;
 
-         for(int attempt = 0; attempt < RENDER_MAX_ATTEMPTS && rendered == null; attempt++) {
+         // enforceSizeCaps=false: the render endpoint wants the real chart image regardless
+         // of size, not a save-time-style thumbnail cap.
+         for(int attempt = 0; attempt < RENDER_MAX_ATTEMPTS && rendered == null && !unrenderable; attempt++) {
             try {
-               rendered = renderAssemblyToImage(runtimeId, assemblyName, width, height, preferSvg, principal);
+               rendered = renderAssemblyToImage(runtimeId, assemblyName, width, height, preferSvg, false, principal);
+
+               if(rendered == null) {
+                  // A null return (as opposed to a thrown RenderNotReadyException) means "no
+                  // image bytes / unrenderable" — this will not change on retry, so fail fast
+                  // instead of spinning the remaining attempts.
+                  unrenderable = true;
+               }
             }
             catch(RenderNotReadyException notReady) {
                lastNotReady = notReady;
@@ -445,12 +461,16 @@ public class WizVisualizationService {
     * viewsheet size, falling back to a full-viewsheet PNG export + crop for assembly types
     * (Crosstab, Table) that downloadAssemblyImage does not support.
     *
+    * @param enforceSizeCaps when {@code true}, images exceeding {@link #MAX_SVG_THUMBNAIL_BYTES}/
+    *        {@link #MAX_PNG_THUMBNAIL_BYTES} are dropped (returns {@code null}) — the save-time
+    *        thumbnail behavior. When {@code false}, the image is returned regardless of size —
+    *        used by the on-demand render endpoint, which wants the real chart, not a failure.
     * @return {@code {imageDataOrSvg, "svg"|"png"}}, or {@code null} if no image could be produced
     * @throws RenderNotReadyException if the chart graph has not finished rendering yet
     */
    private String[] renderAssemblyToImage(String runtimeId, String assemblyName,
                                            int width, int height, boolean preferSvg,
-                                           Principal principal)
+                                           boolean enforceSizeCaps, Principal principal)
       throws Exception
    {
       // Fetch once: validates ownership (prevents cross-session access) and
@@ -512,14 +532,15 @@ public class WizVisualizationService {
                   else {
                      LOG.debug("PNG was 1×1 or undecodable for '{}', using full-viewsheet fallback",
                                assemblyName);
-                     thumbnailValue = renderFallbackThumbnail(rvs, assemblyName, principal);
+                     thumbnailValue = renderFallbackThumbnail(
+                        rvs, assemblyName, enforceSizeCaps, principal);
                   }
                }
 
                return thumbnailValue != null ? new String[]{thumbnailValue, "png"} : null;
             }
             else {
-               if(imageBytes.length > MAX_SVG_THUMBNAIL_BYTES) {
+               if(enforceSizeCaps && imageBytes.length > MAX_SVG_THUMBNAIL_BYTES) {
                   LOG.debug("SVG thumbnail for '{}' is {} bytes (limit {}), skipping",
                             assemblyName, imageBytes.length,
                             MAX_SVG_THUMBNAIL_BYTES);
@@ -826,9 +847,12 @@ public class WizVisualizationService {
     * Exports the source runtime viewsheet as a full PNG and crops to the target assembly bounds.
     * Used as a fallback for assembly types (Crosstab, Table) that downloadAssemblyImage
     * does not support — those return a 1×1 placeholder PNG instead of real content.
+    *
+    * @param enforceSizeCaps when {@code true}, a result exceeding {@link #MAX_PNG_THUMBNAIL_BYTES}
+    *        is dropped (returns {@code null}); when {@code false}, it is returned as-is.
     */
    private String renderFallbackThumbnail(RuntimeViewsheet rvs, String assemblyName,
-                                           Principal principal)
+                                           boolean enforceSizeCaps, Principal principal)
    {
       try {
          Viewsheet vs = rvs.getViewsheet();
@@ -926,7 +950,7 @@ public class WizVisualizationService {
             return null;
          }
 
-         if(croppedBytes.length > MAX_PNG_THUMBNAIL_BYTES) {
+         if(enforceSizeCaps && croppedBytes.length > MAX_PNG_THUMBNAIL_BYTES) {
             LOG.debug("renderFallbackThumbnail: PNG thumbnail for '{}' is {} bytes (limit {}), skipping",
                       assemblyName, croppedBytes.length, MAX_PNG_THUMBNAIL_BYTES);
             return null;
@@ -1052,6 +1076,9 @@ public class WizVisualizationService {
    /** Default render dimensions for /visualization/render when the request omits width/height. */
    private static final int DEFAULT_RENDER_WIDTH = 800;
    private static final int DEFAULT_RENDER_HEIGHT = 600;
+   /** Clamp caller-supplied render width/height so an oversized request can't drive a
+    *  resource-exhaustion render. */
+   private static final int MAX_RENDER_DIMENSION = 4000;
    /** Bounded retry for the render endpoint when the chart graph is not yet ready. */
    private static final int RENDER_MAX_ATTEMPTS = 4;
    private static final long RENDER_RETRY_SLEEP_MS = 500;
