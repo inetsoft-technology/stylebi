@@ -168,13 +168,13 @@ input[type="number"] {
   color: var(--inet-text-color);
 
   &:hover {
-    background-color: var(--inet-hover-primary-bg-color);
+    background-color: var(--inet-viz-hover-bg);
     color: var(--inet-text-color);
   }
 
   &.selected {
-    background-color: var(--inet-selected-item-bg-color);
-    color: var(--inet-selected-item-text-color);
+    background-color: var(--inet-viz-selected-bg);
+    color: var(--inet-viz-selected-text);
     font-weight: 600;
   }
 }

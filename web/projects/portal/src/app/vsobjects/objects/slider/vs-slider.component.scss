@@ -65,6 +65,17 @@
   --slider-tick-color: rgba(0, 0, 0, 0.38);
 }
 
+// Modern visualization neutrals — gate-scoped; legacy :host values above stay
+// unchanged so gate-off is byte-identical. Passive chrome, warm-neutral only
+// (no selection accent). Geometry, shadows, and state opacities are not repointed.
+:host-context(.viz-modern) {
+  --slider-inactive-track-color: #E8E5DE;
+  --slider-active-track-color: #C8C2B7;
+  --slider-handle-color: #6A685F;
+  --slider-tick-color: #6A685F;
+  --slider-label-bg: #6A685F;
+}
+
 // ─── Structural containers ────────────────────────────────────────────────────
 
 .slider {
