@@ -139,8 +139,32 @@ class ScriptHostAccessTest {
       }
    }
 
+   /**
+    * Bug #75690: Rhino auto-adapted a JS function to a single-method Java
+    * interface, so scripts could pass a lambda to a Java method expecting a
+    * functional interface (e.g. Stream.filter(Predicate), Stream.forEach(Consumer)
+    * via graph shape scripting). GraalJS refuses this unless the HostAccess policy
+    * allows implementing @FunctionalInterface types.
+    */
+   @Test void jsFunctionAdaptsToFunctionalInterface() {
+      try(Context ctx = newContext()) {
+         ctx.getBindings("js").putMember("h", new Sample());
+         // Predicate via Stream.filter
+         Object count = ScriptValueConverter.toHost(
+            ctx.eval("js", "h.numbers().filter(n => n > 1).count()"));
+         assertEquals(2L, ((Number) count).longValue());
+         // Consumer via Stream.forEach
+         assertDoesNotThrow(() -> ctx.eval("js",
+            "var seen = []; h.numbers().forEach(n => seen.push(n));"));
+      }
+   }
+
    public static class Sample {
       @org.graalvm.polyglot.HostAccess.Export public String allowed() { return "ok"; }
       public String denied() { return "no"; }
+      @org.graalvm.polyglot.HostAccess.Export
+      public java.util.stream.Stream<Integer> numbers() {
+         return java.util.stream.Stream.of(1, 2, 3);
+      }
    }
 }
