@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -19,10 +19,24 @@ package inetsoft.uql;
 
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/*
+ * Cases deferred - not covered in this pass:
+ *
+ * [ConditionItem] writeXML(PrintWriter) / parseXML(Element) - XML serialization round-trip,
+ *             not branching logic; descoped per reviewer guidance.
+ */
+@Tag("core")
 class ConditionItemTest {
 
    // ---- Default constructor ----
@@ -38,25 +52,16 @@ class ConditionItemTest {
    // ---- Parameterized constructor ----
 
    @Test
-   void parameterizedConstructorStoresAttribute() {
+   void parameterizedConstructorStoresAllFields() {
+      // three fields set by one constructor call, not independent branch/param variants,
+      // so a single multi-assertion test is clearer here than @ParameterizedTest.
       AttributeRef attr = new AttributeRef("MyEntity", "MyAttr");
       Condition cond = new Condition();
       cond.setType(XSchema.INTEGER);
       ConditionItem item = new ConditionItem(attr, cond, 2);
 
       assertSame(attr, item.getAttribute());
-   }
-
-   @Test
-   void parameterizedConstructorStoresCondition() {
-      Condition cond = new Condition();
-      ConditionItem item = new ConditionItem(new AttributeRef("e", "a"), cond, 2);
       assertSame(cond, item.getXCondition());
-   }
-
-   @Test
-   void parameterizedConstructorStoresLevel() {
-      ConditionItem item = new ConditionItem(new AttributeRef("e", "a"), new Condition(), 2);
       assertEquals(2, item.getLevel());
    }
 
@@ -178,28 +183,23 @@ class ConditionItemTest {
 
    // ---- toString(boolean) ----
 
-   @Test
-   void toStringWithLevelShowsIndentation() {
-      ConditionItem item = new ConditionItem(new AttributeRef("Entity", "Column"), new Condition(), 2);
-      String str = item.toString(true);
-      // Two level indentations: "........." repeated twice
-      assertTrue(str.startsWith("................."), "Should start with level indentation: " + str);
+   @ParameterizedTest
+   @MethodSource("toStringPrefixCases")
+   void toStringStartsWithExpectedPrefix(boolean shlvl, int level, String expectedPrefix) {
+      ConditionItem item = new ConditionItem(new AttributeRef("Entity", "Column"), new Condition(), level);
+      String str = item.toString(shlvl);
+      assertTrue(str.startsWith(expectedPrefix), "Expected prefix \"" + expectedPrefix + "\" but was: " + str);
    }
 
-   @Test
-   void toStringWithoutLevelNoIndentation() {
-      ConditionItem item = new ConditionItem(new AttributeRef("Entity", "Column"), new Condition(), 2);
-      String str = item.toString(false);
-      // Without level display should start with "["
-      assertTrue(str.startsWith("["), "Should start with '[' but was: " + str);
-   }
-
-   @Test
-   void toStringAtLevelZeroNoIndentation() {
-      ConditionItem item = new ConditionItem(new AttributeRef("Entity", "Column"), new Condition(), 0);
-      String str = item.toString(true);
-      // Level 0 means no dots at all
-      assertTrue(str.startsWith("["), "Level 0 should not have indentation but was: " + str);
+   static Stream<Arguments> toStringPrefixCases() {
+      return Stream.of(
+         // level indentation shown: two levels -> "........." repeated twice
+         Arguments.of(true, 2, "................."),
+         // level display suppressed regardless of level
+         Arguments.of(false, 2, "["),
+         // level 0 means no dots even when indentation is requested
+         Arguments.of(true, 0, "[")
+      );
    }
 
    @Test
@@ -231,5 +231,39 @@ class ConditionItemTest {
    void notEqualsWithNull() {
       ConditionItem item = new ConditionItem();
       assertNotEquals(item, null);
+   }
+
+   @Test
+   void equalsWithBothConditionsNull() {
+      AttributeRef attr = new AttributeRef("E", "A");
+      ConditionItem item1 = new ConditionItem(attr, new Condition(), 1);
+      ConditionItem item2 = new ConditionItem(attr, new Condition(), 1);
+      item1.setXCondition(null);
+      item2.setXCondition(null);
+      assertEquals(item1, item2);
+   }
+
+   @Test
+   void notEqualsWhenOnlyOneConditionIsNull() {
+      AttributeRef attr = new AttributeRef("E", "A");
+      ConditionItem item1 = new ConditionItem(attr, new Condition(), 1);
+      ConditionItem item2 = new ConditionItem(attr, new Condition(), 1);
+      item1.setXCondition(null);
+      assertNotEquals(item1, item2);
+   }
+
+   // ---- hashCode ----
+
+   @Nested
+   class HashCodeTests {
+      @Test
+      void equalItemsHaveSameHashCode() {
+         AttributeRef attr = new AttributeRef("E", "A");
+         ConditionItem item1 = new ConditionItem(attr, new Condition(), 1);
+         ConditionItem item2 = new ConditionItem(attr, new Condition(), 1);
+
+         assertEquals(item1, item2);
+         assertEquals(item1.hashCode(), item2.hashCode());
+      }
    }
 }
