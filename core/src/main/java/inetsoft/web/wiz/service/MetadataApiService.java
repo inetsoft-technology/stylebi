@@ -665,7 +665,9 @@ public class MetadataApiService {
       column.setName(columnRef.getAttribute());
       column.setAlias(columnRef.getAlias());
       column.setRefType(columnRef.getRefType());
-      column.setDescription(columnRef.getDescription());
+      // ColumnRef.getDescription() returns "" (not null) when unset; normalize to null so an absent
+      // description behaves like alias/expression (null when not applicable), matching createColumnMeta.
+      column.setDescription(Tool.isEmptyString(columnRef.getDescription()) ? null : columnRef.getDescription());
 
       if(columnRef.getTypeNode() != null) {
          column.setType(columnRef.getTypeNode().getType());
