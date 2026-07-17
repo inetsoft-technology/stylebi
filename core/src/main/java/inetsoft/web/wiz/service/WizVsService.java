@@ -2379,6 +2379,10 @@ public class WizVsService {
          }
       }
 
+      // discrete / secondaryY applied independently (matching the editor); dropped here before this fix.
+      ref.setDiscrete(field.isDiscrete());
+      ref.setSecondaryY(field.isSecondaryY());
+
       return ref;
    }
 
@@ -2413,6 +2417,12 @@ public class WizVsService {
          ref.setRankingNValue(String.valueOf(ranking.getRankingN()));
          ref.setRankingColValue(ranking.getRankingCol());
          ref.setRankingOptionValue(String.valueOf(ranking.getOptionValue()));
+         // group-non-ranked-as-Others (core to Pareto); dropped here before this fix.
+         ref.setGroupOthersValue(String.valueOf(ranking.isGroupOthers()));
+      }
+
+      if(dim != null && dim.getSortByCol() != null && !dim.getSortByCol().isEmpty()) {
+         ref.setSortByColValue(dim.getSortByCol());
       }
 
       if(dim != null && dim.isNumericBin()) {

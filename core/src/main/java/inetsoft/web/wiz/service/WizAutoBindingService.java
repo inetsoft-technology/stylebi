@@ -751,12 +751,14 @@ public class WizAutoBindingService {
                }
             }
 
-            // discrete (plot un-aggregated) and secondaryY (plot on the secondary Y axis) are
-            // mutually exclusive: an un-aggregated measure has no place on the secondary axis, so a
-            // discrete measure never lands there regardless of what the caller asked for.
-            boolean discrete = meaFc.isDiscrete();
-            agg.setDiscrete(discrete);
-            agg.setSecondaryY(!discrete && meaFc.isSecondaryY());
+            // Apply discrete (plot un-aggregated) and secondaryY (secondary Y axis) INDEPENDENTLY,
+            // matching the interactive editor (ChartAggregateInfoFactory.updateAggregateRef). The
+            // invalid both-true combination is rejected upstream (fail-loud in the plugin's
+            // normalizeFieldConfigs), so this path must not silently normalize a value away — a client
+            // doing get_current_chart_state -> edit -> re-apply would otherwise lose a value here that
+            // the editor would have kept.
+            agg.setDiscrete(meaFc.isDiscrete());
+            agg.setSecondaryY(meaFc.isSecondaryY());
          }
       }
 
