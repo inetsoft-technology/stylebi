@@ -34,6 +34,10 @@ beforeEach(() => {
    // Real isTouchDevice() uses setTimeout + Subject.toPromise(); under a loaded
    // Vitest worker that leaves Zone busy and inflates async TL tests.
    vi.spyOn(GuiTool, "isTouchDevice").mockImplementation(() => Promise.resolve(false));
+   // setDragImage registers document dragover/dragend and needs DomService.requestRead.
+   // Incomplete DomService mocks + leftover listeners cause CI cross-file unhandled
+   // rejections (often attributed to an unrelated later file). Stub for all TL tests.
+   vi.spyOn(GuiTool, "setDragImage").mockImplementation(() => Promise.resolve());
 });
 
 afterEach(() => {

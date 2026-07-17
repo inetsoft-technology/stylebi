@@ -60,6 +60,7 @@ import { ComponentTool } from "../../../common/util/component-tool";
 import { StompClientService } from "../../../common/viewsheet-client";
 import { DomService } from "../../../widget/dom-service/dom.service";
 import { DragService } from "../../../widget/services/drag.service";
+import { createDomServiceMock } from "../../../../testing/tl-async.util";
 import { DataDatasourceBrowserComponent } from "./data-datasource-browser.component";
 import { DataSourceBrowserModel } from "./data-source-browser-model";
 import { DatasourceBrowserService } from "./datasource-browser.service";
@@ -274,7 +275,7 @@ async function renderComponent(options: RenderOptions = {}) {
          { provide: DatasourceBrowserService, useValue: datasourceService },
          { provide: OpenComposerService, useValue: { composerOpen: of(options.composerOpen ?? false) } },
          { provide: DragService, useValue: dragService },
-         { provide: DomService, useValue: {} }
+         { provide: DomService, useValue: createDomServiceMock() }
       ],
       schemas: [NO_ERRORS_SCHEMA]
    });

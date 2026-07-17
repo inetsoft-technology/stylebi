@@ -33,8 +33,8 @@
  *   dragFieldMCComplete/drop — DnD orchestration owned by AestheticFieldMc base
  */
 
+import { ComponentFixture } from "@angular/core/testing";
 import { render, screen } from "@testing-library/angular";
-import userEvent from "@testing-library/user-event";
 import { DndService } from "../../../../common/dnd/dnd.service";
 import { GraphTypes } from "../../../../common/graph-types";
 import { StaticShapeModel } from "../../../../common/data/visual-frame-model";
@@ -76,11 +76,10 @@ async function renderShapeFieldMc(
    return { ...result, editorService, bindingModel };
 }
 
-async function openShapeDropdown(container: HTMLElement) {
-   const trigger = container.querySelector(".visual-cell-container, .visual-edit-icon");
-   if(trigger) {
-      await userEvent.click(trigger);
-   }
+/** Group 3 asserts getEditPaneId — avoid dropdown click / userEvent (Zone hang on CI). */
+function editPaneId(fixture: ComponentFixture<ShapeFieldMc>): string {
+   fixture.detectChanges();
+   return (fixture.componentInstance as any).editPaneId;
 }
 
 describe("ShapeFieldMc — getField and getFrames [Group 1, Risk 2]", () => {
@@ -140,11 +139,9 @@ describe("ShapeFieldMc — getEditPaneId [Group 3, Risk 2]", () => {
          dataInfo: TestUtils.createMockChartDimensionRef("state"),
          frame: new StaticShapeModel()
       };
-      const { container } = await renderShapeFieldMc(bindingModel);
+      const { fixture } = await renderShapeFieldMc(bindingModel);
 
-      await openShapeDropdown(container);
-
-      expect(document.querySelector("categorical-shape-pane")).toBeTruthy();
+      expect(editPaneId(fixture)).toBe("CategoricalShape");
    });
 
    it("should return StaticShape for single unbound shape frame on radar point-line chart", async () => {
@@ -153,11 +150,9 @@ describe("ShapeFieldMc — getEditPaneId [Group 3, Risk 2]", () => {
       bindingModel.pointLine = true;
       bindingModel.yfields = [TestUtils.createMockChartAggregateRef("Sum(qty)")];
       bindingModel.shapeFrame = new StaticShapeModel();
-      const { container } = await renderShapeFieldMc(bindingModel);
+      const { fixture } = await renderShapeFieldMc(bindingModel);
 
-      await openShapeDropdown(container);
-
-      expect(document.querySelector("static-shape-pane")).toBeTruthy();
+      expect(editPaneId(fixture)).toBe("StaticShape");
    });
 
    it("should return LinearLine for line chart aggregate measure field", async () => {
@@ -169,11 +164,9 @@ describe("ShapeFieldMc — getEditPaneId [Group 3, Risk 2]", () => {
          dataInfo: TestUtils.createMockChartAggregateRef("Sum(qty)"),
          frame: new StaticShapeModel()
       };
-      const { container } = await renderShapeFieldMc(bindingModel);
+      const { fixture } = await renderShapeFieldMc(bindingModel);
 
-      await openShapeDropdown(container);
-
-      expect(document.querySelector("linear-line-pane")).toBeTruthy();
+      expect(editPaneId(fixture)).toBe("LinearLine");
    });
 });
 

@@ -73,3 +73,21 @@ export async function flushMicrotasks(): Promise<void> {
    await Promise.resolve();
    await Promise.resolve();
 }
+
+/**
+ * Safe DomService stub for TL/unit providers.
+ * Empty `{}` mocks blow up when GuiTool.setDragImage registers document dragover
+ * and a later test fires dragover (cross-file unhandled rejection).
+ */
+export function createDomServiceMock() {
+   return {
+      requestRead: (cb?: () => void) => {
+         cb?.();
+         return 0;
+      },
+      requestWrite: (cb?: () => void) => {
+         cb?.();
+         return 0;
+      },
+   };
+}
