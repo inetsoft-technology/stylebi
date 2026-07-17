@@ -27,6 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.function.Predicate;
 
 /**
  * Session-resolved edit service for viewsheet scripts.
@@ -87,6 +88,35 @@ public class ScriptEditService {
       T result = mutation.apply(rvs);
 
       broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, session.runtimeId(), agent);
+      return result;
+   }
+
+   /**
+    * Like {@link #applyOnRuntime} but only broadcasts when {@code shouldBroadcast} says the
+    * mutation actually changed something.
+    *
+    * <p>Exists because {@code execute} (dry-run) has no isolated clone to run against (see
+    * {@link ScriptExecuteService}'s class javadoc) — a script that isn't caught by the
+    * destructive-globals check mutates the SAME live runtime {@code execute-live} does. Without
+    * this, that mutation would take effect with no broadcast at all, silently diverging the
+    * live runtime from what the owning browser session displays.</p>
+    */
+   public <T> T applyOnRuntimeIfChanged(String sessionToken, Principal agent,
+                                        ThrowingFunction<RuntimeViewsheet, T> mutation,
+                                        Predicate<T> shouldBroadcast)
+      throws Exception
+   {
+      JoinSession session = requireSession(sessionToken, agent);
+      RuntimeViewsheet rvs = (RuntimeViewsheet) runtimeAccess.getSheetForPairing(
+         SheetType.VIEWSHEET, session.runtimeId(), agent);
+      applySocketSession(rvs, session);
+
+      T result = mutation.apply(rvs);
+
+      if(shouldBroadcast.test(result)) {
+         broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, session.runtimeId(), agent);
+      }
+
       return result;
    }
 

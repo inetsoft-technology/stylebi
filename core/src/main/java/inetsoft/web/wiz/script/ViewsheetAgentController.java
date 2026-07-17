@@ -144,16 +144,24 @@ public class ViewsheetAgentController {
 
    public record ExecuteRequest(String target) {}
 
-   /** Dry-runs the script currently saved at {@code target} (see {@link ScriptExecuteService}). */
+   /**
+    * Dry-runs the script currently saved at {@code target} (see {@link ScriptExecuteService}).
+    *
+    * <p>Broadcasts a refresh if the run actually executed against the live runtime — dry-run
+    * has no isolated clone, so a script that isn't caught by the destructive-globals check can
+    * mutate live state. Without the broadcast, the owning browser session would never learn
+    * that happened.</p>
+    */
    @PostMapping("/api/wiz/v1/agent/script/{sessionToken}/execute")
    public ScriptExecResult execute(@PathVariable String sessionToken,
                                    @RequestBody ExecuteRequest req, Principal user)
-      throws PairingException
+      throws Exception
    {
       requireEnabled();
       ScriptTarget target = ScriptTarget.parse(req.target());
-      RuntimeViewsheet rvs = editService.resolve(sessionToken, user);
-      return executeService.dryRun(rvs, target);
+      return editService.applyOnRuntimeIfChanged(sessionToken, user,
+         rvs -> executeService.dryRun(rvs, target),
+         result -> result.changed() != null && !result.changed().isEmpty());
    }
 
    public record ExecuteLiveRequest(String target, boolean confirmed) {}
