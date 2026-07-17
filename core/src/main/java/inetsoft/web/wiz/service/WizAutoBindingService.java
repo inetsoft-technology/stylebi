@@ -2088,6 +2088,18 @@ public class WizAutoBindingService {
          throw new Exception("Chart assembly not found: " + request.getAssemblyName());
       }
 
+      // copy+apply: duplicate the assembly FIRST (keeping the original untouched) and apply the
+      // format change to the new copy instead. duplicatePrimaryAssembly is the single shared
+      // "copy" primitive (also used by setChartColors) — this never reimplements duplication here.
+      if(request.isCopy()) {
+         VSAssembly copy = wizVsService.duplicatePrimaryAssembly(rvs.getViewsheet(), chart);
+
+         if(copy instanceof ChartVSAssembly copiedChart) {
+            chart = copiedChart;
+         }
+      }
+
+      String targetAssemblyName = chart.getName();
       var info = chart.getChartInfo();
       ChartDescriptor desc = info.getChartDescriptor();
       VSChartInfo vsChartInfo = info.getVSChartInfo();
@@ -2211,7 +2223,7 @@ public class WizAutoBindingService {
       // staleness check (equalsContent against itself) can never detect the in-place mutation
       // above. Clear the cached graph explicitly — mirroring VSChartDataHandler — or every
       // subsequent render (including brand-new embed connections) serves the stale graph.
-      rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(request.getAssemblyName()));
+      rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(targetAssemblyName));
 
       // Commit the in-place mutation to the backing asset. save_viewsheet clones the assembly from
       // the PERSISTED viewsheet (not this live runtime), so a format/color change left only on the
@@ -2222,14 +2234,14 @@ public class WizAutoBindingService {
       }
 
       CreateViewsheetResult result =
-         wizVsService.fetchAssemblyData(effRuntimeId, request.getAssemblyName(), user);
+         wizVsService.fetchAssemblyData(effRuntimeId, targetAssemblyName, user);
 
       if(result == null) {
          result = new CreateViewsheetResult();
       }
 
       result.setRuntimeId(effRuntimeId);
-      result.setAssemblyName(request.getAssemblyName());
+      result.setAssemblyName(targetAssemblyName);
 
       if(request.getViewsheetIdentifier() != null) {
          result.setViewsheetIdentifier(request.getViewsheetIdentifier());
@@ -2289,6 +2301,18 @@ public class WizAutoBindingService {
          throw new Exception("Chart assembly not found: " + request.getAssemblyName());
       }
 
+      // copy+apply: duplicate the assembly FIRST (keeping the original untouched) and apply the
+      // color change to the new copy instead. duplicatePrimaryAssembly is the single shared
+      // "copy" primitive (also used by setChartFormat) — this never reimplements duplication here.
+      if(request.isCopy()) {
+         VSAssembly copy = wizVsService.duplicatePrimaryAssembly(rvs.getViewsheet(), chart);
+
+         if(copy instanceof ChartVSAssembly copiedChart) {
+            chart = copiedChart;
+         }
+      }
+
+      String targetAssemblyName = chart.getName();
       var info = chart.getChartInfo();
       VSChartInfo vsChartInfo = info.getVSChartInfo();
       AestheticRef colorField = vsChartInfo == null ? null : vsChartInfo.getColorField();
@@ -2324,7 +2348,7 @@ public class WizAutoBindingService {
       // staleness check (equalsContent against itself) can never detect the in-place mutation
       // above. Clear the cached graph explicitly — mirroring VSChartDataHandler — or every
       // subsequent render (including brand-new embed connections) serves the stale graph.
-      rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(request.getAssemblyName()));
+      rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(targetAssemblyName));
 
       // Commit the in-place mutation to the backing asset. save_viewsheet clones the assembly from
       // the PERSISTED viewsheet (not this live runtime), so a format/color change left only on the
@@ -2335,14 +2359,14 @@ public class WizAutoBindingService {
       }
 
       CreateViewsheetResult result =
-         wizVsService.fetchAssemblyData(effRuntimeId, request.getAssemblyName(), user);
+         wizVsService.fetchAssemblyData(effRuntimeId, targetAssemblyName, user);
 
       if(result == null) {
          result = new CreateViewsheetResult();
       }
 
       result.setRuntimeId(effRuntimeId);
-      result.setAssemblyName(request.getAssemblyName());
+      result.setAssemblyName(targetAssemblyName);
 
       if(request.getViewsheetIdentifier() != null) {
          result.setViewsheetIdentifier(request.getViewsheetIdentifier());

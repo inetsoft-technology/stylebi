@@ -103,6 +103,11 @@ public class ChartFormatRequest {
    public Boolean getFillGapWithDash() { return fillGapWithDash; }
    public void setFillGapWithDash(Boolean fillGapWithDash) { this.fillGapWithDash = fillGapWithDash; }
 
+   /** When true, duplicate the assembly first (keeping the original untouched) and apply the format
+    *  change to the new copy instead of in place. Defaults to false. */
+   public boolean isCopy() { return copy; }
+   public void setCopy(boolean copy) { this.copy = copy; }
+
    /** The runtime viewsheet that holds the live chart (the plugin's active-chart runtimeId). */
    private String wizRuntimeId;
    /** The chart assembly name within that runtime. */
@@ -124,4 +129,5 @@ public class ChartFormatRequest {
    private Boolean fillTimeGap;
    private Boolean fillZero;
    private Boolean fillGapWithDash;
+   private boolean copy;
 }

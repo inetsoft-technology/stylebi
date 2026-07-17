@@ -2526,6 +2526,42 @@ public class WizVsService {
    }
 
    /**
+    * Duplicates {@code source} into a new, uniquely-named assembly on {@code vs}, demotes any
+    * currently-primary assembly (kept, not removed), and sets the new assembly as primary.
+    * Reuses {@link #rebindAssembly} (clones the FULL {@code VSAssemblyInfo} — chart type, binding,
+    * and any previously-applied format/color/marker customizations) and {@link #uniqueAssemblyName},
+    * the same building blocks the standard create/rebind path already uses — this is the single
+    * shared "copy" primitive so callers (e.g. copy+apply on setChartColors/setChartFormat) never
+    * reimplement assembly duplication themselves.
+    *
+    * @return the new (now primary) assembly, or null when {@code source}'s type has no
+    *         {@code ASSEMBLY_FACTORIES} entry (see {@link #rebindAssembly}).
+    */
+   public VSAssembly duplicatePrimaryAssembly(Viewsheet vs, VSAssembly source) {
+      String newName = uniqueAssemblyName(vs, source.getName());
+      VSAssembly copy = rebindAssembly(vs, newName, source);
+
+      if(copy == null) {
+         return null;
+      }
+
+      Assembly[] existingAssemblies = vs.getAssemblies();
+
+      if(existingAssemblies != null) {
+         for(Assembly a : existingAssemblies) {
+            if(a instanceof VSAssembly va && va.isPrimary()) {
+               va.setPrimary(false);
+            }
+         }
+      }
+
+      vs.addAssembly(copy);
+      copy.setPrimary(true);
+
+      return copy;
+   }
+
+   /**
     * Returns the first assembly marked as primary in the viewsheet, or null if none exists.
     */
    private VSAssembly findPrimaryAssembly(Viewsheet vs) {
