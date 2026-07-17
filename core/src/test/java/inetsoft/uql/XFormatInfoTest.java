@@ -18,10 +18,12 @@
 package inetsoft.uql;
 
 import inetsoft.report.internal.table.TableFormat;
+import inetsoft.sree.PropertiesEngine;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
-import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -37,13 +39,15 @@ import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 
 /*
  * XFormatInfo - single-pass
  *
  * Risk-first coverage:
- *   [Risk 3] - toString() NPE on malformed/unrecoverable format spec (see Suspect 1)
+ *   [Risk 3] - toString() falls back to "none" when Format construction fails (Suspect 1 fixed)
  *   [Risk 2] - Format-derived constructor, writeXML/parseXML round trip (including the
  *              null-formatSpec literal-"null" mechanism), toString() branch coverage
  *              (duration, decimal percent-spec, unrecognized format), equals()/hashCode()
@@ -54,14 +58,11 @@ import static org.mockito.ArgumentMatchers.anyString;
 /*
  * Intent vs implementation suspects
  *
- * [Suspect 1] toString() calls fmt.format(...) in every branch without null-checking fmt first.
- *             TableFormat.getFormat() silently swallows any exception during Format
- *             construction (malformed custom format spec, transient env failure, etc.) and
- *             returns null in that case instead of throwing.
- *             XFormatInfo.java:160-192 (toString), TableFormat.java:278-283 (swallowed catch)
- *             Conclusion (Bug): reachable via a user-entered unparseable custom format spec
- *             (e.g. an invalid decimal pattern) -> NPE instead of the intended graceful
- *             fallback to Catalog "none".
+ * [Suspect 1] toString() called fmt.format(...) without null-checking fmt first.
+ *             TableFormat.getFormat() silently swallows Format construction failures and
+ *             returns null (malformed custom format spec, etc.).
+ *             Fixed: toString() now falls back to Catalog "none" when fmt is null
+ *             (MESSAGE_FORMAT still works without a resolved Format).
  *
  * [Suspect 2] writeXML()/parseXML() null-formatSpec handling looked asymmetric during analysis
  *             (writeXML always writes a formatSpec tag, even for a null spec; parseXML
@@ -71,6 +72,23 @@ import static org.mockito.ArgumentMatchers.anyString;
  */
 @Tag("core")
 class XFormatInfoTest {
+   // TableFormat.<clinit> registers property listeners via PropertiesEngine.getInstance().
+   // Stub it so toString()/format-constructor tests stay unit-tier without a Spring context.
+   private static MockedStatic<PropertiesEngine> propertiesEngineMock;
+
+   @BeforeAll
+   static void stubPropertiesEngine() {
+      PropertiesEngine engine = mock(PropertiesEngine.class);
+      propertiesEngineMock = Mockito.mockStatic(PropertiesEngine.class);
+      propertiesEngineMock.when(PropertiesEngine::getInstance).thenReturn(engine);
+   }
+
+   @AfterAll
+   static void closePropertiesEngineStub() {
+      if(propertiesEngineMock != null) {
+         propertiesEngineMock.close();
+      }
+   }
 
    // ==========================================================================
    // Constructors
@@ -314,11 +332,10 @@ class XFormatInfoTest {
 
    @Test
    void toString_decimalFormat_doesNotThrow() {
-      // TableFormat.getFormat() reads SreeEnv.getProperty("format.number.round") for this
-      // branch; mock it so this stays [unit]-tier instead of depending on a real Spring
-      // ApplicationContext being available (see Suspect 1: fmt-null-NPE below).
-      try(MockedStatic<SreeEnv> sreeEnv = Mockito.mockStatic(SreeEnv.class)) {
-         sreeEnv.when(() -> SreeEnv.getProperty(anyString())).thenReturn(null);
+      // Avoid ExtendedDecimalFormat.<clinit> (needs DataSpace/Spring) by stubbing getFormat.
+      try(MockedStatic<TableFormat> tableFormat = Mockito.mockStatic(TableFormat.class)) {
+         tableFormat.when(() -> TableFormat.getFormat(anyString(), any()))
+            .thenReturn(new DecimalFormat("#,##0.00"));
 
          XFormatInfo info = new XFormatInfo(TableFormat.DECIMAL_FORMAT, "#,##0.00");
          assertDoesNotThrow(() -> {
@@ -379,10 +396,10 @@ class XFormatInfoTest {
    @Test
    void toString_decimalFormatPercentLikeSpec_usesSmallSampleValue() {
       // Covers the branch that samples fmt.format(1) instead of fmt.format(100000) for these
-      // two specific percent-like decimal specs. Mocked for the same reason as
-      // toString_decimalFormat_doesNotThrow above.
-      try(MockedStatic<SreeEnv> sreeEnv = Mockito.mockStatic(SreeEnv.class)) {
-         sreeEnv.when(() -> SreeEnv.getProperty(anyString())).thenReturn(null);
+      // two specific percent-like decimal specs.
+      try(MockedStatic<TableFormat> tableFormat = Mockito.mockStatic(TableFormat.class)) {
+         tableFormat.when(() -> TableFormat.getFormat(anyString(), any()))
+            .thenReturn(new DecimalFormat("##.00%"));
 
          XFormatInfo info = new XFormatInfo(TableFormat.DECIMAL_FORMAT, "##.00%");
          assertDoesNotThrow(() -> {
@@ -399,23 +416,15 @@ class XFormatInfoTest {
    }
 
    @Test
-   // Suspect 1 / toString() NPEs instead of falling back to "none" when TableFormat.getFormat()
-   // returns null for an unparseable custom format spec / XFormatInfo.java:160-192 /
-   // Fix: null-check fmt in each branch before calling fmt.format(...), falling back to
-   // Catalog "none" (matching the format == null case) when fmt is null
-   @Disabled("Suspect 1: toString() throws NPE on a malformed custom decimal format spec "
-      + "instead of falling back to Catalog \"none\" - XFormatInfo.java:160-192")
-   void toString_malformedDecimalSpec_npesInsteadOfFallingBackToNone() {
-      try(MockedStatic<SreeEnv> sreeEnv = Mockito.mockStatic(SreeEnv.class)) {
-         sreeEnv.when(() -> SreeEnv.getProperty(anyString())).thenReturn(null);
+   void toString_whenGetFormatReturnsNull_fallsBackToNone() {
+      // TableFormat.getFormat() returns null when Format construction fails (e.g. malformed
+      // custom pattern). Stub that outcome so this stays unit-tier without ExtendedDecimalFormat.
+      try(MockedStatic<TableFormat> tableFormat = Mockito.mockStatic(TableFormat.class)) {
+         tableFormat.when(() -> TableFormat.getFormat(anyString(), any())).thenReturn(null);
 
-         // Unterminated quote reliably makes DecimalFormat/ExtendedDecimalFormat's constructor
-         // throw IllegalArgumentException, which TableFormat.getFormat() silently swallows,
-         // leaving fmt == null.
          XFormatInfo info = new XFormatInfo(TableFormat.DECIMAL_FORMAT, "'unterminated");
 
-         assertDoesNotThrow(() -> info.toString(),
-            "toString() should fall back to \"none\" instead of NPEing on a malformed spec");
+         assertEquals(Catalog.getCatalog().getString("none"), info.toString());
       }
    }
 
