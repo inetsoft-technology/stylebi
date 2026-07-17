@@ -79,6 +79,14 @@ public class DimensionFieldInfo extends SimpleFieldInfo {
       this.sortByCol = sortByCol;
    }
 
+   public Boolean getSummarize() {
+      return summarize;
+   }
+
+   public void setSummarize(Boolean summarize) {
+      this.summarize = summarize;
+   }
+
    private String dateGroupLevel;
    private Ranking ranking;
    private String fullName;
@@ -86,4 +94,6 @@ public class DimensionFieldInfo extends SimpleFieldInfo {
    private boolean numericBin = false;
    private List<String> manualOrder;
    private String sortByCol;
+   // Crosstab subtotal visibility for row/col dimensions; null = default. Ignored by chart/table.
+   private Boolean summarize;
 }

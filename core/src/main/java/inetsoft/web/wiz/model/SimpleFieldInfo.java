@@ -35,5 +35,15 @@ public class SimpleFieldInfo extends FieldInfo {
       this.order = order;
    }
 
+   public Boolean getVisible() {
+      return visible;
+   }
+
+   public void setVisible(Boolean visible) {
+      this.visible = visible;
+   }
+
    private Integer order;
+   // Column visibility for table `details`; null = default (visible). Ignored by chart/crosstab.
+   private Boolean visible;
 }

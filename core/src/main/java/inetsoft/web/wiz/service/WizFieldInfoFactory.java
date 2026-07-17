@@ -47,6 +47,7 @@ final class WizFieldInfoFactory {
       info.setFullName(crosstabDimFullName(dim));
       applyDateGroup(info, dim);
       applyRanking(info, dim);
+      info.setSummarize(dim.isSubTotalVisible());
       return info;
    }
 
@@ -108,7 +109,17 @@ final class WizFieldInfoFactory {
       info.setField(agg.getColumnValue());
       info.setAggregateFormula(agg.getFormula() != null ? agg.getFormula().getFormulaName() : null);
       info.setCalculateInfo(CalculateInfo.createCalcInfo(agg.getCalculator()));
+      info.setPercentage(percentageName(agg.getPercentageOption()));
       return info;
+   }
+
+   /** Reverse of WizVsService#percentageOption: XConstants option → wiz percentage name. */
+   private static String percentageName(int option) {
+      return switch(option) {
+         case XConstants.PERCENTAGE_OF_GRANDTOTAL -> "GrandTotal";
+         case XConstants.PERCENTAGE_OF_GROUP -> "Group";
+         default -> "None";
+      };
    }
 
    static MeasureFieldInfo createChartMeasureFieldInfo(VSAggregateRef agg) {

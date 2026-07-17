@@ -78,6 +78,14 @@ public class MeasureFieldInfo extends SimpleFieldInfo {
       this.secondaryY = secondaryY;
    }
 
+   public String getPercentage() {
+      return percentage;
+   }
+
+   public void setPercentage(String percentage) {
+      this.percentage = percentage;
+   }
+
    private String aggregateFormula;
    private String fullName;
    private String secondaryField;
@@ -85,4 +93,6 @@ public class MeasureFieldInfo extends SimpleFieldInfo {
    private CalculateInfo calculateInfo;
    private boolean discrete = false;
    private boolean secondaryY = false;
+   // Crosstab percentage display for aggregates: "None" | "GrandTotal" | "Group". Ignored by chart/table.
+   private String percentage;
 }
