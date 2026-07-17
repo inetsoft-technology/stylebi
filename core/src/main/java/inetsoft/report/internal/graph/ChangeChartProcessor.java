@@ -1888,7 +1888,9 @@ public class ChangeChartProcessor {
       for(boolean runtime : new boolean[]{ false, true }) {
          for(AestheticRef ref : chartInfo.getAestheticRefs(runtime)) {
             if(ref.getVisualFrame() instanceof CategoricalColorFrame) {
-               ((CategoricalColorFrame) ref.getVisualFrame()).setParentParams(parentParams);
+               CategoricalColorFrame ccf = (CategoricalColorFrame) ref.getVisualFrame();
+               ccf.setParentParams(parentParams);
+               VSChartPaletteDefaults.applyModernPalette(ccf);
             }
             else if(ref.getVisualFrame() instanceof GradientColorFrame) {
                ((GradientColorFrame) ref.getVisualFrame()).setParentParams(parentParams);

@@ -476,6 +476,9 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
    @TernMethod
    public void setDefaultColors(Color ...defaultColors) {
       this.defaultColors = new ArrayList<>(Arrays.asList(defaultColors));
+      // invalidate the derived unusedColors/unassignedScale caches so the new palette
+      // takes effect, matching setDefaultColor(int, Color)
+      clearUsedColors();
    }
 
    /**
