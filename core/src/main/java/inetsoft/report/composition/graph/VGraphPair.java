@@ -1294,7 +1294,9 @@ public class VGraphPair {
                                  .getDefaultFormat(), objFmt);
 
                if(ref.getVisualFrame() instanceof CategoricalColorFrame) {
-                  ((CategoricalColorFrame) ref.getVisualFrame()).setParentParams(parentParams);
+                  CategoricalColorFrame ccf = (CategoricalColorFrame) ref.getVisualFrame();
+                  ccf.setParentParams(parentParams);
+                  VSChartPaletteDefaults.applyModernPalette(ccf);
                }
                else if(ref.getVisualFrame() instanceof GradientColorFrame) {
                   ((GradientColorFrame) ref.getVisualFrame()).setParentParams(parentParams);

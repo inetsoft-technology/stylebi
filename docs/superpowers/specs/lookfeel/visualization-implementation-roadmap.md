@@ -756,6 +756,28 @@ browser-side visualization gate.
 - one modern graph-color definition bridged to the server-side sources so live view and all export
   formats stay in sync
 
+### Status (implemented 2026-07-17)
+
+Phase 8 shipped the **modern categorical series palette** as a gated, export-consistent server
+default — see [visualization-phase8-implementation-plan.md](./visualization-phase8-implementation-plan.md).
+A fourth resolver `VSChartPaletteDefaults` (`uql/viewsheet/internal/`, sub-gate
+`viewsheet.modernChartPalette`, mirroring `VSChartChromeDefaults`) swaps
+`CategoricalColorFrame.defaultColors` to the modern series-1..8 head (legacy `COLOR_PALETTE` tail for
+indices 9-40) at every render seam that wires a categorical frame (`VGraphPair`, `CSSProcessor`,
+`ChangeChartProcessor` — the composer-DnD path reaches it transitively). Defaults-only (user colors
+and customer `format.css ChartPalette` still win), transient (not serialized), gate-off
+byte-identical, so live view and every export format agree. The server-side modern-mode selection
+mechanism the dependency note below required was already built by the Phase 3/5/6 resolvers; Phase 8
+adds the fourth.
+
+**Deferred with grounded reasons:** sequential/diverging **ramps** (`GradientColorFrame` reads only
+`ChartPalette` CSS index 1/2, not `defaultColors`; ColorBrewer/Heat/Bipolar ramps are hardcoded with
+no gate hook; no modern ramp design values exist — a guard test pins gradient as unchanged);
+**target/threshold line** color (`GraphTarget.lineColor 0xafafad`, low-value); **conditional
+formatting** — no server default to modernize (`Highlight` fg/bg default `null`, 100% user-authored),
+and the `--inet-viz-warning-bg`/`-anomaly-bg` DOM tokens already shipped in Phase 4; **dark-mode**
+palette (`series-dark-*`); **highlight authoring presets**.
+
 ### Dependency note
 
 This phase depends on the render-location boundary recorded in the Phase 0 audit
