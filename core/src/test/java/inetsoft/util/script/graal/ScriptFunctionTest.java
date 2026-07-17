@@ -224,6 +224,20 @@ class ScriptFunctionTest {
    }
 
    @Test
+   void fractionalNumberArgIsCoercedToString() {
+      // A fractional JS number bound to a String parameter keeps its decimal
+      // form ("3.5"), exercising the String.valueOf branch of toStringValue.
+      Target t = new Target();
+      ctx.getBindings("js").putMember(
+         "setLabel", new ScriptFunction(t, Target.class, "setLabel", String.class));
+
+      ctx.eval("js", "setLabel(3.5)");
+
+      assertTrue(t.called);
+      assertEquals("3.5", t.label, "fractional number should coerce to \"3.5\"");
+   }
+
+   @Test
    void stringArgToStringParamPreserved() {
       // A String argument bound to a String parameter is passed through unchanged.
       Target t = new Target();
