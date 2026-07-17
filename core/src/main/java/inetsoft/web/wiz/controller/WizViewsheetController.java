@@ -61,6 +61,11 @@ public class WizViewsheetController {
       return run("apply date comparison", () -> wizVsService.applyDateComparison(model, user));
    }
 
+   @PostMapping(value = "/viewsheet/highlight", produces = MediaType.APPLICATION_JSON_VALUE)
+   public ResponseEntity<?> applyHighlight(@RequestBody ApplyHighlightModel model, Principal user) {
+      return run("apply highlight", () -> wizVsService.applyHighlight(model, user));
+   }
+
    @PostMapping("/viewsheet/validateBinding")
    public void validateBinding(@RequestBody CreateVisualizationModel model,
                                Principal user) throws Exception

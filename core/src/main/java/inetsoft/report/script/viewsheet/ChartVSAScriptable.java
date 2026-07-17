@@ -163,8 +163,9 @@ public class ChartVSAScriptable extends VSAScriptable implements CommonChartScri
       }
       else if(name.equals("chartStyle")) {
          value = JavaScriptEngine.unwrap(value);
-         // unwrap() normalizes GraalJS numbers to Double (JS has no separate int type), so a
-         // hard (Integer) cast always throws ClassCastException here — narrow via Number instead.
+         // under GraalJS every JS number unwraps to a Double (ScriptValueConverter
+         // .toHost), so a hard (Integer) cast throws ClassCastException. Coerce via
+         // Number so both the Rhino Integer and GraalJS Double forms work. (#75679)
          getInfo().setChartStyle(((Number) value).intValue());
          return;
       }

@@ -538,4 +538,44 @@ class WindowTableLensTest {
       assertTrue(ex.getMessage().contains("null ORDER BY"),
                  "error should name the null-order-value cause: " + ex.getMessage());
    }
+
+   @Test
+   void columnIdentifier_delegatesBaseColumnsToUnderlyingTable() {
+      // Regression: WindowTableLens must expose its pass-through (base) columns' identifiers by
+      // delegating to the underlying table, exactly as it delegates getColType. Without this the
+      // base columns report a null identifier, and a downstream column-resolution step that matches
+      // a table-qualified identifier (AssetQuery.getVisibleTableLens -> AssetUtil.findColumn) fails
+      // to locate them and silently projects them away — leaving only the window column and a
+      // wrongly-empty chart. The window column itself has no base identifier; it defaults to its
+      // spec header.
+      DefaultTableLens t = base();                 // cols: stage(0), amount(1)
+      t.setColumnIdentifier(0, "T.stage");
+      t.setColumnIdentifier(1, "T.amount");
+
+      WindowTableLens.Spec spec = new WindowTableLens.Spec(
+         "rn", "ROW_NUMBER", -1, 0, new int[]{0}, new int[]{1}, new boolean[]{false});
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{spec});
+
+      assertEquals("T.stage", lens.getColumnIdentifier(0),
+                   "base column identifier must be delegated to the underlying table");
+      assertEquals("T.amount", lens.getColumnIdentifier(1),
+                   "base column identifier must be delegated to the underlying table");
+      assertEquals("rn", lens.getColumnIdentifier(2),
+                   "window column identifier defaults to the spec header");
+   }
+
+   @Test
+   void columnIdentifier_localOverrideWinsOverBaseDelegation() {
+      // An explicitly-set identifier on the lens itself takes precedence over base delegation.
+      DefaultTableLens t = base();
+      t.setColumnIdentifier(0, "T.stage");
+
+      WindowTableLens.Spec spec = new WindowTableLens.Spec(
+         "rn", "ROW_NUMBER", -1, 0, new int[]{0}, new int[]{1}, new boolean[]{false});
+      WindowTableLens lens = new WindowTableLens(t, new WindowTableLens.Spec[]{spec});
+      lens.setColumnIdentifier(0, "OVERRIDE.stage");
+
+      assertEquals("OVERRIDE.stage", lens.getColumnIdentifier(0),
+                   "a locally-set identifier must win over base delegation");
+   }
 }

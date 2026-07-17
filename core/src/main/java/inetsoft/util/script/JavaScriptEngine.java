@@ -310,6 +310,7 @@ public class JavaScriptEngine {
     * Add an interval to a date.
     */
    public static Date dateAdd(String interval, int amount, Object date) {
+      interval = normalizeDateInterval(interval);
       Date dateVal = getDate(date);
 
       if(dateVal != null) {
@@ -343,6 +344,7 @@ public class JavaScriptEngine {
     *    s      Second
     */
    public static double dateDiff(String interval, Object date1, Object date2) {
+      interval = normalizeDateInterval(interval);
       Date dateVal1 = getDate(date1);
       Date dateVal2 = getDate(date2);
 
@@ -410,6 +412,8 @@ public class JavaScriptEngine {
                                                  boolean applyWeekStart,
                                                  int forceDcToDateWeekOfMonth)
    {
+      interval = normalizeDateInterval(interval);
+
       if(forceDcToDateWeekOfMonth > 0 && "wm".equals(interval)) {
          return forceDcToDateWeekOfMonth;
       }
@@ -804,6 +808,63 @@ public class JavaScriptEngine {
       }
 
       return null;
+   }
+
+   /**
+    * Canonical (VBScript-style) interval tokens accepted by dateAdd / dateDiff / datePart.
+    * This is the UNION across all three functions; each still acts only on the subset that is
+    * meaningful for it (e.g. mq/wmq/wq/wy/dq are datePart-only).
+    */
+   private static final Set<String> VALID_DATE_INTERVALS = Set.of(
+      "yyyy", "q", "m", "y", "d", "w", "ww", "ws", "wm",
+      "h", "n", "s", "mq", "wmq", "wq", "wy", "dq");
+
+   /**
+    * Full-word (and common long-form) aliases → canonical short interval token. Lets a caller
+    * write the natural word — e.g. "day", which matches the vocabulary the wiz plugin's own
+    * dateGroupLevel uses — instead of the VBScript short code. NOTE: "week"/"weeks" map to "ww"
+    * (a real calendar week), NOT the short "w", which dateDiff counts as DAYS.
+    */
+   private static final Map<String, String> DATE_INTERVAL_ALIASES = Map.ofEntries(
+      Map.entry("year", "yyyy"), Map.entry("years", "yyyy"), Map.entry("yr", "yyyy"),
+      Map.entry("quarter", "q"), Map.entry("quarters", "q"),
+      Map.entry("month", "m"), Map.entry("months", "m"),
+      Map.entry("week", "ww"), Map.entry("weeks", "ww"),
+      Map.entry("day", "d"), Map.entry("days", "d"),
+      Map.entry("hour", "h"), Map.entry("hours", "h"), Map.entry("hr", "h"),
+      Map.entry("minute", "n"), Map.entry("minutes", "n"), Map.entry("min", "n"),
+      Map.entry("second", "s"), Map.entry("seconds", "s"), Map.entry("sec", "s"));
+
+   /**
+    * Normalize a date interval token for {@link #dateAdd}, {@link #dateDiff} and
+    * {@link #datePartForceWeekOfMonth}: trims + lower-cases it, maps a full-word alias
+    * (e.g. {@code "day" -> "d"}) to its canonical VBScript short token, and validates the result.
+    *
+    * <p>An unrecognized interval used to be handled SILENTLY — {@code dateDiff} fell through to
+    * {@code return 0} and {@code getDateInterval} defaulted to {@code DAY_OF_YEAR} — so a caller
+    * that wrote the natural full word (e.g. {@code dateDiff("day", d1, d2)}) got a
+    * plausible-but-wrong result (always 0) with no error at all. It now (a) accepts the full word
+    * and (b) fails loud on a genuinely unknown token, so a typo or wrong vocabulary surfaces
+    * instead of silently corrupting the computation.
+    */
+   private static String normalizeDateInterval(String interval) {
+      if(interval == null) {
+         throw new IllegalArgumentException(
+            "date interval is required; use one of: d/day, ww/week, m/month, q/quarter, " +
+            "yyyy/year, h/hour, n/minute, s/second");
+      }
+
+      String token = interval.trim().toLowerCase();
+      token = DATE_INTERVAL_ALIASES.getOrDefault(token, token);
+
+      if(!VALID_DATE_INTERVALS.contains(token)) {
+         throw new IllegalArgumentException(
+            "Unknown date interval '" + interval + "'. Use one of: d/day, ww/week, m/month, " +
+            "q/quarter, yyyy/year, h/hour, n/minute, s/second " +
+            "(or the datePart-only tokens wm, mq, wmq, wq, wy, dq).");
+      }
+
+      return token;
    }
 
    /**

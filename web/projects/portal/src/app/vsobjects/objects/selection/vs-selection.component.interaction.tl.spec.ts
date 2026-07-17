@@ -260,8 +260,19 @@ describe("VSSelection �?Pass 1: Interaction", () => {
          const actions = createMockActions();
          comp.actions = actions as any;
 
-         actions.onAssemblyActionEvent.next({ id: "selection-list search" });
-         expect(comp.model.searchDisplayed).toBe(true);
+         // toggleSearchDisplay() → onSearch() schedules a real setTimeout(...,200) that reads
+         // selectionListSearchInputElementRef.nativeElement, which is never set up in this test
+         // (no real search input rendered). Left as a real timer, it fires after this test's
+         // fixture is destroyed and crashes as an Uncaught Exception attributed to a later spec
+         // file. Fake timers keep it from ever firing since it's never advanced.
+         vi.useFakeTimers();
+         try {
+            actions.onAssemblyActionEvent.next({ id: "selection-list search" });
+            expect(comp.model.searchDisplayed).toBe(true);
+         }
+         finally {
+            vi.useRealTimers();
+         }
       });
 
       it("should handle selection-list open-max-mode action", async () => {

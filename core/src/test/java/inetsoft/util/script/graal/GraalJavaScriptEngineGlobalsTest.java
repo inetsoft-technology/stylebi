@@ -86,6 +86,21 @@ class GraalJavaScriptEngineGlobalsTest {
       assertEquals(1.0, result);
    }
 
+   @Test
+   void chartMapTypeConstantResolves() throws Exception {
+      // MAP_TYPE_<TYPE> constants (e.g. Chart["MAP_TYPE_U.S."] == "U.S.") are
+      // derived dynamically from the installed map data, not from static final
+      // fields, so the reflected ConstantScope does not pick them up. The engine
+      // must register them explicitly (as Rhino did) for map scripts such as
+      // mapType = Chart["MAP_TYPE_U.S."] to work. (Bug #75679)
+      String[] types = inetsoft.report.internal.graph.MapData.getMapTypes();
+      Assumptions.assumeTrue(types.length > 0, "no map data installed");
+
+      String type = types[0];
+      Object result = eval("Chart['MAP_TYPE_" + type.toUpperCase() + "']");
+      assertEquals(type, result);
+   }
+
    // Bug: chart scripts construct these aesthetic classes, e.g.
    // elem.setLineFrame(new StaticLineFrame(new GLine(3))). GLine/GTexture/SVGShape
    // are Java classes with both public constructors and public static final
@@ -102,6 +117,14 @@ class GraalJavaScriptEngineGlobalsTest {
       assertInstanceOf(inetsoft.graph.aesthetic.GLine.class, result);
    }
 
+   // Bug #75682: GraphElement (abstract base of the element classes) holds the
+   // HINT_* constants used by elem.setHint(...); it must resolve as a bare global.
+   @Test
+   void graphElementHintConstantResolves() throws Exception {
+      assertEquals("shine", eval("GraphElement.HINT_SHINE"));
+      assertEquals("alpha", eval("GraphElement.HINT_ALPHA"));
+   }
+
    @Test
    void gTextureIsConstructable() throws Exception {
       Object result = eval("new GTexture()");
@@ -112,5 +135,49 @@ class GraalJavaScriptEngineGlobalsTest {
    void svgShapeIsConstructable() throws Exception {
       Object result = eval("new SVGShape()");
       assertInstanceOf(inetsoft.graph.aesthetic.SVGShape.class, result);
+   }
+
+   // Bug #75684: chart scripts reference the abstract Scale base class for its
+   // scale-option constants, e.g. qscale.setScaleOption(Scale.TICKS). Scale was
+   // not registered as a global (only its subclasses were), so the script failed
+   // with "ReferenceError: Scale is not defined".
+   @Test
+   void scaleConstantResolves() throws Exception {
+      // Scale.TICKS == 1 (a public static final int on the abstract base class)
+      Object result = eval("Scale.TICKS");
+      assertInstanceOf(Double.class, result);
+      assertEquals(1.0, result);
+   }
+
+   // Bug #75685: Rhino resolved unqualified CALC/statistical functions
+   // case-insensitively (Calc was the global scope's prototype and Calc.get()
+   // lowercases the key). Existing scripts call them in PascalCase, e.g.
+   // NthMostFrequent, PthPercentile, Sum. The GraalJS migration only copied the
+   // functions into the (case-sensitive) global bindings under their lowercase
+   // names, so PascalCase names threw "ReferenceError: X is not defined".
+   @Test
+   void calcFunctionsResolveCaseInsensitively() throws Exception {
+      // exact lowercase resolves and executes (unchanged behavior)
+      assertEquals(6.0, eval("sum([1,2,3])"));
+      // PascalCase names used by existing scripts now resolve + execute
+      assertEquals(6.0, eval("Sum([1,2,3])"));
+      assertEquals(2.0, eval("Average([1,2,3])"));
+      // formula-backed CALC functions (NthLargest/NthSmallest/NthMostFrequent/
+      // PthPercentile) instantiate report Formulas that need the Spring context
+      // to execute, which is unavailable in this unit test — but the bug is name
+      // resolution, so assert they resolve to a callable regardless of case.
+      assertEquals("function", eval("typeof NthLargest"));
+      assertEquals("function", eval("typeof NthSmallest"));
+      assertEquals("function", eval("typeof NthMostFrequent"));
+      assertEquals("function", eval("typeof PthPercentile"));
+      assertEquals("function", eval("typeof First"));
+   }
+
+   // The case-insensitive last-resort must not shadow JS builtins: Calc has a
+   // 'date' function, but the global Date constructor is an own property of the
+   // global object, so it must still win over the (prototype) Calc.date.
+   @Test
+   void builtinDateNotShadowedByCalc() throws Exception {
+      assertInstanceOf(java.util.Date.class, eval("new Date(0)"));
    }
 }

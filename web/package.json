@@ -41,7 +41,7 @@
     "@angular/router": "^21.2.15",
     "@ckeditor/ckeditor5-angular": "^9.1.0",
     "@ctrl/tinycolor": "^3.4.1",
-    "@inetsoft-technology/ai-assistant": "^0.0.20260708200331",
+    "@inetsoft-technology/ai-assistant": "0.0.20260713195139",
     "@inetsoft-technology/stylebi-wiz-ai-chat": "^0.1.5",
     "@inetsoft-technology/stylebi-wiz-portal": "^0.1.3",
     "@ng-bootstrap/ng-bootstrap": "^20.0.0",

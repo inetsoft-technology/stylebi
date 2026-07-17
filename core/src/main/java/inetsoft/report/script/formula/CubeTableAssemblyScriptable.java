@@ -37,6 +37,17 @@ public class CubeTableAssemblyScriptable extends TableAssemblyScriptable {
       this.lens = lens;
    }
 
+   /**
+    * A cube/OLAP table is genuinely pivot-shaped (tuple/dimension addressed), so
+    * a by-name reference must retain the grouped/crosstab summary-cell routing.
+    * Unlike a plain worksheet table, its crosstab descriptor is not spurious, so
+    * this overrides the base-table (flat-read) behavior back to false. (#75663)
+    */
+   @Override
+   protected boolean isBaseTableReference() {
+      return false;
+   }
+
    @Override
    public XTable getTable() {
       // don't cache table data to keep in sync with AssetQuerySandbox.

@@ -2362,7 +2362,7 @@ public class LayoutTool {
    private static String escapeColName(String name) {
       return name.chars().mapToObj(cc -> {
             if(isSpecialMarker((char) cc)) {
-               return "\\\\" + (char) cc;
+               return "\\" + (char) cc;
             }
             else if(cc == '\'') {
                return "\\" + (char) cc;

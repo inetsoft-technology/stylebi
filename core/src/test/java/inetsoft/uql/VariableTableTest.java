@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,39 +17,65 @@
  */
 package inetsoft.uql;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.schema.XValueNode;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-/**
- * Tests for {@link VariableTable}.
+/*
+ * VariableTable - single-pass
  *
- * <p>Covers:
- * <ul>
- *   <li>put / get — basic storage and retrieval</li>
- *   <li>contains / containsKey (via contains)</li>
- *   <li>Null and all-null-array value handling</li>
- *   <li>remove</li>
- *   <li>clear</li>
- *   <li>size</li>
- *   <li>keys enumeration</li>
- *   <li>clone</li>
- *   <li>equals / hashCode</li>
- *   <li>Base-table delegation (parent chain lookup)</li>
- *   <li>addBaseTable / removeBaseTable</li>
- *   <li>setAsIs / isAsIs</li>
- *   <li>setNotIgnoredNull / isNotIgnoredNull / clearNullIgnored</li>
- *   <li>putFormat / getFormat / removeFormat</li>
- *   <li>isBuiltinVariable</li>
- *   <li>isContextVariable</li>
- *   <li>getSubset</li>
- *   <li>session getter/setter</li>
- * </ul>
- * </p>
+ * Risk-first coverage:
+ *   [Risk 3] - clone()/getSubset()/printKey()/addAll(); all-null-array put() conversion
+ *   [Risk 2] - put/get/contains/remove/clear/size/keys/base-table delegation, equals()/
+ *              hashCode() key-set contract, format/session/builtin-variable/context-variable
+ *              accessors, copyParameters(XPrincipal), get(UserVariable) type dispatch and
+ *              runtimeValue resolution, JSON Serializer/Deserializer round trip
  */
+
+/*
+ * Intent vs implementation suspects
+ *
+ * [Suspect 1] clone() does not copy notIgnoreNull (shared HashSet with original).
+ *             Conclusion (do not fix): real incomplete clone, but setNotIgnoredNull has no
+ *             meaningful production writers — not frontend-reproducible.
+ *
+ * [Suspect 2] getSubset prefix branch skips setAsIs/setNotIgnoredNull (other branches copy).
+ *             Conclusion (do not fix): real inconsistency, but getSubset has no external
+ *             callers — not frontend-reproducible.
+ *
+ * [Suspect 3] printKey joins name/value with unescaped ':' / ',', so collisions are possible.
+ *             Conclusion (do not fix): theoretical cache-key ambiguity; needs exotic names
+ *             containing delimiters — not frontend-reproducible.
+ *
+ * [Suspect 4] addAll merges asIs only when destination.asIs is already non-null.
+ *             Conclusion (do not fix): real merge gap, but common path is clone-then-addAll
+ *             (clone copies asIs when present); no clear FE repro without crafted script state.
+ */
+
+/*
+ * Cases deferred - require a different test tier:
+ *
+ * [VariableTable] getBuiltinVariable(name[,type]) - the value-producing branches for
+ *             _TODAY / _USER_ / _ROLES_ / _GROUPS_ / _BEGINNING_OF_xxx / _END_OF_xxx are
+ *             reachable only via get(String)/get(UserVariable); they call static
+ *             ScheduleParameterScope.* methods and ThreadContext.getContextPrincipal().
+ *             Needs Mockito.mockStatic on both classes - not covered in this [unit]-tier file.
+ */
+@Tag("core")
 class VariableTableTest {
 
    private VariableTable table;
@@ -311,6 +337,39 @@ class VariableTableTest {
       assertNull(table.getBaseTable());
    }
 
+   @Test
+   void removeBaseTable_byReference_recursesIntoDeeperChainLevel() {
+      // covers the recursive branch: basetable != null && basetable != table
+      VariableTable middle = new VariableTable();
+      VariableTable deepest = new VariableTable();
+      table.setBaseTable(middle);
+      middle.setBaseTable(deepest);
+
+      table.removeBaseTable(deepest);
+
+      assertSame(middle, table.getBaseTable(), "Immediate base table should be unaffected");
+      assertNull(middle.getBaseTable(), "Deeper base table should be removed via recursion");
+   }
+
+   @Test
+   void removeBaseTable_byType_recursesWhenImmediateBaseIsDifferentType() {
+      // covers the recursive branch of removeBaseTable(Class): the immediate base table
+      // is a plain VariableTable (not assignable from SubVariableTable), so removal must
+      // recurse into the next level of the chain.
+      VariableTable middle = new VariableTable();
+      SubVariableTable deepest = new SubVariableTable();
+      table.setBaseTable(middle);
+      middle.setBaseTable(deepest);
+
+      table.removeBaseTable(SubVariableTable.class);
+
+      assertSame(middle, table.getBaseTable());
+      assertNull(middle.getBaseTable());
+   }
+
+   private static class SubVariableTable extends VariableTable {
+   }
+
    // ==========================================================================
    // clone
    // ==========================================================================
@@ -372,6 +431,29 @@ class VariableTableTest {
       t1.put("k", "v1");
       t2.put("k", "v2");
       assertNotEquals(t1, t2);
+   }
+
+   @Test
+   void equals_extraKeyOnOneSide_areNotEqual() {
+      // covers the asymmetric-key-set-size path: both contains(a,b)/contains(b,a) checks
+      // must pass for equality, not just a same-key value comparison.
+      VariableTable t1 = new VariableTable();
+      VariableTable t2 = new VariableTable();
+      t1.put("k", "v");
+      t2.put("k", "v");
+      t2.put("k2", "v2");
+
+      assertNotEquals(t1, t2);
+   }
+
+   @Test
+   void equals_ignoresHttpRequestResponseKeys() {
+      VariableTable t1 = new VariableTable();
+      VariableTable t2 = new VariableTable();
+      t1.put(VariableTable.HTTP_REQUEST, "req1");
+      t2.put(VariableTable.HTTP_REQUEST, "req2");
+
+      assertEquals(t1, t2, "Ignored keys like HTTP_REQUEST should not affect equality");
    }
 
    @Test
@@ -575,6 +657,16 @@ class VariableTableTest {
       assertDoesNotThrow(() -> table.addAll(null));
    }
 
+   @Test
+   void addAll_mergesFormatsFromSourceTable() throws Exception {
+      VariableTable other = new VariableTable();
+      other.putFormat("x", "yyyy-MM-dd");
+
+      table.addAll(other);
+
+      assertEquals("yyyy-MM-dd", table.getFormat("x"));
+   }
+
    // ==========================================================================
    // isInternalParameter
    // ==========================================================================
@@ -587,5 +679,212 @@ class VariableTableTest {
    @Test
    void isInternalParameter_returnsFalseForRegularParam() {
       assertFalse(table.isInternalParameter("myParam"));
+   }
+
+   // ==========================================================================
+   // get(UserVariable) - type dispatch and runtimeValue resolution
+   // ==========================================================================
+
+   @Test
+   void get_nullUserVariable_returnsNull() throws Exception {
+      assertNull(table.get((UserVariable) null));
+   }
+
+   @Test
+   void get_userVariableWithNullTypeNode_returnsNull() throws Exception {
+      UserVariable uv = new UserVariable("x");
+      uv.setTypeNode(null);
+      assertNull(table.get(uv));
+   }
+
+   @Test
+   void get_userVariableWithNullName_returnsNull() throws Exception {
+      UserVariable uv = new UserVariable(); // name is never set
+      assertNull(table.get(uv));
+   }
+
+   @Test
+   void get_userVariableNonDateType_looksUpPlainName() throws Exception {
+      UserVariable uv = new UserVariable("plainVar"); // default type is StringType
+      table.put("plainVar", "value");
+      assertEquals("value", table.get(uv));
+   }
+
+   @Test
+   void get_userVariableDateType_looksUpTypeQualifiedKeyFirst() throws Exception {
+      UserVariable uv = new UserVariable("dateVar");
+      uv.setTypeNode(XSchema.createPrimitiveType(XSchema.DATE));
+      table.put("dateVar^_^" + XSchema.DATE, "2024-01-01");
+
+      assertEquals("2024-01-01", table.get(uv));
+   }
+
+   @Test
+   void get_userVariableDateType_fallsBackToPlainNameWhenTypedKeyAbsent() throws Exception {
+      UserVariable uv = new UserVariable("dateVar2");
+      uv.setTypeNode(XSchema.createPrimitiveType(XSchema.DATE));
+      table.put("dateVar2", "plain-value"); // no "dateVar2^_^date" entry stored
+
+      assertEquals("plain-value", table.get(uv));
+   }
+
+   @Test
+   void get_runtimeValueTrue_resolvesStoredUserVariableToActualValue() throws Exception {
+      VariableTable runtimeTable = new VariableTable(true);
+      UserVariable stored = new UserVariable("v1");
+      // explicit (Object, String) overload - createValueNode(String, String) means something
+      // different (create-by-type) and would silently produce a node with no value set
+      stored.setValueNode(XValueNode.createValueNode((Object) "resolved-value", "v1"));
+      runtimeTable.put("v1", stored);
+
+      assertEquals("resolved-value", runtimeTable.get("v1"));
+   }
+
+   @Test
+   void get_runtimeValueFalse_returnsStoredUserVariableAsIs() throws Exception {
+      VariableTable rawTable = new VariableTable(false);
+      UserVariable stored = new UserVariable("v1");
+      stored.setValueNode(XValueNode.createValueNode((Object) "resolved-value", "v1"));
+      rawTable.put("v1", stored);
+
+      assertSame(stored, rawTable.get("v1"));
+   }
+
+   // ==========================================================================
+   // copyParameters(XPrincipal)
+   // ==========================================================================
+
+   @Nested
+   class CopyParametersTests {
+
+      @Test
+      void copiesNewParameterFromPrincipal() throws Exception {
+         XPrincipal principal = mock(XPrincipal.class);
+         when(principal.getParameterNames()).thenReturn(Set.of("p1"));
+         when(principal.getParameter("p1")).thenReturn("v1");
+         when(principal.getParameterTS("p1")).thenReturn(1000L);
+
+         table.copyParameters(principal);
+
+         assertEquals("v1", table.get("p1"));
+      }
+
+      @Test
+      void unchangedParameterAfterFirstCopy_doesNotOverwriteLocalValue() throws Exception {
+         XPrincipal principal = mock(XPrincipal.class);
+         when(principal.getParameterNames()).thenReturn(Set.of("p1"));
+         when(principal.getParameter("p1")).thenReturn("from-principal");
+         when(principal.getParameterTS("p1")).thenReturn(1000L); // fixed, "old" timestamp
+
+         table.copyParameters(principal); // brings in p1 the first time
+         table.put("p1", "from-report");  // report/onload sets a higher-priority value afterwards
+
+         table.copyParameters(principal); // principal's parameter TS unchanged -> must not overwrite
+
+         assertEquals("from-report", table.get("p1"));
+      }
+
+      @Test
+      void parameterChangedAfterFirstCopy_overwritesLocalValue() throws Exception {
+         XPrincipal principal = mock(XPrincipal.class);
+         when(principal.getParameterNames()).thenReturn(Set.of("p1"));
+         when(principal.getParameter("p1")).thenReturn("v1");
+         when(principal.getParameterTS("p1")).thenReturn(1000L);
+
+         table.copyParameters(principal); // table.copyParameterTS becomes System.currentTimeMillis()
+
+         // simulate the principal's parameter being changed after the first copy: use a
+         // fixed far-future timestamp so the test does not depend on real elapsed wall-clock
+         // time between the two copyParameters() calls.
+         when(principal.getParameter("p1")).thenReturn("v2");
+         when(principal.getParameterTS("p1")).thenReturn(System.currentTimeMillis() + 60_000L);
+
+         table.copyParameters(principal);
+
+         assertEquals("v2", table.get("p1"));
+      }
+   }
+
+   // ==========================================================================
+   // Jackson Serializer / Deserializer round trip
+   // ==========================================================================
+
+   @Nested
+   class JsonSerializationTests {
+
+      private final ObjectMapper mapper = new ObjectMapper();
+
+      @Test
+      void roundTrip_preservesSimpleStringValue() throws Exception {
+         VariableTable original = new VariableTable();
+         original.put("name", "Alice");
+
+         String json = mapper.writeValueAsString(original);
+         VariableTable restored = mapper.readValue(json, VariableTable.class);
+
+         assertEquals("Alice", restored.get("name"));
+      }
+
+      @Test
+      void roundTrip_preservesNullValueEntry() throws Exception {
+         VariableTable original = new VariableTable();
+         original.put("nullVar", (Object) null);
+
+         String json = mapper.writeValueAsString(original);
+         VariableTable restored = mapper.readValue(json, VariableTable.class);
+
+         assertTrue(restored.contains("nullVar"));
+         assertNull(restored.get("nullVar"));
+      }
+
+      @Test
+      void roundTrip_preservesNotIgnoredNullMarker() throws Exception {
+         VariableTable original = new VariableTable();
+         original.setNotIgnoredNull("v");
+
+         String json = mapper.writeValueAsString(original);
+         VariableTable restored = mapper.readValue(json, VariableTable.class);
+
+         assertTrue(restored.isNotIgnoredNull("v"));
+      }
+
+      @Test
+      void roundTrip_preservesAsIsFlag() throws Exception {
+         VariableTable original = new VariableTable();
+         original.put("x", "y");
+         original.setAsIs("x", true);
+
+         String json = mapper.writeValueAsString(original);
+         VariableTable restored = mapper.readValue(json, VariableTable.class);
+
+         assertTrue(restored.isAsIs("x"));
+      }
+
+      @Test
+      void roundTrip_preservesBaseTableChain() throws Exception {
+         VariableTable base = new VariableTable();
+         base.put("baseVar", "bv");
+         VariableTable original = new VariableTable();
+         original.setBaseTable(base);
+         original.put("localVar", "lv");
+
+         String json = mapper.writeValueAsString(original);
+         VariableTable restored = mapper.readValue(json, VariableTable.class);
+
+         assertEquals("lv", restored.get("localVar"));
+         assertEquals("bv", restored.get("baseVar"), "base table chain should round-trip");
+      }
+   }
+
+   // ==========================================================================
+   // printKey
+   // ==========================================================================
+
+   @Test
+   void printKey_doesNotThrow_andReturnsTrue() throws Exception {
+      table.put("a", "1");
+      StringWriter sw = new StringWriter();
+      assertTrue(table.printKey(new PrintWriter(sw)));
+      assertTrue(sw.toString().startsWith("VT["));
    }
 }

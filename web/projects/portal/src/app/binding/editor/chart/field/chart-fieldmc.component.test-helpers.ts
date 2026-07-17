@@ -27,6 +27,7 @@ import { ChartEditorService } from "../../../services/chart/chart-editor.service
 import { DndService } from "../../../../common/dnd/dnd.service";
 import { DateComparisonService } from "../../../../vsobjects/util/date-comparison.service";
 import { UIContextService } from "../../../../common/services/ui-context.service";
+import { DateLevelExamplesService } from "../../../../common/services/date-level-examples.service";
 import { TestUtils } from "../../../../common/test/test-utils";
 import { ChartBindingModel } from "../../../data/chart/chart-binding-model";
 import { ChartConstants } from "../../../../common/util/chart-constants";
@@ -87,6 +88,10 @@ export const uiContextMock = {
    isSqlServer: vi.fn().mockReturnValue(false),
 };
 
+export const dateLevelExamplesMock = {
+   loadDateLevelExamples: vi.fn(() => of({ dateLevelExamples: {} })),
+};
+
 /** createMockBindingRef merges DataRef last and clears classType; restore it for chart refs. */
 export function normalizeChartFieldRef(field: { classType?: string; measure?: boolean }): void {
    if(field.measure) {
@@ -110,6 +115,7 @@ export function resetChartFieldmcMocks(chartModel?: ChartBindingModel): ChartBin
    dndServiceMock.setDragStartStyle.mockClear();
    dcServiceMock.checkBindingField.mockReturnValue(false);
    uiContextMock.isSqlServer.mockReturnValue(false);
+   dateLevelExamplesMock.loadDateLevelExamples.mockReturnValue(of({ dateLevelExamples: {} }));
    return model;
 }
 
@@ -134,6 +140,7 @@ export async function renderChartFieldmc(props: Record<string, any> = {}) {
          { provide: NgbModal, useValue: modalMock },
          { provide: DateComparisonService, useValue: dcServiceMock },
          { provide: UIContextService, useValue: uiContextMock },
+         { provide: DateLevelExamplesService, useValue: dateLevelExamplesMock },
       ],
       componentProperties: renderProps,
    });
