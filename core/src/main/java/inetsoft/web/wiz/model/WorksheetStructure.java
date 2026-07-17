@@ -66,12 +66,13 @@ public class WorksheetStructure {
 
    public static class Column {
       private String name; private String alias; private String type;
-      private String expression; private int refType;
+      private String expression; private int refType; private String description;
       public String getName() { return name; } public void setName(String v) { this.name = v; }
       public String getAlias() { return alias; } public void setAlias(String v) { this.alias = v; }
       public String getType() { return type; } public void setType(String v) { this.type = v; }
       public String getExpression() { return expression; } public void setExpression(String v) { this.expression = v; }
       public int getRefType() { return refType; } public void setRefType(int v) { this.refType = v; }
+      public String getDescription() { return description; } public void setDescription(String v) { this.description = v; }
    }
 
    public static class SourceRef {

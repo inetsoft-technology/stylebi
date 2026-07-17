@@ -665,6 +665,7 @@ public class MetadataApiService {
       column.setName(columnRef.getAttribute());
       column.setAlias(columnRef.getAlias());
       column.setRefType(columnRef.getRefType());
+      column.setDescription(columnRef.getDescription());
 
       if(columnRef.getTypeNode() != null) {
          column.setType(columnRef.getTypeNode().getType());
