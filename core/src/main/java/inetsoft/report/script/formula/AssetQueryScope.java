@@ -138,8 +138,28 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
       try {
          Worksheet ws = box.getWorksheet();
 
-         if(ws != null && ws.getAssembly(id) instanceof TableAssembly) {
-            return true;
+         if(ws != null) {
+            // mirror getMember's tablemap caching: GraalJS wraps scripts in
+            // with(__scope__){...} and calls hasMember for every identifier in
+            // every per-cell/per-row evaluation. Without this cache each call
+            // hits ws.getAssembly(id), and a miss rebuilds the entire worksheet
+            // assembly map (Worksheet.createCache), an O(cells x names x
+            // assemblies) explosion that makes calc tables take 30+s. (#75676)
+            Object val = tablemap.get(id);
+
+            if(val == null) {
+               if(ws.getAssembly(id) instanceof TableAssembly) {
+                  val = new TableAssemblyScriptable(id, box, mode);
+                  tablemap.put(id, val);
+               }
+               else {
+                  tablemap.put(id, NOT_TABLE);
+               }
+            }
+
+            if(val instanceof TableArray) {
+               return true;
+            }
          }
       }
       catch(Exception ex) {
