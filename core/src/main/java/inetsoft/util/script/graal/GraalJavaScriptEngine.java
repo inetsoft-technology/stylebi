@@ -606,12 +606,14 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    // expression rather than beginning a new statement, so no boundary may be
    // placed after them: control keywords that introduce a sub-statement
    // (`else`/`do`), operators that take an operand (`return x`, `new C`,
-   // `typeof f`, `a in b`, …), and `case`. Blends with the prevSig/`)` checks in
-   // splitTopLevelStatements to avoid mistaking a sub-statement/operand for a
-   // sibling statement (e.g. `else if`, `new function(){}`, `return function(){}`).
+   // `typeof f`, `a in b`, …), the `async` modifier that precedes a `function`
+   // declaration (`async function`), and `case`. Blends with the prevSig/`)`
+   // checks in splitTopLevelStatements to avoid mistaking a sub-statement/operand
+   // for a sibling statement (e.g. `else if`, `new function(){}`,
+   // `return function(){}`, `async function(){}`).
    private static final Set<String> SUPPRESS_BOUNDARY_AFTER = Set.of(
       "return", "throw", "typeof", "void", "delete", "new", "yield", "await",
-      "else", "do", "in", "of", "instanceof", "case");
+      "async", "else", "do", "in", "of", "instanceof", "case");
 
    // prevSig sentinel: a string/regex/template literal just ended (a value-ender
    // for both regex-vs-division disambiguation and statement-boundary decisions).
@@ -642,6 +644,13 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * mis-placed boundary can never turn valid source into an invalid piece — it
     * falls back to the single-eval path instead. Under-splitting (leaving pieces
     * joined) likewise only forgoes the fix for that shape; it never corrupts.
+    *
+    * <p>Residual limitation: a {@code do{...}while(cond)} immediately followed by
+    * another top-level control-flow statement is left unsplit, because the
+    * do-while's own trailing {@code while(cond)} ends in {@code )}, which
+    * {@code boundaryAllowedBefore} excludes. For that shape the completion-value
+    * fix does not apply (the pre-#75688 ECMAScript overwrite behavior remains);
+    * as above, this only forgoes the fix and never corrupts.
     */
    private static List<String> splitTopLevelStatements(String body) {
       List<String> out = new ArrayList<>();

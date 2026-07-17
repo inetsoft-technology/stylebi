@@ -326,6 +326,18 @@ class GraalJavaScriptEngineScopeTest {
       assertEquals(3.0, ((Number) r).doubleValue());
    }
 
+   // Bug #75688: an `async` modifier must stay attached to the `function` it
+   // precedes — the splitter must not place a boundary between `async` and
+   // `function`. A bad split evaluates a bare `async` identifier (ReferenceError)
+   // and strips the async-ness; both halves parse alone, so piecesAllParse cannot
+   // catch it (async must be in SUPPRESS_BOUNDARY_AFTER).
+   @Test void asyncFunctionDeclarationIsNotSplit() throws Exception {
+      MapScope scope = new MapScope();
+      assertArrayEquals(new Object[] { 1.0, 2.0, 3.0 },
+         (Object[]) engine.exec(
+            engine.compile("[1,2,3]\nasync function foo(){ return 1; }"), scope, scope));
+   }
+
    // Bug #75688: a labeled control-flow statement (`name: if(...)`) must split
    // off as one piece (boundary before the label), so an earlier value survives
    // when the labeled statement yields nothing. The boundary goes before the
