@@ -36,6 +36,7 @@ class ScriptFunctionTest {
       public int count = -1;
       public double ratio = -1.0;
       public char ch = 'X';
+      public String label;
       public boolean called;
 
       public void setActionVisible(String name, boolean visible) {
@@ -57,6 +58,11 @@ class ScriptFunctionTest {
       public void setChar(char ch) {
          this.called = true;
          this.ch = ch;
+      }
+
+      public void setLabel(String label) {
+         this.called = true;
+         this.label = label;
       }
    }
 
@@ -184,6 +190,49 @@ class ScriptFunctionTest {
 
       assertTrue(t.called);
       assertEquals(0.0, t.ratio, 0.0, "omitted double argument should default to 0.0");
+   }
+
+   @Test
+   void booleanArgIsCoercedToString() {
+      // Bug #75693: a JS boolean passed to a String parameter must be coerced to
+      // "true"/"false" (Rhino ScriptRuntime.toString parity), e.g.
+      // bindingInfo.setGroupTotal("reseller", ROW_HEADER, true) on the
+      // setGroupTotal(String, int, String) overload, rather than failing the
+      // reflective invocation ("Failed to invoke script function").
+      Target t = new Target();
+      ctx.getBindings("js").putMember(
+         "setLabel", new ScriptFunction(t, Target.class, "setLabel", String.class));
+
+      ctx.eval("js", "setLabel(true)");
+
+      assertTrue(t.called);
+      assertEquals("true", t.label, "boolean true should coerce to \"true\"");
+   }
+
+   @Test
+   void numberArgIsCoercedToString() {
+      // A whole JS number bound to a String parameter stringifies as an integer
+      // ("3", not "3.0"), matching JS ToString.
+      Target t = new Target();
+      ctx.getBindings("js").putMember(
+         "setLabel", new ScriptFunction(t, Target.class, "setLabel", String.class));
+
+      ctx.eval("js", "setLabel(3)");
+
+      assertTrue(t.called);
+      assertEquals("3", t.label, "whole number should coerce to \"3\"");
+   }
+
+   @Test
+   void stringArgToStringParamPreserved() {
+      // A String argument bound to a String parameter is passed through unchanged.
+      Target t = new Target();
+      ctx.getBindings("js").putMember(
+         "setLabel", new ScriptFunction(t, Target.class, "setLabel", String.class));
+
+      ctx.eval("js", "setLabel('show')");
+
+      assertEquals("show", t.label, "string argument should be preserved");
    }
 
    @Test
