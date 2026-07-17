@@ -18,29 +18,77 @@
 package inetsoft.uql;
 
 import inetsoft.report.internal.table.TableFormat;
+import inetsoft.sree.PropertiesEngine;
+import inetsoft.sree.SreeEnv;
+import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
+import java.io.StringReader;
 import java.io.StringWriter;
+import java.text.ChoiceFormat;
+import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 
-/**
- * Tests for {@link XFormatInfo}.
+/*
+ * XFormatInfo - single-pass
  *
- * <p>Covers:
- * <ul>
- *   <li>Constructors (no-arg and two-arg)</li>
- *   <li>format / formatSpec getters and setters</li>
- *   <li>isEmpty()</li>
- *   <li>equals() / hashCode()</li>
- *   <li>clone()</li>
- *   <li>writeXML() / parseXML()</li>
- *   <li>toString() for various format types</li>
- * </ul>
- * </p>
+ * Risk-first coverage:
+ *   [Risk 3] - toString() falls back to "none" when Format construction fails (Suspect 1 fixed)
+ *   [Risk 2] - Format-derived constructor, writeXML/parseXML round trip (including the
+ *              null-formatSpec literal-"null" mechanism), toString() branch coverage
+ *              (duration, decimal percent-spec, unrecognized format), equals()/hashCode()
+ *              content contract, clone() independence, isEmpty(), format/formatSpec
+ *              getters and setters
  */
+
+/*
+ * Intent vs implementation suspects
+ *
+ * [Suspect 1] toString() called fmt.format(...) without null-checking fmt first.
+ *             TableFormat.getFormat() silently swallows Format construction failures and
+ *             returns null (malformed custom format spec, etc.).
+ *             Fixed: toString() now falls back to Catalog "none" when fmt is null
+ *             (MESSAGE_FORMAT still works without a resolved Format).
+ *
+ * [Suspect 2] writeXML()/parseXML() null-formatSpec handling looked asymmetric during analysis
+ *             (writeXML always writes a formatSpec tag, even for a null spec; parseXML
+ *             special-cases the literal string "null").
+ *             Conclusion (do not fix): not a bug - confirmed by the round-trip tests below to
+ *             be a deliberate, consistent round-trip mechanism.
+ */
+@Tag("core")
 class XFormatInfoTest {
+   // TableFormat.<clinit> registers property listeners via PropertiesEngine.getInstance().
+   // Stub it so toString()/format-constructor tests stay unit-tier without a Spring context.
+   private static MockedStatic<PropertiesEngine> propertiesEngineMock;
+
+   @BeforeAll
+   static void stubPropertiesEngine() {
+      PropertiesEngine engine = mock(PropertiesEngine.class);
+      propertiesEngineMock = Mockito.mockStatic(PropertiesEngine.class);
+      propertiesEngineMock.when(PropertiesEngine::getInstance).thenReturn(engine);
+   }
+
+   @AfterAll
+   static void closePropertiesEngineStub() {
+      if(propertiesEngineMock != null) {
+         propertiesEngineMock.close();
+      }
+   }
 
    // ==========================================================================
    // Constructors
@@ -284,20 +332,32 @@ class XFormatInfoTest {
 
    @Test
    void toString_decimalFormat_doesNotThrow() {
-      XFormatInfo info = new XFormatInfo(TableFormat.DECIMAL_FORMAT, "#,##0.00");
-      assertDoesNotThrow(() -> {
-         String s = info.toString();
-         assertNotNull(s);
-      });
+      // Avoid ExtendedDecimalFormat.<clinit> (needs DataSpace/Spring) by stubbing getFormat.
+      try(MockedStatic<TableFormat> tableFormat = Mockito.mockStatic(TableFormat.class)) {
+         tableFormat.when(() -> TableFormat.getFormat(anyString(), any()))
+            .thenReturn(new DecimalFormat("#,##0.00"));
+
+         XFormatInfo info = new XFormatInfo(TableFormat.DECIMAL_FORMAT, "#,##0.00");
+         assertDoesNotThrow(() -> {
+            String s = info.toString();
+            assertNotNull(s);
+         });
+      }
    }
 
    @Test
    void toString_percentFormat_doesNotThrow() {
-      XFormatInfo info = new XFormatInfo(TableFormat.PERCENT_FORMAT, null);
-      assertDoesNotThrow(() -> {
-         String s = info.toString();
-         assertNotNull(s);
-      });
+      // TableFormat.getFormat() reads SreeEnv.getProperty("format.percent.round") for this
+      // branch; mock it for the same reason as toString_decimalFormat_doesNotThrow above.
+      try(MockedStatic<SreeEnv> sreeEnv = Mockito.mockStatic(SreeEnv.class)) {
+         sreeEnv.when(() -> SreeEnv.getProperty(anyString())).thenReturn(null);
+
+         XFormatInfo info = new XFormatInfo(TableFormat.PERCENT_FORMAT, null);
+         assertDoesNotThrow(() -> {
+            String s = info.toString();
+            assertNotNull(s);
+         });
+      }
    }
 
    @Test
@@ -313,5 +373,140 @@ class XFormatInfoTest {
    void toString_currencyFormat_doesNotThrow() {
       XFormatInfo info = new XFormatInfo(TableFormat.CURRENCY_FORMAT, null);
       assertDoesNotThrow(() -> assertNotNull(info.toString()));
+   }
+
+   @Test
+   void toString_durationFormat_doesNotThrow() {
+      XFormatInfo info = new XFormatInfo(TableFormat.DURATION_FORMAT, null);
+      assertDoesNotThrow(() -> {
+         String s = info.toString();
+         assertNotNull(s);
+      });
+   }
+
+   @Test
+   void toString_durationFormatPadNon_doesNotThrow() {
+      XFormatInfo info = new XFormatInfo(TableFormat.DURATION_FORMAT_PAD_NON, null);
+      assertDoesNotThrow(() -> {
+         String s = info.toString();
+         assertNotNull(s);
+      });
+   }
+
+   @Test
+   void toString_decimalFormatPercentLikeSpec_usesSmallSampleValue() {
+      // Covers the branch that samples fmt.format(1) instead of fmt.format(100000) for these
+      // two specific percent-like decimal specs.
+      try(MockedStatic<TableFormat> tableFormat = Mockito.mockStatic(TableFormat.class)) {
+         tableFormat.when(() -> TableFormat.getFormat(anyString(), any()))
+            .thenReturn(new DecimalFormat("##.00%"));
+
+         XFormatInfo info = new XFormatInfo(TableFormat.DECIMAL_FORMAT, "##.00%");
+         assertDoesNotThrow(() -> {
+            String s = info.toString();
+            assertNotNull(s);
+         });
+      }
+   }
+
+   @Test
+   void toString_unrecognizedFormat_fallsBackToNone() {
+      XFormatInfo info = new XFormatInfo("SomeUnknownFormatType", null);
+      assertEquals(Catalog.getCatalog().getString("none"), info.toString());
+   }
+
+   @Test
+   void toString_whenGetFormatReturnsNull_fallsBackToNone() {
+      // TableFormat.getFormat() returns null when Format construction fails (e.g. malformed
+      // custom pattern). Stub that outcome so this stays unit-tier without ExtendedDecimalFormat.
+      try(MockedStatic<TableFormat> tableFormat = Mockito.mockStatic(TableFormat.class)) {
+         tableFormat.when(() -> TableFormat.getFormat(anyString(), any())).thenReturn(null);
+
+         XFormatInfo info = new XFormatInfo(TableFormat.DECIMAL_FORMAT, "'unterminated");
+
+         assertEquals(Catalog.getCatalog().getString("none"), info.toString());
+      }
+   }
+
+   // ==========================================================================
+   // Format-derived constructor
+   // ==========================================================================
+
+   @Test
+   void formatConstructor_decimalFormat_derivesFormatAndSpec() {
+      DecimalFormat fmt = new DecimalFormat("#,##0.00");
+      XFormatInfo info = new XFormatInfo(fmt);
+
+      assertEquals(TableFormat.DECIMAL_FORMAT, info.getFormat());
+      assertEquals("#,##0.00", info.getFormatSpec());
+   }
+
+   @Test
+   void formatConstructor_dateFormat_derivesFormatAndSpec() {
+      SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd");
+      XFormatInfo info = new XFormatInfo(fmt);
+
+      assertEquals(TableFormat.DATE_FORMAT, info.getFormat());
+      assertEquals("yyyy-MM-dd", info.getFormatSpec());
+   }
+
+   @Test
+   void formatConstructor_unrecognizedFormatType_leavesFormatNull() {
+      // ChoiceFormat is neither SimpleDateFormat, DecimalFormat, nor MessageFormat, so
+      // TableFormat.setFormat() does not recognize it and format/formatSpec stay null.
+      ChoiceFormat fmt = new ChoiceFormat(new double[]{0, 1}, new String[]{"a", "b"});
+      XFormatInfo info = new XFormatInfo(fmt);
+
+      assertNull(info.getFormat());
+      assertNull(info.getFormatSpec());
+   }
+
+   // ==========================================================================
+   // writeXML / parseXML round trip
+   // ==========================================================================
+
+   @Test
+   void roundTrip_preservesFormatAndSpec() throws Exception {
+      XFormatInfo original = new XFormatInfo("DateFormat", "yyyy-MM-dd");
+
+      XFormatInfo restored = writeThenParse(original);
+
+      assertEquals(original, restored);
+   }
+
+   @Test
+   void roundTrip_nullFormatSpecWithNonNullFormat_parsesBackToNull() throws Exception {
+      // writeXML() writes the literal text "null" for a null formatSpec (Java string
+      // concatenation of `null`), and parseXML() specifically converts that literal string
+      // back to a real null - this is a deliberate round-trip mechanism, not a defect.
+      XFormatInfo original = new XFormatInfo("DecimalFormat", null);
+
+      XFormatInfo restored = writeThenParse(original);
+
+      assertEquals("DecimalFormat", restored.getFormat());
+      assertNull(restored.getFormatSpec(),
+         "Literal \"null\" written for a null formatSpec should parse back to a real null");
+   }
+
+   @Test
+   void roundTrip_emptyInfo_parsesBackToNullFormat() throws Exception {
+      XFormatInfo original = new XFormatInfo();
+
+      XFormatInfo restored = writeThenParse(original);
+
+      assertNull(restored.getFormat());
+      assertNull(restored.getFormatSpec());
+   }
+
+   private XFormatInfo writeThenParse(XFormatInfo original) throws Exception {
+      StringWriter sw = new StringWriter();
+      original.writeXML(new PrintWriter(sw));
+
+      Document doc = Tool.parseXML(new StringReader(sw.toString()));
+      Element root = doc.getDocumentElement();
+
+      XFormatInfo restored = new XFormatInfo();
+      restored.parseXML(root);
+      return restored;
    }
 }

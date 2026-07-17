@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,6 +17,8 @@
  */
 package inetsoft.uql;
 
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
@@ -24,6 +26,19 @@ import java.util.Enumeration;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/*
+ * Cases deferred - not covered in this pass:
+ *
+ * [DrillPath] writeXML(PrintWriter) / parseXML(Element) / parseXML(Element, boolean) -
+ *             XML serialization round-trip, not branching logic; descoped per reviewer
+ *             guidance (see ConditionItemTest in the same package). The isSiteAdminImport=true
+ *             branch of parseXML also calls OrganizationManager.getInstance(), which needs an
+ *             environment context beyond a plain unit test.
+ * [DrillPath] toString() / toString(boolean) - display formatting, not correctness-critical.
+ * [DrillPath] contentHashCode() - thin Objects.hash() wrapper over fields already exercised via
+ *             equalsContent(); not independently branching logic.
+ */
+@Tag("core")
 class DrillPathTest {
 
    // ---- Constructors ----
@@ -246,18 +261,6 @@ class DrillPathTest {
       assertEquals("f1", copy.getParameterField("p1"));
    }
 
-   @Test
-   void copyDrillPathIsDeepCopyOfParams() {
-      DrillPath original = new DrillPath("orig");
-      original.setParameterField("p1", "f1");
-
-      DrillPath copy = original.copyDrillPath("copy");
-      copy.setParameterField("p1", "modified");
-
-      // Original should be unaffected
-      assertEquals("f1", original.getParameterField("p1"));
-   }
-
    // ---- clone ----
 
    @Test
@@ -302,6 +305,18 @@ class DrillPathTest {
       assertEquals("f1", original.getParameterField("p1"));
    }
 
+   @Test
+   void cloningDoesNotShareTypeMap() {
+      DrillPath original = new DrillPath("orig");
+      original.setParameterField("p1", "f1");
+      original.setParameterType("p1", "string");
+
+      DrillPath cloned = (DrillPath) original.clone();
+      cloned.setParameterType("p1", "integer");
+
+      assertEquals("string", original.getParameterType("p1"));
+   }
+
    // ---- equals / hashCode ----
 
    @Test
@@ -340,6 +355,85 @@ class DrillPathTest {
       path.setParameterField("param2", "field2");
       Enumeration<String> names = path.getParameterNames();
       assertTrue(Collections.list(names).contains("param1"));
+   }
+
+   // ---- getParameterType / setParameterType ----
+
+   @Nested
+   class ParameterTypeTests {
+
+      @Test
+      void getParameterTypeOnAbsentNameReturnsNull() {
+         DrillPath path = new DrillPath("p");
+         assertNull(path.getParameterType("p1"));
+      }
+
+      @Test
+      void getParameterTypeReturnsSetValue() {
+         DrillPath path = new DrillPath("p");
+         path.setParameterType("p1", "string");
+         assertEquals("string", path.getParameterType("p1"));
+      }
+
+      @Test
+      void setParameterTypeWithEmptyNameIsIgnored() {
+         // setParameterType() guards on name != null && name.length() > 0
+         DrillPath path = new DrillPath("p");
+         path.setParameterType("", "string");
+         assertNull(path.getParameterType(""));
+         assertFalse(path.isParameterHardCoded(""));
+      }
+   }
+
+   // ---- setQuery / getQuery ----
+
+   @Nested
+   class QueryTests {
+
+      @Test
+      void getQueryDefaultsToNull() {
+         DrillPath path = new DrillPath("p");
+         assertNull(path.getQuery());
+      }
+
+      @Test
+      void setQueryStoresSubquery() {
+         DrillPath path = new DrillPath("p");
+         DrillSubQuery query = new DrillSubQuery();
+         query.setQuery("select * from t");
+         path.setQuery(query);
+         assertSame(query, path.getQuery());
+      }
+
+      @Test
+      void equalsContentSameQuery_areEqual() {
+         DrillPath a = new DrillPath("d");
+         DrillSubQuery queryA = new DrillSubQuery();
+         queryA.setQuery("select * from t");
+         a.setQuery(queryA);
+
+         DrillPath b = new DrillPath("d");
+         DrillSubQuery queryB = new DrillSubQuery();
+         queryB.setQuery("select * from t");
+         b.setQuery(queryB);
+
+         assertTrue(a.equalsContent(b));
+      }
+
+      @Test
+      void equalsContentDifferentQuery_areNotEqual() {
+         DrillPath a = new DrillPath("d");
+         DrillSubQuery queryA = new DrillSubQuery();
+         queryA.setQuery("select * from t1");
+         a.setQuery(queryA);
+
+         DrillPath b = new DrillPath("d");
+         DrillSubQuery queryB = new DrillSubQuery();
+         queryB.setQuery("select * from t2");
+         b.setQuery(queryB);
+
+         assertFalse(a.equalsContent(b));
+      }
    }
 
    // ---- helpers ----

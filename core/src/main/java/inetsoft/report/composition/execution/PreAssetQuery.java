@@ -4399,7 +4399,16 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
             field = new XExpression(col, XExpression.FIELD);
          }
 
-         if(ref instanceof AttributeRef attributeRef && attributeRef.isSqlTypeSet()) {
+         // Some JDBC drivers misreport a logically boolean column's SQL type (e.g. as
+         // VARCHAR instead of BOOLEAN/BIT) in their column metadata. Trusting that over
+         // the worksheet column's own logical type causes fixConditionValue() below to
+         // "fix" an already-correct Boolean condition value into a String, which some
+         // databases (e.g. H2) then refuse to compare against the actual BOOLEAN column.
+         // The worksheet's logical type is authoritative here, so check it first.
+         if(item.getAttribute() != null && XSchema.BOOLEAN.equals(item.getAttribute().getDataType())) {
+            field.setSqlType(java.sql.Types.BOOLEAN);
+         }
+         else if(ref instanceof AttributeRef attributeRef && attributeRef.isSqlTypeSet()) {
             field.setSqlType(((AttributeRef) ref).getSqlType());
          }
          else if(item.getAttribute() instanceof ColumnRef columnRef && columnRef.isSqlTypeSet()) {
