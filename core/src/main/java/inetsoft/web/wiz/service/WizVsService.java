@@ -21,6 +21,7 @@ package inetsoft.web.wiz.service;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.graph.data.*;
+import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.TableLens;
 import inetsoft.report.internal.Util;
@@ -211,67 +212,81 @@ public class WizVsService {
       if(assemblyInfo instanceof ChartVSAssemblyInfo chartAssemblyInfo) {
          VSChartInfo chartInfo = chartAssemblyInfo.getVSChartInfo();
 
-         // A chart colors its marks/labels from the highlight group on each MEASURE ref
-         // (VSChartAggregateRef, a HighlightRef) — NOT the chart-info-level group, which the renderer only
-         // consults for merged charts (GraphGenerator.applyHighlight reads ((HighlightRef) ref).getHighlightGroup()
-         // per runtime measure). Attach on the DESIGN refs (getBindingRefs(false)); clearRuntime()/executeView
+         // A chart colors its marks/labels from the highlight group on each binding ref that is a
+         // HighlightRef — every dimension (VSChartDimensionRef) AND measure (VSChartAggregateRef)
+         // implements HighlightRef, so ALL binding columns are highlightable, not just measures.
+         // GraphGenerator.getHighlightRefs() collects any HighlightRef whose group is non-null, and
+         // HLColorFrame is keyed by each ref's FULL name so a dimension's group colors that dimension's
+         // marks (e.g. word cloud, treemap) while it is a harmless no-op on a chart whose visual field
+         // is the measure. Attach on the DESIGN refs (getBindingRefs(false)); clearRuntime()/executeView
          // regenerate the runtime refs as clones that carry the group, so it survives the re-render.
-         List<VSChartAggregateRef> measureRefs = new ArrayList<>();
+         List<HighlightRef> highlightRefs = new ArrayList<>();
+         boolean wordCloud = GraphTypeUtil.isWordCloud(chartInfo);
 
-         // VSChartAggregateRef implements HighlightRef, so matching it is sufficient.
          for(ChartRef ref : chartInfo.getBindingRefs(false)) {
-            if(ref instanceof VSChartAggregateRef aggRef) {
-               measureRefs.add(aggRef);
+            if(ref instanceof HighlightRef hlRef) {
+               highlightRefs.add(hlRef);
             }
          }
 
-         if(measureRefs.isEmpty()) {
-            throw new IllegalArgumentException(
-               "Chart '" + assembly.getName() + "' has no measure to highlight.");
+         // A word cloud has no X/Y measure — its highlightable field is the TEXT aesthetic, which is
+         // NOT part of getBindingRefs(). GraphGenerator.getHighlightRefs() reads info.getTextField()
+         // for word clouds, so include it here to keep them highlightable like every other chart type.
+         if(wordCloud) {
+            AestheticRef textField = chartInfo.getTextField();
+
+            if(textField != null && textField.getDataRef() instanceof HighlightRef hlRef &&
+               !highlightRefs.contains(hlRef))
+            {
+               highlightRefs.add(hlRef);
+            }
          }
 
-         // REPLACE semantics: clear any existing highlight on every measure ref first.
-         for(VSChartAggregateRef aggRef : measureRefs) {
-            aggRef.setHighlightGroup(null);
-            aggRef.setTextHighlightGroup(null);
+         // REPLACE semantics: clear any existing highlight on every ref first.
+         for(HighlightRef hlRef : highlightRefs) {
+            hlRef.setHighlightGroup(null);
+            hlRef.setTextHighlightGroup(null);
          }
 
          // A rule with applyArea=dataLabel styles the labels (text highlight); otherwise the marks (point
-         // highlight). The color frame is keyed per measure ref, so apply each rule to every measure ref —
-         // correct for the common single-measure chart; a multi-measure chart colors each series by the
-         // condition. A fresh clone per ref avoids sharing one Highlight instance across groups.
+         // highlight). The color frame is keyed per ref, so apply each rule to every ref — each field's
+         // marks are colored by the condition (dimension-keyed charts color by the dimension; a
+         // multi-measure chart colors each series). A fresh clone per ref avoids sharing one Highlight
+         // instance across groups. A word cloud has no separate text highlight — its marks ARE text, so
+         // GraphUtil routes label highlights through the regular highlight group; mirror that by forcing
+         // every rule into the point group so the condition is not lost on setTextHighlightGroup.
          // A highlight condition is evaluated POST-aggregation against the chart DataSet, whose column
          // headers are the fields' FULL names (e.g. "Sum(Sales)", "State"). Resolve condition fields
          // against the chart's view columns — NOT the base worksheet columns used by the filter path —
          // so the condition ref's name/type match the header. Otherwise GraphConditionGroup.findColumn
          // can't resolve the field, the condition is dropped, and no mark is ever colored.
          ColumnSelection chartCols = buildChartHighlightColumns(chartInfo);
-         Map<VSChartAggregateRef, HighlightGroup> pointGroups = new LinkedHashMap<>();
-         Map<VSChartAggregateRef, HighlightGroup> textGroups = new LinkedHashMap<>();
+         Map<HighlightRef, HighlightGroup> pointGroups = new LinkedHashMap<>();
+         Map<HighlightRef, HighlightGroup> textGroups = new LinkedHashMap<>();
          Set<String> usedNames = new HashSet<>();
 
          for(ApplyHighlightModel.Highlight rule : hm.getHighlights()) {
             String name = uniqueName(rule.getName(), usedNames);
             Highlight hl = buildHighlight(rule, name, chartCols, true);
-            boolean isText = "dataLabel".equals(rule.getApplyArea());
-            Map<VSChartAggregateRef, HighlightGroup> sink = isText ? textGroups : pointGroups;
+            boolean isText = !wordCloud && "dataLabel".equals(rule.getApplyArea());
+            Map<HighlightRef, HighlightGroup> sink = isText ? textGroups : pointGroups;
 
-            for(VSChartAggregateRef aggRef : measureRefs) {
-               HighlightGroup group = sink.computeIfAbsent(aggRef, k -> new HighlightGroup());
+            for(HighlightRef hlRef : highlightRefs) {
+               HighlightGroup group = sink.computeIfAbsent(hlRef, k -> new HighlightGroup());
                group.addHighlight(name, hl.clone());
             }
          }
 
-         for(VSChartAggregateRef aggRef : measureRefs) {
-            HighlightGroup pg = pointGroups.get(aggRef);
-            HighlightGroup tg = textGroups.get(aggRef);
+         for(HighlightRef hlRef : highlightRefs) {
+            HighlightGroup pg = pointGroups.get(hlRef);
+            HighlightGroup tg = textGroups.get(hlRef);
 
             if(pg != null) {
-               aggRef.setHighlightGroup(pg);
+               hlRef.setHighlightGroup(pg);
             }
 
             if(tg != null) {
-               aggRef.setTextHighlightGroup(tg);
+               hlRef.setTextHighlightGroup(tg);
             }
          }
 
