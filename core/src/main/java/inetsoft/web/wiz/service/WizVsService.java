@@ -23,8 +23,12 @@ import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.graph.data.*;
 import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.report.composition.graph.GraphUtil;
+import inetsoft.report.composition.VSTableLens;
+import inetsoft.report.TableDataPath;
 import inetsoft.report.TableLens;
 import inetsoft.report.internal.Util;
+import inetsoft.report.internal.binding.Field;
+import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.report.lens.AbstractTableLens;
 import inetsoft.uql.XTable;
@@ -52,6 +56,7 @@ import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateCompareAbleAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
 import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Catalog;
@@ -180,9 +185,10 @@ public class WizVsService {
     * #buildConditionList} — the same converter the filter path uses — so a rule actually applies rather
     * than silently no-opping.
     *
-    * <p>Chart and output assemblies are supported. Table/crosstab highlighting keys a {@code HighlightGroup}
-    * to a per-column {@code TableDataPath} and is not yet wired through this REST path — it fails loud
-    * rather than mis-applying.
+    * <p>Chart, output, table and crosstab assemblies are supported. Table/crosstab highlighting keys a
+    * {@code HighlightGroup} to a per-cell {@code TableDataPath} (via {@link TableHighlightAttr}); the
+    * target cell is located from the executed {@link VSTableLens} by each rule's {@code field} (a table
+    * column header or a crosstab measure/aggregate header). See {@link #applyTableHighlight}.
     */
    public CreateViewsheetResult applyHighlight(ApplyHighlightModel model, Principal user)
       throws Exception
@@ -304,11 +310,10 @@ public class WizVsService {
 
          outputInfo.setHighlightGroup(group);
       }
-      else if(assembly instanceof TableVSAssembly || assembly instanceof CrosstabVSAssembly) {
-         throw new IllegalArgumentException(
-            "Highlighting table/crosstab assemblies is not yet supported via the wiz REST path " +
-            "(it must key a HighlightGroup to a per-column TableDataPath). Assembly '" +
-            assembly.getName() + "'.");
+      else if(assemblyInfo instanceof TableDataVSAssemblyInfo tableInfo &&
+              (assembly instanceof TableVSAssembly || assembly instanceof CrosstabVSAssembly))
+      {
+         applyTableHighlight(rvs, assembly, tableInfo, hm, columns);
       }
       else {
          throw new IllegalArgumentException(
@@ -346,9 +351,221 @@ public class WizVsService {
    }
 
    /**
+    * Applies REPLACE-semantics highlight to a table or crosstab assembly. Unlike chart/output, a table
+    * keys a {@link HighlightGroup} to a per-cell {@link TableDataPath} in a {@link TableHighlightAttr}:
+    * the target cell is located from the executed {@link VSTableLens} by the rule's {@code field} — a
+    * table column header, or a crosstab measure/aggregate header — and that cell's data path is used as
+    * the key, exactly the path the standard highlight dialog derives from a cell click. Because the path
+    * captures the column (table) or the full nesting sequence + measure (crosstab), the highlight colors
+    * every data cell that shares it: the whole column for a table, every summary cell for that measure in
+    * a crosstab. A regular table also honors {@code applyRow} (a row-level path); a crosstab has no row
+    * data path, so {@code applyRow} is ignored there and the rule always styles the measure's cells.
+    *
+    * @param baseColumns the table's base columns (for a plain table) used to coerce condition-value
+    *                    types; crosstab conditions are coerced against the cell's aggregated fields.
+    */
+   private void applyTableHighlight(RuntimeViewsheet rvs, VSAssembly assembly,
+                                    TableDataVSAssemblyInfo tableInfo,
+                                    ApplyHighlightModel.HighlightModel hm,
+                                    ColumnSelection baseColumns)
+      throws Exception
+   {
+      ViewsheetSandbox box = rvs.getViewsheetSandbox()
+         .orElseThrow(() -> new IllegalStateException("ViewsheetSandbox is empty"));
+      VSTableLens lens = box.getVSTableLens(assembly.getAbsoluteName(), false);
+
+      if(lens == null) {
+         throw new IllegalStateException(
+            "Assembly '" + assembly.getName() + "' produced no table data to highlight.");
+      }
+
+      boolean crosstab = assembly instanceof CrosstabVSAssembly;
+      // REPLACE semantics: start from a fresh highlight attr so any previous highlight is dropped.
+      TableHighlightAttr hlAttr = new TableHighlightAttr();
+      Set<String> usedNames = new HashSet<>();
+
+      for(ApplyHighlightModel.Highlight rule : hm.getHighlights()) {
+         String field = rule.getField();
+
+         if(field == null || field.isEmpty()) {
+            throw new IllegalArgumentException(
+               "Each table/crosstab highlight rule requires a 'field' naming the target " +
+               (crosstab ? "measure/column" : "column") + " (assembly '" + assembly.getName() + "').");
+         }
+
+         int[] cell = findHighlightCell(lens, field, crosstab);
+
+         if(cell == null) {
+            throw new IllegalArgumentException(
+               "No " + (crosstab ? "measure/column" : "column") + " named '" + field +
+               "' in assembly '" + assembly.getName() + "' to highlight.");
+         }
+
+         TableDataPath cellPath = lens.getTableDataPath(cell[0], cell[1]);
+
+         if(cellPath == null) {
+            throw new IllegalArgumentException(
+               "Could not resolve a highlight target for field '" + field + "' in assembly '" +
+               assembly.getName() + "'.");
+         }
+
+         // Coerce condition-value types against the fields the condition is evaluated against: a
+         // crosstab evaluates against its aggregated cell headers (e.g. "Sum(Sales)"); a plain table
+         // evaluates against its base columns.
+         ColumnSelection condCols = crosstab
+            ? buildCrosstabConditionColumns(lens, cellPath) : baseColumns;
+         String name = uniqueName(rule.getName(), usedNames);
+         Highlight hl = buildHighlight(rule, name, condCols, false);
+
+         // A regular table can style the whole row (a row-level path keyed by level+type); a crosstab
+         // has no row data path, so it always styles the measure's cells.
+         TableDataPath key = !crosstab && rule.isApplyRow()
+            ? new TableDataPath(cellPath.getLevel(), cellPath.getType()) : cellPath;
+         HighlightGroup group = hlAttr.getHighlight(key);
+
+         if(group == null) {
+            group = new HighlightGroup();
+         }
+
+         group.addHighlight(name, hl);
+         hlAttr.setHighlight(key, group);
+      }
+
+      tableInfo.setHighlightAttr(hlAttr);
+   }
+
+   /**
+    * Locates a representative data cell {@code [row, col]} for {@code field} in an executed table lens.
+    * For a plain table the field is a column header and the cell is the first detail row of that column;
+    * for a crosstab it is a measure/aggregate header and the cell is a summary cell of that measure
+    * (a normal summary cell is preferred over a grand-total cell). Returns {@code null} when no match.
+    */
+   private int[] findHighlightCell(VSTableLens lens, String field, boolean crosstab) {
+      int dataRow = lens.getHeaderRowCount();
+
+      // Fall back to the last header row if the table has no data rows, so a path can still be derived.
+      if(!lens.moreRows(dataRow)) {
+         dataRow = Math.max(lens.getHeaderRowCount() - 1, 0);
+      }
+
+      int colCount = lens.getColCount();
+
+      if(crosstab) {
+         int headerColCount = lens.getHeaderColCount();
+         int grandTotalCol = -1;
+
+         for(int c = headerColCount; c < colCount; c++) {
+            TableDataPath path = lens.getTableDataPath(dataRow, c);
+
+            if(path == null) {
+               continue;
+            }
+
+            int type = path.getType();
+
+            if(type != TableDataPath.SUMMARY && type != TableDataPath.GRAND_TOTAL) {
+               continue;
+            }
+
+            String[] parts = path.getPath();
+
+            if(parts == null || parts.length == 0) {
+               continue;
+            }
+
+            // The last path element of a crosstab data cell is the aggregate (measure) header.
+            if(measureMatches(parts[parts.length - 1], field)) {
+               if(type == TableDataPath.SUMMARY) {
+                  return new int[]{ dataRow, c };
+               }
+               else if(grandTotalCol < 0) {
+                  grandTotalCol = c;
+               }
+            }
+         }
+
+         return grandTotalCol >= 0 ? new int[]{ dataRow, grandTotalCol } : null;
+      }
+      else {
+         // Match by the detail path's column header (the same header used to key the highlight), then
+         // fall back to the displayed column header.
+         for(int c = 0; c < colCount; c++) {
+            TableDataPath path = lens.getTableDataPath(dataRow, c);
+
+            if(path != null && path.getPath() != null && path.getPath().length > 0 &&
+               field.equals(path.getPath()[0]))
+            {
+               return new int[]{ dataRow, c };
+            }
+         }
+
+         for(int c = 0; c < colCount; c++) {
+            Object header = Util.getHeader(lens, c);
+
+            if(header != null && field.equals(header.toString())) {
+               return new int[]{ dataRow, c };
+            }
+         }
+
+         return null;
+      }
+   }
+
+   /**
+    * Whether a crosstab data cell's aggregate header matches the requested field. Accepts an exact
+    * match ("Sum(Sales)" == "Sum(Sales)") or a base-column match where the header aggregates the field
+    * ("Sales" -> "Sum(Sales)").
+    */
+   private boolean measureMatches(String measureHeader, String field) {
+      if(measureHeader == null) {
+         return false;
+      }
+
+      if(measureHeader.equals(field)) {
+         return true;
+      }
+
+      int open = measureHeader.indexOf('(');
+      int close = measureHeader.lastIndexOf(')');
+      return open > 0 && close > open && measureHeader.substring(open + 1, close).equals(field);
+   }
+
+   /**
+    * Builds the candidate condition-field selection for a CROSSTAB highlight from the fields available
+    * at the target cell's data path (dimensions by their column name, aggregates by their full name,
+    * e.g. "Sum(Sales)"). These are the headers the crosstab evaluates a highlight condition against, so
+    * the field's data type is resolved correctly for value coercion.
+    */
+   private ColumnSelection buildCrosstabConditionColumns(VSTableLens lens, TableDataPath cellPath) {
+      ColumnSelection cols = new ColumnSelection();
+      Field[] fields = TableHighlightAttr.getAvailableFields(lens, cellPath);
+
+      if(fields != null) {
+         for(Field f : fields) {
+            if(f == null || f.getName() == null || f.getName().isEmpty() ||
+               cols.getAttribute(f.getName()) != null)
+            {
+               continue;
+            }
+
+            ColumnRef col = new ColumnRef(new AttributeRef(null, f.getName()));
+            col.setDataType(f.getDataType());
+            cols.addAttribute(col);
+         }
+      }
+
+      return cols;
+   }
+
+   /**
     * Builds a StyleBI {@link Highlight} from a wiz highlight rule: converts its condition tree to a
     * {@link ConditionList} with the shared filter converter and applies name/colors/font. Throws
     * (naming the rule) on a missing condition tree or an unparseable color.
+    *
+    * @param columns      candidate condition fields used to coerce condition values to the right type
+    *                     (see buildConditionItem); for charts these are the aggregated VIEW columns.
+    * @param chartRebind  when {@code true}, rebind each condition field to the matching chart column so
+    *                     it resolves against the aggregated chart DataSet at render time (chart only).
     *
     * @param columns      candidate condition fields used to coerce condition values to the right type
     *                     (see buildConditionItem); for charts these are the aggregated VIEW columns.
