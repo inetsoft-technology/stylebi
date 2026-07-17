@@ -900,11 +900,6 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
          (isLiveMode(mode) && (table.isAggregate() || ainfo.isEmpty()));
       TableLens data;
 
-      LOG.debug("getTableLens() name=" + name + " mode=" + mode +
-         " isRuntimeMode=" + isRuntimeMode(mode) + " isLiveMode=" + isLiveMode(mode) +
-         " table.isAggregate()=" + table.isAggregate() + " ainfo.isEmpty()=" + ainfo.isEmpty() +
-         " -> pub=" + pub + " tableClass=" + table.getClass().getSimpleName());
-
       // For EmbeddedTableAssembly, keep the entire setup+execution atomic under
       // synchronized(table) to prevent state mutation between setup and execution.
       // For cloned tables (non-EmbeddedTableAssembly), table2 is per-thread so query
@@ -913,14 +908,10 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
       if(table instanceof EmbeddedTableAssembly) {
          synchronized(table) {
             ColumnSelection columns = table.getColumnSelection(pub);
-            LOG.debug("getTableLens() name=" + name + " (embedded) columns(pub=" + pub +
-               ").attributeCount=" + columns.getAttributeCount());
             data = getTableLens0(name, mode, table.isAggregate(), columns.hashCode());
             int ncol = columns.getAttributeCount();
 
             if(data != null && data.getColCount() == ncol) {
-               LOG.debug("getTableLens() name=" + name + " (embedded) cache hit rows=" +
-                  data.getRowCount() + " cols=" + data.getColCount());
                return data;
             }
 
@@ -935,14 +926,10 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
 
          synchronized(table) {
             ColumnSelection columns = table.getColumnSelection(pub);
-            LOG.debug("getTableLens() name=" + name + " columns(pub=" + pub +
-               ").attributeCount=" + columns.getAttributeCount());
             data = getTableLens0(name, mode, table.isAggregate(), columns.hashCode());
             int ncol = columns.getAttributeCount();
 
             if(data != null && data.getColCount() == ncol) {
-               LOG.debug("getTableLens() name=" + name + " cache hit rows=" +
-                  data.getRowCount() + " cols=" + data.getColCount());
                return data;
             }
 
@@ -950,11 +937,6 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
          }
 
          data = executeQuery(table, table2, name, mode, pub, vars);
-      }
-
-      if(data != null) {
-         LOG.debug("getTableLens() name=" + name + " final rows=" + data.getRowCount() +
-            " cols=" + data.getColCount());
       }
 
       return data;
