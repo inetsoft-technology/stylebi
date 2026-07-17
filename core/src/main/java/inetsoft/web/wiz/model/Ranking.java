@@ -45,7 +45,16 @@ public class Ranking {
       this.rankingCol = rankingCol;
    }
 
+   public boolean isGroupOthers() {
+      return groupOthers;
+   }
+
+   public void setGroupOthers(boolean groupOthers) {
+      this.groupOthers = groupOthers;
+   }
+
    private int optionValue;
    private int rankingN;
    private String rankingCol;
+   private boolean groupOthers = false;
 }

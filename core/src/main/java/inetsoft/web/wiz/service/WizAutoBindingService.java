@@ -702,12 +702,21 @@ public class WizAutoBindingService {
                dim.setRankingOptionValue(String.valueOf(r.getOptionValue()));
                dim.setRankingNValue(String.valueOf(r.getRankingN()));
                dim.setRankingColValue(r.getRankingCol());
+               // Group non-ranked values as "Others" vs. discard them. Only meaningful when
+               // ranking is active, so it lives inside the ranking block.
+               dim.setGroupOthersValue(String.valueOf(r.isGroupOthers()));
             }
 
             applyDateGroup(dim, dimFc);
 
             if(dimFc.isNumericBin()) {
                WizardRecommenderUtil.applyNumericBin(dim);
+            }
+
+            // Aggregate column to sort bars by; only consulted when order is value-based
+            // (17 value-asc / 18 value-desc). Harmless to set for other orders.
+            if(dimFc.getSortByCol() != null && !dimFc.getSortByCol().isEmpty()) {
+               dim.setSortByColValue(dimFc.getSortByCol());
             }
          }
 

@@ -122,6 +122,13 @@ final class WizFieldInfoFactory {
    private static DimensionFieldInfo baseDimensionFieldInfo(VSDimensionRef dim) {
       DimensionFieldInfo info = new DimensionFieldInfo();
       info.setField(dim.getGroupColumnValue());
+
+      String sortByCol = dim.getSortByColValue();
+
+      if(sortByCol != null && !sortByCol.isEmpty()) {
+         info.setSortByCol(sortByCol);
+      }
+
       return info;
    }
 
@@ -139,6 +146,7 @@ final class WizFieldInfoFactory {
          }
 
          ranking.setRankingCol(dim.getRankingColValue());
+         ranking.setGroupOthers(dim.isGroupOthers());
          info.setRanking(ranking);
       }
    }

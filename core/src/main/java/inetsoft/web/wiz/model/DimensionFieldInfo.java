@@ -71,10 +71,19 @@ public class DimensionFieldInfo extends SimpleFieldInfo {
       this.manualOrder = manualOrder;
    }
 
+   public String getSortByCol() {
+      return sortByCol;
+   }
+
+   public void setSortByCol(String sortByCol) {
+      this.sortByCol = sortByCol;
+   }
+
    private String dateGroupLevel;
    private Ranking ranking;
    private String fullName;
    private boolean timeSeries = false;
    private boolean numericBin = false;
    private List<String> manualOrder;
+   private String sortByCol;
 }
