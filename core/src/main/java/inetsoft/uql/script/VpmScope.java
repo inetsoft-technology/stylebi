@@ -45,10 +45,11 @@ public class VpmScope implements ScriptScope {
       throws Exception
    {
       Object script = null;
-      // Bug #75669: reset the condition-used flag so it only reflects access made by
-      // this script execution (the setUp putMember("condition", ...) in
-      // VpmCondition.evaluate happens before this call and must not count).
-      scope.conditionUsed = false;
+      // Bug #75669: reset the referenced-variable tracking so it only reflects access
+      // made by this script execution (the setUp putMember(...) calls in
+      // VpmCondition.evaluate / HiddenColumns.getHiddenColumns happen before this call
+      // and must not count).
+      scope.usedVars.clear();
       ScriptEnv senv = ScriptEnvRepository.getScriptEnv();
       senv.init();
       senv.put("vpm", new inetsoft.util.script.graal.ScopeProxy(scope));
@@ -177,16 +178,15 @@ public class VpmScope implements ScriptScope {
          return user == null ? null : XUtil.getUserName(user);
       }
 
-      // Bug #75669: record that the script referenced `condition`. Under Rhino a VPM
-      // trigger script activated its condition simply by referencing (or assigning)
-      // `condition`, relying on that value becoming the script's completion value. GraalJS
-      // follows current ECMAScript completion-value semantics (e.g. a trailing if(false)
-      // yields undefined, clobbering a loop's completion value), so the reference alone
-      // may no longer surface as the result; VpmCondition falls back to the condition
-      // value when it was used. See VpmCondition.evaluate().
-      if(CONDITION.equals(id)) {
-         conditionUsed = true;
-      }
+      // Bug #75669: record that the script referenced this variable. Under Rhino a VPM
+      // trigger script activated its output simply by referencing (or assigning) the
+      // relevant variable (e.g. `condition`, `hiddenColumns`), relying on that value
+      // becoming the script's completion value. GraalJS follows current ECMAScript
+      // completion-value semantics (e.g. a trailing if(false) yields undefined,
+      // clobbering a loop's completion value), so the reference alone may no longer
+      // surface as the result; callers fall back to the referenced variable's value when
+      // it was used. See VpmCondition.evaluate() and HiddenColumns.getHiddenColumns().
+      usedVars.add(id);
 
       // the ScopeProxy/HostAccess layer now handles array wrapping
       return members.get(id);
@@ -197,12 +197,18 @@ public class VpmScope implements ScriptScope {
     */
    @Override
    public void putMember(String id, Object value) {
-      // Bug #75669: assigning `condition` in the script also counts as using it.
-      if(CONDITION.equals(id)) {
-         conditionUsed = true;
-      }
+      // Bug #75669: assigning a variable in the script also counts as using it.
+      usedVars.add(id);
 
       members.put(id, value);
+   }
+
+   /**
+    * Determine whether the most recently executed script referenced or assigned the
+    * given variable. Reset at the start of each {@link #execute}.
+    */
+   public boolean isVariableUsed(String name) {
+      return usedVars.contains(name);
    }
 
    /**
@@ -210,7 +216,7 @@ public class VpmScope implements ScriptScope {
     * <code>condition</code> variable. Reset at the start of each {@link #execute}.
     */
    public boolean isConditionUsed() {
-      return conditionUsed;
+      return isVariableUsed(CONDITION);
    }
 
    /**
@@ -255,7 +261,7 @@ public class VpmScope implements ScriptScope {
    private Principal user;
    private VariableTable vars;
    private ScriptScope parent;
-   private boolean conditionUsed;
+   private final Set<String> usedVars = new HashSet<>();
    private final Map<String, Object> members = new LinkedHashMap<>();
 
    private static final String CONDITION = "condition";

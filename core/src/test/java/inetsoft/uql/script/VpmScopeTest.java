@@ -215,4 +215,41 @@ class VpmScopeTest {
       assertEquals("x", VpmScope.execute("'x';", scope));
       assertFalse(scope.isConditionUsed());
    }
+
+   /**
+    * Bug #75669: the referenced-variable tracking is generic (not condition-specific), so
+    * a hidden-columns trigger script that references {@code hiddenColumns} inside a loop
+    * is detected the same way. Mirrors HiddenColumns.getHiddenColumns()'s fallback.
+    */
+   @Test
+   void testVariableUsedForHiddenColumns() throws Exception {
+      VpmScope scope = new VpmScope();
+      Principal user = new XPrincipal(new IdentityID("user1", "host-org"));
+      scope.setUser(user);
+      scope.putMember("hiddenColumns", new String[]{ "public.orders.discount" });
+      scope.putMember("groups", new String[]{ "group0", "group0_1" });
+
+      String loop =
+         "for(var i=0; i<groups.length; i++){\n" +
+         "   if(groups[i]=='group0'){\n" +
+         "      hiddenColumns;\n" +
+         "   }\n" +
+         "}";
+
+      // The trailing non-matching iteration clobbers the completion value under GraalJS...
+      assertNull(VpmScope.execute(loop, scope));
+      // ...but the script referenced `hiddenColumns`, which the fix records so the hidden
+      // columns are still applied.
+      assertTrue(scope.isVariableUsed("hiddenColumns"));
+      // an unrelated variable is not flagged as used
+      assertFalse(scope.isVariableUsed("condition"));
+
+      // When no group matches, `hiddenColumns` is never referenced -> flag stays false.
+      VpmScope noMatch = new VpmScope();
+      noMatch.setUser(user);
+      noMatch.putMember("hiddenColumns", new String[]{ "public.orders.discount" });
+      noMatch.putMember("groups", new String[]{ "groupX", "groupY" });
+      assertNull(VpmScope.execute(loop, noMatch));
+      assertFalse(noMatch.isVariableUsed("hiddenColumns"));
+   }
 }
