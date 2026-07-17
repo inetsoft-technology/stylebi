@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,14 +17,57 @@
  */
 package inetsoft.uql;
 
+import inetsoft.report.filter.DCMergeCell;
+import inetsoft.test.*;
 import inetsoft.uql.schema.XSchema;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * Unit tests for {@link XConditionGroup}.
+/*
+ * XConditionGroup - single-pass
+ *
+ * Risk-first coverage:
+ *   [Risk 2] - AND/OR/nested stack evaluation (including the calcStackStack consolidation
+ *              path), addCondition/addOperator silent-drop guards, DCMergeCell evaluation,
+ *              size/clear/getItem, notFoundResult, negated conditions, clone size
+ *              independence, scalar-vs-array evaluate dispatch
  */
+
+/*
+ * Intent vs implementation suspects
+ *
+ * [Suspect 1] CondItem/BooleanItem/Operator.clone() returns this; XConditionGroup.clone()
+ *             only shallow-copies the list, so items are shared with the original.
+ *             Conclusion (do not fix): real shallow aliasing, but levels are set at
+ *             addCondition time and not mutated after clone in product paths —
+ *             not frontend-reproducible.
+ *
+ * [Suspect 2] hashCode() is content-based but equals() is identity-only.
+ *             Conclusion (do not fix): Java contract inconsistency, but groups are not
+ *             used as HashMap keys — not frontend-reproducible.
+ */
+
+/*
+ * Cases deferred - require integration-tier setup:
+ *
+ * [XConditionGroup.CondItem] getBooleanValue()'s subCol + MergePartCell branch - matching a
+ *             sub-column value inside a merged date-comparison cell requires a fully
+ *             constructed DCMergeDatePartFilter (MergePartCell is a non-static inner class
+ *             depending on the enclosing filter's partRef/visibleDcExtraRefs); not covered in
+ *             this [unit]-tier file. The simpler DCMergeCell branch (no subCol) is covered
+ *             directly below since DCMergeCell is a plain single-method interface.
+ */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class XConditionGroupTest {
 
    // ---- empty group -----------------------------------------------------------
@@ -210,6 +253,35 @@ public class XConditionGroupTest {
       assertFalse(group.evaluate(new Object[]{"WRONG", "WRONG", "WRONG"}));
    }
 
+   @Test
+   void fourConditions_orOfTwoAndGroups_triggersStackConsolidationPass() {
+      // (col0=="a" AND col1=="b") OR (col2=="c" AND col3=="d")
+      // Exercises calcStackStack(): after the main queue-driven loop drains, the two
+      // independently-resolved AND groups plus the connecting OR leave more than two items
+      // on the stack, requiring the extra "while(stack.size() > 2)" reduction pass. The
+      // existing 3-condition/2-level test above never leaves more than 2 items on the stack.
+      XConditionGroup group = new XConditionGroup();
+      Condition a = equalStringCondition("a");
+      Condition b = equalStringCondition("b");
+      Condition c = equalStringCondition("c");
+      Condition d = equalStringCondition("d");
+
+      group.addCondition(0, a, 1);
+      group.addOperator(XConditionGroup.AND, 1);
+      group.addCondition(1, b, 1);
+      group.addOperator(XConditionGroup.OR, 0);
+      group.addCondition(2, c, 1);
+      group.addOperator(XConditionGroup.AND, 1);
+      group.addCondition(3, d, 1);
+
+      // (a AND b) true, (c AND d) false -> OR true
+      assertTrue(group.evaluate(new Object[]{"a", "b", "WRONG", "WRONG"}));
+      // (a AND b) false, (c AND d) true -> OR true
+      assertTrue(group.evaluate(new Object[]{"WRONG", "WRONG", "c", "d"}));
+      // both false -> OR false
+      assertFalse(group.evaluate(new Object[]{"WRONG", "WRONG", "WRONG", "WRONG"}));
+   }
+
    // ---- notFoundResult ---------------------------------------------------------
 
    @Test
@@ -286,6 +358,37 @@ public class XConditionGroupTest {
       // Second operator should be ignored since last item is already Operator
       group.addOperator(XConditionGroup.OR, 0);
       assertEquals(2, group.size());
+   }
+
+   // ---- addCondition: no-op if last item is already a CondItem -----------------
+
+   @Test
+   void addCondition_noopWhenLastItemIsAlreadyCondItem() {
+      XConditionGroup group = new XConditionGroup();
+      group.addCondition(0, equalStringCondition("a"), 0);
+      // No addOperator() call in between -> silently dropped, matching the same guard
+      // addOperator() has for the opposite case.
+      group.addCondition(1, equalStringCondition("b"), 0);
+
+      assertEquals(1, group.size(),
+         "A second addCondition without an intervening addOperator should be ignored");
+   }
+
+   // ---- CondItem.getBooleanValue: DCMergeCell / subCol handling ----------------
+
+   @Test
+   void condItemGetBooleanValue_dcMergeCell_evaluatesOriginalData() {
+      // DCMergeCell is a plain single-method interface, so it can be stubbed directly
+      // without constructing a full DCMergeDatePartFilter/MergePartCell.
+      XConditionGroup group = new XConditionGroup();
+      Condition cond = equalStringCondition("original");
+      group.addCondition(0, cond, 0);
+
+      DCMergeCell cell = () -> "original";
+      assertTrue(group.evaluate(new Object[]{cell}));
+
+      DCMergeCell nonMatchingCell = () -> "different";
+      assertFalse(group.evaluate(new Object[]{nonMatchingCell}));
    }
 
    // ---- clone ------------------------------------------------------------------

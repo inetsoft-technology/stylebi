@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,13 +17,41 @@
  */
 package inetsoft.uql;
 
+import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
+
+import java.util.Comparator;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/*
+ * Intent vs implementation suspects
+ *
+ * [Suspect 1] setAttribute(idx, attr) no-ops if attr already exists anywhere in the
+ *             selection (contains check), not only at idx.
+ *             Conclusion (do not fix): preserves exclusive uniqueness (same as addAttribute);
+ *             allowing the replace would create duplicates. Not frontend-reproducible.
+ */
+
+/*
+ * Cases deferred - not covered in this pass:
+ *
+ * [ColumnSelection] writeXML(PrintWriter) / parseXML(Element) / toString() - serialization
+ *             and display-format output, not branching logic; descoped per reviewer guidance.
+ */
+@Tag("core")
 class ColumnSelectionTest {
 
    private ColumnSelection selection;
@@ -132,22 +160,47 @@ class ColumnSelectionTest {
       assertNotNull(found);
    }
 
-   // ---- getAttribute with dot-notation parsing ----
+   // ---- getAttribute cube-ref matching (bug1304592646321) ----
 
    @Test
-   void getAttributeWithDotNotationEntityParsed() {
-      AttributeRef ref = new AttributeRef("MyEntity", "MyAttr");
+   void getAttributeCubeRefMatchesAfterStrippingBrackets() {
+      AttributeRef ref = new AttributeRef("Cube", "[Revenue]");
+      ref.setRefType(DataRef.CUBE);
       selection.addAttribute(ref);
-      DataRef found = selection.getAttribute("MyEntity.MyAttr");
-      assertNotNull(found);
+
+      DataRef found = selection.getAttribute("Revenue", null, true);
+      assertSame(ref, found);
    }
 
    @Test
-   void getAttributeWithMultipleDotsWalksBack() {
-      AttributeRef ref = new AttributeRef("a.b", "c");
+   void getAttributeCubeRefFallsBackToColumnRefCaption() {
+      AttributeRef inner = new AttributeRef("Cube", "[RevenueRaw]");
+      inner.setRefType(DataRef.CUBE);
+      ColumnRef ref = new ColumnRef(inner);
+      ref.setCaption("Revenue Caption");
       selection.addAttribute(ref);
-      DataRef found = selection.getAttribute("a.b.c");
-      assertNotNull(found);
+
+      // neither the raw name nor the bracket-stripped attribute match; only the caption does
+      DataRef found = selection.getAttribute("Revenue Caption", null, true);
+      assertSame(ref, found);
+   }
+
+   // ---- getAttribute with dot-notation parsing ----
+
+   @ParameterizedTest
+   @MethodSource("dotNotationCases")
+   void getAttributeWithDotNotationEntityParsed(AttributeRef ref, String lookupName) {
+      selection.addAttribute(ref);
+      assertNotNull(selection.getAttribute(lookupName));
+   }
+
+   static Stream<Arguments> dotNotationCases() {
+      return Stream.of(
+         // single dot: entity parsed from the substring before the last '.'
+         Arguments.of(new AttributeRef("MyEntity", "MyAttr"), "MyEntity.MyAttr"),
+         // entity itself contains a dot: full "entity.attribute" name is looked up
+         Arguments.of(new AttributeRef("a.b", "c"), "a.b.c")
+      );
    }
 
    // ---- findAttribute ----
@@ -175,39 +228,23 @@ class ColumnSelectionTest {
 
    // ---- clone(boolean shallow) ----
 
-   @Test
-   void cloneShallowHasSameCount() {
-      AttributeRef ref = new AttributeRef("E", "A");
-      selection.addAttribute(ref);
-      ColumnSelection shallow = selection.clone(true);
-      assertEquals(1, shallow.getAttributeCount());
+   @ParameterizedTest
+   @ValueSource(booleans = {true, false})
+   void cloneHasSameAttributeCount(boolean shallow) {
+      selection.addAttribute(new AttributeRef("E", "A"));
+      ColumnSelection cloned = selection.clone(shallow);
+      assertEquals(1, cloned.getAttributeCount());
    }
 
-   @Test
-   void cloneShallowSharesSameRefInstances() {
+   @ParameterizedTest
+   @ValueSource(booleans = {true, false})
+   void cloneKeepsSameRefInstanceRegardlessOfShallowFlag(boolean shallow) {
+      // AttributeRef.clone() returns 'this' — it is immutable, so shallow vs deep clone(false)
+      // (which calls drefin.clone()) make no observable difference for this ref type.
       AttributeRef ref = new AttributeRef("E", "A");
       selection.addAttribute(ref);
-      ColumnSelection shallow = selection.clone(true);
-      assertSame(ref, shallow.getAttribute(0));
-   }
-
-   @Test
-   void cloneDeepHasSameCount() {
-      AttributeRef ref = new AttributeRef("E", "A");
-      selection.addAttribute(ref);
-      ColumnSelection deep = selection.clone(false);
-      assertEquals(1, deep.getAttributeCount());
-   }
-
-   @Test
-   void cloneDeepReturnsSameRefInstanceBecauseAttributeRefIsImmutable() {
-      // AttributeRef.clone() returns 'this' — it is an immutable object.
-      // ColumnSelection.clone(false) calls drefin.clone(), but gets back the same instance.
-      AttributeRef ref = new AttributeRef("E", "A");
-      selection.addAttribute(ref);
-      ColumnSelection deep = selection.clone(false);
-      assertSame(ref, deep.getAttribute(0));
-      assertEquals(ref, deep.getAttribute(0));
+      ColumnSelection cloned = selection.clone(shallow);
+      assertSame(ref, cloned.getAttribute(0));
    }
 
    @Test
@@ -295,5 +332,257 @@ class ColumnSelectionTest {
       a.addAttribute(new AttributeRef("E", "A"));
       b.addAttribute(new AttributeRef("E", "B"));
       assertNotEquals(a, b);
+   }
+
+   @Test
+   void equalSelectionsHaveSameHashCode() {
+      ColumnSelection a = new ColumnSelection();
+      ColumnSelection b = new ColumnSelection();
+      a.addAttribute(new AttributeRef("E", "A"));
+      b.addAttribute(new AttributeRef("E", "A"));
+      assertEquals(a.hashCode(), b.hashCode());
+   }
+
+   // ---- equals(Object, boolean strict) ----
+
+   @Test
+   void equalsNonStrictDelegatesToEquals() {
+      ColumnSelection a = new ColumnSelection();
+      ColumnSelection b = new ColumnSelection();
+      a.addAttribute(new AttributeRef("E", "A"));
+      b.addAttribute(new AttributeRef("E", "A"));
+      assertTrue(a.equals(b, false));
+   }
+
+   @Test
+   void equalsStrictComparesEachRefStrictly() {
+      ColumnSelection a = new ColumnSelection();
+      ColumnSelection b = new ColumnSelection();
+      a.addAttribute(new AttributeRef("E", "A"));
+      b.addAttribute(new AttributeRef("E", "A"));
+      assertTrue(a.equals(b, true));
+   }
+
+   @Test
+   void equalsStrictFalseWhenSizesDiffer() {
+      ColumnSelection a = new ColumnSelection();
+      ColumnSelection b = new ColumnSelection();
+      a.addAttribute(new AttributeRef("E", "A"));
+      a.addAttribute(new AttributeRef("E", "B"));
+      b.addAttribute(new AttributeRef("E", "A"));
+      assertFalse(a.equals(b, true));
+   }
+
+   @Test
+   void equalsStrictReturnsFalseInsteadOfThrowingForNonColumnSelectionArgument() {
+      // equals(obj, true) casts obj to ColumnSelection without an instanceof check first;
+      // the resulting ClassCastException is swallowed by the catch(Exception) and turned
+      // into a plain "not equal" instead of propagating.
+      ColumnSelection a = new ColumnSelection();
+      a.addAttribute(new AttributeRef("E", "A"));
+      assertFalse(a.equals("not a ColumnSelection", true));
+   }
+
+   // ---- constructor from existing List<DataRef> ----
+
+   @Test
+   void constructorFromListSeedsAttributes() {
+      AttributeRef a = new AttributeRef("E", "A");
+      AttributeRef b = new AttributeRef("E", "B");
+      ColumnSelection fromList = new ColumnSelection(List.of(a, b));
+
+      assertEquals(2, fromList.getAttributeCount());
+      assertSame(a, fromList.getAttribute(0));
+      assertSame(b, fromList.getAttribute(1));
+   }
+
+   // ---- removeAttributes(ColumnSelection) / clear ----
+
+   @Nested
+   class BulkRemovalTests {
+      @Test
+      void removeAttributesRemovesCommonEntries() {
+         AttributeRef a = new AttributeRef("E", "A");
+         AttributeRef b = new AttributeRef("E", "B");
+         selection.addAttribute(a);
+         selection.addAttribute(b);
+
+         ColumnSelection toRemove = new ColumnSelection();
+         toRemove.addAttribute(a);
+
+         selection.removeAttributes(toRemove);
+
+         assertEquals(1, selection.getAttributeCount());
+         assertTrue(selection.containsAttribute(b));
+      }
+
+      @Test
+      void clearRemovesAllAttributes() {
+         selection.addAttribute(new AttributeRef("E", "A"));
+         selection.addAttribute(new AttributeRef("E", "B"));
+         selection.clear();
+         assertTrue(selection.isEmpty());
+      }
+   }
+
+   // ---- addAttribute(int index, DataRef, exclusive) / addAttribute(int index, DataRef) ----
+
+   @Nested
+   class IndexedAddAttributeTests {
+      @Test
+      void addAttributeAtIndexInsertsBeforeExistingElement() {
+         selection.addAttribute(new AttributeRef("E", "A"));
+         AttributeRef inserted = new AttributeRef("E", "B");
+         selection.addAttribute(0, inserted, true);
+
+         assertEquals(2, selection.getAttributeCount());
+         assertSame(inserted, selection.getAttribute(0));
+      }
+
+      @Test
+      void addAttributeAtOutOfBoundsIndexAppendsInstead() {
+         selection.addAttribute(new AttributeRef("E", "A"));
+         AttributeRef appended = new AttributeRef("E", "B");
+         selection.addAttribute(99, appended, true);
+
+         assertEquals(2, selection.getAttributeCount());
+         assertSame(appended, selection.getAttribute(1));
+      }
+
+      @Test
+      void addAttributeAtIndexExclusiveSkipsDuplicate() {
+         AttributeRef ref = new AttributeRef("E", "A");
+         selection.addAttribute(ref);
+         selection.addAttribute(0, ref, true);
+         assertEquals(1, selection.getAttributeCount());
+      }
+
+      @Test
+      void addAttributeAtIndexNonExclusiveAllowsDuplicate() {
+         AttributeRef ref = new AttributeRef("E", "A");
+         selection.addAttribute(ref);
+         selection.addAttribute(0, ref, false);
+         assertEquals(2, selection.getAttributeCount());
+      }
+
+      @Test
+      void addAttributeAtIndexWithoutExclusiveFlagIsAlwaysExclusive() {
+         // via: addAttribute(int, DataRef) -> addAttribute(int, DataRef, exclusive)
+         AttributeRef ref = new AttributeRef("E", "A");
+         selection.addAttribute(ref);
+         selection.addAttribute(0, ref);
+         assertEquals(1, selection.getAttributeCount());
+      }
+   }
+
+   // ---- indexOfAttribute ----
+
+   @Nested
+   class IndexOfAttributeTests {
+      @Test
+      void indexOfAttributeReturnsPosition() {
+         selection.addAttribute(new AttributeRef("E", "A"));
+         AttributeRef target = new AttributeRef("E", "B");
+         selection.addAttribute(target);
+         assertEquals(1, selection.indexOfAttribute(target));
+      }
+
+      @Test
+      void indexOfAttributeReturnsNegativeOneWhenAbsent() {
+         selection.addAttribute(new AttributeRef("E", "A"));
+         assertEquals(-1, selection.indexOfAttribute(new AttributeRef("E", "X")));
+      }
+   }
+
+   // ---- getAttributes() [Enumeration snapshot] ----
+
+   @Nested
+   class GetAttributesEnumerationTests {
+      @Test
+      void getAttributesEnumeratesAllStoredRefs() {
+         selection.addAttribute(new AttributeRef("E", "A"));
+         selection.addAttribute(new AttributeRef("E", "B"));
+
+         Enumeration<DataRef> e = selection.getAttributes();
+         int count = 0;
+
+         while(e.hasMoreElements()) {
+            e.nextElement();
+            count++;
+         }
+
+         assertEquals(2, count);
+      }
+
+      @Test
+      void getAttributesIsSnapshotUnaffectedByLaterAdd() {
+         selection.addAttribute(new AttributeRef("E", "A"));
+         Enumeration<DataRef> e = selection.getAttributes();
+         selection.addAttribute(new AttributeRef("E", "B"));
+
+         int count = 0;
+
+         while(e.hasMoreElements()) {
+            e.nextElement();
+            count++;
+         }
+
+         assertEquals(1, count);
+      }
+   }
+
+   // ---- setAttribute(int, DataRef) ----
+
+   @Nested
+   class SetAttributeTests {
+      @Test
+      void setAttributeReplacesRefAtIndex() {
+         selection.addAttribute(new AttributeRef("E", "A"));
+         AttributeRef replacement = new AttributeRef("E", "B");
+         selection.setAttribute(0, replacement);
+         assertSame(replacement, selection.getAttribute(0));
+      }
+   }
+
+   // ---- sortBy ----
+
+   @Nested
+   class SortByTests {
+      @Test
+      void sortByOrdersAttributesUsingComparator() {
+         AttributeRef b = new AttributeRef("E", "B");
+         AttributeRef a = new AttributeRef("E", "A");
+         selection.addAttribute(b);
+         selection.addAttribute(a);
+
+         selection.sortBy(Comparator.comparing(DataRef::getAttribute));
+
+         assertSame(a, selection.getAttribute(0));
+         assertSame(b, selection.getAttribute(1));
+      }
+   }
+
+   // ---- getHiddenColumnCount ----
+
+   @Nested
+   class GetHiddenColumnCountTests {
+      @Test
+      void countsOnlyInvisibleColumnRefs() {
+         ColumnRef visible = new ColumnRef(new AttributeRef("E", "A"));
+         ColumnRef hidden = new ColumnRef(new AttributeRef("E", "B"));
+         hidden.setVisible(false);
+
+         selection.addAttribute(visible);
+         selection.addAttribute(hidden);
+         selection.addAttribute(new AttributeRef("E", "C")); // not a ColumnRef, ignored
+
+         assertEquals(1, selection.getHiddenColumnCount());
+      }
+
+      @Test
+      void zeroWhenNoColumnRefsAreHidden() {
+         selection.addAttribute(new ColumnRef(new AttributeRef("E", "A")));
+         assertEquals(0, selection.getHiddenColumnCount());
+      }
    }
 }
