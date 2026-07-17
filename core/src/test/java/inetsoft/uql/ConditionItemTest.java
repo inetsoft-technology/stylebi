@@ -17,14 +17,19 @@
  */
 package inetsoft.uql;
 
+import inetsoft.test.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.stream.Stream;
 
@@ -36,6 +41,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * [ConditionItem] writeXML(PrintWriter) / parseXML(Element) - XML serialization round-trip,
  *             not branching logic; descoped per reviewer guidance.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
 @Tag("core")
 class ConditionItemTest {
 
