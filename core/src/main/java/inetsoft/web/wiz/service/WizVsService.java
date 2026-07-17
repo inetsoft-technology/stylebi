@@ -240,13 +240,19 @@ public class WizVsService {
          // highlight). The color frame is keyed per measure ref, so apply each rule to every measure ref —
          // correct for the common single-measure chart; a multi-measure chart colors each series by the
          // condition. A fresh clone per ref avoids sharing one Highlight instance across groups.
+         // A highlight condition is evaluated POST-aggregation against the chart DataSet, whose column
+         // headers are the fields' FULL names (e.g. "Sum(Sales)", "State"). Resolve condition fields
+         // against the chart's view columns — NOT the base worksheet columns used by the filter path —
+         // so the condition ref's name/type match the header. Otherwise GraphConditionGroup.findColumn
+         // can't resolve the field, the condition is dropped, and no mark is ever colored.
+         ColumnSelection chartCols = buildChartHighlightColumns(chartInfo);
          Map<VSChartAggregateRef, HighlightGroup> pointGroups = new LinkedHashMap<>();
          Map<VSChartAggregateRef, HighlightGroup> textGroups = new LinkedHashMap<>();
          Set<String> usedNames = new HashSet<>();
 
          for(ApplyHighlightModel.Highlight rule : hm.getHighlights()) {
             String name = uniqueName(rule.getName(), usedNames);
-            Highlight hl = buildHighlight(rule, name, columns);
+            Highlight hl = buildHighlight(rule, name, chartCols, true);
             boolean isText = "dataLabel".equals(rule.getApplyArea());
             Map<VSChartAggregateRef, HighlightGroup> sink = isText ? textGroups : pointGroups;
 
@@ -278,7 +284,7 @@ public class WizVsService {
 
          for(ApplyHighlightModel.Highlight rule : hm.getHighlights()) {
             String name = uniqueName(rule.getName(), usedNames);
-            group.addHighlight(name, buildHighlight(rule, name, columns));
+            group.addHighlight(name, buildHighlight(rule, name, columns, false));
          }
 
          outputInfo.setHighlightGroup(group);
@@ -328,9 +334,14 @@ public class WizVsService {
     * Builds a StyleBI {@link Highlight} from a wiz highlight rule: converts its condition tree to a
     * {@link ConditionList} with the shared filter converter and applies name/colors/font. Throws
     * (naming the rule) on a missing condition tree or an unparseable color.
+    *
+    * @param columns      candidate condition fields used to coerce condition values to the right type
+    *                     (see buildConditionItem); for charts these are the aggregated VIEW columns.
+    * @param chartRebind  when {@code true}, rebind each condition field to the matching chart column so
+    *                     it resolves against the aggregated chart DataSet at render time (chart only).
     */
    private Highlight buildHighlight(ApplyHighlightModel.Highlight rule, String name,
-                                    ColumnSelection columns)
+                                    ColumnSelection columns, boolean chartRebind)
    {
       String label = name != null && !name.isEmpty()
          ? "highlight '" + name + "'"
@@ -344,6 +355,10 @@ public class WizVsService {
       cm.setBaseConditions(rule.getConditions());
       ConditionList conditionGroup = buildConditionList(cm, columns);
 
+      if(chartRebind) {
+         rebindChartConditionFields(conditionGroup, columns);
+      }
+
       if(conditionGroup.isEmpty()) {
          throw new IllegalArgumentException(
             label + " produced no usable condition — check each leaf names a field and a valid operation");
@@ -356,6 +371,99 @@ public class WizVsService {
       highlight.setFont(toFont(rule.getFontInfo()));
       highlight.setConditionGroup(conditionGroup);
       return highlight;
+   }
+
+   /**
+    * Builds the candidate condition-field selection for a CHART highlight: one entry per chart field
+    * keyed by its FULL NAME (e.g. "Sum(Sales)", "State") with the field's data type. That full name is
+    * exactly the header the aggregated chart DataSet exposes at render time, which is what a highlight
+    * condition is matched against (GraphConditionGroup.findColumn). Both runtime and design fields are
+    * included so the lookup works whether or not the chart has been (re)executed yet.
+    */
+   private ColumnSelection buildChartHighlightColumns(VSChartInfo chartInfo) {
+      ColumnSelection cols = new ColumnSelection();
+      List<VSDataRef> refs = new ArrayList<>();
+
+      if(chartInfo.getRTFields() != null) {
+         refs.addAll(Arrays.asList(chartInfo.getRTFields()));
+      }
+
+      if(chartInfo.getFields() != null) {
+         refs.addAll(Arrays.asList(chartInfo.getFields()));
+      }
+
+      for(VSDataRef ref : refs) {
+         if(ref == null) {
+            continue;
+         }
+
+         String full = ref.getFullName();
+
+         if(full == null || full.isEmpty() || cols.getAttribute(full) != null) {
+            continue;
+         }
+
+         ColumnRef col = new ColumnRef(new AttributeRef(null, full));
+         col.setDataType(ref.getDataType());
+         cols.addAttribute(col);
+      }
+
+      return cols;
+   }
+
+   /**
+    * Rebinds each condition item's field to the matching chart column (by name) so the highlight
+    * resolves against the aggregated chart DataSet. Match order: exact full-name ("Sum(Sales)"), then
+    * a chart column that aggregates the requested base column ("Sales" -> "Sum(Sales)"). Unmatched
+    * items are left untouched (the caller validates/reports an empty or unusable condition).
+    */
+   private void rebindChartConditionFields(ConditionList conds, ColumnSelection chartCols) {
+      if(conds == null || chartCols == null) {
+         return;
+      }
+
+      for(int i = 0; i < conds.getSize(); i++) {
+         if(!conds.isConditionItem(i)) {
+            continue;
+         }
+
+         ConditionItem item = conds.getConditionItem(i);
+         DataRef attr = item.getAttribute();
+
+         if(attr == null) {
+            continue;
+         }
+
+         DataRef match = chartCols.getAttribute(attr.getName());
+
+         if(match == null) {
+            match = findAggregatedColumn(chartCols, attr.getName());
+         }
+
+         if(match != null) {
+            item.setAttribute((DataRef) match.clone());
+         }
+      }
+   }
+
+   /** Find a chart column whose full name aggregates the given base column, e.g. "Sales" -> "Sum(Sales)". */
+   private DataRef findAggregatedColumn(ColumnSelection chartCols, String baseName) {
+      if(baseName == null) {
+         return null;
+      }
+
+      for(int i = 0; i < chartCols.getAttributeCount(); i++) {
+         DataRef ref = chartCols.getAttribute(i);
+         String full = ref.getName();
+         int open = full.indexOf('(');
+         int close = full.lastIndexOf(')');
+
+         if(open > 0 && close > open && full.substring(open + 1, close).equals(baseName)) {
+            return ref;
+         }
+      }
+
+      return null;
    }
 
    /** Parse a hex color string (e.g. {@code "#FF0000"}) to a {@link Color}; null/empty → null (no color).
