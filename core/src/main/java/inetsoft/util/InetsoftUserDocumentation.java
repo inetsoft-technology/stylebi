@@ -19,6 +19,7 @@ package inetsoft.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.github.zafarkhaja.semver.Version;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,6 +48,7 @@ public final class InetsoftUserDocumentation {
    // mechanism; tests that need to exercise loadIndexBaseUrl() directly must clear this field
    // via reflection in a @BeforeEach, as done in InetsoftUserDocumentationTest.
    private static volatile String indexBaseUrl;
+   private static final String DEFAULT_BASE_VERSION = "1.1.0";
 
    /**
     * Base URL of the user documentation index (no fragment), e.g.
@@ -157,20 +159,30 @@ public final class InetsoftUserDocumentation {
       }
 
       LOG.warn("Could not determine Specification-Version from package manifest; " +
-               "falling back to hardcoded doc version 1.1.0");
-      return indexBaseForDocVersion("1.1.0");
+               "falling back to hardcoded doc version {}", DEFAULT_BASE_VERSION);
+      return indexBaseForDocVersion(DEFAULT_BASE_VERSION);
    }
 
    private static String indexBaseForDocVersion(String docVersion) {
       return DOC_INDEX_PREFIX + docVersion + DOC_INDEX_SUFFIX;
    }
 
-   static String stripPreReleaseSuffix(String version) {
-      if(version.startsWith("v") || version.startsWith("V")) {
-         version = version.substring(1);
+   static String stripPreReleaseSuffix(final String version) {
+      String verString = version;
+
+      if(verString.startsWith("v") || verString.startsWith("V")) {
+         verString = verString.substring(1);
       }
 
-      int dash = version.indexOf('-');
-      return dash < 0 ? version : version.substring(0, dash);
+      try {
+         Version ver = Version.parse(verString);
+         return ver.majorVersion() + "." + ver.minorVersion() + ".0";
+      }
+      catch(Exception e) {
+         LOG.debug("Invalid semantic version: {}", verString, e);
+      }
+
+      int dash = verString.indexOf('-');
+      return dash < 0 ? verString : verString.substring(0, dash);
    }
 }
