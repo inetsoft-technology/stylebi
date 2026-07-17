@@ -22,6 +22,7 @@ import inetsoft.report.internal.Common;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.SliderVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSOutputChromeDefaults;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -115,12 +116,12 @@ public class VSSlider extends VSFloatable {
          int trackEndX   = Math.min(getContentWidth(), startX + sliderLine_W + TRACK_OVERHANG);
          int fullTrackW  = trackEndX - trackStartX;
 
-         cg.setColor(INACTIVE_TRACK_COLOR);
+         cg.setColor(VSOutputChromeDefaults.sliderInactiveTrack());
          cg.fillRoundRect(trackStartX, trackY, fullTrackW, TRACK_HEIGHT, trackArc, trackArc);
 
          int activeW = curX - trackStartX;
          if(activeW > 0) {
-            cg.setColor(ACTIVE_TRACK_COLOR);
+            cg.setColor(VSOutputChromeDefaults.sliderActiveTrack());
             cg.fillRoundRect(trackStartX, trackY, activeW, TRACK_HEIGHT, trackArc, trackArc);
          }
 
@@ -145,7 +146,7 @@ public class VSSlider extends VSFloatable {
             int tickCount = (int) Math.ceil((max - min) / inc);
 
             // Draw 4 dp dot tick marks centred on the track centre line
-            cg.setColor(TICK_COLOR);
+            cg.setColor(VSOutputChromeDefaults.sliderTick());
 
             for(int i = 0; i <= tickCount; i++) {
                if(showMin && i == 0 || tickJump == 0 ||
@@ -258,7 +259,7 @@ public class VSSlider extends VSFloatable {
          int handleX = curX - HANDLE_WIDTH / 2;
          int handleY = sliderLine_Y - HANDLE_HEIGHT / 2;
          handleX = Math.max(0, Math.min(handleX, getContentWidth() - HANDLE_WIDTH));
-         cg.setColor(HANDLE_COLOR);
+         cg.setColor(VSOutputChromeDefaults.sliderHandle());
          cg.fillRoundRect(handleX, handleY, HANDLE_WIDTH, HANDLE_HEIGHT,
                           HANDLE_WIDTH, HANDLE_WIDTH);
 
@@ -363,16 +364,13 @@ public class VSSlider extends VSFloatable {
    private String[] labels;
    private int decimalDigital;
 
-   // ── M3 Expressive design tokens (mirror vs-slider.component.scss) ──────────
+   // ── M3 Expressive geometry (mirror vs-slider.component.scss) ───────────────
+   // Track/handle/tick colors resolve from VSOutputChromeDefaults so they follow the modern gate.
    private static final int   TRACK_HEIGHT         = 12;
    private static final int   TRACK_OVERHANG       = 12;
    private static final int   HANDLE_WIDTH         = 4;
    private static final int   HANDLE_HEIGHT        = 33;
    private static final int   TICK_SIZE            = 4;
-   private static final Color INACTIVE_TRACK_COLOR = new Color(224, 224, 224);
-   private static final Color ACTIVE_TRACK_COLOR   = new Color(158, 158, 158);
-   private static final Color HANDLE_COLOR         = new Color(158, 158, 158);
-   private static final Color TICK_COLOR           = new Color(0, 0, 0, 97); // ~38% opacity
 
    private static final int TICK_GAP      = 3;
    private static final int VALUE_GAP     = 5;

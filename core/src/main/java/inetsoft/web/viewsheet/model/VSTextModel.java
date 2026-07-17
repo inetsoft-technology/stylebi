@@ -207,7 +207,8 @@ public class VSTextModel extends VSOutputModel<TextVSAssembly> {
    protected VSFormatModel createFormatModel(VSCompositeFormat compositeFormat,
                                              VSAssemblyInfo assemblyInfo)
    {
-      return new VSFormatModel(compositeFormat, assemblyInfo, true);
+      return new VSFormatModel(
+         VSOutputChromeDefaults.applyModernDefaults(compositeFormat), assemblyInfo, true);
    }
 
    private String text;
