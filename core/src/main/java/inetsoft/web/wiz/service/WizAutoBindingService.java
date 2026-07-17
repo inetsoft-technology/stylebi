@@ -750,6 +750,13 @@ public class WizAutoBindingService {
                   agg.setCalculator(calc);
                }
             }
+
+            // discrete (plot un-aggregated) and secondaryY (plot on the secondary Y axis) are
+            // mutually exclusive: an un-aggregated measure has no place on the secondary axis, so a
+            // discrete measure never lands there regardless of what the caller asked for.
+            boolean discrete = meaFc.isDiscrete();
+            agg.setDiscrete(discrete);
+            agg.setSecondaryY(!discrete && meaFc.isSecondaryY());
          }
       }
 

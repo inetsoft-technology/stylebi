@@ -23,6 +23,7 @@ import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
+import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.web.binding.model.graph.CalculateInfo;
 import inetsoft.web.wiz.model.DimensionFieldInfo;
 import inetsoft.web.wiz.model.MeasureFieldInfo;
@@ -116,6 +117,12 @@ final class WizFieldInfoFactory {
       info.setAggregateFormula(agg.getFormulaValue());
       info.setFullName(agg.getFullName());
       info.setCalculateInfo(CalculateInfo.createCalcInfo(agg.getCalculator()));
+
+      if(agg instanceof VSChartAggregateRef chartAgg) {
+         info.setDiscrete(chartAgg.isDiscrete());
+         info.setSecondaryY(chartAgg.isSecondaryY());
+      }
+
       return info;
    }
 

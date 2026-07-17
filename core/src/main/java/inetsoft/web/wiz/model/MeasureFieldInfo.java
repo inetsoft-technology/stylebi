@@ -62,9 +62,27 @@ public class MeasureFieldInfo extends SimpleFieldInfo {
       this.calculateInfo = calculateInfo;
    }
 
+   public boolean isDiscrete() {
+      return discrete;
+   }
+
+   public void setDiscrete(boolean discrete) {
+      this.discrete = discrete;
+   }
+
+   public boolean isSecondaryY() {
+      return secondaryY;
+   }
+
+   public void setSecondaryY(boolean secondaryY) {
+      this.secondaryY = secondaryY;
+   }
+
    private String aggregateFormula;
    private String fullName;
    private String secondaryField;
    private Integer nOrP;
    private CalculateInfo calculateInfo;
+   private boolean discrete = false;
+   private boolean secondaryY = false;
 }
