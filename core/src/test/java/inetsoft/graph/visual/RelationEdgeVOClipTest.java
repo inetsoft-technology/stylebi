@@ -18,6 +18,7 @@
 package inetsoft.graph.visual;
 
 import inetsoft.graph.aesthetic.GShape;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.awt.Shape;
@@ -33,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Exercises the pure-geometry helpers {@code RelationEdgeVO.clipToBoundary} and
  * {@code RelationEdgeVO.segIntersect} directly (package-private for testability).
  */
+@Tag("core")
 class RelationEdgeVOClipTest {
    private static final double EPS = 1e-6;
    // flattened curves (ellipse) are approximated, so allow a small tolerance for CIRCLE

@@ -19,7 +19,15 @@ package inetsoft.graph.visual;
 
 import inetsoft.graph.aesthetic.GShape;
 import inetsoft.graph.element.RelationElement;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.geom.Rectangle2D;
 
@@ -30,6 +38,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * (ex.png overflow case): the text-layout box must shrink to fit the curved boundary,
  * not the outer rectangle.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 class RelationVOInsideTextBoxTest {
    private static final double SQRT2_INSET = 1 - 1 / Math.sqrt(2);   // ~0.2929
    private static final double EPS = 1e-9;

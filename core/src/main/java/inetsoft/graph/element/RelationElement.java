@@ -404,6 +404,25 @@ public class RelationElement extends GraphElement {
          else {
             layoutRadius = 0;
          }
+
+         // The border ring passes through node centers, so it can bulge past the node
+         // bounding box between nodes. The node-only translation above leaves the ring's
+         // min-x/min-y edge (left/bottom in this post-flipY, y-up space) at a negative
+         // coordinate the plot can't scroll to reveal (#75648). Shift nodes, edges and the
+         // cached center so the ring's bounding box also starts at the origin.
+         if(shapeBorderShape != null && layoutCenter != null && layoutRadius > 0) {
+            double dx = Math.max(0, -(layoutCenter.getX() - layoutRadius));
+            double dy = Math.max(0, -(layoutCenter.getY() - layoutRadius));
+
+            if(dx > 0 || dy > 0) {
+               nodes.values()
+                  .forEach(v -> v.getMxCell().getGeometry().translate(dx, dy));
+               edges
+                  .forEach(v -> v.getEdge().getGeometry().translate(dx, dy));
+               layoutCenter = new Point2D.Double(layoutCenter.getX() + dx,
+                                                 layoutCenter.getY() + dy);
+            }
+         }
       }
       else {
          layoutCenter = null;
