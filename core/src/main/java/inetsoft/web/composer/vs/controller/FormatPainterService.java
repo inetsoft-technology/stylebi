@@ -211,6 +211,16 @@ public class FormatPainterService {
          format = format.clone();
       }
 
+      // modern chrome defaults so the picker matches the rendered value (design-time WYSIWYG); the
+      // apply-back change-detection against the echoed origFormat keeps an unchanged panel from
+      // persisting it, so gate-off stays byte-identical
+      if(dataPath != null && dataPath.getType() == TableDataPath.TITLE) {
+         VSTitleChromeDefaults.applyModernDefaultsInPlace(format);
+      }
+      else if(assembly instanceof TextVSAssembly) {
+         VSOutputChromeDefaults.applyModernDefaultsInPlace(format);
+      }
+
       if(assembly instanceof Viewsheet) {
          format.getCSSFormat().setCSSType(CSSConstants.VIEWSHEET);
       }
