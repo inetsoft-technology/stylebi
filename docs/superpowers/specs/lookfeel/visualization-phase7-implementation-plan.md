@@ -169,27 +169,26 @@ dependency note requires be *agreed before further server color work* is **alrea
 validated by three sibling resolvers**. Phase 7 Part B does not invent it; it **mirrors** it with a
 fourth resolver (`VSOutputChromeDefaults`). This is a hard prerequisite and it is satisfied.
 
-**Blocking sequencing dependency — Phase 6A is NOT built.** Every KPI and every embedded control is
-wrapped in the shared **object title bar**, rendered server-side from `titleFormat` (a `VSFormat`),
-which **Phase 6A (`VSTitleChromeDefaults`) was chartered to modernize but has not** — verified: no
-`VSTitleChromeDefaults.java` exists anywhere in the repo, and `viewsheet.modernObjectChrome` is
-referenced by zero source files. Consequence: if Phase 7 Part B modernizes the KPI *value* body but
-the title bar above it stays legacy, a modern KPI will look half-themed. **Part B should not ship its
-KPI-body defaults ahead of, or without coordinating the neutral palette with, Phase 6A.** The two are
-the same shape (gated server-side `VSFormat`-default resolvers) and should share the modern-mode gate
-and the warm-neutral palette. Recommended order: **Part A (this phase, now) → Phase 6A title chrome →
-Phase 7 Part B KPI-body defaults**, or Part B and Phase 6A landed together as a coordinated
-server-chrome pass. Part A has **no** dependency on either and is shippable immediately.
+**Sequencing dependency — Phase 6A IS BUILT (resolved, verified 2026-07-16).** An earlier revision of
+this plan recorded Phase 6A as unbuilt; that is now stale. `VSTitleChromeDefaults` landed in commit
+`16ec7af83` (before Part A `f8f3912b0`) and modernizes the shared **object title bar** — the chrome
+wrapping every KPI and control. It is wired across every model-build seam (`web/viewsheet/model/*`)
+and every export seam (`report/io/viewsheet/*`). Consequence: the half-themed-KPI risk is gone — the
+title bar above a KPI value is already modern, and Part B only needs to modernize the *value body*
+below it, coordinating the same gate + palette (which 6A already fixed — see the palette table in
+Part B below). Part B is therefore **unblocked**, and 6A is the concrete template it mirrors. The
+recommended order collapses to: **Part A (done) → Phase 7 Part B (this section)**.
 
 ## Decisions (proposed — resolve with initiative owner before Part B)
 
 ### D1 — Phase 7 first pass = Part A (CSS, zero export); Part B is a gated follow-up sub-plan → **RECOMMEND YES**
 
 Exactly Phases 5 (D1) and 6 (D2). Part A (embedded-control density/state repoints) is broad,
-gate-off byte-identical, no server change, no export change — shippable now. Part B changes
-`VSFormat` defaults, is export-visible, reflows saved KPI widgets on enable, and is coupled to the
-unbuilt Phase 6A, so it should be its own sub-plan taken after Part A validates, with
-PDF/PNG/SVG/Excel parity checks. Keeps the low-risk 80% shippable immediately.
+gate-off byte-identical, no server change, no export change — shipped. Part B changes `VSFormat`
+defaults, is export-visible, and reflows saved default-formatted KPI widgets on enable, so it is a
+gated follow-up with PDF/PNG/SVG/Excel parity checks. Its Phase 6A coordination dependency is now
+satisfied (6A built), and it is grounded in the Part B section below. Kept the low-risk 80% shippable
+first.
 
 ### D2 — State tokens on data-surface controls only; passive chrome stays shell-neutral → **RECOMMEND YES**
 
@@ -318,67 +317,115 @@ parity-safe slice actually shipped is even thinner than proposed — A1 colors +
   repoints `--slider-*` to warm-neutrals (`#E8E5DE` inactive / `#C8C2B7` active / `#6A685F`
   handle+tick+label). Live view only. **Export mismatch is expected** — see B4.
 
-**B4 — Slider server-render counterpart (export parity for A4).** The exported/server-image slider
-is painted by `VSSlider.java`, which **hardcodes the same four colors** as the CSS (see
-`VSSlider.java:366-375`, comment "mirror vs-slider.component.scss": `INACTIVE_TRACK 224,224,224` /
-`ACTIVE_TRACK 158,158,158` / `HANDLE 158,158,158` / `TICK 0,0,0,97`). Under the modern gate these
-should swap to the A4 warm-neutrals so live and every export format agree. Lower-risk than the KPI
-`VSFormat` seam because these are **pure chrome constants, not user-formattable** (only the tick
-label uses `format.getForeground()`), so gating them touches no user-format merge and is gate-off
-byte-identical. Gate on `VSDensityDefaults.isModern()` (or the `VSOutputChromeDefaults` gate);
-validate PDF/PNG/SVG/Excel parity. A `VSTimeSlider.java` counterpart likely carries the same
-constants for the range-slider band (verify).
+**B4 — Slider server-render counterpart (export parity for A4).** A4 modernized only the live-view
+CSS; the exported/server-image slider (`VSSlider.java` hardcoded constants) stays legacy. This is now
+a Part B item — see **B4** in the Part B section below for the grounded seams and gating.
 
-### Part B — Server-side KPI hierarchy/emphasis + control-box defaults (gated resolver; needs owner go-ahead + Phase 6A coordination)
+### Part B — Server-side KPI/control chrome defaults (gated resolver) — GROUNDED, decisions resolved (2026-07-16)
 
-Export-affecting server work. Mirrors `VSTableStructureDefaults` / `VSChartChromeDefaults`.
+Export-affecting server work. All seams below are **code-verified on `viz-updates`**. Two corrections
+to the earlier draft, now folded in:
 
-**Gate (`VSOutputChromeDefaults`, `uql/viewsheet/internal/`).** `isModern()` =
-`VSDensityDefaults.isModern()` **AND** `SreeEnv.getProperty("viewsheet.modernKpiChrome", …, true)`
-≠ `"false"` (org-scoped, defaults ON when modern is on — the admin escape hatch, same shape as
-`viewsheet.modernTableStructure`/`modernChartChrome`). Expose the modern KPI-value defaults as
-accessors: `valueForeground()`, `valueFont()` / weight+size, `labelForeground()` (secondary/label
-text), and a neutral `borderColor()`.
+- **Phase 6A is built** (`VSTitleChromeDefaults`, commit `16ec7af83`) — Part B is unblocked and mirrors
+  it directly (same file shape, gate, and palette).
+- **Mechanism is NOT a `setDefaultFormat` change.** Phase 6A established the canonical pattern Part B
+  follows: a static `applyModernDefaults(VSCompositeFormat)` that writes the modern neutral to the
+  **DEFAULT tier of a *clone* at read time**, applied only when the USER tier
+  (`getUserDefinedFormat().isXxxValueDefined()`) and CSS tier (`getCSSFormat().isXxxValueDefined()`)
+  have not set the value, invoked at **every model-build seam and every export seam** (same function
+  both paths → live and export agree, no persisted-format mutation). Do not touch `setDefaultFormat`.
 
-**B1 — KPI text/output value defaults (the clean first seam).** In
-`TextVSAssemblyInfo.setDefaultFormat(boolean)` (and the shared output-format seeding), when
-`VSOutputChromeDefaults.isModern()`, seed the modern value emphasis instead of the legacy `0x2b2b2b`
-bold-11 default: a stronger primary-value weight/size and the warm-neutral foreground (coordinated
-with the Phase 5/6 neutrals — proposed `#35342F` title-strength for the primary value,
-`#6A685F` for subordinate/label text), and the neutral border default. **Applied defaults-only**: an
-explicit user `VSFormat` still wins (it merges above the default), so gate-off is byte-identical and
-saved KPIs with custom formats are untouched. This is the direct analog of Phase 6A's title-format
-seam.
+**Gate (`VSOutputChromeDefaults`, `uql/viewsheet/internal/`, mirrors `VSTitleChromeDefaults`).**
+`final` class, private ctor, all static. **DECISION D-B1 (resolved): reuse the existing
+`viewsheet.modernObjectChrome` sub-gate** — one admin toggle for all object chrome (title + value +
+slider export), no new property:
+`isModern()` = `VSDensityDefaults.isModern() && !"false".equals(SreeEnv.getProperty("viewsheet.modernObjectChrome", false, true))`.
+Expose `valueForeground()`, `labelForeground()`, `borderColor()` (+ slider chrome accessors for B4),
+and an `applyModernDefaults(VSCompositeFormat)` / `…InPlace(…)` pair matching 6A.
 
-**B2 — Range-output / gauge neutral defaults (guard-or-defer).** Seed a neutral default value-fill on
-the range-output family under the gate; **defer** the gauge *face* modernization (D8 — an asset pass).
+**Palette — coordinated, already in code, reuse verbatim** (no new colors, no swatch-file change
+needed):
 
-**B3 — Input control-box defaults (optional).** If a modern control-box neutral is wanted in export
-(not just live density from Part A), seed it at the input `VSFormat` default seam under the gate,
-defaults-only. Low priority — controls are mostly chrome, and their exported box rarely carries
-emphasis; likely defer.
+| Role | Hex | Source constant |
+|---|---|---|
+| Primary value foreground | `#35342F` | `VSChartChromeDefaults.TITLE` |
+| Label / secondary foreground | `#6A685F` | `VSChartChromeDefaults.LABEL` / `VSTitleChromeDefaults.TITLE_FG` |
+| KPI / control border | `#D9D5CC` | `VSTitleChromeDefaults.TITLE_BORDER` |
+| Slider inactive/active/handle | `#E8E5DE` / `#C8C2B7` / `#6A685F` | matches Part A A4 CSS |
 
-**Proposed palette (no design spec yet — add a "KPI / Control Chrome Tokens" group to
-`visualization-palette-swatches.html`, coordinated with Phase 5 table-structure and Phase 6
-chart-chrome neutrals):**
-- primary KPI value foreground → `#35342F` (= shell text-default / Phase 6 title neutral)
-- secondary/label/metadata foreground → `#6A685F` (= Phase 5 `headerForeground` / Phase 6 `labelColor`)
-- control/KPI border default → `#D9D5CC` (= `headerSeparator`, the shared structural border) or keep
-  `0xDADADA` if parity with existing frames is preferred
-- semantic emphasis → **defer to Phase 8** (threshold/anomaly highlight defaults)
+**B4 — Slider export parity (DONE 2026-07-16).** Live view was modernized by Part A A4; the
+server-painted export was still legacy. Implemented: new `VSOutputChromeDefaults`
+(`uql/viewsheet/internal/`, reuses the `viewsheet.modernObjectChrome` gate) exposes
+`sliderInactiveTrack/ActiveTrack/Handle/Tick()`, each returning the legacy VSSlider color gate-off and
+the warm-neutral (`#E8E5DE`/`#C8C2B7`/`#6A685F`) gate-on. `VSSlider.paintComponent` now reads those
+accessors instead of its four hardcoded constants; all exporters draw via `VSSlider`, so one change
+covers PDF/SVG/HTML/CSV/Excel. Pure chrome, not user-formattable → gate-off byte-identical. Unit test
+`VSOutputChromeDefaultsTest` (3 tests) green. **`VSTimeSlider` (range slider) is out of scope**: its
+track/handle are **theme images** (`getTheme().getImage("widget|SliderBase", …)`), not color constants
+(only the tick is `0x888888`), and it is asset-themed on both live and export — so there is no
+live/export mismatch to fix; range-slider modernization is an asset pass, deferred like the gauge face.
+Remaining: manual PDF/PNG/SVG/Excel parity spot-check (gate-off unchanged, gate-on warm-neutral).
 
-**Why a Java resolver, not `format.css`** (same correction Phase 5/6 made): `CSSDictionary` has no
-`viewsheet.modernVisualization` SreeEnv gate — it is file/theme-driven per org — so it cannot carry
-the programmatic per-org gate. The `VSOutputChromeDefaults` resolver injected at the `setDefaultFormat`
-seam mirrors the three existing resolvers and rides on top of the CSS dictionary (a customer's
-`format.css` KPI class still wins as the CSS tier above the seeded default).
+**B1 — KPI text/output value defaults (DONE 2026-07-16).** Value format is the object
+`VSCompositeFormat` seeded on the DEFAULT tier at `TextVSAssemblyInfo.setDefaultFormat` (fg `0x2b2b2b`,
+BOLD 11, border `0xDADADA`). Per **D-B2**, modernized **foreground + border only; weight/size
+unchanged**. Implemented: `VSOutputChromeDefaults.applyModernDefaults(VSCompositeFormat)` /
+`…InPlace(…)` substitute fg → `#35342F` and border → `#D9D5CC` on the DEFAULT tier of a clone, only when
+neither the USER tier nor the CSS tier has set them (so a user format and a `format.css` class still
+win). Wired at:
+- **Live:** `VSTextModel.createFormatModel` wraps the object format with `applyModernDefaults`.
+- **Export:** `AbstractVSExporter.getTextFormat` calls `applyModernDefaultsInPlace(fmt)` on the cloned
+  format **before** the highlight override (which writes the `HighlightGroup` emphasis to the USER
+  tier), so highlights still win (D6 preserved).
 
-**Risk / validation:** export-visible; changes the default emphasis of saved default-formatted KPIs
-when the gate is enabled (intended, org-gated). Must be gated per-org (never the browser
-`.viz-modern` class), gate-off byte-identical, and validated with **PDF/PNG/SVG/Excel parity** plus a
-customer-`format.css` KPI case and a user-format case (confirm both still win). Coordinate the
-neutral palette with Phase 6A so a KPI's title bar and value body modernize together. Highest-risk
-item in Phase 7.
+Unit test `VSOutputChromeDefaultsTest` extended (7 tests total, green): palette values, bare-default →
+modern fg+border, user fg/border still win, gate-off no-op.
+
+**Design-time WYSIWYG (composer format picker).** The Phase 3 rule requires the composer to match the
+viewer. The canvas already does (it renders from the same `VSTextModel` model). The **format panel
+picker** is populated separately by `FormatPainterService` from the raw assembly format
+(`:204`/`:383`/`:366`) and does not go through the model — so without help it shows the legacy default
+while the canvas shows modern. Fixed by applying `VSOutputChromeDefaults.applyModernDefaultsInPlace` to
+the cloned display format for `TextVSAssembly` (`FormatPainterService` after the object-format clone).
+This mirrors how the table header already shows its modern structure colors in the picker (Phase 5
+bakes them into the lens format the picker reads). **Full WYSIWYG:** the same `FormatPainterService`
+seam also applies `VSTitleChromeDefaults.applyModernDefaultsInPlace` when the selected `dataPath` is
+`TITLE`, so object title-bar pickers show the modern title bg/fg matching the 6A render. **Safe against
+persistence:** the apply-back path is change-detection against the echoed `origFormat` (`:899`), and
+both current and orig now carry the same modern value, so an unchanged panel never persists it —
+gate-off stays byte-identical. (Remaining picker gap: chart *internal* chrome — gridline/axis/legend
+colors from Phase 6 — is edited via the chart-specific format dialogs / `ChartDescriptor`, a separate
+subsystem from `FormatPainterService`, not covered here.)
+
+Remaining: manual live + PDF/PNG/SVG/Excel parity spot-check on a Text KPI (gate-off unchanged; gate-on
+warm value + border in canvas, picker, and export; a user format, `format.css` class, and highlight
+each still override).
+
+**B2 — Range-output / gauge (mostly defer).** Gauge is a server image via `VSGauge` (face `10120` = a
+themed asset → **defer**, D8). Assess whether the range-output painter carries `VSSlider`-style
+hardcoded constants; if so, fold into B4-style gating, else defer. A neutral gauge value-fill default
+is optional/low-priority.
+
+**B3 — Input control-box defaults (defer).** Exported control box rarely carries emphasis; no seam
+change this pass.
+
+**Why a Java resolver, not `format.css`:** `CSSDictionary` has no `viewsheet.modernVisualization`
+SreeEnv gate (it is file/theme-driven per org), so it cannot carry the programmatic per-org gate. The
+`VSOutputChromeDefaults` resolver rides on top of the CSS dictionary — a customer's `format.css` output
+class still wins as the CSS tier, checked explicitly by `applyModernDefaults`.
+
+**Org gate on the export/scheduled thread — CONFIRMED.** 6A already applies `applyModernDefaults` on
+the export/report path (`AbstractVSExporter`, `ExportUtil`, `VsToReportConverter`), proving the
+org-scoped `SreeEnv` gate resolves there. Part B inherits this; no thread-context work.
+
+**Sequencing:** **B4 → B1 → (assess B2 / defer B3).** B4 first is self-contained and validates the
+server-chrome gate end-to-end on the export path at minimal risk.
+
+**Risk / validation:** export-visible. Gate-off byte-identical across live + PDF/PNG/SVG/Excel for a
+Text KPI, a slider, and a gauge; gate-on shows modern value fg/border + slider neutrals in every export
+format, with title bar (6A) and value body (B1) reading as one system. Confirm a user `VSFormat`, a
+`format.css` output class, and a `HighlightGroup` each still override the modern default. Spot-check a
+scheduled export for org-scope resolution. B1 is the highest-risk item; B4 is low-risk.
 
 ## Validation
 
@@ -399,8 +446,8 @@ item in Phase 7.
    (value color, font, border) and a customer `format.css` KPI class still override the modern
    default in both modes. Confirm `isModern()`'s org-scoped `SreeEnv` read resolves on the
    export/scheduled path as the density/structure defaults already do.
-6. **Coordination check (Part B):** modernize a KPI whose title bar is also modern (once Phase 6A
-   lands) and confirm title + value read as one system, not half-themed.
+6. **Coordination check (Part B):** modernize a KPI whose title bar is also modern (Phase 6A is
+   built) and confirm title + value read as one system, not half-themed.
 7. **Interaction-rule checks (design spec):** KPI comparison/sparkline elements stay subordinate to
    the primary value; controls stay hittable at dense sizes; chart categorical hues do not appear on
    control chrome.
@@ -415,13 +462,10 @@ item in Phase 7.
 3. **Conditional-formatting / threshold-anomaly color primitives** — server-rendered, export-visible
    → **Phase 8** (the KPI highlight mechanism is the delivery surface, but the modern color set is
    Phase 8).
-4. **Object title-bar modernization (Phase 6A)** — `VSTitleChromeDefaults`, unbuilt; a hard
-   coordination dependency for Part B (KPI/control title bars). Sequence Part B alongside or after it.
-5. **Slider server-render counterpart (B4)** — A4 shipped the live-view CSS neutrals (gate-scoped);
-   the exported/server-image slider is still legacy because `VSSlider.java` hardcodes the mirror
-   colors. Gate those four constants on the modern flag for live/export parity (pure chrome, not
-   user-formattable → low-risk, gate-off byte-identical). Check `VSTimeSlider.java` for the
-   range-slider band. Export-affecting → needs owner go-ahead + PDF/PNG/SVG/Excel parity.
+4. **Object title-bar modernization (Phase 6A)** — DONE (`VSTitleChromeDefaults`, commit `16ec7af83`);
+   was the coordination dependency for Part B, now satisfied. Part B reuses its gate + palette.
+5. **Slider server-render counterpart (B4)** — promoted into Part B (grounded); it is the recommended
+   first Part B increment. See Part B / B4.
 6. **Gauge face modernization** — a themed asset + descriptor pass, distinct from the `VSFormat` seam
    (D8); Part B may seed a neutral value-fill but the modern face is deferred.
 7. **Input control-box server defaults (Part B / B3)** — low value; controls rarely carry exported
@@ -432,12 +476,12 @@ item in Phase 7.
 
 ## Branching (per CLAUDE.md)
 
-Part A is community-only CSS (SCSS in the `community/` submodule); enterprise submodule-pointer bump
-only at PR time. Part B adds core Java (the `VSOutputChromeDefaults` resolver + `setDefaultFormat`
-seam) — same community branch, and should be coordinated with the Phase 6A server-chrome work.
-Continues the visualization-theming work on the initiative branch (`viz-updates` per Phase 6);
-confirm whether Phase 7 continues there or a child `feature-{issue}`. Nothing on `main` or a
-`v1.0.x`/`v1.1.x` release branch; nothing pushed/PR'd without explicit approval.
+Part A is community-only CSS (SCSS in the `community/` submodule), committed on `viz-updates`
+(`f8f3912b0`); enterprise submodule-pointer bump only at PR time. Part B adds core Java (the
+`VSOutputChromeDefaults` resolver + `applyModernDefaults` at the Text model/export seams and the
+`VSSlider`/`VSTimeSlider` painters) — same `viz-updates` branch, alongside the landed Phase 6A
+server-chrome work. Nothing on `main` or a `v1.0.x`/`v1.1.x` release branch; nothing pushed/PR'd
+without explicit approval.
 
 ## Related
 
@@ -447,5 +491,5 @@ confirm whether Phase 7 continues there or a child `feature-{issue}`. Nothing on
 - [visualization-phase1-contract.md](./visualization-phase1-contract.md) — density + state token `:root` defaults (parity baselines); `--inet-viz-control-height`, `--inet-viz-filtered-bg`
 - [visualization-phase3-implementation-plan.md](./visualization-phase3-implementation-plan.md) — the gated `VSDensityDefaults` resolver + selection-list `getEffectiveCellHeight` density (embedded-filter data surfaces)
 - [visualization-phase5-implementation-plan.md](./visualization-phase5-implementation-plan.md) — the Parts-by-render-location structure, gated server resolver + `VSFormat`-default seam, state-on-data-surfaces-only reversal (D2), sort-glyph parity snag (D3) this plan mirrors
-- [visualization-phase6-implementation-plan.md](./visualization-phase6-implementation-plan.md) — the chart-chrome resolver (`VSChartChromeDefaults`) and the Phase 6A title-chrome deferral this phase depends on
-- [visualization-palette-swatches.html](./visualization-palette-swatches.html) — palette source of truth; add a "KPI / Control Chrome Tokens" group for Part B, coordinated with the table-structure and chart-chrome neutrals
+- [visualization-phase6-implementation-plan.md](./visualization-phase6-implementation-plan.md) — the chart-chrome resolver (`VSChartChromeDefaults`) and the now-built Phase 6A title-chrome (`VSTitleChromeDefaults`) this phase's Part B mirrors
+- [visualization-palette-swatches.html](./visualization-palette-swatches.html) — palette source of truth; Part B reuses the existing table-structure/chart-chrome/title-chrome neutrals verbatim (value `#35342F`, label `#6A685F`, border `#D9D5CC`), so no new swatch group is required

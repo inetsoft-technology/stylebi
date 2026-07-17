@@ -1905,6 +1905,9 @@ public abstract class AbstractVSExporter implements VSExporter {
          TextVSAssemblyInfo tinfo = (TextVSAssemblyInfo) info;
 
          fmt = fmt.clone();
+         // modern value emphasis on the default tier; the highlight override below is on the user
+         // tier and still wins
+         VSOutputChromeDefaults.applyModernDefaultsInPlace(fmt);
 
          if(tinfo.getHighlightForeground() != null) {
             fmt.getUserDefinedFormat().setForeground(
