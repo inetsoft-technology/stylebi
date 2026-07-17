@@ -58,7 +58,3 @@ expect(emitted).toHaveLength(1);
 
 Timing regression example: see
 `logical-model-attribute-dialog.component.spec.ts` (#75599), not the TL file.
-
-## Related plan
-
-`docs/superpowers/plans/2026-07-16-portal-tl-suite-stability.md`

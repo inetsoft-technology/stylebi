@@ -19,6 +19,7 @@ import {
    Component,
    ElementRef,
    EventEmitter,
+   Inject,
    Input,
    OnChanges,
    OnDestroy,
@@ -41,7 +42,7 @@ import { VSSelectionBaseModel } from "../../model/vs-selection-base-model";
 import { VSSelectionTreeModel } from "../../model/vs-selection-tree-model";
 import { CellRegion } from "./cell-region";
 import { MODE } from "./selection-tree-controller";
-import { VSSelection } from "./vs-selection.component";
+import { SELECTION_LIST_HOST } from "./selection-list-host";
 import {ComponentTool} from "../../../common/util/component-tool";
 import { ContextProvider } from "../../context-provider.service";
 import { SafeFontDirective } from "../../directives/safe-font.directive";
@@ -130,7 +131,7 @@ export class SelectionListCell implements OnInit, OnChanges, OnDestroy {
    private suppressNextClick = false;
    private longPressFired = false;
 
-   constructor(public vsSelectionComponent: VSSelection,
+   constructor(@Inject(SELECTION_LIST_HOST) public vsSelectionComponent: any,
                private sanitization: DomSanitizer,
                private renderer: Renderer2,
                public contextProvider: ContextProvider,

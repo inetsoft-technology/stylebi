@@ -32,6 +32,7 @@ import {
    Renderer2,
    ViewChild,
    Optional,
+   forwardRef,
 } from "@angular/core";
 import { Observable, Subscription } from "rxjs";
 import { Tool } from "../../../../../../shared/util/tool";
@@ -76,6 +77,7 @@ import { PopComponentService } from "../data-tip/pop-component.service";
 import { VSSelectionContainerModel } from "../../model/vs-selection-container-model";
 import { VSLoadingDisplay } from "../vs-loading-display/vs-loading-display.component";
 import { SelectionListCell } from "./selection-list-cell.component";
+import { SELECTION_LIST_HOST } from "./selection-list-host";
 import { TouchScrollDirective } from "../../../widget/scroll/touch-scroll.directive";
 import { FormsModule } from "@angular/forms";
 import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
@@ -108,7 +110,8 @@ export enum FocusRegions {
     templateUrl: "vs-selection.component.html",
     styleUrls: ["vs-selection.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, SafeFontDirective, MiniMenu, CollapseToggleButton, TitleCell, InteractableDirective, TooltipDirective, FormsModule, TouchScrollDirective, SelectionListCell, VSLoadingDisplay]
+    imports: [VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, SafeFontDirective, MiniMenu, CollapseToggleButton, TitleCell, InteractableDirective, TooltipDirective, FormsModule, TouchScrollDirective, SelectionListCell, VSLoadingDisplay],
+    providers: [{ provide: SELECTION_LIST_HOST, useExisting: forwardRef(() => VSSelection) }]
 })
 export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    implements OnInit, OnDestroy, AfterViewInit

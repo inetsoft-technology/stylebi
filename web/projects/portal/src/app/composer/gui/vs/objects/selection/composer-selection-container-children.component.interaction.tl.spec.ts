@@ -54,9 +54,11 @@ import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { render } from "@testing-library/angular";
 import { Subject } from "rxjs";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { ComposerSelectionContainerChildren } from "./composer-selection-container-children.component";
 import { DragBorderType } from "./drag-border-type";
 import { VSSelectionContainerChildren } from "../../../../../vsobjects/objects/selection/vs-selection-container-children.component";
+// Import parent before child so VSSelectionContainerChildren finishes init under CI ESM order
+// before ComposerSelectionContainerChildren's static initializer runs (ɵfac inheritance).
+import { ComposerSelectionContainerChildren } from "./composer-selection-container-children.component";
 import { ViewsheetClientService } from "../../../../../common/viewsheet-client";
 import { AssemblyActionFactory } from "../../../../../vsobjects/action/assembly-action-factory.service";
 import { SelectionContainerChildrenService } from "../../../../../vsobjects/objects/selection/services/selection-container-children.service";

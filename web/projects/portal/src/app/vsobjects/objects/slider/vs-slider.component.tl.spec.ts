@@ -41,7 +41,7 @@
  */
 
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { DebounceService } from "../../../widget/services/debounce.service";
@@ -344,10 +344,11 @@ describe("VSSlider", () => {
    });
 
    // ─── Group 11: Legacy DOM regressions ported from vs-slider.spec.ts ─────────
+   // Sync TestBed — avoid waitForAsync (Zone hang under loaded CI TL worker).
    describe("Group 11 – legacy DOM regressions", () => {
       let fixture: ComponentFixture<VSSlider>;
 
-      beforeEach(waitForAsync(() => {
+      beforeEach(() => {
          const viewsheetClient: any = { sendEvent: vi.fn(), runtimeId: "vs-1^128^__^Sheet1" };
          const dataTipService = { isDataTip: vi.fn().mockReturnValue(false) };
          const formDataService = {
@@ -372,12 +373,11 @@ describe("VSSlider", () => {
                { provide: TimerService, useValue: timerService },
             ],
          });
-         TestBed.compileComponents();
 
          fixture = TestBed.createComponent(VSSlider);
          fixture.componentInstance.model = makeVSSliderModel();
          fixture.detectChanges();
-      }));
+      });
 
       // Bug #10226
       it("should not have current value label when currentVisible is false", () => {
