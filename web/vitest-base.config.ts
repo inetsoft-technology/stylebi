@@ -72,6 +72,6 @@ export default defineConfig({
       passWithNoTests: true,
       // Automatically restore vi.spyOn mocks after each test so static-method
       // spies (e.g. ComponentTool.showMessageDialog) cannot bleed between tests.
-      restoreMocks: true,
+      restoreMocks: true
    },
 });

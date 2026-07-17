@@ -47,7 +47,7 @@ import { Subject } from "rxjs";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 
 import { server } from "@test-mocks/server";
-import { flushMicrotasks } from "../../../../../../../../testing/tl-async.util";
+import { flushMicrotasks } from "../../../../../../../testing/tl-async.util";
 import { LogicalModelComponent } from "./logical-model.component";
 import { LogicalModelPropertyPane } from "./logical-model-property-pane.component";
 import { NotificationsComponent } from "../../../../../../widget/notifications/notifications.component";
