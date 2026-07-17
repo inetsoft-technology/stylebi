@@ -2534,6 +2534,12 @@ public class WizVsService {
     * shared "copy" primitive so callers (e.g. copy+apply on setChartColors/setChartFormat) never
     * reimplement assembly duplication themselves.
     *
+    * <p>Precondition: {@code source} must already be the primary assembly on {@code vs} — the
+    * demote loop below demotes whichever assembly is currently primary, not necessarily
+    * {@code source} itself. Both current callers satisfy this (the wizard's one-chart-per-runtime
+    * model always looks up the current primary before calling in). Reusing this method with a
+    * non-primary {@code source} would demote an unrelated assembly and promote the copy instead.
+    *
     * @return the new (now primary) assembly, or null when {@code source}'s type has no
     *         {@code ASSEMBLY_FACTORIES} entry (see {@link #rebindAssembly}).
     */

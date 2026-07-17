@@ -2089,15 +2089,9 @@ public class WizAutoBindingService {
       }
 
       // copy+apply: duplicate the assembly FIRST (keeping the original untouched) and apply the
-      // format change to the new copy instead. duplicatePrimaryAssembly is the single shared
-      // "copy" primitive (also used by setChartColors) — this never reimplements duplication here.
-      if(request.isCopy()) {
-         VSAssembly copy = wizVsService.duplicatePrimaryAssembly(rvs.getViewsheet(), chart);
-
-         if(copy instanceof ChartVSAssembly copiedChart) {
-            chart = copiedChart;
-         }
-      }
+      // format change to the new copy instead. copyIfRequested is the single shared "copy"
+      // primitive (also used by setChartColors) — this never reimplements duplication here.
+      chart = copyIfRequested(request.isCopy(), rvs, chart);
 
       String targetAssemblyName = chart.getName();
       var info = chart.getChartInfo();
@@ -2268,6 +2262,22 @@ public class WizAutoBindingService {
    }
 
    /**
+    * Shared copy-if-requested primitive for {@link #setChartFormat} and {@link #setChartColors}:
+    * when {@code copy} is {@code true}, duplicates {@code chart} via
+    * {@link WizVsService#duplicatePrimaryAssembly} and returns the new copy; otherwise returns
+    * {@code chart} unchanged. Falls back to {@code chart} if the duplicate isn't a
+    * {@link ChartVSAssembly} (see {@link WizVsService#duplicatePrimaryAssembly}).
+    */
+   private ChartVSAssembly copyIfRequested(boolean copy, RuntimeViewsheet rvs, ChartVSAssembly chart) {
+      if(!copy) {
+         return chart;
+      }
+
+      VSAssembly duplicate = wizVsService.duplicatePrimaryAssembly(rvs.getViewsheet(), chart);
+      return duplicate instanceof ChartVSAssembly copiedChart ? copiedChart : chart;
+   }
+
+   /**
     * Sets chart COLORS in place on an existing runtime chart and re-renders. The mode is chosen from
     * the chart's color binding:
     *   - no field on color  -> static: staticColor applies to each measure ref.
@@ -2302,15 +2312,9 @@ public class WizAutoBindingService {
       }
 
       // copy+apply: duplicate the assembly FIRST (keeping the original untouched) and apply the
-      // color change to the new copy instead. duplicatePrimaryAssembly is the single shared
-      // "copy" primitive (also used by setChartFormat) — this never reimplements duplication here.
-      if(request.isCopy()) {
-         VSAssembly copy = wizVsService.duplicatePrimaryAssembly(rvs.getViewsheet(), chart);
-
-         if(copy instanceof ChartVSAssembly copiedChart) {
-            chart = copiedChart;
-         }
-      }
+      // color change to the new copy instead. copyIfRequested is the single shared "copy"
+      // primitive (also used by setChartFormat) — this never reimplements duplication here.
+      chart = copyIfRequested(request.isCopy(), rvs, chart);
 
       String targetAssemblyName = chart.getName();
       var info = chart.getChartInfo();
