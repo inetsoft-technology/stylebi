@@ -52,6 +52,11 @@ public class ChartColorsRequest {
    public Map<String, String> getCategoryColors() { return categoryColors; }
    public void setCategoryColors(Map<String, String> categoryColors) { this.categoryColors = categoryColors; }
 
+   /** When true, duplicate the assembly first (keeping the original untouched) and apply the color
+    *  change to the new copy instead of in place. Defaults to false. */
+   public boolean isCopy() { return copy; }
+   public void setCopy(boolean copy) { this.copy = copy; }
+
    private String wizRuntimeId;
    private String assemblyName;
    private String viewsheetIdentifier;
@@ -59,4 +64,5 @@ public class ChartColorsRequest {
    private String paletteName;
    private List<String> colorList;
    private Map<String, String> categoryColors;
+   private boolean copy;
 }

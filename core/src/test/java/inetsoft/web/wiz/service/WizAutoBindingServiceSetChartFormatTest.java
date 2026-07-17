@@ -62,6 +62,7 @@ class WizAutoBindingServiceSetChartFormatTest {
    private WizVsService wizVsService;
    private Viewsheet vs;
    private ChartVSAssemblyInfo info;
+   private ChartVSAssembly chart;
    private ViewsheetSandbox box;
    private SecurityEngine securityEngine;
 
@@ -83,9 +84,10 @@ class WizAutoBindingServiceSetChartFormatTest {
       when(info.getChartDescriptor()).thenReturn(null);
       when(info.getVSChartInfo()).thenReturn(null);
 
-      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      chart = mock(ChartVSAssembly.class);
       when(chart.getChartInfo()).thenReturn(info);
       when(chart.getVSAssemblyInfo()).thenReturn(info);
+      when(chart.getName()).thenReturn("vs_1");
 
       vs = mock(Viewsheet.class);
       when(vs.getAssembly("vs_1")).thenReturn(chart);
@@ -171,5 +173,35 @@ class WizAutoBindingServiceSetChartFormatTest {
       verify(viewsheetService, never()).getViewsheet(anyString(), any());
       verify(info, never()).setTitleValue(any());
       verify(wizVsService, never()).persistViewsheet(any(), any(), any());
+   }
+
+   @Test
+   void doesNotDuplicateWhenCopyIsFalse() throws Exception {
+      service.setChartFormat(titleRequest("visualizations-xyz"), null);
+
+      verify(wizVsService, never()).duplicatePrimaryAssembly(any(), any());
+   }
+
+   @Test
+   void copyDuplicatesFirstAndAppliesFormatToTheNewAssemblyNotTheOriginal() throws Exception {
+      ChartVSAssemblyInfo newInfo = mock(ChartVSAssemblyInfo.class);
+      when(newInfo.getChartDescriptor()).thenReturn(null);
+      when(newInfo.getVSChartInfo()).thenReturn(null);
+
+      ChartVSAssembly newChart = mock(ChartVSAssembly.class);
+      when(newChart.getChartInfo()).thenReturn(newInfo);
+      when(newChart.getVSAssemblyInfo()).thenReturn(newInfo);
+      when(newChart.getName()).thenReturn("vs_1_1");
+      when(wizVsService.duplicatePrimaryAssembly(any(), eq(chart))).thenReturn(newChart);
+
+      ChartFormatRequest request = titleRequest("visualizations-xyz");
+      request.setCopy(true);
+
+      CreateViewsheetResult result = service.setChartFormat(request, null);
+
+      verify(wizVsService).duplicatePrimaryAssembly(any(), eq(chart));
+      verify(newInfo).setTitleValue("Contacts per Account");
+      verify(info, never()).setTitleValue(any());
+      assertEquals("vs_1_1", result.getAssemblyName());
    }
 }

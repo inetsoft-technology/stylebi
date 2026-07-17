@@ -67,4 +67,18 @@ class ChartFormatRequestTest {
       assertEquals("T", req.getXAxisTitle());
       assertTrue(mapper.writeValueAsString(req).contains("\"xAxisTitle\":\"T\""));
    }
+
+   @Test
+   void copyDefaultsToFalseWhenOmitted() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+      ChartFormatRequest req = mapper.readValue("{ \"wizRuntimeId\": \"rt-1\" }", ChartFormatRequest.class);
+      assertFalse(req.isCopy());
+   }
+
+   @Test
+   void copyDeserializesWhenTrue() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+      ChartFormatRequest req = mapper.readValue("{ \"copy\": true }", ChartFormatRequest.class);
+      assertTrue(req.isCopy());
+   }
 }

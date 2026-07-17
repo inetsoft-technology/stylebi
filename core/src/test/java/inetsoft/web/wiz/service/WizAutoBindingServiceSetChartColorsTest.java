@@ -53,6 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -76,11 +77,13 @@ class WizAutoBindingServiceSetChartColorsTest {
    private VSChartAggregateRef rtYAgg;
    private SecurityEngine securityEngine;
    private ViewsheetService viewsheetService;
+   private WizVsService wizVsService;
+   private ChartVSAssembly chart;
 
    @BeforeEach
    void setUp() throws Exception {
       viewsheetService = mock(ViewsheetService.class);
-      WizVsService wizVsService = mock(WizVsService.class);
+      wizVsService = mock(WizVsService.class);
       // collaborators not used by setChartColors; their classes can't be initialized in
       // a plain unit-test environment (no Spring context), so pass null instead of mocks.
       securityEngine = mock(SecurityEngine.class);
@@ -102,8 +105,9 @@ class WizAutoBindingServiceSetChartColorsTest {
       ChartVSAssemblyInfo info = mock(ChartVSAssemblyInfo.class);
       when(info.getVSChartInfo()).thenReturn(vsChartInfo);
 
-      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      chart = mock(ChartVSAssembly.class);
       when(chart.getChartInfo()).thenReturn(info);
+      when(chart.getName()).thenReturn("vs_1");
 
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getAssembly("vs_1")).thenReturn(chart);
@@ -170,5 +174,43 @@ class WizAutoBindingServiceSetChartColorsTest {
       verify(yAgg, never()).setColorFrame(any());
       verify(rtYAgg, never()).setColorFrame(any());
       verify(box, never()).clearGraph(anyString());
+   }
+
+   @Test
+   void doesNotDuplicateWhenCopyIsFalse() throws Exception {
+      service.setChartColors(staticRed(), null);
+
+      verify(wizVsService, never()).duplicatePrimaryAssembly(any(), any());
+   }
+
+   @Test
+   void copyDuplicatesFirstAndAppliesColorToTheNewAssemblyNotTheOriginal() throws Exception {
+      VSChartAggregateRef newYAgg = mock(VSChartAggregateRef.class);
+      VSChartAggregateRef newRtYAgg = mock(VSChartAggregateRef.class);
+      VSChartInfo newVsChartInfo = mock(VSChartInfo.class);
+      when(newVsChartInfo.getColorField()).thenReturn(null);
+      when(newVsChartInfo.getYFields()).thenReturn(new ChartRef[] { newYAgg });
+      when(newVsChartInfo.getXFields()).thenReturn(new ChartRef[0]);
+      when(newVsChartInfo.getRTYFields()).thenReturn(new ChartRef[] { newRtYAgg });
+      when(newVsChartInfo.getRTXFields()).thenReturn(new ChartRef[0]);
+
+      ChartVSAssemblyInfo newInfo = mock(ChartVSAssemblyInfo.class);
+      when(newInfo.getVSChartInfo()).thenReturn(newVsChartInfo);
+
+      ChartVSAssembly newChart = mock(ChartVSAssembly.class);
+      when(newChart.getChartInfo()).thenReturn(newInfo);
+      when(newChart.getName()).thenReturn("vs_1_1");
+      when(wizVsService.duplicatePrimaryAssembly(any(), eq(chart))).thenReturn(newChart);
+
+      ChartColorsRequest request = staticRed();
+      request.setCopy(true);
+
+      CreateViewsheetResult result = service.setChartColors(request, null);
+
+      verify(wizVsService).duplicatePrimaryAssembly(any(), eq(chart));
+      verify(newYAgg).setColorFrame(any());
+      verify(newRtYAgg).setColorFrame(any());
+      verify(yAgg, never()).setColorFrame(any());
+      assertEquals("vs_1_1", result.getAssemblyName());
    }
 }
