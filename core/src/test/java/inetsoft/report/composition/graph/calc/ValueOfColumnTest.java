@@ -323,6 +323,51 @@ public class ValueOfColumnTest {
    }
 
    /**
+    * Regression test for Bug #75664 (ranking follow-up): PREVIOUS navigation on a
+    * part-date-group dimension (e.g. HourOfDay) must use natural calendar order even when
+    * the dimension has an explicit value-based sort comparator — as set by a Top-N/Bottom-N
+    * "Sort By Value" ranking. Without the fix, DataSetRouter would sort by the ranking's
+    * value order (e.g. by Sum(contact_id) desc) instead of numeric hour order, so "previous
+    * hour" would resolve to the wrong row or incorrectly return INVALID.
+    *
+    * Data is intentionally NOT in either row order or hour order (row order: 5, 2, 11), and
+    * the mock comparator sorts by an unrelated ranking value (id desc: 11, 5, 2) rather than
+    * by hour. Natural hour order is 2, 5, 11 — so "previous" of hour 5 must resolve to hour 2
+    * (id=20), not to whatever the ranking comparator would place before it.
+    */
+   @Test
+   void testPreviousOnPartDateGroupIgnoresRankingSortComparator() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS);
+      valueOfColumn.setDim("HourOfDay(order_time)");
+
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         { "HourOfDay(order_time)", "id" },
+         { 5, 10 },
+         { 2, 20 },
+         { 11, 30 }
+      });
+
+      VSDimensionRef hourRef = mock(VSDimensionRef.class);
+      when(hourRef.getFullName()).thenReturn("HourOfDay(order_time)");
+      when(hourRef.getDateLevel()).thenReturn(XConstants.HOUR_OF_DAY_DATE_GROUP);
+      // Simulates a Top-N ranking's "Sort By Value" comparator: orders by id desc
+      // (11, 5, 2) rather than by natural hour order (2, 5, 11).
+      when(hourRef.createComparator(org.mockito.ArgumentMatchers.any()))
+         .thenReturn((a, b) -> Integer.compare((Integer) b, (Integer) a));
+
+      vsDataSet = new VSDataSet(tb, new VSDataRef[] { hourRef });
+
+      // Row 0 = hour 5. Natural-order previous is hour 2 (id=20).
+      Object result = valueOfColumn.calculate(vsDataSet, 0, false, false);
+      assertEquals(20, result);
+
+      // Row 1 = hour 2, the earliest hour → no previous → INVALID.
+      result = valueOfColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(CalcColumn.INVALID, result);
+   }
+
+   /**
     * check some basic functions
     */
    @Test
