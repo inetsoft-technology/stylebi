@@ -102,6 +102,11 @@ export class ChartInlineSvgDirective implements OnDestroy {
    private relationEdges: Array<{el: Element, sourceId: string, targetId: string}> = [];
    /** Elements activated as neighbors of the current relation node (cleared on deactivation). */
    private activeRelationNeighbors: Element[] = [];
+   /** All treemap/circle-packing/sunburst/icicle node groups, used to find a hovered container's
+    *  descendants (matched by data-subrow against the container's data-childrows). */
+   private treemapGroups: Element[] = [];
+   /** Treemap descendant nodes + labels activated for the current hover (cleared on deactivation). */
+   private activeTreemapDescendants: Element[] = [];
    /** Ordered list of area series objects; one entry per (panel, series) pair. */
    private areaSeries: Array<{fillGroup: Element, lineGroup: Element, linePath: SVGGeometryElement}> = [];
    /** Pre-sampled SVG local-coordinate points per series for fast mousemove hit-testing. */
@@ -373,6 +378,9 @@ export class ChartInlineSvgDirective implements OnDestroy {
             if(el.classList.contains("inetsoft-relation")) {
                this.activateRelationNeighbors(el);
             }
+            else if(el.classList.contains("inetsoft-treemap")) {
+               this.activateTreemapDescendants(el);
+            }
          }
 
          const glyphs = this.labelGroupMap.get(key);
@@ -412,6 +420,11 @@ export class ChartInlineSvgDirective implements OnDestroy {
          n.classList.remove("inetsoft-active");
       }
       this.activeRelationNeighbors = [];
+
+      for(const n of this.activeTreemapDescendants) {
+         n.classList.remove("inetsoft-active");
+      }
+      this.activeTreemapDescendants = [];
    }
 
    // Activates neighbor nodes, their connecting edges, and neighbor labels.
@@ -446,6 +459,51 @@ export class ChartInlineSvgDirective implements OnDestroy {
                      this.activeRelationNeighbors.push(g);
                   });
                }
+            }
+         }
+      }
+   }
+
+   // Keep the whole subtree of a hovered treemap/circle-packing/sunburst/icicle container undimmed.
+   // Each node is a separate sibling group, so hovering a container activates only itself and the
+   // server :has() dim rule would dim its descendants along with unrelated nodes. data-childrows
+   // lists the container's descendant leaf sub-rows; because an intermediate container shares its
+   // data-subrow with its first leaf descendant, matching data-subrow against that set activates the
+   // full subtree — leaves and intermediate containers alike. Descendant labels are activated via
+   // labelGroupMap (keyed by the descendant's data-row/data-col, as tagged server-side).
+   // Cleared by deactivateCurrent() via the activeTreemapDescendants array.
+   private activateTreemapDescendants(containerEl: Element): void {
+      const childRowsAttr = containerEl.getAttribute("data-childrows");
+      if(!childRowsAttr) return; // leaf node — nothing nested to keep undimmed
+
+      const childRows = new Set(childRowsAttr.split(","));
+      // data-subrow is shared along a "first-descended" chain (root→leaf created in one pass share
+      // one sub-row), so a container's subrow can also equal an ancestor's. Requiring a strictly
+      // smaller data-level (leaf=0, root=highest) keeps only genuine descendants and excludes those
+      // ancestors (and same-level siblings), which would otherwise stay undimmed.
+      const containerLevel = Number(containerEl.getAttribute("data-level"));
+
+      for(const node of this.treemapGroups) {
+         if(node === containerEl) continue; // already activated by activateKeys
+
+         const sub = node.getAttribute("data-subrow");
+         const level = Number(node.getAttribute("data-level"));
+         if(sub == null || Number.isNaN(level) || level >= containerLevel || !childRows.has(sub)) {
+            continue;
+         }
+
+         node.classList.add("inetsoft-active");
+         this.activeTreemapDescendants.push(node);
+
+         const row = node.getAttribute("data-row");
+         const col = node.getAttribute("data-col");
+         if(row != null && col != null) {
+            const glyphs = this.labelGroupMap.get(`${row}-${col}`);
+            if(glyphs) {
+               glyphs.forEach(g => {
+                  g.classList.add("inetsoft-active");
+                  this.activeTreemapDescendants.push(g);
+               });
             }
          }
       }
@@ -525,6 +583,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
       this.relationNodeIdMap.clear();
       this.relationEdges = [];
       this.activeRelationNeighbors = [];
+      this.treemapGroups = [];
+      this.activeTreemapDescendants = [];
       this._activeKeys = [];
       this.svgRootEl = this.element.nativeElement.querySelector("svg");
 
@@ -644,6 +704,12 @@ export class ChartInlineSvgDirective implements OnDestroy {
          const tgt = e.getAttribute("data-target");
          if(src && tgt) this.relationEdges.push({el: e, sourceId: src, targetId: tgt});
       }
+
+      // Cache treemap/circle-packing/sunburst/icicle node groups so activateTreemapDescendants can
+      // keep the hovered container's whole subtree undimmed (its descendants are separate sibling
+      // groups that the server :has() dim rule would otherwise dim along with unrelated nodes).
+      this.treemapGroups = Array.from(
+         this.element.nativeElement.querySelectorAll(".inetsoft-treemap") as NodeListOf<Element>);
 
       // Build label map from server-annotated label elements for all chart types that have
       // external text groups matched to data elements (bar, point/gantt-milestone, treemap/sunburst/icicle, mekko).

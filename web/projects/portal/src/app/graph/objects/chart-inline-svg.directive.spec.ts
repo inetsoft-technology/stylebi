@@ -174,6 +174,63 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
       });
    });
 
+   describe("activateTreemapDescendants (hierarchical hover)", () => {
+      // 3-level tree (leaf=0, root=highest): a top container P (level 2) with two mid containers
+      // C (level 1) and C2 (level 1), each holding one leaf (level 0). P, C and its leaf were all
+      // created from the same source row so they share data-subrow="0" (the "first-descended"
+      // chain); C2 and its leaf share data-subrow="1". Keys are unique by data-row/data-col.
+      const html = `
+         <svg>
+            <g class="inetsoft-treemap" data-row="0" data-col="0" data-level="2" data-subrow="0" data-childrows="0,1"></g>
+            <g class="inetsoft-treemap" data-row="0" data-col="1" data-level="1" data-subrow="0" data-childrows="0"></g>
+            <g class="inetsoft-treemap" data-row="0" data-col="2" data-level="0" data-subrow="0"></g>
+            <g class="inetsoft-treemap" data-row="1" data-col="1" data-level="1" data-subrow="1" data-childrows="1"></g>
+            <g class="inetsoft-treemap" data-row="1" data-col="2" data-level="0" data-subrow="1"></g>
+            <g class="inetsoft-treemap-label" data-row="0" data-col="2"></g>
+         </svg>`;
+
+      function isActive(host: HTMLElement, sel: string): boolean {
+         return host.querySelector(sel)!.classList.contains("inetsoft-active");
+      }
+
+      it("keeps the hovered mid container's subtree undimmed without activating its ancestor", () => {
+         const { dir, host } = makeDirective(html);
+         (dir as any).afterSvgInjected();
+         // Hover the mid container C (row 0, col 1).
+         dir.highlightElement(0, 1);
+         // C itself and its leaf (+ the leaf's label) stay undimmed.
+         expect(isActive(host, "[data-col='1'][data-row='0'].inetsoft-treemap")).toBe(true);
+         expect(isActive(host, "[data-col='2'][data-row='0'].inetsoft-treemap")).toBe(true);
+         expect(isActive(host, ".inetsoft-treemap-label")).toBe(true);
+         // The ancestor P shares C's data-subrow but must NOT be activated (it is not nested inside
+         // C) — the data-level guard excludes it. Unrelated sibling subtree stays dimmable too.
+         expect(isActive(host, "[data-col='0'][data-row='0'].inetsoft-treemap")).toBe(false);
+         expect(isActive(host, "[data-col='1'][data-row='1'].inetsoft-treemap")).toBe(false);
+         expect(isActive(host, "[data-col='2'][data-row='1'].inetsoft-treemap")).toBe(false);
+      });
+
+      it("activates the entire subtree when hovering the top container", () => {
+         const { dir, host } = makeDirective(html);
+         (dir as any).afterSvgInjected();
+         // Hover the top container P (row 0, col 0).
+         dir.highlightElement(0, 0);
+         expect(isActive(host, "[data-col='1'][data-row='0'].inetsoft-treemap")).toBe(true);
+         expect(isActive(host, "[data-col='2'][data-row='0'].inetsoft-treemap")).toBe(true);
+         expect(isActive(host, "[data-col='1'][data-row='1'].inetsoft-treemap")).toBe(true);
+         expect(isActive(host, "[data-col='2'][data-row='1'].inetsoft-treemap")).toBe(true);
+      });
+
+      it("activates only the leaf when hovering a leaf node", () => {
+         const { dir, host } = makeDirective(html);
+         (dir as any).afterSvgInjected();
+         // Hover the leaf under C (row 0, col 2) — no data-childrows, so nothing else lights up.
+         dir.highlightElement(0, 2);
+         expect(isActive(host, "[data-col='2'][data-row='0'].inetsoft-treemap")).toBe(true);
+         expect(isActive(host, "[data-col='1'][data-row='0'].inetsoft-treemap")).toBe(false);
+         expect(isActive(host, "[data-col='0'][data-row='0'].inetsoft-treemap")).toBe(false);
+      });
+   });
+
    describe("milestone point label activation (gantt)", () => {
       // <svg> sets svgRootEl; two milestone markers + labels keyed by data-row/col.
       const html = `

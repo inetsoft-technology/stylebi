@@ -159,6 +159,14 @@ public interface SVGSupport {
    String ATTR_Y      = "y";
    /** {@code data-level} — nesting depth from {@code TreemapGeometry.getLevel()}; leaf=0, root=highest. */
    String ATTR_LEVEL  = "level";
+   /** {@code data-subrow} — treemap/circle/sunburst/icicle node's sub-row index
+    *  ({@code TreemapGeometry.getSubRowIndex()}); an intermediate container shares this value with
+    *  its first leaf descendant, so subtree membership can be tested against {@link #ATTR_CHILDROWS}. */
+   String ATTR_SUBROW = "subrow";
+   /** {@code data-childrows} — comma-separated sub-row indices of a treemap container's descendant
+    *  leaves ({@code TreemapGeometry.getChildRows()}); absent on leaf nodes. Used by the hover
+    *  handler to keep a hovered container's whole subtree undimmed. */
+   String ATTR_CHILDROWS = "childrows";
    /** {@code data-id} — mxCell ID for relation/tree chart nodes, used to match edges to nodes. */
    String ATTR_NODE_ID = "id";
    /** {@code data-source} — source node's mxCell ID for relation/tree chart edges. */
