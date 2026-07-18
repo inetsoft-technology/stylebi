@@ -253,7 +253,13 @@ public class ViewsheetRuntimeController {
          }
 
          try {
-            WizVsService.VerifyResult vr = wizVsService.verifyChartData(rvs, assembly.getName());
+            // getVGraphPair (used by verifyChartData) only supports ChartVSAssembly - it casts
+            // unconditionally and throws ClassCastException on a Table/Crosstab assembly, which
+            // findChartAssembly's first-assembly fallback can legitimately hand back for a saved
+            // "table"/"crosstab" wiz visualization. Route those through the TableLens-based path.
+            WizVsService.VerifyResult vr = assembly instanceof ChartVSAssembly
+               ? wizVsService.verifyChartData(rvs, assembly.getName())
+               : wizVsService.verifyTableData(rvs, assembly.getName());
             result.setHasData(vr.hasData());
             result.setRowCount(vr.rowCount());
          }
