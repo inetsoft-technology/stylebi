@@ -403,6 +403,24 @@ describe("ChartArea — noData", () => {
       comp.showEmptyArea = false;
       expect(comp.noData).toBe(false);
    });
+
+   // Treemap/sunburst/circle-packing/icicle, polar (pie/radar), relation, and geo charts never
+   // populate axes by design — an empty axes array does not mean the chart has no data for them.
+   it("should be false for a non-rect chart type with no axes but real data (server noData=false)", () => {
+      const { comp } = createComponent({
+         model: makeModel({ axes: [], chartType: GraphTypes.CHART_TREEMAP, noData: false } as any),
+      });
+      comp.showEmptyArea = false;
+      expect(comp.noData).toBe(false);
+   });
+
+   it("should be true for a non-rect chart type only when the server reports noData", () => {
+      const { comp } = createComponent({
+         model: makeModel({ axes: [], chartType: GraphTypes.CHART_RADAR, noData: true } as any),
+      });
+      comp.showEmptyArea = false;
+      expect(comp.noData).toBe(true);
+   });
 });
 
 // ---------------------------------------------------------------------------
