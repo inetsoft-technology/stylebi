@@ -369,6 +369,35 @@ class WizViewsheetExportControllerTest {
    }
 
    @Test
+   void pptxEmptyChartsRejectedUpfront() throws Exception {
+      // Mirrors WizDashboardService.composeDashboard's upfront "identifiers are required" guard
+      // (identifiers == null || identifiers.isEmpty() -> IllegalArgumentException before any
+      // asset is touched). The pptx path only had the later "all failed to export" guard, which
+      // short-circuits via !chartSlides.isEmpty() and silently lets an empty/null charts[] fall
+      // through to pptxDeckMerger.mergeSlides(title, recap, List.of()) instead of being rejected.
+      ViewsheetService vs = mock(ViewsheetService.class);
+      PptxDeckMerger merger = mock(PptxDeckMerger.class);
+      SecurityEngine sec = mock(SecurityEngine.class);
+      Principal principal = mock(Principal.class);
+      when(sec.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
+
+      WizViewsheetExportController ctrl = new WizViewsheetExportController(
+         vs, mock(WizVsService.class), mock(WizPrintLayoutBuilder.class),
+         mock(VSExportService.class), sec, merger);
+
+      WizExportReportEvent ev = new WizExportReportEvent();
+      ev.setFormat("pptx");
+      ev.setTitle("Board");
+      ev.setCharts(null);
+
+      ResponseEntity<?> resp = ctrl.exportReport(ev, principal, mock(HttpServletResponse.class));
+
+      assertEquals(400, resp.getStatusCode().value());
+      verify(merger, never()).mergeSlides(any(), any(), any());
+      verify(vs, never()).openViewsheet(any(), any(), anyBoolean());
+   }
+
+   @Test
    void pptxChartOutsideComponentsFolderBecomesPlaceholderNotAbort() throws Exception {
       // Consistent with the "one bad chart doesn't abort" decision: an out-of-folder savedId is
       // still just "this one chart didn't work," same as an open/export failure -- NOT a

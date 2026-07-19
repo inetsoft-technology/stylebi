@@ -206,6 +206,11 @@ public class WizViewsheetExportController {
             .sorted(Comparator.comparingInt(WizExportReportEvent.ChartEntry::getOrder))
             .collect(Collectors.toList());
 
+      if(charts.isEmpty()) {
+         return ResponseEntity.badRequest().body(Map.of(
+            "error", "charts are required"));
+      }
+
       List<PptxDeckMerger.ChartSlide> chartSlides = new ArrayList<>();
 
       for(WizExportReportEvent.ChartEntry chart : charts) {
