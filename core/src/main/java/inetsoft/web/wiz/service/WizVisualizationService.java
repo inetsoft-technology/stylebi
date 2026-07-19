@@ -22,16 +22,22 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.WizUtil;
+import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
 import inetsoft.web.viewsheet.service.ExportResponse;
 import inetsoft.web.viewsheet.service.VSExportService;
+import inetsoft.web.wiz.model.WizVisualizationRenderEvent;
+import inetsoft.web.wiz.model.WizVisualizationRenderResult;
 import inetsoft.web.wiz.model.WizVisualizationSaveEvent;
 import inetsoft.web.wiz.model.WizVisualizationSaveResult;
 import org.slf4j.Logger;
@@ -57,13 +63,15 @@ public class WizVisualizationService {
                                    AssetRepository assetRepository,
                                    AssemblyImageService assemblyImageService,
                                    BinaryTransferService binaryTransferService,
-                                   VSExportService vsExportService)
+                                   VSExportService vsExportService,
+                                   SecurityEngine securityEngine)
    {
       this.viewsheetService = viewsheetService;
       this.assetRepository = assetRepository;
       this.assemblyImageService = assemblyImageService;
       this.binaryTransferService = binaryTransferService;
       this.vsExportService = vsExportService;
+      this.securityEngine = securityEngine;
    }
 
    /**
@@ -270,91 +278,13 @@ public class WizVisualizationService {
          // after get() succeeds, eliminating any cross-thread mutation race.
          Future<String[]> thumbnailFuture = THUMBNAIL_EXECUTOR.submit(() -> {
             try {
-               // Fetch once: validates ownership (prevents cross-session access) and
-               // is reused for the fallback path, avoiding redundant lookups.
-               RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-
-               if(rvs == null) {
-                  LOG.warn("runtimeId '{}' not accessible for principal '{}', skipping thumbnail",
-                           runtimeId, principal.getName());
-                  return null;
-               }
-
-               Viewsheet preCheckVs = rvs.getViewsheet();
-
-               // Always attempt the lightweight primary path regardless of viewsheet size.
-               AssemblyImageService.ImageRenderResult imgResult =
-                  assemblyImageService.downloadAssemblyImage(
-                     runtimeId, Tool.byteEncode(event.getAssemblyName()),
-                     THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT,
-                     true, principal);
-
-               if(imgResult != null && imgResult.getRetryAfter() > 0) {
-                  LOG.debug("downloadAssemblyImage not yet ready for '{}' (retryAfter={}), skipping thumbnail",
-                            event.getAssemblyName(), imgResult.getRetryAfter());
-                  return null;
-               }
-
-               if(imgResult != null && imgResult.getImageData() != null) {
-                  byte[] imageBytes = binaryTransferService.getData(imgResult.getImageData());
-
-                  if(imageBytes != null && imageBytes.length > 0) {
-                     if(imgResult.isPng()) {
-                        // 1×1 is a StyleBI placeholder returned for assembly types that
-                        // downloadAssemblyImage does not support (e.g. Crosstab, Table).
-                        // In that case fall back to a full-viewsheet PNG export + crop.
-                        String thumbnailValue = null;
-                        try {
-                           BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(imageBytes));
-
-                           if(decoded != null && decoded.getWidth() > 1 && decoded.getHeight() > 1) {
-                              thumbnailValue = "data:image/png;base64," +
-                                 Base64.getEncoder().encodeToString(imageBytes);
-                           }
-                        }
-                        catch(Exception e) {
-                           LOG.debug("Failed to decode PNG for '{}': {}. Attempting full-viewsheet fallback.",
-                                     event.getAssemblyName(), e.getMessage());
-                        }
-
-                        // Only use the expensive fallback if within the assembly-count limit.
-                        if(thumbnailValue == null) {
-                           if(preCheckVs != null &&
-                              preCheckVs.getAssemblies().length > MAX_ASSEMBLIES_FOR_FALLBACK_THUMBNAIL)
-                           {
-                              LOG.debug("Skipping fallback thumbnail for '{}': viewsheet has {} assemblies (limit {})",
-                                        event.getAssemblyName(), preCheckVs.getAssemblies().length,
-                                        MAX_ASSEMBLIES_FOR_FALLBACK_THUMBNAIL);
-                           }
-                           else {
-                              LOG.debug("PNG was 1×1 or undecodable for '{}', using full-viewsheet fallback",
-                                        event.getAssemblyName());
-                              thumbnailValue = renderFallbackThumbnail(rvs, event.getAssemblyName(), principal);
-                           }
-                        }
-
-                        return thumbnailValue != null ? new String[]{thumbnailValue, "png"} : null;
-                     }
-                     else {
-                        if(imageBytes.length > MAX_SVG_THUMBNAIL_BYTES) {
-                           LOG.debug("SVG thumbnail for '{}' is {} bytes (limit {}), skipping",
-                                     event.getAssemblyName(), imageBytes.length,
-                                     MAX_SVG_THUMBNAIL_BYTES);
-                        }
-                        else {
-                           return new String[]{
-                              normalizeSvgNamespace(new String(imageBytes, StandardCharsets.UTF_8)),
-                              "svg"
-                           };
-                        }
-                     }
-                  }
-               }
-
-               return null;
+               // enforceSizeCaps=true: preserve today's thumbnail behavior exactly — an
+               // over-cap image is skipped (returns null) rather than persisted.
+               return renderAssemblyToImage(runtimeId, event.getAssemblyName(),
+                                             THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, true, true, principal);
             }
             catch(Exception e) {
-               LOG.warn("Failed to generate thumbnail for assembly '{}' (non-fatal): {}",
+               LOG.warn("Failed to generate thumbnail for '{}' (non-fatal): {}",
                         event.getAssemblyName(), e.getMessage());
                return null;
             }
@@ -382,7 +312,251 @@ public class WizVisualizationService {
       return result;
    }
 
+   /**
+    * Renders a previously-saved wiz visualization to a standalone image (POST
+    * /api/wiz/visualization/render). Mirrors
+    * {@code inetsoft.web.wiz.controller.ViewsheetRuntimeController#verifyViewsheet}'s
+    * managed-folder guard and permission check, then opens the viewsheet, resolves its primary
+    * assembly, and renders it via the shared {@link #renderAssemblyToImage} path used by
+    * save-time thumbnails — retrying a bounded number of times if the chart graph is not yet
+    * ready ({@link RenderNotReadyException}).
+    *
+    * @throws RenderNotReadyException if the chart graph is still not ready after all retries;
+    *         callers should map this to a 503 + Retry-After.
+    */
+   public WizVisualizationRenderResult renderVisualization(WizVisualizationRenderEvent event,
+                                                            Principal principal)
+      throws Exception
+   {
+      if(event == null || Tool.isEmptyString(event.getIdentifier())) {
+         throw new IllegalArgumentException("identifier is required");
+      }
+
+      AssetEntry entry = AssetEntry.createAssetEntry(event.getIdentifier());
+
+      if(entry == null) {
+         throw new IllegalArgumentException("Invalid viewsheet identifier: " + event.getIdentifier());
+      }
+
+      String path = entry.getPath();
+
+      // Accept the same managed folders as ViewsheetRuntimeController#verifyViewsheet/openViewsheet.
+      if(path == null ||
+         !(path.startsWith(VISUALIZATION_ROOT_FOLDER_PATH + "/") ||
+           path.startsWith(VISUALIZATION_COMPONENTS_FOLDER_PATH + "/")))
+      {
+         throw new IllegalArgumentException(
+            "Viewsheet is not in the managed visualizations folder: " + path);
+      }
+
+      // Action-level gate ("Visual Composer -> Data Viewsheet"), mirroring verifyViewsheet.
+      if(!securityEngine.checkPermission(principal, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS)) {
+         throw new SecurityException(
+            Catalog.getCatalog().getString("composer.authorization.permissionDenied"));
+      }
+
+      int width = event.getWidth() != null && event.getWidth() > 0
+         ? event.getWidth() : DEFAULT_RENDER_WIDTH;
+      int height = event.getHeight() != null && event.getHeight() > 0
+         ? event.getHeight() : DEFAULT_RENDER_HEIGHT;
+      // Clamp caller-supplied dimensions so an oversized request can't drive a
+      // resource-exhaustion render.
+      width = Math.min(width, MAX_RENDER_DIMENSION);
+      height = Math.min(height, MAX_RENDER_DIMENSION);
+      // "auto"/"svg"/null → svg-first; only an explicit "png" forces the raster path.
+      boolean preferSvg = !"png".equalsIgnoreCase(event.getFormat());
+
+      String runtimeId = viewsheetService.openViewsheet(entry, principal, true);
+
+      try {
+         String assemblyName = resolvePrimaryAssemblyName(runtimeId, principal);
+
+         if(assemblyName == null) {
+            throw new IllegalStateException("No renderable assembly found in the saved visualization");
+         }
+
+         String[] rendered = null;
+         RenderNotReadyException lastNotReady = null;
+         boolean unrenderable = false;
+
+         // enforceSizeCaps=false: the render endpoint wants the real chart image regardless
+         // of size, not a save-time-style thumbnail cap.
+         for(int attempt = 0; attempt < RENDER_MAX_ATTEMPTS && rendered == null && !unrenderable; attempt++) {
+            try {
+               rendered = renderAssemblyToImage(runtimeId, assemblyName, width, height, preferSvg, false, principal);
+
+               if(rendered == null) {
+                  // A null return (as opposed to a thrown RenderNotReadyException) means "no
+                  // image bytes / unrenderable" — this will not change on retry, so fail fast
+                  // instead of spinning the remaining attempts.
+                  unrenderable = true;
+               }
+            }
+            catch(RenderNotReadyException notReady) {
+               lastNotReady = notReady;
+               Thread.sleep(RENDER_RETRY_SLEEP_MS);
+            }
+         }
+
+         if(rendered == null && lastNotReady != null) {
+            // Let the controller map this to a 503 + Retry-After.
+            throw lastNotReady;
+         }
+
+         if(rendered == null) {
+            throw new IllegalStateException("Failed to render visualization image");
+         }
+
+         WizVisualizationRenderResult result = new WizVisualizationRenderResult();
+         result.setImage(rendered[0]);
+         result.setFormat(rendered[1]);
+         return result;
+      }
+      finally {
+         try {
+            viewsheetService.closeViewsheet(runtimeId, principal);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to close runtime [{}] after render", runtimeId, e);
+         }
+      }
+   }
+
+   /**
+    * Resolves the assembly to render for a saved wiz visualization: the first
+    * {@link ChartVSAssembly}, else the first {@link VSAssembly} — saved wiz visualizations are
+    * single-assembly, so this is unambiguous in practice.
+    */
+   private String resolvePrimaryAssemblyName(String runtimeId, Principal principal) {
+      try {
+         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+         Viewsheet vs = rvs != null ? rvs.getViewsheet() : null;
+         Assembly[] assemblies = vs != null ? vs.getAssemblies() : null;
+
+         if(assemblies == null || assemblies.length == 0) {
+            return null;
+         }
+
+         for(Assembly assembly : assemblies) {
+            if(assembly instanceof ChartVSAssembly chart) {
+               return chart.getName();
+            }
+         }
+
+         return assemblies[0] instanceof VSAssembly vsAssembly ? vsAssembly.getName() : null;
+      }
+      catch(Exception e) {
+         LOG.warn("Could not resolve assembly for runtime {}: {}", runtimeId, e.getMessage());
+         return null;
+      }
+   }
+
    // ── Private helpers ───────────────────────────────────────────────────────────
+
+   /**
+    * Renders the given assembly to an image, shared by the save-time thumbnail path and the
+    * (future) render endpoint. Fetches the runtime viewsheet once — validating ownership
+    * (prevents cross-session access) and reusing it for the fallback path, avoiding redundant
+    * lookups — then attempts the lightweight primary path (downloadAssemblyImage) regardless of
+    * viewsheet size, falling back to a full-viewsheet PNG export + crop for assembly types
+    * (Crosstab, Table) that downloadAssemblyImage does not support.
+    *
+    * @param enforceSizeCaps when {@code true}, images exceeding {@link #MAX_SVG_THUMBNAIL_BYTES}/
+    *        {@link #MAX_PNG_THUMBNAIL_BYTES} are dropped (returns {@code null}) — the save-time
+    *        thumbnail behavior. When {@code false}, the image is returned regardless of size —
+    *        used by the on-demand render endpoint, which wants the real chart, not a failure.
+    * @return {@code {imageDataOrSvg, "svg"|"png"}}, or {@code null} if no image could be produced
+    * @throws RenderNotReadyException if the chart graph has not finished rendering yet
+    */
+   private String[] renderAssemblyToImage(String runtimeId, String assemblyName,
+                                           int width, int height, boolean preferSvg,
+                                           boolean enforceSizeCaps, Principal principal)
+      throws Exception
+   {
+      // Fetch once: validates ownership (prevents cross-session access) and
+      // is reused for the fallback path, avoiding redundant lookups.
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+
+      if(rvs == null) {
+         LOG.warn("runtimeId '{}' not accessible for principal '{}', skipping thumbnail",
+                  runtimeId, principal.getName());
+         return null;
+      }
+
+      Viewsheet preCheckVs = rvs.getViewsheet();
+
+      // Always attempt the lightweight primary path regardless of viewsheet size.
+      AssemblyImageService.ImageRenderResult imgResult =
+         assemblyImageService.downloadAssemblyImage(
+            runtimeId, Tool.byteEncode(assemblyName),
+            width, height, width, height,
+            preferSvg, principal);
+
+      if(imgResult != null && imgResult.getRetryAfter() > 0) {
+         LOG.debug("downloadAssemblyImage not yet ready for '{}' (retryAfter={}), skipping thumbnail",
+                   assemblyName, imgResult.getRetryAfter());
+         throw new RenderNotReadyException(imgResult.getRetryAfter());
+      }
+
+      if(imgResult != null && imgResult.getImageData() != null) {
+         byte[] imageBytes = binaryTransferService.getData(imgResult.getImageData());
+
+         if(imageBytes != null && imageBytes.length > 0) {
+            if(imgResult.isPng()) {
+               // 1×1 is a StyleBI placeholder returned for assembly types that
+               // downloadAssemblyImage does not support (e.g. Crosstab, Table).
+               // In that case fall back to a full-viewsheet PNG export + crop.
+               String thumbnailValue = null;
+               try {
+                  BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(imageBytes));
+
+                  if(decoded != null && decoded.getWidth() > 1 && decoded.getHeight() > 1) {
+                     thumbnailValue = "data:image/png;base64," +
+                        Base64.getEncoder().encodeToString(imageBytes);
+                  }
+               }
+               catch(Exception e) {
+                  LOG.debug("Failed to decode PNG for '{}': {}. Attempting full-viewsheet fallback.",
+                            assemblyName, e.getMessage());
+               }
+
+               // Only use the expensive fallback if within the assembly-count limit.
+               if(thumbnailValue == null) {
+                  if(preCheckVs != null &&
+                     preCheckVs.getAssemblies().length > MAX_ASSEMBLIES_FOR_FALLBACK_THUMBNAIL)
+                  {
+                     LOG.debug("Skipping fallback thumbnail for '{}': viewsheet has {} assemblies (limit {})",
+                               assemblyName, preCheckVs.getAssemblies().length,
+                               MAX_ASSEMBLIES_FOR_FALLBACK_THUMBNAIL);
+                  }
+                  else {
+                     LOG.debug("PNG was 1×1 or undecodable for '{}', using full-viewsheet fallback",
+                               assemblyName);
+                     thumbnailValue = renderFallbackThumbnail(
+                        rvs, assemblyName, enforceSizeCaps, principal);
+                  }
+               }
+
+               return thumbnailValue != null ? new String[]{thumbnailValue, "png"} : null;
+            }
+            else {
+               if(enforceSizeCaps && imageBytes.length > MAX_SVG_THUMBNAIL_BYTES) {
+                  LOG.debug("SVG thumbnail for '{}' is {} bytes (limit {}), skipping",
+                            assemblyName, imageBytes.length,
+                            MAX_SVG_THUMBNAIL_BYTES);
+               }
+               else {
+                  return new String[]{
+                     normalizeSvgNamespace(new String(imageBytes, StandardCharsets.UTF_8)),
+                     "svg"
+                  };
+               }
+            }
+         }
+      }
+
+      return null;
+   }
 
    /**
     * Loads the source Worksheet, clones it, removes all tables not required by the
@@ -673,9 +847,12 @@ public class WizVisualizationService {
     * Exports the source runtime viewsheet as a full PNG and crops to the target assembly bounds.
     * Used as a fallback for assembly types (Crosstab, Table) that downloadAssemblyImage
     * does not support — those return a 1×1 placeholder PNG instead of real content.
+    *
+    * @param enforceSizeCaps when {@code true}, a result exceeding {@link #MAX_PNG_THUMBNAIL_BYTES}
+    *        is dropped (returns {@code null}); when {@code false}, it is returned as-is.
     */
    private String renderFallbackThumbnail(RuntimeViewsheet rvs, String assemblyName,
-                                           Principal principal)
+                                           boolean enforceSizeCaps, Principal principal)
    {
       try {
          Viewsheet vs = rvs.getViewsheet();
@@ -773,7 +950,7 @@ public class WizVisualizationService {
             return null;
          }
 
-         if(croppedBytes.length > MAX_PNG_THUMBNAIL_BYTES) {
+         if(enforceSizeCaps && croppedBytes.length > MAX_PNG_THUMBNAIL_BYTES) {
             LOG.debug("renderFallbackThumbnail: PNG thumbnail for '{}' is {} bytes (limit {}), skipping",
                       assemblyName, croppedBytes.length, MAX_PNG_THUMBNAIL_BYTES);
             return null;
@@ -892,9 +1069,19 @@ public class WizVisualizationService {
    private final AssemblyImageService assemblyImageService;
    private final BinaryTransferService binaryTransferService;
    private final VSExportService vsExportService;
+   private final SecurityEngine securityEngine;
    private static final Logger LOG = LoggerFactory.getLogger(WizVisualizationService.class);
    private static final int THUMBNAIL_WIDTH  = 400;
    private static final int THUMBNAIL_HEIGHT = 300;
+   /** Default render dimensions for /visualization/render when the request omits width/height. */
+   private static final int DEFAULT_RENDER_WIDTH = 800;
+   private static final int DEFAULT_RENDER_HEIGHT = 600;
+   /** Clamp caller-supplied render width/height so an oversized request can't drive a
+    *  resource-exhaustion render. */
+   private static final int MAX_RENDER_DIMENSION = 4000;
+   /** Bounded retry for the render endpoint when the chart graph is not yet ready. */
+   private static final int RENDER_MAX_ATTEMPTS = 4;
+   private static final long RENDER_RETRY_SLEEP_MS = 500;
    private static final String SVG_NS = "http://www.w3.org/2000/svg";
    /** Drop SVG thumbnails larger than 512 KB to prevent oversized response payloads. */
    private static final int MAX_SVG_THUMBNAIL_BYTES = 512 * 1024;
