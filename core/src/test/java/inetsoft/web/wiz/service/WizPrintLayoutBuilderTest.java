@@ -102,8 +102,8 @@ class WizPrintLayoutBuilderTest {
          ((TextVSAssemblyInfo) t.getInfo()).getText().contains("Q39 Board") &&
          ((TextVSAssemblyInfo) t.getInfo()).getText().contains("Premium drives revenue."));
       assertTrue(hasTitleRecap, "one editable block carries both the title and the recap");
-      assertTrue(texts.stream().anyMatch(t -> ((TextVSAssemblyInfo) t.getInfo()).getText().equals("cap one")));
-      assertTrue(texts.stream().anyMatch(t -> ((TextVSAssemblyInfo) t.getInfo()).getText().equals("cap two")));
+      assertTrue(texts.stream().anyMatch(t -> ((TextVSAssemblyInfo) t.getInfo()).getText().equals("First — cap one")));
+      assertTrue(texts.stream().anyMatch(t -> ((TextVSAssemblyInfo) t.getInfo()).getText().equals("Second — cap two")));
    }
 
    @Test

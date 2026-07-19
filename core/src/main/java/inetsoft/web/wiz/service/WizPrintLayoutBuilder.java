@@ -79,8 +79,9 @@ public class WizPrintLayoutBuilder {
          int captionY = i == 0 ? TITLE_BLOCK_HEIGHT_PT : pageTop;
          int chartY = captionY + CAPTION_HEIGHT_PT;
 
-         // Build caption text: just the caption field if present and non-empty, otherwise title
-         String captionText = (c.caption() != null && !c.caption().isBlank()) ? c.caption() : c.title();
+         // Build caption text: title always shown, caption appended after an em-dash when present.
+         String captionText = c.title() +
+            (c.caption() != null && !c.caption().isBlank() ? " — " + c.caption() : "");
          vsLayouts.add(textLayout("wizExportCaption_" + i, captionText,
             new Point(0, captionY), new Dimension(PAGE_CONTENT_WIDTH_PT, CAPTION_HEIGHT_PT)));
          vsLayouts.add(new VSAssemblyLayout(assembly.getName(), new Point(0, chartY),
