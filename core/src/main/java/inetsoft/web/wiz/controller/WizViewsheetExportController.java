@@ -30,6 +30,7 @@ import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.service.ExportResponse;
 import inetsoft.web.viewsheet.service.VSExportService;
 import inetsoft.web.wiz.model.WizExportReportEvent;
+import inetsoft.web.wiz.service.PptxDeckMerger;
 import inetsoft.web.wiz.service.WizPrintLayoutBuilder;
 import inetsoft.web.wiz.service.WizVisualizationService;
 import inetsoft.web.wiz.service.WizVsService;
@@ -46,6 +47,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.io.ByteArrayOutputStream;
 import java.security.Principal;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -57,24 +60,34 @@ public class WizViewsheetExportController {
                                        WizVsService wizVsService,
                                        WizPrintLayoutBuilder printLayoutBuilder,
                                        VSExportService exportService,
-                                       SecurityEngine securityEngine)
+                                       SecurityEngine securityEngine,
+                                       PptxDeckMerger pptxDeckMerger)
    {
       this.viewsheetService = viewsheetService;
       this.wizVsService = wizVsService;
       this.printLayoutBuilder = printLayoutBuilder;
       this.exportService = exportService;
       this.securityEngine = securityEngine;
+      this.pptxDeckMerger = pptxDeckMerger;
    }
 
    @PostMapping("/viewsheet/export-report")
    public ResponseEntity<?> exportReport(@RequestBody WizExportReportEvent event, Principal principal,
                                          HttpServletResponse servletResponse)
    {
-      if(!"pdf".equalsIgnoreCase(event.getFormat())) {
+      String format = event.getFormat() == null ? "" : event.getFormat().toLowerCase();
+
+      if(!format.equals("pdf") && !format.equals("pptx")) {
          return ResponseEntity.badRequest().body(Map.of(
-            "error", "Unsupported format: " + event.getFormat() + " (only pdf is supported in Phase 1)"));
+            "error", "Unsupported format: " + event.getFormat() + " (pdf or pptx)"));
       }
 
+      if(format.equals("pptx")) {
+         return exportPptx(event, principal, servletResponse);
+      }
+
+      // pdf path below is unchanged from Phase 1 (uses a single composed dashboard viewsheet,
+      // not the per-chart pptx flow above).
       AssetEntry entry;
 
       try {
@@ -172,10 +185,121 @@ public class WizViewsheetExportController {
       }
    }
 
+   private ResponseEntity<?> exportPptx(WizExportReportEvent event, Principal principal,
+                                        HttpServletResponse servletResponse)
+   {
+      try {
+         if(!securityEngine.checkPermission(principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION,
+            "Export", ResourceAction.READ))
+         {
+            return ResponseEntity.status(403).body(Map.of(
+               "error", "Permission denied: viewsheet export"));
+         }
+      }
+      catch(SecurityException e) {
+         return ResponseEntity.status(403).body(Map.of("error", e.getMessage()));
+      }
+
+      List<WizExportReportEvent.ChartEntry> charts = event.getCharts() == null
+         ? List.of()
+         : event.getCharts().stream()
+            .sorted(Comparator.comparingInt(WizExportReportEvent.ChartEntry::getOrder))
+            .collect(Collectors.toList());
+
+      List<PptxDeckMerger.ChartSlide> chartSlides = new ArrayList<>();
+
+      for(WizExportReportEvent.ChartEntry chart : charts) {
+         chartSlides.add(exportOneChartForPptx(chart, principal));
+      }
+
+      boolean allFailed = !chartSlides.isEmpty() &&
+         chartSlides.stream().allMatch(PptxDeckMerger.ChartSlide::failed);
+
+      if(allFailed) {
+         return ResponseEntity.badRequest().body(Map.of(
+            "error", "No renderable charts (all failed to export)"));
+      }
+
+      try {
+         byte[] deck = pptxDeckMerger.mergeSlides(event.getTitle(), event.getRecap(), chartSlides);
+         String filename = (event.getTitle() == null ? "board" : event.getTitle()) + ".pptx";
+         servletResponse.setContentType(
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation");
+         servletResponse.setHeader("Content-Disposition",
+            ContentDisposition.attachment().filename(filename).build().toString());
+         servletResponse.setContentLength(deck.length);
+         servletResponse.getOutputStream().write(deck);
+         servletResponse.getOutputStream().flush();
+         return null;
+      }
+      catch(Exception e) {
+         LOG.error("Failed to merge pptx deck", e);
+         return ResponseEntity.status(500).body(Map.of("error", "Failed to export board PowerPoint"));
+      }
+   }
+
+   /** Opens and exports one chart's own saved visualization individually (not a composed
+    *  dashboard). A failure here becomes a failed ChartSlide rather than propagating -- the
+    *  caller decides whether the whole export aborts (only if every chart failed). An
+    *  out-of-folder savedId is treated the same as an open/export failure: a per-chart
+    *  placeholder, not a request-level abort (deliberate divergence from the pdf path's strict
+    *  dashboardId guard, which gates the single asset the whole pdf export depends on). */
+   private PptxDeckMerger.ChartSlide exportOneChartForPptx(WizExportReportEvent.ChartEntry chart,
+                                                           Principal principal)
+   {
+      AssetEntry entry;
+
+      try {
+         entry = Tool.isEmptyString(chart.getSavedId()) ? null : AssetEntry.createAssetEntry(chart.getSavedId());
+      }
+      catch(RuntimeException e) {
+         LOG.warn("Chart savedId is not a valid asset identifier: {}", chart.getSavedId());
+         return new PptxDeckMerger.ChartSlide(chart.getTitle(), chart.getCaption(), null, true);
+      }
+
+      if(entry == null || entry.getPath() == null ||
+         !entry.getPath().startsWith(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/"))
+      {
+         LOG.warn("Chart savedId is not in the managed visualizations folder: {}", chart.getSavedId());
+         return new PptxDeckMerger.ChartSlide(chart.getTitle(), chart.getCaption(), null, true);
+      }
+
+      String runtimeId;
+
+      try {
+         runtimeId = viewsheetService.openViewsheet(entry, principal, true);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to open chart for pptx export: {}", chart.getSavedId(), e);
+         return new PptxDeckMerger.ChartSlide(chart.getTitle(), chart.getCaption(), null, true);
+      }
+
+      try {
+         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+         ByteArrayOutputStream out = new ByteArrayOutputStream();
+         exportService.exportViewsheet(rvs, FileFormatInfo.EXPORT_TYPE_POWERPOINT, false, false, true,
+            false, false, new String[0], false, new ExportResponse(out), principal);
+         return new PptxDeckMerger.ChartSlide(chart.getTitle(), chart.getCaption(), out.toByteArray(), false);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to export chart for pptx: {}", chart.getSavedId(), e);
+         return new PptxDeckMerger.ChartSlide(chart.getTitle(), chart.getCaption(), null, true);
+      }
+      finally {
+         try {
+            viewsheetService.closeViewsheet(runtimeId, principal);
+         }
+         catch(Exception ignore) {
+            LOG.warn("Failed to close runtime [{}] after pptx chart export", runtimeId);
+         }
+      }
+   }
+
    private final ViewsheetService viewsheetService;
    private final WizVsService wizVsService;
    private final WizPrintLayoutBuilder printLayoutBuilder;
    private final VSExportService exportService;
    private final SecurityEngine securityEngine;
+   private final PptxDeckMerger pptxDeckMerger;
    private static final Logger LOG = LoggerFactory.getLogger(WizViewsheetExportController.class);
 }
