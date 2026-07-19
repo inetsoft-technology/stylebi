@@ -20,11 +20,14 @@ package inetsoft.web.wiz.controller;
 
 import inetsoft.sree.security.SecurityException;
 import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.wiz.model.WizDashboardEvent;
+import inetsoft.web.wiz.model.WizDashboardResult;
 import inetsoft.web.wiz.model.WizVisualizationRenderEvent;
 import inetsoft.web.wiz.model.WizVisualizationRenderResult;
 import inetsoft.web.wiz.model.WizVisualizationSaveEvent;
 import inetsoft.web.wiz.model.WizVisualizationSaveResult;
 import inetsoft.web.wiz.service.RenderNotReadyException;
+import inetsoft.web.wiz.service.WizDashboardService;
 import inetsoft.web.wiz.service.WizVisualizationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,8 +43,11 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/wiz/visualization")
 public class WizVisualizationController {
-   public WizVisualizationController(WizVisualizationService wizVisualizationService) {
+   public WizVisualizationController(WizVisualizationService wizVisualizationService,
+                                     WizDashboardService wizDashboardService)
+   {
       this.wizVisualizationService = wizVisualizationService;
+      this.wizDashboardService = wizDashboardService;
    }
 
    /**
@@ -101,6 +107,28 @@ public class WizVisualizationController {
       }
    }
 
+   /**
+    * Composes a wiz dashboard viewsheet from a list of previously-saved visualization
+    * viewsheets.
+    */
+   @PostMapping(value = "/dashboard", produces = MediaType.APPLICATION_JSON_VALUE)
+   public ResponseEntity<?> dashboard(@RequestBody WizDashboardEvent event, Principal principal) {
+      try {
+         WizDashboardResult result = wizDashboardService.composeDashboard(event, principal);
+         return ResponseEntity.ok(result);
+      }
+      catch(SecurityException e) {
+         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
+      }
+      catch(IllegalArgumentException e) {
+         return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+      }
+      catch(Exception e) {
+         LOG.error("Failed to compose dashboard", e);
+         return ResponseEntity.internalServerError().body(Map.of("error", "An unexpected error occurred. Please try again."));
+      }
+   }
+
    @DeleteMapping(
       value = "/delete",
       consumes = MediaType.APPLICATION_JSON_VALUE,
@@ -124,5 +152,6 @@ public class WizVisualizationController {
    }
 
    private final WizVisualizationService wizVisualizationService;
+   private final WizDashboardService wizDashboardService;
    private static final Logger LOG = LoggerFactory.getLogger(WizVisualizationController.class);
 }

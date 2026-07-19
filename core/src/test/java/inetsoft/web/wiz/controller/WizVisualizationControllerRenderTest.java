@@ -21,6 +21,7 @@ import inetsoft.sree.security.SecurityException;
 import inetsoft.web.wiz.model.WizVisualizationRenderEvent;
 import inetsoft.web.wiz.model.WizVisualizationRenderResult;
 import inetsoft.web.wiz.service.RenderNotReadyException;
+import inetsoft.web.wiz.service.WizDashboardService;
 import inetsoft.web.wiz.service.WizVisualizationService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -49,7 +50,7 @@ class WizVisualizationControllerRenderTest {
       when(svc.renderVisualization(any(), any())).thenReturn(r);
 
       ResponseEntity<?> resp =
-         new WizVisualizationController(svc).render(new WizVisualizationRenderEvent(), mock(Principal.class));
+         new WizVisualizationController(svc, mock(WizDashboardService.class)).render(new WizVisualizationRenderEvent(), mock(Principal.class));
 
       assertEquals(HttpStatus.OK, resp.getStatusCode());
       assertSame(r, resp.getBody());
@@ -61,7 +62,7 @@ class WizVisualizationControllerRenderTest {
       when(svc.renderVisualization(any(), any())).thenThrow(new RenderNotReadyException(2));
 
       ResponseEntity<?> resp =
-         new WizVisualizationController(svc).render(new WizVisualizationRenderEvent(), mock(Principal.class));
+         new WizVisualizationController(svc, mock(WizDashboardService.class)).render(new WizVisualizationRenderEvent(), mock(Principal.class));
 
       assertEquals(HttpStatus.SERVICE_UNAVAILABLE, resp.getStatusCode());
       assertTrue(resp.getHeaders().containsKey("Retry-After"));
@@ -73,7 +74,7 @@ class WizVisualizationControllerRenderTest {
       when(svc.renderVisualization(any(), any())).thenThrow(new SecurityException("permission denied"));
 
       ResponseEntity<?> resp =
-         new WizVisualizationController(svc).render(new WizVisualizationRenderEvent(), mock(Principal.class));
+         new WizVisualizationController(svc, mock(WizDashboardService.class)).render(new WizVisualizationRenderEvent(), mock(Principal.class));
 
       assertEquals(HttpStatus.FORBIDDEN, resp.getStatusCode());
    }
@@ -84,7 +85,7 @@ class WizVisualizationControllerRenderTest {
       when(svc.renderVisualization(any(), any())).thenThrow(new IllegalArgumentException("bad id"));
 
       ResponseEntity<?> resp =
-         new WizVisualizationController(svc).render(new WizVisualizationRenderEvent(), mock(Principal.class));
+         new WizVisualizationController(svc, mock(WizDashboardService.class)).render(new WizVisualizationRenderEvent(), mock(Principal.class));
 
       assertEquals(HttpStatus.BAD_REQUEST, resp.getStatusCode());
    }
@@ -95,7 +96,7 @@ class WizVisualizationControllerRenderTest {
       when(svc.renderVisualization(any(), any())).thenThrow(new RuntimeException("boom"));
 
       ResponseEntity<?> resp =
-         new WizVisualizationController(svc).render(new WizVisualizationRenderEvent(), mock(Principal.class));
+         new WizVisualizationController(svc, mock(WizDashboardService.class)).render(new WizVisualizationRenderEvent(), mock(Principal.class));
 
       assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, resp.getStatusCode());
    }
