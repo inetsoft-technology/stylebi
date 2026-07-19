@@ -30,11 +30,16 @@ import inetsoft.web.wiz.model.WizExportReportEvent;
 import inetsoft.web.wiz.service.WizPrintLayoutBuilder;
 import inetsoft.web.wiz.service.WizVisualizationService;
 import inetsoft.web.wiz.service.WizVsService;
+import jakarta.servlet.ServletOutputStream;
+import jakarta.servlet.WriteListener;
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
+import java.io.ByteArrayOutputStream;
 import java.security.Principal;
 import java.util.List;
 
@@ -70,6 +75,28 @@ class WizViewsheetExportControllerTest {
       return ev;
    }
 
+   /** A ServletOutputStream backed by a plain ByteArrayOutputStream so tests can capture what
+    *  the controller writes, matching the enterprise ViewsheetApiController's own direct-response
+    *  pattern (no compatible HttpMessageConverter exists for a byte[]/Resource body declared as
+    *  application/pdf in this app's WebConfig — confirmed live, see the controller's comment). */
+   private static ServletOutputStream capturingOutputStream(ByteArrayOutputStream sink) {
+      return new ServletOutputStream() {
+         @Override
+         public boolean isReady() {
+            return true;
+         }
+
+         @Override
+         public void setWriteListener(WriteListener writeListener) {
+         }
+
+         @Override
+         public void write(int b) {
+            sink.write(b);
+         }
+      };
+   }
+
    @Test
    void rejectsIdentifierOutsideComponentsFolder() throws Exception {
       ViewsheetService vs = mock(ViewsheetService.class);
@@ -77,7 +104,8 @@ class WizViewsheetExportControllerTest {
          vs, mock(WizVsService.class), mock(WizPrintLayoutBuilder.class),
          mock(VSExportService.class), mock(SecurityEngine.class));
 
-      ResponseEntity<?> resp = ctrl.exportReport(event(unmanagedIdentifier()), mock(Principal.class));
+      ResponseEntity<?> resp = ctrl.exportReport(
+         event(unmanagedIdentifier()), mock(Principal.class), mock(HttpServletResponse.class));
 
       assertEquals(400, resp.getStatusCode().value());
       verify(vs, never()).openViewsheet(any(), any(), anyBoolean());
@@ -96,7 +124,8 @@ class WizViewsheetExportControllerTest {
          vs, mock(WizVsService.class), mock(WizPrintLayoutBuilder.class),
          mock(VSExportService.class), sec);
 
-      ResponseEntity<?> resp = ctrl.exportReport(event(managedDashboardIdentifier()), principal);
+      ResponseEntity<?> resp = ctrl.exportReport(
+         event(managedDashboardIdentifier()), principal, mock(HttpServletResponse.class));
 
       assertEquals(403, resp.getStatusCode().value());
       // Permission is checked before getViewsheet() is ever called (see the controller's
@@ -115,14 +144,14 @@ class WizViewsheetExportControllerTest {
       WizExportReportEvent ev = event(managedDashboardIdentifier());
       ev.setFormat("xlsx");
 
-      ResponseEntity<?> resp = ctrl.exportReport(ev, mock(Principal.class));
+      ResponseEntity<?> resp = ctrl.exportReport(ev, mock(Principal.class), mock(HttpServletResponse.class));
 
       assertEquals(400, resp.getStatusCode().value());
       verify(vs, never()).openViewsheet(any(), any(), anyBoolean());
    }
 
    @Test
-   void happyPathBuildsLayoutPersistsAndReturnsExportedBytes() throws Exception {
+   void happyPathBuildsLayoutPersistsAndWritesExportedBytesDirectlyToServletResponse() throws Exception {
       ViewsheetService vs = mock(ViewsheetService.class);
       WizVsService wizVsService = mock(WizVsService.class);
       WizPrintLayoutBuilder builder = mock(WizPrintLayoutBuilder.class);
@@ -132,6 +161,9 @@ class WizViewsheetExportControllerTest {
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       Viewsheet viewsheet = mock(Viewsheet.class);
       inetsoft.uql.viewsheet.vslayout.LayoutInfo layoutInfo = mock(inetsoft.uql.viewsheet.vslayout.LayoutInfo.class);
+      HttpServletResponse servletResponse = mock(HttpServletResponse.class);
+      ByteArrayOutputStream written = new ByteArrayOutputStream();
+      when(servletResponse.getOutputStream()).thenReturn(capturingOutputStream(written));
 
       when(viewsheet.getLayoutInfo()).thenReturn(layoutInfo);
       when(vs.openViewsheet(any(), eq(principal), eq(true))).thenReturn("rt1");
@@ -158,12 +190,17 @@ class WizViewsheetExportControllerTest {
       WizExportReportEvent ev = event(managedDashboardIdentifier());
       ev.setPageSize("letter");
 
-      ResponseEntity<?> resp = ctrl.exportReport(ev, principal);
+      ResponseEntity<?> resp = ctrl.exportReport(ev, principal, servletResponse);
 
-      assertEquals(200, resp.getStatusCode().value());
-      assertArrayEquals(fakePdf, (byte[]) resp.getBody());
-      assertEquals(MediaType.APPLICATION_PDF, resp.getHeaders().getContentType());
-      assertTrue(resp.getHeaders().getFirst("Content-Disposition").contains("Q39 Board.pdf"));
+      // Success path writes directly to the servlet response and returns null — Spring MVC
+      // treats a null return from a non-void handler as "response already fully handled."
+      assertNull(resp);
+      assertArrayEquals(fakePdf, written.toByteArray());
+      verify(servletResponse).setContentType(MediaType.APPLICATION_PDF_VALUE);
+      verify(servletResponse).setContentLength(fakePdf.length);
+      ArgumentCaptor<String> dispositionCaptor = ArgumentCaptor.forClass(String.class);
+      verify(servletResponse).setHeader(eq("Content-Disposition"), dispositionCaptor.capture());
+      assertTrue(dispositionCaptor.getValue().contains("Q39 Board.pdf"));
       verify(layoutInfo).setPrintLayout(fakeLayout);
       verify(wizVsService).persistViewsheet(viewsheet, managedDashboardIdentifier(), principal);
       verify(vs).closeViewsheet("rt1", principal);

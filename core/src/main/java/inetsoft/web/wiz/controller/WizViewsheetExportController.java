@@ -33,10 +33,10 @@ import inetsoft.web.wiz.model.WizExportReportEvent;
 import inetsoft.web.wiz.service.WizPrintLayoutBuilder;
 import inetsoft.web.wiz.service.WizVisualizationService;
 import inetsoft.web.wiz.service.WizVsService;
+import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ContentDisposition;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -67,7 +67,9 @@ public class WizViewsheetExportController {
    }
 
    @PostMapping("/viewsheet/export-report")
-   public ResponseEntity<?> exportReport(@RequestBody WizExportReportEvent event, Principal principal) {
+   public ResponseEntity<?> exportReport(@RequestBody WizExportReportEvent event, Principal principal,
+                                         HttpServletResponse servletResponse)
+   {
       if(!"pdf".equalsIgnoreCase(event.getFormat())) {
          return ResponseEntity.badRequest().body(Map.of(
             "error", "Unsupported format: " + event.getFormat() + " (only pdf is supported in Phase 1)"));
@@ -129,12 +131,26 @@ public class WizViewsheetExportController {
 
          byte[] bytes = out.toByteArray();
          String filename = (event.getTitle() == null ? "board" : event.getTitle()) + ".pdf";
-         HttpHeaders headers = new HttpHeaders();
-         headers.setContentType(MediaType.APPLICATION_PDF);
-         // NOT setContentDispositionFormData — that produces "form-data; name=..." (multipart
-         // upload semantics), not the "attachment; filename=..." a file download needs.
-         headers.setContentDisposition(ContentDisposition.attachment().filename(filename).build());
-         return new ResponseEntity<>(bytes, headers, 200);
+         // Write directly to the servlet response rather than returning a ResponseEntity<byte[]>
+         // (or ResponseEntity<ByteArrayResource>, also confirmed failing live). WebConfig's
+         // registered converters have no combination that can write an arbitrary byte[]/Resource
+         // body as application/pdf: the app's ByteArrayHttpMessageConverter bean is restricted to
+         // octet-stream/text-plain/openmetrics-text, and ResourceHttpMessageConverter (which does
+         // declare application/pdf) only writes Resource bodies — neither matches, and Spring
+         // throws HttpMessageNotWritableException for both (confirmed against a real running
+         // StyleBI instance exporting a real board). This direct-response pattern mirrors the
+         // enterprise ViewsheetApiController.exportViewsheet, which sidesteps the converter
+         // pipeline entirely and is proven to work for exactly this kind of binary export in this
+         // codebase. Returning null tells Spring MVC the response is already fully handled.
+         servletResponse.setContentType(MediaType.APPLICATION_PDF_VALUE);
+         // NOT setContentDispositionFormData equivalent — "attachment; filename=..." is what a
+         // file download needs, not "form-data; name=...".
+         servletResponse.setHeader("Content-Disposition",
+            ContentDisposition.attachment().filename(filename).build().toString());
+         servletResponse.setContentLength(bytes.length);
+         servletResponse.getOutputStream().write(bytes);
+         servletResponse.getOutputStream().flush();
+         return null;
       }
       catch(SecurityException e) {
          return ResponseEntity.status(403).body(Map.of("error", e.getMessage()));
