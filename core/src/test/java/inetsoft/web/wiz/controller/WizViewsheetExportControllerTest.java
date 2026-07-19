@@ -116,6 +116,14 @@ class WizViewsheetExportControllerTest {
       return c;
    }
 
+   private static WizExportReportEvent.ChartEntry chartEntry(
+      String savedId, String title, String caption, int order, String insightsMarkdown)
+   {
+      WizExportReportEvent.ChartEntry c = chartEntry(savedId, title, caption, order);
+      c.setInsightsMarkdown(insightsMarkdown);
+      return c;
+   }
+
    @Test
    void rejectsIdentifierOutsideComponentsFolder() throws Exception {
       ViewsheetService vs = mock(ViewsheetService.class);
@@ -223,6 +231,145 @@ class WizViewsheetExportControllerTest {
       verify(layoutInfo).setPrintLayout(fakeLayout);
       verify(wizVsService).persistViewsheet(viewsheet, managedDashboardIdentifier(), principal);
       verify(vs).closeViewsheet("rt1", principal);
+   }
+
+   @Test
+   void pdfPathForwardsChartInsightsMarkdownIntoChartCaptions() throws Exception {
+      ViewsheetService vs = mock(ViewsheetService.class);
+      WizVsService wizVsService = mock(WizVsService.class);
+      WizPrintLayoutBuilder builder = mock(WizPrintLayoutBuilder.class);
+      VSExportService exportService = mock(VSExportService.class);
+      SecurityEngine sec = mock(SecurityEngine.class);
+      Principal principal = mock(Principal.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      inetsoft.uql.viewsheet.vslayout.LayoutInfo layoutInfo = mock(inetsoft.uql.viewsheet.vslayout.LayoutInfo.class);
+      HttpServletResponse servletResponse = mock(HttpServletResponse.class);
+      when(servletResponse.getOutputStream()).thenReturn(capturingOutputStream(new ByteArrayOutputStream()));
+      when(viewsheet.getLayoutInfo()).thenReturn(layoutInfo);
+      when(vs.openViewsheet(any(), eq(principal), eq(true))).thenReturn("rt1");
+      when(vs.getViewsheet("rt1", principal)).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(sec.checkPermission(eq(principal), eq(ResourceType.VIEWSHEET_TOOLBAR_ACTION),
+         eq("Export"), eq(ResourceAction.READ))).thenReturn(true);
+
+      var fakeLayout = new inetsoft.uql.viewsheet.vslayout.PrintLayout();
+      when(builder.build(any(), any(), any(), any(), anyList())).thenReturn(fakeLayout);
+
+      doAnswer(inv -> {
+         inetsoft.web.viewsheet.service.ExportResponse resp = inv.getArgument(9);
+         resp.getOutputStream().write("%PDF".getBytes());
+         return null;
+      }).when(exportService).exportViewsheet(eq(rvs), anyInt(), eq(false), eq(false), eq(true),
+         eq(false), eq(false), any(String[].class), eq(false), any(), eq(principal));
+
+      WizViewsheetExportController ctrl = new WizViewsheetExportController(
+         vs, wizVsService, builder, exportService, sec, mock(PptxDeckMerger.class));
+
+      WizExportReportEvent ev = event(managedDashboardIdentifier());
+      ev.setCharts(List.of(chartEntry(managedChartIdentifier("c1"), "First", "cap one", 0, "**Bold** finding")));
+
+      ResponseEntity<?> resp = ctrl.exportReport(ev, principal, servletResponse);
+
+      assertNull(resp);
+      verify(builder).build(eq(viewsheet), eq("a4"), eq("Q39 Board"), isNull(), argThat(list ->
+         list.size() == 1 &&
+         "**Bold** finding".equals(((WizPrintLayoutBuilder.ChartCaption) list.get(0)).insightsMarkdown())));
+   }
+
+   @Test
+   void pptxPathForwardsChartInsightsMarkdownIntoChartSlides() throws Exception {
+      ViewsheetService vs = mock(ViewsheetService.class);
+      WizVsService wizVsService = mock(WizVsService.class);
+      WizPrintLayoutBuilder builder = mock(WizPrintLayoutBuilder.class);
+      VSExportService exportService = mock(VSExportService.class);
+      PptxDeckMerger merger = mock(PptxDeckMerger.class);
+      SecurityEngine sec = mock(SecurityEngine.class);
+      Principal principal = mock(Principal.class);
+      HttpServletResponse servletResponse = mock(HttpServletResponse.class);
+      when(servletResponse.getOutputStream()).thenReturn(capturingOutputStream(new ByteArrayOutputStream()));
+      when(sec.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
+
+      String chartId = managedChartIdentifier("c1");
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(vs.openViewsheet(argThat(e -> e != null && e.toIdentifier().equals(chartId)), eq(principal), eq(true)))
+         .thenReturn("rt-c1");
+      when(vs.getViewsheet("rt-c1", principal)).thenReturn(rvs);
+      doAnswer(inv -> { ((ExportResponse) inv.getArgument(9)).getOutputStream().write("chart-deck".getBytes()); return null; })
+         .when(exportService).exportViewsheet(eq(rvs), eq(FileFormatInfo.EXPORT_TYPE_POWERPOINT),
+            anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(),
+            any(String[].class), anyBoolean(), any(), eq(principal));
+
+      when(merger.mergeSlides(any(), any(), argThat(list ->
+         list.size() == 1 && "**Bold** finding".equals(list.get(0).insightsMarkdown())
+      ))).thenReturn("%PPTX-fake".getBytes());
+
+      WizViewsheetExportController ctrl = new WizViewsheetExportController(
+         vs, wizVsService, builder, exportService, sec, merger);
+
+      WizExportReportEvent ev = new WizExportReportEvent();
+      ev.setFormat("pptx");
+      ev.setTitle("Q39 Board");
+      ev.setCharts(List.of(chartEntry(chartId, "First", "cap one", 0, "**Bold** finding")));
+
+      ResponseEntity<?> resp = ctrl.exportReport(ev, principal, servletResponse);
+
+      assertNull(resp);
+      verify(merger).mergeSlides(any(), any(), argThat(list ->
+         "**Bold** finding".equals(list.get(0).insightsMarkdown())));
+   }
+
+   @Test
+   void failedPptxChartStillCarriesItsInsightsMarkdownIntoThePlaceholderSlide() throws Exception {
+      // NOTE: adapted from the brief's literal single-chart test, which collides with the
+      // all-charts-failed-aborts contract exactly like pptxChartOpenFailureBecomesPlaceholderNotAbort
+      // and pptxChartOutsideComponentsFolderBecomesPlaceholderNotAbort above -- with only one chart
+      // total, "the one chart failed" and "all charts failed" are the same event, so the
+      // controller's allFailed guard 400s instead of merging. A second, successful chart is added
+      // so this test isolates "the failed chart's insightsMarkdown survives into its placeholder
+      // slide" without re-triggering the all-failed abort that pptxAllChartsFailedAbortsLoud
+      // already covers on its own.
+      ViewsheetService vs = mock(ViewsheetService.class);
+      VSExportService exportService = mock(VSExportService.class);
+      PptxDeckMerger merger = mock(PptxDeckMerger.class);
+      SecurityEngine sec = mock(SecurityEngine.class);
+      Principal principal = mock(Principal.class);
+      HttpServletResponse servletResponse = mock(HttpServletResponse.class);
+      when(servletResponse.getOutputStream()).thenReturn(capturingOutputStream(new ByteArrayOutputStream()));
+      when(sec.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
+
+      String badId = managedChartIdentifier("broken");
+      String goodId = managedChartIdentifier("ok");
+      when(vs.openViewsheet(argThat(e -> e != null && e.toIdentifier().equals(badId)), eq(principal), eq(true)))
+         .thenThrow(new RuntimeException("boom"));
+      RuntimeViewsheet rvsGood = mock(RuntimeViewsheet.class);
+      when(vs.openViewsheet(argThat(e -> e != null && e.toIdentifier().equals(goodId)), eq(principal), eq(true)))
+         .thenReturn("rt-good");
+      when(vs.getViewsheet("rt-good", principal)).thenReturn(rvsGood);
+      doAnswer(inv -> { ((ExportResponse) inv.getArgument(9)).getOutputStream().write("good".getBytes()); return null; })
+         .when(exportService).exportViewsheet(eq(rvsGood), eq(FileFormatInfo.EXPORT_TYPE_POWERPOINT),
+            anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(),
+            any(String[].class), anyBoolean(), any(), eq(principal));
+
+      when(merger.mergeSlides(any(), any(), argThat(list ->
+         list.size() == 2 && list.get(0).failed() &&
+         "Finding survives even though the chart failed to render.".equals(list.get(0).insightsMarkdown())
+      ))).thenReturn("%PPTX-fake".getBytes());
+
+      WizViewsheetExportController ctrl = new WizViewsheetExportController(
+         vs, mock(WizVsService.class), mock(WizPrintLayoutBuilder.class), exportService, sec, merger);
+
+      WizExportReportEvent ev = new WizExportReportEvent();
+      ev.setFormat("pptx");
+      ev.setTitle("Board");
+      ev.setCharts(List.of(
+         chartEntry(badId, "Broken", null, 0, "Finding survives even though the chart failed to render."),
+         chartEntry(goodId, "OK", null, 1)));
+
+      ResponseEntity<?> resp = ctrl.exportReport(ev, principal, servletResponse);
+
+      assertNull(resp);
+      verify(merger).mergeSlides(any(), any(), argThat(list -> list.get(0).failed()));
    }
 
    @Test

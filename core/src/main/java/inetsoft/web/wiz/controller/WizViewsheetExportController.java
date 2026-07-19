@@ -130,7 +130,8 @@ public class WizViewsheetExportController {
          List<WizPrintLayoutBuilder.ChartCaption> charts = event.getCharts() == null
             ? List.of()
             : event.getCharts().stream()
-               .map(c -> new WizPrintLayoutBuilder.ChartCaption(c.getTitle(), c.getCaption(), c.getOrder()))
+               .map(c -> new WizPrintLayoutBuilder.ChartCaption(
+                  c.getTitle(), c.getCaption(), c.getOrder(), c.getInsightsMarkdown()))
                .collect(Collectors.toList());
 
          var printLayout = printLayoutBuilder.build(
@@ -259,14 +260,16 @@ public class WizViewsheetExportController {
       }
       catch(RuntimeException e) {
          LOG.warn("Chart savedId is not a valid asset identifier: {}", chart.getSavedId());
-         return new PptxDeckMerger.ChartSlide(chart.getTitle(), chart.getCaption(), null, true);
+         return new PptxDeckMerger.ChartSlide(
+            chart.getTitle(), chart.getCaption(), null, true, chart.getInsightsMarkdown());
       }
 
       if(entry == null || entry.getPath() == null ||
          !entry.getPath().startsWith(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/"))
       {
          LOG.warn("Chart savedId is not in the managed visualizations folder: {}", chart.getSavedId());
-         return new PptxDeckMerger.ChartSlide(chart.getTitle(), chart.getCaption(), null, true);
+         return new PptxDeckMerger.ChartSlide(
+            chart.getTitle(), chart.getCaption(), null, true, chart.getInsightsMarkdown());
       }
 
       String runtimeId;
@@ -276,7 +279,8 @@ public class WizViewsheetExportController {
       }
       catch(Exception e) {
          LOG.warn("Failed to open chart for pptx export: {}", chart.getSavedId(), e);
-         return new PptxDeckMerger.ChartSlide(chart.getTitle(), chart.getCaption(), null, true);
+         return new PptxDeckMerger.ChartSlide(
+            chart.getTitle(), chart.getCaption(), null, true, chart.getInsightsMarkdown());
       }
 
       try {
@@ -284,11 +288,13 @@ public class WizViewsheetExportController {
          ByteArrayOutputStream out = new ByteArrayOutputStream();
          exportService.exportViewsheet(rvs, FileFormatInfo.EXPORT_TYPE_POWERPOINT, false, false, true,
             false, false, new String[0], false, new ExportResponse(out), principal);
-         return new PptxDeckMerger.ChartSlide(chart.getTitle(), chart.getCaption(), out.toByteArray(), false);
+         return new PptxDeckMerger.ChartSlide(
+            chart.getTitle(), chart.getCaption(), out.toByteArray(), false, chart.getInsightsMarkdown());
       }
       catch(Exception e) {
          LOG.warn("Failed to export chart for pptx: {}", chart.getSavedId(), e);
-         return new PptxDeckMerger.ChartSlide(chart.getTitle(), chart.getCaption(), null, true);
+         return new PptxDeckMerger.ChartSlide(
+            chart.getTitle(), chart.getCaption(), null, true, chart.getInsightsMarkdown());
       }
       finally {
          try {

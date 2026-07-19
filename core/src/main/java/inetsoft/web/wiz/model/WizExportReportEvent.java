@@ -115,9 +115,18 @@ public class WizExportReportEvent {
          this.order = order;
       }
 
+      public String getInsightsMarkdown() {
+         return insightsMarkdown;
+      }
+
+      public void setInsightsMarkdown(String insightsMarkdown) {
+         this.insightsMarkdown = insightsMarkdown;
+      }
+
       private String savedId;
       private String title;
       private String caption;
       private int order;
+      private String insightsMarkdown;
    }
 }
