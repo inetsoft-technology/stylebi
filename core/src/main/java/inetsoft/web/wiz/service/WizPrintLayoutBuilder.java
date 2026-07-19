@@ -30,6 +30,7 @@ import inetsoft.uql.viewsheet.vslayout.PrintInfo;
 import inetsoft.uql.viewsheet.vslayout.PrintLayout;
 import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
 import inetsoft.uql.viewsheet.vslayout.VSEditableAssemblyLayout;
+import org.springframework.stereotype.Component;
 
 import java.awt.*;
 import java.util.ArrayList;
@@ -41,6 +42,7 @@ import java.util.Map;
  * (POST /api/wiz/viewsheet/export-report): a title/recap header block, followed by each kept
  * chart on its own page with a caption line, rebuilt fresh (idempotent) on every export call.
  */
+@Component
 public class WizPrintLayoutBuilder {
    public record ChartCaption(String title, String caption, int order) {}
 

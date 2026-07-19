@@ -68,8 +68,21 @@ public class WizViewsheetExportController {
 
    @PostMapping("/viewsheet/export-report")
    public ResponseEntity<?> exportReport(@RequestBody WizExportReportEvent event, Principal principal) {
-      AssetEntry entry = Tool.isEmptyString(event.getDashboardId())
-         ? null : AssetEntry.createAssetEntry(event.getDashboardId());
+      if(!"pdf".equalsIgnoreCase(event.getFormat())) {
+         return ResponseEntity.badRequest().body(Map.of(
+            "error", "Unsupported format: " + event.getFormat() + " (only pdf is supported in Phase 1)"));
+      }
+
+      AssetEntry entry;
+
+      try {
+         entry = Tool.isEmptyString(event.getDashboardId())
+            ? null : AssetEntry.createAssetEntry(event.getDashboardId());
+      }
+      catch(RuntimeException e) {
+         return ResponseEntity.badRequest().body(Map.of(
+            "error", "dashboardId is not a valid asset identifier: " + event.getDashboardId()));
+      }
 
       if(entry == null || entry.getPath() == null ||
          !entry.getPath().startsWith(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/"))

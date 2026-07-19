@@ -103,4 +103,20 @@ class WizViewsheetExportControllerTest {
       verify(vs, never()).getViewsheet(any(), any());
       verify(vs).closeViewsheet("rt1", principal); // always closed, even on 403
    }
+
+   @Test
+   void rejectsUnsupportedFormat() throws Exception {
+      ViewsheetService vs = mock(ViewsheetService.class);
+      WizViewsheetExportController ctrl = new WizViewsheetExportController(
+         vs, mock(WizVsService.class), mock(WizPrintLayoutBuilder.class),
+         mock(VSExportService.class), mock(SecurityEngine.class));
+
+      WizExportReportEvent ev = event(managedDashboardIdentifier());
+      ev.setFormat("xlsx");
+
+      ResponseEntity<?> resp = ctrl.exportReport(ev, mock(Principal.class));
+
+      assertEquals(400, resp.getStatusCode().value());
+      verify(vs, never()).openViewsheet(any(), any(), anyBoolean());
+   }
 }
