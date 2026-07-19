@@ -32,6 +32,7 @@ import inetsoft.web.wiz.service.WizVisualizationService;
 import inetsoft.web.wiz.service.WizVsService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 import java.security.Principal;
@@ -118,5 +119,53 @@ class WizViewsheetExportControllerTest {
 
       assertEquals(400, resp.getStatusCode().value());
       verify(vs, never()).openViewsheet(any(), any(), anyBoolean());
+   }
+
+   @Test
+   void happyPathBuildsLayoutPersistsAndReturnsExportedBytes() throws Exception {
+      ViewsheetService vs = mock(ViewsheetService.class);
+      WizVsService wizVsService = mock(WizVsService.class);
+      WizPrintLayoutBuilder builder = mock(WizPrintLayoutBuilder.class);
+      VSExportService exportService = mock(VSExportService.class);
+      SecurityEngine sec = mock(SecurityEngine.class);
+      Principal principal = mock(Principal.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      inetsoft.uql.viewsheet.vslayout.LayoutInfo layoutInfo = mock(inetsoft.uql.viewsheet.vslayout.LayoutInfo.class);
+
+      when(viewsheet.getLayoutInfo()).thenReturn(layoutInfo);
+      when(vs.openViewsheet(any(), eq(principal), eq(true))).thenReturn("rt1");
+      when(vs.getViewsheet("rt1", principal)).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(sec.checkPermission(eq(principal), eq(ResourceType.VIEWSHEET_TOOLBAR_ACTION),
+         eq("Export"), eq(ResourceAction.READ))).thenReturn(true);
+
+      var fakeLayout = new inetsoft.uql.viewsheet.vslayout.PrintLayout();
+      when(builder.build(eq(viewsheet), eq("letter"), eq("Q39 Board"), isNull(), anyList()))
+         .thenReturn(fakeLayout);
+
+      byte[] fakePdf = "%PDF-1.4 fake".getBytes();
+      doAnswer(inv -> {
+         inetsoft.web.viewsheet.service.ExportResponse resp = inv.getArgument(9);
+         resp.getOutputStream().write(fakePdf);
+         return null;
+      }).when(exportService).exportViewsheet(eq(rvs), anyInt(), eq(false), eq(false), eq(true),
+         eq(false), eq(false), any(String[].class), eq(false), any(), eq(principal));
+
+      WizViewsheetExportController ctrl = new WizViewsheetExportController(
+         vs, wizVsService, builder, exportService, sec);
+
+      WizExportReportEvent ev = event(managedDashboardIdentifier());
+      ev.setPageSize("letter");
+
+      ResponseEntity<?> resp = ctrl.exportReport(ev, principal);
+
+      assertEquals(200, resp.getStatusCode().value());
+      assertArrayEquals(fakePdf, (byte[]) resp.getBody());
+      assertEquals(MediaType.APPLICATION_PDF, resp.getHeaders().getContentType());
+      assertTrue(resp.getHeaders().getFirst("Content-Disposition").contains("Q39 Board.pdf"));
+      verify(layoutInfo).setPrintLayout(fakeLayout);
+      verify(wizVsService).persistViewsheet(viewsheet, managedDashboardIdentifier(), principal);
+      verify(vs).closeViewsheet("rt1", principal);
    }
 }
