@@ -119,4 +119,72 @@ class WizPrintLayoutBuilderTest {
       assertThrows(IllegalStateException.class,
          () -> builder.build(vs, "a4", "Board", null, charts));
    }
+
+   @Test
+   void addsStrippedInsightsBlockBelowChartWithoutResizingTheChart() {
+      Viewsheet vs = new Viewsheet();
+      textAssembly(vs, "Chart1", 0);
+      List<WizPrintLayoutBuilder.ChartCaption> charts = List.of(
+         new WizPrintLayoutBuilder.ChartCaption("First", "cap one", 0, "**Bold** finding\n- point one")
+      );
+
+      PrintLayout layout = builder.build(vs, "a4", "Q39 Board", "Premium drives revenue.", charts);
+
+      List<VSAssemblyLayout> all = layout.getVSAssemblyLayouts();
+
+      VSAssemblyLayout chartLayout = all.stream()
+         .filter(l -> !(l instanceof VSEditableAssemblyLayout))
+         .filter(l -> l.getName().equals("Chart1"))
+         .findFirst().orElseThrow();
+      // 576x400 = PAGE_CONTENT_WIDTH_PT x CHART_HEIGHT_PT (private constants; hardcoded here since
+      // this test lives in the same package but not the same class, so private members aren't visible).
+      assertEquals(new Dimension(576, 400), chartLayout.getSize(),
+         "chart box is not resized when insights are present");
+
+      List<VSEditableAssemblyLayout> texts = all.stream()
+         .filter(l -> l instanceof VSEditableAssemblyLayout)
+         .map(l -> (VSEditableAssemblyLayout) l)
+         .collect(Collectors.toList());
+      // title/recap + caption + insights = 3
+      assertEquals(3, texts.size());
+
+      VSEditableAssemblyLayout insights = texts.stream()
+         .filter(t -> ((TextVSAssemblyInfo) t.getInfo()).getText().contains("Bold finding"))
+         .findFirst().orElseThrow();
+      String insightsText = ((TextVSAssemblyInfo) insights.getInfo()).getText();
+      assertTrue(insightsText.contains("Bold finding"), "markdown bold stripped: " + insightsText);
+      assertTrue(insightsText.contains("• point one"), "markdown bullet normalized: " + insightsText);
+      assertFalse(insightsText.contains("**"), "no raw markdown syntax survives: " + insightsText);
+   }
+
+   @Test
+   void omitsInsightsBlockWhenBlank() {
+      Viewsheet vs = new Viewsheet();
+      textAssembly(vs, "Chart1", 0);
+      List<WizPrintLayoutBuilder.ChartCaption> charts = List.of(
+         new WizPrintLayoutBuilder.ChartCaption("First", "cap one", 0, "   ")
+      );
+
+      PrintLayout layout = builder.build(vs, "a4", "Q39 Board", "Premium drives revenue.", charts);
+
+      long editableTextBlocks = layout.getVSAssemblyLayouts().stream()
+         .filter(l -> l instanceof VSEditableAssemblyLayout).count();
+      // title/recap + caption only = 2 (same as the baseline before this feature)
+      assertEquals(2, editableTextBlocks);
+   }
+
+   @Test
+   void threeArgChartCaptionStillCompilesAndOmitsInsights() {
+      Viewsheet vs = new Viewsheet();
+      textAssembly(vs, "Chart1", 0);
+      List<WizPrintLayoutBuilder.ChartCaption> charts = List.of(
+         new WizPrintLayoutBuilder.ChartCaption("First", "cap one", 0)
+      );
+
+      PrintLayout layout = builder.build(vs, "a4", "Board", null, charts);
+
+      long editableTextBlocks = layout.getVSAssemblyLayouts().stream()
+         .filter(l -> l instanceof VSEditableAssemblyLayout).count();
+      assertEquals(2, editableTextBlocks, "the 3-arg compatibility constructor omits insights");
+   }
 }
