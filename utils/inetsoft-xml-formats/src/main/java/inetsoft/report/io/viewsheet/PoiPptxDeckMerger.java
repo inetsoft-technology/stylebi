@@ -17,15 +17,22 @@
  */
 package inetsoft.report.io.viewsheet;
 
+import inetsoft.web.wiz.service.MarkdownPlainText;
 import inetsoft.web.wiz.service.PptxDeckMerger;
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
 import org.apache.poi.xslf.usermodel.XSLFSlide;
 import org.apache.poi.xslf.usermodel.XSLFTextBox;
+import org.apache.poi.xslf.usermodel.XSLFTextRun;
 
 import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
 import java.awt.geom.Rectangle2D;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -62,6 +69,10 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
                   // after is the only ordering under which it survives.
                   addCaption(target, slide.title(), slide.caption());
                }
+            }
+
+            if(slide.insightsMarkdown() != null && !slide.insightsMarkdown().isBlank()) {
+               addInsightsSlides(merged, slide.insightsMarkdown());
             }
          }
 
@@ -102,8 +113,67 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
       box.setText("Failed to render: " + (title == null ? "" : title));
    }
 
+   /** Appends one or more insights-only slides (no chart image, just a text box near the full
+    *  slide) so long insights are never truncated — each slide holds as much stripped text as
+    *  fits per {@link #chunkInsightsText}. */
+   private void addInsightsSlides(XMLSlideShow show, String insightsMarkdown) {
+      String stripped = MarkdownPlainText.strip(insightsMarkdown);
+
+      for(String chunk : chunkInsightsText(stripped)) {
+         XSLFSlide slide = show.createSlide();
+         XSLFTextBox box = slide.createTextBox();
+         box.setAnchor(new Rectangle2D.Double(MARGIN_PT, MARGIN_PT,
+            SLIDE_WIDTH_PT - 2 * MARGIN_PT, SLIDE_HEIGHT_PT - 2 * MARGIN_PT));
+         XSLFTextRun run = box.setText(chunk);
+         run.setFontSize(INSIGHTS_FONT_SIZE_PT);
+      }
+   }
+
+   /** Estimates a per-slide character budget from real font metrics (measured headlessly via
+    *  java.awt.Font/FontMetrics — confirmed to work without a display) and splits plainText into
+    *  that many characters per chunk, snapping each split point back to the nearest preceding
+    *  space so a word is never broken across two slides. The one exception is a single token
+    *  longer than an entire slide's budget, which is hard-split (pathological input, not expected
+    *  from real insights text). */
+   private List<String> chunkInsightsText(String plainText) {
+      Font font = new Font(Font.SANS_SERIF, Font.PLAIN, (int) INSIGHTS_FONT_SIZE_PT);
+      BufferedImage measuring = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+      Graphics2D g = measuring.createGraphics();
+      FontMetrics fm = g.getFontMetrics(font);
+      g.dispose();
+
+      double boxWidthPt = SLIDE_WIDTH_PT - 2 * MARGIN_PT;
+      double boxHeightPt = SLIDE_HEIGHT_PT - 2 * MARGIN_PT;
+      double avgCharWidthPt = fm.stringWidth("abcdefghijklmnopqrstuvwxyz") / 26.0;
+      int charsPerLine = Math.max(1, (int) (boxWidthPt / avgCharWidthPt));
+      int linesPerSlide = Math.max(1, (int) (boxHeightPt / fm.getHeight()));
+      int charsPerSlide = charsPerLine * linesPerSlide;
+
+      List<String> chunks = new ArrayList<>();
+      String remaining = plainText.trim();
+
+      while(!remaining.isEmpty()) {
+         if(remaining.length() <= charsPerSlide) {
+            chunks.add(remaining);
+            break;
+         }
+
+         int splitAt = remaining.lastIndexOf(' ', charsPerSlide);
+
+         if(splitAt <= 0) {
+            splitAt = charsPerSlide; // pathological: no space within budget — hard split
+         }
+
+         chunks.add(remaining.substring(0, splitAt).trim());
+         remaining = remaining.substring(splitAt).trim();
+      }
+
+      return chunks;
+   }
+
    /** 16:9 widescreen in points (1in = 72pt): 13.33in x 7.5in. */
    private static final int SLIDE_WIDTH_PT = 960;
    private static final int SLIDE_HEIGHT_PT = 540;
    private static final int MARGIN_PT = 40;
+   private static final double INSIGHTS_FONT_SIZE_PT = 16.0;
 }
