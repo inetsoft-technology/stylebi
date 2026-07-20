@@ -177,6 +177,30 @@ class MetadataApiServiceStructureTest {
       assertEquals("field['a'] + field['b']", expression.getExpression());
    }
 
+   @Test
+   void mapsDescriptionForColumns() {
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly t = new PhysicalBoundTableAssembly(ws, "accounts");
+      ColumnSelection cs = new ColumnSelection();
+
+      // A column carrying a StyleBI column description (the same source /ws/worksheet-model's
+      // createColumnMeta already reads via columnRef.getDescription()).
+      ColumnRef described = new ColumnRef(new AttributeRef(null, "industry"));
+      described.setDescription("The industry sector of the account");
+      cs.addAttribute(described);
+
+      // A column with no description — its structure column description must stay null.
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "annual_revenue")));
+
+      t.setColumnSelection(cs, false);
+
+      var columns = MetadataApiService.extractStructureColumns(t);
+
+      assertEquals(2, columns.size());
+      assertEquals("The industry sector of the account", columns.get(0).getDescription());
+      assertNull(columns.get(1).getDescription(), "column without a description should not carry one");
+   }
+
    // ---- extractStructureSource ----
 
    @Test
