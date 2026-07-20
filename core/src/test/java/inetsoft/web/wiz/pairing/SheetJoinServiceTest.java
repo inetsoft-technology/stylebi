@@ -38,7 +38,7 @@ import static org.mockito.Mockito.when;
  * [wrongUser]       mint for alice, join as bob -> PairingException
  * [codeConsumed]    second join with same code -> PairingException
  * [featureOff]      feature off -> PairingException; code not consumed
- * [viewsheet]       viewsheet code -> PairingException (not yet supported)
+ * [viewsheet]       viewsheet code, valid + same user -> JoinSession opened
  * [lockout]         8 failed lookups from the same caller -> 9th call (even with a valid code)
  *                   throws PairingException with Kind.RATE_LIMITED
  * [differentKeys]   lockout of one caller does not affect a different caller
@@ -139,15 +139,31 @@ class SheetJoinServiceTest {
    }
 
    // ---------------------------------------------------------------------------
-   // 6. viewsheetCodeIsRejected
+   // 6. viewsheetCodeGrantsSession
    // ---------------------------------------------------------------------------
    @Test
-   void viewsheetCodeIsRejected() {
+   void viewsheetCodeGrantsSession() throws PairingException {
       when(feature.isEnabled()).thenReturn(true);
       String code = pairing.mint("Viewsheet/bar-1", ALICE_KEY, "sock-5", null, SheetType.VIEWSHEET);
       Principal alice = TestPrincipals.user("alice", "host-org");
 
-      assertThrows(PairingException.class, () -> svc.join(code, alice));
+      JoinSession session = svc.join(code, alice);
+
+      assertNotNull(session);
+      assertEquals("Viewsheet/bar-1", session.runtimeId());
+      assertEquals(SheetType.VIEWSHEET, session.sheetType());
+   }
+
+   // ---------------------------------------------------------------------------
+   // 6b. differentLogicalUserIsRejectedForViewsheet
+   // ---------------------------------------------------------------------------
+   @Test
+   void differentLogicalUserIsRejectedForViewsheet() {
+      when(feature.isEnabled()).thenReturn(true);
+      String code = pairing.mint("Viewsheet/bar-2", ALICE_KEY, "sock-6", null, SheetType.VIEWSHEET);
+      Principal bob = TestPrincipals.user("bob", "host-org");
+
+      assertThrows(PairingException.class, () -> svc.join(code, bob));
    }
 
    // ---------------------------------------------------------------------------

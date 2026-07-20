@@ -435,6 +435,21 @@ _#(fl.action.newGroupDes)</div>
     </div>
   </div>
 }
+@if (isViewsheet && sheet && wizService.sheetAgentPairingEnabled) {
+  <div ngbDropdown #wizConnectVsDropdown="ngbDropdown" placement="bottom-end" container="body">
+    <button type="button" class="btn-toolbar btn composer-btn wiz-connect-toggle" [ngbTooltip]="WizConnect"
+            triggers="hover" container="body" ngbDropdownToggle>
+      <i class="share-link-icon icon-size-medium"></i>
+    </button>
+    <div ngbDropdownMenu class="wiz-connect-dropdown p-2">
+      <wiz-connect-to-claude
+        [runtimeId]="sheet.runtimeId"
+        sheetType="VIEWSHEET"
+        [socketConnection]="sheet.socketConnection">
+      </wiz-connect-to-claude>
+    </div>
+  </div>
+}
 </div>
 <ng-template #Assistant>
   <div class="composer-tooltip"><b>_#(Assistant)</b></div>
