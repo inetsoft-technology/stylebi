@@ -24,8 +24,10 @@ import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.WizUtil;
 import inetsoft.util.Catalog;
@@ -81,11 +83,13 @@ import java.util.UUID;
 public class WizDashboardService {
    public WizDashboardService(ViewsheetService viewsheetService,
                                AddVisualizationServiceProxy addVisualizationService,
-                               SecurityEngine securityEngine)
+                               SecurityEngine securityEngine,
+                               WizVsService wizVsService)
    {
       this.viewsheetService = viewsheetService;
       this.addVisualizationService = addVisualizationService;
       this.securityEngine = securityEngine;
+      this.wizVsService = wizVsService;
    }
 
    public WizDashboardResult composeDashboard(WizDashboardEvent event, Principal principal)
@@ -153,6 +157,23 @@ public class WizDashboardService {
          }
 
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+
+         // #treemap-heal: a merged visualization may be a treemap-family chart saved with its
+         // hierarchy dims on the X slot and an empty group slot (see
+         // WizVsService#normalizeTreemapBindingToGroup) — SeparateGraphGenerator's treemap branch
+         // reads hierarchy dims only from the group slot, so an un-healed chart renders as an
+         // empty cartesian layout. Heal every merged chart assembly here, BEFORE the composed
+         // dashboard is saved, so the saved asset the export renders from (not a live runtime)
+         // already carries the durable group-slot structure. No-op for non-treemap charts and
+         // already-correctly-structured treemaps.
+         if(rvs.getViewsheet() != null) {
+            for(Assembly a : rvs.getViewsheet().getAssemblies()) {
+               if(a instanceof ChartVSAssembly chart) {
+                  wizVsService.normalizeTreemapBindingToGroup(chart.getVSChartInfo());
+               }
+            }
+         }
+
          AssetEntry savedVsEntry = resolveTargetEntry(event.getExistingIdentifier(), event.getName(), principal);
 
          WizUtil.saveWizSheet(rvs, principal, savedVsEntry,
@@ -202,5 +223,6 @@ public class WizDashboardService {
    private final ViewsheetService viewsheetService;
    private final AddVisualizationServiceProxy addVisualizationService;
    private final SecurityEngine securityEngine;
+   private final WizVsService wizVsService;
    private static final Logger LOG = LoggerFactory.getLogger(WizDashboardService.class);
 }

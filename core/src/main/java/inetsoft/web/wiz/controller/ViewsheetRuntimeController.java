@@ -137,6 +137,33 @@ public class ViewsheetRuntimeController {
                vs.setWizInfo(new Viewsheet.WizInfo(true, null, null));
             }
          }
+
+         // #treemap-heal: some saved treemap-family charts were built with hierarchy dims on the
+         // X slot and an empty group slot (a wiz binding-path defect, fixed at create time in
+         // WizVsService#applyChartBinding — but pre-existing saved assets still have the old
+         // shape). SeparateGraphGenerator's treemap branch reads hierarchy dims only from the
+         // group slot, so those assets render as an empty cartesian chart. Heal them here on every
+         // open so the live/companion viewer renders correctly regardless of how the asset was
+         // originally saved; normalizeTreemapBindingToGroup is a no-op for already-correct
+         // treemaps and non-treemap charts. Mutating the ChartInfo alone is not enough — the
+         // sandbox may already hold a cached (empty) VGraphPair/data for this assembly from a
+         // prior render, so reset it the same way every other in-place chart mutation in
+         // WizVsService does (e.g. removeVisualization): resetDataMap + clearGraph, forcing the
+         // browser's on-demand render (see the sampled-preview comment below) to recompute against
+         // the healed binding instead of serving the stale empty plot.
+         if(assembly instanceof ChartVSAssembly chart && rvs != null) {
+            wizVsService.normalizeTreemapBindingToGroup(chart.getVSChartInfo());
+
+            rvs.getViewsheetSandbox().ifPresent(box -> {
+               box.resetDataMap(assembly.getName());
+
+               try {
+                  box.clearGraph(assembly.getName());
+               }
+               catch(Exception ignore) {
+               }
+            });
+         }
       }
       catch(Exception ex) {
          log.warn("Could not configure reopened wiz runtime {} for re-binding: {}", runtimeId, ex.getMessage());
@@ -253,7 +280,13 @@ public class ViewsheetRuntimeController {
          }
 
          try {
-            WizVsService.VerifyResult vr = wizVsService.verifyChartData(rvs, assembly.getName());
+            // getVGraphPair (used by verifyChartData) only supports ChartVSAssembly - it casts
+            // unconditionally and throws ClassCastException on a Table/Crosstab assembly, which
+            // findChartAssembly's first-assembly fallback can legitimately hand back for a saved
+            // "table"/"crosstab" wiz visualization. Route those through the TableLens-based path.
+            WizVsService.VerifyResult vr = assembly instanceof ChartVSAssembly
+               ? wizVsService.verifyChartData(rvs, assembly.getName())
+               : wizVsService.verifyTableData(rvs, assembly.getName());
             result.setHasData(vr.hasData());
             result.setRowCount(vr.rowCount());
          }
