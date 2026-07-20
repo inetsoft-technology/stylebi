@@ -112,4 +112,74 @@ class PoiPptxDeckMergerTest {
          assertTrue(allText(result.getSlides().get(0)).contains("Board Only"));
       }
    }
+
+   @Test
+   void blankInsightsAddNoExtraSlide() throws Exception {
+      byte[] chart1 = oneSlideDeckWithText("CHART_MARKER");
+      List<PptxDeckMerger.ChartSlide> slides = List.of(
+         new PptxDeckMerger.ChartSlide("First", "cap", chart1, false, "   ")
+      );
+
+      byte[] merged = merger.mergeSlides("Board", null, slides);
+
+      try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
+         assertEquals(2, result.getSlides().size(), "title + chart slide only, matching today's behavior");
+      }
+   }
+
+   @Test
+   void shortInsightsProduceExactlyOneFollowingSlide() throws Exception {
+      byte[] chart1 = oneSlideDeckWithText("CHART_MARKER");
+      List<PptxDeckMerger.ChartSlide> slides = List.of(
+         new PptxDeckMerger.ChartSlide("First", "cap", chart1, false,
+            "Premium pricing drives most of the category revenue.")
+      );
+
+      byte[] merged = merger.mergeSlides("Board", null, slides);
+
+      try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
+         assertEquals(3, result.getSlides().size(), "title + chart + exactly one insights slide");
+         assertTrue(allText(result.getSlides().get(2))
+            .contains("Premium pricing drives most of the category revenue."));
+      }
+   }
+
+   @Test
+   void longInsightsSpanMultipleSlidesWithoutSplittingWords() throws Exception {
+      byte[] chart1 = oneSlideDeckWithText("CHART_MARKER");
+      String longInsights = "WORD ".repeat(6000).trim();
+      List<PptxDeckMerger.ChartSlide> slides = List.of(
+         new PptxDeckMerger.ChartSlide("First", "cap", chart1, false, longInsights)
+      );
+
+      byte[] merged = merger.mergeSlides("Board", null, slides);
+
+      try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
+         // title slide + chart slide + N insights-only slides
+         assertTrue(result.getSlides().size() > 2, "long insights must span more than one slide");
+
+         int totalWords = 0;
+         for(int i = 2; i < result.getSlides().size(); i++) {
+            String text = allText(result.getSlides().get(i)).trim();
+            assertTrue(text.matches("(WORD ?)+"),
+               "slide " + i + " must contain only whole WORD tokens, got: " + text);
+            totalWords += text.split("\\s+").length;
+         }
+         assertEquals(6000, totalWords, "no words lost or duplicated across the split");
+      }
+   }
+
+   @Test
+   void failedChartInsightsStillGetTheirOwnSlide() throws Exception {
+      List<PptxDeckMerger.ChartSlide> slides = List.of(
+         new PptxDeckMerger.ChartSlide("Broken", "n/a", null, true, "Finding survives despite the render failure.")
+      );
+
+      byte[] merged = merger.mergeSlides("Board", null, slides);
+
+      try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
+         assertEquals(3, result.getSlides().size(), "title + placeholder + insights slide");
+         assertTrue(allText(result.getSlides().get(2)).contains("Finding survives despite the render failure."));
+      }
+   }
 }
