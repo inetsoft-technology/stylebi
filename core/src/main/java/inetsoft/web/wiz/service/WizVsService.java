@@ -603,11 +603,24 @@ public class WizVsService {
             label + " produced no usable condition — check each leaf names a field and a valid operation");
       }
 
+      Color fg = parseColor(rule.getForeground(), label + " foreground");
+      Color bg = parseColor(rule.getBackground(), label + " background");
+      Font font = toFont(rule.getFontInfo());
+
+      // A chart consumes only foreground (mark/label color) and font (axis/data labels); it never uses the
+      // highlight background. So a chart rule that sets only a background — or no style at all — renders
+      // nothing. Fail loud instead of silently no-opping. Tables/output honor all three attributes.
+      if(chartRebind && fg == null && font == null) {
+         throw new IllegalArgumentException(
+            label + " has no visible effect on a chart: set a foreground color (mark/label color) or a " +
+            "font. Chart highlights do not use background color.");
+      }
+
       Highlight highlight = new TextHighlight();
       highlight.setName(name);
-      highlight.setForeground(parseColor(rule.getForeground(), label + " foreground"));
-      highlight.setBackground(parseColor(rule.getBackground(), label + " background"));
-      highlight.setFont(toFont(rule.getFontInfo()));
+      highlight.setForeground(fg);
+      highlight.setBackground(bg);
+      highlight.setFont(font);
       highlight.setConditionGroup(conditionGroup);
       return highlight;
    }
