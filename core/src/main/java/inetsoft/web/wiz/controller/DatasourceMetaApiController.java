@@ -97,12 +97,21 @@ public class DatasourceMetaApiController {
       return metadataService.getWorksheetMetaData(WizUtil.decodeId(worksheetId), (XPrincipal) principal);
    }
 
+   /**
+    * Returns a worksheet's per-table structure.
+    *
+    * @param generation optional worksheet-table generation. When supplied, only the tables belonging
+    *    to that generation (by their {@code _<generation>} name suffix) are returned; omit it to get
+    *    every table (the MCP path, whose in-place edits need to see all tables, omits it).
+    */
    @GetMapping("/ws/structure/{id}")
    public WorksheetStructure getWorksheetStructure(
       @PathVariable("id") String worksheetId,
+      @RequestParam(value = "generation", required = false) Integer generation,
       Principal principal) throws Exception
    {
-      return metadataService.getWorksheetStructure(WizUtil.decodeId(worksheetId), (XPrincipal) principal);
+      return metadataService.getWorksheetStructure(
+         WizUtil.decodeId(worksheetId), generation, (XPrincipal) principal);
    }
 
    /**
