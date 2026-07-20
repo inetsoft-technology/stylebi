@@ -285,6 +285,7 @@ public class WizViewsheetExportController {
 
       try {
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+         enlargeChartForSlide(rvs);
          ByteArrayOutputStream out = new ByteArrayOutputStream();
          exportService.exportViewsheet(rvs, FileFormatInfo.EXPORT_TYPE_POWERPOINT, false, false, true,
             false, false, new String[0], false, new ExportResponse(out), principal);
@@ -305,6 +306,38 @@ public class WizViewsheetExportController {
          }
       }
    }
+
+   /**
+    * Enlarge the chart(s) in a to-be-exported single-chart runtime so the PPTX render fills the
+    * merged 16:9 slide instead of landing at the chart's small saved size in the top-left corner.
+    * PPTVSExporter renders each chart at its assembly pixel size (scaled by PIXEL_TO_POINT=0.75 to
+    * slide points) and sizes the slide to fit it, so a ~400px saved chart becomes a small image on
+    * the 960x540pt deck. Sizing the assembly to {@link #PPTX_CHART_W_PX}x{@link #PPTX_CHART_H_PX}
+    * (1200x600px -> 900x450pt) below a caption-height offset makes the exported chart fill the
+    * slide below PptxDeckMerger's caption band, and renders it at full resolution (no upscaling).
+    * Runtime-only (a throwaway export runtime) — the saved asset is untouched.
+    */
+   private void enlargeChartForSlide(RuntimeViewsheet rvs) {
+      Viewsheet vs = rvs != null ? rvs.getViewsheet() : null;
+
+      if(vs == null || vs.getAssemblies() == null) {
+         return;
+      }
+
+      for(var assembly : vs.getAssemblies()) {
+         if(assembly instanceof inetsoft.uql.viewsheet.ChartVSAssembly chart) {
+            chart.getVSAssemblyInfo().setPixelOffset(new java.awt.Point(PPTX_CHART_X_PX, PPTX_CHART_Y_PX));
+            chart.getVSAssemblyInfo().setPixelSize(new java.awt.Dimension(PPTX_CHART_W_PX, PPTX_CHART_H_PX));
+         }
+      }
+   }
+
+   // 1200x600px * 0.75 = 900x450pt; offset 40x96px = 30x72pt leaves room for the caption band that
+   // PptxDeckMerger adds at the top of the merged 960x540pt slide.
+   private static final int PPTX_CHART_X_PX = 40;
+   private static final int PPTX_CHART_Y_PX = 96;
+   private static final int PPTX_CHART_W_PX = 1200;
+   private static final int PPTX_CHART_H_PX = 600;
 
    private final ViewsheetService viewsheetService;
    private final WizVsService wizVsService;
