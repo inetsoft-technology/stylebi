@@ -91,6 +91,13 @@ public class BindingRootProxy implements ProxyObject {
    public ScriptScope swapGlobal(ScriptScope newGlobal) {
       ScriptScope prev = global;
       global = newGlobal;
+      // A reused root scope can be mutated in place between execs while keeping
+      // the same identity -- CalcCellScope/CrosstabCellScope.setCell(row,col)
+      // changes which group/dimension names it exposes -- which the root-identity
+      // check in inChain() cannot see. Binding the chain-membership cache to a
+      // single exec keeps it correct: within one exec the chain's membership is
+      // immutable apart from putMember (which also clears). (#75676)
+      invalidateChainCache();
       return prev;
    }
 
@@ -111,9 +118,11 @@ public class BindingRootProxy implements ProxyObject {
     * member that is simply absent.
     */
    private Object findInChain(String name) {
-      for(ScriptScope s = global; s != null; s = s.getParentScope()) {
-         if(s.hasMember(name)) {
-            return s.getMember(name);
+      if(inChain(name)) {
+         for(ScriptScope s = global; s != null; s = s.getParentScope()) {
+            if(s.hasMember(name)) {
+               return s.getMember(name);
+            }
          }
       }
 
@@ -134,6 +143,15 @@ public class BindingRootProxy implements ProxyObject {
          }
       }
 
+      // A real js global binding resolves natively via with(...) fall-through, so
+      // report it absent here -- before the terminal Calc probe, so the ~98%
+      // "global function, not in chain" case skips that probe. Equivalent to the
+      // old `builtin != null && !hasGlobalBinding` guard, which likewise refused
+      // to return a builtin that had an exact global binding. (#75676)
+      if(isGlobalBinding(name)) {
+         return NOT_FOUND;
+      }
+
       // case-insensitive CALC functions (Rhino's global-scope prototype). Only
       // when the name has no exact global binding, so JS builtins (Date) and the
       // lowercase CALC copies are never shadowed. This is only reached after the
@@ -143,7 +161,7 @@ public class BindingRootProxy implements ProxyObject {
       if(builtinScope != null) {
          Object builtin = builtinScope.getMember(name);
 
-         if(builtin != null && !hasGlobalBinding(name)) {
+         if(builtin != null) {
             return builtin;
          }
       }
@@ -154,6 +172,62 @@ public class BindingRootProxy implements ProxyObject {
    /** Whether {@code name} is an exact (case-sensitive) member of the JS global scope. */
    private boolean hasGlobalBinding(String name) {
       return context != null && context.getBindings("js").hasMember(name);
+   }
+
+   // Permanent cache of the exact-name global-binding test. Global bindings are
+   // installed once at engine init and stable for the engine's lifetime, so the
+   // answer never changes. Single-threaded per engine (engine lock). (#75676)
+   private final Map<String, Boolean> globalBindingCache = new HashMap<>();
+
+   private boolean isGlobalBinding(String name) {
+      Boolean cached = globalBindingCache.get(name);
+
+      if(cached != null) {
+         return cached;
+      }
+
+      boolean present = hasGlobalBinding(name);
+      globalBindingCache.put(name, present);
+      return present;
+   }
+
+   // Per-chain-root cache of "is name provided by the scope chain?" The calc table
+   // swaps in a fresh root scope per evaluation, so the cache is keyed on the root
+   // identity and dropped when the root changes; within one root the same names
+   // are probed repeatedly. Uses the real hasMember walk, so it stays correct for
+   // scopes with dynamic (non-enumerated) members. Cleared on putMember, which can
+   // add a name to a chain scope. (#75676)
+   private ScriptScope chainCacheRoot;
+   private final Map<String, Boolean> chainCache = new HashMap<>();
+
+   private void invalidateChainCache() {
+      chainCache.clear();
+      chainCacheRoot = null;
+   }
+
+   private boolean inChain(String name) {
+      if(chainCacheRoot != global) {
+         chainCache.clear();
+         chainCacheRoot = global;
+      }
+
+      Boolean cached = chainCache.get(name);
+
+      if(cached != null) {
+         return cached;
+      }
+
+      boolean found = false;
+
+      for(ScriptScope s = global; s != null; s = s.getParentScope()) {
+         if(s.hasMember(name)) {
+            found = true;
+            break;
+         }
+      }
+
+      chainCache.put(name, found);
+      return found;
    }
 
    /** Resolve a name through the full chain; returns null if not found. */
@@ -196,6 +270,9 @@ public class BindingRootProxy implements ProxyObject {
    @Override public boolean hasMember(String key) { return resolves(key); }
    @Override public Object getMemberKeys() { return enumerate().toArray(new String[0]); }
    @Override public void putMember(String key, Value value) {
+      // a write can create a new name on a chain scope, so the "is name in chain?"
+      // answer for the current root may change; drop the cache. (#75676)
+      invalidateChainCache();
       Object host = ScriptValueConverter.toHost(value);
 
       // Rhino scope-chain write semantics: an unqualified assignment to a name

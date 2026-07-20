@@ -95,4 +95,37 @@ class BindingRootProxyTest {
       assertEquals("updated", parent.getMember("pv"));   // parent updated
       assertNull(global.getMember("pv"));                // no stale shadow on root
    }
+
+   // A root scope object can be reused across execs and mutated in place while
+   // keeping the same identity -- CalcCellScope/CrosstabCellScope.setCell(row,col)
+   // changes which group/dimension names it exposes between range-condition
+   // evaluations. The chain-membership cache is keyed on root identity, so it must
+   // be invalidated on swapGlobal (a new exec) or it would report a stale
+   // presence/absence for the previous cell. (Regression guard for #75676.)
+   @Test void chainCacheInvalidatedWhenReusedRootMutatedAcrossExec() {
+      class CellScope implements ScriptScope {
+         boolean present;   // toggled in place, like setCell moving to a new cell
+         public Object getMember(String n) { return present && "x".equals(n) ? 11 : null; }
+         public boolean hasMember(String n) { return present && "x".equals(n); }
+         public void putMember(String n, Object v) { }
+         public Object[] getMemberKeys() { return present ? new Object[]{ "x" } : new Object[0]; }
+      }
+
+      CellScope scope = new CellScope();
+      BindingRootProxy root = new BindingRootProxy(scope, () -> null);
+
+      // exec 1: "x" absent for this cell -> caches "x not in chain"
+      root.swapGlobal(scope);
+      scope.present = false;
+      assertFalse(root.hasMember("x"));
+      assertNull(root.resolve("x"));
+
+      // between execs the SAME object is mutated to the next cell, where "x" exists
+      scope.present = true;
+
+      // exec 2: swapGlobal must drop the stale cache so the live membership is seen
+      root.swapGlobal(scope);
+      assertTrue(root.hasMember("x"), "stale chain-cache absence after in-place mutation");
+      assertEquals(11, root.resolve("x"));
+   }
 }
