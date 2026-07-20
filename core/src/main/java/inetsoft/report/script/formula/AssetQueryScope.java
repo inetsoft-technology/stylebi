@@ -104,24 +104,8 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
    @Override
    public Object getMember(String id) {
       try {
-         Worksheet ws = box.getWorksheet();
-
-         if(ws != null) {
-            Object val = tablemap.get(id);
-
-            if(val == null) {
-               if(ws.getAssembly(id) instanceof TableAssembly) {
-                  val = new TableAssemblyScriptable(id, box, mode);
-                  tablemap.put(id, val);
-               }
-               else {
-                  tablemap.put(id, NOT_TABLE);
-               }
-            }
-
-            if(val instanceof TableArray) {
-               return val;
-            }
+         if(getTableValue(id) instanceof TableArray val) {
+            return val;
          }
       }
       catch(Exception ex) {
@@ -136,9 +120,7 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
    @Override
    public boolean hasMember(String id) {
       try {
-         Worksheet ws = box.getWorksheet();
-
-         if(ws != null && ws.getAssembly(id) instanceof TableAssembly) {
+         if(getTableValue(id) instanceof TableArray) {
             return true;
          }
       }
@@ -147,6 +129,41 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
       }
 
       return members.containsKey(id);
+   }
+
+   /**
+    * Resolve {@code id} to its cached scriptable (a {@link TableArray}) or the
+    * {@code NOT_TABLE} sentinel, populating the {@code tablemap} cache on first
+    * lookup; returns {@code null} when no worksheet is available.
+    *
+    * <p>Shared by {@link #getMember} and {@link #hasMember} so the two cannot
+    * drift out of sync. GraalJS wraps scripts in {@code with(__scope__){...}} and
+    * calls hasMember for every identifier in every per-cell/per-row evaluation;
+    * without this cache each call hits {@code ws.getAssembly(id)}, and a miss
+    * rebuilds the entire worksheet assembly map ({@code Worksheet.createCache}),
+    * an O(cells x names x assemblies) explosion that makes calc tables take 30+s.
+    * (#75676)
+    */
+   private Object getTableValue(String id) throws Exception {
+      Worksheet ws = box.getWorksheet();
+
+      if(ws == null) {
+         return null;
+      }
+
+      Object val = tablemap.get(id);
+
+      if(val == null) {
+         if(ws.getAssembly(id) instanceof TableAssembly) {
+            val = new TableAssemblyScriptable(id, box, mode);
+            tablemap.put(id, val);
+         }
+         else {
+            tablemap.put(id, NOT_TABLE);
+         }
+      }
+
+      return val;
    }
 
    @Override

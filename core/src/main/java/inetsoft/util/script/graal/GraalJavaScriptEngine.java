@@ -284,7 +284,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
          // Rhino set the Calc scope as the global scope's prototype
          // (globalscope.setPrototype(new Calc())), and Calc's member lookup is
-         // case-insensitive (funcmap.get(id.toLowerCase())). So unqualified
+         // case-insensitive (funcmap is a TreeMap ordered by
+         // String.CASE_INSENSITIVE_ORDER). So unqualified
          // CALC/statistical functions resolved regardless of case, e.g.
          // NthMostFrequent, PthPercentile, Sum. GraalJS global bindings are
          // case-sensitive, so the lowercase copies above only match exact-case
