@@ -515,6 +515,12 @@ public class WizVsService {
     * Whether a crosstab data cell's aggregate header matches the requested field. Accepts an exact
     * match ("Sum(Sales)" == "Sum(Sales)") or a base-column match where the header aggregates the field
     * ("Sales" -> "Sum(Sales)").
+    *
+    * <p>The base-column form is ambiguous when a crosstab has two aggregates over the same column with
+    * different functions (e.g. both {@code Sum(Sales)} and {@code Avg(Sales)}): a rule using
+    * {@code field = "Sales"} binds to whichever aggregate {@link #findHighlightCell} encounters first in
+    * column order. To target a specific aggregate in that case, pass the full aggregate name
+    * (e.g. {@code "Avg(Sales)"}), which takes the exact-match path above.
     */
    private boolean measureMatches(String measureHeader, String field) {
       if(measureHeader == null) {
@@ -561,11 +567,6 @@ public class WizVsService {
     * Builds a StyleBI {@link Highlight} from a wiz highlight rule: converts its condition tree to a
     * {@link ConditionList} with the shared filter converter and applies name/colors/font. Throws
     * (naming the rule) on a missing condition tree or an unparseable color.
-    *
-    * @param columns      candidate condition fields used to coerce condition values to the right type
-    *                     (see buildConditionItem); for charts these are the aggregated VIEW columns.
-    * @param chartRebind  when {@code true}, rebind each condition field to the matching chart column so
-    *                     it resolves against the aggregated chart DataSet at render time (chart only).
     *
     * @param columns      candidate condition fields used to coerce condition values to the right type
     *                     (see buildConditionItem); for charts these are the aggregated VIEW columns.
