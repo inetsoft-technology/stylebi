@@ -595,7 +595,19 @@ public class WizVsService {
       ConditionList conditionGroup = buildConditionList(cm, columns);
 
       if(chartRebind) {
-         rebindChartConditionFields(conditionGroup, columns);
+         List<String> unresolved = rebindChartConditionFields(conditionGroup, columns);
+
+         // A chart highlight condition is matched against the aggregated chart DataSet, whose headers are
+         // the fields' full names (a dimension like "State", a measure like "Sum(Sales)"). A condition
+         // field that resolves to NONE of the chart's bound columns can never match at render time, so the
+         // highlight would persist but silently color nothing. Fail loud (naming the field and the valid
+         // columns) instead — mirrors the table/crosstab "no such column" behavior.
+         if(!unresolved.isEmpty()) {
+            throw new IllegalArgumentException(
+               label + " references field(s) not bound to this chart: " + String.join(", ", unresolved) +
+               ". Name a bound dimension by its header (e.g. \"State\") or a measure by its aggregated " +
+               "form (e.g. \"Sum(Sales)\"). Available chart columns: " + columnNames(columns) + ".");
+         }
       }
 
       if(conditionGroup.isEmpty()) {
@@ -666,12 +678,15 @@ public class WizVsService {
    /**
     * Rebinds each condition item's field to the matching chart column (by name) so the highlight
     * resolves against the aggregated chart DataSet. Match order: exact full-name ("Sum(Sales)"), then
-    * a chart column that aggregates the requested base column ("Sales" -> "Sum(Sales)"). Unmatched
-    * items are left untouched (the caller validates/reports an empty or unusable condition).
+    * a chart column that aggregates the requested base column ("Sales" -> "Sum(Sales)"). Returns the
+    * names of any condition fields that matched NEITHER form, so the caller can fail loud rather than
+    * apply a highlight whose condition can never resolve against the chart DataSet (a silent no-op).
     */
-   private void rebindChartConditionFields(ConditionList conds, ColumnSelection chartCols) {
+   private List<String> rebindChartConditionFields(ConditionList conds, ColumnSelection chartCols) {
+      List<String> unresolved = new ArrayList<>();
+
       if(conds == null || chartCols == null) {
-         return;
+         return unresolved;
       }
 
       for(int i = 0; i < conds.getSize(); i++) {
@@ -695,7 +710,27 @@ public class WizVsService {
          if(match != null) {
             item.setAttribute((DataRef) match.clone());
          }
+         else {
+            unresolved.add(attr.getName());
+         }
       }
+
+      return unresolved;
+   }
+
+   /** Comma-joined list of a ColumnSelection's attribute names, for a fail-loud error message. */
+   private static String columnNames(ColumnSelection cols) {
+      StringBuilder sb = new StringBuilder();
+
+      for(int i = 0; cols != null && i < cols.getAttributeCount(); i++) {
+         if(sb.length() > 0) {
+            sb.append(", ");
+         }
+
+         sb.append(cols.getAttribute(i).getName());
+      }
+
+      return sb.toString();
    }
 
    /** Find a chart column whose full name aggregates the given base column, e.g. "Sales" -> "Sum(Sales)". */
