@@ -958,6 +958,38 @@ public class VSChartInfo extends AbstractChartInfo implements ContentObject, Dat
          list.toArray(temp);
          setRTGroupFields(temp);
 
+         // #treemap-heal: a treemap-family chart whose hierarchy dimensions were bound on the
+         // X slot with an empty group slot renders empty, because SeparateGraphGenerator reads
+         // the treemap hierarchy only from the group slot. Move any RT X *dimension* refs into
+         // the RT group slot so such charts render as treemaps on every render path. No-op for
+         // correctly-built treemaps (group already populated) and for non-treemap charts.
+         if(GraphTypes.isTreemap(getRTChartType()) || GraphTypes.isTreemap(getChartType())) {
+            ChartRef[] rtGroupHeal = getRTGroupFields();
+
+            if(rtGroupHeal == null || rtGroupHeal.length == 0) {
+               ChartRef[] rtXHeal = getRTXFields();
+
+               if(rtXHeal != null && rtXHeal.length > 0) {
+                  List<ChartRef> healDims = new ArrayList<>();
+                  List<ChartRef> healKeepX = new ArrayList<>();
+
+                  for(ChartRef ref : rtXHeal) {
+                     if(ref instanceof XAggregateRef) {
+                        healKeepX.add(ref);
+                     }
+                     else {
+                        healDims.add(ref);
+                     }
+                  }
+
+                  if(!healDims.isEmpty()) {
+                     setRTGroupFields(healDims.toArray(new ChartRef[0]));
+                     setRTXFields(healKeepX.toArray(new ChartRef[0]));
+                  }
+               }
+            }
+         }
+
          // only not found the period dimension, period is true
          period = false;
          periodRef = pdim;
