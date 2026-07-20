@@ -239,7 +239,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             return true;
          }
 
-         if(checkOrgAdminPermission(type, resource, organization, xPrincipal)) {
+         if(checkOrgAdminPermission(type, resource, organization, xPrincipal, action)) {
             return true;
          }
       }
@@ -330,12 +330,10 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
 
       if(type == ResourceType.SECURITY_ROLE) {
          // "Organization Roles" admin delegation only covers roles actually scoped to this
-         // org — never org-less/global roles like Administrator. The built-in Organization
-         // Administrator role is org-less by design and remains in scope for every org admin.
+         // org — never org-less/global roles like Administrator or Organization Administrator
          Role orgRolesTarget = provider.getRole(IdentityID.getIdentityIDFromKey(resource));
          boolean targetInOrgRoleScope = orgRolesTarget != null &&
-            (Tool.equals(orgRolesTarget.getOrganizationID(), organization) ||
-               provider.isOrgAdministratorRole(orgRolesTarget.getIdentityID())) &&
+            Tool.equals(orgRolesTarget.getOrganizationID(), organization) &&
             Arrays.stream(provider.getAllRoles(new IdentityID[]{ orgRolesTarget.getIdentityID() }))
                .noneMatch(provider::isSystemAdministratorRole);
 
@@ -393,18 +391,14 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          {
             if((perm == null) || !perm.hasOrgEditedGrantAll(orgID) || type == ResourceType.SECURITY_ROLE) {
                // org admin permission never extends to global (org-less) roles — e.g. the
-               // built-in Administrator role — only to roles actually owned by this org.
-               // The built-in Organization Administrator role is org-less by design and
-               // remains in scope for every org admin.
+               // built-in Administrator and Organization Administrator roles — only to
+               // roles actually owned by this org
                boolean roleOutOfOrgAdminScope = false;
 
                if(type == ResourceType.SECURITY_ROLE) {
                   Role targetRole = provider.getRole(IdentityID.getIdentityIDFromKey(resource));
 
-                  if(targetRole == null ||
-                     (!Tool.equals(targetRole.getOrganizationID(), organization) &&
-                        !provider.isOrgAdministratorRole(targetRole.getIdentityID())))
-                  {
+                  if(targetRole == null || !Tool.equals(targetRole.getOrganizationID(), organization)) {
                      roleOutOfOrgAdminScope = true;
                   }
                   else {
@@ -536,7 +530,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
    }
 
    private boolean checkOrgAdminPermission(ResourceType type, String resource, String orgID,
-                                           XPrincipal principal)
+                                           XPrincipal principal, ResourceAction action)
    {
       AuthenticationProvider currProvider =
          !(principal instanceof SRPrincipal) || SUtil.isInternalUser(principal) ?
@@ -616,11 +610,17 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             .anyMatch(currProvider::isSystemAdministratorRole);
 
          // org admin permission never extends to global (org-less) roles — e.g. the built-in
-         // Administrator role — only to roles owned by this org. The built-in Organization
-         // Administrator role is itself org-less by design and must remain visible/manageable
-         // by every org's admin.
+         // Administrator role — only to roles owned by this org. The single exception is
+         // read-only visibility of the built-in, org-less "Organization Administrator" role
+         // itself: every org admin may see it (it's the role that grants their own privilege),
+         // but may never gain WRITE/DELETE/ADMIN over it — that stays reserved for site admins.
+         // The org-less check (not just the isOrgAdministratorRole name-based flag) also keeps
+         // this from matching a differently-scoped, same-named custom role in another org.
+         boolean isGlobalOrgAdminRole = role.getOrganizationID() == null &&
+            currProvider.isOrgAdministratorRole(role.getIdentityID());
+
          return !isSiteAdmin && (Tool.equals(orgID, role.getOrganizationID()) ||
-            currProvider.isOrgAdministratorRole(role.getIdentityID()));
+            (isGlobalOrgAdminRole && action == ResourceAction.READ));
       case SECURITY_ORGANIZATION:
          if(resource.equals("*")) {
             return false;
