@@ -180,4 +180,32 @@ class GraalJavaScriptEngineGlobalsTest {
    void builtinDateNotShadowedByCalc() throws Exception {
       assertInstanceOf(java.util.Date.class, eval("new Date(0)"));
    }
+
+   // Bug #75704: the #75685 case-insensitive CALC last-resort must not hijack a
+   // user variable whose name matches a CALC function name (CalcDateTime exposes
+   // minDate/maxDate). Previously `var minDate = new Date()` was intercepted by
+   // with(__scope__) (hasMember was true via the CALC builtin) and stored as a
+   // detached java.util.Date, so the next line `minDate.setFullYear(...)` read it
+   // back as a foreign host object and threw "TypeError: not a Date object". The
+   // user's `var` must shadow the CALC function and keep its native JS Date
+   // identity, exactly as Rhino's own-property-over-prototype semantics did.
+   @Test
+   void userVarShadowsCalcDateFunction() throws Exception {
+      String script =
+         "var minDate = new Date();\n" +
+         "var maxDate = new Date();\n" +
+         "minDate.setFullYear(2005, 8, 1);\n" +
+         "maxDate.setFullYear(2011, 10, 1);\n" +
+         "'' + minDate.getFullYear() + ',' + maxDate.getFullYear();\n";
+      // no "not a Date object" error, and the mutations persist
+      assertEquals("2005,2011", eval(script));
+   }
+
+   // Bug #75704: a CALC function name used as an unqualified call (never assigned)
+   // must still resolve — the shadow only kicks in for names the script assigns.
+   @Test
+   void calcDateFunctionStillResolvesWhenNotShadowed() throws Exception {
+      assertEquals("function", eval("typeof minDate"));
+      assertEquals("function", eval("typeof maxDate"));
+   }
 }
