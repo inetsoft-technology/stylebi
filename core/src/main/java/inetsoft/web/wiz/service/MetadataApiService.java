@@ -669,7 +669,8 @@ public class MetadataApiService {
          // scope is the full list (a no-op, since primary is always present when nothing is filtered).
          List<WorksheetStructure.StructureTable> fallbackScope =
             (generation == null) ? tables : seedTables;
-         structure.setPrimaryTable(resolvePrimaryTable(primaryAssembly.getName(), fallbackScope));
+         structure.setPrimaryTable(
+            resolveScopedPrimaryTable(primaryAssembly.getName(), tables, fallbackScope, generation));
       }
 
       return structure;
@@ -726,6 +727,26 @@ public class MetadataApiService {
       }
 
       return tables.get(tables.size() - 1).getName();
+   }
+
+   /**
+    * The final primaryTable to report for a (possibly generation-scoped) response. A generation-scoped
+    * read that matched no tables returns an empty {@code tables} list, so primaryTable is {@code null}:
+    * the response is a self-contained subgraph and primaryTable must resolve within {@code tables} — a
+    * non-null primary pointing outside an empty list would break that contract. Otherwise it reconciles
+    * within {@code fallbackScope} (the seed for a scoped read, the full list when unfiltered), where an
+    * unfiltered empty worksheet keeps its original primary per {@link #resolvePrimaryTable}.
+    */
+   static String resolveScopedPrimaryTable(String primary,
+                                           List<WorksheetStructure.StructureTable> tables,
+                                           List<WorksheetStructure.StructureTable> fallbackScope,
+                                           Integer generation)
+   {
+      if(generation != null && (tables == null || tables.isEmpty())) {
+         return null;
+      }
+
+      return resolvePrimaryTable(primary, fallbackScope);
    }
 
    /**

@@ -466,6 +466,44 @@ class MetadataApiServiceStructureTest {
       assertNull(MetadataApiService.resolvePrimaryTable(null, java.util.List.of(structureTable("a_2"))));
    }
 
+   // ---- resolveScopedPrimaryTable ----
+
+   @Test
+   void scopedPrimaryTableIsNullWhenGenerationMatchesNoTables() {
+      // A generation-scoped read that matched nothing returns an empty tables list, so primaryTable
+      // must be null: the response is a self-contained subgraph and primaryTable must resolve within
+      // tables — a non-null primary pointing outside an empty list would violate that contract.
+      assertNull(MetadataApiService.resolveScopedPrimaryTable(
+         "sales_2", java.util.List.of(), java.util.List.of(), 2));
+   }
+
+   @Test
+   void scopedPrimaryTableKeepsPrimaryWithinSeed() {
+      var tables = java.util.List.of(structureTable("base_1"), structureTable("sales_2"));
+      var seed = java.util.List.of(structureTable("sales_2"));
+      assertEquals("sales_2",
+                   MetadataApiService.resolveScopedPrimaryTable("sales_2", tables, seed, 2));
+   }
+
+   @Test
+   void scopedPrimaryTableFallsBackToSeedLastWhenPrimaryOutsideSeed() {
+      // primary "other_1" is another generation's table; fall back to the seed's last table (this
+      // generation's terminal), never a pulled-in upstream table.
+      var tables = java.util.List.of(
+         structureTable("base_1"), structureTable("sales_2"), structureTable("agg_2"));
+      var seed = java.util.List.of(structureTable("sales_2"), structureTable("agg_2"));
+      assertEquals("agg_2",
+                   MetadataApiService.resolveScopedPrimaryTable("other_1", tables, seed, 2));
+   }
+
+   @Test
+   void scopedPrimaryTableUnfilteredKeepsOriginalOnEmpty() {
+      // generation == null (no scoping): an empty worksheet keeps its original primaryTable, matching
+      // the pre-filtering contract (only a generation-scoped no-match nulls it out).
+      assertEquals("a_only", MetadataApiService.resolveScopedPrimaryTable(
+         "a_only", java.util.List.of(), java.util.List.of(), null));
+   }
+
    // ---- collectUpstreamRefs ----
 
    @Test
