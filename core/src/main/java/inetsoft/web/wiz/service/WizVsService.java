@@ -379,6 +379,16 @@ public class WizVsService {
             "Assembly '" + assembly.getName() + "' produced no table data to highlight.");
       }
 
+      // A highlight must key to a real DETAIL cell (table) or SUMMARY cell (crosstab). With no data
+      // rows there is no such cell; deriving a path from a header row instead would key the
+      // HighlightGroup to a HEADER-typed TableDataPath, which TableDataPath.equals never matches
+      // against a real data cell once the table has rows — the highlight would persist but silently
+      // never render. Fail loud instead of mis-applying (mirrors the crosstab empty-data behavior).
+      if(!lens.moreRows(lens.getHeaderRowCount())) {
+         throw new IllegalArgumentException(
+            "Assembly '" + assembly.getName() + "' has no data rows to highlight.");
+      }
+
       boolean crosstab = assembly instanceof CrosstabVSAssembly;
       // REPLACE semantics: start from a fresh highlight attr so any previous highlight is dropped.
       TableHighlightAttr hlAttr = new TableHighlightAttr();
@@ -441,11 +451,13 @@ public class WizVsService {
     * (a normal summary cell is preferred over a grand-total cell). Returns {@code null} when no match.
     */
    private int[] findHighlightCell(VSTableLens lens, String field, boolean crosstab) {
+      // The first data row. Callers (applyTableHighlight) guarantee at least one data row exists, so a
+      // header-row fallback is deliberately NOT used: a header row yields a HEADER-typed TableDataPath
+      // that never matches a real data cell, silently breaking the highlight.
       int dataRow = lens.getHeaderRowCount();
 
-      // Fall back to the last header row if the table has no data rows, so a path can still be derived.
       if(!lens.moreRows(dataRow)) {
-         dataRow = Math.max(lens.getHeaderRowCount() - 1, 0);
+         return null;
       }
 
       int colCount = lens.getColCount();
