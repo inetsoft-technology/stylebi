@@ -702,12 +702,21 @@ public class WizAutoBindingService {
                dim.setRankingOptionValue(String.valueOf(r.getOptionValue()));
                dim.setRankingNValue(String.valueOf(r.getRankingN()));
                dim.setRankingColValue(r.getRankingCol());
+               // Group non-ranked values as "Others" vs. discard them. Only meaningful when
+               // ranking is active, so it lives inside the ranking block.
+               dim.setGroupOthersValue(String.valueOf(r.isGroupOthers()));
             }
 
             applyDateGroup(dim, dimFc);
 
             if(dimFc.isNumericBin()) {
                WizardRecommenderUtil.applyNumericBin(dim);
+            }
+
+            // Aggregate column to sort bars by; only consulted when order is value-based
+            // (17 value-asc / 18 value-desc). Harmless to set for other orders.
+            if(dimFc.getSortByCol() != null && !dimFc.getSortByCol().isEmpty()) {
+               dim.setSortByColValue(dimFc.getSortByCol());
             }
          }
 
@@ -741,6 +750,15 @@ public class WizAutoBindingService {
                   agg.setCalculator(calc);
                }
             }
+
+            // Apply discrete (plot un-aggregated) and secondaryY (secondary Y axis) INDEPENDENTLY,
+            // matching the interactive editor (ChartAggregateInfoFactory.updateAggregateRef). The
+            // invalid both-true combination is rejected upstream (fail-loud in the plugin's
+            // normalizeFieldConfigs), so this path must not silently normalize a value away — a client
+            // doing get_current_chart_state -> edit -> re-apply would otherwise lose a value here that
+            // the editor would have kept.
+            agg.setDiscrete(meaFc.isDiscrete());
+            agg.setSecondaryY(meaFc.isSecondaryY());
          }
       }
 

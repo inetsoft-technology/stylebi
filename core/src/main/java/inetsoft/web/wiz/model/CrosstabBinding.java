@@ -47,7 +47,17 @@ public class CrosstabBinding implements BindingInfo {
       this.aggregates = aggregates;
    }
 
+   public String getPercentageByValue() {
+      return percentageByValue;
+   }
+
+   public void setPercentageByValue(String percentageByValue) {
+      this.percentageByValue = percentageByValue;
+   }
+
    private List<DimensionFieldInfo> rows;
    private List<DimensionFieldInfo> cols;
    private List<MeasureFieldInfo> aggregates;
+   // Crosstab-level percentage direction, paired with a PERCENT calculateInfo. Optional.
+   private String percentageByValue;
 }

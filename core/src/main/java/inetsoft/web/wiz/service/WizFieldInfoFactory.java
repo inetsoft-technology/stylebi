@@ -23,6 +23,7 @@ import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
+import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.web.binding.model.graph.CalculateInfo;
 import inetsoft.web.wiz.model.DimensionFieldInfo;
 import inetsoft.web.wiz.model.MeasureFieldInfo;
@@ -46,6 +47,7 @@ final class WizFieldInfoFactory {
       info.setFullName(crosstabDimFullName(dim));
       applyDateGroup(info, dim);
       applyRanking(info, dim);
+      info.setSummarize(dim.isSubTotalVisible());
       return info;
    }
 
@@ -107,7 +109,17 @@ final class WizFieldInfoFactory {
       info.setField(agg.getColumnValue());
       info.setAggregateFormula(agg.getFormula() != null ? agg.getFormula().getFormulaName() : null);
       info.setCalculateInfo(CalculateInfo.createCalcInfo(agg.getCalculator()));
+      info.setPercentage(percentageName(agg.getPercentageOption()));
       return info;
+   }
+
+   /** Reverse of WizVsService#percentageOption: XConstants option → wiz percentage name. */
+   private static String percentageName(int option) {
+      return switch(option) {
+         case XConstants.PERCENTAGE_OF_GRANDTOTAL -> "GrandTotal";
+         case XConstants.PERCENTAGE_OF_GROUP -> "Group";
+         default -> "None";
+      };
    }
 
    static MeasureFieldInfo createChartMeasureFieldInfo(VSAggregateRef agg) {
@@ -116,12 +128,25 @@ final class WizFieldInfoFactory {
       info.setAggregateFormula(agg.getFormulaValue());
       info.setFullName(agg.getFullName());
       info.setCalculateInfo(CalculateInfo.createCalcInfo(agg.getCalculator()));
+
+      if(agg instanceof VSChartAggregateRef chartAgg) {
+         info.setDiscrete(chartAgg.isDiscrete());
+         info.setSecondaryY(chartAgg.isSecondaryY());
+      }
+
       return info;
    }
 
    private static DimensionFieldInfo baseDimensionFieldInfo(VSDimensionRef dim) {
       DimensionFieldInfo info = new DimensionFieldInfo();
       info.setField(dim.getGroupColumnValue());
+
+      String sortByCol = dim.getSortByColValue();
+
+      if(sortByCol != null && !sortByCol.isEmpty()) {
+         info.setSortByCol(sortByCol);
+      }
+
       return info;
    }
 
@@ -139,6 +164,7 @@ final class WizFieldInfoFactory {
          }
 
          ranking.setRankingCol(dim.getRankingColValue());
+         ranking.setGroupOthers(dim.isGroupOthers());
          info.setRanking(ranking);
       }
    }

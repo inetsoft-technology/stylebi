@@ -2835,7 +2835,14 @@ public class WizVsService {
                attr.setDataType(field.getType());
             }
 
-            columns.addAttribute(new ColumnRef(attr));
+            ColumnRef col = new ColumnRef(attr);
+
+            // Column visibility: null = default (visible); false hides the column.
+            if(field.getVisible() != null) {
+               col.setVisible(field.getVisible());
+            }
+
+            columns.addAttribute(col);
          }
 
          table.setColumnSelection(columns);
@@ -2945,6 +2952,11 @@ public class WizVsService {
             cinfo.setDesignAggregates(aggrs);
          }
 
+         // Crosstab-level percentage direction (paired with a PERCENT calculateInfo). Optional.
+         if(binding.getPercentageByValue() != null && !binding.getPercentageByValue().isEmpty()) {
+            cinfo.setPercentageByValue(binding.getPercentageByValue());
+         }
+
          crosstab.setVSCrosstabInfo(cinfo);
 
          // Replace the bland default "Table" title with a binding-derived one (e.g.
@@ -3012,6 +3024,10 @@ public class WizVsService {
          }
       }
 
+      // discrete / secondaryY applied independently (matching the editor); dropped here before this fix.
+      ref.setDiscrete(field.isDiscrete());
+      ref.setSecondaryY(field.isSecondaryY());
+
       return ref;
    }
 
@@ -3046,6 +3062,12 @@ public class WizVsService {
          ref.setRankingNValue(String.valueOf(ranking.getRankingN()));
          ref.setRankingColValue(ranking.getRankingCol());
          ref.setRankingOptionValue(String.valueOf(ranking.getOptionValue()));
+         // group-non-ranked-as-Others (core to Pareto); dropped here before this fix.
+         ref.setGroupOthersValue(String.valueOf(ranking.isGroupOthers()));
+      }
+
+      if(dim != null && dim.getSortByCol() != null && !dim.getSortByCol().isEmpty()) {
+         ref.setSortByColValue(dim.getSortByCol());
       }
 
       if(dim != null && dim.isNumericBin()) {
@@ -3081,6 +3103,20 @@ public class WizVsService {
          ref.setRankingNValue(String.valueOf(ranking.getRankingN()));
          ref.setRankingColValue(ranking.getRankingCol());
          ref.setRankingOptionValue(String.valueOf(ranking.getOptionValue()));
+         ref.setGroupOthersValue(String.valueOf(ranking.isGroupOthers()));
+      }
+
+      if(field.getSortByCol() != null && !field.getSortByCol().isEmpty()) {
+         ref.setSortByColValue(field.getSortByCol());
+      }
+
+      if(field.getManualOrder() != null && !field.getManualOrder().isEmpty()) {
+         ref.setManualOrderList(new java.util.ArrayList<>(field.getManualOrder()));
+      }
+
+      // Crosstab subtotal visibility for this row/col dimension.
+      if(field.getSummarize() != null) {
+         ref.setSubTotalVisibleValue(String.valueOf(field.getSummarize()));
       }
 
       return ref;
@@ -3098,6 +3134,12 @@ public class WizVsService {
          ref.setSecondaryColumnValue(field.getSecondaryField());
       }
 
+      // Nth/Pth parameter (NthLargest/NthSmallest/NthMostFrequent/PthPercentile). Previously not
+      // applied on the crosstab path, so an N/P edit was silently dropped.
+      if(field.getNOrP() != null) {
+         ref.setN(field.getNOrP());
+      }
+
       if(field.getCalculateInfo() != null) {
          Calculator calc = field.getCalculateInfo().toCalculator();
 
@@ -3106,7 +3148,27 @@ public class WizVsService {
          }
       }
 
+      // Crosstab percentage display for this aggregate.
+      if(field.getPercentage() != null) {
+         ref.setPercentageOption(percentageOption(field.getPercentage()));
+      }
+
       return ref;
+   }
+
+   /**
+    * Map a wiz percentage name to the XConstants percentage option; unknown/"none" → NONE.
+    */
+   private static int percentageOption(String percentage) {
+      if(percentage == null) {
+         return XConstants.PERCENTAGE_NONE;
+      }
+
+      return switch(percentage.trim().toLowerCase()) {
+         case "grandtotal" -> XConstants.PERCENTAGE_OF_GRANDTOTAL;
+         case "group" -> XConstants.PERCENTAGE_OF_GROUP;
+         default -> XConstants.PERCENTAGE_NONE;
+      };
    }
 
    /**
