@@ -58,10 +58,15 @@ public class DataSetRouter extends AbstractRouter {
          }
       }
 
-      comp = data.getComparator(field);
+      // Part-date-group fields (HourOfDay, DayOfWeek, MonthOfYear, Quarter) must navigate
+      // previous/next in natural calendar order regardless of any value-based sort/ranking
+      // comparator (e.g. a Top-N "Sort By Value" ranking) applied for display purposes —
+      // "previous hour" has no meaning in rank-value order. Only fall back to the dataset's
+      // own comparator for fields where no natural calendar order applies.
+      comp = getPartDateGroupComparator(data, field);
 
       if(comp == null) {
-         comp = getPartDateGroupComparator(data, field);
+         comp = data.getComparator(field);
       }
 
       if(comp != null) {
@@ -73,11 +78,13 @@ public class DataSetRouter extends AbstractRouter {
    }
 
    /**
-    * Fallback natural-order comparator for part-date-group dimensions (HourOfDay, DayOfWeek,
-    * MonthOfYear, Quarter, etc.) when no explicit sort comparator is configured. Values for
+    * Natural-order comparator for part-date-group dimensions (HourOfDay, DayOfWeek,
+    * MonthOfYear, Quarter, etc.), used in preference to any value-based sort/ranking
+    * comparator configured on the field (e.g. a Top-N "Sort By Value" ranking). Values for
     * these dimensions are always emitted as Integer, so numeric order is the natural calendar
-    * order. Scoped to previous/next calc navigation only (this router) — does not affect
-    * axis/legend ordering, which is controlled separately by CategoricalScale.
+    * order, and previous/next navigation only makes sense in that order. Scoped to
+    * previous/next calc navigation only (this router) — does not affect axis/legend
+    * ordering, which is controlled separately by CategoricalScale.
     */
    private static Comparator getPartDateGroupComparator(DataSet data, String field) {
       DataSet root = data instanceof DataSetFilter

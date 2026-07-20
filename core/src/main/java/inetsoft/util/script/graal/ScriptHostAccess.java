@@ -169,6 +169,16 @@ public final class ScriptHostAccess {
                   .allowMapAccess(true)
                   .allowIterableAccess(true)
                   .allowIteratorAccess(true)
+                  // Rhino parity: Rhino auto-adapted a JS function to a single-method
+                  // Java interface, so scripts could pass a lambda where a functional
+                  // interface is expected (e.g. Stream.filter(Predicate),
+                  // Stream.forEach(Consumer) via graph shape scripting). GraalJS refuses
+                  // this by default ("Unsupported target type"); allow a guest function
+                  // to implement any @FunctionalInterface-annotated type. This is the
+                  // same allowance the built-in HostAccess.ALL/EXPLICIT presets use, and
+                  // it does not widen class reachability (still gated by classFilter) or
+                  // permit implementing arbitrary/abstract types. (#75690)
+                  .allowImplementationsAnnotatedBy(FunctionalInterface.class)
                   // FIX 2: Deny reflective escape paths even when allowPublicAccess(true) is set.
                   // denyAccess takes precedence over allowPublicAccess for the listed classes.
                   // denyAccess(Object.class, false) blocks only methods declared on Object itself
