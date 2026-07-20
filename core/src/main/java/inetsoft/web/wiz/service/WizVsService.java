@@ -153,18 +153,14 @@ public class WizVsService {
       result.setAssemblyName(assembly.getName());
       result.setHasData(computeHasData(rvs.getViewsheet().getViewsheetInfo().isMetadata(), result));
 
-      // Persist the mutated DateComparisonInfo so it survives a subsequent save_viewsheet, which
-      // rebuilds the saved copy from the STORED shared viewsheet, not this live runtime (mirrors the
-      // same guarded write-back in removeVisualization — a transient/unsaved runtime has no
-      // persistent entry and is left runtime-only).
-      AssetEntry entry = rvs.getEntry();
-      String path = entry != null ? entry.getPath() : null;
-
-      if(path != null &&
-         (path.startsWith(WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/") ||
-          path.startsWith(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/")))
-      {
-         engine.setSheet(entry, vs, user, true);
+      // Persist the mutated DateComparisonInfo to the DURABLE viewsheet asset named by the request
+      // identifier (the asset the viewer reopens), NOT the live runtime's own entry. A wiz chart runs on
+      // a TEMPORARY runtime whose entry is outside the managed folders, so the previous rvs.getEntry()
+      // guard skipped the write-back whenever the create-time runtime was still alive — leaving the
+      // change only on the ephemeral runtime and absent on reopen. persistViewsheet is the shared save
+      // choke point (managed-folder + ACL checks) and writes to the same asset save_viewsheet rebuilds from.
+      if(!Tool.isEmptyString(model.getViewsheetIdentifier())) {
+         result.setViewsheetIdentifier(persistViewsheet(vs, model.getViewsheetIdentifier(), user));
       }
 
       return result;
@@ -329,17 +325,15 @@ public class WizVsService {
          result.setRuntimeId(rvs.getID());
       }
 
-      // Persist the mutated highlight so it survives a subsequent save_viewsheet, which rebuilds the saved
-      // copy from the STORED shared viewsheet, not this live runtime (same guarded write-back as
-      // applyDateComparison / removeVisualization; a transient/unsaved runtime has no persistent entry).
-      AssetEntry entry = rvs.getEntry();
-      String path = entry != null ? entry.getPath() : null;
-
-      if(path != null &&
-         (path.startsWith(WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/") ||
-          path.startsWith(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/")))
-      {
-         engine.setSheet(entry, vs, user, true);
+      // Persist the mutated highlight to the DURABLE viewsheet asset named by the request identifier
+      // (the ROOT/COMPONENTS entry the viewer reopens), NOT the live runtime's own entry. A wiz chart
+      // runs on a TEMPORARY runtime (openTemporaryViewsheet) whose entry is outside the managed folders,
+      // so the previous rvs.getEntry() guard skipped the write-back whenever the create-time runtime was
+      // still alive — leaving the highlight only on the ephemeral runtime and absent on reopen (the
+      // reopened ROOT asset never received it). persistViewsheet is the shared save choke point (managed-
+      // folder + ACL checks) and writes to the same asset a later save_viewsheet rebuilds from.
+      if(!Tool.isEmptyString(model.getViewsheetIdentifier())) {
+         result.setViewsheetIdentifier(persistViewsheet(vs, model.getViewsheetIdentifier(), user));
       }
 
       return result;
