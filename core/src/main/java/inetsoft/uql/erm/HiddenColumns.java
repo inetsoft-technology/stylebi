@@ -219,6 +219,18 @@ public class HiddenColumns extends VpmObject {
          }
       }
 
+      // Bug #75669: A hidden-columns trigger script activates its output by referencing
+      // (or assigning) the `hiddenColumns` variable, relying on that value becoming the
+      // script's completion value. Under Rhino a trailing statement that produced no
+      // value (e.g. a non-matching if in the last loop iteration) left the completion
+      // value intact; GraalJS follows current ECMAScript rules where such a statement
+      // yields undefined and clobbers the loop's completion value, so the reference no
+      // longer surfaces as the result. When the script used `hiddenColumns` but the
+      // completion value came back null, fall back to the (possibly reassigned) value.
+      if(result == null && scope.isVariableUsed("hiddenColumns")) {
+         result = scope.getMember("hiddenColumns");
+      }
+
       if(result == null) {
          return new String[0];
       }
