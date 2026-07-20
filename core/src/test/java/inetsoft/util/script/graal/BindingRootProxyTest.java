@@ -128,4 +128,30 @@ class BindingRootProxyTest {
       assertTrue(root.hasMember("x"), "stale chain-cache absence after in-place mutation");
       assertEquals(11, root.resolve("x"));
    }
+
+   // isGlobalBinding must not permanently cache a 'false'. The GraalJS Context
+   // (and its globalThis) is reused across same-org renders on a pooled thread,
+   // so a later formula's top-level var/function can turn a previously-absent
+   // name into a real global. A cached 'false' would keep resolving that name via
+   // the builtin/CALC scope instead of yielding to the now-real global. (Regression
+   // guard for #75676.)
+   @Test void globalBindingCacheDoesNotStaleFalseWhenGlobalAddedLater() {
+      MapScope global = new MapScope(null);
+      MapScope builtin = new MapScope(null);
+      builtin.putMember("late", 111);   // a CALC-style builtin that would shadow
+
+      BindingRootProxy root = new BindingRootProxy(global, () -> null, n -> true, ctx);
+      root.setBuiltinScope(builtin);
+
+      // before: "late" is not a real global -> resolves via the builtin scope
+      assertEquals(111, root.resolve("late"));
+
+      // a later same-org render introduces a real global with that name
+      ctx.getBindings("js").putMember("late", 222);
+
+      // now "late" must be treated as a real global: reported absent here so
+      // with(...) resolves it natively, NOT the stale builtin
+      assertNull(root.resolve("late"));
+      assertFalse(root.hasMember("late"));
+   }
 }

@@ -174,20 +174,28 @@ public class BindingRootProxy implements ProxyObject {
       return context != null && context.getBindings("js").hasMember(name);
    }
 
-   // Permanent cache of the exact-name global-binding test. Global bindings are
-   // installed once at engine init and stable for the engine's lifetime, so the
-   // answer never changes. Single-threaded per engine (engine lock). (#75676)
-   private final Map<String, Boolean> globalBindingCache = new HashMap<>();
+   // Cache of the exact-name global-binding test. Only a 'true' answer is cached,
+   // and permanently: a global, once installed, stays for the engine's lifetime.
+   // A 'false' answer is deliberately NOT cached -- the GraalJS Context (and its
+   // globalThis) is reused across same-org renders on a pooled thread (see
+   // FormulaEvaluator), so a later formula's top-level var/function can turn a
+   // previously-absent name into a real global; a cached 'false' would then keep
+   // shadowing it via the builtin/CALC scope. Recomputing 'false' is cheap and
+   // rare -- profiling shows ~98% of probes reaching here are real globals (i.e.
+   // cached 'true'). Single-threaded per engine (engine lock). (#75676)
+   private final Set<String> globalBindingCache = new HashSet<>();
 
    private boolean isGlobalBinding(String name) {
-      Boolean cached = globalBindingCache.get(name);
-
-      if(cached != null) {
-         return cached;
+      if(globalBindingCache.contains(name)) {
+         return true;
       }
 
       boolean present = hasGlobalBinding(name);
-      globalBindingCache.put(name, present);
+
+      if(present) {
+         globalBindingCache.add(name);
+      }
+
       return present;
    }
 
