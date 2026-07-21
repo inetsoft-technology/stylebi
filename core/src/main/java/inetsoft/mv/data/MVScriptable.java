@@ -40,6 +40,20 @@ public class MVScriptable implements ScriptScope {
    }
 
    /**
+    * @param mvdef the MV definition.
+    * @param mvcol the MV column to read max/min values for.
+    * @param mv the already-loaded MV to use, avoiding a redundant storage lookup. Callers that
+    *           have already validated the MV non-null (e.g. MVIncremental) should use this
+    *           constructor instead of triggering another independent storage read, which can
+    *           race with a concurrent MV rebuild renaming the storage file.
+    */
+   public MVScriptable(MVDef mvdef, MVColumn mvcol, MV mv) {
+      this.mvdef = mvdef;
+      this.mvcol = mvcol;
+      this.mv = mv;
+   }
+
+   /**
     * Init mv.
     */
    private void init() {
@@ -101,7 +115,7 @@ public class MVScriptable implements ScriptScope {
    private Object max() {
       Object max = null;
 
-      if(mv.getBlockSize() > 0) {
+      if(mv != null && mv.getBlockSize() > 0) {
          int c = mv.indexOfHeader(mvcol.getName(), 0);
 
          if(c < 0 || mv.getDictionary(c, 0) == null) {
@@ -138,7 +152,7 @@ public class MVScriptable implements ScriptScope {
    private Object min() {
       Object min = null;
 
-      if(mv.getBlockSize() > 0) {
+      if(mv != null && mv.getBlockSize() > 0) {
          int c = mv.indexOfHeader(mvcol.getName(), 0);
 
          if(c < 0 || mv.getDictionary(c, 0) == null) {
