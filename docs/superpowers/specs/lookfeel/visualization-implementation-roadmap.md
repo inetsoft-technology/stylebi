@@ -803,6 +803,34 @@ Confirm the visualization token layer remains runtime-themeable and backward-com
 
 - verified runtime-themeable visualization token surface with compatibility path
 
+### Status (implemented 2026-07-17)
+
+Phase 9 verified the visualization token layer and exposed the modern state palette for customer
+theming — see [visualization-phase9-implementation-plan.md](./visualization-phase9-implementation-plan.md)
+and the verification record [visualization-phase9-review.md](./visualization-phase9-review.md).
+Confirmed: all 21 `--inet-viz-*` tokens are runtime CSS custom properties (9 adopted by selectors, 12
+reserved/vocabulary-only); gate-off is byte-identical (the only `:root` literal is
+`--inet-viz-dimmed-opacity`, and every modern literal lives inside a `.viz-modern` / density block);
+and modern activates only inside the gated scope on both halves — the browser `.viz-modern` body class
+and the four server sub-gate resolvers (`VSChartChromeDefaults`, `VSChartPaletteDefaults`,
+`VSTableStructureDefaults`, `VSTitleChromeDefaults`/`VSOutputChromeDefaults`), each requiring
+`VSDensityDefaults.isModern()` before it can activate.
+
+Exposure: the five **adopted** modern state colors (hover, selection bg/text/border, sorted) are now
+customer-overridable via a two-tier `--inet-viz-*-modern` default seam in `_viz-tokens.scss` (the
+default sits on `:root` and is consumed inside `.viz-modern`, so a customer `:root` theme override
+reaches the gated scope instead of being shadowed by a hardcoded `.viz-modern` value) plus a new
+"Visualization" section in the EM theme editor (`theme-css-view.component.ts` `portalCssData` + a
+`srinter.properties` heading label). No Java change — the theme pipeline persists any variable
+generically. Defaults are unchanged, so gate-on is byte-identical without a customer override.
+
+Deferred with grounded reasons: vocabulary-only token exposure (expose each only when a selector
+adopts it); sub-gate EM toggles (stay raw-`SreeEnv` opt-out — one master toggle covers object chrome);
+density theming (already an EM control, Phase 3 Part C); server-rendered color (already themeable via
+`format.css`/descriptors and must not route through a browser token); dark-mode viz palette (rides the
+initiative's dark pass). This completes the roadmap through Phase 9; Phase 10 is cross-surface
+validation.
+
 ## Phase 10: Validation
 
 ### Functional checks
