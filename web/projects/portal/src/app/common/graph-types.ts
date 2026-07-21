@@ -552,6 +552,17 @@ export class GraphTypes {
       return GraphTypes.isScatteredContour(type) || GraphTypes.isMapContour(type);
    }
 
+   /**
+    * Check if the graph is drawn on a rectangular (X/Y axis) coordinate. Polar (pie/radar),
+    * treemap-family, relation, and geo charts use non-Cartesian layouts and never populate
+    * axes, so axes.length is not a valid "has data" signal for them.
+    */
+   static isRect(type: number): boolean {
+      const notRect = GraphTypes.isPolar(type) || GraphTypes.isTreemap(type) ||
+         GraphTypes.isRelation(type) || GraphTypes.isGeo(type);
+      return !notRect;
+   }
+
    static isCompatible(type1: number, type2: number): boolean {
       if(type1 == type2) {
          return true;

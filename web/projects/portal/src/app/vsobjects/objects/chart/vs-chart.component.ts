@@ -1326,8 +1326,18 @@ export class VSChart extends AbstractVSObject<VSChartModel>
     * Check whether the chart has any data (composer).
     */
    get emptyChart(): boolean {
-      return this.showEmptyArea && !this.model.invalid &&
-         (!this.model.axes || this.model.axes.length == 0);
+      if(!this.showEmptyArea || this.model.invalid) {
+         return false;
+      }
+
+      // Non-Cartesian charts (treemap/sunburst/circle-packing/icicle, polar (pie/radar),
+      // relation, geo) never populate axes by design, so an empty axes array does not mean
+      // the chart has no data — defer to the server's own noData flag for those instead.
+      if(!GraphTypes.isRect(this.model.chartType)) {
+         return !!this.model.noData;
+      }
+
+      return !this.model.axes || this.model.axes.length == 0;
    }
 
    /**
