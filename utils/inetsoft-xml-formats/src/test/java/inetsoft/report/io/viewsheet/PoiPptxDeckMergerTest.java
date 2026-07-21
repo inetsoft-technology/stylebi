@@ -59,6 +59,18 @@ class PoiPptxDeckMergerTest {
       return sb.toString();
    }
 
+   /** Concatenates text from every textbox on the slide EXCEPT one starting with "Insights"
+    *  (the title box this feature adds) — lets tests assert on body content in isolation. */
+   private static String contentTextExcludingInsightsTitle(XSLFSlide slide) {
+      StringBuilder sb = new StringBuilder();
+      slide.getShapes().forEach(s -> {
+         if(s instanceof XSLFTextBox tb && !tb.getText().startsWith("Insights")) {
+            sb.append(tb.getText()).append('\n');
+         }
+      });
+      return sb.toString();
+   }
+
    @Test
    void mergesTitleSlidePlusOnePerChart() throws Exception {
       byte[] chart1 = oneSlideDeckWithText("CHART_ONE_MARKER");
@@ -213,7 +225,7 @@ class PoiPptxDeckMergerTest {
 
          int totalWords = 0;
          for(int i = 2; i < result.getSlides().size(); i++) {
-            String text = allText(result.getSlides().get(i)).trim();
+            String text = contentTextExcludingInsightsTitle(result.getSlides().get(i)).trim();
             assertTrue(text.matches("(WORD ?)+"),
                "slide " + i + " must contain only whole WORD tokens, got: " + text);
             totalWords += text.split("\\s+").length;
@@ -233,6 +245,66 @@ class PoiPptxDeckMergerTest {
       try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
          assertEquals(3, result.getSlides().size(), "title + placeholder + insights slide");
          assertTrue(allText(result.getSlides().get(2)).contains("Finding survives despite the render failure."));
+      }
+   }
+
+   @Test
+   void insightsSlideTitledWithChartName() throws Exception {
+      byte[] chart1 = oneSlideDeckWithText("CHART_MARKER");
+      List<PptxDeckMerger.ChartSlide> slides = List.of(
+         new PptxDeckMerger.ChartSlide("Revenue by Region", "cap", chart1, false,
+            "Premium pricing drives most of the category revenue.")
+      );
+
+      byte[] merged = merger.mergeSlides("Board", null, slides);
+
+      try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
+         assertEquals(3, result.getSlides().size(), "title + chart + one insights slide");
+         String insightsText = allText(result.getSlides().get(2));
+         assertTrue(insightsText.contains("Insights: Revenue by Region"),
+            "insights slide titled with chart name: " + insightsText);
+         assertFalse(insightsText.contains("cont'd"), "single insights slide has no continuation marker");
+      }
+   }
+
+   @Test
+   void insightsSlideFallsBackToBareInsightsWhenChartHasNoTitle() throws Exception {
+      byte[] chart1 = oneSlideDeckWithText("CHART_MARKER");
+      List<PptxDeckMerger.ChartSlide> slides = List.of(
+         new PptxDeckMerger.ChartSlide(null, null, chart1, false, "A short finding.")
+      );
+
+      byte[] merged = merger.mergeSlides("Board", null, slides);
+
+      try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
+         String insightsText = allText(result.getSlides().get(2));
+         assertTrue(insightsText.contains("Insights"), "bare Insights heading present: " + insightsText);
+         assertFalse(insightsText.contains("Insights:"), "no dangling colon with no title: " + insightsText);
+      }
+   }
+
+   @Test
+   void continuationInsightsSlidesMarkedContd() throws Exception {
+      byte[] chart1 = oneSlideDeckWithText("CHART_MARKER");
+      String longInsights = "WORD ".repeat(6000).trim();
+      List<PptxDeckMerger.ChartSlide> slides = List.of(
+         new PptxDeckMerger.ChartSlide("Revenue by Region", "cap", chart1, false, longInsights)
+      );
+
+      byte[] merged = merger.mergeSlides("Board", null, slides);
+
+      try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
+         assertTrue(result.getSlides().size() > 3, "must span more than one insights slide");
+
+         String firstInsightsText = allText(result.getSlides().get(2));
+         assertTrue(firstInsightsText.contains("Insights: Revenue by Region"));
+         assertFalse(firstInsightsText.contains("cont'd"), "first insights slide has no continuation marker");
+
+         for(int i = 3; i < result.getSlides().size(); i++) {
+            String text = allText(result.getSlides().get(i));
+            assertTrue(text.contains("Insights: Revenue by Region (cont'd)"),
+               "slide " + i + " must carry the continuation title: " + text);
+         }
       }
    }
 }

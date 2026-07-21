@@ -74,7 +74,7 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
             }
 
             if(slide.insightsMarkdown() != null && !slide.insightsMarkdown().isBlank()) {
-               addInsightsSlides(merged, slide.insightsMarkdown());
+               addInsightsSlides(merged, slide.title(), slide.insightsMarkdown());
             }
          }
 
@@ -136,8 +136,11 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
    /** Appends one or more insights-only slides, rendering the insights markdown as styled
     *  paragraphs/bullets/headers (bold + italic runs preserved). Blocks are packed onto slides by
     *  estimated height so nothing is truncated; a single block taller than a whole slide falls
-    *  back to a plain word-split across slides. */
-   private void addInsightsSlides(XMLSlideShow show, String insightsMarkdown) {
+    *  back to a plain word-split across slides. Every insights slide carries a title identifying
+    *  the chart it belongs to ("Insights: <chart title>", or bare "Insights" with no chart
+    *  title); slides after the first for the same chart append " (cont'd)" so it's clear a
+    *  continuation slide is still the same chart's insights, not a new topic. */
+   private void addInsightsSlides(XMLSlideShow show, String chartTitle, String insightsMarkdown) {
       List<MarkdownModel.Block> blocks = MarkdownModel.parse(insightsMarkdown);
 
       if(blocks.isEmpty()) {
@@ -145,7 +148,9 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
       }
 
       double boxWidthPt = SLIDE_WIDTH_PT - 2 * MARGIN_PT;
-      double boxHeightPt = SLIDE_HEIGHT_PT - 2 * MARGIN_PT;
+      // Content budget shrinks by the title box's reserved height: the title now occupies space
+      // the content box used to have exclusive use of.
+      double boxHeightPt = SLIDE_HEIGHT_PT - 2 * MARGIN_PT - INSIGHTS_TITLE_HEIGHT_PT;
 
       List<List<MarkdownModel.Block>> pages = new ArrayList<>();
       List<MarkdownModel.Block> current = new ArrayList<>();
@@ -184,16 +189,30 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
          pages.add(current);
       }
 
-      for(List<MarkdownModel.Block> pageBlocks : pages) {
-         XSLFSlide slide = show.createSlide();
-         XSLFTextBox box = slide.createTextBox();
-         box.setAnchor(new Rectangle2D.Double(MARGIN_PT, MARGIN_PT,
-            SLIDE_WIDTH_PT - 2 * MARGIN_PT, SLIDE_HEIGHT_PT - 2 * MARGIN_PT));
+      String heading = chartTitle == null || chartTitle.isBlank()
+         ? "Insights" : "Insights: " + chartTitle;
 
-         for(MarkdownModel.Block block : pageBlocks) {
+      for(int i = 0; i < pages.size(); i++) {
+         XSLFSlide slide = show.createSlide();
+         addInsightsTitle(slide, i == 0 ? heading : heading + " (cont'd)");
+
+         XSLFTextBox box = slide.createTextBox();
+         box.setAnchor(new Rectangle2D.Double(MARGIN_PT, MARGIN_PT + INSIGHTS_TITLE_HEIGHT_PT,
+            boxWidthPt, boxHeightPt));
+
+         for(MarkdownModel.Block block : pages.get(i)) {
             appendBlock(box, block, INSIGHTS_FONT_SIZE_PT);
          }
       }
+   }
+
+   /** Title box for an insights-only slide, styled like the chart caption boxes (bold, ACCENT). */
+   private void addInsightsTitle(XSLFSlide slide, String text) {
+      XSLFTextBox titleBox = slide.createTextBox();
+      titleBox.setAnchor(new Rectangle2D.Double(MARGIN_PT, MARGIN_PT,
+         SLIDE_WIDTH_PT - 2 * MARGIN_PT, INSIGHTS_TITLE_HEIGHT_PT));
+      titleBox.setText(text);
+      styleBox(titleBox, true, INSIGHTS_TITLE_FONT_PT, ACCENT);
    }
 
    /** Append one markdown block to a text box as a styled paragraph (with per-span bold/italic). */
@@ -312,4 +331,6 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
    private static final double RECAP_FONT_PT = 17.0;
    private static final double CAPTION_FONT_PT = 22.0;
    private static final double BLOCK_SPACING_PT = 8.0;   // approx paragraph gap for height estimation
+   private static final double INSIGHTS_TITLE_FONT_PT = 22.0;
+   private static final int INSIGHTS_TITLE_HEIGHT_PT = 40;
 }
