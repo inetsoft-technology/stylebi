@@ -2136,12 +2136,14 @@ public class WizAutoBindingService {
       var info = chart.getChartInfo();
       ChartDescriptor desc = info.getChartDescriptor();
       VSChartInfo vsChartInfo = info.getVSChartInfo();
+      CreateViewsheetResult result;
 
       // The copy (when one was made) has already been added to rvs.getViewsheet() and marked primary —
-      // demotedOriginal/rollbackCopy stay non-null only in that case. Nothing below here is persisted
-      // until persistViewsheet() further down, so a thrown exception must undo that live-runtime
-      // mutation first (remove the copy, restore the original's primary flag) rather than leave the
-      // runtime viewsheet with an added/promoted copy that the caller never learns about.
+      // demotedOriginal/rollbackCopy stay non-null only in that case. Nothing through persistViewsheet
+      // below is durably committed until persistViewsheet itself returns, so a thrown exception
+      // anywhere in this block must undo that live-runtime mutation (remove the copy, restore the
+      // original's primary flag) rather than leave the runtime viewsheet with an added/promoted copy
+      // that the caller never learns about.
       try {
          // Chart (assembly-level) title — the heading shown above the plot. Setting a value also makes
          // the title visible, so a chart that defaulted to the generic "Chart" heading shows the
@@ -2255,8 +2257,38 @@ public class WizAutoBindingService {
 
          // Invalidate the cached runtime descriptor so the change regenerates on re-execute.
          info.setRTChartDescriptor(null);
+
+         // The cached VGraphPair holds a reference to this same VSChartInfo, so the sandbox's
+         // staleness check (equalsContent against itself) can never detect the in-place mutation
+         // above. Clear the cached graph explicitly — mirroring VSChartDataHandler — or every
+         // subsequent render (including brand-new embed connections) serves the stale graph.
+         final String assemblyNameForGraphClear = targetAssemblyName;
+         rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(assemblyNameForGraphClear));
+
+         // Fetch BEFORE persisting: fetchAssemblyData only reads the live runtime sandbox (already
+         // mutated above), so its result doesn't depend on persist order, and keeping persistViewsheet
+         // as the LAST possibly-throwing step means the rollback below never fires once the copy has
+         // already been durably committed — after persistViewsheet succeeds, the copy is real, and
+         // rolling back the live runtime at that point would desync it from the persisted asset instead
+         // of undoing an in-progress change.
+         result = wizVsService.fetchAssemblyData(effRuntimeId, targetAssemblyName, user);
+
+         // Commit the mutation to the backing asset (the copy, when one was made — it was just added to
+         // rvs.getViewsheet() by duplicatePrimaryAssembly, so persisting here is what makes it show up in
+         // the persisted asset a later save_viewsheet call looks the assembly up from).
+         // save_viewsheet clones the assembly from the PERSISTED viewsheet (not this live runtime), so a
+         // format/color change left only on the runtime — the chart title above the plot in particular —
+         // is silently dropped on save. Mirrors how create/changeType call persistViewsheet so their
+         // changes survive a save.
+         if(request.getViewsheetIdentifier() != null) {
+            wizVsService.persistViewsheet(rvs.getViewsheet(), request.getViewsheetIdentifier(), user);
+         }
       }
-      catch(RuntimeException e) {
+      catch(Exception e) {
+         // Mirrors WizVsService.createViewsheet's own rollback (which wraps its persistViewsheet call
+         // inside the same try/catch that undoes the assembly swap): covers the mutation-application
+         // block above AND fetchAssemblyData/persistViewsheet, since all can leave the duplicated,
+         // promoted-to-primary copy dangling and unreported if they fail before it is durably committed.
          if(rollbackCopy != null) {
             rvs.getViewsheet().removeAssembly(rollbackCopy.getName());
             demotedOriginal.setPrimary(true);
@@ -2264,27 +2296,6 @@ public class WizAutoBindingService {
 
          throw e;
       }
-
-      // The cached VGraphPair holds a reference to this same VSChartInfo, so the sandbox's
-      // staleness check (equalsContent against itself) can never detect the in-place mutation
-      // above. Clear the cached graph explicitly — mirroring VSChartDataHandler — or every
-      // subsequent render (including brand-new embed connections) serves the stale graph.
-      final String assemblyNameForGraphClear = targetAssemblyName;
-      rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(assemblyNameForGraphClear));
-
-      // Commit the mutation to the backing asset (the copy, when one was made — it was just added to
-      // rvs.getViewsheet() by duplicatePrimaryAssembly, so persisting here is what makes it show up in
-      // the persisted asset a later save_viewsheet call looks the assembly up from).
-      // save_viewsheet clones the assembly from the PERSISTED viewsheet (not this live runtime), so a
-      // format/color change left only on the runtime — the chart title above the plot in particular —
-      // is silently dropped on save. Mirrors how create/changeType call persistViewsheet so their
-      // changes survive a save.
-      if(request.getViewsheetIdentifier() != null) {
-         wizVsService.persistViewsheet(rvs.getViewsheet(), request.getViewsheetIdentifier(), user);
-      }
-
-      CreateViewsheetResult result =
-         wizVsService.fetchAssemblyData(effRuntimeId, targetAssemblyName, user);
 
       if(result == null) {
          result = new CreateViewsheetResult();
@@ -2400,13 +2411,14 @@ public class WizAutoBindingService {
       var info = chart.getChartInfo();
       VSChartInfo vsChartInfo = info.getVSChartInfo();
       AestheticRef colorField = vsChartInfo == null ? null : vsChartInfo.getColorField();
+      CreateViewsheetResult result;
 
       // The copy (when one was made) has already been added to rvs.getViewsheet() and marked primary —
-      // demotedOriginal/rollbackCopy stay non-null only in that case. Nothing below here is persisted
-      // until persistViewsheet() further down, so a thrown exception (e.g. ColorPalettes.getPalette /
-      // parseColor rejecting bad input) must undo that live-runtime mutation first (remove the copy,
-      // restore the original's primary flag) rather than leave the runtime viewsheet with an
-      // added/promoted copy the caller never learns about.
+      // demotedOriginal/rollbackCopy stay non-null only in that case. Nothing through persistViewsheet
+      // below is durably committed until persistViewsheet itself returns, so a thrown exception (e.g.
+      // ColorPalettes.getPalette / parseColor rejecting bad input) anywhere in this block must undo that
+      // live-runtime mutation (remove the copy, restore the original's primary flag) rather than leave
+      // the runtime viewsheet with an added/promoted copy the caller never learns about.
       try {
          if(colorField == null || colorField.getDataRef() == null) {
             if(request.getStaticColor() != null) {
@@ -2433,8 +2445,38 @@ public class WizAutoBindingService {
          }
 
          info.setRTChartDescriptor(null);
+
+         // The cached VGraphPair holds a reference to this same VSChartInfo, so the sandbox's
+         // staleness check (equalsContent against itself) can never detect the in-place mutation
+         // above. Clear the cached graph explicitly — mirroring VSChartDataHandler — or every
+         // subsequent render (including brand-new embed connections) serves the stale graph.
+         final String assemblyNameForGraphClear = targetAssemblyName;
+         rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(assemblyNameForGraphClear));
+
+         // Fetch BEFORE persisting: fetchAssemblyData only reads the live runtime sandbox (already
+         // mutated above), so its result doesn't depend on persist order, and keeping persistViewsheet
+         // as the LAST possibly-throwing step means the rollback below never fires once the copy has
+         // already been durably committed — after persistViewsheet succeeds, the copy is real, and
+         // rolling back the live runtime at that point would desync it from the persisted asset instead
+         // of undoing an in-progress change.
+         result = wizVsService.fetchAssemblyData(effRuntimeId, targetAssemblyName, user);
+
+         // Commit the mutation to the backing asset (the copy, when one was made — it was just added to
+         // rvs.getViewsheet() by duplicatePrimaryAssembly, so persisting here is what makes it show up in
+         // the persisted asset a later save_viewsheet call looks the assembly up from).
+         // save_viewsheet clones the assembly from the PERSISTED viewsheet (not this live runtime), so a
+         // format/color change left only on the runtime — the chart title above the plot in particular —
+         // is silently dropped on save. Mirrors how create/changeType call persistViewsheet so their
+         // changes survive a save.
+         if(request.getViewsheetIdentifier() != null) {
+            wizVsService.persistViewsheet(rvs.getViewsheet(), request.getViewsheetIdentifier(), user);
+         }
       }
-      catch(RuntimeException e) {
+      catch(Exception e) {
+         // Mirrors WizVsService.createViewsheet's own rollback (which wraps its persistViewsheet call
+         // inside the same try/catch that undoes the assembly swap): covers the mutation-application
+         // block above AND fetchAssemblyData/persistViewsheet, since all can leave the duplicated,
+         // promoted-to-primary copy dangling and unreported if they fail before it is durably committed.
          if(rollbackCopy != null) {
             rvs.getViewsheet().removeAssembly(rollbackCopy.getName());
             demotedOriginal.setPrimary(true);
@@ -2442,27 +2484,6 @@ public class WizAutoBindingService {
 
          throw e;
       }
-
-      // The cached VGraphPair holds a reference to this same VSChartInfo, so the sandbox's
-      // staleness check (equalsContent against itself) can never detect the in-place mutation
-      // above. Clear the cached graph explicitly — mirroring VSChartDataHandler — or every
-      // subsequent render (including brand-new embed connections) serves the stale graph.
-      final String assemblyNameForGraphClear = targetAssemblyName;
-      rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(assemblyNameForGraphClear));
-
-      // Commit the mutation to the backing asset (the copy, when one was made — it was just added to
-      // rvs.getViewsheet() by duplicatePrimaryAssembly, so persisting here is what makes it show up in
-      // the persisted asset a later save_viewsheet call looks the assembly up from).
-      // save_viewsheet clones the assembly from the PERSISTED viewsheet (not this live runtime), so a
-      // format/color change left only on the runtime — the chart title above the plot in particular —
-      // is silently dropped on save. Mirrors how create/changeType call persistViewsheet so their
-      // changes survive a save.
-      if(request.getViewsheetIdentifier() != null) {
-         wizVsService.persistViewsheet(rvs.getViewsheet(), request.getViewsheetIdentifier(), user);
-      }
-
-      CreateViewsheetResult result =
-         wizVsService.fetchAssemblyData(effRuntimeId, targetAssemblyName, user);
 
       if(result == null) {
          result = new CreateViewsheetResult();

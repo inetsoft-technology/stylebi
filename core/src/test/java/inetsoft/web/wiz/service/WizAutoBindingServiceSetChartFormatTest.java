@@ -281,4 +281,54 @@ class WizAutoBindingServiceSetChartFormatTest {
       verify(wizVsService, never()).persistViewsheet(any(), any(), any());
       verify(wizVsService, never()).fetchAssemblyData(anyString(), anyString(), any());
    }
+
+   /** A successful copy whose format application (title-only) also succeeds cleanly. */
+   private ChartVSAssembly successfulCopyChart() {
+      ChartVSAssemblyInfo copyInfo = mock(ChartVSAssemblyInfo.class);
+      ChartVSAssembly copyChart = mock(ChartVSAssembly.class);
+      when(copyChart.getChartInfo()).thenReturn(copyInfo);
+      when(copyChart.getVSAssemblyInfo()).thenReturn(copyInfo);
+      when(copyChart.getName()).thenReturn("vs_1_copy1");
+      return copyChart;
+   }
+
+   @Test
+   void copySucceedsButFetchAssemblyDataThrowsRollsBackTheDuplicate() throws Exception {
+      // fetchAssemblyData runs BEFORE persistViewsheet specifically so that, at the point this throws,
+      // nothing has been durably committed yet — the rollback below is always safe to perform.
+      ChartVSAssembly copy = successfulCopyChart();
+      when(wizVsService.duplicatePrimaryAssembly(rvs, chart)).thenReturn(copy);
+      when(wizVsService.fetchAssemblyData(eq("rt-1"), eq("vs_1_copy1"), any()))
+         .thenThrow(new RuntimeException("sandbox execution failed"));
+
+      ChartFormatRequest request = titleRequest("visualizations-xyz");
+      request.setCopy(true);
+
+      assertThrows(RuntimeException.class, () -> service.setChartFormat(request, null));
+
+      verify(vs).removeAssembly("vs_1_copy1");
+      verify(chart).setPrimary(true);
+      verify(wizVsService, never()).persistViewsheet(any(), any(), any());
+   }
+
+   @Test
+   void copySucceedsButPersistViewsheetThrowsRollsBackTheDuplicate() throws Exception {
+      // The scenario claude[bot] flagged in re-review: a failure in persistViewsheet itself (bad
+      // identifier / repository save failure) must roll back the same as a failure earlier in the
+      // block — the copy was added and promoted live but never durably committed.
+      ChartVSAssembly copy = successfulCopyChart();
+      when(wizVsService.duplicatePrimaryAssembly(rvs, chart)).thenReturn(copy);
+      when(wizVsService.persistViewsheet(any(), any(), any()))
+         .thenThrow(new IllegalArgumentException("invalid identifier"));
+
+      ChartFormatRequest request = titleRequest("visualizations-xyz");
+      request.setCopy(true);
+
+      assertThrows(IllegalArgumentException.class, () -> service.setChartFormat(request, null));
+
+      verify(vs).removeAssembly("vs_1_copy1");
+      verify(chart).setPrimary(true);
+      // fetchAssemblyData already ran (it comes before persist) — the failure is specifically in persist.
+      verify(wizVsService).fetchAssemblyData(eq("rt-1"), eq("vs_1_copy1"), any());
+   }
 }

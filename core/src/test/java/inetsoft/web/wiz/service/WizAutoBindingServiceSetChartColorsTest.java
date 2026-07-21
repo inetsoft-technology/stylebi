@@ -56,6 +56,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -302,5 +303,63 @@ class WizAutoBindingServiceSetChartColorsTest {
       // Nothing was persisted or fetched — the exception must propagate before either.
       verify(wizVsService, never()).persistViewsheet(any(), any(), any());
       verify(wizVsService, never()).fetchAssemblyData(anyString(), anyString(), any());
+   }
+
+   /** A successful copy whose color application also succeeds cleanly (static color, no color field). */
+   private ChartVSAssembly successfulCopyChart() {
+      VSChartAggregateRef copyYAgg = mock(VSChartAggregateRef.class);
+      VSChartInfo copyChartInfo = mock(VSChartInfo.class);
+      when(copyChartInfo.getColorField()).thenReturn(null);
+      when(copyChartInfo.getYFields()).thenReturn(new ChartRef[] { copyYAgg });
+      when(copyChartInfo.getXFields()).thenReturn(new ChartRef[0]);
+      when(copyChartInfo.getRTYFields()).thenReturn(new ChartRef[0]);
+      when(copyChartInfo.getRTXFields()).thenReturn(new ChartRef[0]);
+      ChartVSAssemblyInfo copyInfo = mock(ChartVSAssemblyInfo.class);
+      when(copyInfo.getVSChartInfo()).thenReturn(copyChartInfo);
+      ChartVSAssembly copyChart = mock(ChartVSAssembly.class);
+      when(copyChart.getChartInfo()).thenReturn(copyInfo);
+      when(copyChart.getName()).thenReturn("vs_1_copy1");
+      return copyChart;
+   }
+
+   @Test
+   void copySucceedsButFetchAssemblyDataThrowsRollsBackTheDuplicate() throws Exception {
+      // fetchAssemblyData runs BEFORE persistViewsheet specifically so that, at the point this throws,
+      // nothing has been durably committed yet — the rollback below is always safe to perform.
+      ChartVSAssembly copy = successfulCopyChart();
+      when(wizVsService.duplicatePrimaryAssembly(rvs, chart)).thenReturn(copy);
+      when(wizVsService.fetchAssemblyData(eq("rt-1"), eq("vs_1_copy1"), any()))
+         .thenThrow(new RuntimeException("sandbox execution failed"));
+
+      ChartColorsRequest request = staticRed();
+      request.setCopy(true);
+
+      assertThrows(RuntimeException.class, () -> service.setChartColors(request, null));
+
+      verify(vs).removeAssembly("vs_1_copy1");
+      verify(chart).setPrimary(true);
+      verify(wizVsService, never()).persistViewsheet(any(), any(), any());
+   }
+
+   @Test
+   void copySucceedsButPersistViewsheetThrowsRollsBackTheDuplicate() throws Exception {
+      // The scenario claude[bot] flagged in re-review: a failure in persistViewsheet itself (bad
+      // identifier / repository save failure) must roll back the same as a failure earlier in the
+      // block — the copy was added and promoted live but never durably committed.
+      ChartVSAssembly copy = successfulCopyChart();
+      when(wizVsService.duplicatePrimaryAssembly(rvs, chart)).thenReturn(copy);
+      when(wizVsService.persistViewsheet(any(), any(), any()))
+         .thenThrow(new IllegalArgumentException("invalid identifier"));
+
+      ChartColorsRequest request = staticRed();
+      request.setCopy(true);
+      request.setViewsheetIdentifier("visualizations-xyz");
+
+      assertThrows(IllegalArgumentException.class, () -> service.setChartColors(request, null));
+
+      verify(vs).removeAssembly("vs_1_copy1");
+      verify(chart).setPrimary(true);
+      // fetchAssemblyData already ran (it comes before persist) — the failure is specifically in persist.
+      verify(wizVsService).fetchAssemblyData(eq("rt-1"), eq("vs_1_copy1"), any());
    }
 }
