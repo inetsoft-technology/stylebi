@@ -54,6 +54,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.regex.Matcher;
 
 @Service
 public class MetadataApiService {
@@ -561,8 +562,19 @@ public class MetadataApiService {
     * source, base tables, joins, conditions, and aggregate — for the wiz worksheet-structure
     * introspection endpoint. Mirrors {@link #getWorksheetMetaData} but captures per-table
     * provenance detail rather than just names/columns.
+    *
+    * @param generation optional worksheet-table generation to scope the result to. When non-null,
+    *    the result is that generation's tables (matched by their {@code _<generation>} name suffix)
+    *    PLUS their transitive upstream dependency closure: a scoped table may reuse a prior
+    *    generation's base table, which is pulled in and ordered ahead of its dependent so the
+    *    returned structure is self-contained (baseTables/joins resolve within it — no cross-
+    *    generation dangling references, and callers consume it without further filtering).
+    *    primaryTable is reconciled to this generation's own tables (the seed), never a pulled-in
+    *    upstream table. When null, every table is returned — the "no filter" contract used by MCP
+    *    callers, whose in-place edits must see all tables, and by legacy callers that predate
+    *    generation naming.
     */
-   public WorksheetStructure getWorksheetStructure(String wsId, XPrincipal principal)
+   public WorksheetStructure getWorksheetStructure(String wsId, Integer generation, XPrincipal principal)
       throws Exception
    {
       if(wsId == null || Tool.isEmptyString(wsId)) {
@@ -576,22 +588,71 @@ public class MetadataApiService {
          throw new Exception("Worksheet " + wsId + " not found.");
       }
 
-      List<WorksheetStructure.StructureTable> tables = new ArrayList<>();
+      // Enumerate table assemblies once in sheet order. That order is dependency order: a base /
+      // upstream table is added to the sheet before the table that references it, so emitting the
+      // kept tables in this order keeps an upstream table ahead of its dependents.
+      List<TableAssembly> tableAssemblies = new ArrayList<>();
 
       for(Assembly assembly : sheet.getAssemblies()) {
-         if(!(assembly instanceof TableAssembly tableAssembly)) {
+         if(assembly instanceof TableAssembly tableAssembly) {
+            tableAssemblies.add(tableAssembly);
+         }
+      }
+
+      // Decide which tables to build. With no generation this is every table (the MCP / legacy
+      // "no filter" contract). With a generation it is that generation's own tables (the seed) PLUS
+      // their transitive upstream dependency closure: a seed table may reuse a prior generation's
+      // base table (see applyGenerationToTables — references to tables outside the build batch are
+      // kept as-is), which must be pulled in — and ordered ahead of its dependent — so the returned
+      // structure is self-contained (baseTables/joins resolve within it, no cross-generation
+      // dangling references). wiz-services consumes this result directly without further filtering.
+      Set<String> keep = null;         // null => keep every table (no filter)
+      Set<String> seedNames = null;    // this generation's own tables — the primaryTable fallback scope
+
+      if(generation != null) {
+         List<String> enumerationOrder = new ArrayList<>();
+         Map<String, Set<String>> upstream = new HashMap<>();
+         seedNames = new LinkedHashSet<>();
+
+         for(TableAssembly tableAssembly : tableAssemblies) {
+            String name = tableAssembly.getName();
+            enumerationOrder.add(name);
+            upstream.put(name, collectUpstreamRefs(tableAssembly));
+
+            if(matchesGeneration(name, generation)) {
+               seedNames.add(name);
+            }
+         }
+
+         keep = new HashSet<>(expandToUpstreamClosure(enumerationOrder, upstream, seedNames));
+      }
+
+      List<WorksheetStructure.StructureTable> tables = new ArrayList<>();
+      List<WorksheetStructure.StructureTable> seedTables = new ArrayList<>();
+
+      for(TableAssembly tableAssembly : tableAssemblies) {   // sheet order => upstream before dependents
+         String name = tableAssembly.getName();
+
+         if(keep != null && !keep.contains(name)) {
             continue;
          }
 
+         WorksheetStructure.StructureTable built;
+
          try {
-            tables.add(buildStructureTable(tableAssembly));
+            built = buildStructureTable(tableAssembly);
          }
          catch(Exception ex) {
             // Best-effort: one malformed/unexpected assembly shouldn't fail the whole call.
-            WorksheetStructure.StructureTable partial = new WorksheetStructure.StructureTable();
-            partial.setName(tableAssembly.getName());
-            tables.add(partial);
-            log.debug("Failed to fully map worksheet assembly '{}'", tableAssembly.getName(), ex);
+            built = new WorksheetStructure.StructureTable();
+            built.setName(name);
+            log.debug("Failed to fully map worksheet assembly '{}'", name, ex);
+         }
+
+         tables.add(built);
+
+         if(seedNames != null && seedNames.contains(name)) {
+            seedTables.add(built);
          }
       }
 
@@ -603,10 +664,161 @@ public class MetadataApiService {
       WSAssembly primaryAssembly = worksheet.getPrimaryAssembly();
 
       if(primaryAssembly != null) {
-         structure.setPrimaryTable(primaryAssembly.getName());
+         // Reconcile primaryTable within THIS generation's own tables (the seed), never a pulled-in
+         // upstream table — so binding points at this generation's terminal table. Unfiltered, the
+         // scope is the full list (a no-op, since primary is always present when nothing is filtered).
+         List<WorksheetStructure.StructureTable> fallbackScope =
+            (generation == null) ? tables : seedTables;
+         structure.setPrimaryTable(
+            resolveScopedPrimaryTable(primaryAssembly.getName(), tables, fallbackScope, generation));
       }
 
       return structure;
+   }
+
+   /**
+    * The per-generation suffix wiz-services appends to a logical worksheet-table name
+    * ({@code applyGenerationToTables} → {@code <name>_<generation>}). StyleBI itself does not assign
+    * these; the tag is opaque to the backend and only parsed here to serve generation-scoped reads.
+    */
+   private static final java.util.regex.Pattern GENERATION_SUFFIX =
+      java.util.regex.Pattern.compile("_(\\d+)$");
+
+   /**
+    * Extract the trailing {@code _<n>} generation number from a worksheet-table name, or {@code null}
+    * when the name carries no such suffix (e.g. a table created before generation naming shipped).
+    * Only the FINAL {@code _<n>} is the generation tag — a name may legitimately contain other
+    * underscore+digit segments mid-name.
+    */
+   static Integer parseGeneration(String name) {
+      if(name == null || name.isEmpty()) {
+         return null;
+      }
+
+      Matcher matcher = GENERATION_SUFFIX.matcher(name);
+      return matcher.find() ? Integer.valueOf(matcher.group(1)) : null;
+   }
+
+   /**
+    * Whether a table with the given name should be included for the requested generation.
+    * {@code generation == null} is the "no filter" contract (MCP / legacy callers): everything is
+    * kept. Otherwise only tables whose name carries the matching {@code _<generation>} suffix pass;
+    * an unsuffixed (legacy) table has no generation and is excluded from a specific-generation read.
+    */
+   static boolean matchesGeneration(String name, Integer generation) {
+      return generation == null || generation.equals(parseGeneration(name));
+   }
+
+   /**
+    * Resolve the primaryTable name to report after generation filtering. If the original primary
+    * assembly survived the filter it is kept; otherwise it fell into a different generation, so fall
+    * back to the last kept table (the terminal/binding table by convention). Returns the original
+    * value unchanged when there is nothing to reconcile (null primary, or no tables left).
+    */
+   static String resolvePrimaryTable(String primary, List<WorksheetStructure.StructureTable> tables) {
+      if(primary == null || tables == null || tables.isEmpty()) {
+         return primary;
+      }
+
+      for(WorksheetStructure.StructureTable table : tables) {
+         if(primary.equals(table.getName())) {
+            return primary;
+         }
+      }
+
+      return tables.get(tables.size() - 1).getName();
+   }
+
+   /**
+    * The final primaryTable to report for a (possibly generation-scoped) response. A generation-scoped
+    * read that matched no tables returns an empty {@code tables} list, so primaryTable is {@code null}:
+    * the response is a self-contained subgraph and primaryTable must resolve within {@code tables} — a
+    * non-null primary pointing outside an empty list would break that contract. Otherwise it reconciles
+    * within {@code fallbackScope} (the seed for a scoped read, the full list when unfiltered), where an
+    * unfiltered empty worksheet keeps its original primary per {@link #resolvePrimaryTable}.
+    */
+   static String resolveScopedPrimaryTable(String primary,
+                                           List<WorksheetStructure.StructureTable> tables,
+                                           List<WorksheetStructure.StructureTable> fallbackScope,
+                                           Integer generation)
+   {
+      if(generation != null && (tables == null || tables.isEmpty())) {
+         return null;
+      }
+
+      return resolvePrimaryTable(primary, fallbackScope);
+   }
+
+   /**
+    * The names of the tables {@code tableAssembly} directly depends on — its composed base tables
+    * plus each join edge's left/right table. Used to walk the upstream dependency closure during
+    * generation-scoped filtering, so a kept table's referenced (possibly other-generation) base
+    * tables are pulled into the result rather than left dangling.
+    */
+   static Set<String> collectUpstreamRefs(TableAssembly tableAssembly) {
+      Set<String> refs = new LinkedHashSet<>(extractStructureBaseTables(tableAssembly));
+
+      for(WorksheetStructure.JoinEdge join : extractStructureJoins(tableAssembly)) {
+         if(join.getLeftTable() != null) {
+            refs.add(join.getLeftTable());
+         }
+
+         if(join.getRightTable() != null) {
+            refs.add(join.getRightTable());
+         }
+      }
+
+      return refs;
+   }
+
+   /**
+    * Expand a generation seed set into its full upstream dependency closure, returned in
+    * {@code enumerationOrder}. Starting from the tables that matched the requested generation (seed),
+    * it transitively pulls in every table they reference via baseTables/joins — even when a
+    * referenced table belongs to another generation (a reused prior-generation base table) or
+    * carries no generation suffix. A reference to a name not present in {@code enumerationOrder}
+    * (a deleted orphan) is skipped. Emitting in enumeration order guarantees a pulled-in upstream
+    * table (created in an earlier generation, hence earlier in the sheet) precedes the downstream
+    * table that depends on it.
+    *
+    * @param enumerationOrder all table names in {@code sheet.getAssemblies()} order (dependency order)
+    * @param upstream         name -> the names it directly references (baseTables + join left/right)
+    * @param seed             names that matched the requested generation
+    * @return the names to include (seed + transitive upstream), ordered by {@code enumerationOrder}
+    */
+   static List<String> expandToUpstreamClosure(
+      List<String> enumerationOrder,
+      Map<String, Set<String>> upstream,
+      Set<String> seed)
+   {
+      Set<String> keep = new HashSet<>();
+      Deque<String> pending = new ArrayDeque<>(seed);
+
+      while(!pending.isEmpty()) {
+         String name = pending.pop();
+
+         if(!keep.add(name)) {
+            continue;
+         }
+
+         for(String ref : upstream.getOrDefault(name, Set.of())) {
+            if(!keep.contains(ref)) {
+               pending.push(ref);
+            }
+         }
+      }
+
+      // Emit in enumeration order so upstream (earlier-created) tables precede their dependents; a
+      // dangling ref to a name absent from the sheet is naturally dropped here (never in the order).
+      List<String> ordered = new ArrayList<>();
+
+      for(String name : enumerationOrder) {
+         if(keep.contains(name)) {
+            ordered.add(name);
+         }
+      }
+
+      return ordered;
    }
 
    private WorksheetStructure.StructureTable buildStructureTable(TableAssembly tableAssembly) {
