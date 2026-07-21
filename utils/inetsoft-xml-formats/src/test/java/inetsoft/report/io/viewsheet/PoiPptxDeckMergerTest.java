@@ -103,6 +103,44 @@ class PoiPptxDeckMergerTest {
    }
 
    @Test
+   void titleSlideRecapPreservesBoldRunsAndBulletMarkers() throws Exception {
+      byte[] merged = merger.mergeSlides("Board",
+         "**Bold lead.** then normal text.\n- a bullet point", List.of());
+
+      try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
+         boolean hasBoldLead = false;
+         boolean hasNormal = false;
+         boolean hasBulletMarker = false;
+
+         for(var shape : result.getSlides().get(0).getShapes()) {
+            if(shape instanceof XSLFTextBox tb) {
+               for(var paragraph : tb.getTextParagraphs()) {
+                  for(var run : paragraph.getTextRuns()) {
+                     String t = run.getRawText();
+
+                     if(t.contains("Bold lead") && run.isBold()) {
+                        hasBoldLead = true;
+                     }
+
+                     if(t.contains("normal text") && !run.isBold()) {
+                        hasNormal = true;
+                     }
+
+                     if(t.contains("•")) {
+                        hasBulletMarker = true;
+                     }
+                  }
+               }
+            }
+         }
+
+         assertTrue(hasBoldLead, "bold lead-in preserved as a bold run");
+         assertTrue(hasNormal, "trailing prose stays non-bold");
+         assertTrue(hasBulletMarker, "bullet marker rendered");
+      }
+   }
+
+   @Test
    void failedChartGetsPlaceholderSlideInsteadOfImportedContent() throws Exception {
       List<PptxDeckMerger.ChartSlide> slides = List.of(
          new PptxDeckMerger.ChartSlide("Broken", "n/a", null, true)
