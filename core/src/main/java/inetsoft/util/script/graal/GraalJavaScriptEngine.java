@@ -1041,7 +1041,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
          ScriptScope prevScope = scopeProxy.swapGlobal(rootScope);
          LegacyJavaShim.ImportScope prevImports = scopeProxy.swapImports(null);
-         java.util.Map<String, Object> prevAssigned = scopeProxy.swapAssigned(null);
+         Map<String, Object> prevAssigned = scopeProxy.swapAssigned(null);
 
          // mark this thread as inside script execution (drives isScriptThread()
          // / getExecScriptable(), e.g. PropertiesEngine's env-modification guard).

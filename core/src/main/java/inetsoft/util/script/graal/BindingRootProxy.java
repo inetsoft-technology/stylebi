@@ -351,8 +351,19 @@ public class BindingRootProxy implements ProxyObject {
       // behaves like a top-level `var` that shadows the CALC function of the same
       // name -- matching Rhino, where Calc was the global prototype and an own
       // `var` shadowed it. (#75704)
+      //
+      // Scoped to guest values that toHost() cannot losslessly round-trip
+      // (Date/Time/Duration/host/proxy). A CALC-colliding *primitive* still goes
+      // to global.putMember below, exactly as before this fix: toHost/toGuest
+      // round-trips primitives losslessly, and because the root scope is reused
+      // across per-cell exec() calls (see swapGlobal) while `assigned` is wiped
+      // per exec, storing primitives on `global` preserves the cross-exec
+      // persistence a calc-table running-total accumulator named after a CALC
+      // function (sum/count/min/max/...) relies on. (#75704)
       if((assigned != null && assigned.containsKey(key)) ||
-         (builtinScope != null && builtinScope.getMember(key) != null))
+         (builtinScope != null && builtinScope.getMember(key) != null &&
+          (value.isHostObject() || value.isProxyObject() ||
+           value.isDate() || value.isTime() || value.isDuration())))
       {
          assigned().put(key, value);
          return;
