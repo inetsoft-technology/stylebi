@@ -123,7 +123,7 @@ class WizPrintLayoutBuilderTest {
    }
 
    @Test
-   void addsStrippedInsightsBlockBelowChartWithoutResizingTheChart() {
+   void addsMarkdownInsightsBoxBelowChartWithoutResizingTheChart() {
       Viewsheet vs = new Viewsheet();
       textAssembly(vs, "Chart1", 0);
       List<WizPrintLayoutBuilder.ChartCaption> charts = List.of(
@@ -147,23 +147,17 @@ class WizPrintLayoutBuilderTest {
          .filter(l -> l instanceof VSEditableAssemblyLayout)
          .map(l -> (VSEditableAssemblyLayout) l)
          .collect(Collectors.toList());
-      // report header (title + date + summary) + caption + insights (paragraph + bullet = 2) = 6
-      assertEquals(6, texts.size());
+      // report header (title + date + summary) + caption + insights = 5 (insights is one markdown box)
+      assertEquals(5, texts.size());
 
-      // The bold paragraph and the bullet become separate structured boxes (one font per box);
-      // inline bold is flattened, bullet marker rendered.
-      VSEditableAssemblyLayout para = texts.stream()
-         .filter(t -> ((TextVSAssemblyInfo) t.getInfo()).getText().contains("Bold finding"))
+      // The insights box is named "wizMarkdown*" (so the converter renders it via MarkdownPresenter)
+      // and carries the RAW markdown as its value; stripping/styling happens at paint time.
+      VSEditableAssemblyLayout insights = texts.stream()
+         .filter(t -> t.getName().startsWith("wizMarkdownInsights"))
          .findFirst().orElseThrow();
-      assertFalse(((TextVSAssemblyInfo) para.getInfo()).getText().contains("**"),
-         "no raw markdown syntax survives: " + ((TextVSAssemblyInfo) para.getInfo()).getText());
-
-      VSEditableAssemblyLayout bullet = texts.stream()
-         .filter(t -> ((TextVSAssemblyInfo) t.getInfo()).getText().contains("point one"))
-         .findFirst().orElseThrow();
-      String bulletText = ((TextVSAssemblyInfo) bullet.getInfo()).getText();
-      assertTrue(bulletText.startsWith("•"), "bullet marker rendered: " + bulletText);
-      assertFalse(bulletText.contains("- point"), "raw bullet dash stripped: " + bulletText);
+      String raw = ((TextVSAssemblyInfo) insights.getInfo()).getText();
+      assertTrue(raw.contains("**Bold**"), "raw markdown preserved for the presenter: " + raw);
+      assertTrue(raw.contains("- point one"), "raw bullet preserved for the presenter: " + raw);
    }
 
    @Test
@@ -183,7 +177,7 @@ class WizPrintLayoutBuilderTest {
    }
 
    @Test
-   void reportHeaderSplitsTitleDateAndStrippedSummaryWithStyledFonts() {
+   void reportHeaderSplitsTitleDateAndMarkdownSummaryWithStyledFonts() {
       Viewsheet vs = new Viewsheet();
       textAssembly(vs, "Chart1", 0);
       List<WizPrintLayoutBuilder.ChartCaption> charts = List.of(
@@ -211,12 +205,14 @@ class WizPrintLayoutBuilderTest {
       assertTrue(((TextVSAssemblyInfo) date.getInfo()).getText().startsWith("Generated "),
          "date line: " + ((TextVSAssemblyInfo) date.getInfo()).getText());
 
+      // The summary is a markdown box (rendered richly by MarkdownPresenter at paint time); it
+      // carries the RAW recap markdown as its value.
       VSEditableAssemblyLayout summary = texts.stream()
-         .filter(t -> t.getName().startsWith("wizExportSummary"))
+         .filter(t -> t.getName().startsWith("wizMarkdownSummary"))
          .findFirst().orElseThrow();
       String summaryText = ((TextVSAssemblyInfo) summary.getInfo()).getText();
       assertTrue(summaryText.contains("Premium units run the business"), "recap kept: " + summaryText);
-      assertFalse(summaryText.contains("**"), "recap markdown stripped: " + summaryText);
+      assertTrue(summaryText.contains("**"), "raw markdown preserved for the presenter: " + summaryText);
    }
 
    @Test
