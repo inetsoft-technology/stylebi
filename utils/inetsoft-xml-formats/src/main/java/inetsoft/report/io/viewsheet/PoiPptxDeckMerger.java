@@ -290,7 +290,7 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
       g.dispose();
 
       double boxWidthPt = SLIDE_WIDTH_PT - 2 * MARGIN_PT;
-      double boxHeightPt = SLIDE_HEIGHT_PT - 2 * MARGIN_PT;
+      double boxHeightPt = SLIDE_HEIGHT_PT - 2 * MARGIN_PT - INSIGHTS_TITLE_HEIGHT_PT;
       double avgCharWidthPt = fm.stringWidth("abcdefghijklmnopqrstuvwxyz") / 26.0;
       int charsPerLine = Math.max(1, (int) (boxWidthPt / avgCharWidthPt));
       int linesPerSlide = Math.max(1, (int) (boxHeightPt / fm.getHeight()));
