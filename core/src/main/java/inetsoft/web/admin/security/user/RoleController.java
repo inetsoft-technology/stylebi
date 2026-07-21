@@ -101,9 +101,16 @@ public class RoleController {
                                        @DecodePathVariable("provider") String providerName)
    {
       String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
+      String rootOrgRoleID = new IdentityID("Organization Roles", currOrgId).convertToKey();
 
+      // "Organization Roles" is an independent permission root from the global "Roles" root, and
+      // the wildcard resolution only merges the global "Roles" grant. Explicitly check the
+      // "Organization Roles" root so a user granted ADMIN on it (without being an org admin) can
+      // create org-scoped roles, mirroring the root check in getRole().
       if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
-                                           IdentityID.getIdentityRootResorucePath(currOrgId), ResourceAction.ADMIN))
+                                           IdentityID.getIdentityRootResorucePath(currOrgId), ResourceAction.ADMIN) &&
+         !securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
+                                           rootOrgRoleID, ResourceAction.ADMIN))
       {
          return null;
       }

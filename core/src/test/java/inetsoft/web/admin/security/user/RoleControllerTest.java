@@ -23,11 +23,12 @@ package inetsoft.web.admin.security.user;
  * Class type: behavioral-orchestration controller — RoleController has real in-controller
  * logic in createRole(), editRole(), and deleteIdentities().
  *
- * Coverage scope (6 cases in 3 groups):
+ * Coverage scope (7 cases in 3 groups):
  *
  * --- createRole() ---
  *
  *  [no permission]               checkPermission() returns false → null returned immediately
+ *  [org-roles admin]             wildcard "Roles" root false but "Organization Roles" root true → passes gate
  *
  * --- deleteIdentities() ---
  *
@@ -44,6 +45,7 @@ package inetsoft.web.admin.security.user;
  * with Mockito.mockStatic() using lenient() where possible.
  */
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.util.Identity;
@@ -136,6 +138,26 @@ class RoleControllerTest {
 
       assertNull(result);
       verify(securityProvider, never()).getAuthenticationProvider();
+   }
+
+   // [org-roles admin] wildcard "Roles" root false but "Organization Roles" root true → passes gate
+   @Test
+   void createRole_orgRoleAdminPermission_proceedsPastGate() {
+      String rootOrgRoleID = new IdentityID("Organization Roles", "host-org").convertToKey();
+      when(securityProvider.checkPermission(eq(principal), eq(ResourceType.SECURITY_ROLE),
+                                            anyString(), eq(ResourceAction.ADMIN)))
+         .thenAnswer(inv -> rootOrgRoleID.equals(inv.getArgument(2)));
+
+      try(MockedStatic<SUtil> sutilStatic = mockStatic(SUtil.class)) {
+         sutilStatic.when(() -> SUtil.getActionRecord(any(HttpServletRequest.class), anyString(),
+                                                      nullable(String.class), anyString()))
+            .thenReturn(mock(ActionRecord.class));
+
+         controller.createRole(httpRequest, principal, "myProvider");
+      }
+
+      // gate passed → getProvider() reached, which calls getAuthenticationProvider()
+      verify(securityProvider).getAuthenticationProvider();
    }
 
    // -------------------------------------------------------------------------
