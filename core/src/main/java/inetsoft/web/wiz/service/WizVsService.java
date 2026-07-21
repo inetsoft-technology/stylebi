@@ -264,6 +264,15 @@ public class WizVsService {
          // so the condition ref's name/type match the header. Otherwise GraphConditionGroup.findColumn
          // can't resolve the field, the condition is dropped, and no mark is ever colored.
          ColumnSelection chartCols = buildChartHighlightColumns(chartInfo);
+         // A chart applies a highlight FONT only to a data label (text highlight) or to a font-capable
+         // mark — a dimension, or a DISCRETE measure — exactly the cases HighlightDialogService.setShowFont
+         // enables. A continuous-measure mark honors only the COLOR (foreground); its font is ignored. Since
+         // a wiz rule is attached to EVERY binding ref, the font still renders as long as ONE ref is
+         // font-capable; only when the whole chart has no dimension and no discrete measure does a font have
+         // nowhere to land. Precompute that so a font-only rule can fail loud (mirroring the background guard).
+         boolean chartHasFontCapableRef = highlightRefs.stream().anyMatch(
+            r -> r instanceof VSChartDimensionRef ||
+                 r instanceof VSChartAggregateRef agg && agg.isDiscrete());
          Map<HighlightRef, HighlightGroup> pointGroups = new LinkedHashMap<>();
          Map<HighlightRef, HighlightGroup> textGroups = new LinkedHashMap<>();
          Set<String> usedNames = new HashSet<>();
@@ -272,6 +281,18 @@ public class WizVsService {
             String name = uniqueName(rule.getName(), usedNames);
             Highlight hl = buildHighlight(rule, name, chartCols, true);
             boolean isText = !wordCloud && "dataLabel".equals(rule.getApplyArea());
+
+            // A rule that sets ONLY a font (no foreground) has no visible effect when the font cannot render:
+            // not a data-label highlight AND no font-capable ref to carry it (all marks are continuous
+            // measures, which honor color only). Fail loud instead of silently no-opping — the font analogue
+            // of the background-only guard in buildHighlight.
+            if(hl.getForeground() == null && hl.getFont() != null && !isText && !chartHasFontCapableRef) {
+               throw new IllegalArgumentException(
+                  "highlight '" + name + "' sets only a font, but this chart highlights a continuous measure " +
+                  "mark, which honors color only — the font has nowhere to render. Set a foreground color, or " +
+                  "use applyArea=\"dataLabel\" to style the data label (a data label DOES honor the font).");
+            }
+
             Map<HighlightRef, HighlightGroup> sink = isText ? textGroups : pointGroups;
 
             for(HighlightRef hlRef : highlightRefs) {
