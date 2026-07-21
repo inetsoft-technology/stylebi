@@ -36,6 +36,12 @@ public class ChartColorsRequest {
    public String getViewsheetIdentifier() { return viewsheetIdentifier; }
    public void setViewsheetIdentifier(String viewsheetIdentifier) { this.viewsheetIdentifier = viewsheetIdentifier; }
 
+   /** When true, duplicate the assembly first and apply these colors to the COPY instead of mutating
+    *  {@link #assemblyName} in place — the original chart is left untouched. Default false (in-place,
+    *  the existing behavior). */
+   public boolean isCopy() { return copy; }
+   public void setCopy(boolean copy) { this.copy = copy; }
+
    /** Hex #RRGGBB — one color for the measure(s) when no field is on the color aesthetic. */
    public String getStaticColor() { return staticColor; }
    public void setStaticColor(String staticColor) { this.staticColor = staticColor; }
@@ -55,6 +61,7 @@ public class ChartColorsRequest {
    private String wizRuntimeId;
    private String assemblyName;
    private String viewsheetIdentifier;
+   private boolean copy;
    private String staticColor;
    private String paletteName;
    private List<String> colorList;
