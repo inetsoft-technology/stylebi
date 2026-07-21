@@ -869,6 +869,14 @@ public class IdentityService {
                dashboardRegistryManager.migrateRegistry(oldID, securityProvider.getOrganization(OrganizationManager.getInstance().getCurrentOrgID()), identity);
             }
 
+            // Re-scope the user's own permission grants to the new organization, symmetric with
+            // updateRoleForOrg()/updateGroupForOrg(). Without this, permissions granted directly
+            // to the user (e.g. portal-tab access) stay scoped to the old org id and are lost when
+            // the org id changes, because the role/group re-scoping relocates the permission keys
+            // to the new org without carrying the user grantee over. (Bug #75721)
+            updateIdentityPermissions(Identity.USER, oldID, user.getIdentityID(),
+               OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), true);
+
             eprovider.setUser(user.getIdentityID(), user);
             eprovider.removeUser(oldID);
             repletRegistryManager.renameUser(oldID, user.getIdentityID());
