@@ -183,7 +183,8 @@ public class WizVsService {
     * than silently no-opping.
     *
     * <p>Chart, table, crosstab and text-output assemblies are supported. Among output types ONLY text is
-    * highlightable — a gauge (a valid wiz output) is deliberately not, and fails loud. Table/crosstab highlighting keys a
+    * highlightable — a gauge (a valid wiz output) is deliberately not, and fails loud.
+    * Table/crosstab highlighting keys a
     * {@code HighlightGroup} to a per-cell {@code TableDataPath} (via {@link TableHighlightAttr}); the
     * target cell is located from the executed {@link VSTableLens} by each rule's {@code field} (a table
     * column header or a crosstab measure/aggregate header). See {@link #applyTableHighlight}.
