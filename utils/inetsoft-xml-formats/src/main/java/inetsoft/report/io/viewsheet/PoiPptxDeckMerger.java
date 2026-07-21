@@ -17,7 +17,7 @@
  */
 package inetsoft.report.io.viewsheet;
 
-import inetsoft.web.wiz.service.MarkdownPlainText;
+import inetsoft.web.wiz.service.MarkdownModel;
 import inetsoft.web.wiz.service.PptxDeckMerger;
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
 import org.apache.poi.xslf.usermodel.XSLFSlide;
@@ -93,13 +93,15 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
       styleBox(titleBox, true, TITLE_FONT_PT, ACCENT);
 
       if(recap != null && !recap.isBlank()) {
-         // Strip markdown so the recap reads as clean prose (it is authored as markdown, like the
-         // per-chart insights) rather than showing raw ** / - / # syntax on the cover slide.
+         // Render the recap's markdown (headers/bullets/bold/italic) as styled paragraphs+runs
+         // rather than stripping it to plain text. Short enough to fit the cover box.
          XSLFTextBox recapBox = slide.createTextBox();
          recapBox.setAnchor(new Rectangle2D.Double(MARGIN_PT, MARGIN_PT + 130,
             SLIDE_WIDTH_PT - 2 * MARGIN_PT, SLIDE_HEIGHT_PT - 2 * MARGIN_PT - 130));
-         recapBox.setText(MarkdownPlainText.strip(recap));
-         styleBox(recapBox, false, RECAP_FONT_PT, BODY_COLOR);
+
+         for(MarkdownModel.Block block : MarkdownModel.parse(recap)) {
+            appendBlock(recapBox, block, RECAP_FONT_PT);
+         }
       }
    }
 
@@ -131,20 +133,128 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
       box.setText("Failed to render: " + (title == null ? "" : title));
    }
 
-   /** Appends one or more insights-only slides (no chart image, just a text box near the full
-    *  slide) so long insights are never truncated — each slide holds as much stripped text as
-    *  fits per {@link #chunkInsightsText}. */
+   /** Appends one or more insights-only slides, rendering the insights markdown as styled
+    *  paragraphs/bullets/headers (bold + italic runs preserved). Blocks are packed onto slides by
+    *  estimated height so nothing is truncated; a single block taller than a whole slide falls
+    *  back to a plain word-split across slides. */
    private void addInsightsSlides(XMLSlideShow show, String insightsMarkdown) {
-      String stripped = MarkdownPlainText.strip(insightsMarkdown);
+      List<MarkdownModel.Block> blocks = MarkdownModel.parse(insightsMarkdown);
 
-      for(String chunk : chunkInsightsText(stripped)) {
+      if(blocks.isEmpty()) {
+         return;
+      }
+
+      double boxWidthPt = SLIDE_WIDTH_PT - 2 * MARGIN_PT;
+      double boxHeightPt = SLIDE_HEIGHT_PT - 2 * MARGIN_PT;
+
+      List<List<MarkdownModel.Block>> pages = new ArrayList<>();
+      List<MarkdownModel.Block> current = new ArrayList<>();
+      double used = 0;
+
+      for(MarkdownModel.Block block : blocks) {
+         double h = estimateBlockHeightPt(block, boxWidthPt);
+
+         if(h > boxHeightPt) {
+            // Pathological single block taller than a slide: flush, then split its plain text.
+            if(!current.isEmpty()) {
+               pages.add(current);
+               current = new ArrayList<>();
+               used = 0;
+            }
+
+            for(String chunk : chunkInsightsText(block.plainText())) {
+               pages.add(List.of(new MarkdownModel.Block(MarkdownModel.BlockType.PARAGRAPH, 0,
+                  List.of(new MarkdownModel.Span(chunk, false, false)))));
+            }
+
+            continue;
+         }
+
+         if(used + h > boxHeightPt && !current.isEmpty()) {
+            pages.add(current);
+            current = new ArrayList<>();
+            used = 0;
+         }
+
+         current.add(block);
+         used += h;
+      }
+
+      if(!current.isEmpty()) {
+         pages.add(current);
+      }
+
+      for(List<MarkdownModel.Block> pageBlocks : pages) {
          XSLFSlide slide = show.createSlide();
          XSLFTextBox box = slide.createTextBox();
          box.setAnchor(new Rectangle2D.Double(MARGIN_PT, MARGIN_PT,
             SLIDE_WIDTH_PT - 2 * MARGIN_PT, SLIDE_HEIGHT_PT - 2 * MARGIN_PT));
-         XSLFTextRun run = box.setText(chunk);
-         run.setFontSize(INSIGHTS_FONT_SIZE_PT);
+
+         for(MarkdownModel.Block block : pageBlocks) {
+            appendBlock(box, block, INSIGHTS_FONT_SIZE_PT);
+         }
       }
+   }
+
+   /** Append one markdown block to a text box as a styled paragraph (with per-span bold/italic). */
+   private void appendBlock(XSLFTextBox box, MarkdownModel.Block block, double bodySize) {
+      XSLFTextParagraph p = box.addNewTextParagraph();
+      p.setSpaceAfter(6.0);
+
+      switch(block.type()) {
+      case HEADING:
+         appendSpans(p, block.spans(), headingFontPt(block.level(), bodySize), ACCENT, true);
+         break;
+      case BULLET:
+         p.setLeftMargin(20.0);
+         p.setIndent(-14.0);
+         XSLFTextRun bullet = p.addNewTextRun();
+         bullet.setText("•  ");
+         bullet.setFontSize(bodySize);
+         bullet.setFontColor(ACCENT);
+         bullet.setBold(true);
+         appendSpans(p, block.spans(), bodySize, BODY_COLOR, false);
+         break;
+      default:
+         appendSpans(p, block.spans(), bodySize, BODY_COLOR, false);
+      }
+   }
+
+   private void appendSpans(XSLFTextParagraph p, List<MarkdownModel.Span> spans, double size,
+                            Color color, boolean forceBold)
+   {
+      for(MarkdownModel.Span span : spans) {
+         if(span.text().isEmpty()) {
+            continue;
+         }
+
+         XSLFTextRun run = p.addNewTextRun();
+         run.setText(span.text());
+         run.setFontSize(size);
+         run.setFontColor(color);
+         run.setBold(forceBold || span.bold());
+         run.setItalic(span.italic());
+      }
+   }
+
+   private double headingFontPt(int level, double bodySize) {
+      return Math.max(bodySize + 2, 26 - Math.max(0, level - 1) * 3);
+   }
+
+   private double estimateBlockHeightPt(MarkdownModel.Block block, double boxWidthPt) {
+      double fontPt = block.type() == MarkdownModel.BlockType.HEADING
+         ? headingFontPt(block.level(), INSIGHTS_FONT_SIZE_PT) : INSIGHTS_FONT_SIZE_PT;
+      Font font = new Font(Font.SANS_SERIF, Font.PLAIN, (int) Math.round(fontPt));
+      BufferedImage measuring = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+      Graphics2D g = measuring.createGraphics();
+      FontMetrics fm = g.getFontMetrics(font);
+      g.dispose();
+
+      double avgCharWidthPt = fm.stringWidth("abcdefghijklmnopqrstuvwxyz") / 26.0;
+      double usableWidth = block.type() == MarkdownModel.BlockType.BULLET ? boxWidthPt - 20 : boxWidthPt;
+      int charsPerLine = Math.max(1, (int) (usableWidth / avgCharWidthPt));
+      int lines = Math.max(1, (int) Math.ceil(block.plainText().length() / (double) charsPerLine));
+      return lines * fm.getHeight() + BLOCK_SPACING_PT;
    }
 
    /** Estimates a per-slide character budget from real font metrics (measured headlessly via
@@ -201,4 +311,5 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
    private static final double TITLE_FONT_PT = 34.0;
    private static final double RECAP_FONT_PT = 17.0;
    private static final double CAPTION_FONT_PT = 22.0;
+   private static final double BLOCK_SPACING_PT = 8.0;   // approx paragraph gap for height estimation
 }

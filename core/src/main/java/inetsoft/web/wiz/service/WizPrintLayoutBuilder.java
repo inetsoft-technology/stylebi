@@ -108,8 +108,10 @@ public class WizPrintLayoutBuilder {
 
          if(c.insightsMarkdown() != null && !c.insightsMarkdown().isBlank()) {
             int insightsY = chartY + CHART_HEIGHT_PT;
-            vsLayouts.add(textLayout("wizExportInsights_" + i, MarkdownPlainText.strip(c.insightsMarkdown()),
-               new Point(0, insightsY), new Dimension(PAGE_CONTENT_WIDTH_PT, INSIGHTS_HEIGHT_PT)));
+            // Render insights structurally: headers, bullets, and paragraphs each get their own
+            // styled box (a report text box carries a single font, so structure — not inline bold —
+            // is what we preserve on the PDF side).
+            addStructuredBlocks(vsLayouts, "wizExportInsights_" + i + "_", c.insightsMarkdown(), insightsY);
          }
 
          page++;
@@ -197,24 +199,76 @@ public class WizPrintLayoutBuilder {
          Font.PLAIN, DATE_FONT_PT, DATE_COLOR, true));
       y += DATE_HEIGHT_PT;
 
-      String summary = recap == null ? "" : MarkdownPlainText.strip(recap).trim();
-
-      if(!summary.isEmpty()) {
+      if(recap != null && !recap.isBlank()) {
          y += SUMMARY_GAP_PT;
-         vsLayouts.add(styledTextLayout("wizExportSummary", summary, new Point(0, y),
-            new Dimension(PAGE_CONTENT_WIDTH_PT, SUMMARY_HEIGHT_PT),
-            Font.PLAIN, SUMMARY_FONT_PT, SUMMARY_COLOR, false));
-         y += SUMMARY_HEIGHT_PT;
+         y = addStructuredBlocks(vsLayouts, "wizExportSummary_", recap, y);
       }
 
       return y + HEADER_BOTTOM_GAP_PT;
    }
 
-   private VSEditableAssemblyLayout textLayout(String name, String text, Point pos, Dimension size) {
-      TextVSAssemblyInfo info = new TextVSAssemblyInfo();
-      info.setTextValue(text);
-      info.setText(text);
-      return new VSEditableAssemblyLayout(info, name, pos, size);
+   /**
+    * Lays out a markdown block sequence as a vertical stack of styled text boxes starting at
+    * {@code startY}: headings bold in the accent color, bullets with a hanging "•" indent, and
+    * paragraphs as body text. Inline bold/italic is flattened (one font per report text box).
+    * Returns the y just past the last block.
+    */
+   private int addStructuredBlocks(List<VSAssemblyLayout> vsLayouts, String namePrefix,
+                                   String markdown, int startY)
+   {
+      int y = startY;
+      int idx = 0;
+
+      for(MarkdownModel.Block block : MarkdownModel.parse(markdown)) {
+         String text = block.plainText();
+         int x = 0;
+         int width = PAGE_CONTENT_WIDTH_PT;
+         int fontStyle;
+         int fontPt;
+         String color;
+
+         switch(block.type()) {
+         case HEADING:
+            fontStyle = Font.BOLD;
+            fontPt = Math.max(BODY_FONT_PT + 1, 15 - Math.max(0, block.level() - 1));
+            color = CAPTION_COLOR;
+            break;
+         case BULLET:
+            fontStyle = Font.PLAIN;
+            fontPt = BODY_FONT_PT;
+            color = SUMMARY_COLOR;
+            text = "•  " + text;
+            x = BULLET_INDENT_PT;
+            width = PAGE_CONTENT_WIDTH_PT - BULLET_INDENT_PT;
+            break;
+         default:
+            fontStyle = Font.PLAIN;
+            fontPt = BODY_FONT_PT;
+            color = SUMMARY_COLOR;
+         }
+
+         int h = estimateTextHeightPt(text, fontPt, width);
+         vsLayouts.add(styledTextLayout(namePrefix + (idx++), text, new Point(x, y),
+            new Dimension(width, h), fontStyle, fontPt, color, false));
+         y += h + BLOCK_GAP_PT;
+      }
+
+      return y;
+   }
+
+   /** Estimate a wrapped text block's height in points from headless font metrics. */
+   private int estimateTextHeightPt(String text, int fontPt, int widthPt) {
+      java.awt.Font font = new java.awt.Font(java.awt.Font.SANS_SERIF, java.awt.Font.PLAIN, fontPt);
+      java.awt.image.BufferedImage img =
+         new java.awt.image.BufferedImage(1, 1, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+      java.awt.Graphics2D g = img.createGraphics();
+      java.awt.FontMetrics fm = g.getFontMetrics(font);
+      g.dispose();
+
+      double avgCharWidth = fm.stringWidth("abcdefghijklmnopqrstuvwxyz") / 26.0;
+      int charsPerLine = Math.max(1, (int) (widthPt / avgCharWidth));
+      int lines = Math.max(1, (int) Math.ceil(text.length() / (double) charsPerLine));
+      return lines * fm.getHeight() + 2;
    }
 
    /** "Generated <Month D, YYYY>" for the current server date. */
@@ -256,7 +310,10 @@ public class WizPrintLayoutBuilder {
    private static final int CAPTION_FONT_PT = 13;
    private static final String CAPTION_COLOR = "0x3B6EA5";   // slate-blue accent
    private static final int CHART_HEIGHT_PT = 400;
-   private static final int INSIGHTS_HEIGHT_PT = 150;
+   // Structured-block (insights/recap) type + spacing.
+   private static final int BODY_FONT_PT = 11;
+   private static final int BULLET_INDENT_PT = 16;
+   private static final int BLOCK_GAP_PT = 4;
 
    // Report-header geometry + type (points / font sizes / hex colors).
    // TITLE_HEIGHT_PT fits a two-line wrapped title at TITLE_FONT_PT so the date line below it
@@ -268,8 +325,6 @@ public class WizPrintLayoutBuilder {
    private static final int DATE_FONT_PT = 9;
    private static final String DATE_COLOR = "0x888888";
    private static final int SUMMARY_GAP_PT = 6;
-   private static final int SUMMARY_HEIGHT_PT = 64;
-   private static final int SUMMARY_FONT_PT = 11;
    private static final String SUMMARY_COLOR = "0x2b2b2b";
    private static final int HEADER_BOTTOM_GAP_PT = 12;
    // Slate-blue accent (matches the chart palette + PPTX): the header rule and caption rules.
