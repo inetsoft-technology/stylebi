@@ -147,16 +147,23 @@ class WizPrintLayoutBuilderTest {
          .filter(l -> l instanceof VSEditableAssemblyLayout)
          .map(l -> (VSEditableAssemblyLayout) l)
          .collect(Collectors.toList());
-      // report header (title + date + summary) + caption + insights = 5
-      assertEquals(5, texts.size());
+      // report header (title + date + summary) + caption + insights (paragraph + bullet = 2) = 6
+      assertEquals(6, texts.size());
 
-      VSEditableAssemblyLayout insights = texts.stream()
+      // The bold paragraph and the bullet become separate structured boxes (one font per box);
+      // inline bold is flattened, bullet marker rendered.
+      VSEditableAssemblyLayout para = texts.stream()
          .filter(t -> ((TextVSAssemblyInfo) t.getInfo()).getText().contains("Bold finding"))
          .findFirst().orElseThrow();
-      String insightsText = ((TextVSAssemblyInfo) insights.getInfo()).getText();
-      assertTrue(insightsText.contains("Bold finding"), "markdown bold stripped: " + insightsText);
-      assertTrue(insightsText.contains("• point one"), "markdown bullet normalized: " + insightsText);
-      assertFalse(insightsText.contains("**"), "no raw markdown syntax survives: " + insightsText);
+      assertFalse(((TextVSAssemblyInfo) para.getInfo()).getText().contains("**"),
+         "no raw markdown syntax survives: " + ((TextVSAssemblyInfo) para.getInfo()).getText());
+
+      VSEditableAssemblyLayout bullet = texts.stream()
+         .filter(t -> ((TextVSAssemblyInfo) t.getInfo()).getText().contains("point one"))
+         .findFirst().orElseThrow();
+      String bulletText = ((TextVSAssemblyInfo) bullet.getInfo()).getText();
+      assertTrue(bulletText.startsWith("•"), "bullet marker rendered: " + bulletText);
+      assertFalse(bulletText.contains("- point"), "raw bullet dash stripped: " + bulletText);
    }
 
    @Test
@@ -204,7 +211,8 @@ class WizPrintLayoutBuilderTest {
       assertTrue(((TextVSAssemblyInfo) date.getInfo()).getText().startsWith("Generated "),
          "date line: " + ((TextVSAssemblyInfo) date.getInfo()).getText());
 
-      VSEditableAssemblyLayout summary = texts.stream().filter(t -> t.getName().equals("wizExportSummary"))
+      VSEditableAssemblyLayout summary = texts.stream()
+         .filter(t -> t.getName().startsWith("wizExportSummary"))
          .findFirst().orElseThrow();
       String summaryText = ((TextVSAssemblyInfo) summary.getInfo()).getText();
       assertTrue(summaryText.contains("Premium units run the business"), "recap kept: " + summaryText);
