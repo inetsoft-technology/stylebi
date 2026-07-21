@@ -174,6 +174,19 @@ class WizPrintLayoutBuilderTest {
    }
 
    @Test
+   void setsScaleFontToOneSoTableCellFontsAreNotZeroSized() {
+      Viewsheet vs = mock(Viewsheet.class);
+      PrintLayout layout = builder.build(vs, "letter", "Board", null, List.of());
+      // A bare PrintLayout leaves scaleFont at its 0f default; AbstractLayout.apply() then stamps
+      // RScaleFont=0 onto every assembly's cell formats, and VSCompositeFormat.getFont() multiplies
+      // the font size by rscaleFont — so crosstab/table cells render at font size 0 (invisible text
+      // and zero-width auto columns) while charts, painted by the graph engine, are unaffected.
+      // 1f == "no font scaling", matching an interactively-created print layout.
+      assertEquals(1f, layout.getScaleFont(),
+         "crosstab/table cell fonts must not be scaled to zero in the board-export print layout");
+   }
+
+   @Test
    void threeArgChartCaptionStillCompilesAndOmitsInsights() {
       Viewsheet vs = new Viewsheet();
       textAssembly(vs, "Chart1", 0);
