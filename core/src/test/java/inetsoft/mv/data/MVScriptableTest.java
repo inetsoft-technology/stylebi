@@ -32,14 +32,11 @@ import static org.mockito.Mockito.when;
  * Characterizes {@code MVScriptable.getMember()} post-migration from Rhino's
  * {@code ScriptableObject} to the {@code ScriptScope} interface.
  *
- * <p><b>Finding:</b> when the backing MV has not been built yet (storage lookup fails, e.g. a
- * fresh/never-materialized def), {@code getMember("MaxValue")}/{@code getMember("MinValue")}
- * throw an uncaught {@link NullPointerException} from {@code max()}/{@code min()} dereferencing
- * the null {@code mv} field, rather than returning a sentinel or {@code null} gracefully. This is
- * pinned below as the current behavior (unrelated to the Rhino migration -- {@code max()}/
- * {@code min()} were not touched by it) but may be worth a separate bug report if a production
- * code path actually reaches this state (e.g. an incremental MV condition script evaluated before
- * the MV finishes building).</p>
+ * <p>When the backing MV has not been built yet (storage lookup fails, e.g. a fresh/
+ * never-materialized def, or a concurrent MV rebuild races the storage read), {@code
+ * getMember("MaxValue")}/{@code getMember("MinValue")} return {@code null} instead of throwing --
+ * see Bug: MVScriptable.getMember() throws uncaught NullPointerException when MV storage read
+ * races with concurrent MV rebuild.</p>
  */
 @Tag("core")
 class MVScriptableTest {
@@ -72,23 +69,18 @@ class MVScriptableTest {
       assertEquals(new Timestamp(1700000000000L), scriptable.getMember("LastUpdateTime"));
    }
 
-   /**
-    * Pins the current behavior described in the class-level javadoc: this is a characterization
-    * test, not an endorsement -- it exists so this NPE doesn't silently change (e.g. into a
-    * different exception type, or into a swallowed null) without the change being noticed.
-    */
    @Test
-   void maxValueThrowsWhenMvIsUnbuilt() {
+   void maxValueReturnsNullWhenMvIsUnbuilt() {
       MVScriptable scriptable = newScriptableWithUnbuiltMv();
 
-      assertThrows(NullPointerException.class, () -> scriptable.getMember("MaxValue"));
+      assertNull(scriptable.getMember("MaxValue"));
    }
 
    @Test
-   void minValueThrowsWhenMvIsUnbuilt() {
+   void minValueReturnsNullWhenMvIsUnbuilt() {
       MVScriptable scriptable = newScriptableWithUnbuiltMv();
 
-      assertThrows(NullPointerException.class, () -> scriptable.getMember("MinValue"));
+      assertNull(scriptable.getMember("MinValue"));
    }
 
    @Test
