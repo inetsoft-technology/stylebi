@@ -22,8 +22,10 @@ import inetsoft.web.wiz.service.PptxDeckMerger;
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
 import org.apache.poi.xslf.usermodel.XSLFSlide;
 import org.apache.poi.xslf.usermodel.XSLFTextBox;
+import org.apache.poi.xslf.usermodel.XSLFTextParagraph;
 import org.apache.poi.xslf.usermodel.XSLFTextRun;
 
+import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -86,24 +88,40 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
       XSLFSlide slide = show.createSlide();
       XSLFTextBox titleBox = slide.createTextBox();
       titleBox.setAnchor(new Rectangle2D.Double(MARGIN_PT, MARGIN_PT,
-         SLIDE_WIDTH_PT - 2 * MARGIN_PT, 80));
-      titleBox.setText(title == null ? "" : title);
+         SLIDE_WIDTH_PT - 2 * MARGIN_PT, 120));
+      titleBox.setText(title == null || title.isBlank() ? "Analysis Report" : title);
+      styleBox(titleBox, true, TITLE_FONT_PT, ACCENT);
 
       if(recap != null && !recap.isBlank()) {
+         // Strip markdown so the recap reads as clean prose (it is authored as markdown, like the
+         // per-chart insights) rather than showing raw ** / - / # syntax on the cover slide.
          XSLFTextBox recapBox = slide.createTextBox();
-         recapBox.setAnchor(new Rectangle2D.Double(MARGIN_PT, MARGIN_PT + 90,
-            SLIDE_WIDTH_PT - 2 * MARGIN_PT, SLIDE_HEIGHT_PT - 2 * MARGIN_PT - 90));
-         recapBox.setText(recap);
+         recapBox.setAnchor(new Rectangle2D.Double(MARGIN_PT, MARGIN_PT + 130,
+            SLIDE_WIDTH_PT - 2 * MARGIN_PT, SLIDE_HEIGHT_PT - 2 * MARGIN_PT - 130));
+         recapBox.setText(MarkdownPlainText.strip(recap));
+         styleBox(recapBox, false, RECAP_FONT_PT, BODY_COLOR);
       }
    }
 
    private void addCaption(XSLFSlide slide, String title, String caption) {
       XSLFTextBox captionBox = slide.createTextBox();
       captionBox.setAnchor(new Rectangle2D.Double(MARGIN_PT, MARGIN_PT / 2.0,
-         SLIDE_WIDTH_PT - 2 * MARGIN_PT, 40));
+         SLIDE_WIDTH_PT - 2 * MARGIN_PT, 44));
       String text = (title == null ? "" : title) +
          (caption != null && !caption.isBlank() ? " — " + caption : "");
       captionBox.setText(text);
+      styleBox(captionBox, true, CAPTION_FONT_PT, ACCENT);
+   }
+
+   /** Apply a uniform bold/size/color to every run in every paragraph of a text box. */
+   private void styleBox(XSLFTextBox box, boolean bold, double fontSize, Color color) {
+      for(XSLFTextParagraph paragraph : box.getTextParagraphs()) {
+         for(XSLFTextRun run : paragraph.getTextRuns()) {
+            run.setBold(bold);
+            run.setFontSize(fontSize);
+            run.setFontColor(color);
+         }
+      }
    }
 
    private void addFailurePlaceholder(XSLFSlide slide, String title) {
@@ -176,4 +194,11 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
    private static final int SLIDE_HEIGHT_PT = 540;
    private static final int MARGIN_PT = 40;
    private static final double INSIGHTS_FONT_SIZE_PT = 16.0;
+   // Slate-blue accent (matches the chart palette + the PDF report), used for the cover title and
+   // per-slide captions; recap/body stays a dark near-black.
+   private static final Color ACCENT = new Color(0x3B6EA5);
+   private static final Color BODY_COLOR = new Color(0x2B2B2B);
+   private static final double TITLE_FONT_PT = 34.0;
+   private static final double RECAP_FONT_PT = 17.0;
+   private static final double CAPTION_FONT_PT = 22.0;
 }

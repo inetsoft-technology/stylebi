@@ -80,6 +80,9 @@ public class WizPrintLayoutBuilder {
 
       List<VSAssemblyLayout> vsLayouts = new ArrayList<>();
       int page = 0;
+      // Stride each subsequent chart to the real printable page height (paper minus top/bottom
+      // margins), not a fixed 11in — otherwise later pages drift down and leave awkward whitespace.
+      int pageStride = pageContentHeightPt(pageSize);
 
       // Page 1: report-style header — a prominent title, a "Generated <date>" line closed by a
       // thin rule, and the session recap as a markdown-stripped summary. Split into separate text
@@ -89,15 +92,17 @@ public class WizPrintLayoutBuilder {
       for(int i = 0; i < ordered.size(); i++) {
          ChartCaption c = ordered.get(i);
          VSAssembly assembly = topLevel.get(i);
-         int pageTop = page * PAGE_HEIGHT_PT;
+         int pageTop = page * pageStride;
          int captionY = i == 0 ? headerBottom : pageTop;
          int chartY = captionY + CAPTION_HEIGHT_PT;
 
          // Build caption text: title always shown, caption appended after an em-dash when present.
+         // Styled as a slate-blue bold section header with a thin accent rule above the chart.
          String captionText = c.title() +
             (c.caption() != null && !c.caption().isBlank() ? " — " + c.caption() : "");
-         vsLayouts.add(textLayout("wizExportCaption_" + i, captionText,
-            new Point(0, captionY), new Dimension(PAGE_CONTENT_WIDTH_PT, CAPTION_HEIGHT_PT)));
+         vsLayouts.add(styledTextLayout("wizExportCaption_" + i, captionText,
+            new Point(0, captionY), new Dimension(PAGE_CONTENT_WIDTH_PT, CAPTION_HEIGHT_PT),
+            Font.BOLD, CAPTION_FONT_PT, CAPTION_COLOR, true));
          vsLayouts.add(new VSAssemblyLayout(assembly.getName(), new Point(0, chartY),
             new Dimension(PAGE_CONTENT_WIDTH_PT, CHART_HEIGHT_PT)));
 
@@ -112,6 +117,13 @@ public class WizPrintLayoutBuilder {
 
       layout.setVSAssemblyLayouts(vsLayouts);
       return layout;
+   }
+
+   /** Printable content height in points: paper height minus top/bottom margins. */
+   private int pageContentHeightPt(String pageSize) {
+      String canonicalName = PAGE_SIZE_NAMES.get(pageSize == null ? "" : pageSize.toLowerCase());
+      Size size = PaperSize.getSize(canonicalName);
+      return (int) Math.round((size.height - MARGIN_TOP_IN - MARGIN_BOTTOM_IN) * 72);
    }
 
    private PrintInfo buildPrintInfo(String pageSize) {
@@ -239,9 +251,10 @@ public class WizPrintLayoutBuilder {
     *  values feed that same pipeline, so page/content geometry below is expressed in points.
     *  CONFIRM in Task 3's integration test that content doesn't clip/overlap across the page
     *  boundary; adjust these constants if it does. */
-   private static final int PAGE_HEIGHT_PT = 11 * 72;   // ~A4/Letter portrait height, conservative
    private static final int PAGE_CONTENT_WIDTH_PT = 8 * 72;
    private static final int CAPTION_HEIGHT_PT = 30;
+   private static final int CAPTION_FONT_PT = 13;
+   private static final String CAPTION_COLOR = "0x3B6EA5";   // slate-blue accent
    private static final int CHART_HEIGHT_PT = 400;
    private static final int INSIGHTS_HEIGHT_PT = 150;
 
@@ -259,5 +272,6 @@ public class WizPrintLayoutBuilder {
    private static final int SUMMARY_FONT_PT = 11;
    private static final String SUMMARY_COLOR = "0x2b2b2b";
    private static final int HEADER_BOTTOM_GAP_PT = 12;
-   private static final Color RULE_COLOR = new Color(0xcccccc);
+   // Slate-blue accent (matches the chart palette + PPTX): the header rule and caption rules.
+   private static final Color RULE_COLOR = new Color(0x3B6EA5);
 }
