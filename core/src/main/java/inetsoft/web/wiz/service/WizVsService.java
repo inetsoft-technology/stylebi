@@ -56,7 +56,7 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateCompareAbleAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
-import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
@@ -182,7 +182,9 @@ public class WizVsService {
     * #buildConditionList} — the same converter the filter path uses — so a rule actually applies rather
     * than silently no-opping.
     *
-    * <p>Chart, output, table and crosstab assemblies are supported. Table/crosstab highlighting keys a
+    * <p>Chart, table, crosstab and text-output assemblies are supported. Among output types ONLY text is
+    * highlightable — a gauge (a valid wiz output) is deliberately not, and fails loud.
+    * Table/crosstab highlighting keys a
     * {@code HighlightGroup} to a per-cell {@code TableDataPath} (via {@link TableHighlightAttr}); the
     * target cell is located from the executed {@link VSTableLens} by each rule's {@code field} (a table
     * column header or a crosstab measure/aggregate header). See {@link #applyTableHighlight}.
@@ -296,17 +298,37 @@ public class WizVsService {
          // Drop cached runtime refs so the next executeView regenerates them (as clones carrying the group).
          chartInfo.clearRuntime();
       }
-      else if(assemblyInfo instanceof OutputVSAssemblyInfo outputInfo) {
+      else if(assemblyInfo instanceof TextVSAssemblyInfo textInfo) {
+         // A text output evaluates a highlight against its single scalar value
+         // (OutputVSAssemblyInfo.updateHighlight -> HighlightGroup.findGroup(value)), which ignores the
+         // condition field NAME entirely. The standard highlight dialog therefore exposes exactly ONE field —
+         // the canonical "value" ref (see HighlightDialogService) — so the dropdown only ever shows "Value".
+         // A condition keyed to any other name (e.g. a bound column like "Sum(Sales)") still evaluates
+         // correctly at runtime, which MASKS the problem, but it does NOT round-trip through that dialog: on
+         // reopen its field matches no option and the condition renders blank/broken. Force every condition
+         // field to "value" (typed from the scalar binding, mirroring HighlightDialogService) so a wiz-applied
+         // text highlight is the same shape a dialog-authored one would be.
+         ScalarBindingInfo sbi = textInfo.getScalarBindingInfo();
+         ColumnRef valueRef = new ColumnRef(new AttributeRef(null, "value"));
+         valueRef.setDataType(sbi != null ? sbi.getColumnType() : XSchema.STRING);
+         ColumnSelection valueCols = new ColumnSelection();
+         valueCols.addAttribute(valueRef);
+
          HighlightGroup group = new HighlightGroup();
          Set<String> usedNames = new HashSet<>();
 
          for(ApplyHighlightModel.Highlight rule : hm.getHighlights()) {
             String name = uniqueName(rule.getName(), usedNames);
-            group.addHighlight(name, buildHighlight(rule, name, columns, false));
+            Highlight hl = buildHighlight(rule, name, valueCols, false);
+            rebindOutputConditionFields(hl.getConditionGroup(), valueRef);
+            group.addHighlight(name, hl);
          }
 
-         outputInfo.setHighlightGroup(group);
+         textInfo.setHighlightGroup(group);
       }
+      // NOTE: text is the ONLY output type wiz highlights. A gauge is a valid wiz output but is
+      // deliberately NOT highlightable, so it (and any other OutputVSAssemblyInfo) falls through to the
+      // else below and fails loud rather than getting a highlight group it has no UI to manage.
       else if(assemblyInfo instanceof TableDataVSAssemblyInfo tableInfo &&
               (assembly instanceof TableVSAssembly || assembly instanceof CrosstabVSAssembly))
       {
@@ -315,7 +337,8 @@ public class WizVsService {
       else {
          throw new IllegalArgumentException(
             "Assembly '" + assembly.getName() + "' (" + assemblyInfo.getClass().getSimpleName() +
-            ") does not support highlighting.");
+            ") does not support highlighting. Wiz highlights charts, tables, crosstabs, and text output " +
+            "(gauge and other output types are not highlightable).");
       }
 
       int sampleMaxRows = model.getSampleMaxRows() != null ? model.getSampleMaxRows() : 0;
@@ -719,6 +742,27 @@ public class WizVsService {
       }
 
       return unresolved;
+   }
+
+   /**
+    * Rebinds every condition item's field to the canonical "value" ref of an output (text) highlight.
+    * An output assembly holds a single scalar value, so its highlight can only be about that value:
+    * OutputVSAssemblyInfo.updateHighlight evaluates HighlightGroup.findGroup(value) ignoring the field name.
+    * Forcing "value" (the exact ref HighlightDialogService builds) keeps a wiz-applied highlight identical
+    * to a dialog-authored one, so it round-trips through the standard highlight dialog instead of showing a
+    * field that matches no dropdown option. Unlike the chart rebind there is nothing to fail loud on — the
+    * value is the only possible field — so it never leaves anything unresolved.
+    */
+   private void rebindOutputConditionFields(ConditionList conds, DataRef valueRef) {
+      if(conds == null || valueRef == null) {
+         return;
+      }
+
+      for(int i = 0; i < conds.getSize(); i++) {
+         if(conds.isConditionItem(i)) {
+            conds.getConditionItem(i).setAttribute((DataRef) valueRef.clone());
+         }
+      }
    }
 
    /** Comma-joined list of a ColumnSelection's attribute names, for a fail-loud error message. */
