@@ -55,6 +55,12 @@ public class WizPrintLayoutBuilder {
    {
       PrintLayout layout = new PrintLayout();
       layout.setPrintInfo(buildPrintInfo(pageSize));
+      // scaleFont defaults to 0f on a bare PrintLayout; AbstractLayout.apply() then stamps
+      // RScaleFont=0 onto every assembly's cell formats, and VSCompositeFormat.getFont()
+      // multiplies the font size by rscaleFont — so table/crosstab cells render at font size 0
+      // (invisible text, and zero-width auto columns) while charts (painted by the graph engine)
+      // are unaffected. 1f == "no font scaling", matching an interactively-created print layout.
+      layout.setScaleFont(1f);
       layout.setHeaderLayouts(new ArrayList<>());
       layout.setFooterLayouts(new ArrayList<>());
 
