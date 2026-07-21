@@ -2281,10 +2281,43 @@ public class VsToReportConverter {
     * Convert vs text to report text and add to fixed position in
     * the report section.
     */
+   /** Board-export insights/recap text boxes are named "wizMarkdown*" and hold markdown. */
+   private boolean isMarkdownTextBox(String name) {
+      return name != null && name.startsWith("wizMarkdown");
+   }
+
+   /** Render markdown text via a {@link inetsoft.web.wiz.service.MarkdownPresenter} painter so
+    *  headers, bullets, and inline bold/italic survive in the report/PDF. */
+   private void addMarkdownElement(TextVSAssembly assembly, String markdown, String sectionName) {
+      Rectangle bounds = getPixelBounds(assembly);
+      inetsoft.web.wiz.service.MarkdownPresenter presenter =
+         new inetsoft.web.wiz.service.MarkdownPresenter();
+      VSCompositeFormat fmt = assembly.getVSAssemblyInfo().getFormat();
+
+      if(fmt != null && fmt.getFont() != null) {
+         presenter.setFont(fmt.getFont());
+      }
+
+      inetsoft.report.painter.PresenterPainter painter =
+         new inetsoft.report.painter.PresenterPainter(markdown, presenter);
+      inetsoft.report.internal.PainterElementDef elem =
+         new inetsoft.report.internal.PainterElementDef(report, painter);
+      elem.setZIndex(assembly.getZIndex());
+      addElement0(bounds, elem, sectionName);
+   }
+
    private void addText(TextVSAssembly assembly, String sectionName) {
       String text = assembly.getText();
 
       if(text == null || "".equals(text.trim())) {
+         return;
+      }
+
+      // Board-export insights/recap boxes carry markdown (named "wizMarkdown*"); render them
+      // richly via a MarkdownPresenter painter (headers/bullets/inline bold+italic) instead of a
+      // single-font text box.
+      if(isMarkdownTextBox(assembly.getAbsoluteName())) {
+         addMarkdownElement(assembly, text, sectionName);
          return;
       }
 

@@ -108,10 +108,9 @@ public class WizPrintLayoutBuilder {
 
          if(c.insightsMarkdown() != null && !c.insightsMarkdown().isBlank()) {
             int insightsY = chartY + CHART_HEIGHT_PT;
-            // Render insights structurally: headers, bullets, and paragraphs each get their own
-            // styled box (a report text box carries a single font, so structure — not inline bold —
-            // is what we preserve on the PDF side).
-            addStructuredBlocks(vsLayouts, "wizExportInsights_" + i + "_", c.insightsMarkdown(), insightsY);
+            // One markdown box; MarkdownPresenter renders headers/bullets/inline bold+italic and
+            // the converter paints it via a presenter painter (see VsToReportConverter).
+            addMarkdownBlock(vsLayouts, "wizMarkdownInsights_" + i, c.insightsMarkdown(), insightsY);
          }
 
          page++;
@@ -201,74 +200,32 @@ public class WizPrintLayoutBuilder {
 
       if(recap != null && !recap.isBlank()) {
          y += SUMMARY_GAP_PT;
-         y = addStructuredBlocks(vsLayouts, "wizExportSummary_", recap, y);
+         y = addMarkdownBlock(vsLayouts, "wizMarkdownSummary", recap, y);
       }
 
       return y + HEADER_BOTTOM_GAP_PT;
    }
 
    /**
-    * Lays out a markdown block sequence as a vertical stack of styled text boxes starting at
-    * {@code startY}: headings bold in the accent color, bullets with a hanging "•" indent, and
-    * paragraphs as body text. Inline bold/italic is flattened (one font per report text box).
-    * Returns the y just past the last block.
+    * Adds a single text box holding raw markdown, named so {@link VsToReportConverter} renders it
+    * with a {@link MarkdownPresenter} (headers, bullets, inline bold/italic). The box height is the
+    * presenter's preferred height at the content width, so the layout reserves the right space.
+    * Returns the y just past the box.
     */
-   private int addStructuredBlocks(List<VSAssemblyLayout> vsLayouts, String namePrefix,
-                                   String markdown, int startY)
+   private int addMarkdownBlock(List<VSAssemblyLayout> vsLayouts, String name, String markdown,
+                                int startY)
    {
-      int y = startY;
-      int idx = 0;
+      MarkdownPresenter presenter = new MarkdownPresenter();
+      // Match the font the converter will hand the presenter (the box's body font) so the
+      // height we reserve equals what gets painted.
+      presenter.setFont(inetsoft.uql.viewsheet.internal.VSAssemblyInfo.getDefaultFont(Font.PLAIN, BODY_FONT_PT));
+      int h = presenter.getPreferredSize(markdown, PAGE_CONTENT_WIDTH_PT).height + BLOCK_GAP_PT;
 
-      for(MarkdownModel.Block block : MarkdownModel.parse(markdown)) {
-         String text = block.plainText();
-         int x = 0;
-         int width = PAGE_CONTENT_WIDTH_PT;
-         int fontStyle;
-         int fontPt;
-         String color;
-
-         switch(block.type()) {
-         case HEADING:
-            fontStyle = Font.BOLD;
-            fontPt = Math.max(BODY_FONT_PT + 1, 15 - Math.max(0, block.level() - 1));
-            color = CAPTION_COLOR;
-            break;
-         case BULLET:
-            fontStyle = Font.PLAIN;
-            fontPt = BODY_FONT_PT;
-            color = SUMMARY_COLOR;
-            text = "•  " + text;
-            x = BULLET_INDENT_PT;
-            width = PAGE_CONTENT_WIDTH_PT - BULLET_INDENT_PT;
-            break;
-         default:
-            fontStyle = Font.PLAIN;
-            fontPt = BODY_FONT_PT;
-            color = SUMMARY_COLOR;
-         }
-
-         int h = estimateTextHeightPt(text, fontPt, width);
-         vsLayouts.add(styledTextLayout(namePrefix + (idx++), text, new Point(x, y),
-            new Dimension(width, h), fontStyle, fontPt, color, false));
-         y += h + BLOCK_GAP_PT;
-      }
-
-      return y;
-   }
-
-   /** Estimate a wrapped text block's height in points from headless font metrics. */
-   private int estimateTextHeightPt(String text, int fontPt, int widthPt) {
-      java.awt.Font font = new java.awt.Font(java.awt.Font.SANS_SERIF, java.awt.Font.PLAIN, fontPt);
-      java.awt.image.BufferedImage img =
-         new java.awt.image.BufferedImage(1, 1, java.awt.image.BufferedImage.TYPE_INT_ARGB);
-      java.awt.Graphics2D g = img.createGraphics();
-      java.awt.FontMetrics fm = g.getFontMetrics(font);
-      g.dispose();
-
-      double avgCharWidth = fm.stringWidth("abcdefghijklmnopqrstuvwxyz") / 26.0;
-      int charsPerLine = Math.max(1, (int) (widthPt / avgCharWidth));
-      int lines = Math.max(1, (int) Math.ceil(text.length() / (double) charsPerLine));
-      return lines * fm.getHeight() + 2;
+      // The box carries the raw markdown as its text and a plain body font; the converter reads
+      // that font for the presenter and paints the markdown (the box's own text is not drawn).
+      vsLayouts.add(styledTextLayout(name, markdown, new Point(0, startY),
+         new Dimension(PAGE_CONTENT_WIDTH_PT, h), Font.PLAIN, BODY_FONT_PT, SUMMARY_COLOR, false));
+      return startY + h;
    }
 
    /** "Generated <Month D, YYYY>" for the current server date. */
@@ -310,9 +267,8 @@ public class WizPrintLayoutBuilder {
    private static final int CAPTION_FONT_PT = 13;
    private static final String CAPTION_COLOR = "0x3B6EA5";   // slate-blue accent
    private static final int CHART_HEIGHT_PT = 400;
-   // Structured-block (insights/recap) type + spacing.
+   // Markdown insights/recap box: body font + trailing gap.
    private static final int BODY_FONT_PT = 11;
-   private static final int BULLET_INDENT_PT = 16;
    private static final int BLOCK_GAP_PT = 4;
 
    // Report-header geometry + type (points / font sizes / hex colors).
