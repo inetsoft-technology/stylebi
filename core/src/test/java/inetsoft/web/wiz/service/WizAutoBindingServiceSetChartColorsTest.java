@@ -76,14 +76,11 @@ class WizAutoBindingServiceSetChartColorsTest {
    private VSChartAggregateRef rtYAgg;
    private SecurityEngine securityEngine;
    private ViewsheetService viewsheetService;
-   private WizVsService wizVsService;
-   private RuntimeViewsheet rvs;
-   private ChartVSAssembly chart;
 
    @BeforeEach
    void setUp() throws Exception {
       viewsheetService = mock(ViewsheetService.class);
-      wizVsService = mock(WizVsService.class);
+      WizVsService wizVsService = mock(WizVsService.class);
       // collaborators not used by setChartColors; their classes can't be initialized in
       // a plain unit-test environment (no Spring context), so pass null instead of mocks.
       securityEngine = mock(SecurityEngine.class);
@@ -105,14 +102,14 @@ class WizAutoBindingServiceSetChartColorsTest {
       ChartVSAssemblyInfo info = mock(ChartVSAssemblyInfo.class);
       when(info.getVSChartInfo()).thenReturn(vsChartInfo);
 
-      chart = mock(ChartVSAssembly.class);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
       when(chart.getChartInfo()).thenReturn(info);
 
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getAssembly("vs_1")).thenReturn(chart);
 
       box = mock(ViewsheetSandbox.class);
-      rvs = mock(RuntimeViewsheet.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
       when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
       when(rvs.getID()).thenReturn("rt-1");
@@ -159,65 +156,6 @@ class WizAutoBindingServiceSetChartColorsTest {
       service.setChartColors(staticRed(), null);
 
       verify(box).clearGraph("vs_1");
-   }
-
-   @Test
-   void copyTrueDuplicatesBeforeApplyingAndTargetsTheCopy() throws Exception {
-      // A separate mock chart/measure-ref pair standing in for the duplicated assembly —
-      // duplicatePrimaryAssembly's real behavior (uniqueAssemblyName + rebind) is covered by
-      // WizVsServiceDuplicatePrimaryAssemblyTest; here wizVsService is mocked, so we just need to
-      // prove setChartColors WIRES the copy in and applies to it instead of the original.
-      VSChartAggregateRef copyYAgg = mock(VSChartAggregateRef.class);
-      VSChartInfo copyChartInfo = mock(VSChartInfo.class);
-      when(copyChartInfo.getColorField()).thenReturn(null);
-      when(copyChartInfo.getYFields()).thenReturn(new ChartRef[] { copyYAgg });
-      when(copyChartInfo.getXFields()).thenReturn(new ChartRef[0]);
-      when(copyChartInfo.getRTYFields()).thenReturn(new ChartRef[0]);
-      when(copyChartInfo.getRTXFields()).thenReturn(new ChartRef[0]);
-      ChartVSAssemblyInfo copyInfo = mock(ChartVSAssemblyInfo.class);
-      when(copyInfo.getVSChartInfo()).thenReturn(copyChartInfo);
-      ChartVSAssembly copyChart = mock(ChartVSAssembly.class);
-      when(copyChart.getChartInfo()).thenReturn(copyInfo);
-      when(copyChart.getName()).thenReturn("vs_1_copy1");
-
-      when(wizVsService.duplicatePrimaryAssembly(rvs, chart)).thenReturn(copyChart);
-      when(wizVsService.fetchAssemblyData("rt-1", "vs_1_copy1", null))
-         .thenReturn(new CreateViewsheetResult());
-
-      ChartColorsRequest request = staticRed();
-      request.setCopy(true);
-
-      CreateViewsheetResult result = service.setChartColors(request, null);
-
-      // Applied to the COPY's measure ref, never the original's.
-      verify(copyYAgg).setColorFrame(any());
-      verify(yAgg, never()).setColorFrame(any());
-      // The cached graph cleared is the copy's, not the original's.
-      verify(box).clearGraph("vs_1_copy1");
-      verify(box, never()).clearGraph("vs_1");
-      assertEquals("vs_1_copy1", result.getAssemblyName());
-   }
-
-   @Test
-   void copyFalseNeverCallsDuplicatePrimaryAssembly() throws Exception {
-      service.setChartColors(staticRed(), null);
-
-      verify(wizVsService, never()).duplicatePrimaryAssembly(any(), any());
-   }
-
-   @Test
-   void copyTrueButDuplicationFailsFallsBackToInPlaceWithANote() throws Exception {
-      when(wizVsService.duplicatePrimaryAssembly(rvs, chart)).thenReturn(null);
-
-      ChartColorsRequest request = staticRed();
-      request.setCopy(true);
-
-      CreateViewsheetResult result = service.setChartColors(request, null);
-
-      // Falls back to the ORIGINAL assembly rather than failing the whole request.
-      verify(yAgg).setColorFrame(any());
-      assertEquals("vs_1", result.getAssemblyName());
-      assertEquals("Copy requested but could not be created; colors applied in place.", result.getNote());
    }
 
    @Test

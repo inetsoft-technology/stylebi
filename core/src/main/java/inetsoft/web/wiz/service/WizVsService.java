@@ -1572,40 +1572,6 @@ public class WizVsService {
    }
 
    /**
-    * Duplicates {@code source} within {@code rvs}'s viewsheet under a unique name and promotes the
-    * copy to primary, demoting (never deleting) the previous primary assembly — mirrors the same
-    * rebind sequence the standard create() path uses (uniqueAssemblyName + rebindAssembly + demote/
-    * promote). {@code source} MUST already be the primary assembly of {@code rvs}'s viewsheet; this
-    * is the copy-then-apply entry point for setChartFormat/setChartColors (request.isCopy()) so the
-    * original chart is left untouched while the requested format/color change lands on a new,
-    * parallel copy. Returns null if {@code source}'s type has no registered rebind factory
-    * (ASSEMBLY_FACTORIES) — the caller should fall back to applying in place.
-    */
-   public VSAssembly duplicatePrimaryAssembly(RuntimeViewsheet rvs, VSAssembly source) {
-      Viewsheet vs = rvs.getViewsheet();
-      String newName = uniqueAssemblyName(vs, source.getName());
-      VSAssembly copy = rebindAssembly(vs, newName, source);
-
-      if(copy == null) {
-         return null;
-      }
-
-      Assembly[] existingAssemblies = vs.getAssemblies();
-
-      if(existingAssemblies != null) {
-         for(Assembly a : existingAssemblies) {
-            if(a instanceof VSAssembly va && va.isPrimary()) {
-               va.setPrimary(false);
-            }
-         }
-      }
-
-      vs.addAssembly(copy);
-      copy.setPrimary(true);
-      return copy;
-   }
-
-   /**
     * Throws if the lens chain contains failed-query fallback data. When a live query fails
     * (e.g. a computed-column expression that is invalid SQL for the data source), AssetQuery
     * substitutes design-time sample data instead of erroring, and the chart path replaces

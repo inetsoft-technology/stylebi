@@ -2106,28 +2106,6 @@ public class WizAutoBindingService {
          throw new Exception("Chart assembly not found: " + request.getAssemblyName());
       }
 
-      String note = null;
-      String targetAssemblyName = request.getAssemblyName();
-
-      // Copy-then-apply: duplicate the chart BEFORE applying the format change, so the original
-      // (request.getAssemblyName()) is left untouched and the requested change lands on a new,
-      // parallel copy instead. source (assembly) must already be the primary assembly — see
-      // WizVsService.duplicatePrimaryAssembly.
-      if(request.isCopy()) {
-         VSAssembly duplicated = wizVsService.duplicatePrimaryAssembly(rvs, assembly);
-
-         if(duplicated instanceof ChartVSAssembly dupChart) {
-            assembly = dupChart;
-            chart = dupChart;
-            targetAssemblyName = dupChart.getName();
-         }
-         else {
-            note = "Copy requested but could not be created; format applied in place.";
-            LOG.warn("setChartFormat: duplicatePrimaryAssembly failed for {}; falling back to in-place apply.",
-               request.getAssemblyName());
-         }
-      }
-
       var info = chart.getChartInfo();
       ChartDescriptor desc = info.getChartDescriptor();
       VSChartInfo vsChartInfo = info.getVSChartInfo();
@@ -2186,6 +2164,8 @@ public class WizAutoBindingService {
       }
 
       // Legend placement
+      String note = null;
+
       if(request.getLegendPosition() != null && desc != null && desc.getLegendsDescriptor() != null) {
          int layout = legendLayout(request.getLegendPosition());
 
@@ -2249,29 +2229,25 @@ public class WizAutoBindingService {
       // staleness check (equalsContent against itself) can never detect the in-place mutation
       // above. Clear the cached graph explicitly — mirroring VSChartDataHandler — or every
       // subsequent render (including brand-new embed connections) serves the stale graph.
-      final String assemblyNameForGraphClear = targetAssemblyName;
-      rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(assemblyNameForGraphClear));
+      rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(request.getAssemblyName()));
 
-      // Commit the mutation to the backing asset (the copy, when one was made — it was just added to
-      // rvs.getViewsheet() by duplicatePrimaryAssembly, so persisting here is what makes it show up in
-      // the persisted asset a later save_viewsheet call looks the assembly up from).
-      // save_viewsheet clones the assembly from the PERSISTED viewsheet (not this live runtime), so a
-      // format/color change left only on the runtime — the chart title above the plot in particular —
-      // is silently dropped on save. Mirrors how create/changeType call persistViewsheet so their
-      // changes survive a save.
+      // Commit the in-place mutation to the backing asset. save_viewsheet clones the assembly from
+      // the PERSISTED viewsheet (not this live runtime), so a format/color change left only on the
+      // runtime — the chart title above the plot in particular — is silently dropped on save.
+      // Mirrors how create/changeType call persistViewsheet so their changes survive a save.
       if(request.getViewsheetIdentifier() != null) {
          wizVsService.persistViewsheet(rvs.getViewsheet(), request.getViewsheetIdentifier(), user);
       }
 
       CreateViewsheetResult result =
-         wizVsService.fetchAssemblyData(effRuntimeId, targetAssemblyName, user);
+         wizVsService.fetchAssemblyData(effRuntimeId, request.getAssemblyName(), user);
 
       if(result == null) {
          result = new CreateViewsheetResult();
       }
 
       result.setRuntimeId(effRuntimeId);
-      result.setAssemblyName(targetAssemblyName);
+      result.setAssemblyName(request.getAssemblyName());
 
       if(request.getViewsheetIdentifier() != null) {
          result.setViewsheetIdentifier(request.getViewsheetIdentifier());
@@ -2331,31 +2307,10 @@ public class WizAutoBindingService {
          throw new Exception("Chart assembly not found: " + request.getAssemblyName());
       }
 
-      String note = null;
-      String targetAssemblyName = request.getAssemblyName();
-
-      // Copy-then-apply: duplicate the chart BEFORE applying the color change, so the original
-      // (request.getAssemblyName()) is left untouched and the requested change lands on a new,
-      // parallel copy instead. source (assembly) must already be the primary assembly — see
-      // WizVsService.duplicatePrimaryAssembly.
-      if(request.isCopy()) {
-         VSAssembly duplicated = wizVsService.duplicatePrimaryAssembly(rvs, assembly);
-
-         if(duplicated instanceof ChartVSAssembly dupChart) {
-            assembly = dupChart;
-            chart = dupChart;
-            targetAssemblyName = dupChart.getName();
-         }
-         else {
-            note = "Copy requested but could not be created; colors applied in place.";
-            LOG.warn("setChartColors: duplicatePrimaryAssembly failed for {}; falling back to in-place apply.",
-               request.getAssemblyName());
-         }
-      }
-
       var info = chart.getChartInfo();
       VSChartInfo vsChartInfo = info.getVSChartInfo();
       AestheticRef colorField = vsChartInfo == null ? null : vsChartInfo.getColorField();
+      String note = null;
 
       if(colorField == null || colorField.getDataRef() == null) {
          if(request.getStaticColor() != null) {
@@ -2387,29 +2342,25 @@ public class WizAutoBindingService {
       // staleness check (equalsContent against itself) can never detect the in-place mutation
       // above. Clear the cached graph explicitly — mirroring VSChartDataHandler — or every
       // subsequent render (including brand-new embed connections) serves the stale graph.
-      final String assemblyNameForGraphClear = targetAssemblyName;
-      rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(assemblyNameForGraphClear));
+      rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(request.getAssemblyName()));
 
-      // Commit the mutation to the backing asset (the copy, when one was made — it was just added to
-      // rvs.getViewsheet() by duplicatePrimaryAssembly, so persisting here is what makes it show up in
-      // the persisted asset a later save_viewsheet call looks the assembly up from).
-      // save_viewsheet clones the assembly from the PERSISTED viewsheet (not this live runtime), so a
-      // format/color change left only on the runtime — the chart title above the plot in particular —
-      // is silently dropped on save. Mirrors how create/changeType call persistViewsheet so their
-      // changes survive a save.
+      // Commit the in-place mutation to the backing asset. save_viewsheet clones the assembly from
+      // the PERSISTED viewsheet (not this live runtime), so a format/color change left only on the
+      // runtime — the chart title above the plot in particular — is silently dropped on save.
+      // Mirrors how create/changeType call persistViewsheet so their changes survive a save.
       if(request.getViewsheetIdentifier() != null) {
          wizVsService.persistViewsheet(rvs.getViewsheet(), request.getViewsheetIdentifier(), user);
       }
 
       CreateViewsheetResult result =
-         wizVsService.fetchAssemblyData(effRuntimeId, targetAssemblyName, user);
+         wizVsService.fetchAssemblyData(effRuntimeId, request.getAssemblyName(), user);
 
       if(result == null) {
          result = new CreateViewsheetResult();
       }
 
       result.setRuntimeId(effRuntimeId);
-      result.setAssemblyName(targetAssemblyName);
+      result.setAssemblyName(request.getAssemblyName());
 
       if(request.getViewsheetIdentifier() != null) {
          result.setViewsheetIdentifier(request.getViewsheetIdentifier());

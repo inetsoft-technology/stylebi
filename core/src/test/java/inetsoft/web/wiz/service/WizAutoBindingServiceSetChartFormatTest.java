@@ -64,8 +64,6 @@ class WizAutoBindingServiceSetChartFormatTest {
    private ChartVSAssemblyInfo info;
    private ViewsheetSandbox box;
    private SecurityEngine securityEngine;
-   private RuntimeViewsheet rvs;
-   private ChartVSAssembly chart;
 
    @BeforeEach
    void setUp() throws Exception {
@@ -85,7 +83,7 @@ class WizAutoBindingServiceSetChartFormatTest {
       when(info.getChartDescriptor()).thenReturn(null);
       when(info.getVSChartInfo()).thenReturn(null);
 
-      chart = mock(ChartVSAssembly.class);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
       when(chart.getChartInfo()).thenReturn(info);
       when(chart.getVSAssemblyInfo()).thenReturn(info);
 
@@ -93,7 +91,7 @@ class WizAutoBindingServiceSetChartFormatTest {
       when(vs.getAssembly("vs_1")).thenReturn(chart);
 
       box = mock(ViewsheetSandbox.class);
-      rvs = mock(RuntimeViewsheet.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
       when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
       when(rvs.getID()).thenReturn("rt-1");
@@ -159,57 +157,6 @@ class WizAutoBindingServiceSetChartFormatTest {
 
       verify(info).setTitleValue("Contacts per Account");
       verify(wizVsService, never()).persistViewsheet(any(), any(), any());
-   }
-
-   @Test
-   void copyTrueDuplicatesBeforeApplyingAndTargetsTheCopy() throws Exception {
-      // duplicatePrimaryAssembly's real behavior (uniqueAssemblyName + rebind) is covered by
-      // WizVsServiceDuplicatePrimaryAssemblyTest; wizVsService is mocked here, so this only needs to
-      // prove setChartFormat WIRES the copy in and applies to it instead of the original.
-      ChartVSAssemblyInfo copyInfo = mock(ChartVSAssemblyInfo.class);
-      ChartVSAssembly copyChart = mock(ChartVSAssembly.class);
-      when(copyChart.getChartInfo()).thenReturn(copyInfo);
-      when(copyChart.getVSAssemblyInfo()).thenReturn(copyInfo);
-      when(copyChart.getName()).thenReturn("vs_1_copy1");
-
-      when(wizVsService.duplicatePrimaryAssembly(rvs, chart)).thenReturn(copyChart);
-      when(wizVsService.fetchAssemblyData("rt-1", "vs_1_copy1", null))
-         .thenReturn(new CreateViewsheetResult());
-
-      ChartFormatRequest request = titleRequest("visualizations-xyz");
-      request.setCopy(true);
-
-      CreateViewsheetResult result = service.setChartFormat(request, null);
-
-      // Applied to the COPY's info, never the original's.
-      verify(copyInfo).setTitleValue("Contacts per Account");
-      verify(info, never()).setTitleValue(any());
-      // The cached graph cleared is the copy's, not the original's.
-      verify(box).clearGraph("vs_1_copy1");
-      verify(box, never()).clearGraph("vs_1");
-      assertEquals("vs_1_copy1", result.getAssemblyName());
-   }
-
-   @Test
-   void copyFalseNeverCallsDuplicatePrimaryAssembly() throws Exception {
-      service.setChartFormat(titleRequest("visualizations-xyz"), null);
-
-      verify(wizVsService, never()).duplicatePrimaryAssembly(any(), any());
-   }
-
-   @Test
-   void copyTrueButDuplicationFailsFallsBackToInPlaceWithANote() throws Exception {
-      when(wizVsService.duplicatePrimaryAssembly(rvs, chart)).thenReturn(null);
-
-      ChartFormatRequest request = titleRequest("visualizations-xyz");
-      request.setCopy(true);
-
-      CreateViewsheetResult result = service.setChartFormat(request, null);
-
-      // Falls back to the ORIGINAL assembly rather than failing the whole request.
-      verify(info).setTitleValue("Contacts per Account");
-      assertEquals("vs_1", result.getAssemblyName());
-      assertEquals("Copy requested but could not be created; format applied in place.", result.getNote());
    }
 
    @Test

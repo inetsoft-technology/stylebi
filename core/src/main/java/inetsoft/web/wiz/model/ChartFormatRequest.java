@@ -38,12 +38,6 @@ public class ChartFormatRequest {
    public String getViewsheetIdentifier() { return viewsheetIdentifier; }
    public void setViewsheetIdentifier(String viewsheetIdentifier) { this.viewsheetIdentifier = viewsheetIdentifier; }
 
-   /** When true, duplicate the assembly first and apply this format to the COPY instead of mutating
-    *  {@link #assemblyName} in place — the original chart is left untouched. Default false (in-place,
-    *  the existing behavior). */
-   public boolean isCopy() { return copy; }
-   public void setCopy(boolean copy) { this.copy = copy; }
-
    /** The chart's overall (assembly-level) title — the heading shown above the plot; null = no change. */
    @JsonProperty("chartTitle")
    public String getChartTitle() { return chartTitle; }
@@ -115,7 +109,6 @@ public class ChartFormatRequest {
    private String assemblyName;
    /** Optional — carried back on the result so a subsequent save keeps the same identifier. */
    private String viewsheetIdentifier;
-   private boolean copy;
 
    private String chartTitle;
    private String xAxisTitle;
