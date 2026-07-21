@@ -828,8 +828,98 @@ Deferred with grounded reasons: vocabulary-only token exposure (expose each only
 adopts it); sub-gate EM toggles (stay raw-`SreeEnv` opt-out — one master toggle covers object chrome);
 density theming (already an EM control, Phase 3 Part C); server-rendered color (already themeable via
 `format.css`/descriptors and must not route through a browser token); dark-mode viz palette (rides the
-initiative's dark pass). This completes the roadmap through Phase 9; Phase 10 is cross-surface
-validation.
+initiative's dark pass). This completes the roadmap through Phase 9; Phase 9A adds icon consolidation and
+Phase 10 is cross-surface validation.
+
+## Phase 9A: Icon Consolidation
+
+Inserted as a distinct pass between Phase 9 and Phase 10 (numbered `9A`, mirroring the Phase 6A precedent,
+so Phase 10 is not renumbered). Phase 10 is a review/validation stage, so new icon work belongs before it.
+See [visualization-phase9a-icon-consolidation-design.md](visualization-phase9a-icon-consolidation-design.md)
+for the grounded design and file:line anchors.
+
+### Goal
+
+Consolidate **visualization affordance icons** (sort, expand/collapse, drill, more/overflow) onto the
+shell's cleaner, already-shipping icon patterns, so visualization surfaces read as one system with the
+shell. Consolidation and reuse, **not** new artwork — adopt an existing shell glyph or CSS pattern
+wherever one exists.
+
+### Why it is its own pass
+
+- Icons are **not addressed** anywhere else in this roadmap or in the design spec (which cover density,
+  state, tables, chart chrome, KPI, and color). Phase 9A is the first icon-specific pass.
+- Unlike Phases 3/5/6/6A/7/8 (server-side, export-bound), the in-scope affordance icons are **browser
+  DOM** (`<i>` glyphs / DOM spans inside assembly templates), so this is predominantly a System A phase
+  that rides the browser `.viz-modern` gate directly — building on the existing `.viz-modern` sort seam in
+  `_themeable.scss:1267-1270`.
+
+### Rendering boundary
+
+The target indicators are DOM overlays in the live view, not baked into the server-rendered assembly
+image, so they are browser-CSS-themeable and gate-able through `.viz-modern`. **Task 0 must first confirm
+the exporter draws no server-side counterpart** for the in-scope indicators; any indicator proven
+export-baked is server-owned and is flagged out of Phase 9A (a separate server-side pass), never routed
+through a browser token.
+
+### The audit method (grounded, because a name-based sweep is insufficient)
+
+A class-name (`*-icon`) inventory structurally **misses** CSS-drawn indicators, inline SVG,
+`mat-sort-header`, Font Awesome, and `background-image` icons — which is exactly how the sharpest sort
+divergence was originally overlooked (the shell data-list sort indicator is a CSS pseudo-element
+double-arrowhead, not a font glyph). Phase 9A therefore uses a mechanism-agnostic, state-aware, **rendered**
+audit: a static sweep across all mechanisms → an HTML audit gallery (styled like the palette-swatches
+files) showing each affordance × state × surface side-by-side → a running-app spot capture on the marquee
+surfaces. The gallery finalizes the change list.
+
+### Divergences found (verified)
+
+- **Sort** — hardest divergence, 3 mechanisms: shell data lists use a CSS pseudo double-arrowhead
+  (`\2303`/`\2304`); viz tables/crosstab use ineticons `sort-*-icon` font glyphs (crosstab is 5-state, with
+  value-sort); EM uses Material `mat-sort-header`.
+- **Expand/collapse** — shell chevron pair (`forward`/`downward`) vs viz boxed `plus/minus-box-outline`.
+- **Drill** — internal viz inconsistency across three ± glyph families (menu `drill-*-filter`, inline
+  `plus/minus-box-outline`, zoom `shape-plus/minus`); no shell counterpart.
+- **More/overflow** — vertical kebab (viz) vs horizontal meatball (shell tree); minor.
+- **Search / close / clear** — already consistent; left alone.
+
+### Tasks
+
+- **Task 0 — export grounding:** confirm no in-scope indicator is server-baked; flag any that is.
+- **Task 1 — audit gallery:** the mechanism-agnostic rendered gallery + spot capture; finalizes scope.
+- **Track A — gated consolidation (`.viz-modern`, gate-off byte-identical):** via viz-scoped alias classes
+  so the shared shell glyph is untouched.
+  - Sort → adopt the shell `.sort-indicator` CSS pattern for label sort (none/asc/desc), with a modern
+    **value-sort variant** in the same language so crosstab's 5-state meaning is preserved.
+  - Expand/collapse → repoint selection-tree toggle from boxed +/- to the shell chevron pair.
+  - Drill → unify the three viz ± families to one canonical set.
+  - More/overflow → align kebab/meatball orientation (lowest priority; may land last).
+- **Track B — global cleanup (ungated, bug-class):** remove Font Awesome refs from
+  `selection-list-actions.ts:48-91`; fix any dead/non-rendering glyph names the gallery confirms.
+
+### Seam rule
+
+Repoint an alias (`_icon-alias.scss`) or extend the `.viz-modern` icon scope (`_themeable.scss`) rather
+than editing templates, except where the modern target is a CSS pattern needing different markup than a
+font `<i>` (the sort indicator). **Never** edit a shared `$*-icon` codepoint in `variables.scss` for a
+viz-only change — it leaks into the shell and cannot be gated.
+
+### Out of scope
+
+EM `mat-sort-header` (admin chrome, separate build); export-baked indicators (flag only); search / close /
+clear / filter (already match); type/decorative glyphs; new icon-font artwork.
+
+### Output
+
+- A rendered, mechanism-agnostic icon audit gallery.
+- Viz sort / expand-collapse / drill / more-overflow consolidated onto the shell's cleaner patterns under
+  `.viz-modern`, with crosstab 5-state sort preserved.
+- Font Awesome removed and dead glyph names fixed, shipped globally.
+- Legacy visualization unchanged when the gate is off.
+
+### Validation
+
+Folds an icon pass into the Phase 10 screen-by-screen audit.
 
 ## Phase 10: Validation
 

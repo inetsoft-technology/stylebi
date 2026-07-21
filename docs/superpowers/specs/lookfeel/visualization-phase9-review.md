@@ -366,3 +366,36 @@ All three verification sections PASS with no findings:
    live properties or `var()` consumers.
 
 No production code was changed and no commits were made as part of this verification task.
+
+## Deferred / open follow-ups (not lost)
+
+These surfaced during the Phase 9 exposure review and are recorded so they are not lost. None blocks
+Phase 9; each is a scoped future item.
+
+1. **Server-side selection-state (`selected` fill + text) bridge for viewsheet tables and selection
+   lists.** The exposed `--inet-viz-selected-bg` / `--inet-viz-selected-text` tokens are consumed only
+   by transient live-only DOM (the combo-box dropdown pick list). On the real BI data surfaces —
+   viewsheet tables and selection lists — the selected cell/item **fill and text color are
+   server-rendered from `VSFormat`** (baked into the live model *and* every export format:
+   `vs-table.component.html:271` ← `BaseTableCellModel` ← `VSFormatModel`), so a browser `--inet-viz-*`
+   CSS token cannot drive them without desyncing live view from PDF/PNG/Excel/PPT export. Modernizing
+   them requires a **gated server-side `VSFormat` resolver** (mirroring `VSDensityDefaults` /
+   `VSTableStructureDefaults` / the chrome/palette resolvers), defaults-only and org-gated, because it
+   changes export output and reflows saved sheets. Phase 4 pointed this at Phase 5; Phase 5 Decision D1
+   shipped the zero-export-impact CSS half (row hover, selection **border/outline**, sort glyph) and
+   **deferred** the export-affecting selected-fill/text bridge. It remains unscheduled — a candidate
+   for a future phase, not something Phase 9 should wire into the browser. Until it lands, a customer
+   override of `--inet-viz-selected-bg` / `-selected-text` in the theme editor visibly affects the
+   combo-box dropdown but not viewsheet table / selection-list selection.
+2. **Vocabulary-only token exposure.** The 12 unadopted tokens (e.g. `--inet-viz-filtered-bg`,
+   `-context-bg`, `-inline-edit-bg`, `-pinned-divider`, `-warning-bg`, `-anomaly-bg`) are not exposed
+   in the theme editor; expose each only when a selector adopts it, via the same two-tier `-modern`
+   seam, so no inert control is advertised.
+3. **Shell/Composer selection primitives stay shell-owned.** `.bg-selected`, `%selected-item-colors`,
+   `.bg-node-selected` were deliberately not repointed to viz tokens (Phase 5): they live on
+   navigation/Composer surfaces, and repointing would violate layer ownership and the data-vs-Composer
+   selection-distinctness rule.
+4. **Sub-gate EM UI, density-token theming, server-rendered color, dark-mode viz palette** — deferred
+   with grounded reasons in the Phase 9 plan's Deferred section (sub-gates stay raw-`SreeEnv` opt-out;
+   density is an EM control; server color is themeable via `format.css`/descriptors; dark mode rides
+   the initiative's dark pass).
