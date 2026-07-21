@@ -595,7 +595,7 @@ public class WizVsService {
       ConditionList conditionGroup = buildConditionList(cm, columns);
 
       if(chartRebind) {
-         List<String> unresolved = rebindChartConditionFields(conditionGroup, columns);
+         Set<String> unresolved = rebindChartConditionFields(conditionGroup, columns);
 
          // A chart highlight condition is matched against the aggregated chart DataSet, whose headers are
          // the fields' full names (a dimension like "State", a measure like "Sum(Sales)"). A condition
@@ -682,8 +682,10 @@ public class WizVsService {
     * names of any condition fields that matched NEITHER form, so the caller can fail loud rather than
     * apply a highlight whose condition can never resolve against the chart DataSet (a silent no-op).
     */
-   private List<String> rebindChartConditionFields(ConditionList conds, ColumnSelection chartCols) {
-      List<String> unresolved = new ArrayList<>();
+   private Set<String> rebindChartConditionFields(ConditionList conds, ColumnSelection chartCols) {
+      // LinkedHashSet: dedup while preserving first-seen order, so the same bad field name appearing in
+      // several condition leaves (e.g. "Profit > 5 AND Profit < 100") is listed once in the error message.
+      Set<String> unresolved = new LinkedHashSet<>();
 
       if(conds == null || chartCols == null) {
          return unresolved;
@@ -730,7 +732,8 @@ public class WizVsService {
          sb.append(cols.getAttribute(i).getName());
       }
 
-      return sb.toString();
+      // No bound columns yet: reads better than a bare "Available chart columns: ." for a user debugging.
+      return sb.length() > 0 ? sb.toString() : "none";
    }
 
    /** Find a chart column whose full name aggregates the given base column, e.g. "Sales" -> "Sum(Sales)". */
