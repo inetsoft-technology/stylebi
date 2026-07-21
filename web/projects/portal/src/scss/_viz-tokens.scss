@@ -44,6 +44,14 @@
   --inet-viz-anomaly-bg: var(--inet-danger-color-light);
   --inet-viz-dimmed-opacity: 0.5;
 
+  // customer-overridable modern state colors. Defined on :root so a theme-variables.css :root
+  // override wins; consumed only inside the .viz-modern block below, so gate-off is inert.
+  --inet-viz-hover-bg-modern: #EEF4F6;
+  --inet-viz-selected-bg-modern: #DDF1F5;
+  --inet-viz-selected-text-modern: #123C44;
+  --inet-viz-selected-border-modern: #BFDDE5;
+  --inet-viz-sorted-color-modern: #8C5510;
+
   // compatibility — CSS gate switches DOM only; server-rendered surfaces follow the server-side
   // per-org property.
   --inet-viz-mode: legacy;
@@ -68,15 +76,15 @@
 // selection; active stays on the primary accent (outline, no fill) so it reads apart from selection.
 .viz-modern,
 [data-viz-theme="v2"] {
-  --inet-viz-hover-bg: #EEF4F6;
-  --inet-viz-selected-bg: #DDF1F5;
-  --inet-viz-selected-border: #BFDDE5;
-  --inet-viz-selected-text: #123C44;
+  --inet-viz-hover-bg: var(--inet-viz-hover-bg-modern);
+  --inet-viz-selected-bg: var(--inet-viz-selected-bg-modern);
+  --inet-viz-selected-border: var(--inet-viz-selected-border-modern);
+  --inet-viz-selected-text: var(--inet-viz-selected-text-modern);
   --inet-viz-active-border: var(--inet-primary-color); // outline, no fill
   --inet-viz-context-bg: #F7F3EA;
   --inet-viz-inline-edit-bg: #FFFFFF;
   --inet-viz-filtered-bg: #F6E2C8;
-  --inet-viz-sorted-color: #8C5510;
+  --inet-viz-sorted-color: var(--inet-viz-sorted-color-modern);
   --inet-viz-pinned-divider: #C8C2B7;
   --inet-viz-warning-bg: #F8E8CC;
   --inet-viz-anomaly-bg: #F7DEDE;

@@ -298,6 +298,14 @@ export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
       {name: "--inet-button-light-hover-text-color", color: true},
       {name: "--inet-button-light-hover-border-color", color: true},
 
+      // visualization (modern gate only)
+      {name: "_#(js:em.presentation.lookAndFeel.css.heading.visualization)", heading: true},
+      {name: "--inet-viz-hover-bg-modern", color: true},
+      {name: "--inet-viz-selected-bg-modern", color: true},
+      {name: "--inet-viz-selected-text-modern", color: true},
+      {name: "--inet-viz-selected-border-modern", color: true},
+      {name: "--inet-viz-sorted-color-modern", color: true},
+
       // script editor
       {name: "_#(js:em.presentation.lookAndFeel.css.heading.scriptTheme)", heading: true},
       {name: "--inet-script-theme"}
