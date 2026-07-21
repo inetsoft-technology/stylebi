@@ -88,6 +88,21 @@ class PoiPptxDeckMergerTest {
    }
 
    @Test
+   void titleSlideRecapIsMarkdownStripped() throws Exception {
+      byte[] merged = merger.mergeSlides("Q39 Board",
+         "**Premium units run the business.** The $1,500+ band is ~69%.\n- top band in every category", List.of());
+
+      try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
+         String titleSlideText = allText(result.getSlides().get(0));
+         assertTrue(titleSlideText.contains("Premium units run the business."),
+            "recap text kept: " + titleSlideText);
+         assertFalse(titleSlideText.contains("**"), "raw markdown emphasis stripped: " + titleSlideText);
+         assertTrue(titleSlideText.contains("top band in every category"), "bullet text kept: " + titleSlideText);
+         assertFalse(titleSlideText.contains("- top band"), "raw bullet dash stripped: " + titleSlideText);
+      }
+   }
+
+   @Test
    void failedChartGetsPlaceholderSlideInsteadOfImportedContent() throws Exception {
       List<PptxDeckMerger.ChartSlide> slides = List.of(
          new PptxDeckMerger.ChartSlide("Broken", "n/a", null, true)
