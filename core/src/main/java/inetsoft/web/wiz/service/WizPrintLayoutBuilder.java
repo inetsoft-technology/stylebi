@@ -20,6 +20,7 @@ package inetsoft.web.wiz.service;
 import inetsoft.graph.internal.DimensionD;
 import inetsoft.report.Margin;
 import inetsoft.report.Size;
+import inetsoft.report.StyleConstants;
 import inetsoft.report.internal.PaperSize;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.VSAssembly;
@@ -80,15 +81,16 @@ public class WizPrintLayoutBuilder {
       List<VSAssemblyLayout> vsLayouts = new ArrayList<>();
       int page = 0;
 
-      // Page 1: title + recap header block.
-      vsLayouts.add(textLayout("wizExportTitleRecap", buildTitleRecapText(title, recap),
-         new Point(0, 0), new Dimension(PAGE_CONTENT_WIDTH_PT, TITLE_BLOCK_HEIGHT_PT)));
+      // Page 1: report-style header — a prominent title, a "Generated <date>" line closed by a
+      // thin rule, and the session recap as a markdown-stripped summary. Split into separate text
+      // boxes because a single box can only carry one font. Returns the y where the body begins.
+      int headerBottom = addReportHeader(vsLayouts, title, recap);
 
       for(int i = 0; i < ordered.size(); i++) {
          ChartCaption c = ordered.get(i);
          VSAssembly assembly = topLevel.get(i);
          int pageTop = page * PAGE_HEIGHT_PT;
-         int captionY = i == 0 ? TITLE_BLOCK_HEIGHT_PT : pageTop;
+         int captionY = i == 0 ? headerBottom : pageTop;
          int chartY = captionY + CAPTION_HEIGHT_PT;
 
          // Build caption text: title always shown, caption appended after an em-dash when present.
@@ -165,20 +167,70 @@ public class WizPrintLayoutBuilder {
       return result;
    }
 
-   private String buildTitleRecapText(String title, String recap) {
-      StringBuilder sb = new StringBuilder(title == null ? "" : title);
+   /**
+    * Emits the page-1 report header (title, generated-date line + rule, recap summary) and
+    * returns the y-coordinate (in points) where the body content should start.
+    */
+   private int addReportHeader(List<VSAssemblyLayout> vsLayouts, String title, String recap) {
+      String heading = title == null || title.isBlank() ? "Analysis Report" : title.trim();
+      int y = 0;
 
-      if(recap != null && !recap.isBlank()) {
-         sb.append("\n").append(recap);
+      vsLayouts.add(styledTextLayout("wizExportTitle", heading, new Point(0, y),
+         new Dimension(PAGE_CONTENT_WIDTH_PT, TITLE_HEIGHT_PT),
+         Font.BOLD, TITLE_FONT_PT, TITLE_COLOR, false));
+      y += TITLE_HEIGHT_PT;
+
+      vsLayouts.add(styledTextLayout("wizExportDate", generatedDateLine(), new Point(0, y),
+         new Dimension(PAGE_CONTENT_WIDTH_PT, DATE_HEIGHT_PT),
+         Font.PLAIN, DATE_FONT_PT, DATE_COLOR, true));
+      y += DATE_HEIGHT_PT;
+
+      String summary = recap == null ? "" : MarkdownPlainText.strip(recap).trim();
+
+      if(!summary.isEmpty()) {
+         y += SUMMARY_GAP_PT;
+         vsLayouts.add(styledTextLayout("wizExportSummary", summary, new Point(0, y),
+            new Dimension(PAGE_CONTENT_WIDTH_PT, SUMMARY_HEIGHT_PT),
+            Font.PLAIN, SUMMARY_FONT_PT, SUMMARY_COLOR, false));
+         y += SUMMARY_HEIGHT_PT;
       }
 
-      return sb.toString();
+      return y + HEADER_BOTTOM_GAP_PT;
    }
 
    private VSEditableAssemblyLayout textLayout(String name, String text, Point pos, Dimension size) {
       TextVSAssemblyInfo info = new TextVSAssemblyInfo();
       info.setTextValue(text);
       info.setText(text);
+      return new VSEditableAssemblyLayout(info, name, pos, size);
+   }
+
+   /** "Generated <Month D, YYYY>" for the current server date. */
+   String generatedDateLine() {
+      return "Generated " + java.time.LocalDate.now()
+         .format(java.time.format.DateTimeFormatter.ofPattern("MMMM d, yyyy", java.util.Locale.US));
+   }
+
+   private VSEditableAssemblyLayout styledTextLayout(String name, String text, Point pos,
+                                                     Dimension size, int fontStyle, int fontSize,
+                                                     String foreground, boolean bottomRule)
+   {
+      TextVSAssemblyInfo info = new TextVSAssemblyInfo();
+      info.setTextValue(text);
+      info.setText(text);
+
+      inetsoft.uql.viewsheet.VSFormat fmt = info.getFormat().getDefaultFormat();
+      fmt.setFontValue(inetsoft.uql.viewsheet.internal.VSAssemblyInfo.getDefaultFont(fontStyle, fontSize));
+      fmt.setForegroundValue(foreground);
+      fmt.setAlignmentValue(StyleConstants.H_LEFT | StyleConstants.V_CENTER);
+      fmt.setWrappingValue(true);
+
+      if(bottomRule) {
+         fmt.setBordersValue(new java.awt.Insets(0, 0, StyleConstants.THIN_LINE, 0));
+         fmt.setBorderColorsValue(new inetsoft.uql.viewsheet.BorderColors(
+            RULE_COLOR, RULE_COLOR, RULE_COLOR, RULE_COLOR));
+      }
+
       return new VSEditableAssemblyLayout(info, name, pos, size);
    }
 
@@ -189,8 +241,23 @@ public class WizPrintLayoutBuilder {
     *  boundary; adjust these constants if it does. */
    private static final int PAGE_HEIGHT_PT = 11 * 72;   // ~A4/Letter portrait height, conservative
    private static final int PAGE_CONTENT_WIDTH_PT = 8 * 72;
-   private static final int TITLE_BLOCK_HEIGHT_PT = 100;
    private static final int CAPTION_HEIGHT_PT = 30;
    private static final int CHART_HEIGHT_PT = 400;
    private static final int INSIGHTS_HEIGHT_PT = 150;
+
+   // Report-header geometry + type (points / font sizes / hex colors).
+   // TITLE_HEIGHT_PT fits a two-line wrapped title at TITLE_FONT_PT so the date line below it
+   // is never crowded; a short one-line title just centers with extra whitespace.
+   private static final int TITLE_HEIGHT_PT = 54;
+   private static final int TITLE_FONT_PT = 20;
+   private static final String TITLE_COLOR = "0x1a1a1a";
+   private static final int DATE_HEIGHT_PT = 18;
+   private static final int DATE_FONT_PT = 9;
+   private static final String DATE_COLOR = "0x888888";
+   private static final int SUMMARY_GAP_PT = 6;
+   private static final int SUMMARY_HEIGHT_PT = 64;
+   private static final int SUMMARY_FONT_PT = 11;
+   private static final String SUMMARY_COLOR = "0x2b2b2b";
+   private static final int HEADER_BOTTOM_GAP_PT = 12;
+   private static final Color RULE_COLOR = new Color(0xcccccc);
 }
