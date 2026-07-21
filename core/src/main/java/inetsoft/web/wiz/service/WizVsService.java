@@ -1647,6 +1647,17 @@ public class WizVsService {
     * (ASSEMBLY_FACTORIES) — the caller should fall back to applying in place.
     */
    public VSAssembly duplicatePrimaryAssembly(RuntimeViewsheet rvs, VSAssembly source) {
+      // Enforce the documented precondition rather than trust the caller: setChartFormat/setChartColors
+      // resolve `source` purely by the client-supplied assemblyName, with no guarantee it is still the
+      // current primary (e.g. a stale name from a prior turn, after an earlier copy=true call already
+      // promoted a different assembly). Demoting "whichever assembly happens to be primary" in that case
+      // would silently demote an unrelated chart and promote a duplicate of the wrong source.
+      if(!source.isPrimary()) {
+         LOG.warn("duplicatePrimaryAssembly: source \"{}\" is not the primary assembly; refusing to duplicate.",
+            source.getName());
+         return null;
+      }
+
       Viewsheet vs = rvs.getViewsheet();
       String newName = uniqueAssemblyName(vs, source.getName());
       VSAssembly copy = rebindAssembly(vs, newName, source);
@@ -1655,16 +1666,9 @@ public class WizVsService {
          return null;
       }
 
-      Assembly[] existingAssemblies = vs.getAssemblies();
-
-      if(existingAssemblies != null) {
-         for(Assembly a : existingAssemblies) {
-            if(a instanceof VSAssembly va && va.isPrimary()) {
-               va.setPrimary(false);
-            }
-         }
-      }
-
+      // source is confirmed primary above, so demote it specifically — not "whichever assembly happens
+      // to be primary" — for a second layer of defense against demoting the wrong assembly.
+      source.setPrimary(false);
       vs.addAssembly(copy);
       copy.setPrimary(true);
       return copy;
