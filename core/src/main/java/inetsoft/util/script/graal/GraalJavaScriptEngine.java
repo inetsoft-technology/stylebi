@@ -284,7 +284,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
          // Rhino set the Calc scope as the global scope's prototype
          // (globalscope.setPrototype(new Calc())), and Calc's member lookup is
-         // case-insensitive (funcmap.get(id.toLowerCase())). So unqualified
+         // case-insensitive (funcmap is a TreeMap ordered by
+         // String.CASE_INSENSITIVE_ORDER). So unqualified
          // CALC/statistical functions resolved regardless of case, e.g.
          // NthMostFrequent, PthPercentile, Sum. GraalJS global bindings are
          // case-sensitive, so the lowercase copies above only match exact-case
@@ -1040,6 +1041,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
          ScriptScope prevScope = scopeProxy.swapGlobal(rootScope);
          LegacyJavaShim.ImportScope prevImports = scopeProxy.swapImports(null);
+         Map<String, Object> prevAssigned = scopeProxy.swapAssigned(null);
 
          // mark this thread as inside script execution (drives isScriptThread()
          // / getExecScriptable(), e.g. PropertiesEngine's env-modification guard).
@@ -1100,6 +1102,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             // reentrant exec). __scope__ stays bound to the reused proxy.
             scopeProxy.swapGlobal(prevScope);
             scopeProxy.swapImports(prevImports);
+            scopeProxy.swapAssigned(prevAssigned);
          }
       }
       finally {

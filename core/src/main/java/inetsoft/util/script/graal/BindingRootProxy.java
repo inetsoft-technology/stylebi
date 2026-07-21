@@ -38,6 +38,7 @@ public class BindingRootProxy implements ProxyObject {
    private final Context context;
    private LegacyJavaShim.ImportScope imports;
    private ScriptScope builtinScope;
+   private Map<String, Object> assigned;
 
    public BindingRootProxy(ScriptScope global, Supplier<ScriptScope> execScopeSupplier) {
       this(global, execScopeSupplier, null, null);
@@ -91,6 +92,13 @@ public class BindingRootProxy implements ProxyObject {
    public ScriptScope swapGlobal(ScriptScope newGlobal) {
       ScriptScope prev = global;
       global = newGlobal;
+      // A reused root scope can be mutated in place between execs while keeping
+      // the same identity -- CalcCellScope/CrosstabCellScope.setCell(row,col)
+      // changes which group/dimension names it exposes -- which the root-identity
+      // check in inChain() cannot see. Binding the chain-membership cache to a
+      // single exec keeps it correct: within one exec the chain's membership is
+      // immutable apart from putMember (which also clears). (#75676)
+      invalidateChainCache();
       return prev;
    }
 
@@ -98,6 +106,27 @@ public class BindingRootProxy implements ProxyObject {
    public LegacyJavaShim.ImportScope swapImports(LegacyJavaShim.ImportScope newImports) {
       LegacyJavaShim.ImportScope prev = imports;
       imports = newImports;
+      return prev;
+   }
+
+   /**
+    * Per-exec store for script-local names that shadow a case-insensitive CALC
+    * builtin (see {@link #putMember}). Reset per exec via {@link #swapAssigned}
+    * so, like {@link #imports}, it never leaks across executions and stays
+    * correct under reentrant exec. (#75704)
+    */
+   private Map<String, Object> assigned() {
+      if(assigned == null) {
+         assigned = new HashMap<>();
+      }
+
+      return assigned;
+   }
+
+   /** Swap the per-exec script-local shadow state (reset to null for a fresh exec). */
+   public Map<String, Object> swapAssigned(Map<String, Object> newAssigned) {
+      Map<String, Object> prev = assigned;
+      assigned = newAssigned;
       return prev;
    }
 
@@ -111,9 +140,11 @@ public class BindingRootProxy implements ProxyObject {
     * member that is simply absent.
     */
    private Object findInChain(String name) {
-      for(ScriptScope s = global; s != null; s = s.getParentScope()) {
-         if(s.hasMember(name)) {
-            return s.getMember(name);
+      if(inChain(name)) {
+         for(ScriptScope s = global; s != null; s = s.getParentScope()) {
+            if(s.hasMember(name)) {
+               return s.getMember(name);
+            }
          }
       }
 
@@ -121,6 +152,14 @@ public class BindingRootProxy implements ProxyObject {
 
       if(exec != null && exec.hasMember(name)) {
          return exec.getMember(name);
+      }
+
+      // script-local shadow of a CALC builtin (see putMember). Checked before the
+      // builtin/isGlobalBinding probes so an assigned `var minDate` wins over the
+      // CalcDateTime.minDate function and over a same-named hoisted global that
+      // would otherwise read back undefined. (#75704)
+      if(assigned != null && assigned.containsKey(name)) {
+         return assigned.get(name);
       }
 
       // last resort: unqualified names brought in by importClass/importPackage
@@ -134,6 +173,15 @@ public class BindingRootProxy implements ProxyObject {
          }
       }
 
+      // A real js global binding resolves natively via with(...) fall-through, so
+      // report it absent here -- before the terminal Calc probe, so the ~98%
+      // "global function, not in chain" case skips that probe. Equivalent to the
+      // old `builtin != null && !hasGlobalBinding` guard, which likewise refused
+      // to return a builtin that had an exact global binding. (#75676)
+      if(isGlobalBinding(name)) {
+         return NOT_FOUND;
+      }
+
       // case-insensitive CALC functions (Rhino's global-scope prototype). Only
       // when the name has no exact global binding, so JS builtins (Date) and the
       // lowercase CALC copies are never shadowed. This is only reached after the
@@ -143,7 +191,7 @@ public class BindingRootProxy implements ProxyObject {
       if(builtinScope != null) {
          Object builtin = builtinScope.getMember(name);
 
-         if(builtin != null && !hasGlobalBinding(name)) {
+         if(builtin != null) {
             return builtin;
          }
       }
@@ -154,6 +202,70 @@ public class BindingRootProxy implements ProxyObject {
    /** Whether {@code name} is an exact (case-sensitive) member of the JS global scope. */
    private boolean hasGlobalBinding(String name) {
       return context != null && context.getBindings("js").hasMember(name);
+   }
+
+   // Cache of the exact-name global-binding test. Only a 'true' answer is cached,
+   // and permanently: a global, once installed, stays for the engine's lifetime.
+   // A 'false' answer is deliberately NOT cached -- the GraalJS Context (and its
+   // globalThis) is reused across same-org renders on a pooled thread (see
+   // FormulaEvaluator), so a later formula's top-level var/function can turn a
+   // previously-absent name into a real global; a cached 'false' would then keep
+   // shadowing it via the builtin/CALC scope. Recomputing 'false' is cheap and
+   // rare -- profiling shows ~98% of probes reaching here are real globals (i.e.
+   // cached 'true'). Single-threaded per engine (engine lock). (#75676)
+   private final Set<String> globalBindingCache = new HashSet<>();
+
+   private boolean isGlobalBinding(String name) {
+      if(globalBindingCache.contains(name)) {
+         return true;
+      }
+
+      boolean present = hasGlobalBinding(name);
+
+      if(present) {
+         globalBindingCache.add(name);
+      }
+
+      return present;
+   }
+
+   // Per-chain-root cache of "is name provided by the scope chain?" The calc table
+   // swaps in a fresh root scope per evaluation, so the cache is keyed on the root
+   // identity and dropped when the root changes; within one root the same names
+   // are probed repeatedly. Uses the real hasMember walk, so it stays correct for
+   // scopes with dynamic (non-enumerated) members. Cleared on putMember, which can
+   // add a name to a chain scope. (#75676)
+   private ScriptScope chainCacheRoot;
+   private final Map<String, Boolean> chainCache = new HashMap<>();
+
+   private void invalidateChainCache() {
+      chainCache.clear();
+      chainCacheRoot = null;
+   }
+
+   private boolean inChain(String name) {
+      if(chainCacheRoot != global) {
+         chainCache.clear();
+         chainCacheRoot = global;
+      }
+
+      Boolean cached = chainCache.get(name);
+
+      if(cached != null) {
+         return cached;
+      }
+
+      boolean found = false;
+
+      for(ScriptScope s = global; s != null; s = s.getParentScope()) {
+         if(s.hasMember(name)) {
+            found = true;
+            break;
+         }
+      }
+
+      chainCache.put(name, found);
+      return found;
    }
 
    /** Resolve a name through the full chain; returns null if not found. */
@@ -183,6 +295,10 @@ public class BindingRootProxy implements ProxyObject {
          }
       }
 
+      if(assigned != null) {
+         keys.addAll(assigned.keySet());
+      }
+
       return keys;
    }
 
@@ -196,6 +312,9 @@ public class BindingRootProxy implements ProxyObject {
    @Override public boolean hasMember(String key) { return resolves(key); }
    @Override public Object getMemberKeys() { return enumerate().toArray(new String[0]); }
    @Override public void putMember(String key, Value value) {
+      // a write can create a new name on a chain scope, so the "is name in chain?"
+      // answer for the current root may change; drop the cache. (#75676)
+      invalidateChainCache();
       Object host = ScriptValueConverter.toHost(value);
 
       // Rhino scope-chain write semantics: an unqualified assignment to a name
@@ -215,6 +334,38 @@ public class BindingRootProxy implements ProxyObject {
 
       if(exec != null && exec.hasMember(key)) {
          exec.putMember(key, host);
+         return;
+      }
+
+      // The name is owned by no real scope. If it is already a script-local
+      // shadow, or `with(__scope__)` routed this assignment here only because the
+      // case-insensitive CALC builtin scope matched the name (so hasMember
+      // returned true) -- e.g. a chart script's `var minDate = new Date()`, where
+      // minDate is also a CalcDateTime function name -- keep it as a script-local
+      // shadow rather than storing a toHost() copy on the root scope. Storing a
+      // host copy would both detach the live object (a JS Date becomes a
+      // java.util.Date that reads back as a foreign host object, so
+      // `minDate.setFullYear(...)` throws "not a Date object") and fail to shadow
+      // the builtin. Retaining the guest value (looked up ahead of the builtin in
+      // findInChain) preserves its native JS identity and in-place mutation, so it
+      // behaves like a top-level `var` that shadows the CALC function of the same
+      // name -- matching Rhino, where Calc was the global prototype and an own
+      // `var` shadowed it. (#75704)
+      //
+      // Scoped to guest values that toHost() cannot losslessly round-trip
+      // (Date/Time/Duration/host/proxy). A CALC-colliding *primitive* still goes
+      // to global.putMember below, exactly as before this fix: toHost/toGuest
+      // round-trips primitives losslessly, and because the root scope is reused
+      // across per-cell exec() calls (see swapGlobal) while `assigned` is wiped
+      // per exec, storing primitives on `global` preserves the cross-exec
+      // persistence a calc-table running-total accumulator named after a CALC
+      // function (sum/count/min/max/...) relies on. (#75704)
+      if((assigned != null && assigned.containsKey(key)) ||
+         (builtinScope != null && builtinScope.getMember(key) != null &&
+          (value.isHostObject() || value.isProxyObject() ||
+           value.isDate() || value.isTime() || value.isDuration())))
+      {
+         assigned().put(key, value);
          return;
       }
 

@@ -95,4 +95,63 @@ class BindingRootProxyTest {
       assertEquals("updated", parent.getMember("pv"));   // parent updated
       assertNull(global.getMember("pv"));                // no stale shadow on root
    }
+
+   // A root scope object can be reused across execs and mutated in place while
+   // keeping the same identity -- CalcCellScope/CrosstabCellScope.setCell(row,col)
+   // changes which group/dimension names it exposes between range-condition
+   // evaluations. The chain-membership cache is keyed on root identity, so it must
+   // be invalidated on swapGlobal (a new exec) or it would report a stale
+   // presence/absence for the previous cell. (Regression guard for #75676.)
+   @Test void chainCacheInvalidatedWhenReusedRootMutatedAcrossExec() {
+      class CellScope implements ScriptScope {
+         boolean present;   // toggled in place, like setCell moving to a new cell
+         public Object getMember(String n) { return present && "x".equals(n) ? 11 : null; }
+         public boolean hasMember(String n) { return present && "x".equals(n); }
+         public void putMember(String n, Object v) { }
+         public Object[] getMemberKeys() { return present ? new Object[]{ "x" } : new Object[0]; }
+      }
+
+      CellScope scope = new CellScope();
+      BindingRootProxy root = new BindingRootProxy(scope, () -> null);
+
+      // exec 1: "x" absent for this cell -> caches "x not in chain"
+      root.swapGlobal(scope);
+      scope.present = false;
+      assertFalse(root.hasMember("x"));
+      assertNull(root.resolve("x"));
+
+      // between execs the SAME object is mutated to the next cell, where "x" exists
+      scope.present = true;
+
+      // exec 2: swapGlobal must drop the stale cache so the live membership is seen
+      root.swapGlobal(scope);
+      assertTrue(root.hasMember("x"), "stale chain-cache absence after in-place mutation");
+      assertEquals(11, root.resolve("x"));
+   }
+
+   // isGlobalBinding must not permanently cache a 'false'. The GraalJS Context
+   // (and its globalThis) is reused across same-org renders on a pooled thread,
+   // so a later formula's top-level var/function can turn a previously-absent
+   // name into a real global. A cached 'false' would keep resolving that name via
+   // the builtin/CALC scope instead of yielding to the now-real global. (Regression
+   // guard for #75676.)
+   @Test void globalBindingCacheDoesNotStaleFalseWhenGlobalAddedLater() {
+      MapScope global = new MapScope(null);
+      MapScope builtin = new MapScope(null);
+      builtin.putMember("late", 111);   // a CALC-style builtin that would shadow
+
+      BindingRootProxy root = new BindingRootProxy(global, () -> null, n -> true, ctx);
+      root.setBuiltinScope(builtin);
+
+      // before: "late" is not a real global -> resolves via the builtin scope
+      assertEquals(111, root.resolve("late"));
+
+      // a later same-org render introduces a real global with that name
+      ctx.getBindings("js").putMember("late", 222);
+
+      // now "late" must be treated as a real global: reported absent here so
+      // with(...) resolves it natively, NOT the stale builtin
+      assertNull(root.resolve("late"));
+      assertFalse(root.hasMember("late"));
+   }
 }

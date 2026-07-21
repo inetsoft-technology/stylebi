@@ -180,4 +180,65 @@ class GraalJavaScriptEngineGlobalsTest {
    void builtinDateNotShadowedByCalc() throws Exception {
       assertInstanceOf(java.util.Date.class, eval("new Date(0)"));
    }
+
+   // Bug #75704: the #75685 case-insensitive CALC last-resort must not hijack a
+   // user variable whose name matches a CALC function name (CalcDateTime exposes
+   // minDate/maxDate). Previously `var minDate = new Date()` was intercepted by
+   // with(__scope__) (hasMember was true via the CALC builtin) and stored as a
+   // detached java.util.Date, so the next line `minDate.setFullYear(...)` read it
+   // back as a foreign host object and threw "TypeError: not a Date object". The
+   // user's `var` must shadow the CALC function and keep its native JS Date
+   // identity, exactly as Rhino's own-property-over-prototype semantics did.
+   @Test
+   void userVarShadowsCalcDateFunction() throws Exception {
+      String script =
+         "var minDate = new Date();\n" +
+         "var maxDate = new Date();\n" +
+         "minDate.setFullYear(2005, 8, 1);\n" +
+         "maxDate.setFullYear(2011, 10, 1);\n" +
+         "'' + minDate.getFullYear() + ',' + maxDate.getFullYear();\n";
+      // no "not a Date object" error, and the mutations persist
+      assertEquals("2005,2011", eval(script));
+   }
+
+   // Bug #75704: a CALC function name used as an unqualified call (never assigned)
+   // must still resolve — the shadow only kicks in for names the script assigns.
+   @Test
+   void calcDateFunctionStillResolvesWhenNotShadowed() throws Exception {
+      assertEquals("function", eval("typeof minDate"));
+      assertEquals("function", eval("typeof maxDate"));
+   }
+
+   // Bug #75704: a CALC-colliding *primitive* assigned to a name that resolves
+   // only via the case-insensitive CALC builtin scope (minDate/maxDate are such
+   // names -- proven by the two tests above: they route through
+   // BindingRootProxy.putMember rather than being real JS globals) must persist
+   // on the reused root scope ACROSS separate exec() calls, the way a calc-table
+   // running-total accumulator does. The #75704 shadow is per-exec (wiped by
+   // swapAssigned) and is now scoped to guest values toHost() cannot round-trip;
+   // a primitive falls through to global.putMember, so it survives to the next
+   // exec sharing the same root ScriptScope. Before the narrowing, the broad
+   // shadow diverted the primitive into the per-exec map, so the second exec read
+   // back the CALC function ("function") instead of the accumulated value.
+   @Test
+   void calcCollidingPrimitivePersistsAcrossExecs() throws Exception {
+      MapScope root = new MapScope();
+      // first exec: bare assignment (no `var`, so it routes through __scope__ /
+      // BindingRootProxy.putMember rather than becoming a wrapper-function local)
+      engine.exec(engine.compile("minDate = 5;"), root, null);
+      // second exec, same reused root scope: the primitive must still be visible
+      Object result = engine.exec(
+         engine.compile("'' + (typeof minDate) + ',' + minDate;"), root, null);
+      assertEquals("number,5", result);
+   }
+
+   /** Minimal reusable, mutable {@link ScriptScope} for the cross-exec test above. */
+   private static final class MapScope implements ScriptScope {
+      private final java.util.Map<String, Object> members = new java.util.HashMap<>();
+
+      @Override public Object getMember(String name) { return members.get(name); }
+      @Override public boolean hasMember(String name) { return members.containsKey(name); }
+      @Override public void putMember(String name, Object value) { members.put(name, value); }
+      @Override public Object[] getMemberKeys() { return members.keySet().toArray(new String[0]); }
+   }
 }

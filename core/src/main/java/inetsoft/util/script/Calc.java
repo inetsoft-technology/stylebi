@@ -23,8 +23,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Method;
-import java.util.Hashtable;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Mark a class as an array. Used in autocompletion only.
@@ -84,7 +84,14 @@ public class Calc implements ScriptScope {
    public Object getMember(String id) {
       // getMember may be called before the constructor is completed
       if(funcmap != null) {
-         return funcmap.get(id.toLowerCase());
+         // funcmap is a case-insensitive map, so look up the name directly.
+         // This is the terminal fallback of BindingRootProxy's scope-chain walk
+         // and runs for every unqualified identifier reference in every per-cell
+         // /per-row script evaluation; the previous id.toLowerCase() allocated a
+         // fresh lowercased String on each call for any mixed-case name (e.g. the
+         // camelCase CALC function names mapList/addMapData), a hot allocation
+         // under GraalJS that had no Rhino equivalent. (#75676)
+         return funcmap.get(id);
       }
 
       return null;
@@ -116,7 +123,11 @@ public class Calc implements ScriptScope {
    }
 
    private ScriptScope parent;
-   private Map<String, ScriptFunction> funcmap = new Hashtable<>(); // name -> ScriptFunction
+   // case-insensitive so lookups need no per-call toLowerCase allocation; only
+   // written in the constructor, read-only (and safe for concurrent reads)
+   // afterward -- putMember is a no-op. (#75676)
+   private final Map<String, ScriptFunction> funcmap =
+      new TreeMap<>(String.CASE_INSENSITIVE_ORDER); // name -> ScriptFunction
 
    private static final Logger LOG = LoggerFactory.getLogger(Calc.class);
 }
