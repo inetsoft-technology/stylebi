@@ -520,6 +520,16 @@ public class IdentityService {
          identity = provider.getRole(identityId);
       }
 
+      // The identity lookup can transiently return null (e.g. cache/storage
+      // staleness or a concurrent modification while an identity is being
+      // deleted). Guard against it so IdentityInfo isn't constructed from a
+      // null identity, which would throw an NPE that gets logged as a
+      // misleading "Failed to create info object for identity: null" error.
+      if(identity == null) {
+         LOG.debug("Identity not found, returning empty info: {} (type={})", identityId, type);
+         return new IdentityInfo();
+      }
+
       return new IdentityInfo(identity, provider);
    }
 
