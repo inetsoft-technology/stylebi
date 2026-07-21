@@ -29,13 +29,16 @@ import inetsoft.web.wiz.script.model.ScriptContext;
 import inetsoft.web.wiz.script.model.ScriptExecResult;
 import inetsoft.web.wiz.script.model.ScriptInfo;
 import inetsoft.web.wiz.script.model.ScriptTargetInfo;
+import inetsoft.web.wiz.service.RenderNotReadyException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +64,7 @@ public class ViewsheetAgentController {
                                    ScriptExecuteService executeService,
                                    ScriptContextService contextService,
                                    ScriptApiService apiService,
+                                   ScriptImageService imageService,
                                    ViewsheetService viewsheetService,
                                    SheetAgentBroadcastService broadcast)
    {
@@ -72,6 +76,7 @@ public class ViewsheetAgentController {
       this.executeService = executeService;
       this.contextService = contextService;
       this.apiService = apiService;
+      this.imageService = imageService;
       this.viewsheetService = viewsheetService;
       this.broadcast = broadcast;
    }
@@ -188,6 +193,40 @@ public class ViewsheetAgentController {
       return contextService.context(rvs);
    }
 
+   public record ChartImageResponse(String image, String format, int width, int height) {}
+
+   /**
+    * Renders {@code target}'s current state to a PNG snapshot — lets the agent actually see the
+    * effect of a script it just ran, instead of relying on the user to describe it. Chart
+    * assemblies only (see {@link ScriptImageService}).
+    *
+    * <p>Base64-encoded JSON, matching every other endpoint on this controller (rather than a raw
+    * {@code image/png} body) — the consumer here is an MCP tool call whose result becomes part of
+    * a structured tool response, not a browser {@code <img>} tag.</p>
+    */
+   @GetMapping("/api/wiz/v1/agent/script/{sessionToken}/chart-image")
+   public ChartImageResponse chartImage(@PathVariable String sessionToken,
+                                        @RequestParam String target,
+                                        @RequestParam(required = false) Integer width,
+                                        @RequestParam(required = false) Integer height,
+                                        Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      ScriptTarget t = ScriptTarget.parse(target);
+
+      if(t.location() != ScriptTarget.Location.ASSEMBLY) {
+         throw new PairingException("chart-image only supports assembly targets, not \"" +
+                                    target + "\"");
+      }
+
+      RuntimeViewsheet rvs = editService.resolve(sessionToken, user);
+      ScriptImageService.ChartImage img =
+         imageService.getChartImage(rvs, t.assemblyName(), width, height, user);
+      String base64 = Base64.getEncoder().encodeToString(img.pngBytes());
+      return new ChartImageResponse(base64, img.isPng() ? "png" : "svg", img.width(), img.height());
+   }
+
    /**
     * Best-effort static API metadata lookup (Layer A). Not session-scoped — mirrors
     * wiz-services' {@code GET /v1/agent/script/signature?name=} (no {@code sessionToken}).
@@ -284,6 +323,17 @@ public class ViewsheetAgentController {
       return ResponseEntity.status(status).body(body);
    }
 
+   /** The chart's graph hasn't finished computing yet — ask the caller to retry shortly. */
+   @ExceptionHandler(RenderNotReadyException.class)
+   public ResponseEntity<Map<String, String>> handleRenderNotReady(RenderNotReadyException e) {
+      Map<String, String> body = new LinkedHashMap<>();
+      body.put("error", e.getMessage());
+      body.put("errorCode", "RENDER_NOT_READY");
+      return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+         .header(HttpHeaders.RETRY_AFTER, String.valueOf(Math.max(1, e.getRetryAfter())))
+         .body(body);
+   }
+
    // ---------------------------------------------------------------------------
    // Dependencies
    // ---------------------------------------------------------------------------
@@ -296,6 +346,7 @@ public class ViewsheetAgentController {
    private final ScriptExecuteService executeService;
    private final ScriptContextService contextService;
    private final ScriptApiService apiService;
+   private final ScriptImageService imageService;
    private final ViewsheetService viewsheetService;
    private final SheetAgentBroadcastService broadcast;
 }
