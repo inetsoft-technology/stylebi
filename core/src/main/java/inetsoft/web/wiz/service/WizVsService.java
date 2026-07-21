@@ -1896,6 +1896,41 @@ public class WizVsService {
    }
 
    /**
+    * Execute a Table or Crosstab assembly's data to verify the saved visualization actually
+    * renders, without materializing the rows. Mirrors {@link #verifyChartData} for the
+    * non-chart wiz visualization types: {@link ViewsheetSandbox#getVGraphPair} only supports
+    * {@link ChartVSAssembly} (it casts unconditionally), so a table/crosstab assembly must be
+    * verified via its {@link TableLens} instead.
+    */
+   public VerifyResult verifyTableData(RuntimeViewsheet rvs, String assemblyName) throws Exception {
+      Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
+
+      if(boxOpt.isEmpty()) {
+         return new VerifyResult(false, 0);
+      }
+
+      TableLens table = boxOpt.get().getTableData(assemblyName);
+
+      if(table == null) {
+         return new VerifyResult(false, 0);
+      }
+
+      // Throws IllegalArgumentException carrying the real cause when the query failed.
+      checkFailedQuery(table);
+
+      int headerRows = table.getHeaderRowCount();
+      int rowCount = 0;
+      int r = headerRows;
+
+      while(table.moreRows(r)) {
+         rowCount++;
+         r++;
+      }
+
+      return new VerifyResult(rowCount > 0, rowCount);
+   }
+
+   /**
     * Extracts tabular data from a Table or Crosstab assembly via its TableLens.
     * Row 0 through headerRowCount-1 are header rows; data begins at headerRowCount.
     * <p>
