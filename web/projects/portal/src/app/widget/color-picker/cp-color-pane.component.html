@@ -38,7 +38,7 @@
         <div class="form-row-float-label color-picker-palette-row color-picker-recent">
           <table>
             <tr class="bb-gray">
-              @for (swatch of recentColors; track swatch) {
+              @for (swatch of recentColors; track $index) {
                 <td>
                   <button type="button" class="color-picker-swatch bd-gray"
                     [class.transparent-swatch]="swatch === ''"
@@ -57,7 +57,7 @@
         <div class="form-row-float-label color-picker-palette-row">
           <table>
             <tr>
-              @for (swatch of row; track swatch) {
+              @for (swatch of row; track $index) {
                 <td>
                   <button type="button" class="color-picker-swatch"
                     [ngClass]="{'color-picker-selected bd-selected' : color == swatch || !color && !swatch,
