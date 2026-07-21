@@ -84,7 +84,7 @@ class MVScriptableTest {
    }
 
    @Test
-   void maxValueReturnsTheColumnsCachedOriginalMaxWhenMvHasData() throws Exception {
+   void maxValueReturnsTheColumnsCachedOriginalMaxWhenMvHasData() {
       MVDef mvdef = mock(MVDef.class);
       when(mvdef.getName()).thenReturn("mv1");
       MVColumn mvcol = mock(MVColumn.class);
@@ -92,14 +92,13 @@ class MVScriptableTest {
       when(mvcol.getOriginalMax()).thenReturn(100.0);
       when(mvcol.isDateTime()).thenReturn(false);
 
-      MVScriptable scriptable = new MVScriptable(mvdef, mvcol);
-      setMv(scriptable, builtMvWithNoDictionary());
+      MVScriptable scriptable = new MVScriptable(mvdef, mvcol, builtMvWithNoDictionary());
 
       assertEquals(100.0, scriptable.getMember("MaxValue"));
    }
 
    @Test
-   void minValueReturnsTheColumnsCachedOriginalMinWhenMvHasData() throws Exception {
+   void minValueReturnsTheColumnsCachedOriginalMinWhenMvHasData() {
       MVDef mvdef = mock(MVDef.class);
       when(mvdef.getName()).thenReturn("mv1");
       MVColumn mvcol = mock(MVColumn.class);
@@ -107,9 +106,28 @@ class MVScriptableTest {
       when(mvcol.getOriginalMin()).thenReturn(1.0);
       when(mvcol.isDateTime()).thenReturn(false);
 
-      MVScriptable scriptable = new MVScriptable(mvdef, mvcol);
-      setMv(scriptable, builtMvWithNoDictionary());
+      MVScriptable scriptable = new MVScriptable(mvdef, mvcol, builtMvWithNoDictionary());
 
+      assertEquals(1.0, scriptable.getMember("MinValue"));
+   }
+
+   @Test
+   void threeArgConstructorUsesTheGivenMvWithoutTouchingStorage() {
+      MVDef mvdef = mock(MVDef.class);
+      when(mvdef.getLastUpdateTime()).thenReturn(1700000000000L);
+      MVColumn mvcol = mock(MVColumn.class);
+      when(mvcol.getName()).thenReturn("col1");
+      when(mvcol.getOriginalMax()).thenReturn(100.0);
+      when(mvcol.getOriginalMin()).thenReturn(1.0);
+      when(mvcol.isDateTime()).thenReturn(false);
+
+      // mvdef.getName() is intentionally left unstubbed (returns null): the 3-arg
+      // constructor must not call MVStorage.getFile()/get() at all, since its whole
+      // point is to skip the independent storage lookup the 2-arg constructor does.
+      MVScriptable scriptable = new MVScriptable(mvdef, mvcol, builtMvWithNoDictionary());
+
+      assertEquals(new Timestamp(1700000000000L), scriptable.getMember("LastUpdateTime"));
+      assertEquals(100.0, scriptable.getMember("MaxValue"));
       assertEquals(1.0, scriptable.getMember("MinValue"));
    }
 
@@ -127,11 +145,5 @@ class MVScriptableTest {
       when(mv.indexOfHeader("col1", 0)).thenReturn(0);
       when(mv.getDictionary(0, 0)).thenReturn(null);
       return mv;
-   }
-
-   private static void setMv(MVScriptable scriptable, MV mv) throws Exception {
-      java.lang.reflect.Field field = MVScriptable.class.getDeclaredField("mv");
-      field.setAccessible(true);
-      field.set(scriptable, mv);
    }
 }

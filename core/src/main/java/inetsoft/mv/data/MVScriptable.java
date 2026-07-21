@@ -40,6 +40,8 @@ public class MVScriptable implements ScriptScope {
    }
 
    /**
+    * @param mvdef the MV definition.
+    * @param mvcol the MV column to read max/min values for.
     * @param mv the already-loaded MV to use, avoiding a redundant storage lookup. Callers that
     *           have already validated the MV non-null (e.g. MVIncremental) should use this
     *           constructor instead of triggering another independent storage read, which can
