@@ -38,6 +38,7 @@ public class BindingRootProxy implements ProxyObject {
    private final Context context;
    private LegacyJavaShim.ImportScope imports;
    private ScriptScope builtinScope;
+   private Map<String, Object> assigned;
 
    public BindingRootProxy(ScriptScope global, Supplier<ScriptScope> execScopeSupplier) {
       this(global, execScopeSupplier, null, null);
@@ -108,6 +109,27 @@ public class BindingRootProxy implements ProxyObject {
       return prev;
    }
 
+   /**
+    * Per-exec store for script-local names that shadow a case-insensitive CALC
+    * builtin (see {@link #putMember}). Reset per exec via {@link #swapAssigned}
+    * so, like {@link #imports}, it never leaks across executions and stays
+    * correct under reentrant exec. (#75704)
+    */
+   private Map<String, Object> assigned() {
+      if(assigned == null) {
+         assigned = new HashMap<>();
+      }
+
+      return assigned;
+   }
+
+   /** Swap the per-exec script-local shadow state (reset to null for a fresh exec). */
+   public Map<String, Object> swapAssigned(Map<String, Object> newAssigned) {
+      Map<String, Object> prev = assigned;
+      assigned = newAssigned;
+      return prev;
+   }
+
    /** Sentinel that distinguishes "present with null value" from "absent". */
    private static final Object NOT_FOUND = new Object();
 
@@ -130,6 +152,14 @@ public class BindingRootProxy implements ProxyObject {
 
       if(exec != null && exec.hasMember(name)) {
          return exec.getMember(name);
+      }
+
+      // script-local shadow of a CALC builtin (see putMember). Checked before the
+      // builtin/isGlobalBinding probes so an assigned `var minDate` wins over the
+      // CalcDateTime.minDate function and over a same-named hoisted global that
+      // would otherwise read back undefined. (#75704)
+      if(assigned != null && assigned.containsKey(name)) {
+         return assigned.get(name);
       }
 
       // last resort: unqualified names brought in by importClass/importPackage
@@ -265,6 +295,10 @@ public class BindingRootProxy implements ProxyObject {
          }
       }
 
+      if(assigned != null) {
+         keys.addAll(assigned.keySet());
+      }
+
       return keys;
    }
 
@@ -300,6 +334,38 @@ public class BindingRootProxy implements ProxyObject {
 
       if(exec != null && exec.hasMember(key)) {
          exec.putMember(key, host);
+         return;
+      }
+
+      // The name is owned by no real scope. If it is already a script-local
+      // shadow, or `with(__scope__)` routed this assignment here only because the
+      // case-insensitive CALC builtin scope matched the name (so hasMember
+      // returned true) -- e.g. a chart script's `var minDate = new Date()`, where
+      // minDate is also a CalcDateTime function name -- keep it as a script-local
+      // shadow rather than storing a toHost() copy on the root scope. Storing a
+      // host copy would both detach the live object (a JS Date becomes a
+      // java.util.Date that reads back as a foreign host object, so
+      // `minDate.setFullYear(...)` throws "not a Date object") and fail to shadow
+      // the builtin. Retaining the guest value (looked up ahead of the builtin in
+      // findInChain) preserves its native JS identity and in-place mutation, so it
+      // behaves like a top-level `var` that shadows the CALC function of the same
+      // name -- matching Rhino, where Calc was the global prototype and an own
+      // `var` shadowed it. (#75704)
+      //
+      // Scoped to guest values that toHost() cannot losslessly round-trip
+      // (Date/Time/Duration/host/proxy). A CALC-colliding *primitive* still goes
+      // to global.putMember below, exactly as before this fix: toHost/toGuest
+      // round-trips primitives losslessly, and because the root scope is reused
+      // across per-cell exec() calls (see swapGlobal) while `assigned` is wiped
+      // per exec, storing primitives on `global` preserves the cross-exec
+      // persistence a calc-table running-total accumulator named after a CALC
+      // function (sum/count/min/max/...) relies on. (#75704)
+      if((assigned != null && assigned.containsKey(key)) ||
+         (builtinScope != null && builtinScope.getMember(key) != null &&
+          (value.isHostObject() || value.isProxyObject() ||
+           value.isDate() || value.isTime() || value.isDuration())))
+      {
+         assigned().put(key, value);
          return;
       }
 
