@@ -21,6 +21,8 @@ import inetsoft.report.ReportElement;
 import inetsoft.report.internal.ExpandablePresenter;
 
 import java.awt.*;
+import java.awt.font.FontRenderContext;
+import java.awt.font.GlyphVector;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -139,17 +141,55 @@ public class MarkdownPresenter implements ExpandablePresenter {
       float top = bufy;
       float bottom = bufh < 0 ? Float.MAX_VALUE : bufy + bufh;
 
+      Graphics2D g2 = g instanceof Graphics2D ? (Graphics2D) g : null;
+
       for(Line line : layout.lines) {
          if(line.top + line.height <= top || line.top >= bottom) {
             continue;
          }
 
-         int baseline = (int) (y + line.top - bufy + line.ascent);
+         float baseline = y + line.top - bufy + line.ascent;
 
-         for(Run run : line.runs) {
-            g.setFont(run.font);
-            g.setColor(run.color);
-            g.drawString(run.text, x + run.x, baseline);
+         if(line.marker != null) {
+            drawSegment(g, g2, line.marker.font, line.marker.color, line.marker.text, x, baseline);
+         }
+
+         // Coalesce consecutive same-style words into one draw call (joined by real spaces) so
+         // inter-word spacing is laid out from the font's own glyph advances. Rendering goes through
+         // drawGlyphVector, which paints glyph outlines at those exact advances — bypassing the
+         // PDF text engine's char-spacing reconciliation (PDFPrinter caps per-char stretch at 0.8,
+         // so drawString renders derived bold/italic fonts narrower than their metrics report, and
+         // that error accumulates into a visible gap at each style boundary). Because both layout
+         // and paint measure with the same canonical FontRenderContext (FRC), positions match the
+         // rendered output exactly on every device.
+         float cx = x + line.startX;
+         List<Run> runs = line.runs;
+         int i = 0;
+
+         while(i < runs.size()) {
+            Run first = runs.get(i);
+            StringBuilder segment = new StringBuilder();
+
+            if(first.spaceBefore) {
+               segment.append(' ');
+            }
+
+            segment.append(first.text);
+            int j = i + 1;
+
+            while(j < runs.size() && runs.get(j).font.equals(first.font)
+                  && runs.get(j).color.equals(first.color))
+            {
+               if(runs.get(j).spaceBefore) {
+                  segment.append(' ');
+               }
+
+               segment.append(runs.get(j).text);
+               j++;
+            }
+
+            cx += drawSegment(g, g2, first.font, first.color, segment.toString(), cx, baseline);
+            i = j;
          }
       }
 
@@ -189,81 +229,104 @@ public class MarkdownPresenter implements ExpandablePresenter {
          firstBlock = false;
 
          int bodySize = baseFont.getSize();
-         int indent = block.type() == MarkdownModel.BlockType.BULLET ? BULLET_INDENT : 0;
-         List<Token> tokens = new ArrayList<>();
-
-         if(block.type() == MarkdownModel.BlockType.BULLET) {
-            // Hanging "•" marker at the block's left edge; text starts at the indent.
-            tokens.add(new Token("•", deriveFont(true, false, bodySize), accentColor, 0));
-         }
-
-         int headerSize = bodySize + Math.max(1, 5 - block.level());
          boolean heading = block.type() == MarkdownModel.BlockType.HEADING;
+         boolean bullet = block.type() == MarkdownModel.BlockType.BULLET;
+         int size = heading ? bodySize + Math.max(1, 5 - block.level()) : bodySize;
+         int textX = bullet ? BULLET_INDENT : 0;
+         Run marker = bullet ? new Run("•", deriveFont(true, false, bodySize), accentColor, false) : null;
+
+         // Flatten spans into styled words; spaceBefore marks a single inter-word gap.
+         List<Run> words = new ArrayList<>();
+         boolean firstWord = true;
 
          for(MarkdownModel.Span span : block.spans()) {
-            Font font = deriveFont(heading || span.bold(), span.italic(), heading ? headerSize : bodySize);
+            Font font = deriveFont(heading || span.bold(), span.italic(), size);
             Color color = heading ? accentColor : bodyColor;
 
             for(String word : splitWords(span.text())) {
-               tokens.add(new Token(word, font, color, indent));
+               words.add(new Run(word, font, color, !firstWord));
+               firstWord = false;
             }
          }
 
-         y = layoutTokens(lines, tokens, width, indent, y);
+         y = wrapBlock(lines, words, marker, textX, width, y);
       }
 
       return new Layout(lines, y);
    }
 
-   /** Greedy word-wrap of styled tokens into positioned lines; returns the y past the block. */
-   private int layoutTokens(List<Line> lines, List<Token> tokens, int width, int wrapX, int y) {
-      List<Run> runs = new ArrayList<>();
-      int curX = 0;
-      int lineAscent = 0;
-      int lineHeight = 0;
-      boolean lineStarted = false;
+   /** Greedy word-wrap into lines. Positions are resolved at paint time from the device metrics;
+    *  here we only decide line breaks (using approximate layout metrics) and per-run spacing. */
+   private int wrapBlock(List<Line> lines, List<Run> words, Run marker, int textX, int width, int y) {
+      List<Run> cur = new ArrayList<>();
+      float cx = textX;
+      int ascent = 0;
+      int height = 0;
+      boolean markerOnThisLine = marker != null;
 
-      for(Token token : tokens) {
-         FontMetrics fm = metrics(token.font);
-         int wordW = fm.stringWidth(token.text);
-         boolean bulletMarker = token.wrapX == 0 && !lineStarted && "•".equals(token.text);
-
-         int startX = bulletMarker ? 0 : token.wrapX;
-
-         if(!lineStarted) {
-            curX = startX;
-         }
-         else {
-            int spaceW = metrics(token.font).charWidth(' ');
-
-            if(curX + spaceW + wordW > width) {
-               // wrap
-               lines.add(new Line(y, lineHeight, lineAscent, runs));
-               y += lineHeight;
-               runs = new ArrayList<>();
-               curX = wrapX;
-               lineAscent = 0;
-               lineHeight = 0;
-               lineStarted = false;
-            }
-            else {
-               curX += spaceW;
-            }
-         }
-
-         runs.add(new Run(token.text, token.font, token.color, curX));
-         curX += wordW;
-         lineAscent = Math.max(lineAscent, fm.getAscent());
-         lineHeight = Math.max(lineHeight, fm.getHeight());
-         lineStarted = true;
+      if(markerOnThisLine) {
+         FontMetrics mfm = metrics(marker.font);
+         ascent = mfm.getAscent();
+         height = mfm.getHeight();
       }
 
-      if(lineStarted) {
-         lines.add(new Line(y, lineHeight, lineAscent, runs));
-         y += lineHeight;
+      for(Run word : words) {
+         FontMetrics fm = metrics(word.font);
+         float wordW = advance(word.font, word.text);
+         boolean spaceBefore = word.spaceBefore && !cur.isEmpty();
+         float spaceW = spaceBefore ? advance(word.font, " ") : 0;
+
+         if(!cur.isEmpty() && cx + spaceW + wordW > width) {
+            lines.add(new Line(y, height, ascent, textX, markerOnThisLine ? marker : null, cur));
+            y += height;
+            cur = new ArrayList<>();
+            cx = textX;
+            ascent = 0;
+            height = 0;
+            markerOnThisLine = false;
+            spaceBefore = false;
+            spaceW = 0;
+         }
+
+         cur.add(new Run(word.text, word.font, word.color, spaceBefore));
+         cx += spaceW + wordW;
+         ascent = Math.max(ascent, fm.getAscent());
+         height = Math.max(height, fm.getHeight());
+      }
+
+      if(!cur.isEmpty()) {
+         lines.add(new Line(y, height, ascent, textX, markerOnThisLine ? marker : null, cur));
+         y += height;
       }
 
       return y;
+   }
+
+   /**
+    * Draw one styled segment at the baseline and return its advance width. Uses drawGlyphVector so
+    * the rendered glyph positions match the advances used for layout ({@link #advance}); falls back
+    * to drawString on a non-Graphics2D device.
+    */
+   private float drawSegment(Graphics g, Graphics2D g2, Font font, Color color, String text,
+                             float x, float baseline)
+   {
+      g.setColor(color);
+
+      if(g2 != null) {
+         GlyphVector gv = font.createGlyphVector(FRC, text);
+         g2.drawGlyphVector(gv, x, baseline);
+         return (float) gv.getGlyphPosition(gv.getNumGlyphs()).getX();
+      }
+
+      g.setFont(font);
+      g.drawString(text, Math.round(x), Math.round(baseline));
+      return advance(font, text);
+   }
+
+   /** Horizontal advance of a string from the font's own glyph metrics (device-independent). */
+   private float advance(Font font, String text) {
+      GlyphVector gv = font.createGlyphVector(FRC, text);
+      return (float) gv.getGlyphPosition(gv.getNumGlyphs()).getX();
    }
 
    private static List<String> splitWords(String text) {
@@ -294,13 +357,10 @@ public class MarkdownPresenter implements ExpandablePresenter {
       });
    }
 
-   private record Token(String text, Font font, Color color, int wrapX) {
+   private record Run(String text, Font font, Color color, boolean spaceBefore) {
    }
 
-   private record Run(String text, Font font, Color color, int x) {
-   }
-
-   private record Line(int top, int height, int ascent, List<Run> runs) {
+   private record Line(int top, int height, int ascent, int startX, Run marker, List<Run> runs) {
    }
 
    private record Layout(List<Line> lines, int height) {
@@ -309,6 +369,10 @@ public class MarkdownPresenter implements ExpandablePresenter {
    private static final int DEFAULT_WIDTH = 400;
    private static final int BLOCK_GAP = 6;
    private static final int BULLET_INDENT = 16;
+
+   /** Canonical render context used for BOTH layout measurement and glyph-vector painting, so
+    *  positions are identical and device-independent (antialias + fractional metrics on). */
+   private static final FontRenderContext FRC = new FontRenderContext(null, true, true);
 
    private Font baseFont = new Font(Font.SANS_SERIF, Font.PLAIN, 11);
    private Color background;
