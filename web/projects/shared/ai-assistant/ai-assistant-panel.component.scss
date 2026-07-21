@@ -26,10 +26,12 @@
 
 .ai-assistant-panel {
   position: fixed;
-  // Sit above normal page content, including viewsheet/composer floating toolbars
-  // (e.g. mini-toolbar z-index: 992000), but below the navbar (navbar handles its
-  // own z-index, and we start the panel below it via --ai-panel-top-offset).
-  z-index: 995000;
+  // Sit above normal page content, including the viewsheet/composer mini-toolbar
+  // (z-index: 9920, up to 9930 in max-mode — see mini-toolbar.component.scss and
+  // _moving-resize.scss), but below the navbar (navbar handles its own z-index, and
+  // we start the panel below it via --ai-panel-top-offset) and below app-level
+  // overlays like toast notifications, tooltips, and modal dialogs (z-index 10000+).
+  z-index: 9940;
   display: flex;
   flex-direction: column;
   background: var(--ai-panel-background);

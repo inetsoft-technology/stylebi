@@ -428,7 +428,7 @@ li.active, a.active {
 
 .binding-editor, .embed-chart-container {
   .mini-toolbar {
-    z-index: 9999 !important;
+    z-index: 9918 !important; // still > object-editor.popped.active (9910), but below the base (9920)
   }
 }
 
