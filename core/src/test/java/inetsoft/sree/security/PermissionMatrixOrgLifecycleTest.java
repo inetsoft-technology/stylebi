@@ -45,16 +45,25 @@ package inetsoft.sree.security;
  * survives untouched, `[landed]`).
  * Scenario 8 (renaming an org's ID and then renaming it back -- round trip -- leaves the final
  * permission state identical to before the round trip, with no orphaned key).
+ * Scenario 9 (renaming an org's ID re-scopes a member's own directly-granted permission to the
+ * new org rather than dropping it -- Bug #75721, the USER + org-ID-change combination that
+ * scenarios 2 (ROLE + org-ID change) and 3 (USER + same-org username rename) did not cover).
  */
 
+import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.sree.internal.cluster.MockCluster;
 import inetsoft.sree.security.support.SecurityTestDataBuilder;
+import inetsoft.sree.web.dashboard.DashboardRegistryManager;
+import inetsoft.storage.KeyValueStorage;
+import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.test.*;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
+import inetsoft.util.ThreadContext;
+import inetsoft.web.admin.security.IdentityModel;
 import inetsoft.web.admin.security.IdentityService;
 import inetsoft.web.admin.security.user.EditOrganizationPaneModel;
 import inetsoft.web.admin.security.user.UserTreeService;
@@ -72,6 +81,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 /*
  * Overrides the shared MockCluster bean (BaseTestConfiguration.cluster()) with a copy-on-read
@@ -611,6 +621,112 @@ class PermissionMatrixOrgLifecycleTest {
       assertEquals(beforeGrantees, afterGrantees,
                   "round trip: the final grantee set at A's key must be identical to the " +
                   "pre-round-trip set -- no duplicate or leftover data from the trip through B");
+   }
+
+   // ── scenario 9: renaming an org's ID re-scopes a member's *own* directly-granted permission
+   //    to the new org, rather than dropping it (Bug #75721) ──
+   //
+   // This is the USER + org-ID-change combination that had no coverage before: scenario 2 covers
+   // org-ID change for a ROLE grantee, scenario 3 covers a USER grantee but only for a same-org
+   // username rename. The reported bug was that a permission granted directly to a *user* was
+   // lost on an org-ID rename, because updateOrganizationMembers()'s user branch re-scoped only
+   // the user's roles and never made the equivalent updateIdentityPermissions(Identity.USER, ...)
+   // call for the user's own grants -- the fix adds exactly that call.
+   //
+   // Unlike scenarios 2/3/8 (which drive updateIdentityPermissions() directly), this drives the
+   // private updateOrganizationMembers() itself via reflection, because the fix is an *added call
+   // site* inside that method, not a change to updateIdentityPermissions() (whose USER branch is
+   // unrelated pre-existing code, already exercised by scenario 3). Asserting only the lower-level
+   // method would still pass with the fix reverted; driving updateOrganizationMembers() makes the
+   // test fail if the added call is removed -- with no roles/groups in the org, that call is the
+   // only thing that touches the user's grant, so without it the grant is simply left orphaned at
+   // the old org id and never appears under the new one.
+   //
+   // updateOrganizationMembers() only touches three collaborators beyond permission re-scoping,
+   // all unrelated to it: keyValueStorageManager (em-favorites move -- alice has none, so the
+   // mocked storage's null get() short-circuits it), and repletRegistryManager /
+   // dashboardRegistryManager (replet/dashboard registry migration -- void, mocked to no-op).
+   // securityEngine/securityProvider are the real ones so the permission read/write hits the same
+   // AuthorizationChain the assertions inspect. The current org id is read from the thread
+   // principal (OrganizationManager.getCurrentOrgID()), so it is set to the *source* org for the
+   // duration of the call -- that is the "old" org id the rename moves grants away from.
+   @Test
+   @SuppressWarnings("unchecked")
+   void renameOrgId_updateOrganizationMembers_reScopesUserOwnGrantToTargetOrg() throws Exception {
+      String fromOrgId = "orglifecycle_userrescope_from";
+      String fromOrgName = "OrgLifecycleUserReScopeFrom";
+      String toOrgId = "orglifecycle_userrescope_to";
+      String toOrgName = "OrgLifecycleUserReScopeTo";
+
+      builder = SecurityTestDataBuilder.create()
+         .addOrg(fromOrgName, fromOrgId)
+         .addOrg(toOrgName, toOrgId)
+         .addUser("alice", fromOrgId, "password")
+         .grantPermission(ResourceType.VIEWSHEET, RESOURCE, ResourceAction.READ,
+                          "alice", Identity.USER, fromOrgId)
+         .setup();
+
+      AuthorizationChain chain = SecurityEngine.getSecurity().getAuthorizationChain()
+         .orElseThrow(() -> new AssertionError("expected an AuthorizationChain"));
+      FileAuthenticationProvider fileProvider = (FileAuthenticationProvider)
+         ((AuthenticationChain) SecurityEngine.getSecurity().getSecurityProvider()
+            .getAuthenticationProvider()).getProviders().get(0);
+
+      Permission before = chain.getPermission(ResourceType.VIEWSHEET, RESOURCE, fromOrgId);
+      assertNotNull(before, "precondition: alice's own grant must exist at the source org");
+      assertTrue(before.getOrgScopedUserGrants(ResourceAction.READ, fromOrgId).stream()
+                    .anyMatch(id -> id.name.equals("alice")),
+                "precondition: alice must be a READ grantee at the source org before the rename");
+
+      // Collaborators unrelated to permission re-scoping (see method comment): favorites storage
+      // returns null so the em-favorites move is skipped; the two registry managers are no-op.
+      KeyValueStorageManager keyValueStorageManager = mock(KeyValueStorageManager.class);
+      when(keyValueStorageManager.getStorage("emFavorites"))
+         .thenReturn(mock(KeyValueStorage.class));
+      RepletRegistryManager repletRegistryManager = mock(RepletRegistryManager.class);
+      DashboardRegistryManager dashboardRegistryManager = mock(DashboardRegistryManager.class);
+
+      IdentityService identityService = new IdentityService(
+         SecurityEngine.getSecurity(), SecurityEngine.getSecurity().getSecurityProvider(),
+         null, null, null, keyValueStorageManager, null, null, null, null,
+         null, null, null, null, Optional.empty(), null, null, null,
+         dashboardRegistryManager, null, null, null, null, null, null, null, null,
+         repletRegistryManager, Optional.empty());
+
+      // The renamed org: same members ("alice"), new id. updateOrganizationMembers() reads the
+      // current org id (the source) from the thread principal, compares it to identity.getId()
+      // (the target) to detect the id change, and re-scopes each member's grants across the two.
+      FSOrganization renamedOrg = new FSOrganization(toOrgId);
+      renamedOrg.setName(toOrgName);
+      renamedOrg.setMembers(new String[]{ "alice" });
+
+      try {
+         ThreadContext.setContextPrincipal(builder.principalOf("alice", fromOrgId));
+
+         // memberModels is empty: it only drives creation of brand-new members, and alice is an
+         // existing user carried over by the rename, not a newly-added one.
+         ReflectionTestUtils.invokeMethod(identityService, "updateOrganizationMembers",
+            renamedOrg, new ArrayList<IdentityModel>(), fromOrgId, fileProvider);
+
+         Permission after = chain.getPermission(ResourceType.VIEWSHEET, RESOURCE, toOrgId);
+         assertNotNull(after,
+                       "renaming the org must re-scope alice's own grant to the target org, not " +
+                       "drop it (Bug #75721)");
+         assertTrue(after.getOrgScopedUserGrants(ResourceAction.READ, toOrgId).stream()
+                       .anyMatch(id -> id.name.equals("alice")),
+                   "alice must remain a READ grantee under the target org after the rename");
+         assertNull(chain.getPermission(ResourceType.VIEWSHEET, RESOURCE, fromOrgId),
+                   "the source-org key must be removed, not left behind as an orphan");
+      }
+      finally {
+         // Reset the thread principal so the source-org context does not leak into later tests.
+         ThreadContext.setContextPrincipal(null);
+         // The builder tracks alice@fromOrgId and the grant it wrote at fromOrgId; the rename's
+         // side effects at toOrgId (alice moved there, grant re-scoped there) are this test's own
+         // and must be cleaned up explicitly so they do not leak into later tests sharing storage.
+         chain.removePermission(ResourceType.VIEWSHEET, RESOURCE, toOrgId);
+         fileProvider.removeUser(new IdentityID("alice", toOrgId));
+      }
    }
 
    private static boolean hasViewerReadGrant(AuthorizationChain chain, String orgId) {
