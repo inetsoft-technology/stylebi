@@ -188,7 +188,7 @@ public class RoleController {
       ),
       @RequiredPermission(
          resourceType = ResourceType.SECURITY_ROLE,
-         actions = ResourceAction.ADMIN
+         actions = ResourceAction.READ
       )
    })
    public EditRolePaneModel getRole(@DecodePathVariable("provider") String providerName,
