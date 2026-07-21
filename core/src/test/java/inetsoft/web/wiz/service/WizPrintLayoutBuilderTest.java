@@ -91,17 +91,19 @@ class WizPrintLayoutBuilderTest {
       assertEquals(2, chartRefs, "one plain VSAssemblyLayout per existing chart assembly");
 
       long editableTextBlocks = all.stream().filter(l -> l instanceof VSEditableAssemblyLayout).count();
-      // 1 title/recap block + 2 per-chart captions = 3
-      assertEquals(3, editableTextBlocks);
+      // report header (title + generated-date + summary) + 2 per-chart captions = 5
+      assertEquals(5, editableTextBlocks);
 
       List<VSEditableAssemblyLayout> texts = all.stream()
          .filter(l -> l instanceof VSEditableAssemblyLayout)
          .map(l -> (VSEditableAssemblyLayout) l)
          .collect(Collectors.toList());
-      boolean hasTitleRecap = texts.stream().anyMatch(t ->
-         ((TextVSAssemblyInfo) t.getInfo()).getText().contains("Q39 Board") &&
-         ((TextVSAssemblyInfo) t.getInfo()).getText().contains("Premium drives revenue."));
-      assertTrue(hasTitleRecap, "one editable block carries both the title and the recap");
+      assertTrue(texts.stream().anyMatch(t -> ((TextVSAssemblyInfo) t.getInfo()).getText().equals("Q39 Board")),
+         "the title box carries the board name on its own");
+      assertTrue(texts.stream().anyMatch(t -> ((TextVSAssemblyInfo) t.getInfo()).getText().startsWith("Generated ")),
+         "a generated-date line is present");
+      assertTrue(texts.stream().anyMatch(t -> ((TextVSAssemblyInfo) t.getInfo()).getText().contains("Premium drives revenue.")),
+         "the recap becomes the summary box");
       assertTrue(texts.stream().anyMatch(t -> ((TextVSAssemblyInfo) t.getInfo()).getText().equals("First — cap one")));
       assertTrue(texts.stream().anyMatch(t -> ((TextVSAssemblyInfo) t.getInfo()).getText().equals("Second — cap two")));
    }
@@ -145,8 +147,8 @@ class WizPrintLayoutBuilderTest {
          .filter(l -> l instanceof VSEditableAssemblyLayout)
          .map(l -> (VSEditableAssemblyLayout) l)
          .collect(Collectors.toList());
-      // title/recap + caption + insights = 3
-      assertEquals(3, texts.size());
+      // report header (title + date + summary) + caption + insights = 5
+      assertEquals(5, texts.size());
 
       VSEditableAssemblyLayout insights = texts.stream()
          .filter(t -> ((TextVSAssemblyInfo) t.getInfo()).getText().contains("Bold finding"))
@@ -169,8 +171,50 @@ class WizPrintLayoutBuilderTest {
 
       long editableTextBlocks = layout.getVSAssemblyLayouts().stream()
          .filter(l -> l instanceof VSEditableAssemblyLayout).count();
-      // title/recap + caption only = 2 (same as the baseline before this feature)
-      assertEquals(2, editableTextBlocks);
+      // report header (title + date + summary) + caption, no insights block = 4
+      assertEquals(4, editableTextBlocks);
+   }
+
+   @Test
+   void reportHeaderSplitsTitleDateAndStrippedSummaryWithStyledFonts() {
+      Viewsheet vs = new Viewsheet();
+      textAssembly(vs, "Chart1", 0);
+      List<WizPrintLayoutBuilder.ChartCaption> charts = List.of(
+         new WizPrintLayoutBuilder.ChartCaption("First", "cap one", 0)
+      );
+
+      PrintLayout layout = builder.build(vs, "letter", "Odoo — Category Revenue (Q39)",
+         "**Premium units run the business** — the $1,500+ band is ~69% of revenue.", charts);
+
+      List<VSEditableAssemblyLayout> texts = layout.getVSAssemblyLayouts().stream()
+         .filter(l -> l instanceof VSEditableAssemblyLayout)
+         .map(l -> (VSEditableAssemblyLayout) l)
+         .collect(Collectors.toList());
+
+      VSEditableAssemblyLayout title = texts.stream().filter(t -> t.getName().equals("wizExportTitle"))
+         .findFirst().orElseThrow();
+      assertEquals("Odoo — Category Revenue (Q39)", ((TextVSAssemblyInfo) title.getInfo()).getText());
+      // title is rendered larger than the 11pt body default
+      assertTrue(((TextVSAssemblyInfo) title.getInfo()).getFormat().getFont().getSize() > 11,
+         "title uses a larger-than-body font");
+      assertTrue(((TextVSAssemblyInfo) title.getInfo()).getFormat().getFont().isBold(), "title is bold");
+
+      VSEditableAssemblyLayout date = texts.stream().filter(t -> t.getName().equals("wizExportDate"))
+         .findFirst().orElseThrow();
+      assertTrue(((TextVSAssemblyInfo) date.getInfo()).getText().startsWith("Generated "),
+         "date line: " + ((TextVSAssemblyInfo) date.getInfo()).getText());
+
+      VSEditableAssemblyLayout summary = texts.stream().filter(t -> t.getName().equals("wizExportSummary"))
+         .findFirst().orElseThrow();
+      String summaryText = ((TextVSAssemblyInfo) summary.getInfo()).getText();
+      assertTrue(summaryText.contains("Premium units run the business"), "recap kept: " + summaryText);
+      assertFalse(summaryText.contains("**"), "recap markdown stripped: " + summaryText);
+   }
+
+   @Test
+   void generatedDateLineIsHumanReadable() {
+      assertTrue(new WizPrintLayoutBuilder().generatedDateLine().matches("Generated \\w+ \\d{1,2}, \\d{4}"),
+         "expected e.g. 'Generated July 21, 2026'");
    }
 
    @Test
@@ -198,6 +242,7 @@ class WizPrintLayoutBuilderTest {
 
       long editableTextBlocks = layout.getVSAssemblyLayouts().stream()
          .filter(l -> l instanceof VSEditableAssemblyLayout).count();
-      assertEquals(2, editableTextBlocks, "the 3-arg compatibility constructor omits insights");
+      // null recap -> report header is title + date only (no summary box), + caption = 3
+      assertEquals(3, editableTextBlocks, "the 3-arg compatibility constructor omits insights");
    }
 }
