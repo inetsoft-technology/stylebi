@@ -19,15 +19,21 @@ package inetsoft.web.wiz.pairing;
 
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.report.composition.RuntimeSheet;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.WSAssembly;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.composer.ws.assembly.WSAssemblyModel;
 import inetsoft.web.composer.ws.assembly.WSAssemblyModelFactory;
 import inetsoft.web.composer.ws.command.RefreshWorksheetCommand;
 import inetsoft.web.composer.ws.command.SetWorksheetInfoCommand;
+import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
 import inetsoft.web.viewsheet.command.SaveSheetCommand;
+import inetsoft.web.viewsheet.model.VSObjectModel;
+import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CommandDispatcherService;
 import org.slf4j.Logger;
@@ -45,8 +51,11 @@ public class SheetAgentBroadcastService {
    private static final Logger LOG = LoggerFactory.getLogger(SheetAgentBroadcastService.class);
 
    @Autowired
-   public SheetAgentBroadcastService(CommandDispatcherService commandDispatcherService) {
+   public SheetAgentBroadcastService(CommandDispatcherService commandDispatcherService,
+                                     VSObjectModelFactoryService vsObjectModelFactoryService)
+   {
       this.commandDispatcherService = commandDispatcherService;
+      this.vsObjectModelFactoryService = vsObjectModelFactoryService;
    }
 
    /**
@@ -76,20 +85,64 @@ public class SheetAgentBroadcastService {
          user = owner == null ? null : owner.getName();
       }
 
-      Object command = buildCommand(sheetType, rs, owner);
+      if(sheetType == SheetType.VIEWSHEET) {
+         broadcastViewsheetRefresh((RuntimeViewsheet) rs, runtimeId, sessionId, user);
+         return;
+      }
 
-      SimpMessageHeaderAccessor headers = SimpMessageHeaderAccessor.create();
-      headers.setSessionId(sessionId);
-      headers.setLeaveMutable(true);
-      headers.setNativeHeader(CommandDispatcher.RUNTIME_ID_ATTR, runtimeId);
-      headers.setNativeHeader(CommandDispatcher.COMMAND_TYPE_HEADER,
-                              resolveCommandType(command));
-      // deliberately NO inetsoftClientId -> Angular re-renders on broadcast
-      commandDispatcherService.convertAndSendToUser(
-         user, CommandDispatcher.COMMANDS_TOPIC, command, headers.getMessageHeaders());
+      Object command = buildCommand(sheetType, rs, owner);
+      sendCommand(user, sessionId, runtimeId, command);
 
       LOG.info("Pairing broadcast refresh sent (sheetType={}, runtimeId={}, sessionId={})",
                sheetType, runtimeId, sessionId);
+   }
+
+   /**
+    * Refresh every visible top-level assembly on the browser's open viewsheet.
+    *
+    * <p>Unlike the worksheet path (a single {@code RefreshWorksheetCommand} carrying a list
+    * of assembly models), the viewsheet client expects one {@code RefreshVSObjectCommand}
+    * per assembly — there is no single-shot "reload everything" command that doesn't also
+    * re-run onInit/onLoad (which would double-execute a script the agent just ran live).</p>
+    */
+   private void broadcastViewsheetRefresh(RuntimeViewsheet rvs, String runtimeId,
+                                          String sessionId, String user)
+   {
+      Viewsheet vs = rvs.getViewsheet();
+
+      if(vs == null) {
+         return;
+      }
+
+      int sent = 0;
+
+      for(Assembly a : vs.getAssemblies()) {
+         if(!(a instanceof VSAssembly vsAssembly) || !vsAssembly.isVisible()) {
+            continue;
+         }
+
+         VSObjectModel<?> model;
+
+         try {
+            model = vsObjectModelFactoryService.createModel(vsAssembly, rvs);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to build object model for broadcast (assembly={})", a.getName(), e);
+            continue;
+         }
+
+         if(model == null) {
+            continue;
+         }
+
+         RefreshVSObjectCommand command = new RefreshVSObjectCommand();
+         command.setInfo(model);
+         sendCommand(user, sessionId, runtimeId, command);
+         sent++;
+      }
+
+      LOG.info("Pairing broadcast viewsheet refresh sent (runtimeId={}, sessionId={}, assemblies={})",
+               runtimeId, sessionId, sent);
    }
 
    /**
@@ -141,8 +194,10 @@ public class SheetAgentBroadcastService {
    private Object buildCommand(SheetType sheetType, RuntimeSheet rs, Principal owner) {
       return switch(sheetType) {
          case WORKSHEET -> buildWorksheetRefreshCommand((RuntimeWorksheet) rs, owner);
-         case VIEWSHEET -> throw new UnsupportedOperationException(
-            "Viewsheet agent plugin is not yet implemented");
+         // VIEWSHEET is handled directly by broadcastViewsheetRefresh (per-assembly commands),
+         // not via this single-command path.
+         case VIEWSHEET -> throw new IllegalStateException(
+            "VIEWSHEET must be handled by broadcastViewsheetRefresh, not buildCommand");
       };
    }
 
@@ -193,4 +248,5 @@ public class SheetAgentBroadcastService {
    }
 
    private final CommandDispatcherService commandDispatcherService;
+   private final VSObjectModelFactoryService vsObjectModelFactoryService;
 }

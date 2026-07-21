@@ -20,6 +20,7 @@ package inetsoft.web.wiz.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.graph.aesthetic.LinearSizeFrame;
 import inetsoft.graph.data.*;
 import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.report.composition.graph.GraphUtil;
@@ -595,7 +596,19 @@ public class WizVsService {
       ConditionList conditionGroup = buildConditionList(cm, columns);
 
       if(chartRebind) {
-         rebindChartConditionFields(conditionGroup, columns);
+         Set<String> unresolved = rebindChartConditionFields(conditionGroup, columns);
+
+         // A chart highlight condition is matched against the aggregated chart DataSet, whose headers are
+         // the fields' full names (a dimension like "State", a measure like "Sum(Sales)"). A condition
+         // field that resolves to NONE of the chart's bound columns can never match at render time, so the
+         // highlight would persist but silently color nothing. Fail loud (naming the field and the valid
+         // columns) instead — mirrors the table/crosstab "no such column" behavior.
+         if(!unresolved.isEmpty()) {
+            throw new IllegalArgumentException(
+               label + " references field(s) not bound to this chart: " + String.join(", ", unresolved) +
+               ". Name a bound dimension by its header (e.g. \"State\") or a measure by its aggregated " +
+               "form (e.g. \"Sum(Sales)\"). Available chart columns: " + columnNames(columns) + ".");
+         }
       }
 
       if(conditionGroup.isEmpty()) {
@@ -666,12 +679,17 @@ public class WizVsService {
    /**
     * Rebinds each condition item's field to the matching chart column (by name) so the highlight
     * resolves against the aggregated chart DataSet. Match order: exact full-name ("Sum(Sales)"), then
-    * a chart column that aggregates the requested base column ("Sales" -> "Sum(Sales)"). Unmatched
-    * items are left untouched (the caller validates/reports an empty or unusable condition).
+    * a chart column that aggregates the requested base column ("Sales" -> "Sum(Sales)"). Returns the
+    * names of any condition fields that matched NEITHER form, so the caller can fail loud rather than
+    * apply a highlight whose condition can never resolve against the chart DataSet (a silent no-op).
     */
-   private void rebindChartConditionFields(ConditionList conds, ColumnSelection chartCols) {
+   private Set<String> rebindChartConditionFields(ConditionList conds, ColumnSelection chartCols) {
+      // LinkedHashSet: dedup while preserving first-seen order, so the same bad field name appearing in
+      // several condition leaves (e.g. "Profit > 5 AND Profit < 100") is listed once in the error message.
+      Set<String> unresolved = new LinkedHashSet<>();
+
       if(conds == null || chartCols == null) {
-         return;
+         return unresolved;
       }
 
       for(int i = 0; i < conds.getSize(); i++) {
@@ -695,7 +713,28 @@ public class WizVsService {
          if(match != null) {
             item.setAttribute((DataRef) match.clone());
          }
+         else {
+            unresolved.add(attr.getName());
+         }
       }
+
+      return unresolved;
+   }
+
+   /** Comma-joined list of a ColumnSelection's attribute names, for a fail-loud error message. */
+   private static String columnNames(ColumnSelection cols) {
+      StringBuilder sb = new StringBuilder();
+
+      for(int i = 0; cols != null && i < cols.getAttributeCount(); i++) {
+         if(sb.length() > 0) {
+            sb.append(", ");
+         }
+
+         sb.append(cols.getAttribute(i).getName());
+      }
+
+      // No bound columns yet: reads better than a bare "Available chart columns: ." for a user debugging.
+      return sb.length() > 0 ? sb.toString() : "none";
    }
 
    /** Find a chart column whose full name aggregates the given base column, e.g. "Sales" -> "Sum(Sales)". */
@@ -2801,6 +2840,13 @@ public class WizVsService {
          if(binding.getPath() != null) {
             chartInfo.setPathField(createChartRef(binding.getPath()));
          }
+
+         // #treemap-heal: the x/y-based construction above is not what SeparateGraphGenerator's
+         // treemap-family branch reads at render time — it reads the hierarchy dims only from the
+         // GROUP slot (SeparateGraphGenerator:452-457), so a chart left with dims on x/y and an
+         // empty group renders as an empty cartesian layout. Re-slot now so the asset that gets
+         // persisted is durable across save/reopen, not just correct for this first render.
+         normalizeTreemapBindingToGroup(chartInfo);
       }
       else {
          // Default: Bar, 3D Bar, Area, Point, Step Area, Interval, Line, Step Line, Jump Line,
@@ -2856,6 +2902,72 @@ public class WizVsService {
          chartType == GraphTypes.CHART_SUNBURST ||
          chartType == GraphTypes.CHART_CIRCLE_PACKING ||
          chartType == GraphTypes.CHART_ICICLE;
+   }
+
+   /**
+    * Re-slot a mis-structured treemap-family chart so it renders durably. Treemaps
+    * (and sunburst/circle-packing/icicle) render from the GROUP slot; a chart built with the
+    * hierarchy dims on the X slot and an empty group renders as an empty cartesian chart on
+    * reopen. This moves any X/Y dimension fields into the group slot and ensures the size
+    * aesthetic is set, mirroring ChangeChartTypeProcessor.copyToTreemap. Idempotent: a no-op
+    * when the group slot already carries dims (a correctly-built treemap) or when the chart is
+    * not a treemap-family type.
+    */
+   public void normalizeTreemapBindingToGroup(VSChartInfo info) {
+      if(info == null || !isTreeMapChartType(info.getChartType())) {
+         return;
+      }
+
+      ChartRef[] groupFields = info.getGroupFields();
+
+      if(groupFields != null && groupFields.length > 0) {
+         // Already correctly structured — either a correctly-built treemap, or one already
+         // healed by a prior call. Never disturb a populated group slot.
+         return;
+      }
+
+      List<ChartRef> dims = new ArrayList<>();
+      List<ChartRef> measures = new ArrayList<>();
+      collectTreemapDimsAndMeasures(info.getXFields(), dims, measures);
+      collectTreemapDimsAndMeasures(info.getYFields(), dims, measures);
+
+      if(dims.isEmpty()) {
+         // Nothing to re-slot (e.g. an empty binding, or x/y hold only measures).
+         return;
+      }
+
+      info.removeXFields();
+      info.removeYFields();
+      dims.forEach(info::addGroupField);
+
+      if(info.getSizeField() == null && !measures.isEmpty()) {
+         AestheticRef aref = new VSAestheticRef();
+         aref.setDataRef(measures.get(0));
+         aref.setVisualFrame(new LinearSizeFrame());
+         info.setSizeField(aref);
+      }
+   }
+
+   /** Split {@code fields} into dimension vs. measure refs, per ChangeChartTypeProcessor.copyToTreemap. */
+   private void collectTreemapDimsAndMeasures(ChartRef[] fields, List<ChartRef> dims,
+                                              List<ChartRef> measures)
+   {
+      if(fields == null) {
+         return;
+      }
+
+      for(ChartRef field : fields) {
+         if(field == null) {
+            continue;
+         }
+
+         if(field instanceof XAggregateRef) {
+            measures.add(field);
+         }
+         else {
+            dims.add(field);
+         }
+      }
    }
 
    private AestheticRef createAestheticRef(SimpleFieldInfo field) {

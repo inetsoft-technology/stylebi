@@ -44,7 +44,11 @@ import java.util.Map;
  */
 @Component
 public class WizPrintLayoutBuilder {
-   public record ChartCaption(String title, String caption, int order) {}
+   public record ChartCaption(String title, String caption, int order, String insightsMarkdown) {
+      public ChartCaption(String title, String caption, int order) {
+         this(title, caption, order, null);
+      }
+   }
 
    public PrintLayout build(Viewsheet dashboard, String pageSize, String title, String recap,
                              List<ChartCaption> charts)
@@ -88,6 +92,12 @@ public class WizPrintLayoutBuilder {
             new Point(0, captionY), new Dimension(PAGE_CONTENT_WIDTH_PT, CAPTION_HEIGHT_PT)));
          vsLayouts.add(new VSAssemblyLayout(assembly.getName(), new Point(0, chartY),
             new Dimension(PAGE_CONTENT_WIDTH_PT, CHART_HEIGHT_PT)));
+
+         if(c.insightsMarkdown() != null && !c.insightsMarkdown().isBlank()) {
+            int insightsY = chartY + CHART_HEIGHT_PT;
+            vsLayouts.add(textLayout("wizExportInsights_" + i, MarkdownPlainText.strip(c.insightsMarkdown()),
+               new Point(0, insightsY), new Dimension(PAGE_CONTENT_WIDTH_PT, INSIGHTS_HEIGHT_PT)));
+         }
 
          page++;
       }
@@ -176,4 +186,5 @@ public class WizPrintLayoutBuilder {
    private static final int TITLE_BLOCK_HEIGHT_PT = 100;
    private static final int CAPTION_HEIGHT_PT = 30;
    private static final int CHART_HEIGHT_PT = 400;
+   private static final int INSIGHTS_HEIGHT_PT = 150;
 }

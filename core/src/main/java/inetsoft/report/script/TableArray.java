@@ -97,8 +97,15 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
       // present so the read is dispatched — otherwise data['Col'] reads as
       // undefined and group expansion collapses to zero rows. Mirrors the
       // column-existence check in TableRow.hasMember. (#75423)
+      //
+      // The leading '=' (expression, e.g. table['=state + ", " + id']) and '{}'
+      // (summary, e.g. table['{Sum(id)}']) forms are also resolved lazily in
+      // getMember via NamedCellRange -- Util.findColumn can never match them as
+      // literal columns, so they must be reported present here too, otherwise the
+      // reference resolves to undefined and indexing it (e.g. [row]) throws. (#75662)
       if(id.indexOf('@') >= 0 || id.indexOf('?') >= 0 || id.indexOf(':') >= 0 ||
-         id.indexOf("^_^") >= 0 || id.startsWith("*"))
+         id.indexOf("^_^") >= 0 || id.startsWith("*") ||
+         id.startsWith("=") || id.startsWith("{"))
       {
          return true;
       }

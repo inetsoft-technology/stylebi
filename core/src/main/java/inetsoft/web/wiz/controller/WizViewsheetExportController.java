@@ -130,7 +130,8 @@ public class WizViewsheetExportController {
          List<WizPrintLayoutBuilder.ChartCaption> charts = event.getCharts() == null
             ? List.of()
             : event.getCharts().stream()
-               .map(c -> new WizPrintLayoutBuilder.ChartCaption(c.getTitle(), c.getCaption(), c.getOrder()))
+               .map(c -> new WizPrintLayoutBuilder.ChartCaption(
+                  c.getTitle(), c.getCaption(), c.getOrder(), c.getInsightsMarkdown()))
                .collect(Collectors.toList());
 
          var printLayout = printLayoutBuilder.build(
@@ -259,14 +260,16 @@ public class WizViewsheetExportController {
       }
       catch(RuntimeException e) {
          LOG.warn("Chart savedId is not a valid asset identifier: {}", chart.getSavedId());
-         return new PptxDeckMerger.ChartSlide(chart.getTitle(), chart.getCaption(), null, true);
+         return new PptxDeckMerger.ChartSlide(
+            chart.getTitle(), chart.getCaption(), null, true, chart.getInsightsMarkdown());
       }
 
       if(entry == null || entry.getPath() == null ||
          !entry.getPath().startsWith(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/"))
       {
          LOG.warn("Chart savedId is not in the managed visualizations folder: {}", chart.getSavedId());
-         return new PptxDeckMerger.ChartSlide(chart.getTitle(), chart.getCaption(), null, true);
+         return new PptxDeckMerger.ChartSlide(
+            chart.getTitle(), chart.getCaption(), null, true, chart.getInsightsMarkdown());
       }
 
       String runtimeId;
@@ -276,19 +279,23 @@ public class WizViewsheetExportController {
       }
       catch(Exception e) {
          LOG.warn("Failed to open chart for pptx export: {}", chart.getSavedId(), e);
-         return new PptxDeckMerger.ChartSlide(chart.getTitle(), chart.getCaption(), null, true);
+         return new PptxDeckMerger.ChartSlide(
+            chart.getTitle(), chart.getCaption(), null, true, chart.getInsightsMarkdown());
       }
 
       try {
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+         enlargeChartForSlide(rvs);
          ByteArrayOutputStream out = new ByteArrayOutputStream();
          exportService.exportViewsheet(rvs, FileFormatInfo.EXPORT_TYPE_POWERPOINT, false, false, true,
             false, false, new String[0], false, new ExportResponse(out), principal);
-         return new PptxDeckMerger.ChartSlide(chart.getTitle(), chart.getCaption(), out.toByteArray(), false);
+         return new PptxDeckMerger.ChartSlide(
+            chart.getTitle(), chart.getCaption(), out.toByteArray(), false, chart.getInsightsMarkdown());
       }
       catch(Exception e) {
          LOG.warn("Failed to export chart for pptx: {}", chart.getSavedId(), e);
-         return new PptxDeckMerger.ChartSlide(chart.getTitle(), chart.getCaption(), null, true);
+         return new PptxDeckMerger.ChartSlide(
+            chart.getTitle(), chart.getCaption(), null, true, chart.getInsightsMarkdown());
       }
       finally {
          try {
@@ -299,6 +306,44 @@ public class WizViewsheetExportController {
          }
       }
    }
+
+   /**
+    * Enlarge the chart/table assemblies in a to-be-exported single-viz runtime so the PPTX render
+    * fills the merged 16:9 slide instead of landing at the small saved size in the top-left corner.
+    * PPTVSExporter renders each chart at its assembly pixel size (scaled by PIXEL_TO_POINT=0.75 to
+    * slide points) and sizes the slide to fit it, so a ~400px saved chart becomes a small image on
+    * the 960x540pt deck. Sizing the assembly to {@link #PPTX_CHART_W_PX}x{@link #PPTX_CHART_H_PX}
+    * (1200x600px -> 900x450pt) below a caption-height offset makes the exported chart fill the
+    * slide below PptxDeckMerger's caption band, and renders it at full resolution (no upscaling).
+    * Runtime-only (a throwaway export runtime) — the saved asset is untouched.
+    */
+   private void enlargeChartForSlide(RuntimeViewsheet rvs) {
+      Viewsheet vs = rvs != null ? rvs.getViewsheet() : null;
+
+      if(vs == null || vs.getAssemblies() == null) {
+         return;
+      }
+
+      for(var assembly : vs.getAssemblies()) {
+         // Charts render as a scaled image and tables/crosstabs as a native PPT table; both are
+         // placed at the assembly's pixel bounds, so enlarging the assembly fills the slide for
+         // either kind. (VSAssembly is the common base carrying setPixelOffset/setPixelSize.)
+         if(assembly instanceof inetsoft.uql.viewsheet.ChartVSAssembly ||
+            assembly instanceof inetsoft.uql.viewsheet.TableDataVSAssembly)
+         {
+            inetsoft.uql.viewsheet.VSAssembly vsa = (inetsoft.uql.viewsheet.VSAssembly) assembly;
+            vsa.getVSAssemblyInfo().setPixelOffset(new java.awt.Point(PPTX_CHART_X_PX, PPTX_CHART_Y_PX));
+            vsa.getVSAssemblyInfo().setPixelSize(new java.awt.Dimension(PPTX_CHART_W_PX, PPTX_CHART_H_PX));
+         }
+      }
+   }
+
+   // 1200x600px * 0.75 = 900x450pt; offset 40x96px = 30x72pt leaves room for the caption band that
+   // PptxDeckMerger adds at the top of the merged 960x540pt slide.
+   private static final int PPTX_CHART_X_PX = 40;
+   private static final int PPTX_CHART_Y_PX = 96;
+   private static final int PPTX_CHART_W_PX = 1200;
+   private static final int PPTX_CHART_H_PX = 600;
 
    private final ViewsheetService viewsheetService;
    private final WizVsService wizVsService;

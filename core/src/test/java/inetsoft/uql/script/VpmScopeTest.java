@@ -157,4 +157,99 @@ class VpmScopeTest {
       assertThrows(Exception.class, () -> VpmScope.execute("if(user == 'guest') {", scope),
                    "Expected exception for invalid statement");
    }
+
+   /**
+    * Bug #75669: a VPM trigger script that references {@code condition} inside a loop
+    * activated the condition under Rhino regardless of iteration order. Under GraalJS a
+    * trailing non-matching {@code if} clobbers the loop completion value with undefined,
+    * so the raw script result is null when the matching iteration is not last. The fix
+    * tracks that the script referenced {@code condition} so VpmCondition can fall back to
+    * the condition value.
+    */
+   @Test
+   void testConditionUsedWhenMatchNotLastIteration() throws Exception {
+      VpmScope scope = new VpmScope();
+      Principal user = new XPrincipal(new IdentityID("user1", "host-org"));
+      scope.setUser(user);
+      scope.putMember("condition", "public.orders.discount = 0.05");
+      // matching group ("group0") is first; a non-matching group is last, mirroring the
+      // transitive-group resolution order [group0, group0_1] from the reported case.
+      scope.putMember("groups", new String[]{ "group0", "group0_1" });
+
+      String loop =
+         "for(var i=0; i<groups.length; i++){\n" +
+         "   if(groups[i]=='group0'){\n" +
+         "      condition;\n" +
+         "   }\n" +
+         "}";
+
+      // The trailing non-matching iteration clobbers the completion value under GraalJS...
+      assertNull(VpmScope.execute(loop, scope));
+      // ...but the script referenced `condition`, which the fix records so the condition
+      // is still applied.
+      assertTrue(scope.isConditionUsed());
+
+      // When no group matches, `condition` is never referenced -> flag stays false.
+      VpmScope noMatch = new VpmScope();
+      noMatch.setUser(user);
+      noMatch.putMember("condition", "public.orders.discount = 0.05");
+      noMatch.putMember("groups", new String[]{ "groupX", "groupY" });
+      assertNull(VpmScope.execute(loop, noMatch));
+      assertFalse(noMatch.isConditionUsed());
+   }
+
+   /**
+    * Bug #75669: the condition-used flag must reflect only the current execution. The
+    * setup {@code putMember("condition", ...)} that VpmCondition performs before running
+    * the script (and any prior execution) must not leave the flag set.
+    */
+   @Test
+   void testConditionUsedResetPerExecution() throws Exception {
+      VpmScope scope = new VpmScope();
+      Principal user = new XPrincipal(new IdentityID("user1", "host-org"));
+      scope.setUser(user);
+      // pre-execution setup assignment (as VpmCondition.evaluate does) must not count
+      scope.putMember("condition", "public.orders.discount = 0.05");
+
+      // a script that never touches `condition`
+      assertEquals("x", VpmScope.execute("'x';", scope));
+      assertFalse(scope.isConditionUsed());
+   }
+
+   /**
+    * Bug #75669: the referenced-variable tracking is generic (not condition-specific), so
+    * a hidden-columns trigger script that references {@code hiddenColumns} inside a loop
+    * is detected the same way. Mirrors HiddenColumns.getHiddenColumns()'s fallback.
+    */
+   @Test
+   void testVariableUsedForHiddenColumns() throws Exception {
+      VpmScope scope = new VpmScope();
+      Principal user = new XPrincipal(new IdentityID("user1", "host-org"));
+      scope.setUser(user);
+      scope.putMember("hiddenColumns", new String[]{ "public.orders.discount" });
+      scope.putMember("groups", new String[]{ "group0", "group0_1" });
+
+      String loop =
+         "for(var i=0; i<groups.length; i++){\n" +
+         "   if(groups[i]=='group0'){\n" +
+         "      hiddenColumns;\n" +
+         "   }\n" +
+         "}";
+
+      // The trailing non-matching iteration clobbers the completion value under GraalJS...
+      assertNull(VpmScope.execute(loop, scope));
+      // ...but the script referenced `hiddenColumns`, which the fix records so the hidden
+      // columns are still applied.
+      assertTrue(scope.isVariableUsed("hiddenColumns"));
+      // an unrelated variable is not flagged as used
+      assertFalse(scope.isVariableUsed("condition"));
+
+      // When no group matches, `hiddenColumns` is never referenced -> flag stays false.
+      VpmScope noMatch = new VpmScope();
+      noMatch.setUser(user);
+      noMatch.putMember("hiddenColumns", new String[]{ "public.orders.discount" });
+      noMatch.putMember("groups", new String[]{ "groupX", "groupY" });
+      assertNull(VpmScope.execute(loop, noMatch));
+      assertFalse(noMatch.isVariableUsed("hiddenColumns"));
+   }
 }

@@ -232,6 +232,135 @@ class GraalJavaScriptEngineScopeTest {
          ((Number) engine.exec(engine.compile("var y = 5;\ny * 2"), scope, scope)).doubleValue());
    }
 
+   // Bug #75688: Rhino kept the "last non-empty" completion value, so a
+   // value-producing statement followed by an `if(false)` (no else) that yields
+   // no value returned the earlier value. Current ECMAScript overwrites it with
+   // `undefined`. A cell-background / value binding such as the one below must
+   // still return the earlier array (the reported symptom was a missing
+   // background color). The trailing control-flow statement routes the body to
+   // the completion-preserving wrapper.
+   @Test void trailingUnrunControlFlowKeepsEarlierCompletionValue() throws Exception {
+      String cmd = "if(price > 500) { [237,211,237] }\nif(row > 1){ if(value < 0) { [14,179,250] } }";
+      String code = compiledSource(cmd);
+      assertTrue(code.contains("eval("),
+                 "multi-statement body ending in control-flow must use the completion wrapper");
+
+      MapScope scope = new MapScope();
+      scope.putMember("price", 2850.0);
+      scope.putMember("row", 1.0);
+      scope.putMember("value", 100.0);
+      Object result = engine.exec(engine.compile(cmd), scope, scope);
+      assertArrayEquals(new Object[] { 237.0, 211.0, 237.0 }, (Object[]) result);
+   }
+
+   // Bug #75688: when the trailing control-flow statement *does* produce a value,
+   // it overrides the earlier one (last non-`undefined` wins).
+   @Test void trailingControlFlowValueOverridesEarlier() throws Exception {
+      String cmd = "if(price > 500) { [237,211,237] }\nif(row > 1){ if(value < 0) { [14,179,250] } }";
+      MapScope scope = new MapScope();
+      scope.putMember("price", 2850.0);
+      scope.putMember("row", 2.0);
+      scope.putMember("value", -5.0);
+      Object result = engine.exec(engine.compile(cmd), scope, scope);
+      assertArrayEquals(new Object[] { 14.0, 179.0, 250.0 }, (Object[]) result);
+   }
+
+   // Bug #75688: `var`/`function` declarations must remain visible to later
+   // statements across the per-piece evals of the completion wrapper.
+   @Test void completionWrapperKeepsDeclarationsVisibleAcrossStatements() throws Exception {
+      // The last statement is control-flow (routes to the wrapper) and reads a
+      // var and a function declared in earlier pieces.
+      String cmd = "var base = 3;\nfunction dbl(x){ return x * 2 }\nif(base > 0){ dbl(base) }";
+      String code = compiledSource(cmd);
+      assertTrue(code.contains("eval("), "body ending in control-flow must use the completion wrapper");
+
+      MapScope scope = new MapScope();
+      assertEquals(6.0, ((Number) engine.exec(engine.compile(cmd), scope, scope)).doubleValue());
+   }
+
+   // Bug #75688: the earlier value must survive even when the two statements are
+   // separated only by a newline (ASI), not a `;` or a preceding `}` — a natural
+   // "default value, then conditional override" shape.
+   @Test void newlineSeparatedValueThenUnrunControlFlowKeepsValue() throws Exception {
+      String cmd = "[237,211,237]\nif(row > 1){ [14,179,250] }";
+      String code = compiledSource(cmd);
+      assertTrue(code.contains("eval("), "value-then-control-flow must use the completion wrapper");
+
+      MapScope scope = new MapScope();
+      scope.putMember("row", 1.0);
+      assertArrayEquals(new Object[] { 237.0, 211.0, 237.0 },
+                        (Object[]) engine.exec(engine.compile(cmd), scope, scope));
+   }
+
+   // Bug #75688: a standalone `while` loop (not a do-while tail) after a block
+   // must start a new statement, so the block's value is not clobbered when the
+   // loop yields nothing.
+   @Test void standaloneWhileAfterBlockDoesNotClobber() throws Exception {
+      String cmd = "if(price > 500){ [237,211,237] }\nwhile(false){ }";
+      String code = compiledSource(cmd);
+      assertTrue(code.contains("eval("), "trailing standalone while must use the completion wrapper");
+
+      MapScope scope = new MapScope();
+      scope.putMember("price", 2850.0);
+      assertArrayEquals(new Object[] { 237.0, 211.0, 237.0 },
+                        (Object[]) engine.exec(engine.compile(cmd), scope, scope));
+   }
+
+   // Bug #75688: `else if` and a do-while's trailing `while` are part of one
+   // statement and must never be split apart. (A bad split would make a piece
+   // like `if(a){} else ` fail to parse; parse-validation then falls back, but
+   // the splitter must not create the bad boundary in the first place.)
+   @Test void elseIfIsNotSplit() throws Exception {
+      MapScope scope = new MapScope();
+      scope.putMember("a", false);
+      scope.putMember("b", true);
+      assertArrayEquals(new Object[] { 2.0 },
+         (Object[]) engine.exec(engine.compile("if(a){ [1] } else if(b){ [2] }"), scope, scope));
+   }
+
+   @Test void doWhileTrailingWhileIsNotSplit() throws Exception {
+      MapScope scope = new MapScope();
+      // last statement is control-flow (do-while), so it routes to the wrapper;
+      // the trailing `while(...)` must stay attached to its `do` body.
+      Object r = engine.exec(engine.compile("var i = 0;\ndo { i = i + 1 } while(i < 3)"), scope, scope);
+      assertEquals(3.0, ((Number) r).doubleValue());
+   }
+
+   // Bug #75688: an `async` modifier must stay attached to the `function` it
+   // precedes — the splitter must not place a boundary between `async` and
+   // `function`. A bad split evaluates a bare `async` identifier (ReferenceError)
+   // and strips the async-ness; both halves parse alone, so piecesAllParse cannot
+   // catch it (async must be in SUPPRESS_BOUNDARY_AFTER).
+   @Test void asyncFunctionDeclarationIsNotSplit() throws Exception {
+      MapScope scope = new MapScope();
+      assertArrayEquals(new Object[] { 1.0, 2.0, 3.0 },
+         (Object[]) engine.exec(
+            engine.compile("[1,2,3]\nasync function foo(){ return 1; }"), scope, scope));
+   }
+
+   // Bug #75688: a labeled control-flow statement (`name: if(...)`) must split
+   // off as one piece (boundary before the label), so an earlier value survives
+   // when the labeled statement yields nothing. The boundary goes before the
+   // label identifier, keeping `label: stmt` together.
+   @Test void labeledTrailingControlFlowKeepsEarlierValue() throws Exception {
+      String cmd = "[7,7,7]\nouter: if(false){ [1,1,1] }";
+      String code = compiledSource(cmd);
+      assertTrue(code.contains("eval("), "labeled trailing control-flow must use the completion wrapper");
+
+      MapScope scope = new MapScope();
+      assertArrayEquals(new Object[] { 7.0, 7.0, 7.0 },
+                        (Object[]) engine.exec(engine.compile(cmd), scope, scope));
+   }
+
+   // Bug #75688: a top-level ternary must not be mistaken for a label (its `:` is
+   // preceded by `?`, not a boundary-permitting token) — it stays a single piece.
+   @Test void topLevelTernaryIsNotSplitAsLabel() throws Exception {
+      MapScope scope = new MapScope();
+      scope.putMember("cond", true);
+      assertArrayEquals(new Object[] { 1.0 },
+         (Object[]) engine.exec(engine.compile("cond ? [1] : [2]"), scope, scope));
+   }
+
    private String compiledSource(String cmd) throws Exception {
       return ((org.graalvm.polyglot.Source) engine.compile(cmd)).getCharacters().toString();
    }

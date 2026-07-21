@@ -18,9 +18,14 @@
 package inetsoft.uql;
 
 import inetsoft.report.filter.DCMergeCell;
+import inetsoft.test.*;
 import inetsoft.uql.schema.XSchema;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -58,6 +63,10 @@ import static org.junit.jupiter.api.Assertions.*;
  *             this [unit]-tier file. The simpler DCMergeCell branch (no subCol) is covered
  *             directly below since DCMergeCell is a plain single-method interface.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, PluginsTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
 @Tag("core")
 public class XConditionGroupTest {
 
