@@ -572,7 +572,7 @@ public class UserTreeService {
       IdentityInfo info = identityService
          .getIdentityInfo(groupID, Identity.GROUP, currentProvider);
 
-      String org = group == null ? null : group.getOrganizationID();
+      String org = group.getOrganizationID();
       if(org == null || "".equals(org)) {
          org = Organization.getDefaultOrganizationID();
       }
