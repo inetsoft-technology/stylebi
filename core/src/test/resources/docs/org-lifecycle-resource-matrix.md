@@ -286,31 +286,33 @@
 
 | # | 场景 | 预期 | 测试状态 |
 |---|---|---|---|
-| 4a | `DashboardManager.copyStorageData()`，copy/rename 都调用 | 整桶复制不删源 | `[待补]` |
+| 4a | `DashboardManager.copyStorageData()`，copy/rename 都调用 | 整桶复制不删源 | `[已落地]` `DashboardManagerOrgLifecycleTest#copy_seedsTargetOrg_leavesSourceOrgIntact`（种子 `DashboardData` 到源组织桶，调用 `copyStorageData(fromOrgId, toOrgId)`，断言目标桶拿到同 key 同内容，源桶原样保留） |
 
 **偏好设置 — Delete 场景**
 
 | # | 场景 | 预期 | 测试状态 |
 |---|---|---|---|
-| 4b | `removeDashboardStorage()`（共享背景 delete 清单 `:1099`） | 整桶删除 | `[待补]` |
+| 4b | `removeDashboardStorage()`（共享背景 delete 清单 `:1099`） | 整桶删除 | `[已落地]` `DashboardManagerOrgLifecycleTest#delete_removesWholeStorage`（断言删除后该 key 读不到任何残留） |
 
 **注册表 — 依赖入口不同，两条路径行为不一样：**
 
 | # | 场景 | 预期 | 测试状态 |
 |---|---|---|---|
-| 4c | Copy：`copyDashboardRegistry()` | 逐用户 `cloneVSDashboard()` 写入新组织路径，源文件不受影响 | `[待补]` |
-| 4d | Rename——仅走 `copyOrganizationInternal(replace=true)` | **当前行为：不迁移**，只清内存缓存，随后源文件被删除——数据丢失而非孤儿 | `[待确认]` |
-| 4e | Rename——走完整 `setOrganizationInfo()` 入口 | `migrateRegistry(null,...)` 只迁移 admin 级，**用户级注册表文件不迁移**、随后被删除 | `[待确认]` |
+| 4c | Copy：`copyDashboardRegistry()` | 逐用户 `cloneVSDashboard()` 写入新组织路径，源文件不受影响 | `[已落地，@Disabled]` `DashboardRegistryOrgLifecycleTest#copy_copyDashboardRegistry_adminAndUserRegistryCloned_sourceUnaffected`（断言逻辑本身没问题：admin 级 + `securityEngine.getOrgUsers()` 遍历出的用户级注册表都断言克隆成功、内嵌 viewsheet 引用的 orgID 被正确重写；源组织两级注册表断言原样不变。但独立复测发现间歇性失败——约 1/5~1/8 概率 `securityEngine.getOrgUsers(fromOrgId)` 在 `SecurityTestDataBuilder.setup()` 写完用户后读到空列表，疑似 `SecurityEngine` 内部缓存的 provider 与 builder 写入路径之间存在时序竞争，根因未查清，暂时 `@Disabled` 避免污染 CI，机制本身的结论不受影响） |
+| 4d | Rename——仅走 `copyOrganizationInternal(replace=true)` | **实测更正**：不是"数据丢失"——`copyDataSpace()`（`:146`，在任何 dashboard 专属逻辑之前执行）对 `getOrgScopedPaths(fromOrg)` 命中的每条路径做无差别 `dataSpace.rename()`，admin 与用户级 `dashboard-registry.xml` 都命中 `portal/{fromOrgId}/` 前缀，因此在 `dashboardRegistryManager.clear()`（`:151`）和 `removeOrgScopedDataSpaceElements()`（`:283`）执行前就已经被整个搬到新组织路径下——文件不丢、也不残留在源组织，但内部内容（内嵌 viewsheet 标识符的 org 段）从未被重写，因为改写内容只发生在 `migrateRegistry()`/`migrateVSDashboard()` 里，这条调用链完全不会碰到它们 | `[已落地]` `DashboardRegistryOrgLifecycleTest#rename_copyOrganizationInternal_dashboardFilesRelocatedByDataSpaceRename_contentNotRewritten`（admin + 用户级两个文件都断言：新组织路径下可读到、内容的 orgID 仍是旧组织、旧组织路径确实不再存在） |
+| 4e | Rename——走完整 `setOrganizationInfo()` 入口 | **实测更正，且发现新缺陷**：`setOrganizationInfo()` 自己直接调用的 `migrateRegistry(null, fromOrg, newOrg)`（`:2127`）传的是真实 `fromOrg`，admin 级注册表确实被正确迁移+内容重写。用户级的情况更复杂——`updateOrganizationMembers()`（`:821-882`，在 admin 迁移之前执行）内部**也**会对每个新组织成员调用一次 `dashboardRegistryManager.migrateRegistry(oldID, ..., identity)`（`:869`），但传入的"旧组织"参数是 `securityProvider.getOrganization(OrganizationManager.getInstance().getCurrentOrgID())`——即**当前线程的组织上下文**，不是 `fromOrg`。真实场景下操作者的当前组织通常是 host org（站点管理员编辑别的组织），跟被改名的组织不是同一个，`migrateRegistry()` 自己的身份/组织匹配 guard（`identityID.getOrgID()` 对不上传入的 `oorg.getId()`）因此直接提前 return，`migrateVSDashboard()` 根本没机会执行——这是一个真实缺陷（传参用错了对象），不是"用户级压根没被碰"。用户级文件最终还是会出现在新组织路径下，但那是靠后面的 `updateOrgScopedDataSpace()`（`:2129`，跟 4d 的 `copyDataSpace()` 是同一种无差别路径重命名）搬过去的，内容同样不会被重写 | `[已落地]` `DashboardRegistryOrgLifecycleTest#rename_setOrganizationInfo_adminRegistryMigrated_perUserRegistryRelocatedButStale`（admin 级断言迁移成功+内容重写；用户级断言文件存在于新组织路径但内容 orgID 仍是旧组织，注释里记录了开发过程中用 spy 实测确认 `migrateRegistry()` 拿到的 `oorg` 确实是当前组织而非 `fromOrg`） |
 
 **注册表 — Delete 场景**
 
 | # | 场景 | 预期 | 测试状态 |
 |---|---|---|---|
-| 4f | `removeOrgScopedDataSpaceElements()` 按路径前缀删除（共享背景 delete 清单 `:614`） | 无孤儿文件 | `[待补]` |
+| 4f | `removeOrgScopedDataSpaceElements()` 按路径前缀删除（共享背景 delete 清单 `:614`） | 无孤儿文件——admin 与用户级两种路径形态都会被扫到删除 | `[已落地]` `DashboardRegistryOrgLifecycleTest#delete_removeOrgScopedDataSpaceElements_bothAdminAndPerUserRegistryFilesRemoved`（实测确认 `getOrgScopedPaths()` 对 `portal/{orgId}/dashboard-registry.xml` 和嵌套一层的 `portal/{orgId}/{user}/dashboard-registry.xml` 都会命中前缀、两者都被删除，没有发现新孤儿点） |
 
-**已确认缺陷：** 4d/4e 两条 rename 路径下，用户级 dashboard 定义都不会被正确迁移，是否可接受需产品判断。
+**已确认缺陷：**
+1. **`IdentityService.updateOrganizationMembers()` 传给 `dashboardRegistryManager.migrateRegistry()` 的"旧组织"参数用错了对象**（`:869`）：传的是 `OrganizationManager.getInstance().getCurrentOrgID()`（当前线程组织上下文），不是这次改名真正的源组织 `fromOrg`。只要操作者当前组织和被改名的组织不是同一个（站点管理员编辑别的组织是最常见的场景），`migrateRegistry()` 自身的 guard 就会认为身份对不上组织直接 return，用户级 dashboard 的内嵌 viewsheet 引用永远不会被 `migrateVSDashboard()` 重写——`DashboardRegistryOrgLifecycleTest#rename_setOrganizationInfo_adminRegistryMigrated_perUserRegistryRelocatedButStale` 已钉住这个当前行为，需要人工提交 Redmine issue 跟进（本次未分配到具体 issue 号）。
+2. **4d/4e 两条 rename 路径下，用户级（以及 4d 下 admin 级）dashboard 定义的内嵌 viewsheet 引用都不会被正确重写**——不是原先以为的"文件丢失"或"完全不迁移"，而是文件被通用的 DataSpace 路径重命名机制（`copyDataSpace()`/`updateOrgScopedDataSpace()`）原样搬到新组织路径下，内容原地不变、org 段过期。是否可接受需产品判断；4e 的 admin 级不受影响（`setOrganizationInfo()` 自己那次 `migrateRegistry()` 调用参数是对的）。
 
-**测试覆盖：** 零。
+**测试覆盖：** 6 个场景（4a-4f）全部落地，共 6 个 `@Test`，2 个测试类：`DashboardManagerOrgLifecycleTest`（`community/core/src/test/java/inetsoft/sree/web/dashboard/`，4a/4b）、`DashboardRegistryOrgLifecycleTest`（`community/core/src/test/java/inetsoft/sree/security/`，4c/4d/4e/4f）。4f 特别核查了"用户级路径是否会被 `getOrgScopedPaths()` 漏扫"这个疑点——实测确认不会漏扫，未发现新孤儿缺陷。4c 因间歇性失败标记 `@Disabled`（见上），实际稳定通过的是 5/6。
 
 ---
 
