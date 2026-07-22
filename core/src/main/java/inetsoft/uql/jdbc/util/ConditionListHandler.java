@@ -491,6 +491,15 @@ public class ConditionListHandler {
 
       int sql_type = field.getSqlType();
 
+      // boolean-typed logical model attributes are often CASE WHEN expressions with no
+      // real backing column, so their reported sql type defaults to VARCHAR even though
+      // the generated SQL evaluates to a number. Coercing the boolean value to a string
+      // in that case produces a type mismatch against the numeric expression (e.g. Oracle
+      // ORA-00932), so leave boolean values as-is rather than stringifying them.
+      if(condValue instanceof Boolean && sql_type == Types.VARCHAR) {
+         return condValue;
+      }
+
       if(sql_type == Types.BOOLEAN || sql_type == Types.VARCHAR || sql_type == Types.INTEGER) {
          String sqlType = SQLTypes.getSQLTypes(null).convertToXType(sql_type);
          return CoreTool.getData(sqlType, condValue);
