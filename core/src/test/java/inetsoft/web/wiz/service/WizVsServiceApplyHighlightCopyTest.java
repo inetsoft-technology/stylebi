@@ -47,7 +47,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -196,5 +198,53 @@ class WizVsServiceApplyHighlightCopyTest {
       // re-promoted to primary.
       verify(vs).removeAssembly("vs_1_copy1");
       verify(assembly).setPrimary(true);
+   }
+
+   /** A successful copy whose highlight application also succeeds cleanly (TEXT branch). */
+   private VSAssembly successfulCopy() {
+      VSAssembly copy = mock(VSAssembly.class);
+      TextVSAssemblyInfo copyInfo = mock(TextVSAssemblyInfo.class);
+      when(copy.getName()).thenReturn("vs_1_copy1");
+      when(copy.getVSAssemblyInfo()).thenReturn(copyInfo);
+      return copy;
+   }
+
+   @Test
+   void copySucceedsButExecuteAndExtractThrowsRollsBackTheDuplicate() throws Exception {
+      // executeAndExtract runs BEFORE persistViewsheet specifically so that, at the point this throws,
+      // nothing has been durably committed yet — the rollback below is always safe to perform. Mirrors
+      // WizAutoBindingServiceSetChartColorsTest.copySucceedsButFetchAssemblyDataThrowsRollsBackTheDuplicate.
+      VSAssembly copy = successfulCopy();
+      doReturn(copy).when(service).duplicatePrimaryAssembly(rvs, assembly);
+      doThrow(new RuntimeException("sandbox execution failed"))
+         .when(service).executeAndExtract(any(), eq(copy), anyInt());
+
+      assertThrows(RuntimeException.class, () -> service.applyHighlight(request(true), null));
+
+      verify(vs).removeAssembly("vs_1_copy1");
+      verify(assembly).setPrimary(true);
+      verify(service, never()).persistViewsheet(any(), any(), any());
+   }
+
+   @Test
+   void copySucceedsButPersistViewsheetThrowsRollsBackTheDuplicate() throws Exception {
+      // The scenario flagged in the PR #4334 re-review: a failure in persistViewsheet itself (bad
+      // identifier / repository save failure) must roll back the same as a failure earlier in the
+      // block — the copy was added and promoted live but never durably committed. Mirrors
+      // WizAutoBindingServiceSetChartColorsTest.copySucceedsButPersistViewsheetThrowsRollsBackTheDuplicate.
+      VSAssembly copy = successfulCopy();
+      doReturn(copy).when(service).duplicatePrimaryAssembly(rvs, assembly);
+      doThrow(new IllegalArgumentException("invalid identifier"))
+         .when(service).persistViewsheet(any(), any(), any());
+
+      ApplyHighlightModel request = request(true);
+      request.setViewsheetIdentifier("visualizations-xyz");
+
+      assertThrows(IllegalArgumentException.class, () -> service.applyHighlight(request, null));
+
+      verify(vs).removeAssembly("vs_1_copy1");
+      verify(assembly).setPrimary(true);
+      // executeAndExtract already ran (it comes before persist) — the failure is specifically in persist.
+      verify(service).executeAndExtract(any(), eq(copy), anyInt());
    }
 }
