@@ -1269,6 +1269,101 @@ binding-editor {
   color: var(--inet-viz-sorted-color) !important;
 }
 
+// Modern (gated) sort indicator — double-arrowhead, matching the shell .sort-indicator.
+// The host <i> is position:absolute w20 h18 overflow:hidden, so the two arms are absolutely
+// positioned (top ::before, bottom ::after); an inline/block stack would land on the 20px
+// baseline and the block arm would be clipped by overflow:hidden.
+// \2303/\2304/\25B4/\25BE aren't in the ineticons font, so reset font-family on every arm.
+.viz-modern .vs-header-cell-button-sort {
+  &.sort-icon::before, &.sort-ascending-icon::before, &.sort-descending-icon::before,
+  &.sort-value-ascending-icon::before, &.sort-value-descending-icon::before,
+  &.sort-icon::after, &.sort-ascending-icon::after, &.sort-descending-icon::after,
+  &.sort-value-ascending-icon::after, &.sort-value-descending-icon::after {
+    position: absolute;
+    // host box is 20px wide; the multi-sort .sort-number badge occupies the right 10px
+    // (position:absolute; right:0; width:10px), so keep the arms in the left 10px to avoid
+    // sitting under the badge.
+    left: 0;
+    width: 10px;
+    text-align: center;
+    font-family: var(--inet-font-family, sans-serif) !important;
+    font-size: 10px;
+    line-height: 1;
+  }
+  // label sort → thin arrowheads: upper arm (::before) at top, lower arm (::after) at bottom
+  &.sort-icon::before, &.sort-ascending-icon::before, &.sort-descending-icon::before {
+    top: 2px; content: "\2303";       // ⌃ up arrowhead
+  }
+  &.sort-icon::after, &.sort-ascending-icon::after, &.sort-descending-icon::after {
+    bottom: 2px; content: "\2304";    // ⌄ down arrowhead
+  }
+  // value sort (crosstab measure sort) → filled triangles, same positions
+  &.sort-value-ascending-icon::before, &.sort-value-descending-icon::before {
+    top: 2px; content: "\25B4";       // ▴ filled up
+  }
+  &.sort-value-ascending-icon::after, &.sort-value-descending-icon::after {
+    bottom: 2px; content: "\25BE";    // ▾ filled down
+  }
+  // state dimming: unsorted faint; active state fades the opposite arm
+  &.sort-icon::before, &.sort-icon::after { opacity: 0.45; }
+  &.sort-ascending-icon::after, &.sort-value-ascending-icon::after { opacity: 0.22; }
+  &.sort-descending-icon::before, &.sort-value-descending-icon::before { opacity: 0.22; }
+}
+
+// Modern (gated) expand/collapse — chevron for pure tree/list node show/hide only.
+// Hierarchy drill (crosstab cell, chart axis) uses the ± family instead, so drill reads the
+// same everywhere. Chevron codepoints are ineticons, so keep the ineticons font.
+.viz-modern .selection-list-cell {
+  .minus-box-outline-icon::before { content: "\eabd"; }   // open  → chevron-down
+  .plus-box-outline-icon::before  { content: "\eb02"; }   // closed → chevron-right
+}
+
+// Hierarchy drill unified to one ± family (shape-plus \ebcd / shape-minus \ebb5, Excel-pivot
+// style), matching the chart zoom control: chart-axis inline drill (.floating-icon) and
+// crosstab/table cell drill (.table-cell__drill-icon). Pure expand/collapse stays chevron;
+// the menu drill-*-filter-icon is left as-is.
+.viz-modern {
+  .plus-box-outline-icon.floating-icon::before  { content: "\ebcd"; }  // chart-axis drill down → shape-plus
+  .minus-box-outline-icon.floating-icon::before { content: "\ebb5"; }  // chart-axis drill up → shape-minus
+}
+.viz-modern .table-cell__drill-icon {
+  &.plus-box-outline-icon::before  { content: "\ebcd"; }  // crosstab collapsed → shape-plus
+  &.minus-box-outline-icon::before { content: "\ebb5"; }  // crosstab expanded → shape-minus
+}
+
+// Chart-axis sort toggle — same double-arrowhead as the table/crosstab header sort.
+// This span has only label-sort states (sortOp '' / Asc / Desc), no value-sort. Scoped to
+// .axis__sort-icon so the drill rule (.plus/minus-box-outline.floating-icon) is untouched.
+// \2303/\2304 aren't ineticons glyphs, so reset font-family; the span needs a box +
+// position:relative or it collapses once ::before is absolute.
+.viz-modern .axis__sort-icon .floating-icon {
+  &.sort-icon, &.sort-ascending-icon, &.sort-descending-icon {
+    position: relative;
+    display: inline-block;
+    width: 14px;
+    height: 16px;
+  }
+  &.sort-icon::before, &.sort-ascending-icon::before, &.sort-descending-icon::before,
+  &.sort-icon::after, &.sort-ascending-icon::after, &.sort-descending-icon::after {
+    position: absolute;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-family: var(--inet-font-family, sans-serif) !important;
+    font-size: 10px;
+    line-height: 1;
+  }
+  &.sort-icon::before, &.sort-ascending-icon::before, &.sort-descending-icon::before {
+    top: 0; content: "\2303";
+  }
+  &.sort-icon::after, &.sort-ascending-icon::after, &.sort-descending-icon::after {
+    bottom: 0; content: "\2304";
+  }
+  &.sort-icon::before, &.sort-icon::after { opacity: 0.45; }
+  &.sort-ascending-icon::after { opacity: 0.22; }
+  &.sort-descending-icon::before { opacity: 0.22; }
+}
+
 .cancelled-sheet-overlay {
   pointer-events: none;
   width: 100%;

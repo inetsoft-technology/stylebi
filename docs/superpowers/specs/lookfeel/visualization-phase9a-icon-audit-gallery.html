@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Phase 9A Icon Audit</title>
+<style>
+  /*
+    Font path resolution:
+    Gallery file lives at community/docs/superpowers/specs/lookfeel/ (4 directories
+    under community/). The built ineticons font lives at
+    community/web/projects/portal/src/assets/ineticons/fonts/. There is no .woff2 in
+    that directory (only .eot/.svg/.ttf/.woff, matching the @font-face block in
+    web/projects/portal/src/assets/ineticons/style.scss), so this embeds .woff and
+    .ttf, and uses the real font-family name 'InetSoft-Icons' (not "ineticons",
+    which is only the CSS class prefix).
+  */
+  @font-face {
+    font-family: 'InetSoft-Icons';
+    src: url("../../../../web/projects/portal/src/assets/ineticons/fonts/InetSoft-Icons.woff") format("woff"),
+         url("../../../../web/projects/portal/src/assets/ineticons/fonts/InetSoft-Icons.ttf") format("truetype");
+    font-weight: normal;
+    font-style: normal;
+  }
+
+  :root {
+    --bg: #ffffff;
+    --fg: #2f2c25;
+    --muted: #6e6759;
+    --border: #ccc;
+    --stripe: #f7f6f3;
+    --accent: #b45309;
+  }
+
+  html.dark {
+    --bg: #1e1c18;
+    --fg: #ece7dc;
+    --muted: #a9a08c;
+    --border: #4a463d;
+    --stripe: #262319;
+    --accent: #e2a24d;
+  }
+
+  body {
+    font: 14px/1.4 system-ui, sans-serif;
+    margin: 24px;
+    background: var(--bg);
+    color: var(--fg);
+  }
+
+  h1 { margin-bottom: 4px; }
+  h2 { margin-top: 40px; }
+
+  .subtitle { color: var(--muted); margin-top: 0; }
+
+  .controls {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 24px;
+    background: var(--stripe);
+  }
+
+  .controls label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+
+  table { border-collapse: collapse; margin-bottom: 12px; }
+  td, th {
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    text-align: center;
+    vertical-align: middle;
+  }
+  th { background: var(--stripe); }
+  tbody tr:nth-child(odd) td { background: color-mix(in srgb, var(--stripe) 45%, transparent); }
+  td.row-label, th.row-label { text-align: left; white-space: nowrap; font-weight: 600; }
+
+  .glyph {
+    font-family: 'InetSoft-Icons';
+    font-size: 18px;
+    display: inline-block;
+    min-width: 1.2em;
+  }
+
+  .unicode-glyph {
+    font-family: system-ui, sans-serif;
+    font-size: 16px;
+    display: inline-block;
+    min-width: 1.2em;
+  }
+
+  .empty-cell { color: var(--muted); font-style: italic; font-size: 12px; }
+  .na-cell { color: var(--muted); }
+
+  /* --- shell reference sort indicator, copied verbatim from
+     web/projects/portal/src/app/portal/data/asset-item-list-view/asset-item-list-view.component.scss --- */
+  .sort-header { display: inline-flex; align-items: center; gap: 4px; }
+  .sort-indicator {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 10px;
+    height: 12px;
+    flex: 0 0 10px;
+    opacity: 0;
+    color: var(--muted);
+  }
+  .sort-indicator::before,
+  .sort-indicator::after {
+    position: absolute;
+    left: 0;
+    font-size: 9px;
+    line-height: 1;
+  }
+  .sort-indicator::before { content: "\2303"; top: -1px; }
+  .sort-indicator::after  { content: "\2304"; bottom: -1px; }
+  .sort-header.is-active .sort-indicator { opacity: 1; color: var(--fg); }
+  .sort-header.is-active:not(.is-desc) .sort-indicator::after { opacity: 0.22; }
+  .sort-header.is-active.is-desc .sort-indicator::before { opacity: 0.22; }
+
+  /* --- current viz ineticons glyph mapping (mirrors variables.scss codepoints) --- */
+  .sort-ascending-icon::before        { content: "\ebf0"; }
+  .sort-descending-icon::before       { content: "\ebf1"; }
+  .sort-value-ascending-icon::before  { content: "\ebf2"; }
+  .sort-value-descending-icon::before { content: "\ebf3"; }
+  .sort-icon::before                  { content: "\ebf4"; }
+  .downward-icon::before              { content: "\eabd"; }
+  .forward-icon::before               { content: "\eb02"; }
+  .plus-box-outline-icon::before      { content: "\eb52"; }
+  .minus-box-outline-icon::before     { content: "\eb31"; }
+  .shape-plus-icon::before            { content: "\ebcd"; }
+  .shape-minus-icon::before           { content: "\ebb5"; }
+  .drill-down-filter-icon::before     { content: "\eabe"; }
+  .drill-up-filter-icon::before       { content: "\eac1"; }
+  .menu-vertical-icon::before         { content: "\eb2a"; }
+  .menu-horizontal-icon::before       { content: "\eb28"; }
+
+  /*
+    NOTE: sort-asc-icon, sort-desc-icon, sort-val-asc-icon and sort-val-desc-icon
+    (the names actually referenced by
+    web/projects/portal/src/app/vsobjects/action/base-table-actions.ts) are
+    intentionally NOT mapped here, because they do not exist in
+    web/projects/portal/src/assets/ineticons/variables.scss either. That absence is
+    the point of the "dead names" row below -- see Step 5.
+  */
+
+  /*
+    .viz-modern gate: toggling this class previews the planned Track A CSS result.
+    Gate-off (default) shows each surface's current glyph; gate-on shows the locked
+    modern-target glyphs (thin arrowheads for label sort, filled triangles for value
+    sort) in place of the current viz glyph, without touching the shell reference
+    (the shell is already the target look for label sort).
+  */
+  .current-state { display: inline-block; }
+  .modern-state { display: none; }
+  .viz-modern .current-state { display: none; }
+  .viz-modern .modern-state { display: inline-block; }
+
+  .legend { font-size: 12px; color: var(--muted); margin: 4px 0 16px; }
+</style>
+</head>
+<body>
+
+<h1>Phase 9A -- Icon Audit Gallery</h1>
+<p class="subtitle">Mechanism-agnostic comparison of sort / expand-collapse / drill / more affordances across shell and viz surfaces.</p>
+
+<div class="controls">
+  <label><input type="checkbox" id="darkToggle"> Dark mode</label>
+  <label><input type="checkbox" id="vizModernToggle"> Gate ON &mdash; preview Track A modern target</label>
+</div>
+
+<h2>1. Sort</h2>
+<p class="legend">Rows are surfaces; columns are sort states. The "Modern Target" rows show the locked Track A design decision (label sort keeps thin arrowheads to match the shell; value sort switches to filled triangles) and are only meaningful once compared against the "Gate ON" toggle above.</p>
+<table>
+  <thead>
+    <tr>
+      <th class="row-label">Surface</th>
+      <th>None</th>
+      <th>Ascending</th>
+      <th>Descending</th>
+      <th>Value-Ascending</th>
+      <th>Value-Descending</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="row-label">Shell data list<br><span class="legend">(.sort-indicator, label sort only)</span></td>
+      <td><span class="sort-header"><span class="sort-indicator"></span></span></td>
+      <td><span class="sort-header is-active"><span class="sort-indicator"></span></span></td>
+      <td><span class="sort-header is-active is-desc"><span class="sort-indicator"></span></span></td>
+      <td class="na-cell">n/a</td>
+      <td class="na-cell">n/a</td>
+    </tr>
+    <tr>
+      <td class="row-label">Viz table<br><span class="legend">(ineticons, label sort)</span></td>
+      <td><span class="glyph sort-icon"></span></td>
+      <td>
+        <span class="current-state glyph sort-ascending-icon"></span>
+        <span class="modern-state unicode-glyph">&#x2303;</span>
+      </td>
+      <td>
+        <span class="current-state glyph sort-descending-icon"></span>
+        <span class="modern-state unicode-glyph">&#x2304;</span>
+      </td>
+      <td class="na-cell">n/a</td>
+      <td class="na-cell">n/a</td>
+    </tr>
+    <tr>
+      <td class="row-label">Viz crosstab<br><span class="legend">(ineticons, incl. value sort)</span></td>
+      <td><span class="glyph sort-icon"></span></td>
+      <td>
+        <span class="current-state glyph sort-ascending-icon"></span>
+        <span class="modern-state unicode-glyph">&#x2303;</span>
+      </td>
+      <td>
+        <span class="current-state glyph sort-descending-icon"></span>
+        <span class="modern-state unicode-glyph">&#x2304;</span>
+      </td>
+      <td>
+        <span class="current-state glyph sort-value-ascending-icon"></span>
+        <span class="modern-state unicode-glyph">&#x25B4;</span>
+      </td>
+      <td>
+        <span class="current-state glyph sort-value-descending-icon"></span>
+        <span class="modern-state unicode-glyph">&#x25BE;</span>
+      </td>
+    </tr>
+    <tr>
+      <td class="row-label">Modern target &mdash; label sort<br><span class="legend">(planned, unifies with shell)</span></td>
+      <td class="na-cell">&mdash;</td>
+      <td><span class="unicode-glyph">&#x2303;</span></td>
+      <td><span class="unicode-glyph">&#x2304;</span></td>
+      <td class="na-cell">n/a</td>
+      <td class="na-cell">n/a</td>
+    </tr>
+    <tr>
+      <td class="row-label">Modern target &mdash; value sort<br><span class="legend">(planned, filled triangles)</span></td>
+      <td class="na-cell">&mdash;</td>
+      <td class="na-cell">n/a</td>
+      <td class="na-cell">n/a</td>
+      <td><span class="unicode-glyph">&#x25B4;</span></td>
+      <td><span class="unicode-glyph">&#x25BE;</span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Dead names (base-table-actions.ts)<br><span class="legend">expected: no glyph renders</span></td>
+      <td class="na-cell">n/a<br><span class="legend">(default state maps to "sort-icon", which is not dead)</span></td>
+      <td><span class="glyph sort-asc-icon"></span><span class="empty-cell"> empty</span></td>
+      <td><span class="glyph sort-desc-icon"></span><span class="empty-cell"> empty</span></td>
+      <td><span class="glyph sort-val-asc-icon"></span><span class="empty-cell"> empty</span></td>
+      <td><span class="glyph sort-val-desc-icon"></span><span class="empty-cell"> empty</span></td>
+    </tr>
+  </tbody>
+</table>
+<!--
+  Step 5 result: the "Dead names" row above renders `.glyph` spans with classes
+  sort-asc-icon, sort-desc-icon, sort-val-asc-icon and sort-val-desc-icon --
+  the literal strings produced by BaseTableActions.sortIcon() in
+  web/projects/portal/src/app/vsobjects/action/base-table-actions.ts. None of
+  these class names has a CSS rule in this document (deliberately, because none
+  exists in web/projects/portal/src/assets/ineticons/variables.scss or the
+  generated ineticons stylesheet either), so each cell shows no glyph -- confirmed
+  empty. This proves BaseTableActions.sortIcon() has referenced dead/nonexistent
+  ineticons classes since at least the current codebase snapshot, which is the
+  justification for Task 3 (rename/repair the icon references to the real
+  sort-ascending-icon / sort-descending-icon / sort-value-ascending-icon /
+  sort-value-descending-icon / sort-icon classes).
+-->
+
+<h2>2. Expand / Collapse</h2>
+<table>
+  <thead>
+    <tr>
+      <th class="row-label">Surface</th>
+      <th>Collapsed</th>
+      <th>Expanded</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="row-label">Shell (chevron)</td>
+      <td><span class="glyph forward-icon"></span></td>
+      <td><span class="glyph downward-icon"></span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Viz (boxed &rarr; chevron on Gate ON)</td>
+      <td>
+        <span class="current-state glyph plus-box-outline-icon"></span>
+        <span class="modern-state glyph forward-icon"></span>
+      </td>
+      <td>
+        <span class="current-state glyph minus-box-outline-icon"></span>
+        <span class="modern-state glyph downward-icon"></span>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>3. Drill</h2>
+<table>
+  <thead>
+    <tr>
+      <th class="row-label">Surface / variant</th>
+      <th>Drill Down</th>
+      <th>Drill Up</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="row-label">Menu (drill-*-filter)</td>
+      <td><span class="glyph drill-down-filter-icon"></span></td>
+      <td><span class="glyph drill-up-filter-icon"></span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Inline axis drill (boxed &rarr; shape on Gate ON)</td>
+      <td>
+        <span class="current-state glyph plus-box-outline-icon"></span>
+        <span class="modern-state glyph shape-plus-icon"></span>
+      </td>
+      <td>
+        <span class="current-state glyph minus-box-outline-icon"></span>
+        <span class="modern-state glyph shape-minus-icon"></span>
+      </td>
+    </tr>
+    <tr>
+      <td class="row-label">Zoom (chart) &mdash; unchanged, already shape</td>
+      <td><span class="glyph shape-plus-icon"></span></td>
+      <td><span class="glyph shape-minus-icon"></span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Menu drill-*-filter &mdash; intentionally unchanged</td>
+      <td><span class="glyph drill-down-filter-icon"></span></td>
+      <td><span class="glyph drill-up-filter-icon"></span></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>4. More / Overflow</h2>
+<table>
+  <thead>
+    <tr>
+      <th class="row-label">Surface</th>
+      <th>Glyph</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="row-label">Viz (vertical kebab)</td>
+      <td><span class="glyph menu-vertical-icon"></span></td>
+    </tr>
+    <tr>
+      <td class="row-label">Shell (horizontal meatball)</td>
+      <td><span class="glyph menu-horizontal-icon"></span></td>
+    </tr>
+  </tbody>
+</table>
+<!--
+  Task 8 decision: viz's overflow language is the vertical kebab (menu-vertical-icon), and
+  the shell widget tree's horizontal meatball is a separate, deferred concern -- but the
+  grep for menu-horizontal-icon in web/projects/portal/src/app/vsobjects and .../graph did
+  NOT come back clean as expected. Four viz-surface usages of menu-horizontal-icon were
+  found:
+    - vsobjects/action/abstract-vs-actions.ts:300 (mini-toolbar "More" action icon)
+    - vsobjects/objects/mini-toolbar/mini-menu.component.html:21 (mini-menu default trigger,
+      used by calendar/range-slider/selection assemblies; isVertical defaults to false)
+    - vsobjects/objects/viewer-mobile-toolbar/viewer-mobile-toolbar.component.html:47
+      (mobile viewer toolbar overflow trigger)
+    - vsobjects/viewer-app.component.html:274 (mobile viewer app toolbar overflow trigger)
+  DECISION (revised): more/overflow alignment is DEFERRED — not shipped in Phase 9A.
+  This was the plan's lowest-priority item ("verify + document"). The four usages above show
+  viz overflow is internally MIXED (some vertical kebab, some horizontal meatball), which is a
+  real consolidation target, but aligning it correctly requires: (a) grounded per-surface
+  selectors (a first attempt used guessed/dead selectors such as .mini-toolbar-container and
+  .viewer-toolbar-btn that do not reliably match the elements carrying menu-horizontal-icon),
+  and (b) mobile-UX sign-off, since the mobile viewer toolbars are among the affected surfaces
+  and may intentionally differ from desktop. Follow-up: repoint the confirmed surfaces
+  (mini-menu default trigger .mini-menu-trigger.menu-horizontal-icon; mobile toolbar
+  .mobile-toolbar .menu-horizontal-icon) under .viz-modern once the mobile decision is made.
+  The shell widget tree's horizontal meatball remains out of scope (a shell concern).
+-->
+
+<script>
+  document.getElementById('darkToggle').addEventListener('change', function (e) {
+    document.documentElement.classList.toggle('dark', e.target.checked);
+  });
+  document.getElementById('vizModernToggle').addEventListener('change', function (e) {
+    document.body.classList.toggle('viz-modern', e.target.checked);
+  });
+</script>
+
+</body>
+</html>

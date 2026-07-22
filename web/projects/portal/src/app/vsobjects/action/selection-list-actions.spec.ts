@@ -16,6 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import * as fs from "fs";
+import * as path from "path";
 import { TestUtils } from "../../common/test/test-utils";
 import { ComposerContextProviderFactory, ViewerContextProviderFactory } from "../context-provider.service";
 import { SelectionListActions } from "./selection-list-actions";
@@ -273,5 +275,11 @@ describe("SelectionListActions", () => {
       const menuActions = actions.menuActions;
 
       expect(menuActions.length).toBe(0);
+   });
+
+   it("uses no Font Awesome icons (ineticons only)", () => {
+      const src = fs.readFileSync(
+         path.resolve(__dirname, "selection-list-actions.ts"), "utf8");
+      expect(src).not.toMatch(/icon:\s*\(\)\s*=>\s*"fa /);
    });
 });
