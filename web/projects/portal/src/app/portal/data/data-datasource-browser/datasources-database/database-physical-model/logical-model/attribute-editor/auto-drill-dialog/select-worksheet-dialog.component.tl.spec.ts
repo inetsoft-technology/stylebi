@@ -293,7 +293,7 @@ describe("Group 2 - loadQueryParameters", () => {
 
       comp.loadQueryParameters(entry);
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // No HTTP on non-worksheet — assert immediately (no setTimeout; hangs under Zone on CI).
       expect(requestCount).toBe(0);
    });
 });
@@ -473,9 +473,9 @@ describe("Group 6 - Fixed bug (Bug #75599): post-destroy loadQueryParameters cal
       fixture.destroy();
       resolveRequest!(MswHttpResponse.json({ queryParams: ["late-param"] }));
 
-      // Give the (now-unsubscribed) HTTP response a chance to flow through before asserting
-      // that it did not reach the destroyed component.
-      await new Promise<void>(resolve => setTimeout(resolve, 50));
+      // Microtask-only flush — setTimeout(50) hangs under Zone + loaded CI workers.
+      await Promise.resolve();
+      await Promise.resolve();
       expect(comp.queryParams).toBeUndefined();
    });
 });

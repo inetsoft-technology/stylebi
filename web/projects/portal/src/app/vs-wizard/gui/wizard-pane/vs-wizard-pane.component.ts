@@ -288,12 +288,7 @@ export class VsWizardPane extends CommandProcessor implements OnInit, AfterViewI
 
    ngOnDestroy(): void {
       this.removeKeydownListener();
-
-      if(!!this.mouseupListener) {
-         this.mouseupListener();
-         this.mouseupListener = null;
-      }
-
+      this.removeMouseupListener();
       this.cleanup();
       this.subscriptions.unsubscribe();
    }
@@ -343,6 +338,13 @@ export class VsWizardPane extends CommandProcessor implements OnInit, AfterViewI
       if(!!this.keydownListener) {
          this.keydownListener();
          this.keydownListener = null;
+      }
+   }
+
+   private removeMouseupListener() {
+      if(!!this.mouseupListener) {
+         this.mouseupListener();
+         this.mouseupListener = null;
       }
    }
 
@@ -1032,9 +1034,11 @@ export class VsWizardPane extends CommandProcessor implements OnInit, AfterViewI
    }
 
    private shouldClearFocused(event: any): boolean {
-      return !!event && !!event.target && !!event.target.classList &&
-         event.target.classList.contains("vs-grid-table-cell") ||
-         event.target.classList.contains("wizard-add");
+      // Parentheses required: without them `||` binds after `&&` and can call
+      // `.contains` when `event.target` / `classList` is missing (TL cross-test mouseups).
+      const classList = event?.target?.classList;
+      return !!classList &&
+         (classList.contains("vs-grid-table-cell") || classList.contains("wizard-add"));
    }
 
    onSelectionBox(event: SelectionBoxEvent): void {

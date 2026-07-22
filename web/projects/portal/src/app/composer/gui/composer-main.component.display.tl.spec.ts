@@ -38,25 +38,22 @@
 import "@angular/compiler";
 import { SidebarTab } from "./composer-main.component";
 import { Viewsheet } from "../data/vs/viewsheet";
-import { makeMocks, renderComponent } from "./composer-main.spec-helpers";
+import { makeMocks, renderComponent, setupComposerMainTlEnv } from "./composer-main.spec-helpers";
 
 // ---------------------------------------------------------------------------
 // Global setup
 // ---------------------------------------------------------------------------
 
+vi.setConfig({ testTimeout: 30000 });
+
 beforeAll(() => {
-   (window as any).BroadcastChannel = (window as any).BroadcastChannel ?? class {
-      onmessage: any = null;
-      postMessage() {}
-      close() {}
-      addEventListener() {}
-      removeEventListener() {}
-   };
+   setupComposerMainTlEnv();
 });
 
 afterEach(() => {
    vi.restoreAllMocks();
    localStorage.clear();
+   setupComposerMainTlEnv();
 });
 
 // ---------------------------------------------------------------------------

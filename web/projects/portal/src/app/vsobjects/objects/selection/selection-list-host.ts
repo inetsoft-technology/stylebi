@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,24 +15,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-declare var window: any;
+
+import { InjectionToken } from "@angular/core";
 
 /**
- * Utility class which wraps accesses to local storage.
+ * Parent selection list/tree host injected into SelectionListCell.
+ * Kept as a token (not a direct VSSelection import) so SelectionListCell does not
+ * statically import vs-selection.component — that cycle left VSSelectionContainerChildren
+ * mid-init under CI ESM order and broke ComposerSelectionContainerChildren extends
+ * ("Cannot set property ɵfac … which has only a getter").
  */
-export class LocalStorage {
-   static prefix = "__inetsoft__";
-   public static MAIL_HISTORY_KEY = "emailHistoryModel";
-
-   public static getItem(key: string): string | null {
-      return window.localStorage.getItem(LocalStorage.prefix + key);
-   }
-
-   public static setItem(key: string, data: string): void {
-      window.localStorage.setItem(LocalStorage.prefix + key, data);
-   }
-
-   public static removeItem(key: string): void {
-      window.localStorage.removeItem(LocalStorage.prefix + key);
-   }
-}
+export const SELECTION_LIST_HOST = new InjectionToken<any>("SELECTION_LIST_HOST");

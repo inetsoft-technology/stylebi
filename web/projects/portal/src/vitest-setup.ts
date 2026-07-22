@@ -85,12 +85,12 @@ const _origTick = (ApplicationRef.prototype as any).tick;
 // Circular ESM import workaround.
 //
 // Many components in this codebase have circular @Component.imports references (e.g.,
-// VSObjectContainer ↔ VSViewsheet, VSCalendar ↔ YearCalendar via SelectionRegions). Under
-// Vitest's ESM-worker model, when a circular import chain is evaluated, the second-loaded
-// module sees `undefined` for the first module's class binding at the time its @Component
-// decorator runs. The compiled ɵcmp.dependencies array preserves that undefined slot, and
-// later TestBed graph traversal throws "Cannot read properties of undefined (reading 'ɵcmp')"
-// or NG0919 "Cannot read @Component metadata" when the test instantiates the component.
+// VSCalendar ↔ YearCalendar via SelectionRegions). Under Vitest's ESM-worker model, when
+// a circular import chain is evaluated, the second-loaded module sees `undefined` for the
+// first module's class binding at the time its @Component decorator runs. The compiled
+// ɵcmp.dependencies array preserves that undefined slot, and later TestBed graph traversal
+// throws "Cannot read properties of undefined (reading 'ɵcmp')" or NG0919 "Cannot read
+// @Component metadata" when the test instantiates the component.
 //
 // Strategy: patch TestBed.configureTestingModule to walk the imports/declarations graph at
 // the moment the spec configures its module (after all spec-file imports have resolved)
@@ -218,11 +218,8 @@ function _patchCircularDeps(component: any, replacement: any) {
    }
 }
 
-// VSViewsheet ↔ VSObjectContainer: both components import each other.
-import { VSViewsheet } from "./app/vsobjects/objects/viewsheet/vs-viewsheet.component";
-import { VSObjectContainer } from "./app/vsobjects/objects/vs-object-container.component";
-_patchCircularDeps(VSObjectContainer, VSViewsheet);
-_patchCircularDeps(VSViewsheet, VSObjectContainer);
+// VSViewsheet ↔ VSObjectContainer: broken structurally — VSObjectContainer loads
+// VSViewsheet via @defer (no static import), so no ESM cycle remains here.
 
 // VSCalendar ↔ YearCalendar/MonthCalendar: YearCalendar and MonthCalendar import VSCalendar
 // for the SelectionRegions enum, leaving YearCalendar's slot undefined in VSCalendar's deps.

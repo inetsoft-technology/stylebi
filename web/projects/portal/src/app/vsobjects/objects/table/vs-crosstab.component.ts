@@ -46,7 +46,7 @@ import { ChartConstants } from "../../../common/util/chart-constants";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { DataPathConstants } from "../../../common/util/data-path-constants";
 import { XConstants } from "../../../common/util/xconstants";
-import { ViewsheetClientService } from "../../../common/viewsheet-client";
+import { ViewsheetClientService } from "../../../common/viewsheet-client/viewsheet-client.service";
 import { VsWizardEditModes } from "../../../vs-wizard/model/vs-wizard-edit-modes";
 import { InputNameDialog } from "../../../widget/dialog/input-name-dialog/input-name-dialog.component";
 import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropdown.service";

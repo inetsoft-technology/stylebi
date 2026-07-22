@@ -895,6 +895,10 @@ export class GuiTool {
          let oy: number = null;
 
          const dragOverFn = (e: DragEvent) => {
+            if(!domService || typeof domService.requestRead !== "function") {
+               return;
+            }
+
             domService.requestRead(() => {
                const pY = e.pageY;
                const pX = e.pageX;

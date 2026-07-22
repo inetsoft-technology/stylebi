@@ -72,25 +72,25 @@ import { ComposerTabModel } from "./composer-tab-model";
 import { Viewsheet } from "../data/vs/viewsheet";
 import { Worksheet } from "../data/ws/worksheet";
 import { LocalStorage } from "../../common/util/local-storage.util";
-import { makeMocks, renderComponent } from "./composer-main.spec-helpers";
+import { makeMocks, renderComponent, setupComposerMainTlEnv } from "./composer-main.spec-helpers";
 
 // ---------------------------------------------------------------------------
 // Global setup
 // ---------------------------------------------------------------------------
 
+// ComposerMain compile+render regularly takes 2–4s under a full TL suite; the
+// default 5s Vitest timeout flakes on the first tests in each file.
+vi.setConfig({ testTimeout: 30000 });
+
 beforeAll(() => {
-   (window as any).BroadcastChannel = (window as any).BroadcastChannel ?? class {
-      onmessage: any = null;
-      postMessage() {}
-      close() {}
-      addEventListener() {}
-      removeEventListener() {}
-   };
+   setupComposerMainTlEnv();
 });
 
 afterEach(() => {
    vi.restoreAllMocks();
    localStorage.clear();
+   // restoreAllMocks clears the GuiTool spy — put it back for the next test.
+   setupComposerMainTlEnv();
 });
 
 // ---------------------------------------------------------------------------

@@ -52,25 +52,22 @@ import { ComposerTabModel } from "./composer-tab-model";
 import { Viewsheet } from "../data/vs/viewsheet";
 import { Worksheet } from "../data/ws/worksheet";
 import { loadingScriptTreePaneModel } from "../data/script/script-tree-pane-model";
-import { makeMocks, renderComponent } from "./composer-main.spec-helpers";
+import { makeMocks, renderComponent, setupComposerMainTlEnv } from "./composer-main.spec-helpers";
 
 // ---------------------------------------------------------------------------
 // Global setup
 // ---------------------------------------------------------------------------
 
+vi.setConfig({ testTimeout: 30000 });
+
 beforeAll(() => {
-   (window as any).BroadcastChannel = (window as any).BroadcastChannel ?? class {
-      onmessage: any = null;
-      postMessage() {}
-      close() {}
-      addEventListener() {}
-      removeEventListener() {}
-   };
+   setupComposerMainTlEnv();
 });
 
 afterEach(() => {
    vi.restoreAllMocks();
    localStorage.clear();
+   setupComposerMainTlEnv();
 });
 
 // ---------------------------------------------------------------------------

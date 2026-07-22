@@ -30,6 +30,7 @@ import { VSFormatModel } from "../../model/vs-format-model";
 import { VSSelectionListModel } from "../../model/vs-selection-list-model";
 import { CellRegion } from "./cell-region";
 import { SelectionListCell } from "./selection-list-cell.component";
+import { SELECTION_LIST_HOST } from "./selection-list-host";
 import { VSSelection } from "./vs-selection.component";
 import { ComposerContextProviderFactory, ContextProvider } from "../../context-provider.service";
 
@@ -173,6 +174,7 @@ describe("Selection List Cell Test", () => {
             SelectionListCell, InteractableDirective ],
          providers: [
             { provide: VSSelection, useValue: vsSelectionComponent },
+            { provide: SELECTION_LIST_HOST, useValue: vsSelectionComponent },
             { provide: Renderer2, useValue: renderer },
             { provide: ContextProvider, useFactory: ComposerContextProviderFactory },
             { provide: InteractService, useValue: interactService }

@@ -83,7 +83,7 @@ import { Viewsheet } from "../../../data/vs/viewsheet";
 import { LineAnchorService } from "../../../services/line-anchor.service";
 import { AssemblyType } from "../assembly-type";
 import { ComposerObjectService, KeyEventAdapter } from "../composer-object.service";
-import { DragBorderType } from "../objects/selection/composer-selection-container-children.component";
+import { DragBorderType } from "../objects/selection/drag-border-type";
 import { AbstractActionComponent } from "./abstract-action-component";
 import { BaseTableModel } from "../../../../vsobjects/model/base-table-model";
 import { ScaleService } from "../../../../widget/services/scale/scale-service";

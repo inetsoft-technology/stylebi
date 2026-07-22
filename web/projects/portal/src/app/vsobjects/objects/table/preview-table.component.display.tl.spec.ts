@@ -347,6 +347,11 @@ describe("Group 9 — getTarget: delegates to HyperlinkViewModel.fromHyperlinkMo
 // ── Group 10 — updateVerticalScrollTooltip: placement ────────────────────────
 
 describe("Group 10 — updateVerticalScrollTooltip: tooltip placement", () => {
+   // Full-suite workers may inherit a non-default window.innerWidth from other specs.
+   beforeEach(() => {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 });
+   });
+
    it("should set placement to 'right' when tooltip fits within the viewport", () => {
       const { comp } = createPreviewComponent();
       makeScrollable(comp);

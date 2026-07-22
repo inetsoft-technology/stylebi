@@ -45,7 +45,7 @@ import { Point } from "../../../common/data/point";
 import { Rectangle } from "../../../common/data/rectangle";
 import { TableDataPath } from "../../../common/data/table-data-path";
 import { GuiTool } from "../../../common/util/gui-tool";
-import { ViewsheetClientService } from "../../../common/viewsheet-client";
+import { ViewsheetClientService } from "../../../common/viewsheet-client/viewsheet-client.service";
 import { SelectionBoxEvent } from "../../../widget/directive/selection-box.directive";
 import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropdown.service";
 import { DebounceService } from "../../../widget/services/debounce.service";

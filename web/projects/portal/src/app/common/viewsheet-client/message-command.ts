@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { ViewsheetCommand } from "./index";
+import { ViewsheetCommand } from "./viewsheet-command";
 import { AssetEvent } from "../../composer/gui/ws/socket/asset-event";
 
 export type MessageType = "OK" |

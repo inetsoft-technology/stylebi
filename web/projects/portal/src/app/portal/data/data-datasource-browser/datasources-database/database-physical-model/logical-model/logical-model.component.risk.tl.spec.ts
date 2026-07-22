@@ -47,6 +47,7 @@ import { Subject } from "rxjs";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 
 import { server } from "@test-mocks/server";
+import { flushMicrotasks } from "../../../../../../../testing/tl-async.util";
 import { LogicalModelComponent } from "./logical-model.component";
 import { LogicalModelPropertyPane } from "./logical-model-property-pane.component";
 import { NotificationsComponent } from "../../../../../../widget/notifications/notifications.component";
@@ -264,7 +265,7 @@ describe("LogicalModelComponent — refreshModel() race condition", () => {
       // First (stale) GET resolves after the second — must be a no-op now that
       // refreshModel() cancels the prior subscription before starting a new one.
       resolveFirst!(MswHttpResponse.json(firstModel) as any);
-      await new Promise<void>(r => setTimeout(r, 0));
+      await flushMicrotasks();
 
       expect(comp.logicalModel.name).toBe("SecondLM");
    });
@@ -367,8 +368,9 @@ describe("LogicalModelComponent — getSettings()", () => {
          databasePath: "sameDB", physicalModelName: "phys2", logicalModelName: "lm", create: "true",
       }));
 
-      // Brief wait to see if a second call fires
-      await new Promise<void>(r => setTimeout(r, 50));
+      // No sleep-to-prove-absence (setTimeout hangs under Zone on CI).
+      await Promise.resolve();
+      await Promise.resolve();
       expect(getCount).toBe(1);
    });
 });
@@ -400,7 +402,8 @@ describe("LogicalModelComponent — post-destroy HTTP callback (memory leak)", (
          name: "PostDestroyLM", partition: "physModel", entities: [],
          description: "", connection: null, parent: null, folder: "",
       }) as any);
-      await new Promise<void>(r => setTimeout(r, 0));
+      await Promise.resolve();
+      await Promise.resolve();
 
       // logicalModel should NOT have been updated after destroy
       expect(comp.logicalModel.name).not.toBe("PostDestroyLM");
