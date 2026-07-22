@@ -88,6 +88,15 @@ public final class RecycleUtils {
                                                        Principal principal, RecycleBin recycleBin)
       throws Exception
    {
+      // A "My Reports" folder entry can arrive with an owner set but a path that is not
+      // prefixed with the My Reports folder. Without the prefix, the scope/registry
+      // resolution below would incorrectly target the global repository and delete a
+      // same-named root folder. Normalize using the authoritative owner so the operation
+      // stays within the owning user's repository.
+      if(owner != null && !SUtil.isMyReport(path)) {
+         path = Tool.MY_DASHBOARD + "/" + path;
+      }
+
       String newName = UUID.randomUUID().toString().replaceAll("-", "");
       String npath = getRecycleBinPath(newName);
       writeLock.lock();
