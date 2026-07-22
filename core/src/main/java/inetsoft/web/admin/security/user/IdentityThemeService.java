@@ -67,6 +67,11 @@ public class IdentityThemeService {
          if(Tool.equals(orgID, theme.getOrgID())) {
             iterator.remove();
          }
+         else {
+            // strip the deleted org's membership from remaining (e.g. globally-shared)
+            // themes so a new org reusing this ID doesn't inherit a stale theme
+            theme.getOrganizations().remove(orgID);
+         }
       }
 
       customThemesManager.setCustomThemes(themes);
