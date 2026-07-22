@@ -84,6 +84,23 @@ public class CreateVisualizationModel {
    }
 
    /**
+    * When true AND this call is otherwise eligible for the in-place "modificationOnly" path (see
+    * {@code WizVsService.createViewsheetInternal}: {@link #getConfig()}/{@link #getPrimaryAssembly()}
+    * are null and {@link #getConditionModel()} is set), duplicate the current primary assembly first
+    * and apply the condition to the COPY instead — the original chart is left untouched. Mirrors
+    * {@code ChartColorsRequest}/{@code ChartFormatRequest}/{@code ApplyHighlightModel}'s {@code copy}
+    * flag. Has no effect outside the modificationOnly path (the standard create/rebind path always
+    * produces a fresh assembly on its own). Default false (in-place, the existing behavior).
+    */
+   public boolean isCopy() {
+      return copy;
+   }
+
+   public void setCopy(boolean copy) {
+      this.copy = copy;
+   }
+
+   /**
     * #75456: row cap for sampled-preview mode. Null or &lt;=0 = full data (the default and the
     * agent path); &gt;0 = aggregate at most this many detail rows (faster on heavy/non-mergeable
     * sources, but Sum/Count may be approximate).
@@ -104,4 +121,5 @@ public class CreateVisualizationModel {
    private Integer sampleMaxRows;
    private transient VSAssembly primaryAssembly;
    private transient boolean keepCondition;
+   private boolean copy;
 }

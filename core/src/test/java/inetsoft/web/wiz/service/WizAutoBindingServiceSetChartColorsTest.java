@@ -24,8 +24,10 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.AestheticRef;
 import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -43,6 +45,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.awt.Color;
 import java.security.Principal;
@@ -53,6 +56,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -76,11 +80,15 @@ class WizAutoBindingServiceSetChartColorsTest {
    private VSChartAggregateRef rtYAgg;
    private SecurityEngine securityEngine;
    private ViewsheetService viewsheetService;
+   private WizVsService wizVsService;
+   private RuntimeViewsheet rvs;
+   private Viewsheet vs;
+   private ChartVSAssembly chart;
 
    @BeforeEach
    void setUp() throws Exception {
       viewsheetService = mock(ViewsheetService.class);
-      WizVsService wizVsService = mock(WizVsService.class);
+      wizVsService = mock(WizVsService.class);
       // collaborators not used by setChartColors; their classes can't be initialized in
       // a plain unit-test environment (no Spring context), so pass null instead of mocks.
       securityEngine = mock(SecurityEngine.class);
@@ -102,14 +110,14 @@ class WizAutoBindingServiceSetChartColorsTest {
       ChartVSAssemblyInfo info = mock(ChartVSAssemblyInfo.class);
       when(info.getVSChartInfo()).thenReturn(vsChartInfo);
 
-      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      chart = mock(ChartVSAssembly.class);
       when(chart.getChartInfo()).thenReturn(info);
 
-      Viewsheet vs = mock(Viewsheet.class);
+      vs = mock(Viewsheet.class);
       when(vs.getAssembly("vs_1")).thenReturn(chart);
 
       box = mock(ViewsheetSandbox.class);
-      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
       when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
       when(rvs.getID()).thenReturn("rt-1");
@@ -170,5 +178,188 @@ class WizAutoBindingServiceSetChartColorsTest {
       verify(yAgg, never()).setColorFrame(any());
       verify(rtYAgg, never()).setColorFrame(any());
       verify(box, never()).clearGraph(anyString());
+   }
+
+   // ── copy=true (copy-then-apply) ──────────────────────────────────────────────────────────
+
+   @Test
+   void copyTrueDuplicatesBeforeApplyingAndTargetsTheCopy() throws Exception {
+      // A separate mock chart/measure-ref pair standing in for the duplicated assembly —
+      // duplicatePrimaryAssembly's real behavior (uniqueAssemblyName + rebind) is covered by
+      // WizVsServiceDuplicatePrimaryAssemblyTest; here wizVsService is mocked, so we just need to
+      // prove setChartColors WIRES the copy in and applies to it instead of the original.
+      VSChartAggregateRef copyYAgg = mock(VSChartAggregateRef.class);
+      VSChartInfo copyChartInfo = mock(VSChartInfo.class);
+      when(copyChartInfo.getColorField()).thenReturn(null);
+      when(copyChartInfo.getYFields()).thenReturn(new ChartRef[] { copyYAgg });
+      when(copyChartInfo.getXFields()).thenReturn(new ChartRef[0]);
+      when(copyChartInfo.getRTYFields()).thenReturn(new ChartRef[0]);
+      when(copyChartInfo.getRTXFields()).thenReturn(new ChartRef[0]);
+      ChartVSAssemblyInfo copyInfo = mock(ChartVSAssemblyInfo.class);
+      when(copyInfo.getVSChartInfo()).thenReturn(copyChartInfo);
+      ChartVSAssembly copyChart = mock(ChartVSAssembly.class);
+      when(copyChart.getChartInfo()).thenReturn(copyInfo);
+      when(copyChart.getName()).thenReturn("vs_1_copy1");
+
+      when(wizVsService.duplicatePrimaryAssembly(rvs, chart)).thenReturn(copyChart);
+      when(wizVsService.fetchAssemblyData("rt-1", "vs_1_copy1", null))
+         .thenReturn(new CreateViewsheetResult());
+
+      ChartColorsRequest request = staticRed();
+      request.setCopy(true);
+
+      CreateViewsheetResult result = service.setChartColors(request, null);
+
+      // Applied to the COPY's measure ref, never the original's.
+      verify(copyYAgg).setColorFrame(any());
+      verify(yAgg, never()).setColorFrame(any());
+      // The cached graph cleared is the copy's, not the original's.
+      verify(box).clearGraph("vs_1_copy1");
+      verify(box, never()).clearGraph("vs_1");
+      assertEquals("vs_1_copy1", result.getAssemblyName());
+   }
+
+   @Test
+   void copyFalseNeverCallsDuplicatePrimaryAssembly() throws Exception {
+      service.setChartColors(staticRed(), null);
+
+      verify(wizVsService, never()).duplicatePrimaryAssembly(any(), any());
+   }
+
+   @Test
+   void copyTrueButDuplicationFailsFallsBackToInPlaceWithANote() throws Exception {
+      when(wizVsService.duplicatePrimaryAssembly(rvs, chart)).thenReturn(null);
+
+      ChartColorsRequest request = staticRed();
+      request.setCopy(true);
+
+      CreateViewsheetResult result = service.setChartColors(request, null);
+
+      // Falls back to the ORIGINAL assembly rather than failing the whole request.
+      verify(yAgg).setColorFrame(any());
+      assertEquals("vs_1", result.getAssemblyName());
+      assertEquals("Copy requested but could not be created; colors applied in place.", result.getNote());
+   }
+
+   @Test
+   void copyFailureNoteSurvivesAlongsideAnUnrelatedBindingNote() throws Exception {
+      // Regression: the copy-fallback note used to be stored in the SAME `note` local later
+      // reassigned unconditionally by the color-binding logic, silently discarding the
+      // copy-failure warning whenever the color application itself also produced (or cleared) a
+      // note. Both must now survive, concatenated.
+      when(wizVsService.duplicatePrimaryAssembly(rvs, chart)).thenReturn(null);
+
+      ChartColorsRequest request = new ChartColorsRequest();
+      request.setWizRuntimeId("rt-1");
+      request.setAssemblyName("vs_1");
+      request.setPaletteName("Blues");
+      request.setCopy(true);
+      // colorField stays null (static/no-color-binding chart from setUp), so requesting a
+      // palette produces the "no color dimension" note in addition to the copy failure.
+
+      CreateViewsheetResult result = service.setChartColors(request, null);
+
+      assertEquals(
+         "Copy requested but could not be created; colors applied in place. " +
+         "This chart has no color dimension, so a palette/per-category colors can't apply. " +
+         "Recreate with a dimension on the color aesthetic (fieldConfigs/explicitBindings), or use staticColor.",
+         result.getNote());
+   }
+
+   @Test
+   void copySucceedsThenApplyThrowsRollsBackTheDuplicateAndRestoresTheOriginalAsPrimary() throws Exception {
+      // A categorical color field bound to an unknown palette makes ColorPalettes.getPalette(...)
+      // throw AFTER duplicatePrimaryAssembly has already mutated the live runtime (added the copy,
+      // demoted the original, promoted the copy) but BEFORE persistViewsheet ever runs. That
+      // live-runtime mutation must be undone, not left dangling.
+      AestheticRef colorField = mock(AestheticRef.class);
+      DataRef dimensionRef = mock(DataRef.class);
+      when(colorField.getDataRef()).thenReturn(dimensionRef);
+
+      VSChartAggregateRef copyYAgg = mock(VSChartAggregateRef.class);
+      VSChartInfo copyChartInfo = mock(VSChartInfo.class);
+      when(copyChartInfo.getColorField()).thenReturn(colorField);
+      when(copyChartInfo.getYFields()).thenReturn(new ChartRef[] { copyYAgg });
+      ChartVSAssemblyInfo copyInfo = mock(ChartVSAssemblyInfo.class);
+      when(copyInfo.getVSChartInfo()).thenReturn(copyChartInfo);
+      ChartVSAssembly copyChart = mock(ChartVSAssembly.class);
+      when(copyChart.getChartInfo()).thenReturn(copyInfo);
+      when(copyChart.getName()).thenReturn("vs_1_copy1");
+
+      when(wizVsService.duplicatePrimaryAssembly(rvs, chart)).thenReturn(copyChart);
+
+      ChartColorsRequest request = new ChartColorsRequest();
+      request.setWizRuntimeId("rt-1");
+      request.setAssemblyName("vs_1");
+      request.setPaletteName("NotARealPalette");
+      request.setCopy(true);
+
+      assertThrows(ResponseStatusException.class, () -> service.setChartColors(request, null));
+
+      // Rollback: the duplicated assembly is removed from the live viewsheet and the original is
+      // re-promoted to primary.
+      verify(vs).removeAssembly("vs_1_copy1");
+      verify(chart).setPrimary(true);
+      // Nothing was persisted or fetched — the exception must propagate before either.
+      verify(wizVsService, never()).persistViewsheet(any(), any(), any());
+      verify(wizVsService, never()).fetchAssemblyData(anyString(), anyString(), any());
+   }
+
+   /** A successful copy whose color application also succeeds cleanly (static color, no color field). */
+   private ChartVSAssembly successfulCopyChart() {
+      VSChartAggregateRef copyYAgg = mock(VSChartAggregateRef.class);
+      VSChartInfo copyChartInfo = mock(VSChartInfo.class);
+      when(copyChartInfo.getColorField()).thenReturn(null);
+      when(copyChartInfo.getYFields()).thenReturn(new ChartRef[] { copyYAgg });
+      when(copyChartInfo.getXFields()).thenReturn(new ChartRef[0]);
+      when(copyChartInfo.getRTYFields()).thenReturn(new ChartRef[0]);
+      when(copyChartInfo.getRTXFields()).thenReturn(new ChartRef[0]);
+      ChartVSAssemblyInfo copyInfo = mock(ChartVSAssemblyInfo.class);
+      when(copyInfo.getVSChartInfo()).thenReturn(copyChartInfo);
+      ChartVSAssembly copyChart = mock(ChartVSAssembly.class);
+      when(copyChart.getChartInfo()).thenReturn(copyInfo);
+      when(copyChart.getName()).thenReturn("vs_1_copy1");
+      return copyChart;
+   }
+
+   @Test
+   void copySucceedsButFetchAssemblyDataThrowsRollsBackTheDuplicate() throws Exception {
+      // fetchAssemblyData runs BEFORE persistViewsheet specifically so that, at the point this throws,
+      // nothing has been durably committed yet — the rollback below is always safe to perform.
+      ChartVSAssembly copy = successfulCopyChart();
+      when(wizVsService.duplicatePrimaryAssembly(rvs, chart)).thenReturn(copy);
+      when(wizVsService.fetchAssemblyData(eq("rt-1"), eq("vs_1_copy1"), any()))
+         .thenThrow(new RuntimeException("sandbox execution failed"));
+
+      ChartColorsRequest request = staticRed();
+      request.setCopy(true);
+
+      assertThrows(RuntimeException.class, () -> service.setChartColors(request, null));
+
+      verify(vs).removeAssembly("vs_1_copy1");
+      verify(chart).setPrimary(true);
+      verify(wizVsService, never()).persistViewsheet(any(), any(), any());
+   }
+
+   @Test
+   void copySucceedsButPersistViewsheetThrowsRollsBackTheDuplicate() throws Exception {
+      // The scenario claude[bot] flagged in re-review: a failure in persistViewsheet itself (bad
+      // identifier / repository save failure) must roll back the same as a failure earlier in the
+      // block — the copy was added and promoted live but never durably committed.
+      ChartVSAssembly copy = successfulCopyChart();
+      when(wizVsService.duplicatePrimaryAssembly(rvs, chart)).thenReturn(copy);
+      when(wizVsService.persistViewsheet(any(), any(), any()))
+         .thenThrow(new IllegalArgumentException("invalid identifier"));
+
+      ChartColorsRequest request = staticRed();
+      request.setCopy(true);
+      request.setViewsheetIdentifier("visualizations-xyz");
+
+      assertThrows(IllegalArgumentException.class, () -> service.setChartColors(request, null));
+
+      verify(vs).removeAssembly("vs_1_copy1");
+      verify(chart).setPrimary(true);
+      // fetchAssemblyData already ran (it comes before persist) — the failure is specifically in persist.
+      verify(wizVsService).fetchAssemblyData(eq("rt-1"), eq("vs_1_copy1"), any());
    }
 }

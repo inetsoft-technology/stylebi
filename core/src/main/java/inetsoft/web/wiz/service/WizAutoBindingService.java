@@ -2106,158 +2106,232 @@ public class WizAutoBindingService {
          throw new Exception("Chart assembly not found: " + request.getAssemblyName());
       }
 
+      String note = null;
+      String copyNote = null;
+      String targetAssemblyName = request.getAssemblyName();
+      VSAssembly demotedOriginal = null;
+      VSAssembly rollbackCopy = null;
+
+      // Copy-then-apply: duplicate the chart BEFORE applying the format change, so the original
+      // (request.getAssemblyName()) is left untouched and the requested change lands on a new,
+      // parallel copy instead. source (assembly) must already be the primary assembly — see
+      // WizVsService.duplicatePrimaryAssembly.
+      if(request.isCopy()) {
+         VSAssembly duplicated = wizVsService.duplicatePrimaryAssembly(rvs, assembly);
+
+         if(duplicated instanceof ChartVSAssembly dupChart) {
+            demotedOriginal = assembly;
+            rollbackCopy = dupChart;
+            assembly = dupChart;
+            chart = dupChart;
+            targetAssemblyName = dupChart.getName();
+         }
+         else {
+            copyNote = "Copy requested but could not be created; format applied in place.";
+            LOG.warn("setChartFormat: duplicatePrimaryAssembly failed for {}; falling back to in-place apply.",
+               request.getAssemblyName());
+         }
+      }
+
       var info = chart.getChartInfo();
       ChartDescriptor desc = info.getChartDescriptor();
       VSChartInfo vsChartInfo = info.getVSChartInfo();
+      CreateViewsheetResult result;
 
-      // Chart (assembly-level) title — the heading shown above the plot. Setting a value also makes
-      // the title visible, so a chart that defaulted to the generic "Chart" heading shows the
-      // caller's text instead.
-      if(request.getChartTitle() != null &&
-         chart.getVSAssemblyInfo() instanceof ChartVSAssemblyInfo cinfo)
-      {
-         cinfo.setTitleValue(request.getChartTitle());
-         cinfo.setTitleVisible(true);
-      }
-
-      // Axis titles
-      if(desc != null && desc.getTitlesDescriptor() != null) {
-         TitlesDescriptor titles = desc.getTitlesDescriptor();
-
-         if(request.getXAxisTitle() != null && titles.getXTitleDescriptor() != null) {
-            titles.getXTitleDescriptor().setTitleValue(request.getXAxisTitle());
+      // The copy (when one was made) has already been added to rvs.getViewsheet() and marked primary —
+      // demotedOriginal/rollbackCopy stay non-null only in that case. Nothing through persistViewsheet
+      // below is durably committed until persistViewsheet itself returns, so a thrown exception
+      // anywhere in this block must undo that live-runtime mutation (remove the copy, restore the
+      // original's primary flag) rather than leave the runtime viewsheet with an added/promoted copy
+      // that the caller never learns about.
+      try {
+         // Chart (assembly-level) title — the heading shown above the plot. Setting a value also makes
+         // the title visible, so a chart that defaulted to the generic "Chart" heading shows the
+         // caller's text instead.
+         if(request.getChartTitle() != null &&
+            chart.getVSAssemblyInfo() instanceof ChartVSAssemblyInfo cinfo)
+         {
+            cinfo.setTitleValue(request.getChartTitle());
+            cinfo.setTitleVisible(true);
          }
 
-         if(request.getYAxisTitle() != null && titles.getYTitleDescriptor() != null) {
-            titles.getYTitleDescriptor().setTitleValue(request.getYAxisTitle());
-         }
-      }
+         // Axis titles
+         if(desc != null && desc.getTitlesDescriptor() != null) {
+            TitlesDescriptor titles = desc.getTitlesDescriptor();
 
-      // Y-axis scale — applied to each bound measure's axis descriptor.
-      boolean scaleChange = request.getYAxisMin() != null || request.getYAxisMax() != null ||
-         request.getYAxisIncrement() != null || request.getYAxisLogarithmic() != null;
-
-      if(scaleChange && vsChartInfo != null && vsChartInfo.getYFields() != null) {
-         for(ChartRef yref : vsChartInfo.getYFields()) {
-            if(yref == null || yref.getAxisDescriptor() == null) {
-               continue;
+            if(request.getXAxisTitle() != null && titles.getXTitleDescriptor() != null) {
+               titles.getXTitleDescriptor().setTitleValue(request.getXAxisTitle());
             }
 
-            AxisDescriptor ax = yref.getAxisDescriptor();
-
-            if(request.getYAxisMin() != null) {
-               ax.setMinimum(request.getYAxisMin());
-            }
-
-            if(request.getYAxisMax() != null) {
-               ax.setMaximum(request.getYAxisMax());
-            }
-
-            if(request.getYAxisIncrement() != null) {
-               ax.setIncrement(request.getYAxisIncrement());
-            }
-
-            if(request.getYAxisLogarithmic() != null) {
-               ax.setLogarithmicScale(request.getYAxisLogarithmic());
+            if(request.getYAxisTitle() != null && titles.getYTitleDescriptor() != null) {
+               titles.getYTitleDescriptor().setTitleValue(request.getYAxisTitle());
             }
          }
-      }
 
-      // Legend placement
-      String note = null;
+         // Y-axis scale — applied to each bound measure's axis descriptor.
+         boolean scaleChange = request.getYAxisMin() != null || request.getYAxisMax() != null ||
+            request.getYAxisIncrement() != null || request.getYAxisLogarithmic() != null;
 
-      if(request.getLegendPosition() != null && desc != null && desc.getLegendsDescriptor() != null) {
-         int layout = legendLayout(request.getLegendPosition());
+         if(scaleChange && vsChartInfo != null && vsChartInfo.getYFields() != null) {
+            for(ChartRef yref : vsChartInfo.getYFields()) {
+               if(yref == null || yref.getAxisDescriptor() == null) {
+                  continue;
+               }
 
-         if(layout < 0) {
-            note = "Unknown legendPosition '" + request.getLegendPosition() +
-               "'; valid: none, top, right, bottom, left, in_place. Legend left unchanged.";
-         }
-         else {
-            desc.getLegendsDescriptor().setLayout(layout);
-         }
-      }
+               AxisDescriptor ax = yref.getAxisDescriptor();
 
-      // Marker visibility, shape, and size
-      if((request.getMarkerVisible() != null || request.getMarkerShape() != null
-         || request.getMarkerSize() != null) && desc != null)
-      {
-         PlotDescriptor plot = desc.getPlotDescriptor();
+               if(request.getYAxisMin() != null) {
+                  ax.setMinimum(request.getYAxisMin());
+               }
 
-         if(plot != null) {
-            if(request.getMarkerVisible() != null) {
-               plot.setPointLine(request.getMarkerVisible());
-            }
+               if(request.getYAxisMax() != null) {
+                  ax.setMaximum(request.getYAxisMax());
+               }
 
-            if(request.getMarkerShape() != null) {
-               plot.setMarkerShape(request.getMarkerShape());
-            }
+               if(request.getYAxisIncrement() != null) {
+                  ax.setIncrement(request.getYAxisIncrement());
+               }
 
-            if(request.getMarkerSize() != null) {
-               plot.setMarkerSize(request.getMarkerSize());
+               if(request.getYAxisLogarithmic() != null) {
+                  ax.setLogarithmicScale(request.getYAxisLogarithmic());
+               }
             }
          }
-      }
 
-      // Time-gap fill for line/area charts. fillTimeGap completes missing date periods (paired with
-      // the date dimension's timeSeries); fillZero=false fills with null (vs 0); fillGapWithDash
-      // chooses a dashed connector (true) vs a hard line break (false) across the null gap.
-      if((request.getFillTimeGap() != null || request.getFillZero() != null
-         || request.getFillGapWithDash() != null) && desc != null)
-      {
-         PlotDescriptor plot = desc.getPlotDescriptor();
+         // Legend placement
+         if(request.getLegendPosition() != null && desc != null && desc.getLegendsDescriptor() != null) {
+            int layout = legendLayout(request.getLegendPosition());
 
-         if(plot != null) {
-            if(request.getFillTimeGap() != null) {
-               plot.setFillTimeGap(request.getFillTimeGap());
+            if(layout < 0) {
+               note = "Unknown legendPosition '" + request.getLegendPosition() +
+                  "'; valid: none, top, right, bottom, left, in_place. Legend left unchanged.";
             }
-
-            if(request.getFillZero() != null) {
-               plot.setFillZero(request.getFillZero());
-            }
-
-            if(request.getFillGapWithDash() != null) {
-               plot.setFillGapWithDash(request.getFillGapWithDash());
+            else {
+               desc.getLegendsDescriptor().setLayout(layout);
             }
          }
+
+         // Marker visibility, shape, and size
+         if((request.getMarkerVisible() != null || request.getMarkerShape() != null
+            || request.getMarkerSize() != null) && desc != null)
+         {
+            PlotDescriptor plot = desc.getPlotDescriptor();
+
+            if(plot != null) {
+               if(request.getMarkerVisible() != null) {
+                  plot.setPointLine(request.getMarkerVisible());
+               }
+
+               if(request.getMarkerShape() != null) {
+                  plot.setMarkerShape(request.getMarkerShape());
+               }
+
+               if(request.getMarkerSize() != null) {
+                  plot.setMarkerSize(request.getMarkerSize());
+               }
+            }
+         }
+
+         // Time-gap fill for line/area charts. fillTimeGap completes missing date periods (paired with
+         // the date dimension's timeSeries); fillZero=false fills with null (vs 0); fillGapWithDash
+         // chooses a dashed connector (true) vs a hard line break (false) across the null gap.
+         if((request.getFillTimeGap() != null || request.getFillZero() != null
+            || request.getFillGapWithDash() != null) && desc != null)
+         {
+            PlotDescriptor plot = desc.getPlotDescriptor();
+
+            if(plot != null) {
+               if(request.getFillTimeGap() != null) {
+                  plot.setFillTimeGap(request.getFillTimeGap());
+               }
+
+               if(request.getFillZero() != null) {
+                  plot.setFillZero(request.getFillZero());
+               }
+
+               if(request.getFillGapWithDash() != null) {
+                  plot.setFillGapWithDash(request.getFillGapWithDash());
+               }
+            }
+         }
+
+         // Invalidate the cached runtime descriptor so the change regenerates on re-execute.
+         info.setRTChartDescriptor(null);
+
+         // The cached VGraphPair holds a reference to this same VSChartInfo, so the sandbox's
+         // staleness check (equalsContent against itself) can never detect the in-place mutation
+         // above. Clear the cached graph explicitly — mirroring VSChartDataHandler — or every
+         // subsequent render (including brand-new embed connections) serves the stale graph.
+         final String assemblyNameForGraphClear = targetAssemblyName;
+         rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(assemblyNameForGraphClear));
+
+         // Fetch BEFORE persisting: fetchAssemblyData only reads the live runtime sandbox (already
+         // mutated above), so its result doesn't depend on persist order, and keeping persistViewsheet
+         // as the LAST possibly-throwing step means the rollback below never fires once the copy has
+         // already been durably committed — after persistViewsheet succeeds, the copy is real, and
+         // rolling back the live runtime at that point would desync it from the persisted asset instead
+         // of undoing an in-progress change.
+         result = wizVsService.fetchAssemblyData(effRuntimeId, targetAssemblyName, user);
+
+         // Commit the mutation to the backing asset (the copy, when one was made — it was just added to
+         // rvs.getViewsheet() by duplicatePrimaryAssembly, so persisting here is what makes it show up in
+         // the persisted asset a later save_viewsheet call looks the assembly up from).
+         // save_viewsheet clones the assembly from the PERSISTED viewsheet (not this live runtime), so a
+         // format/color change left only on the runtime — the chart title above the plot in particular —
+         // is silently dropped on save. Mirrors how create/changeType call persistViewsheet so their
+         // changes survive a save.
+         if(request.getViewsheetIdentifier() != null) {
+            wizVsService.persistViewsheet(rvs.getViewsheet(), request.getViewsheetIdentifier(), user);
+         }
       }
+      catch(Exception e) {
+         // Mirrors WizVsService.createViewsheet's own rollback (which wraps its persistViewsheet call
+         // inside the same try/catch that undoes the assembly swap): covers the mutation-application
+         // block above AND fetchAssemblyData/persistViewsheet, since all can leave the duplicated,
+         // promoted-to-primary copy dangling and unreported if they fail before it is durably committed.
+         if(rollbackCopy != null) {
+            rvs.getViewsheet().removeAssembly(rollbackCopy.getName());
+            demotedOriginal.setPrimary(true);
+         }
 
-      // Invalidate the cached runtime descriptor so the change regenerates on re-execute.
-      info.setRTChartDescriptor(null);
-
-      // The cached VGraphPair holds a reference to this same VSChartInfo, so the sandbox's
-      // staleness check (equalsContent against itself) can never detect the in-place mutation
-      // above. Clear the cached graph explicitly — mirroring VSChartDataHandler — or every
-      // subsequent render (including brand-new embed connections) serves the stale graph.
-      rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(request.getAssemblyName()));
-
-      // Commit the in-place mutation to the backing asset. save_viewsheet clones the assembly from
-      // the PERSISTED viewsheet (not this live runtime), so a format/color change left only on the
-      // runtime — the chart title above the plot in particular — is silently dropped on save.
-      // Mirrors how create/changeType call persistViewsheet so their changes survive a save.
-      if(request.getViewsheetIdentifier() != null) {
-         wizVsService.persistViewsheet(rvs.getViewsheet(), request.getViewsheetIdentifier(), user);
+         throw e;
       }
-
-      CreateViewsheetResult result =
-         wizVsService.fetchAssemblyData(effRuntimeId, request.getAssemblyName(), user);
 
       if(result == null) {
          result = new CreateViewsheetResult();
       }
 
       result.setRuntimeId(effRuntimeId);
-      result.setAssemblyName(request.getAssemblyName());
+      result.setAssemblyName(targetAssemblyName);
 
       if(request.getViewsheetIdentifier() != null) {
          result.setViewsheetIdentifier(request.getViewsheetIdentifier());
       }
 
-      if(note != null) {
-         result.setNote(note);
+      String combinedNote = combineNotes(copyNote, note);
+
+      if(combinedNote != null) {
+         result.setNote(combinedNote);
       }
 
       return result;
+   }
+
+   /**
+    * Combines two independent, optional warning notes (e.g. a copy-fallback warning and a separate
+    * binding/legend validation warning) without either silently overwriting the other. Either or both
+    * may be null; returns null only when both are.
+    */
+   private static String combineNotes(String first, String second) {
+      if(first == null) {
+         return second;
+      }
+
+      if(second == null) {
+         return first;
+      }
+
+      return first + " " + second;
    }
 
    /** Maps a legend-position string to a {@link LegendsDescriptor} layout constant; -1 if unknown. */
@@ -2307,67 +2381,125 @@ public class WizAutoBindingService {
          throw new Exception("Chart assembly not found: " + request.getAssemblyName());
       }
 
+      String note = null;
+      String copyNote = null;
+      String targetAssemblyName = request.getAssemblyName();
+      VSAssembly demotedOriginal = null;
+      VSAssembly rollbackCopy = null;
+
+      // Copy-then-apply: duplicate the chart BEFORE applying the color change, so the original
+      // (request.getAssemblyName()) is left untouched and the requested change lands on a new,
+      // parallel copy instead. source (assembly) must already be the primary assembly — see
+      // WizVsService.duplicatePrimaryAssembly.
+      if(request.isCopy()) {
+         VSAssembly duplicated = wizVsService.duplicatePrimaryAssembly(rvs, assembly);
+
+         if(duplicated instanceof ChartVSAssembly dupChart) {
+            demotedOriginal = assembly;
+            rollbackCopy = dupChart;
+            assembly = dupChart;
+            chart = dupChart;
+            targetAssemblyName = dupChart.getName();
+         }
+         else {
+            copyNote = "Copy requested but could not be created; colors applied in place.";
+            LOG.warn("setChartColors: duplicatePrimaryAssembly failed for {}; falling back to in-place apply.",
+               request.getAssemblyName());
+         }
+      }
+
       var info = chart.getChartInfo();
       VSChartInfo vsChartInfo = info.getVSChartInfo();
       AestheticRef colorField = vsChartInfo == null ? null : vsChartInfo.getColorField();
-      String note = null;
+      CreateViewsheetResult result;
 
-      if(colorField == null || colorField.getDataRef() == null) {
-         if(request.getStaticColor() != null) {
-            if(vsChartInfo == null) {
-               note = "Chart has no binding info; static color could not be applied.";
+      // The copy (when one was made) has already been added to rvs.getViewsheet() and marked primary —
+      // demotedOriginal/rollbackCopy stay non-null only in that case. Nothing through persistViewsheet
+      // below is durably committed until persistViewsheet itself returns, so a thrown exception (e.g.
+      // ColorPalettes.getPalette / parseColor rejecting bad input) anywhere in this block must undo that
+      // live-runtime mutation (remove the copy, restore the original's primary flag) rather than leave
+      // the runtime viewsheet with an added/promoted copy the caller never learns about.
+      try {
+         if(colorField == null || colorField.getDataRef() == null) {
+            if(request.getStaticColor() != null) {
+               if(vsChartInfo == null) {
+                  note = "Chart has no binding info; static color could not be applied.";
+               }
+               else {
+                  applyStaticColor(vsChartInfo, parseColor(request.getStaticColor()));
+               }
             }
-            else {
-               applyStaticColor(vsChartInfo, parseColor(request.getStaticColor()));
+
+            if(request.getPaletteName() != null || request.getColorList() != null ||
+               request.getCategoryColors() != null)
+            {
+               note = "This chart has no color dimension, so a palette/per-category colors can't apply. " +
+                  "Recreate with a dimension on the color aesthetic (fieldConfigs/explicitBindings), or use staticColor.";
             }
          }
+         else if(colorField.getDataRef() instanceof VSChartAggregateRef) {
+            note = applyGradient(colorField, request);
+         }
+         else {
+            note = applyCategoricalColors(colorField, request);
+         }
 
-         if(request.getPaletteName() != null || request.getColorList() != null ||
-            request.getCategoryColors() != null)
-         {
-            note = "This chart has no color dimension, so a palette/per-category colors can't apply. " +
-               "Recreate with a dimension on the color aesthetic (fieldConfigs/explicitBindings), or use staticColor.";
+         info.setRTChartDescriptor(null);
+
+         // The cached VGraphPair holds a reference to this same VSChartInfo, so the sandbox's
+         // staleness check (equalsContent against itself) can never detect the in-place mutation
+         // above. Clear the cached graph explicitly — mirroring VSChartDataHandler — or every
+         // subsequent render (including brand-new embed connections) serves the stale graph.
+         final String assemblyNameForGraphClear = targetAssemblyName;
+         rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(assemblyNameForGraphClear));
+
+         // Fetch BEFORE persisting: fetchAssemblyData only reads the live runtime sandbox (already
+         // mutated above), so its result doesn't depend on persist order, and keeping persistViewsheet
+         // as the LAST possibly-throwing step means the rollback below never fires once the copy has
+         // already been durably committed — after persistViewsheet succeeds, the copy is real, and
+         // rolling back the live runtime at that point would desync it from the persisted asset instead
+         // of undoing an in-progress change.
+         result = wizVsService.fetchAssemblyData(effRuntimeId, targetAssemblyName, user);
+
+         // Commit the mutation to the backing asset (the copy, when one was made — it was just added to
+         // rvs.getViewsheet() by duplicatePrimaryAssembly, so persisting here is what makes it show up in
+         // the persisted asset a later save_viewsheet call looks the assembly up from).
+         // save_viewsheet clones the assembly from the PERSISTED viewsheet (not this live runtime), so a
+         // format/color change left only on the runtime — the chart title above the plot in particular —
+         // is silently dropped on save. Mirrors how create/changeType call persistViewsheet so their
+         // changes survive a save.
+         if(request.getViewsheetIdentifier() != null) {
+            wizVsService.persistViewsheet(rvs.getViewsheet(), request.getViewsheetIdentifier(), user);
          }
       }
-      else if(colorField.getDataRef() instanceof VSChartAggregateRef) {
-         note = applyGradient(colorField, request);
+      catch(Exception e) {
+         // Mirrors WizVsService.createViewsheet's own rollback (which wraps its persistViewsheet call
+         // inside the same try/catch that undoes the assembly swap): covers the mutation-application
+         // block above AND fetchAssemblyData/persistViewsheet, since all can leave the duplicated,
+         // promoted-to-primary copy dangling and unreported if they fail before it is durably committed.
+         if(rollbackCopy != null) {
+            rvs.getViewsheet().removeAssembly(rollbackCopy.getName());
+            demotedOriginal.setPrimary(true);
+         }
+
+         throw e;
       }
-      else {
-         note = applyCategoricalColors(colorField, request);
-      }
-
-      info.setRTChartDescriptor(null);
-
-      // The cached VGraphPair holds a reference to this same VSChartInfo, so the sandbox's
-      // staleness check (equalsContent against itself) can never detect the in-place mutation
-      // above. Clear the cached graph explicitly — mirroring VSChartDataHandler — or every
-      // subsequent render (including brand-new embed connections) serves the stale graph.
-      rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(request.getAssemblyName()));
-
-      // Commit the in-place mutation to the backing asset. save_viewsheet clones the assembly from
-      // the PERSISTED viewsheet (not this live runtime), so a format/color change left only on the
-      // runtime — the chart title above the plot in particular — is silently dropped on save.
-      // Mirrors how create/changeType call persistViewsheet so their changes survive a save.
-      if(request.getViewsheetIdentifier() != null) {
-         wizVsService.persistViewsheet(rvs.getViewsheet(), request.getViewsheetIdentifier(), user);
-      }
-
-      CreateViewsheetResult result =
-         wizVsService.fetchAssemblyData(effRuntimeId, request.getAssemblyName(), user);
 
       if(result == null) {
          result = new CreateViewsheetResult();
       }
 
       result.setRuntimeId(effRuntimeId);
-      result.setAssemblyName(request.getAssemblyName());
+      result.setAssemblyName(targetAssemblyName);
 
       if(request.getViewsheetIdentifier() != null) {
          result.setViewsheetIdentifier(request.getViewsheetIdentifier());
       }
 
-      if(note != null) {
-         result.setNote(note);
+      String combinedNote = combineNotes(copyNote, note);
+
+      if(combinedNote != null) {
+         result.setNote(combinedNote);
       }
 
       return result;
