@@ -495,8 +495,12 @@ public class ConditionListHandler {
       // real backing column, so their reported sql type defaults to VARCHAR even though
       // the generated SQL evaluates to a number. Coercing the boolean value to a string
       // in that case produces a type mismatch against the numeric expression (e.g. Oracle
-      // ORA-00932), so leave boolean values as-is rather than stringifying them.
-      if(condValue instanceof Boolean && sql_type == Types.VARCHAR) {
+      // ORA-00932), so leave boolean values as-is rather than stringifying them. Scoped to
+      // expression-backed fields only (XExpression.EXPRESSION) so a real VARCHAR column
+      // filtered with a Boolean value is unaffected and keeps its existing string coercion.
+      if(condValue instanceof Boolean && sql_type == Types.VARCHAR &&
+         XExpression.EXPRESSION.equals(field.getType()))
+      {
          return condValue;
       }
 
