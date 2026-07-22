@@ -45,21 +45,21 @@ export class SelectionListActions extends AbstractVSActions<VSSelectionListModel
          {
             id: () => "selection-list properties",
             label: () => "_#(js:Properties)...",
-            icon: () => "fa fa-sliders",
+            icon: () => "setting-icon",
             enabled: () => true,
             visible: () => this.composer && !this.model.adhocFilter
          },
          {
             id: () => "selection-list show-format-pane",
             label: () => "_#(js:Format)...",
-            icon: () => "fa fa-format",
+            icon: () => "format-icon",
             enabled: () => true,
             visible: () => this.composer && !this.model.adhocFilter
          },
          {
             id: () => "selection-list convert-to-range-slider",
             label: () => "_#(js:Convert to Range Slider)",
-            icon: () => "fa fa-calculator",
+            icon: () => "range-slider-icon",
             enabled: () => true,
             visible: () => this.composer && !this.model.adhocFilter && this.inSelectionContainer
          }
@@ -69,7 +69,7 @@ export class SelectionListActions extends AbstractVSActions<VSSelectionListModel
          {
             id: () => "selection-list select-all",
             label: () => "_#(js:Select All)",
-            icon: () => "fa fa-trash",
+            icon: () => "column-select-icon",
             enabled: () => true,
             visible: () => !this.model.singleSelection &&
                SelectionListActions.isSelectAllVisible(this.model.selectionList) &&
@@ -81,14 +81,14 @@ export class SelectionListActions extends AbstractVSActions<VSSelectionListModel
          {
             id: () => "vs-object remove",
             label: () => "_#(js:Remove)",
-            icon: () => "fa fa-trash",
+            icon: () => "trash-icon",
             enabled: () => true,
             visible: () => this.composer && this.inSelectionContainer && !this.model.adhocFilter
          },
          {
             id: () => "selection-list viewer-remove-from-container",
             label: () => "_#(js:Remove)",
-            icon: () => "fa fa-trash",
+            icon: () => "trash-icon",
             enabled: () => true,
             visible: () => (this.preview || this.viewer)
                            && this.model.supportRemoveChild
