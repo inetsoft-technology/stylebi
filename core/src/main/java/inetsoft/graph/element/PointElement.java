@@ -46,6 +46,13 @@ public class PointElement extends StackableElement {
    public static final String HINT_GANTT_MILESTONE = "gantt_milestone";
 
    /**
+    * Hint marking this point element as the outlier markers of a box plot; the value is
+    * {@code "true"} when set, absent otherwise. Used so the SVG entrance animation stamps a
+    * shared data-group key on the points and fades them in together with their box/whisker.
+    */
+   public static final String HINT_BOXPLOT_OUTLIER = "boxplot_outlier";
+
+   /**
     * Create an empty element. Dims and vars must be added explicitly.
     */
    public PointElement() {

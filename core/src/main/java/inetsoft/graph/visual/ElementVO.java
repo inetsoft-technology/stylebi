@@ -20,6 +20,7 @@ package inetsoft.graph.visual;
 import inetsoft.graph.*;
 import inetsoft.graph.coord.Coordinate;
 import inetsoft.graph.coord.RectCoord;
+import inetsoft.graph.data.DataSet;
 import inetsoft.graph.element.GraphElement;
 import inetsoft.graph.geometry.ElementGeometry;
 import inetsoft.graph.geometry.Geometry;
@@ -206,6 +207,53 @@ public abstract class ElementVO extends VisualObject {
     */
    public void setSubRowIndexes(int[] subridxs) {
       this.subridxs = subridxs;
+   }
+
+   /**
+    * Get the group key identifying which data group (dimension tuple) this VO belongs to,
+    * or {@code null} if none was assigned.  Used to fade box-plot boxes/whiskers and their
+    * outlier points in together as one group (see the box-plot animation injector).
+    */
+   public String getGroupKey() {
+      return groupKey;
+   }
+
+   /**
+    * Set the group key identifying this VO's data group.
+    */
+   public void setGroupKey(String groupKey) {
+      this.groupKey = groupKey;
+   }
+
+   /**
+    * Compute a group key from a row's grouping-dimension values.  VOs sharing the same
+    * dimension values (e.g. a box-plot box and the outlier points over it, which carry the
+    * same grouping dims in {@link inetsoft.graph.data.BoxDataSet}) produce an identical key,
+    * so downstream code can tie them together without relying on screen geometry.
+    *
+    * @return the joined dimension values, or {@code null} when no usable dims/data exist.
+    */
+   protected static String computeGroupKey(DataSet data, int subRowIndex, String[] dims) {
+      if(data == null || dims == null || dims.length == 0 || subRowIndex < 0) {
+         return null;
+      }
+
+      StringBuilder key = new StringBuilder();
+
+      for(String dim : dims) {
+         int col = data.indexOfHeader(dim);
+         Object val = col >= 0 ? data.getData(col, subRowIndex) : null;
+
+         if(key.length() > 0) {
+            // 0x1F unit separator cannot occur inside a data value, so the joined key of two
+            // distinct dimension tuples can never collide.
+            key.append('\u001F');
+         }
+
+         key.append(val);
+      }
+
+      return key.toString();
    }
 
    /**
@@ -462,4 +510,5 @@ public abstract class ElementVO extends VisualObject {
    private int[] subridxs;
    private String mname;
    private int cidx;
+   private String groupKey; // data group (dimension tuple) this VO belongs to; null if unused
 }

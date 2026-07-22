@@ -32,6 +32,7 @@ import inetsoft.util.graphics.SVGSupport;
 
 import java.awt.*;
 import java.awt.geom.*;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -68,6 +69,12 @@ public class SchemaVO extends ElementVO {
          vtext.setAlignmentX(GraphConstants.CENTER_ALIGNMENT);
          vtext.setAlignmentY(GraphConstants.MIDDLE_ALIGNMENT);
       }
+
+      // For a box plot, tag this box/whisker with its data group so the entrance animation
+      // can fade it in together with the outlier points over it. (75643)
+      if(painter instanceof BoxPainter) {
+         setGroupKey(computeGroupKey(coord.getDataSet(), geom.getSubRowIndex(), elem.getDims()));
+      }
    }
 
    /**
@@ -95,11 +102,16 @@ public class SchemaVO extends ElementVO {
       if(svg != null) {
          double screenCx = painter.getShape(0).getBounds2D().getCenterX();
          String annotClass = isBoxPlot() ? SVGSupport.ANNOTATION_BOX : SVGSupport.ANNOTATION_CANDLE;
-         svg.beginAnnotationGroup(g0, annotClass, Map.of(
-            SVGSupport.ATTR_COL, String.valueOf(getColIndex()),
-            SVGSupport.ATTR_ROW, String.valueOf(getRowIndex()),
-            SVGSupport.ATTR_X,   String.format(java.util.Locale.US, "%.1f", screenCx)
-         ));
+         Map<String, String> annotAttrs = new HashMap<>();
+         annotAttrs.put(SVGSupport.ATTR_COL, String.valueOf(getColIndex()));
+         annotAttrs.put(SVGSupport.ATTR_ROW, String.valueOf(getRowIndex()));
+         annotAttrs.put(SVGSupport.ATTR_X,   String.format(java.util.Locale.US, "%.1f", screenCx));
+
+         if(getGroupKey() != null) {
+            annotAttrs.put(SVGSupport.ATTR_GROUP, getGroupKey());
+         }
+
+         svg.beginAnnotationGroup(g0, annotClass, annotAttrs);
       }
 
       try {
