@@ -1049,7 +1049,9 @@ public class WizVsService {
          final VSAssembly assembly;
          // Tracks the assembly displaced from primary in the standard path; restored on rollback.
          VSAssembly previousPrimaryAssembly = null;
-         // In modificationOnly (in-place filter), the assembly's prior condition, restored on rollback.
+         // In modificationOnly (in-place filter, no copy), the assembly's prior condition, restored
+         // on rollback. Not used when a copy was made (rollbackCopy below) — undoing that means
+         // removing the whole copy, not restoring a condition on it.
          ConditionList previousCondition = null;
          // Only relevant for the incremental standard path (non-null when base entry may be mutated).
          AssetEntry previousBaseEntry = null;
@@ -1057,6 +1059,11 @@ public class WizVsService {
             && model.getConditionModel() != null;
          // Track the worksheet table name for aggregate condition handling
          String wsTableName = null;
+         // Copy-then-apply (modificationOnly only): mirrors setChartFormat/setChartColors/
+         // applyHighlight's rollback-on-failure bookkeeping.
+         String copyNote = null;
+         VSAssembly demotedOriginal = null;
+         VSAssembly rollbackCopy = null;
 
          if(modificationOnly) {
             targetVs = vs;
@@ -1066,20 +1073,48 @@ public class WizVsService {
                throw new IllegalStateException("No primary assembly found in viewsheet for modification");
             }
 
-            // Get the worksheet table name from the source assembly's source info
-            if(sourceAssembly instanceof DataVSAssembly dataAsm) {
-               SourceInfo srcInfo = dataAsm.getSourceInfo();
-               wsTableName = srcInfo != null ? srcInfo.getSource() : null;
-               // Snapshot the existing condition so a failure can roll back the in-place change.
-               previousCondition = dataAsm.getPreConditionList() != null
-                  ? dataAsm.getPreConditionList().clone() : null;
+            VSAssembly modAssembly = sourceAssembly;
+
+            // Copy-then-apply: duplicate the current primary BEFORE applying the condition, so the
+            // original is left untouched and the filter lands on a new, parallel copy instead.
+            // Reuses the same duplicatePrimaryAssembly the chart color/format/highlight paths use —
+            // sourceAssembly is guaranteed primary here (that's how findPrimaryAssembly found it), so
+            // duplicatePrimaryAssembly's precondition is always satisfied.
+            if(model.isCopy()) {
+               VSAssembly duplicated = duplicatePrimaryAssembly(rvs, sourceAssembly);
+
+               if(duplicated != null) {
+                  demotedOriginal = sourceAssembly;
+                  rollbackCopy = duplicated;
+                  modAssembly = duplicated;
+               }
+               else {
+                  copyNote = "Copy requested but could not be created; filter applied in place.";
+                  LOG.warn("createViewsheetInternal (modificationOnly): duplicatePrimaryAssembly " +
+                     "failed for {}; falling back to in-place apply.", sourceAssembly.getName());
+               }
             }
 
-            // Apply the filter to the EXISTING primary assembly in place — keep its name and
-            // identity. Copying to a unique "<name>_1" assembly (the old behavior) broke
-            // save_viewsheet: save loads the persisted viewsheet and looks the assembly up by name,
-            // so it never found the renamed copy, and every filter call churned a new assembly.
-            assembly = sourceAssembly;
+            assembly = modAssembly;
+
+            // Get the worksheet table name from the target assembly's source info.
+            if(assembly instanceof DataVSAssembly dataAsm) {
+               SourceInfo srcInfo = dataAsm.getSourceInfo();
+               wsTableName = srcInfo != null ? srcInfo.getSource() : null;
+
+               // Only relevant when mutating in place (no copy): a copy's rollback removes the whole
+               // duplicate instead, so there is no prior condition on IT to snapshot.
+               if(rollbackCopy == null) {
+                  // Apply the filter to the EXISTING primary assembly in place — keep its name and
+                  // identity. Copying to a unique "<name>_1" assembly (the old, unconditional
+                  // behavior) broke save_viewsheet: save loads the persisted viewsheet and looks the
+                  // assembly up by name, so it never found the renamed copy, and every filter call
+                  // churned a new assembly. Snapshot the existing condition so a failure can roll
+                  // back the in-place change.
+                  previousCondition = dataAsm.getPreConditionList() != null
+                     ? dataAsm.getPreConditionList().clone() : null;
+               }
+            }
          }
          else {
             SourceContext ctx = resolveSourceContext(model, user);
@@ -1359,6 +1394,10 @@ public class WizVsService {
             String identifierToUse = model.getViewsheetIdentifier();
             result.setViewsheetIdentifier(persistViewsheet(targetVs, identifierToUse, user));
 
+            if(copyNote != null) {
+               result.setNote(copyNote);
+            }
+
             return result;
          }
          catch(Exception e) {
@@ -1378,9 +1417,17 @@ public class WizVsService {
 
             if(!createdRuntimeId) {
                if(modificationOnly) {
-                  // In-place filter: restore the assembly's prior condition rather than removing
-                  // the (existing) assembly, which was mutated, not added, this call.
-                  if(assembly instanceof DataVSAssembly dataAsm) {
+                  if(rollbackCopy != null) {
+                     // A copy was made for this call; undo it — remove the duplicate and restore the
+                     // original as primary. The original's condition was never touched, so there is
+                     // nothing to restore on it (mirrors setChartFormat/setChartColors/applyHighlight's
+                     // identical copy rollback).
+                     previousVs.removeAssembly(rollbackCopy.getName());
+                     demotedOriginal.setPrimary(true);
+                  }
+                  else if(assembly instanceof DataVSAssembly dataAsm) {
+                     // No copy — assembly IS the original, mutated in place; restore its prior
+                     // condition rather than removing it (it was mutated, not added, this call).
                      dataAsm.setPreConditionList(previousCondition);
                   }
                }
