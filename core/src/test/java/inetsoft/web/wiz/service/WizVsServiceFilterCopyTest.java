@@ -49,6 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -195,6 +196,25 @@ class WizVsServiceFilterCopyTest {
       // re-promoted to primary.
       verify(vs).removeAssembly("vs_1_copy1");
       verify(assembly).setPrimary(true);
+   }
+
+   @Test
+   void copySucceedsButExecuteAndExtractThrowsRollsBackTheDuplicate() throws Exception {
+      // executeAndExtract runs BEFORE persistViewsheet specifically so that, at the point this throws,
+      // nothing has been durably committed yet — the rollback below is always safe to perform. Mirrors
+      // WizVsServiceApplyHighlightCopyTest.copySucceedsButExecuteAndExtractThrowsRollsBackTheDuplicate.
+      ChartVSAssembly copy = mock(ChartVSAssembly.class);
+      when(copy.getName()).thenReturn("vs_1_copy1");
+
+      doReturn(copy).when(service).duplicatePrimaryAssembly(rvs, assembly);
+      doThrow(new RuntimeException("sandbox execution failed"))
+         .when(service).executeAndExtract(any(), eq(copy), anyInt());
+
+      assertThrows(RuntimeException.class, () -> service.createViewsheet(request(true), user));
+
+      verify(vs).removeAssembly("vs_1_copy1");
+      verify(assembly).setPrimary(true);
+      verify(service, never()).persistViewsheet(any(), any(), any());
    }
 
    @Test
