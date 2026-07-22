@@ -90,16 +90,16 @@ export abstract class BaseTableActions<T extends BaseTableModel> extends Abstrac
 
       switch(sortValue) {
       case XConstants.SORT_ASC:
-         icon = "sort-asc-icon";
+         icon = "sort-ascending-icon";
          break;
       case XConstants.SORT_DESC:
-         icon = "sort-desc-icon";
+         icon = "sort-descending-icon";
          break;
       case XConstants.SORT_VALUE_ASC:
-         icon = "sort-val-asc-icon";
+         icon = "sort-value-ascending-icon";
          break;
       case XConstants.SORT_VALUE_DESC:
-         icon = "sort-val-desc-icon";
+         icon = "sort-value-descending-icon";
          break;
       default:
          icon = "sort-icon";
