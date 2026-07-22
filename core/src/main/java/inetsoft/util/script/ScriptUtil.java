@@ -63,6 +63,22 @@ public class ScriptUtil {
          return ((inetsoft.report.script.TableArray) obj).unwrap();
       }
 
+      // Likewise for a CalcRef (the calc-table $name cell reference). It too was
+      // a Rhino Scriptable/Wrapper whose getDefaultValue() coerced it to its
+      // referenced cell value whenever host code consumed it as data. Under
+      // GraalJS the guest->host boundary (ScriptValueConverter.toHost) preserves
+      // the live CalcRef so indexing/spec access ($name['*'], $name[-1]) still
+      // works, but host utilities that treat a value as plain data (JSObject
+      // .split/convert/splitN, called from CALC aggregates like sum($x)/
+      // nthLargest($x)) go through this unwrap first. Resolve it here to its
+      // referenced value (a scalar or an Object[] of cell values) so those
+      // utilities see real data instead of falling back to Object.toString()
+      // (which produced "...CalcRef@<hash>" for a bare ref and 0 for numeric
+      // aggregates). (#75738)
+      if(obj instanceof inetsoft.report.script.formula.CalcRef) {
+         return ((inetsoft.report.script.formula.CalcRef) obj).unwrap();
+      }
+
       // @by larryl, if a calculation generates an invalid result, show null
       // instead of NaN of Infinity. This can be caused by performing a time
       // series comparison and the result fo the first or last item would

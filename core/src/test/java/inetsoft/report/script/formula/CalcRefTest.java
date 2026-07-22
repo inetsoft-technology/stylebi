@@ -222,6 +222,69 @@ public class CalcRefTest {
    }
 
 
+   /**
+    * Bug #75738: when a $name reference is consumed as plain data by host
+    * utilities (JSObject.split/splitN, called from CALC aggregates such as
+    * sum($x)/nthLargest($x)), ScriptUtil.unwrap must resolve the live CalcRef to
+    * its referenced scalar value instead of leaving the wrapper to fall back to
+    * Object.toString() (which produced "...CalcRef@<hash>" and 0).
+    */
+   @Test
+   void testScriptUtilUnwrapScalarRef() {
+      FormulaContext.pushCellLocation(point0);
+
+      try {
+         when(mockRuntimeCalcTableLens.getCellContext(0, 0)).thenReturn(mockContext);
+         provideMockGroup(mockContext, "cell1", 1, 42.0);
+
+         calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
+
+         assertEquals(42.0, inetsoft.util.script.ScriptUtil.unwrap(calcRef));
+         // split() string-splits a scalar (Tool.split), so a numeric ref reads
+         // back as its string form; splitN then parses it to the real number so
+         // numeric aggregates (sum/average/...) compute correctly.
+         assertArrayEquals(new Object[] { "42.0" },
+                           inetsoft.util.script.JSObject.split(calcRef));
+         assertArrayEquals(new double[] { 42.0 },
+                           inetsoft.util.script.JSObject.splitN(calcRef));
+      }
+      finally {
+         FormulaContext.popCellLocation();
+      }
+   }
+
+   /**
+    * Bug #75738: an array-valued group reference (multiple cell locations) must
+    * unwrap to the underlying Object[] of cell values, so JSObject.split/splitN
+    * see real data. This is the case the issue's proposed CalcRef.toString()
+    * fix would have broken (String.valueOf(Object[]) yields "[Ljava...@<hash>").
+    */
+   @Test
+   void testScriptUtilUnwrapArrayRef() {
+      FormulaContext.pushCellLocation(point0);
+
+      try {
+         when(mockRuntimeCalcTableLens.getCellContext(0, 0)).thenReturn(mockContext);
+         // group == null so unwrap() falls to the cmap multi-location branch
+         when(mockContext.getGroup("cell1")).thenReturn(null);
+         CalcCellMap mockCalcCellMap = provideMockCalcCellMap("cell1", new Point[] { point0, point1 });
+         when(mockRuntimeCalcTableLens.getObject(0, 0)).thenReturn(100.0);
+         when(mockRuntimeCalcTableLens.getObject(1, 0)).thenReturn(200.0);
+
+         calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
+
+         assertArrayEquals(new Object[] { 100.0, 200.0 },
+                           (Object[]) inetsoft.util.script.ScriptUtil.unwrap(calcRef));
+         assertArrayEquals(new Object[] { 100.0, 200.0 },
+                           inetsoft.util.script.JSObject.split(calcRef));
+         assertArrayEquals(new double[] { 100.0, 200.0 },
+                           inetsoft.util.script.JSObject.splitN(calcRef));
+      }
+      finally {
+         FormulaContext.popCellLocation();
+      }
+   }
+
    private CalcCellMap provideMockCalcCellMap(String cellName, Point[] points) {
       CalcCellMap mockCalcCellMap = mock(CalcCellMap.class);
       when(mockRuntimeCalcTableLens.getCalcCellMap()).thenReturn(mockCalcCellMap);
