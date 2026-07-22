@@ -124,12 +124,42 @@ public class AdminExceptionHandler {
       Throwable cause = e.getCause();
 
       if(cause instanceof SecurityException) {
-         LOG.debug("Access denied for resource", cause);
-         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new GenericError(cause));
+         return accessDenied(cause);
       }
 
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
          .body(handleGenericException(e));
+   }
+
+   /**
+    * Error handler for access denied. The {@link inetsoft.web.security.SecuredAspect} throws an unchecked
+    * {@link java.lang.SecurityException} when authorization fails; because it is unchecked,
+    * Spring AOP propagates it directly (unlike the checked {@link SecurityException} handled by
+    * {@link #handleUndeclaredThrowable(UndeclaredThrowableException)}). Map it to a sanitized 403
+    * so that authorization failures are not reported as server errors and no principal, role,
+    * group, or organization details are exposed to the client.
+    */
+   @ExceptionHandler(java.lang.SecurityException.class)
+   @ResponseBody
+   @ApiResponses({
+      @ApiResponse(
+         responseCode = "403",
+         description = "Access was denied because the user does not have the required permissions.")
+   })
+   public ResponseEntity<GenericError> handleAccessDenied(java.lang.SecurityException e) {
+      return accessDenied(e);
+   }
+
+   /**
+    * Builds a sanitized 403 response for an authorization denial. The exception is logged at
+    * debug level and the client receives a generic, localized message so that no principal,
+    * role, group, or organization details are exposed.
+    */
+   private ResponseEntity<GenericError> accessDenied(Throwable cause) {
+      LOG.debug("Access denied for resource", cause);
+      String msg = Catalog.getCatalog().getString("http.error.unauthorized");
+      return ResponseEntity.status(HttpStatus.FORBIDDEN)
+         .body(new GenericError(cause.getClass().getSimpleName(), msg));
    }
 
    /**
