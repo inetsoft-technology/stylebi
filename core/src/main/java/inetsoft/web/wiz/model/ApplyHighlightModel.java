@@ -26,7 +26,7 @@ import java.util.List;
  * Request body for {@code POST /api/wiz/viewsheet/highlight}.
  *
  * <p>The wiz-services caller POSTs:
- * {@code { runtimeId, viewsheetIdentifier?, assemblyName?, sampleMaxRows?,
+ * {@code { runtimeId, viewsheetIdentifier?, assemblyName?, copy?, sampleMaxRows?,
  * highlightModel: { highlights: [ { name, field?, foreground?, background?, applyArea?, applyRow?,
  * fontInfo?, conditions: ConditionNode[] } ] } } }.
  *
@@ -55,6 +55,18 @@ public class ApplyHighlightModel {
       this.assemblyName = assemblyName;
    }
 
+   /** When true, duplicate the target assembly first and apply the highlight to the COPY instead of
+    *  mutating {@link #assemblyName} in place — the original chart is left untouched. Mirrors
+    *  {@code ChartColorsRequest}/{@code ChartFormatRequest}'s {@code copy} flag. Default false
+    *  (in-place, the existing behavior). */
+   public boolean isCopy() {
+      return copy;
+   }
+
+   public void setCopy(boolean copy) {
+      this.copy = copy;
+   }
+
    public String getViewsheetIdentifier() {
       return viewsheetIdentifier;
    }
@@ -81,6 +93,7 @@ public class ApplyHighlightModel {
 
    private String runtimeId;
    private String assemblyName;
+   private boolean copy;
    private String viewsheetIdentifier;
    private HighlightModel highlightModel;
    private Integer sampleMaxRows;

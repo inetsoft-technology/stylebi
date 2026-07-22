@@ -207,6 +207,31 @@ public class WizVsService {
       boolean restored = !Objects.equals(runtimeId, rvs.getID());
       Viewsheet vs = getValidatedViewsheet(rvs);
       VSAssembly assembly = resolveTargetAssembly(vs, model.getAssemblyName());
+
+      String copyNote = null;
+      VSAssembly demotedOriginal = null;
+      VSAssembly rollbackCopy = null;
+
+      // Copy-then-apply: mirrors WizAutoBindingService.setChartFormat/setChartColors — duplicate the
+      // target BEFORE applying the highlight, so the original is left untouched and the highlight lands
+      // on a new, parallel copy instead. Reuses the same duplicatePrimaryAssembly this class already
+      // exposes for the chart color/format paths; no assembly-type-specific logic is needed here since
+      // ASSEMBLY_FACTORIES already covers chart/crosstab/table/output.
+      if(model.isCopy()) {
+         VSAssembly duplicated = duplicatePrimaryAssembly(rvs, assembly);
+
+         if(duplicated != null) {
+            demotedOriginal = assembly;
+            rollbackCopy = duplicated;
+            assembly = duplicated;
+         }
+         else {
+            copyNote = "Copy requested but could not be created; highlight applied in place.";
+            LOG.warn("applyHighlight: duplicatePrimaryAssembly failed for {}; falling back to in-place apply.",
+               model.getAssemblyName());
+         }
+      }
+
       VSAssemblyInfo assemblyInfo = assembly.getVSAssemblyInfo();
 
       // Resolve the assembly's candidate condition fields so condition values are coerced to each
@@ -214,44 +239,53 @@ public class WizVsService {
       ColumnSelection columns = assembly instanceof DataVSAssembly dataAssembly
          ? VSUtil.getBaseColumns(dataAssembly, true) : null;
 
-      if(assemblyInfo instanceof ChartVSAssemblyInfo chartAssemblyInfo) {
-         VSChartInfo chartInfo = chartAssemblyInfo.getVSChartInfo();
+      CreateViewsheetResult result;
 
-         // A chart colors its marks/labels from the highlight group on each binding ref that is a
-         // HighlightRef — every dimension (VSChartDimensionRef) AND measure (VSChartAggregateRef)
-         // implements HighlightRef, so ALL binding columns are highlightable, not just measures.
-         // GraphGenerator.getHighlightRefs() collects any HighlightRef whose group is non-null, and
-         // HLColorFrame is keyed by each ref's FULL name so a dimension's group colors that dimension's
-         // marks (e.g. word cloud, treemap) while it is a harmless no-op on a chart whose visual field
-         // is the measure. Attach on the DESIGN refs (getBindingRefs(false)); clearRuntime()/executeView
-         // regenerate the runtime refs as clones that carry the group, so it survives the re-render.
-         List<HighlightRef> highlightRefs = new ArrayList<>();
-         boolean wordCloud = GraphTypeUtil.isWordCloud(chartInfo);
+      // The copy (when one was made) has already been added to rvs.getViewsheet() and marked primary —
+      // demotedOriginal/rollbackCopy stay non-null only in that case. Nothing through persistViewsheet
+      // below is durably committed until persistViewsheet itself returns, so a thrown exception anywhere
+      // in this block must undo that live-runtime mutation (remove the copy, restore the original's
+      // primary flag) rather than leave the runtime viewsheet with an added/promoted copy the caller
+      // never learns about. Mirrors setChartFormat/setChartColors' identical rollback.
+      try {
+         if(assemblyInfo instanceof ChartVSAssemblyInfo chartAssemblyInfo) {
+            VSChartInfo chartInfo = chartAssemblyInfo.getVSChartInfo();
 
-         for(ChartRef ref : chartInfo.getBindingRefs(false)) {
-            if(ref instanceof HighlightRef hlRef) {
-               highlightRefs.add(hlRef);
+            // A chart colors its marks/labels from the highlight group on each binding ref that is a
+            // HighlightRef — every dimension (VSChartDimensionRef) AND measure (VSChartAggregateRef)
+            // implements HighlightRef, so ALL binding columns are highlightable, not just measures.
+            // GraphGenerator.getHighlightRefs() collects any HighlightRef whose group is non-null, and
+            // HLColorFrame is keyed by each ref's FULL name so a dimension's group colors that dimension's
+            // marks (e.g. word cloud, treemap) while it is a harmless no-op on a chart whose visual field
+            // is the measure. Attach on the DESIGN refs (getBindingRefs(false)); clearRuntime()/executeView
+            // regenerate the runtime refs as clones that carry the group, so it survives the re-render.
+            List<HighlightRef> highlightRefs = new ArrayList<>();
+            boolean wordCloud = GraphTypeUtil.isWordCloud(chartInfo);
+
+            for(ChartRef ref : chartInfo.getBindingRefs(false)) {
+               if(ref instanceof HighlightRef hlRef) {
+                  highlightRefs.add(hlRef);
+               }
             }
-         }
 
-         // A word cloud has no X/Y measure — its highlightable field is the TEXT aesthetic, which is
-         // NOT part of getBindingRefs(). GraphGenerator.getHighlightRefs() reads info.getTextField()
-         // for word clouds, so include it here to keep them highlightable like every other chart type.
-         if(wordCloud) {
-            AestheticRef textField = chartInfo.getTextField();
+            // A word cloud has no X/Y measure — its highlightable field is the TEXT aesthetic, which is
+            // NOT part of getBindingRefs(). GraphGenerator.getHighlightRefs() reads info.getTextField()
+            // for word clouds, so include it here to keep them highlightable like every other chart type.
+            if(wordCloud) {
+               AestheticRef textField = chartInfo.getTextField();
 
-            if(textField != null && textField.getDataRef() instanceof HighlightRef hlRef &&
-               !highlightRefs.contains(hlRef))
-            {
-               highlightRefs.add(hlRef);
+               if(textField != null && textField.getDataRef() instanceof HighlightRef hlRef &&
+                  !highlightRefs.contains(hlRef))
+               {
+                  highlightRefs.add(hlRef);
+               }
             }
-         }
 
-         // REPLACE semantics: clear any existing highlight on every ref first.
-         for(HighlightRef hlRef : highlightRefs) {
-            hlRef.setHighlightGroup(null);
-            hlRef.setTextHighlightGroup(null);
-         }
+            // REPLACE semantics: clear any existing highlight on every ref first.
+            for(HighlightRef hlRef : highlightRefs) {
+               hlRef.setHighlightGroup(null);
+               hlRef.setTextHighlightGroup(null);
+            }
 
          // A rule with applyArea=dataLabel styles the labels (text highlight); otherwise the marks (point
          // highlight). The color frame is keyed per ref, so apply each rule to every ref — each field's
@@ -318,72 +352,88 @@ public class WizVsService {
 
          // Drop cached runtime refs so the next executeView regenerates them (as clones carrying the group).
          chartInfo.clearRuntime();
-      }
-      else if(assemblyInfo instanceof TextVSAssemblyInfo textInfo) {
-         // A text output evaluates a highlight against its single scalar value
-         // (OutputVSAssemblyInfo.updateHighlight -> HighlightGroup.findGroup(value)), which ignores the
-         // condition field NAME entirely. The standard highlight dialog therefore exposes exactly ONE field —
-         // the canonical "value" ref (see HighlightDialogService) — so the dropdown only ever shows "Value".
-         // A condition keyed to any other name (e.g. a bound column like "Sum(Sales)") still evaluates
-         // correctly at runtime, which MASKS the problem, but it does NOT round-trip through that dialog: on
-         // reopen its field matches no option and the condition renders blank/broken. Force every condition
-         // field to "value" (typed from the scalar binding, mirroring HighlightDialogService) so a wiz-applied
-         // text highlight is the same shape a dialog-authored one would be.
-         ScalarBindingInfo sbi = textInfo.getScalarBindingInfo();
-         ColumnRef valueRef = new ColumnRef(new AttributeRef(null, "value"));
-         valueRef.setDataType(sbi != null ? sbi.getColumnType() : XSchema.STRING);
-         ColumnSelection valueCols = new ColumnSelection();
-         valueCols.addAttribute(valueRef);
+         }
+         else if(assemblyInfo instanceof TextVSAssemblyInfo textInfo) {
+            // A text output evaluates a highlight against its single scalar value
+            // (OutputVSAssemblyInfo.updateHighlight -> HighlightGroup.findGroup(value)), which ignores the
+            // condition field NAME entirely. The standard highlight dialog therefore exposes exactly ONE field —
+            // the canonical "value" ref (see HighlightDialogService) — so the dropdown only ever shows "Value".
+            // A condition keyed to any other name (e.g. a bound column like "Sum(Sales)") still evaluates
+            // correctly at runtime, which MASKS the problem, but it does NOT round-trip through that dialog: on
+            // reopen its field matches no option and the condition renders blank/broken. Force every condition
+            // field to "value" (typed from the scalar binding, mirroring HighlightDialogService) so a wiz-applied
+            // text highlight is the same shape a dialog-authored one would be.
+            ScalarBindingInfo sbi = textInfo.getScalarBindingInfo();
+            ColumnRef valueRef = new ColumnRef(new AttributeRef(null, "value"));
+            valueRef.setDataType(sbi != null ? sbi.getColumnType() : XSchema.STRING);
+            ColumnSelection valueCols = new ColumnSelection();
+            valueCols.addAttribute(valueRef);
 
-         HighlightGroup group = new HighlightGroup();
-         Set<String> usedNames = new HashSet<>();
+            HighlightGroup group = new HighlightGroup();
+            Set<String> usedNames = new HashSet<>();
 
-         for(ApplyHighlightModel.Highlight rule : hm.getHighlights()) {
-            String name = uniqueName(rule.getName(), usedNames);
-            Highlight hl = buildHighlight(rule, name, valueCols, false);
-            rebindOutputConditionFields(hl.getConditionGroup(), valueRef);
-            group.addHighlight(name, hl);
+            for(ApplyHighlightModel.Highlight rule : hm.getHighlights()) {
+               String name = uniqueName(rule.getName(), usedNames);
+               Highlight hl = buildHighlight(rule, name, valueCols, false);
+               rebindOutputConditionFields(hl.getConditionGroup(), valueRef);
+               group.addHighlight(name, hl);
+            }
+
+            textInfo.setHighlightGroup(group);
+         }
+         // NOTE: text is the ONLY output type wiz highlights. A gauge is a valid wiz output but is
+         // deliberately NOT highlightable, so it (and any other OutputVSAssemblyInfo) falls through to the
+         // else below and fails loud rather than getting a highlight group it has no UI to manage.
+         else if(assemblyInfo instanceof TableDataVSAssemblyInfo tableInfo &&
+                 (assembly instanceof TableVSAssembly || assembly instanceof CrosstabVSAssembly))
+         {
+            applyTableHighlight(rvs, assembly, tableInfo, hm, columns);
+         }
+         else {
+            throw new IllegalArgumentException(
+               "Assembly '" + assembly.getName() + "' (" + assemblyInfo.getClass().getSimpleName() +
+               ") does not support highlighting. Wiz highlights charts, tables, crosstabs, and text output " +
+               "(gauge and other output types are not highlightable).");
          }
 
-         textInfo.setHighlightGroup(group);
+         int sampleMaxRows = model.getSampleMaxRows() != null ? model.getSampleMaxRows() : 0;
+         result = executeAndExtract(rvs, assembly, sampleMaxRows);
+         // Order matters: executeAndExtract runs executeView (populates RT refs); collectFlatBinding prefers
+         // RT refs, so it must come after. The binding is unchanged by highlighting, but recomputing it keeps
+         // the response shape identical to /viewsheet/create.
+         result.setBinding(collectFlatBinding(assembly));
+         result.setAssemblyName(assembly.getName());
+         result.setHasData(computeHasData(rvs.getViewsheet().getViewsheetInfo().isMetadata(), result));
+
+         if(restored) {
+            result.setRuntimeId(rvs.getID());
+         }
+
+         // Persist the mutated highlight to the DURABLE viewsheet asset named by the request identifier
+         // (the ROOT/COMPONENTS entry the viewer reopens), NOT the live runtime's own entry. A wiz chart
+         // runs on a TEMPORARY runtime (openTemporaryViewsheet) whose entry is outside the managed folders,
+         // so the previous rvs.getEntry() guard skipped the write-back whenever the create-time runtime was
+         // still alive — leaving the highlight only on the ephemeral runtime and absent on reopen (the
+         // reopened ROOT asset never received it). persistViewsheet is the shared save choke point (managed-
+         // folder + ACL checks) and writes to the same asset a later save_viewsheet rebuilds from.
+         if(!Tool.isEmptyString(model.getViewsheetIdentifier())) {
+            result.setViewsheetIdentifier(persistViewsheet(vs, model.getViewsheetIdentifier(), user));
+         }
       }
-      // NOTE: text is the ONLY output type wiz highlights. A gauge is a valid wiz output but is
-      // deliberately NOT highlightable, so it (and any other OutputVSAssemblyInfo) falls through to the
-      // else below and fails loud rather than getting a highlight group it has no UI to manage.
-      else if(assemblyInfo instanceof TableDataVSAssemblyInfo tableInfo &&
-              (assembly instanceof TableVSAssembly || assembly instanceof CrosstabVSAssembly))
-      {
-         applyTableHighlight(rvs, assembly, tableInfo, hm, columns);
-      }
-      else {
-         throw new IllegalArgumentException(
-            "Assembly '" + assembly.getName() + "' (" + assemblyInfo.getClass().getSimpleName() +
-            ") does not support highlighting. Wiz highlights charts, tables, crosstabs, and text output " +
-            "(gauge and other output types are not highlightable).");
+      catch(Exception e) {
+         // Mirrors setChartFormat/setChartColors' identical rollback: covers the highlight-application
+         // block above AND executeAndExtract/persistViewsheet, since all can leave the duplicated,
+         // promoted-to-primary copy dangling and unreported if they fail before it is durably committed.
+         if(rollbackCopy != null) {
+            rvs.getViewsheet().removeAssembly(rollbackCopy.getName());
+            demotedOriginal.setPrimary(true);
+         }
+
+         throw e;
       }
 
-      int sampleMaxRows = model.getSampleMaxRows() != null ? model.getSampleMaxRows() : 0;
-      CreateViewsheetResult result = executeAndExtract(rvs, assembly, sampleMaxRows);
-      // Order matters: executeAndExtract runs executeView (populates RT refs); collectFlatBinding prefers
-      // RT refs, so it must come after. The binding is unchanged by highlighting, but recomputing it keeps
-      // the response shape identical to /viewsheet/create.
-      result.setBinding(collectFlatBinding(assembly));
-      result.setAssemblyName(assembly.getName());
-      result.setHasData(computeHasData(rvs.getViewsheet().getViewsheetInfo().isMetadata(), result));
-
-      if(restored) {
-         result.setRuntimeId(rvs.getID());
-      }
-
-      // Persist the mutated highlight to the DURABLE viewsheet asset named by the request identifier
-      // (the ROOT/COMPONENTS entry the viewer reopens), NOT the live runtime's own entry. A wiz chart
-      // runs on a TEMPORARY runtime (openTemporaryViewsheet) whose entry is outside the managed folders,
-      // so the previous rvs.getEntry() guard skipped the write-back whenever the create-time runtime was
-      // still alive — leaving the highlight only on the ephemeral runtime and absent on reopen (the
-      // reopened ROOT asset never received it). persistViewsheet is the shared save choke point (managed-
-      // folder + ACL checks) and writes to the same asset a later save_viewsheet rebuilds from.
-      if(!Tool.isEmptyString(model.getViewsheetIdentifier())) {
-         result.setViewsheetIdentifier(persistViewsheet(vs, model.getViewsheetIdentifier(), user));
+      if(copyNote != null) {
+         result.setNote(copyNote);
       }
 
       return result;
@@ -1522,9 +1572,13 @@ public class WizVsService {
    /**
     * Executes the sandbox view for {@code assembly} and extracts the result data.
     * Dispatches to the appropriate extract method based on assembly type.
+    *
+    * <p>Package-private (not private) so tests can stub it out via a Mockito spy — it drives the real
+    * ViewsheetSandbox, which is expensive to set up faithfully in a unit test, the same reason
+    * {@link #fetchAssemblyData} is already package-private.
     */
-   private CreateViewsheetResult executeAndExtract(RuntimeViewsheet rvs, VSAssembly assembly,
-                                                   int sampleMaxRows)
+   CreateViewsheetResult executeAndExtract(RuntimeViewsheet rvs, VSAssembly assembly,
+                                           int sampleMaxRows)
       throws Exception
    {
       Optional<ViewsheetSandbox> viewsheetSandbox = rvs.getViewsheetSandbox();
