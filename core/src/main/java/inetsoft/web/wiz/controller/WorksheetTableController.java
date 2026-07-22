@@ -138,6 +138,16 @@ public class WorksheetTableController {
                     "message", e.getMessage() != null ? e.getMessage() : "Forbidden");
    }
 
+   // NOTE: this controller does NOT have a local UnsupportedDatasourceException handler, unlike
+   // DatasourceMetaApiController. createTables() (the only endpoint that reaches
+   // getJDBCDatasource, via WorksheetTableService.addOneTable -> buildPhysicalTable/
+   // buildSqlTable) already catches per-table exceptions inside the service, before they can
+   // ever bubble out to this controller — they're converted to a 200 response with
+   // success=false + errorMessage per table instead (see createTables() below and
+   // WorksheetTableService.createTables()'s per-table try/catch). A local override here would
+   // be unreachable dead code; it was added and then removed after tracing the actual call
+   // chain. If a hard 422 is ever wanted for this endpoint too, that requires changing
+   // WorksheetTableService's per-table error-handling semantics, not just adding a handler here.
    @ExceptionHandler(Exception.class)
    @ResponseStatus(HttpStatus.BAD_REQUEST)
    @ResponseBody

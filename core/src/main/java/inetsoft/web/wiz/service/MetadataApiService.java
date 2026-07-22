@@ -318,8 +318,15 @@ public class MetadataApiService {
    public JDBCDataSource getJDBCDatasource(String dsName) throws Exception {
       XDataSource dataSource = xrepository.getDataSource(dsName);
 
-      if(!(dataSource instanceof JDBCDataSource jdbcDataSource)) {
+      if(dataSource == null) {
          throw new Exception("Data source " + dsName + " not found.");
+      }
+
+      // The datasource exists but isn't relational (e.g. MongoDB and other tabular/NoSQL
+      // sources extend TabularDataSource, not JDBCDataSource) — there's no catalog/schema/
+      // table metadata to serve, so this is a distinct, expected condition, not a "not found".
+      if(!(dataSource instanceof JDBCDataSource jdbcDataSource)) {
+         throw new UnsupportedDatasourceException(dsName, dataSource.getType());
       }
 
       return jdbcDataSource;

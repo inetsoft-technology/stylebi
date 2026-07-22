@@ -30,6 +30,7 @@ import inetsoft.web.wiz.model.osi.OsiDataset;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
 import inetsoft.web.wiz.request.SchemaSearchRequest;
 import inetsoft.web.wiz.service.MetadataApiService;
+import inetsoft.web.wiz.service.UnsupportedDatasourceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -298,6 +299,19 @@ public class DatasourceMetaApiController {
       LOG.warn("Unauthorized datasource metadata access: {}", e.getMessage());
       return Map.of("error", "Forbidden",
                     "message", e.getMessage() != null ? e.getMessage() : "Forbidden");
+   }
+
+   // More specific than the catch-all below, so it wins for a datasource that exists but is
+   // non-relational (e.g. MongoDB) — surfaces a clear, actionable message and a semantically
+   // distinct status instead of letting the underlying failure leak out as a raw 500.
+   @ExceptionHandler(UnsupportedDatasourceException.class)
+   @ResponseStatus(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY)
+   @ResponseBody
+   public Map<String, String> handleUnsupportedDatasource(UnsupportedDatasourceException e) {
+      LOG.warn("Unsupported datasource for annotation: {} ({})",
+               e.getDatasourceName(), e.getDatasourceType());
+      return Map.of("error", e.getMessage(),
+                    "datasourceType", e.getDatasourceType());
    }
 
    @ExceptionHandler(Exception.class)

@@ -22,11 +22,14 @@ import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.wiz.model.osi.OsiDataset;
 import inetsoft.web.wiz.request.GetDatabaseTableMetaRequest;
 import inetsoft.web.wiz.service.MetadataApiService;
+import inetsoft.web.wiz.service.UnsupportedDatasourceException;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.security.Principal;
+import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -61,5 +64,28 @@ class DatasourceMetaApiControllerTest {
 
       assertSame(expected, result);
       verify(metadataService).getMetaData(request, principal);
+   }
+
+   /**
+    * The datasource-exists-but-not-relational case (e.g. MongoDB) must produce a friendly,
+    * structured body naming the actual datasource type — not the raw 500 HTML page that used
+    * to leak out before {@link UnsupportedDatasourceException} existed.
+    */
+   @Test
+   void handleUnsupportedDatasource_returnsFriendlyErrorNamingTheDatasourceType() {
+      MetadataApiService metadataService = mock(MetadataApiService.class);
+      XRepository xrepository = mock(XRepository.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+
+      DatasourceMetaApiController controller =
+         new DatasourceMetaApiController(metadataService, xrepository, dataSourceService);
+
+      UnsupportedDatasourceException ex =
+         new UnsupportedDatasourceException("MongoDB REST", "Mongo");
+
+      Map<String, String> body = controller.handleUnsupportedDatasource(ex);
+
+      assertEquals("Mongo", body.get("datasourceType"));
+      assertEquals(ex.getMessage(), body.get("error"));
    }
 }
