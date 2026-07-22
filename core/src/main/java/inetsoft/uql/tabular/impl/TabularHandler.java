@@ -29,6 +29,8 @@ import inetsoft.util.DataCacheVisitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.security.Principal;
 import java.util.*;
 
@@ -106,6 +108,45 @@ public class TabularHandler extends XHandler {
       }
 
       return tbl;
+   }
+
+   /**
+    * Get a query key for query caching. In addition to the base key, the
+    * variable-substituted content of the tabular data source is included so
+    * that variables embedded in data source fields (e.g. "Query HTTP
+    * Parameters", URL, or authentication parameters) produce distinct cache
+    * keys when their values change. Without this, a stale cached result would
+    * be returned after the variable value changes (Bug #75737).
+    *
+    * The data source is cloned and the variables are substituted here so that
+    * the key is computed consistently regardless of whether the caller already
+    * substituted the data source. execute() substitutes before checking the
+    * cache, but the cache-clear paths (removeQueryCache/clearQueryCache) pass
+    * the unsubstituted data source; re-substituting on a clone keeps the write,
+    * read, and remove keys identical. Cloning is required to avoid mutating the
+    * shared (registry) data source; TabularDataSource clones deep-copy their
+    * variable-bearing fields (as execute() also relies on).
+    */
+   @Override
+   public String getQueryKey(XQuery query, VariableTable qvars, Principal user) throws Exception {
+      String key = super.getQueryKey(query, qvars, user);
+      XDataSource source = query.getDataSource();
+
+      if(source instanceof TabularDataSource) {
+         TabularDataSource<?> ds = (TabularDataSource<?>) source.clone();
+
+         if(qvars != null) {
+            TabularUtil.replaceVariables(ds, qvars);
+         }
+
+         StringWriter buf = new StringWriter();
+         PrintWriter writer = new PrintWriter(buf);
+         ds.writeXML(writer);
+         writer.flush();
+         key = key + "__" + buf;
+      }
+
+      return key;
    }
 
    /**
