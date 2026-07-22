@@ -93,7 +93,7 @@ public final class RecycleUtils {
       // resolution below would incorrectly target the global repository and delete a
       // same-named root folder. Normalize using the authoritative owner so the operation
       // stays within the owning user's repository.
-      if(owner != null && !SUtil.isMyReport(path)) {
+      if(path != null && owner != null && !SUtil.isMyReport(path)) {
          path = Tool.MY_DASHBOARD + "/" + path;
       }
 
