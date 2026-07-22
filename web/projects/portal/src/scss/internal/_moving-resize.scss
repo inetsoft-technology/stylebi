@@ -29,7 +29,7 @@ $handle-mid: calc(50% - 4px);
 }
 
 .vs-object-parent-container.max-mode + mini-toolbar > .mini-toolbar {
-  z-index: 999999;
+  z-index: 9930; // > .mini-toolbar base (9920)
 }
 
 .object-editor.container-child.active,

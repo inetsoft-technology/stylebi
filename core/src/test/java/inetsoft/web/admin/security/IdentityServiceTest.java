@@ -17,8 +17,11 @@
  */
 package inetsoft.web.admin.security;
 
+import inetsoft.sree.security.AuthenticationProvider;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.IdentityInfo;
 import inetsoft.sree.security.OrganizationContextHolder;
+import inetsoft.uql.util.Identity;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.uql.asset.AssetEntry;
@@ -177,6 +180,21 @@ class IdentityServiceTest {
       doReturn(failing).when(emFavorites).remove(anyString());
 
       assertDoesNotThrow(() -> invokeRemoveUserEMFavorites(List.of(alice)));
+   }
+
+   @Test
+   void getIdentityInfo_nullIdentity_returnsEmptyInfo() {
+      IdentityID missing = new IdentityID("ghost", "org1");
+      AuthenticationProvider provider = mock(AuthenticationProvider.class);
+      // simulate a transient/stale lookup returning no identity
+      when(provider.getUser(missing)).thenReturn(null);
+
+      IdentityInfo info = service.getIdentityInfo(missing, Identity.USER, provider);
+
+      assertNotNull(info, "a null identity must not produce a null IdentityInfo");
+      assertNull(info.getIdentityID(), "empty info should have no identity id");
+      assertFalse(info.isActive(), "empty info should be inactive");
+      assertTrue(info.getMembers().isEmpty(), "empty info should have no members");
    }
 
    private static AssetEntry entryWithFavorites(IdentityID user) {

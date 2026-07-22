@@ -95,7 +95,7 @@ public class LocalMVIncremental extends MVIncremental {
 
       for(int i = 0; i < mvdef.getColumns().size(); i++) {
          MVColumn column = mvdef.getColumns().get(i);
-         MVScriptable script = new MVScriptable(mvdef, column);
+         MVScriptable script = new MVScriptable(mvdef, column, mv);
          String prefix =
             "MV." + column.getName().replaceAll("[^\\p{Alnum}]", "_");
          vars.put(prefix + ".Min", script.getMember("MinValue"));
