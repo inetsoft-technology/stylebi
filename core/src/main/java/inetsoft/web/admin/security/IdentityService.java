@@ -520,6 +520,16 @@ public class IdentityService {
          identity = provider.getRole(identityId);
       }
 
+      // The identity lookup can transiently return null (e.g. cache/storage
+      // staleness or a concurrent modification while an identity is being
+      // deleted). Guard against it so IdentityInfo isn't constructed from a
+      // null identity, which would throw an NPE that gets logged as a
+      // misleading "Failed to create info object for identity: null" error.
+      if(identity == null) {
+         LOG.debug("Identity not found, returning empty info: {} (type={})", identityId, type);
+         return new IdentityInfo();
+      }
+
       return new IdentityInfo(identity, provider);
    }
 
@@ -858,6 +868,14 @@ public class IdentityService {
                repletRegistryManager.changeOrgID(oldID, OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), false);
                dashboardRegistryManager.migrateRegistry(oldID, securityProvider.getOrganization(OrganizationManager.getInstance().getCurrentOrgID()), identity);
             }
+
+            // Re-scope the user's own permission grants to the new organization, symmetric with
+            // updateRoleForOrg()/updateGroupForOrg(). Without this, permissions granted directly
+            // to the user (e.g. portal-tab access) stay scoped to the old org id and are lost when
+            // the org id changes, because the role/group re-scoping relocates the permission keys
+            // to the new org without carrying the user grantee over. (Bug #75721)
+            updateIdentityPermissions(Identity.USER, oldID, user.getIdentityID(),
+               OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), true);
 
             eprovider.setUser(user.getIdentityID(), user);
             eprovider.removeUser(oldID);

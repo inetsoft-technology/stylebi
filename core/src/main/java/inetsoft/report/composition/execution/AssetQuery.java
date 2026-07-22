@@ -1498,6 +1498,18 @@ public abstract class AssetQuery extends PreAssetQuery {
          return false;
       }
 
+      // A SQL expression on a mergeable source is computed by the data source and is
+      // already present in the base table; it must not be re-materialized as a script
+      // formula, which would evaluate the SQL text as JavaScript. (Bug #75698)
+      try {
+         if(column.isSQL() && isSourceMergeable() && isMergePreferred()) {
+            return false;
+         }
+      }
+      catch(Exception ex) {
+         // fall through and treat as a grouped expression
+      }
+
       AggregateInfo info = getAggregateInfo();
       return info != null && (info.containsGroup(column) ||
          info.getGroup(column) != null || info.getGroup(column.getName()) != null);

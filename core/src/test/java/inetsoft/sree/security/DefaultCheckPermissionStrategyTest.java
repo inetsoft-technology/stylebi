@@ -539,7 +539,11 @@ class DefaultCheckPermissionStrategyTest {
          // NOT flagged as system administrator — that's exactly the gap: isSiteAdmin checked
          // isSystemAdministratorRole only, never isOrgAdministratorRole or org-less-ness alone.
          when(mockProvider.isSystemAdministratorRole(eq(orgAdminRoleId))).thenReturn(false);
-         when(mockProvider.isOrgAdministratorRole(eq(new IdentityID(TEST_ROLE, TEST_ORG)))).thenReturn(true);
+         // Stubbed against the actual target role's identity (org-less "Organization
+         // Administrator"), matching what production FileAuthenticationProvider reports for
+         // that built-in role — NOT the caller's own role, so this genuinely exercises the
+         // isGlobalOrgAdminRole branch in DefaultCheckPermissionStrategy.
+         when(mockProvider.isOrgAdministratorRole(eq(orgAdminRoleId))).thenReturn(true);
          when(mockProvider.getPermission(eq(ResourceType.SECURITY_ORGANIZATION), eq(orgIdentityID)))
             .thenReturn(orgAdminPermission);
          when(mockProvider.getPermission(eq(ResourceType.SECURITY_ORGANIZATION), eq(orgIdentityID), eq(TEST_ORG)))
@@ -549,6 +553,108 @@ class DefaultCheckPermissionStrategyTest {
             mockStrategy.checkPermission(mockUser, ResourceType.SECURITY_ROLE, orgAdminRoleResource,
                                          ResourceAction.ADMIN),
             "org administrator must not gain ADMIN over the global Organization Administrator role");
+         assertFalse(
+            mockStrategy.checkPermission(mockUser, ResourceType.SECURITY_ROLE, orgAdminRoleResource,
+                                         ResourceAction.WRITE),
+            "org administrator must not gain WRITE over the global Organization Administrator role");
+         assertFalse(
+            mockStrategy.checkPermission(mockUser, ResourceType.SECURITY_ROLE, orgAdminRoleResource,
+                                         ResourceAction.DELETE),
+            "org administrator must not gain DELETE over the global Organization Administrator role");
+      }
+   }
+
+   // Bug #75706: an org admin must still be able to READ (view, e.g. the EM Security → Users →
+   // "Organization Administrator" mode pane) the built-in, org-less "Organization Administrator"
+   // role — that's the role that grants their own privilege, and hiding it produced a misleading
+   // "System Administrator level identities" permission error. Visibility is the only exception;
+   // ADMIN/WRITE/DELETE remain blocked (see orgAdminCannotAccessGlobalOrganizationAdministratorRole).
+   @Test
+   void orgAdminCanReadGlobalOrganizationAdministratorRole() {
+      IdentityID orgAdminRoleId = new IdentityID("Organization Administrator", null);
+      String orgAdminRoleResource = orgAdminRoleId.convertToKey();
+      IdentityID orgIdentityID = new IdentityID(TEST_ORG, TEST_ORG);
+
+      Role orgAdminRole = mock(Role.class);
+      when(orgAdminRole.getIdentityID()).thenReturn(orgAdminRoleId);
+      when(orgAdminRole.getOrganizationID()).thenReturn(null);
+
+      try(MockedStatic<SUtil> sutilMock = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
+          MockedStatic<OrganizationManager> omMock =
+             Mockito.mockStatic(OrganizationManager.class, Mockito.CALLS_REAL_METHODS))
+      {
+         sutilMock.when(SUtil::isMultiTenant).thenReturn(false);
+         sutilMock.when(() -> SUtil.isInternalUser(any())).thenReturn(false);
+
+         OrganizationManager mockOM = mock(OrganizationManager.class);
+         omMock.when(OrganizationManager::getInstance).thenReturn(mockOM);
+         omMock.when(OrganizationManager::getCurrentOrgName).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID()).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID(any())).thenReturn(TEST_ORG);
+         when(mockOM.isSiteAdmin(any(Principal.class))).thenReturn(false);
+
+         when(mockProvider.getRole(eq(orgAdminRoleId))).thenReturn(orgAdminRole);
+         when(mockProvider.isSystemAdministratorRole(eq(orgAdminRoleId))).thenReturn(false);
+         when(mockProvider.isOrgAdministratorRole(eq(orgAdminRoleId))).thenReturn(true);
+         // caller's own role must itself be org-admin-flagged to reach the org-admin switch at
+         // all (isOrgAdmin gate) — mirrors a real org admin, distinct from the target-role stub.
+         when(mockProvider.isOrgAdministratorRole(eq(new IdentityID(TEST_ROLE, TEST_ORG)))).thenReturn(true);
+         // deliberately no SECURITY_ORGANIZATION ADMIN grant configured — READ visibility must
+         // come solely from the org-admin-permission + built-in-role exception, not delegation.
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_ORGANIZATION), eq(orgIdentityID)))
+            .thenReturn(null);
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_ORGANIZATION), eq(orgIdentityID), eq(TEST_ORG)))
+            .thenReturn(null);
+
+         assertTrue(
+            mockStrategy.checkPermission(mockUser, ResourceType.SECURITY_ROLE, orgAdminRoleResource,
+                                         ResourceAction.READ),
+            "org administrator must be able to view the global Organization Administrator role");
+      }
+   }
+
+   // Bug #75706 follow-up: isOrgAdministratorRole() may match by role NAME alone (e.g.
+   // DatabaseAuthenticationProvider matches any org's custom role sharing a configured name),
+   // independent of which org actually owns that role instance. The read-visibility exception
+   // must require the role to be genuinely org-less, not merely name-flagged, so it can't be used
+   // to view a same-named custom role that actually belongs to a different org.
+   @Test
+   void readExceptionDoesNotApplyToSameNamedRoleScopedToAnotherOrg() {
+      String otherOrg = "otherOrg";
+      IdentityID customRoleId = new IdentityID("Organization Administrator", otherOrg);
+      String customRoleResource = customRoleId.convertToKey();
+
+      Role customRole = mock(Role.class);
+      when(customRole.getIdentityID()).thenReturn(customRoleId);
+      when(customRole.getOrganizationID()).thenReturn(otherOrg);
+
+      try(MockedStatic<SUtil> sutilMock = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
+          MockedStatic<OrganizationManager> omMock =
+             Mockito.mockStatic(OrganizationManager.class, Mockito.CALLS_REAL_METHODS))
+      {
+         sutilMock.when(SUtil::isMultiTenant).thenReturn(false);
+         sutilMock.when(() -> SUtil.isInternalUser(any())).thenReturn(false);
+
+         OrganizationManager mockOM = mock(OrganizationManager.class);
+         omMock.when(OrganizationManager::getInstance).thenReturn(mockOM);
+         omMock.when(OrganizationManager::getCurrentOrgName).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID()).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID(any())).thenReturn(TEST_ORG);
+         when(mockOM.isSiteAdmin(any(Principal.class))).thenReturn(false);
+
+         when(mockProvider.getRole(eq(customRoleId))).thenReturn(customRole);
+         when(mockProvider.isSystemAdministratorRole(eq(customRoleId))).thenReturn(false);
+         // flagged as an org-admin-type role purely by name, same as the built-in role would be —
+         // but this instance belongs to otherOrg, not TEST_ORG, and is not org-less.
+         when(mockProvider.isOrgAdministratorRole(eq(customRoleId))).thenReturn(true);
+         // caller's own role must itself be org-admin-flagged to reach the org-admin switch at
+         // all (isOrgAdmin gate) — otherwise this would trivially return false for the wrong reason.
+         when(mockProvider.isOrgAdministratorRole(eq(new IdentityID(TEST_ROLE, TEST_ORG)))).thenReturn(true);
+
+         assertFalse(
+            mockStrategy.checkPermission(mockUser, ResourceType.SECURITY_ROLE, customRoleResource,
+                                         ResourceAction.READ),
+            "a same-named org-admin-flagged role belonging to a different org must not be readable");
       }
    }
 

@@ -558,6 +558,11 @@ public class UserTreeService {
 
       final Group group = currentProvider.getGroup(groupID);
 
+      if(group == null) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.security.groupNotFound", groupID.getName()));
+      }
+
       if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
          if(Arrays.stream(group.getRoles()).anyMatch(currentProvider::isSystemAdministratorRole)) {
             throw new MessageException(Catalog.getCatalog().getString("em.security.orgAdmin.identityPermissionDenied"));
@@ -567,7 +572,7 @@ public class UserTreeService {
       IdentityInfo info = identityService
          .getIdentityInfo(groupID, Identity.GROUP, currentProvider);
 
-      String org = group == null ? null : group.getOrganizationID();
+      String org = group.getOrganizationID();
       if(org == null || "".equals(org)) {
          org = Organization.getDefaultOrganizationID();
       }

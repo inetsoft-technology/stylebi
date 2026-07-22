@@ -54,11 +54,26 @@ public class TabularUtil {
     * Find all variables embedded in the properties of the bean.
     */
    public static List<UserVariable> findVariables(Object bean) {
+      return findVariables(bean, false);
+   }
+
+   /**
+    * Find all variables embedded in the properties of the bean.
+    * @param excludeSecrets when true, variables embedded in password-flagged
+    * properties or secret HTTP parameters are omitted. Use this when the
+    * variables feed into a value that must not expose secret data, such as a
+    * query cache key (Bug #75737).
+    */
+   public static List<UserVariable> findVariables(Object bean, boolean excludeSecrets) {
       List<PropertyMeta> props = findProperties(bean.getClass());
       List<UserVariable> vars = new ArrayList<>();
 
       for(PropertyMeta prop : props) {
          if(prop.isAnnotated()) {
+            if(excludeSecrets && prop.getProperty().password()) {
+               continue;
+            }
+
             Object val = prop.getValue(bean);
 
             if(val != null) {
@@ -92,10 +107,10 @@ public class TabularUtil {
                   findVariables(vars, (QueryParameter[]) val);
                }
                else if(val instanceof HttpParameter) {
-                  findVariables(vars, (HttpParameter) val);
+                  findVariables(vars, excludeSecrets, (HttpParameter) val);
                }
                else if(val instanceof HttpParameter[]) {
-                  findVariables(vars, (HttpParameter[]) val);
+                  findVariables(vars, excludeSecrets, (HttpParameter[]) val);
                }
                else if(val instanceof RestParameters) {
                   RestParameters params = (RestParameters) val;
@@ -109,7 +124,7 @@ public class TabularUtil {
                         findVariables(vars, (QueryParameter) obj);
                      }
                      else if(obj instanceof HttpParameter) {
-                        findVariables(vars, (HttpParameter) obj);
+                        findVariables(vars, excludeSecrets, (HttpParameter) obj);
                      }
                   }
                }
@@ -135,9 +150,15 @@ public class TabularUtil {
       }
    }
 
-   private static void findVariables(List<UserVariable> vars, HttpParameter... parameters) {
+   private static void findVariables(List<UserVariable> vars, boolean excludeSecrets,
+                                     HttpParameter... parameters)
+   {
       for(final HttpParameter parameter : parameters) {
          if(parameter != null) {
+            if(excludeSecrets && parameter.isSecret()) {
+               continue;
+            }
+
             final String name = parameter.getName();
             final String value = parameter.getValue();
 

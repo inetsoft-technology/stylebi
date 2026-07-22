@@ -239,7 +239,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             return true;
          }
 
-         if(checkOrgAdminPermission(type, resource, organization, xPrincipal)) {
+         if(checkOrgAdminPermission(type, resource, organization, xPrincipal, action)) {
             return true;
          }
       }
@@ -530,7 +530,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
    }
 
    private boolean checkOrgAdminPermission(ResourceType type, String resource, String orgID,
-                                           XPrincipal principal)
+                                           XPrincipal principal, ResourceAction action)
    {
       AuthenticationProvider currProvider =
          !(principal instanceof SRPrincipal) || SUtil.isInternalUser(principal) ?
@@ -610,8 +610,17 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             .anyMatch(currProvider::isSystemAdministratorRole);
 
          // org admin permission never extends to global (org-less) roles — e.g. the built-in
-         // Administrator and Organization Administrator roles — only to roles owned by this org
-         return !isSiteAdmin && Tool.equals(orgID, role.getOrganizationID());
+         // Administrator role — only to roles owned by this org. The single exception is
+         // read-only visibility of the built-in, org-less "Organization Administrator" role
+         // itself: every org admin may see it (it's the role that grants their own privilege),
+         // but may never gain WRITE/DELETE/ADMIN over it — that stays reserved for site admins.
+         // The org-less check (not just the isOrgAdministratorRole name-based flag) also keeps
+         // this from matching a differently-scoped, same-named custom role in another org.
+         boolean isGlobalOrgAdminRole = role.getOrganizationID() == null &&
+            currProvider.isOrgAdministratorRole(role.getIdentityID());
+
+         return !isSiteAdmin && (Tool.equals(orgID, role.getOrganizationID()) ||
+            (isGlobalOrgAdminRole && action == ResourceAction.READ));
       case SECURITY_ORGANIZATION:
          if(resource.equals("*")) {
             return false;

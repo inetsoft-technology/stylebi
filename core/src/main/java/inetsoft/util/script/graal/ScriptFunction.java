@@ -142,6 +142,19 @@ public class ScriptFunction implements ProxyExecutable {
          return null;
       }
 
+      // A String parameter may receive a non-String script value (a boolean or
+      // number), e.g. bindingInfo.setGroupTotal("reseller", ROW_HEADER, true) on
+      // the setGroupTotal(String, int, String) overload. Rhino's FunctionObject
+      // coerced such arguments to String via ScriptRuntime.toString; without
+      // this, reflective invocation fails with an argument-type mismatch
+      // ("Failed to invoke script function"). Only convert when the value is not
+      // already a String/CharSequence so string parameters keep their value.
+      if((ptype == String.class || ptype == CharSequence.class)
+         && !(value instanceof CharSequence))
+      {
+         return toStringValue(value);
+      }
+
       // A numeric parameter may receive a value that is not already a Number,
       // e.g. the numeric string "3" from CALC.edate(date, '3'). Rhino's
       // FunctionObject coerced such arguments via ScriptRuntime.toNumber; without
@@ -224,6 +237,40 @@ public class ScriptFunction implements ProxyExecutable {
       }
 
       return null;
+   }
+
+   /**
+    * Convert a host value to a String using JavaScript {@code ToString}
+    * semantics (mirroring Rhino's {@code ScriptRuntime.toString}): a boolean
+    * maps to "true"/"false"; a whole number in the {@code long} range maps to
+    * its integer form ("3", not "3.0"); any other value (a fractional number, a
+    * whole number too large for {@code long}, or a non-Number) uses
+    * {@link String#valueOf}. Called only for a non-String value bound to a
+    * String parameter.
+    *
+    * <p>The {@code Math.abs(d) < 0x1p63} guard keeps a whole double outside the
+    * {@code long} range (e.g. {@code 1e21}) out of the {@code (long) d} branch,
+    * where Java narrowing would silently clamp it to {@code Long.MAX_VALUE}; it
+    * falls through to {@code String.valueOf} instead. Note that
+    * {@code String.valueOf} uses Java's {@code Double.toString} formatting
+    * (scientific notation at 1e7/1e-3), which diverges from JS {@code ToString}
+    * (1e21/1e-6) for very large/small magnitudes. This is acceptable here
+    * because script values bound to a String parameter are effectively booleans,
+    * small integers (header/order constants), and strings; such magnitudes do
+    * not occur in practice.
+    */
+   private static String toStringValue(Object value) {
+      if(value instanceof Number) {
+         double d = ((Number) value).doubleValue();
+
+         if(!Double.isInfinite(d) && !Double.isNaN(d) && d == Math.rint(d)
+            && Math.abs(d) < 0x1p63)
+         {
+            return Long.toString((long) d);
+         }
+      }
+
+      return String.valueOf(value);
    }
 
    private final Object target;

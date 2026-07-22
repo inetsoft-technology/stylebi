@@ -1171,6 +1171,40 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       // Canvases are blank after cloneNode; remove them (they're only selection overlays)
       Array.from(clone.querySelectorAll("canvas")).forEach((c: Element) => c.remove());
 
+      // Tile <img> elements use blob: object URLs owned by ChartImageDirective, which
+      // revokes them when a tile reloads or the directive is destroyed (Bug #75515). The
+      // cloned images are not managed by the directive, so once the underlying blob is
+      // revoked they fail to (re)load with net::ERR_FAILED, leaving the snapshot blank.
+      // Repoint each loaded tile's clone at a self-contained data URL captured from the
+      // already-decoded original, so the snapshot no longer depends on the blob URLs
+      // surviving. The element stays an <img> so existing tag/class CSS selectors (e.g.
+      // ".chart-plot-area__tile img { position: absolute }") still apply. (Bug #75714)
+      const originalImages = chartAreaEl.querySelectorAll("img");
+      const cloneImages = clone.querySelectorAll("img");
+
+      for(let i = 0; i < cloneImages.length; i++) {
+         const cloneImg = cloneImages[i] as HTMLImageElement;
+         const originalImg = originalImages[i] as HTMLImageElement;
+
+         // drawImage requires a fully decoded source image; blob tiles are same-origin so
+         // the canvas is never tainted. Anything not yet loaded would be broken anyway.
+         if(originalImg && originalImg.complete && originalImg.naturalWidth > 0) {
+            try {
+               const canvas = document.createElement("canvas");
+               canvas.width = originalImg.naturalWidth;
+               canvas.height = originalImg.naturalHeight;
+               canvas.getContext("2d").drawImage(originalImg, 0, 0);
+               cloneImg.src = canvas.toDataURL();
+            }
+            catch(e) {
+               cloneImg.remove();
+            }
+         }
+         else {
+            cloneImg.remove();
+         }
+      }
+
       container.appendChild(clone);
       this.chartSnapshot = clone;
    }
