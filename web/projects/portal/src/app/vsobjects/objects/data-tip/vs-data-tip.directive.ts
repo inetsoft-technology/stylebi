@@ -173,7 +173,7 @@ export class VSDataTipDirective implements DoCheck {
             left += leftOffset;
 
             if(this.miniToolbar) {
-               top -= GuiTool.MINI_TOOLBAR_HEIGHT;
+               top -= GuiTool.getMiniToolbarHeight();
             }
 
             // offset the datatip a little so datatip doesn't generate a mouseleave event.

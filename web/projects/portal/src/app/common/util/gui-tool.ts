@@ -57,6 +57,18 @@ export class GuiTool {
 
    static readonly MINI_TOOLBAR_HEIGHT = 28;
 
+   // Compact mini-toolbar footprint under the modern visualization gate. Coupled to the pinned
+   // container height in mini-toolbar.component.scss (:host-context(.viz-modern)); change both together.
+   static readonly MINI_TOOLBAR_HEIGHT_MODERN = 24;
+
+   // The mini-toolbar is positioned by JS (mini-toolbar.component.ts topY), so the height it assumes
+   // must match the rendered height. Read the gate live: the .viz-modern body class toggles at runtime.
+   static getMiniToolbarHeight(): number {
+      return document.body.classList.contains("viz-modern")
+         ? GuiTool.MINI_TOOLBAR_HEIGHT_MODERN
+         : GuiTool.MINI_TOOLBAR_HEIGHT;
+   }
+
    static readonly MINIMUM_TITLE_HEIGHT = 18;
 
    private static scrollbarWidth: number;

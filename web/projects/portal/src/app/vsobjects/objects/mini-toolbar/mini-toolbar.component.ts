@@ -128,7 +128,7 @@ export class MiniToolbar implements OnChanges, OnDestroy {
    }
 
    get miniToolbarHeight(): number {
-      return GuiTool.MINI_TOOLBAR_HEIGHT;
+      return GuiTool.getMiniToolbarHeight();
    }
 
    /**
