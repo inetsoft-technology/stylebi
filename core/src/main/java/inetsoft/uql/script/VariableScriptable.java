@@ -198,11 +198,13 @@ public class VariableScriptable implements ScriptScope {
          String name = (String) names.nextElement();
 
          try {
+            Object val = vars.get(name);
+
             if(sb.length() > 0) {
                sb.append(", ");
             }
 
-            sb.append(name).append('=').append(vars.get(name));
+            sb.append(name).append('=').append(val);
          }
          catch(Exception ignore) {
          }
