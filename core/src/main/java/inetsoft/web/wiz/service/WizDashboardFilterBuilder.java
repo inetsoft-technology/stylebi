@@ -21,6 +21,7 @@ import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
+import org.springframework.stereotype.Component;
 
 import java.awt.Point;
 import java.util.ArrayList;
@@ -75,6 +76,7 @@ import java.util.List;
  * {@code WizDashboardFilterBuilderTest} is limited to the pure data-type → control-type
  * branch via the package-visible {@link #createControlForType}.</p>
  */
+@Component
 public class WizDashboardFilterBuilder {
    public record FilterRequest(String field, String dataType, String label) {}
    public record FilterResult(List<String> applied, List<String> skipped) {}

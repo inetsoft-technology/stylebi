@@ -63,7 +63,7 @@ class WizDashboardServiceTest {
       throws Exception
    {
       when(sec.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
-      return new WizDashboardService(vs, add, sec);
+      return new WizDashboardService(vs, add, sec, mock(WizDashboardFilterBuilder.class));
    }
 
    @Test
@@ -93,7 +93,8 @@ class WizDashboardServiceTest {
       ViewsheetService vs = mock(ViewsheetService.class);
       SecurityEngine sec = mock(SecurityEngine.class);
       when(sec.checkPermission(any(), any(), anyString(), any())).thenReturn(false);
-      WizDashboardService svc = new WizDashboardService(vs, mock(AddVisualizationServiceProxy.class), sec);
+      WizDashboardService svc = new WizDashboardService(vs, mock(AddVisualizationServiceProxy.class), sec,
+         mock(WizDashboardFilterBuilder.class));
       // identifier UNDER the components folder so the folder guard passes and the permission
       // check is reached:
       String id = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,

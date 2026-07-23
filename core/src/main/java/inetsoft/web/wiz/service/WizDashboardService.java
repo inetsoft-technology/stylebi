@@ -64,10 +64,18 @@ import java.util.UUID;
  *       recorded in {@link WizDashboardResult#getSkipped()} rather than failing the whole
  *       compose; if every visualization is skipped, the compose fails loud
  *       ({@link IllegalArgumentException}, mapped by the controller to 400).</li>
+ *   <li>When {@code event.getFilters()} is non-empty, reserve a top row (offset every merged
+ *       chart's y by {@link #DASHBOARD_ROW_HEIGHT}) and build a filter bar via
+ *       {@link #applyFilters}/{@link WizDashboardFilterBuilder#build}, recording
+ *       {@link WizDashboardResult#getFiltersApplied()}/{@link WizDashboardResult#getFiltersSkipped()}.
+ *       Absent/empty {@code filters} leaves the grid and result identical to the no-filter-bar
+ *       case.</li>
  *   <li>Persist via {@link WizUtil#saveWizSheet}, which finalizes the temporary dashboard
  *       worksheet and then runs the save callback, in the same order the Composer uses (a bare
  *       {@code viewsheetService.setViewsheet} call would skip the finalize step and leave the
- *       dashboard pointing at a temp worksheet entry).</li>
+ *       dashboard pointing at a temp worksheet entry). The filter bar is built <b>before</b> this
+ *       call so its controls — added to the in-memory {@code Viewsheet} — are persisted
+ *       automatically.</li>
  *   <li>Always close the runtime in a {@code finally} block.</li>
  * </ol>
  *
@@ -81,11 +89,13 @@ import java.util.UUID;
 public class WizDashboardService {
    public WizDashboardService(ViewsheetService viewsheetService,
                                AddVisualizationServiceProxy addVisualizationService,
-                               SecurityEngine securityEngine)
+                               SecurityEngine securityEngine,
+                               WizDashboardFilterBuilder filterBuilder)
    {
       this.viewsheetService = viewsheetService;
       this.addVisualizationService = addVisualizationService;
       this.securityEngine = securityEngine;
+      this.filterBuilder = filterBuilder;
    }
 
    public WizDashboardResult composeDashboard(WizDashboardEvent event, Principal principal)
@@ -146,7 +156,12 @@ public class WizDashboardService {
                entries.size() + ")");
          }
 
-         int cumulativeY = 0;   // stack path only
+         // When a filter bar will be built (Task 3, below), reserve its own top row so the
+         // merged charts don't render underneath it.
+         boolean hasFilters = event.getFilters() != null && !event.getFilters().isEmpty();
+         int topOffset = hasFilters ? DASHBOARD_ROW_HEIGHT : 0;
+
+         int cumulativeY = topOffset;   // stack path only
 
          for(int i = 0; i < entries.size(); i++) {
             int x, y;
@@ -154,7 +169,7 @@ public class WizDashboardService {
             if(grid) {
                java.awt.Point origin = gridOrigin(spans, layoutColumns, i);
                x = origin.x;
-               y = origin.y;
+               y = origin.y + topOffset;
             }
             else {
                x = 0;
@@ -184,12 +199,23 @@ public class WizDashboardService {
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
          AssetEntry savedVsEntry = resolveTargetEntry(event.getExistingIdentifier(), event.getName(), principal);
 
+         // Build the top filter bar (Task 3) before save, so the controls it adds to the
+         // in-memory Viewsheet are persisted by the same WizUtil.saveWizSheet call below.
+         WizDashboardFilterBuilder.FilterResult filterResult = hasFilters ?
+            applyFilters(rvs.getViewsheet(), event.getFilters()) : null;
+
          WizUtil.saveWizSheet(rvs, principal, savedVsEntry,
             () -> viewsheetService.setViewsheet(rvs.getViewsheet(), savedVsEntry, principal, true, true));
 
          WizDashboardResult result = new WizDashboardResult();
          result.setSavedViewsheetIdentifier(savedVsEntry.toIdentifier());
          result.setSkipped(skipped);
+
+         if(filterResult != null) {
+            result.setFiltersApplied(filterResult.applied());
+            result.setFiltersSkipped(filterResult.skipped());
+         }
+
          return result;
       }
       finally {
@@ -223,6 +249,22 @@ public class WizDashboardService {
       AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, newPath, pId);
       entry.setAlias(name);
       return entry;
+   }
+
+   /**
+    * Maps {@link WizDashboardEvent.FilterSpec}s to {@link WizDashboardFilterBuilder.FilterRequest}s
+    * and builds the top filter bar against the already-merged dashboard {@code Viewsheet}.
+    * Package-private seam for unit testing (mirrors {@link #gridOrigin}) — lets
+    * {@link WizDashboardServiceGridTest} exercise the mapping/delegation with a mocked
+    * {@link WizDashboardFilterBuilder}, independent of the live-engine-only compose+save path.
+    */
+   WizDashboardFilterBuilder.FilterResult applyFilters(Viewsheet vs,
+                                                        List<WizDashboardEvent.FilterSpec> specs)
+   {
+      List<WizDashboardFilterBuilder.FilterRequest> reqs = specs.stream()
+         .map(f -> new WizDashboardFilterBuilder.FilterRequest(f.getField(), f.getDataType(), f.getLabel()))
+         .collect(java.util.stream.Collectors.toList());
+      return filterBuilder.build(vs, reqs);
    }
 
    /** Vertical row stride between successive merged visualizations, in pixels — used by both
@@ -266,5 +308,6 @@ public class WizDashboardService {
    private final ViewsheetService viewsheetService;
    private final AddVisualizationServiceProxy addVisualizationService;
    private final SecurityEngine securityEngine;
+   private final WizDashboardFilterBuilder filterBuilder;
    private static final Logger LOG = LoggerFactory.getLogger(WizDashboardService.class);
 }
