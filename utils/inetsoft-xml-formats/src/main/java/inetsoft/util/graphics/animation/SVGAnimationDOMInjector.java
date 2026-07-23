@@ -2992,13 +2992,16 @@ public class SVGAnimationDOMInjector {
     * groups and AreaVO emits {@code inetsoft-area} groups — both are collected and
     * re-classified to {@code inetsoft-radar} so hover CSS targets the correct class.
     *
-    * <p>For line-style radar ({@code CHART_RADAR}) the path has {@code fill="none"}, so:
-    * <ul>
-    *   <li>A semi-transparent ghost fill path is injected inside the group (inherits animation).
-    *   <li>A transparent hit path is appended so the enclosed area captures pointer events.
-    * </ul>
-    * Fill-style radar ({@code CHART_FILL_RADAR}) already has a filled path; neither extra
-    * element is needed.
+    * <p>Hover targeting is by outline, not fill: overlapping series are painted back-to-front, so
+    * a filled interior would let the front-most polygon swallow every hover. For both line- and
+    * fill-style radar the real polygon path is set to {@code pointer-events:none} and a transparent
+    * <b>outline hit band</b> ({@code stroke:rgba(0,0,0,0)}, {@code pointer-events:stroke}) is
+    * appended inside the group, so each series stays reachable by its edge regardless of overlap.
+    *
+    * <p>Only line-style radar ({@code CHART_RADAR}), whose real path is {@code fill="none"},
+    * additionally gets a semi-transparent ghost fill path injected inside the group (inherits the
+    * animation) so the polygon still reads as filled. Fill-style radar ({@code CHART_FILL_RADAR})
+    * already has a real filled path and needs no ghost fill.
     */
    private static void injectRadarAnimation(Element svgRoot, Document doc) {
       // Collect both line and area annotation groups — radar uses one or the other.
