@@ -72,10 +72,7 @@ public class AddFilterService {
       }
 
       // Build the column DataRef from the entry properties
-      AttributeRef attrRef = new AttributeRef(attribute);
-      attrRef.setDataType(dtype);
-      ColumnRef colRef = new ColumnRef(attrRef);
-      colRef.setDataType(dtype);
+      ColumnRef colRef = buildColumnRef(attribute, dtype);
 
       // Find all root tables in the worksheet that expose this column (shared filter).
       // Load from assetRepository so we see the latest saved state of the wiz temp
@@ -118,6 +115,20 @@ public class AddFilterService {
    }
 
    /**
+    * Builds a {@link ColumnRef} for the given attribute name and data type.
+    *
+    * <p>Package-visible (reuse seam, decision (a)): {@link WizDashboardFilterBuilder} calls
+    * this identical construction instead of maintaining a second copy.</p>
+    */
+   static ColumnRef buildColumnRef(String attribute, String dtype) {
+      AttributeRef attrRef = new AttributeRef(attribute);
+      attrRef.setDataType(dtype);
+      ColumnRef colRef = new ColumnRef(attrRef);
+      colRef.setDataType(dtype);
+      return colRef;
+   }
+
+   /**
     * Returns the names of all visible root tables in the base worksheet that contain a column
     * matching the given {@code attribute} name (alias-first lookup).
     *
@@ -126,11 +137,6 @@ public class AddFilterService {
     * saves the merged wiz temp worksheet to the repository without reloading the runtime
     * viewsheet object. Using the runtime object would return stale data that does not yet
     * include tables merged by subsequent visualization additions.</p>
-    *
-    * <p>The wiz temp worksheet contains both the original source
-    * {@link BoundTableAssembly} instances and wiz-internal {@link MirrorTableAssembly}
-    * instances. Only root tables (those whose {@code getDependeds} set is empty) are
-    * considered, which correctly selects only the source tables.</p>
     */
    private List<String> findTablesWithColumn(Viewsheet vs, String attribute,
                                              Principal principal)
@@ -143,6 +149,27 @@ public class AddFilterService {
          ws = (Worksheet) assetRepository.getSheet(baseEntry, principal, false, AssetContent.ALL);
       }
 
+      return findColumnMatchingRootTables(ws, attribute);
+   }
+
+   /**
+    * Returns the names of all visible root tables in {@code ws} that contain a column matching
+    * the given {@code attribute} name (alias-first lookup).
+    *
+    * <p>The worksheet may contain both the original source {@link BoundTableAssembly} instances
+    * and wiz-internal {@link MirrorTableAssembly} instances. Only root tables (those whose
+    * {@code getDependeds} set is empty) are considered, which correctly selects only the source
+    * tables.</p>
+    *
+    * <p>Package-visible (reuse seam, decision (a)): this is the shared root-table/column-matching
+    * loop. {@link #findTablesWithColumn} calls it after reloading {@code ws} from the
+    * {@code AssetRepository} (needed because a runtime viewsheet's own base worksheet can be
+    * stale — see above). {@link WizDashboardFilterBuilder} calls it directly against
+    * {@code vs.getBaseWorksheet()} because it operates on an already-composed, in-memory
+    * dashboard {@code Viewsheet} that has no separate stale-runtime-object problem, so no
+    * {@code AssetRepository}/{@code Principal} reload is needed there.</p>
+    */
+   static List<String> findColumnMatchingRootTables(Worksheet ws, String attribute) {
       if(ws == null) {
          return Collections.emptyList();
       }
@@ -195,8 +222,12 @@ public class AddFilterService {
     *   <li>numeric types → TimeSlider with NUMBER range</li>
     *   <li>everything else → SelectionList</li>
     * </ul>
+    *
+    * <p>Package-visible (reuse seam, decision (b)): {@link WizDashboardFilterBuilder}'s
+    * {@code createControlForType} is a thin wrapper around this method — the data-type →
+    * control-type branch is not duplicated.</p>
     */
-   private AbstractSelectionVSAssembly createFilterAssembly(Viewsheet vs, String dtype,
+   static AbstractSelectionVSAssembly createFilterAssembly(Viewsheet vs, String dtype,
                                                             ColumnRef colRef)
    {
       if(XSchema.isNumericType(dtype) || XSchema.isDateType(dtype)) {
@@ -230,7 +261,7 @@ public class AddFilterService {
     * Returns the first available name of the form {@code base + N} (N = 1, 2, …) that
     * does not already exist as an assembly in {@code vs}.
     */
-   private String uniqueName(String base, Viewsheet vs) {
+   private static String uniqueName(String base, Viewsheet vs) {
       int counter = 1;
 
       while(vs.getAssembly(base + counter) != null) {
