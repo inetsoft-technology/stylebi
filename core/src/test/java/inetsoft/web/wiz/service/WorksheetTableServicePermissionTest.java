@@ -58,8 +58,7 @@ import static org.mockito.Mockito.when;
  * Coverage for the authorization gates added to {@link WorksheetTableService}:
  * <ul>
  *   <li>{@code checkWorksheetActionPermission} — the "Visual Composer -> Data Worksheet" action-level
- *       gate checked at the top of {@code createTables}, {@code getWorksheetModel} and
- *       {@code deleteTables}.</li>
+ *       gate checked at the top of {@code createTables} and {@code deleteTables}.</li>
  *   <li>The datasource READ check inside {@code createTables}'s {@code buildTable} step, gating
  *       physical/sql-query tables bound to a {@code physicalSource.datasourcePath}.</li>
  * </ul>
@@ -149,38 +148,6 @@ class WorksheetTableServicePermissionTest {
       WorksheetTableResponse table = only(deps.service().createTables(request, USER));
       assertFalse(table.isSuccess());
       assertTrue(table.getErrorMessage().contains("tableType"));
-
-      verify(deps.securityEngine).checkPermission(eq(USER), eq(ResourceType.WORKSHEET), eq("*"),
-                                                   eq(ResourceAction.ACCESS));
-   }
-
-   // ─── getWorksheetModel: WORKSHEET/ACCESS gate ──────────────────────────────
-
-   @Test
-   void getWorksheetModelThrowsWhenWorksheetAccessDenied() throws Exception {
-      Deps deps = new Deps();
-      when(deps.securityEngine.checkPermission(eq(USER), eq(ResourceType.WORKSHEET), eq("*"),
-                                               eq(ResourceAction.ACCESS)))
-         .thenReturn(false);
-
-      assertThrows(SecurityException.class,
-         () -> deps.service().getWorksheetModel("1^128^__NULL__^ws1", USER));
-
-      verifyNoInteractions(deps.viewsheetService);
-   }
-
-   @Test
-   void getWorksheetModelProceedsWhenWorksheetAccessGranted() throws Exception {
-      Deps deps = new Deps();
-      when(deps.securityEngine.checkPermission(eq(USER), eq(ResourceType.WORKSHEET), eq("*"),
-                                               eq(ResourceAction.ACCESS)))
-         .thenReturn(true);
-
-      // Empty identifier => fails for an unrelated reason once past the gate, before touching
-      // the asset repository.
-      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-         () -> deps.service().getWorksheetModel("", USER));
-      assertTrue(ex.getMessage().contains("wsIdentifier"));
 
       verify(deps.securityEngine).checkPermission(eq(USER), eq(ResourceType.WORKSHEET), eq("*"),
                                                    eq(ResourceAction.ACCESS));
