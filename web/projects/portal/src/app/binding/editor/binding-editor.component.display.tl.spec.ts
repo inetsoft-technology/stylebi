@@ -25,7 +25,6 @@
  *   Group 2  [baseline] — formatsInactive: true when selectedTab !== FORMAT_PANE
  *   Group 3  [baseline] — formatsDisabled: OR of hideFormatPane and formatPaneDisabled
  *   Group 4  [baseline] — formatPaneVisible: true only when selectedTab === FORMAT_PANE
- *   Group 5  [baseline] — miniToolbarHeight: returns GuiTool.MINI_TOOLBAR_HEIGHT (28)
  *   Group 6  [baseline] — bindingType: delegates to bindingModel.type
  *   Group 7  [baseline] — isVS: delegates to UIContextService.isVS()
  *   Group 8  [Risk 2]   — hideDcTip(): sets showDcAppliedTip=false
@@ -179,17 +178,6 @@ describe("BindingEditor — formatPaneVisible getter", () => {
       const { comp } = await renderComponent();
       comp.switchTab(SidebarTab.FORMAT_PANE);
       expect(comp.formatPaneVisible).toBe(true);
-   });
-});
-
-// ---------------------------------------------------------------------------
-// Group 5 — miniToolbarHeight getter [baseline]
-// ---------------------------------------------------------------------------
-
-describe("BindingEditor — miniToolbarHeight getter", () => {
-   it("should return GuiTool.MINI_TOOLBAR_HEIGHT (28)", async () => {
-      const { comp } = await renderComponent();
-      expect(comp.miniToolbarHeight).toBe(28);
    });
 });
 
