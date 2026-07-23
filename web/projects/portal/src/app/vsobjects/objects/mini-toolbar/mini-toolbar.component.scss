@@ -77,3 +77,15 @@
     border-left: 1px solid var(--inet-default-border-color);
   }
 }
+
+:host-context(.viz-modern) .mini-toolbar .mini-toolbar-container {
+  height: 24px;
+
+  button {
+    height: 100%;
+    padding-top: 0;
+    padding-bottom: 0;
+    display: inline-flex;
+    align-items: center;
+  }
+}

@@ -19,6 +19,7 @@ import { Component, DebugElement } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
 import { Subject } from "rxjs";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ContextProvider } from "../../context-provider.service";
 import { DebounceService } from "../../../widget/services/debounce.service";
 import { DataTipService } from "../data-tip/data-tip.service";
@@ -122,7 +123,40 @@ describe("MiniToolbar Tests", () => {
 
       const div = toolbarDiv();
       expect(div.style.left).toBe("500px");
-      // topY = top - MINI_TOOLBAR_HEIGHT(28) since top(500) > minTop(20)
+      // topY = top - miniToolbarHeight(28, gate off) since top(500) > minTop(20)
       expect(div.style.top).toBe("472px");
+   });
+});
+
+// The topY math is pure and depends only on `top`, the context flags, and the pop-component check,
+// so we construct the component directly with light mocks rather than through TestBed.
+function makeToolbar(): MiniToolbar {
+   const contextProvider: any = { composer: false, vsWizard: false, binding: false };
+   const element: any = { nativeElement: {} };
+   const miniToolbarService: any = {};
+   const popComponentService: any = { isPopComponentShow: () => false };
+   // No co-located [VSDataTip] directive, so isActiveDataTip is false and topY stays numeric.
+   const comp = new MiniToolbar(contextProvider, element, miniToolbarService, popComponentService,
+                                null);
+   comp.assembly = "Chart1";
+   return comp;
+}
+
+describe("MiniToolbar.topY", () => {
+   afterEach(() => {
+      document.body.classList.remove("viz-modern");
+   });
+
+   it("positions the toolbar 28px above the object when the gate is off", () => {
+      const comp = makeToolbar();
+      comp.top = 100;
+      expect(comp.topY).toBe(72); // 100 - 28 - 0
+   });
+
+   it("positions the toolbar 24px above the object under .viz-modern", () => {
+      document.body.classList.add("viz-modern");
+      const comp = makeToolbar();
+      comp.top = 100;
+      expect(comp.topY).toBe(76); // 100 - 24 - 0
    });
 });
