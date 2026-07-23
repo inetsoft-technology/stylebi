@@ -3663,6 +3663,9 @@ public abstract class GraphGenerator {
          PointElement outlier = new PointElement();
          outlier.setSizeFrame(new StaticSizeFrame(1));
          outlier.setShapeFrame(new StaticShapeFrame(GShape.FILLED_CIRCLE));
+         // Tag the outliers so the SVG entrance animation fades them in together with their
+         // box/whisker (both share the same grouping dims in BoxDataSet). (75643)
+         outlier.setHint(PointElement.HINT_BOXPLOT_OUTLIER, "true");
 
          elements.add(new SchemaElement(new BoxPainter()));
          elements.add(outlier);

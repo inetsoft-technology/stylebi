@@ -155,6 +155,9 @@ public interface SVGSupport {
    String ATTR_SIZE   = "size";
    /** {@code data-x} — screen X center in pixels, used to sort schema VOs left-to-right. */
    String ATTR_X      = "x";
+   /** {@code data-group} — data group (dimension tuple) key shared by a box-plot box and the
+    *  outlier points drawn over it, so the animation injector fades them in together. */
+   String ATTR_GROUP  = "group";
    /** {@code data-y} — screen Y center in pixels, used to sort relation nodes top-to-bottom. */
    String ATTR_Y      = "y";
    /** {@code data-level} — nesting depth from {@code TreemapGeometry.getLevel()}; leaf=0, root=highest. */

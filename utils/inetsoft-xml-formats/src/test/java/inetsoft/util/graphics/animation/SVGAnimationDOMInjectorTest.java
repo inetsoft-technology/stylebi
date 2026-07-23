@@ -801,26 +801,51 @@ class SVGAnimationDOMInjectorTest {
    }
 
    /**
-    * Box-plot groups follow the same left-to-right delay ordering as candle groups —
-    * both use {@link SVGAnimationDOMInjector#injectXPositionFadeAnimation}.
+    * Boxes fade in left-to-right by screen X center (unchanged ordering), and each outlier point
+    * fades in with the exact delay of its box via the shared {@code data-group} key.  The DOM
+    * order here is deliberately the reverse of the x order to prove the ordering derives from
+    * {@code data-x}, and that the group tag only maps a point to its box's delay — not the order.
     */
    @Test
-   void box_leftToRightDelayOrdering() throws Exception {
+   void box_pointsFadeInWithTheirBoxByGroup() throws Exception {
       Document doc = newDocument();
-      Element left  = addAnnotGroup(doc, SVGSupport.ANNOTATION_BOX,
-                                    Map.of("row", "0", "col", "0", "x", "50"),
-                                    0, 0, 10, 50);
-      Element right = addAnnotGroup(doc, SVGSupport.ANNOTATION_BOX,
-                                    Map.of("row", "1", "col", "0", "x", "150"),
-                                    100, 0, 10, 50);
+      // boxA is first in the DOM but sits to the RIGHT (x=150); boxB is second but to the LEFT (x=50).
+      Element boxA = addAnnotGroup(doc, SVGSupport.ANNOTATION_BOX,
+                                   Map.of("row", "0", "col", "0", "x", "150", "group", "A"),
+                                   0, 0, 10, 50);
+      Element boxB = addAnnotGroup(doc, SVGSupport.ANNOTATION_BOX,
+                                   Map.of("row", "1", "col", "0", "x", "50", "group", "B"),
+                                   100, 0, 10, 50);
+      // One outlier point per group; the animation lands on the inner child (A2 pattern).
+      Element pointA = addAnnotGroup(doc, SVGSupport.ANNOTATION_POINT,
+                                     Map.of("row", "0", "col", "0", "size", "3", "group", "A"),
+                                     5, 5, 2, 2);
+      Element pointB = addAnnotGroup(doc, SVGSupport.ANNOTATION_POINT,
+                                     Map.of("row", "1", "col", "0", "size", "3", "group", "B"),
+                                     105, 5, 2, 2);
 
       SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_BOX);
 
-      double delayLeft  = parseDelay(left.getAttribute("style"));
-      double delayRight = parseDelay(right.getAttribute("style"));
+      double delayBoxA = parseDelay(boxA.getAttribute("style"));
+      double delayBoxB = parseDelay(boxB.getAttribute("style"));
+      double delayPointA = parseDelay(firstChildStyle(pointA));
+      double delayPointB = parseDelay(firstChildStyle(pointB));
 
-      assertEquals(0.0, delayLeft,  0.01, "leftmost box must start with delay 0");
-      assertTrue(delayRight > delayLeft, "right box (x=150) must animate after left (x=50)");
+      // Left box (B, x=50) animates first at delay 0; right box (A, x=150) animates later —
+      // ordering is by screen x, NOT by DOM/tag order.
+      assertEquals(0.0, delayBoxB, 0.01, "leftmost box (x=50) must start with delay 0");
+      assertTrue(delayBoxA > delayBoxB, "right box (x=150) must animate after the left box");
+
+      // Each outlier point fades in with the exact delay of its own box's group.
+      assertEquals(delayBoxA, delayPointA, 0.001, "point in group A must fade in with box A");
+      assertEquals(delayBoxB, delayPointB, 0.001, "point in group B must fade in with box B");
+
+      // Boxes animate on the group itself (A1); the point group's own opacity stays free so the
+      // hover-dim CSS can override it (A2 pattern applies animation to the inner child instead).
+      assertTrue(boxA.getAttribute("style").contains("inetsoft-box-fade"),
+                 "box animation must be applied to the group element");
+      assertTrue(pointA.getAttribute("style").isEmpty(),
+                 "point group's own opacity must stay free for hover dim (A2 pattern)");
    }
 
    // -------------------------------------------------------------------------

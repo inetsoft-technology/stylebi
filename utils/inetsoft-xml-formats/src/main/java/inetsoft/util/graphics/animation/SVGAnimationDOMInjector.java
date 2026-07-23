@@ -2860,12 +2860,67 @@ public class SVGAnimationDOMInjector {
    /**
     * Inject staggered fade-in animation for box-plot charts.
     *
-    * <p>Each {@code inetsoft-box} annotation group (one per box) fades in left-to-right.
-    * Delays are distributed across {@link AnimationConstants#STAGGER_WINDOW}.
+    * <p>A box plot draws two kinds of visual object over one {@code BoxDataSet}: the box/whisker
+    * glyph ({@code inetsoft-box}) and the outlier markers ({@code inetsoft-point}).  The boxes fade
+    * in left-to-right by screen X center, exactly as before.  Each box and its outliers share a
+    * {@code data-group} key (the grouping dimension tuple); that key is used only to give each
+    * outlier point the SAME delay as its box, so points fade in with their box — it never affects
+    * the box ordering.
     */
    private static void injectBoxAnimation(Element svgRoot, Document doc) {
-      injectXPositionFadeAnimation(svgRoot, doc,
-         SVGSupport.ANNOTATION_BOX, "inetsoft-box-fade");
+      appendStyle(svgRoot, doc,
+         "@keyframes inetsoft-box-fade{from{opacity:0}to{opacity:1}}");
+
+      List<Element> boxes = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_BOX);
+
+      if(boxes.isEmpty()) {
+         return;
+      }
+
+      // Stagger boxes left-to-right by screen X center so the entrance order is unchanged.
+      boxes.sort(Comparator.comparingDouble(SVGAnimationDOMInjector::boxScreenX));
+
+      int n = boxes.size();
+      String groupAttr = "data-" + SVGSupport.ATTR_GROUP;
+      // group key -> the delay of the box that owns it, so outlier points can fade in with it.
+      Map<String, Double> groupDelay = new HashMap<>();
+
+      // Boxes/whiskers: A1 pattern — style the annotation group itself; hover dim is .ready-gated.
+      for(int i = 0; i < n; i++) {
+         Element box = boxes.get(i);
+         double delay = AnimationConstants.staggerDelay(i, n);
+         box.setAttribute("style", boxFadeStyle(delay));
+         groupDelay.putIfAbsent(box.getAttribute(groupAttr), delay);
+      }
+
+      // Outlier points: A2 pattern — style the inner children so the outer .inetsoft-point group's
+      // opacity stays free for the hover-dim CSS.  Each point inherits its box's delay via the
+      // shared data-group key (fallback 0 if a point has no matching box, which should not happen).
+      List<Element> points = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_POINT);
+
+      for(Element point : points) {
+         double delay = groupDelay.getOrDefault(point.getAttribute(groupAttr), 0.0);
+         applyAnimStyleToChildren(point, boxFadeStyle(delay));
+      }
+   }
+
+   /** Screen X center of a box annotation group from its {@code data-x} attribute (0 if absent). */
+   private static double boxScreenX(Element g) {
+      String s = g.getAttribute("data-" + SVGSupport.ATTR_X);
+
+      try {
+         return s.isEmpty() ? 0.0 : Double.parseDouble(s);
+      }
+      catch(NumberFormatException e) {
+         return 0.0;
+      }
+   }
+
+   /** Build the box-plot fade-in inline style for the given stagger delay (seconds). */
+   private static String boxFadeStyle(double delay) {
+      return String.format(java.util.Locale.US,
+         "animation:inetsoft-box-fade %.2fs %s %.2fs both",
+         AnimationConstants.DURATION, AnimationConstants.EASING, delay);
    }
 
    /**
