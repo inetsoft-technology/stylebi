@@ -66,6 +66,33 @@ public class VirtualAuthenticationProvider
    }
 
    /**
+    * Get a role object from the role ID. Only the roles defined by this virtual
+    * provider ({@link #getRoles()}) resolve to a non-null role; any other role
+    * identity returns {@code null}. This overrides the fabricating default in
+    * {@link AbstractAuthenticationProvider#getRole(IdentityID)} so that callers
+    * (e.g. the security API) can detect a non-existent role, consistent with
+    * {@link #getUser(IdentityID)}.
+    *
+    * @param roleIdentity the roleIdentity of the role.
+    *
+    * @return the named role object or {@code null} if no such role exists.
+    */
+   @Override
+   public Role getRole(IdentityID roleIdentity) {
+      if(roleIdentity == null) {
+         return null;
+      }
+
+      for(IdentityID role : getRoles()) {
+         if(role.equals(roleIdentity)) {
+            return new Role(roleIdentity);
+         }
+      }
+
+      return null;
+   }
+
+   /**
     * Check the authentication of specific entity.
     *
     * @param userIdentity the unique identification of the user.

@@ -90,6 +90,13 @@ export class JoinNodeGraphComponent implements AfterViewInit, OnChanges {
    // is back in the parent's lookup map and its endpoints are restored.
    ngOnChanges(changes: SimpleChanges): void {
       if(changes["graph"] && !changes["graph"].isFirstChange() && this.nodeGraph) {
+         // The style.top/left host bindings haven't been flushed to the DOM yet at this
+         // point in the CD cycle, so jsPlumb would anchor connections to the element's
+         // stale (pre-layout) position. Apply the new position eagerly so registration/
+         // connection below sees the correct coordinates (e.g. after auto layout moves
+         // every table at once).
+         this.nodeGraph.nativeElement.style.top = this.graph.bounds.y + "px";
+         this.nodeGraph.nativeElement.style.left = this.graph.bounds.x + "px";
          this.endPointsInit();
          this.onRegisterNode.emit([this.graph, this.nodeGraph.nativeElement]);
       }
