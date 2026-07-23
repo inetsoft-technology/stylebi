@@ -114,7 +114,7 @@ describe("JoinNodeGraphComponent - single pass", () => {
 
    function createComponent(overrides: Partial<JoinNodeGraphComponent> = {}) {
       const comp = new JoinNodeGraphComponent(
-         { nativeElement: { focus: vi.fn(), clientWidth: 211 } } as any,
+         { nativeElement: { focus: vi.fn(), clientWidth: 211, style: {} } } as any,
          TestBed.inject(NgbModal),
          TestBed.inject(HttpClient),
          TestBed.inject(DataPhysicalModelService),

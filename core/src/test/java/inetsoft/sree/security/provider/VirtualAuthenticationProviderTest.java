@@ -213,6 +213,36 @@ class VirtualAuthenticationProviderTest
    }
 
    // -----------------------------------------------------------------------
+   // getRole() — only getRoles() entries resolve; everything else is null
+   // (Bug #75728: unknown role names must resolve to null so the security API
+   //  can return 404 instead of a fabricated role)
+   // -----------------------------------------------------------------------
+
+   @Test
+   void getRole_existingRole_returnsRole() {
+      for(IdentityID roleId : provider.getRoles()) {
+         Role role = provider.getRole(roleId);
+         assertNotNull(role, "Known role must resolve to a non-null Role: " + roleId.name);
+         assertEquals(roleId, role.getIdentityID(),
+            "Returned role must carry the requested identity");
+      }
+   }
+
+   @Test
+   void getRole_nonExistentRole_returnsNull() {
+      IdentityID unknown =
+         new IdentityID("__no_such_role__", Organization.getDefaultOrganizationID());
+      assertNull(provider.getRole(unknown),
+         "Unknown role name must resolve to null (the bug #75728 fix)");
+   }
+
+   @Test
+   void getRole_nullIdentity_returnsNull() {
+      assertNull(provider.getRole(null),
+         "getRole(null) must return null without throwing");
+   }
+
+   // -----------------------------------------------------------------------
    // addUser() — admin is accepted; non-admin is silently dropped
    // Lines 264–269
    // -----------------------------------------------------------------------
