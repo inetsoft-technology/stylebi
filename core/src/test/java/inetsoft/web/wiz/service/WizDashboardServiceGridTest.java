@@ -20,6 +20,7 @@ package inetsoft.web.wiz.service;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.wiz.model.WizDashboardEvent;
 import org.junit.jupiter.api.Tag;
@@ -70,7 +71,7 @@ class WizDashboardServiceGridTest {
    // composeDashboard itself needs a live ViewsheetService/asset engine to open a runtime
    // viewsheet and merge worksheets (see WizDashboardServiceTest's class Javadoc), so the
    // filters[] -> WizDashboardFilterBuilder wiring is covered here instead via the
-   // package-visible applyFilters(Viewsheet, List<FilterSpec>) seam, with a mocked
+   // package-visible applyFilters(Viewsheet, Worksheet, List<FilterSpec>) seam, with a mocked
    // WizDashboardFilterBuilder — mirroring how gridOrigin is unit-tested independent of a live
    // engine.
 
@@ -92,20 +93,21 @@ class WizDashboardServiceGridTest {
       WizDashboardFilterBuilder filterBuilder = mock(WizDashboardFilterBuilder.class);
       WizDashboardFilterBuilder.FilterResult expected =
          new WizDashboardFilterBuilder.FilterResult(List.of("Region"), List.of("MissingField"));
-      when(filterBuilder.build(any(), any())).thenReturn(expected);
+      when(filterBuilder.build(any(), any(), any())).thenReturn(expected);
 
       WizDashboardService svc = serviceWith(filterBuilder);
       Viewsheet vs = mock(Viewsheet.class);
+      Worksheet baseWs = mock(Worksheet.class);
       WizDashboardEvent.FilterSpec spec = filterSpec("Region", "string", "Region");
 
-      WizDashboardFilterBuilder.FilterResult actual = svc.applyFilters(vs, List.of(spec));
+      WizDashboardFilterBuilder.FilterResult actual = svc.applyFilters(vs, baseWs, List.of(spec));
 
       assertSame(expected, actual);
 
       @SuppressWarnings("unchecked")
       ArgumentCaptor<List<WizDashboardFilterBuilder.FilterRequest>> captor =
          ArgumentCaptor.forClass(List.class);
-      verify(filterBuilder).build(eq(vs), captor.capture());
+      verify(filterBuilder).build(eq(vs), eq(baseWs), captor.capture());
       assertEquals(List.of(new WizDashboardFilterBuilder.FilterRequest("Region", "string", "Region")),
          captor.getValue());
    }

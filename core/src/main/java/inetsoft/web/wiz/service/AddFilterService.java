@@ -162,12 +162,17 @@ public class AddFilterService {
     * tables.</p>
     *
     * <p>Package-visible (reuse seam, decision (a)): this is the shared root-table/column-matching
-    * loop. {@link #findTablesWithColumn} calls it after reloading {@code ws} from the
-    * {@code AssetRepository} (needed because a runtime viewsheet's own base worksheet can be
-    * stale — see above). {@link WizDashboardFilterBuilder} calls it directly against
-    * {@code vs.getBaseWorksheet()} because it operates on an already-composed, in-memory
-    * dashboard {@code Viewsheet} that has no separate stale-runtime-object problem, so no
-    * {@code AssetRepository}/{@code Principal} reload is needed there.</p>
+    * loop. {@link #findTablesWithColumn} calls it after loading {@code ws} from the
+    * {@code AssetRepository} with {@code permission=false} (needed because a runtime
+    * viewsheet's own base worksheet can be stale — see above). {@link WizDashboardFilterBuilder#build}
+    * has the identical staleness problem (its caller, {@code WizDashboardService.composeDashboard},
+    * merges visualizations into a dashboard {@code Viewsheet} the exact same way
+    * {@code AddVisualizationService} does here), so it is deliberately <b>not</b> handed a
+    * {@code Viewsheet} to read {@code getBaseWorksheet()} from for matching — it takes an
+    * already-loaded {@code Worksheet} parameter instead, which its caller must load the same
+    * way this method does: directly from the repository with {@code permission=false}, not
+    * {@code permission=true} (which can fail the ACL check on this system-generated ephemeral
+    * entry).</p>
     */
    static List<String> findColumnMatchingRootTables(Worksheet ws, String attribute) {
       if(ws == null) {

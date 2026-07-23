@@ -24,8 +24,10 @@ import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
+import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.WizUtil;
 import inetsoft.util.Catalog;
@@ -71,9 +73,12 @@ import java.util.UUID;
  *       purposes, so a caller sending them out of order would otherwise silently assign the
  *       wrong span to the wrong visualization.</li>
  *   <li>When {@code event.getFilters()} is non-empty, reserve a top row (offset every merged
- *       chart's y by {@link #DASHBOARD_ROW_HEIGHT}), reload the runtime {@code Viewsheet}'s base
- *       worksheet from the repository (see the note on {@link #applyFilters} below), and build a
- *       filter bar via {@link #applyFilters}/{@link WizDashboardFilterBuilder#build}, recording
+ *       chart's y by {@link #DASHBOARD_ROW_HEIGHT}), load the dashboard's merged base worksheet
+ *       directly from the repository with {@code permission=false} (see the note on
+ *       {@link #applyFilters} below — <b>not</b> {@code vs.getBaseWorksheet()}, which is stale,
+ *       and <b>not</b> {@code permission=true}, which can fail the ACL check on this
+ *       system-generated ephemeral entry), and build a filter bar via
+ *       {@link #applyFilters}/{@link WizDashboardFilterBuilder#build}, recording
  *       {@link WizDashboardResult#getFiltersApplied()}/{@link WizDashboardResult#getFiltersSkipped()}.
  *       Absent/empty {@code filters} leaves the grid and result identical to the no-filter-bar
  *       case.</li>
@@ -227,14 +232,20 @@ public class WizDashboardService {
          // worksheet to the repository via assetRepository.setSheet and repoints the runtime
          // Viewsheet's base entry via setBaseEntry(...), but never refreshes the runtime
          // Viewsheet's own transient `ws` cache — so vs.getBaseWorksheet() would still return
-         // the original empty temp worksheet. Reload it from the repository first (identical
-         // staleness/workaround to AddFilterService#findTablesWithColumn) so the filter builder
-         // sees the actual merged root tables.
+         // the original empty temp worksheet. Load the merged worksheet directly from the
+         // repository instead — with permission=false, exactly like
+         // AddFilterService#findTablesWithColumn (NOT Viewsheet#reloadBaseWorksheet, which uses
+         // permission=true and can fail the ACL check, or return a stripped sheet, for a
+         // principal with no explicit grant on this system-generated ephemeral entry — that
+         // would reproduce the same every-filter-skipped symptom this fix targets) — so the
+         // filter builder sees the actual merged root tables.
          WizDashboardFilterBuilder.FilterResult filterResult = null;
 
          if(hasFilters) {
-            rvs.getViewsheet().reloadBaseWorksheet(assetRepository, principal);
-            filterResult = applyFilters(rvs.getViewsheet(), event.getFilters());
+            Viewsheet vs = rvs.getViewsheet();
+            Worksheet baseWs = (Worksheet) assetRepository.getSheet(
+               vs.getBaseEntry(), principal, false, AssetContent.ALL);
+            filterResult = applyFilters(vs, baseWs, event.getFilters());
          }
 
          WizUtil.saveWizSheet(rvs, principal, savedVsEntry,
@@ -288,22 +299,26 @@ public class WizDashboardService {
     * Maps {@link WizDashboardEvent.FilterSpec}s to {@link WizDashboardFilterBuilder.FilterRequest}s
     * and builds the top filter bar against the already-merged dashboard {@code Viewsheet}.
     *
-    * <p><b>Caller contract:</b> {@code vs.getBaseWorksheet()} must already reflect the merged
-    * root tables — i.e. the caller must have called
-    * {@link Viewsheet#reloadBaseWorksheet(AssetRepository, Principal)} (or otherwise refreshed
-    * the base worksheet from the repository) first. This method does not reload it itself.</p>
+    * <p><b>Caller contract:</b> {@code baseWs} must be the dashboard's merged base worksheet,
+    * loaded directly from the repository with {@code permission=false} — i.e.
+    * {@code assetRepository.getSheet(vs.getBaseEntry(), principal, false, AssetContent.ALL)} —
+    * the exact mirror of {@code AddFilterService.findTablesWithColumn}. Do <b>not</b> pass
+    * {@code vs.getBaseWorksheet()} (stale — the merge never refreshes it) or a worksheet loaded
+    * with {@code permission=true} (can fail the ACL check on this system-generated ephemeral
+    * entry — see {@link WizDashboardFilterBuilder}'s class Javadoc). This method does not load
+    * or reload the worksheet itself.</p>
     *
     * <p>Package-private seam for unit testing (mirrors {@link #gridOrigin}) — lets
     * {@link WizDashboardServiceGridTest} exercise the mapping/delegation with a mocked
     * {@link WizDashboardFilterBuilder}, independent of the live-engine-only compose+save path.
     */
-   WizDashboardFilterBuilder.FilterResult applyFilters(Viewsheet vs,
+   WizDashboardFilterBuilder.FilterResult applyFilters(Viewsheet vs, Worksheet baseWs,
                                                         List<WizDashboardEvent.FilterSpec> specs)
    {
       List<WizDashboardFilterBuilder.FilterRequest> reqs = specs.stream()
          .map(f -> new WizDashboardFilterBuilder.FilterRequest(f.getField(), f.getDataType(), f.getLabel()))
          .collect(java.util.stream.Collectors.toList());
-      return filterBuilder.build(vs, reqs);
+      return filterBuilder.build(vs, baseWs, reqs);
    }
 
    /** Vertical row stride between successive merged visualizations, in pixels — used by both

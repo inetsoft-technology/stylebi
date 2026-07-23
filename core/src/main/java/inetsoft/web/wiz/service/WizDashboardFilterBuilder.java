@@ -56,15 +56,18 @@ import java.util.List;
  *       repoints the runtime {@code Viewsheet}'s base entry via {@code setBaseEntry(...)}, but
  *       never refreshes the runtime {@code Viewsheet}'s own transient {@code ws} field — so
  *       {@code vs.getBaseWorksheet()} would otherwise return the stale/empty pre-merge
- *       worksheet), then delegates to this shared loop. <b>This builder has the identical
- *       staleness problem</b> — it also calls the shared loop directly against
- *       {@code vs.getBaseWorksheet()}, applied to the very same kind of merged-then-not-reloaded
- *       dashboard {@code Viewsheet}. It does <b>not</b> reload the worksheet itself: the caller
- *       ({@link WizDashboardService#composeDashboard}) is responsible for calling
- *       {@code vs.reloadBaseWorksheet(assetRepository, principal)} (or otherwise refreshing the
- *       base worksheet from the repository) before invoking {@link #build}, exactly as
- *       {@code AddFilterService.findTablesWithColumn} does inline. See
- *       {@link #findMergedTablesWithColumn}'s Javadoc for the caller contract.</li>
+ *       worksheet), loading with {@code permission=false} — deliberately, since the merged base
+ *       worksheet is a system-generated, already-gated internal/ephemeral entry, and a
+ *       {@code permission=true} load can fail the ACL check (or return a stripped sheet) for a
+ *       principal with no explicit grant on that ephemeral entry, reproducing the exact
+ *       every-filter-skipped symptom this reuse is meant to avoid — then delegates to this
+ *       shared loop. <b>This builder has the identical staleness problem</b> and is deliberately
+ *       <b>not</b> handed a {@code Viewsheet} to read {@code getBaseWorksheet()} from for
+ *       matching: {@link #build} instead takes the already-loaded {@code Worksheet} directly as
+ *       a parameter, so its caller ({@link WizDashboardService#composeDashboard}) is forced to
+ *       load it itself — with {@code permission=false} — exactly as
+ *       {@code AddFilterService.findTablesWithColumn} does inline, rather than risk a second
+ *       copy of the load drifting to a different (incorrect) permission flag over time.</li>
  * </ul>
  *
  * <p><b>Confirmed signatures</b> (against the real {@code AddFilterService}, not the task
@@ -77,9 +80,9 @@ import java.util.List;
  * title is set through a cast to the common {@link TitledVSAssembly} interface.</p>
  *
  * <p><b>Deferred to manual E2E</b> (per the brief; no synthetic worksheet fixture is
- * fabricated here): column-matching across merged root tables
- * ({@link #findMergedTablesWithColumn}) and actual runtime filtering of charts both require
- * a live composed dashboard with a real worksheet. The automated coverage in
+ * fabricated here): column-matching across merged root tables ({@link #build}'s table-lookup
+ * branch) and actual runtime filtering of charts both require a live composed dashboard with a
+ * real, permission=false-loaded worksheet. The automated coverage in
  * {@code WizDashboardFilterBuilderTest} is limited to the pure data-type → control-type
  * branch via the package-visible {@link #createControlForType}.</p>
  */
@@ -92,16 +95,29 @@ public class WizDashboardFilterBuilder {
     * Builds one selection control per request, binds it to every merged root table exposing
     * the column, positions the controls as a top filter bar, and adds them to {@code vs}.
     *
+    * <p><b>Caller contract:</b> {@code baseWorksheet} must be the dashboard's merged base
+    * worksheet, loaded directly from the repository with {@code permission=false} — i.e.
+    * {@code assetRepository.getSheet(vs.getBaseEntry(), principal, false, AssetContent.ALL)},
+    * the exact mirror of {@code AddFilterService.findTablesWithColumn}. Do <b>not</b> pass
+    * {@code vs.getBaseWorksheet()}: {@code AddVisualizationService}'s merge never refreshes the
+    * runtime {@code Viewsheet}'s own transient {@code ws} field, so it would be stale/empty; and
+    * do not load with {@code permission=true} ({@link Viewsheet#reloadBaseWorksheet}'s flag) —
+    * see the class Javadoc reuse-seam note for why that can fail the ACL check on this
+    * system-generated ephemeral entry. Passing a stale or wrongly-permissioned worksheet here
+    * does not fail loud: every field simply lands in {@link FilterResult#skipped()}, since this
+    * method has no way to distinguish "genuinely no matching table" from "caller loaded the
+    * wrong worksheet" — getting the load right in the caller matters.</p>
+    *
     * @return which fields bound to &gt;=1 table (applied) vs none (skipped).
     */
-   public FilterResult build(Viewsheet vs, List<FilterRequest> requests) {
+   public FilterResult build(Viewsheet vs, Worksheet baseWorksheet, List<FilterRequest> requests) {
       List<String> applied = new ArrayList<>();
       List<String> skipped = new ArrayList<>();
       int x = FILTER_BAR_X;
       int y = FILTER_BAR_Y;
 
       for(FilterRequest req : requests) {
-         List<String> tables = findMergedTablesWithColumn(vs, req.field());
+         List<String> tables = AddFilterService.findColumnMatchingRootTables(baseWorksheet, req.field());
 
          if(tables.isEmpty()) {
             skipped.add(req.field());
@@ -134,26 +150,6 @@ public class WizDashboardFilterBuilder {
     */
    AbstractSelectionVSAssembly createControlForType(Viewsheet vs, String dtype, DataRef colRef) {
       return AddFilterService.createFilterAssembly(vs, dtype, (ColumnRef) colRef);
-   }
-
-   /**
-    * Thin wrapper around the shared {@code AddFilterService.findColumnMatchingRootTables}
-    * loop, applied directly to {@code vs.getBaseWorksheet()}.
-    *
-    * <p><b>Caller contract:</b> {@code vs}'s base worksheet must already have been reloaded
-    * from the repository (e.g. via {@code vs.reloadBaseWorksheet(assetRepository, principal)})
-    * by the caller before {@link #build} is invoked. This class does <b>not</b> do that reload
-    * itself — {@code vs.getBaseWorksheet()} reflects whatever was last loaded into the runtime
-    * {@code Viewsheet}'s transient {@code ws} field, which {@code AddVisualizationService}'s
-    * merge does not refresh (see the class Javadoc reuse-seam note). Calling {@link #build}
-    * against an un-reloaded {@code vs} silently returns every field in
-    * {@link FilterResult#skipped()} (this method returns an empty list for every column,
-    * since the "base worksheet" it sees has no merged tables) rather than failing loud — so
-    * getting the reload right in the caller matters.</p>
-    */
-   private List<String> findMergedTablesWithColumn(Viewsheet vs, String attribute) {
-      Worksheet ws = vs.getBaseWorksheet();
-      return AddFilterService.findColumnMatchingRootTables(ws, attribute);
    }
 
    private static final int FILTER_BAR_X = 0;
