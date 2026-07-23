@@ -23,7 +23,7 @@ class WizDashboardEventTest {
    }
 
    @Test
-   void tolueratesAbsentTiles() throws Exception {
+   void toleratesAbsentTiles() throws Exception {
       WizDashboardEvent ev = mapper.readValue("{\"name\":\"B\",\"identifiers\":[\"v1\"]}", WizDashboardEvent.class);
       assertNull(ev.getTiles());
       assertNull(ev.getLayoutColumns());
