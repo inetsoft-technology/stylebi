@@ -53,6 +53,12 @@ class VSTableStructureDefaultsTest {
       assertEquals(0xE9E4DA, rgb(VSTableStructureDefaults.totalBackground()));
    }
 
+   @Test
+   void subtotalBackgroundValue() {
+      // interior group subtotals; lighter than the grand-total #E9E4DA so the total hierarchy reads
+      assertEquals(0xEEEAE1, rgb(VSTableStructureDefaults.subtotalBackground()));
+   }
+
    private static int rgb(Color c) {
       return c.getRGB() & 0xFFFFFF;
    }
