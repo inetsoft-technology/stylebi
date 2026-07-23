@@ -41,6 +41,14 @@ Render-location rules and the gate mechanism are unchanged from the roadmap — 
 
 ### 2. Sequential / diverging color ramps  *(from Phase 8)*
 
+> **Status (2026-07-23): WITHDRAWN — non-issue.** Investigated and reverted. The default continuous
+> ramp for a measure bound to Color is already `BluesColorFrame` (ColorBrewer single-hue light→dark
+> blue; `GraphUtil.java:944`, `ChangeChartTypeProcessor.java:863`) — hardcoded, un-gated, and already
+> modern-appropriate. `GradientColorFrame` (the frame the grounding below points at) is only the opt-in
+> "Custom" ramp, never the default, so modernizing it changed nothing user-facing. The Phase 8 D5
+> premise ("continuous color renders legacy ramps") does not hold for the default. See the withdrawn
+> stub `docs/superpowers/plans/2026-07-23-viz-phase9c-item2-sequential-gradient-ramp.md`.
+
 - **Impact:** high — analytical color parity. Phase 8 shipped the modern *categorical* palette, but
   gradient/heatmap/diverging charts still render the legacy ramps, so a modern dashboard mixes modern
   discrete series with legacy continuous color.
