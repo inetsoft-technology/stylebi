@@ -839,6 +839,34 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
          }
       }
 
+      // Multiple aggregates (e.g. a raw sum and a "percent of total" calculator) can
+      // share the same underlying column and therefore the same measure name here.
+      // The calc table conversion (CalcTableVSAQuery.createCrosstabAssemblies) disambiguates
+      // duplicate aggregate binding values the same way ("name", "name.1", "name.2", ...), and
+      // a calc table's grand-total cells reference the measure by this bare, unqualified name
+      // (no "@group:value" suffix) -- so measureHeaders must use the identical disambiguated
+      // names or TableArray.hasMember() won't find the duplicate and the cell silently
+      // resolves to undefined/null.
+      Map<String, Integer> dupCounts = new HashMap<>();
+
+      for(int i = 0; i < measurename.length; i++) {
+         String name = measurename[i];
+
+         if(name == null) {
+            continue;
+         }
+
+         Integer dup = dupCounts.get(name);
+
+         if(dup == null) {
+            dupCounts.put(name, 1);
+         }
+         else {
+            dupCounts.put(name, dup + 1);
+            measurename[i] = name + "." + dup;
+         }
+      }
+
       return measurename;
    }
 
