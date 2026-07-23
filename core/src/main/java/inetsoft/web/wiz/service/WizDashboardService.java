@@ -133,13 +133,36 @@ public class WizDashboardService {
       try {
          List<String> skipped = new ArrayList<>();
          int mergedCount = 0;
-         int cumulativeY = 0;
+
+         boolean grid = event.getTiles() != null && !event.getTiles().isEmpty();
+         int layoutColumns = event.getLayoutColumns() != null ?
+            Math.max(1, event.getLayoutColumns()) : 2;
+         int[] spans = grid ?
+            event.getTiles().stream().mapToInt(t -> Math.max(1, t.getSpanCols())).toArray() : null;
+
+         int cumulativeY = 0;   // stack path only
 
          for(int i = 0; i < entries.size(); i++) {
+            int x, y;
+
+            if(grid) {
+               java.awt.Point origin = gridOrigin(spans, layoutColumns, i);
+               x = origin.x;
+               y = origin.y;
+            }
+            else {
+               x = 0;
+               y = cumulativeY;
+            }
+
             try {
                addVisualizationService.addVisualization(
-                  runtimeId, entries.get(i), 0, cumulativeY, 1.0f, principal);
-               cumulativeY += DASHBOARD_ROW_HEIGHT;
+                  runtimeId, entries.get(i), x, y, 1.0f, principal);
+
+               if(!grid) {
+                  cumulativeY += DASHBOARD_ROW_HEIGHT;
+               }
+
                mergedCount++;
             }
             catch(Exception ex) {
@@ -198,6 +221,40 @@ public class WizDashboardService {
 
    /** Single-column vertical stride between successive merged visualizations, in pixels. */
    private static final int DASHBOARD_ROW_HEIGHT = 420;
+
+   /** Horizontal stride between grid columns, in pixels (paired with DASHBOARD_ROW_HEIGHT). */
+   private static final int DASHBOARD_COL_WIDTH = 640;   // confirm vs composer default viz width
+
+   /**
+    * Row-major grid origin for the tile at flat index {@code i}, given per-tile column spans.
+    * Returns the (x,y) drop origin in pixels. Package-private for unit testing.
+    */
+   static java.awt.Point gridOrigin(int[] spanCols, int layoutColumns, int i) {
+      int col = 0;
+      int row = 0;
+
+      for(int k = 0; k <= i; k++) {
+         int span = Math.max(1, Math.min(spanCols[k], layoutColumns));
+
+         if(col + span > layoutColumns) {   // doesn't fit in the current row → wrap
+            col = 0;
+            row++;
+         }
+
+         if(k == i) {
+            return new java.awt.Point(col * DASHBOARD_COL_WIDTH, row * DASHBOARD_ROW_HEIGHT);
+         }
+
+         col += span;
+
+         if(col >= layoutColumns) {   // row full → next row
+            col = 0;
+            row++;
+         }
+      }
+
+      return new java.awt.Point(0, 0);   // unreachable (i is always in range)
+   }
 
    private final ViewsheetService viewsheetService;
    private final AddVisualizationServiceProxy addVisualizationService;
