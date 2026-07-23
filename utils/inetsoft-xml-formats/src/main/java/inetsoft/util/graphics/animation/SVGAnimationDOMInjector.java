@@ -3057,13 +3057,15 @@ public class SVGAnimationDOMInjector {
       // during the entrance animation.
       //
       // Two activation sources exist:
-      //   A) Polygon interior — mouse over the hit path inside .inetsoft-radar[data-row=i].
-      //      The hit path is a descendant of .inetsoft-radar, so :hover propagates up to it.
+      //   A) Outline hit band — mouse over the transparent stroke band traced around the
+      //      polygon edge (a descendant of .inetsoft-radar[data-row=i], so :hover propagates
+      //      up to the group). The real polygon interior is pointer-events:none and does not
+      //      participate in hit-testing.
       //   B) Vertex circle   — .inetsoft-point[data-row=i] circles are painted AFTER radar
-      //      groups (later DOM order → higher z-order), so they sit on top of the hit paths.
-      //      Without an explicit CSS :hover rule keyed on .inetsoft-point, the full vertex
-      //      circle area would not trigger the dim effect (only the thin crescent of hit-path
-      //      area visible around the circle edge would activate .inetsoft-radar:hover).
+      //      groups (later DOM order → higher z-order), so they sit on top of the outline
+      //      bands at each vertex. Without an explicit CSS :hover rule keyed on .inetsoft-point,
+      //      only the thin crescent of band area visible around the circle's edge would
+      //      activate .inetsoft-radar:hover.
       //
       // Both sources dim the same set of targets:
       //   • sibling radar polygons  (not[data-row=i])
