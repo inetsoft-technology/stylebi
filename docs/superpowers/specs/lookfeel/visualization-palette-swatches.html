@@ -553,7 +553,7 @@
 
 <div class="section">
   <div class="section-title">Table Structure Tokens (Phase 5 Part C)</div>
-  <p class="section-note">Server-rendered viewsheet table structure: gridlines, header hierarchy, and grand-total emphasis. Applied as gated modern defaults by overlaying a per-assembly clone of the shipped "Default Style" in DataVSAQuery, so the live view and every export format agree and user cell formats still win. Values map the example mockups' relationships (subtle low-contrast gridlines; a quiet header rather than a heavy fill) into the warm-neutral visualization system rather than copying the mockups' purple/blue theme. Two border tiers: a subtle interior gridline (#E8E5DE) and a stronger header→body rule (#D9D5CC), which equals $shell-border-default so the viewsheet header rule matches shell/DOM tables. Fill hierarchy: header #F1EFEA, subtotal #EEEAE1, grand total #E9E4DA (each deeper). Subtotal (#EEEAE1) and grand-total (#E9E4DA) are proposed values with no design spec yet. Grand total is emitted via the positional trailer band; group-subtotal emphasis is deferred (item 3b) and not emitted yet. Dark-mode variants are reference only — deferred, not emitted yet.</p>
+  <p class="section-note">Server-rendered viewsheet table structure: gridlines, header hierarchy, and grand-total emphasis. Applied as gated modern defaults by overlaying a per-assembly clone of the shipped "Default Style" in DataVSAQuery, so the live view and every export format agree and user cell formats still win. Values map the example mockups' relationships (subtle low-contrast gridlines; a quiet header rather than a heavy fill) into the warm-neutral visualization system rather than copying the mockups' purple/blue theme. Two border tiers: a subtle interior gridline (#E8E5DE) and a stronger header→body rule (#D9D5CC), which equals $shell-border-default so the viewsheet header rule matches shell/DOM tables. Fill hierarchy: header #F1EFEA, subtotal #EEEAE1, grand total #E9E4DA (each deeper). Subtotal (#EEEAE1) and grand-total (#E9E4DA) are proposed values with no design spec yet. Grand total is emitted via the positional trailer band; group-subtotal emphasis is emitted (Phase 9C item 3) via data-borne ROW_GROUP_TOTAL/COL_GROUP_TOTAL specs prepended ahead of the zebra spec, so interior crosstab subtotals get the subtotal fill while the trailer band keeps grand total distinct. Dark-mode variants are reference only — deferred, not emitted yet.</p>
   <div class="swatches">
     <div class="swatch">
       <div class="swatch-color has-text" style="background:var(--surface-default); color:var(--text-default); border:1px solid var(--viz-gridline);">Gridline</div>
@@ -578,7 +578,7 @@
       <div class="swatch-info">
         <div class="swatch-name">viz-subtotal-bg</div>
         <div class="swatch-hex">#EEEAE1</div>
-        <div class="swatch-use">group-subtotal fill, lighter than grand total — proposed; deferred (item 3b), not emitted yet</div>
+        <div class="swatch-use">group-subtotal fill, lighter than grand total — proposed; emitted (Phase 9C item 3)</div>
       </div>
     </div>
 
