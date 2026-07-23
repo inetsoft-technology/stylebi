@@ -140,6 +140,12 @@ public class WizDashboardService {
          int[] spans = grid ?
             event.getTiles().stream().mapToInt(t -> Math.max(1, t.getSpanCols())).toArray() : null;
 
+         if(grid && spans.length != entries.size()) {
+            throw new IllegalArgumentException(
+               "tiles count (" + spans.length + ") does not match resolved visualization count (" +
+               entries.size() + ")");
+         }
+
          int cumulativeY = 0;   // stack path only
 
          for(int i = 0; i < entries.size(); i++) {
@@ -219,7 +225,8 @@ public class WizDashboardService {
       return entry;
    }
 
-   /** Single-column vertical stride between successive merged visualizations, in pixels. */
+   /** Vertical row stride between successive merged visualizations, in pixels — used by both
+    *  the single-column stack path and the grid path's row advance. */
    private static final int DASHBOARD_ROW_HEIGHT = 420;
 
    /** Horizontal stride between grid columns, in pixels (paired with DASHBOARD_ROW_HEIGHT). */
