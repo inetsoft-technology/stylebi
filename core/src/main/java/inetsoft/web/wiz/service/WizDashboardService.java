@@ -39,6 +39,7 @@ import org.springframework.stereotype.Service;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -64,9 +65,15 @@ import java.util.UUID;
  *       recorded in {@link WizDashboardResult#getSkipped()} rather than failing the whole
  *       compose; if every visualization is skipped, the compose fails loud
  *       ({@link IllegalArgumentException}, mapped by the controller to 400).</li>
+ *   <li>When {@code tiles} are supplied, fail loud ({@link IllegalArgumentException}) if a
+ *       tile's {@code identifier} doesn't match the {@code identifiers} entry at the same index
+ *       — tiles and identifiers are consumed purely positionally (by index) for span/layout
+ *       purposes, so a caller sending them out of order would otherwise silently assign the
+ *       wrong span to the wrong visualization.</li>
  *   <li>When {@code event.getFilters()} is non-empty, reserve a top row (offset every merged
- *       chart's y by {@link #DASHBOARD_ROW_HEIGHT}) and build a filter bar via
- *       {@link #applyFilters}/{@link WizDashboardFilterBuilder#build}, recording
+ *       chart's y by {@link #DASHBOARD_ROW_HEIGHT}), reload the runtime {@code Viewsheet}'s base
+ *       worksheet from the repository (see the note on {@link #applyFilters} below), and build a
+ *       filter bar via {@link #applyFilters}/{@link WizDashboardFilterBuilder#build}, recording
  *       {@link WizDashboardResult#getFiltersApplied()}/{@link WizDashboardResult#getFiltersSkipped()}.
  *       Absent/empty {@code filters} leaves the grid and result identical to the no-filter-bar
  *       case.</li>
@@ -90,12 +97,14 @@ public class WizDashboardService {
    public WizDashboardService(ViewsheetService viewsheetService,
                                AddVisualizationServiceProxy addVisualizationService,
                                SecurityEngine securityEngine,
-                               WizDashboardFilterBuilder filterBuilder)
+                               WizDashboardFilterBuilder filterBuilder,
+                               AssetRepository assetRepository)
    {
       this.viewsheetService = viewsheetService;
       this.addVisualizationService = addVisualizationService;
       this.securityEngine = securityEngine;
       this.filterBuilder = filterBuilder;
+      this.assetRepository = assetRepository;
    }
 
    public WizDashboardResult composeDashboard(WizDashboardEvent event, Principal principal)
@@ -167,6 +176,18 @@ public class WizDashboardService {
             int x, y;
 
             if(grid) {
+               // tiles[] and identifiers[] are consumed purely positionally below (spans[i]
+               // paired with entries.get(i)/identifiers.get(i)) — guard that the caller actually
+               // sent them in the same order, rather than silently mis-assigning spans.
+               String tileIdentifier = event.getTiles().get(i).getIdentifier();
+
+               if(!Objects.equals(tileIdentifier, identifiers.get(i))) {
+                  throw new IllegalArgumentException(
+                     "tiles[" + i + "].identifier (" + tileIdentifier + ") does not match " +
+                     "identifiers[" + i + "] (" + identifiers.get(i) + ") — tiles must be listed " +
+                     "in the same order as identifiers");
+               }
+
                java.awt.Point origin = gridOrigin(spans, layoutColumns, i);
                x = origin.x;
                y = origin.y + topOffset;
@@ -201,8 +222,20 @@ public class WizDashboardService {
 
          // Build the top filter bar (Task 3) before save, so the controls it adds to the
          // in-memory Viewsheet are persisted by the same WizUtil.saveWizSheet call below.
-         WizDashboardFilterBuilder.FilterResult filterResult = hasFilters ?
-            applyFilters(rvs.getViewsheet(), event.getFilters()) : null;
+         //
+         // The merge loop above (AddVisualizationService#addVisualization) saves the merged
+         // worksheet to the repository via assetRepository.setSheet and repoints the runtime
+         // Viewsheet's base entry via setBaseEntry(...), but never refreshes the runtime
+         // Viewsheet's own transient `ws` cache — so vs.getBaseWorksheet() would still return
+         // the original empty temp worksheet. Reload it from the repository first (identical
+         // staleness/workaround to AddFilterService#findTablesWithColumn) so the filter builder
+         // sees the actual merged root tables.
+         WizDashboardFilterBuilder.FilterResult filterResult = null;
+
+         if(hasFilters) {
+            rvs.getViewsheet().reloadBaseWorksheet(assetRepository, principal);
+            filterResult = applyFilters(rvs.getViewsheet(), event.getFilters());
+         }
 
          WizUtil.saveWizSheet(rvs, principal, savedVsEntry,
             () -> viewsheetService.setViewsheet(rvs.getViewsheet(), savedVsEntry, principal, true, true));
@@ -254,7 +287,13 @@ public class WizDashboardService {
    /**
     * Maps {@link WizDashboardEvent.FilterSpec}s to {@link WizDashboardFilterBuilder.FilterRequest}s
     * and builds the top filter bar against the already-merged dashboard {@code Viewsheet}.
-    * Package-private seam for unit testing (mirrors {@link #gridOrigin}) — lets
+    *
+    * <p><b>Caller contract:</b> {@code vs.getBaseWorksheet()} must already reflect the merged
+    * root tables — i.e. the caller must have called
+    * {@link Viewsheet#reloadBaseWorksheet(AssetRepository, Principal)} (or otherwise refreshed
+    * the base worksheet from the repository) first. This method does not reload it itself.</p>
+    *
+    * <p>Package-private seam for unit testing (mirrors {@link #gridOrigin}) — lets
     * {@link WizDashboardServiceGridTest} exercise the mapping/delegation with a mocked
     * {@link WizDashboardFilterBuilder}, independent of the live-engine-only compose+save path.
     */
@@ -309,5 +348,6 @@ public class WizDashboardService {
    private final AddVisualizationServiceProxy addVisualizationService;
    private final SecurityEngine securityEngine;
    private final WizDashboardFilterBuilder filterBuilder;
+   private final AssetRepository assetRepository;
    private static final Logger LOG = LoggerFactory.getLogger(WizDashboardService.class);
 }

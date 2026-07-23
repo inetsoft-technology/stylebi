@@ -50,14 +50,21 @@ import java.util.List;
  *       this builder call.</li>
  *   <li>{@code findColumnMatchingRootTables(Worksheet, String)} — the root-table/column-name
  *       matching loop, extracted from {@code findTablesWithColumn}'s body (reuse decision
- *       (a)). {@code AddFilterService.findTablesWithColumn} still does its own
- *       {@code AssetRepository}/{@code Principal} reload first (needed there because a
- *       *runtime* viewsheet's base worksheet can go stale after an async merge+save), then
- *       delegates to this shared loop. This builder instead calls the shared loop directly
- *       against {@code vs.getBaseWorksheet()} — no reload is needed here because this
- *       builder operates on an already-composed, in-memory dashboard {@code Viewsheet} that
- *       Task 3 built in one shot (not a runtime object edited incrementally across separate
- *       save/reload round-trips).</li>
+ *       (a)). {@code AddFilterService.findTablesWithColumn} does its own
+ *       {@code AssetRepository}/{@code Principal} reload first (needed there because
+ *       {@code AddVisualizationService} saves the merged worksheet to the repository and
+ *       repoints the runtime {@code Viewsheet}'s base entry via {@code setBaseEntry(...)}, but
+ *       never refreshes the runtime {@code Viewsheet}'s own transient {@code ws} field — so
+ *       {@code vs.getBaseWorksheet()} would otherwise return the stale/empty pre-merge
+ *       worksheet), then delegates to this shared loop. <b>This builder has the identical
+ *       staleness problem</b> — it also calls the shared loop directly against
+ *       {@code vs.getBaseWorksheet()}, applied to the very same kind of merged-then-not-reloaded
+ *       dashboard {@code Viewsheet}. It does <b>not</b> reload the worksheet itself: the caller
+ *       ({@link WizDashboardService#composeDashboard}) is responsible for calling
+ *       {@code vs.reloadBaseWorksheet(assetRepository, principal)} (or otherwise refreshing the
+ *       base worksheet from the repository) before invoking {@link #build}, exactly as
+ *       {@code AddFilterService.findTablesWithColumn} does inline. See
+ *       {@link #findMergedTablesWithColumn}'s Javadoc for the caller contract.</li>
  * </ul>
  *
  * <p><b>Confirmed signatures</b> (against the real {@code AddFilterService}, not the task
@@ -131,9 +138,18 @@ public class WizDashboardFilterBuilder {
 
    /**
     * Thin wrapper around the shared {@code AddFilterService.findColumnMatchingRootTables}
-    * loop, applied directly to this already-composed dashboard's base worksheet. See the
-    * class Javadoc reuse-seam note for why no {@code AssetRepository}/{@code Principal}
-    * reload is needed here (unlike {@code AddFilterService.findTablesWithColumn}).
+    * loop, applied directly to {@code vs.getBaseWorksheet()}.
+    *
+    * <p><b>Caller contract:</b> {@code vs}'s base worksheet must already have been reloaded
+    * from the repository (e.g. via {@code vs.reloadBaseWorksheet(assetRepository, principal)})
+    * by the caller before {@link #build} is invoked. This class does <b>not</b> do that reload
+    * itself — {@code vs.getBaseWorksheet()} reflects whatever was last loaded into the runtime
+    * {@code Viewsheet}'s transient {@code ws} field, which {@code AddVisualizationService}'s
+    * merge does not refresh (see the class Javadoc reuse-seam note). Calling {@link #build}
+    * against an un-reloaded {@code vs} silently returns every field in
+    * {@link FilterResult#skipped()} (this method returns an empty list for every column,
+    * since the "base worksheet" it sees has no merged tables) rather than failing loud — so
+    * getting the reload right in the caller matters.</p>
     */
    private List<String> findMergedTablesWithColumn(Viewsheet vs, String attribute) {
       Worksheet ws = vs.getBaseWorksheet();

@@ -19,6 +19,7 @@ package inetsoft.web.wiz.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.wiz.model.WizDashboardEvent;
 import org.junit.jupiter.api.Tag;
@@ -75,7 +76,7 @@ class WizDashboardServiceGridTest {
 
    private WizDashboardService serviceWith(WizDashboardFilterBuilder filterBuilder) {
       return new WizDashboardService(mock(ViewsheetService.class), mock(AddVisualizationServiceProxy.class),
-         mock(SecurityEngine.class), filterBuilder);
+         mock(SecurityEngine.class), filterBuilder, mock(AssetRepository.class));
    }
 
    private static WizDashboardEvent.FilterSpec filterSpec(String field, String dataType, String label) {
