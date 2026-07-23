@@ -52,7 +52,27 @@ public class WizDashboardEvent {
       this.existingIdentifier = existingIdentifier;
    }
 
+   public List<TileSpec> getTiles() { return tiles; }
+   public void setTiles(List<TileSpec> tiles) { this.tiles = tiles; }
+
+   public Integer getLayoutColumns() { return layoutColumns; }
+   public void setLayoutColumns(Integer layoutColumns) { this.layoutColumns = layoutColumns; }
+
    private String name;
    private List<String> identifiers;
    private String existingIdentifier;
+   private List<TileSpec> tiles;
+   private Integer layoutColumns;
+
+   @JsonIgnoreProperties(ignoreUnknown = true)
+   public static class TileSpec {
+      public String getIdentifier() { return identifier; }
+      public void setIdentifier(String identifier) { this.identifier = identifier; }
+
+      public int getSpanCols() { return spanCols; }
+      public void setSpanCols(int spanCols) { this.spanCols = spanCols; }
+
+      private String identifier;
+      private int spanCols = 1;   // default: one cell
+   }
 }
