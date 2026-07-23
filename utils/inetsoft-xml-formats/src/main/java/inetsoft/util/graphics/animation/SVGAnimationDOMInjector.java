@@ -3354,10 +3354,14 @@ public class SVGAnimationDOMInjector {
          // Area/line hover uses JS-only inline style.opacity (no inetsoft-active class is set).
          // CSS :has(.inetsoft-area.inetsoft-active) rules are not used because CSS :has()
          // cannot scope to a single facet panel within one SVG — all panels would be affected.
-         // Radar polygon dimming via CSS :hover only — no inetsoft-active toggling for radar.
-         // Hovering inside a polygon's hit area dims sibling polygons; vertex points produce
-         // no dim effect. pointer-events:all on the group makes the filled interior reactive.
-         // Per-series point dimming is injected in injectRadarAnimation() once N is known.
+         // Radar dimming via CSS :hover only — no inetsoft-active toggling for radar. Two
+         // activation sources, both wired per-series in injectRadarAnimation() once N is known:
+         // (A) hovering a series' transparent outline hit band (pointer-events:stroke) and
+         // (B) hovering a series' vertex point. The real polygon path is set to pointer-events:none
+         // there, so the filled interior is NOT reactive — that is what lets overlapping series
+         // behind the front one still be reached. The generic :has(.inetsoft-radar:hover) rule
+         // below dims sibling polygons when source (A) fires; the base pointer-events:all remains
+         // as a design-time/noanim fallback (injectRadarAnimation does not run in that mode).
          ".inetsoft-radar{pointer-events:all}" +
          "svg.ready:has(.inetsoft-radar:hover) .inetsoft-radar:not(:hover)" +
          "{opacity:" + dim + "!important}" +

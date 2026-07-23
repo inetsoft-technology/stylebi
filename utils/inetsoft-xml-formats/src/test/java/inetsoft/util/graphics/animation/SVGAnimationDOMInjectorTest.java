@@ -725,6 +725,44 @@ class SVGAnimationDOMInjectorTest {
    }
 
    /**
+    * The per-series CSS injected for radar must emit the vertex-point activation selectors
+    * (activation source B). This guards the generated selector text itself — the DOM-structure
+    * tests would still pass if a refactor silently broke the selector string (all the format
+    * args are the same variable {@code i}, so an accidental reordering wouldn't be caught there).
+    */
+   @Test
+   void radar_perSeriesVertexHoverCssEmitted() throws Exception {
+      Document doc = newDocument();
+
+      for(int i = 0; i < 2; i++) {
+         Element g = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+         g.setAttribute("class", SVGSupport.ANNOTATION_LINE);
+         g.setAttribute("data-row", String.valueOf(i));
+         g.setAttribute("data-" + SVGSupport.ATTR_COLOR, "60,105,138");
+         Element path = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+         path.setAttribute("d", "M 100 50 L 150 150 L 50 150 Z");
+         path.setAttribute("fill", "none");
+         g.appendChild(path);
+         doc.getDocumentElement().appendChild(g);
+      }
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_RADAR);
+      String css = allStyleContent(doc.getDocumentElement());
+
+      // Hovering series 0's vertex point must dim other series' polygons and other series' points.
+      assertTrue(css.contains(
+         "svg.ready:has(.inetsoft-point[data-row=\"0\"]:hover) .inetsoft-radar:not([data-row=\"0\"])"),
+         "vertex hover must dim other series' polygons");
+      assertTrue(css.contains(
+         "svg.ready:has(.inetsoft-point[data-row=\"0\"]:hover) .inetsoft-point:not([data-row=\"0\"])"),
+         "vertex hover must dim other series' points");
+      // And the pre-existing outline-band source: hovering series 1's band dims other points.
+      assertTrue(css.contains(
+         "svg.ready:has(.inetsoft-radar[data-row=\"1\"]:hover) .inetsoft-point:not([data-row=\"1\"])"),
+         "outline-band hover must dim other series' points");
+   }
+
+   /**
     * Two radar series groups should animate with the second series delayed by
     * {@code stagger = 0.25 s} relative to the first.
     */
