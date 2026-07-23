@@ -35,4 +35,18 @@ class WizDashboardEventTest {
          "{\"tiles\":[{\"identifier\":\"v1\"}]}", WizDashboardEvent.class);
       assertEquals(1, ev.getTiles().get(0).getSpanCols());
    }
+
+   @Test
+   void deserializesFilters() throws Exception {
+      String json = "{\"name\":\"B\",\"identifiers\":[\"v1\"]," +
+         "\"filters\":[{\"field\":\"Region\",\"dataType\":\"string\",\"label\":\"Region\"}," +
+         "{\"field\":\"OrderDate\",\"dataType\":\"date\"}]}";
+      WizDashboardEvent ev = mapper.readValue(json, WizDashboardEvent.class);
+      assertEquals(2, ev.getFilters().size());
+      assertEquals("Region", ev.getFilters().get(0).getField());
+      assertEquals("string", ev.getFilters().get(0).getDataType());
+      assertEquals("Region", ev.getFilters().get(0).getLabel());
+      assertEquals("date", ev.getFilters().get(1).getDataType());
+      assertNull(ev.getFilters().get(1).getLabel());
+   }
 }

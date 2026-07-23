@@ -70,11 +70,21 @@ public class WizDashboardEvent {
       this.layoutColumns = layoutColumns;
    }
 
+   /** Optional filter specs to apply to the dashboard's viewsheets. */
+   public List<FilterSpec> getFilters() {
+      return filters;
+   }
+
+   public void setFilters(List<FilterSpec> filters) {
+      this.filters = filters;
+   }
+
    private String name;
    private List<String> identifiers;
    private String existingIdentifier;
    private List<TileSpec> tiles;
    private Integer layoutColumns;
+   private List<FilterSpec> filters;
 
    /** A single tile's placement within the dashboard grid layout. */
    @JsonIgnoreProperties(ignoreUnknown = true)
@@ -97,5 +107,37 @@ public class WizDashboardEvent {
 
       private String identifier;
       private int spanCols = 1;   // default: one cell
+   }
+
+   /** A single filter control's target field within the dashboard filter bar. */
+   @JsonIgnoreProperties(ignoreUnknown = true)
+   public static class FilterSpec {
+      public String getField() {
+         return field;
+      }
+
+      public void setField(String field) {
+         this.field = field;
+      }
+
+      public String getDataType() {
+         return dataType;
+      }
+
+      public void setDataType(String dataType) {
+         this.dataType = dataType;
+      }
+
+      public String getLabel() {
+         return label;
+      }
+
+      public void setLabel(String label) {
+         this.label = label;
+      }
+
+      private String field;
+      private String dataType;
+      private String label;
    }
 }

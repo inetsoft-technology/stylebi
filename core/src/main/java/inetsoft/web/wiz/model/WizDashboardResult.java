@@ -44,6 +44,26 @@ public class WizDashboardResult {
       this.skipped = skipped;
    }
 
+   /** Filter fields that were applied to at least one viewsheet in the dashboard. */
+   public List<String> getFiltersApplied() {
+      return filtersApplied;
+   }
+
+   public void setFiltersApplied(List<String> filtersApplied) {
+      this.filtersApplied = filtersApplied;
+   }
+
+   /** Filter fields that could not be applied to any viewsheet in the dashboard. */
+   public List<String> getFiltersSkipped() {
+      return filtersSkipped;
+   }
+
+   public void setFiltersSkipped(List<String> filtersSkipped) {
+      this.filtersSkipped = filtersSkipped;
+   }
+
    private String savedViewsheetIdentifier;
    private List<String> skipped;
+   private List<String> filtersApplied;
+   private List<String> filtersSkipped;
 }
