@@ -999,6 +999,11 @@ won't-schedule tier (kept visible so nothing is silently dropped).
    values first, then a gate hook mirroring `VSChartPaletteDefaults` on the (hardcoded) ramp sources.
 3. **Group-subtotal emphasis** (Phase 5 3b) — crosstab total hierarchy; known-good path is a data-borne
    `XTableStyle.Specification` (`ROW_GROUP_TOTAL`/`COL_GROUP_TOTAL`) prepended ahead of the zebra spec.
+   **Status (implemented 2026-07-23):** shipped — `DataVSAQuery.applyModernGroupSubtotals` inserts
+   background-only group-total specs (levels 0–9, both axes, `#EEEAE1`) ahead of the zebra in the cloned
+   Default Style, gated by `VSTableStructureDefaults.isModern()`; grand total stays distinct via the
+   trailer band; plain tables self-guard on `crosstab == null`. Closes Phase 5 item 3b. See
+   [2026-07-23-viz-phase9c-item3-group-subtotal-emphasis.md](../../plans/2026-07-23-viz-phase9c-item3-group-subtotal-emphasis.md).
 4. **Conditional-formatting presets + warning/anomaly** (Phase 4→8) — really *highlight authoring
    presets*, since `Highlight` is 100% user-authored (no server default to bridge; DOM tokens shipped
    in Phase 4).

@@ -386,9 +386,9 @@ C1b below). Dark mode stays deferred; light-mode gridline `#E8E5DE`, header-bg `
 
 ## Deferred / follow-ups (prioritized: correctness → consistency → best practices → least)
 
-C1, C2, C1b, and item 4 shipped — **Phase 5 first pass is complete except group-subtotal emphasis
-(item 3b), which is deferred.** The backlog below is ordered by impact; items 1, 2, 4 are **done** and
-item 3 is done except its subtotal sub-item (3b). Everything from
+C1, C2, C1b, and item 4 shipped, and group-subtotal emphasis (item 3b) shipped via Phase 9C item 3
+(2026-07-23) — **Phase 5 first pass is complete.** The backlog below is ordered by impact; items 1, 2,
+3 (incl. 3b), and 4 are **done**. Everything from
 item 5 down is an intentional deferral to a later pass or another phase, not an unfinished Phase 5 item.
 
 1. ✅ **Value-equality → dirty-flag hardening** — *correctness — RESOLVED (C1b, D7).* Moot: style-layer
@@ -397,9 +397,16 @@ item 5 down is an intentional deferral to a later pass or another phase, not an 
 2. ✅ **Crosstab header-column treatment** — *consistency — DONE (C1b, D6 full treatment).* `header-col`
    background/foreground set on the modern style; the left dimension column gets tint + muted text and
    zebra is suppressed there.
-3. ◑ **Crosstab/calc region emphasis** — *consistency — grand-total DONE, subtotal DEFERRED (3b).*
+3. ✅ **Crosstab/calc region emphasis** — *consistency — grand-total DONE, subtotal DONE (3b, via Phase 9C item 3).*
    Grand-total via the positional trailer band (`#E9E4DA`). Group subtotals = item 3b below.
-3b. ⏸ **Group-subtotal emphasis — DEFERRED** (attempted, backed out). Interior subtotals are body
+3b. ✅ **Group-subtotal emphasis — DONE (Phase 9C item 3, 2026-07-23)** via the known-good path below.
+    The earlier attempt (documented next) was backed out; the shipped fix uses the data-borne
+    `XTableStyle.Specification` route: `DataVSAQuery.applyModernGroupSubtotals` inserts `ROW_GROUP_TOTAL`/
+    `COL_GROUP_TOTAL` background-only specs (levels 0–9, both axes) into the cloned Default Style,
+    prepended ahead of the zebra spec, gated by `VSTableStructureDefaults.isModern()`; grand total stays
+    distinct via the trailer band; plain tables self-guard on `crosstab == null`. See
+    [2026-07-23-viz-phase9c-item3-group-subtotal-emphasis.md](../../plans/2026-07-23-viz-phase9c-item3-group-subtotal-emphasis.md).
+    Original deferral note (kept for history): Interior subtotals are body
     position, so not reachable by a positional style band. The attempted fix colored `SUMMARY` cells in
     `VSTableLens.getFormat` via a per-lens flag set by `DataVSAQuery` — **that does not work**: the flag
     is a `transient` field on the `VSTableLens` from `getViewTableLens`, but the rendering lens is a

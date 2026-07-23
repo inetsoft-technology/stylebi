@@ -253,6 +253,34 @@ public abstract class DataVSAQuery extends VSAQuery {
       style.put("header-col.foreground", VSTableStructureDefaults.headerForeground());
       style.put("trailer-row.background", VSTableStructureDefaults.totalBackground());
       style.put("trailer-col.background", VSTableStructureDefaults.totalBackground());
+      applyModernGroupSubtotals(style);
+   }
+
+   /**
+    * Prepend data-borne group-subtotal emphasis specs so interior crosstab subtotals get a distinct
+    * background. Group-total specs must precede the shipped zebra spec (findSpec returns the first
+    * match) so they win over alternating-row color on total cells. Levels 0-9 cover both axes; each
+    * spec self-guards (matchRowGroup/matchColGroup return false for a non-crosstab lens or a level past
+    * the header count), so plain tables are unaffected. Grand totals stay distinct: XTableStyle resolves
+    * the trailer band before per-cell specs, so trailer-row/col.background (grand total) still wins.
+    */
+   private void applyModernGroupSubtotals(XTableStyle style) {
+      Color subtotal = VSTableStructureDefaults.subtotalBackground();
+      int pos = 0;
+
+      for(int level = 0; level < 10; level++) {
+         XTableStyle.Specification rowSpec = style.new Specification();
+         rowSpec.setType(XTableStyle.Specification.ROW_GROUP_TOTAL);
+         rowSpec.setIndex(level);
+         rowSpec.put("background", subtotal);
+         style.addSpecification(pos++, rowSpec);
+
+         XTableStyle.Specification colSpec = style.new Specification();
+         colSpec.setType(XTableStyle.Specification.COL_GROUP_TOTAL);
+         colSpec.setIndex(level);
+         colSpec.put("background", subtotal);
+         style.addSpecification(pos++, colSpec);
+      }
    }
 
    /**
