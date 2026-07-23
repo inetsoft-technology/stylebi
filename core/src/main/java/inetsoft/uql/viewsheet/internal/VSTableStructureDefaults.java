@@ -72,10 +72,16 @@ public final class VSTableStructureDefaults {
       return TOTAL_BG;
    }
 
+   /** Interior group-subtotal background — lighter than the grand-total band for hierarchy. */
+   public static Color subtotalBackground() {
+      return SUBTOTAL_BG;
+   }
+
    // modern warm-neutral structure palette; light mode only, dark deferred
    private static final Color GRIDLINE = new Color(0xE8E5DE);
    private static final Color HEADER_SEPARATOR = new Color(0xD9D5CC);
    private static final Color HEADER_BG = new Color(0xF1EFEA);
    private static final Color HEADER_FG = new Color(0x6A685F);
    private static final Color TOTAL_BG = new Color(0xE9E4DA);
+   private static final Color SUBTOTAL_BG = new Color(0xEEEAE1);
 }
