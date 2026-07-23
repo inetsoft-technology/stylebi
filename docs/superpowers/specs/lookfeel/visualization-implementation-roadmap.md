@@ -921,6 +921,111 @@ clear / filter (already match); type/decorative glyphs; new icon-font artwork.
 
 Folds an icon pass into the Phase 10 screen-by-screen audit.
 
+## Phase 9B: Dark Mode
+
+Inserted before Phase 10 (validation stays terminal), mirroring the 6A / 9A lettered-insert precedent.
+See [visualization-phase9b-dark-mode-implementation-plan.md](visualization-phase9b-dark-mode-implementation-plan.md)
+for the grounded plan.
+
+### Goal
+
+Deliver the single cross-cutting dark-mode pass that Phases 5, 6, 6A, 7, 8, and 9 each deferred with
+the identical note ("dark variants ride the initiative's dark pass"). Carved out as its own phase
+because dark mode is one coherent concern spanning table structure, chart chrome, object title chrome,
+KPI/output chrome, the categorical palette, and the DOM token layer — and the render-location boundary
+is identical across all six surfaces.
+
+### The design values already exist
+
+Dark values were recorded in the swatches as each light-first phase shipped
+([visualization-palette-swatches.html](visualization-palette-swatches.html)): table structure
+`#3A383D` / `#2D2B30` / `#CAC4D0` (gridline / header-bg / header-text); chart/object labels
+`--dark-chart-label #E6E0E9` / `--dark-chart-sub #CAC4D0`; surfaces `--dark-surface-canvas #1C1B1F` /
+`-default #252428` / `-subtle #2D2B30`; border `--dark-border-default #49454F`; categorical palette
+`--series-dark-1..8`. Phase 9B wires what is already specified; it does not invent color.
+
+### The blocking decision: do exports go dark?
+
+The four server resolvers (`VSTableStructureDefaults`, `VSChartChromeDefaults`, `VSTitleChromeDefaults`
+/ `VSOutputChromeDefaults`, `VSChartPaletteDefaults`) guarantee **live view and every export format
+resolve the same default**. That guarantee is what makes dark mode non-trivial for these System-B
+surfaces: if dark must also darken exports, the resolver pattern extends cleanly; if dark is
+**live-only** (the common print expectation — exported output stays light on paper), the
+export-consistent resolver is the *wrong* mechanism and a separate live-only override seam is needed.
+Recommended default: **dark mode is live-only; exports remain light.** Resolve this with the owner
+before wiring System-B dark.
+
+### Tasks
+
+- Task 0 — decide the dark selection mechanism (reuse the shell initiative's dark switch; do not invent
+  a second) and the export scope (live-only vs. dark exports). Blocks the System-B tasks.
+- Task 1 — System-A DOM dark tokens (`-dark` values for adopted `--inet-viz-*` state + DOM-table
+  structure tokens), gate-off and light-mode byte-identical.
+- Task 2 — table structure dark (System B).
+- Task 3 — chart chrome + title chrome + KPI/output chrome dark (System B; shared palette + gate).
+- Task 4 — categorical palette dark (`VSChartPaletteDefaults` dark series head).
+- Task 5 — validation folded into Phase 10.
+
+### Deferred within 9B
+
+- Dark exports (if Task 0 resolves live-only — a separate export baseline to validate).
+- Dark sequential/diverging ramps (depend on ramps landing at all — Phase 9C item 2).
+- `--vivid-series-dark-*` / `--family-series-dark-*` alternate families.
+
+### Output
+
+- A gated, mechanism-consistent dark-mode treatment across every visualization surface, wiring the
+  already-specified dark values through System A and System B with the render-location boundary intact.
+
+## Phase 9C: Deferred Consolidation & Polish
+
+Inserted before Phase 10 alongside Phase 9B. See
+[visualization-phase9c-deferred-consolidation-implementation-plan.md](visualization-phase9c-deferred-consolidation-implementation-plan.md)
+for the full grounded backlog.
+
+### Goal
+
+Consolidate the "Deferred / follow-ups" tails scattered across Phases 2–9A (excluding dark mode, which
+is Phase 9B) into one impact-ranked backlog, so the residue is addressed deliberately rather than lost.
+Ranked by impact × reach × readiness, split into a scheduled tier and an explicit boundary /
+won't-schedule tier (kept visible so nothing is silently dropped).
+
+### Scheduled tier (impact order)
+
+1. **Chart mini-toolbar compaction** (Phase 6 A1) — highest reach (every chart); blocked on JS-computed
+   toolbar geometry (`GuiTool.MINI_TOOLBAR_HEIGHT`, `miniToolbarService.getActionsWidth()`), so it
+   needs a coordinated density-aware TS + CSS change, not CSS-only.
+2. **Sequential / diverging color ramps** (Phase 8) — analytical color parity; needs modern ramp design
+   values first, then a gate hook mirroring `VSChartPaletteDefaults` on the (hardcoded) ramp sources.
+3. **Group-subtotal emphasis** (Phase 5 3b) — crosstab total hierarchy; known-good path is a data-borne
+   `XTableStyle.Specification` (`ROW_GROUP_TOTAL`/`COL_GROUP_TOTAL`) prepended ahead of the zebra spec.
+4. **Conditional-formatting presets + warning/anomaly** (Phase 4→8) — really *highlight authoring
+   presets*, since `Highlight` is 100% user-authored (no server default to bridge; DOM tokens shipped
+   in Phase 4).
+5. **Axis-line color polish** (Phase 6 B3) — ready, low-effort quick win (`#EEEEEE`→`#E8E5DE` hairline)
+   via a `setupAxisSpec` render substitution.
+6. **Completeness items** — selection-highlight export parity (Phase 5 7), tabular numerals (Phase 5 8,
+   needs a font-feature spike), embedded-control filtered state (Phase 7 A3, blocked on a live-overlay
+   layer).
+7. **Icon tail** (Phase 9A) — more/overflow alignment (needs grounded selectors + mobile-UX sign-off),
+   sort-caret glyph unification (kept Unicode — icon-font chevrons overlap when stacked), context-menu
+   drill/sort icons (leave unless the whole menu-glyph set is modernized together).
+
+### Boundary / won't-schedule tier (kept visible, not planned)
+
+EM Material tables (separate build, admin chrome, never exported); WS-detail virtual-scroll JS
+row-height refactor (tech-debt); first-class KPI card (product feature); gauge-face and range-slider
+`VSTimeSlider` (asset passes); native `<select>` option styling (native-control boundary); exhaustive
+legacy-hook / chart-type cleanup (open-ended); target/threshold line color (low-value, fold into ramps
+only if a modern value is designed). Each is recorded with its reason in the phase-9c plan so it is not
+silently dropped.
+
+### Output
+
+- One impact-ranked backlog of the initiative's deferred residue, each scheduled item carrying its
+  grounded seam / known-good path, and a visible boundary tier documenting what is intentionally not
+  scheduled and why.
+
 ## Phase 10: Validation
 
 ### Functional checks
