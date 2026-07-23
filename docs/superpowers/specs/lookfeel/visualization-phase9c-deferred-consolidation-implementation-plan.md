@@ -73,6 +73,15 @@ Render-location rules and the gate mechanism are unchanged from the roadmap — 
   `XTableStyle:586`), looping levels 0–9 for both axes. Token `--viz-subtotal-bg #EEEAE1` already
   recorded in the swatches.
 - **Effort:** medium; export-visible, needs a validation cycle.
+- **Status (implemented 2026-07-23):** group subtotals emphasized (`#EEEAE1`) via data-borne
+  `ROW_GROUP_TOTAL`/`COL_GROUP_TOTAL` background specs (levels 0–9, both axes) prepended ahead of the
+  shipped zebra spec in the cloned Default Style (`DataVSAQuery.applyModernGroupSubtotals`, gated by
+  `VSTableStructureDefaults.isModern()`, background-only, defaults-only). Grand total stays distinct —
+  `XTableStyle.getBackground` resolves the trailer band before per-cell specs. Plain (non-crosstab)
+  tables are unaffected (the specs self-guard on `crosstab == null`). Added a
+  `subtotalBackground()` accessor and an `XTableStyle.addSpecification(int, Specification)` insert
+  overload. Runtime crosstab render + export parity is the USER-owned validation cycle. Plan:
+  [2026-07-23-viz-phase9c-item3-group-subtotal-emphasis.md](../../plans/2026-07-23-viz-phase9c-item3-group-subtotal-emphasis.md).
 
 ### 4. Conditional-formatting server bridge + highlight authoring presets  *(from Phase 4 → 8)*
 

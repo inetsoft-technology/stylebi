@@ -341,6 +341,14 @@ public class XTableStyle extends TableStyle {
    }
 
    /**
+    * Add a new specification at a specific position. Lower indexes are matched first by findSpec,
+    * so inserting ahead of an existing spec makes it win for cells both specs match.
+    */
+   public void addSpecification(int index, Specification spec) {
+      speclist.add(index, spec);
+   }
+
+   /**
     * Clear all attribute settings from the style.
     */
    public void clear() {
