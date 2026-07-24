@@ -409,7 +409,7 @@ public class WizVsService {
             result.setRuntimeId(rvs.getID());
          }
 
-         if(assemblyInfo instanceof TitledVSAssembly titledVSAssembly) {
+         if(assembly instanceof TitledVSAssembly titledVSAssembly) {
             result.setTitle(titledVSAssembly.getTitle());
          }
 
