@@ -374,41 +374,44 @@ public class WizDashboardService {
     * Row-major grid origin for the tile at flat index {@code i}, given per-tile column AND row
     * spans. Packing is still row-major/left-to-right/wrap-at-{@code layoutColumns} (identical
     * grouping to the column-only overload below) — the only change is that each row's HEIGHT is
-    * now {@code max(spanRows)} among the tiles placed in it, instead of always
-    * {@code DASHBOARD_ROW_HEIGHT}. A tile's own Y depends only on the finalized height of every
-    * row strictly before it, and every such row is fully scanned (all its tiles' spanRows folded
-    * into that row's height, then closed out) before the loop reaches index {@code i} — so no
-    * 2D occupancy grid is needed; a tile with spanRows > 1 does not "block" cells in the row
-    * below for placement purposes (that would be true masonry/skyline packing, deliberately not
-    * implemented — see the Phase 4 design spec). Returns the (x,y) drop origin in pixels.
-    * Package-private for unit testing.
+    * now {@code max} of the tiles placed in it's {@link #tilePixelSize} height (the same CAPPED
+    * height {@code composeDashboard} actually renders each chart at), instead of always
+    * {@code DASHBOARD_ROW_HEIGHT}. Reserving the raw (uncapped) {@code spanRows * DASHBOARD_ROW_HEIGHT}
+    * here — while {@link #tilePixelSize} renders a shorter, capped chart — left a large dead gap
+    * between a capped tile and the row below it; reserving the same capped height eliminates it.
+    * A tile's own Y depends only on the finalized height of every row strictly before it, and
+    * every such row is fully scanned (all its tiles' heights folded into that row's height, then
+    * closed out) before the loop reaches index {@code i} — so no 2D occupancy grid is needed; a
+    * tile with spanRows > 1 does not "block" cells in the row below for placement purposes (that
+    * would be true masonry/skyline packing, deliberately not implemented — see the Phase 4 design
+    * spec). Returns the (x,y) drop origin in pixels. Package-private for unit testing.
     */
    static java.awt.Point gridOrigin(int[] spanCols, int[] spanRows, int layoutColumns, int i) {
       int col = 0;
       int cumulativeY = 0;
-      int rowHeight = 1;   // tallest spanRows seen so far in the CURRENT (still-open) row
+      int rowHeightPx = DASHBOARD_ROW_HEIGHT;   // tallest capped tile height seen so far in the CURRENT (still-open) row
 
       for(int k = 0; k <= i; k++) {
          int span = Math.max(1, Math.min(spanCols[k], layoutColumns));
-         int rspan = Math.max(1, spanRows[k]);
+         int tileHeightPx = tilePixelSize(spanCols[k], spanRows[k]).height;
 
          if(col + span > layoutColumns) {   // doesn't fit in the current row → close it out
-            cumulativeY += rowHeight * DASHBOARD_ROW_HEIGHT;
+            cumulativeY += rowHeightPx;
             col = 0;
-            rowHeight = 1;
+            rowHeightPx = DASHBOARD_ROW_HEIGHT;
          }
 
          if(k == i) {
             return new java.awt.Point(col * DASHBOARD_COL_WIDTH, cumulativeY);
          }
 
-         rowHeight = Math.max(rowHeight, rspan);
+         rowHeightPx = Math.max(rowHeightPx, tileHeightPx);
          col += span;
 
          if(col >= layoutColumns) {   // row exactly full → close it out now
-            cumulativeY += rowHeight * DASHBOARD_ROW_HEIGHT;
+            cumulativeY += rowHeightPx;
             col = 0;
-            rowHeight = 1;
+            rowHeightPx = DASHBOARD_ROW_HEIGHT;
          }
       }
 

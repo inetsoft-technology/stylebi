@@ -73,10 +73,11 @@ class WizDashboardServiceGridTest {
 
       // tile0 (2x2) fills the whole row by itself (spanCols=2 == layoutColumns) -> row 0.
       assertEquals(new Point(0, 0), WizDashboardService.gridOrigin(spans, rowSpans, 2, 0));
-      // tile1 and tile2 (1x1 each) wrap into what would be "row 1", but tile0 was 2 rows tall,
-      // so they must start at H*2, not H*1.
-      assertEquals(new Point(0, 2 * H), WizDashboardService.gridOrigin(spans, rowSpans, 2, 1));
-      assertEquals(new Point(W, 2 * H), WizDashboardService.gridOrigin(spans, rowSpans, 2, 2));
+      // tile1 and tile2 (1x1 each) wrap into what would be "row 1". tile0's reserved height is
+      // its CAPPED tilePixelSize height (2x2 -> 900x600, both dimensions over the 900x600 cap),
+      // not the raw 2*H=840 -- reserving the raw span height left a dead gap below a capped tile.
+      assertEquals(new Point(0, 600), WizDashboardService.gridOrigin(spans, rowSpans, 2, 1));
+      assertEquals(new Point(W, 600), WizDashboardService.gridOrigin(spans, rowSpans, 2, 2));
    }
 
    @Test
@@ -91,16 +92,16 @@ class WizDashboardServiceGridTest {
 
    @Test
    void threeRowsOfMixedHeightsCompoundCumulativeYCorrectly() {
-      // Row 0: one 2x2 tile (fills both columns, 2 rows tall).
-      // Row 1: one 2x1 tile (fills both columns, 1 row tall).
+      // Row 0: one 2x2 tile (fills both columns, 2 rows tall) -> capped tilePixelSize height 600.
+      // Row 1: one 2x1 tile (fills both columns, 1 row tall) -> uncapped height 420 (== H).
       // Row 2: two 1x1 tiles.
       int[] spans =    { 2, 2, 1, 1 };
       int[] rowSpans = { 2, 1, 1, 1 };
 
       assertEquals(new Point(0, 0),         WizDashboardService.gridOrigin(spans, rowSpans, 2, 0));
-      assertEquals(new Point(0, 2 * H),     WizDashboardService.gridOrigin(spans, rowSpans, 2, 1));
-      assertEquals(new Point(0, 3 * H),     WizDashboardService.gridOrigin(spans, rowSpans, 2, 2));
-      assertEquals(new Point(W, 3 * H),     WizDashboardService.gridOrigin(spans, rowSpans, 2, 3));
+      assertEquals(new Point(0, 600),       WizDashboardService.gridOrigin(spans, rowSpans, 2, 1));
+      assertEquals(new Point(0, 600 + H),   WizDashboardService.gridOrigin(spans, rowSpans, 2, 2));
+      assertEquals(new Point(W, 600 + H),   WizDashboardService.gridOrigin(spans, rowSpans, 2, 3));
    }
 
    @Test
