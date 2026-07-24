@@ -18,16 +18,11 @@
 package inetsoft.web.admin.security.user;
 
 /*
- * Issue #75739 / matrix row 3c/3d: community/core/src/test/resources/docs/org-lifecycle-resource-matrix.md,
- * section "三、其他机制" / "3.1 主题（Theme）", Delete 场景 -- not duplicated here.
+ * Issue #75739 (fixed) / matrix row 3d: community/core/src/test/resources/docs/org-lifecycle-resource-matrix.md,
+ * section "三、其他机制" / "3.1 主题（Theme）", Delete 场景.
  *
- * removeTheme(orgID) correctly removes themes OWNED by the deleted org and resets that org's own
- * SreeEnv selection pointer (sanity-checked below), but never strips the deleted org's ID out of
- * a globally-shared theme's `organizations` list. The real runtime theme-resolution path
- * (CustomThemesImpl.getUserTheme(), enterprise module) reads that list directly, with no
- * cross-check against the SreeEnv pointer -- see the matrix doc row 3d for the full impact
- * writeup (a new organization that later reuses the deleted org's ID silently inherits the stale
- * theme selection, invisible anywhere in the EM admin UI).
+ * removeTheme(orgID) now also strips the deleted org's ID out of every remaining (e.g.
+ * globally-shared) theme's `organizations` list, not just themes owned by the deleted org.
  */
 
 import inetsoft.sree.portal.CustomTheme;
@@ -73,12 +68,7 @@ class IdentityThemeServiceTest {
       verify(manager).setOrgSelectedTheme("default", "deletedOrg");
    }
 
-   // Issue #75739
-   @Disabled("Issue #75739: removeTheme(orgID) does not strip the deleted org's ID out of a "
-      + "globally-shared theme's organizations list -- only org-owned themes and the deleted "
-      + "org's own SreeEnv selection pointer are cleaned up today. Remove this annotation once "
-      + "removeTheme() is fixed to also strip orgID from every remaining theme's organizations "
-      + "list.")
+   // Issue #75739 (fixed)
    @Test
    void removeTheme_globalThemeStillListsDeletedOrg_organizationsEntryIsStripped() {
       CustomTheme globalTheme = new CustomTheme();

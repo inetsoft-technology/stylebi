@@ -33,20 +33,11 @@ package inetsoft.sree.security;
  * reference) resolves our test org ids to themselves instead of collapsing to null.
  *
  * 4e drives IdentityService.setOrganizationInfo() -- private -- via reflection, same precedent as
- * AbstractEditableAuthenticationProviderStaticDepTest's reflection helpers. Unlike 7a in
- * PermissionMatrixOrgLifecycleTest (documented but "[not added]" because reproducing the full
- * chain was judged disproportionate to one assertion), this scenario's whole point *is* the
- * interaction between setOrganizationInfo()'s own pre-migration steps and the
- * copyOrganizationInternal(replace=true) call it triggers via syncIdentity(), so the full chain is
- * driven for real: IdentityService is constructed with real SecurityEngine/DashboardRegistryManager/
- * DataSpace/KeyValueStorageManager, wrapped in a Mockito spy so the handful of public methods that
- * are irrelevant here (copyStorages/copyRepletRegistry/updateAutoSaveFiles/etc. -- storage
- * subsystems out of scope for this doc section) can be stubbed to no-ops without needing to stand
- * up Blob storage, MV, license, or schedule infrastructure. eprovider is a real
- * FileAuthenticationProvider (not a stub/mock) because setOrganizationInfo()'s own
- * updateOrganizationMembers() helper reads/writes real users via eprovider.getUsers()/getUser()/
- * setUser() -- a mocked provider would silently skip that whole path and hide exactly the
- * interaction this scenario needs to observe.
+ * AbstractEditableAuthenticationProviderStaticDepTest's reflection helpers. The full chain is driven
+ * for real (IdentityService + real SecurityEngine/DashboardRegistryManager/DataSpace), with a Mockito
+ * spy stubbing unrelated storage helpers. OrganizationContextHolder is set to fromOrgId first to
+ * mirror EM UI (operator must switch to the target org before editing its id); eprovider is a real
+ * FileAuthenticationProvider because updateOrganizationMembers() reads/writes users via it.
  */
 
 import inetsoft.sree.RepletRegistry;
@@ -65,6 +56,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.DataSpace;
+import inetsoft.util.Tool;
 import inetsoft.util.log.LogManager;
 import inetsoft.web.admin.security.IdentityModel;
 import inetsoft.web.admin.security.IdentityService;
@@ -79,7 +71,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
+import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.security.Principal;
 import java.util.*;
@@ -280,10 +276,10 @@ class DashboardRegistryOrgLifecycleTest {
                  "old per-user registry path must no longer exist either");
    }
 
-   // ── scenario 4e: rename via the fuller IdentityService.setOrganizationInfo() entry point ──
+   // ── scenario 4e: setOrganizationInfo() under EM-like current-org context ──
 
    @Test
-   void rename_setOrganizationInfo_adminRegistryMigrated_perUserRegistryRelocatedButStale()
+   void rename_setOrganizationInfo_adminAndPerUserRegistryContentRewritten()
       throws Exception
    {
       String fromOrgId = "dashreg_full_from";
@@ -292,6 +288,10 @@ class DashboardRegistryOrgLifecycleTest {
       String toOrgName = "DashRegFullTo";
       IdentityID user = new IdentityID("carol", fromOrgId);
 
+      // Do not pre-register toOrgId: setOrganizationInfo → checkDuplicateOrgIDs would reject an
+      // already-existing target id. Admin DashboardRegistry resolution for toOrg is fine after
+      // migrateRegistry has written portal/{toOrgId}/dashboard-registry.xml (and we clear caches
+      // below so getRegistry reloads from that file).
       builder = SecurityTestDataBuilder.create()
          .addOrg(fromOrgName, fromOrgId)
          .addUser("carol", fromOrgId, "password")
@@ -322,12 +322,8 @@ class DashboardRegistryOrgLifecycleTest {
          Optional.empty());
 
       IdentityService spyService = spy(realService);
-      // Storage subsystems unrelated to dashboards -- out of scope for this doc section, and not
-      // safely constructible with the minimal beans above (Blob storage, MV, dependency index,
-      // etc.). Stubbed to no-ops so the real dashboard-relevant steps
-      // (updateOrganizationMembers()'s per-member DashboardRegistryManager.migrateRegistry() call,
-      // setOrganizationInfo()'s own admin-level migrateRegistry() + updateOrgScopedDataSpace(),
-      // and copyOrganizationInternal()'s removeOrgScopedDataSpaceElements()) can run for real.
+      // Stub storage helpers unrelated to dashboards so migrateRegistry / updateOrgScopedDataSpace
+      // / removeOrgScopedDataSpaceElements can run without Blob/MV/schedule infrastructure.
       doNothing().when(spyService).updateOrgProperties(any(), any());
       doNothing().when(spyService).updateAutoSaveFiles(any(), any(), any());
       doNothing().when(spyService).updateTaskSaveFiles(any(), any());
@@ -340,8 +336,6 @@ class DashboardRegistryOrgLifecycleTest {
       doNothing().when(spyService).updateRepletRegistry(any(), any());
       doNothing().when(spyService).removeStorages(any());
       doNothing().when(spyService).addCopiedIdentityPermission(any(), any(), any(), anyInt(), anyBoolean());
-      // removeOrgScopedDataSpaceElements(...) is intentionally left real -- it's exactly what
-      // this scenario needs to observe.
 
       IdentityModel carolMember = IdentityModel.builder()
          .identityID(user)
@@ -356,17 +350,16 @@ class DashboardRegistryOrgLifecycleTest {
          .status(true)
          .build();
 
-      // Deliberately NOT forcing OrganizationManager's current org to fromOrgId here: the
-      // realistic EM caller of this code path is a site admin editing/renaming a *different*
-      // org from their own ("host-org" by default in this test environment, same as production's
-      // default admin context), not an org-admin editing their own org from inside it. This
-      // matters empirically -- see the finding documented below.
       Method setOrganizationInfo = IdentityService.class.getDeclaredMethod(
          "setOrganizationInfo", FSOrganization.class, EditOrganizationPaneModel.class,
          EditableAuthenticationProvider.class, Principal.class);
       setOrganizationInfo.setAccessible(true);
 
       CustomThemesManager themesManager = noopThemesManager();
+
+      // Mirror EM UI: operator switches to the org being renamed before editing its id, so
+      // updateOrganizationMembers()'s :869 migrateRegistry(currentOrg) sees current == fromOrg.
+      OrganizationContextHolder.setCurrentOrgId(fromOrgId);
 
       try(MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
          ctm.when(CustomThemesManager::getManager).thenReturn(themesManager);
@@ -375,61 +368,32 @@ class DashboardRegistryOrgLifecycleTest {
             setOrganizationInfo.invoke(spyService, oldOrg, model, fileProvider, mock(Principal.class));
          }
          catch(Exception e) {
-            // Tolerated: copyOrganizationInternal()'s replace=true tail touches several static
-            // singletons (FSService/XJobPool/RepletRegistryManager.getInstance()) that have no
-            // bean/registration in this minimal context. What matters for this scenario is the
-            // file-level state that removeOrgScopedDataSpaceElements() left behind, and that call
-            // happens earlier in the same replace=true block (:283) than any of those -- its
-            // effect has already landed on disk by the time any later step might throw.
+            // Tolerated: copyOrganizationInternal()'s replace=true tail may hit statics
+            // (FSService/XJobPool/…) absent in this minimal context; dashboard migration +
+            // DataSpace steps that this scenario asserts run earlier.
          }
       }
+      finally {
+         OrganizationContextHolder.setCurrentOrgId(null);
+      }
 
-      // admin-level: setOrganizationInfo() calls dashboardRegistryManager.migrateRegistry(null,
-      // fromOrg, newOrg) directly (:2127), passing the real fromOrg -- content genuinely
-      // rewritten, matches matrix row 4e's claim for the admin key. getRegistry(toOrgId) here is
-      // a fresh cache-miss load, which appends the "__GLOBAL" suffix to admin/global dashboard
-      // names per DashboardRegistry.parseXML() (see the identical note in scenario 4d above) --
-      // unrelated to this scenario's actual point.
-      DashboardRegistry newAdminRegistry = dashboardRegistryManager.getRegistry(toOrgId);
-      assertNotNull(newAdminRegistry.getDashboard("AdminDash__GLOBAL"),
-                    "admin-level dashboard must be migrated to the new org");
-      assertEquals(toOrgId, orgIdOf((VSDashboard) newAdminRegistry.getDashboard("AdminDash__GLOBAL")),
-                  "admin-level dashboard's embedded viewsheet reference must be rewritten to the "
-                  + "new org -- migrateRegistry()/migrateVSDashboard() do run for the admin key");
+      String adminPath = "portal/" + toOrgId + "/dashboard-registry.xml";
+      String userPath = "portal/" + toOrgId + "/carol/dashboard-registry.xml";
 
-      // per-user: this is where the matrix's original description turns out to be too simple.
-      // updateOrganizationMembers() (:821-882), invoked earlier in the same setOrganizationInfo()
-      // call for every declared member of the edited org, DOES independently call
-      // dashboardRegistryManager.migrateRegistry(oldID, ..., identity) per member (:869) -- but it
-      // passes securityProvider.getOrganization(OrganizationManager.getInstance()
-      // .getCurrentOrgID()) as the "old org" argument, i.e. the CURRENT THREAD'S org context, not
-      // fromOrg. In this test (and in the realistic production case -- a site admin editing a
-      // sub-org from the host org context), that is "host-org", not fromOrgId. migrateRegistry()'s
-      // own guard (`identityID != null && !Tool.equals(identityID.getOrgID(), oorg.getId())`)
-      // then sees carol's real org (fromOrgId) not match the org it was told is "old" (host-org),
-      // and returns immediately -- migrateVSDashboard() is never reached, so her dashboard's
-      // content is NEVER rewritten. This is a genuine defect distinct from "never migrated": the
-      // per-member call is *attempted* but silently no-ops whenever the acting admin's current org
-      // differs from the org being renamed (the common case). Verified via debug instrumentation
-      // during development (temporarily wrapping dashboardRegistryManager in a spy) that the call
-      // really does fire with oorg=Host Organization, not fromOrg.
-      //
-      // The per-user FILE still ends up relocated to the new org's path anyway -- not via
-      // migrateRegistry(), but via updateOrgScopedDataSpace(fromOrg, newOrg) (:2129, called right
-      // after the admin migrateRegistry() in the same setOrganizationInfo()), which does the exact
-      // same blanket dataSpace.rename() sweep as copyDataSpace() in scenario 4d. Net result for
-      // the per-user registry is identical to 4d's: relocated, not deleted, but content stale.
-      DashboardRegistry newUserRegistry =
-         dashboardRegistryManager.getRegistry(new IdentityID("carol", toOrgId));
-      assertNotNull(newUserRegistry.getDashboard("CarolDash"),
-                    "carol's per-user dashboard FILE does end up at the new org's path -- but via "
-                    + "updateOrgScopedDataSpace()'s blanket rename, not via a real migration");
-      assertEquals(fromOrgId, orgIdOf((VSDashboard) newUserRegistry.getDashboard("CarolDash")),
-                  "her dashboard's content is NOT rewritten -- updateOrganizationMembers()'s "
-                  + "per-member migrateRegistry() call silently no-ops because it is passed the "
-                  + "current thread's org (host-org) instead of fromOrg as the \"old org\" "
-                  + "argument, so migrateRegistry()'s own identity/org guard rejects it before "
-                  + "migrateVSDashboard() ever runs -- a genuine defect, not by-design behavior");
+      assertTrue(dataSpace.exists(null, adminPath),
+                 "admin registry file must exist under the new org after setOrganizationInfo");
+      assertTrue(dataSpace.exists(null, userPath),
+                 "per-user registry file must exist under the new org after setOrganizationInfo");
+
+      // Assert org segment from raw DataSpace XML -- do not use getRegistry(toOrgId) here.
+      // After a partial syncIdentity failure the provider may not yet list toOrgId, and
+      // DashboardRegistry(String) then collapses organizationId to null and loads the wrong path.
+      assertEquals(toOrgId, orgIdFromRegistryXml(adminPath),
+                  "admin-level embedded viewsheet org segment must be rewritten "
+                  + "(setOrganizationInfo :2127 migrateRegistry)");
+      assertEquals(toOrgId, orgIdFromRegistryXml(userPath),
+                  "per-user embedded viewsheet org segment must be rewritten when current org "
+                  + "context matches fromOrg (EM UI path via updateOrganizationMembers :869)");
    }
 
    // ── scenario 4f: delete via removeOrgScopedDataSpaceElements() -- no orphan of either kind ──
@@ -505,6 +469,24 @@ class DashboardRegistryOrgLifecycleTest {
    private String orgIdOf(VSDashboard dashboard) {
       String identifier = dashboard.getViewsheet().getIdentifier();
       return AssetEntry.createAssetEntry(identifier).getOrgID();
+   }
+
+   /**
+    * Read the first viewsheet {@code identifier} org segment from a dashboard-registry.xml in
+    * DataSpace. Avoids DashboardRegistry(String) org-id resolution, which collapses to null when
+    * the target org is not yet registered on the authentication provider.
+    */
+   private String orgIdFromRegistryXml(String path) throws Exception {
+      try(InputStream in = dataSpace.getInputStream(null, path)) {
+         assertNotNull(in, "registry XML must be readable at " + path);
+         Document doc = Tool.parseXML(in);
+         NodeList entries = doc.getElementsByTagName("entry");
+         assertTrue(entries.getLength() > 0, "registry XML must contain a viewsheet entry: " + path);
+         Element entry = (Element) entries.item(0);
+         String identifier = Tool.byteDecode(Tool.getAttribute(entry, "identifier"));
+         assertNotNull(identifier, "viewsheet entry must have identifier: " + path);
+         return AssetEntry.createAssetEntry(identifier).getOrgID();
+      }
    }
 
    private static CustomThemesManager noopThemesManager() {
