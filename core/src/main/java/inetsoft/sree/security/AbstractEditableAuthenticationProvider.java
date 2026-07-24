@@ -379,14 +379,13 @@ public abstract class AbstractEditableAuthenticationProvider
                   }
                }
 
-               if(theme.getOrganizations().contains(fromOrgId)) {
+               boolean migrateOrgSelection = theme.getOrganizations().contains(fromOrgId);
+
+               if(migrateOrgSelection) {
                   List<String> newOrgs = clone.getOrganizations();
                   newOrgs.remove(fromOrgId);
                   newOrgs.add(toOrgId);
                   clone.setOrganizations(newOrgs);
-
-                  manager.setOrgSelectedTheme(clone.getId(), toOrgId);
-                  newOrgThemeId = clone.getId();
                }
 
                if(!Tool.isEmptyString(clone.getJarPath())) {
@@ -412,6 +411,15 @@ public abstract class AbstractEditableAuthenticationProvider
                }
 
                themes.add(clone);
+
+               // Wire up the org's selected-theme pointer and the returned id only after
+               // the clone has been fully built and added to the working set. Doing this
+               // earlier (before the jar-copy step, which can throw) could leave the org
+               // pointing at a clone that was never persisted when a later step failed.
+               if(migrateOrgSelection) {
+                  manager.setOrgSelectedTheme(clone.getId(), toOrgId);
+                  newOrgThemeId = clone.getId();
+               }
 
                if(replace) {
                   migratedOriginalIds.add(theme.getId());
