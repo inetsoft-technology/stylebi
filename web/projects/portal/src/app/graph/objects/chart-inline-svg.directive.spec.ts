@@ -441,9 +441,10 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
                <g class="inetsoft-line" data-series="1" data-color="2,2,2"></g>
             </svg>`;
          const { dir, host } = makeDirective(lineHtml);
-         // setupLineSeriesHover wires abort-signal listeners jsdom can't attach; stub it to just
-         // set the flag. The .inetsoft-line scraping loop under test runs earlier in afterSvgInjected.
-         vi.spyOn(dir as any, "setupLineSeriesHover").mockImplementation(() => {
+         // setupLineHover samples SVG path geometry, which jsdom does not implement; stub it to
+         // just set the flag. The .inetsoft-line scraping loop under test runs earlier in
+         // afterSvgInjected.
+         vi.spyOn(dir as any, "setupLineHover").mockImplementation(() => {
             (dir as any).isLineSeriesHover = true;
          });
          (dir as any).afterSvgInjected();
@@ -455,6 +456,213 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
          dir.highlightSnapSeries([{ row: 9, col: 1 }]);
          // Col 1 → series 2,2,2 stays full; the col-0 line dims.
          expect(opacities(host, ".inetsoft-line")).toEqual(["0.2", ""]);
+      });
+   });
+
+   describe("cursor-resolved series hover (onAreaMouseMove)", () => {
+      // Faceted line chart: two panels, each drawing the same two-color palette, each line with its
+      // own point marker. Series are resolved arithmetically from the cursor, so the entries are
+      // built directly and getScreenYAtX is stubbed with the per-series y at the cursor x — the
+      // sampling it normally reads needs SVG path geometry jsdom does not implement.
+      const html = `
+         <svg>
+            <g>
+               <g class="inetsoft-line" data-color="1,1,1"></g>
+               <g class="inetsoft-line" data-color="2,2,2"></g>
+               <g class="inetsoft-line" data-color="1,1,1"></g>
+               <g class="inetsoft-line" data-color="2,2,2"></g>
+               <g class="inetsoft-point" data-color="1,1,1"></g>
+               <g class="inetsoft-point" data-color="2,2,2"></g>
+               <g class="inetsoft-point" data-color="1,1,1"></g>
+               <g class="inetsoft-point" data-color="2,2,2"></g>
+            </g>
+         </svg>`;
+      const sel = ".inetsoft-line,.inetsoft-point";
+
+      /**
+       * Build a line tile whose four (panel, series) entries report the given screen y values at the
+       * cursor x; null means "not in this panel" (what getScreenYAtX returns as NaN).
+       */
+      function makeLineTile(yValues: (number | null)[]):
+         { dir: ChartInlineSvgDirective, host: HTMLElement }
+      {
+         const { dir, host } = makeDirective(html);
+         const lines = Array.from(host.querySelectorAll(".inetsoft-line"));
+         const points = Array.from(host.querySelectorAll(".inetsoft-point"));
+
+         (dir as any).areaSeries = lines.map((lineGroup, i) => ({
+            fillGroup: null, lineGroup, linePath: lineGroup, points: [points[i]]
+         }));
+         (dir as any).seriesHitMode = "nearest";
+         (dir as any).isLineSeriesHover = true;
+         (dir as any).getScreenYAtX = (idx: number) =>
+            yValues[idx] === null ? NaN : yValues[idx];
+
+         return { dir, host };
+      }
+
+      function move(dir: ChartInlineSvgDirective, clientY: number): void {
+         (dir as any).onAreaMouseMove({ clientX: 10, clientY } as MouseEvent);
+      }
+
+      it("selects the nearest line even when series are only a few px apart", () => {
+         // Series 0 and 1 are 4px apart in the hovered panel; the cursor at y=49 is closest to
+         // series 1 (y=50), which no hit-test-based scheme could separate reliably.
+         const { dir, host } = makeLineTile([46, 50, null, null]);
+         move(dir, 49);
+         expect(opacities(host, sel))
+            .toEqual(["0.2", "", "0.2", "0.2", "0.2", "", "0.2", "0.2"]);
+      });
+
+      it("selects a line above or below the cursor", () => {
+         const { dir, host } = makeLineTile([46, 50, null, null]);
+         move(dir, 44);
+         expect(opacities(host, ".inetsoft-line")).toEqual(["", "0.2", "0.2", "0.2"]);
+      });
+
+      it("dims the sibling facet panel, including its same-colored series", () => {
+         // Entries 2 and 3 are the other panel (null y), so they cannot be selected — but they must
+         // still dim, matching the whole-SVG dim scope bar charts get (Redmine #75691).
+         const { dir, host } = makeLineTile([46, 50, null, null]);
+         move(dir, 46);
+         expect(opacities(host, ".inetsoft-line")).toEqual(["", "0.2", "0.2", "0.2"]);
+      });
+
+      it("clears the highlight past the max distance", () => {
+         const { dir, host } = makeLineTile([46, 50, null, null]);
+         move(dir, 46);
+         move(dir, 46 + ChartInlineSvgDirective["NEAREST_MAX_DIST_PX"] + 5);
+         expect(opacities(host, sel)).toEqual(["", "", "", "", "", "", "", ""]);
+      });
+
+      it("uses the ceiling rule for area charts (fill band under the line above the cursor)", () => {
+         const { dir, host } = makeLineTile([46, 50, null, null]);
+         (dir as any).seriesHitMode = "ceiling";
+         (dir as any).isLineSeriesHover = false;
+         // Both lines are above the cursor; the band belongs to the lower one (series 1, y=50).
+         move(dir, 60);
+         expect(opacities(host, ".inetsoft-line")).toEqual(["0.2", "", "0.2", "0.2"]);
+      });
+
+      it("emits the series color instead of dimming locally in cross-tile mode", () => {
+         const { dir, host } = makeLineTile([46, 50, null, null]);
+         (dir as any).crossTile = true;
+         const emitted: (string | null)[] = [];
+         dir.seriesDimChange.subscribe(v => emitted.push(v));
+         move(dir, 50);
+         expect(emitted).toEqual(["2,2,2"]);
+         expect(opacities(host, sel)).toEqual(["", "", "", "", "", "", "", ""]);
+      });
+
+      it("clears the highlight when the cursor leaves the chart", () => {
+         // Goes through the real SVG-level listeners rather than calling the handler directly, so
+         // the mousemove → mouseleave lifecycle is covered end to end.
+         const { dir, host } = makeLineTile([46, 50, null, null]);
+         (dir as any).beginSeriesProximityHover();
+         const svg = host.querySelector("svg") as SVGSVGElement;
+
+         svg.dispatchEvent(new MouseEvent("mousemove", { clientX: 10, clientY: 49 }));
+         expect(opacities(host, ".inetsoft-line")).toEqual(["0.2", "", "0.2", "0.2"]);
+
+         svg.dispatchEvent(new MouseEvent("mouseleave"));
+         expect(opacities(host, sel)).toEqual(["", "", "", "", "", "", "", ""]);
+      });
+
+      it("is suppressed on a line chart while the snap tooltip drives the dim", () => {
+         const { dir, host } = makeLineTile([46, 50, null, null]);
+         (dir as any).snapTooltip = true;
+         move(dir, 48);
+         expect(opacities(host, sel)).toEqual(["", "", "", "", "", "", "", ""]);
+      });
+   });
+
+   describe("matchLineSeries (point marker → its own panel's series)", () => {
+      // Two panels under ONE DOM parent, same palette in each; point matching falls back to
+      // data-color (all lines share data-series) and is disambiguated geometrically.
+      const html = `
+         <svg>
+            <g>
+               <g class="inetsoft-line" data-series="2" data-color="1,1,1"><path></path></g>
+               <g class="inetsoft-line" data-series="2" data-color="2,2,2"><path></path></g>
+               <g class="inetsoft-line" data-series="2" data-color="1,1,1"><path></path></g>
+               <g class="inetsoft-line" data-series="2" data-color="2,2,2"><path></path></g>
+               <g class="inetsoft-point" data-row="0" data-col="2" data-color="1,1,1"></g>
+               <g class="inetsoft-point" data-row="1" data-col="2" data-color="2,2,2"></g>
+               <g class="inetsoft-point" data-row="2" data-col="2" data-color="1,1,1"></g>
+               <g class="inetsoft-point" data-row="3" data-col="2" data-color="2,2,2"></g>
+            </g>
+         </svg>`;
+
+      // jsdom has no layout, so every getBoundingClientRect is empty; stub the rects to place
+      // entries 0/1 (and their points) in the left panel and 2/3 in the right panel.
+      function stubRect(el: Element, left: number): void {
+         (el as any).getBoundingClientRect = () => ({
+            left, right: left + 10, top: 0, bottom: 10, width: 10, height: 10, x: left, y: 0
+         });
+      }
+
+      it("attaches each point to the series in its own panel", () => {
+         const { dir, host } = makeDirective(html);
+         const lines = Array.from(host.querySelectorAll(".inetsoft-line"));
+         const points = Array.from(host.querySelectorAll(".inetsoft-point"));
+         // Left panel at x=0, right panel at x=100.
+         [0, 0, 100, 100].forEach((x, i) => stubRect(lines[i].querySelector("path"), x));
+         [0, 0, 100, 100].forEach((x, i) => stubRect(points[i], x));
+
+         (dir as any).matchLineSeries(lines);
+         const series = (dir as any).areaSeries;
+
+         expect(series.length).toBe(4);
+         // One entry per line group — same-colored lines in different panels are never merged.
+         expect(series.map((s: any) => s.lineGroup)).toEqual(lines);
+         // Each entry holds only the marker from its own panel: rows 0,1 left and 2,3 right.
+         expect(series.map((s: any) => s.points.map((p: Element) => p.getAttribute("data-row"))))
+            .toEqual([["0"], ["1"], ["2"], ["3"]]);
+      });
+
+      it("collects a point that matches no series so it still dims", () => {
+         // One line with a unique data-series, so points match by data-col; this marker's col
+         // belongs to no line group.
+         const { dir, host } = makeDirective(`
+            <svg>
+               <g>
+                  <g class="inetsoft-line" data-series="2" data-color="1,1,1"><path></path></g>
+                  <g class="inetsoft-point" data-row="0" data-col="9" data-color="9,9,9"></g>
+               </g>
+            </svg>`);
+         const lines = Array.from(host.querySelectorAll(".inetsoft-line"));
+
+         (dir as any).matchLineSeries(lines);
+
+         expect((dir as any).areaSeries[0].points).toEqual([]);
+         expect((dir as any).hoverDimOnlyElements.length).toBe(1);
+      });
+   });
+
+   describe("nearestByRect", () => {
+      function candidate(left: number, top: number): { el: Element, rect?: DOMRect } {
+         const el = document.createElement("div");
+         (el as any).getBoundingClientRect = () => ({
+            left, right: left + 10, top, bottom: top + 10, width: 10, height: 10, x: left, y: top
+         });
+         return { el };
+      }
+
+      it("picks the candidate containing the target, in either facet direction", () => {
+         const { dir } = makeDirective("");
+         const target = candidate(102, 0).el;   // inside the x=100 candidate
+         const columns = [candidate(0, 0), candidate(100, 0)];
+         expect((dir as any).nearestByRect(target, columns)).toBe(columns[1]);
+
+         const rowTarget = candidate(0, 202).el; // inside the y=200 candidate
+         const rows = [candidate(0, 0), candidate(0, 200)];
+         expect((dir as any).nearestByRect(rowTarget, rows)).toBe(rows[1]);
+      });
+
+      it("keeps the first candidate when no layout is available (all rects empty)", () => {
+         const { dir } = makeDirective("");
+         const flat = [{ el: document.createElement("div") }, { el: document.createElement("div") }];
+         expect((dir as any).nearestByRect(document.createElement("div"), flat)).toBe(flat[0]);
       });
    });
 
