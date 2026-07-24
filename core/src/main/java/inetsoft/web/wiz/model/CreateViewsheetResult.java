@@ -141,6 +141,14 @@ public class CreateViewsheetResult {
       this.note = note;
    }
 
+   public String getTitle() {
+      return title;
+   }
+
+   public void setTitle(String title) {
+      this.title = title;
+   }
+
    private List<String> headers;
    private List<Map<String, Object>> rows;
    private FlatBinding binding;
@@ -157,6 +165,7 @@ public class CreateViewsheetResult {
    /** Echoed back so the client can reuse the recommendation RVS on the next changeType call. */
    private String autoBindingRuntimeId;
    private String note;
+   private String title;
 
    // -------------------------------------------------------------------------
    // Nested model

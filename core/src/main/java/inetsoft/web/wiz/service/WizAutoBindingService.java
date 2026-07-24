@@ -2303,6 +2303,7 @@ public class WizAutoBindingService {
 
       result.setRuntimeId(effRuntimeId);
       result.setAssemblyName(targetAssemblyName);
+      result.setTitle(chart.getTitle());
 
       if(request.getViewsheetIdentifier() != null) {
          result.setViewsheetIdentifier(request.getViewsheetIdentifier());
@@ -2491,6 +2492,7 @@ public class WizAutoBindingService {
 
       result.setRuntimeId(effRuntimeId);
       result.setAssemblyName(targetAssemblyName);
+      result.setTitle(chart.getTitle());
 
       if(request.getViewsheetIdentifier() != null) {
          result.setViewsheetIdentifier(request.getViewsheetIdentifier());
