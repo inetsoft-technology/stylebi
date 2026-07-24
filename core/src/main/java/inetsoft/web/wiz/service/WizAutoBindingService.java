@@ -335,8 +335,6 @@ public class WizAutoBindingService {
                visualizationResult.setRuntimeId(request.getWizRuntimeId());
             }
 
-            visualizationResult.setTitle(sourceConfig.getTitle());
-
             // Readability warnings: a PINNED aesthetic dimension whose cardinality exceeds the slot
             // cap renders but may be unreadable. The recommender already respected caps on UNPINNED
             // slots, so warn only for pinned ones. Honored stays true — we kept the user's pin.
@@ -2054,7 +2052,6 @@ public class WizAutoBindingService {
          result.setRuntimeId(wizRuntimeId);
       }
 
-      result.setTitle(sourceConfig.getTitle());
       // Echo the autoBindingRuntimeId back so the client can reuse it on the next call.
       result.setAutoBindingRuntimeId(autoBindingRuntimeId);
 
