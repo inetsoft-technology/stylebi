@@ -111,6 +111,28 @@ class WizDashboardFilterBuilderTest {
          "must bind only to the chart's own table, never GLOBAL_STATS");
    }
 
+   @Test
+   void firstControlIsOffsetByTheCanvasMarginNotFlushAgainstTheEdge() {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "CHART_FINAL", "category_name"));
+
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "RadarChart");
+      boundToTable(chart, "CHART_FINAL");
+      vs.addAssembly(chart);
+
+      builder.build(vs, ws, List.of(new WizDashboardFilterBuilder.FilterRequest("category_name", "string", "Category")));
+
+      AbstractSelectionVSAssembly control = java.util.Arrays.stream(vs.getAssemblies())
+         .filter(a -> a instanceof AbstractSelectionVSAssembly)
+         .map(a -> (AbstractSelectionVSAssembly) a)
+         .findFirst().orElseThrow();
+      assertEquals(WizDashboardService.CANVAS_MARGIN, control.getPixelOffset().x,
+         "must not sit flush against the canvas's left edge");
+      assertEquals(WizDashboardService.CANVAS_MARGIN, control.getPixelOffset().y,
+         "must not sit flush against the canvas's top edge");
+   }
+
    // ChartVSAssembly.setTableName(String) silently no-ops when getSourceInfo() is still null (it
    // builds a local SourceInfo but never calls setSourceInfo(...) to store it back) -- harmless
    // in production, where a chart's SourceInfo is always initialized before setTableName is

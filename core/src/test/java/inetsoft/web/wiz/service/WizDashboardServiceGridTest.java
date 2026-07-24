@@ -103,6 +103,20 @@ class WizDashboardServiceGridTest {
       assertEquals(new Point(W, 3 * H),     WizDashboardService.gridOrigin(spans, rowSpans, 2, 3));
    }
 
+   @Test
+   void tilePixelSizeUsesTheNaturalSpanFootprintWhenUnderTheCap() {
+      // 1x1 -> 640x420; well under the 900x600 cap.
+      assertEquals(new java.awt.Dimension(W, H), WizDashboardService.tilePixelSize(1, 1));
+      // 1 col x 2 rows -> 640x840 would exceed the height cap -> clamped to 600.
+      assertEquals(new java.awt.Dimension(W, 600), WizDashboardService.tilePixelSize(1, 2));
+   }
+
+   @Test
+   void tilePixelSizeCapsAFullWidthFullHeightTileAt900By600() {
+      // 2 cols x 2 rows -> natural footprint 1280x840, both dimensions exceed the cap.
+      assertEquals(new java.awt.Dimension(900, 600), WizDashboardService.tilePixelSize(2, 2));
+   }
+
    // --- Task 3: composeDashboard's filter-bar invocation seam ---------------------------------
    //
    // composeDashboard itself needs a live ViewsheetService/asset engine to open a runtime

@@ -199,21 +199,19 @@ public class WizDashboardService {
                }
 
                java.awt.Point origin = gridOrigin(spans, rowSpans, layoutColumns, i);
-               x = origin.x;
-               y = origin.y + topOffset;
+               x = origin.x + CANVAS_MARGIN;
+               y = origin.y + topOffset + CANVAS_MARGIN;
             }
             else {
-               x = 0;
-               y = cumulativeY;
+               x = CANVAS_MARGIN;
+               y = cumulativeY + CANVAS_MARGIN;
             }
 
             // Resize the merged chart to its allocated tile footprint (grid path only) --
             // otherwise a tile's computed (spanCols, spanRows) only ever reserved grid drop-
             // position spacing and never resized the chart itself. The stack path has no
             // per-visualization span data, so it passes null and preserves the chart's saved size.
-            java.awt.Dimension pixelSize = grid ?
-               new java.awt.Dimension(spans[i] * DASHBOARD_COL_WIDTH, rowSpans[i] * DASHBOARD_ROW_HEIGHT) :
-               null;
+            java.awt.Dimension pixelSize = grid ? tilePixelSize(spans[i], rowSpans[i]) : null;
 
             try {
                addVisualizationService.addVisualization(
@@ -345,6 +343,32 @@ public class WizDashboardService {
 
    /** Horizontal stride between grid columns, in pixels (paired with DASHBOARD_ROW_HEIGHT). */
    private static final int DASHBOARD_COL_WIDTH = 640;   // confirm vs composer default viz width
+
+   /** Left/top margin from the canvas edge, in pixels, applied uniformly to the filter bar and
+    *  every merged chart tile -- unmargined content rendered flush against the viewsheet edge.
+    *  Package-visible so {@link WizDashboardFilterBuilder} can align its own controls to it. */
+   static final int CANVAS_MARGIN = 24;
+
+   /** Ceiling on a merged chart's rendered width/height, in pixels, regardless of its tile's
+    *  column/row span -- without this, a full-width/full-height tile (e.g. 2 cols x 2 rows)
+    *  stretches to fill its entire reserved grid cell (1280x840), rendering far larger than a
+    *  normal single chart. The tile still RESERVES its full span for grid positioning (see
+    *  {@link #gridOrigin}); only the rendered chart size is capped, leaving a margin of unused
+    *  space inside an oversized cell rather than a stretched chart. */
+   private static final int MAX_TILE_WIDTH = 900;
+   private static final int MAX_TILE_HEIGHT = 600;
+
+   /**
+    * The rendered pixel size for a tile spanning {@code spanCols} columns and {@code spanRows}
+    * rows: its natural span-based footprint ({@code spanCols * DASHBOARD_COL_WIDTH} by
+    * {@code spanRows * DASHBOARD_ROW_HEIGHT}), capped at {@link #MAX_TILE_WIDTH} by
+    * {@link #MAX_TILE_HEIGHT}. Package-private for unit testing (mirrors {@link #gridOrigin}).
+    */
+   static java.awt.Dimension tilePixelSize(int spanCols, int spanRows) {
+      int width = Math.min(spanCols * DASHBOARD_COL_WIDTH, MAX_TILE_WIDTH);
+      int height = Math.min(spanRows * DASHBOARD_ROW_HEIGHT, MAX_TILE_HEIGHT);
+      return new java.awt.Dimension(width, height);
+   }
 
    /**
     * Row-major grid origin for the tile at flat index {@code i}, given per-tile column AND row

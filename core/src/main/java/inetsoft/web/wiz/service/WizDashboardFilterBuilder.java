@@ -201,8 +201,10 @@ public class WizDashboardFilterBuilder {
       return AddFilterService.createFilterAssembly(vs, dtype, (ColumnRef) colRef);
    }
 
-   private static final int FILTER_BAR_X = 0;
-   private static final int FILTER_BAR_Y = 0;
+   /** Matches {@link WizDashboardService#CANVAS_MARGIN} so the filter bar aligns with the left
+    *  edge of the chart grid below it, instead of sitting flush against the canvas edge. */
+   private static final int FILTER_BAR_X = WizDashboardService.CANVAS_MARGIN;
+   private static final int FILTER_BAR_Y = WizDashboardService.CANVAS_MARGIN;
    private static final int FILTER_CONTROL_WIDTH = 200;
 
    /** Control height, in pixels — leaves a small margin under
