@@ -211,6 +211,8 @@ public class WorksheetTable {
       /** ORDER BY clauses, in order; may be omitted/empty. */
       private List<OrderByInfo> orderBy;
       private String type;
+      /** Business meaning of this window column (english); persisted onto the output column. */
+      private String description;
       /** ROWS frame, e.g. {@code 2 PRECEDING .. CURRENT ROW}; omit for the function's default. */
       private WindowFrameInfo frame;
 
@@ -228,6 +230,8 @@ public class WorksheetTable {
       public void setOrderBy(List<OrderByInfo> orderBy) { this.orderBy = orderBy; }
       public String getType() { return type; }
       public void setType(String type) { this.type = type; }
+      public String getDescription() { return description; }
+      public void setDescription(String description) { this.description = description; }
       public WindowFrameInfo getFrame() { return frame; }
       public void setFrame(WindowFrameInfo frame) { this.frame = frame; }
    }
@@ -328,11 +332,15 @@ public class WorksheetTable {
    public static class GroupByFieldInfo {
       private String fieldName;
       private String dateGroupLevel;
+      /** Business meaning of the group-by output column (english); persisted onto the output column. */
+      private String description;
 
       public String getFieldName() { return fieldName; }
       public void setFieldName(String fieldName) { this.fieldName = fieldName; }
       public String getDateGroupLevel() { return dateGroupLevel; }
       public void setDateGroupLevel(String dateGroupLevel) { this.dateGroupLevel = dateGroupLevel; }
+      public String getDescription() { return description; }
+      public void setDescription(String description) { this.description = description; }
    }
 
    @JsonIgnoreProperties(ignoreUnknown = true)
@@ -343,6 +351,8 @@ public class WorksheetTable {
       private String alias;
       private String secondaryField;
       private Integer n;
+      /** Business meaning of the aggregated output column (english); persisted onto the output column. */
+      private String description;
 
       public String getFieldName() { return fieldName; }
       public void setFieldName(String fieldName) { this.fieldName = fieldName; }
@@ -354,6 +364,8 @@ public class WorksheetTable {
       public void setSecondaryField(String secondaryField) { this.secondaryField = secondaryField; }
       public Integer getN() { return n; }
       public void setN(Integer n) { this.n = n; }
+      public String getDescription() { return description; }
+      public void setDescription(String description) { this.description = description; }
    }
 
    // ─── Nested: flat condition item ──────────────────────────────────────────

@@ -1354,6 +1354,11 @@ public class WorksheetTableService {
             colRef.setDataType(col.getType());
          }
 
+         // Business meaning of the window output column — surfaced by /ws/structure (data insight).
+         if(!Tool.isEmptyString(col.getDescription())) {
+            colRef.setDescription(col.getDescription());
+         }
+
          cs.addAttribute(colRef);
       }
 
@@ -1483,8 +1488,10 @@ public class WorksheetTableService {
 
    // ─── Aggregate info ───────────────────────────────────────────────────────
 
-   private void applyAggregateInfo(AbstractTableAssembly table,
-                                   WorksheetTable.AggregateInfo aggInfo)
+   // Package-private (not private) so WorksheetTableServiceAggregateDescriptionTest can invoke it
+   // directly without standing up the full createTable dependency graph, mirroring applyWindowColumns.
+   void applyAggregateInfo(AbstractTableAssembly table,
+                           WorksheetTable.AggregateInfo aggInfo)
    {
       if(aggInfo == null) {
          return;
@@ -1530,6 +1537,38 @@ public class WorksheetTableService {
                }
 
                column = dateColumn;
+            }
+
+            // Business meaning of the group-by output column. The public output column is a CLONE
+            // of the matching PRIVATE ColumnRef (see AbstractTableAssembly.setColumnSelection), so
+            // set the description on the private target for it to survive to /ws/structure. For a
+            // date-grouped column that target IS the DateRangeRef column just added to privateCs
+            // (referenced by `column`); otherwise it is the private column of the same name.
+            //
+            // PREFER an inherited annotation over the model's group description: a plain group-by
+            // dimension is a passthrough of an existing (often annotated) column — grouping does not
+            // change its business meaning — so keep the base column's description rather than let the
+            // model overwrite it with a lineage-restating one (e.g. "Company name from the joined ...
+            // data"). Only fill from the model when the target has no description yet: a freshly
+            // built date-grouped column (DateRangeRef carries none), or a group key with no upstream
+            // annotation. Aggregate MEASURES are handled separately below and DO take the model's
+            // description, since aggregation genuinely changes the column's meaning.
+            if(!Tool.isEmptyString(grp.getDescription())) {
+               // Best-effort: unlike the aggregate branch below (which falls back to the public
+               // `column` when privateCs lookup misses), a plain group whose fieldName does not
+               // resolve in privateCs leaves descTarget null and the model's group description is
+               // dropped. Setting it on the public `column` instead would not help — the public
+               // selection is regenerated as clones of privateCs, so a description must live on the
+               // private target to survive. A resolution miss here is unexpected (the group was
+               // already resolved against `cs` above) and rare; dropping the description is the
+               // accepted best-effort behavior, consistent with the rest of this method.
+               ColumnRef descTarget = grp.getDateGroupLevel() != null
+                  ? column
+                  : (privateCs.getAttribute(grp.getFieldName()) instanceof ColumnRef pc ? pc : null);
+
+               if(descTarget != null && Tool.isEmptyString(descTarget.getDescription())) {
+                  descTarget.setDescription(grp.getDescription());
+               }
             }
 
             info.addGroup(new GroupRef(column));
@@ -1605,6 +1644,14 @@ public class WorksheetTableService {
 
                privateCs.addAttribute(syntheticCol);
                aggColumn = syntheticCol;
+            }
+
+            // Business meaning of the aggregated output column. aggColumn is the PRIVATE ColumnRef
+            // (the aliased base column for the first aggregate, or the synthetic column for 2nd+),
+            // which setColumnSelection clones into the public output column — so a description set
+            // here survives to /ws/structure (data insight).
+            if(!Tool.isEmptyString(agg.getDescription()) && aggColumn instanceof ColumnRef aggColRef) {
+               aggColRef.setDescription(agg.getDescription());
             }
 
             AggregateRef aggRef = new AggregateRef(aggColumn, secondaryCol, formula);

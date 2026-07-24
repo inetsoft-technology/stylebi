@@ -647,4 +647,41 @@ class WorksheetTableServiceWindowColumnsTest {
       assertTrue(ex.getMessage().contains("numeric order key"),
                  "unexpected message: " + ex.getMessage());
    }
+
+   @Test
+   void windowColumnDescriptionIsPersistedOnOutputColumn() throws Exception {
+      WorksheetTable req = request("""
+         {
+           "windowColumns": [
+             {
+               "name": "running_total",
+               "fn": "SUM",
+               "column": "amount",
+               "partitionBy": ["stage"],
+               "orderBy": [ { "field": "amount", "direction": "ASC" } ],
+               "description": "Cumulative amount within each stage"
+             }
+           ]
+         }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "deals");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "stage")));
+      cs.addAttribute(new ColumnRef(new AttributeRef(null, "amount")));
+      table.setColumnSelection(cs);
+
+      service().applyWindowColumns(table, req.getWindowColumns());
+
+      // Private selection carries the description directly...
+      ColumnRef added = (ColumnRef) table.getColumnSelection(false).getAttribute("running_total");
+      assertNotNull(added);
+      assertEquals("Cumulative amount within each stage", added.getDescription());
+
+      // ...and it survives to the PUBLIC selection (the clone that /ws/structure reads back).
+      ColumnRef output = (ColumnRef) table.getColumnSelection(true).getAttribute("running_total");
+      assertNotNull(output, "window column should appear in the public output selection");
+      assertEquals("Cumulative amount within each stage", output.getDescription());
+   }
 }
