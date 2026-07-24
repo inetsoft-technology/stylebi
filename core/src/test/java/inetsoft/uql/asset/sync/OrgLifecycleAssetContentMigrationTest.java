@@ -117,8 +117,10 @@ import inetsoft.uql.asset.MirrorTableAssembly;
 import inetsoft.uql.asset.SQLBoundTableAssembly;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
+import inetsoft.web.RecycleUtils;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XPartition;
 import inetsoft.uql.erm.vpm.VirtualPrivateModel;
@@ -879,7 +881,121 @@ class OrgLifecycleAssetContentMigrationTest {
                    "copy must not remove the source org's own partition");
    }
 
+   // ── investigation for Bug #75759: a private ("My Dashboards") viewsheet moved to the
+   // per-user "Recycle Bin" folder (RecycleUtils.moveSheetToRecycleBin()) is reported invisible
+   // in the EM Content > Repository > Recycle Bin tree after an org clone (copy). That tree is
+   // populated by RepositoryRecycleBinController.getRecycleNodeFromAssets(), which walks
+   // AssetRepository.getEntries() starting at a Type.FOLDER AssetEntry
+   // (scope=USER_SCOPE, path="Recycle Bin", user=<that user>) -- a container this pipeline's
+   // generic fallback branch (BlobIndexedStorage.java:649-676, same branch 10a/10b ride) has no
+   // existing test coverage for at all. This scenario seeds that exact shape directly (bypassing
+   // AssetRepository, same style as the rest of this file) to check whether the folder container
+   // and its child entry both survive org copy with matching, mutually-consistent keys.
+
+   @Test
+   void copy_userScopeRecycleBinFolder_childViewsheetAndFolderBothMigrate() throws Exception {
+      String fromOrgId = "recyclebin_priv_from";
+      String toOrgId = "recyclebin_priv_to";
+      track(fromOrgId);
+      track(toOrgId);
+
+      IdentityID owner = new IdentityID("alice", fromOrgId);
+      String recyclePath = "Recycle Bin/abc123";
+
+      AssetEntry recycledVsEntry = new AssetEntry(AssetRepository.USER_SCOPE,
+         AssetEntry.Type.VIEWSHEET, recyclePath, owner, fromOrgId);
+      Viewsheet recycledVs = new Viewsheet();
+      recycledVs.setCreated(System.currentTimeMillis());
+      recycledVs.setCreatedBy("alice");
+      recycledVs.setLastModified(System.currentTimeMillis());
+      recycledVs.setLastModifiedBy("alice");
+      String vsKey = recycledVsEntry.toIdentifier(true);
+      storage.putXMLSerializable(vsKey, recycledVs);
+
+      String folderKey = seedUserRecycleBinFolder(fromOrgId, owner, recycledVsEntry);
+
+      storage.copyStorageData(new Organization(fromOrgId), new Organization(toOrgId), false);
+
+      IdentityID newOwner = new IdentityID("alice", toOrgId);
+      String newVsKey = recycledVsEntry.cloneAssetEntry(new Organization(toOrgId)).toIdentifier(true);
+      Viewsheet migratedVs = (Viewsheet) storage.getXMLSerializable(newVsKey, null, toOrgId);
+      assertNotNull(migratedVs,
+                   "the recycled private viewsheet's own content must be migrated under the " +
+                   "target org+user (dispatched via MigrateViewsheetTask, same as any other " +
+                   "viewsheet -- its path happening to be under 'Recycle Bin' doesn't change " +
+                   "which branch handles it)");
+
+      String newFolderKey = AssetEntry.createAssetEntry(folderKey)
+         .cloneAssetEntry(new Organization(toOrgId)).toIdentifier(true);
+      AssetFolder migratedFolder =
+         (AssetFolder) storage.getXMLSerializable(newFolderKey, null, toOrgId);
+      assertNotNull(migratedFolder,
+                   "the user's private 'Recycle Bin' AssetFolder container must itself be " +
+                   "migrated under the target org+user -- this is exactly what EM's "+
+                   "RepositoryRecycleBinController walks via AssetRepository.getEntries() to " +
+                   "discover recycled items in the tree; if this container is missing or still " +
+                   "keyed to the source org, the tree shows nothing for this user even though " +
+                   "the recycled viewsheet's own content migrated fine");
+
+      AssetEntry[] migratedChildren = migratedFolder.getEntries();
+      assertEquals(1, migratedChildren.length,
+                  "the migrated folder must list exactly one child entry");
+      AssetEntry migratedChild = migratedChildren[0];
+      assertEquals(toOrgId, migratedChild.getOrgID(),
+                  "the child entry's org segment must be rewritten to the target org");
+      assertEquals(newOwner, migratedChild.getUser(),
+                  "the child entry's user identity must be rewritten to the target org's user");
+      assertEquals(newVsKey, migratedChild.toIdentifier(true),
+                  "the folder's child entry must identify the SAME key that the recycled " +
+                  "viewsheet's own content was migrated under -- a mismatch here would mean the " +
+                  "tree lists a folder entry pointing at a viewsheet key that doesn't actually " +
+                  "exist under the target org, which is indistinguishable from \"invisible\" to " +
+                  "an end user");
+
+      // copy must not disturb the source org's own data -- in particular, the generic branch
+      // mutates the SAME AssetFolder object in place (removeEntry() every child, then addEntry()
+      // the cloned replacements) before writing it back only under the new org's key; this
+      // asserts that mutation doesn't also corrupt whatever storage.getXMLSerializable() returns
+      // for the OLD key on a subsequent read.
+      assertNotNull(storage.getXMLSerializable(vsKey, null, fromOrgId),
+                   "copy must not remove the source org's own recycled viewsheet content");
+      AssetFolder sourceFolder =
+         (AssetFolder) storage.getXMLSerializable(folderKey, null, fromOrgId);
+      assertNotNull(sourceFolder, "copy must not remove the source org's own Recycle Bin folder");
+      assertEquals(1, sourceFolder.getEntries().length,
+                  "copy must not leave the source org's folder empty -- would indicate the " +
+                  "in-place entryMap mutation done while building the target org's copy leaked " +
+                  "into the source org's own data instead of only affecting the new org's copy");
+      assertEquals(fromOrgId, sourceFolder.getEntries()[0].getOrgID(),
+                  "the source org's folder child entry must still point at the source org, not " +
+                  "have been overwritten with the target org's cloned entry");
+   }
+
    // ── fixture helpers ──
+
+   /**
+    * Seeds a minimal {@link AssetFolder} directly into {@link BlobIndexedStorage} under a
+    * {@code Type.FOLDER}, {@code USER_SCOPE} entry named {@code "Recycle Bin"} -- the same shape
+    * {@code RecycleUtils.moveSheetToRecycleBin()} lazily creates (via
+    * {@code AssetRepository.addFolder()}) the first time a given user recycles a private item,
+    * and the same shape {@code RepositoryRecycleBinController.getRecycleNodeFromAssets()} looks
+    * up per-user to populate the EM Recycle Bin tree.
+    */
+   private String seedUserRecycleBinFolder(String orgId, IdentityID owner, AssetEntry... children)
+      throws Exception
+   {
+      AssetEntry folderEntry = new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.FOLDER,
+         RecycleUtils.RECYCLE_BIN_FOLDER, owner, orgId);
+      AssetFolder folder = new AssetFolder();
+
+      for(AssetEntry child : children) {
+         folder.addEntry(child);
+      }
+
+      String key = folderEntry.toIdentifier(true);
+      storage.putXMLSerializable(key, folder);
+      return key;
+   }
 
    private void track(String orgId) {
       if(!seededOrgIds.contains(orgId)) {
