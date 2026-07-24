@@ -159,7 +159,7 @@ export class ImportTaskDialogComponent {
       this.dialog.open(MessageDialog, {
          data: {
             title: "_#(js:Error)",
-            content: error.error.message,
+            content: error.error?.message ?? error.message,
             type: MessageDialogType.ERROR
          }
       });

@@ -28,12 +28,9 @@
  *   Group 5 [Risk 2]  — copyCondition(): COPY_OF_PREFIX stripping for nested copies
  *   Group 6 [Risk 2]  — deleteConditions(): confirmed dialog splices condition and adjusts index
  *
- * Confirmed bugs (it.failing until source is fixed):
- *   Bug #75126:
- *   Bug A — save() missing optional chaining on error.error.message:
- *     loadModel() uses `error.error?.message` (safe); save() uses `error.error.message`
- *     (unsafe). Null JSON body makes error.error null → TypeError in the RxJS error handler.
- *     Fix: align save() with loadModel() — guard with `error.error?.message`.
+ * Fixed:
+ *   Bug A — save() guards with error.error?.message (same as loadModel()) so a null/empty
+ *     error body no longer throws TypeError in the RxJS error handler.
  *
  * KEY contracts:
  *   - valid = conditionsValid && optionsValid && name.valid && taskChanged (ALL four required).
@@ -268,10 +265,8 @@ describe("ScheduleCycleEditorPageComponent — save(): success and error paths",
       expect(dialogData.content).toContain("Cycle name already exists");
    });
 
-   // Bug A — save() error handler reads error.error.message without optional chaining (loadModel is safe).
-   // Null JSON body → TypeError in save() subscribe; no dialog. Fix: use error.error?.message like loadModel().
-   // Spy http.post so the real save() subscribe error callback runs with a null body (same as MSW 500/null).
-   it.fails("should not throw when save error body is null", async () => {
+   // Bug A regression: null JSON body must not throw; no dialog when there is no message.
+   it("should not throw when save error body is null", async () => {
       const { comp, dialogMock } = await renderComponent();
       const httpError = new HttpErrorResponse({
          error: null,

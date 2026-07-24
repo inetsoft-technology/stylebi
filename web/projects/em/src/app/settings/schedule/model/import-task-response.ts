@@ -16,6 +16,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 export interface ImportTaskResponse {
-   failedTasks: [];
+   failedTasks: string[];
    failed: boolean;
 }
