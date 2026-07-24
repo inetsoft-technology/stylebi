@@ -26,8 +26,6 @@ import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
-import inetsoft.storage.KeyValueStorage;
-import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.asset.sync.DependencyTool;
@@ -37,7 +35,7 @@ import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.audit.*;
-import inetsoft.web.admin.favorites.FavoriteList;
+import inetsoft.web.admin.favorites.FavoritesService;
 import inetsoft.web.admin.general.LocalizationSettingsService;
 import inetsoft.web.admin.general.model.LocalizationModel;
 import inetsoft.web.admin.security.*;
@@ -62,7 +60,7 @@ public class UserTreeService {
                           SecurityEngine securityEngine,
                           IdentityThemeService themeService,
                           SimpMessagingTemplate messagingTemplate,
-                          KeyValueStorageManager keyValueStorageManager,
+                          FavoritesService favoritesService,
                           DataCycleManager dataCycleManager,
                           LicenseManager licenseManager,
                           MVManager mvManager,
@@ -82,7 +80,7 @@ public class UserTreeService {
       this.customThemesManager = customThemesManager;
       this.dashboardRegistryManager = dashboardRegistryManager;
       this.editOrganizationListener = new EditOrganizationListener(messagingTemplate, securityEngine);
-      this.keyValueStorageManager = keyValueStorageManager;
+      this.favoritesService = favoritesService;
       this.dataCycleManager = dataCycleManager;
       this.licenseManager = licenseManager;
       this.mvManager = mvManager;
@@ -1819,15 +1817,10 @@ public class UserTreeService {
       IndexedStorage storage = indexedStorage;
       MVManager mvManager = this.mvManager;
       DataCycleManager cycleManager = this.dataCycleManager;
-      KeyValueStorage<FavoriteList> favorites =
-         keyValueStorageManager.getStorage("emFavorites");
 
-      if(favorites != null && oldID != null && newID != null &&
-         favorites.contains(oldID.convertToKey()))
-      {
-         FavoriteList favoriteList = favorites.remove(oldID.convertToKey())
-            .get(10L, TimeUnit.SECONDS);
-         favorites.put(newID.convertToKey(), favoriteList).get(10L, TimeUnit.SECONDS);
+      if(oldID != null && newID != null) {
+         // Move em favorites to the renamed user
+         favoritesService.moveFavorites(oldID.convertToKey(), newID.convertToKey());
       }
 
       storage.migrateStorageData(oldID.getName(), newID.getName());
@@ -1928,7 +1921,7 @@ public class UserTreeService {
    private final IdentityThemeService themeService;
    private final SimpMessagingTemplate messagingTemplate;
    private final EditOrganizationListener editOrganizationListener;
-   private final KeyValueStorageManager keyValueStorageManager;
+   private final FavoritesService favoritesService;
    private final DataCycleManager dataCycleManager;
    private final LicenseManager licenseManager;
    private final MVManager mvManager;

@@ -50,7 +50,7 @@ import inetsoft.sree.security.support.SecurityTestDataBuilder;
 import inetsoft.sree.web.dashboard.DashboardRegistry;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.sree.web.dashboard.VSDashboard;
-import inetsoft.storage.KeyValueStorageManager;
+import inetsoft.web.admin.favorites.FavoritesService;
 import inetsoft.test.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
@@ -97,8 +97,9 @@ class DashboardRegistryOrgLifecycleTest {
    @Autowired
    private DataSpace dataSpace;
 
-   @Autowired
-   private KeyValueStorageManager keyValueStorageManager;
+   // No-op mock: these tests assert on dashboard-registry behavior, not EM favorites; the
+   // org-delete path only hands favorites cleanup off to this collaborator.
+   private final FavoritesService favoritesService = mock(FavoritesService.class);
 
    private SecurityTestDataBuilder builder;
 
@@ -311,7 +312,7 @@ class DashboardRegistryOrgLifecycleTest {
 
       IdentityService realService = new IdentityService(
          SecurityEngine.getSecurity(), SecurityEngine.getSecurity().getSecurityProvider(),
-         mock(IdentityThemeService.class), null, null, keyValueStorageManager, null, null,
+         mock(IdentityThemeService.class), null, null, favoritesService, null, null,
          mock(DataCycleManager.class), null, mock(LogManager.class), null, null, null,
          Optional.empty(),
          null, mock(CustomThemesManager.class), null,

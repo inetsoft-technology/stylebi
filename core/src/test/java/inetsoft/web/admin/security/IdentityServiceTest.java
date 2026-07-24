@@ -22,50 +22,43 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.IdentityInfo;
 import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.uql.util.Identity;
-import inetsoft.storage.KeyValueStorage;
-import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.util.IndexedStorage;
+import inetsoft.web.admin.favorites.FavoritesService;
 import org.junit.jupiter.api.*;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Method;
 import java.util.*;
-import java.util.concurrent.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Covers the orphaned-favorites cleanup that runs during user deletion:
- * removeUserFavorites (asset favorites in IndexedStorage) and removeUserEMFavorites
- * (EM admin-panel favorites in the emFavorites KeyValueStorage).
+ * Covers the orphaned-favorites cleanup that runs during user deletion: removeUserFavorites
+ * strips deleted users from shared-asset favorites lists (IndexedStorage) and delegates the
+ * EM admin-panel favorites cleanup to {@link FavoritesService}.
  *
- * The service is created without invoking its constructor and only the two storage
- * dependencies these methods touch are injected, so the tests stay decoupled from
- * the rest of the service's wiring.
+ * The service is created without invoking its constructor and only the dependencies these
+ * methods touch are injected, so the tests stay decoupled from the rest of the service's
+ * wiring.
  */
 @Tag("core")
 class IdentityServiceTest {
    private IndexedStorage indexedStorage;
-   private KeyValueStorageManager keyValueStorageManager;
-   private KeyValueStorage<?> emFavorites;
+   private FavoritesService favoritesService;
    private IdentityService service;
 
    @BeforeEach
    void setUp() {
       indexedStorage = mock(IndexedStorage.class);
-      keyValueStorageManager = mock(KeyValueStorageManager.class);
-      emFavorites = mock(KeyValueStorage.class);
-
-      doReturn(emFavorites).when(keyValueStorageManager).getStorage("emFavorites");
-      doReturn(CompletableFuture.completedFuture(null)).when(emFavorites).remove(anyString());
+      favoritesService = mock(FavoritesService.class);
 
       service = mock(IdentityService.class, withSettings().defaultAnswer(CALLS_REAL_METHODS));
       ReflectionTestUtils.setField(service, "indexedStorage", indexedStorage);
-      ReflectionTestUtils.setField(service, "keyValueStorageManager", keyValueStorageManager);
+      ReflectionTestUtils.setField(service, "favoritesService", favoritesService);
       // LOG is a final instance field set by the constructor, which the mock bypasses
       ReflectionTestUtils.setField(service, "LOG",
                                    org.slf4j.LoggerFactory.getLogger(IdentityService.class));
@@ -76,7 +69,7 @@ class IdentityServiceTest {
       invokeRemoveUserFavorites(Collections.emptyList());
 
       verifyNoInteractions(indexedStorage);
-      verifyNoInteractions(keyValueStorageManager);
+      verifyNoInteractions(favoritesService);
    }
 
    @Test
@@ -151,35 +144,27 @@ class IdentityServiceTest {
    }
 
    @Test
+   void removeUserFavorites_delegatesEMFavoritesRemovalToService() throws Exception {
+      IdentityID alice = new IdentityID("alice", "org1");
+      IdentityID bob = new IdentityID("bob", "org2");
+      List<IdentityID> ids = List.of(alice, bob);
+
+      invokeRemoveUserFavorites(ids);
+
+      // the EM favorites cleanup is delegated wholesale to the favorites service
+      verify(favoritesService).removeFavorites(ids);
+   }
+
+   @Test
    void removeUserFavorites_nullOrgUser_skipsAssetScan() throws Exception {
       IdentityID noOrg = new IdentityID("legacy", null);
 
       invokeRemoveUserFavorites(List.of(noOrg));
 
+      // a null-org user has no org-scoped folders to scan
       verify(indexedStorage, never()).getKeys(any(), any());
-      verify(emFavorites).remove(noOrg.convertToKey());
-   }
-
-   @Test
-   void removeUserEMFavorites_removesEachUserKey() throws Exception {
-      IdentityID alice = new IdentityID("alice", "org1");
-      IdentityID bob = new IdentityID("bob", "org2");
-
-      invokeRemoveUserEMFavorites(List.of(alice, bob));
-
-      verify(emFavorites).remove(alice.convertToKey());
-      verify(emFavorites).remove(bob.convertToKey());
-   }
-
-   @Test
-   void removeUserEMFavorites_storageFailure_doesNotThrow() throws Exception {
-      IdentityID alice = new IdentityID("alice", "org1");
-      Future<?> failing = mock(Future.class);
-      when(failing.get(anyLong(), any()))
-         .thenThrow(new ExecutionException(new RuntimeException("boom")));
-      doReturn(failing).when(emFavorites).remove(anyString());
-
-      assertDoesNotThrow(() -> invokeRemoveUserEMFavorites(List.of(alice)));
+      // but its EM favorites are still handed to the service for cleanup
+      verify(favoritesService).removeFavorites(List.of(noOrg));
    }
 
    @Test
@@ -206,12 +191,6 @@ class IdentityServiceTest {
 
    private void invokeRemoveUserFavorites(Collection<IdentityID> ids) throws Exception {
       Method m = IdentityService.class.getDeclaredMethod("removeUserFavorites", Collection.class);
-      m.setAccessible(true);
-      m.invoke(service, ids);
-   }
-
-   private void invokeRemoveUserEMFavorites(Collection<IdentityID> ids) throws Exception {
-      Method m = IdentityService.class.getDeclaredMethod("removeUserEMFavorites", Collection.class);
       m.setAccessible(true);
       m.invoke(service, ids);
    }

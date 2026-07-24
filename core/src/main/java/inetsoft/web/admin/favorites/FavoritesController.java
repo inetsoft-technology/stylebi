@@ -17,62 +17,25 @@
  */
 package inetsoft.web.admin.favorites;
 
-import inetsoft.storage.KeyValueStorage;
-import inetsoft.storage.KeyValueStorageManager;
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
-import java.util.Collections;
-import java.util.concurrent.*;
 
 @RestController
 public class FavoritesController {
-   public FavoritesController(KeyValueStorageManager keyValueStorageManager) {
-      this.keyValueStorageManager = keyValueStorageManager;
+   public FavoritesController(FavoritesService favoritesService) {
+      this.favoritesService = favoritesService;
    }
 
    @GetMapping("/api/em/favorites")
    public FavoriteList getFavorites(Principal user) {
-      FavoriteList list = favorites.get(user.getName());
-
-      if(list == null) {
-         list = new FavoriteList();
-         list.setFavorites(Collections.emptyList());
-      }
-
-      return list;
+      return favoritesService.getFavorites(user.getName());
    }
 
    @PutMapping("/api/em/favorites")
    public void setFavorites(@RequestBody FavoriteList userFavorites, Principal user) {
-      try {
-         if(userFavorites.getFavorites().isEmpty()) {
-            favorites.remove(user.getName()).get(10L, TimeUnit.SECONDS);
-         }
-         else {
-            favorites.put(user.getName(), userFavorites).get(10L, TimeUnit.SECONDS);
-         }
-      }
-      catch(InterruptedException | ExecutionException | TimeoutException e) {
-         throw new RuntimeException(e);
-      }
+      favoritesService.setFavorites(user.getName(), userFavorites);
    }
 
-   @PostConstruct
-   public void initStorage() {
-      favorites = keyValueStorageManager.getStorage("emFavorites");
-   }
-
-   @PreDestroy
-   public void closeStorage() throws Exception {
-      if(favorites != null) {
-         favorites.close();
-         favorites = null;
-      }
-   }
-
-   private final KeyValueStorageManager keyValueStorageManager;
-   private KeyValueStorage<FavoriteList> favorites;
+   private final FavoritesService favoritesService;
 }
