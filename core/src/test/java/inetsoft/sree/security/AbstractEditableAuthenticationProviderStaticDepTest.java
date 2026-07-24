@@ -270,6 +270,63 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
       }
    }
 
+   // [Path A2] getCustomThemes() returns empty (e.g. themes failed to load) → persistence is
+   //           skipped entirely, so an empty/failed read cannot wipe the whole theme store.
+   //           For replace=true, setOrgSelectedTheme(null, fromOrgId) still fires.
+   @Test
+   void copyThemes_emptyThemeSet_skipsPersistence() {
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
+
+         DataSpace mockDs = mock(DataSpace.class);
+         ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
+
+         CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
+         when(mockManager.getCustomThemes()).thenReturn(new HashSet<>());
+
+         provider.callCopyThemes("fromOrg", "toOrg", true);
+
+         verify(mockManager, never()).setCustomThemes(any());
+         verify(mockManager).setOrgSelectedTheme(null, "fromOrg");
+      }
+   }
+
+   // [Path A3] clone fails for a fromOrgId-owned theme during a replace=true rename →
+   //           the original is retained in the persisted set (deferred-removal /
+   //           migratedOriginalIds path), not dropped, and no half-built clone is persisted.
+   @Test
+   void copyThemes_cloneFailsForFromOrgTheme_replaceTrue_originalRetained() {
+      CustomTheme theme = spy(new CustomTheme());
+      theme.setId("theme-1");
+      theme.setOrgID("fromOrg");
+      theme.setOrganizations(new ArrayList<>());
+      doThrow(new RuntimeException("clone failed")).when(theme).clone();
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
+
+         DataSpace mockDs = mock(DataSpace.class);
+         ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
+
+         CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
+         when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
+
+         provider.callCopyThemes("fromOrg", "toOrg", true);
+
+         @SuppressWarnings("unchecked")
+         ArgumentCaptor<Set<CustomTheme>> captor = ArgumentCaptor.forClass(Set.class);
+         verify(mockManager).setCustomThemes(captor.capture());
+
+         Set<CustomTheme> result = captor.getValue();
+         assertTrue(result.stream().anyMatch(t -> "fromOrg".equals(t.getOrgID())),
+                    "original fromOrg theme must be retained when its clone fails");
+         assertFalse(result.stream().anyMatch(t -> "toOrg".equals(t.getOrgID())),
+                     "no half-built clone should be persisted when cloning failed");
+      }
+   }
+
    // [Path B] no theme matches fromOrgId → setCustomThemes called with original (unchanged) set
    @Test
    void copyThemes_noMatchingTheme_setCustomThemesWithOriginal() {
