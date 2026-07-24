@@ -35,3 +35,18 @@ describe("GuiTool.getMiniToolbarHeight", () => {
       expect(GuiTool.getMiniToolbarHeight()).toBe(24);
    });
 });
+
+describe("GuiTool.isVizModern", () => {
+   afterEach(() => {
+      document.body.classList.remove("viz-modern");
+   });
+
+   it("returns false when the modern gate is off", () => {
+      expect(GuiTool.isVizModern()).toBe(false);
+   });
+
+   it("returns true when .viz-modern is on the body", () => {
+      document.body.classList.add("viz-modern");
+      expect(GuiTool.isVizModern()).toBe(true);
+   });
+});
