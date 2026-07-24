@@ -28,7 +28,9 @@ export class EmbedTableActions extends TableActions {
    constructor(model: VSTableModel, contextProvider: ContextProvider,
                securityEnabled: boolean, stateProvider: ActionStateProvider,
                dataTipService: DataTipService, popService: PopComponentService,
-               miniToolbarService: MiniToolbarService)
+               miniToolbarService: MiniToolbarService,
+               private isWizMaximized: () => boolean,
+               private onWizFullscreenToggle: () => void)
    {
       super(model, contextProvider, securityEnabled, stateProvider,
          dataTipService, popService, miniToolbarService);
@@ -53,24 +55,6 @@ export class EmbedTableActions extends TableActions {
       ]));
       groups.push(new AssemblyActionGroup([
          {
-            id: () => "table open-max-mode",
-            label: () => "_#(js:Show Enlarged)",
-            icon: () => "expand-icon",
-            enabled: () => true,
-            visible: () => !this.model.maxMode && this.isActionVisibleInViewer("Show Enlarged")
-               && !this.isDataTip() && !this.isPopComponent()
-         },
-         {
-            id: () => "table close-max-mode",
-            label: () => "_#(js:Show Actual Size)",
-            icon: () => "contract-icon",
-            enabled: () => true,
-            visible: () => this.model.maxMode && this.isActionVisibleInViewer("Show Actual Size")
-               && !this.isDataTip() && !this.isPopComponent()
-         },
-      ]));
-      groups.push(new AssemblyActionGroup([
-         {
             id: () => "table MenuAction HelperText",
             label: () => "_#(js:composer.vs.action.helperText.menuAction.table)",
             icon: () => "edit-icon",
@@ -86,20 +70,26 @@ export class EmbedTableActions extends TableActions {
    protected createToolbarActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
       groups.push(new AssemblyActionGroup([
          {
-            id: () => "table open-max-mode",
-            label: () => "_#(js:Show Enlarged)",
-            icon: () => "expand-icon",
+            // Deliberately independent of this.model.maxMode / openMaxMode()/closeMaxMode(): in
+            // the embed context CoreLifecycleService.applyEmbedChartSize() always sets the
+            // assembly's maxSize to whatever pixel size the embed container was given, so
+            // model.maxMode is true from the very first load - it does not mean "the user asked
+            // to enlarge this," it just means "render at the size the embed container gave you."
+            // Reusing the generic open-max-mode/close-max-mode pair (as this project briefly did)
+            // showed the wrong icon on load and did nothing useful when clicked. This action
+            // instead has its own inline `action` callback (addActionHandler() only installs its
+            // id-based default when `action` is unset - see assembly-actions.ts), so clicking it
+            // never touches model.maxMode or the server at all. isWizMaximized()/
+            // onWizFullscreenToggle() are backed by a plain component-level flag (not model state,
+            // which gets replaced wholesale on every server refresh) so the icon/label correctly
+            // toggle, and stay correct even when the embedding page closes fullscreen some other
+            // way (e.g. clicking its own backdrop) - see EmbedTableComponent's wizMaximized input.
+            id: () => "table wiz-fullscreen",
+            label: () => this.isWizMaximized() ? "_#(js:Show Actual Size)" : "_#(js:Show Enlarged)",
+            icon: () => this.isWizMaximized() ? "contract-icon" : "expand-icon",
             enabled: () => true,
-            visible: () => !this.model.maxMode && this.isActionVisibleInViewer("Show Enlarged")
-               && !this.isDataTip() && !this.isPopComponent()
-         },
-         {
-            id: () => "table close-max-mode",
-            label: () => "_#(js:Show Actual Size)",
-            icon: () => "contract-icon",
-            enabled: () => true,
-            visible: () => this.model.maxMode && this.isActionVisibleInViewer("Show Actual Size")
-               && !this.isDataTip() && !this.isPopComponent()
+            visible: () => !this.isDataTip() && !this.isPopComponent(),
+            action: () => this.onWizFullscreenToggle()
          },
          {
             id: () => "table show-details",
