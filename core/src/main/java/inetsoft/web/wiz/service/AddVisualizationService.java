@@ -195,14 +195,24 @@ public class AddVisualizationService {
          updateVSBindings(dashVS, e.getKey(), e.getValue());
       }
 
+      // Save the merged dashboard worksheet back to the repository BEFORE merging in the new VS
+      // assemblies (Step 2, below). dashVS.addAssembly() fires a ViewsheetSandbox listener
+      // (actionPerformed -> reset0 -> ... -> ChartVSAQuery#createBaseTableAssembly0) SYNCHRONOUSLY,
+      // which resolves the newly-added chart's bound table through dashVS.getBaseWorksheet() --
+      // dashVS's own cached `ws` field, which is separate from the local `dashWS` object just
+      // merged above. Persisting first and then repopulating dashVS's cache (next line) ensures
+      // that listener sees the fully-merged worksheet instead of the pre-merge (or previous
+      // visualization's) snapshot, which otherwise makes the chart's own bound table (e.g.
+      // "RADAR_OUT") look missing and logs CubeVSAQuery's "is not a data block" error the moment
+      // the chart is merged in -- even though the persisted worksheet is correct throughout.
+      assetRepository.setSheet(dashVS.getBaseEntry(), dashWS, principal, true);
+      dashVS.repopulateWorksheet(assetRepository, principal);
+
       // Step 2: merge viewsheet assemblies
-      mergeViewsheet(vizVS, dashVS, wsRenameMap, xOffset, yOffset, scale);
+      mergeViewsheet(rvs, vizVS, dashVS, wsRenameMap, xOffset, yOffset, scale);
 
       // Step 3: record merged visualization
       wizInfo.addMergedVisualization(vizEntry.toIdentifier());
-
-      // Save the merged dashboard worksheet back to the repository
-      assetRepository.setSheet(dashVS.getBaseEntry(), dashWS, principal, true);
    }
 
    // ---------------------------------------------------------------------------
@@ -213,7 +223,7 @@ public class AddVisualizationService {
     * Copies all VSAssemblies from {@code vizVS} into {@code dashVS}, applying name-conflict
     * resolution, WS binding renames, and drop-position offsets.
     */
-   private void mergeViewsheet(Viewsheet vizVS, Viewsheet dashVS,
+   private void mergeViewsheet(RuntimeViewsheet rvs, Viewsheet vizVS, Viewsheet dashVS,
                                Map<String, String> wsRenameMap,
                                int xOffset, int yOffset, float scale)
    {
@@ -280,6 +290,15 @@ public class AddVisualizationService {
          cloned.setPixelOffset(new Point(pos.x + offsetX, pos.y + offsetY));
 
          dashVS.addAssembly(cloned);
+
+         // The dashboard runtime's sandbox may already hold a cached VGraphPair from before this
+         // merge (e.g. an earlier visualization merged into the same running dashboard). That
+         // cache is keyed by assembly name and never existed for this newly-added name, but the
+         // sandbox's worksheet snapshot predates this merge either way -- clearing it here forces
+         // a fresh execution against the just-merged worksheet instead of risking a stale/missing
+         // graph entry. Mirrors the same clearGraph-after-in-place-mutation pattern used by
+         // WizAutoBindingService/WizVsService for other runtime mutations.
+         rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(cloned.getName()));
       }
    }
 
