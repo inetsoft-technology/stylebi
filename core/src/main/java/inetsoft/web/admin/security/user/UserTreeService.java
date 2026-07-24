@@ -1254,26 +1254,30 @@ public class UserTreeService {
          checkDuplicateOrgIDs(model, oldOrg);
       }
 
-      boolean saveProperties = false;
+      OrganizationManager.runInOrgScope(oldOrg.getId(), () -> {
+         boolean saveProperties = false;
 
-      for(PropertyModel property: model.properties()) {
-         SreeEnv.setProperty(property.name(), property.value(), true);
-         saveProperties = true;
-      }
-
-      String[] propertyNames = {"max.row.count", "max.col.count", "max.cell.size", "max.user.count"};
-      List<String> properties = model.properties().stream().map(p -> p.name()).toList();
-
-      for(String key : propertyNames) {
-         if(SreeEnv.getProperty(key, false, true) != null && !properties.contains(key)) {
-            SreeEnv.setProperty(key, null, true);
+         for(PropertyModel property: model.properties()) {
+            SreeEnv.setProperty(property.name(), property.value(), true);
             saveProperties = true;
          }
-      }
 
-      if(saveProperties) {
-         SreeEnv.save();
-      }
+         String[] propertyNames = {"max.row.count", "max.col.count", "max.cell.size", "max.user.count"};
+         List<String> properties = model.properties().stream().map(p -> p.name()).toList();
+
+         for(String key : propertyNames) {
+            if(SreeEnv.getProperty(key, false, true) != null && !properties.contains(key)) {
+               SreeEnv.setProperty(key, null, true);
+               saveProperties = true;
+            }
+         }
+
+         if(saveProperties) {
+            SreeEnv.save();
+         }
+
+         return null;
+      });
 
       if(provider instanceof EditableAuthenticationProvider) {
          identityService.setIdentity(oldOrg, model, provider, principal);
