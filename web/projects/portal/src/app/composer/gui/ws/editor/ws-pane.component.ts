@@ -1016,6 +1016,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
             this.notifications.info(command.message);
             break;
          case "WARNING":
+            this.worksheet.saving = false;
             this.processMessageCommand0(command, this.modalService, this.worksheetClient);
             break;
          case "ERROR":
