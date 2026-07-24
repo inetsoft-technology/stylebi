@@ -206,12 +206,13 @@ public abstract class VSCrosstabHelper extends VSTableDataHelper {
          return totalHeight;
       }
 
-      int infoRows = (int) Math.round((double) (info.getPixelSize().height -
-                                                info.getTitleHeight()) / AssetUtil.defh);
       int infoCols = (int) Math.round((double) info.getPixelSize().width / AssetUtil.defw);
 
-      boolean bottom = (span == null) ? irow == infoRows - 1
-         : (irow + span.height - 1 == infoRows - 1);
+      // compare real accumulated row height against the real table body height to find the
+      // last visible row; rows may not be the default height (AssetUtil.defh), so estimating
+      // the row count from pixel-height/defh (as done for infoCols below) can point at the
+      // wrong row and paint the widget's outer border color onto an interior row.
+      boolean bottom = totalHeight >= height - 0.01;
       boolean right = (span == null) ? icol == lens.getColCount() - 1
          : (icol + span.width == lens.getColCount());
 
@@ -219,11 +220,6 @@ public abstract class VSCrosstabHelper extends VSTableDataHelper {
          if(lens.getColCount() < infoCols) {
             right = (span == null) ? icol == lens.getColCount() - 1
                : (icol + span.width == lens.getColCount());
-         }
-
-         if(lens.getRowCount() < infoRows) {
-            bottom = (span == null) ? irow == lens.getRowCount() - 1
-               : (irow + span.height == lens.getRowCount());
          }
       }
 
