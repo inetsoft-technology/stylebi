@@ -22,16 +22,20 @@ const postcss = require("gulp-postcss");
 const replace = require("gulp-replace");
 const cssnano = require("cssnano");
 const through = require("through2");
+const { bundleMainScript, appendText } = require("./lib/bundle-main-script");
 
+const NG_ELEMENTS_DIR = "target/generated-resources/ng/inetsoft/web/resources/elements";
+
+// main-*.js is bundled separately below (see bundleMainScript) so that any chunk-*.js it
+// imports is inlined rather than left as a dangling cross-file `import`.
 const scriptFiles = [
-   "target/generated-resources/ng/inetsoft/web/resources/elements/polyfills-*.js",
-   "target/generated-resources/ng/inetsoft/web/resources/elements/scripts-*.js",
-   "target/generated-resources/ng/inetsoft/web/resources/elements/main-*.js"
+   `${NG_ELEMENTS_DIR}/polyfills-*.js`,
+   `${NG_ELEMENTS_DIR}/scripts-*.js`
 ];
 
 const cssFiles = [
    "target/generated-resources/gulp/inetsoft/web/resources/app/global.css",
-   "target/generated-resources/ng/inetsoft/web/resources/elements/styles-*.css"
+   `${NG_ELEMENTS_DIR}/styles-*.css`
 ];
 
 // Wrap each file's content in an IIFE to prevent variable name collisions.
@@ -51,6 +55,7 @@ gulp.task("elements:scripts", function () {
    return gulp.src(scriptFiles)
       .pipe(wrapInIIFE())
       .pipe(concat("elements.js"))
+      .pipe(appendText(`\n${bundleMainScript(NG_ELEMENTS_DIR)}\n`))
       .pipe(gulp.dest("target/generated-resources/gulp/inetsoft/web/resources/app/"));
 });
 

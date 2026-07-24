@@ -23,16 +23,20 @@ const postcss = require("gulp-postcss");
 const replace = require("gulp-replace");
 const cssnano = require("cssnano");
 const through = require("through2");
+const { bundleMainScript, appendText } = require("./lib/bundle-main-script");
 
+const NG_VIEWER_ELEMENT_DIR = "target/generated-resources/ng/inetsoft/web/resources/viewer-element";
+
+// main-*.js is bundled separately below (see bundleMainScript) so that any chunk-*.js it
+// imports is inlined rather than left as a dangling cross-file `import`.
 const scriptFiles = [
-   "target/generated-resources/ng/inetsoft/web/resources/viewer-element/polyfills-*.js",
-   "target/generated-resources/ng/inetsoft/web/resources/viewer-element/scripts-*.js",
-   "target/generated-resources/ng/inetsoft/web/resources/viewer-element/main-*.js"
+   `${NG_VIEWER_ELEMENT_DIR}/polyfills-*.js`,
+   `${NG_VIEWER_ELEMENT_DIR}/scripts-*.js`
 ];
 
 const cssFiles = [
    "target/generated-resources/gulp/inetsoft/web/resources/app/global.css",
-   "target/generated-resources/ng/inetsoft/web/resources/viewer-element/styles-*.css"
+   `${NG_VIEWER_ELEMENT_DIR}/styles-*.css`
 ];
 
 // Wrap each file's content in an IIFE to prevent variable name collisions.
@@ -52,6 +56,7 @@ gulp.task("viewer-element:scripts", function () {
    return gulp.src(scriptFiles)
       .pipe(wrapInIIFE())
       .pipe(concat("viewer-element.js"))
+      .pipe(appendText(`\n${bundleMainScript(NG_VIEWER_ELEMENT_DIR)}\n`))
       .pipe(gulp.dest("target/generated-resources/gulp/inetsoft/web/resources/app/"));
 });
 
