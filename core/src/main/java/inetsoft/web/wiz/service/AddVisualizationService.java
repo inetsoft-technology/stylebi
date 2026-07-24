@@ -69,22 +69,28 @@ public class AddVisualizationService {
     * @param xOffset   horizontal drop position in scaled canvas coordinates.
     * @param yOffset   vertical drop position in scaled canvas coordinates.
     * @param scale     current canvas zoom scale.
+    * @param pixelSize when non-null, resizes the merged chart to this exact pixel footprint
+    *                  (e.g. a dashboard grid tile's allocated span); when null, the chart keeps
+    *                  whatever size it was saved at (the drag-and-drop composer path never
+    *                  resizes).
     * @param principal the current user.
     */
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void addVisualization(@ClusterProxyKey String runtimeId,
                                 AssetEntry vizEntry,
                                 int xOffset, int yOffset, float scale,
+                                Dimension pixelSize,
                                 Principal principal)
       throws Exception
    {
-      doAddVisualization(runtimeId, vizEntry, xOffset, yOffset, scale, principal);
+      doAddVisualization(runtimeId, vizEntry, xOffset, yOffset, scale, pixelSize, principal);
       return null;
    }
 
    private void doAddVisualization(String runtimeId,
                                    AssetEntry vizEntry,
                                    int xOffset, int yOffset, float scale,
+                                   Dimension pixelSize,
                                    Principal principal)
       throws Exception
    {
@@ -209,7 +215,7 @@ public class AddVisualizationService {
       dashVS.repopulateWorksheet(assetRepository, principal);
 
       // Step 2: merge viewsheet assemblies
-      mergeViewsheet(rvs, vizVS, dashVS, wsRenameMap, xOffset, yOffset, scale);
+      mergeViewsheet(rvs, vizVS, dashVS, wsRenameMap, xOffset, yOffset, scale, pixelSize);
 
       // Step 3: record merged visualization
       wizInfo.addMergedVisualization(vizEntry.toIdentifier());
@@ -225,7 +231,8 @@ public class AddVisualizationService {
     */
    private void mergeViewsheet(RuntimeViewsheet rvs, Viewsheet vizVS, Viewsheet dashVS,
                                Map<String, String> wsRenameMap,
-                               int xOffset, int yOffset, float scale)
+                               int xOffset, int yOffset, float scale,
+                               Dimension pixelSize)
    {
       if(scale <= 0f) {
          scale = 1f;
@@ -288,6 +295,14 @@ public class AddVisualizationService {
          // Apply drop position offset
          Point pos = cloned.getPixelOffset();
          cloned.setPixelOffset(new Point(pos.x + offsetX, pos.y + offsetY));
+
+         // Resize to the caller's requested footprint (e.g. a dashboard grid tile's allocated
+         // span) when given. A saved visualization is always a single-assembly Viewsheet (see
+         // WizVisualizationService's "Build new single-assembly ViewSheet" step), so this loop
+         // only ever touches the one content assembly the size was computed for.
+         if(pixelSize != null) {
+            cloned.setPixelSize(pixelSize);
+         }
 
          dashVS.addAssembly(cloned);
 
@@ -415,7 +430,7 @@ public class AddVisualizationService {
          Set<String> namesBefore = collectAssemblyNames(rvs.getViewsheet());
 
          try {
-            doAddVisualization(runtimeId, entry, colStartX, rowStartY, 1.0f, principal);
+            doAddVisualization(runtimeId, entry, colStartX, rowStartY, 1.0f, null, principal);
 
             Rectangle added = computeAddedBounds(rvs.getViewsheet(), namesBefore);
 

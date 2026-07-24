@@ -127,7 +127,7 @@ class AddVisualizationServiceGraphStalenessTest {
       AddVisualizationService service =
          new AddVisualizationService(vsService, assetRepository, wsMergeService, securityEngine);
 
-      service.addVisualization("rt-1", vizEntry, 0, 0, 1.0f, principal);
+      service.addVisualization("rt-1", vizEntry, 0, 0, 1.0f, null, principal);
 
       // The merged worksheet must be persisted, and dashVS's own cached base worksheet
       // repopulated from it, BEFORE the chart assembly is added -- otherwise the sandbox's

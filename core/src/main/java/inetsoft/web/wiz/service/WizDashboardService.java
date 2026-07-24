@@ -207,9 +207,17 @@ public class WizDashboardService {
                y = cumulativeY;
             }
 
+            // Resize the merged chart to its allocated tile footprint (grid path only) --
+            // otherwise a tile's computed (spanCols, spanRows) only ever reserved grid drop-
+            // position spacing and never resized the chart itself. The stack path has no
+            // per-visualization span data, so it passes null and preserves the chart's saved size.
+            java.awt.Dimension pixelSize = grid ?
+               new java.awt.Dimension(spans[i] * DASHBOARD_COL_WIDTH, rowSpans[i] * DASHBOARD_ROW_HEIGHT) :
+               null;
+
             try {
                addVisualizationService.addVisualization(
-                  runtimeId, entries.get(i), x, y, 1.0f, principal);
+                  runtimeId, entries.get(i), x, y, 1.0f, pixelSize, principal);
 
                if(!grid) {
                   cumulativeY += DASHBOARD_ROW_HEIGHT;
