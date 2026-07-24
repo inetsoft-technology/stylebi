@@ -1134,7 +1134,7 @@ public class IdentityService {
       try {
          dashboardManager.copyStorageData(oOrg.getId(), nOrg.getId());
          dependencyStorageService.copyStorageData(oOrg, nOrg);
-         recycleBin.copyStorageData(oOrg.getId(), nOrg.getId());
+         recycleBin.migrateStorageData(oOrg, nOrg);
          updateLibraryStorage(oOrg.getId(), nOrg.getId(), true);
          indexedStorage.copyStorageData(oOrg, nOrg, rename);
          indexedStorage.setInitialized(nOrg.getId());

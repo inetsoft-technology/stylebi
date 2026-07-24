@@ -317,6 +317,37 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
       }
    }
 
+   /**
+    * Copies the recycle bin entries from one organization to another and re-scopes each
+    * entry to the target organization. Unlike {@link #copyStorageData(String, String)} (a raw
+    * bucket copy), this rewrites every entry's {@code originalUser} (and permission grants) from
+    * the source org to the target org and persists the result, so a cloned/renamed org's recycle
+    * bin references the new org's identities rather than the source org's. Used when an
+    * organization is created by clone or renamed. (Bug #75759)
+    */
+   public void migrateStorageData(Organization oorg, Organization norg) {
+      copyStorageData(oorg.getId(), norg.getId());
+
+      KeyValueStorage<Entry> nStorage = getStorage(norg.getId());
+      SortedMap<String, Entry> data = new TreeMap<>();
+      nStorage.stream().forEach(pair -> data.put(pair.getKey(), pair.getValue()));
+
+      try {
+         // re-scope originalUser/permission on the copied entries, then persist them.
+         // Run in the source org's context because migrateEntries()'s permission-grant lookup
+         // filters grants by the current org.
+         OrganizationManager.runInOrgScope(oorg.getId(), () -> {
+            migrateEntries(data, oorg, norg);
+            return null;
+         });
+
+         nStorage.putAll(data).get(2L, TimeUnit.MINUTES);
+      }
+      catch(Exception e) {
+         throw new RuntimeException(e);
+      }
+   }
+
    @Override
    public void parseXML(Element tag) throws Exception {
       NodeList nodes = Tool.getChildNodesByTagName(tag, "entry");
