@@ -113,6 +113,24 @@ declare const window: any;
 })
 export class EmbedChartComponent extends CommandProcessor implements OnInit, OnDestroy, AfterViewInit {
    @Input() url: string;
+
+   // Settable by the embedding page (e.g. wiz sets el.wizMaximized = false when the user closes
+   // its own fullscreen overlay by some means other than this component's own toolbar icon, such
+   // as clicking a backdrop) so the "wiz-fullscreen" toolbar action's icon/label stay correct.
+   // Not model state: model gets replaced wholesale on every server refresh (see
+   // processAddVSObjectCommand/processRefreshVSObjectCommand), which would otherwise reset this.
+   private _wizMaximized = false;
+
+   @Input()
+   set wizMaximized(value: boolean) {
+      this._wizMaximized = !!value;
+      this.cdRef.detectChanges();
+   }
+
+   get wizMaximized(): boolean {
+      return this._wizMaximized;
+   }
+
    appSize: Dimension;
    assemblySize: Dimension;
    vsInfo: ViewsheetInfo;
@@ -154,6 +172,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
                private shadowDomService: ShadowDomService,
                private showHyperlinkService: ShowHyperlinkService,
                private debounceService: DebounceService,
+               private elementRef: ElementRef,
                private cdRef: ChangeDetectorRef)
    {
       super(viewsheetClient, zone, true);
@@ -251,6 +270,21 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       this.dialogService.container = this.viewerRoot.nativeElement;
    }
 
+   /**
+    * Flips wizMaximized and dispatches a plain DOM CustomEvent (with the new value) on this
+    * component's own host element, when the "wiz-fullscreen" toolbar action (see
+    * EmbedChartActions) is clicked - so a consumer embedding <inetsoft-chart> as a plain custom
+    * element (no Angular APIs available) can toggle showing it bigger. Deliberately does not
+    * touch model.maxMode/openMaxMode()/closeMaxMode() - see the comment on the "chart
+    * wiz-fullscreen" action for why that mechanism doesn't fit the embed context.
+    */
+   toggleWizFullscreen(): void {
+      this._wizMaximized = !this._wizMaximized;
+      this.elementRef.nativeElement.dispatchEvent(
+         new CustomEvent("wizfullscreen", { bubbles: true, composed: true, detail: { maximized: this._wizMaximized } })
+      );
+   }
+
    ngOnDestroy() {
       this.dialogService.ngOnDestroy();
       this.clearServerUpdateInterval();
@@ -322,7 +356,8 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       this.updateVSInfo();
 
       this.vsObjectActions = new EmbedChartActions(this.vsObject, null,
-         this.contextProvider, false, null, null, this.miniToolbarService);
+         this.contextProvider, false, null, null, this.miniToolbarService,
+         () => this.wizMaximized, () => this.toggleWizFullscreen());
 
       // As an Angular Elements custom element, this component's view is not refreshed by the
       // zone tick that wraps websocket command processing. Without an explicit detectChanges,
@@ -349,7 +384,8 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
 
       this.vsObject.active = true;
       this.vsObjectActions = new EmbedChartActions(this.vsObject, null,
-         this.contextProvider, false, null, null, this.miniToolbarService);
+         this.contextProvider, false, null, null, this.miniToolbarService,
+         () => this.wizMaximized, () => this.toggleWizFullscreen());
 
       // See processAddVSObjectCommand: force change detection so the embed view updates outside
       // of a DOM event (custom-element views are not covered by the command-processing zone tick).
