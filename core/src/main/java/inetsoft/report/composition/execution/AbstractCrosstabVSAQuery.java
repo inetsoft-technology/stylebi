@@ -852,6 +852,15 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
       // (no "@group:value" suffix) -- so measureHeaders must use the identical disambiguated
       // names or TableArray.hasMember() won't find the duplicate and the cell silently
       // resolves to undefined/null.
+      //
+      // Only CalcFieldFormula-backed entries (i.e. calculator-derived aggregates, the only
+      // ones a calc table's grand-total cells reference by this bare name) are renamed here,
+      // mirroring the CalcFieldFormula-only scoping CrossTabFilter.initCalcHeaders() already
+      // uses for the same kind of disambiguation. Occurrences are still counted across every
+      // aggregate -- including plain, non-calculator ones -- so a calc aggregate colliding
+      // with an earlier plain aggregate's name is still detected, but two plain aggregates
+      // colliding with each other are left as-is, so an ordinary live crosstab's visible
+      // summary-header text (CrossTabFilter.getHeaders()/addSummaryHeaders()) is unaffected.
       Map<String, Integer> dupCounts = new HashMap<>();
 
       for(int i = 0; i < measurename.length; i++) {
@@ -868,7 +877,10 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
          }
          else {
             dupCounts.put(name, dup + 1);
-            measurename[i] = name + "." + dup;
+
+            if(formula[i] instanceof CalcFieldFormula) {
+               measurename[i] = name + "." + dup;
+            }
          }
       }
 
