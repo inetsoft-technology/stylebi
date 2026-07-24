@@ -1554,6 +1554,14 @@ public class WorksheetTableService {
             // annotation. Aggregate MEASURES are handled separately below and DO take the model's
             // description, since aggregation genuinely changes the column's meaning.
             if(!Tool.isEmptyString(grp.getDescription())) {
+               // Best-effort: unlike the aggregate branch below (which falls back to the public
+               // `column` when privateCs lookup misses), a plain group whose fieldName does not
+               // resolve in privateCs leaves descTarget null and the model's group description is
+               // dropped. Setting it on the public `column` instead would not help — the public
+               // selection is regenerated as clones of privateCs, so a description must live on the
+               // private target to survive. A resolution miss here is unexpected (the group was
+               // already resolved against `cs` above) and rare; dropping the description is the
+               // accepted best-effort behavior, consistent with the rest of this method.
                ColumnRef descTarget = grp.getDateGroupLevel() != null
                   ? column
                   : (privateCs.getAttribute(grp.getFieldName()) instanceof ColumnRef pc ? pc : null);

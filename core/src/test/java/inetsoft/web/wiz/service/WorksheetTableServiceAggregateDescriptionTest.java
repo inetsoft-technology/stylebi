@@ -150,4 +150,55 @@ class WorksheetTableServiceAggregateDescriptionTest {
       assertNotNull(aggOut);
       assertTrue(aggOut.getDescription() == null || aggOut.getDescription().isEmpty());
    }
+
+   /**
+    * The PR's core new behavior: a group-by dimension that already carries an INHERITED description
+    * (e.g. a physical-column annotation carried through join/mirror passthrough) keeps that
+    * description — the model's group description does NOT overwrite it. An aggregate MEASURE, by
+    * contrast, still takes the model's description, since aggregation changes the column's meaning.
+    */
+   @Test
+   void groupKeepsInheritedDescriptionOverModelDescription() throws Exception {
+      WorksheetTable.AggregateInfo info = aggInfo("""
+         {
+           "groups": [
+             { "fieldName": "COMPANY_NAME", "description": "Company name from the joined customers and orders data" }
+           ],
+           "aggregates": [
+             { "fieldName": "ORDER_ID", "formula": "DistinctCount", "alias": "TOTAL_ORDERS",
+               "description": "Distinct count of orders per customer" }
+           ]
+         }
+         """);
+
+      Worksheet ws = new Worksheet();
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, "orders");
+      ColumnSelection cs = new ColumnSelection();
+      // Seed COMPANY_NAME with an inherited annotation BEFORE aggregation, simulating a passthrough
+      // dimension that carried its physical-column annotation through join/mirror.
+      AttributeRef companyRef = new AttributeRef(null, "COMPANY_NAME");
+      companyRef.setDataType(XSchema.STRING);
+      ColumnRef companyCol = new ColumnRef(companyRef);
+      companyCol.setDataType(XSchema.STRING);
+      companyCol.setDescription("The names of the companies associated with each customer");
+      cs.addAttribute(companyCol);
+      AttributeRef orderRef = new AttributeRef(null, "ORDER_ID");
+      orderRef.setDataType(XSchema.STRING);
+      cs.addAttribute(new ColumnRef(orderRef));
+      table.setColumnSelection(cs, false);
+
+      service().applyAggregateInfo(table, info);
+
+      // Group dimension keeps the inherited annotation, NOT the model's lineage-restating one.
+      ColumnRef groupOut = output(table, "COMPANY_NAME");
+      assertNotNull(groupOut, "group-by output column COMPANY_NAME should exist");
+      assertEquals("The names of the companies associated with each customer",
+                   groupOut.getDescription(),
+                   "inherited annotation must win over the model's group description");
+
+      // Aggregate measure still takes the model's description.
+      ColumnRef aggOut = output(table, "TOTAL_ORDERS");
+      assertNotNull(aggOut);
+      assertEquals("Distinct count of orders per customer", aggOut.getDescription());
+   }
 }
