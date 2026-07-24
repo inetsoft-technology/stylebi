@@ -853,14 +853,31 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
       // names or TableArray.hasMember() won't find the duplicate and the cell silently
       // resolves to undefined/null.
       //
-      // Only CalcFieldFormula-backed entries (i.e. calculator-derived aggregates, the only
-      // ones a calc table's grand-total cells reference by this bare name) are renamed here,
-      // mirroring the CalcFieldFormula-only scoping CrossTabFilter.initCalcHeaders() already
-      // uses for the same kind of disambiguation. Occurrences are still counted across every
-      // aggregate -- including plain, non-calculator ones -- so a calc aggregate colliding
-      // with an earlier plain aggregate's name is still detected, but two plain aggregates
-      // colliding with each other are left as-is, so an ordinary live crosstab's visible
-      // summary-header text (CrossTabFilter.getHeaders()/addSummaryHeaders()) is unaffected.
+      // Only names shared by at least one CalcFieldFormula-backed (calculator-derived)
+      // aggregate are renamed here -- CalcTableVSAQuery.createCrosstabAssemblies dedups
+      // aggregate binding values unconditionally by position, regardless of formula type,
+      // so whichever aggregate is NOT the first occurrence of a colliding name -- plain or
+      // calculator-derived -- ends up bound to the disambiguated "name.1" in the calc
+      // table. Renaming only when the *later* occurrence itself is a CalcFieldFormula would
+      // miss the case where a calculator aggregate is first and a plain aggregate collides
+      // with it second: the plain aggregate's calc-table binding is still "name.1", but its
+      // measureHeaders entry would stay "name", reproducing the same null-lookup bug for
+      // that ordering. A name shared only by plain aggregates has no calc-table binding
+      // riding on it, so those are left as-is -- ordinary live crosstabs' visible
+      // summary-header text (CrossTabFilter.getHeaders()/addSummaryHeaders()) stays
+      // unaffected unless a calculator is actually involved in the collision.
+      Map<String, Boolean> hasCalcMember = new HashMap<>();
+
+      for(int i = 0; i < measurename.length; i++) {
+         String name = measurename[i];
+
+         if(name == null) {
+            continue;
+         }
+
+         hasCalcMember.merge(name, formula[i] instanceof CalcFieldFormula, Boolean::logicalOr);
+      }
+
       Map<String, Integer> dupCounts = new HashMap<>();
 
       for(int i = 0; i < measurename.length; i++) {
@@ -878,7 +895,7 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
          else {
             dupCounts.put(name, dup + 1);
 
-            if(formula[i] instanceof CalcFieldFormula) {
+            if(hasCalcMember.get(name)) {
                measurename[i] = name + "." + dup;
             }
          }
