@@ -19,6 +19,7 @@ package inetsoft.web.wiz.service;
 
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.DataRef;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -119,18 +120,7 @@ public class WsMergeService {
                // prevMirror's column selection so stacked mirrors (condMirror / cleanMirror)
                // can see all columns transitively, even when they override their own selection.
                // This runs unconditionally before the branch so any code path below benefits.
-               ColumnSelection baseColumns = existingTable.getColumnSelection(true);
-               ColumnSelection mirrorColumns = prevMirror.getColumnSelection(true).clone();
-
-               for(int i = 0; i < baseColumns.getAttributeCount(); i++) {
-                  DataRef col = baseColumns.getAttribute(i);
-
-                  if(mirrorColumns.getAttribute(col.getName()) == null) {
-                     mirrorColumns.addAttribute(col);
-                  }
-               }
-
-               prevMirror.setColumnSelection(mirrorColumns, true);
+               mergeMirrorColumns(prevMirror, baseName, existingTable.getColumnSelection(true));
 
                ConditionListWrapper srcPre = srcBound.getPreConditionList();
                ConditionListWrapper srcPost = srcBound.getPostConditionList();
@@ -332,8 +322,25 @@ public class WsMergeService {
    }
 
    /**
-    * Expands {@code base}'s public column selection with any columns from {@code srcTable}
-    * that are not already present (judged by column name).
+    * Expands {@code base}'s column selection with any columns from {@code srcTable} that are
+    * not already present (judged by column name) — both its public (output) selection AND its
+    * private (actually-selected/fetched) selection.
+    *
+    * <p>Only updating the public selection is not enough: {@link AbstractTableAssembly#resetColumnSelection}
+    * and the query-preparation validation path ({@code PreAssetQuery#validateColumnSelection})
+    * regenerate a table's public selection FROM its private selection (filtered to visible
+    * columns) whenever the table's column selection is next validated/reset during query
+    * construction — which silently discards a column added only to the public side. Confirmed
+    * live: a JS-expression column two mirror-hops downstream (a dashboard's merged
+    * {@code product_name} calc, depending on a hidden {@code product_name_json} base column)
+    * evaluated to {@code null} for every row once merged into a dashboard, even though an
+    * earlier version of this method correctly added {@code product_name_json} to the public
+    * selection at merge time — because nothing had added it to the private selection, so the
+    * very next {@code resetColumnSelection()} wiped it back out.</p>
+    *
+    * <p>{@code base} is a plain bound (non-mirror) table here, so the added private columns need
+    * no outer-attribute qualification — contrast {@link #mergeMirrorColumns}, which merges the
+    * same base's columns into the "prev" mirror stacked on top of it and DOES need it.</p>
     */
    private void mergeColumns(BoundTableAssembly base, BoundTableAssembly srcTable) {
       ColumnSelection baseColumns = base.getColumnSelection(true);
@@ -347,7 +354,60 @@ public class WsMergeService {
          }
       }
 
+      ColumnSelection basePrivate = base.getColumnSelection(false);
+
+      for(int i = 0; i < srcColumns.getAttributeCount(); i++) {
+         DataRef col = srcColumns.getAttribute(i);
+
+         if(basePrivate.getAttribute(col.getName()) == null) {
+            ColumnRef privateCol = (ColumnRef) ((ColumnRef) col).clone();
+            privateCol.setVisible(true);
+            basePrivate.addAttribute(privateCol);
+         }
+      }
+
+      base.setColumnSelection(basePrivate, false);
       base.setColumnSelection(baseColumns, true);
+   }
+
+   /**
+    * Expands {@code mirror}'s column selection with any columns from {@code baseColumns} (its
+    * own base table's public selection, named {@code baseName}) that are not already present —
+    * both public and private (see {@link #mergeColumns}'s javadoc for why both are required).
+    *
+    * <p>Unlike {@link #mergeColumns}, {@code mirror}'s PRIVATE selection references its base
+    * table's columns by OUTER ATTRIBUTE — qualified by the base's name (e.g. the existing
+    * {@code "PT_base.pt_id"}), not the base's bare column name. A newly-merged column added as a
+    * bare (unqualified) clone — the same shape {@code mergeColumns} correctly uses for a plain
+    * bound table — sits inconsistent with its siblings and never resolves back to the base
+    * table's actual data; {@link AssetUtil#getOuterAttribute} produces the same qualified shape
+    * the mirror's other private columns already have.</p>
+    */
+   private void mergeMirrorColumns(TableAssembly mirror, String baseName, ColumnSelection baseColumns) {
+      ColumnSelection mirrorPublic = mirror.getColumnSelection(true);
+
+      for(int i = 0; i < baseColumns.getAttributeCount(); i++) {
+         DataRef col = baseColumns.getAttribute(i);
+
+         if(mirrorPublic.getAttribute(col.getName()) == null) {
+            mirrorPublic.addAttribute(col);
+         }
+      }
+
+      ColumnSelection mirrorPrivate = mirror.getColumnSelection(false);
+
+      for(int i = 0; i < baseColumns.getAttributeCount(); i++) {
+         DataRef col = baseColumns.getAttribute(i);
+
+         if(mirrorPrivate.getAttribute(col.getName()) == null) {
+            ColumnRef privateCol = new ColumnRef(AssetUtil.getOuterAttribute(baseName, col));
+            privateCol.setVisible(true);
+            mirrorPrivate.addAttribute(privateCol);
+         }
+      }
+
+      mirror.setColumnSelection(mirrorPrivate, false);
+      mirror.setColumnSelection(mirrorPublic, true);
    }
 
    /**
