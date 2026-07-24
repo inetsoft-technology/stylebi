@@ -171,9 +171,12 @@ public class WizDashboardService {
          }
 
          // When a filter bar will be built (Task 3, below), reserve its own top row so the
-         // merged charts don't render underneath it.
+         // merged charts don't render underneath it. Its controls are much shorter than a full
+         // chart tile, so this uses its own (smaller) row height rather than DASHBOARD_ROW_HEIGHT
+         // -- reserving a full chart-height row left a large empty gap between the filter bar and
+         // the charts below it.
          boolean hasFilters = event.getFilters() != null && !event.getFilters().isEmpty();
-         int topOffset = hasFilters ? DASHBOARD_ROW_HEIGHT : 0;
+         int topOffset = hasFilters ? FILTER_BAR_ROW_HEIGHT : 0;
 
          int cumulativeY = topOffset;   // stack path only
 
@@ -324,6 +327,11 @@ public class WizDashboardService {
    /** Vertical row stride between successive merged visualizations, in pixels — used by both
     *  the single-column stack path and the grid path's row advance. */
    private static final int DASHBOARD_ROW_HEIGHT = 420;
+
+   /** Reserved row height for the top filter bar, in pixels — matches the compact pixel size
+    *  {@link WizDashboardFilterBuilder} gives its selection/range controls, not a full chart
+    *  tile's height. */
+   static final int FILTER_BAR_ROW_HEIGHT = 120;
 
    /** Horizontal stride between grid columns, in pixels (paired with DASHBOARD_ROW_HEIGHT). */
    private static final int DASHBOARD_COL_WIDTH = 640;   // confirm vs composer default viz width

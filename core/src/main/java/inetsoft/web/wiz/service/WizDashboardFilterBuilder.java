@@ -133,6 +133,11 @@ public class WizDashboardFilterBuilder {
 
          control.setTableNames(tables);
          control.setPixelOffset(new Point(x, y));
+         // Explicit compact size: SelectionList/TimeSlider's own default pixel size is not
+         // reliably short, and WizDashboardService reserves only FILTER_BAR_ROW_HEIGHT (120px)
+         // above the charts -- an oversized control here would visually collide with the first
+         // chart row instead of leaving the intended small gap.
+         control.setPixelSize(new java.awt.Dimension(FILTER_CONTROL_WIDTH, FILTER_CONTROL_HEIGHT));
          vs.addAssembly(control);
          applied.add(req.field());
          x += FILTER_CONTROL_WIDTH;
@@ -155,4 +160,8 @@ public class WizDashboardFilterBuilder {
    private static final int FILTER_BAR_X = 0;
    private static final int FILTER_BAR_Y = 0;
    private static final int FILTER_CONTROL_WIDTH = 200;
+
+   /** Control height, in pixels — leaves a small margin under
+    *  {@link WizDashboardService#FILTER_BAR_ROW_HEIGHT} (120px), the reserved row above charts. */
+   private static final int FILTER_CONTROL_HEIGHT = 100;
 }
