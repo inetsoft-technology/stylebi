@@ -106,6 +106,19 @@ Render-location rules and the gate mechanism are unchanged from the roadmap — 
   of the Phase 6 B1/B2 seams. The plot border is moot (its default is never drawn). Server-side,
   export-visible.
 - **Effort:** low. Owner decides implement-vs-leave; recommended to fold in as a cheap consistency win.
+- **Status (implemented 2026-07-24):** axis-line polish shipped as Phase 6 B3; this pass closed the
+  radar label-axis and funnel y-axis coverage gaps (`VSChartChromeDefaults.resolveAxisLineColor` at
+  `RadarGraphGenerator`/`GraphGenerator`), modernized the object-frame border `#DADADA`→`#D9D5CC`, and
+  warmed the viewsheet page `#F5F5F5`→`#F8F7F4` (white cards kept). Both colors are applied as gated
+  **design-time default seeds** — `VSAssemblyInfo.setDefaultFormat` (border) and
+  `ViewsheetVSAssemblyInfo.setDefaultFormat` (page) seed the modern color when
+  `VSObjectChromeDefaults.isModern()`, so a new object created under the gate carries the modern
+  default (visible in the format editor, effective in viewer + export). A user format or a
+  `format.css` class still overrides it via USER > CSS > DEFAULT tier precedence. Gate off keeps the
+  legacy seeds; existing objects are unaffected. (An earlier render-overlay attempt —
+  `VSObjectModel`/`CoreLifecycleService`/`AbstractVSExporter` — was reverted: the `#f5f5f5`/`#dadada`
+  are serialized DEFAULT-tier seeds shown in the format editor, so seeding is the correct layer.)
+  Runtime/visual validation is the USER-owned cycle, not yet done.
 
 ### 6. Completeness items (grouped — each has a known blocker)
 

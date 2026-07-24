@@ -2342,7 +2342,8 @@ public abstract class GraphGenerator {
 
                // axis color can't be controlled by user. use the x axis.
                if(xdesc != null) {
-                  yscale.getAxisSpec().setLineColor(xdesc.getLineColor());
+                  yscale.getAxisSpec().setLineColor(
+                     VSChartChromeDefaults.resolveAxisLineColor(xdesc.getLineColor()));
                   yscale.getAxisSpec().setLineVisible(xdesc.isLineVisible());
                }
             }
