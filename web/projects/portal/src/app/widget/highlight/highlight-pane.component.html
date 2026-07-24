@@ -61,6 +61,18 @@
             </div>
           }
         </div>
+        @if (showSemanticPresets) {
+          <div class="row shell-form-row--field">
+            <div class="col highlight-pane__presets">
+              <span>_#(Presets):</span>
+              @for (preset of semanticPresets; track preset.label) {
+                <button type="button" class="btn highlight-pane__preset-btn"
+                  [style.background-color]="preset.background" [style.color]="preset.foreground"
+                  (click)="applyPreset(preset)">{{preset.label}}</button>
+              }
+            </div>
+          </div>
+        }
         <div class="row shell-form-row--field">
           @if (!model.chartAssembly || model.showFont) {
             <div class="col">
