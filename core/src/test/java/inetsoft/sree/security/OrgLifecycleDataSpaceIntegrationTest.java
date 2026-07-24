@@ -37,29 +37,29 @@ package inetsoft.sree.security;
  * relied on by DashboardRegistryOrgLifecycleTest's 4d/4e).
  *
  * 8c side discovery (not in the original matrix row, found while building fixtures for "no orphan
- * path shape"): DataSpace.getOrgScopedPaths()'s sixth OR-branch (DataSpace.java:408-409) is
- * effectively dead code for its stated purpose. Real per-user UserEnv files are named
- * "{name}_{orgId}.xml" under "sreeUserData/" (UserEnv.java:237, USER_DIR), with no "~;~"
- * (IdentityID.KEY_DELIMITER) in the file name. IdentityID.getIdentityIDFromKey() only parses an
- * orgID out of a key when that delimiter is present (IdentityID.java:96-105); without it, the method
- * falls to its else branch (IdentityID.java:106-112) and returns whatever org is on the *calling
- * thread's* principal/OrganizationManager context instead -- ignoring the path string entirely. The
- * branch's comparison against `oorg.getId() + ".xml"` can therefore never match a real sreeUserData
- * file's actual org segment; only an implausible orgId that is itself the literal string
- * "{targetOrgId}.xml" could ever satisfy it. Net effect: sreeUserData/ per-user files are never
- * included in getOrgScopedPaths() and are never cleaned up -- or relocated -- by org delete or
- * rename, regardless of which org's data they belong to. Filed as Issue #75763; the rename-path
- * consequence was manually reproduced end-to-end through the EM/Portal UI (a user's Preferences ->
- * History Bar toggle silently reverts to the system default after their organization's ID is
- * changed) before this coverage was added.
+ * path shape") and its Issue #75763 fix: DataSpace.getOrgScopedPaths()'s sixth OR-branch
+ * (DataSpace.java:408) used to be effectively dead code for its stated purpose. Real per-user
+ * UserEnv files are named "{name}_{orgId}.xml" under "sreeUserData/" (UserEnv.java:237, USER_DIR),
+ * with no "~;~" (IdentityID.KEY_DELIMITER) in the file name. The old branch called
+ * IdentityID.getIdentityIDFromKey(p), which only parses an orgID out of a key when that delimiter is
+ * present (IdentityID.java:96-105); without it, the method fell to its else branch
+ * (IdentityID.java:106-112) and returned whatever org was on the *calling thread's*
+ * principal/OrganizationManager context instead -- ignoring the path string entirely. Its
+ * comparison against `oorg.getId() + ".xml"` could therefore never match a real sreeUserData file's
+ * actual org segment, so sreeUserData/ per-user files were never included in getOrgScopedPaths() and
+ * were never cleaned up -- or relocated -- by org delete or rename. The rename-path consequence was
+ * manually reproduced end-to-end through the EM/Portal UI (a user's Preferences -> History Bar toggle
+ * silently reverts to the system default after their organization's ID is changed). The branch now
+ * matches by filename suffix -- `p.startsWith("sreeUserData/") && p.endsWith("_" + oorg.getId() +
+ * ".xml")` -- so all three callers (copyDataSpace, updateOrgScopedDataSpace,
+ * removeOrgScopedDataSpaceElements) now relocate/remove these files correctly. The tests below assert
+ * this fixed behavior.
  *
- * These tests are deliberately NOT @Disabled even though they document a confirmed, unfixed bug:
- * per this suite's convention (see e.g. DataCycleManagerOrgLifecycleTest scenario 5e), a
- * characterization test for a known defect stays active so it fails loudly -- forcing a conscious
- * update -- the moment someone changes the underlying behavior, whether by fixing it or by
- * regressing it further. @Disabled in this codebase is reserved for flaky test infrastructure
- * (see DashboardRegistryOrgLifecycleTest scenario 4c), not for "this is a known bug we haven't
- * fixed yet."
+ * These tests are deliberately NOT @Disabled: per this suite's convention (see e.g.
+ * DataCycleManagerOrgLifecycleTest scenario 5e), they stay active so they fail loudly -- forcing a
+ * conscious update -- the moment someone changes the underlying behavior, whether by regressing the
+ * fix or otherwise. @Disabled in this codebase is reserved for flaky test infrastructure
+ * (see DashboardRegistryOrgLifecycleTest scenario 4c).
  */
 
 import inetsoft.mv.fs.internal.AbstractFileSystem;
@@ -167,10 +167,11 @@ class OrgLifecycleDataSpaceIntegrationTest {
       }
    }
 
-   // Documents a gap found while building the fixture above -- see class-level comment for the
-   // full mechanism. Pins current (likely unintended) behavior; not asserting it is correct.
+   // Issue #75763 fix: sreeUserData/ per-user UserEnv files must be removed on org delete, not left
+   // as orphans. getOrgScopedPaths()'s sixth OR-branch now matches "{name}_{orgId}.xml" by filename
+   // suffix (see class-level comment for the mechanism it replaced).
    @Test
-   void delete_removeOrgScopedDataSpaceElements_sreeUserDataFile_survivesAsOrphan() throws Exception {
+   void delete_removeOrgScopedDataSpaceElements_sreeUserDataFile_isRemoved() throws Exception {
       String orgId = "dataspace_8c_sreeuserdata";
       String userFile = "sreeUserData/alice_" + orgId + ".xml";
 
@@ -180,22 +181,22 @@ class OrgLifecycleDataSpaceIntegrationTest {
       IdentityService identityService = newIdentityServiceWithRealDataSpace();
       identityService.removeOrgScopedDataSpaceElements(new Organization(orgId));
 
-      assertTrue(dataSpace.exists(null, userFile),
-                 "documents a real gap: sreeUserData/ per-user UserEnv files are never matched by "
-                 + "getOrgScopedPaths() (its org-id parse falls back to the current thread's org "
-                 + "context, not the file name), so they survive org deletion as orphans");
+      assertFalse(dataSpace.exists(null, userFile),
+                  "sreeUserData/ per-user UserEnv file must be deleted with the org, not left as an "
+                  + "orphan (Issue #75763): getOrgScopedPaths() now matches it by filename suffix");
    }
 
    // Issue #75763, rename-path counterpart of the delete-path test above. This is the code-level
-   // mechanism behind the manually-reproduced UI symptom: after an org's ID is changed, a user's
-   // Preferences -> History Bar setting (UserEnv.getProperty(principal, "historyBarEnable", null),
-   // PreferencesDialogController.java:60) silently reverts to the system default, because the
-   // per-user file was never relocated to the new org id -- both copyDataSpace(replace=true) (the
-   // copyOrganizationInternal() entry point) and updateOrgScopedDataSpace() (the
-   // setOrganizationInfo() entry point) drive their file moves off the same defective
-   // getOrgScopedPaths(), so neither one moves it. Deliberately not @Disabled -- see class header.
+   // mechanism behind the manually-reproduced UI symptom: before the fix, after an org's ID was
+   // changed a user's Preferences -> History Bar setting (UserEnv.getProperty(principal,
+   // "historyBarEnable", null), PreferencesDialogController.java:60) silently reverted to the system
+   // default, because the per-user file was never relocated to the new org id. Both
+   // copyDataSpace(replace=true) (the copyOrganizationInternal() entry point) and
+   // updateOrgScopedDataSpace() (the setOrganizationInfo() entry point) drive their file moves off
+   // the same getOrgScopedPaths(); with its sreeUserData/ branch repaired, both now relocate the
+   // file to the new org id. Deliberately not @Disabled -- see class header.
    @Test
-   void rename_sreeUserDataFile_neitherEntryPointRelocatesIt_currentBuggyBehaviorBaseline()
+   void rename_sreeUserDataFile_bothEntryPointsRelocateItToNewOrgId()
       throws Exception
    {
       // Path A: copyOrganizationInternal()'s copyDataSpace(replace=true).
@@ -210,16 +211,15 @@ class OrgLifecycleDataSpaceIntegrationTest {
          new AbstractEditableAuthenticationProviderStaticDepTest.StubProvider();
       provider.callCopyDataSpace(new Organization(fromA), new Organization(toA), true);
 
-      assertTrue(dataSpace.exists(null, userFileA),
-                 "current buggy behavior: copyDataSpace(replace=true) never moves the sreeUserData "
-                 + "file away from the old org id -- it is left behind, not relocated");
-      assertFalse(dataSpace.exists(null, expectedRelocatedFileA),
-                  "current buggy behavior: the new org id never receives the per-user file, which "
-                  + "is exactly why a subsequent UserEnv.getProperty() lookup under the new org id "
-                  + "misses and falls back to the property's default (the reproduced History Bar "
-                  + "reset)");
+      assertFalse(dataSpace.exists(null, userFileA),
+                  "copyDataSpace(replace=true) must move the sreeUserData file away from the old "
+                  + "org id -- it is relocated, not left behind (Issue #75763)");
+      assertTrue(dataSpace.exists(null, expectedRelocatedFileA),
+                 "the new org id must receive the per-user file, so a subsequent "
+                 + "UserEnv.getProperty() lookup under the new org id finds the saved value instead "
+                 + "of falling back to the default (the History Bar reset is fixed)");
 
-      // Path B: setOrganizationInfo()'s own updateOrgScopedDataSpace() -- same root cause, same
+      // Path B: setOrganizationInfo()'s own updateOrgScopedDataSpace() -- same mechanism, same
       // outcome, via the independent implementation.
       String fromB = "dataspace_8c_sreeuserdata_updateds_from";
       String toB = "dataspace_8c_sreeuserdata_updateds_to";
@@ -231,13 +231,11 @@ class OrgLifecycleDataSpaceIntegrationTest {
       IdentityService identityService = newIdentityServiceWithRealDataSpace();
       invokeUpdateOrgScopedDataSpace(identityService, new Organization(fromB), new Organization(toB));
 
-      assertTrue(dataSpace.exists(null, userFileB),
-                 "current buggy behavior: updateOrgScopedDataSpace() never moves the sreeUserData "
-                 + "file away from the old org id either -- same getOrgScopedPaths() gap, "
-                 + "independent implementation");
-      assertFalse(dataSpace.exists(null, expectedRelocatedFileB),
-                  "current buggy behavior: the new org id never receives the per-user file here "
-                  + "either");
+      assertFalse(dataSpace.exists(null, userFileB),
+                  "updateOrgScopedDataSpace() must move the sreeUserData file away from the old org "
+                  + "id too -- same getOrgScopedPaths() path, independent implementation");
+      assertTrue(dataSpace.exists(null, expectedRelocatedFileB),
+                 "the new org id must receive the per-user file here as well");
    }
 
    // ── scenario 8d: setOrganizationInfo()'s independent updateOrgScopedDataSpace() must behave
