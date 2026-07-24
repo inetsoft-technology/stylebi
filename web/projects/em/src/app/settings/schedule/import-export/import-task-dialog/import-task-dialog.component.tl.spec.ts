@@ -29,9 +29,8 @@
  * Fixed:
  *   Bug A — handleImportError() uses error.error?.message ?? error.message so a null/empty
  *     error body (e.g. HTTP 500) still opens the ERROR dialog instead of throwing TypeError.
- *
- * Deferred (type-only, no runtime/UI impact — see import-task-response.ts):
- *   Bug B — failedTasks is typed as `[]` but the API returns string[]. Tests assign with `as any`.
+ *   Bug B — failedTasks is now typed as `string[]` (matches the API's Java List<String>),
+ *     removing the `as any` casts previously needed to assign non-empty fixture arrays.
  *
  * KEY contracts:
  *   - finish() collects selection.selected values and sends their `.task` strings in POST body.
@@ -307,8 +306,7 @@ describe("ImportTaskDialogComponent — onImportComplete(): dialog type and clos
    it("should open a WARNING dialog listing failed task names when failedTasks is non-empty", async () => {
       const { comp, matDialogSpy, dialogRefSpy } = await renderComp({ dialogClosesWith: undefined });
 
-      // Bug B deferred: failedTasks typed as []; cast needed for non-empty fixture arrays
-      const response: ImportTaskResponse = { failedTasks: ["Task1", "Task2"] as any, failed: true };
+      const response: ImportTaskResponse = { failedTasks: ["Task1", "Task2"], failed: true };
       comp.onImportComplete(response);
 
       expect(matDialogSpy.open).toHaveBeenCalledTimes(1);
@@ -325,7 +323,7 @@ describe("ImportTaskDialogComponent — onImportComplete(): dialog type and clos
    it("should open an INFO dialog on full success and close the outer dialog with true", async () => {
       const { comp, matDialogSpy, dialogRefSpy } = await renderComp({ dialogClosesWith: undefined });
 
-      const response: ImportTaskResponse = { failedTasks: [] as any, failed: false };
+      const response: ImportTaskResponse = { failedTasks: [], failed: false };
       comp.onImportComplete(response);
 
       expect(matDialogSpy.open).toHaveBeenCalledTimes(1);
