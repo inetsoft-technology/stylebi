@@ -40,22 +40,38 @@ const through = require("through2");
  * @returns {string} self-contained IIFE script text with no unresolved local imports
  */
 function bundleMainScript(ngOutputDir) {
-   const [mainFile] = glob.sync(`${ngOutputDir}/main-*.js`);
+   const mainFiles = glob.sync(`${ngOutputDir}/main-*.js`);
 
-   if(!mainFile) {
+   if(mainFiles.length === 0) {
       throw new Error(`No main-*.js found in ${ngOutputDir}. Run the corresponding "ng build" first.`);
    }
 
+   if(mainFiles.length > 1) {
+      throw new Error(
+         `Found multiple main-*.js files in ${ngOutputDir}: ${mainFiles.join(", ")}. ` +
+         "Clean the output directory and rebuild so a stale file isn't bundled by mistake."
+      );
+   }
+
    const result = esbuild.buildSync({
-      entryPoints: [ mainFile ],
+      entryPoints: mainFiles,
       bundle: true,
-      format: "iife",
+      // Bundled as ESM (no top-level export in an application entry point, so this comes
+      // out as plain statements) rather than esbuild's own "iife" format, so it can be
+      // wrapped below with the same `.call(window)` binding as wrapInIIFE - keeping the
+      // "this" semantics consistent with the rest of elements.js/viewer-element.js in case
+      // anything transitively bundled here relies on `this` pointing to the global object
+      // (e.g. UMD-style code).
+      format: "esm",
       platform: "browser",
       write: false,
-      legalComments: "none"
+      // angular.json sets extractLicenses: false for these builds, i.e. license comments
+      // are meant to stay inline rather than be extracted separately - match that here so
+      // third-party attribution notices aren't silently dropped from the published package.
+      legalComments: "inline"
    });
 
-   return result.outputFiles[0].text;
+   return `(function(){${result.outputFiles[0].text}}).call(window);\n`;
 }
 
 /**
