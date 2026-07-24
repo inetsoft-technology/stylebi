@@ -19,11 +19,16 @@ package inetsoft.report.filter;
 
 import inetsoft.report.StyleConstants;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -34,7 +39,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * over their results. These tests cover the lifecycle methods (addValue, isNull, reset, clone)
  * and percentage-type behavior. Script evaluation is tested using a simple arithmetic expression.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
+@Tag("core")
 public class CalcFieldFormulaTest {
 
    private AssetQuerySandbox box;
@@ -284,6 +293,54 @@ public class CalcFieldFormulaTest {
       CalcFieldFormula formula = buildSingleChildFormula("SUM", new SumFormula(), "SUM");
       formula.setDefaultResult(false);
       assertNull(formula.getOriginalResult());
+   }
+
+   /**
+    * Regression test for a bug where a formula used as another cell's percentage
+    * denominator (e.g. a crosstab's grand-total cell, queried via getOriginalResult()
+    * while computing every other row's percentage) would permanently return its raw,
+    * unpercentaged value from then on -- even after setTotal() was subsequently called
+    * to compute its own percentage. getResult() caches its return value, and the old
+    * getOriginalResult() implementation forced percentageType to NONE, called
+    * getResult() (caching the raw value), then restored percentageType without
+    * invalidating that cache.
+    */
+   @Test
+   void getOriginalResult_thenGetResult_stillComputesPercentageNotStaleRawValue() {
+      CalcFieldFormula formula = buildSingleChildFormula("SUM", new SumFormula(), "SUM");
+      formula.addValue(new Object[]{ null, Double.valueOf(10.0) });
+      formula.setPercentageType(StyleConstants.PERCENTAGE_OF_GRANDTOTAL);
+
+      // simulate this formula being read as another cell's percentage denominator,
+      // as CrossTabFilter.applyPercentage() does for every row sharing this grand total
+      Object original = formula.getOriginalResult();
+      assertEquals(10.0, ((Number) original).doubleValue(), 1e-10);
+
+      // now compute this formula's own percentage (e.g. the grand-total cell's own
+      // 100%, where its denominator is itself)
+      formula.setTotal(10.0);
+
+      Object result = formula.getResult();
+      assertNotNull(result);
+      assertEquals(1.0, ((Number) result).doubleValue(), 1e-10);
+   }
+
+   @Test
+   void getOriginalResult_doesNotDisturbAlreadyCachedPercentageResult() {
+      CalcFieldFormula formula = buildSingleChildFormula("SUM", new SumFormula(), "SUM");
+      formula.addValue(new Object[]{ null, Double.valueOf(10.0) });
+      formula.setPercentageType(StyleConstants.PERCENTAGE_OF_GRANDTOTAL);
+      formula.setTotal(20.0);
+
+      // cache the percentage result (10/20 = 0.5) before getOriginalResult() runs
+      Object result = formula.getResult();
+      assertEquals(0.5, ((Number) result).doubleValue(), 1e-10);
+
+      Object original = formula.getOriginalResult();
+      assertEquals(10.0, ((Number) original).doubleValue(), 1e-10);
+
+      // the previously-cached percentage result must still be intact afterward
+      assertEquals(0.5, ((Number) formula.getResult()).doubleValue(), 1e-10);
    }
 
    // -----------------------------------------------------------------------

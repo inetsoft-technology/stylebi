@@ -816,6 +816,14 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
                                      Map<String, String> calcHeaderMap)
    {
       String[] measurename = new String[formula.length];
+      // per-index original (pre-calc-prefix) name, only set where a calculator applies;
+      // used to rebuild calcHeaderMap below, keyed by the final (post-dedup) measurename,
+      // instead of putting into calcHeaderMap immediately -- two calculator aggregates on
+      // the same column (e.g. SUM(col) and AVG(col) both with "Percent of Grand Total")
+      // can compute the same prefixed name here, and an immediate put() would have one
+      // entry silently overwrite the other under a key that no longer matches either
+      // aggregate's final, deduped measurename.
+      String[] calcOriginalNames = applyCalc ? new String[formula.length] : null;
 
       for(int i = 0; i < formula.length; i++) {
          if(formula[i] instanceof CalcFieldFormula) {
@@ -832,9 +840,71 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
             Calculator calc = ((VSAggregateRef) aggrs[i]).getCalculator();
             String originalName = measurename[i];
             measurename[i] = calc.getPrefix() + measurename[i];
+            calcOriginalNames[i] = originalName;
+         }
+      }
 
-            if(calcHeaderMap != null) {
-               calcHeaderMap.put(measurename[i], originalName);
+      // Multiple aggregates (e.g. a raw sum and a "percent of total" calculator) can
+      // share the same underlying column and therefore the same measure name here.
+      // The calc table conversion (CalcTableVSAQuery.createCrosstabAssemblies) disambiguates
+      // duplicate aggregate binding values the same way ("name", "name.1", "name.2", ...), and
+      // a calc table's grand-total cells reference the measure by this bare, unqualified name
+      // (no "@group:value" suffix) -- so measureHeaders must use the identical disambiguated
+      // names or TableArray.hasMember() won't find the duplicate and the cell silently
+      // resolves to undefined/null.
+      //
+      // Only names shared by at least one CalcFieldFormula-backed (calculator-derived)
+      // aggregate are renamed here -- CalcTableVSAQuery.createCrosstabAssemblies dedups
+      // aggregate binding values unconditionally by position, regardless of formula type,
+      // so whichever aggregate is NOT the first occurrence of a colliding name -- plain or
+      // calculator-derived -- ends up bound to the disambiguated "name.1" in the calc
+      // table. Renaming only when the *later* occurrence itself is a CalcFieldFormula would
+      // miss the case where a calculator aggregate is first and a plain aggregate collides
+      // with it second: the plain aggregate's calc-table binding is still "name.1", but its
+      // measureHeaders entry would stay "name", reproducing the same null-lookup bug for
+      // that ordering. A name shared only by plain aggregates has no calc-table binding
+      // riding on it, so those are left as-is -- ordinary live crosstabs' visible
+      // summary-header text (CrossTabFilter.getHeaders()/addSummaryHeaders()) stays
+      // unaffected unless a calculator is actually involved in the collision.
+      Map<String, Boolean> hasCalcMember = new HashMap<>();
+
+      for(int i = 0; i < measurename.length; i++) {
+         String name = measurename[i];
+
+         if(name == null) {
+            continue;
+         }
+
+         hasCalcMember.merge(name, formula[i] instanceof CalcFieldFormula, Boolean::logicalOr);
+      }
+
+      Map<String, Integer> dupCounts = new HashMap<>();
+
+      for(int i = 0; i < measurename.length; i++) {
+         String name = measurename[i];
+
+         if(name == null) {
+            continue;
+         }
+
+         Integer dup = dupCounts.get(name);
+
+         if(dup == null) {
+            dupCounts.put(name, 1);
+         }
+         else {
+            dupCounts.put(name, dup + 1);
+
+            if(hasCalcMember.get(name)) {
+               measurename[i] = name + "." + dup;
+            }
+         }
+      }
+
+      if(calcHeaderMap != null) {
+         for(int i = 0; i < measurename.length; i++) {
+            if(calcOriginalNames[i] != null) {
+               calcHeaderMap.put(measurename[i], calcOriginalNames[i]);
             }
          }
       }

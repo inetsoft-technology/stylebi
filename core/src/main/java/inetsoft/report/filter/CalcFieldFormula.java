@@ -388,9 +388,17 @@ public class CalcFieldFormula implements PercentageFormula, Formula2 {
    @Override
    public Object getOriginalResult() {
       int perType = getPercentageType();
+      // save/restore the cached result around the temporary type flip below --
+      // getResult() caches its return value in `result`, and if this formula is
+      // later read again via getResult() (e.g. this is the grand total cell,
+      // which is also used as another cell's percentage denominator), it must
+      // not see a stale value computed while percentageType was forced to NONE.
+      Object[] savedResult = this.result;
       setPercentageType(StyleConstants.PERCENTAGE_NONE);
+      clearResult();
       Object oresult = getResult();
       setPercentageType(perType);
+      this.result = savedResult;
 
       return oresult;
    }
