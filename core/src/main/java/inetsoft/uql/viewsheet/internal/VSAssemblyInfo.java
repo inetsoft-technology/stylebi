@@ -1159,10 +1159,10 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       VSFormat titlefmt = tformat.getDefaultFormat();
 
       Insets borders = null;
-      BorderColors bcolors = new BorderColors(DEFAULT_BORDER_COLOR,
-                                              DEFAULT_BORDER_COLOR,
-                                              DEFAULT_BORDER_COLOR,
-                                              DEFAULT_BORDER_COLOR);
+      Color defBorderColor = VSObjectChromeDefaults.isModern()
+         ? VSObjectChromeDefaults.objectBorderColor() : DEFAULT_BORDER_COLOR;
+      BorderColors bcolors = new BorderColors(defBorderColor, defBorderColor,
+                                              defBorderColor, defBorderColor);
       int borderRadius = 0;
       boolean table = this instanceof TableDataVSAssemblyInfo;
       CSSDictionary cssDictionary = CSSDictionary.getDictionary();
