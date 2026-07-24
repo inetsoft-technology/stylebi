@@ -409,6 +409,10 @@ public class WizVsService {
             result.setRuntimeId(rvs.getID());
          }
 
+         if(assemblyInfo instanceof TitledVSAssembly titledVSAssembly) {
+            result.setTitle(titledVSAssembly.getTitle());
+         }
+
          // Persist the mutated highlight to the DURABLE viewsheet asset named by the request identifier
          // (the ROOT/COMPONENTS entry the viewer reopens), NOT the live runtime's own entry. A wiz chart
          // runs on a TEMPORARY runtime (openTemporaryViewsheet) whose entry is outside the managed folders,
@@ -1382,6 +1386,10 @@ public class WizVsService {
 
             if(createdRuntimeId || restored) {
                result.setRuntimeId(runtimeId);
+            }
+
+            if(assembly instanceof TitledVSAssembly titledVSAssembly) {
+               result.setTitle(titledVSAssembly.getTitle());
             }
 
             // For skipExecution (changeType): remove the displaced primary before persisting
