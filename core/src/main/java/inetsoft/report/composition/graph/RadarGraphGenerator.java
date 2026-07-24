@@ -26,6 +26,7 @@ import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.util.log.LogLevel;
@@ -198,7 +199,7 @@ public class RadarGraphGenerator extends MergedGraphGenerator {
          format = xdesc.getAxisLabelTextFormat();
       }
 
-      spec.setLineColor(xdesc.getLineColor());
+      spec.setLineColor(VSChartChromeDefaults.resolveAxisLineColor(xdesc.getLineColor()));
       spec.setLineVisible(!maxMode && xdesc.isLineVisible() || maxMode && xdesc.isMaxModeLineVisible());
       spec.setTickVisible(xdesc.isTicksVisible());
       spec.setTextSpec(GraphUtil.getTextSpec(format, fmt, null));

@@ -7,11 +7,11 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --surface-canvas: #F8F7F4;
+    --surface-canvas: #F8F7F4; /* also the modern viewsheet page background (VSObjectChromeDefaults); --surface-default #FFFFFF cards unchanged */
     --surface-default: #FFFFFF;
     --surface-subtle: #F1EFEA;
     --surface-hover: #ECE9E2;
-    --border-default: #D9D5CC;
+    --border-default: #D9D5CC; /* also the modern object-frame border (VSObjectChromeDefaults), legacy #DADADA */
     --text-strong: #1F1F1B;
     --text-default: #35342F;
     --text-muted: #6A685F;
@@ -596,7 +596,7 @@
       <div class="swatch-info">
         <div class="swatch-name">viz-header-separator</div>
         <div class="swatch-hex">#D9D5CC</div>
-        <div class="swatch-use">header→body rule, stronger than gridline; = $shell-border-default so it matches shell/DOM tables</div>
+        <div class="swatch-use">header→body rule, stronger than gridline; = $shell-border-default so it matches shell/DOM tables; same value now used as the modern object-frame border (VSObjectChromeDefaults)</div>
       </div>
     </div>
 
