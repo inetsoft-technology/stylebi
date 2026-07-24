@@ -272,6 +272,28 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
       }
    }
 
+   // [Path A2] getCustomThemes() returns empty (e.g. themes failed to load) → persistence is
+   //           skipped entirely, so an empty/failed read cannot wipe the whole theme store.
+   //           For replace=true, setOrgSelectedTheme(null, fromOrgId) still fires.
+   @Test
+   void copyThemes_emptyThemeSet_skipsPersistence() {
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
+
+         DataSpace mockDs = mock(DataSpace.class);
+         ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
+
+         CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
+         when(mockManager.getCustomThemes()).thenReturn(new HashSet<>());
+
+         provider.callCopyThemes("fromOrg", "toOrg", true);
+
+         verify(mockManager, never()).setCustomThemes(any());
+         verify(mockManager).setOrgSelectedTheme(null, "fromOrg");
+      }
+   }
+
    // [Path B] no theme matches fromOrgId → setCustomThemes called with original (unchanged) set
    @Test
    void copyThemes_noMatchingTheme_setCustomThemesWithOriginal() {
