@@ -16,6 +16,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 export interface ImportTaskResponse {
+   // Intentionally left as `[]` (empty tuple). The API returns string[] (Java List<String>),
+   // and callers use .length/.join() correctly at runtime. Type-only mismatch — no UI impact;
+   // not changing the interface here (tests may need `as any` when assigning non-empty arrays).
    failedTasks: [];
    failed: boolean;
 }

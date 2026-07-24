@@ -28,7 +28,7 @@
  * |       |   datasourceChanged, datasourceFolderChanged, onCreateEvent)   |       |
  * | 3     | ngOnInit: router.events NavigationEnd, route.queryParamMap     |   4   |
  * | 4     | processSetComposedDashboardCommand                             |   1   |
- * | 5     | changeDataSourcesTree — Bug #75600 (fixed)                      |   1   |
+ * | 5     | changeDataSourcesTree — Bug #75600 deep-ancestor expand (fixed)|   1   |
  * | 6     | changeDataSourcesTree — functional behavior                    |   4   |
  * | 7     | changeFolder                                                   |   3   |
  * | 8     | getPrivateWorksheetNodeParent                                  |   2   |
@@ -59,10 +59,12 @@
  *   deleteDataModelFolder, deleteFolder
  *
  * Fixed bugs:
- *   Bug #75600 — changeDataSourcesTree — data-sources-tree-view.component.ts:369: `return false` was
- *     hard-coded at the end of the function instead of `return found`. The caller never
- *     learned a node was found, so parent.expanded was never set from a recursive result.
- *     Fixed by returning `found`.
+ *   Bug A / #75600 — changeDataSourcesTree returned hard-coded `false` instead of `found`.
+ *     Direct parent still expanded via local `found`, but ancestors at depth ≥ 2 never got
+ *     `expanded = true`. Fixed by `return found`. Regression: Group 5 deep-nest expand.
+ *   Bug B — getDataNavigationTree() set loading=true then subscribed with no error callback.
+ *     On GET ../api/portal/data/tree failure, spinner never cleared. Fixed with error handler
+ *     that sets loading=false. Regression: Group 1 "loading=false even when tree fetch fails".
  *
  * Out of scope for Pass 1 (Pass 3):
  *   getEntryLabel, getIconFunction, getAssetIcon
@@ -157,6 +159,7 @@ describe("DataSourcesTreeViewComponent — ngOnInit: getDataNavigationTree", () 
       await waitFor(() => expect(comp.loading).toBe(false));
    });
 
+   // Bug B regression: GET failure must clear loading (error callback), or the tree spinner sticks.
    it("should set loading=false even when the tree fetch fails", async () => {
       server.use(
          http.get("*/api/portal/data/tree", () =>
@@ -292,28 +295,48 @@ describe("DataSourcesTreeViewComponent — processSetComposedDashboardCommand", 
 });
 
 // ---------------------------------------------------------------------------
-// Group 5 — changeDataSourcesTree Bug #75600 (fixed) [Risk 3]
+// Group 5 — changeDataSourcesTree Bug A / #75600 deep-ancestor expand (fixed) [Risk 3]
 // ---------------------------------------------------------------------------
 
 describe("DataSourcesTreeViewComponent — changeDataSourcesTree (Bug #75600, fixed)", () => {
-   // Bug #75600 fixed: line ~369 used to return `return false` unconditionally instead of
-   // `return found`. This meant the caller never learned that a node was found, so
-   // parent.expanded was never set from a recursive call result. Now that the method returns
-   // `found`, this assertion passes.
-   it("should return true when a matching node is found in children", async () => {
+   // Bug A / #75600: with `return false`, only the direct parent of the match expanded; ancestors
+   // at depth ≥ 2 stayed collapsed. Returning `found` propagates expand up the chain.
+   it("should expand all ancestors when a deeply nested node is found", async () => {
       const { comp } = await renderComponent();
       await waitFor(() => expect(comp.rootNode).toBeTruthy());
 
-      const matchingChild = makeNode({
+      const leaf = makeNode({
          type: PortalDataType.FOLDER,
-         data: { path: "/myPath", scope: 1, name: "myFolder", properties: {} } as any,
+         label: "partition",
+         expanded: false,
+         data: { path: "/db/folder/partition", scope: 1, name: "partition", properties: {} } as any,
       });
-      comp.rootNode = makeRootNode([matchingChild]);
+      const mid = makeNode({
+         type: PortalDataType.FOLDER,
+         label: "folder",
+         expanded: false,
+         children: [leaf],
+         data: { path: "/db/folder", scope: 1, name: "folder", properties: {} } as any,
+      });
+      const top = makeNode({
+         type: PortalDataType.FOLDER,
+         label: "db",
+         expanded: false,
+         children: [mid],
+         data: { path: "/db", scope: 1, name: "db", properties: {} } as any,
+      });
+      comp.rootNode = makeRootNode([top]);
+      comp.rootNode.expanded = false;
 
-      const result = comp.changeDataSourcesTree("/myPath", "1", PortalDataType.FOLDER, comp.rootNode);
+      const result = comp.changeDataSourcesTree(
+         "/db/folder/partition", "1", PortalDataType.FOLDER, comp.rootNode);
 
-      // This fails because the function always returns false regardless of whether a match was found
       expect(result).toBe(true);
+      expect(comp.selectedNodes).toContain(leaf);
+      expect(leaf.expanded).toBe(true);
+      expect(mid.expanded).toBe(true);
+      expect(top.expanded).toBe(true);
+      expect(comp.rootNode.expanded).toBe(true);
    });
 });
 
@@ -352,7 +375,7 @@ describe("DataSourcesTreeViewComponent — changeDataSourcesTree functional beha
       expect(matchingChild.expanded).toBe(true);
    });
 
-   it("should return true when a top-level child matches (Bug #75600, fixed)", async () => {
+   it("should return true when a top-level child matches", async () => {
       const { comp } = await renderComponent();
       await waitFor(() => expect(comp.rootNode).toBeTruthy());
 
@@ -364,7 +387,6 @@ describe("DataSourcesTreeViewComponent — changeDataSourcesTree functional beha
 
       const result = comp.changeDataSourcesTree("/x", "1", PortalDataType.FOLDER, comp.rootNode);
 
-      // Bug #75600 fixed: the method now returns `found` instead of a hard-coded `false`.
       expect(result).toBe(true);
    });
 
