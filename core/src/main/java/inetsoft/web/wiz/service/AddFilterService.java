@@ -72,10 +72,7 @@ public class AddFilterService {
       }
 
       // Build the column DataRef from the entry properties
-      AttributeRef attrRef = new AttributeRef(attribute);
-      attrRef.setDataType(dtype);
-      ColumnRef colRef = new ColumnRef(attrRef);
-      colRef.setDataType(dtype);
+      ColumnRef colRef = buildColumnRef(attribute, dtype);
 
       // Find all root tables in the worksheet that expose this column (shared filter).
       // Load from assetRepository so we see the latest saved state of the wiz temp
@@ -118,6 +115,20 @@ public class AddFilterService {
    }
 
    /**
+    * Builds a {@link ColumnRef} for the given attribute name and data type.
+    *
+    * <p>Package-visible (reuse seam, decision (a)): {@link WizDashboardFilterBuilder} calls
+    * this identical construction instead of maintaining a second copy.</p>
+    */
+   static ColumnRef buildColumnRef(String attribute, String dtype) {
+      AttributeRef attrRef = new AttributeRef(attribute);
+      attrRef.setDataType(dtype);
+      ColumnRef colRef = new ColumnRef(attrRef);
+      colRef.setDataType(dtype);
+      return colRef;
+   }
+
+   /**
     * Returns the names of all visible root tables in the base worksheet that contain a column
     * matching the given {@code attribute} name (alias-first lookup).
     *
@@ -126,11 +137,6 @@ public class AddFilterService {
     * saves the merged wiz temp worksheet to the repository without reloading the runtime
     * viewsheet object. Using the runtime object would return stale data that does not yet
     * include tables merged by subsequent visualization additions.</p>
-    *
-    * <p>The wiz temp worksheet contains both the original source
-    * {@link BoundTableAssembly} instances and wiz-internal {@link MirrorTableAssembly}
-    * instances. Only root tables (those whose {@code getDependeds} set is empty) are
-    * considered, which correctly selects only the source tables.</p>
     */
    private List<String> findTablesWithColumn(Viewsheet vs, String attribute,
                                              Principal principal)
@@ -143,6 +149,32 @@ public class AddFilterService {
          ws = (Worksheet) assetRepository.getSheet(baseEntry, principal, false, AssetContent.ALL);
       }
 
+      return findColumnMatchingRootTables(ws, attribute);
+   }
+
+   /**
+    * Returns the names of all visible root tables in {@code ws} that contain a column matching
+    * the given {@code attribute} name (alias-first lookup).
+    *
+    * <p>The worksheet may contain both the original source {@link BoundTableAssembly} instances
+    * and wiz-internal {@link MirrorTableAssembly} instances. Only root tables (those whose
+    * {@code getDependeds} set is empty) are considered, which correctly selects only the source
+    * tables.</p>
+    *
+    * <p>Package-visible (reuse seam, decision (a)): this is the shared root-table/column-matching
+    * loop. {@link #findTablesWithColumn} calls it after loading {@code ws} from the
+    * {@code AssetRepository} with {@code permission=false} (needed because a runtime
+    * viewsheet's own base worksheet can be stale — see above). {@link WizDashboardFilterBuilder#build}
+    * has the identical staleness problem (its caller, {@code WizDashboardService.composeDashboard},
+    * merges visualizations into a dashboard {@code Viewsheet} the exact same way
+    * {@code AddVisualizationService} does here), so it is deliberately <b>not</b> handed a
+    * {@code Viewsheet} to read {@code getBaseWorksheet()} from for matching — it takes an
+    * already-loaded {@code Worksheet} parameter instead, which its caller must load the same
+    * way this method does: directly from the repository with {@code permission=false}, not
+    * {@code permission=true} (which can fail the ACL check on this system-generated ephemeral
+    * entry).</p>
+    */
+   static List<String> findColumnMatchingRootTables(Worksheet ws, String attribute) {
       if(ws == null) {
          return Collections.emptyList();
       }
@@ -188,6 +220,62 @@ public class AddFilterService {
    }
 
    /**
+    * Returns the names of {@code candidateTableNames} that (a) exist as visible tables in
+    * {@code ws} and (b) contain a column matching the given {@code attribute} name (alias-first
+    * lookup, same matching rule as {@link #findColumnMatchingRootTables}).
+    *
+    * <p>Unlike {@link #findColumnMatchingRootTables} — which only considers root/physical
+    * tables, so a selection filter ends up as a pre-condition on the shared physical source and
+    * cascades through every downstream join/mirror built on it — this checks only the specific
+    * tables named in {@code candidateTableNames} (typically each merged chart's own final bound
+    * table). That distinction matters for a chart whose worksheet computes a global aggregate
+    * (e.g. cross-category min/max for radar-chart normalization) downstream of the same shared
+    * root table: filtering the root table collapses that global aggregate to the filtered
+    * subset (e.g. min==max, so a normalization divide becomes 0/0), corrupting the chart, even
+    * though the persisted worksheet is otherwise correct. Filtering only the chart's own final
+    * table — which for a normalization pipeline is downstream of the already-computed global
+    * aggregate — filters the display rows without touching the aggregate's inputs.
+    *
+    * <p>Package-visible (reuse seam, mirrors {@link #findColumnMatchingRootTables}): used by
+    * {@link WizDashboardFilterBuilder#build} instead of the root-table matcher.
+    */
+   static List<String> findColumnMatchingChartTables(Worksheet ws, List<String> candidateTableNames,
+                                                      String attribute)
+   {
+      if(ws == null || candidateTableNames == null || candidateTableNames.isEmpty()) {
+         return Collections.emptyList();
+      }
+
+      List<String> result = new ArrayList<>();
+
+      for(String name : candidateTableNames) {
+         if(!(ws.getAssembly(name) instanceof TableAssembly table) ||
+            !table.isVisible() || !table.isVisibleTable())
+         {
+            continue;
+         }
+
+         ColumnSelection cols = table.getColumnSelection(true);
+
+         for(int i = 0; i < cols.getAttributeCount(); i++) {
+            if(!(cols.getAttribute(i) instanceof ColumnRef cref)) {
+               continue;
+            }
+
+            String colName = cref.getAlias() != null && !cref.getAlias().isEmpty()
+               ? cref.getAlias() : cref.getAttribute();
+
+            if(colName.equals(attribute)) {
+               result.add(name);
+               break;
+            }
+         }
+      }
+
+      return result;
+   }
+
+   /**
     * Creates a {@link SelectionListVSAssembly} or {@link TimeSliderVSAssembly} based on
     * the column data type:
     * <ul>
@@ -195,8 +283,12 @@ public class AddFilterService {
     *   <li>numeric types → TimeSlider with NUMBER range</li>
     *   <li>everything else → SelectionList</li>
     * </ul>
+    *
+    * <p>Package-visible (reuse seam, decision (b)): {@link WizDashboardFilterBuilder}'s
+    * {@code createControlForType} is a thin wrapper around this method — the data-type →
+    * control-type branch is not duplicated.</p>
     */
-   private AbstractSelectionVSAssembly createFilterAssembly(Viewsheet vs, String dtype,
+   static AbstractSelectionVSAssembly createFilterAssembly(Viewsheet vs, String dtype,
                                                             ColumnRef colRef)
    {
       if(XSchema.isNumericType(dtype) || XSchema.isDateType(dtype)) {
@@ -230,7 +322,7 @@ public class AddFilterService {
     * Returns the first available name of the form {@code base + N} (N = 1, 2, …) that
     * does not already exist as an assembly in {@code vs}.
     */
-   private String uniqueName(String base, Viewsheet vs) {
+   private static String uniqueName(String base, Viewsheet vs) {
       int counter = 1;
 
       while(vs.getAssembly(base + counter) != null) {

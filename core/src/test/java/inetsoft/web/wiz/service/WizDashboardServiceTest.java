@@ -63,7 +63,8 @@ class WizDashboardServiceTest {
       throws Exception
    {
       when(sec.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
-      return new WizDashboardService(vs, add, sec);
+      return new WizDashboardService(vs, add, sec, mock(WizDashboardFilterBuilder.class),
+         mock(AssetRepository.class));
    }
 
    @Test
@@ -93,7 +94,8 @@ class WizDashboardServiceTest {
       ViewsheetService vs = mock(ViewsheetService.class);
       SecurityEngine sec = mock(SecurityEngine.class);
       when(sec.checkPermission(any(), any(), anyString(), any())).thenReturn(false);
-      WizDashboardService svc = new WizDashboardService(vs, mock(AddVisualizationServiceProxy.class), sec);
+      WizDashboardService svc = new WizDashboardService(vs, mock(AddVisualizationServiceProxy.class), sec,
+         mock(WizDashboardFilterBuilder.class), mock(AssetRepository.class));
       // identifier UNDER the components folder so the folder guard passes and the permission
       // check is reached:
       String id = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
@@ -103,5 +105,33 @@ class WizDashboardServiceTest {
       ev.setIdentifiers(List.of(id));
       assertThrows(inetsoft.sree.security.SecurityException.class,
          () -> svc.composeDashboard(ev, mock(Principal.class)));
+   }
+
+   @Test
+   void rejectsTilesOutOfOrderWithIdentifiers() throws Exception {
+      // tiles[] and identifiers[] are consumed purely positionally by index (spans[i] paired
+      // with entries.get(i)); a caller sending tiles out of order relative to identifiers must
+      // fail loud rather than silently mis-assigning spans to the wrong visualization.
+      WizDashboardService svc = createService(mock(ViewsheetService.class),
+         mock(AddVisualizationServiceProxy.class), mock(SecurityEngine.class));
+
+      String id1 = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+         WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/id1", null).toIdentifier();
+      String id2 = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+         WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/id2", null).toIdentifier();
+
+      WizDashboardEvent.TileSpec tile0 = new WizDashboardEvent.TileSpec();
+      tile0.setIdentifier(id2);   // swapped: should be id1 to match identifiers[0]
+      tile0.setSpanCols(1);
+      WizDashboardEvent.TileSpec tile1 = new WizDashboardEvent.TileSpec();
+      tile1.setIdentifier(id1);
+      tile1.setSpanCols(1);
+
+      WizDashboardEvent ev = new WizDashboardEvent();
+      ev.setName("D");
+      ev.setIdentifiers(List.of(id1, id2));
+      ev.setTiles(List.of(tile0, tile1));
+
+      assertThrows(IllegalArgumentException.class, () -> svc.composeDashboard(ev, mock(Principal.class)));
    }
 }
