@@ -105,8 +105,17 @@ public class WizDashboardEvent {
          this.spanCols = spanCols;
       }
 
+      public int getSpanRows() {
+         return spanRows;
+      }
+
+      public void setSpanRows(int spanRows) {
+         this.spanRows = spanRows;
+      }
+
       private String identifier;
       private int spanCols = 1;   // default: one cell
+      private int spanRows = 1;   // default: one cell
    }
 
    /** A single filter control's target field within the dashboard filter bar. */
