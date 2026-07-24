@@ -196,6 +196,9 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewa
       $icon.toggleClass("eye-icon", !show);
       $icon.toggleClass("eye-off-icon", show);
 
+      // reflect the toggle-button state for assistive tech (pressed == password visible)
+      $togglePassword.attr("aria-pressed", show ? "true" : "false");
+
       var label = show ? $togglePassword.data("hide-label") : $togglePassword.data("show-label");
 
       if(label) {
