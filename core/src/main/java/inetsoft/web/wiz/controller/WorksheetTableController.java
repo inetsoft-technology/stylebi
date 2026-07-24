@@ -105,39 +105,6 @@ public class WorksheetTableController {
       }
    }
 
-   /**
-    * Get worksheet model metadata for a worksheet asset identifier.
-    *
-    * @param wsIdentifier the worksheet identifier
-    * @param user         the authenticated user
-    * @return worksheet metadata and table metadata
-    */
-   @GetMapping(value = "/ws/worksheet-model", produces = MediaType.APPLICATION_JSON_VALUE)
-   public WorksheetModel getWorksheetModel(@RequestParam("wsIdentifier") String wsIdentifier,
-                                           Principal user)
-      throws Exception
-   {
-      return worksheetTableService.getWorksheetModel(wsIdentifier, user);
-   }
-
-   /**
-    * getWorksheetModel is a pure read that does not catch its own exceptions the way
-    * createTable/deleteTables do (they report failure in a 200 response body instead), so a
-    * permission-denied (or any other) failure from the service would otherwise fall through to
-    * an unhandled 500. Mirrors DatasourceMetaApiController's catch-all handler.
-    */
-   // A permission denial must surface as 403, not be swallowed to 400 by the catch-all below.
-   // More specific than the Exception handler, so it wins for SecurityException within this
-   // controller (a local handler also takes precedence over WizControllerErrorHandler).
-   @ExceptionHandler({ inetsoft.sree.security.SecurityException.class, java.lang.SecurityException.class })
-   @ResponseStatus(HttpStatus.FORBIDDEN)
-   @ResponseBody
-   public Map<String, String> handleSecurityException(Exception e) {
-      LOG.warn("Unauthorized worksheet table access: {}", e.getMessage());
-      return Map.of("error", "Forbidden",
-                    "message", e.getMessage() != null ? e.getMessage() : "Forbidden");
-   }
-
    // NOTE: this controller does NOT have a local UnsupportedDatasourceException handler, unlike
    // DatasourceMetaApiController. createTables() (the only endpoint that reaches
    // getJDBCDatasource, via WorksheetTableService.addOneTable -> buildPhysicalTable/

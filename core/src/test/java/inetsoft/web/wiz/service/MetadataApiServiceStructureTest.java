@@ -183,8 +183,7 @@ class MetadataApiServiceStructureTest {
       PhysicalBoundTableAssembly t = new PhysicalBoundTableAssembly(ws, "accounts");
       ColumnSelection cs = new ColumnSelection();
 
-      // A column carrying a StyleBI column description (the same source /ws/worksheet-model's
-      // createColumnMeta already reads via columnRef.getDescription()).
+      // A column carrying a StyleBI column description (read via columnRef.getDescription()).
       ColumnRef described = new ColumnRef(new AttributeRef(null, "industry"));
       described.setDescription("The industry sector of the account");
       cs.addAttribute(described);
