@@ -1009,6 +1009,15 @@ won't-schedule tier (kept visible so nothing is silently dropped).
    in Phase 4).
 5. **Axis-line color polish** (Phase 6 B3) — ready, low-effort quick win (`#EEEEEE`→`#E8E5DE` hairline)
    via a `setupAxisSpec` render substitution.
+   **Status (implemented 2026-07-24):** radar label-axis and funnel y-axis coverage gaps closed;
+   additionally modernized the object-frame border (`#DADADA`→`#D9D5CC`) and warmed the viewsheet page
+   (`#F5F5F5`→`#F8F7F4`, white cards kept) via new `VSObjectChromeDefaults`, applied as gated
+   **design-time default seeds** in `VSAssemblyInfo.setDefaultFormat` (border) and
+   `ViewsheetVSAssemblyInfo.setDefaultFormat` (page) — new objects created under
+   `viewsheet.modernObjectChrome` carry the modern default (visible in the format editor, effective in
+   viewer + export); a user/`format.css` value still wins via tier precedence; gate off keeps the
+   legacy seeds. (An initial render-overlay attempt was reverted — the legacy values are serialized
+   DEFAULT-tier seeds, so seeding is the correct layer.) Runtime validation is the USER-owned cycle.
 6. **Completeness items** — selection-highlight export parity (Phase 5 7), tabular numerals (Phase 5 8,
    needs a font-feature spike), embedded-control filtered state (Phase 7 A3, blocked on a live-overlay
    layer).

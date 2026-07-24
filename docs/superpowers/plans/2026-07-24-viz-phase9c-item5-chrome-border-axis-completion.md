@@ -8,6 +8,22 @@
 
 **Tech Stack:** Java 21 (core graph engine, the viewsheet object-model, the live-info lifecycle service, and the export layer), JUnit 5 (`@Tag("core")`, Spring `@SreeHome` for the SreeEnv-gated resolver tests). No Angular/CSS/frontend change — the viewer background is fed inline from the server-computed `viewsheetBackground`; axis lines, object borders, and the export page-fill are all server-rendered.
 
+> **IMPLEMENTATION NOTE (final, 2026-07-24).** During execution the object-border and page-background
+> work pivoted from the **render-time overlay** design that Tasks 3–6 below describe to gated
+> **design-time default seeds**, after finding the root cause: `#f5f5f5`/`#dadada` are serialized
+> DEFAULT-tier seeds (`ViewsheetVSAssemblyInfo.setDefaultFormat` line ~237; `VSAssemblyInfo.setDefaultFormat`)
+> shown in the composer Format editor — not `format.css` and not render output. The overlay approach
+> modernized only the render (invisible in the editor) and, for the page, short-circuited on the seed.
+> **What shipped:** (1) the two axis wraps (Tasks 1–2, unchanged); (2) `VSAssemblyInfo.setDefaultFormat`
+> seeds `VSObjectChromeDefaults.objectBorderColor()` (`#D9D5CC`) when `isModern()`, else `#DADADA`;
+> (3) `ViewsheetVSAssemblyInfo.setDefaultFormat` seeds `VSObjectChromeDefaults.pageBackgroundCss()`
+> (`#F8F7F4`) when `isModern()`, else `#f5f5f5`; (4) `VSObjectChromeDefaults` trimmed to
+> `isModern()` + `objectBorderColor()` + `pageBackgroundCss()`. The render-overlay wiring
+> (`VSObjectModel`, `CoreLifecycleService`, `AbstractVSExporter`, `PortalThemesManager.isDefaultViewsheetCSS`)
+> was reverted to HEAD. A user format / `format.css` still wins via USER > CSS > DEFAULT precedence; new
+> objects created under the gate persist the modern default; existing objects are unaffected. Tasks 3–6
+> are retained below as the superseded design record.
+
 ## Global Constraints
 
 Copied verbatim from the Phase 6 B3 grounding, the Phase 9C spec, and the sibling chrome-defaults classes; every task's requirements implicitly include this section.
@@ -83,7 +99,11 @@ Ticks have **no separate color** — `AxisLine.java:121,212` paint both the axis
 - **R2 — New `VSObjectChromeDefaults` class.** Each modern surface has its own `*Defaults` class; the object frame and page are distinct surfaces. It shares the `viewsheet.modernObjectChrome` gate so object chrome (title bar + frame + page) toggles together.
 - **R3 — Border: not-customized AND value-equality guard.** The frame is modernized only when neither USER nor CSS tier set it **and** the DEFAULT-tier border is still exactly the legacy `#DADADA` seed on all four sides — so an assembly whose default border comes from a CSS `TableStyle` (`VSAssemblyInfo.java:1181-1183`) is left untouched.
 - **R4 — Border: central live seam + export clone loop.** Wrapping the base `VSObjectModel.createFormatModel` modernizes every object's frame with one clone-returning call; export applies the in-place variant per assembly on the cloned viewsheet. Broader than "chart/table," but the guard makes it defaults-only and safe, and one-system consistency is the point.
-- **R5 — Page: warm the page, keep white cards.** `#F8F7F4` page (`--surface-canvas`) with unchanged `#FFFFFF` cards (`--surface-default`). Applied where the legacy gray/white *fallback* is chosen (live: the `else` branch in `CoreLifecycleService`; export: an in-place DEFAULT-tier substitution on the cloned sheet composite so PDF/PNG/SVG all read it). Defaults-only: a user/`format.css` sheet background makes the composite bg non-empty and wins. The chart's explicit `#ffffff` card fill is intentionally **not** touched.
+- **R5 — Page: warm the page only under the DEFAULT dashboard CSS; keep white cards.** `#F8F7F4` page (`--surface-canvas`) with unchanged `#FFFFFF` cards (`--surface-default`). The legacy page gray (`#f5f5f5`) is the **shipped default** dashboard CSS (a runtime/deployed `format.css` `Viewsheet`-class rule; the code fallback is white via `Tool.getVSCSSBgColorHexString`). The modern page is gated on whether the org is on that **default dashboard CSS** — `PortalThemesManager.isDefaultViewsheetCSS(orgId)` = `cssEntries.get(orgId) == null && !cssStyle` (mirrors `LookAndFeelService.getModel`'s default-vs-custom logic, EM → Look and Feel). When an admin has configured **any custom dashboard CSS** (global `getCSSStyle()` or a per-org `cssEntries` entry), the modern page **steps aside entirely** and their CSS is preserved, whatever color it uses. A **per-sheet user background** (format dialog → USER tier) always wins. No hardcoded legacy color; the frame border still *yields* to `format.css` per-value (this page gate is coarser by design, matching "if the admin owns the dashboard CSS, don't impose the modern page"). This resolves the earlier Global-Constraints-vs-Task-7 tension.
+  - Gate helper: `VSObjectChromeDefaults.useModernPageBackground(boolean defaultDashboardCss)` = `isModern() && defaultDashboardCss` — a pure function; the call sites (`CoreLifecycleService`, `AbstractVSExporter`, in layers that legitimately use `PortalThemesManager`) compute `defaultDashboardCss` and pass it in, keeping `PortalThemesManager` out of the `uql` layer and the helper unit-testable.
+  - Live: the `else if(useModernPageBackground(isDefaultViewsheetCSS(orgId)))` branch in `CoreLifecycleService` — reached only when `getBackgroundRGBA(sheet composite)` is empty (no per-sheet USER background). A custom dashboard CSS makes the gate false → falls to the legacy `Tool.getVSCSSBgColorHexString()` (the custom/theme color).
+  - Export: `applyModernPageBackgroundInPlace(composite, defaultDashboardCss)` sets the modern page on the **USER tier** of the already-cloned export sheet composite when the gate is true and no per-sheet USER background exists. Export re-stamps the sheet with the `Viewsheet` CSS class (`Viewsheet.updateCSSFormat` → `setCSSType(VIEWSHEET)`, `Viewsheet.java:5354`), so the USER tier is required to outrank that CSS tier and give live/export parity. Never persisted — export clones upstream.
+  - The chart's explicit `#ffffff` card fill is intentionally **not** touched.
 - **R6 — No new property, no swatch invention.** Border rides `viewsheet.modernObjectChrome`; `#D9D5CC` and `#F8F7F4` are already the `--border-default` and `--surface-canvas` swatches. Docs only annotate that they now govern the object frame and page.
 
 ---
@@ -496,7 +516,7 @@ public final class VSObjectChromeDefaults {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `./mvnw -q -pl core test -Dtest=VSObjectChromeDefaultsTest -DfailIfNoTests=false`
-Expected: PASS (9 tests).
+Expected: PASS (8 tests).
 
 - [ ] **Step 5: Commit**
 
@@ -693,7 +713,7 @@ Enable the gate. Reopen the **radar** chart: the outer **label axis** line rende
 
 - [ ] **Step 3: Gate-on object frame + warm page, live + export**
 
-With the gate on, confirm: the outer frame of the **table**, **crosstab**, and **chart** renders `#D9D5CC` (Task 4/6); the viewer page/canvas is warm `#F8F7F4` (Task 5) with **white cards** (chart body stays `#ffffff`); and the exported page (PDF/PNG/SVG) is also `#F8F7F4` with the `#D9D5CC` frame (Task 6). Confirm live == export for the page and frame (the pre-existing gray-viewer/white-export mismatch is now unified). Confirm the frame matches the title bar's bottom rule (`VSTitleChromeDefaults`), and the table body (transparent) reads the warm page through it.
+With the gate on, confirm: the outer frame of the **table**, **crosstab**, and **chart** renders `#D9D5CC` (Task 4/6); the viewer page/canvas is warm `#F8F7F4` (Task 5) with **white cards** (chart body stays `#ffffff`); and the exported page (PDF/PNG/SVG) is also `#F8F7F4` with the `#D9D5CC` frame (Task 6). **Critical parity check:** viewer and export must BOTH show `#F8F7F4` — the modern page overrides the theme's `format.css` `Viewsheet` gray (`#f5f5f5`) via the export USER-tier substitution (`Viewsheet.updateCSSFormat` re-stamps the sheet CSS class, so a DEFAULT tier would lose). **If the viewer still shows `#f5f5f5` under the gate**, the live sheet composite is `Viewsheet`-CSS-typed after all and the live path (`CoreLifecycleService`) needs the same USER-only rule — flag it. Confirm the frame matches the title bar's bottom rule (`VSTitleChromeDefaults`), and the table body (transparent) reads the warm page through it.
 
 - [ ] **Step 4: Defaults-only proof**
 
