@@ -816,6 +816,14 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
                                      Map<String, String> calcHeaderMap)
    {
       String[] measurename = new String[formula.length];
+      // per-index original (pre-calc-prefix) name, only set where a calculator applies;
+      // used to rebuild calcHeaderMap below, keyed by the final (post-dedup) measurename,
+      // instead of putting into calcHeaderMap immediately -- two calculator aggregates on
+      // the same column (e.g. SUM(col) and AVG(col) both with "Percent of Grand Total")
+      // can compute the same prefixed name here, and an immediate put() would have one
+      // entry silently overwrite the other under a key that no longer matches either
+      // aggregate's final, deduped measurename.
+      String[] calcOriginalNames = applyCalc ? new String[formula.length] : null;
 
       for(int i = 0; i < formula.length; i++) {
          if(formula[i] instanceof CalcFieldFormula) {
@@ -832,10 +840,7 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
             Calculator calc = ((VSAggregateRef) aggrs[i]).getCalculator();
             String originalName = measurename[i];
             measurename[i] = calc.getPrefix() + measurename[i];
-
-            if(calcHeaderMap != null) {
-               calcHeaderMap.put(measurename[i], originalName);
-            }
+            calcOriginalNames[i] = originalName;
          }
       }
 
@@ -864,6 +869,14 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
          else {
             dupCounts.put(name, dup + 1);
             measurename[i] = name + "." + dup;
+         }
+      }
+
+      if(calcHeaderMap != null) {
+         for(int i = 0; i < measurename.length; i++) {
+            if(calcOriginalNames[i] != null) {
+               calcHeaderMap.put(measurename[i], calcOriginalNames[i]);
+            }
          }
       }
 
