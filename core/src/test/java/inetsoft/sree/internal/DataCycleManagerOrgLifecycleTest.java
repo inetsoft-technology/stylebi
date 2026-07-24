@@ -38,20 +38,20 @@ package inetsoft.sree.internal;
  * getDataCycleIds(oldOrgId) silently scan the ACTING ADMIN'S org bucket, not the org being
  * migrated/deleted -- if that bucket has no Data Cycles (the common case), the whole
  * migrate/clear call becomes a silent no-op: nothing is copied, nothing is deleted, no
- * exception or log. This is a genuine, previously-undocumented defect, confirmed empirically
- * below (scenario 5f) rather than assumed from reading the code -- see "已确认缺陷" in the
- * matrix doc for the full write-up. Scenarios 5a/5b/5c below intentionally drive
- * migrateDataCycles()/clearDataCycles() from *within* the source org's context (matching the
- * one caller shape that does work) so they can independently verify the copy/rename/delete
- * *content* logic on its own, without being confounded by 5f's context bug.
+ * exception or log. Reproduced at the unit level by scenarios 5f and 5h below. NOTE: manual UI
+ * verification (2026-07-23) did NOT reproduce this loss in practice; root cause of the
+ * discrepancy is unresolved, so this is pinned as current code behavior only, not filed as a
+ * confirmed defect -- see matrix doc (org-lifecycle-resource-matrix.md, 三、3.3, 5f/5h) for detail.
+ * Scenarios 5a/5b/5c below intentionally drive migrateDataCycles()/clearDataCycles() from
+ * *within* the source org's context (matching the one caller shape that does work) so they can
+ * independently verify the copy/rename/delete *content* logic on its own, without being
+ * confounded by 5f's context bug.
  *
  * Scenario 5h goes one call-frame higher than 5f: instead of calling
  * DataCycleManager.migrateDataCycles() directly, it drives the same
  * AbstractEditableAuthenticationProvider.copyOrganization(...) entry point that
  * UserTreeService.createOrganization() (the real handler behind EM's "Add Organization" ->
- * "duplicate from" dialog) calls, with a real DataCycleManager wired in. This answers, with an
- * actual production call boundary rather than an internal method, whether "clone org0 into a
- * brand-new org" really does leave the new org's Data Cycles silently missing.
+ * "duplicate from" dialog) calls, with a real DataCycleManager wired in.
  */
 
 import inetsoft.mv.MVManager;
@@ -274,7 +274,8 @@ class DataCycleManagerOrgLifecycleTest {
    }
 
    // ── scenario 5f (new, not in the original 5a-5e list): the current-org-context coupling
-   //    defect described in this file's header comment, confirmed empirically. ──
+   //    behavior described in this file's header comment (see there for the manual-verification
+   //    contradiction). ──
 
    @Test
    void migrateDataCycles_calledOutsideSourceOrgContext_silentlyMigratesNothing() throws Exception {
@@ -299,13 +300,10 @@ class DataCycleManagerOrgLifecycleTest {
       dataCycleManager.migrateDataCycles(new Organization(fromOrgId), new Organization(toOrgId), false);
 
       assertNull(readAsset(toOrgId, "CtxBugCycle"),
-                "confirmed defect: getDataCycleIds(oorg.getId()) (DataCycleManager.java:741-756) "
-                + "resolves its storage.getKeys(filter) call via the CURRENT thread's org context "
-                + "(BlobIndexedStorage.getMetadataStorage(null) -> OrganizationManager"
-                + ".getCurrentOrgID()), not the oorg.getId() parameter it was handed -- since "
-                + "neither real call site wraps the call in runInOrgScope(oldOrgId, ...), a site "
-                + "admin acting from Host Organization silently migrates ZERO Data Cycles whenever "
-                + "the org being renamed has none of its own under the admin's own org bucket");
+                "getDataCycleIds(oorg.getId()) (DataCycleManager.java:741-756) resolves its "
+                + "storage.getKeys(filter) call via the CURRENT thread's org context, not the "
+                + "oorg.getId() parameter it was handed -- see this file's header comment for the "
+                + "manual-verification contradiction");
       assertNotNull(readAsset(fromOrgId, "CtxBugCycle"),
                    "the source asset is untouched -- this is a silent no-op, not a crash or a "
                    + "partial/corrupting migration");
@@ -326,8 +324,9 @@ class DataCycleManagerOrgLifecycleTest {
    //    curr_org_id session property, see EmPageHeaderController) to equal the clone source --
    //    unlike renaming an org, which the EM UI does force you to switch into first (5b's
    //    precondition). This test drives that exact real entry point -- not the lower-level
-   //    migrateDataCycles() call 5f exercises -- with a real DataCycleManager, to confirm the
-   //    clone genuinely ends up missing the source org's Data Cycle. ──
+   //    migrateDataCycles() call 5f exercises -- with a real DataCycleManager, to check whether
+   //    the clone ends up missing the source org's Data Cycle at the real entry point too (see
+   //    this file's header comment for the manual-verification contradiction). ──
 
    @Test
    void cloneOrganization_viaRealCopyOrganizationEntryPoint_newOrgSilentlyMissingSourceDataCycle()
@@ -374,10 +373,9 @@ class DataCycleManagerOrgLifecycleTest {
       }
 
       assertNull(readAsset(toOrgId, "CloneCycle"),
-                "confirmed defect, reproduced through the real EM entry point: cloning org0 into "
-                + "a brand-new org silently drops org0's Data Cycle -- the acting principal's own "
-                + "current org (never switched by this call path) doesn't match the clone source, "
-                + "so migrateDataCycles() inside copyOrganizationInternal() scans the wrong bucket");
+                "reproduced through the real EM entry point: cloning org0 into a brand-new org "
+                + "drops org0's Data Cycle at the unit level -- see this file's header comment "
+                + "for the manual-verification contradiction");
       assertNotNull(readAsset(fromOrgId, "CloneCycle"),
                    "the source org's own cycle is untouched -- silent no-op, not data corruption");
    }
