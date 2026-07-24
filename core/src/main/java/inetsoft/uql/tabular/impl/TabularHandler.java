@@ -20,12 +20,14 @@ package inetsoft.uql.tabular.impl;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.PostProcessor;
 import inetsoft.report.internal.XNodeMetaTable;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.*;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.service.XHandler;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.util.*;
 import inetsoft.util.DataCacheVisitor;
+import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -130,10 +132,25 @@ public class TabularHandler extends XHandler {
     * substituting, and the cache-clear paths (removeQueryCache/clearQueryCache)
     * also pass the unsubstituted data source, so the variable names are visible
     * and the write, read, and remove keys stay identical.
+    *
+    * The key is also scoped to the current organization. The base key only
+    * distinguishes data sources by their (non-globally-unique) full name, so
+    * without the organization prefix two data sources that happen to share a
+    * name in different organizations would collide on the same key and hit each
+    * other's cached results (Bug #75751). The org id is derived from the query
+    * user so that the write, read, and remove keys stay identical within a
+    * request even on scheduler/cluster paths where the thread-context principal
+    * may differ.
     */
    @Override
    public String getQueryKey(XQuery query, VariableTable qvars, Principal user) throws Exception {
       String key = super.getQueryKey(query, qvars, user);
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID(user);
+
+      if(!Tool.isEmptyString(orgId)) {
+         key = orgId + "__" + key;
+      }
+
       XDataSource source = query.getDataSource();
 
       if(source instanceof TabularDataSource) {
