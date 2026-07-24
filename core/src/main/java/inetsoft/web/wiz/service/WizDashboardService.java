@@ -163,6 +163,8 @@ public class WizDashboardService {
             Math.max(1, event.getLayoutColumns()) : 2;
          int[] spans = grid ?
             event.getTiles().stream().mapToInt(t -> Math.max(1, t.getSpanCols())).toArray() : null;
+         int[] rowSpans = grid ?
+            event.getTiles().stream().mapToInt(t -> Math.max(1, t.getSpanRows())).toArray() : null;
 
          if(grid && spans.length != entries.size()) {
             throw new IllegalArgumentException(
@@ -196,7 +198,7 @@ public class WizDashboardService {
                      "in the same order as identifiers");
                }
 
-               java.awt.Point origin = gridOrigin(spans, layoutColumns, i);
+               java.awt.Point origin = gridOrigin(spans, rowSpans, layoutColumns, i);
                x = origin.x;
                y = origin.y + topOffset;
             }
@@ -337,34 +339,59 @@ public class WizDashboardService {
    private static final int DASHBOARD_COL_WIDTH = 640;   // confirm vs composer default viz width
 
    /**
-    * Row-major grid origin for the tile at flat index {@code i}, given per-tile column spans.
-    * Returns the (x,y) drop origin in pixels. Package-private for unit testing.
+    * Row-major grid origin for the tile at flat index {@code i}, given per-tile column AND row
+    * spans. Packing is still row-major/left-to-right/wrap-at-{@code layoutColumns} (identical
+    * grouping to the column-only overload below) — the only change is that each row's HEIGHT is
+    * now {@code max(spanRows)} among the tiles placed in it, instead of always
+    * {@code DASHBOARD_ROW_HEIGHT}. A tile's own Y depends only on the finalized height of every
+    * row strictly before it, and every such row is fully scanned (all its tiles' spanRows folded
+    * into that row's height, then closed out) before the loop reaches index {@code i} — so no
+    * 2D occupancy grid is needed; a tile with spanRows > 1 does not "block" cells in the row
+    * below for placement purposes (that would be true masonry/skyline packing, deliberately not
+    * implemented — see the Phase 4 design spec). Returns the (x,y) drop origin in pixels.
+    * Package-private for unit testing.
     */
-   static java.awt.Point gridOrigin(int[] spanCols, int layoutColumns, int i) {
+   static java.awt.Point gridOrigin(int[] spanCols, int[] spanRows, int layoutColumns, int i) {
       int col = 0;
-      int row = 0;
+      int cumulativeY = 0;
+      int rowHeight = 1;   // tallest spanRows seen so far in the CURRENT (still-open) row
 
       for(int k = 0; k <= i; k++) {
          int span = Math.max(1, Math.min(spanCols[k], layoutColumns));
+         int rspan = Math.max(1, spanRows[k]);
 
-         if(col + span > layoutColumns) {   // doesn't fit in the current row → wrap
+         if(col + span > layoutColumns) {   // doesn't fit in the current row → close it out
+            cumulativeY += rowHeight * DASHBOARD_ROW_HEIGHT;
             col = 0;
-            row++;
+            rowHeight = 1;
          }
 
          if(k == i) {
-            return new java.awt.Point(col * DASHBOARD_COL_WIDTH, row * DASHBOARD_ROW_HEIGHT);
+            return new java.awt.Point(col * DASHBOARD_COL_WIDTH, cumulativeY);
          }
 
+         rowHeight = Math.max(rowHeight, rspan);
          col += span;
 
-         if(col >= layoutColumns) {   // row full → next row
+         if(col >= layoutColumns) {   // row exactly full → close it out now
+            cumulativeY += rowHeight * DASHBOARD_ROW_HEIGHT;
             col = 0;
-            row++;
+            rowHeight = 1;
          }
       }
 
       return new java.awt.Point(0, 0);   // unreachable (i is always in range)
+   }
+
+   /**
+    * Back-compat overload for callers with only column spans (implicit {@code spanRows[k] == 1}
+    * for every tile — i.e. every row is exactly {@code DASHBOARD_ROW_HEIGHT}, matching Phase 2's
+    * original behavior exactly).
+    */
+   static java.awt.Point gridOrigin(int[] spanCols, int layoutColumns, int i) {
+      int[] unitRowSpans = new int[spanCols.length];
+      java.util.Arrays.fill(unitRowSpans, 1);
+      return gridOrigin(spanCols, unitRowSpans, layoutColumns, i);
    }
 
    private final ViewsheetService viewsheetService;
