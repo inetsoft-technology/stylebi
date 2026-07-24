@@ -52,3 +52,16 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.highlight-pane__presets {
+  align-items: center;
+  display: flex;
+  gap: var(--inet-space-3);
+}
+
+.highlight-pane__preset-btn {
+  border: 1px solid var(--inet-list-border-color);
+  border-radius: var(--inet-radius-md);
+  cursor: pointer;
+  padding: 0 var(--inet-space-3);
+}
