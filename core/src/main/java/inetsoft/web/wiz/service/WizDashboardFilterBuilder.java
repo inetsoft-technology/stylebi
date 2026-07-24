@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.service;
 
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
@@ -28,9 +29,27 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Builds one selection control per {@link FilterRequest}, binds it to every merged root
- * worksheet table exposing the requested column, and positions the controls as a top
- * filter bar on an already-composed dashboard {@link Viewsheet}.
+ * Builds one selection control per {@link FilterRequest}, binds it to each merged chart's own
+ * final bound worksheet table that exposes the requested column, and positions the controls as
+ * a top filter bar on an already-composed dashboard {@link Viewsheet}.
+ *
+ * <h2>Binds to each chart's own table, not the shared root table</h2>
+ *
+ * An earlier version bound filters to every root/physical worksheet table exposing the column
+ * ({@link AddFilterService#findColumnMatchingRootTables}) — correct for a simple chart, but a
+ * selection filter is applied as a pre-condition on the named table, which then cascades
+ * through every join/mirror built on it. For a chart whose worksheet computes a global
+ * aggregate downstream of that same root table (e.g. cross-category min/max feeding a
+ * radar-chart normalization), filtering the root table collapses the aggregate to the filtered
+ * subset too — confirmed live: selecting one category made a radar chart's own normalization
+ * divide by zero (min==max after the collapse) and the chart went blank ("No data is
+ * available"), even though every other chart correctly filtered. {@link #build} now matches
+ * against each merged chart's own final bound table ({@link AddFilterService#findColumnMatchingChartTables})
+ * instead — for a normalization pipeline that table sits downstream of the already-computed
+ * aggregate, so filtering it only narrows the display rows. A chart whose own final table
+ * doesn't expose the column (e.g. one already permanently scoped to a single category, so the
+ * column was dropped before its last group-by) simply isn't bound to that filter, which is
+ * correct: it was never meaningfully controllable by it in the first place.
  *
  * <h2>Reuse seam (decided in Step 1, after reading {@code AddFilterService} in full)</h2>
  *
@@ -92,8 +111,10 @@ public class WizDashboardFilterBuilder {
    public record FilterResult(List<String> applied, List<String> skipped) {}
 
    /**
-    * Builds one selection control per request, binds it to every merged root table exposing
-    * the column, positions the controls as a top filter bar, and adds them to {@code vs}.
+    * Builds one selection control per request, binds it to each merged chart's own final bound
+    * table that exposes the column (see the class Javadoc for why this is NOT every root table
+    * exposing the column), positions the controls as a top filter bar, and adds them to
+    * {@code vs}.
     *
     * <p><b>Caller contract:</b> {@code baseWorksheet} must be the dashboard's merged base
     * worksheet, loaded directly from the repository with {@code permission=false} — i.e.
@@ -115,9 +136,11 @@ public class WizDashboardFilterBuilder {
       List<String> skipped = new ArrayList<>();
       int x = FILTER_BAR_X;
       int y = FILTER_BAR_Y;
+      List<String> chartTableNames = mergedChartTableNames(vs);
 
       for(FilterRequest req : requests) {
-         List<String> tables = AddFilterService.findColumnMatchingRootTables(baseWorksheet, req.field());
+         List<String> tables =
+            AddFilterService.findColumnMatchingChartTables(baseWorksheet, chartTableNames, req.field());
 
          if(tables.isEmpty()) {
             skipped.add(req.field());
@@ -144,6 +167,27 @@ public class WizDashboardFilterBuilder {
       }
 
       return new FilterResult(applied, skipped);
+   }
+
+   /**
+    * Collects each merged chart's own final bound table name (its {@code SourceInfo.source},
+    * exposed via {@link BindableVSAssembly#getTableName()}) — the candidate set
+    * {@link AddFilterService#findColumnMatchingChartTables} matches against, instead of every
+    * root worksheet table. Only {@link ChartVSAssembly} is considered: every visualization
+    * {@link AddVisualizationService} merges into a dashboard is a single saved chart, so this is
+    * the set of "each chart's own table," not an incidental subset of bindable assembly types.
+    * Package-visible for the unit test.
+    */
+   List<String> mergedChartTableNames(Viewsheet vs) {
+      List<String> names = new ArrayList<>();
+
+      for(Assembly a : vs.getAssemblies()) {
+         if(a instanceof ChartVSAssembly chart && chart.getTableName() != null) {
+            names.add(chart.getTableName());
+         }
+      }
+
+      return names;
    }
 
    /**

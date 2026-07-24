@@ -220,6 +220,62 @@ public class AddFilterService {
    }
 
    /**
+    * Returns the names of {@code candidateTableNames} that (a) exist as visible tables in
+    * {@code ws} and (b) contain a column matching the given {@code attribute} name (alias-first
+    * lookup, same matching rule as {@link #findColumnMatchingRootTables}).
+    *
+    * <p>Unlike {@link #findColumnMatchingRootTables} — which only considers root/physical
+    * tables, so a selection filter ends up as a pre-condition on the shared physical source and
+    * cascades through every downstream join/mirror built on it — this checks only the specific
+    * tables named in {@code candidateTableNames} (typically each merged chart's own final bound
+    * table). That distinction matters for a chart whose worksheet computes a global aggregate
+    * (e.g. cross-category min/max for radar-chart normalization) downstream of the same shared
+    * root table: filtering the root table collapses that global aggregate to the filtered
+    * subset (e.g. min==max, so a normalization divide becomes 0/0), corrupting the chart, even
+    * though the persisted worksheet is otherwise correct. Filtering only the chart's own final
+    * table — which for a normalization pipeline is downstream of the already-computed global
+    * aggregate — filters the display rows without touching the aggregate's inputs.
+    *
+    * <p>Package-visible (reuse seam, mirrors {@link #findColumnMatchingRootTables}): used by
+    * {@link WizDashboardFilterBuilder#build} instead of the root-table matcher.
+    */
+   static List<String> findColumnMatchingChartTables(Worksheet ws, List<String> candidateTableNames,
+                                                      String attribute)
+   {
+      if(ws == null || candidateTableNames == null || candidateTableNames.isEmpty()) {
+         return Collections.emptyList();
+      }
+
+      List<String> result = new ArrayList<>();
+
+      for(String name : candidateTableNames) {
+         if(!(ws.getAssembly(name) instanceof TableAssembly table) ||
+            !table.isVisible() || !table.isVisibleTable())
+         {
+            continue;
+         }
+
+         ColumnSelection cols = table.getColumnSelection(true);
+
+         for(int i = 0; i < cols.getAttributeCount(); i++) {
+            if(!(cols.getAttribute(i) instanceof ColumnRef cref)) {
+               continue;
+            }
+
+            String colName = cref.getAlias() != null && !cref.getAlias().isEmpty()
+               ? cref.getAlias() : cref.getAttribute();
+
+            if(colName.equals(attribute)) {
+               result.add(name);
+               break;
+            }
+         }
+      }
+
+      return result;
+   }
+
+   /**
     * Creates a {@link SelectionListVSAssembly} or {@link TimeSliderVSAssembly} based on
     * the column data type:
     * <ul>
