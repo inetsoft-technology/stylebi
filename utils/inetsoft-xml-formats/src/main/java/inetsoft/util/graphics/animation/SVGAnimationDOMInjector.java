@@ -36,6 +36,10 @@ public class SVGAnimationDOMInjector {
 
    static final String SVG_NS = "http://www.w3.org/2000/svg";
 
+   /** On-screen width (px, via non-scaling-stroke) of the transparent hit band traced along each
+    *  radar series' outline, giving a comfortable hover target along the line. */
+   private static final int RADAR_HIT_STROKE_WIDTH = 12;
+
    /** Entry point: inject animations into the live DOM document in-place. */
    public static void injectAnimation(Document doc, String animHint) {
       injectAnimation(doc.getDocumentElement(), animHint);
@@ -67,6 +71,13 @@ public class SVGAnimationDOMInjector {
       // highlighting to work, but the entrance animation must be suppressed. Return before
       // injecting any animation and without setting data-animated, so the Angular directive adds
       // the .ready class immediately (the .ready-gated A1 types highlight without a delay).
+      //
+      // Note: radar per-series hover setup (group reclassification to .inetsoft-radar, data-row
+      // assignment, the outline hit band, and vertex-point pointer-events) lives in
+      // injectRadarAnimation and therefore does not run here. Radar hover-dim was already a no-op
+      // in noanim mode before this change (the groups keep their inetsoft-line/inetsoft-area
+      // class, which the radar hover rules never match), so this is a pre-existing design-time
+      // limitation, not a regression introduced by the #75642 overlap fix.
       if(animHint.contains(":" + SVGSupport.ANIMATION_FLAG_NOANIM)) {
          return;
       }
@@ -2981,13 +2992,16 @@ public class SVGAnimationDOMInjector {
     * groups and AreaVO emits {@code inetsoft-area} groups — both are collected and
     * re-classified to {@code inetsoft-radar} so hover CSS targets the correct class.
     *
-    * <p>For line-style radar ({@code CHART_RADAR}) the path has {@code fill="none"}, so:
-    * <ul>
-    *   <li>A semi-transparent ghost fill path is injected inside the group (inherits animation).
-    *   <li>A transparent hit path is appended so the enclosed area captures pointer events.
-    * </ul>
-    * Fill-style radar ({@code CHART_FILL_RADAR}) already has a filled path; neither extra
-    * element is needed.
+    * <p>Hover targeting is by outline, not fill: overlapping series are painted back-to-front, so
+    * a filled interior would let the front-most polygon swallow every hover. For both line- and
+    * fill-style radar the real polygon path is set to {@code pointer-events:none} and a transparent
+    * <b>outline hit band</b> ({@code stroke:rgba(0,0,0,0)}, {@code pointer-events:stroke}) is
+    * appended inside the group, so each series stays reachable by its edge regardless of overlap.
+    *
+    * <p>Only line-style radar ({@code CHART_RADAR}), whose real path is {@code fill="none"},
+    * additionally gets a semi-transparent ghost fill path injected inside the group (inherits the
+    * animation) so the polygon still reads as filled. Fill-style radar ({@code CHART_FILL_RADAR})
+    * already has a real filled path and needs no ghost fill.
     */
    private static void injectRadarAnimation(Element svgRoot, Document doc) {
       // Collect both line and area annotation groups — radar uses one or the other.
@@ -3043,13 +3057,15 @@ public class SVGAnimationDOMInjector {
       // during the entrance animation.
       //
       // Two activation sources exist:
-      //   A) Polygon interior — mouse over the hit path inside .inetsoft-radar[data-row=i].
-      //      The hit path is a descendant of .inetsoft-radar, so :hover propagates up to it.
+      //   A) Outline hit band — mouse over the transparent stroke band traced around the
+      //      polygon edge (a descendant of .inetsoft-radar[data-row=i], so :hover propagates
+      //      up to the group). The real polygon interior is pointer-events:none and does not
+      //      participate in hit-testing.
       //   B) Vertex circle   — .inetsoft-point[data-row=i] circles are painted AFTER radar
-      //      groups (later DOM order → higher z-order), so they sit on top of the hit paths.
-      //      Without an explicit CSS :hover rule keyed on .inetsoft-point, the full vertex
-      //      circle area would not trigger the dim effect (only the thin crescent of hit-path
-      //      area visible around the circle edge would activate .inetsoft-radar:hover).
+      //      groups (later DOM order → higher z-order), so they sit on top of the outline
+      //      bands at each vertex. Without an explicit CSS :hover rule keyed on .inetsoft-point,
+      //      only the thin crescent of band area visible around the circle's edge would
+      //      activate .inetsoft-radar:hover.
       //
       // Both sources dim the same set of targets:
       //   • sibling radar polygons  (not[data-row=i])
@@ -3060,11 +3076,19 @@ public class SVGAnimationDOMInjector {
 
       for(int i = 0; i < n; i++) {
          perSeriesCss.append(String.format(java.util.Locale.US,
-            // When series i's polygon is CSS-hovered (mouse inside the interior), dim the
-            // vertex points of all other series. The hovered series' own points are excluded
-            // by :not([data-row=i]) so they stay at full opacity.
+            // When series i's outline band is CSS-hovered, dim the vertex points of all other
+            // series. The hovered series' own points are excluded by :not([data-row=i]) so they
+            // stay at full opacity.
             "svg.ready:has(.inetsoft-radar[data-row=\"%d\"]:hover) .inetsoft-point:not([data-row=\"%d\"])" +
-            "{opacity:" + dim + "!important}", i, i));
+            "{opacity:" + dim + "!important}" +
+            // Second, precise activation source: hovering series i's vertex point. Vertices are
+            // per-series elements painted on top, so they stay individually reachable even when
+            // the polygons overlap heavily (near-identical series). Hovering a vertex dims every
+            // other series' polygon and points, leaving series i at full opacity.
+            "svg.ready:has(.inetsoft-point[data-row=\"%d\"]:hover) .inetsoft-radar:not([data-row=\"%d\"])" +
+            "{opacity:" + dim + "!important}" +
+            "svg.ready:has(.inetsoft-point[data-row=\"%d\"]:hover) .inetsoft-point:not([data-row=\"%d\"])" +
+            "{opacity:" + dim + "!important}", i, i, i, i, i, i));
       }
 
       appendStyle(svgRoot, doc, perSeriesCss.toString());
@@ -3081,42 +3105,68 @@ public class SVGAnimationDOMInjector {
             "opacity:0;animation:inetsoft-radar-grow %.2fs %s %.2fs both",
             cx, cy, AnimationConstants.DURATION, AnimationConstants.EASING, delay));
 
-         // For line radar the path has fill="none": inject a ghost fill and a hit area.
          Element path = firstDescendantPath(g);
 
-         if(path != null && "none".equals(path.getAttribute("fill"))) {
+         if(path != null) {
             String pathD = path.getAttribute("d");
+            boolean lineStyle = "none".equals(path.getAttribute("fill"));
 
             if(!pathD.isEmpty()) {
-               // Ghost fill — semi-transparent copy of the polygon, inside the group so it
-               // inherits the spring animation.  pointer-events:none keeps interaction on the
-               // explicit hit path added below.
-               int[] rgb = parseColorData(g.getAttribute("data-" + SVGSupport.ATTR_COLOR));
+               if(lineStyle) {
+                  // Line radar: the real path is fill="none". Inject a ghost fill — a
+                  // semi-transparent copy inside the group so it inherits the spring animation.
+                  // pointer-events:none keeps interaction on the explicit hit band added below.
+                  int[] rgb = parseColorData(g.getAttribute("data-" + SVGSupport.ATTR_COLOR));
 
-               if(rgb != null) {
-                  Element ghostPath = doc.createElementNS(SVG_NS, "path");
-                  ghostPath.setAttribute("d", pathD);
-                  ghostPath.setAttribute("fill",
-                     String.format("rgba(%d,%d,%d,0.12)", rgb[0], rgb[1], rgb[2]));
-                  ghostPath.setAttribute("stroke", "none");
-                  ghostPath.setAttribute("pointer-events", "none");
-                  // path may be nested inside a Batik intermediate style <g>; insertBefore
-                  // requires the reference node to be a direct child of the receiver.
-                  Element pathParent = (Element) path.getParentNode();
-                  pathParent.insertBefore(ghostPath, path);
+                  if(rgb != null) {
+                     Element ghostPath = doc.createElementNS(SVG_NS, "path");
+                     ghostPath.setAttribute("d", pathD);
+                     ghostPath.setAttribute("fill",
+                        String.format("rgba(%d,%d,%d,0.12)", rgb[0], rgb[1], rgb[2]));
+                     ghostPath.setAttribute("stroke", "none");
+                     ghostPath.setAttribute("pointer-events", "none");
+                     // path may be nested inside a Batik intermediate style <g>; insertBefore
+                     // requires the reference node to be a direct child of the receiver.
+                     Element pathParent = (Element) path.getParentNode();
+                     pathParent.insertBefore(ghostPath, path);
+                  }
                }
+               // The real polygon path must NOT capture pointer events over its interior:
+               // overlapping series are painted back-to-front, so the largest (front) polygon
+               // would otherwise swallow every hover and the underlying series could never be
+               // highlighted. This applies to BOTH styles because the group carries
+               // pointer-events:all (base hover CSS), and pointer-events:all captures the whole
+               // geometric fill region even for a line-style path whose fill="none" — so simply
+               // relying on fill="none" to opt the interior out does not work here. The outline
+               // hit band below becomes the sole hit target for the series.
+               mergeStyle(path, "pointer-events:none");
 
-               // Hit path — rgba(0,0,0,0) is transparent but still captures pointer events
-               // (unlike fill="none" which opts the filled area out of pointer events entirely).
-               // Append to path's parent for the same reason as the ghost path above.
+               // Outline hit band (both styles) — a transparent stroke that traces the polygon
+               // edge. Because it strokes the outline (not the interior), each series stays
+               // reachable by its own edge regardless of how the filled areas overlap.
+               // vector-effect:non-scaling-stroke keeps the band a constant on-screen width
+               // independent of the chart's coordinate scale; pointer-events:stroke makes only
+               // the band (not its hollow interior) reactive, so it never re-blocks the series
+               // painted beneath it. It is a descendant of the .inetsoft-radar group, so
+               // :hover on it satisfies the group's per-series dim rules.
                Element hitPath = doc.createElementNS(SVG_NS, "path");
                hitPath.setAttribute("d", pathD);
-               hitPath.setAttribute("fill", "rgba(0,0,0,0)");
-               hitPath.setAttribute("stroke", "none");
-               hitPath.setAttribute("pointer-events", "all");
+               hitPath.setAttribute("fill", "none");
+               hitPath.setAttribute("stroke", "rgba(0,0,0,0)");
+               hitPath.setAttribute("stroke-width", String.valueOf(RADAR_HIT_STROKE_WIDTH));
+               hitPath.setAttribute("vector-effect", "non-scaling-stroke");
+               hitPath.setAttribute("pointer-events", "stroke");
                path.getParentNode().appendChild(hitPath);
             }
          }
+      }
+
+      // Make radar vertex points reactive so hovering a vertex activates its series (the second
+      // activation source wired in the per-series CSS above). Points sit on top of the polygons
+      // and are distinct per series, so they remain individually selectable when the polygons are
+      // nearly identical and their outline bands overlap.
+      for(Element pt : collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_POINT)) {
+         mergeStyle(pt, "pointer-events:all");
       }
 
       // Points and value labels appear after all polygons have settled.
@@ -3309,10 +3359,14 @@ public class SVGAnimationDOMInjector {
          // Area/line hover uses JS-only inline style.opacity (no inetsoft-active class is set).
          // CSS :has(.inetsoft-area.inetsoft-active) rules are not used because CSS :has()
          // cannot scope to a single facet panel within one SVG — all panels would be affected.
-         // Radar polygon dimming via CSS :hover only — no inetsoft-active toggling for radar.
-         // Hovering inside a polygon's hit area dims sibling polygons; vertex points produce
-         // no dim effect. pointer-events:all on the group makes the filled interior reactive.
-         // Per-series point dimming is injected in injectRadarAnimation() once N is known.
+         // Radar dimming via CSS :hover only — no inetsoft-active toggling for radar. Two
+         // activation sources, both wired per-series in injectRadarAnimation() once N is known:
+         // (A) hovering a series' transparent outline hit band (pointer-events:stroke) and
+         // (B) hovering a series' vertex point. The real polygon path is set to pointer-events:none
+         // there, so the filled interior is NOT reactive — that is what lets overlapping series
+         // behind the front one still be reached. The generic :has(.inetsoft-radar:hover) rule
+         // below dims sibling polygons when source (A) fires; the base pointer-events:all remains
+         // as a design-time/noanim fallback (injectRadarAnimation does not run in that mode).
          ".inetsoft-radar{pointer-events:all}" +
          "svg.ready:has(.inetsoft-radar:hover) .inetsoft-radar:not(:hover)" +
          "{opacity:" + dim + "!important}" +

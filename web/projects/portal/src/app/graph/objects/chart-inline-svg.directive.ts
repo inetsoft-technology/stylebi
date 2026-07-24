@@ -644,10 +644,12 @@ export class ChartInlineSvgDirective implements OnDestroy {
          }
       }
 
-      // Radar hover is driven entirely by CSS :hover on polygon groups (hit paths injected
-      // server-side have pointer-events:all so the filled interior is reactive). Vertex points
-      // intentionally produce no dim effect — no JS activation and no inetsoft-active toggling.
-      // The elementGroupMap is cleared so canvas-reported hover events are a no-op.
+      // Radar hover is driven entirely by CSS :hover on polygon groups. The server injects a
+      // transparent outline hit band per series (pointer-events:stroke) so each series is reachable
+      // by its edge regardless of how the filled areas overlap, plus per-series rules keyed on
+      // vertex-point hover so a series can also be picked precisely by its vertex when polygons are
+      // near-identical. No JS activation and no inetsoft-active toggling are involved here; the
+      // elementGroupMap is cleared so canvas-reported hover events are a no-op.
       const radarGroups = Array.from(
          this.element.nativeElement.querySelectorAll(".inetsoft-radar") as NodeListOf<Element>);
 

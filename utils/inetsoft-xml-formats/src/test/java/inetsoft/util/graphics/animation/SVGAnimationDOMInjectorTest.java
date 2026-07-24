@@ -633,8 +633,8 @@ class SVGAnimationDOMInjectorTest {
       assertTrue(g.getAttribute("style").contains("inetsoft-radar-grow"),
                  "radar group must receive the spring-scale animation");
 
-      // fill="none" path triggers ghost-fill (prepended) + hit-path (appended) injection.
-      // Child count: ghost-fill path + original path + hit path = 3.
+      // fill="none" path triggers ghost-fill (prepended) + outline hit band (appended) injection.
+      // Child count: ghost-fill path + original path + hit band = 3.
       int childCount = 0;
       Node child = g.getFirstChild();
       while(child != null) {
@@ -642,16 +642,124 @@ class SVGAnimationDOMInjectorTest {
          child = child.getNextSibling();
       }
       assertEquals(3, childCount,
-                   "ghost-fill path and hit path must be injected for fill=none radar polygon");
+                   "ghost-fill path and outline hit band must be injected for fill=none radar polygon");
 
-      // Hit path is the last Element child.
+      // Outline hit band is the last Element child: a transparent stroke tracing the polygon edge
+      // (fill:none, pointer-events:stroke) so each series stays reachable regardless of overlap.
       Node last = g.getLastChild();
       while(last != null && !(last instanceof Element)) last = last.getPreviousSibling();
       assertNotNull(last, "group must have at least one child element");
-      assertEquals("rgba(0,0,0,0)", ((Element) last).getAttribute("fill"),
-                   "last child must be the transparent hit path");
-      assertEquals("all", ((Element) last).getAttribute("pointer-events"),
-                   "hit path must capture pointer events");
+      assertEquals("none", ((Element) last).getAttribute("fill"),
+                   "hit band must not fill its interior");
+      assertEquals("rgba(0,0,0,0)", ((Element) last).getAttribute("stroke"),
+                   "hit band must be a transparent stroke");
+      assertEquals("stroke", ((Element) last).getAttribute("pointer-events"),
+                   "hit band must capture pointer events on its stroke only");
+
+      // The real line path must be neutralized too: it inherits pointer-events:all from the group,
+      // which captures the whole geometric interior even though fill="none", so without this it
+      // would keep swallowing hover for the series painted beneath it.
+      assertTrue(path.getAttribute("style").contains("pointer-events:none"),
+                 "line-style radar real path must have pointer-events:none");
+   }
+
+   /**
+    * Fill-style radar (the polygon path already has a real fill) must have its fill made
+    * non-interactive (pointer-events:none) so the front polygon no longer swallows hover events
+    * for the series painted beneath it, and must still receive the transparent outline hit band.
+    * Vertex points must be made reactive so they can serve as the precise per-series hover target.
+    */
+   @Test
+   void radar_fillStyleDisablesFillHitAndAddsOutlineBand() throws Exception {
+      Document doc = newDocument();
+
+      // Fill-style radar polygon: a real filled path (not fill="none").
+      Element g = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      g.setAttribute("class", SVGSupport.ANNOTATION_AREA);
+      g.setAttribute("data-row", "0");
+      g.setAttribute("data-" + SVGSupport.ATTR_COLOR, "60,105,138");
+      Element path = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+      path.setAttribute("d", "M 100 50 L 150 150 L 50 150 Z");
+      path.setAttribute("fill", "rgb(60,105,138)");
+      g.appendChild(path);
+      doc.getDocumentElement().appendChild(g);
+
+      // A vertex point for the series, which must be made reactive.
+      Element pt = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+      pt.setAttribute("class", SVGSupport.ANNOTATION_POINT);
+      pt.setAttribute("data-row", "0");
+      Element circle = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "circle");
+      pt.appendChild(circle);
+      doc.getDocumentElement().appendChild(pt);
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_RADAR);
+
+      assertEquals(SVGSupport.ANNOTATION_RADAR, g.getAttribute("class"),
+                   "inetsoft-area group must be reclassified to inetsoft-radar");
+      // The real fill path must be made non-interactive so its interior stops swallowing hover.
+      assertTrue(path.getAttribute("style").contains("pointer-events:none"),
+                 "fill-style radar path must have pointer-events:none");
+
+      // No ghost fill is injected for fill-style radar: only the original path + outline hit band.
+      int childCount = 0;
+      Node child = g.getFirstChild();
+      while(child != null) {
+         if(child instanceof Element) childCount++;
+         child = child.getNextSibling();
+      }
+      assertEquals(2, childCount,
+                   "fill-style radar must gain only the outline hit band (no ghost fill)");
+
+      // Outline hit band is the last Element child.
+      Node last = g.getLastChild();
+      while(last != null && !(last instanceof Element)) last = last.getPreviousSibling();
+      assertNotNull(last, "group must have at least one child element");
+      assertEquals("none", ((Element) last).getAttribute("fill"),
+                   "hit band must not fill its interior");
+      assertEquals("stroke", ((Element) last).getAttribute("pointer-events"),
+                   "hit band must capture pointer events on its stroke only");
+
+      // Vertex points are made reactive so they can serve as the precise per-series hover target.
+      assertTrue(pt.getAttribute("style").contains("pointer-events:all"),
+                 "radar vertex points must be made reactive");
+   }
+
+   /**
+    * The per-series CSS injected for radar must emit the vertex-point activation selectors
+    * (activation source B). This guards the generated selector text itself — the DOM-structure
+    * tests would still pass if a refactor silently broke the selector string (all the format
+    * args are the same variable {@code i}, so an accidental reordering wouldn't be caught there).
+    */
+   @Test
+   void radar_perSeriesVertexHoverCssEmitted() throws Exception {
+      Document doc = newDocument();
+
+      for(int i = 0; i < 2; i++) {
+         Element g = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "g");
+         g.setAttribute("class", SVGSupport.ANNOTATION_LINE);
+         g.setAttribute("data-row", String.valueOf(i));
+         g.setAttribute("data-" + SVGSupport.ATTR_COLOR, "60,105,138");
+         Element path = doc.createElementNS(SVGAnimationDOMInjector.SVG_NS, "path");
+         path.setAttribute("d", "M 100 50 L 150 150 L 50 150 Z");
+         path.setAttribute("fill", "none");
+         g.appendChild(path);
+         doc.getDocumentElement().appendChild(g);
+      }
+
+      SVGAnimationDOMInjector.injectAnimation(doc.getDocumentElement(), SVGSupport.ANIMATION_RADAR);
+      String css = allStyleContent(doc.getDocumentElement());
+
+      // Hovering series 0's vertex point must dim other series' polygons and other series' points.
+      assertTrue(css.contains(
+         "svg.ready:has(.inetsoft-point[data-row=\"0\"]:hover) .inetsoft-radar:not([data-row=\"0\"])"),
+         "vertex hover must dim other series' polygons");
+      assertTrue(css.contains(
+         "svg.ready:has(.inetsoft-point[data-row=\"0\"]:hover) .inetsoft-point:not([data-row=\"0\"])"),
+         "vertex hover must dim other series' points");
+      // And the pre-existing outline-band source: hovering series 1's band dims other points.
+      assertTrue(css.contains(
+         "svg.ready:has(.inetsoft-radar[data-row=\"1\"]:hover) .inetsoft-point:not([data-row=\"1\"])"),
+         "outline-band hover must dim other series' points");
    }
 
    /**
