@@ -257,6 +257,15 @@ final class WsServiceHelper {
             attrRef.setDataType(attr.getDataType());
             ColumnRef col = new ColumnRef(attrRef);
 
+            // Carry the base column's business description onto the join's passthrough column so it
+            // survives to /ws/structure (and thence data insight). A join builds fresh ColumnRefs
+            // from its base tables rather than cloning them, so — unlike MirrorTableAssembly, which
+            // copies the description in updateColumnSelection — the description would otherwise be
+            // lost at every join hop. Skip empty/blank so an absent description stays absent.
+            if(attr instanceof ColumnRef baseCol && !Tool.isEmptyString(baseCol.getDescription())) {
+               col.setDescription(baseCol.getDescription());
+            }
+
             // Disambiguate a visible column whose NAME collides with one already added from another
             // base table. Downstream resolution (ColumnSelection.getAttribute / AssetUtil.findColumn)
             // matches by attribute NAME, ignoring the entity/table qualifier — so two same-named
