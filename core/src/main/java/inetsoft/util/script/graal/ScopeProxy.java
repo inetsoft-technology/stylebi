@@ -17,6 +17,7 @@
  */
 package inetsoft.util.script.graal;
 
+import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.graalvm.polyglot.proxy.ProxyObject;
 import java.util.Arrays;
 
@@ -39,6 +40,15 @@ public class ScopeProxy implements ProxyObject {
 
    @Override
    public Object getMember(String key) {
+      // GraalJS's string-coercion (ToPrimitive) looks up a callable "toString"/
+      // "valueOf" *member* on this proxy rather than calling the underlying
+      // ScriptScope's Java toString(), so a scope object concatenated directly
+      // into a string (e.g. an embedded viewsheet's "thisParameter") would
+      // otherwise stringify as the generic "[object Object]".
+      if("toString".equals(key) && !scope.hasMember(key)) {
+         return (ProxyExecutable) args -> scope.toString();
+      }
+
       return ScriptValueConverter.toGuest(scope.getMember(key));
    }
 
@@ -49,7 +59,7 @@ public class ScopeProxy implements ProxyObject {
 
    @Override
    public boolean hasMember(String key) {
-      return scope.hasMember(key);
+      return scope.hasMember(key) || "toString".equals(key);
    }
 
    @Override

@@ -184,10 +184,33 @@ public class VariableScriptable implements ScriptScope {
    }
 
    /**
-    * Convert to string form.
+    * Convert to string form. Scripts sometimes concatenate a scope object
+    * (e.g. {@code thisParameter} on an embedded viewsheet, or the top-level
+    * {@code parameter} global) directly instead of dereferencing a specific
+    * variable name; list the variable names/values rather than falling back
+    * to Java's default {@code Object.toString()}.
     */
    public String toString() {
-      return vars.toString();
+      StringBuilder sb = new StringBuilder();
+      Enumeration names = vars.keys();
+
+      while(names.hasMoreElements()) {
+         String name = (String) names.nextElement();
+
+         try {
+            Object val = vars.get(name);
+
+            if(sb.length() > 0) {
+               sb.append(", ");
+            }
+
+            sb.append(name).append('=').append(val);
+         }
+         catch(Exception ignore) {
+         }
+      }
+
+      return sb.toString();
    }
 
    private ScriptScope parent;

@@ -108,7 +108,7 @@ import static org.mockito.Mockito.*;
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("core")
-class PermissionMatrixOrgLifecycleTest {
+public class PermissionMatrixOrgLifecycleTest {
 
    private static final String RESOURCE = "reports/org_lifecycle_vs";
 
@@ -738,14 +738,20 @@ class PermissionMatrixOrgLifecycleTest {
    // ── copy-on-read Cluster override, scoped to this test class only (see class-level comment) ──
 
    @Configuration
-   static class CopyOnReadClusterConfig {
+   public static class CopyOnReadClusterConfig {
       @Bean
       public Cluster cluster() {
          return new CopyOnReadCluster();
       }
    }
 
-   private static class CopyOnReadCluster extends MockCluster {
+   /**
+    * Public (not just package-private) so other org-lifecycle test classes outside this package
+    * (e.g. {@code inetsoft.uql.asset.sync.OrgLifecycleDependencyMigrationTest}) can reuse the same
+    * copy-on-read simulation instead of duplicating it -- see the Global Constraints section of
+    * {@code docs/superpowers/plans/2026-07-14-org-lifecycle-resource-integrity.md}.
+    */
+   public static class CopyOnReadCluster extends MockCluster {
       @Override
       public <K, V> DistributedMap<K, V> getReplicatedMap(String name) {
          return new CopyOnReadDistributedMap<>(super.getReplicatedMap(name));
@@ -757,7 +763,7 @@ class PermissionMatrixOrgLifecycleTest {
     * independent deep copy, matching {@code IgniteCache}'s default {@code copyOnRead=true} --
     * see the class-level comment on {@link PermissionMatrixOrgLifecycleTest} for why this matters.
     */
-   private static class CopyOnReadDistributedMap<K, V> implements DistributedMap<K, V> {
+   public static class CopyOnReadDistributedMap<K, V> implements DistributedMap<K, V> {
       private final DistributedMap<K, V> delegate;
 
       CopyOnReadDistributedMap(DistributedMap<K, V> delegate) {
