@@ -574,6 +574,26 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
          move(dir, 48);
          expect(opacities(host, sel)).toEqual(["", "", "", "", "", "", "", ""]);
       });
+
+      it("leaves the snap-driven dim alone when the cursor leaves a cross-tile line chart", () => {
+         // Crossing into a sibling tile of a split chart fires mouseleave here while the snapped
+         // series is still highlighted. Clearing then would emit null over the snap color, and
+         // highlightSnapSeries keeps _snapSeriesColor set, so its dedup would never re-emit it.
+         const { dir, host } = makeLineTile([46, 50, null, null]);
+         (dir as any).crossTile = true;
+         (dir as any).snapTooltip = true;
+         (dir as any).seriesColorByKey = new Map([["1-2", "2,2,2"]]);
+         const emitted: (string | null)[] = [];
+         dir.seriesDimChange.subscribe(v => emitted.push(v));
+         (dir as any).beginSeriesProximityHover();
+         const svg = host.querySelector("svg") as SVGSVGElement;
+
+         dir.highlightSnapSeries([{ row: 1, col: 2 }]);
+         expect(emitted).toEqual(["2,2,2"]);
+
+         svg.dispatchEvent(new MouseEvent("mouseleave"));
+         expect(emitted).toEqual(["2,2,2"]);
+      });
    });
 
    describe("matchLineSeries (point marker → its own panel's series)", () => {

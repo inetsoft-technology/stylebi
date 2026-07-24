@@ -832,7 +832,17 @@ export class ChartInlineSvgDirective implements OnDestroy {
 
       this.areaHoverSvgEl = svgEl;
       this.areaMouseMoveHandler = (e: MouseEvent) => this.onAreaMouseMove(e);
-      this.areaMouseLeaveHandler = () => { this.deactivateArea(); this.emitSeriesDim(null); };
+      this.areaMouseLeaveHandler = () => {
+         // Same guard as onAreaMouseMove: while snap drives the dim on a line chart, clearing here
+         // would wipe the snap-driven color — and since highlightSnapSeries leaves _snapSeriesColor
+         // set, its own dedup would then keep it from ever being re-emitted for that series.
+         if(this.snapTooltip && this.isLineSeriesHover) {
+            return;
+         }
+
+         this.deactivateArea();
+         this.emitSeriesDim(null);
+      };
       svgEl.addEventListener("mousemove", this.areaMouseMoveHandler);
       svgEl.addEventListener("mouseleave", this.areaMouseLeaveHandler);
    }
