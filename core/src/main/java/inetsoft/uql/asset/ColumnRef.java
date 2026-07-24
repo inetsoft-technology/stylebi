@@ -57,6 +57,11 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
            AttributeRef nattr = new AttributeRef(nname, attr.getAttribute());
            // keep caption, necessary for cube
            nattr.setCaption(attr.getCaption());
+           // keep data type -- AttributeRef's own dtype defaults to null, so without this the
+           // column silently falls back to XSchema.STRING (ColumnRef#getDataType()) the moment
+           // its qualifying table is renamed (e.g. a worksheet dedup-merge sharing a physical
+           // table across two charts), corrupting any join keyed on this column downstream.
+           nattr.setDataType(attr.getDataType());
            column.setDataRef(nattr);
            column.setView(nattr.getName());
         }
