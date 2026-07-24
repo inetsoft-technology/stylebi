@@ -278,6 +278,13 @@ public class ChangeAssetController {
       XTableStyle tableStyle = manager.getTableStyle(styleID);
       String folder = parent.getProperty("folder");
 
+      // Defensive guard: a null/legacy styleID (or one that no longer resolves) would
+      // otherwise NPE on the tableStyle.getName() permission checks below.
+      if(tableStyle == null) {
+         throw new MessageException("Table style not found: " +
+            (styleID != null ? styleID : entry.getName()));
+      }
+
       if(!assetRepository.checkPermission(principal, ResourceType.TABLE_STYLE, tableStyle.getName(),
          EnumSet.of(ResourceAction.DELETE)))
       {
