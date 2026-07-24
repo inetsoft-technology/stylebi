@@ -65,8 +65,17 @@
             <div id="passwordGroup" class="form-group">
               <label class="required-field" for="loginPassword"
                      data-th-text="#{login.password.label}">Password</label>
-              <input type="password" class="form-control" id="loginPassword"
-                     name="loginPassword" autocomplete="current-password"/>
+              <div class="password-input-wrapper">
+                <input type="password" class="form-control" id="loginPassword"
+                       name="loginPassword" autocomplete="current-password"/>
+                <button type="button" id="togglePassword" class="password-toggle"
+                        data-th-attr="aria-label=#{login.password.show}, title=#{login.password.show},
+                                      data-show-label=#{login.password.show}, data-hide-label=#{login.password.hide}"
+                        aria-label="Show password" title="Show password"
+                        data-show-label="Show password" data-hide-label="Hide password">
+                  <i class="eye-icon" aria-hidden="true"></i>
+                </button>
+              </div>
               <div id="passwordError" class="invalid-feedback" style="display: none;" aria-live="assertive" aria-atomic="true"
                    data-th-text="#{login.password.required}">
                 Please enter your password.
