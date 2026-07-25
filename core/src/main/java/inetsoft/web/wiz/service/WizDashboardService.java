@@ -520,6 +520,135 @@ public class WizDashboardService {
    }
 
    /**
+    * The (x, y, width, height) footprint assigned to a tile by {@link #computeGridLayout}. Height
+    * may be larger than the tile's own natural {@link #tilePixelSize} height if the stretch pass
+    * grew it to match a taller neighbor sharing its band -- see the design spec's Stretch pass
+    * section (docs/superpowers/specs/2026-07-25-dashboard-2d-grid-packing-design.md, in the
+    * stylebi-wiz repo). Package-private for unit testing.
+    */
+   record TilePlacement(int x, int y, int width, int height) {}
+
+   /**
+    * Tracks one open column within the CURRENT (still-open) band during
+    * {@link #computeGridLayout}'s single pass: its fixed x-position and slot width (set by
+    * whichever tile first opened it), the indices (into the tiles arrays) of every tile stacked
+    * into it so far in order, and its running content height (columnY) -- the y-offset, relative
+    * to the band's top, where the NEXT tile stacked into this column would start.
+    */
+   private static final class Column {
+      final int x;
+      final int slotWidth;
+      final List<Integer> tileIndices = new ArrayList<>();
+      int columnY;
+
+      Column(int x, int slotWidth) {
+         this.x = x;
+         this.slotWidth = slotWidth;
+      }
+   }
+
+   /**
+    * Computes every tile's final (x, y, width, height) footprint in one pass, per the
+    * shelf-skyline algorithm in
+    * docs/superpowers/specs/2026-07-25-dashboard-2d-grid-packing-design.md (stylebi-wiz repo):
+    * tiles are processed once, in the given order, into a sequence of bands. Within a band, each
+    * tile first tries to open a new column to the right (same width check {@code gridOrigin} used
+    * to use); failing that, it stacks into whichever existing column in the band is wide enough
+    * for it and has the least accumulated height so far (no height ceiling -- a stacked column may
+    * end up taller than its siblings, which the stretch pass corrects for); failing that too (no
+    * open column is wide enough), the band closes, every column shorter than the band's tallest
+    * has its LAST tile stretched to close the gap, and a fresh band starts with this tile as its
+    * first column. Replaces the old per-tile-index {@code gridOrigin}, which could not support the
+    * stretch pass (whether tile i stretches depends on later tiles that might still join its
+    * column, and on the band's eventual final height -- neither knowable from a partial replay).
+    *
+    * <p>Package-private for unit testing.
+    */
+   static List<TilePlacement> computeGridLayout(
+      int[] spanCols, int[] spanRows, boolean[] hasPerChartFilter, int layoutColumns)
+   {
+      int n = spanCols.length;
+      TilePlacement[] result = new TilePlacement[n];
+      int availableRowWidth = layoutColumns * DASHBOARD_COL_WIDTH + (layoutColumns - 1) * TILE_GUTTER;
+
+      int cumulativeY = 0;
+      List<Column> band = new ArrayList<>();
+      int rowWidthUsed = 0;
+
+      for(int k = 0; k < n; k++) {
+         java.awt.Dimension natural = tilePixelSize(spanCols[k], spanRows[k]);
+         int tileWidth = natural.width;
+         int tileHeight = natural.height + (hasPerChartFilter[k] ? PER_CHART_FILTER_ROW_HEIGHT : 0);
+         int neededWidthForNewColumn =
+            rowWidthUsed == 0 ? tileWidth : rowWidthUsed + TILE_GUTTER + tileWidth;
+
+         if(neededWidthForNewColumn <= availableRowWidth) {
+            int x = rowWidthUsed == 0 ? 0 : rowWidthUsed + TILE_GUTTER;
+            Column column = new Column(x, tileWidth);
+            column.tileIndices.add(k);
+            column.columnY = tileHeight;
+            band.add(column);
+            result[k] = new TilePlacement(x, cumulativeY, tileWidth, tileHeight);
+            rowWidthUsed = x + tileWidth;
+            continue;
+         }
+
+         Column target = null;
+
+         for(Column column : band) {
+            if(column.slotWidth >= tileWidth && (target == null || column.columnY < target.columnY)) {
+               target = column;
+            }
+         }
+
+         if(target != null) {
+            int y = cumulativeY + target.columnY + TILE_GUTTER;
+            target.tileIndices.add(k);
+            target.columnY += TILE_GUTTER + tileHeight;
+            result[k] = new TilePlacement(target.x, y, tileWidth, tileHeight);
+            continue;
+         }
+
+         closeBand(band, result);
+         int bandHeight = band.stream().mapToInt(c -> c.columnY).max().orElse(0);
+         cumulativeY += bandHeight + TILE_GUTTER;
+         band = new ArrayList<>();
+         rowWidthUsed = 0;
+
+         Column column = new Column(0, tileWidth);
+         column.tileIndices.add(k);
+         column.columnY = tileHeight;
+         band.add(column);
+         result[k] = new TilePlacement(0, cumulativeY, tileWidth, tileHeight);
+         rowWidthUsed = tileWidth;
+      }
+
+      closeBand(band, result);
+
+      return java.util.Arrays.asList(result);
+   }
+
+   /**
+    * Stretch pass: for every column in the closing band shorter than the band's tallest column,
+    * grows the LAST tile placed in that column so its rendered height closes the gap. Never
+    * shrinks a tile.
+    */
+   private static void closeBand(List<Column> band, TilePlacement[] result) {
+      int bandHeight = band.stream().mapToInt(c -> c.columnY).max().orElse(0);
+
+      for(Column column : band) {
+         int shortfall = bandHeight - column.columnY;
+
+         if(shortfall > 0) {
+            int lastTileIndex = column.tileIndices.get(column.tileIndices.size() - 1);
+            TilePlacement old = result[lastTileIndex];
+            result[lastTileIndex] =
+               new TilePlacement(old.x(), old.y(), old.width(), old.height() + shortfall);
+         }
+      }
+   }
+
+   /**
     * Row-major grid origin for the tile at flat index {@code i}, given per-tile column spans,
     * row spans, AND whether each tile has a per-chart filter (which adds
     * {@link #PER_CHART_FILTER_ROW_HEIGHT} to that tile's contribution to its row's reserved

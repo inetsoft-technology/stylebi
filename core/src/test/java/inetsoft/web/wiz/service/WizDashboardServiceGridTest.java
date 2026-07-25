@@ -195,6 +195,88 @@ class WizDashboardServiceGridTest {
       assertEquals(new java.awt.Dimension(900, 600), WizDashboardService.tilePixelSize(2, 2));
    }
 
+   // --- 2D grid packing (computeGridLayout) ---------------------------------------------------
+
+   @Test
+   void computeGridLayoutStacksAShorterTileBesideATallOneAndStretchesTheShorterSide() {
+      // layoutColumns=2 -> availableRowWidth = 2*640 + 24 = 1304.
+      // A: 1x1 (640x420). B: 1x2 (640x600, capped). C: 1x1 (640x420). D: 2x1 (900x420).
+      int[] spans =    { 1, 1, 1, 2 };
+      int[] rowSpans = { 1, 2, 1, 1 };
+      boolean[] noFilters = new boolean[4];
+
+      List<WizDashboardService.TilePlacement> placements =
+         WizDashboardService.computeGridLayout(spans, rowSpans, noFilters, 2);
+
+      // A opens column 0 (x=0). B fits as a new column (640+24+640=1304<=1304) at x=664.
+      // C doesn't fit as a new column (1304+24+640=1968>1304) -> stacks under A (column 0's
+      // columnY=420 is smaller than column 1's 600) at y=420+24=444.
+      // D doesn't fit as a new column, AND its 900px width exceeds both columns' 640px slots ->
+      // no column fits -> band closes. Band height = max(A+C's column = 864, B's column = 600) =
+      // 864. B's column is shorter -> its only (and therefore last) tile, B, stretches from 600
+      // to 864. D starts a fresh band at cumulativeY = 864 + 24 = 888.
+      assertEquals(new WizDashboardService.TilePlacement(0, 0, 640, 420), placements.get(0));    // A
+      assertEquals(new WizDashboardService.TilePlacement(664, 0, 640, 864), placements.get(1));  // B, stretched
+      assertEquals(new WizDashboardService.TilePlacement(0, 444, 640, 420), placements.get(2));  // C
+      assertEquals(new WizDashboardService.TilePlacement(0, 888, 900, 420), placements.get(3));  // D
+   }
+
+   @Test
+   void computeGridLayoutOpensColumnsUntilRowWidthIsExhaustedThenStacksAndStretchesTheOthers() {
+      // layoutColumns=3 -> availableRowWidth = 3*640 + 2*24 = 1968. Four 1x1 unit tiles (640x420
+      // each): the first three exactly fill the row's width as three separate columns
+      // (640+24+640+24+640 = 1968), the fourth can't open a new column and stacks under the
+      // first (ties broken in favor of the earliest-opened column).
+      int[] spans =    { 1, 1, 1, 1 };
+      int[] rowSpans = { 1, 1, 1, 1 };
+      boolean[] noFilters = new boolean[4];
+
+      List<WizDashboardService.TilePlacement> placements =
+         WizDashboardService.computeGridLayout(spans, rowSpans, noFilters, 3);
+
+      assertEquals(new WizDashboardService.TilePlacement(0, 0, 640, 420), placements.get(0));
+      // Columns 1 and 2 both stretch from 420 to 864 to match column 0's stacked height
+      // (420 + 24 + 420 = 864) once the band closes.
+      assertEquals(new WizDashboardService.TilePlacement(664, 0, 640, 864), placements.get(1));
+      assertEquals(new WizDashboardService.TilePlacement(1328, 0, 640, 864), placements.get(2));
+      assertEquals(new WizDashboardService.TilePlacement(0, 444, 640, 420), placements.get(3));
+   }
+
+   @Test
+   void computeGridLayoutIncludesPerChartFilterHeightWhenStackingAndStretching() {
+      // Same shape as computeGridLayoutStacksAShorterTileBesideATallOneAndStretchesTheShorterSide,
+      // but C (the tile that stacks under A) has a per-chart filter, adding 120px to its height
+      // used for packing/stretch purposes -- exactly like gridOrigin already did.
+      int[] spans =    { 1, 1, 1, 2 };
+      int[] rowSpans = { 1, 2, 1, 1 };
+      boolean[] hasFilter = { false, false, true, false };
+
+      List<WizDashboardService.TilePlacement> placements =
+         WizDashboardService.computeGridLayout(spans, rowSpans, hasFilter, 2);
+
+      // A: column 0 opens at columnY=420. C stacks under A: y=420+24=444, height=420+120=540,
+      // column 0's columnY becomes 444+540=984. B (column 1) stays at columnY=600 until D closes
+      // the band: bandHeight=max(984, 600)=984, so column 1 (B, the only/last tile in it)
+      // stretches from 600 to 984. Column 0's last tile is C, already at the band height (984) ->
+      // no further stretch for C.
+      assertEquals(new WizDashboardService.TilePlacement(0, 0, 640, 420), placements.get(0));     // A
+      assertEquals(new WizDashboardService.TilePlacement(664, 0, 640, 984), placements.get(1));   // B, stretched
+      assertEquals(new WizDashboardService.TilePlacement(0, 444, 640, 540), placements.get(2));   // C, filter height included
+      assertEquals(new WizDashboardService.TilePlacement(0, 1008, 900, 420), placements.get(3));  // D
+   }
+
+   @Test
+   void computeGridLayoutSingleTileNeedsNoStretch() {
+      int[] spans = { 1 };
+      int[] rowSpans = { 1 };
+      boolean[] noFilters = new boolean[1];
+
+      List<WizDashboardService.TilePlacement> placements =
+         WizDashboardService.computeGridLayout(spans, rowSpans, noFilters, 2);
+
+      assertEquals(new WizDashboardService.TilePlacement(0, 0, 640, 420), placements.get(0));
+   }
+
    // --- Task 3: composeDashboard's filter-bar invocation seam ---------------------------------
    //
    // composeDashboard itself needs a live ViewsheetService/asset engine to open a runtime
