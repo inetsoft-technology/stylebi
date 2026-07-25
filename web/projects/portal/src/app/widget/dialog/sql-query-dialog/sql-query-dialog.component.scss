@@ -15,16 +15,39 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+// Fill the slide-out panel height when opened as a slide-out.
+// In a standard modal the parent (.modal-content) auto-sizes, so height: 100%
+// resolves to auto and the layout degrades gracefully to content-sizing.
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .modal-body {
   display: flex;
   flex-direction: column;
-  min-height: 500px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .modal-body > .container-fluid {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+}
+
+// Replaces Bootstrap h-100 on the simple-mode wrapper so it participates in
+// the flex column rather than requesting 100% of the parent (which overflows
+// when sqd-controls-row already occupies part of that height).
+.sqd-pane-fill {
+  flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
   width: 100%;
@@ -54,6 +77,37 @@
   min-height: 0;
   min-width: 0;
   width: 100%;
+}
+
+// Controls row: Name field + Advanced Query toggle side-by-side
+.sqd-controls-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 0 0 12px;
+  flex-shrink: 0;
+}
+
+.sqd-name-field {
+  flex: 1;
+  max-width: 360px;
+  min-width: 0;
+}
+
+.sqd-toggle {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  white-space: nowrap;
+  padding-bottom: 4px;
+}
+
+.sqd-datasource {
+  flex-shrink: 0;
+}
+
+.modal-footer {
+  background: var(--inet-toolbar-bg-color);
 }
 
 textarea {

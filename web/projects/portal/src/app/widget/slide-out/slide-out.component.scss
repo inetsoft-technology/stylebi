@@ -21,6 +21,7 @@
   bottom: 0;
   display: block;
   max-width: 100%;
+  z-index: 1;
 }
 
 :host.left {
@@ -51,6 +52,7 @@
     flex-shrink: 1;
     min-width: 50px;
     height: 100%;
+    overflow: hidden;
   }
 
   .v-resizer {

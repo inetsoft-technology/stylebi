@@ -15,94 +15,312 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.join-list {
-   height: 8em;
-}
 
-.condition-list {
-   height: 8em;
-}
-
-.tree-container {
-   display: flex;
-   flex-direction: column;
-
-   .bordered-box {
-      flex-grow: 1;
-   }
-}
-
-.tree-body {
-   overflow: hidden;
-   border-color: var(--inet-list-border-color);
-   background-color: var(--inet-list-bg-color);
-   border-radius: var(--inet-radius-md);
-
-   &:hover {
-      overflow: auto;
-   }
-}
-
-.list-container {
-   min-width: 0;
-}
-
-.loading-icon-container {
-   width: 100%;
-   text-align: center;
-}
-
-.simple-query-pane__condition-surface {
-   border-color: var(--inet-list-border-color);
-   background-color: var(--inet-list-bg-color);
-   border-radius: var(--inet-radius-md);
-   overflow: auto;
-}
-
-.simple-query-pane__condition-item {
-   align-items: center;
-   display: flex;
-   min-height: var(--inet-control-height-md);
-   padding: 0 var(--inet-space-3);
-   transition: background-color 120ms ease, color 120ms ease;
-
-   &:not(.selected):hover {
-      background-color: var(--inet-list-hover-bg-color);
-   }
-
-   &.selected {
-      background-color: var(--inet-list-selected-bg-color);
-   }
-}
-
-.simple-query-pane__condition-text {
-   min-width: 0;
-   overflow: hidden;
-   text-overflow: ellipsis;
-   white-space: nowrap;
+// Fill the sqd-pane-fill flex item provided by the dialog.
+// height: 100% on .simple-query-pane-container requires the host to have a
+// resolved height; without :host, the host is an unsized block and h-100 = auto.
+:host {
+  display: block;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .simple-query-pane-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+
+  // ngbNavOutlet emits a .tab-content div — make it fill remaining height
   .tab-content {
-    margin-top: 15px;
-    width: 100%;
-    height: 600px;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 
-    > .tab-pane {
-      height: 100%;
-      width: 100%;
-
-      > .preview-tab-container {
-        display: flex;
-        width: 100%;
-        height: 100%;
-      }
+    > .tab-pane.active {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
     }
   }
 }
 
-.simple-query-pane__condition-surface,
-.simple-query-pane__tree-surface,
-.simple-query-pane-container sql-query-dialog-list {
-   min-height: 8em;
+// Edit tab: left rail + right pane
+.sqp-edit-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  min-height: 350px;
+}
+
+// Left rail — 240px fixed, data source tree
+.sqp-left-rail {
+  width: 240px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--inet-toolbar-bg-color);
+  border-right: 1px solid var(--inet-default-border-color);
+}
+
+.sqp-rail-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 10px var(--inet-space-5) 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--inet-text-subtle-color);
+}
+
+.sqp-rail-hint {
+  font-size: 10px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--inet-text-subtle-color);
+  opacity: .8;
+}
+
+.sqp-tree-area {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 var(--inet-space-3) var(--inet-space-4);
+
+  &:hover {
+    overflow: auto;
+  }
+
+  tree {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.sqp-loading {
+  width: 100%;
+  text-align: center;
+  padding: var(--inet-space-4);
+}
+
+// Right pane — scrollable sections; also a flex column so the SQL section
+// can stretch to fill the pane in manual-edit mode.
+.sqp-right-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+// Section chrome
+.sqp-section {
+  padding: 14px var(--inet-space-6) 0;
+}
+
+.sqp-section--sep {
+  border-top: 1px solid var(--inet-default-border-color);
+  margin-top: 14px;
+}
+
+// Stretches to fill the pane in manual-edit mode (sole visible child).
+.sqp-section--sql {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-bottom: var(--inet-space-6);
+}
+
+
+.sqp-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--inet-space-4);
+}
+
+.sqp-section-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--inet-space-3);
+}
+
+.sqp-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--inet-text-subtle-color);
+}
+
+.sqp-count-pill {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--inet-text-muted-color);
+  background: var(--inet-ui-neutral-hover-bg-color);
+  border-radius: 999px;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+
+.sqp-section-meta {
+  font-size: 11px;
+  color: var(--inet-text-subtle-color);
+}
+
+.sqp-manual-edit-btn {
+  align-self: flex-start;
+}
+
+.sqp-section-btn {
+  height: 26px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 0 var(--inet-space-4);
+  line-height: 24px;
+}
+
+// List wrapper (columns / joins) — let list size by content
+.sqp-list {
+  display: block;
+}
+
+// Columns drop zone: dashed border + min height when empty so it's a visible target
+.sqp-columns-list--empty .sql-query-dialog-list__surface {
+  min-height: 48px;
+  border-style: dashed !important;
+  background: transparent !important;
+}
+
+// Drag hint below the empty columns drop zone
+.sqp-drag-hint {
+  font-size: 12px;
+  color: var(--inet-text-subtle-color);
+  padding: var(--inet-space-2) 0 0;
+  pointer-events: none;
+}
+
+// Empty-state text
+.sqp-empty-text {
+  font-size: 13px;
+  color: var(--inet-text-subtle-color);
+  padding: var(--inet-space-3) 0;
+
+  &--warn {
+    color: var(--inet-warning-color, var(--inet-accent-color, #E58A2A));
+    display: flex;
+    align-items: flex-start;
+    gap: var(--inet-space-2);
+  }
+}
+
+.sqp-warn-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+// Condition items — mirrors condition-list component design
+.sqp-condition-item {
+  display: flex;
+  align-items: center;
+  min-height: var(--inet-control-height-md);
+  padding: 0 var(--inet-space-3);
+  font-size: var(--inet-font-size-base);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+
+  &:not(.selected):hover {
+    background-color: var(--inet-list-hover-bg-color);
+  }
+
+  &.selected {
+    background-color: var(--inet-list-selected-bg-color);
+  }
+}
+
+.sqp-condition-empty-state {
+  display: flex;
+  align-items: center;
+  gap: var(--inet-space-4);
+  padding: 0.875rem var(--inet-space-5);
+  font-size: var(--inet-font-size-base);
+  color: var(--inet-text-muted-color);
+}
+
+.sqp-condition-edit-hint {
+  color: var(--inet-primary-color);
+  font-weight: 500;
+}
+
+// SQL pre (read-only)
+.sqp-sql-pre {
+  background: var(--inet-toolbar-bg-color);
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-md);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--inet-text-color);
+  padding: 10px var(--inet-space-5);
+  min-height: 64px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}
+
+// SQL textarea (editable)
+.sqp-sql-textarea {
+  flex: 1 1 auto;
+  min-height: 200px;
+  resize: none;
+  font-size: 12px;
+  font-family: "JetBrains Mono", "Courier New", monospace;
+}
+
+.sqp-parse-row {
+  display: flex;
+  align-items: center;
+  gap: var(--inet-space-4);
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.sqp-status-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--inet-text-muted-color);
+  background: var(--inet-ui-neutral-hover-bg-color);
+
+  &.sqp-status-badge--success {
+    color: var(--inet-success-color-dark);
+    background: var(--inet-success-color-light);
+  }
+
+  &.sqp-status-badge--error {
+    color: var(--inet-danger-color-dark);
+    background: var(--inet-danger-color-light);
+  }
+}
+
+// Preview tab
+.preview-tab-container {
+  display: flex;
+  width: 100%;
+  height: 100%;
 }

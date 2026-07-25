@@ -27,8 +27,8 @@ import {
   DOCUMENT
 } from "@angular/core";
 import { NgbModal, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet, NgbNavChangeEvent } from "@ng-bootstrap/ng-bootstrap";
-import { concat as observableConcat, Observable, of as observableOf } from "rxjs";
-import { map } from "rxjs/operators";
+import { concat as observableConcat, forkJoin, Observable, of as observableOf } from "rxjs";
+import { map, take } from "rxjs/operators";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
 import { AssetEntryHelper } from "../../../common/data/asset-entry-helper";
 import { AssetType } from "../../../../../../shared/data/asset-type";
@@ -229,66 +229,51 @@ export class SimpleQueryPaneComponent {
    }
 
    editConditions(): void {
-      this.setUpConditionDialogModel();
-      let copy = Tool.clone(this.model.conditionList);
-      this.conditionFields = [];
-      let positions: number[] = [];
-      let i: any = 0;
+      const copy = Tool.clone(this.model.conditionList);
+      const cacheKeys = Object.keys(this.columnCache);
 
-      // Logic for resolving an Observable[] into a fields array.
-      // The array is updated every time an observable returns, preserving order.
-      for(let tableName in this.columnCache) {
-         if(this.columnCache.hasOwnProperty(tableName)) {
-            let index = i;
-            positions[index] = this.conditionFields.length;
+      const openDialog = () => {
+         const options: SlideOutOptions = {
+            size: "lg",
+            windowClass: "condition-dialog",
+            backdrop: false
+         };
+         this.modal.open(this.conditionDialog, options).result.then(
+            (result: any[]) => {
+               this.model.conditionList = result;
+               this.getSQLString();
+            },
+            () => {
+               this.model.conditionList = copy;
+            }
+         );
+      };
 
-            this.columnCache[tableName].subscribe((cols) => {
-               let fields: VPMColumnModel[] = [];
+      if(cacheKeys.length === 0) {
+         this.conditionFields = [];
+         this.setUpConditionDialogModel();
+         openDialog();
+         return;
+      }
 
-               for(let entry of cols) {
-                  fields.push({
+      // Wait for all column cache observables to resolve before opening the dialog so
+      // VPMConditionDialog.ngOnInit() receives a fully-populated model.fields.
+      forkJoin(cacheKeys.map(k => this.columnCache[k].pipe(take(1))))
+         .subscribe((results: AssetEntry[][]) => {
+            this.conditionFields = [];
+            cacheKeys.forEach((tableName, idx) => {
+               for(const entry of results[idx]) {
+                  this.conditionFields.push({
                      name: entry.properties["source"] + "." + entry.properties["attribute"],
                      type: entry.properties["dtype"],
                      columnName: entry.properties["attribute"],
                      tableName: entry.properties["source"]
                   });
                }
-
-               // Insert refs into the correct array position.
-               for(let j = 0; j < fields.length; j++) {
-                  this.conditionFields.splice(positions[index] + j, 0, fields[j]);
-               }
-
-               // Offset subsequent positions
-               for(let j = index + 1; j < positions.length; j++) {
-                  positions[j] += fields.length;
-               }
-
-               // force property to change so condition dialog will be updated
-               this.conditionFields = this.conditionFields.concat([]);
-               this.setUpConditionDialogModel();
             });
-
-            i++;
-         }
-      }
-
-      const options: SlideOutOptions = {
-         size: "lg",
-         windowClass: "condition-dialog",
-         backdrop: false
-      };
-
-      this.modal.open(this.conditionDialog, options).result
-         .then(
-            (result: any[]) => {
-               this.model.conditionList = result;
-               this.getSQLString();
-            },
-            (reject) => {
-               this.model.conditionList = copy;
-            }
-         );
+            this.setUpConditionDialogModel();
+            openDialog();
+         });
    }
 
    iconFunction(node: TreeNodeModel): string {
@@ -594,11 +579,15 @@ export class SimpleQueryPaneComponent {
       return this.model.sqlParseResult == "_#(js:designer.qb.parseFailed)";
    }
 
+   isParseSuccess() {
+      return this.model.sqlParseResult == "_#(js:designer.qb.parseSuccess)";
+   }
+
    editSQLDirectly() {
       const message = "_#(js:common.sqlquery.editsql)";
 
       ComponentTool.showConfirmDialog(this.modal, "_#(js:Confirm)", message,
-            {"yes": "_#(js:Yes)", "no": "_#(js:No)"}, {backdrop: false})
+            {"yes": "_#(js:Proceed)", "no": "_#(js:Cancel)"}, {backdrop: false})
       .then((buttonClicked) => {
          if(buttonClicked === "yes") {
             this.model.sqlEdited = true;

@@ -24,9 +24,33 @@
     (keydown.escape)="checkIfNotSaved($event)"
     (onEnter)="ok()">
     <div class="container-fluid d-flex flex-column h-100">
-      @if (!subQuery) {
-        <div class="row shell-form-row shell-form-group" >
-          <div class="col">
+      <div class="sqd-controls-row">
+        @if (!!tables) {
+          <div [formGroup]="form" class="sqd-name-field">
+            <div class="form-floating">
+              <input type="text" class="form-control" formControlName="name" trim placeholder="_#(Name)">
+              <label>_#(Name)</label>
+              @if (form.controls['name'].errors && form.controls['name'].errors['required']) {
+                <div class="shell-alert shell-alert--danger">
+                  _#(designer.chartProp.specifyTargetName)
+                </div>
+              }
+              @if (form.controls['name'].errors &&
+                form.controls['name'].errors['nameSpecialCharacters']) {
+                <div class="shell-alert shell-alert--danger">
+                  _#(viewer.worksheet.Grouping.SpecialChar)
+                </div>
+              }
+              @if (form.controls['name'].errors && form.controls['name'].errors['exists']) {
+                <div class="shell-alert shell-alert--danger">
+                  _#(viewer.worksheet.Grouping.nameAlready)
+                </div>
+              }
+            </div>
+          </div>
+        }
+        @if (!subQuery) {
+          <div class="sqd-toggle">
             <div class="form-check form-switch">
               <input class="form-check-input" type="checkbox" role="switch" id="switchEditMode"
                 [ngModel]="model.advancedEdit" (change)="onSwitchChange($event)"
@@ -34,47 +58,17 @@
               <label class="form-check-label" for="switchEditMode">_#(Advanced Query)</label>
             </div>
           </div>
-        </div>
-      }
-      @if (!!tables) {
-        <div [formGroup]="form" class="row shell-form-row--field">
-          <div class="col form-floating">
-            <input type="text" class="form-control" formControlName="name" trim placeholder="_#(Name)">
-            <label>_#(Name)</label>
-            @if (form.controls['name'].errors && form.controls['name'].errors['required']) {
-              <div
-                class="shell-alert shell-alert--danger">
-                _#(designer.chartProp.specifyTargetName)
-              </div>
-            }
-            @if (form.controls['name'].errors &&
-              form.controls['name'].errors['nameSpecialCharacters']) {
-              <div class="shell-alert shell-alert--danger">
-                _#(viewer.worksheet.Grouping.SpecialChar)
-              </div>
-            }
-            @if (form.controls['name'].errors && form.controls['name'].errors['exists']) {
-              <div
-                class="shell-alert shell-alert--danger">
-                _#(viewer.worksheet.Grouping.nameAlready)
-              </div>
-            }
-          </div>
-        </div>
-      }
-      <div class="row shell-form-row shell-form-group">
-        <div class="col">
-          @if (model.dataSources?.length > 1) {
-            <custom-select
-                       [options]="dataSourceSelectOptions"
-                       [(ngModel)]="model.dataSource"
-                       (ngModelChange)="dataSourceChanged()">
-        </custom-select>
-          }
-        </div>
+        }
+        @if (model.dataSources?.length > 1) {
+          <custom-select class="sqd-datasource"
+            [options]="dataSourceSelectOptions"
+            [(ngModel)]="model.dataSource"
+            (ngModelChange)="dataSourceChanged()">
+          </custom-select>
+        }
       </div>
       @if (!advancedEditing) {
-        <div class="w-100 h-100">
+        <div class="w-100 sqd-pane-fill">
           <simple-query-pane [queryModel]="model" [controller]="controller" [runtimeId]="model.runtimeId"
             [dataSources]="model.dataSources" [dataSource]="model.dataSource"
             [freeFormSqlEnabled]="model.freeFormSqlEnabled"
@@ -88,8 +82,8 @@
         </div>
       }
       @if (advancedEditing && model && model.advancedModel) {
-        <div class="row flex-grow-1 flex-shrink-1 overflow-hidden">
-          <div class="h-100 overflow-auto">
+        <div class="advanced-query-pane">
+          <div class="advanced-query-pane__content">
             <database-query #advancedQueryPane [runtimeId]="model.runtimeId"
               [freeFormSqlEnabled]="model.freeFormSqlEnabled"
               [queryModel]="model.advancedModel"

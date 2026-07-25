@@ -76,6 +76,10 @@ body.javafx .item-entry {
 }
 
 .sql-query-dialog-list__surface {
-  overflow: auto;
-  height: 8em;
+  overflow: hidden;
+  min-height: 4em;
+
+  &:hover {
+    overflow: auto;
+  }
 }

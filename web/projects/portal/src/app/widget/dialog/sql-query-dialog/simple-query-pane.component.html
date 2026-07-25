@@ -21,113 +21,140 @@
       <ng-container [ngbNavItem]="editTab">
         <a ngbNavLink>_#(Edit)</a>
         <ng-template ngbNavContent>
-          <div class="tab-content">
-            <div class="row">
-              <div class="col-4 pe-0 tree-container">
-                <div class="bordered-box tree-body simple-query-pane__tree-surface">
-                  @if (dataSourceTreeRoot) {
-                    <tree #tree class="unhighlightable h-100"
-                      [root]="dataSourceTreeRoot" [showRoot]="false" [iconFunction]="iconFunction"
-                      [selectOnClick]="true" [draggable]="true" [multiSelect]="true"
-                    (nodeExpanded)="nodeExpanded($event)" (nodeClicked)="nodeClicked($event)"></tree>
-                  }
-                  @if (loading) {
-                    <div class="loading-icon-container">
-                      <span class="loading-icon--spin icon-size-xlarge loading-icon" aria-hidden="true"></span>
-                    </div>
-                  }
-                </div>
+          <div class="sqp-edit-body">
+            <!-- Left rail: data source tree -->
+            <div class="sqp-left-rail">
+              <div class="sqp-rail-header">
+                <span>_#(DATA SOURCES)</span>
+                <span class="sqp-rail-hint">_#(drag to add)</span>
               </div>
+              <div class="sqp-tree-area">
+                @if (dataSourceTreeRoot) {
+                  <tree #tree class="unhighlightable h-100"
+                    [root]="dataSourceTreeRoot" [showRoot]="false" [iconFunction]="iconFunction"
+                    [selectOnClick]="true" [draggable]="true" [multiSelect]="true"
+                    (nodeExpanded)="nodeExpanded($event)" (nodeClicked)="nodeClicked($event)">
+                  </tree>
+                }
+                @if (loading) {
+                  <div class="sqp-loading">
+                    <span class="loading-icon--spin icon-size-xlarge loading-icon" aria-hidden="true"></span>
+                  </div>
+                }
+              </div>
+            </div>
+
+            <!-- Right pane: query definition sections -->
+            <div class="sqp-right-pane">
               @if (!model.sqlEdited) {
-                <div class="col container list-container">
-                  <div class="row mb-2">
-                    <div class="col-12 pe-0">
-                      <div class="form-floating">
-                        <sql-query-dialog-list [items]="model.columns" reorderName="column"
-                          [dragNames]="allowedColumnDropNames" [showDelete]="true"
-                          [labelFunction]="columnToString"
-                          (itemDeleted)="deleteColumn($event)"
-                          (itemsChange)="columnsChange($event)"
-                          (itemsDropped)="droppedIntoColumnList($event)"
-                        class="form-control-plaintext p-0 h-100"></sql-query-dialog-list>
-                        <label><span>_#(Columns)</span></label>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="row mb-2">
-                    <div class="col-12 pe-0">
-                      <div class="form-floating">
-                        <sql-query-dialog-list class="form-control-plaintext p-0 h-100" [items]="model.joins"
-                          [showEdit]="true" [showDelete]="true"
-                          [labelFunction]="joinToString"
-                          (itemsChange)="joinsChange($event)"
-                          (itemDeleted)="deleteJoin($event)"
-                        (itemEdited)="editJoin($event)"></sql-query-dialog-list>
-                        <label><span>_#(Joins)</span></label>
-                      </div>
-                    </div>
-                    <div class="col-12 btn-container-vertical pe-0">
-                      <button type="button" class="btn btn-default" (click)="newJoin()"
-                      [disabled]="numTables == 0">_#(New)</button>
-                    </div>
-                  </div>
-                  <div class="row mb-2">
-                    <div class="col-12 pe-0">
-                      <div class="form-floating">
-                        <div class="bordered-box col simple-query-pane__condition-surface">
-                          @for (item of model.conditionList; track $index; let even = $even; let i = $index) {
-                            <div
-                              class="unhighlightable simple-query-pane__condition-item"  [class.selected]="selectedConditionIndex === i"
-                              (click)="selectedConditionIndex = i">
-                              @if (even) {
-                                <div>
-                                  {{item | clauseToString}}
-                                </div>
-                              }
-                              @if (!even) {
-                                <div>
-                                  {{item | conjunctionToString}}
-                                </div>
-                              }
-                            </div>
-                          }
-                        </div>
-                        <label><span>_#(Conditions)</span></label>
-                      </div>
-                    </div>
-                    <div class="col-12 btn-container-vertical pe-0">
-                      <button type="button" class="btn btn-default" (click)="editConditions()"
-                      [disabled]="numTables == 0">_#(Edit)</button>
-                    </div>
-                  </div>
-                  <div class="row">
-                    <div class="col-12 pe-0">
-                      <div class="form-floating">
-                        <textarea class="form-control" rows="7" [ngModel]="model.sqlString" readonly>
-                        </textarea>
-                        <label><span>_#(SQL)</span></label>
-                      </div>
-                    </div>
-                    <div class="col-12 btn-container-vertical pe-0">
-                      <button type="button" class="btn btn-default" (click)="editSQLDirectly()" [disabled]="!freeFormSqlEnabled">_#(Edit)</button>
-                    </div>
+              <!-- Columns -->
+              <div class="sqp-section">
+                <div class="sqp-section-header">
+                  <div class="sqp-section-header-left">
+                    <span class="sqp-section-label">_#(Columns)</span>
+                    @if (model.columns?.length) {
+                      <span class="sqp-count-pill">{{model.columns.length}} _#(selected)</span>
+                    }
                   </div>
                 </div>
-              }
-              <div class="col-8">
-                @if (model.sqlEdited && freeFormSqlEnabled) {
-                  <div class="form-floating">
-                    <textarea #sqlTextArea class="form-control h-100" rows="30" [(ngModel)]="model.sqlString" (ngModelChange)="textChanged()"
-                      (drop)="$event.preventDefault()" placeholder="_#(SQL)">
-                    </textarea>
-                    <label><span>_#(SQL)</span></label>
-                    <div class="pt-2 btn-container-vertical">
-                      <button type="button" class="btn btn-default" (click)="getSqlParseResult()" >_#(Parse Now)</button>
+                <sql-query-dialog-list class="sqp-list sqp-columns-list"
+                  [class.sqp-columns-list--empty]="!model.columns?.length"
+                  [items]="model.columns" reorderName="column"
+                  [dragNames]="allowedColumnDropNames" [showDelete]="true"
+                  [labelFunction]="columnToString"
+                  (itemDeleted)="deleteColumn($event)"
+                  (itemsChange)="columnsChange($event)"
+                  (itemsDropped)="droppedIntoColumnList($event)">
+                </sql-query-dialog-list>
+                <div class="sqp-drag-hint">_#(Drag a table or column from the left panel to add)</div>
+              </div>
+
+              <!-- Joins -->
+              <div class="sqp-section sqp-section--sep">
+                <div class="sqp-section-header">
+                  <span class="sqp-section-label">_#(Joins)</span>
+                  <button type="button" class="btn btn-default sqp-section-btn"
+                    (click)="newJoin()" [disabled]="numTables == 0">_#(+ New)</button>
+                </div>
+                @if (model.joins?.length) {
+                  <sql-query-dialog-list class="sqp-list" [items]="model.joins"
+                    [showEdit]="true" [showDelete]="true"
+                    [labelFunction]="joinToString"
+                    (itemsChange)="joinsChange($event)"
+                    (itemDeleted)="deleteJoin($event)"
+                    (itemEdited)="editJoin($event)">
+                  </sql-query-dialog-list>
+                }
+                @if (numTables > 1 && (model.joins?.length ?? 0) < numTables - 1) {
+                  <div class="sqp-empty-text sqp-empty-text--warn">
+                    <span class="sqp-warn-icon" aria-hidden="true">&#9888;</span>
+                    _#(Not all tables are joined - a cross join may result. Click + New to add join conditions.)
+                  </div>
+                } @else if (!model.joins?.length) {
+                  <div class="sqp-empty-text">_#(No joins - add a second table, then link their keys.)</div>
+                }
+              </div>
+
+              <!-- Conditions -->
+              <div class="sqp-section sqp-section--sep">
+                <div class="sqp-section-header">
+                  <span class="sqp-section-label">_#(Conditions)</span>
+                  <button type="button" class="btn btn-default sqp-section-btn"
+                    (click)="editConditions()" [disabled]="!model.columns?.length"
+                    [title]="!model.columns?.length ? '_#(Add columns before defining conditions)' : ''">_#(Edit)</button>
+                </div>
+                @if (model.conditionList?.length) {
+                  @for (item of model.conditionList; track $index; let even = $even; let i = $index) {
+                    <div class="sqp-condition-item unhighlightable"
+                      [class.selected]="selectedConditionIndex === i"
+                      (click)="selectedConditionIndex = i">
+                      @if (even) {
+                        <span>{{item | clauseToString}}</span>
+                      }
+                      @if (!even) {
+                        <span>{{item | conjunctionToString}}</span>
+                      }
                     </div>
-                    <span class="d-flex pt-3" [class.txt-danger]="isParseFailed()">
-                      <i class="info-icon cursor-pointer" title="_#(designer.qb.parseToolTipDetails)" [helpLink]="'userhelpVPMParse'"></i>
-                      Status: {{model.sqlParseResult}}
-                    </span>
+                  }
+                } @else {
+                  <div class="sqp-condition-empty-state">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    </svg>
+                    <span>_#(No filters set) &mdash; click <span class="sqp-condition-edit-hint">_#(Edit)</span> _#(to add one.)</span>
+                  </div>
+                }
+              </div>
+              } <!-- end @if (!model.sqlEdited) -->
+
+              <!-- SQL — read-only pre or editable textarea -->
+              <div class="sqp-section sqp-section--sql" [class.sqp-section--sep]="!model.sqlEdited">
+                <div class="sqp-section-header">
+                  <span class="sqp-section-label">_#(SQL)</span>
+                  <span class="sqp-section-meta">
+                    @if (model.sqlEdited) { _#(editable) } @else { _#(auto-generated) }
+                  </span>
+                </div>
+                @if (!model.sqlEdited) {
+                  <pre class="sqp-sql-pre">{{model.sqlString}}</pre>
+                  @if (freeFormSqlEnabled) {
+                    <button type="button" class="btn btn-default sqp-section-btn sqp-manual-edit-btn mt-2"
+                      (click)="editSQLDirectly()">_#(Manual Edit)</button>
+                  }
+                } @else {
+                  <textarea #sqlTextArea class="form-control sqp-sql-textarea"
+                    [(ngModel)]="model.sqlString" (ngModelChange)="textChanged()"
+                    (drop)="$event.preventDefault()" placeholder="_#(SQL)">
+                  </textarea>
+                  <div class="sqp-parse-row pt-2">
+                    <button type="button" class="btn btn-default" (click)="getSqlParseResult()">_#(Validate SQL)</button>
+                    @if (model.sqlParseResult) {
+                      <span class="sqp-status-badge"
+                        [class.sqp-status-badge--success]="isParseSuccess()"
+                        [class.sqp-status-badge--error]="isParseFailed()">
+                        {{model.sqlParseResult}}
+                      </span>
+                    }
                   </div>
                 }
               </div>

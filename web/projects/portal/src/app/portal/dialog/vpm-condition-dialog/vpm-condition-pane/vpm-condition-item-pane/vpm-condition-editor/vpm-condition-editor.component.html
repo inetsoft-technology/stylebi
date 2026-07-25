@@ -40,11 +40,13 @@
     }
     @if (value.type == ClauseValueTypes.EXPRESSION) {
       <div class="editor-container__field editor-container__field--expression">
-        <vpm-value-editor [dataFunction]="dataFunction"
-          [enableBrowseData]="enableBrowseData"
-          [(value)]="value.expression"
-          (valueChange)="conditionValueChanged($event)">
-        </vpm-value-editor>
+        <input class="form-control" type="text"
+          [ngModel]="value.expression"
+          (ngModelChange)="conditionValueChanged($event)">
+        <button type="button" class="btn btn-light editor-container__type-button"
+          title="_#(Edit Expression)" (click)="openExpressionEditor()">
+          <span class="formula-edit-icon align-middle icon-size-small"></span>
+        </button>
       </div>
     }
     @if (value.type == ClauseValueTypes.FIELD) {
@@ -77,6 +79,19 @@
     </button>
   </div>
 </div>
+<ng-template #expressionEditorDialog let-close="close" let-dismiss="dismiss">
+  <formula-editor-dialog
+    (onCommit)="close($event)"
+    (onCancel)="dismiss($event)"
+    [expression]="value.expression"
+    [formulaType]="ExpressionType.SQL"
+    [isVSContext]="false"
+    [nameVisible]="false"
+    [returnTypeVisible]="false"
+    [columnTreeEnabled]="false"
+    [functionTreeEnabled]="false">
+  </formula-editor-dialog>
+</ng-template>
 <ng-template #dropdownMenu>
   <ul role="menu" class="dropdown-pane custom-select-menu editor-container__type-menu">
     @for (type of valueTypes; track type) {

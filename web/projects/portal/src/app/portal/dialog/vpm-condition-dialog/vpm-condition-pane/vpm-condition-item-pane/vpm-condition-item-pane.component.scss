@@ -16,10 +16,25 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 .item-pane {
-  --condition-row-control-height: 2.375rem;
+  --condition-row-control-height: var(--inet-control-height-md, 2.375rem);
   --condition-row-gap: 0.375rem;
   --condition-row-icon-size: 2rem;
   --custom-select-height: var(--condition-row-control-height);
+  width: 100%;
+}
+
+.item-pane ::ng-deep input.form-control {
+  height: var(--condition-row-control-height);
+  min-height: var(--condition-row-control-height);
+}
+
+.item-pane ::ng-deep number-stepper .ns-btn {
+  width: var(--condition-row-control-height);
+  height: var(--condition-row-control-height);
+}
+
+.item-pane ::ng-deep number-stepper .form-control {
+  height: var(--condition-row-control-height);
   width: 100%;
 }
 
@@ -67,12 +82,15 @@
   min-width: 88px;
 }
 
-.item-pane__select custom-select ::ng-deep .custom-select-trigger {
-  min-width: 88px;
+.item-pane custom-select ::ng-deep .custom-select-trigger {
   min-height: var(--condition-row-control-height);
   height: var(--condition-row-control-height);
   display: flex;
   align-items: center;
+}
+
+.item-pane__select custom-select ::ng-deep .custom-select-trigger {
+  min-width: 88px;
 }
 
 @media (max-width: 960px) {
