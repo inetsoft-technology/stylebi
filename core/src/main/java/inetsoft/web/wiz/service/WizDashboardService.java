@@ -257,7 +257,7 @@ public class WizDashboardService {
                }
 
                if(!grid) {
-                  cumulativeY += DASHBOARD_ROW_HEIGHT;
+                  cumulativeY += DASHBOARD_ROW_HEIGHT + TILE_GUTTER;
                }
 
                mergedCount++;
@@ -441,6 +441,12 @@ public class WizDashboardService {
    /** Horizontal stride between grid columns, in pixels (paired with DASHBOARD_ROW_HEIGHT). */
    private static final int DASHBOARD_COL_WIDTH = 640;   // confirm vs composer default viz width
 
+   /** Spacing added between adjacent tiles, in pixels -- both horizontally (between columns)
+    *  and vertically (between rows), so tiles don't render flush against each other. Matches
+    *  {@link #CANVAS_MARGIN} for visual consistency. Applied unconditionally, independent of
+    *  {@code layoutColumns}. */
+   private static final int TILE_GUTTER = 24;
+
    /** Left/top margin from the canvas edge, in pixels, applied uniformly to the filter bar and
     *  every merged chart tile -- unmargined content rendered flush against the viewsheet edge.
     *  Package-visible so {@link WizDashboardFilterBuilder} can align its own controls to it. */
@@ -509,20 +515,20 @@ public class WizDashboardService {
             (hasPerChartFilter[k] ? PER_CHART_FILTER_ROW_HEIGHT : 0);
 
          if(col + span > layoutColumns) {   // doesn't fit in the current row → close it out
-            cumulativeY += rowHeightPx;
+            cumulativeY += rowHeightPx + TILE_GUTTER;
             col = 0;
             rowHeightPx = DASHBOARD_ROW_HEIGHT;
          }
 
          if(k == i) {
-            return new java.awt.Point(col * DASHBOARD_COL_WIDTH, cumulativeY);
+            return new java.awt.Point(col * (DASHBOARD_COL_WIDTH + TILE_GUTTER), cumulativeY);
          }
 
          rowHeightPx = Math.max(rowHeightPx, tileHeightPx);
          col += span;
 
          if(col >= layoutColumns) {   // row exactly full → close it out now
-            cumulativeY += rowHeightPx;
+            cumulativeY += rowHeightPx + TILE_GUTTER;
             col = 0;
             rowHeightPx = DASHBOARD_ROW_HEIGHT;
          }
