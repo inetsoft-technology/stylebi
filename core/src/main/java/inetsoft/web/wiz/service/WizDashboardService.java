@@ -457,9 +457,12 @@ public class WizDashboardService {
 
    /** Extra row height reserved, in pixels, for a tile that has a per-chart filter -- additive
     *  to (never counted against) {@link #MAX_TILE_HEIGHT}, so the chart's own rendered size is
-    *  untouched; only the tile grows to make room for the filter control above it. A compact
-    *  single-line selection control plus a small margin. */
-   private static final int PER_CHART_FILTER_ROW_HEIGHT = 60;
+    *  untouched; only the tile grows to make room for the filter control above it. Matches
+    *  {@link #FILTER_BAR_ROW_HEIGHT} exactly: {@link WizDashboardFilterBuilder#buildPerChart}
+    *  sizes its control with the SAME {@code FILTER_CONTROL_HEIGHT} (100px) the shared filter
+    *  bar uses -- there is no smaller "compact" control variant -- so the same 20px margin
+    *  applies here too. */
+   private static final int PER_CHART_FILTER_ROW_HEIGHT = 120;
 
    /**
     * The rendered pixel size for a tile spanning {@code spanCols} columns and {@code spanRows}

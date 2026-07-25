@@ -110,8 +110,8 @@ class WizDashboardServiceGridTest {
       int[] rowSpans = { 1, 1 };
       boolean[] hasFilter = { true, false };   // only tile0 has a per-chart filter
 
-      // tile0's row reserves its normal height (H=420) PLUS PER_CHART_FILTER_ROW_HEIGHT (60).
-      assertEquals(new Point(0, H + 60),
+      // tile0's row reserves its normal height (H=420) PLUS PER_CHART_FILTER_ROW_HEIGHT (120).
+      assertEquals(new Point(0, H + 120),
          WizDashboardService.gridOrigin(spans, rowSpans, hasFilter, 2, 1));
    }
 
@@ -121,8 +121,8 @@ class WizDashboardServiceGridTest {
       int[] rowSpans = { 1, 1, 1 };
       boolean[] hasFilter = { false, true, false };   // only tile1 (in row0) has a filter
 
-      // row0's height is max(tile0's H, tile1's H+60) = H+60, even though tile0 itself has none.
-      assertEquals(new Point(0, H + 60),
+      // row0's height is max(tile0's H, tile1's H+120) = H+120, even though tile0 itself has none.
+      assertEquals(new Point(0, H + 120),
          WizDashboardService.gridOrigin(spans, rowSpans, hasFilter, 2, 2));
    }
 
