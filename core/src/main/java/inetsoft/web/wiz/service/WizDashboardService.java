@@ -527,46 +527,60 @@ public class WizDashboardService {
     * an implicit all-false {@code hasPerChartFilter}, so their behavior is unchanged by this
     * parameter's addition.
     *
-    * <p>Packing is still row-major/left-to-right/wrap-at-{@code layoutColumns} — each row's
-    * HEIGHT is {@code max} of the tiles placed in it's {@link #tilePixelSize} height (the same
-    * CAPPED height {@code composeDashboard} actually renders each chart at, plus
-    * {@link #PER_CHART_FILTER_ROW_HEIGHT} for any tile with a per-chart filter), instead of
-    * always {@code DASHBOARD_ROW_HEIGHT}. A tile's own Y depends only on the finalized height of
-    * every row strictly before it, and every such row is fully scanned (all its tiles' heights
-    * folded into that row's height, then closed out) before the loop reaches index {@code i} —
-    * so no 2D occupancy grid is needed; a tile with spanRows > 1 does not "block" cells in the
-    * row below for placement purposes (that would be true masonry/skyline packing, deliberately
-    * not implemented — see the Phase 4 design spec). Returns the (x,y) drop origin in pixels.
+    * <p>Packing is based on each tile's ACTUAL rendered pixel width (from {@link #tilePixelSize},
+    * the same capped value {@code composeDashboard} renders each chart at) against the row's
+    * real pixel budget ({@code layoutColumns * DASHBOARD_COL_WIDTH + (layoutColumns-1) *
+    * TILE_GUTTER}) — NOT each tile's nominal {@code spanCols} count. A chart type's declared span
+    * only determines its rendered size (via {@link #tilePixelSize}'s cap); it no longer
+    * independently reserves grid space, so two tiles whose nominal spans wouldn't fit together at
+    * a given column count can still share a row when their ACTUAL capped widths do fit — this is
+    * what lets same-span oversized tiles pack more densely at wider column counts instead of
+    * wastefully wrapping.
+    *
+    * <p>Still row-major/left-to-right — each row's HEIGHT is {@code max} of the tiles placed in
+    * it's {@link #tilePixelSize} height (the same CAPPED height {@code composeDashboard} actually
+    * renders each chart at, plus {@link #PER_CHART_FILTER_ROW_HEIGHT} for any tile with a
+    * per-chart filter), instead of always {@code DASHBOARD_ROW_HEIGHT} — this part is unchanged
+    * from before. A tile's own Y depends only on the finalized height of every row strictly
+    * before it, and every such row is fully scanned (all its tiles' heights folded into that
+    * row's height, then closed out) before the loop reaches index {@code i} — so no 2D occupancy
+    * grid is needed; a tile with spanRows > 1 does not "block" cells in the row below for
+    * placement purposes (that would be true masonry/skyline packing, deliberately not
+    * implemented — see the Phase 4 design spec). Returns the (x,y) drop origin in pixels.
     * Package-private for unit testing.
     */
    static java.awt.Point gridOrigin(int[] spanCols, int[] spanRows, boolean[] hasPerChartFilter,
                                      int layoutColumns, int i)
    {
-      int col = 0;
+      int availableRowWidth = layoutColumns * DASHBOARD_COL_WIDTH + (layoutColumns - 1) * TILE_GUTTER;
+      int rowWidthUsed = 0;   // actual pixel width of tiles placed so far in the CURRENT (still-open) row
       int cumulativeY = 0;
       int rowHeightPx = DASHBOARD_ROW_HEIGHT;   // tallest capped tile height seen so far in the CURRENT (still-open) row
 
       for(int k = 0; k <= i; k++) {
-         int span = Math.max(1, Math.min(spanCols[k], layoutColumns));
+         int tileWidthPx = tilePixelSize(spanCols[k], spanRows[k]).width;
          int tileHeightPx = tilePixelSize(spanCols[k], spanRows[k]).height +
             (hasPerChartFilter[k] ? PER_CHART_FILTER_ROW_HEIGHT : 0);
+         int neededWidth = rowWidthUsed == 0 ? tileWidthPx : rowWidthUsed + TILE_GUTTER + tileWidthPx;
 
-         if(col + span > layoutColumns) {   // doesn't fit in the current row → close it out
+         if(neededWidth > availableRowWidth) {   // doesn't fit in the current row → close it out
             cumulativeY += rowHeightPx + TILE_GUTTER;
-            col = 0;
+            rowWidthUsed = 0;
             rowHeightPx = DASHBOARD_ROW_HEIGHT;
          }
 
+         int x = rowWidthUsed == 0 ? 0 : rowWidthUsed + TILE_GUTTER;
+
          if(k == i) {
-            return new java.awt.Point(col * (DASHBOARD_COL_WIDTH + TILE_GUTTER), cumulativeY);
+            return new java.awt.Point(x, cumulativeY);
          }
 
          rowHeightPx = Math.max(rowHeightPx, tileHeightPx);
-         col += span;
+         rowWidthUsed = x + tileWidthPx;
 
-         if(col >= layoutColumns) {   // row exactly full → close it out now
+         if(rowWidthUsed >= availableRowWidth) {   // row exactly full → close it out now
             cumulativeY += rowHeightPx + TILE_GUTTER;
-            col = 0;
+            rowWidthUsed = 0;
             rowHeightPx = DASHBOARD_ROW_HEIGHT;
          }
       }

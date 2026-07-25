@@ -154,6 +154,34 @@ class WizDashboardServiceGridTest {
    }
 
    @Test
+   void twoOversizedTilesPackIntoTheSameRowWhenTheirActualCappedWidthsFit() {
+      // Two 2-col-span tiles. At layoutColumns=2 each nominally-2-col tile would take a whole
+      // row by itself (see fullWidthTileTakesWholeRow) -- but at layoutColumns=3, the available
+      // row width (3*W + 2*G = 1968) comfortably fits both tiles' ACTUAL CAPPED widths (900 each,
+      // 1824 total incl. one gutter), even though their NOMINAL spans (2+2=4) would have exceeded
+      // 3 columns under the old column-unit model. This is the exact case that motivated this fix.
+      int[] spans = { 2, 2 };
+      int[] rowSpans = { 1, 1 };
+
+      assertEquals(new Point(0, 0),   WizDashboardService.gridOrigin(spans, rowSpans, 3, 0));
+      assertEquals(new Point(924, 0), WizDashboardService.gridOrigin(spans, rowSpans, 3, 1));
+   }
+
+   @Test
+   void oversizedTilesStillWrapWhenTheyGenuinelyDoNotFit() {
+      // Three 2-col-span tiles at layoutColumns=4 (available row width = 4*W + 3*G = 2632).
+      // Two tiles' actual capped widths fit (900 + 24 + 900 = 1824 <= 2632), but a third would
+      // need 1824 + 24 + 900 = 2748 > 2632 -- so it correctly wraps to a new row instead of being
+      // crammed in, proving the fix doesn't over-pack when there truly isn't room.
+      int[] spans = { 2, 2, 2 };
+      int[] rowSpans = { 1, 1, 1 };
+
+      assertEquals(new Point(0, 0),     WizDashboardService.gridOrigin(spans, rowSpans, 4, 0));
+      assertEquals(new Point(924, 0),   WizDashboardService.gridOrigin(spans, rowSpans, 4, 1));
+      assertEquals(new Point(0, H + G), WizDashboardService.gridOrigin(spans, rowSpans, 4, 2));
+   }
+
+   @Test
    void tilePixelSizeUsesTheNaturalSpanFootprintWhenUnderTheCap() {
       // 1x1 -> 640x420; well under the 900x600 cap.
       assertEquals(new java.awt.Dimension(W, H), WizDashboardService.tilePixelSize(1, 1));
