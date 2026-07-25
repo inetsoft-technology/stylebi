@@ -319,9 +319,10 @@ public class WizDashboardService {
                      continue;
                   }
 
-                  boolean applied = applyPerChartFilter(vs, baseWs, spec, bounds.x, bounds.y, tableName);
+                  WizDashboardFilterBuilder.FilterControlPlacement placement =
+                     applyPerChartFilter(vs, baseWs, spec, bounds.x, bounds.y, tableName);
 
-                  if(applied) {
+                  if(placement != null) {
                      perChartFiltersApplied.add(spec.getField());
                   }
                   else {
@@ -426,8 +427,9 @@ public class WizDashboardService {
     * {@link WizDashboardFilterBuilder#buildPerChart}. Package-visible seam for unit testing
     * (mirrors {@link #applyFilters}), independent of the live-engine-only compose+save path.
     */
-   boolean applyPerChartFilter(Viewsheet vs, Worksheet baseWs, WizDashboardEvent.PerChartFilterSpec spec,
-                               int x, int y, String chartTableName)
+   WizDashboardFilterBuilder.FilterControlPlacement applyPerChartFilter(
+      Viewsheet vs, Worksheet baseWs, WizDashboardEvent.PerChartFilterSpec spec,
+      int x, int y, String chartTableName)
    {
       WizDashboardFilterBuilder.FilterRequest req =
          new WizDashboardFilterBuilder.FilterRequest(spec.getField(), spec.getDataType(), spec.getLabel());

@@ -214,8 +214,11 @@ class WizDashboardServiceGridTest {
    @Test
    void applyPerChartFilterMapsSpecToRequestAndDelegatesToBuildPerChart() {
       WizDashboardFilterBuilder filterBuilder = mock(WizDashboardFilterBuilder.class);
+      WizDashboardFilterBuilder.FilterControlPlacement expectedPlacement =
+         new WizDashboardFilterBuilder.FilterControlPlacement("Selection1",
+            new java.awt.Point(100, 200), new java.awt.Dimension(200, 100));
       when(filterBuilder.buildPerChart(any(), any(), eq(100), eq(200), any(), eq("CHART_TABLE")))
-         .thenReturn(true);
+         .thenReturn(expectedPlacement);
 
       WizDashboardService svc = serviceWith(filterBuilder);
       Viewsheet vs = mock(Viewsheet.class);
@@ -226,9 +229,10 @@ class WizDashboardServiceGridTest {
       spec.setDataType("string");
       spec.setLabel("Standalone");
 
-      boolean applied = svc.applyPerChartFilter(vs, baseWs, spec, 100, 200, "CHART_TABLE");
+      WizDashboardFilterBuilder.FilterControlPlacement placement =
+         svc.applyPerChartFilter(vs, baseWs, spec, 100, 200, "CHART_TABLE");
 
-      assertTrue(applied);
+      assertSame(expectedPlacement, placement);
       verify(filterBuilder).buildPerChart(eq(vs), eq(baseWs), eq(100), eq(200),
          eq(new WizDashboardFilterBuilder.FilterRequest("Standalone", "string", "Standalone")),
          eq("CHART_TABLE"));
