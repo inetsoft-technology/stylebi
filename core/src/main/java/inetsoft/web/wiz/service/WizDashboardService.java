@@ -180,10 +180,33 @@ public class WizDashboardService {
          boolean hasFilters = event.getFilters() != null && !event.getFilters().isEmpty();
          int topOffset = hasFilters ? FILTER_BAR_ROW_HEIGHT : 0;
 
+         // Which tiles have a per-chart filter targeting them, keyed by identifier -- computed
+         // once, up front, so gridOrigin can factor extra row height into EVERY tile's
+         // reservation (not just the ones with a filter), and so the merge loop below can look
+         // up "does THIS tile need extra height" by flat index without re-deriving it each time.
+         boolean[] hasPerChartFilter = new boolean[entries.size()];
+
+         if(grid && event.getPerChartFilters() != null) {
+            java.util.Set<String> targeted = event.getPerChartFilters().stream()
+               .map(WizDashboardEvent.PerChartFilterSpec::getIdentifier)
+               .collect(java.util.stream.Collectors.toSet());
+
+            for(int i = 0; i < identifiers.size(); i++) {
+               hasPerChartFilter[i] = targeted.contains(identifiers.get(i));
+            }
+         }
+
+         // Records each grid tile's own (x, topY) origin and pixel size -- topY is the very top
+         // of the tile's reserved space (where a per-chart filter sits, if it has one), NOT the
+         // chart's own (possibly filter-shifted) y. Also records each merged chart's own table
+         // name. Both are looked up after this loop when placing per-chart filters.
+         java.util.Map<String, java.awt.Rectangle> tileBounds = new java.util.HashMap<>();
+         java.util.Map<String, String> identifierToTableName = new java.util.HashMap<>();
+
          int cumulativeY = topOffset;   // stack path only
 
          for(int i = 0; i < entries.size(); i++) {
-            int x, y;
+            int x, y, tileTopY;
 
             if(grid) {
                // tiles[] and identifiers[] are consumed purely positionally below (spans[i]
@@ -198,13 +221,19 @@ public class WizDashboardService {
                      "in the same order as identifiers");
                }
 
-               java.awt.Point origin = gridOrigin(spans, rowSpans, layoutColumns, i);
+               java.awt.Point origin = gridOrigin(spans, rowSpans, hasPerChartFilter, layoutColumns, i);
                x = origin.x + CANVAS_MARGIN;
-               y = origin.y + topOffset + CANVAS_MARGIN;
+               tileTopY = origin.y + topOffset + CANVAS_MARGIN;
+               // The chart itself starts BELOW the reserved filter strip, if this tile has one --
+               // the tile's own reserved footprint (computed via gridOrigin above) already
+               // accounts for that extra height, so this only affects where the CHART renders
+               // within it, not how much space the tile as a whole takes.
+               y = tileTopY + (hasPerChartFilter[i] ? PER_CHART_FILTER_ROW_HEIGHT : 0);
             }
             else {
                x = CANVAS_MARGIN;
-               y = cumulativeY + CANVAS_MARGIN;
+               tileTopY = cumulativeY + CANVAS_MARGIN;
+               y = tileTopY;
             }
 
             // Resize the merged chart to its allocated tile footprint (grid path only) --
@@ -214,8 +243,18 @@ public class WizDashboardService {
             java.awt.Dimension pixelSize = grid ? tilePixelSize(spans[i], rowSpans[i]) : null;
 
             try {
-               addVisualizationService.addVisualization(
+               String mergedTableName = addVisualizationService.addVisualization(
                   runtimeId, entries.get(i), x, y, 1.0f, pixelSize, principal);
+
+               if(grid) {
+                  int tileHeight = pixelSize.height + (hasPerChartFilter[i] ? PER_CHART_FILTER_ROW_HEIGHT : 0);
+                  tileBounds.put(identifiers.get(i),
+                     new java.awt.Rectangle(x, tileTopY, pixelSize.width, tileHeight));
+
+                  if(mergedTableName != null) {
+                     identifierToTableName.put(identifiers.get(i), mergedTableName);
+                  }
+               }
 
                if(!grid) {
                   cumulativeY += DASHBOARD_ROW_HEIGHT;
@@ -251,12 +290,47 @@ public class WizDashboardService {
          // would reproduce the same every-filter-skipped symptom this fix targets) — so the
          // filter builder sees the actual merged root tables.
          WizDashboardFilterBuilder.FilterResult filterResult = null;
+         List<String> perChartFiltersApplied = new ArrayList<>();
+         List<String> perChartFiltersSkipped = new ArrayList<>();
+         boolean hasPerChartFilters = grid && event.getPerChartFilters() != null &&
+            !event.getPerChartFilters().isEmpty();
 
-         if(hasFilters) {
+         if(hasFilters || hasPerChartFilters) {
             Viewsheet vs = rvs.getViewsheet();
             Worksheet baseWs = (Worksheet) assetRepository.getSheet(
                vs.getBaseEntry(), principal, false, AssetContent.ALL);
-            filterResult = applyFilters(vs, baseWs, event.getFilters());
+
+            if(hasFilters) {
+               filterResult = applyFilters(vs, baseWs, event.getFilters());
+            }
+
+            if(hasPerChartFilters) {
+               for(WizDashboardEvent.PerChartFilterSpec spec : event.getPerChartFilters()) {
+                  java.awt.Rectangle bounds = tileBounds.get(spec.getIdentifier());
+                  String tableName = identifierToTableName.get(spec.getIdentifier());
+
+                  if(bounds == null || tableName == null) {
+                     perChartFiltersSkipped.add(spec.getField());
+                     continue;
+                  }
+
+                  boolean applied = applyPerChartFilter(vs, baseWs, spec, bounds.x, bounds.y, tableName);
+
+                  if(applied) {
+                     perChartFiltersApplied.add(spec.getField());
+                  }
+                  else {
+                     perChartFiltersSkipped.add(spec.getField());
+                  }
+               }
+            }
+         }
+         else if(event.getPerChartFilters() != null) {
+            // Requested but not applicable (non-grid path) -- report every one as skipped rather
+            // than silently dropping them.
+            for(WizDashboardEvent.PerChartFilterSpec spec : event.getPerChartFilters()) {
+               perChartFiltersSkipped.add(spec.getField());
+            }
          }
 
          WizUtil.saveWizSheet(rvs, principal, savedVsEntry,
@@ -270,6 +344,9 @@ public class WizDashboardService {
             result.setFiltersApplied(filterResult.applied());
             result.setFiltersSkipped(filterResult.skipped());
          }
+
+         result.setPerChartFiltersApplied(perChartFiltersApplied);
+         result.setPerChartFiltersSkipped(perChartFiltersSkipped);
 
          return result;
       }
@@ -330,6 +407,20 @@ public class WizDashboardService {
          .map(f -> new WizDashboardFilterBuilder.FilterRequest(f.getField(), f.getDataType(), f.getLabel()))
          .collect(java.util.stream.Collectors.toList());
       return filterBuilder.build(vs, baseWs, reqs);
+   }
+
+   /**
+    * Maps a single {@link WizDashboardEvent.PerChartFilterSpec} to a
+    * {@link WizDashboardFilterBuilder.FilterRequest} and delegates to
+    * {@link WizDashboardFilterBuilder#buildPerChart}. Package-visible seam for unit testing
+    * (mirrors {@link #applyFilters}), independent of the live-engine-only compose+save path.
+    */
+   boolean applyPerChartFilter(Viewsheet vs, Worksheet baseWs, WizDashboardEvent.PerChartFilterSpec spec,
+                               int x, int y, String chartTableName)
+   {
+      WizDashboardFilterBuilder.FilterRequest req =
+         new WizDashboardFilterBuilder.FilterRequest(spec.getField(), spec.getDataType(), spec.getLabel());
+      return filterBuilder.buildPerChart(vs, baseWs, x, y, req, chartTableName);
    }
 
    /** Vertical row stride between successive merged visualizations, in pixels — used by both

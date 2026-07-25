@@ -62,8 +62,29 @@ public class WizDashboardResult {
       this.filtersSkipped = filtersSkipped;
    }
 
+   /** Per-chart filter fields that were applied to their target chart. */
+   public List<String> getPerChartFiltersApplied() {
+      return perChartFiltersApplied;
+   }
+
+   public void setPerChartFiltersApplied(List<String> perChartFiltersApplied) {
+      this.perChartFiltersApplied = perChartFiltersApplied;
+   }
+
+   /** Per-chart filter fields that could not be applied (target chart not merged, or the field
+    *  isn't on that chart's own table). */
+   public List<String> getPerChartFiltersSkipped() {
+      return perChartFiltersSkipped;
+   }
+
+   public void setPerChartFiltersSkipped(List<String> perChartFiltersSkipped) {
+      this.perChartFiltersSkipped = perChartFiltersSkipped;
+   }
+
    private String savedViewsheetIdentifier;
    private List<String> skipped;
    private List<String> filtersApplied;
    private List<String> filtersSkipped;
+   private List<String> perChartFiltersApplied;
+   private List<String> perChartFiltersSkipped;
 }

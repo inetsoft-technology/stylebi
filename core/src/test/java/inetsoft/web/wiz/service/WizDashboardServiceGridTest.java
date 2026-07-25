@@ -195,4 +195,27 @@ class WizDashboardServiceGridTest {
       assertEquals(List.of(new WizDashboardFilterBuilder.FilterRequest("Region", "string", "Region")),
          captor.getValue());
    }
+
+   @Test
+   void applyPerChartFilterMapsSpecToRequestAndDelegatesToBuildPerChart() {
+      WizDashboardFilterBuilder filterBuilder = mock(WizDashboardFilterBuilder.class);
+      when(filterBuilder.buildPerChart(any(), any(), eq(100), eq(200), any(), eq("CHART_TABLE")))
+         .thenReturn(true);
+
+      WizDashboardService svc = serviceWith(filterBuilder);
+      Viewsheet vs = mock(Viewsheet.class);
+      Worksheet baseWs = mock(Worksheet.class);
+      WizDashboardEvent.PerChartFilterSpec spec = new WizDashboardEvent.PerChartFilterSpec();
+      spec.setIdentifier("v2");
+      spec.setField("Standalone");
+      spec.setDataType("string");
+      spec.setLabel("Standalone");
+
+      boolean applied = svc.applyPerChartFilter(vs, baseWs, spec, 100, 200, "CHART_TABLE");
+
+      assertTrue(applied);
+      verify(filterBuilder).buildPerChart(eq(vs), eq(baseWs), eq(100), eq(200),
+         eq(new WizDashboardFilterBuilder.FilterRequest("Standalone", "string", "Standalone")),
+         eq("CHART_TABLE"));
+   }
 }
