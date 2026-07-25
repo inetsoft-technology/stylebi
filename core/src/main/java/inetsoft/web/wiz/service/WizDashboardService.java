@@ -325,9 +325,15 @@ public class WizDashboardService {
                }
             }
          }
-         else if(event.getPerChartFilters() != null) {
-            // Requested but not applicable (non-grid path) -- report every one as skipped rather
-            // than silently dropping them.
+         if(!hasPerChartFilters && event.getPerChartFilters() != null) {
+            // Requested but not applicable (non-grid path, or an empty list) -- report every one
+            // as skipped rather than silently dropping them. Deliberately NOT an `else if` on the
+            // block above: that would only run when `hasFilters` is ALSO false, so a caller
+            // requesting the shared bar (hasFilters=true) on the non-grid path together with
+            // per-chart filters would take the `if` branch via hasFilters alone and this handling
+            // would never run at all -- silently losing the per-chart filters instead of skipping
+            // them. Checking `!hasPerChartFilters` directly (independent of `hasFilters`) covers
+            // every case: grid=false, or grid=true with an empty/absent list.
             for(WizDashboardEvent.PerChartFilterSpec spec : event.getPerChartFilters()) {
                perChartFiltersSkipped.add(spec.getField());
             }
