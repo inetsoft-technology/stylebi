@@ -70,7 +70,7 @@ class AddVisualizationServiceSecurityTest {
          new AddVisualizationService(vsService, assetRepository, wsMergeService, securityEngine);
 
       SecurityException ex = assertThrows(SecurityException.class,
-         () -> service.addVisualization("rt-1", vizEntry, 0, 0, 1.0f, principal));
+         () -> service.addVisualization("rt-1", vizEntry, 0, 0, 1.0f, null, principal));
 
       assertNotNull(ex.getMessage(), "SecurityException should carry a localized denial message");
 
@@ -102,7 +102,7 @@ class AddVisualizationServiceSecurityTest {
          new AddVisualizationService(vsService, assetRepository, wsMergeService, securityEngine);
 
       RuntimeException thrown = assertThrows(RuntimeException.class,
-         () -> service.addVisualization("rt-1", vizEntry, 0, 0, 1.0f, principal));
+         () -> service.addVisualization("rt-1", vizEntry, 0, 0, 1.0f, null, principal));
 
       assertEquals("marker-past-gate", thrown.getMessage(),
          "should fail past the gate on the marker, not be denied by SecurityException");
@@ -150,7 +150,7 @@ class AddVisualizationServiceSecurityTest {
          new AddVisualizationService(vsService, assetRepository, wsMergeService, securityEngine);
 
       assertThrows(Exception.class,
-         () -> service.addVisualization("rt-1", vizEntry, 0, 0, 1.0f, principal));
+         () -> service.addVisualization("rt-1", vizEntry, 0, 0, 1.0f, null, principal));
 
       // The attacker-controlled vizEntry must be loaded with the READ permission check ENABLED.
       verify(assetRepository).getSheet(eq(vizEntry), eq(principal), eq(true), any(AssetContent.class));

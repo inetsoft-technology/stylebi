@@ -111,6 +111,67 @@ class WizDashboardFilterBuilderTest {
          "must bind only to the chart's own table, never GLOBAL_STATS");
    }
 
+   @Test
+   void firstControlIsOffsetByTheCanvasMarginNotFlushAgainstTheEdge() {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "CHART_FINAL", "category_name"));
+
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "RadarChart");
+      boundToTable(chart, "CHART_FINAL");
+      vs.addAssembly(chart);
+
+      builder.build(vs, ws, List.of(new WizDashboardFilterBuilder.FilterRequest("category_name", "string", "Category")));
+
+      AbstractSelectionVSAssembly control = java.util.Arrays.stream(vs.getAssemblies())
+         .filter(a -> a instanceof AbstractSelectionVSAssembly)
+         .map(a -> (AbstractSelectionVSAssembly) a)
+         .findFirst().orElseThrow();
+      assertEquals(WizDashboardService.CANVAS_MARGIN, control.getPixelOffset().x,
+         "must not sit flush against the canvas's left edge");
+      assertEquals(WizDashboardService.CANVAS_MARGIN, control.getPixelOffset().y,
+         "must not sit flush against the canvas's top edge");
+   }
+
+   @Test
+   void buildPerChartBindsOnlyToTheSpecifiedTableEvenWhenAnotherTableExposesTheSameColumn() {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "CHART_FINAL", "product_name"));
+      // A DIFFERENT table also exposes "product_name" -- buildPerChart must never match it,
+      // since only ONE table (the caller-specified chartTableName) is ever a candidate.
+      ws.addAssembly(physicalTable(ws, "OTHER_CHART_FINAL", "product_name"));
+
+      Viewsheet vs = new Viewsheet();
+
+      boolean applied = builder.buildPerChart(vs, ws, 100, 200,
+         new WizDashboardFilterBuilder.FilterRequest("product_name", "string", "Product"), "CHART_FINAL");
+
+      assertTrue(applied);
+
+      AbstractSelectionVSAssembly control = java.util.Arrays.stream(vs.getAssemblies())
+         .filter(a -> a instanceof AbstractSelectionVSAssembly)
+         .map(a -> (AbstractSelectionVSAssembly) a)
+         .findFirst().orElseThrow();
+      assertEquals(List.of("CHART_FINAL"), control.getTableNames(),
+         "must bind only to the specified chart table, never any other table exposing the same column");
+      assertEquals(100, control.getPixelOffset().x);
+      assertEquals(200, control.getPixelOffset().y);
+   }
+
+   @Test
+   void buildPerChartReturnsFalseWhenTheFieldIsNotOnTheSpecifiedTable() {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "CHART_FINAL", "category_name"));
+
+      Viewsheet vs = new Viewsheet();
+
+      boolean applied = builder.buildPerChart(vs, ws, 0, 0,
+         new WizDashboardFilterBuilder.FilterRequest("product_name", "string", "Product"), "CHART_FINAL");
+
+      assertFalse(applied);
+      assertEquals(0, vs.getAssemblies().length, "no control should be added when the field isn't on the table");
+   }
+
    // ChartVSAssembly.setTableName(String) silently no-ops when getSourceInfo() is still null (it
    // builds a local SourceInfo but never calls setSourceInfo(...) to store it back) -- harmless
    // in production, where a chart's SourceInfo is always initialized before setTableName is

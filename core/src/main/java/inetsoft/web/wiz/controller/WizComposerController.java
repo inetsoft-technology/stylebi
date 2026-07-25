@@ -69,7 +69,7 @@ public class WizComposerController {
       String runtimeId = runtimeViewsheetRef.getRuntimeId();
       addVisualizationServiceProxy.addVisualization(
          runtimeId, event.getEntry(), event.getxOffset(), event.getyOffset(),
-         event.getScale(), principal);
+         event.getScale(), null, principal);
       dispatcher.sendCommand(new RefreshWizFiltersCommand());
       vsRefreshServiceProxy.refreshViewsheetAsync(this.runtimeViewsheetRef.getRuntimeId(),
          VSRefreshEvent.builder().confirmed(false).build(), principal, dispatcher, linkUri);

@@ -180,10 +180,33 @@ public class WizDashboardService {
          boolean hasFilters = event.getFilters() != null && !event.getFilters().isEmpty();
          int topOffset = hasFilters ? FILTER_BAR_ROW_HEIGHT : 0;
 
+         // Which tiles have a per-chart filter targeting them, keyed by identifier -- computed
+         // once, up front, so gridOrigin can factor extra row height into EVERY tile's
+         // reservation (not just the ones with a filter), and so the merge loop below can look
+         // up "does THIS tile need extra height" by flat index without re-deriving it each time.
+         boolean[] hasPerChartFilter = new boolean[entries.size()];
+
+         if(grid && event.getPerChartFilters() != null) {
+            java.util.Set<String> targeted = event.getPerChartFilters().stream()
+               .map(WizDashboardEvent.PerChartFilterSpec::getIdentifier)
+               .collect(java.util.stream.Collectors.toSet());
+
+            for(int i = 0; i < identifiers.size(); i++) {
+               hasPerChartFilter[i] = targeted.contains(identifiers.get(i));
+            }
+         }
+
+         // Records each grid tile's own (x, topY) origin and pixel size -- topY is the very top
+         // of the tile's reserved space (where a per-chart filter sits, if it has one), NOT the
+         // chart's own (possibly filter-shifted) y. Also records each merged chart's own table
+         // name. Both are looked up after this loop when placing per-chart filters.
+         java.util.Map<String, java.awt.Rectangle> tileBounds = new java.util.HashMap<>();
+         java.util.Map<String, String> identifierToTableName = new java.util.HashMap<>();
+
          int cumulativeY = topOffset;   // stack path only
 
          for(int i = 0; i < entries.size(); i++) {
-            int x, y;
+            int x, y, tileTopY;
 
             if(grid) {
                // tiles[] and identifiers[] are consumed purely positionally below (spans[i]
@@ -198,21 +221,43 @@ public class WizDashboardService {
                      "in the same order as identifiers");
                }
 
-               java.awt.Point origin = gridOrigin(spans, rowSpans, layoutColumns, i);
-               x = origin.x;
-               y = origin.y + topOffset;
+               java.awt.Point origin = gridOrigin(spans, rowSpans, hasPerChartFilter, layoutColumns, i);
+               x = origin.x + CANVAS_MARGIN;
+               tileTopY = origin.y + topOffset + CANVAS_MARGIN;
+               // The chart itself starts BELOW the reserved filter strip, if this tile has one --
+               // the tile's own reserved footprint (computed via gridOrigin above) already
+               // accounts for that extra height, so this only affects where the CHART renders
+               // within it, not how much space the tile as a whole takes.
+               y = tileTopY + (hasPerChartFilter[i] ? PER_CHART_FILTER_ROW_HEIGHT : 0);
             }
             else {
-               x = 0;
-               y = cumulativeY;
+               x = CANVAS_MARGIN;
+               tileTopY = cumulativeY + CANVAS_MARGIN;
+               y = tileTopY;
             }
 
+            // Resize the merged chart to its allocated tile footprint (grid path only) --
+            // otherwise a tile's computed (spanCols, spanRows) only ever reserved grid drop-
+            // position spacing and never resized the chart itself. The stack path has no
+            // per-visualization span data, so it passes null and preserves the chart's saved size.
+            java.awt.Dimension pixelSize = grid ? tilePixelSize(spans[i], rowSpans[i]) : null;
+
             try {
-               addVisualizationService.addVisualization(
-                  runtimeId, entries.get(i), x, y, 1.0f, principal);
+               String mergedTableName = addVisualizationService.addVisualization(
+                  runtimeId, entries.get(i), x, y, 1.0f, pixelSize, principal);
+
+               if(grid) {
+                  int tileHeight = pixelSize.height + (hasPerChartFilter[i] ? PER_CHART_FILTER_ROW_HEIGHT : 0);
+                  tileBounds.put(identifiers.get(i),
+                     new java.awt.Rectangle(x, tileTopY, pixelSize.width, tileHeight));
+
+                  if(mergedTableName != null) {
+                     identifierToTableName.put(identifiers.get(i), mergedTableName);
+                  }
+               }
 
                if(!grid) {
-                  cumulativeY += DASHBOARD_ROW_HEIGHT;
+                  cumulativeY += DASHBOARD_ROW_HEIGHT + TILE_GUTTER;
                }
 
                mergedCount++;
@@ -245,12 +290,53 @@ public class WizDashboardService {
          // would reproduce the same every-filter-skipped symptom this fix targets) — so the
          // filter builder sees the actual merged root tables.
          WizDashboardFilterBuilder.FilterResult filterResult = null;
+         List<String> perChartFiltersApplied = new ArrayList<>();
+         List<String> perChartFiltersSkipped = new ArrayList<>();
+         boolean hasPerChartFilters = grid && event.getPerChartFilters() != null &&
+            !event.getPerChartFilters().isEmpty();
 
-         if(hasFilters) {
+         if(hasFilters || hasPerChartFilters) {
             Viewsheet vs = rvs.getViewsheet();
             Worksheet baseWs = (Worksheet) assetRepository.getSheet(
                vs.getBaseEntry(), principal, false, AssetContent.ALL);
-            filterResult = applyFilters(vs, baseWs, event.getFilters());
+
+            if(hasFilters) {
+               filterResult = applyFilters(vs, baseWs, event.getFilters());
+            }
+
+            if(hasPerChartFilters) {
+               for(WizDashboardEvent.PerChartFilterSpec spec : event.getPerChartFilters()) {
+                  java.awt.Rectangle bounds = tileBounds.get(spec.getIdentifier());
+                  String tableName = identifierToTableName.get(spec.getIdentifier());
+
+                  if(bounds == null || tableName == null) {
+                     perChartFiltersSkipped.add(spec.getField());
+                     continue;
+                  }
+
+                  boolean applied = applyPerChartFilter(vs, baseWs, spec, bounds.x, bounds.y, tableName);
+
+                  if(applied) {
+                     perChartFiltersApplied.add(spec.getField());
+                  }
+                  else {
+                     perChartFiltersSkipped.add(spec.getField());
+                  }
+               }
+            }
+         }
+         if(!hasPerChartFilters && event.getPerChartFilters() != null) {
+            // Requested but not applicable (non-grid path, or an empty list) -- report every one
+            // as skipped rather than silently dropping them. Deliberately NOT an `else if` on the
+            // block above: that would only run when `hasFilters` is ALSO false, so a caller
+            // requesting the shared bar (hasFilters=true) on the non-grid path together with
+            // per-chart filters would take the `if` branch via hasFilters alone and this handling
+            // would never run at all -- silently losing the per-chart filters instead of skipping
+            // them. Checking `!hasPerChartFilters` directly (independent of `hasFilters`) covers
+            // every case: grid=false, or grid=true with an empty/absent list.
+            for(WizDashboardEvent.PerChartFilterSpec spec : event.getPerChartFilters()) {
+               perChartFiltersSkipped.add(spec.getField());
+            }
          }
 
          WizUtil.saveWizSheet(rvs, principal, savedVsEntry,
@@ -264,6 +350,9 @@ public class WizDashboardService {
             result.setFiltersApplied(filterResult.applied());
             result.setFiltersSkipped(filterResult.skipped());
          }
+
+         result.setPerChartFiltersApplied(perChartFiltersApplied);
+         result.setPerChartFiltersSkipped(perChartFiltersSkipped);
 
          return result;
       }
@@ -326,6 +415,20 @@ public class WizDashboardService {
       return filterBuilder.build(vs, baseWs, reqs);
    }
 
+   /**
+    * Maps a single {@link WizDashboardEvent.PerChartFilterSpec} to a
+    * {@link WizDashboardFilterBuilder.FilterRequest} and delegates to
+    * {@link WizDashboardFilterBuilder#buildPerChart}. Package-visible seam for unit testing
+    * (mirrors {@link #applyFilters}), independent of the live-engine-only compose+save path.
+    */
+   boolean applyPerChartFilter(Viewsheet vs, Worksheet baseWs, WizDashboardEvent.PerChartFilterSpec spec,
+                               int x, int y, String chartTableName)
+   {
+      WizDashboardFilterBuilder.FilterRequest req =
+         new WizDashboardFilterBuilder.FilterRequest(spec.getField(), spec.getDataType(), spec.getLabel());
+      return filterBuilder.buildPerChart(vs, baseWs, x, y, req, chartTableName);
+   }
+
    /** Vertical row stride between successive merged visualizations, in pixels — used by both
     *  the single-column stack path and the grid path's row advance. */
    private static final int DASHBOARD_ROW_HEIGHT = 420;
@@ -338,49 +441,109 @@ public class WizDashboardService {
    /** Horizontal stride between grid columns, in pixels (paired with DASHBOARD_ROW_HEIGHT). */
    private static final int DASHBOARD_COL_WIDTH = 640;   // confirm vs composer default viz width
 
+   /** Spacing added between adjacent tiles, in pixels -- both horizontally (between columns)
+    *  and vertically (between rows), so tiles don't render flush against each other. Matches
+    *  {@link #CANVAS_MARGIN} for visual consistency. Applied unconditionally, independent of
+    *  {@code layoutColumns}. */
+   private static final int TILE_GUTTER = 24;
+
+   /** Left/top margin from the canvas edge, in pixels, applied uniformly to the filter bar and
+    *  every merged chart tile -- unmargined content rendered flush against the viewsheet edge.
+    *  Package-visible so {@link WizDashboardFilterBuilder} can align its own controls to it. */
+   static final int CANVAS_MARGIN = 24;
+
+   /** Ceiling on a merged chart's rendered width/height, in pixels, regardless of its tile's
+    *  column/row span -- without this, a full-width/full-height tile (e.g. 2 cols x 2 rows)
+    *  stretches to fill its entire reserved grid cell (1280x840), rendering far larger than a
+    *  normal single chart. The tile still RESERVES its full span for grid positioning (see
+    *  {@link #gridOrigin}); only the rendered chart size is capped, leaving a margin of unused
+    *  space inside an oversized cell rather than a stretched chart. */
+   private static final int MAX_TILE_WIDTH = 900;
+   private static final int MAX_TILE_HEIGHT = 600;
+
+   /** Extra row height reserved, in pixels, for a tile that has a per-chart filter -- additive
+    *  to (never counted against) {@link #MAX_TILE_HEIGHT}, so the chart's own rendered size is
+    *  untouched; only the tile grows to make room for the filter control above it. Matches
+    *  {@link #FILTER_BAR_ROW_HEIGHT} exactly: {@link WizDashboardFilterBuilder#buildPerChart}
+    *  sizes its control with the SAME {@code FILTER_CONTROL_HEIGHT} (100px) the shared filter
+    *  bar uses -- there is no smaller "compact" control variant -- so the same 20px margin
+    *  applies here too. */
+   private static final int PER_CHART_FILTER_ROW_HEIGHT = 120;
+
    /**
-    * Row-major grid origin for the tile at flat index {@code i}, given per-tile column AND row
-    * spans. Packing is still row-major/left-to-right/wrap-at-{@code layoutColumns} (identical
-    * grouping to the column-only overload below) — the only change is that each row's HEIGHT is
-    * now {@code max(spanRows)} among the tiles placed in it, instead of always
-    * {@code DASHBOARD_ROW_HEIGHT}. A tile's own Y depends only on the finalized height of every
-    * row strictly before it, and every such row is fully scanned (all its tiles' spanRows folded
-    * into that row's height, then closed out) before the loop reaches index {@code i} — so no
-    * 2D occupancy grid is needed; a tile with spanRows > 1 does not "block" cells in the row
-    * below for placement purposes (that would be true masonry/skyline packing, deliberately not
-    * implemented — see the Phase 4 design spec). Returns the (x,y) drop origin in pixels.
+    * The rendered pixel size for a tile spanning {@code spanCols} columns and {@code spanRows}
+    * rows: its natural span-based footprint ({@code spanCols * DASHBOARD_COL_WIDTH} by
+    * {@code spanRows * DASHBOARD_ROW_HEIGHT}), capped at {@link #MAX_TILE_WIDTH} by
+    * {@link #MAX_TILE_HEIGHT}. Package-private for unit testing (mirrors {@link #gridOrigin}).
+    */
+   static java.awt.Dimension tilePixelSize(int spanCols, int spanRows) {
+      int width = Math.min(spanCols * DASHBOARD_COL_WIDTH, MAX_TILE_WIDTH);
+      int height = Math.min(spanRows * DASHBOARD_ROW_HEIGHT, MAX_TILE_HEIGHT);
+      return new java.awt.Dimension(width, height);
+   }
+
+   /**
+    * Row-major grid origin for the tile at flat index {@code i}, given per-tile column spans,
+    * row spans, AND whether each tile has a per-chart filter (which adds
+    * {@link #PER_CHART_FILTER_ROW_HEIGHT} to that tile's contribution to its row's reserved
+    * height). This is the primary implementation; the two overloads below delegate to it with
+    * an implicit all-false {@code hasPerChartFilter}, so their behavior is unchanged by this
+    * parameter's addition.
+    *
+    * <p>Packing is still row-major/left-to-right/wrap-at-{@code layoutColumns} — each row's
+    * HEIGHT is {@code max} of the tiles placed in it's {@link #tilePixelSize} height (the same
+    * CAPPED height {@code composeDashboard} actually renders each chart at, plus
+    * {@link #PER_CHART_FILTER_ROW_HEIGHT} for any tile with a per-chart filter), instead of
+    * always {@code DASHBOARD_ROW_HEIGHT}. A tile's own Y depends only on the finalized height of
+    * every row strictly before it, and every such row is fully scanned (all its tiles' heights
+    * folded into that row's height, then closed out) before the loop reaches index {@code i} —
+    * so no 2D occupancy grid is needed; a tile with spanRows > 1 does not "block" cells in the
+    * row below for placement purposes (that would be true masonry/skyline packing, deliberately
+    * not implemented — see the Phase 4 design spec). Returns the (x,y) drop origin in pixels.
     * Package-private for unit testing.
     */
-   static java.awt.Point gridOrigin(int[] spanCols, int[] spanRows, int layoutColumns, int i) {
+   static java.awt.Point gridOrigin(int[] spanCols, int[] spanRows, boolean[] hasPerChartFilter,
+                                     int layoutColumns, int i)
+   {
       int col = 0;
       int cumulativeY = 0;
-      int rowHeight = 1;   // tallest spanRows seen so far in the CURRENT (still-open) row
+      int rowHeightPx = DASHBOARD_ROW_HEIGHT;   // tallest capped tile height seen so far in the CURRENT (still-open) row
 
       for(int k = 0; k <= i; k++) {
          int span = Math.max(1, Math.min(spanCols[k], layoutColumns));
-         int rspan = Math.max(1, spanRows[k]);
+         int tileHeightPx = tilePixelSize(spanCols[k], spanRows[k]).height +
+            (hasPerChartFilter[k] ? PER_CHART_FILTER_ROW_HEIGHT : 0);
 
          if(col + span > layoutColumns) {   // doesn't fit in the current row → close it out
-            cumulativeY += rowHeight * DASHBOARD_ROW_HEIGHT;
+            cumulativeY += rowHeightPx + TILE_GUTTER;
             col = 0;
-            rowHeight = 1;
+            rowHeightPx = DASHBOARD_ROW_HEIGHT;
          }
 
          if(k == i) {
-            return new java.awt.Point(col * DASHBOARD_COL_WIDTH, cumulativeY);
+            return new java.awt.Point(col * (DASHBOARD_COL_WIDTH + TILE_GUTTER), cumulativeY);
          }
 
-         rowHeight = Math.max(rowHeight, rspan);
+         rowHeightPx = Math.max(rowHeightPx, tileHeightPx);
          col += span;
 
          if(col >= layoutColumns) {   // row exactly full → close it out now
-            cumulativeY += rowHeight * DASHBOARD_ROW_HEIGHT;
+            cumulativeY += rowHeightPx + TILE_GUTTER;
             col = 0;
-            rowHeight = 1;
+            rowHeightPx = DASHBOARD_ROW_HEIGHT;
          }
       }
 
       return new java.awt.Point(0, 0);   // unreachable (i is always in range)
+   }
+
+   /**
+    * Back-compat overload for callers without per-chart filter data (implicit
+    * {@code hasPerChartFilter[k] == false} for every tile).
+    */
+   static java.awt.Point gridOrigin(int[] spanCols, int[] spanRows, int layoutColumns, int i) {
+      boolean[] noFilters = new boolean[spanCols.length];
+      return gridOrigin(spanCols, spanRows, noFilters, layoutColumns, i);
    }
 
    /**

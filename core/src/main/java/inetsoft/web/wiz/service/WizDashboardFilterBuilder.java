@@ -170,6 +170,39 @@ public class WizDashboardFilterBuilder {
    }
 
    /**
+    * Builds ONE selection/range control scoped to exactly one chart's own table, positioned at
+    * the given fixed point (the top of that chart's own tile). Unlike {@link #build}, there is
+    * no multi-table candidate search — the single {@code chartTableName} IS the candidate, so
+    * binding is unambiguous by construction (no residual name-collision risk across charts).
+    *
+    * @return {@code true} if the field was found on the chart's table and a control was added,
+    *         {@code false} if skipped (field not present on this chart's own table).
+    */
+   public boolean buildPerChart(Viewsheet vs, Worksheet baseWorksheet, int x, int y,
+                                 FilterRequest request, String chartTableName)
+   {
+      List<String> tables = AddFilterService.findColumnMatchingChartTables(
+         baseWorksheet, List.of(chartTableName), request.field());
+
+      if(tables.isEmpty()) {
+         return false;
+      }
+
+      ColumnRef colRef = AddFilterService.buildColumnRef(request.field(), request.dataType());
+      AbstractSelectionVSAssembly control = createControlForType(vs, request.dataType(), colRef);
+
+      if(request.label() != null && control instanceof TitledVSAssembly titled) {
+         titled.setTitleValue(request.label());
+      }
+
+      control.setTableNames(tables);
+      control.setPixelOffset(new Point(x, y));
+      control.setPixelSize(new java.awt.Dimension(FILTER_CONTROL_WIDTH, FILTER_CONTROL_HEIGHT));
+      vs.addAssembly(control);
+      return true;
+   }
+
+   /**
     * Collects each merged chart's own final bound table name (its {@code SourceInfo.source},
     * exposed via {@link BindableVSAssembly#getTableName()}) — the candidate set
     * {@link AddFilterService#findColumnMatchingChartTables} matches against, instead of every
@@ -201,8 +234,10 @@ public class WizDashboardFilterBuilder {
       return AddFilterService.createFilterAssembly(vs, dtype, (ColumnRef) colRef);
    }
 
-   private static final int FILTER_BAR_X = 0;
-   private static final int FILTER_BAR_Y = 0;
+   /** Matches {@link WizDashboardService#CANVAS_MARGIN} so the filter bar aligns with the left
+    *  edge of the chart grid below it, instead of sitting flush against the canvas edge. */
+   private static final int FILTER_BAR_X = WizDashboardService.CANVAS_MARGIN;
+   private static final int FILTER_BAR_Y = WizDashboardService.CANVAS_MARGIN;
    private static final int FILTER_CONTROL_WIDTH = 200;
 
    /** Control height, in pixels — leaves a small margin under

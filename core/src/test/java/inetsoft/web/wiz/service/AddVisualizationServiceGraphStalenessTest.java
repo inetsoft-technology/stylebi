@@ -42,6 +42,7 @@ import java.security.Principal;
 import java.util.HashMap;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -127,7 +128,7 @@ class AddVisualizationServiceGraphStalenessTest {
       AddVisualizationService service =
          new AddVisualizationService(vsService, assetRepository, wsMergeService, securityEngine);
 
-      service.addVisualization("rt-1", vizEntry, 0, 0, 1.0f, principal);
+      service.addVisualization("rt-1", vizEntry, 0, 0, 1.0f, null, principal);
 
       // The merged worksheet must be persisted, and dashVS's own cached base worksheet
       // repopulated from it, BEFORE the chart assembly is added -- otherwise the sandbox's
@@ -142,5 +143,50 @@ class AddVisualizationServiceGraphStalenessTest {
       // The merged chart must also have its cached VGraphPair invalidated -- defense in depth
       // for any graph cached from a prior merge into the same running dashboard.
       verify(box).clearGraph("Chart1");
+   }
+
+   @Test
+   void addVisualizationReturnsTheMergedChartsOwnTableName() throws Exception {
+      ViewsheetService vsService = mock(ViewsheetService.class);
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      WsMergeService wsMergeService = mock(WsMergeService.class);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      Principal principal = mock(Principal.class);
+
+      when(securityEngine.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
+
+      Viewsheet dashVS = new Viewsheet(null, true, false, null, null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(dashVS);
+      when(rvs.getEntry()).thenReturn(null);
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      when(vsService.getViewsheet(eq("rt-1"), eq(principal))).thenReturn(rvs);
+
+      AssetEntry vizWsEntry = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, "ws1", null);
+      Viewsheet vizVS = new Viewsheet(vizWsEntry);
+      ChartVSAssembly chart = new ChartVSAssembly(vizVS, "Chart1");
+      chart.setSourceInfo(new inetsoft.uql.asset.SourceInfo(inetsoft.uql.asset.SourceInfo.ASSET, null, "CHART_TABLE"));
+      vizVS.addAssembly(chart);
+
+      AssetEntry vizEntry = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "viz1", null);
+      when(assetRepository.getSheet(eq(vizEntry), eq(principal), eq(true), any(AssetContent.class)))
+         .thenReturn(vizVS);
+      Worksheet vizWS = new Worksheet();
+      when(assetRepository.getSheet(eq(vizWsEntry), eq(principal), eq(true), any(AssetContent.class)))
+         .thenReturn(vizWS);
+      when(assetRepository.getSheet(any(AssetEntry.class), isNull(), eq(false), any(AssetContent.class)))
+         .thenReturn(new Worksheet());
+      when(wsMergeService.mergeWorksheet(eq(vizWS), any(Worksheet.class), anyString(), any()))
+         .thenReturn(new HashMap<>());
+
+      AddVisualizationService service =
+         new AddVisualizationService(vsService, assetRepository, wsMergeService, securityEngine);
+
+      String tableName = service.addVisualization("rt-1", vizEntry, 0, 0, 1.0f, null, principal);
+
+      assertEquals("CHART_TABLE", tableName);
    }
 }
