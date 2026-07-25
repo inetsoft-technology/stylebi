@@ -74,24 +74,25 @@ public class AddVisualizationService {
     *                  whatever size it was saved at (the drag-and-drop composer path never
     *                  resizes).
     * @param principal the current user.
+    * @return the merged chart's own bound table name, or {@code null} if the merged assembly is
+    *         not a {@link ChartVSAssembly} or has no table name.
     */
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public Void addVisualization(@ClusterProxyKey String runtimeId,
-                                AssetEntry vizEntry,
-                                int xOffset, int yOffset, float scale,
-                                Dimension pixelSize,
-                                Principal principal)
+   public String addVisualization(@ClusterProxyKey String runtimeId,
+                                  AssetEntry vizEntry,
+                                  int xOffset, int yOffset, float scale,
+                                  Dimension pixelSize,
+                                  Principal principal)
       throws Exception
    {
-      doAddVisualization(runtimeId, vizEntry, xOffset, yOffset, scale, pixelSize, principal);
-      return null;
+      return doAddVisualization(runtimeId, vizEntry, xOffset, yOffset, scale, pixelSize, principal);
    }
 
-   private void doAddVisualization(String runtimeId,
-                                   AssetEntry vizEntry,
-                                   int xOffset, int yOffset, float scale,
-                                   Dimension pixelSize,
-                                   Principal principal)
+   private String doAddVisualization(String runtimeId,
+                                     AssetEntry vizEntry,
+                                     int xOffset, int yOffset, float scale,
+                                     Dimension pixelSize,
+                                     Principal principal)
       throws Exception
    {
       // Action-level gate ("Visual Composer -> Data Worksheet"): the wiz dashboard runtime
@@ -215,10 +216,12 @@ public class AddVisualizationService {
       dashVS.repopulateWorksheet(assetRepository, principal);
 
       // Step 2: merge viewsheet assemblies
-      mergeViewsheet(rvs, vizVS, dashVS, wsRenameMap, xOffset, yOffset, scale, pixelSize);
+      String mergedTableName = mergeViewsheet(rvs, vizVS, dashVS, wsRenameMap, xOffset, yOffset, scale, pixelSize);
 
       // Step 3: record merged visualization
       wizInfo.addMergedVisualization(vizEntry.toIdentifier());
+
+      return mergedTableName;
    }
 
    // ---------------------------------------------------------------------------
@@ -229,10 +232,17 @@ public class AddVisualizationService {
     * Copies all VSAssemblies from {@code vizVS} into {@code dashVS}, applying name-conflict
     * resolution, WS binding renames, and drop-position offsets.
     */
-   private void mergeViewsheet(RuntimeViewsheet rvs, Viewsheet vizVS, Viewsheet dashVS,
-                               Map<String, String> wsRenameMap,
-                               int xOffset, int yOffset, float scale,
-                               Dimension pixelSize)
+   /**
+    * @return the merged chart's own bound table name (see {@link ChartVSAssembly#getTableName()}),
+    *         or {@code null} if the visualization's single assembly isn't a chart or has no
+    *         table name. A saved visualization is always a single-assembly Viewsheet (see
+    *         WizVisualizationService's "Build new single-assembly ViewSheet" step), so at most
+    *         one cloned assembly in this method's loop is ever a chart.
+    */
+   private String mergeViewsheet(RuntimeViewsheet rvs, Viewsheet vizVS, Viewsheet dashVS,
+                                 Map<String, String> wsRenameMap,
+                                 int xOffset, int yOffset, float scale,
+                                 Dimension pixelSize)
    {
       if(scale <= 0f) {
          scale = 1f;
@@ -282,6 +292,8 @@ public class AddVisualizationService {
          clones.add(cloned);
       }
 
+      String mergedTableName = null;
+
       // Pass 2: patch references, apply offset, and add to dashVS
       for(VSAssembly cloned : clones) {
          // Patch WS table binding references
@@ -314,7 +326,13 @@ public class AddVisualizationService {
          // graph entry. Mirrors the same clearGraph-after-in-place-mutation pattern used by
          // WizAutoBindingService/WizVsService for other runtime mutations.
          rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(cloned.getName()));
+
+         if(cloned instanceof ChartVSAssembly chart) {
+            mergedTableName = chart.getTableName();
+         }
       }
+
+      return mergedTableName;
    }
 
    /**
