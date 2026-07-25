@@ -111,7 +111,7 @@ class WizDashboardServiceGridTest {
    void computeGridLayoutIncludesPerChartFilterHeightWhenStackingAndStretching() {
       // Same shape as computeGridLayoutStacksAShorterTileBesideATallOneAndStretchesTheShorterSide,
       // but C (the tile that stacks under A) has a per-chart filter, adding 120px to its height
-      // used for packing/stretch purposes -- exactly like gridOrigin already did.
+      // used for packing/stretch purposes -- exactly like the old gridOrigin used to.
       int[] spans =    { 1, 1, 1, 2 };
       int[] rowSpans = { 1, 2, 1, 1 };
       boolean[] hasFilter = { false, false, true, false };
@@ -148,8 +148,8 @@ class WizDashboardServiceGridTest {
    // viewsheet and merge worksheets (see WizDashboardServiceTest's class Javadoc), so the
    // filters[] -> WizDashboardFilterBuilder wiring is covered here instead via the
    // package-visible applyFilters(Viewsheet, Worksheet, List<FilterSpec>) seam, with a mocked
-   // WizDashboardFilterBuilder — mirroring how gridOrigin is unit-tested independent of a live
-   // engine.
+   // WizDashboardFilterBuilder — mirroring how computeGridLayout is unit-tested independent of a
+   // live engine.
 
    private WizDashboardService serviceWith(WizDashboardFilterBuilder filterBuilder) {
       return new WizDashboardService(mock(ViewsheetService.class), mock(AddVisualizationServiceProxy.class),
