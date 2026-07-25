@@ -358,6 +358,12 @@ public class WizDashboardService {
    private static final int MAX_TILE_WIDTH = 900;
    private static final int MAX_TILE_HEIGHT = 600;
 
+   /** Extra row height reserved, in pixels, for a tile that has a per-chart filter -- additive
+    *  to (never counted against) {@link #MAX_TILE_HEIGHT}, so the chart's own rendered size is
+    *  untouched; only the tile grows to make room for the filter control above it. A compact
+    *  single-line selection control plus a small margin. */
+   private static final int PER_CHART_FILTER_ROW_HEIGHT = 60;
+
    /**
     * The rendered pixel size for a tile spanning {@code spanCols} columns and {@code spanRows}
     * rows: its natural span-based footprint ({@code spanCols * DASHBOARD_COL_WIDTH} by
@@ -371,29 +377,36 @@ public class WizDashboardService {
    }
 
    /**
-    * Row-major grid origin for the tile at flat index {@code i}, given per-tile column AND row
-    * spans. Packing is still row-major/left-to-right/wrap-at-{@code layoutColumns} (identical
-    * grouping to the column-only overload below) — the only change is that each row's HEIGHT is
-    * now {@code max} of the tiles placed in it's {@link #tilePixelSize} height (the same CAPPED
-    * height {@code composeDashboard} actually renders each chart at), instead of always
-    * {@code DASHBOARD_ROW_HEIGHT}. Reserving the raw (uncapped) {@code spanRows * DASHBOARD_ROW_HEIGHT}
-    * here — while {@link #tilePixelSize} renders a shorter, capped chart — left a large dead gap
-    * between a capped tile and the row below it; reserving the same capped height eliminates it.
-    * A tile's own Y depends only on the finalized height of every row strictly before it, and
-    * every such row is fully scanned (all its tiles' heights folded into that row's height, then
-    * closed out) before the loop reaches index {@code i} — so no 2D occupancy grid is needed; a
-    * tile with spanRows > 1 does not "block" cells in the row below for placement purposes (that
-    * would be true masonry/skyline packing, deliberately not implemented — see the Phase 4 design
-    * spec). Returns the (x,y) drop origin in pixels. Package-private for unit testing.
+    * Row-major grid origin for the tile at flat index {@code i}, given per-tile column spans,
+    * row spans, AND whether each tile has a per-chart filter (which adds
+    * {@link #PER_CHART_FILTER_ROW_HEIGHT} to that tile's contribution to its row's reserved
+    * height). This is the primary implementation; the two overloads below delegate to it with
+    * an implicit all-false {@code hasPerChartFilter}, so their behavior is unchanged by this
+    * parameter's addition.
+    *
+    * <p>Packing is still row-major/left-to-right/wrap-at-{@code layoutColumns} — each row's
+    * HEIGHT is {@code max} of the tiles placed in it's {@link #tilePixelSize} height (the same
+    * CAPPED height {@code composeDashboard} actually renders each chart at, plus
+    * {@link #PER_CHART_FILTER_ROW_HEIGHT} for any tile with a per-chart filter), instead of
+    * always {@code DASHBOARD_ROW_HEIGHT}. A tile's own Y depends only on the finalized height of
+    * every row strictly before it, and every such row is fully scanned (all its tiles' heights
+    * folded into that row's height, then closed out) before the loop reaches index {@code i} —
+    * so no 2D occupancy grid is needed; a tile with spanRows > 1 does not "block" cells in the
+    * row below for placement purposes (that would be true masonry/skyline packing, deliberately
+    * not implemented — see the Phase 4 design spec). Returns the (x,y) drop origin in pixels.
+    * Package-private for unit testing.
     */
-   static java.awt.Point gridOrigin(int[] spanCols, int[] spanRows, int layoutColumns, int i) {
+   static java.awt.Point gridOrigin(int[] spanCols, int[] spanRows, boolean[] hasPerChartFilter,
+                                     int layoutColumns, int i)
+   {
       int col = 0;
       int cumulativeY = 0;
       int rowHeightPx = DASHBOARD_ROW_HEIGHT;   // tallest capped tile height seen so far in the CURRENT (still-open) row
 
       for(int k = 0; k <= i; k++) {
          int span = Math.max(1, Math.min(spanCols[k], layoutColumns));
-         int tileHeightPx = tilePixelSize(spanCols[k], spanRows[k]).height;
+         int tileHeightPx = tilePixelSize(spanCols[k], spanRows[k]).height +
+            (hasPerChartFilter[k] ? PER_CHART_FILTER_ROW_HEIGHT : 0);
 
          if(col + span > layoutColumns) {   // doesn't fit in the current row → close it out
             cumulativeY += rowHeightPx;
@@ -416,6 +429,15 @@ public class WizDashboardService {
       }
 
       return new java.awt.Point(0, 0);   // unreachable (i is always in range)
+   }
+
+   /**
+    * Back-compat overload for callers without per-chart filter data (implicit
+    * {@code hasPerChartFilter[k] == false} for every tile).
+    */
+   static java.awt.Point gridOrigin(int[] spanCols, int[] spanRows, int layoutColumns, int i) {
+      boolean[] noFilters = new boolean[spanCols.length];
+      return gridOrigin(spanCols, spanRows, noFilters, layoutColumns, i);
    }
 
    /**

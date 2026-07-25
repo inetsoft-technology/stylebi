@@ -105,6 +105,38 @@ class WizDashboardServiceGridTest {
    }
 
    @Test
+   void aTileWithAPerChartFilterReservesExtraRowHeight() {
+      int[] spans = { 2, 2 };       // two full-width tiles, one per row
+      int[] rowSpans = { 1, 1 };
+      boolean[] hasFilter = { true, false };   // only tile0 has a per-chart filter
+
+      // tile0's row reserves its normal height (H=420) PLUS PER_CHART_FILTER_ROW_HEIGHT (60).
+      assertEquals(new Point(0, H + 60),
+         WizDashboardService.gridOrigin(spans, rowSpans, hasFilter, 2, 1));
+   }
+
+   @Test
+   void rowHeightReservationTakesTheMaxAcrossTilesInTheRowIncludingPerChartFilterExtras() {
+      int[] spans =    { 1, 1, 2 };   // tile0, tile1 share row0 (1 col each); tile2 is full-width row1
+      int[] rowSpans = { 1, 1, 1 };
+      boolean[] hasFilter = { false, true, false };   // only tile1 (in row0) has a filter
+
+      // row0's height is max(tile0's H, tile1's H+60) = H+60, even though tile0 itself has none.
+      assertEquals(new Point(0, H + 60),
+         WizDashboardService.gridOrigin(spans, rowSpans, hasFilter, 2, 2));
+   }
+
+   @Test
+   void gridOriginFourArgOverloadIsUnaffectedByTheNewParameter() {
+      // Re-assert one of the existing mixed-height cases through the OLD 4-arg overload, proving
+      // it still delegates to an implicit all-false hasPerChartFilter and its behavior is
+      // byte-for-byte unchanged by this task.
+      int[] spans =    { 2, 2, 1, 1 };
+      int[] rowSpans = { 2, 1, 1, 1 };
+      assertEquals(new Point(0, 600 + H), WizDashboardService.gridOrigin(spans, rowSpans, 2, 2));
+   }
+
+   @Test
    void tilePixelSizeUsesTheNaturalSpanFootprintWhenUnderTheCap() {
       // 1x1 -> 640x420; well under the 900x600 cap.
       assertEquals(new java.awt.Dimension(W, H), WizDashboardService.tilePixelSize(1, 1));
