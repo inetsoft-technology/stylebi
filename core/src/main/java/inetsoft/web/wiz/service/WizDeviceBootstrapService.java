@@ -5,6 +5,7 @@ import inetsoft.uql.viewsheet.vslayout.DeviceRegistry;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 /**
@@ -13,8 +14,16 @@ import org.springframework.stereotype.Component;
  * every boot, so a rebuilt/reset environment never needs a manual setup step. Device profiles
  * are global/org-wide infrastructure ({@link DeviceRegistry}), not per-dashboard, so registration
  * happens once here rather than at dashboard-generation time.
+ *
+ * <p>{@code @Lazy(false)} is required: the app sets {@code spring.main.lazy-initialization: true}
+ * globally ({@code community/server/src/main/resources/application.yaml}), and nothing else in
+ * the codebase injects this bean, so without this annotation Spring never instantiates it and
+ * {@link #ensureDevicesRegistered()} never runs -- mirrors {@link inetsoft.web.ServerLifecycleService},
+ * the other {@code @PostConstruct}-only bootstrap bean in this codebase, which carries the same
+ * annotation for the same reason.
  */
 @Component
+@Lazy(false)
 public class WizDeviceBootstrapService {
    /** Width < 768px AND the client-reported mobile flag -- see {@link WizDashboardService}'s
     *  Mobile tier. */
