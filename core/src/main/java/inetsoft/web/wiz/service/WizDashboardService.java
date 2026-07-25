@@ -202,6 +202,7 @@ public class WizDashboardService {
          // name. Both are looked up after this loop when placing per-chart filters.
          java.util.Map<String, java.awt.Rectangle> tileBounds = new java.util.HashMap<>();
          java.util.Map<String, String> identifierToTableName = new java.util.HashMap<>();
+         java.util.Map<String, String> identifierToAssemblyName = new java.util.HashMap<>();
 
          int cumulativeY = topOffset;   // stack path only
 
@@ -243,7 +244,7 @@ public class WizDashboardService {
             java.awt.Dimension pixelSize = grid ? tilePixelSize(spans[i], rowSpans[i]) : null;
 
             try {
-               String mergedTableName = addVisualizationService.addVisualization(
+               AddVisualizationService.MergedVisualizationInfo mergedInfo = addVisualizationService.addVisualization(
                   runtimeId, entries.get(i), x, y, 1.0f, pixelSize, principal);
 
                if(grid) {
@@ -251,8 +252,12 @@ public class WizDashboardService {
                   tileBounds.put(identifiers.get(i),
                      new java.awt.Rectangle(x, tileTopY, pixelSize.width, tileHeight));
 
-                  if(mergedTableName != null) {
-                     identifierToTableName.put(identifiers.get(i), mergedTableName);
+                  if(mergedInfo.tableName() != null) {
+                     identifierToTableName.put(identifiers.get(i), mergedInfo.tableName());
+                  }
+
+                  if(mergedInfo.assemblyName() != null) {
+                     identifierToAssemblyName.put(identifiers.get(i), mergedInfo.assemblyName());
                   }
                }
 

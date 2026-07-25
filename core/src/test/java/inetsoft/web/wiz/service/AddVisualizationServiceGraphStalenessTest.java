@@ -43,6 +43,7 @@ import java.util.HashMap;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -146,7 +147,7 @@ class AddVisualizationServiceGraphStalenessTest {
    }
 
    @Test
-   void addVisualizationReturnsTheMergedChartsOwnTableName() throws Exception {
+   void addVisualizationReturnsTheMergedChartsOwnTableNameAndAssemblyName() throws Exception {
       ViewsheetService vsService = mock(ViewsheetService.class);
       AssetRepository assetRepository = mock(AssetRepository.class);
       WsMergeService wsMergeService = mock(WsMergeService.class);
@@ -185,8 +186,10 @@ class AddVisualizationServiceGraphStalenessTest {
       AddVisualizationService service =
          new AddVisualizationService(vsService, assetRepository, wsMergeService, securityEngine);
 
-      String tableName = service.addVisualization("rt-1", vizEntry, 0, 0, 1.0f, null, principal);
+      AddVisualizationService.MergedVisualizationInfo result =
+         service.addVisualization("rt-1", vizEntry, 0, 0, 1.0f, null, principal);
 
-      assertEquals("CHART_TABLE", tableName);
+      assertEquals("CHART_TABLE", result.tableName());
+      assertNotNull(result.assemblyName());
    }
 }
