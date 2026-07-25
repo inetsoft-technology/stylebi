@@ -30,6 +30,9 @@ import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.WizUtil;
+import inetsoft.uql.viewsheet.vslayout.LayoutInfo;
+import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
+import inetsoft.uql.viewsheet.vslayout.ViewsheetLayout;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.wiz.model.WizDashboardEvent;
@@ -345,6 +348,33 @@ public class WizDashboardService {
             }
          }
 
+         // Adaptive layouts are grid-only (mirroring the per-chart-filter and per-chart-filter-
+         // gutter features) and skip any dashboard with a per-chart filter -- see the plan's
+         // Global Constraints for why. Build them from the SAME identifiers/spans/assembly-name
+         // tracking the merge loop above already populated.
+         boolean hasPerChartFiltersRequested = event.getPerChartFilters() != null &&
+            !event.getPerChartFilters().isEmpty();
+
+         if(grid && !hasPerChartFiltersRequested) {
+            List<WizDashboardFilterBuilder.FilterControlPlacement> filterPlacements = new ArrayList<>();
+
+            if(filterResult != null) {
+               filterPlacements.addAll(filterResult.placements());
+            }
+
+            String[] assemblyNamesInOrder = identifiers.stream()
+               .map(identifierToAssemblyName::get)
+               .filter(java.util.Objects::nonNull)
+               .toArray(String[]::new);
+
+            if(assemblyNamesInOrder.length == identifiers.size()) {
+               LayoutInfo layoutInfo = new LayoutInfo();
+               layoutInfo.setViewsheetLayouts(
+                  buildAlternateLayouts(assemblyNamesInOrder, spans, rowSpans, topOffset, filterPlacements));
+               rvs.getViewsheet().setLayoutInfo(layoutInfo);
+            }
+         }
+
          WizUtil.saveWizSheet(rvs, principal, savedVsEntry,
             () -> viewsheetService.setViewsheet(rvs.getViewsheet(), savedVsEntry, principal, true, true));
 
@@ -562,6 +592,98 @@ public class WizDashboardService {
       int[] unitRowSpans = new int[spanCols.length];
       java.util.Arrays.fill(unitRowSpans, 1);
       return gridOrigin(spanCols, unitRowSpans, layoutColumns, i);
+   }
+
+   /** Compact tile size forced on every chart in the Mobile tier, ignoring its own type-based
+    *  span -- desktop tile constants (900x600 cap) are far too large for a phone screen. */
+   private static final int MOBILE_TILE_WIDTH = 350;
+   private static final int MOBILE_TILE_HEIGHT = 300;
+
+   /**
+    * Builds the Mobile/Wide/Ultrawide {@link ViewsheetLayout} variants for a composed dashboard,
+    * reusing the same {@link #gridOrigin}/{@link #tilePixelSize} math the base (default) layout
+    * already uses, computed for different column counts -- Mobile forces every chart to a fixed
+    * {@link #MOBILE_TILE_WIDTH}x{@link #MOBILE_TILE_HEIGHT} tile stacked vertically, ignoring its
+    * own span entirely.
+    *
+    * <p>Every chart AND every filter control (from {@code filterPlacements}, carried over
+    * UNCHANGED at its base position/size into all three tiers -- a deliberate scope limit, see
+    * the plan's Global Constraints) gets a {@link VSAssemblyLayout} entry in every returned
+    * layout: {@link AbstractLayout#apply} hides any assembly with no entry when a layout is
+    * selected, so omitting one here would make it vanish on that tier.
+    *
+    * <p>Callers must not invoke this for a dashboard with any per-chart filter (see Global
+    * Constraints) -- this method has no per-tile Y-shift logic for that case.
+    */
+   static List<ViewsheetLayout> buildAlternateLayouts(
+      String[] assemblyNames, int[] spanCols, int[] spanRows, int topOffset,
+      List<WizDashboardFilterBuilder.FilterControlPlacement> filterPlacements)
+   {
+      List<ViewsheetLayout> layouts = new ArrayList<>();
+      layouts.add(buildMobileLayout(assemblyNames, topOffset, filterPlacements));
+      layouts.add(buildGridTierLayout(assemblyNames, spanCols, spanRows, topOffset, filterPlacements,
+         3, WizDeviceBootstrapService.WIDE_DEVICE_ID));
+      layouts.add(buildGridTierLayout(assemblyNames, spanCols, spanRows, topOffset, filterPlacements,
+         4, WizDeviceBootstrapService.ULTRAWIDE_DEVICE_ID));
+      return layouts;
+   }
+
+   private static ViewsheetLayout buildMobileLayout(
+      String[] assemblyNames, int topOffset,
+      List<WizDashboardFilterBuilder.FilterControlPlacement> filterPlacements)
+   {
+      ViewsheetLayout layout = new ViewsheetLayout();
+      layout.setName("Mobile");
+      layout.setMobileOnly(true);
+      layout.setDeviceIds(new String[]{ WizDeviceBootstrapService.MOBILE_DEVICE_ID });
+
+      List<VSAssemblyLayout> assemblyLayouts = new ArrayList<>();
+      int y = topOffset + CANVAS_MARGIN;
+
+      for(String assemblyName : assemblyNames) {
+         assemblyLayouts.add(new VSAssemblyLayout(assemblyName, new java.awt.Point(CANVAS_MARGIN, y),
+            new java.awt.Dimension(MOBILE_TILE_WIDTH, MOBILE_TILE_HEIGHT)));
+         y += MOBILE_TILE_HEIGHT + TILE_GUTTER;
+      }
+
+      addFilterControlLayouts(assemblyLayouts, filterPlacements);
+      layout.setVSAssemblyLayouts(assemblyLayouts);
+      return layout;
+   }
+
+   private static ViewsheetLayout buildGridTierLayout(
+      String[] assemblyNames, int[] spanCols, int[] spanRows, int topOffset,
+      List<WizDashboardFilterBuilder.FilterControlPlacement> filterPlacements,
+      int layoutColumns, String deviceId)
+   {
+      ViewsheetLayout layout = new ViewsheetLayout();
+      layout.setName(deviceId);
+      layout.setMobileOnly(false);
+      layout.setDeviceIds(new String[]{ deviceId });
+
+      boolean[] noPerChartFilters = new boolean[assemblyNames.length];
+      List<VSAssemblyLayout> assemblyLayouts = new ArrayList<>();
+
+      for(int i = 0; i < assemblyNames.length; i++) {
+         java.awt.Point origin = gridOrigin(spanCols, spanRows, noPerChartFilters, layoutColumns, i);
+         java.awt.Dimension size = tilePixelSize(spanCols[i], spanRows[i]);
+         java.awt.Point pos = new java.awt.Point(origin.x + CANVAS_MARGIN, origin.y + topOffset + CANVAS_MARGIN);
+         assemblyLayouts.add(new VSAssemblyLayout(assemblyNames[i], pos, size));
+      }
+
+      addFilterControlLayouts(assemblyLayouts, filterPlacements);
+      layout.setVSAssemblyLayouts(assemblyLayouts);
+      return layout;
+   }
+
+   private static void addFilterControlLayouts(
+      List<VSAssemblyLayout> assemblyLayouts,
+      List<WizDashboardFilterBuilder.FilterControlPlacement> filterPlacements)
+   {
+      for(WizDashboardFilterBuilder.FilterControlPlacement placement : filterPlacements) {
+         assemblyLayouts.add(new VSAssemblyLayout(
+            placement.assemblyName(), placement.position(), placement.size()));
+      }
    }
 
    private final ViewsheetService viewsheetService;

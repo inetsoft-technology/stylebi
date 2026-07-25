@@ -22,6 +22,8 @@ import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.vslayout.ViewsheetLayout;
+import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
 import inetsoft.web.wiz.model.WizDashboardEvent;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -236,5 +238,92 @@ class WizDashboardServiceGridTest {
       verify(filterBuilder).buildPerChart(eq(vs), eq(baseWs), eq(100), eq(200),
          eq(new WizDashboardFilterBuilder.FilterRequest("Standalone", "string", "Standalone")),
          eq("CHART_TABLE"));
+   }
+
+   // --- Task 5: buildAlternateLayouts (Mobile/Wide/Ultrawide adaptive layouts) ----------------
+
+   @Test
+   void buildAlternateLayoutsProducesThreeTiersEachCoveringEveryChartAndFilterControl() {
+      String[] assemblyNames = { "Chart1", "Chart2" };
+      int[] spans = { 2, 1 };
+      int[] rowSpans = { 1, 1 };
+      List<WizDashboardFilterBuilder.FilterControlPlacement> filterPlacements = List.of(
+         new WizDashboardFilterBuilder.FilterControlPlacement("Selection1", new Point(24, 24),
+            new java.awt.Dimension(200, 100)));
+
+      List<ViewsheetLayout> layouts =
+         WizDashboardService.buildAlternateLayouts(assemblyNames, spans, rowSpans, 0, filterPlacements);
+
+      assertEquals(3, layouts.size());
+
+      for(ViewsheetLayout layout : layouts) {
+         // Every chart AND every filter control must have an entry, or AbstractLayout#apply
+         // hides it entirely when this layout is selected.
+         assertNotNull(layout.getVSAssemblyLayout("Chart1"));
+         assertNotNull(layout.getVSAssemblyLayout("Chart2"));
+         assertNotNull(layout.getVSAssemblyLayout("Selection1"));
+      }
+   }
+
+   @Test
+   void mobileTierForcesEveryChartToAFixedFullWidthTileIgnoringItsOwnSpan() {
+      String[] assemblyNames = { "Chart1", "Chart2" };
+      int[] spans = { 2, 1 };       // Chart1 is a 2-col-span type -- ignored on Mobile
+      int[] rowSpans = { 2, 1 };    // Chart1 is also a 2-row-span type -- ignored on Mobile
+      List<ViewsheetLayout> layouts =
+         WizDashboardService.buildAlternateLayouts(assemblyNames, spans, rowSpans, 0, List.of());
+
+      ViewsheetLayout mobile = layouts.stream()
+         .filter(l -> l.isMobileOnly())
+         .findFirst().orElseThrow();
+
+      VSAssemblyLayout chart1 = mobile.getVSAssemblyLayout("Chart1");
+      VSAssemblyLayout chart2 = mobile.getVSAssemblyLayout("Chart2");
+      assertEquals(new java.awt.Dimension(350, 300), chart1.getSize());
+      assertEquals(new java.awt.Dimension(350, 300), chart2.getSize());
+      // Stacked vertically: Chart1 at row 0, Chart2 at row 1 (300 + 24 gutter below it).
+      assertEquals(new Point(24, 24), chart1.getPosition());
+      assertEquals(new Point(24, 24 + 300 + 24), chart2.getPosition());
+   }
+
+   @Test
+   void wideAndUltrawideTiersAreNotMobileOnlyAndUseTheRequestedColumnCount() {
+      String[] assemblyNames = { "Chart1" };
+      int[] spans = { 1 };
+      int[] rowSpans = { 1 };
+      List<ViewsheetLayout> layouts =
+         WizDashboardService.buildAlternateLayouts(assemblyNames, spans, rowSpans, 0, List.of());
+
+      ViewsheetLayout wide = layouts.stream()
+         .filter(l -> java.util.Arrays.asList(l.getDeviceIds()).contains(WizDeviceBootstrapService.WIDE_DEVICE_ID))
+         .findFirst().orElseThrow();
+      ViewsheetLayout ultrawide = layouts.stream()
+         .filter(l -> java.util.Arrays.asList(l.getDeviceIds()).contains(WizDeviceBootstrapService.ULTRAWIDE_DEVICE_ID))
+         .findFirst().orElseThrow();
+
+      assertFalse(wide.isMobileOnly());
+      assertFalse(ultrawide.isMobileOnly());
+      // A single 1-col-span chart lands at the grid origin (0,0) regardless of column count.
+      assertEquals(new Point(24, 24), wide.getVSAssemblyLayout("Chart1").getPosition());
+      assertEquals(new Point(24, 24), ultrawide.getVSAssemblyLayout("Chart1").getPosition());
+   }
+
+   @Test
+   void carriesOverFilterControlPlacementsUnchangedIntoEveryTier() {
+      String[] assemblyNames = { "Chart1" };
+      int[] spans = { 1 };
+      int[] rowSpans = { 1 };
+      WizDashboardFilterBuilder.FilterControlPlacement placement =
+         new WizDashboardFilterBuilder.FilterControlPlacement("Selection1", new Point(24, 24),
+            new java.awt.Dimension(200, 100));
+
+      List<ViewsheetLayout> layouts =
+         WizDashboardService.buildAlternateLayouts(assemblyNames, spans, rowSpans, 0, List.of(placement));
+
+      for(ViewsheetLayout layout : layouts) {
+         VSAssemblyLayout controlLayout = layout.getVSAssemblyLayout("Selection1");
+         assertEquals(new Point(24, 24), controlLayout.getPosition());
+         assertEquals(new java.awt.Dimension(200, 100), controlLayout.getSize());
+      }
    }
 }
