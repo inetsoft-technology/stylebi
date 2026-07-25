@@ -79,12 +79,21 @@ public class WizDashboardEvent {
       this.filters = filters;
    }
 
+   public List<PerChartFilterSpec> getPerChartFilters() {
+      return perChartFilters;
+   }
+
+   public void setPerChartFilters(List<PerChartFilterSpec> perChartFilters) {
+      this.perChartFilters = perChartFilters;
+   }
+
    private String name;
    private List<String> identifiers;
    private String existingIdentifier;
    private List<TileSpec> tiles;
    private Integer layoutColumns;
    private List<FilterSpec> filters;
+   private List<PerChartFilterSpec> perChartFilters;
 
    /** A single tile's placement within the dashboard grid layout. */
    @JsonIgnoreProperties(ignoreUnknown = true)
@@ -145,6 +154,49 @@ public class WizDashboardEvent {
          this.label = label;
       }
 
+      private String field;
+      private String dataType;
+      private String label;
+   }
+
+   /** A single chart-scoped filter, identified by which saved chart it targets. This list is
+    *  sparse (NOT positional like {@link TileSpec}) — only charts that need one have an entry;
+    *  {@link #identifier} must match one of {@link WizDashboardEvent#getIdentifiers()}. */
+   @JsonIgnoreProperties(ignoreUnknown = true)
+   public static class PerChartFilterSpec {
+      public String getIdentifier() {
+         return identifier;
+      }
+
+      public void setIdentifier(String identifier) {
+         this.identifier = identifier;
+      }
+
+      public String getField() {
+         return field;
+      }
+
+      public void setField(String field) {
+         this.field = field;
+      }
+
+      public String getDataType() {
+         return dataType;
+      }
+
+      public void setDataType(String dataType) {
+         this.dataType = dataType;
+      }
+
+      public String getLabel() {
+         return label;
+      }
+
+      public void setLabel(String label) {
+         this.label = label;
+      }
+
+      private String identifier;
       private String field;
       private String dataType;
       private String label;

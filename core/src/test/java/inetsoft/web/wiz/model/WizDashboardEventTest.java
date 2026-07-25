@@ -74,4 +74,23 @@ class WizDashboardEventTest {
       assertEquals("date", ev.getFilters().get(1).getDataType());
       assertNull(ev.getFilters().get(1).getLabel());
    }
+
+   @Test
+   void deserializesPerChartFilters() throws Exception {
+      String json = "{\"name\":\"B\",\"identifiers\":[\"v1\",\"v2\"]," +
+         "\"perChartFilters\":[{\"identifier\":\"v2\",\"field\":\"Standalone\"," +
+         "\"dataType\":\"string\",\"label\":\"Standalone\"}]}";
+      WizDashboardEvent ev = mapper.readValue(json, WizDashboardEvent.class);
+      assertEquals(1, ev.getPerChartFilters().size());
+      assertEquals("v2", ev.getPerChartFilters().get(0).getIdentifier());
+      assertEquals("Standalone", ev.getPerChartFilters().get(0).getField());
+      assertEquals("string", ev.getPerChartFilters().get(0).getDataType());
+      assertEquals("Standalone", ev.getPerChartFilters().get(0).getLabel());
+   }
+
+   @Test
+   void toleratesAbsentPerChartFilters() throws Exception {
+      WizDashboardEvent ev = mapper.readValue("{\"name\":\"B\",\"identifiers\":[\"v1\"]}", WizDashboardEvent.class);
+      assertNull(ev.getPerChartFilters());
+   }
 }
