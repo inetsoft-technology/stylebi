@@ -214,6 +214,10 @@ public class WizDashboardService {
 
          for(int i = 0; i < entries.size(); i++) {
             int x, y, tileTopY;
+            // Declared here (rather than inside the `if(grid)` block below) so it's also in
+            // scope for the pixelSize computation further down, which needs placement.width()/
+            // height() regardless of which branch set x/y/tileTopY.
+            TilePlacement placement = grid ? placements.get(i) : null;
 
             if(grid) {
                // tiles[] and identifiers[] are consumed purely positionally below (spans[i]
@@ -228,7 +232,6 @@ public class WizDashboardService {
                      "in the same order as identifiers");
                }
 
-               TilePlacement placement = placements.get(i);
                x = placement.x() + CANVAS_MARGIN;
                tileTopY = placement.y() + topOffset + CANVAS_MARGIN;
                // The chart itself starts BELOW the reserved filter strip, if this tile has one --
@@ -247,7 +250,14 @@ public class WizDashboardService {
             // otherwise a tile's computed (spanCols, spanRows) only ever reserved grid drop-
             // position spacing and never resized the chart itself. The stack path has no
             // per-visualization span data, so it passes null and preserves the chart's saved size.
-            java.awt.Dimension pixelSize = grid ? tilePixelSize(spans[i], rowSpans[i]) : null;
+            // placement.height() includes the +PER_CHART_FILTER_ROW_HEIGHT reservation (and any
+            // stretch growth) -- subtract the filter reservation back out here so the CHART itself
+            // (not its tile's filter header strip) gets resized; any stretch growth survives this
+            // subtraction since it was added on top of the same base natural+filter height.
+            java.awt.Dimension pixelSize = grid ?
+               new java.awt.Dimension(placement.width(),
+                  placement.height() - (hasPerChartFilter[i] ? PER_CHART_FILTER_ROW_HEIGHT : 0)) :
+               null;
 
             try {
                AddVisualizationService.MergedVisualizationInfo mergedInfo = addVisualizationService.addVisualization(
