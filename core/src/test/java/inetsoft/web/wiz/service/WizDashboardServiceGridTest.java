@@ -47,141 +47,6 @@ class WizDashboardServiceGridTest {
    private static final int G = 24;    // TILE_GUTTER -- spacing added between adjacent tiles
 
    @Test
-   void twoUnitTilesFillRowThenWrap() {
-      int[] spans = { 1, 1, 1 };
-      assertEquals(new Point(0, 0),       WizDashboardService.gridOrigin(spans, 2, 0));
-      assertEquals(new Point(W + G, 0),   WizDashboardService.gridOrigin(spans, 2, 1));
-      assertEquals(new Point(0, H + G),   WizDashboardService.gridOrigin(spans, 2, 2)); // wrapped
-   }
-
-   @Test
-   void gridOriginAddsTileGutterBetweenAdjacentColumnsAndRows() {
-      int[] spans = { 1, 1, 1 };
-      // Same 3-tile wrap-at-2-columns layout as twoUnitTilesFillRowThenWrap, but asserting the
-      // gutter is present: tile1 starts G pixels further right than a flush W would put it, and
-      // the wrapped row starts G pixels further down than a flush H would put it.
-      assertEquals(new Point(0, 0),       WizDashboardService.gridOrigin(spans, 2, 0));
-      assertEquals(new Point(W + G, 0),   WizDashboardService.gridOrigin(spans, 2, 1));
-      assertEquals(new Point(0, H + G),   WizDashboardService.gridOrigin(spans, 2, 2));
-   }
-
-   @Test
-   void fullWidthTileTakesWholeRow() {
-      int[] spans = { 2, 1, 1 };   // tile0 spans both columns
-      assertEquals(new Point(0, 0),        WizDashboardService.gridOrigin(spans, 2, 0));
-      assertEquals(new Point(0, H + G),    WizDashboardService.gridOrigin(spans, 2, 1)); // pushed to row 2
-      assertEquals(new Point(W + G, H + G), WizDashboardService.gridOrigin(spans, 2, 2));
-   }
-
-   @Test
-   void unitTileAfterFullWidthStartsFreshRow() {
-      int[] spans = { 1, 2 };   // tile0 unit in row0 col0; tile1 full-width can't fit → row1
-      assertEquals(new Point(0, 0),     WizDashboardService.gridOrigin(spans, 2, 0));
-      assertEquals(new Point(0, H + G), WizDashboardService.gridOrigin(spans, 2, 1));
-   }
-
-   @Test
-   void tallTileReservesItsRowHeightForShorterNeighbors() {
-      int[] spans = { 2, 1, 1 };     // tile0: 2 cols wide; tile1, tile2: 1 col each
-      int[] rowSpans = { 2, 1, 1 };  // tile0: 2 ROWS tall; tile1, tile2: 1 row each
-
-      // tile0 (2x2) fills the whole row by itself (spanCols=2 == layoutColumns) -> row 0.
-      assertEquals(new Point(0, 0), WizDashboardService.gridOrigin(spans, rowSpans, 2, 0));
-      // tile1 and tile2 (1x1 each) wrap into what would be "row 1". tile0's reserved height is
-      // its CAPPED tilePixelSize height (2x2 -> 900x600, both dimensions over the 900x600 cap),
-      // not the raw 2*H=840 -- reserving the raw span height left a dead gap below a capped tile.
-      // Plus TILE_GUTTER between the two rows.
-      assertEquals(new Point(0, 600 + G),     WizDashboardService.gridOrigin(spans, rowSpans, 2, 1));
-      assertEquals(new Point(W + G, 600 + G), WizDashboardService.gridOrigin(spans, rowSpans, 2, 2));
-   }
-
-   @Test
-   void shortTileNextToTallTileSharesTheTallRowsHeightNotItsOwn() {
-      int[] spans = { 1, 1 };       // tile0 and tile1 share one row (1 col each, layoutColumns=2)
-      int[] rowSpans = { 2, 1 };    // tile0: 2 rows tall; tile1: 1 row tall
-
-      // Both are in the SAME row (col 0 and col 1), so both share row index 0 -> same Y.
-      assertEquals(new Point(0, 0),     WizDashboardService.gridOrigin(spans, rowSpans, 2, 0));
-      assertEquals(new Point(W + G, 0), WizDashboardService.gridOrigin(spans, rowSpans, 2, 1));
-   }
-
-   @Test
-   void threeRowsOfMixedHeightsCompoundCumulativeYCorrectly() {
-      // Row 0: one 2x2 tile (fills both columns, 2 rows tall) -> capped tilePixelSize height 600.
-      // Row 1: one 2x1 tile (fills both columns, 1 row tall) -> uncapped height 420 (== H).
-      // Row 2: two 1x1 tiles. TILE_GUTTER is added between each pair of consecutive rows.
-      int[] spans =    { 2, 2, 1, 1 };
-      int[] rowSpans = { 2, 1, 1, 1 };
-
-      assertEquals(new Point(0, 0),                     WizDashboardService.gridOrigin(spans, rowSpans, 2, 0));
-      assertEquals(new Point(0, 600 + G),               WizDashboardService.gridOrigin(spans, rowSpans, 2, 1));
-      assertEquals(new Point(0, 600 + G + H + G),       WizDashboardService.gridOrigin(spans, rowSpans, 2, 2));
-      assertEquals(new Point(W + G, 600 + G + H + G),   WizDashboardService.gridOrigin(spans, rowSpans, 2, 3));
-   }
-
-   @Test
-   void aTileWithAPerChartFilterReservesExtraRowHeight() {
-      int[] spans = { 2, 2 };       // two full-width tiles, one per row
-      int[] rowSpans = { 1, 1 };
-      boolean[] hasFilter = { true, false };   // only tile0 has a per-chart filter
-
-      // tile0's row reserves its normal height (H=420) PLUS PER_CHART_FILTER_ROW_HEIGHT (120),
-      // PLUS TILE_GUTTER before row1.
-      assertEquals(new Point(0, H + 120 + G),
-         WizDashboardService.gridOrigin(spans, rowSpans, hasFilter, 2, 1));
-   }
-
-   @Test
-   void rowHeightReservationTakesTheMaxAcrossTilesInTheRowIncludingPerChartFilterExtras() {
-      int[] spans =    { 1, 1, 2 };   // tile0, tile1 share row0 (1 col each); tile2 is full-width row1
-      int[] rowSpans = { 1, 1, 1 };
-      boolean[] hasFilter = { false, true, false };   // only tile1 (in row0) has a filter
-
-      // row0's height is max(tile0's H, tile1's H+120) = H+120, even though tile0 itself has none.
-      // Plus TILE_GUTTER before row1.
-      assertEquals(new Point(0, H + 120 + G),
-         WizDashboardService.gridOrigin(spans, rowSpans, hasFilter, 2, 2));
-   }
-
-   @Test
-   void gridOriginFourArgOverloadIsUnaffectedByTheNewParameter() {
-      // Re-assert one of the existing mixed-height cases through the OLD 4-arg overload, proving
-      // it still delegates to an implicit all-false hasPerChartFilter and its behavior is
-      // byte-for-byte unchanged by this task.
-      int[] spans =    { 2, 2, 1, 1 };
-      int[] rowSpans = { 2, 1, 1, 1 };
-      assertEquals(new Point(0, 600 + G + H + G), WizDashboardService.gridOrigin(spans, rowSpans, 2, 2));
-   }
-
-   @Test
-   void twoOversizedTilesPackIntoTheSameRowWhenTheirActualCappedWidthsFit() {
-      // Two 2-col-span tiles. At layoutColumns=2 each nominally-2-col tile would take a whole
-      // row by itself (see fullWidthTileTakesWholeRow) -- but at layoutColumns=3, the available
-      // row width (3*W + 2*G = 1968) comfortably fits both tiles' ACTUAL CAPPED widths (900 each,
-      // 1824 total incl. one gutter), even though their NOMINAL spans (2+2=4) would have exceeded
-      // 3 columns under the old column-unit model. This is the exact case that motivated this fix.
-      int[] spans = { 2, 2 };
-      int[] rowSpans = { 1, 1 };
-
-      assertEquals(new Point(0, 0),   WizDashboardService.gridOrigin(spans, rowSpans, 3, 0));
-      assertEquals(new Point(924, 0), WizDashboardService.gridOrigin(spans, rowSpans, 3, 1));
-   }
-
-   @Test
-   void oversizedTilesStillWrapWhenTheyGenuinelyDoNotFit() {
-      // Three 2-col-span tiles at layoutColumns=4 (available row width = 4*W + 3*G = 2632).
-      // Two tiles' actual capped widths fit (900 + 24 + 900 = 1824 <= 2632), but a third would
-      // need 1824 + 24 + 900 = 2748 > 2632 -- so it correctly wraps to a new row instead of being
-      // crammed in, proving the fix doesn't over-pack when there truly isn't room.
-      int[] spans = { 2, 2, 2 };
-      int[] rowSpans = { 1, 1, 1 };
-
-      assertEquals(new Point(0, 0),     WizDashboardService.gridOrigin(spans, rowSpans, 4, 0));
-      assertEquals(new Point(924, 0),   WizDashboardService.gridOrigin(spans, rowSpans, 4, 1));
-      assertEquals(new Point(0, H + G), WizDashboardService.gridOrigin(spans, rowSpans, 4, 2));
-   }
-
-   @Test
    void tilePixelSizeUsesTheNaturalSpanFootprintWhenUnderTheCap() {
       // 1x1 -> 640x420; well under the 900x600 cap.
       assertEquals(new java.awt.Dimension(W, H), WizDashboardService.tilePixelSize(1, 1));
@@ -416,6 +281,35 @@ class WizDashboardServiceGridTest {
       // A single 1-col-span chart lands at the grid origin (0,0) regardless of column count.
       assertEquals(new Point(24, 24), wide.getVSAssemblyLayout("Chart1").getPosition());
       assertEquals(new Point(24, 24), ultrawide.getVSAssemblyLayout("Chart1").getPosition());
+   }
+
+   @Test
+   void wideTierStacksAFourthChartUnderTheFirstAndStretchesTheOthersToMatch() {
+      // Same shape as computeGridLayoutOpensColumnsUntilRowWidthIsExhaustedThenStacksAndStretches
+      // TheOthers in WizDashboardServiceGridTest's packing tests: four 1x1-span charts at the Wide
+      // tier's layoutColumns=3.
+      String[] assemblyNames = { "Chart1", "Chart2", "Chart3", "Chart4" };
+      int[] spans =    { 1, 1, 1, 1 };
+      int[] rowSpans = { 1, 1, 1, 1 };
+
+      List<ViewsheetLayout> layouts =
+         WizDashboardService.buildAlternateLayouts(assemblyNames, spans, rowSpans, 0, List.of());
+
+      ViewsheetLayout wide = layouts.stream()
+         .filter(l -> java.util.Arrays.asList(l.getDeviceIds()).contains(WizDeviceBootstrapService.WIDE_DEVICE_ID))
+         .findFirst().orElseThrow();
+
+      assertEquals(new Point(24, 24), wide.getVSAssemblyLayout("Chart1").getPosition());
+      assertEquals(new java.awt.Dimension(640, 420), wide.getVSAssemblyLayout("Chart1").getSize());
+
+      assertEquals(new Point(688, 24), wide.getVSAssemblyLayout("Chart2").getPosition());
+      assertEquals(new java.awt.Dimension(640, 864), wide.getVSAssemblyLayout("Chart2").getSize());
+
+      assertEquals(new Point(1352, 24), wide.getVSAssemblyLayout("Chart3").getPosition());
+      assertEquals(new java.awt.Dimension(640, 864), wide.getVSAssemblyLayout("Chart3").getSize());
+
+      assertEquals(new Point(24, 468), wide.getVSAssemblyLayout("Chart4").getPosition());
+      assertEquals(new java.awt.Dimension(640, 420), wide.getVSAssemblyLayout("Chart4").getSize());
    }
 
    @Test
