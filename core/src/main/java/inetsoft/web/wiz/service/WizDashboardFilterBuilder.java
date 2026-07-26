@@ -108,7 +108,20 @@ import java.util.List;
 @Component
 public class WizDashboardFilterBuilder {
    public record FilterRequest(String field, String dataType, String label) {}
-   public record FilterResult(List<String> applied, List<String> skipped) {}
+
+   public record FilterResult(List<String> applied, List<String> skipped,
+                               List<FilterControlPlacement> placements) {
+      /** Compatibility constructor for existing callers/tests that only care about
+       *  applied/skipped (e.g. {@code WizDashboardServiceGridTest}'s
+       *  {@code applyFiltersMapsSpecsToFilterRequestsAndReturnsBuilderResult}, which constructs
+       *  a {@code FilterResult} directly as its mocked return value) -- defaults
+       *  {@code placements} to empty rather than requiring every such call site to be touched. */
+      public FilterResult(List<String> applied, List<String> skipped) {
+         this(applied, skipped, List.of());
+      }
+   }
+
+   public record FilterControlPlacement(String assemblyName, java.awt.Point position, java.awt.Dimension size) {}
 
    /**
     * Builds one selection control per request, binds it to each merged chart's own final bound
@@ -134,6 +147,7 @@ public class WizDashboardFilterBuilder {
    public FilterResult build(Viewsheet vs, Worksheet baseWorksheet, List<FilterRequest> requests) {
       List<String> applied = new ArrayList<>();
       List<String> skipped = new ArrayList<>();
+      List<FilterControlPlacement> placements = new ArrayList<>();
       int x = FILTER_BAR_X;
       int y = FILTER_BAR_Y;
       List<String> chartTableNames = mergedChartTableNames(vs);
@@ -154,19 +168,22 @@ public class WizDashboardFilterBuilder {
             titled.setTitleValue(req.label());
          }
 
+         Point pos = new Point(x, y);
+         java.awt.Dimension size = new java.awt.Dimension(FILTER_CONTROL_WIDTH, FILTER_CONTROL_HEIGHT);
          control.setTableNames(tables);
-         control.setPixelOffset(new Point(x, y));
+         control.setPixelOffset(pos);
          // Explicit compact size: SelectionList/TimeSlider's own default pixel size is not
          // reliably short, and WizDashboardService reserves only FILTER_BAR_ROW_HEIGHT (120px)
          // above the charts -- an oversized control here would visually collide with the first
          // chart row instead of leaving the intended small gap.
-         control.setPixelSize(new java.awt.Dimension(FILTER_CONTROL_WIDTH, FILTER_CONTROL_HEIGHT));
+         control.setPixelSize(size);
          vs.addAssembly(control);
          applied.add(req.field());
+         placements.add(new FilterControlPlacement(control.getName(), pos, size));
          x += FILTER_CONTROL_WIDTH;
       }
 
-      return new FilterResult(applied, skipped);
+      return new FilterResult(applied, skipped, placements);
    }
 
    /**
@@ -175,17 +192,18 @@ public class WizDashboardFilterBuilder {
     * no multi-table candidate search — the single {@code chartTableName} IS the candidate, so
     * binding is unambiguous by construction (no residual name-collision risk across charts).
     *
-    * @return {@code true} if the field was found on the chart's table and a control was added,
-    *         {@code false} if skipped (field not present on this chart's own table).
+    * @return the placement (assembly name/position/size) of the created control, if the field
+    *         was found on the chart's table and a control was added; {@code null} if skipped
+    *         (field not present on this chart's own table).
     */
-   public boolean buildPerChart(Viewsheet vs, Worksheet baseWorksheet, int x, int y,
-                                 FilterRequest request, String chartTableName)
+   public FilterControlPlacement buildPerChart(Viewsheet vs, Worksheet baseWorksheet, int x, int y,
+                                                FilterRequest request, String chartTableName)
    {
       List<String> tables = AddFilterService.findColumnMatchingChartTables(
          baseWorksheet, List.of(chartTableName), request.field());
 
       if(tables.isEmpty()) {
-         return false;
+         return null;
       }
 
       ColumnRef colRef = AddFilterService.buildColumnRef(request.field(), request.dataType());
@@ -195,11 +213,13 @@ public class WizDashboardFilterBuilder {
          titled.setTitleValue(request.label());
       }
 
+      Point pos = new Point(x, y);
+      java.awt.Dimension size = new java.awt.Dimension(FILTER_CONTROL_WIDTH, FILTER_CONTROL_HEIGHT);
       control.setTableNames(tables);
-      control.setPixelOffset(new Point(x, y));
-      control.setPixelSize(new java.awt.Dimension(FILTER_CONTROL_WIDTH, FILTER_CONTROL_HEIGHT));
+      control.setPixelOffset(pos);
+      control.setPixelSize(size);
       vs.addAssembly(control);
-      return true;
+      return new FilterControlPlacement(control.getName(), pos, size);
    }
 
    /**

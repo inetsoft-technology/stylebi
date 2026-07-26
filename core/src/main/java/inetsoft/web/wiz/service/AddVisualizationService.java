@@ -49,6 +49,12 @@ import java.util.List;
 @ClusterProxy
 public class AddVisualizationService {
 
+   /** Result of merging one visualization into the dashboard. {@code assemblyName} is the
+    *  merged chart's own name within the dashboard Viewsheet (used to build per-tier adaptive
+    *  layouts). {@code tableName} is the merged chart's own bound table name (used to scope
+    *  per-chart filters) -- {@code null} if the merged assembly isn't a {@link ChartVSAssembly}. */
+   public record MergedVisualizationInfo(String assemblyName, String tableName) {}
+
    public AddVisualizationService(ViewsheetService viewsheetService,
                                   AssetRepository assetRepository,
                                   WsMergeService wsMergeService,
@@ -74,11 +80,11 @@ public class AddVisualizationService {
     *                  whatever size it was saved at (the drag-and-drop composer path never
     *                  resizes).
     * @param principal the current user.
-    * @return the merged chart's own bound table name, or {@code null} if the merged assembly is
-    *         not a {@link ChartVSAssembly} or has no table name.
+    * @return the merged chart's own assembly name and bound table name (see
+    *         {@link MergedVisualizationInfo}).
     */
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public String addVisualization(@ClusterProxyKey String runtimeId,
+   public MergedVisualizationInfo addVisualization(@ClusterProxyKey String runtimeId,
                                   AssetEntry vizEntry,
                                   int xOffset, int yOffset, float scale,
                                   Dimension pixelSize,
@@ -88,7 +94,7 @@ public class AddVisualizationService {
       return doAddVisualization(runtimeId, vizEntry, xOffset, yOffset, scale, pixelSize, principal);
    }
 
-   private String doAddVisualization(String runtimeId,
+   private MergedVisualizationInfo doAddVisualization(String runtimeId,
                                      AssetEntry vizEntry,
                                      int xOffset, int yOffset, float scale,
                                      Dimension pixelSize,
@@ -216,12 +222,12 @@ public class AddVisualizationService {
       dashVS.repopulateWorksheet(assetRepository, principal);
 
       // Step 2: merge viewsheet assemblies
-      String mergedTableName = mergeViewsheet(rvs, vizVS, dashVS, wsRenameMap, xOffset, yOffset, scale, pixelSize);
+      MergedVisualizationInfo mergedInfo = mergeViewsheet(rvs, vizVS, dashVS, wsRenameMap, xOffset, yOffset, scale, pixelSize);
 
       // Step 3: record merged visualization
       wizInfo.addMergedVisualization(vizEntry.toIdentifier());
 
-      return mergedTableName;
+      return mergedInfo;
    }
 
    // ---------------------------------------------------------------------------
@@ -233,13 +239,14 @@ public class AddVisualizationService {
     * resolution, WS binding renames, and drop-position offsets.
     */
    /**
-    * @return the merged chart's own bound table name (see {@link ChartVSAssembly#getTableName()}),
-    *         or {@code null} if the visualization's single assembly isn't a chart or has no
-    *         table name. A saved visualization is always a single-assembly Viewsheet (see
-    *         WizVisualizationService's "Build new single-assembly ViewSheet" step), so at most
-    *         one cloned assembly in this method's loop is ever a chart.
+    * @return the merged chart's own assembly name and bound table name (see
+    *         {@link MergedVisualizationInfo}); {@code tableName} is {@code null} if the
+    *         visualization's single assembly isn't a chart or has no table name. A saved
+    *         visualization is always a single-assembly Viewsheet (see WizVisualizationService's
+    *         "Build new single-assembly ViewSheet" step), so at most one cloned assembly in this
+    *         method's loop is ever a chart.
     */
-   private String mergeViewsheet(RuntimeViewsheet rvs, Viewsheet vizVS, Viewsheet dashVS,
+   private MergedVisualizationInfo mergeViewsheet(RuntimeViewsheet rvs, Viewsheet vizVS, Viewsheet dashVS,
                                  Map<String, String> wsRenameMap,
                                  int xOffset, int yOffset, float scale,
                                  Dimension pixelSize)
@@ -293,6 +300,7 @@ public class AddVisualizationService {
       }
 
       String mergedTableName = null;
+      String mergedAssemblyName = null;
 
       // Pass 2: patch references, apply offset, and add to dashVS
       for(VSAssembly cloned : clones) {
@@ -326,13 +334,14 @@ public class AddVisualizationService {
          // graph entry. Mirrors the same clearGraph-after-in-place-mutation pattern used by
          // WizAutoBindingService/WizVsService for other runtime mutations.
          rvs.getViewsheetSandbox().ifPresent(box -> box.clearGraph(cloned.getName()));
+         mergedAssemblyName = cloned.getName();
 
          if(cloned instanceof ChartVSAssembly chart) {
             mergedTableName = chart.getTableName();
          }
       }
 
-      return mergedTableName;
+      return new MergedVisualizationInfo(mergedAssemblyName, mergedTableName);
    }
 
    /**

@@ -30,6 +30,9 @@ import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.WizUtil;
+import inetsoft.uql.viewsheet.vslayout.LayoutInfo;
+import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
+import inetsoft.uql.viewsheet.vslayout.ViewsheetLayout;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.wiz.model.WizDashboardEvent;
@@ -181,7 +184,7 @@ public class WizDashboardService {
          int topOffset = hasFilters ? FILTER_BAR_ROW_HEIGHT : 0;
 
          // Which tiles have a per-chart filter targeting them, keyed by identifier -- computed
-         // once, up front, so gridOrigin can factor extra row height into EVERY tile's
+         // once, up front, so computeGridLayout can factor extra row height into EVERY tile's
          // reservation (not just the ones with a filter), and so the merge loop below can look
          // up "does THIS tile need extra height" by flat index without re-deriving it each time.
          boolean[] hasPerChartFilter = new boolean[entries.size()];
@@ -202,11 +205,19 @@ public class WizDashboardService {
          // name. Both are looked up after this loop when placing per-chart filters.
          java.util.Map<String, java.awt.Rectangle> tileBounds = new java.util.HashMap<>();
          java.util.Map<String, String> identifierToTableName = new java.util.HashMap<>();
+         java.util.Map<String, String> identifierToAssemblyName = new java.util.HashMap<>();
+
+         List<TilePlacement> placements =
+            grid ? computeGridLayout(spans, rowSpans, hasPerChartFilter, layoutColumns) : null;
 
          int cumulativeY = topOffset;   // stack path only
 
          for(int i = 0; i < entries.size(); i++) {
             int x, y, tileTopY;
+            // Declared here (rather than inside the `if(grid)` block below) so it's also in
+            // scope for the pixelSize computation further down, which needs placement.width()/
+            // height() regardless of which branch set x/y/tileTopY.
+            TilePlacement placement = grid ? placements.get(i) : null;
 
             if(grid) {
                // tiles[] and identifiers[] are consumed purely positionally below (spans[i]
@@ -221,11 +232,10 @@ public class WizDashboardService {
                      "in the same order as identifiers");
                }
 
-               java.awt.Point origin = gridOrigin(spans, rowSpans, hasPerChartFilter, layoutColumns, i);
-               x = origin.x + CANVAS_MARGIN;
-               tileTopY = origin.y + topOffset + CANVAS_MARGIN;
+               x = placement.x() + CANVAS_MARGIN;
+               tileTopY = placement.y() + topOffset + CANVAS_MARGIN;
                // The chart itself starts BELOW the reserved filter strip, if this tile has one --
-               // the tile's own reserved footprint (computed via gridOrigin above) already
+               // the tile's own reserved footprint (computed via computeGridLayout above) already
                // accounts for that extra height, so this only affects where the CHART renders
                // within it, not how much space the tile as a whole takes.
                y = tileTopY + (hasPerChartFilter[i] ? PER_CHART_FILTER_ROW_HEIGHT : 0);
@@ -240,10 +250,17 @@ public class WizDashboardService {
             // otherwise a tile's computed (spanCols, spanRows) only ever reserved grid drop-
             // position spacing and never resized the chart itself. The stack path has no
             // per-visualization span data, so it passes null and preserves the chart's saved size.
-            java.awt.Dimension pixelSize = grid ? tilePixelSize(spans[i], rowSpans[i]) : null;
+            // placement.height() includes the +PER_CHART_FILTER_ROW_HEIGHT reservation (and any
+            // stretch growth) -- subtract the filter reservation back out here so the CHART itself
+            // (not its tile's filter header strip) gets resized; any stretch growth survives this
+            // subtraction since it was added on top of the same base natural+filter height.
+            java.awt.Dimension pixelSize = grid ?
+               new java.awt.Dimension(placement.width(),
+                  placement.height() - (hasPerChartFilter[i] ? PER_CHART_FILTER_ROW_HEIGHT : 0)) :
+               null;
 
             try {
-               String mergedTableName = addVisualizationService.addVisualization(
+               AddVisualizationService.MergedVisualizationInfo mergedInfo = addVisualizationService.addVisualization(
                   runtimeId, entries.get(i), x, y, 1.0f, pixelSize, principal);
 
                if(grid) {
@@ -251,8 +268,12 @@ public class WizDashboardService {
                   tileBounds.put(identifiers.get(i),
                      new java.awt.Rectangle(x, tileTopY, pixelSize.width, tileHeight));
 
-                  if(mergedTableName != null) {
-                     identifierToTableName.put(identifiers.get(i), mergedTableName);
+                  if(mergedInfo.tableName() != null) {
+                     identifierToTableName.put(identifiers.get(i), mergedInfo.tableName());
+                  }
+
+                  if(mergedInfo.assemblyName() != null) {
+                     identifierToAssemblyName.put(identifiers.get(i), mergedInfo.assemblyName());
                   }
                }
 
@@ -314,9 +335,10 @@ public class WizDashboardService {
                      continue;
                   }
 
-                  boolean applied = applyPerChartFilter(vs, baseWs, spec, bounds.x, bounds.y, tableName);
+                  WizDashboardFilterBuilder.FilterControlPlacement placement =
+                     applyPerChartFilter(vs, baseWs, spec, bounds.x, bounds.y, tableName);
 
-                  if(applied) {
+                  if(placement != null) {
                      perChartFiltersApplied.add(spec.getField());
                   }
                   else {
@@ -336,6 +358,33 @@ public class WizDashboardService {
             // every case: grid=false, or grid=true with an empty/absent list.
             for(WizDashboardEvent.PerChartFilterSpec spec : event.getPerChartFilters()) {
                perChartFiltersSkipped.add(spec.getField());
+            }
+         }
+
+         // Adaptive layouts are grid-only (mirroring the per-chart-filter and per-chart-filter-
+         // gutter features) and skip any dashboard with a per-chart filter -- see the plan's
+         // Global Constraints for why. Build them from the SAME identifiers/spans/assembly-name
+         // tracking the merge loop above already populated.
+         boolean hasPerChartFiltersRequested = event.getPerChartFilters() != null &&
+            !event.getPerChartFilters().isEmpty();
+
+         if(grid && !hasPerChartFiltersRequested) {
+            List<WizDashboardFilterBuilder.FilterControlPlacement> filterPlacements = new ArrayList<>();
+
+            if(filterResult != null) {
+               filterPlacements.addAll(filterResult.placements());
+            }
+
+            String[] assemblyNamesInOrder = identifiers.stream()
+               .map(identifierToAssemblyName::get)
+               .filter(java.util.Objects::nonNull)
+               .toArray(String[]::new);
+
+            if(assemblyNamesInOrder.length == identifiers.size()) {
+               LayoutInfo layoutInfo = new LayoutInfo();
+               layoutInfo.setViewsheetLayouts(
+                  buildAlternateLayouts(assemblyNamesInOrder, spans, rowSpans, topOffset, filterPlacements));
+               rvs.getViewsheet().setLayoutInfo(layoutInfo);
             }
          }
 
@@ -402,7 +451,7 @@ public class WizDashboardService {
     * entry — see {@link WizDashboardFilterBuilder}'s class Javadoc). This method does not load
     * or reload the worksheet itself.</p>
     *
-    * <p>Package-private seam for unit testing (mirrors {@link #gridOrigin}) — lets
+    * <p>Package-private seam for unit testing (mirrors {@link #computeGridLayout}) — lets
     * {@link WizDashboardServiceGridTest} exercise the mapping/delegation with a mocked
     * {@link WizDashboardFilterBuilder}, independent of the live-engine-only compose+save path.
     */
@@ -421,8 +470,9 @@ public class WizDashboardService {
     * {@link WizDashboardFilterBuilder#buildPerChart}. Package-visible seam for unit testing
     * (mirrors {@link #applyFilters}), independent of the live-engine-only compose+save path.
     */
-   boolean applyPerChartFilter(Viewsheet vs, Worksheet baseWs, WizDashboardEvent.PerChartFilterSpec spec,
-                               int x, int y, String chartTableName)
+   WizDashboardFilterBuilder.FilterControlPlacement applyPerChartFilter(
+      Viewsheet vs, Worksheet baseWs, WizDashboardEvent.PerChartFilterSpec spec,
+      int x, int y, String chartTableName)
    {
       WizDashboardFilterBuilder.FilterRequest req =
          new WizDashboardFilterBuilder.FilterRequest(spec.getField(), spec.getDataType(), spec.getLabel());
@@ -456,8 +506,8 @@ public class WizDashboardService {
     *  column/row span -- without this, a full-width/full-height tile (e.g. 2 cols x 2 rows)
     *  stretches to fill its entire reserved grid cell (1280x840), rendering far larger than a
     *  normal single chart. The tile still RESERVES its full span for grid positioning (see
-    *  {@link #gridOrigin}); only the rendered chart size is capped, leaving a margin of unused
-    *  space inside an oversized cell rather than a stretched chart. */
+    *  {@link #computeGridLayout}); only the rendered chart size is capped, leaving a margin of
+    *  unused space inside an oversized cell rather than a stretched chart. */
    private static final int MAX_TILE_WIDTH = 900;
    private static final int MAX_TILE_HEIGHT = 600;
 
@@ -474,7 +524,7 @@ public class WizDashboardService {
     * The rendered pixel size for a tile spanning {@code spanCols} columns and {@code spanRows}
     * rows: its natural span-based footprint ({@code spanCols * DASHBOARD_COL_WIDTH} by
     * {@code spanRows * DASHBOARD_ROW_HEIGHT}), capped at {@link #MAX_TILE_WIDTH} by
-    * {@link #MAX_TILE_HEIGHT}. Package-private for unit testing (mirrors {@link #gridOrigin}).
+    * {@link #MAX_TILE_HEIGHT}. Package-private for unit testing (mirrors {@link #computeGridLayout}).
     */
    static java.awt.Dimension tilePixelSize(int spanCols, int spanRows) {
       int width = Math.min(spanCols * DASHBOARD_COL_WIDTH, MAX_TILE_WIDTH);
@@ -483,78 +533,236 @@ public class WizDashboardService {
    }
 
    /**
-    * Row-major grid origin for the tile at flat index {@code i}, given per-tile column spans,
-    * row spans, AND whether each tile has a per-chart filter (which adds
-    * {@link #PER_CHART_FILTER_ROW_HEIGHT} to that tile's contribution to its row's reserved
-    * height). This is the primary implementation; the two overloads below delegate to it with
-    * an implicit all-false {@code hasPerChartFilter}, so their behavior is unchanged by this
-    * parameter's addition.
-    *
-    * <p>Packing is still row-major/left-to-right/wrap-at-{@code layoutColumns} — each row's
-    * HEIGHT is {@code max} of the tiles placed in it's {@link #tilePixelSize} height (the same
-    * CAPPED height {@code composeDashboard} actually renders each chart at, plus
-    * {@link #PER_CHART_FILTER_ROW_HEIGHT} for any tile with a per-chart filter), instead of
-    * always {@code DASHBOARD_ROW_HEIGHT}. A tile's own Y depends only on the finalized height of
-    * every row strictly before it, and every such row is fully scanned (all its tiles' heights
-    * folded into that row's height, then closed out) before the loop reaches index {@code i} —
-    * so no 2D occupancy grid is needed; a tile with spanRows > 1 does not "block" cells in the
-    * row below for placement purposes (that would be true masonry/skyline packing, deliberately
-    * not implemented — see the Phase 4 design spec). Returns the (x,y) drop origin in pixels.
-    * Package-private for unit testing.
+    * The (x, y, width, height) footprint assigned to a tile by {@link #computeGridLayout}. Height
+    * may be larger than the tile's own natural {@link #tilePixelSize} height if the stretch pass
+    * grew it to match a taller neighbor sharing its band -- see the design spec's Stretch pass
+    * section (docs/superpowers/specs/2026-07-25-dashboard-2d-grid-packing-design.md, in the
+    * stylebi-wiz repo). Package-private for unit testing.
     */
-   static java.awt.Point gridOrigin(int[] spanCols, int[] spanRows, boolean[] hasPerChartFilter,
-                                     int layoutColumns, int i)
+   record TilePlacement(int x, int y, int width, int height) {}
+
+   /**
+    * Tracks one open column within the CURRENT (still-open) band during
+    * {@link #computeGridLayout}'s single pass: its fixed x-position and slot width (set by
+    * whichever tile first opened it), the indices (into the tiles arrays) of every tile stacked
+    * into it so far in order, and its running content height (columnY) -- the y-offset, relative
+    * to the band's top, where the NEXT tile stacked into this column would start.
+    */
+   private static final class Column {
+      final int x;
+      final int slotWidth;
+      final List<Integer> tileIndices = new ArrayList<>();
+      int columnY;
+
+      Column(int x, int slotWidth) {
+         this.x = x;
+         this.slotWidth = slotWidth;
+      }
+   }
+
+   /**
+    * Computes every tile's final (x, y, width, height) footprint in one pass, per the
+    * shelf-skyline algorithm in
+    * docs/superpowers/specs/2026-07-25-dashboard-2d-grid-packing-design.md (stylebi-wiz repo):
+    * tiles are processed once, in the given order, into a sequence of bands. Within a band, each
+    * tile first tries to open a new column to the right (same width check the old row-major
+    * packer used); failing that, it stacks into whichever existing column in the band is wide
+    * enough for it and has the least accumulated height so far (no height ceiling -- a stacked
+    * column may end up taller than its siblings, which the stretch pass corrects for); failing
+    * that too (no open column is wide enough), the band closes, every column shorter than the
+    * band's tallest has its LAST tile stretched to close the gap, and a fresh band starts with
+    * this tile as its first column. Replaces the old per-tile-index row-major packer, which could
+    * not support the stretch pass (whether tile i stretches depends on later tiles that might
+    * still join its column, and on the band's eventual final height -- neither knowable from a
+    * partial replay).
+    *
+    * <p>Package-private for unit testing.
+    */
+   static List<TilePlacement> computeGridLayout(
+      int[] spanCols, int[] spanRows, boolean[] hasPerChartFilter, int layoutColumns)
    {
-      int col = 0;
+      int n = spanCols.length;
+      TilePlacement[] result = new TilePlacement[n];
+      int availableRowWidth = layoutColumns * DASHBOARD_COL_WIDTH + (layoutColumns - 1) * TILE_GUTTER;
+
       int cumulativeY = 0;
-      int rowHeightPx = DASHBOARD_ROW_HEIGHT;   // tallest capped tile height seen so far in the CURRENT (still-open) row
+      List<Column> band = new ArrayList<>();
+      int rowWidthUsed = 0;
 
-      for(int k = 0; k <= i; k++) {
-         int span = Math.max(1, Math.min(spanCols[k], layoutColumns));
-         int tileHeightPx = tilePixelSize(spanCols[k], spanRows[k]).height +
-            (hasPerChartFilter[k] ? PER_CHART_FILTER_ROW_HEIGHT : 0);
+      for(int k = 0; k < n; k++) {
+         java.awt.Dimension natural = tilePixelSize(spanCols[k], spanRows[k]);
+         int tileWidth = natural.width;
+         int tileHeight = natural.height + (hasPerChartFilter[k] ? PER_CHART_FILTER_ROW_HEIGHT : 0);
+         int neededWidthForNewColumn =
+            rowWidthUsed == 0 ? tileWidth : rowWidthUsed + TILE_GUTTER + tileWidth;
 
-         if(col + span > layoutColumns) {   // doesn't fit in the current row → close it out
-            cumulativeY += rowHeightPx + TILE_GUTTER;
-            col = 0;
-            rowHeightPx = DASHBOARD_ROW_HEIGHT;
+         if(neededWidthForNewColumn <= availableRowWidth) {
+            int x = rowWidthUsed == 0 ? 0 : rowWidthUsed + TILE_GUTTER;
+            Column column = new Column(x, tileWidth);
+            column.tileIndices.add(k);
+            column.columnY = tileHeight;
+            band.add(column);
+            result[k] = new TilePlacement(x, cumulativeY, tileWidth, tileHeight);
+            rowWidthUsed = x + tileWidth;
+            continue;
          }
 
-         if(k == i) {
-            return new java.awt.Point(col * (DASHBOARD_COL_WIDTH + TILE_GUTTER), cumulativeY);
+         Column target = null;
+
+         for(Column column : band) {
+            if(column.slotWidth >= tileWidth && (target == null || column.columnY < target.columnY)) {
+               target = column;
+            }
          }
 
-         rowHeightPx = Math.max(rowHeightPx, tileHeightPx);
-         col += span;
-
-         if(col >= layoutColumns) {   // row exactly full → close it out now
-            cumulativeY += rowHeightPx + TILE_GUTTER;
-            col = 0;
-            rowHeightPx = DASHBOARD_ROW_HEIGHT;
+         if(target != null) {
+            int y = cumulativeY + target.columnY + TILE_GUTTER;
+            target.tileIndices.add(k);
+            target.columnY += TILE_GUTTER + tileHeight;
+            result[k] = new TilePlacement(target.x, y, tileWidth, tileHeight);
+            continue;
          }
+
+         closeBand(band, result);
+         int bandHeight = band.stream().mapToInt(c -> c.columnY).max().orElse(0);
+         cumulativeY += bandHeight + TILE_GUTTER;
+         band = new ArrayList<>();
+         rowWidthUsed = 0;
+
+         Column column = new Column(0, tileWidth);
+         column.tileIndices.add(k);
+         column.columnY = tileHeight;
+         band.add(column);
+         result[k] = new TilePlacement(0, cumulativeY, tileWidth, tileHeight);
+         rowWidthUsed = tileWidth;
       }
 
-      return new java.awt.Point(0, 0);   // unreachable (i is always in range)
+      closeBand(band, result);
+
+      return java.util.Arrays.asList(result);
    }
 
    /**
-    * Back-compat overload for callers without per-chart filter data (implicit
-    * {@code hasPerChartFilter[k] == false} for every tile).
+    * Stretch pass: for every column in the closing band shorter than the band's tallest column,
+    * grows the LAST tile placed in that column so its rendered height closes the gap. Never
+    * shrinks a tile.
     */
-   static java.awt.Point gridOrigin(int[] spanCols, int[] spanRows, int layoutColumns, int i) {
-      boolean[] noFilters = new boolean[spanCols.length];
-      return gridOrigin(spanCols, spanRows, noFilters, layoutColumns, i);
+   private static void closeBand(List<Column> band, TilePlacement[] result) {
+      int bandHeight = band.stream().mapToInt(c -> c.columnY).max().orElse(0);
+
+      for(Column column : band) {
+         int shortfall = bandHeight - column.columnY;
+
+         if(shortfall > 0) {
+            int lastTileIndex = column.tileIndices.get(column.tileIndices.size() - 1);
+            TilePlacement old = result[lastTileIndex];
+            result[lastTileIndex] =
+               new TilePlacement(old.x(), old.y(), old.width(), old.height() + shortfall);
+         }
+      }
    }
 
+   /** Compact tile size forced on every chart in the Mobile tier, ignoring its own type-based
+    *  span -- desktop tile constants (900x600 cap) are far too large for a phone screen. */
+   private static final int MOBILE_TILE_WIDTH = 350;
+   private static final int MOBILE_TILE_HEIGHT = 300;
+
    /**
-    * Back-compat overload for callers with only column spans (implicit {@code spanRows[k] == 1}
-    * for every tile — i.e. every row is exactly {@code DASHBOARD_ROW_HEIGHT}, matching Phase 2's
-    * original behavior exactly).
+    * Builds the Mobile/Wide/Ultrawide {@link ViewsheetLayout} variants for a composed dashboard,
+    * reusing the same {@link #computeGridLayout}/{@link #tilePixelSize} math the base (default)
+    * layout already uses, computed for different column counts -- Mobile forces every chart to a fixed
+    * {@link #MOBILE_TILE_WIDTH}x{@link #MOBILE_TILE_HEIGHT} tile stacked vertically, ignoring its
+    * own span entirely.
+    *
+    * <p>Every chart AND every filter control (from {@code filterPlacements}, carried over
+    * UNCHANGED at its base position/size into all three tiers -- a deliberate scope limit, see
+    * the plan's Global Constraints) gets a {@link VSAssemblyLayout} entry in every returned
+    * layout: {@link AbstractLayout#apply} hides any assembly with no entry when a layout is
+    * selected, so omitting one here would make it vanish on that tier.
+    *
+    * <p>Callers must not invoke this for a dashboard with any per-chart filter (see Global
+    * Constraints) -- this method has no per-tile Y-shift logic for that case.
     */
-   static java.awt.Point gridOrigin(int[] spanCols, int layoutColumns, int i) {
-      int[] unitRowSpans = new int[spanCols.length];
-      java.util.Arrays.fill(unitRowSpans, 1);
-      return gridOrigin(spanCols, unitRowSpans, layoutColumns, i);
+   static List<ViewsheetLayout> buildAlternateLayouts(
+      String[] assemblyNames, int[] spanCols, int[] spanRows, int topOffset,
+      List<WizDashboardFilterBuilder.FilterControlPlacement> filterPlacements)
+   {
+      List<ViewsheetLayout> layouts = new ArrayList<>();
+      layouts.add(buildMobileLayout(assemblyNames, topOffset, filterPlacements));
+      layouts.add(buildGridTierLayout(assemblyNames, spanCols, spanRows, topOffset, filterPlacements,
+         3, WizDeviceBootstrapService.WIDE_DEVICE_ID));
+      layouts.add(buildGridTierLayout(assemblyNames, spanCols, spanRows, topOffset, filterPlacements,
+         4, WizDeviceBootstrapService.ULTRAWIDE_DEVICE_ID));
+      return layouts;
+   }
+
+   private static ViewsheetLayout buildMobileLayout(
+      String[] assemblyNames, int topOffset,
+      List<WizDashboardFilterBuilder.FilterControlPlacement> filterPlacements)
+   {
+      ViewsheetLayout layout = new ViewsheetLayout();
+      layout.setName("Mobile");
+      layout.setMobileOnly(true);
+      layout.setDeviceIds(new String[]{ WizDeviceBootstrapService.MOBILE_DEVICE_ID });
+      // ViewsheetLayout defaults both flags to true, which forces the runtime viewsheet into
+      // "scale to screen" mode and stretches every tile's assigned pixel size to fill the actual
+      // browser width -- defeating the whole point of a fixed, pixel-exact adaptive grid.
+      layout.setScaleToScreen(false);
+      layout.setFitToWidth(false);
+
+      List<VSAssemblyLayout> assemblyLayouts = new ArrayList<>();
+      int y = topOffset + CANVAS_MARGIN;
+
+      for(String assemblyName : assemblyNames) {
+         assemblyLayouts.add(new VSAssemblyLayout(assemblyName, new java.awt.Point(CANVAS_MARGIN, y),
+            new java.awt.Dimension(MOBILE_TILE_WIDTH, MOBILE_TILE_HEIGHT)));
+         y += MOBILE_TILE_HEIGHT + TILE_GUTTER;
+      }
+
+      addFilterControlLayouts(assemblyLayouts, filterPlacements);
+      layout.setVSAssemblyLayouts(assemblyLayouts);
+      return layout;
+   }
+
+   private static ViewsheetLayout buildGridTierLayout(
+      String[] assemblyNames, int[] spanCols, int[] spanRows, int topOffset,
+      List<WizDashboardFilterBuilder.FilterControlPlacement> filterPlacements,
+      int layoutColumns, String deviceId)
+   {
+      ViewsheetLayout layout = new ViewsheetLayout();
+      layout.setName(deviceId);
+      layout.setMobileOnly(false);
+      layout.setDeviceIds(new String[]{ deviceId });
+      // See buildMobileLayout's comment: without this, the runtime viewsheet scales every tile up
+      // to fill the actual browser width instead of rendering the pixel-exact computed grid.
+      layout.setScaleToScreen(false);
+      layout.setFitToWidth(false);
+
+      boolean[] noPerChartFilters = new boolean[assemblyNames.length];
+      List<TilePlacement> placements = computeGridLayout(spanCols, spanRows, noPerChartFilters, layoutColumns);
+      List<VSAssemblyLayout> assemblyLayouts = new ArrayList<>();
+
+      for(int i = 0; i < assemblyNames.length; i++) {
+         TilePlacement placement = placements.get(i);
+         java.awt.Point pos = new java.awt.Point(
+            placement.x() + CANVAS_MARGIN, placement.y() + topOffset + CANVAS_MARGIN);
+         java.awt.Dimension size = new java.awt.Dimension(placement.width(), placement.height());
+         assemblyLayouts.add(new VSAssemblyLayout(assemblyNames[i], pos, size));
+      }
+
+      addFilterControlLayouts(assemblyLayouts, filterPlacements);
+      layout.setVSAssemblyLayouts(assemblyLayouts);
+      return layout;
+   }
+
+   private static void addFilterControlLayouts(
+      List<VSAssemblyLayout> assemblyLayouts,
+      List<WizDashboardFilterBuilder.FilterControlPlacement> filterPlacements)
+   {
+      for(WizDashboardFilterBuilder.FilterControlPlacement placement : filterPlacements) {
+         assemblyLayouts.add(new VSAssemblyLayout(
+            placement.assemblyName(), placement.position(), placement.size()));
+      }
    }
 
    private final ViewsheetService viewsheetService;

@@ -112,6 +112,25 @@ class WizDashboardFilterBuilderTest {
    }
 
    @Test
+   void buildReturnsThePlacementOfEachAppliedControl() {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(physicalTable(ws, "CHART_FINAL", "category_name"));
+
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "RadarChart");
+      boundToTable(chart, "CHART_FINAL");
+      vs.addAssembly(chart);
+
+      WizDashboardFilterBuilder.FilterResult result = builder.build(
+         vs, ws, List.of(new WizDashboardFilterBuilder.FilterRequest("category_name", "string", "Category")));
+
+      assertEquals(1, result.placements().size());
+      assertNotNull(result.placements().get(0).assemblyName());
+      assertEquals(new java.awt.Point(WizDashboardService.CANVAS_MARGIN, WizDashboardService.CANVAS_MARGIN),
+         result.placements().get(0).position());
+   }
+
+   @Test
    void firstControlIsOffsetByTheCanvasMarginNotFlushAgainstTheEdge() {
       Worksheet ws = new Worksheet();
       ws.addAssembly(physicalTable(ws, "CHART_FINAL", "category_name"));
@@ -143,10 +162,11 @@ class WizDashboardFilterBuilderTest {
 
       Viewsheet vs = new Viewsheet();
 
-      boolean applied = builder.buildPerChart(vs, ws, 100, 200,
+      WizDashboardFilterBuilder.FilterControlPlacement placement = builder.buildPerChart(vs, ws, 100, 200,
          new WizDashboardFilterBuilder.FilterRequest("product_name", "string", "Product"), "CHART_FINAL");
 
-      assertTrue(applied);
+      assertNotNull(placement);
+      assertEquals(new java.awt.Point(100, 200), placement.position());
 
       AbstractSelectionVSAssembly control = java.util.Arrays.stream(vs.getAssemblies())
          .filter(a -> a instanceof AbstractSelectionVSAssembly)
@@ -159,16 +179,16 @@ class WizDashboardFilterBuilderTest {
    }
 
    @Test
-   void buildPerChartReturnsFalseWhenTheFieldIsNotOnTheSpecifiedTable() {
+   void buildPerChartReturnsNullWhenSkipped() {
       Worksheet ws = new Worksheet();
       ws.addAssembly(physicalTable(ws, "CHART_FINAL", "category_name"));
 
       Viewsheet vs = new Viewsheet();
 
-      boolean applied = builder.buildPerChart(vs, ws, 0, 0,
+      WizDashboardFilterBuilder.FilterControlPlacement placement = builder.buildPerChart(vs, ws, 0, 0,
          new WizDashboardFilterBuilder.FilterRequest("product_name", "string", "Product"), "CHART_FINAL");
 
-      assertFalse(applied);
+      assertNull(placement);
       assertEquals(0, vs.getAssemblies().length, "no control should be added when the field isn't on the table");
    }
 
