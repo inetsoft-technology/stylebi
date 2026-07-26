@@ -704,6 +704,11 @@ public class WizDashboardService {
       layout.setName("Mobile");
       layout.setMobileOnly(true);
       layout.setDeviceIds(new String[]{ WizDeviceBootstrapService.MOBILE_DEVICE_ID });
+      // ViewsheetLayout defaults both flags to true, which forces the runtime viewsheet into
+      // "scale to screen" mode and stretches every tile's assigned pixel size to fill the actual
+      // browser width -- defeating the whole point of a fixed, pixel-exact adaptive grid.
+      layout.setScaleToScreen(false);
+      layout.setFitToWidth(false);
 
       List<VSAssemblyLayout> assemblyLayouts = new ArrayList<>();
       int y = topOffset + CANVAS_MARGIN;
@@ -728,6 +733,10 @@ public class WizDashboardService {
       layout.setName(deviceId);
       layout.setMobileOnly(false);
       layout.setDeviceIds(new String[]{ deviceId });
+      // See buildMobileLayout's comment: without this, the runtime viewsheet scales every tile up
+      // to fill the actual browser width instead of rendering the pixel-exact computed grid.
+      layout.setScaleToScreen(false);
+      layout.setFitToWidth(false);
 
       boolean[] noPerChartFilters = new boolean[assemblyNames.length];
       List<TilePlacement> placements = computeGridLayout(spanCols, spanRows, noPerChartFilters, layoutColumns);

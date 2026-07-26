@@ -284,6 +284,30 @@ class WizDashboardServiceGridTest {
    }
 
    @Test
+   void everyAdaptiveTierDisablesScaleToScreenAndFitToWidth() {
+      // ViewsheetLayout defaults BOTH flags to true (its own constructor). Left at the default,
+      // ViewsheetLayout#apply() forces the runtime viewsheet into "scale to screen" mode, which
+      // stretches every tile's carefully-computed pixel-exact size to fill whatever the actual
+      // browser width happens to be -- e.g. a 900px-wide tile rendering at ~2414px on a 2560px-wide
+      // window. The adaptive tiers are meant to be a FIXED, pixel-exact grid per device tier, so
+      // both flags must be explicitly disabled on every tier this method builds.
+      String[] assemblyNames = { "Chart1" };
+      int[] spans = { 1 };
+      int[] rowSpans = { 1 };
+      List<ViewsheetLayout> layouts =
+         WizDashboardService.buildAlternateLayouts(assemblyNames, spans, rowSpans, 0, List.of());
+
+      assertEquals(3, layouts.size());
+
+      for(ViewsheetLayout layout : layouts) {
+         assertFalse(layout.isScaleToScreen(),
+            "scaleToScreen must be disabled on tier " + layout.getName());
+         assertFalse(layout.isFitToWidth(),
+            "fitToWidth must be disabled on tier " + layout.getName());
+      }
+   }
+
+   @Test
    void wideTierStacksAFourthChartUnderTheFirstAndStretchesTheOthersToMatch() {
       // Same shape as computeGridLayoutOpensColumnsUntilRowWidthIsExhaustedThenStacksAndStretches
       // TheOthers in WizDashboardServiceGridTest's packing tests: four 1x1-span charts at the Wide
