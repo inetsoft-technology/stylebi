@@ -130,6 +130,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
 
                vsLayout = layoutInfo.matchDPI(dpi, vsLayout);
                viewsheet = vsLayout.apply(viewsheet);
+               enforceWizFixedSizeLayout(viewsheet);
             }
          }
 
@@ -145,6 +146,23 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       }
 
       return super.createRuntimeSheet(entry, sheet, user);
+   }
+
+   /**
+    * ViewsheetLayout.parseAttributes() hardcodes scaleToScreen/fitToWidth back to
+    * true on every reload (a deliberate, documented product decision for ordinary
+    * device-based layouts - see the comment there). Wiz-composed board dashboards
+    * rely on a fixed-size, internally-scrollable chart tile instead, so re-force
+    * both flags off for those specifically, without touching the shared
+    * ViewsheetLayout parsing behavior everyone else uses.
+    */
+   static void enforceWizFixedSizeLayout(Viewsheet viewsheet) {
+      Viewsheet.WizInfo wizInfo = viewsheet.getWizInfo();
+
+      if(wizInfo != null && wizInfo.isWizSheet() && viewsheet.getViewsheetInfo() != null) {
+         viewsheet.getViewsheetInfo().setScaleToScreen(false);
+         viewsheet.getViewsheetInfo().setFitToWidth(false);
+      }
    }
 
    /**
