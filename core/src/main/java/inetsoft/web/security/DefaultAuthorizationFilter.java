@@ -76,7 +76,9 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
             unauthorized = true;
          }
       }
-      else if(isEnterpriseManager(httpRequest)) {
+      // public EM resources (the static assets of the Enterprise Manager web application) are
+      // exempt from the EM access check, just like the public resources of the portal
+      else if(isEnterpriseManager(httpRequest) && !isPublicResource(httpRequest)) {
          if(principal == null || isAnonymousPrincipal(principal) ||
             !provider.checkPermission(principal, ResourceType.EM, "*", ResourceAction.ACCESS))
          {
