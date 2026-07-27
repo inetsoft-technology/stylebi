@@ -126,6 +126,24 @@ describe("PhysicalModelNetworkGraphComponent — selectNode()", () => {
          [g1.node.treeLink, g2.node.treeLink]
       );
    });
+
+   // 🔁 Regression-sensitive: this is the bug this file's changes fix -- plain-clicking one
+   // of two auto-alias tables that share a tree path (and therefore end up together in a
+   // stale multi-node dragNodes selection) must collapse the selection down to just the
+   // clicked node, so dragging it doesn't drag its sibling alias along too.
+   it("should collapse to just the clicked node on a plain click within a stale multi-selection", async () => {
+      const g1 = makeGraph("customer-region");
+      const g2 = makeGraph("salesperson-region");
+      const { comp } = await renderComp({ graphViewModel: makeViewModel([g1, g2]) });
+      vi.spyOn(comp as any, "refreshDragSelection").mockImplementation(() => {});
+      // simulate a stale multi-selection containing both aliases, e.g. left over from the
+      // tree resolving both graph nodes for a shared tree path
+      (comp as any).dragNodes = [g1, g2];
+
+      comp.selectNode({ ctrlKey: false, shiftKey: false } as MouseEvent, g2);
+
+      expect((comp as any).dragNodes).toEqual([g2]);
+   });
 });
 
 // ---------------------------------------------------------------------------
@@ -519,6 +537,55 @@ describe("PhysicalModelNetworkGraphComponent — ngOnChanges()", () => {
       } as any);
 
       expect((comp as any).dragNodes).toEqual([g1, g2]);
+   });
+
+   // 🔁 Regression-sensitive: covers the other half of the fix -- selectNode() emits its
+   // own selection, and the parent echoes it back via selectedGraphModels after resolving
+   // the clicked table's tree path. For auto-alias tables that share a tree path with their
+   // source table, that echo can resolve to *every* alias of that table, not just the one
+   // clicked. The echo must be narrowed back down to the ids actually selected here.
+   it("should narrow an echoed selectedGraphModels change down to the ids selected here", async () => {
+      const g1 = makeGraph("customer-region");
+      const g2 = makeGraph("salesperson-region");
+      const { comp } = await renderComp({ graphViewModel: makeViewModel([g1, g2]) });
+      vi.spyOn(comp as any, "refreshDragSelection").mockImplementation(() => {});
+
+      // user plain-clicks g2 in the graph -- selectNode() records g2 as the pending
+      // self-selection before emitting
+      comp.selectNode({ ctrlKey: false, shiftKey: false } as MouseEvent, g2);
+      expect((comp as any).dragNodes).toEqual([g2]);
+
+      // parent resolves g2's tree path to both g1 and g2 (shared alias source table)
+      // and echoes that widened set back down via the selectedGraphModels @Input
+      comp.selectedGraphModels = [g1, g2];
+      comp.ngOnChanges({
+         selectedGraphModels: { currentValue: [g1, g2], previousValue: [] },
+      } as any);
+
+      // the echo should be narrowed back down to just g2, not widened to include g1
+      expect((comp as any).dragNodes).toEqual([g2]);
+   });
+
+   it("should apply an unrelated selectedGraphModels change even while a self-selection echo is still pending", async () => {
+      const g1 = makeGraph("t1");
+      const g2 = makeGraph("t2");
+      const g3 = makeGraph("t3");
+      const { comp } = await renderComp({ graphViewModel: makeViewModel([g1, g2, g3]) });
+      vi.spyOn(comp as any, "refreshDragSelection").mockImplementation(() => {});
+
+      // user selects g1 in the graph, but its echo never arrives (e.g. the tree's
+      // containing folder was still loading and the lookup fell through)
+      comp.selectNode({ ctrlKey: false, shiftKey: false } as MouseEvent, g1);
+
+      // a genuinely unrelated, real tree-driven selection of g2/g3 arrives in the
+      // meantime -- it must be applied as-is, not dropped because a self-selection
+      // echo is still pending
+      comp.selectedGraphModels = [g2, g3];
+      comp.ngOnChanges({
+         selectedGraphModels: { currentValue: [g2, g3], previousValue: [] },
+      } as any);
+
+      expect((comp as any).dragNodes).toEqual([g2, g3]);
    });
 
    it("should NOT reset nodes when an unrelated input changes", async () => {

@@ -103,12 +103,15 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
    private isDragging: boolean = false; // drag endpoint
    private nodeMoving = false; // drag node
    private dragNodes: GraphModel[] = [];
-   // when a selection originates here (click/rubber-band), the parent echoes it back
+   // When a selection originates here (click/rubber-band), the parent echoes it back
    // via selectedGraphModels after resolving the tree node -- since auto-alias tables
    // share the same tree path as their source table, that echo can resolve to *every*
-   // alias of that source table, not just the one the user selected. Suppress applying
-   // that one echoed change so an unrelated alias doesn't get pulled into the drag group.
-   private suppressNextSelectionSync = false;
+   // alias of that source table, not just the one the user selected. This tracks the ids
+   // of a self-originated selection so that echo can be recognized (by superset match,
+   // since the echo may be delayed by async tree/folder loading or never arrive) and
+   // narrowed back down to just the ids selected here, instead of blindly suppressing
+   // the next selectedGraphModels change regardless of what it actually contains.
+   private pendingSelfSelectionIds: Set<string> | null = null;
    _scale: number = 1.0;
 
    private nodes: {[sourceIds: string]: GraphModel} = {}; // element id --> node model
@@ -272,12 +275,24 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
       }
 
       if(changes["selectedGraphModels"] && this.selectedGraphModels) {
-         if(this.suppressNextSelectionSync) {
-            this.suppressNextSelectionSync = false;
+         const incoming = this.selectedGraphModels;
+         const pending = this.pendingSelfSelectionIds;
+         const isEchoOfOwnSelection = !!pending && pending.size > 0 &&
+            Array.from(pending).every(id => incoming.some(g => g.node.id === id));
+
+         if(isEchoOfOwnSelection) {
+            // narrow the echoed selection back down to just the ids selected here,
+            // instead of taking whatever else it resolved to (e.g. sibling auto-aliases
+            // that share the same tree path as the selected table)
+            this.dragNodes = incoming.filter(g => pending.has(g.node.id));
          }
          else {
-            this.dragNodes = [...this.selectedGraphModels];
+            this.dragNodes = [...incoming];
          }
+
+         // any pending self-selection is now either consumed by its echo above, or
+         // superseded by an unrelated selection change -- either way it's no longer pending
+         this.pendingSelfSelectionIds = null;
       }
    }
 
@@ -650,7 +665,7 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
          this.dragNodes = [graph];
       }
 
-      this.suppressNextSelectionSync = true;
+      this.pendingSelfSelectionIds = new Set(this.dragNodes.map(g => g.node.id));
       this.fireSelectedNodesChanged();
       this.refreshDragSelection();
    }
@@ -818,13 +833,14 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
          this.physicalModelService.emitModelChange(true);
          this.onRemoveTable.emit(this.dragNodes);
          this.dragNodes = [];
+         this.pendingSelfSelectionIds = null;
          this.fireSelectedNodesChanged();
       });
    }
 
    selectAll(): void {
       this.dragNodes = this.graphViewModel.graphs;
-      this.suppressNextSelectionSync = true;
+      this.pendingSelfSelectionIds = new Set(this.dragNodes.map(g => g.node.id));
       this.fireSelectedNodesChanged();
       this.refreshDragSelection();
    }
@@ -836,7 +852,7 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
             .intersects(event.box);
       });
 
-      this.suppressNextSelectionSync = true;
+      this.pendingSelfSelectionIds = new Set(this.dragNodes.map(g => g.node.id));
       this.fireSelectedNodesChanged();
       this.refreshDragSelection();
    }
@@ -844,6 +860,7 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
    clearSelection(event: MouseEvent): void {
       if(event.target === event.currentTarget && this.dragNodes.length > 0) {
          this.dragNodes = [];
+         this.pendingSelfSelectionIds = null;
          this.fireSelectedNodesChanged();
          this.jsp.setSuspendDrawing(false, true);
       }
