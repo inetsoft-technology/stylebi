@@ -140,6 +140,22 @@ public class AutoBindingRequest {
    }
 
    /**
+    * When true AND this call targets an existing primary (wizRuntimeId set), keep the current
+    * primary assembly (demoted, not removed) and add the new assembly as a second, separate
+    * primary instead of replacing it — used for agent/MCP-driven binding changes (e.g. pie/donut
+    * chart-type changes, which route through autoBinding) so the user's original chart card is
+    * preserved. Default false (delete-and-replace, the existing behavior). No effect on a
+    * first-time call with no existing primary to displace.
+    */
+   public boolean isCopy() {
+      return copy;
+   }
+
+   public void setCopy(boolean copy) {
+      this.copy = copy;
+   }
+
+   /**
     * Recommendation-computation RVS ID. Null on first call; returned by the server
     * and passed back on subsequent calls to reuse the same RVS.
     */
@@ -169,4 +185,6 @@ public class AutoBindingRequest {
     * #75456: sampled-preview row cap; null/&lt;=0 = full data (default).
     */
    private Integer sampleMaxRows;
+
+   private boolean copy;
 }

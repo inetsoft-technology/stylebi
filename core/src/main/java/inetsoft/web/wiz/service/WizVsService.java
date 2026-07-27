@@ -1393,8 +1393,11 @@ public class WizVsService {
             }
 
             // For skipExecution (changeType): remove the displaced primary before persisting
-            // so the stored viewsheet contains only the new assembly.
-            if(skipExecution && previousPrimaryAssembly != null && !createdRuntimeId) {
+            // so the stored viewsheet contains only the new assembly — unless the caller asked to
+            // keep it (model.isCopy(): agent/MCP-driven type change appends a second chart instead
+            // of replacing the original). The demotion above (setPrimary(false)) always happens
+            // regardless of copy; this only controls whether it is also deleted.
+            if(skipExecution && previousPrimaryAssembly != null && !createdRuntimeId && !model.isCopy()) {
                targetVs.removeAssembly(previousPrimaryAssembly.getName());
                removedPreviousPrimary = true;
             }

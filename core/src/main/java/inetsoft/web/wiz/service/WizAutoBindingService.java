@@ -318,6 +318,7 @@ public class WizAutoBindingService {
             // #75456: carry the data-mode (full vs sampled) into the render so the chart aggregates
             // the chosen amount of data; null/<=0 = full (the agent always omits this).
             vsModel.setSampleMaxRows(request.getSampleMaxRows());
+            vsModel.setCopy(request.isCopy());
 
             WizVsService.PostAssemblyHook hook = (wizRvs, asm) -> {
                if(asm instanceof ChartVSAssembly) {
@@ -1966,6 +1967,7 @@ public class WizAutoBindingService {
          // autoBindingInternal() would skip creating a new RVS and fail on the same dead id again.
          fallback.setWizRuntimeId(wizRuntimeId);
          fallback.setViewsheetIdentifier(viewsheetIdentifier);
+         fallback.setCopy(request.isCopy());
          AutoBindingResponse resp = autoBindingInternal(fallback, user, true);
          CreateViewsheetResult result = resp.getVisualizationResult();
 
@@ -2039,6 +2041,7 @@ public class WizAutoBindingService {
       vsModel.setRuntimeId(wizRuntimeId);
       vsModel.setViewsheetIdentifier(viewsheetIdentifier);
       vsModel.setKeepCondition(true);
+      vsModel.setCopy(request.isCopy());
 
       final RuntimeViewsheet autoRvsForHook = capturedAutoBindingRvs;
       CreateViewsheetResult result = wizVsService.createViewsheetSkipExecution(vsModel, user,

@@ -64,6 +64,20 @@ public class ChangeTypeRequest {
       this.viewsheetIdentifier = viewsheetIdentifier;
    }
 
+   /**
+    * When true, keep the current primary assembly (demoted, not removed) and add the new
+    * chart-type assembly as a second, separate primary — used for agent/MCP-driven type changes
+    * so the user's original chart card is preserved instead of replaced. Default false
+    * (delete-and-replace, the existing UI-click behavior).
+    */
+   public boolean isCopy() {
+      return copy;
+   }
+
+   public void setCopy(boolean copy) {
+      this.copy = copy;
+   }
+
    private String worksheetId;
    private String visualizationType;
    /**
@@ -82,4 +96,5 @@ public class ChangeTypeRequest {
     * Passed back so the viewsheet entry is overwritten in place rather than duplicated.
     */
    private String viewsheetIdentifier;
+   private boolean copy;
 }

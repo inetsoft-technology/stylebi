@@ -84,13 +84,23 @@ public class CreateVisualizationModel {
    }
 
    /**
-    * When true AND this call is otherwise eligible for the in-place "modificationOnly" path (see
-    * {@code WizVsService.createViewsheetInternal}: {@link #getConfig()}/{@link #getPrimaryAssembly()}
-    * are null and {@link #getConditionModel()} is set), duplicate the current primary assembly first
-    * and apply the condition to the COPY instead — the original chart is left untouched. Mirrors
-    * {@code ChartColorsRequest}/{@code ChartFormatRequest}/{@code ApplyHighlightModel}'s {@code copy}
-    * flag. Has no effect outside the modificationOnly path (the standard create/rebind path always
-    * produces a fresh assembly on its own). Default false (in-place, the existing behavior).
+    * When true, the previous primary assembly is kept (demoted, not deleted) instead of being
+    * removed when a new primary is created:
+    * <ul>
+    *   <li>In the "modificationOnly" path (see {@code WizVsService.createViewsheetInternal}:
+    *       {@link #getConfig()}/{@link #getPrimaryAssembly()} are null and
+    *       {@link #getConditionModel()} is set), the current primary is duplicated and the
+    *       condition is applied to the COPY instead of mutating the original in place. Mirrors
+    *       {@code ChartColorsRequest}/{@code ChartFormatRequest}/{@code ApplyHighlightModel}'s
+    *       {@code copy} flag.</li>
+    *   <li>In the standard create/rebind path (chart-type changes and general creation), the
+    *       displaced previous primary is demoted but left in the viewsheet as a second,
+    *       non-primary assembly instead of being deleted — used for agent/MCP-driven chart-type
+    *       changes so the user's original chart is preserved alongside the new one, rather than
+    *       replaced (the UI-click flow leaves this false to keep its existing delete-and-replace
+    *       behavior).</li>
+    * </ul>
+    * Default false (in-place / delete-and-replace, the existing behavior) in both paths.
     */
    public boolean isCopy() {
       return copy;
