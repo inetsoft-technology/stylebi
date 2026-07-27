@@ -80,10 +80,13 @@
   left: 0;
   top: 0;
   background-color: transparent;
+  // use flex, like the header and data rows, so that the whitespace between the column
+  // elements is not rendered and the drop columns line up with the table columns (75754).
+  display: flex;
 }
 
 .drop-table__column {
-  display: inline-block;
+  flex: 0 0 auto;
   height: 100%;
 }
 
