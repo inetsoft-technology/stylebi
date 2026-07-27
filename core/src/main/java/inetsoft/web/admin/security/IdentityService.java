@@ -54,7 +54,7 @@ import inetsoft.util.log.LogManager;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.session.IgniteSessionRepository;
 import inetsoft.web.RecycleBin;
-import inetsoft.web.admin.favorites.FavoriteList;
+import inetsoft.web.admin.favorites.FavoritesService;
 import inetsoft.web.admin.security.user.*;
 import org.apache.commons.io.IOUtils;
 import org.passay.*;
@@ -78,7 +78,7 @@ public class IdentityService {
                           IdentityThemeService themeService,
                           AuthenticationService authenticationService,
                           BlobStorageManager blobStorageManager,
-                          KeyValueStorageManager keyValueStorageManager,
+                          FavoritesService favoritesService,
                           Cluster cluster,
                           MVManager mvManager,
                           DataCycleManager dataCycleManager,
@@ -107,7 +107,7 @@ public class IdentityService {
       this.themeService = themeService;
       this.authenticationService = authenticationService;
       this.blobStorageManager = blobStorageManager;
-      this.keyValueStorageManager = keyValueStorageManager;
+      this.favoritesService = favoritesService;
       this.cluster = cluster;
       this.mvManager = mvManager;
       this.dataCycleManager = dataCycleManager;
@@ -628,6 +628,7 @@ public class IdentityService {
                CSSDictionary.resetDictionaryCache();
                themesManager.save();
                removeStorages(orgID);
+               favoritesService.removeFavorites(orgID);
                dataSourceRegistry.clearCache(orgID);
                FSService.clearServerNodeCache(orgID);
                XJobPool.resetOrgCache(orgID);
@@ -771,53 +772,6 @@ public class IdentityService {
       return false;
    }
 
-   public void deleteOrganizationMembers(String orgID, EditableAuthenticationProvider eprovider) {
-      IdentityID[] users = eprovider.getUsers();
-      IdentityID[] groups = eprovider.getGroups();
-      IdentityID[] roles = eprovider.getRoles();
-      KeyValueStorage<FavoriteList> favorites =
-         keyValueStorageManager.getStorage("emFavorites");
-
-      for(int i = 0; i < users.length; i++) {
-         FSUser user = (FSUser) eprovider.getUser(users[i]);
-
-         if(orgID.equals(user.getOrganizationID())) {
-            //users are tied to org, delete if deleted
-            repletRegistryManager.removeUser(user.getIdentityID());
-            eprovider.removeUser(user.getIdentityID());
-            addCopiedIdentityPermission(user.getIdentityID(), null, "", Identity.USER, false);
-
-            try {
-               favorites.remove(user.getIdentityID().convertToKey()).get(10L, TimeUnit.SECONDS);
-            }
-            catch(InterruptedException | ExecutionException | TimeoutException e) {
-               LOG.error("Failed to remove organization member: {}", user, e);
-            }
-         }
-      }
-
-      for(int i = 0; i < groups.length; i++) {
-         FSGroup group = (FSGroup) eprovider.getGroup(groups[i]);
-
-         if(orgID.equals(group.getOrganizationID())) {
-            //group is tied to org, delete if deleted
-            eprovider.removeGroup(group.getIdentityID());
-            addCopiedIdentityPermission(group.getIdentityID(), null,"", Identity.GROUP, false);
-         }
-      }
-
-      for(int i = 0; i < roles.length; i++) {
-         FSRole role = (FSRole) eprovider.getRole(roles[i]);
-
-         if(orgID.equals(role.getOrganizationID())) {
-            //role is tied to org, delete if deleted
-            eprovider.removeRole(role.getIdentityID());
-            addCopiedIdentityPermission(role.getIdentityID(), null, "", Identity.ROLE, false);
-         }
-      }
-
-   }
-
    private void updateOrganizationMembers(Organization identity, List<IdentityModel> memberModels,
                                           String oldOrgID,
                                           EditableAuthenticationProvider eprovider)
@@ -845,8 +799,6 @@ public class IdentityService {
       boolean orgNameChanged = !Tool.equals(orgIdChange, oldOrgID);
 
       AuthorizationChain authoc = ((AuthorizationChain) securityProvider.getAuthorizationProvider());
-      KeyValueStorage<FavoriteList> favorites =
-         keyValueStorageManager.getStorage("emFavorites");
 
       for(int i = 0; i < users.length; i++) {
          FSUser user = (FSUser) eprovider.getUser(users[i]);
@@ -881,18 +833,8 @@ public class IdentityService {
             eprovider.removeUser(oldID);
             repletRegistryManager.renameUser(oldID, user.getIdentityID());
             // Move em favorites to new user
-            FavoriteList userFav = favorites.get(oldID.convertToKey());
-
-            if(userFav != null) {
-               try {
-                  favorites.put(user.getIdentityID().convertToKey(), userFav)
-                     .get(10L, TimeUnit.SECONDS);
-                  favorites.remove(oldID.convertToKey()).get(10L, TimeUnit.SECONDS);
-               }
-               catch(InterruptedException | ExecutionException | TimeoutException e) {
-                  LOG.error("Failed to update organization member: {}", user, e);
-               }
-            }
+            favoritesService.moveFavorites(oldID.convertToKey(),
+                                           user.getIdentityID().convertToKey());
          }
          else if(!members.contains(user.getName())) {
             eprovider.removeUser(oldID);
@@ -2340,7 +2282,7 @@ public class IdentityService {
          return;
       }
 
-      removeUserEMFavorites(identityIDs);
+      favoritesService.removeFavorites(identityIDs);
 
       Map<String, Set<String>> userKeysByOrg = new HashMap<>();
 
@@ -2390,30 +2332,6 @@ public class IdentityService {
          }
       }
    }
-
-   /**
-    * Remove the deleted users' EM admin-panel favorites, which are stored per
-    * identity key in the emFavorites store and would otherwise be orphaned.
-    */
-   private void removeUserEMFavorites(Collection<IdentityID> identityIDs) {
-      KeyValueStorage<FavoriteList> favorites = keyValueStorageManager.getStorage("emFavorites");
-
-      for(IdentityID id : identityIDs) {
-         if(id != null) {
-            try {
-               favorites.remove(id.convertToKey()).get(10L, TimeUnit.SECONDS);
-            }
-            catch(InterruptedException e) {
-               Thread.currentThread().interrupt();
-               LOG.warn("Interrupted while removing EM favorites for deleted user {}", id, e);
-            }
-            catch(Exception e) {
-               LOG.warn("Failed to remove EM favorites for deleted user {}", id, e);
-            }
-         }
-      }
-   }
-
 
    public void updateIdentityPermissions(int type, IdentityID oldName, IdentityID newName, String oldOrgId, String newOrgId, boolean doReplace) {
       SecurityProvider provider = securityEngine.getSecurityProvider();
@@ -2857,7 +2775,7 @@ public class IdentityService {
    private final Logger LOG = LoggerFactory.getLogger(IdentityService.class);
    private final AuthenticationService authenticationService;
    private final BlobStorageManager blobStorageManager;
-   private final KeyValueStorageManager keyValueStorageManager;
+   private final FavoritesService favoritesService;
    private final Cluster cluster;
    private final MVManager mvManager;
    private final DataCycleManager dataCycleManager;
