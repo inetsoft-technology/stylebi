@@ -78,6 +78,21 @@ public class ChangeTypeRequest {
       this.copy = copy;
    }
 
+   /**
+    * When set, replace THIS SPECIFIC assembly in place instead of whichever assembly is currently
+    * primary — a session shares one output viewsheet/runtime across every turn, so "whichever is
+    * primary" is always the latest turn's chart, not necessarily the one the user clicked. Used
+    * for changeType on a non-current (historical) card. Ignored (falls back to the primary-based
+    * behavior above) when null/empty, the default.
+    */
+   public String getAssemblyName() {
+      return assemblyName;
+   }
+
+   public void setAssemblyName(String assemblyName) {
+      this.assemblyName = assemblyName;
+   }
+
    private String worksheetId;
    private String visualizationType;
    /**
@@ -97,4 +112,5 @@ public class ChangeTypeRequest {
     */
    private String viewsheetIdentifier;
    private boolean copy;
+   private String assemblyName;
 }

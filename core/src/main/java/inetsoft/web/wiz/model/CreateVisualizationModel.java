@@ -123,6 +123,24 @@ public class CreateVisualizationModel {
       this.sampleMaxRows = sampleMaxRows;
    }
 
+   /**
+    * When set, the standard create/rebind path (see {@code WizVsService.createViewsheetInternal})
+    * replaces THIS SPECIFIC named assembly in place, instead of whichever assembly currently
+    * {@code isPrimary()}: the new assembly is added under the same name with the old one's exact
+    * primary state carried over (untouched either way), and no other assembly's primary flag is
+    * touched. Used for changeType on a non-current (historical) card — a session shares one
+    * viewsheet/runtime across all turns, so "replace whichever is primary" would hit the latest
+    * turn's chart instead of the one the user actually clicked. Ignored ({@link #isCopy()} governs
+    * instead) when null/empty, which is the default.
+    */
+   public String getTargetAssemblyName() {
+      return targetAssemblyName;
+   }
+
+   public void setTargetAssemblyName(String targetAssemblyName) {
+      this.targetAssemblyName = targetAssemblyName;
+   }
+
    private String visualizationType;
    private VisualizationConfig config;
    private String runtimeId;
@@ -132,4 +150,5 @@ public class CreateVisualizationModel {
    private transient VSAssembly primaryAssembly;
    private transient boolean keepCondition;
    private boolean copy;
+   private String targetAssemblyName;
 }

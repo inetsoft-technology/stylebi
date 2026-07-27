@@ -1068,6 +1068,12 @@ public class WizVsService {
          String copyNote = null;
          VSAssembly demotedOriginal = null;
          VSAssembly rollbackCopy = null;
+         // Targeted replace (model.getTargetAssemblyName(), standard path only): the specific
+         // assembly being swapped out, and its primary state to carry over — set only when this
+         // mode is used, in which case previousPrimaryAssembly stays null (they are mutually
+         // exclusive ways of tracking "what was displaced").
+         VSAssembly replacedAssembly = null;
+         boolean replacedWasPrimary = false;
 
          if(modificationOnly) {
             targetVs = vs;
@@ -1140,7 +1146,21 @@ public class WizVsService {
                targetVs.setBaseEntry(ctx.sourceWs());
             }
 
-            String assemblyName = uniqueAssemblyName(targetVs, ctx.title());
+            String targetAssemblyName = model.getTargetAssemblyName();
+            VSAssembly existingTarget = null;
+
+            if(!Tool.isEmptyString(targetAssemblyName)) {
+               Assembly found = targetVs.getAssembly(targetAssemblyName);
+
+               if(!(found instanceof VSAssembly foundVs)) {
+                  throw new IllegalArgumentException("Assembly not found: " + targetAssemblyName);
+               }
+
+               existingTarget = foundVs;
+            }
+
+            String assemblyName = !Tool.isEmptyString(targetAssemblyName)
+               ? targetAssemblyName : uniqueAssemblyName(targetVs, ctx.title());
 
             if(model.getPrimaryAssembly() != null) {
                assembly = rebindAssembly(targetVs, assemblyName, model.getPrimaryAssembly());
@@ -1159,25 +1179,38 @@ public class WizVsService {
                }
             }
 
-            // Clear old primary before adding the new assembly; capture it for rollback.
-            Assembly[] existingAssemblies = targetVs.getAssemblies();
+            if(existingTarget != null) {
+               // Targeted replace: swap in the new assembly under the SAME name, carrying over the
+               // old one's exact primary state — no other assembly is touched either way.
+               replacedAssembly = existingTarget;
+               replacedWasPrimary = existingTarget.isPrimary();
+               targetVs.removeAssembly(targetAssemblyName);
+               targetVs.addAssembly(assembly);
+               assembly.setPrimary(replacedWasPrimary);
+            }
+            else {
+               // Clear old primary before adding the new assembly; capture it for rollback.
+               Assembly[] existingAssemblies = targetVs.getAssemblies();
 
-            if(existingAssemblies != null) {
-               for(Assembly a : existingAssemblies) {
-                  if(a instanceof VSAssembly va && va.isPrimary()) {
-                     previousPrimaryAssembly = va;
-                     va.setPrimary(false);
+               if(existingAssemblies != null) {
+                  for(Assembly a : existingAssemblies) {
+                     if(a instanceof VSAssembly va && va.isPrimary()) {
+                        previousPrimaryAssembly = va;
+                        va.setPrimary(false);
+                     }
                   }
                }
-            }
 
-            targetVs.addAssembly(assembly);
-            assembly.setPrimary(true);
+               targetVs.addAssembly(assembly);
+               assembly.setPrimary(true);
+            }
 
             // Sync pre-condition from the replaced assembly to the new one when the caller
             // is performing a visualization type change (e.g. table → chart).
+            VSAssembly displacedForCondition = replacedAssembly != null ? replacedAssembly : previousPrimaryAssembly;
+
             if(model.isKeepCondition() &&
-               previousPrimaryAssembly instanceof DataVSAssembly oldDataAsm &&
+               displacedForCondition instanceof DataVSAssembly oldDataAsm &&
                assembly instanceof DataVSAssembly newDataAsm)
             {
                ConditionList cond = oldDataAsm.getPreConditionList();
@@ -1454,6 +1487,13 @@ public class WizVsService {
                      if(removedPreviousPrimary) {
                         previousVs.addAssembly(previousPrimaryAssembly);
                      }
+                  }
+                  else if(replacedAssembly != null) {
+                     // Targeted replace: the original was removed unconditionally (before this try
+                     // block even started, unlike previousPrimaryAssembly's conditional removal
+                     // below) — re-add it under its own name with its original primary state.
+                     previousVs.addAssembly(replacedAssembly);
+                     replacedAssembly.setPrimary(replacedWasPrimary);
                   }
 
                   previousVs.setBaseEntry(previousBaseEntry);

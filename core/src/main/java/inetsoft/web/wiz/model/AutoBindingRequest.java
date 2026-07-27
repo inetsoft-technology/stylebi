@@ -156,6 +156,21 @@ public class AutoBindingRequest {
    }
 
    /**
+    * When set, replace THIS SPECIFIC assembly in place instead of whichever assembly is currently
+    * primary — a session shares one output viewsheet/runtime across every turn, so "whichever is
+    * primary" is always the latest turn's chart, not necessarily the one the user targeted. Used
+    * for changeType (on pie/donut-style targets, which route through autoBinding) on a non-current
+    * (historical) card. Ignored (falls back to the primary-based behavior above) when null/empty.
+    */
+   public String getAssemblyName() {
+      return assemblyName;
+   }
+
+   public void setAssemblyName(String assemblyName) {
+      this.assemblyName = assemblyName;
+   }
+
+   /**
     * Recommendation-computation RVS ID. Null on first call; returned by the server
     * and passed back on subsequent calls to reuse the same RVS.
     */
@@ -187,4 +202,5 @@ public class AutoBindingRequest {
    private Integer sampleMaxRows;
 
    private boolean copy;
+   private String assemblyName;
 }

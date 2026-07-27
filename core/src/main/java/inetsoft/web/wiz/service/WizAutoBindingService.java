@@ -319,6 +319,7 @@ public class WizAutoBindingService {
             // the chosen amount of data; null/<=0 = full (the agent always omits this).
             vsModel.setSampleMaxRows(request.getSampleMaxRows());
             vsModel.setCopy(request.isCopy());
+            vsModel.setTargetAssemblyName(request.getAssemblyName());
 
             WizVsService.PostAssemblyHook hook = (wizRvs, asm) -> {
                if(asm instanceof ChartVSAssembly) {
@@ -1968,6 +1969,7 @@ public class WizAutoBindingService {
          fallback.setWizRuntimeId(wizRuntimeId);
          fallback.setViewsheetIdentifier(viewsheetIdentifier);
          fallback.setCopy(request.isCopy());
+         fallback.setAssemblyName(request.getAssemblyName());
          AutoBindingResponse resp = autoBindingInternal(fallback, user, true);
          CreateViewsheetResult result = resp.getVisualizationResult();
 
@@ -2042,6 +2044,7 @@ public class WizAutoBindingService {
       vsModel.setViewsheetIdentifier(viewsheetIdentifier);
       vsModel.setKeepCondition(true);
       vsModel.setCopy(request.isCopy());
+      vsModel.setTargetAssemblyName(request.getAssemblyName());
 
       final RuntimeViewsheet autoRvsForHook = capturedAutoBindingRvs;
       CreateViewsheetResult result = wizVsService.createViewsheetSkipExecution(vsModel, user,
