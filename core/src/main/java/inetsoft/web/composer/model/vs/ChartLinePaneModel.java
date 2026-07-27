@@ -20,6 +20,7 @@ package inetsoft.web.composer.model.vs;
 import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
 import inetsoft.util.Tool;
 
 import java.awt.*;
@@ -64,7 +65,10 @@ public class ChartLinePaneModel implements Serializable {
 
       plotDesc.setFacetGrid(facetGrid, false);
       color = Tool.getColorFromHexString(facetGridColor);
-      plotDesc.setFacetGridColor(color, false);
+
+      if(!Tool.equals(color, VSChartChromeDefaults.resolveGridlineColor(plotDesc.getFacetGridColor()))) {
+         plotDesc.setFacetGridColor(color, false);
+      }
    }
 
    private void updatePlotTrendLineGrid(PlotDescriptor plotDesc) {
@@ -142,17 +146,31 @@ public class ChartLinePaneModel implements Serializable {
          plotDesc.setXGridStyle(yGridLineStyle, false);
          plotDesc.setYGridStyle(xGridLineStyle, false);
          color = Tool.getColorFromHexString(yGridLineColor);
-         plotDesc.setXGridColor(color, false);
+
+         if(!Tool.equals(color, VSChartChromeDefaults.resolveGridlineColor(plotDesc.getXGridColor()))) {
+            plotDesc.setXGridColor(color, false);
+         }
+
          color = Tool.getColorFromHexString(xGridLineColor);
-         plotDesc.setYGridColor(color, false);
+
+         if(!Tool.equals(color, VSChartChromeDefaults.resolveGridlineColor(plotDesc.getYGridColor()))) {
+            plotDesc.setYGridColor(color, false);
+         }
       }
       else {
          plotDesc.setXGridStyle(xGridLineStyle, false);
          plotDesc.setYGridStyle(yGridLineStyle, false);
          color = Tool.getColorFromHexString(xGridLineColor);
-         plotDesc.setXGridColor(color, false);
+
+         if(!Tool.equals(color, VSChartChromeDefaults.resolveGridlineColor(plotDesc.getXGridColor()))) {
+            plotDesc.setXGridColor(color, false);
+         }
+
          color = Tool.getColorFromHexString(yGridLineColor);
-         plotDesc.setYGridColor(color, false);
+
+         if(!Tool.equals(color, VSChartChromeDefaults.resolveGridlineColor(plotDesc.getYGridColor()))) {
+            plotDesc.setYGridColor(color, false);
+         }
       }
    }
 
@@ -162,7 +180,8 @@ public class ChartLinePaneModel implements Serializable {
     */
    private void getPlotFacetGrid(PlotDescriptor plotDesc) {
       if(plotDesc.getFacetGridColor() != null) {
-         facetGridColor = "#" + Tool.colorToHTMLString(plotDesc.getFacetGridColor());
+         facetGridColor = "#" + Tool.colorToHTMLString(
+            VSChartChromeDefaults.resolveGridlineColor(plotDesc.getFacetGridColor()));
       }
 
       facetGrid = plotDesc.isFacetGrid();
@@ -204,11 +223,13 @@ public class ChartLinePaneModel implements Serializable {
          yGridLineStyle = plotDesc.getXGridStyle();
 
          if(plotDesc.getXGridColor() != null) {
-            xGridLineColor = "#"+ Tool.colorToHTMLString(plotDesc.getYGridColor());
+            xGridLineColor = "#"+ Tool.colorToHTMLString(
+               VSChartChromeDefaults.resolveGridlineColor(plotDesc.getYGridColor()));
          }
 
          if(plotDesc.getYGridColor() != null) {
-            yGridLineColor = "#"+ Tool.colorToHTMLString(plotDesc.getXGridColor());
+            yGridLineColor = "#"+ Tool.colorToHTMLString(
+               VSChartChromeDefaults.resolveGridlineColor(plotDesc.getXGridColor()));
          }
       }
       else {
@@ -216,11 +237,13 @@ public class ChartLinePaneModel implements Serializable {
          yGridLineStyle = plotDesc.getYGridStyle();
 
          if(plotDesc.getXGridColor() != null) {
-            xGridLineColor = "#" + Tool.colorToHTMLString(plotDesc.getXGridColor());
+            xGridLineColor = "#" + Tool.colorToHTMLString(
+               VSChartChromeDefaults.resolveGridlineColor(plotDesc.getXGridColor()));
          }
 
          if(plotDesc.getYGridColor() != null) {
-            yGridLineColor = "#" + Tool.colorToHTMLString(plotDesc.getYGridColor());
+            yGridLineColor = "#" + Tool.colorToHTMLString(
+               VSChartChromeDefaults.resolveGridlineColor(plotDesc.getYGridColor()));
          }
       }
    }

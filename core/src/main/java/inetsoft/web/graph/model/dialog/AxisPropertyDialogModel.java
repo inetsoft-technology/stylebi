@@ -24,6 +24,7 @@ import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.composition.region.ChartArea;
 import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
 import inetsoft.util.Tool;
 
 import java.awt.*;
@@ -75,7 +76,8 @@ public class AxisPropertyDialogModel implements Serializable {
 
       if(axisDesc.getLineColor() != null) {
          axisLinePaneModel.setLineColor(
-            "#" + Tool.colorToHTMLString(axisDesc.getLineColor()));
+            "#" + Tool.colorToHTMLString(
+               VSChartChromeDefaults.resolveAxisLineColor(axisDesc.getLineColor())));
       }
 
       if(!linear) {
@@ -254,7 +256,12 @@ public class AxisPropertyDialogModel implements Serializable {
       }
 
       Color color = Tool.getColorFromHexString(axisLinePaneModel.getLineColor());
-      axisDesc.setLineColor(color);
+
+      // WYSIWYG: the panel shows the modern-resolved line color; skip persisting an unchanged
+      // (modern-display) value so gate-off stays byte-identical and no descriptor is dirtied
+      if(!Tool.equals(color, VSChartChromeDefaults.resolveAxisLineColor(axisDesc.getLineColor()))) {
+         axisDesc.setLineColor(color);
+      }
       axisDesc.setTicksVisible(axisLinePaneModel.isShowTicks());
 
       if(this.linear || this.timeSeries && !this.outer) {
