@@ -1596,15 +1596,11 @@ public class CoreLifecycleService {
       EmbedAssemblyInfo embedAssemblyInfo = rvs.getEmbedAssemblyInfo();
       Dimension assemblySize = embedAssemblyInfo.getAssemblySize();
 
-      if(!Tool.equals(name, embedAssemblyInfo.getAssemblyName())) {
+      if(!Tool.equals(name, embedAssemblyInfo.getAssemblyName()) || assemblySize == null) {
          return;
       }
 
       AssemblyInfo info = assembly.getInfo();
-
-      if(assemblySize == null) {
-         return;
-      }
 
       if(info instanceof ChartVSAssemblyInfo) {
          // Apply the embed container size before building the runtime chart model.

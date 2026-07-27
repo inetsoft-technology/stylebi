@@ -54,8 +54,9 @@ import static org.mockito.Mockito.when;
  *
  * Root cause: {@code applyEmbedChartSize} only pushed the embed container's size onto the
  * assembly's pixel size when the assembly was a {@link ChartVSAssemblyInfo}. A
- * programmatically-created crosstab (no composer-authored layout) therefore kept the
- * {@code AssetUtil} default size (100x20), rendering as an all-but-invisible sliver.
+ * programmatically-created crosstab (no composer-authored layout) therefore kept its own
+ * default pixel size ({@link CrosstabVSAssemblyInfo}'s constructor default of 400x240) instead
+ * of the embed container's actual size, rendering far smaller than the space it was given.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
