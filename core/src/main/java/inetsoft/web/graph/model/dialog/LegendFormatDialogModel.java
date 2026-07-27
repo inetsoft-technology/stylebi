@@ -21,6 +21,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.composition.region.ChartArea;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VSChartChromeDefaults;
 import inetsoft.util.Tool;
 
 import java.awt.*;
@@ -62,7 +63,8 @@ public class LegendFormatDialogModel implements Serializable {
 
       if(legendsDesc.getBorderColor() != null) {
          generalPaneModel.setFillColor(
-            "#" + Tool.colorToHTMLString(legendsDesc.getBorderColor()));
+            "#" + Tool.colorToHTMLString(
+               VSChartChromeDefaults.resolveLegendBorderColor(legendsDesc.getBorderColor())));
       }
 
       if(legendsDesc.getLayout() >= 1) {
@@ -121,7 +123,10 @@ public class LegendFormatDialogModel implements Serializable {
       legendDesc.setTitleVisible(generalPaneModel.isVisible());
       legendsDesc.setBorder(generalPaneModel.getStyle(), false);
       Color color = Tool.getColorFromHexString(generalPaneModel.getFillColor());
-      legendsDesc.setBorderColor(color, false);
+
+      if(!Tool.equals(color, VSChartChromeDefaults.resolveLegendBorderColor(legendsDesc.getBorderColor()))) {
+         legendsDesc.setBorderColor(color, false);
+      }
       legendsDesc.setLayout(getIndexByName(LEGEND_POSITIONS, generalPaneModel.getPosition()) + 1);
       legendDesc.setNotShowNull(generalPaneModel.isNotShowNull());
       legendDesc.setSymbolSize(generalPaneModel.getSymbolSize());

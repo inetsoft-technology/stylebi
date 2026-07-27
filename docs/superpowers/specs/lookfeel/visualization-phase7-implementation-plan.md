@@ -395,7 +395,12 @@ persistence:** the apply-back path is change-detection against the echoed `origF
 both current and orig now carry the same modern value, so an unchanged panel never persists it —
 gate-off stays byte-identical. (Remaining picker gap: chart *internal* chrome — gridline/axis/legend
 colors from Phase 6 — is edited via the chart-specific format dialogs / `ChartDescriptor`, a separate
-subsystem from `FormatPainterService`, not covered here.)
+subsystem from `FormatPainterService`, not covered here.) **Closed 2026-07-24:** the chart axis-line /
+gridline / legend-border dialogs now display the modern colors via
+`VSChartChromeDefaults.resolve{AxisLine,Gridline,LegendBorder}Color` applied on read in
+`AxisPropertyDialogModel` / `ChartLinePaneModel` / `LegendFormatDialogModel`, each with a write-back
+guard so an unchanged modern-display value is never persisted (gate-off byte-identical). The Phase 6
+render overlays and the descriptors are unchanged; this only aligns the editors with the render.
 
 Remaining: manual live + PDF/PNG/SVG/Excel parity spot-check on a Text KPI (gate-off unchanged; gate-on
 warm value + border in canvas, picker, and export; a user format, `format.css` class, and highlight
