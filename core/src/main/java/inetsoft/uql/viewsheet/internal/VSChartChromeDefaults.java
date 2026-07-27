@@ -78,6 +78,24 @@ public final class VSChartChromeDefaults {
       return isModern() && GDefaults.DEFAULT_LINE_COLOR.equals(current) ? GRIDLINE : current;
    }
 
+   /**
+    * Resolve a gridline color for display: when the gate is on and the color is still the legacy
+    * default, substitute the modern gridline neutral; otherwise (a customer/user color, or gate off)
+    * leave it unchanged. Compared against the hardcoded fallback so a format.css or user-picker color
+    * is preserved.
+    */
+   public static Color resolveGridlineColor(Color current) {
+      return isModern() && GDefaults.DEFAULT_GRIDLINE_COLOR.equals(current) ? GRIDLINE : current;
+   }
+
+   /**
+    * Resolve a legend-border color for display: modern neutral iff the gate is on and the color is
+    * still the legacy default; otherwise unchanged.
+    */
+   public static Color resolveLegendBorderColor(Color current) {
+      return isModern() && GDefaults.DEFAULT_LINE_COLOR.equals(current) ? GRIDLINE : current;
+   }
+
    // modern warm-neutral chrome; light mode only, dark deferred. Warmer/subtler than the legacy
    // GDefaults #EEEEEE, and equal to VSTableStructureDefaults.gridlineColor().
    private static final Color GRIDLINE = new Color(0xE8E5DE);
