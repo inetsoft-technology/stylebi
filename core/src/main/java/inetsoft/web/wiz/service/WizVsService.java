@@ -2780,6 +2780,10 @@ public class WizVsService {
          GraphUtil.fixVisualFrames(chartInfo);
       }
 
+      ChartDescriptor chartDescriptor = chart.getChartDescriptor();
+      PlotDescriptor plotDescriptor = chartDescriptor.getPlotDescriptor();
+      plotDescriptor.setValuesVisible(true);
+
       return chart;
    }
 
