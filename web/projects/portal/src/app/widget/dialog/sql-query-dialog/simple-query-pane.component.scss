@@ -33,15 +33,24 @@
   height: 100%;
 
   // ngbNavOutlet emits a .tab-content div — make it fill remaining height
-  .tab-content {
-    flex: 1 1 auto;
-    min-height: 0;
+  .simple-query-nav-outlet.tab-content {
+    flex: 1 1 404px;
+    min-height: 350px;
+    min-width: 0;
+    width: 100%;
     display: flex;
     flex-direction: column;
+
+    > .tab-pane {
+      min-height: 0;
+      min-width: 0;
+      width: 100%;
+    }
 
     > .tab-pane.active {
       flex: 1 1 auto;
       min-height: 0;
+      min-width: 0;
       display: flex;
       flex-direction: column;
     }
@@ -321,6 +330,9 @@
 // Preview tab
 .preview-tab-container {
   display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
   width: 100%;
   height: 100%;
 }
