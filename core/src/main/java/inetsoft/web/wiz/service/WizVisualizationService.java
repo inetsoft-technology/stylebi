@@ -608,6 +608,8 @@ public class WizVisualizationService {
          newWs.removeAssembly(name);
       }
 
+      newWs.setPrimaryAssembly(rootTable);
+
       // Resolve worksheet target folder — mirrors the viewsheet folder under a parallel root
       String wsFolderPath = resolveWorksheetFolderPath(targetFolderPath);
       AssetEntry wsFolder = new AssetEntry(
