@@ -64,8 +64,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
     *  sibling SVGs). */
    @Input() crossTile = false;
    /** Snap-to-nearest tooltip active. On line charts the snapped series drives the dim via
-    *  highlightSnapSeries, so setupLineSeriesHover's enter/leave suppress their own dim to avoid
-    *  fighting it. Area charts ignore it — their cursor-band hover already resolves a series. */
+    *  highlightSnapSeries, so onAreaMouseMove suppresses its own dim to avoid fighting it. Area
+    *  charts ignore it — their cursor-band hover already resolves a series. */
    @Input() snapTooltip = false;
    private _url: string = null;
    /** Last color emitted via seriesDimChange, to suppress duplicate emits. */
@@ -107,8 +107,20 @@ export class ChartInlineSvgDirective implements OnDestroy {
    private treemapGroups: Element[] = [];
    /** Treemap descendant nodes + labels activated for the current hover (cleared on deactivation). */
    private activeTreemapDescendants: Element[] = [];
-   /** Ordered list of area series objects; one entry per (panel, series) pair. */
-   private areaSeries: Array<{fillGroup: Element, lineGroup: Element, linePath: SVGGeometryElement}> = [];
+   /** Ordered list of hover series; one entry per (panel, series) pair. fillGroup is null on a pure
+    *  line chart (no area fills); points is empty on an area chart, whose markers are not part of
+    *  the cursor-band hover. */
+   private areaSeries: Array<{fillGroup: Element | null, lineGroup: Element,
+                              linePath: SVGGeometryElement, points: Element[]}> = [];
+   /** Point markers that matched no series (a color/col value no line group carries). They dim
+    *  whenever any series is active, so a stray marker cannot stay bright on its own. */
+   private hoverDimOnlyElements: Element[] = [];
+   /** How a mousemove resolves to a series: "ceiling" for area charts (the cursor belongs to the
+    *  fill band under the line immediately above it), "nearest" for line charts (the series whose
+    *  line is closest to the cursor). Lines need "nearest" because they have no band to fall into,
+    *  and closely spaced series cannot be separated by element hit-testing — overlapping hit areas
+    *  are always awarded to whichever element comes last in DOM order. */
+   private seriesHitMode: "ceiling" | "nearest" = "ceiling";
    /** Pre-sampled SVG local-coordinate points per series for fast mousemove hit-testing. */
    private areaSeriesCache: Array<{localX: number, localY: number}[]> = [];
    /** Index into areaSeries of the currently highlighted series, or -1. */
@@ -126,11 +138,13 @@ export class ChartInlineSvgDirective implements OnDestroy {
    private areaHoverSvgEl: SVGSVGElement | null = null;
    private areaMouseMoveHandler: ((e: MouseEvent) => void) | null = null;
    private areaMouseLeaveHandler: (() => void) | null = null;
-   /** AbortController that cancels all mouseenter/mouseleave listeners added by setupLineSeriesHover. */
+   /** AbortController that cancels the mouseenter/mouseleave listeners added by
+    *  setupRadarSeriesHover (cross-tile radar). Line and area hover use the SVG-level
+    *  mousemove listeners tracked by areaHoverSvgEl instead. */
    private lineSeriesAbortController: AbortController | null = null;
-   /** Debounce timer for clearing line-series dim, so moving between elements of one series is flicker-free. */
+   /** Debounce timer for clearing the cross-tile radar series dim. */
    private lineSeriesClearTimer: ReturnType<typeof setTimeout> | null = null;
-   /** True for pure line charts (setupLineSeriesHover ran). Gates the snap-driven series dim so it
+   /** True for pure line charts (setupLineHover ran). Gates the snap-driven series dim so it
     *  applies only to line charts; area/radar tiles keep their own hover mechanism. */
    private isLineSeriesHover = false;
    /** Maps "rowIdx-colIdx" → data-color for point markers, so a snapped data point resolves to its
@@ -143,6 +157,9 @@ export class ChartInlineSvgDirective implements OnDestroy {
    /** Debounce timer for clearing the snap-driven series dim. */
    private snapClearTimer: ReturnType<typeof setTimeout> | null = null;
    private static readonly CLEAR_DELAY_MS = 120;
+   /** Max distance (px) from a line to the cursor for the "nearest" hit mode to select it. Beyond
+    *  this the highlight clears, so empty plot area does not hold the last series lit. */
+   private static readonly NEAREST_MAX_DIST_PX = 50;
    /** Milliseconds after SVG load before the .ready class is added (gates A1 hover CSS). */
    private static readonly READY_MS = 900;
    private readonly destroy$ = new Subject<void>();
@@ -561,7 +578,9 @@ export class ChartInlineSvgDirective implements OnDestroy {
       this.teardownAreaHover();
       this.teardownLineSeriesHover();
       this.areaSeries = [];
+      this.hoverDimOnlyElements = [];
       this.activeSeriesIdx = -1;
+      this.seriesHitMode = "ceiling";
       this.usesSeriesColorDim = false;
       this.isLineSeriesHover = false;
       this.dimKeyAttr = "data-color";
@@ -683,7 +702,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
             // series-level JS hover (same pattern as radar charts).
             this.elementGroupMap.clear();
             this.element.nativeElement.style.zIndex = "1";
-            this.setupLineSeriesHover(lineOnlyGroups);
+            this.setupLineHover(lineOnlyGroups);
          }
          else {
             // Non-radar, non-area, non-line chart — reset in case SVG was replaced.
@@ -760,11 +779,23 @@ export class ChartInlineSvgDirective implements OnDestroy {
          const lineGroup = lineAnnotGroups[i];
          const path = lineGroup.querySelector("path");
          if(path instanceof SVGGeometryElement) {
-            this.areaSeries.push({fillGroup, lineGroup, linePath: path});
+            this.areaSeries.push({fillGroup, lineGroup, linePath: path, points: []});
          }
       }
 
-      if(this.areaSeries.length === 0) return;
+      this.seriesHitMode = "ceiling";
+      this.beginSeriesProximityHover();
+   }
+
+   /**
+    * Sample every series path and attach the mousemove/mouseleave handlers that resolve the hovered
+    * series from the cursor position. Shared by area (ceiling rule) and line (nearest rule) charts;
+    * areaSeries and seriesHitMode must be populated by the caller.
+    */
+   private beginSeriesProximityHover(): void {
+      if(this.areaSeries.length === 0) {
+         return;
+      }
 
       this.usesSeriesColorDim = true;
 
@@ -776,7 +807,10 @@ export class ChartInlineSvgDirective implements OnDestroy {
       this.areaSeriesCache = [];
       for(const s of this.areaSeries) {
          const pts: {localX: number, localY: number}[] = [];
-         const total = s.linePath.getTotalLength();
+         // A path with no geometry API (nothing to measure) leaves the sample list empty, so
+         // getScreenYAtX reports NaN for it and the series is simply never selected.
+         const total = typeof s.linePath.getTotalLength === "function"
+            ? s.linePath.getTotalLength() : 0;
          if(total > 0) {
             for(let j = 0; j <= SAMPLES; j++) {
                const lp = s.linePath.getPointAtLength(j / SAMPLES * total);
@@ -798,7 +832,17 @@ export class ChartInlineSvgDirective implements OnDestroy {
 
       this.areaHoverSvgEl = svgEl;
       this.areaMouseMoveHandler = (e: MouseEvent) => this.onAreaMouseMove(e);
-      this.areaMouseLeaveHandler = () => { this.deactivateArea(); this.emitSeriesDim(null); };
+      this.areaMouseLeaveHandler = () => {
+         // Same guard as onAreaMouseMove: while snap drives the dim on a line chart, clearing here
+         // would wipe the snap-driven color — and since highlightSnapSeries leaves _snapSeriesColor
+         // set, its own dedup would then keep it from ever being re-emitted for that series.
+         if(this.snapTooltip && this.isLineSeriesHover) {
+            return;
+         }
+
+         this.deactivateArea();
+         this.emitSeriesDim(null);
+      };
       svgEl.addEventListener("mousemove", this.areaMouseMoveHandler);
       svgEl.addEventListener("mouseleave", this.areaMouseLeaveHandler);
    }
@@ -820,29 +864,53 @@ export class ChartInlineSvgDirective implements OnDestroy {
    }
 
    /**
-    * Wire series-level mouseenter/mouseleave on all line and point groups for a pure line chart.
+    * Set up hover for a pure line chart: resolve the hovered series from the cursor position, the
+    * same way area charts do, rather than from element hit-testing.
     *
-    * Each inetsoft-line group is one series. Series are keyed by their DOM order (0, 1, 2 ...)
-    * which is guaranteed unique and independent of any color or measure binding.
-    * Point groups are matched to their series via data-color, scoped per parent element so that
-    * faceted (multi-panel) charts — which repeat the same palette in each panel — do not map
-    * same-color points from different panels to the same series.
+    * Hit-testing cannot work here. A line is painted 1-2px wide, and widening its hit area (a
+    * transparent stroke band, as radar uses) breaks down as soon as series run close together —
+    * in a facet chart seven series can sit within 30px, so their bands overlap and every hit is
+    * awarded to whichever band comes last in DOM order. The `r=3` point markers overlap the same
+    * way. Computing each series' y at the cursor x and taking the closest instead always yields
+    * exactly one winner, no matter how tight the spacing.
     *
-    * Within a single panel, two matching strategies are used depending on the chart structure:
-    * - If all lines in the panel have unique data-series values (distinct colIndex = multi-measure
-    *   chart), points are matched by data-col (= getColIndex()) for robustness against
-    *   user-configured same-color series.
-    * - If data-series values are not unique (multi-group single-measure chart, where all groups
-    *   share the same colIndex), color-based matching is used instead, since each group's palette
-    *   color is distinct by construction.
+    * Series identity is one entry per inetsoft-line group. A faceted chart emits one group per
+    * (panel, series), so this also gives per-panel hover scope: hovering the 2017 panel's series
+    * leaves the same-colored series in the 2018 panel dimmed, matching the whole-SVG dim scope bar
+    * charts get from the server :has() rule.
     *
-    * The 120 ms CLEAR_DELAY_MS debounce prevents flicker when moving between the line group
-    * and its point markers (separate sibling groups with a potential gap in hit area).
+    * Point groups are matched to their series in two steps, scoped per parent element:
+    * - Candidate series are picked by identity attribute, using one of two strategies depending on
+    *   the chart structure:
+    *   - If all lines in the panel have unique data-series values (distinct colIndex = multi-measure
+    *     chart), points are matched by data-col (= getColIndex()) for robustness against
+    *     user-configured same-color series.
+    *   - If data-series values are not unique (multi-group single-measure chart, where all groups
+    *     share the same colIndex, and faceted charts, which repeat the same palette in every panel),
+    *     color-based matching is used instead, since each group's palette color is distinct by
+    *     construction within one panel.
+    * - When several series match (a faceted chart repeats every identity value once per panel), the
+    *   geometrically nearest one wins, measured between the point's and the line path's bounding
+    *   rects. Panels never overlap, so the nearest match is always the point's own panel. This
+    *   replaces DOM-order matching, which attached every panel's points to the first panel's series.
     */
-   private setupLineSeriesHover(lineGroups: Element[]): void {
-      interface LineSeries { lines: Element[]; points: Element[] }
-      const seriesMap = new Map<string, LineSeries>();
+   private setupLineHover(lineGroups: Element[]): void {
+      this.matchLineSeries(lineGroups);
 
+      if(this.areaSeries.length === 0) {
+         return;
+      }
+
+      this.isLineSeriesHover = true;
+      this.seriesHitMode = "nearest";
+      this.beginSeriesProximityHover();
+   }
+
+   /**
+    * Build one areaSeries entry per inetsoft-line group and attach each point marker to the entry
+    * it belongs to. See setupLineHover for the matching rules.
+    */
+   private matchLineSeries(lineGroups: Element[]): void {
       // Group line groups by their parent element so each facet panel gets its own
       // matching scope. Faceted charts repeat the same palette in each panel, so a
       // flat map would overwrite earlier entries and attach same-color points from
@@ -855,7 +923,6 @@ export class ChartInlineSvgDirective implements OnDestroy {
          (linesByParent.get(parent) as Element[]).push(line);
       }
 
-      let globalIdx = 0;
       for(const [parent, parentLines] of linesByParent) {
          // Collect only the point groups within this panel so matching is scoped
          // to the same facet cell rather than the whole SVG.
@@ -878,131 +945,85 @@ export class ChartInlineSvgDirective implements OnDestroy {
          const useIndexMatching = seriesAttrValues.length === parentLines.length &&
             new Set(seriesAttrValues).size === parentLines.length;
 
-         const colorToKey = new Map<string, string>();
-         const seriesToKey = new Map<string, string>();
+         // One entry per line group. Its identity value (data-series in index mode, data-color
+         // otherwise) is what point groups are matched against; the same value legitimately repeats
+         // across facet panels, so the rect is kept to break those ties geometrically below.
+         const candidates: Array<{idx: number, matchValue: string | null, el: Element,
+                                  rect?: DOMRect}> = [];
+
          for(const line of parentLines) {
-            if(useIndexMatching) {
-               const seriesAttr = line.getAttribute("data-series");
-               if(seriesAttr && seriesToKey.has(seriesAttr)) {
-                  // Same colIndex already registered (shouldn't happen in index mode,
-                  // but guard defensively): merge into existing series.
-                  (seriesMap.get(seriesToKey.get(seriesAttr) as string) as LineSeries).lines.push(line);
-               }
-               else {
-                  const key = String(globalIdx++);
-                  seriesMap.set(key, { lines: [line], points: [] });
-                  if(seriesAttr) seriesToKey.set(seriesAttr, key);
-               }
+            const path = line.querySelector("path") as SVGGeometryElement | null;
+
+            if(path == null) {
+               continue;
             }
-            else {
-               const color = line.getAttribute("data-color");
-               if(color && colorToKey.has(color)) {
-                  // Same color seen before (e.g. stacked line facet: both panels share
-                  // the same palette, all under one DOM parent). Merge into existing
-                  // series so the hover set spans all same-colored lines.
-                  (seriesMap.get(colorToKey.get(color) as string) as LineSeries).lines.push(line);
-               }
-               else {
-                  const key = String(globalIdx++);
-                  seriesMap.set(key, { lines: [line], points: [] });
-                  if(color) colorToKey.set(color, key);
-               }
-            }
+
+            candidates.push({
+               idx: this.areaSeries.length,
+               // Measure the painted path rather than the group: the group's rect also covers its
+               // point markers, which would blur the panel boundary the tie-break relies on.
+               matchValue: line.getAttribute(useIndexMatching ? "data-series" : "data-color"),
+               el: path
+            });
+            this.areaSeries.push({fillGroup: null, lineGroup: line, linePath: path, points: []});
          }
 
-         // Match each point in this panel to its series.
+         // Match each point in this panel to its series: filter by identity value, then, when a
+         // faceted chart offers one candidate per panel, take the geometrically nearest.
          for(const point of parentPoints) {
-            let key: string | undefined;
-            if(useIndexMatching) {
-               const col = point.getAttribute("data-col");
-               if(col) key = seriesToKey.get(col);
+            const value = point.getAttribute(useIndexMatching ? "data-col" : "data-color");
+
+            if(value == null) {
+               this.hoverDimOnlyElements.push(point);
+               continue;
             }
-            else {
-               const color = point.getAttribute("data-color");
-               if(color) key = colorToKey.get(color);
+
+            const matches = candidates.filter(c => c.matchValue === value);
+
+            if(matches.length === 0) {
+               this.hoverDimOnlyElements.push(point);
+               continue;
             }
-            if(key != null) seriesMap.get(key)?.points.push(point);
+
+            const match = matches.length === 1 ? matches[0] : this.nearestByRect(point, matches);
+            this.areaSeries[match.idx].points.push(point);
+         }
+      }
+   }
+
+   /**
+    * Return the candidate whose bounding rect is closest to the target element's center, so a point
+    * marker is matched to the line series of its own facet panel rather than to a same-colored
+    * series in a sibling panel. Candidate rects are measured once and cached on the candidate.
+    * Distance is the gap between the target center and the candidate rect (0 when inside), so the
+    * containing panel always wins. Ties keep the first candidate — the DOM-order behavior used when
+    * no layout is available (e.g. a detached or headless DOM, where every rect is empty).
+    */
+   private nearestByRect<T extends {el: Element, rect?: DOMRect}>(target: Element,
+                                                                 candidates: T[]): T
+   {
+      const t = target.getBoundingClientRect();
+      const tx = (t.left + t.right) / 2;
+      const ty = (t.top + t.bottom) / 2;
+      let best = candidates[0];
+      let bestDist = Number.POSITIVE_INFINITY;
+
+      for(const c of candidates) {
+         if(!c.rect) {
+            c.rect = c.el.getBoundingClientRect();
+         }
+
+         const dx = Math.max(c.rect.left - tx, 0, tx - c.rect.right);
+         const dy = Math.max(c.rect.top - ty, 0, ty - c.rect.bottom);
+         const dist = dx * dx + dy * dy;
+
+         if(dist < bestDist) {
+            bestDist = dist;
+            best = c;
          }
       }
 
-      const allPoints = Array.from(
-         this.element.nativeElement.querySelectorAll(".inetsoft-point") as NodeListOf<Element>);
-
-      if(seriesMap.size === 0) return;
-
-      this.usesSeriesColorDim = true;
-      this.isLineSeriesHover = true;
-
-      // allElems intentionally spans the entire SVG (all panels). Hovering a series dims
-      // every element outside that series, including sibling panels in a faceted chart.
-      // This is deliberate: cross-panel dimming focuses attention on the hovered panel.
-      const allElems: Element[] = [...lineGroups, ...allPoints];
-
-      // pointer-events:all already set via CSS on .inetsoft-line; add it to points here
-      for(const point of allPoints) {
-         (point as HTMLElement).style.pointerEvents = "all";
-      }
-
-      const ac = new AbortController();
-      this.lineSeriesAbortController = ac;
-
-      const clearDim = () => {
-         this.lineSeriesClearTimer = null;
-         // Cross-tile: opacity is managed by the parent via setExternalSeriesDim; just emit clear.
-         if(this.crossTile) {
-            this.emitSeriesDim(null);
-            return;
-         }
-         for(const elem of allElems) {
-            (elem as HTMLElement).style.removeProperty("opacity");
-         }
-      };
-
-      for(const [, series] of seriesMap) {
-         const seriesSet = new Set<Element>([...series.lines, ...series.points]);
-         const seriesColor = [...series.lines, ...series.points]
-            .map(e => e.getAttribute("data-color")).find(c => c) ?? null;
-
-         const enterHandler = () => {
-            // Under snap, highlightSnapSeries drives the dim; this geometry hover would fight it.
-            if(this.snapTooltip) {
-               return;
-            }
-            if(this.lineSeriesClearTimer !== null) {
-               clearTimeout(this.lineSeriesClearTimer);
-               this.lineSeriesClearTimer = null;
-            }
-            // Cross-tile: emit the active color so the parent dims every tile uniformly; the
-            // per-SVG loop below cannot reach sibling tiles holding the rest of each series.
-            if(this.crossTile) {
-               this.emitSeriesDim(seriesColor);
-               return;
-            }
-            for(const elem of allElems) {
-               if(!seriesSet.has(elem)) {
-                  // Use setProperty with "important" so the value overrides
-                  // animation fill-mode (which holds opacity:1 after inetsoft-line-fade
-                  // completes and sits above normal inline styles in the CSS cascade).
-                  (elem as HTMLElement).style.setProperty("opacity", "0.2", "important");
-               }
-            }
-         };
-
-         const leaveHandler = () => {
-            if(this.snapTooltip) {
-               return;
-            }
-            if(this.lineSeriesClearTimer !== null) {
-               clearTimeout(this.lineSeriesClearTimer);
-            }
-            this.lineSeriesClearTimer = setTimeout(clearDim, ChartInlineSvgDirective.CLEAR_DELAY_MS);
-         };
-
-         for(const elem of seriesSet) {
-            elem.addEventListener("mouseenter", enterHandler, { signal: ac.signal } as AddEventListenerOptions);
-            elem.addEventListener("mouseleave", leaveHandler, { signal: ac.signal } as AddEventListenerOptions);
-         }
-      }
+      return best;
    }
 
    private teardownLineSeriesHover(): void {
@@ -1014,11 +1035,11 @@ export class ChartInlineSvgDirective implements OnDestroy {
          clearTimeout(this.lineSeriesClearTimer);
          this.lineSeriesClearTimer = null;
       }
-      // Note: the pointer-events inline style set on point groups in setupLineSeriesHover
-      // is intentionally NOT reset here. In the afterSvgInjected() call path, innerHTML is
-      // replaced before this method runs, so the old elements are already detached from the
-      // DOM. In the ngOnDestroy() call path, Angular is about to remove the host element
-      // entirely. In both cases, resetting the style would be a no-op.
+      // Note: the pointer-events inline style set on radar polygon/point groups in
+      // setupRadarSeriesHover is intentionally NOT reset here. In the afterSvgInjected() call
+      // path, innerHTML is replaced before this method runs, so the old elements are already
+      // detached from the DOM. In the ngOnDestroy() call path, Angular is about to remove the
+      // host element entirely. In both cases, resetting the style would be a no-op.
    }
 
    /**
@@ -1079,6 +1100,13 @@ export class ChartInlineSvgDirective implements OnDestroy {
    }
 
    private onAreaMouseMove(e: MouseEvent): void {
+      // Under snap the snapped point drives the dim (highlightSnapSeries); resolving a series from
+      // the cursor as well would fight it. Area charts ignore snap — their own cursor-band hover
+      // already resolves a series — so this only applies to line charts.
+      if(this.snapTooltip && this.isLineSeriesHover) {
+         return;
+      }
+
       // Collect screen y for every series. getScreenYAtX returns NaN when the mouse x is
       // outside that path's x-range (> 20px beyond path endpoints) — cross-panel paths
       // always return NaN so they can never be activated or receive a dim style.
@@ -1089,20 +1117,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
          yValues.push(isNaN(y) ? null : y);
       }
 
-      // Ceiling algorithm: the fill band between line A (above) and line B (below) belongs to A.
-      // "Above the mouse" = lineY < mouseY (smaller screen y = higher on screen).
-      // Among all lines above the mouse, pick the one with the LARGEST lineY (the ceiling —
-      // the line immediately above the cursor). This correctly maps the cursor into its fill band.
-      // If no line is above the mouse (cursor is above every series or between panels), nearestIdx
-      // stays -1 and deactivateArea() clears all highlighting — intentional reset.
-      let nearestIdx = -1;
-      let ceilingY   = -Infinity; // largest lineY that is still < mouseY
-
-      for(let i = 0; i < this.areaSeries.length; i++) {
-         const y = yValues[i];
-         if(y === null) continue;
-         if(y < e.clientY && y > ceilingY) { ceilingY = y; nearestIdx = i; }
-      }
+      const nearestIdx = this.seriesHitMode === "nearest"
+         ? this.findNearestSeries(yValues, e.clientY) : this.findCeilingSeries(yValues, e.clientY);
 
       if(nearestIdx !== this.activeSeriesIdx) {
          this.deactivateArea();
@@ -1112,17 +1128,85 @@ export class ChartInlineSvgDirective implements OnDestroy {
          // (including this one) uniformly. The geometry-based local dim below cannot reach the
          // sibling SVGs that hold the rest of each series.
          if(this.crossTile) {
-            this.emitSeriesDim(nearestIdx >= 0
-               ? this.areaSeries[nearestIdx].fillGroup.getAttribute("data-color") : null);
+            const active = nearestIdx >= 0 ? this.areaSeries[nearestIdx] : null;
+            this.emitSeriesDim(active
+               ? (active.fillGroup ?? active.lineGroup).getAttribute("data-color") : null);
          }
          else if(nearestIdx >= 0) {
-            // Dim only same-panel series (those with a valid y at this mouse x).
-            // Cross-panel series (yValues[i] === null) keep full opacity — no contamination.
+            // Dim every other (panel, series) entry, including those in sibling facet panels.
+            // Cross-panel entries can never be *selected* (getScreenYAtX returns NaN for them, so
+            // yValues[i] === null keeps them out of the searches above), but they must still dim:
+            // a facet panel is a separate coordinate space, so hovering a series in one panel
+            // highlights that panel's series only and darkens the rest of the chart — the same
+            // scope the server :has() rule gives bar charts.
             for(let i = 0; i < this.areaSeries.length; i++) {
-               if(i === nearestIdx || yValues[i] === null) continue;
-               (this.areaSeries[i].fillGroup as HTMLElement).style.opacity = "0.2";
-               (this.areaSeries[i].lineGroup as HTMLElement).style.opacity = "0.2";
+               if(i === nearestIdx) continue;
+               this.setSeriesOpacity(this.areaSeries[i], "0.2");
             }
+
+            for(const el of this.hoverDimOnlyElements) {
+               (el as HTMLElement).style.setProperty("opacity", "0.2", "important");
+            }
+         }
+      }
+   }
+
+   /**
+    * Ceiling rule (area charts): the fill band between line A (above) and line B (below) belongs to
+    * A. "Above the mouse" = lineY < mouseY (smaller screen y = higher on screen). Among all lines
+    * above the mouse, pick the one with the LARGEST lineY (the ceiling — the line immediately above
+    * the cursor). This maps the cursor into its fill band. If no line is above the mouse (cursor is
+    * above every series or between panels), -1 clears all highlighting — an intentional reset.
+    */
+   private findCeilingSeries(yValues: (number | null)[], mouseY: number): number {
+      let idx = -1;
+      let ceilingY = -Infinity; // largest lineY that is still < mouseY
+
+      for(let i = 0; i < yValues.length; i++) {
+         const y = yValues[i];
+         if(y === null) continue;
+         if(y < mouseY && y > ceilingY) { ceilingY = y; idx = i; }
+      }
+
+      return idx;
+   }
+
+   /**
+    * Nearest rule (line charts): the series whose line is closest to the cursor wins, above or
+    * below. This separates series no matter how tightly they are packed, which hit-testing on the
+    * elements themselves cannot do. Beyond NEAREST_MAX_DIST_PX nothing is selected, so moving into
+    * empty plot area releases the highlight instead of holding the last series lit.
+    */
+   private findNearestSeries(yValues: (number | null)[], mouseY: number): number {
+      let idx = -1;
+      let bestDist = ChartInlineSvgDirective.NEAREST_MAX_DIST_PX;
+
+      for(let i = 0; i < yValues.length; i++) {
+         const y = yValues[i];
+         if(y === null) continue;
+         const dist = Math.abs(y - mouseY);
+         if(dist < bestDist) { bestDist = dist; idx = i; }
+      }
+
+      return idx;
+   }
+
+   /** Apply (or clear, with "") an opacity to every element of one series entry. */
+   private setSeriesOpacity(series: {fillGroup: Element | null, lineGroup: Element,
+                                     points: Element[]}, opacity: string): void {
+      // setProperty with "important" so the value overrides animation fill-mode, which holds
+      // opacity:1 on point markers after inetsoft-line-fade completes and sits above normal
+      // inline styles in the CSS cascade.
+      for(const el of [series.fillGroup, series.lineGroup, ...series.points]) {
+         if(el == null) {
+            continue;
+         }
+
+         if(opacity === "") {
+            (el as HTMLElement).style.removeProperty("opacity");
+         }
+         else {
+            (el as HTMLElement).style.setProperty("opacity", opacity, "important");
          }
       }
    }
@@ -1131,8 +1215,11 @@ export class ChartInlineSvgDirective implements OnDestroy {
       // In cross-tile mode opacity is managed only by setExternalSeriesDim, so leave it alone.
       if(this.activeSeriesIdx >= 0 && !this.crossTile) {
          for(const s of this.areaSeries) {
-            (s.fillGroup as HTMLElement).style.opacity = "";
-            (s.lineGroup as HTMLElement).style.opacity = "";
+            this.setSeriesOpacity(s, "");
+         }
+
+         for(const el of this.hoverDimOnlyElements) {
+            (el as HTMLElement).style.removeProperty("opacity");
          }
       }
       this.activeSeriesIdx = -1;
