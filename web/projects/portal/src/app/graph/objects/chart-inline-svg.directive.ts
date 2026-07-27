@@ -88,6 +88,10 @@ export class ChartInlineSvgDirective implements OnDestroy {
    /** Keys of the currently active elements; one for a plain hover, many for a stacked bar
     *  column (every segment activated together so the whole stack stays undimmed). */
    private _activeKeys: string[] = [];
+   /** True when _activeKeys resolved to at least one element in elementGroupMap. On a mixed tile the
+    *  canvas also reports the line measure's regions, whose keys are absent from the map; those must
+    *  not count as a class hover or they would lock out the series proximity hover. */
+   private _activeFound = false;
    /** Cached SVG root of this tile, used to toggle the cross-tile inetsoft-dim-all class. */
    private svgRootEl: SVGSVGElement | null = null;
    /** Timer handle for debounced deactivation, so fast inter-bar moves don't flash. */
@@ -129,6 +133,17 @@ export class ChartInlineSvgDirective implements OnDestroy {
     *  the inetsoft-active/inetsoft-dim-all class mechanism. Prevents the class-based cross-tile
     *  dim from fighting the key-based one over shared .inetsoft-point markers. */
    private usesSeriesColorDim = false;
+   /** True when this tile mixes both hover mechanisms: line/area series (cursor-resolved, dimmed by
+    *  inline opacity) alongside class-hover VOs such as bars (dimmed by the server :has() rule on
+    *  inetsoft-active). A multi-style chart binds a different chart type per measure, so one SVG can
+    *  hold e.g. bars and a line. Both mechanisms stay live and dim each other. */
+   private mixedHover = false;
+   /** Class-hover groups (and their labels) present in a mixed tile, dimmed inline while a line/area
+    *  series owns the highlight. Empty unless mixedHover. */
+   private mixedClassHoverElements: Element[] = [];
+   /** True while activateKeys holds every series dimmed for a mixed tile's class hover. Gates the
+    *  release in deactivateCurrent so it cannot wipe a dim the proximity hover owns instead. */
+   private mixedSeriesDimmed = false;
    /** Attribute identifying a series for cross-tile dim: data-color for area/line, data-row for
     *  radar. The value is stable across a split chart's SVG tiles. */
    private dimKeyAttr = "data-color";
@@ -162,6 +177,14 @@ export class ChartInlineSvgDirective implements OnDestroy {
    private static readonly NEAREST_MAX_DIST_PX = 50;
    /** Milliseconds after SVG load before the .ready class is added (gates A1 hover CSS). */
    private static readonly READY_MS = 900;
+   /** Annotation classes whose hover is driven by toggling inetsoft-active, in the order they
+    *  populate elementGroupMap (a later class wins a row-col collision). */
+   private static readonly HOVER_CLASSES = [".inetsoft-bar", ".inetsoft-point", ".inetsoft-candle",
+      ".inetsoft-box", ".inetsoft-radar", ".inetsoft-treemap", ".inetsoft-mekko",
+      ".inetsoft-relation"];
+   /** Label classes paired with the HOVER_CLASSES groups by data-row/data-col. */
+   private static readonly HOVER_LABEL_CLASSES = [".inetsoft-bar-label", ".inetsoft-point-label",
+      ".inetsoft-treemap-label", ".inetsoft-mekko-label", ".inetsoft-relation-label"];
    private readonly destroy$ = new Subject<void>();
 
    constructor(private element: ElementRef, private http: HttpClient) {
@@ -236,6 +259,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
          this.elementGroupMap.clear();
          this.labelGroupMap.clear();
          this._activeKeys = [];
+         this._activeFound = false;
       }
    }
 
@@ -267,8 +291,11 @@ export class ChartInlineSvgDirective implements OnDestroy {
          // inetsoft-active class; toggling active on their shared point markers would fight
          // that, so honor only the primary when a multi-element (stacked) set arrives on such
          // a tile. Trim here so _activeKeys is written once and sameActiveKeys compares the
-         // value that was actually applied.
-         const activeKeys = this.usesSeriesColorDim && keys.length > 1 ? keys.slice(0, 1) : keys;
+         // value that was actually applied. A mixed tile is exempt: its keys resolve to bars (or
+         // other class-hover VOs), never to the series' own markers, so every segment of a stacked
+         // column must stay active.
+         const activeKeys = this.usesSeriesColorDim && !this.mixedHover && keys.length > 1
+            ? keys.slice(0, 1) : keys;
 
          if(!this.sameActiveKeys(activeKeys)) {
             this.deactivateCurrent();
@@ -311,6 +338,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
                }
                else {
                   this.setExternalSeriesDim(null);
+                  this.setMixedClassHoverDim(false);
                }
             }, ChartInlineSvgDirective.CLEAR_DELAY_MS);
          }
@@ -341,6 +369,10 @@ export class ChartInlineSvgDirective implements OnDestroy {
       }
       else {
          this.setExternalSeriesDim(color);
+         // Multi-style chart: under snap the guideline drives the series highlight and
+         // onAreaMouseMove stands down, so this is the only place that can fade the bars drawn
+         // beside the snapped series. setExternalSeriesDim reaches series elements only.
+         this.setMixedClassHoverDim(true);
       }
    }
 
@@ -404,12 +436,36 @@ export class ChartInlineSvgDirective implements OnDestroy {
          if(glyphs) glyphs.forEach(g => g.classList.add("inetsoft-active"));
       }
 
+      this._activeFound = anyFound;
+
+      // Multi-style chart: a class-hover VO (e.g. a bar) took the highlight, so the line/area series
+      // drawn beside it must fade with the other bars. The server :has() rule only reaches elements
+      // of the same chart type, and the series carry no inetsoft-active class at all. Any series dim
+      // left over from a preceding cursor hover is dropped first, so activeSeriesIdx is reset and a
+      // later mousemove re-applies its own dim rather than deduping against a stale index.
+      if(this.mixedHover && anyFound && !this.crossTile) {
+         this.deactivateArea();
+         // Explicit release as well: under snap the bars are dimmed by highlightSnapSeries with no
+         // series active, so deactivateArea's activeSeriesIdx guard skips them. Snapping from the
+         // line onto a bar column never calls highlightSnapSeries again (the plot area routes a
+         // bar-like region to highlightElements), so nothing else would lift that dim. Dropping the
+         // remembered snap color with it lets the same series re-dim the bars when the guideline
+         // moves back onto it, which its unchanged-color early return would otherwise skip.
+         this.setMixedClassHoverDim(false);
+         this._snapSeriesColor = null;
+         this.setAllSeriesDim(true);
+         this.mixedSeriesDimmed = true;
+      }
+
       // A large chart is split into multiple SVG tiles. The hovered data point lives in
       // only one tile, so its inetsoft-active class (and the server's :has() dim rule, which
       // is scoped to a single SVG) never reaches sibling tiles. When this tile holds
       // hover-managed elements but none of the active set, flag its root so server CSS dims them.
       // Skipped for area/line charts (they dim by series color) and cross-tile relation charts
-      // (the parent drives per-tile highlight + dim via setExternalRelationHighlight).
+      // (the parent drives per-tile highlight + dim via setExternalRelationHighlight). Mixed tiles
+      // are covered by the series-color-dim skip too: there, !anyFound means the cursor is on the
+      // line measure, which the proximity hover handles — dimming every bar here would instead
+      // blank the plot for the whole time the cursor spends off the bars.
       if(!anyFound && this.elementGroupMap.size > 0 && this.svgRootEl && !this.usesSeriesColorDim &&
          !(this.isRelationChart && this.crossTile)) {
          this.svgRootEl.classList.add("inetsoft-dim-all");
@@ -417,6 +473,8 @@ export class ChartInlineSvgDirective implements OnDestroy {
    }
 
    private deactivateCurrent(): void {
+      this._activeFound = false;
+
       if(this._activeKeys.length === 0) return;
       // Cross-tile relation: the parent set inetsoft-active/dim-all across tiles, so clearing is
       // its job too — emit the clear and don't strip classes locally (that would fight the parent).
@@ -425,6 +483,13 @@ export class ChartInlineSvgDirective implements OnDestroy {
          return;
       }
       if(this.svgRootEl) this.svgRootEl.classList.remove("inetsoft-dim-all");
+
+      // Release the series dim applied by activateKeys on a mixed tile. deactivateArea() cannot do
+      // it — activateKeys reset activeSeriesIdx to -1, which is its own no-op guard.
+      if(this.mixedSeriesDimmed) {
+         this.setAllSeriesDim(false);
+         this.mixedSeriesDimmed = false;
+      }
 
       for(const key of this._activeKeys) {
          const el = this.elementGroupMap.get(key);
@@ -582,6 +647,10 @@ export class ChartInlineSvgDirective implements OnDestroy {
       this.activeSeriesIdx = -1;
       this.seriesHitMode = "ceiling";
       this.usesSeriesColorDim = false;
+      this.mixedHover = false;
+      this.mixedClassHoverElements = [];
+      this.mixedSeriesDimmed = false;
+      this._activeFound = false;
       this.isLineSeriesHover = false;
       this.dimKeyAttr = "data-color";
       this.dimTargetSelector = ".inetsoft-area,.inetsoft-line,.inetsoft-point";
@@ -610,19 +679,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
       // Populate the unified element map from all annotated VO groups.
       // Each CSS class corresponds to a different chart type; the CSS class on the stored
       // element determines which server-injected hover rule fires on inetsoft-active toggle.
-      for(const cssClass of [".inetsoft-bar", ".inetsoft-point", ".inetsoft-candle", ".inetsoft-box", ".inetsoft-radar", ".inetsoft-treemap", ".inetsoft-mekko", ".inetsoft-relation"]) {
-         const elements = Array.from(
-            this.element.nativeElement.querySelectorAll(cssClass) as NodeListOf<Element>);
-
-         for(const el of elements) {
-            const row = el.getAttribute("data-row");
-            const col = el.getAttribute("data-col");
-
-            if(row != null && col != null) {
-               this.elementGroupMap.set(`${row}-${col}`, el);
-            }
-         }
-      }
+      this.populateElementGroupMap(ChartInlineSvgDirective.HOVER_CLASSES);
 
       // Map each point marker's row/col → data-color for snap resolution. Built from .inetsoft-point,
       // the only annotation carrying row, col and color together (line/area groups omit row/col).
@@ -695,14 +752,32 @@ export class ChartInlineSvgDirective implements OnDestroy {
             this.element.nativeElement.querySelectorAll(".inetsoft-line") as NodeListOf<Element>);
 
          if(lineOnlyGroups.length > 0) {
-            // Pure line chart (step/jump/regular, no area fills).
+            // Line chart (step/jump/regular, no area fills), possibly one measure of a multi-style
+            // chart that also draws bars/candles/etc.
             // Raise SVG above canvas overlay so pointer events reach SVG elements.
-            // Clear elementGroupMap so canvas-driven highlightElement() is a no-op —
-            // the inetsoft-active CSS dims by individual point and would fight the
-            // series-level JS hover (same pattern as radar charts).
+            // Drop the point markers from elementGroupMap: they belong to the line series, and the
+            // inetsoft-active CSS dims by individual point, which would fight the series-level JS
+            // hover (same pattern as radar charts). Rebuilding without them rather than deleting
+            // keys also restores a bar that a same-key point marker had overwritten. On a pure line
+            // chart nothing else populates the map, so it ends up empty and canvas-driven
+            // highlightElement() stays a no-op.
             this.elementGroupMap.clear();
+            this.populateElementGroupMap(ChartInlineSvgDirective.HOVER_CLASSES
+               .filter(c => c !== ".inetsoft-point"));
             this.element.nativeElement.style.zIndex = "1";
             this.setupLineHover(lineOnlyGroups);
+
+            // Multi-style chart: a line measure drawn beside class-hover VOs (bars, candles, ...).
+            // Both mechanisms must stay live, and each must dim the other's elements so the hovered
+            // VO is the only bright thing in the plot.
+            if(this.areaSeries.length > 0 && this.elementGroupMap.size > 0) {
+               this.mixedHover = true;
+               this.mixedClassHoverElements = ChartInlineSvgDirective.HOVER_CLASSES
+                  .concat(ChartInlineSvgDirective.HOVER_LABEL_CLASSES)
+                  .filter(c => c !== ".inetsoft-point" && c !== ".inetsoft-point-label")
+                  .flatMap(c => Array.from(
+                     this.element.nativeElement.querySelectorAll(c) as NodeListOf<Element>));
+            }
          }
          else {
             // Non-radar, non-area, non-line chart — reset in case SVG was replaced.
@@ -734,7 +809,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
 
       // Build label map from server-annotated label elements for all chart types that have
       // external text groups matched to data elements (bar, point/gantt-milestone, treemap/sunburst/icicle, mekko).
-      for(const labelClass of [".inetsoft-bar-label", ".inetsoft-point-label", ".inetsoft-treemap-label", ".inetsoft-mekko-label", ".inetsoft-relation-label"]) {
+      for(const labelClass of ChartInlineSvgDirective.HOVER_LABEL_CLASSES) {
          const labels = Array.from(
             this.element.nativeElement.querySelectorAll(labelClass) as NodeListOf<Element>);
 
@@ -747,6 +822,26 @@ export class ChartInlineSvgDirective implements OnDestroy {
                const arr = this.labelGroupMap.get(k);
                if(arr) arr.push(label);
                else this.labelGroupMap.set(k, [label]);
+            }
+         }
+      }
+   }
+
+   /**
+    * Add every annotation group matching one of the given classes to elementGroupMap, keyed by
+    * "data-row-data-col". Classes are applied in order, so a later class wins a key collision.
+    */
+   private populateElementGroupMap(cssClasses: string[]): void {
+      for(const cssClass of cssClasses) {
+         const elements = Array.from(
+            this.element.nativeElement.querySelectorAll(cssClass) as NodeListOf<Element>);
+
+         for(const el of elements) {
+            const row = el.getAttribute("data-row");
+            const col = el.getAttribute("data-col");
+
+            if(row != null && col != null) {
+               this.elementGroupMap.set(`${row}-${col}`, el);
             }
          }
       }
@@ -1107,6 +1202,13 @@ export class ChartInlineSvgDirective implements OnDestroy {
          return;
       }
 
+      // Multi-style chart: the cursor is on a class-hover VO (the canvas overlay resolved a bar
+      // region and activated it), so that VO owns the highlight. The "nearest series within 50px"
+      // rule would otherwise steal it for a line that merely passes near the bar.
+      if(this.mixedHover && this._activeFound) {
+         return;
+      }
+
       // Collect screen y for every series. getScreenYAtX returns NaN when the mouse x is
       // outside that path's x-range (> 20px beyond path endpoints) — cross-panel paths
       // always return NaN so they can never be activated or receive a dim style.
@@ -1147,6 +1249,11 @@ export class ChartInlineSvgDirective implements OnDestroy {
             for(const el of this.hoverDimOnlyElements) {
                (el as HTMLElement).style.setProperty("opacity", "0.2", "important");
             }
+
+            // Multi-style chart: fade the bars (or other class-hover VOs) too, so a series hover
+            // dims the whole plot the same way a bar hover does. Done inline rather than with
+            // inetsoft-dim-all, whose A1 rule would also dim the active series' own point markers.
+            this.setMixedClassHoverDim(true);
          }
       }
    }
@@ -1211,16 +1318,42 @@ export class ChartInlineSvgDirective implements OnDestroy {
       }
    }
 
+   /** Dim (or release) every series entry at once, plus the markers that matched no series. */
+   private setAllSeriesDim(dim: boolean): void {
+      for(const s of this.areaSeries) {
+         this.setSeriesOpacity(s, dim ? "0.2" : "");
+      }
+
+      for(const el of this.hoverDimOnlyElements) {
+         if(dim) {
+            (el as HTMLElement).style.setProperty("opacity", "0.2", "important");
+         }
+         else {
+            (el as HTMLElement).style.removeProperty("opacity");
+         }
+      }
+   }
+
+   /**
+    * Dim (or release) the class-hover VOs of a mixed tile while a line/area series is highlighted.
+    * No-op on a tile that holds only one hover mechanism (mixedClassHoverElements is empty).
+    */
+   private setMixedClassHoverDim(dim: boolean): void {
+      for(const el of this.mixedClassHoverElements) {
+         if(dim) {
+            (el as HTMLElement).style.setProperty("opacity", "0.2", "important");
+         }
+         else {
+            (el as HTMLElement).style.removeProperty("opacity");
+         }
+      }
+   }
+
    private deactivateArea(): void {
       // In cross-tile mode opacity is managed only by setExternalSeriesDim, so leave it alone.
       if(this.activeSeriesIdx >= 0 && !this.crossTile) {
-         for(const s of this.areaSeries) {
-            this.setSeriesOpacity(s, "");
-         }
-
-         for(const el of this.hoverDimOnlyElements) {
-            (el as HTMLElement).style.removeProperty("opacity");
-         }
+         this.setAllSeriesDim(false);
+         this.setMixedClassHoverDim(false);
       }
       this.activeSeriesIdx = -1;
    }
