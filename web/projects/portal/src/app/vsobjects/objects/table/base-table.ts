@@ -1225,6 +1225,16 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
       // origin, which is wrong when this component is mounted as a standalone embed web
       // component on a completely different origin (e.g. wiz's portal) instead of served
       // directly by the StyleBI app itself.
+      //
+      // Guard against vsInfo/linkUri not being populated yet (mirrors VSChart's guard): in the
+      // embed components, updateVSInfo() is first called from processAddVSObjectCommand with no
+      // linkUri, so vsInfo.linkUri starts out null until processSetViewsheetInfoCommand arrives
+      // later - and the export toolbar action has no gate on that having happened. Without this
+      // check, clicking Export in that window would concatenate the string "null" into the url.
+      if(!this.vsInfo || !this.vsInfo.linkUri) {
+         return;
+      }
+
       const url = this.vsInfo.linkUri + "export/vs-table/" +
          Tool.encodeURIPath(this.viewsheetClient.runtimeId) +
          "/" + encodeURIComponent(this.getAssemblyName());
