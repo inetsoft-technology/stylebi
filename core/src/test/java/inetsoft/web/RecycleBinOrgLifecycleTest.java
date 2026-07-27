@@ -33,9 +33,12 @@ package inetsoft.web;
  *
  * 11b side discovery: migrateEntries() mutates the Entry objects in the Map handed to it
  * in-memory (originalUser/permission), but has no storage.put() call of its own anywhere in its
- * body -- so even INDEPENDENTLY of the already-confirmed "never called by copyStorages()" gap,
- * wiring it in as-is would not be sufficient on its own; a caller would also need to re-persist
- * each mutated Entry. See the test method for the empirical confirmation.
+ * body -- so wiring it in as-is is not sufficient on its own; a caller must also re-persist each
+ * mutated Entry. Bug #75759 addresses this via RecycleBin.migrateStorageData(), which copies,
+ * calls migrateEntries(), and then re-persists; copyStorages() now calls migrateStorageData()
+ * instead of the raw copyStorageData(). The 11a/11b/11c scenarios below still exercise the
+ * lower-level copyStorageData()/migrateEntries() directly (unchanged), and the dedicated
+ * migrateStorageData_* test verifies the wired-in fix.
  */
 
 import inetsoft.sree.RepositoryEntry;
@@ -141,10 +144,10 @@ class RecycleBinOrgLifecycleTest {
       recycleBin.addEntry("Recycle Bin/def456", "My Dashboards/report2", "report2", permission,
                           RepositoryEntry.VIEWSHEET, AssetRepository.USER_SCOPE, originalUser);
 
-      // Mirrors the real orchestration: copyStorages() only ever calls copyStorageData() (11a) --
-      // migrateEntries() is never invoked from there (confirmed by codebase-wide search, no call
-      // site anywhere). Calling it here by hand characterizes what it WOULD do if it were wired
-      // in, rather than asserting on dead code that never runs in production.
+      // Exercises copyStorageData() (11a) followed by a hand call to migrateEntries(), to
+      // characterize the two lower-level building blocks in isolation. The production wiring
+      // (copyStorages() -> RecycleBin.migrateStorageData(), which combines copy + migrate +
+      // re-persist) is covered separately by migrateStorageData_reScopesOriginalUser_andPersists.
       recycleBin.copyStorageData(fromOrgId, toOrgId);
 
       actAs(toOrgId);
@@ -239,6 +242,41 @@ class RecycleBinOrgLifecycleTest {
                 "so it returns an empty set here, migratePermissionGrants()'s " +
                 "'if(!grants.isEmpty())' guard skips setGrants() entirely, and the permission " +
                 "grant is left completely unchanged, still naming the source org");
+   }
+
+   // ── migrateStorageData(oorg, norg): copy + re-scope originalUser + persist (Bug #75759 fix) ──
+
+   @Test
+   void migrateStorageData_reScopesOriginalUser_andPersists_sourceUntouched() {
+      recycleBin = new RecycleBin(keyValueStorageManager);
+      String fromOrgId = "recyclebin_migrate_from";
+      String toOrgId = "recyclebin_migrate_to";
+
+      IdentityID originalUser = new IdentityID("alice", fromOrgId);
+
+      actAs(fromOrgId);
+      recycleBin.addEntry("Recycle Bin/mno345", "My Dashboards/report5", "report5", null,
+                          RepositoryEntry.VIEWSHEET, AssetRepository.USER_SCOPE, originalUser);
+
+      recycleBin.migrateStorageData(new Organization(fromOrgId), new Organization(toOrgId));
+
+      // a fresh read from the target bucket must show originalUser re-scoped to the target org
+      // (unlike copyStorageData's raw copy in 11a) -- this is the fix for #75759: the recycle-bin
+      // tree keys private users by originalUser, so the org segment must name the new org.
+      actAs(toOrgId);
+      RecycleBin.Entry migrated = recycleBin.getEntry("Recycle Bin/mno345");
+      assertNotNull(migrated, "migrate must produce the entry under the target org's own bucket");
+      assertEquals("My Dashboards/report5", migrated.getOriginalPath());
+      assertEquals(toOrgId, migrated.getOriginalUser().getOrgID(),
+                  "migrateStorageData() must re-scope originalUser's org segment to the target " +
+                  "org and persist it, so a fresh read shows the new org");
+
+      // source org's entry must be completely untouched by the migrate
+      actAs(fromOrgId);
+      RecycleBin.Entry source = recycleBin.getEntry("Recycle Bin/mno345");
+      assertNotNull(source, "migrate must not remove the source org's own entry");
+      assertEquals(fromOrgId, source.getOriginalUser().getOrgID(),
+                  "source org's entry must be completely untouched by the migrate");
    }
 
    // ── scenario 11c: removeStorage(orgID) -- whole bucket deleted ──

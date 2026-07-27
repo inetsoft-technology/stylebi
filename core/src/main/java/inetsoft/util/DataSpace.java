@@ -17,7 +17,6 @@
  */
 package inetsoft.util;
 
-import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Organization;
 import inetsoft.storage.*;
 import jakarta.annotation.PreDestroy;
@@ -405,8 +404,7 @@ public class DataSpace implements AutoCloseable {
       return storage().paths().filter(p -> p.equals("portal/" + oorg.getId()) ||
          p.startsWith("portal/" + oorg.getId() + "/") || p.startsWith(oorg.getId() + "__") ||
          p.equals(oorg.getId()) || p.startsWith(oorg.getId() + "/") ||
-         p.startsWith("sreeUserData/") &&
-         Tool.equals(IdentityID.getIdentityIDFromKey(p).getOrgID(), oorg.getId() + ".xml"))
+         p.startsWith("sreeUserData/") && p.endsWith("_" + oorg.getId() + ".xml"))
          .toArray(String[]::new);
    }
 

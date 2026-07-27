@@ -21,6 +21,7 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewa
 
    var $passwordField = $("#loginPassword");
    var $passwordError = $("#passwordError");
+   var $togglePassword = $("#togglePassword");
 
    var $loginAsGroup = $("#loginAsGroup");
    var $loginAsNameField = $("#loginAsName");
@@ -185,6 +186,25 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewa
 
    $loginButton.click(function() {
       authenticate(false);
+   });
+
+   $togglePassword.click(function() {
+      var show = $passwordField.attr("type") === "password";
+      $passwordField.attr("type", show ? "text" : "password");
+
+      var $icon = $togglePassword.find("i");
+      $icon.toggleClass("eye-icon", !show);
+      $icon.toggleClass("eye-off-icon", show);
+
+      // reflect the toggle-button state for assistive tech (pressed == password visible)
+      $togglePassword.attr("aria-pressed", show ? "true" : "false");
+
+      var label = show ? $togglePassword.data("hide-label") : $togglePassword.data("show-label");
+
+      if(label) {
+         $togglePassword.attr("aria-label", label);
+         $togglePassword.attr("title", label);
+      }
    });
 
    $confirmLogin.click(function() {
