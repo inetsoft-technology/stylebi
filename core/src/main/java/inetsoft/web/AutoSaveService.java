@@ -83,8 +83,9 @@ public class AutoSaveService {
       AbstractSheet sheet = repository.getSheet(entry, principal, false, AssetContent.ALL);
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
 
-      // Save auto save sheet to engine.
-      AssetEntry.Type type = id.startsWith("8^VIEWSHEET") ? AssetEntry.Type.VIEWSHEET :
+      // Save auto save sheet to engine. The scope of the auto save file is not necessarily the
+      // temporary scope, so get the type from the entry instead of matching the file name prefix.
+      AssetEntry.Type type = entry.isViewsheet() ? AssetEntry.Type.VIEWSHEET :
          AssetEntry.Type.WORKSHEET;
       AssetEntry nentry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, type, assetName,
                                          pId);

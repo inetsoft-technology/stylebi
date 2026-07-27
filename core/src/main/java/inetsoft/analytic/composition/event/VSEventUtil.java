@@ -4074,21 +4074,25 @@ public final class VSEventUtil {
    }
 
    /**
-    * Delete auto saved file.
-    * 1 for saved dashboard, keep old logic, delete auto save file when select no.
-    * 2 for untitled dashboard, select no will move auto save file to recycle bin.
+    * Discard the auto saved file of a sheet by moving it to the recycle bin, so that it can
+    * still be recovered from the enterprise manager. This is called when the auto saved content
+    * is thrown away, i.e. when the sheet is closed, when it is opened without restoring the auto
+    * saved content, and when the stored sheet is loaded in place of it
+    * (AbstractAssetEngine.getSheet). When the sheet is saved the auto saved content is superseded
+    * instead of discarded, so the save paths delete the file rather than calling this method.
     */
    public static void deleteAutoSavedFile(AssetEntry entry, Principal user) {
-      if(entry.getScope() != AssetRepository.TEMPORARY_SCOPE) {
-         AutoSaveUtils.deleteAutoSaveFile(entry, user);
-         return;
+      // called while loading a sheet, so never let a storage failure fail the caller
+      try {
+         String savefile = AutoSaveUtils.getAutoSavedFile(entry, user);
+
+         if(AutoSaveUtils.exists(savefile, user)) {
+            String recyclefile = AutoSaveUtils.getAutoSavedFile(entry, user, true);
+            AutoSaveUtils.renameAutoSaveFile(savefile, recyclefile, user);
+         }
       }
-
-      String savefile = AutoSaveUtils.getAutoSavedFile(entry, user);
-
-      if(AutoSaveUtils.exists(savefile, user)) {
-         String recyclefile = AutoSaveUtils.getAutoSavedFile(entry, user, true);
-         AutoSaveUtils.renameAutoSaveFile(savefile, recyclefile, user);
+      catch(Exception e) {
+         LOG.debug("Failed to move the auto save file to the recycle bin: {}", entry, e);
       }
    }
 

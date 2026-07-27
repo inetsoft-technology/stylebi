@@ -42,6 +42,7 @@ import inetsoft.util.*;
 import inetsoft.util.audit.*;
 import inetsoft.util.log.LogUtil;
 import inetsoft.util.profile.Profile;
+import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.*;
@@ -155,6 +156,9 @@ public class ComposerViewsheetService {
          }
 
          rvs.setSavePoint(rvs.getCurrent());
+         // the auto saved content is superseded by the saved viewsheet, so discard it instead of
+         // keeping a stale copy that would be offered for restore or moved to the recycle bin
+         AutoSaveUtils.deleteAutoSaveFile(entry, principal);
 
          String mvmsg = checkMVMessage(rvs, entry);
 

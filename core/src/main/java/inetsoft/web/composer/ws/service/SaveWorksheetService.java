@@ -18,7 +18,6 @@
 package inetsoft.web.composer.ws.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.cluster.*;
 import inetsoft.mv.MVManager;
 import inetsoft.report.*;
@@ -39,6 +38,7 @@ import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
+import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.composer.model.ws.SaveWSConfirmationModel;
 import inetsoft.web.composer.vs.command.ReopenSheetCommand;
 import inetsoft.web.composer.ws.WorksheetControllerService;
@@ -314,7 +314,9 @@ public class SaveWorksheetService extends WorksheetControllerService {
          // successful, check and remove any auto-saved versions of the
          // Worksheet. If this action was a "save as", we should also delete
          // the auto-saved version of the original Worksheet (if one exists).
-         VSEventUtil.deleteAutoSavedFile(entry, user);
+         // The saved worksheet supersedes the auto saved content, so delete it instead of
+         // moving it to the recycle bin.
+         AutoSaveUtils.deleteAutoSaveFile(entry, user);
       }
       catch(Exception ex) {
          if(ex instanceof ConfirmException) {
