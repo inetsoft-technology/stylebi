@@ -1174,6 +1174,27 @@ public class WizVsService {
             targetVs.addAssembly(assembly);
             assembly.setPrimary(true);
 
+            // Re-binding a chart on an ALREADY-EXECUTED runtime (createdRuntimeId == false) carries a
+            // real staleness trap: rebindAssembly clones the replaced assembly's VSAssemblyInfo,
+            // including its cached RUNTIME chart refs (getRTYFields()/getRTXFields() prefer that
+            // non-empty runtime cache over the fresh design-time fields we just applied). A measure's
+            // secondaryY (or any other attribute-only rebind) landing on the new DESIGN ref is then
+            // silently ignored by the graph generator, which reads the stale RUNTIME ref instead — the
+            // chart renders as if nothing changed. Clear the runtime ref caches (forcing the next
+            // execution to resolve fresh ones from the new design binding) and drop the sandbox's
+            // cached graph so that re-resolution actually happens. Second, previously-undiscovered
+            // instance of the "wiz in-place chart mutation staleness" class of bug (community #3907).
+            if(!createdRuntimeId && assembly instanceof ChartVSAssembly chartAssembly) {
+               VSChartInfo cinfo = chartAssembly.getVSChartInfo();
+
+               if(cinfo != null) {
+                  cinfo.setRTXFields(new ChartRef[0]);
+                  cinfo.setRTYFields(new ChartRef[0]);
+               }
+
+               rvs.getViewsheetSandbox().ifPresent(sandbox -> sandbox.clearGraph(assembly.getName()));
+            }
+
             // Sync pre-condition from the replaced assembly to the new one when the caller
             // is performing a visualization type change (e.g. table → chart).
             if(model.isKeepCondition() &&
@@ -2411,7 +2432,11 @@ public class WizVsService {
       }
       else if(ref instanceof VSAggregateRef agg) {
          if(seen.add(agg.getFullName())) {
-            measures.add(WizFieldInfoFactory.createMeasureFieldInfo(agg));
+            // Chart-specific: must use the chart variant (not createMeasureFieldInfo) so
+            // discrete/secondaryY are copied from the real VSChartAggregateRef — this echo
+            // feeds the wiz API response's `binding.measures[]`, which callers (e.g. the
+            // wiz-services plugin) use to confirm secondaryY was actually applied.
+            measures.add(WizFieldInfoFactory.createChartMeasureFieldInfo(agg));
          }
       }
    }
@@ -3111,6 +3136,43 @@ public class WizVsService {
          {
             chartInfo.setPathField(createChartRef(binding.getPath()));
          }
+      }
+
+      // A measure's secondaryY (set above via createVSChartAggregateRef) creates a second,
+      // independently-scaled Scale (DefaultGraphGenerator.fixCoordProperties splits y-fields into
+      // yfields/y2fields and calls coord.setYScale2(...) on ONE shared coordinate) whenever the two
+      // measures are on ONE shared coordinate to begin with. AbstractChartInfo.separated defaults to
+      // true, which routes rendering through SeparateGraphGenerator instead — a small-multiples
+      // renderer giving each measure its OWN independent panel/coordinate, so there is no shared
+      // plot for a second scale to attach to at all (confirmed live: the secondaryY measure got its
+      // own single-axis panel, the primary measure another, untouched — two panels, not one
+      // dual-axis plot). Forcing separated=false switches to DefaultGraphGenerator, which supports a
+      // real two-scale coordinate.
+      //
+      // Once on that shared coordinate, RectCoord.createAxis() already keeps BOTH y-axes visible by
+      // default: it gates the second axis on `yscale.getAxisSpec().getAxisStyle() & AXIS_SINGLE2`,
+      // and AxisSpec's own default style (AXIS_DOUBLE = 0x3) already satisfies that check (0x3 & 0x12
+      // != 0) with no further configuration. Do NOT also set labelOnSecondaryAxis anywhere (chart- or
+      // ref-level) to "help" — that flag ORs in AXIS_LABEL_OPPOSITE_SIDE (0x10), and RectCoord hides
+      // the PRIMARY axis's own labels whenever that bit is set (`(style & 0x10) == 0` gates
+      // yaxis1.setLabelVisible), regardless of which descriptor it came from. That flag exists for a
+      // DIFFERENT, mutually exclusive case — relocating a single measure's labels to the right and
+      // hiding the original position entirely (e.g. Pareto's percentage axis, per its own Bug #74171
+      // comment) — not for a genuine two-axis combo chart, which needs BOTH axes' own labels intact.
+      boolean hasSecondaryY = false;
+      ChartRef[] yfields = chartInfo.getYFields();
+
+      if(yfields != null) {
+         for(ChartRef f : yfields) {
+            if(f instanceof VSChartAggregateRef agg && agg.isSecondaryY()) {
+               hasSecondaryY = true;
+               break;
+            }
+         }
+      }
+
+      if(hasSecondaryY) {
+         chartInfo.setSeparatedGraph(false);
       }
    }
 
