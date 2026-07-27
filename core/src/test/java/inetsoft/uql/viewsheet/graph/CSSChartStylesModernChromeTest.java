@@ -180,4 +180,46 @@ class CSSChartStylesModernChromeTest {
          SreeEnv.setProperty("viewsheet.modernVisualization", saved);
       }
    }
+
+   @Test
+   void gridlineResolvesToModernWhenGateOnAndDefault() {
+      String saved = SreeEnv.getProperty("viewsheet.modernVisualization");
+
+      try {
+         SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+         assertEquals(VSChartChromeDefaults.gridlineColor(),
+                      VSChartChromeDefaults.resolveGridlineColor(GDefaults.DEFAULT_GRIDLINE_COLOR),
+                      "legacy-default gridline shows the modern neutral under the gate");
+         assertEquals(Color.RED, VSChartChromeDefaults.resolveGridlineColor(Color.RED),
+                      "a user/customer gridline color is preserved");
+         assertNull(VSChartChromeDefaults.resolveGridlineColor(null),
+                    "null (no gridline color) stays null");
+         assertEquals(VSChartChromeDefaults.legendBorderColor(),
+                      VSChartChromeDefaults.resolveLegendBorderColor(GDefaults.DEFAULT_LINE_COLOR),
+                      "legacy-default legend border shows the modern neutral under the gate");
+         assertEquals(Color.RED, VSChartChromeDefaults.resolveLegendBorderColor(Color.RED),
+                      "a user/customer legend border color is preserved");
+      }
+      finally {
+         SreeEnv.setProperty("viewsheet.modernVisualization", saved);
+      }
+   }
+
+   @Test
+   void gridlineAndLegendUnchangedWhenGateOff() {
+      String saved = SreeEnv.getProperty("viewsheet.modernVisualization");
+
+      try {
+         SreeEnv.setProperty("viewsheet.modernVisualization", "false");
+         assertEquals(GDefaults.DEFAULT_GRIDLINE_COLOR,
+                      VSChartChromeDefaults.resolveGridlineColor(GDefaults.DEFAULT_GRIDLINE_COLOR),
+                      "gate off leaves the legacy gridline color unchanged");
+         assertEquals(GDefaults.DEFAULT_LINE_COLOR,
+                      VSChartChromeDefaults.resolveLegendBorderColor(GDefaults.DEFAULT_LINE_COLOR),
+                      "gate off leaves the legacy legend border color unchanged");
+      }
+      finally {
+         SreeEnv.setProperty("viewsheet.modernVisualization", saved);
+      }
+   }
 }
