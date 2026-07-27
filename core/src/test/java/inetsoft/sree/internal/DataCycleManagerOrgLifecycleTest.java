@@ -225,11 +225,12 @@ class DataCycleManagerOrgLifecycleTest {
                 + "future IndexedStorage re-bucketing change silently orphaning Data Cycle assets");
    }
 
-   // ── scenario 5e: confirmed defect -- migrateCycleInfo() never persists the rewritten
-   //    identity fields back onto the CycleInfo it mutates (DataCycleManager.java:937-957) ──
+   // ── scenario 5e: migrateCycleInfo() (DataCycleManager.java:937-959) must rewrite the
+   //    createdBy/lastModifiedBy identity keys to the target org, not just compute them.
+   //    Regression guard for Bug #75756. ──
 
    @Test
-   void migrateCycleInfo_createdByAndModifiedBy_remainStaleAfterMigration() throws Exception {
+   void migrateCycleInfo_createdByAndModifiedBy_rewrittenToTargetOrg() throws Exception {
       String fromOrgId = "cycle_identity_from";
       String toOrgId = "cycle_identity_to";
 
@@ -255,22 +256,26 @@ class DataCycleManagerOrgLifecycleTest {
       assertNotNull(migrated);
       DataCycleManager.CycleInfo migratedInfo = migrated.getInfo();
 
-      // migrateCycleInfo() (:937-957) does `IdentityID identityID =
+      // Bug #75756: migrateCycleInfo() used to do `IdentityID identityID =
       // IdentityID.getIdentityIDFromKey(createdBy); identityID.setOrgID(norg.getId());` and then
-      // throws the result away -- it never calls cycleInfo.setCreatedBy(identityID.convertToKey())
-      // (or the lastModifiedBy equivalent). The asset's own orgId field IS rewritten (a different
-      // field, set directly two lines above in migrateDataCycles() itself), but the identity
-      // strings inside CycleInfo are untouched -- this is the current, confirmed (not
-      // hypothetical) behavior, recorded here as the regression baseline for a known bug, not as
-      // asserting it is correct.
-      assertEquals(createdByBefore, migratedInfo.getCreatedBy(),
-                  "confirmed defect: createdBy is left pointing at the OLD org after migration -- "
-                  + "migrateCycleInfo() computes the rewritten IdentityID but never writes it back");
-      assertEquals(modifiedByBefore, migratedInfo.getLastModifiedBy(),
-                  "confirmed defect: lastModifiedBy has the same never-written-back bug");
+      // throw the result away, never calling cycleInfo.setCreatedBy(identityID.convertToKey())
+      // (or the lastModifiedBy equivalent) -- leaving both identity strings keyed to the OLD org
+      // while the asset's own orgId field (set directly in migrateDataCycles()) was rewritten
+      // correctly. Both identity keys must now name the same user under the TARGET org, matching
+      // MigrateScheduleTask.syncIdentityAttribute()'s rewrite idiom for schedule task owners.
+      String expectedIdentity = new IdentityID("erin", toOrgId).convertToKey();
+
+      assertEquals(expectedIdentity, migratedInfo.getCreatedBy(),
+                  "createdBy must be re-keyed to the target org -- the rewritten IdentityID has to "
+                  + "be written back onto the CycleInfo, not just computed (Bug #75756)");
+      assertEquals(expectedIdentity, migratedInfo.getLastModifiedBy(),
+                  "lastModifiedBy must be re-keyed the same way");
+      assertNotEquals(createdByBefore, migratedInfo.getCreatedBy(),
+                     "sanity check: the pre-migration source-org key must not survive");
+      assertNotEquals(modifiedByBefore, migratedInfo.getLastModifiedBy(),
+                     "sanity check: same for lastModifiedBy");
       assertEquals(toOrgId, migrated.getOrgId(),
-                  "meanwhile the asset's own orgId field (a separate field, set directly in "
-                  + "migrateDataCycles()) is correctly rewritten -- the inconsistency IS the bug");
+                  "the asset's own orgId field stays consistent with the re-keyed identities");
    }
 
    // ── scenario 5f (new, not in the original 5a-5e list): the current-org-context coupling

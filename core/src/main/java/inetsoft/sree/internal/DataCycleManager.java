@@ -946,6 +946,7 @@ public class DataCycleManager
       if(!Tool.isEmptyString(createdBy) && idChanged) {
          IdentityID identityID = IdentityID.getIdentityIDFromKey(createdBy);
          identityID.setOrgID(norg.getId());
+         cycleInfo.setCreatedBy(identityID.convertToKey());
       }
 
       String lastModifiedBy = cycleInfo.getLastModifiedBy();
@@ -953,6 +954,7 @@ public class DataCycleManager
       if(!Tool.isEmptyString(lastModifiedBy) && idChanged) {
          IdentityID identityID = IdentityID.getIdentityIDFromKey(lastModifiedBy);
          identityID.setOrgID(norg.getId());
+         cycleInfo.setLastModifiedBy(identityID.convertToKey());
       }
    }
 
