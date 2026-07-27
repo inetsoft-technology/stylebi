@@ -86,6 +86,10 @@ export class ScheduleTaskSelectComponent implements OnInit, OnChanges, ControlVa
    }
 
    set selectedTaskName(val: string) {
+      if(this._selectedTaskName === val) {
+         return;
+      }
+
       this._selectedTaskName = val;
       this.updateScheduleTaskTree();
    }
@@ -106,7 +110,14 @@ export class ScheduleTaskSelectComponent implements OnInit, OnChanges, ControlVa
 
    ngOnChanges(changes: SimpleChanges): void {
       this.init();
-      this.updateScheduleTaskTree();
+
+      // a change to selectedTaskName is already handled by its setter, which
+      // rebuilds the tree only when the value actually changed. Rebuilding here
+      // as well would throw the tree away again right after the user picked a
+      // node from it.
+      if(changes.tasks) {
+         this.updateScheduleTaskTree();
+      }
    }
 
    init(): void {
@@ -132,8 +143,12 @@ export class ScheduleTaskSelectComponent implements OnInit, OnChanges, ControlVa
    }
 
    onChange: (value: any) => void = (value: any) => {
-      this.selectedTaskName = value;
-      this.selectedChange.emit(this.selectedTaskName);
+      // the node was picked from the tree, so it is already rendered and its
+      // parents are already expanded. Rebuilding the tree here would destroy
+      // the DOM node that is being clicked, which defeats the check that keeps
+      // mat-select from re-opening its panel when a click bubbles out of it.
+      this._selectedTaskName = value;
+      this.selectedChange.emit(this._selectedTaskName);
    };
 
    onTouched = () => {
