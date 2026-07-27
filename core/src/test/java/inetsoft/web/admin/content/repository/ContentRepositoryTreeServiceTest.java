@@ -76,34 +76,13 @@ class ContentRepositoryTreeServiceTest {
    }
 
    /*
-    * Scenario 6f (matrix row): community/core/src/test/resources/docs/org-lifecycle-resource-matrix.md,
-    * section "3.4 Autosave 文件" / "Autosave — 管理/恢复层".
-    *
-    * addRecycleAutoSaved() (:413-505) is called with a `userNodesList` built earlier by
-    * createUserNodes() -> getOrgUsers() -> securityProvider.getUsers() (:2004). For each seeded
-    * autosave file, the owning user (parsed out of the file's name, attrs[2]) is matched against
-    * userNodesList; if none of the entries in that list is the file's owner, the inner loop's
-    * `continue` (:459-463) skips the file for every user node, `users`/`map` never get it added, and
-    * it is silently missing from the "Auto Saved Files" EM tree node -- no error, no fallback bucket.
-    * This is the same root-cause SHAPE as Bug #75759 (three、3.7.1's Repository/Recycle Bin tree also
-    * silently drops entries when securityProvider.getUsers() hasn't (yet) enumerated the owning user),
-    * just for the sibling "Auto Saved Files" tree instead.
-    *
-    * addRecycleAutoSaved() itself doesn't touch any ContentRepositoryTreeService instance field (only
-    * static AutoSaveUtils calls plus the two method parameters), so this test drives it directly via
-    * reflection (it's private) rather than going through the full createUserNodes()/getRootNodes()
-    * chain -- avoids needing to correctly wire up the other 14 constructor dependencies'
-    * (RepletRegistryService/DashboardManager/etc) behavior, none of which addRecycleAutoSaved() reaches.
-    * UserNodes is itself a `private static final` nested class, so building the input list also goes
-    * through reflection (Class.forName + a reflective constructor call) rather than referencing the
-    * type by name in this file.
-    *
-    * Not yet run/confirmed -- left @Disabled pending verification (see the AutoSaveServiceOrgLifecycleTest
-    * class-level comment for the sibling 6e/6g/6h scenarios and the 6g correction made while writing
-    * that file).
+    * Scenario 6f: org-lifecycle-resource-matrix.md, section "3.4 Autosave 文件" / "Autosave —
+    * 管理/恢复层" -- see that doc for full rationale. addRecycleAutoSaved() and UserNodes are both
+    * private, so this test drives them via reflection rather than wiring up the other 14 constructor
+    * dependencies createUserNodes()/getRootNodes() would otherwise need.
     */
    @Test
-   @Disabled("6f: not yet run/confirmed -- see comment above")
+   @Disabled("6f: not yet run/confirmed -- see matrix doc section 3.4")
    void addRecycleAutoSaved_ownerNotYetEnumerated_fileSilentlyDropped() throws Exception {
       String orgId = "sixf_org";
       Principal principal = new SRPrincipal(new IdentityID("sixf_actor", orgId), new IdentityID[0],

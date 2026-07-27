@@ -18,59 +18,10 @@
 package inetsoft.web;
 
 /*
- * Scenarios 6e/6g/6h (matrix rows): community/core/src/test/resources/docs/org-lifecycle-resource-matrix.md,
- * section "3.4 Autosave 文件" / "Autosave — 管理/恢复层".
- *
- * IMPORTANT CORRECTION (2026-07-27, discovered while writing this file): the matrix doc's original
- * 6g wording ("runInOrgScope() is likely a no-op because OrganizationManager.getCurrentOrgID(Principal)
- * checks xPrincipal.getCurrentOrgId() before OrganizationContextHolder") is WRONG. Reading
- * XPrincipal.getCurrentOrgId() itself (XPrincipal.java:628-634) shows it checks
- * OrganizationContextHolder FIRST, before its own instance properties:
- *
- *    public String getCurrentOrgId() {
- *       String currentOrgId = OrganizationContextHolder.getCurrentOrgId();
- *       currentOrgId = currentOrgId == null ? getProperty("curr_org_id") : currentOrgId;
- *       currentOrgId = currentOrgId == null ? getOrgId() : currentOrgId;
- *       return currentOrgId;
- *    }
- *
- * OrganizationContextHolder is a plain ThreadLocal (OrganizationContextHolder.java:45), so within the
- * same thread runInOrgScope()'s write IS visible to xPrincipal.getCurrentOrgId(), regardless of which
- * XPrincipal instance is asked. Digging further: migrateAutoSaveFiles() doesn't do cross-bucket
- * copying at all -- it operates entirely within whatever org getStorage(principal) resolves to. That
- * only makes sense because the __autoSave bucket is already physically copied bucket-to-bucket
- * *before* this runs (see scenarios 6a/6b: IdentityService.copyStorages() -> updateBlobStorageName
- * ("__autoSave", ..., copy=true)), so by the time migrateAutoSaveFiles(oorg, norg, principal) runs
- * wrapped in runInOrgScope(newOrgID, ...), norg's bucket already contains raw copies of every file
- * (still filename-tagged with the OLD org's identity string) and this method's only job is to rename
- * those filenames (and rewrite embedded XML content) in place, within norg's bucket. runInOrgScope
- * (newOrgID, ...) is therefore correct BY DESIGN, not a bug -- 6g is rewritten below as a passing
- * (non-@Disabled) confirmation test, not a reproduction of a suspected defect.
- *
- * 6e remains a real, but much narrower, concern than originally worded: AutoSaveService
- * .restoreAutoSaveAssets() resolves the restored asset's org via the 4-arg AssetEntry constructor
- * (AssetEntry.java:573-575) -> 5-arg constructor's null-orgID fallback (:583-585) ->
- * OrganizationManager.getInstance().getCurrentOrgID() (no-arg overload, OrganizationManager.java:64-68)
- * -> ThreadContext.getContextPrincipal() -- NOT the `principal` method parameter that
- * restoreAutoSaveAssets(id, assetName, override, principal) already has in scope. Reading the
- * generated AutoSaveServiceProxy (target/generated-sources/.../AutoSaveServiceProxy.java) and
- * ServiceProxyContext confirms local (same-node) calls never touch ThreadContext at all, so in the
- * ordinary single-node call shape `principal` and ThreadContext.getContextPrincipal() are normally the
- * SAME identity (both come from the same authenticated request) -- no divergence. The gap only shows
- * up in narrower shapes: an admin restoring "as"/"for" a different identity than their own ambient
- * session context, or a cluster-proxy dispatch where the proxy's captured contextPrincipal (captured
- * at construction time on the *calling* node, ServiceProxyContext.java:58-59) diverges from the
- * explicit `principal` argument. The test below reproduces that narrower divergence directly (by
- * setting a different ThreadContext principal than the method's own `principal` parameter) rather than
- * claiming every call is affected. Not yet run/confirmed -- left @Disabled pending verification.
- *
- * 6h (AutoSaveService.removeExpiredAutoSaveFiles(), :45-51) is a real, simpler gap: it calls
- * AutoSaveUtils.getStorage(null) once, which (BlobStorage has no public API to backdate an entry's
- * last-modified timestamp) means this test can only verify *which* org bucket the scheduled job
- * touches, not the full "and then deletes it because it's 7 days old" behavior end-to-end -- it
- * asserts the routing/scope gap (only the default org's bucket is ever inspected; a non-default org's
- * bucket is never even listed), which is the actual reported defect, not the age-based deletion logic
- * itself (that part of the method is not in question). Not yet run/confirmed -- left @Disabled.
+ * Scenarios 6e/6g/6h: community/core/src/test/resources/docs/org-lifecycle-resource-matrix.md,
+ * section "3.4 Autosave 文件" / "Autosave — 管理/恢复层" -- see that doc for full rationale
+ * (including the 6g correction: runInOrgScope() is NOT a no-op, contrary to the doc's original
+ * wording). Keep this comment short; don't duplicate the doc's narrative here.
  */
 
 import inetsoft.analytic.composition.ViewsheetService;
@@ -126,12 +77,11 @@ class AutoSaveServiceOrgLifecycleTest {
       OrganizationContextHolder.setCurrentOrgId(null);
    }
 
-   // ── scenario 6e: restoreAutoSaveAssets() resolves the restored asset's org from
-   //    ThreadContext.getContextPrincipal(), not from the `principal` method parameter --
-   //    reproduced here as the narrow "acting principal diverges from ambient thread context" shape ──
+   // ── scenario 6e: restoreAutoSaveAssets() resolves the org from ThreadContext.getContextPrincipal(),
+   //    not the `principal` parameter -- see matrix doc for the narrowed scope ──
 
    @Test
-   @Disabled("6e: not yet run/confirmed -- see class-level comment for the narrowed scope")
+   @Disabled("6e: not yet run/confirmed -- see matrix doc section 3.4")
    void restore_targetOrgResolvedFromThreadContext_notFromMethodPrincipal() throws Exception {
       String sourceOrgId = "sixe_source_org";
       String threadOrgId = "sixe_thread_org";
@@ -190,10 +140,8 @@ class AutoSaveServiceOrgLifecycleTest {
                   + "(suspected incorrect) behavior for confirmation, not the desired one");
    }
 
-   // ── scenario 6g: migrateAutoSaveFiles(), wrapped in OrganizationManager.runInOrgScope(newOrgID,
-   //    ...) exactly as AbstractEditableAuthenticationProvider's copy branch does it, correctly
-   //    operates on the NEW org's bucket even when the acting principal's own org differs from both
-   //    the source and target orgs -- CONFIRMED CORRECT, not a bug (see class-level comment) ──
+   // ── scenario 6g: migrateAutoSaveFiles() under runInOrgScope(newOrgID,...) correctly scopes to the
+   //    new org's bucket -- confirmed correct, not a bug (see matrix doc for the 6g correction) ──
 
    @Test
    void migrateAutoSaveFiles_runInOrgScope_correctlyScopesToNewOrgBucket() throws Exception {
@@ -236,16 +184,11 @@ class AutoSaveServiceOrgLifecycleTest {
                 + "principal's own org being unrelated to source/target");
    }
 
-   // ── scenario 6h: removeExpiredAutoSaveFiles() only ever inspects the default org's __autoSave
-   //    bucket (AutoSaveUtils.getStorage(null) -> ThreadContext.getContextPrincipal() is null on the
-   //    scheduler thread -> Organization.getDefaultOrganizationID()) -- a non-default org's bucket is
-   //    never even listed, regardless of what it contains ──
+   // ── scenario 6h: removeExpiredAutoSaveFiles() only ever inspects the default org's bucket -- a
+   //    non-default org's bucket is never even listed, regardless of what it contains ──
 
    @Test
-   @Disabled("6h: not yet run/confirmed; also only verifies bucket routing/scope, not the 7-day-old "
-      + "deletion criteria itself -- BlobStorage exposes no public API to backdate a blob's "
-      + "last-modified timestamp, so an end-to-end \"and it actually gets deleted\" assertion isn't "
-      + "practical here")
+   @Disabled("6h: not yet run/confirmed -- see matrix doc section 3.4")
    void removeExpiredAutoSaveFiles_onlyScansDefaultOrgBucket_nonDefaultOrgNeverListed() throws Exception {
       String nonDefaultOrgId = "sixh_non_default_org";
       seedAutoSaveBlob(nonDefaultOrgId, "8^VIEWSHEET^_NULL_^Untitled-1^0_0_0_0_0_0_0_1~",
