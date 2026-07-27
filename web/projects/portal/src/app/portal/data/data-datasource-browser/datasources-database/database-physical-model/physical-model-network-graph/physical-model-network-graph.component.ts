@@ -103,6 +103,12 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
    private isDragging: boolean = false; // drag endpoint
    private nodeMoving = false; // drag node
    private dragNodes: GraphModel[] = [];
+   // when a selection originates here (click/rubber-band), the parent echoes it back
+   // via selectedGraphModels after resolving the tree node -- since auto-alias tables
+   // share the same tree path as their source table, that echo can resolve to *every*
+   // alias of that source table, not just the one the user selected. Suppress applying
+   // that one echoed change so an unrelated alias doesn't get pulled into the drag group.
+   private suppressNextSelectionSync = false;
    _scale: number = 1.0;
 
    private nodes: {[sourceIds: string]: GraphModel} = {}; // element id --> node model
@@ -266,7 +272,12 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
       }
 
       if(changes["selectedGraphModels"] && this.selectedGraphModels) {
-         this.dragNodes = [...this.selectedGraphModels];
+         if(this.suppressNextSelectionSync) {
+            this.suppressNextSelectionSync = false;
+         }
+         else {
+            this.dragNodes = [...this.selectedGraphModels];
+         }
       }
    }
 
@@ -618,17 +629,28 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
    }
 
    selectNode(event: MouseEvent, graph: GraphModel) {
-      if(this.dragNodes.some(g => g.node.id === graph.node.id)) {
-         // missing id or already selected
-         return;
-      }
-      else if(event.ctrlKey || event.shiftKey) {
+      const alreadySelected = this.dragNodes.some(g => g.node.id === graph.node.id);
+
+      if(event.ctrlKey || event.shiftKey) {
+         if(alreadySelected) {
+            // already part of the selection, nothing to change
+            return;
+         }
+
          this.dragNodes.push(graph);
       }
+      else if(alreadySelected && this.dragNodes.length === 1) {
+         // already the sole selection, nothing to change
+         return;
+      }
       else {
+         // plain click always narrows the selection to just this node, even if it
+         // was already part of a stale multi-selection (e.g. synced in from the
+         // tree, or left over from a rubber-band/select-all selection)
          this.dragNodes = [graph];
       }
 
+      this.suppressNextSelectionSync = true;
       this.fireSelectedNodesChanged();
       this.refreshDragSelection();
    }
@@ -802,6 +824,7 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
 
    selectAll(): void {
       this.dragNodes = this.graphViewModel.graphs;
+      this.suppressNextSelectionSync = true;
       this.fireSelectedNodesChanged();
       this.refreshDragSelection();
    }
@@ -813,6 +836,7 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
             .intersects(event.box);
       });
 
+      this.suppressNextSelectionSync = true;
       this.fireSelectedNodesChanged();
       this.refreshDragSelection();
    }
