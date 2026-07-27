@@ -1152,8 +1152,13 @@ public class WizVsService {
             if(!Tool.isEmptyString(targetAssemblyName)) {
                Assembly found = targetVs.getAssembly(targetAssemblyName);
 
-               if(!(found instanceof VSAssembly foundVs)) {
+               if(found == null) {
                   throw new IllegalArgumentException("Assembly not found: " + targetAssemblyName);
+               }
+
+               if(!(found instanceof VSAssembly foundVs)) {
+                  throw new IllegalArgumentException(
+                     "Assembly \"" + targetAssemblyName + "\" is not a supported type: " + found.getClass().getName());
                }
 
                existingTarget = foundVs;
@@ -1182,6 +1187,10 @@ public class WizVsService {
             if(existingTarget != null) {
                // Targeted replace: swap in the new assembly under the SAME name, carrying over the
                // old one's exact primary state — no other assembly is touched either way.
+               // model.isCopy() is NOT consulted here (only in the else branch below, via
+               // previousPrimaryAssembly): a caller that sets both targetAssemblyName and copy=true
+               // gets copy silently bypassed — replacing one specific historical card by name should
+               // not also duplicate it. See CreateVisualizationModel.getTargetAssemblyName()'s javadoc.
                replacedAssembly = existingTarget;
                replacedWasPrimary = existingTarget.isPrimary();
                targetVs.removeAssembly(targetAssemblyName);
