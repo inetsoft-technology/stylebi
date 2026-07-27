@@ -66,11 +66,27 @@ gulp.task("elements:concat-css", function () {
       .pipe(gulp.dest("target/generated-resources/gulp/inetsoft/web/resources/elements/"));
 });
 
+// elements.scss scopes the shared/global CSS under all 6 custom element tags (they're all
+// registered from the same bundle - see main-elements.ts). Sass compiles the nested `:root`/
+// `body` selectors from the imported global stylesheet into a descendant combinator per tag
+// (e.g. "inetsoft-table :root"), which never matches anything since no such descendant exists
+// inside a custom element - so each tag needs its own replace down to a plain ancestor selector.
+const ELEMENT_TAGS = [
+   "inetsoft-chart", "inetsoft-crosstab", "inetsoft-table",
+   "inetsoft-gauge", "inetsoft-text", "inetsoft-image"
+];
+
 gulp.task("elements:sass", function () {
-   return gulp.src("projects/portal/src/elements.scss")
-      .pipe(sass())
-      .pipe(replace("inetsoft-chart :root", "inetsoft-chart"))
-      .pipe(replace("inetsoft-chart body", "inetsoft-chart"))
+   let stream = gulp.src("projects/portal/src/elements.scss")
+      .pipe(sass());
+
+   for(const tag of ELEMENT_TAGS) {
+      stream = stream
+         .pipe(replace(`${tag} :root`, tag))
+         .pipe(replace(`${tag} body`, tag));
+   }
+
+   return stream
       .pipe(postcss([cssnano()]))
       .pipe(gulp.dest("target/generated-resources/gulp/inetsoft/web/resources/app/"));
 });
