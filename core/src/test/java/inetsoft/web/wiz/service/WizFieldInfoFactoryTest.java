@@ -23,8 +23,11 @@ import inetsoft.test.SreeHome;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.VSAggregateRef;
+import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.web.wiz.model.DimensionFieldInfo;
+import inetsoft.web.wiz.model.MeasureFieldInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -81,5 +84,50 @@ class WizFieldInfoFactoryTest {
       assertEquals("status", info.getField());
       assertEquals("status", info.getFullName());            // NOT "Year(status)"
       assertFalse(info.getFullName().startsWith("Year("));   // explicit guard against the regression
+   }
+
+   /**
+    * Regression for classifyChartRef's measure echo (WizVsService): a chart measure bound to the
+    * secondary Y axis (VSChartAggregateRef.setSecondaryY(true)) must echo back {@code secondaryY:
+    * true} so callers (e.g. the wiz-services plugin) can confirm the placement was actually applied.
+    * Only createChartMeasureFieldInfo — not the generic/crosstab createMeasureFieldInfo — checks
+    * {@code instanceof VSChartAggregateRef} and copies discrete/secondaryY.
+    */
+   @Test
+   void chartMeasureEchoCarriesSecondaryYAndDiscreteFromChartAggregateRef() {
+      VSChartAggregateRef agg = new VSChartAggregateRef();
+      agg.setColumnValue("Sales");
+      agg.setFormulaValue("Sum");
+      agg.setSecondaryY(true);
+      agg.setDiscrete(true);
+
+      MeasureFieldInfo info = WizFieldInfoFactory.createChartMeasureFieldInfo(agg);
+
+      assertEquals("Sales", info.getField());
+      assertEquals("Sum", info.getAggregateFormula());
+      assertTrue(info.isSecondaryY());   // copied from VSChartAggregateRef
+      assertTrue(info.isDiscrete());     // copied from VSChartAggregateRef
+   }
+
+   /**
+    * The generic/crosstab variant has no notion of secondaryY/discrete at all — it never checks
+    * {@code instanceof VSChartAggregateRef} — so it must NOT echo secondaryY:true even when the
+    * underlying ref is in fact a VSChartAggregateRef with secondaryY set. This is what made the
+    * pre-fix classifyChartRef bug possible: calling this variant on a chart aggregate silently
+    * dropped the secondaryY placement in the API response.
+    */
+   @Test
+   void plainMeasureEchoNeverCarriesSecondaryYEvenFromAChartAggregateRef() {
+      VSChartAggregateRef agg = new VSChartAggregateRef();
+      agg.setColumnValue("Sales");
+      agg.setFormulaValue("Sum");
+      agg.setSecondaryY(true);
+      agg.setDiscrete(true);
+
+      MeasureFieldInfo info = WizFieldInfoFactory.createMeasureFieldInfo((VSAggregateRef) agg);
+
+      assertEquals("Sales", info.getField());
+      assertFalse(info.isSecondaryY());  // generic variant never copies it — always default false
+      assertFalse(info.isDiscrete());    // generic variant never copies it — always default false
    }
 }
