@@ -1088,19 +1088,17 @@ public class WizVsService {
             VSAssembly modAssembly = sourceAssembly;
 
             // Copy-then-apply: duplicate the source BEFORE applying the condition, so the original is
-            // left untouched and the filter lands on a new, parallel copy instead. Captured BEFORE the
-            // duplicate runs, because the assembly that gets demoted is whichever is currently primary
-            // — not necessarily the source, which may be an earlier chart the caller named explicitly.
-            // Rollback restores THAT assembly's primary flag, so recording the source here instead
-            // would promote the wrong chart and leave the viewsheet with two primaries.
+            // left untouched and the filter lands on a new, parallel copy instead. The assembly that
+            // loses primary status is whichever currently holds it — not necessarily the source,
+            // which may be an earlier chart the caller named explicitly — so take it from the
+            // duplication result rather than assuming; rollback restores THAT assembly's flag.
             if(model.isCopy()) {
-               VSAssembly previousPrimary = findPrimaryAssembly(targetVs);
-               VSAssembly duplicated = duplicateAssembly(rvs, sourceAssembly);
+               AssemblyDuplication duplicated = duplicateAssembly(rvs, sourceAssembly);
 
                if(duplicated != null) {
-                  demotedOriginal = previousPrimary;
-                  rollbackCopy = duplicated;
-                  modAssembly = duplicated;
+                  demotedOriginal = duplicated.demoted();
+                  rollbackCopy = duplicated.copy();
+                  modAssembly = duplicated.copy();
                }
                else {
                   copyNote = "Copy requested but could not be created; filter applied in place.";
@@ -1782,7 +1780,8 @@ public class WizVsService {
          return null;
       }
 
-      return duplicateAssembly(rvs, source);
+      AssemblyDuplication duplication = duplicateAssembly(rvs, source);
+      return duplication == null ? null : duplication.copy();
    }
 
    /**
@@ -1803,7 +1802,7 @@ public class WizVsService {
     * <p>Returns null if {@code source}'s type has no registered rebind factory (ASSEMBLY_FACTORIES)
     * — the caller should fall back to applying in place.
     */
-   public VSAssembly duplicateAssembly(RuntimeViewsheet rvs, VSAssembly source) {
+   public AssemblyDuplication duplicateAssembly(RuntimeViewsheet rvs, VSAssembly source) {
       Viewsheet vs = rvs.getViewsheet();
       String newName = uniqueAssemblyName(vs, source.getName());
       VSAssembly copy = rebindAssembly(vs, newName, source);
@@ -1816,16 +1815,27 @@ public class WizVsService {
       // `source`, which may be an earlier chart the caller named explicitly. Demoting `source`
       // unconditionally would leave the real primary promoted alongside the new copy, i.e. two
       // primaries in one viewsheet.
-      VSAssembly currentPrimary = findPrimaryAssembly(vs);
+      VSAssembly demoted = findPrimaryAssembly(vs);
 
-      if(currentPrimary != null) {
-         currentPrimary.setPrimary(false);
+      if(demoted != null) {
+         demoted.setPrimary(false);
       }
 
       vs.addAssembly(copy);
       copy.setPrimary(true);
-      return copy;
+      return new AssemblyDuplication(copy, demoted);
    }
+
+   /**
+    * The outcome of {@link #duplicateAssembly}: the new copy, and the assembly that lost primary
+    * status to it ({@code null} when the viewsheet had no primary).
+    *
+    * <p>{@code demoted} is returned rather than left for the caller to re-derive: it is NOT
+    * necessarily the duplicated source, so a caller that needs to undo the promotion (rollback)
+    * would otherwise have to call {@code findPrimaryAssembly} itself just before duplicating and
+    * trust that nothing in between changes primary state — an invariant no compiler enforces.
+    */
+   public record AssemblyDuplication(VSAssembly copy, VSAssembly demoted) {}
 
    /**
     * Throws if the lens chain contains failed-query fallback data. When a live query fails
