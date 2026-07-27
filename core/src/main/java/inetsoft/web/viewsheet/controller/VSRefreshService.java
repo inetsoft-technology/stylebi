@@ -115,6 +115,15 @@ public class VSRefreshService {
                   embedAssemblyInfo.setAssemblyName(event.getAssemblyName());
                   rvs.setEmbedAssemblyInfo(embedAssemblyInfo);
                }
+               // The embedded assembly can be swapped out for a differently-named one on the
+               // same runtime (e.g. WizAutoBindingService#changeType removes the old primary
+               // assembly and places a new one when the user switches viz type). Re-point the
+               // tracked name on every explicit embed refresh, or applyEmbedChartSize()'s name
+               // check keeps comparing against the original (now-gone) assembly forever and
+               // silently stops sizing the new one.
+               else if(embedAssemblyInfo != null && event.getEmbed()) {
+                  embedAssemblyInfo.setAssemblyName(event.getAssemblyName());
+               }
 
                if(embedAssemblyInfo != null) {
                   embedAssemblyInfo.setAssemblySize(event.getAssemblySize());
