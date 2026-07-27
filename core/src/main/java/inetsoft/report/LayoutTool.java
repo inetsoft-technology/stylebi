@@ -2382,6 +2382,21 @@ public class LayoutTool {
    }
 
    /**
+    * Get the physical column name backing a crosstab-supported group cell. The
+    * cell's own binding value may hold the dimension's display full name (e.g.
+    * "None(Month(ndate))") rather than the physical column name ("Month(ndate)")
+    * for date-grouped dimensions, so prefer the resolved CalcGroup's attribute
+    * (unqualified, unlike getName() which may carry an "entity." table prefix).
+    */
+   private static String getGroupColumnName(CalcGroup group, TableCellBinding cell) {
+      if(group != null) {
+         return BindingTool.getPureField(group).getAttribute();
+      }
+
+      return cell.getValue();
+   }
+
+   /**
     * Create calc for crosstab supported expression.
     */
    private static String createCrosstabCalcExpression(List<TableCellBinding> list,
@@ -2401,7 +2416,17 @@ public class LayoutTool {
          exp += "none(";
       }
 
-      exp += var + "['" + escapeColName(bind.getValue());
+      CalcGroup group = groups.length > 0 ? groups[groups.length - 1] : null;
+
+      // bind.getValue() may hold the dimension's display full name (e.g.
+      // "None(Month(ndate))") instead of the physical column name backing the
+      // crosstab data ("Month(ndate)") when the cell's binding was derived from
+      // a date-grouped dimension. When this cell is itself a group cell,
+      // groups[groups.length - 1] is its own resolved CalcGroup (createGroupField()
+      // resolved the real column), so prefer that for the actual data key. When
+      // this cell is an aggregate/summary cell, it is not part of groups[], so
+      // bind.getValue() (the aggregate's own column reference) must be used as-is.
+      exp += var + "['" + escapeColName(isGroup ? getGroupColumnName(group, bind) : bind.getValue());
 
       int len = isGroup ? list.size() - 1 : list.size();
 
@@ -2409,14 +2434,13 @@ public class LayoutTool {
          exp += "@";
       }
 
-      CalcGroup group = groups.length > 0 ? groups[groups.length - 1] : null;
-
       for(int i = 0; i < len; i++) {
          if(i > 0) {
             exp += ";";
          }
 
-         String value = escapeColName(list.get(i).getValue());
+         CalcGroup pgroup = i < groups.length ? groups[i] : null;
+         String value = escapeColName(getGroupColumnName(pgroup, list.get(i)));
          value = Tool.replaceAll(value, ":", LayoutTool.SCRIPT_ESCAPED_COLON);
          exp += value + ":$" + escapeColName(Tool.escapeJavascript(gnames[i]));
       }

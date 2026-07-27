@@ -56,8 +56,7 @@ import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.sree.internal.cluster.MockCluster;
 import inetsoft.sree.security.support.SecurityTestDataBuilder;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
-import inetsoft.storage.KeyValueStorage;
-import inetsoft.storage.KeyValueStorageManager;
+import inetsoft.web.admin.favorites.FavoritesService;
 import inetsoft.test.*;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.Catalog;
@@ -108,7 +107,7 @@ import static org.mockito.Mockito.*;
                       initializers = ConfigurationContextInitializer.class)
 @SreeHome
 @Tag("core")
-class PermissionMatrixOrgLifecycleTest {
+public class PermissionMatrixOrgLifecycleTest {
 
    private static final String RESOURCE = "reports/org_lifecycle_vs";
 
@@ -678,17 +677,16 @@ class PermissionMatrixOrgLifecycleTest {
                     .anyMatch(id -> id.name.equals("alice")),
                 "precondition: alice must be a READ grantee at the source org before the rename");
 
-      // Collaborators unrelated to permission re-scoping (see method comment): favorites storage
-      // returns null so the em-favorites move is skipped; the two registry managers are no-op.
-      KeyValueStorageManager keyValueStorageManager = mock(KeyValueStorageManager.class);
-      when(keyValueStorageManager.getStorage("emFavorites"))
-         .thenReturn(mock(KeyValueStorage.class));
+      // Collaborators unrelated to permission re-scoping (see method comment): the favorites
+      // service is a no-op mock so the em-favorites move is skipped; the two registry managers
+      // are no-op.
+      FavoritesService favoritesService = mock(FavoritesService.class);
       RepletRegistryManager repletRegistryManager = mock(RepletRegistryManager.class);
       DashboardRegistryManager dashboardRegistryManager = mock(DashboardRegistryManager.class);
 
       IdentityService identityService = new IdentityService(
          SecurityEngine.getSecurity(), SecurityEngine.getSecurity().getSecurityProvider(),
-         null, null, null, keyValueStorageManager, null, null, null, null,
+         null, null, null, favoritesService, null, null, null, null,
          null, null, null, null, Optional.empty(), null, null, null,
          dashboardRegistryManager, null, null, null, null, null, null, null, null,
          repletRegistryManager, Optional.empty());
@@ -738,14 +736,20 @@ class PermissionMatrixOrgLifecycleTest {
    // ── copy-on-read Cluster override, scoped to this test class only (see class-level comment) ──
 
    @Configuration
-   static class CopyOnReadClusterConfig {
+   public static class CopyOnReadClusterConfig {
       @Bean
       public Cluster cluster() {
          return new CopyOnReadCluster();
       }
    }
 
-   private static class CopyOnReadCluster extends MockCluster {
+   /**
+    * Public (not just package-private) so other org-lifecycle test classes outside this package
+    * (e.g. {@code inetsoft.uql.asset.sync.OrgLifecycleDependencyMigrationTest}) can reuse the same
+    * copy-on-read simulation instead of duplicating it -- see the Global Constraints section of
+    * {@code docs/superpowers/plans/2026-07-14-org-lifecycle-resource-integrity.md}.
+    */
+   public static class CopyOnReadCluster extends MockCluster {
       @Override
       public <K, V> DistributedMap<K, V> getReplicatedMap(String name) {
          return new CopyOnReadDistributedMap<>(super.getReplicatedMap(name));
@@ -757,7 +761,7 @@ class PermissionMatrixOrgLifecycleTest {
     * independent deep copy, matching {@code IgniteCache}'s default {@code copyOnRead=true} --
     * see the class-level comment on {@link PermissionMatrixOrgLifecycleTest} for why this matters.
     */
-   private static class CopyOnReadDistributedMap<K, V> implements DistributedMap<K, V> {
+   public static class CopyOnReadDistributedMap<K, V> implements DistributedMap<K, V> {
       private final DistributedMap<K, V> delegate;
 
       CopyOnReadDistributedMap(DistributedMap<K, V> delegate) {

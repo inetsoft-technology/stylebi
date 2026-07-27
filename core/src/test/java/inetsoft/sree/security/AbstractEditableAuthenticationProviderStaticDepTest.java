@@ -31,10 +31,13 @@ package inetsoft.sree.security;
  *
  * Cases deferred — require integration context:
  *
- * [Integration] copyOrganizationInternal full flow
+ * [Integration] copyOrganizationInternal full flow (theme wiring slice)
  *               → requires @SreeHome + ScheduleManager.getScheduleManager()
  *                  + PortalThemesManager.getManager() + OrganizationManager.runInOrgScope()
- *               → NOT yet covered
+ *               → now covered by OrgLifecycleThemeOrchestrationTest (same package) — see that
+ *                  file's header comment for why CustomThemesManager itself is still driven via
+ *                  mockStatic rather than a real bean (community's CustomThemesImpl fallback is a
+ *                  no-op, and no getOrgSelectedTheme(String orgId) overload exists anywhere)
  *
  * [AbstractEditableAuthenticationProviderStaticDepTest — future]
  * copyUserToOrganization(defaultPassword != null)
@@ -52,20 +55,19 @@ package inetsoft.sree.security;
  *             N matching properties → N+1 disk writes; should be 1 after-loop save only
  *             — AbstractEditableAuthenticationProvider:484
  *
- * [Suspect 7] clearScopedProperties vs copyScopedProperties — case inconsistency
- *             clearScopedProperties: prefix = "inetsoft.org." + oldOrgId (no toLowerCase)
- *             copyScopedProperties: prefix = "inetsoft.org." + fromOrgId.toLowerCase()
- *             actual: org IDs with uppercase letters are never cleared by clearScopedProperties
- *             after they were copied by copyScopedProperties (key format mismatch)
- *             — AbstractEditableAuthenticationProvider:407 vs :468
+ * [Suspect 7 — fixed #74695] clearScopedProperties vs copyScopedProperties — case inconsistency
+ *             clearScopedProperties now lowercases oldOrgId to match copyScopedProperties key format
+ *             — AbstractEditableAuthenticationProvider:433
  *
  */
 
 /*
  * clearScopedProperties decision tree
- *  ├─ [A] property starts with "inetsoft.org." + orgId → SreeEnv.remove called
- *  ├─ [B] property does not match prefix              → not removed
- *  └─ [C] empty Properties                            → no remove calls
+ *  ├─ [A] property starts with "inetsoft.org." + orgId (case-insensitive) → SreeEnv.remove called
+ *  ├─ [B] property does not match prefix                                  → not removed
+ *  ├─ [C] empty Properties                                                → no remove calls
+ *  └─ [D] orgId passed with uppercase letters                             → lowercased prefix matches
+ *          keys written by copyScopedProperties (#74695)
  *
  * copyScopedProperties decision tree
  *  ├─ [A] matching property, replace=false → setProperty called, remove NOT called
@@ -168,15 +170,11 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
       }
    }
 
-   // Issue #74695
-   // [Suspect 7] clearScopedProperties uses raw orgId; copyScopedProperties lowercases it — key mismatch for uppercase orgIds
-   @Disabled("Suspect 7: clearScopedProperties prefix uses raw orgId; " +
-             "copyScopedProperties lowercases it — keys written and read use different cases; " +
-             "Fix: apply toLowerCase() in clearScopedProperties prefix to match the key format written by copyScopedProperties")
+   // Issue #74695 — uppercase orgId must match lowercased keys from copyScopedProperties
    @Test
-   void clearScopedProperties_uppercaseOrgId_doesNotRemoveLowercasedCopiedKey() {
+   void clearScopedProperties_uppercaseOrgId_removesLowercasedCopiedKey() {
       // copyScopedProperties("FROMORG", ...) writes key "inetsoft.org.fromorg.theme" (lowercased)
-      // clearScopedProperties("FROMORG") looks for prefix "inetsoft.org.FROMORG." (raw) → no match → key survives
+      // clearScopedProperties("FROMORG") lowercases orgId → prefix matches → key removed
       Properties props = new Properties();
       props.setProperty("inetsoft.org.fromorg.theme", "blue");
 
@@ -269,6 +267,63 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
 
          ds.verify(DataSpace::getDataSpace, never());
          ctm.verify(CustomThemesManager::getManager, never());
+      }
+   }
+
+   // [Path A2] getCustomThemes() returns empty (e.g. themes failed to load) → persistence is
+   //           skipped entirely, so an empty/failed read cannot wipe the whole theme store.
+   //           For replace=true, setOrgSelectedTheme(null, fromOrgId) still fires.
+   @Test
+   void copyThemes_emptyThemeSet_skipsPersistence() {
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
+
+         DataSpace mockDs = mock(DataSpace.class);
+         ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
+
+         CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
+         when(mockManager.getCustomThemes()).thenReturn(new HashSet<>());
+
+         provider.callCopyThemes("fromOrg", "toOrg", true);
+
+         verify(mockManager, never()).setCustomThemes(any());
+         verify(mockManager).setOrgSelectedTheme(null, "fromOrg");
+      }
+   }
+
+   // [Path A3] clone fails for a fromOrgId-owned theme during a replace=true rename →
+   //           the original is retained in the persisted set (deferred-removal /
+   //           migratedOriginalIds path), not dropped, and no half-built clone is persisted.
+   @Test
+   void copyThemes_cloneFailsForFromOrgTheme_replaceTrue_originalRetained() {
+      CustomTheme theme = spy(new CustomTheme());
+      theme.setId("theme-1");
+      theme.setOrgID("fromOrg");
+      theme.setOrganizations(new ArrayList<>());
+      doThrow(new RuntimeException("clone failed")).when(theme).clone();
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
+
+         DataSpace mockDs = mock(DataSpace.class);
+         ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
+
+         CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
+         when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
+
+         provider.callCopyThemes("fromOrg", "toOrg", true);
+
+         @SuppressWarnings("unchecked")
+         ArgumentCaptor<Set<CustomTheme>> captor = ArgumentCaptor.forClass(Set.class);
+         verify(mockManager).setCustomThemes(captor.capture());
+
+         Set<CustomTheme> result = captor.getValue();
+         assertTrue(result.stream().anyMatch(t -> "fromOrg".equals(t.getOrgID())),
+                    "original fromOrg theme must be retained when its clone fails");
+         assertFalse(result.stream().anyMatch(t -> "toOrg".equals(t.getOrgID())),
+                     "no half-built clone should be persisted when cloning failed");
       }
    }
 

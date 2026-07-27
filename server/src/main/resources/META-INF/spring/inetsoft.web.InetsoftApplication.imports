@@ -1,4 +1,5 @@
 org.springframework.boot.autoconfigure.web.servlet.ServletWebServerFactoryAutoConfiguration
+org.springframework.boot.autoconfigure.web.embedded.EmbeddedWebServerFactoryCustomizerAutoConfiguration
 org.springframework.boot.autoconfigure.web.servlet.DispatcherServletAutoConfiguration
 org.springframework.boot.autoconfigure.context.ConfigurationPropertiesAutoConfiguration
 org.springframework.boot.autoconfigure.web.servlet.MultipartAutoConfiguration

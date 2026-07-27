@@ -288,7 +288,7 @@ export class ScheduleCycleEditorPageComponent implements OnInit, OnDestroy {
             this.taskChanged = false;
          },
          (error: HttpErrorResponse) => {
-            if(error.error.message) {
+            if(error.error?.message) {
                this.dialog.open(MessageDialog, {
                   width: "500px",
                   data: {

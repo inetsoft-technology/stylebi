@@ -310,6 +310,20 @@ public abstract class AbstractEditableAuthenticationProvider
       CustomThemesManager manager = CustomThemesManager.getManager();
       manager.loadThemes();
       Set<CustomTheme> themes = new HashSet<>(manager.getCustomThemes());
+
+      // setCustomThemes() below does a full replace of the entire CustomThemes store. If
+      // no themes could be read there is nothing to migrate, and persisting an empty set
+      // (e.g. when the themes failed to load) would wipe every custom theme across all
+      // orgs. Skip persistence entirely in that case so a failed/empty read cannot delete
+      // the store.
+      if(themes.isEmpty()) {
+         if(replace) {
+            manager.setOrgSelectedTheme(null, fromOrgId);
+         }
+
+         return null;
+      }
+
       List<CustomTheme> sourceThemes = new ArrayList<>();
 
       for(CustomTheme t : themes) {
@@ -322,8 +336,9 @@ public abstract class AbstractEditableAuthenticationProvider
       }
 
       if(replace) {
-         themes.removeIf(t -> Tool.equals(t.getOrgID(), fromOrgId));
-
+         // Do not remove the renamed org's themes up front: they are removed only after
+         // their replacement clone has been successfully built (see the end of the
+         // migration loop), so a clone failure can never drop the source theme.
          for(CustomTheme t : themes) {
             if(Tool.isEmptyString(t.getOrgID()) && t.getOrganizations() != null && t.getOrganizations().contains(fromOrgId)) {
                List<String> newOrgs = new ArrayList<>(t.getOrganizations());
@@ -334,6 +349,9 @@ public abstract class AbstractEditableAuthenticationProvider
       }
 
       String newOrgThemeId = null;
+      // Ids of the renamed org's source themes whose clone succeeded; only these
+      // originals are removed after the migration loop (see below).
+      Set<String> migratedOriginalIds = new HashSet<>();
 
       for(CustomTheme theme : sourceThemes) {
          try {
@@ -361,14 +379,13 @@ public abstract class AbstractEditableAuthenticationProvider
                   }
                }
 
-               if(theme.getOrganizations().contains(fromOrgId)) {
+               boolean migrateOrgSelection = theme.getOrganizations().contains(fromOrgId);
+
+               if(migrateOrgSelection) {
                   List<String> newOrgs = clone.getOrganizations();
                   newOrgs.remove(fromOrgId);
                   newOrgs.add(toOrgId);
                   clone.setOrganizations(newOrgs);
-
-                  manager.setOrgSelectedTheme(clone.getId(), toOrgId);
-                  newOrgThemeId = clone.getId();
                }
 
                if(!Tool.isEmptyString(clone.getJarPath())) {
@@ -394,6 +411,19 @@ public abstract class AbstractEditableAuthenticationProvider
                }
 
                themes.add(clone);
+
+               // Wire up the org's selected-theme pointer and the returned id only after
+               // the clone has been fully built and added to the working set. Doing this
+               // earlier (before the jar-copy step, which can throw) could leave the org
+               // pointing at a clone that was never persisted when a later step failed.
+               if(migrateOrgSelection) {
+                  manager.setOrgSelectedTheme(clone.getId(), toOrgId);
+                  newOrgThemeId = clone.getId();
+               }
+
+               if(replace) {
+                  migratedOriginalIds.add(theme.getId());
+               }
             }
             else if(Tool.isEmptyString(theme.getOrgID())
                && theme.getOrganizations() != null
@@ -420,6 +450,11 @@ public abstract class AbstractEditableAuthenticationProvider
       }
 
       if(replace) {
+         // Now that the clones have been added, remove only the originals of the renamed
+         // org that were successfully migrated. Themes whose clone failed are kept rather
+         // than lost.
+         themes.removeIf(t -> Tool.equals(t.getOrgID(), fromOrgId)
+            && migratedOriginalIds.contains(t.getId()));
          manager.setOrgSelectedTheme(null, fromOrgId);
       }
 

@@ -138,8 +138,26 @@ class VariableScriptableTest {
    }
 
    @Test
-   void testToString() {
-      when(mockVariableTable.toString()).thenReturn("VariableTableString");
-      assertEquals("VariableTableString", variableScriptable.toString());
+   void testToString() throws Exception {
+      Enumeration<String> mockKeys = mock(Enumeration.class);
+      when(mockKeys.hasMoreElements()).thenReturn(true, true, false);
+      when(mockKeys.nextElement()).thenReturn("key1", "key2");
+      when(mockVariableTable.keys()).thenReturn(mockKeys);
+      when(mockVariableTable.get("key1")).thenReturn("value1");
+      when(mockVariableTable.get("key2")).thenReturn("value2");
+
+      assertEquals("key1=value1, key2=value2", variableScriptable.toString());
+   }
+
+   @Test
+   void testToStringSkipsFailedGet() throws Exception {
+      Enumeration<String> mockKeys = mock(Enumeration.class);
+      when(mockKeys.hasMoreElements()).thenReturn(true, true, false);
+      when(mockKeys.nextElement()).thenReturn("key1", "key2");
+      when(mockVariableTable.keys()).thenReturn(mockKeys);
+      when(mockVariableTable.get("key1")).thenThrow(new RuntimeException("boom"));
+      when(mockVariableTable.get("key2")).thenReturn("value2");
+
+      assertEquals("key2=value2", variableScriptable.toString());
    }
 }

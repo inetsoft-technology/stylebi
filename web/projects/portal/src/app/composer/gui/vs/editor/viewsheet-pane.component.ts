@@ -1335,7 +1335,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
          this.notifications.info(command.message);
       }
       else {
-         if(command.type === "ERROR") {
+         if(command.type === "ERROR" || command.type === "WARNING") {
             this.vs.saving = false;
          }
 

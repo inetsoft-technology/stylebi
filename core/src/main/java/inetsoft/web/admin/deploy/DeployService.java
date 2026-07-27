@@ -660,7 +660,7 @@ public class DeployService {
       List<String> paths = getExportPaths(includes, excludes);
 
       if(paths == null || paths.isEmpty()) {
-         throw new Exception("No assets match selection");
+         throw new MissingResourceException("No assets match selection");
       }
 
       createExport(paths, findCheckedAssets(excludeDependencies), name, principal, output);
