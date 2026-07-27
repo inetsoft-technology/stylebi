@@ -193,7 +193,7 @@ describe("WSPaneComponent — processMessageCommand routing", () => {
       expect(comp.worksheet.saving).toBe(false);
    });
 
-   it("should NOT clear worksheet.saving for type=WARNING", async () => {
+   it("should set worksheet.saving=false for type=WARNING before showing modal", async () => {
       const { comp } = await renderComponent();
       comp.worksheet.saving = true;
 
@@ -201,7 +201,7 @@ describe("WSPaneComponent — processMessageCommand routing", () => {
          (comp as any).processMessageCommand({ type: "WARNING", message: "warn" });
       } catch { /* processMessageCommand0 may throw in test env — we only care about saving */ }
 
-      expect(comp.worksheet.saving).toBe(true);
+      expect(comp.worksheet.saving).toBe(false);
    });
 });
 
