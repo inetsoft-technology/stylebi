@@ -59,7 +59,11 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
          principal = (SRPrincipal) SUtil.getPrincipal(httpRequest);
       }
 
-      if(!provider.getAuthenticationProvider().isVirtual() && !isPublicResource(httpRequest) &&
+      // both branches below consult this, so match the request against the public resource
+      // patterns only once
+      boolean publicResource = isPublicResource(httpRequest);
+
+      if(!provider.getAuthenticationProvider().isVirtual() && !publicResource &&
          !isPublicApi(httpRequest) && !isTeamWebsocketEndpoint(httpRequest))
       {
          Cookie[] cookies = ((HttpServletRequest) request).getCookies();
@@ -78,7 +82,7 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
       }
       // public EM resources (the static assets of the Enterprise Manager web application) are
       // exempt from the EM access check, just like the public resources of the portal
-      else if(isEnterpriseManager(httpRequest) && !isPublicResource(httpRequest)) {
+      else if(isEnterpriseManager(httpRequest) && !publicResource) {
          if(principal == null || isAnonymousPrincipal(principal) ||
             !provider.checkPermission(principal, ResourceType.EM, "*", ResourceAction.ACCESS))
          {
