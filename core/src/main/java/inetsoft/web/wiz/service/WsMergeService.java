@@ -130,13 +130,34 @@ public class WsMergeService {
                boolean hasAggregation = srcAggr != null && !srcAggr.isEmpty();
 
                if(hasConditions || hasAggregation) {
-                  // srcBound carries its own conditions or aggregation. Stack a mirror of
-                  // prevMirror (not _base) so that runtime filters applied to prevMirror
-                  // propagate through this mirror and on to any join that references it,
-                  // preserving cross-chart filter interaction while retaining srcBound's
-                  // conditions and aggregation.
+                  // srcBound carries its own conditions or aggregation. Normally stack a mirror of
+                  // prevMirror (not _base) so that runtime filters applied to prevMirror propagate
+                  // through this mirror and on to any join that references it, preserving
+                  // cross-chart filter interaction while retaining srcBound's conditions and
+                  // aggregation.
+                  //
+                  // EXCEPTION -- prevMirror carries its OWN non-empty AggregateInfo (from whichever
+                  // earlier chart first claimed this physical table): stacking srcBound's aggregation
+                  // on top of prevMirror would group/aggregate an ALREADY-aggregated, differently
+                  // grouped result, which is structurally unsound whenever the two charts group by
+                  // different levels (e.g. two independent Quarter(date_order) groupings from two
+                  // unrelated charts on the same source table). Confirmed live: this produces a
+                  // duplicate/incompatible output column name (e.g. both charts' own grouping emits
+                  // "Quarter(date_order)") that the SQL engine then silently disambiguates with a
+                  // "_1" suffix neither chart's own VSChartInfo binding is told about, crashing the
+                  // FIRST chart's own graph render with ColumnNotFoundException the next time its
+                  // dashboard tile is opened -- even though nothing about the first chart itself
+                  // changed. Stack on the raw, unaggregated _base table instead in this case:
+                  // correctness beats cross-chart-filter-sharing convenience for a case that was
+                  // already producing wrong (crashing) results. existingTable here IS the raw base
+                  // (ensureBaseHasPrevMirror already renamed it to "{name}_base" and stripped its
+                  // conditions/aggregation), so it's always a safe, clean stacking point regardless
+                  // of what prevMirror carries.
+                  AggregateInfo prevOwnAggr = prevMirror.getAggregateInfo();
+                  boolean prevHasIncompatibleAggr = prevOwnAggr != null && !prevOwnAggr.isEmpty();
+                  TableAssembly stackOn = prevHasIncompatibleAggr ? existingTable : prevMirror;
                   String condMirrorName = ensureUniqueName(prevMirrorName, dashWS);
-                  MirrorTableAssembly condMirror = new MirrorTableAssembly(dashWS, condMirrorName, prevMirror);
+                  MirrorTableAssembly condMirror = new MirrorTableAssembly(dashWS, condMirrorName, stackOn);
                   condMirror.setColumnSelection(srcBound.getColumnSelection(true).clone(), true);
                   condMirror.setPreConditionList(srcPre != null ? (ConditionListWrapper) srcPre.clone() : new ConditionList());
                   condMirror.setPostConditionList(srcPost != null ? (ConditionListWrapper) srcPost.clone() : new ConditionList());
@@ -344,7 +365,7 @@ public class WsMergeService {
     */
    private void mergeColumns(BoundTableAssembly base, BoundTableAssembly srcTable) {
       ColumnSelection baseColumns = base.getColumnSelection(true);
-      ColumnSelection srcColumns = srcTable.getColumnSelection(true);
+      ColumnSelection srcColumns = mergeableSourceColumns(srcTable);
 
       for(int i = 0; i < srcColumns.getAttributeCount(); i++) {
          DataRef col = srcColumns.getAttribute(i);
@@ -368,6 +389,65 @@ public class WsMergeService {
 
       base.setColumnSelection(basePrivate, false);
       base.setColumnSelection(baseColumns, true);
+   }
+
+   /**
+    * Returns the columns from {@code srcTable} that are safe to merge into a SHARED, raw physical
+    * base table (see {@link #mergeColumns}).
+    *
+    * <p>When {@code srcTable} carries no aggregation of its own, its public (output) selection IS
+    * its set of genuine raw/pass-through columns — return those directly (unchanged behavior).</p>
+    *
+    * <p>When {@code srcTable} carries its OWN non-empty {@link AggregateInfo} (the shape
+    * {@code create_worksheet_table}'s baked-in aggregateInfo produces), its public selection
+    * instead reflects AGGREGATE OUTPUT names (e.g. a date-grouped "Quarter(date_order)", or an
+    * aggregate alias like "order_count") — these are NOT genuine physical/raw columns. Merging
+    * them into the shared base corrupts it: the base then falsely claims to already HAVE a column
+    * with that name, so ANY OTHER chart merged onto the same physical table that independently
+    * produces an output with the identical name (its own date-grouping, its own aggregate alias,
+    * even a different chart's own chart-level dimension binding) collides with this bogus
+    * pre-existing "raw" column. StyleBI's SQL builder then silently disambiguates the alias with
+    * a "_1" suffix that no chart's own VSChartInfo binding is told about, crashing that OTHER
+    * chart's graph render with ColumnNotFoundException the next time its dashboard tile opens —
+    * confirmed live: two independent charts merged onto the same physical table, each producing
+    * their own "Quarter(date_order)"-named output, crashed the FIRST chart's render this way even
+    * though nothing about the first chart itself changed.
+    *
+    * <p>In that case, use {@code srcTable}'s PRIVATE selection instead — confirmed live to carry
+    * the genuinely-fetched underlying raw column(s) the aggregation reads from (e.g. "date_order"
+    * alongside its own "Quarter(date_order)" output) — filtered to exclude any column whose name
+    * IS one of the aggregateInfo's own group/aggregate output names, so only the real raw
+    * column(s) get merged onto the shared base.</p>
+    */
+   private ColumnSelection mergeableSourceColumns(BoundTableAssembly srcTable) {
+      AggregateInfo srcAggr = srcTable.getAggregateInfo();
+
+      if(srcAggr == null || srcAggr.isEmpty()) {
+         return srcTable.getColumnSelection(true);
+      }
+
+      Set<String> outputNames = new HashSet<>();
+
+      for(int i = 0; i < srcAggr.getGroupCount(); i++) {
+         outputNames.add(srcAggr.getGroup(i).getName());
+      }
+
+      for(int i = 0; i < srcAggr.getAggregateCount(); i++) {
+         outputNames.add(srcAggr.getAggregate(i).getName());
+      }
+
+      ColumnSelection rawCols = new ColumnSelection();
+      ColumnSelection srcPrivate = srcTable.getColumnSelection(false);
+
+      for(int i = 0; i < srcPrivate.getAttributeCount(); i++) {
+         DataRef col = srcPrivate.getAttribute(i);
+
+         if(!outputNames.contains(col.getName())) {
+            rawCols.addAttribute(col);
+         }
+      }
+
+      return rawCols;
    }
 
    /**
