@@ -1071,30 +1071,40 @@ public class WizVsService {
 
          if(modificationOnly) {
             targetVs = vs;
-            VSAssembly sourceAssembly = findPrimaryAssembly(targetVs);
+            // An explicit assemblyName names the chart to modify; without one, fall back to the
+            // primary assembly (the chart created or copied most recently), which is what every
+            // caller predating this parameter relies on. A caller editing a chart OTHER than the
+            // newest MUST name it — its condition was built against that chart's fields.
+            VSAssembly sourceAssembly = model.getAssemblyName() != null
+               ? targetVs.getAssembly(model.getAssemblyName())
+               : findPrimaryAssembly(targetVs);
 
             if(sourceAssembly == null) {
-               throw new IllegalStateException("No primary assembly found in viewsheet for modification");
+               throw new IllegalStateException(model.getAssemblyName() != null
+                  ? "Assembly \"" + model.getAssemblyName() + "\" not found in viewsheet for modification"
+                  : "No primary assembly found in viewsheet for modification");
             }
 
             VSAssembly modAssembly = sourceAssembly;
 
-            // Copy-then-apply: duplicate the current primary BEFORE applying the condition, so the
-            // original is left untouched and the filter lands on a new, parallel copy instead.
-            // Reuses the same duplicatePrimaryAssembly the chart color/format/highlight paths use —
-            // sourceAssembly is guaranteed primary here (that's how findPrimaryAssembly found it), so
-            // duplicatePrimaryAssembly's precondition is always satisfied.
+            // Copy-then-apply: duplicate the source BEFORE applying the condition, so the original is
+            // left untouched and the filter lands on a new, parallel copy instead. Captured BEFORE the
+            // duplicate runs, because the assembly that gets demoted is whichever is currently primary
+            // — not necessarily the source, which may be an earlier chart the caller named explicitly.
+            // Rollback restores THAT assembly's primary flag, so recording the source here instead
+            // would promote the wrong chart and leave the viewsheet with two primaries.
             if(model.isCopy()) {
-               VSAssembly duplicated = duplicatePrimaryAssembly(rvs, sourceAssembly);
+               VSAssembly previousPrimary = findPrimaryAssembly(targetVs);
+               VSAssembly duplicated = duplicateAssembly(rvs, sourceAssembly);
 
                if(duplicated != null) {
-                  demotedOriginal = sourceAssembly;
+                  demotedOriginal = previousPrimary;
                   rollbackCopy = duplicated;
                   modAssembly = duplicated;
                }
                else {
                   copyNote = "Copy requested but could not be created; filter applied in place.";
-                  LOG.warn("createViewsheetInternal (modificationOnly): duplicatePrimaryAssembly " +
+                  LOG.warn("createViewsheetInternal (modificationOnly): duplicateAssembly " +
                      "failed for {}; falling back to in-place apply.", sourceAssembly.getName());
                }
             }
@@ -1427,11 +1437,16 @@ public class WizVsService {
                if(modificationOnly) {
                   if(rollbackCopy != null) {
                      // A copy was made for this call; undo it — remove the duplicate and restore the
-                     // original as primary. The original's condition was never touched, so there is
-                     // nothing to restore on it (mirrors setChartFormat/setChartColors/applyHighlight's
-                     // identical copy rollback).
+                     // demoted assembly as primary. Neither the source nor the demoted assembly had
+                     // its condition touched, so there is nothing to restore on them (mirrors
+                     // setChartFormat/setChartColors/applyHighlight's identical copy rollback).
+                     // demotedOriginal is null only if the viewsheet had no primary to begin with, in
+                     // which case there is nothing to restore.
                      previousVs.removeAssembly(rollbackCopy.getName());
-                     demotedOriginal.setPrimary(true);
+
+                     if(demotedOriginal != null) {
+                        demotedOriginal.setPrimary(true);
+                     }
                   }
                   else if(assembly instanceof DataVSAssembly dataAsm) {
                      // No copy — assembly IS the original, mutated in place; restore its prior
@@ -1767,6 +1782,28 @@ public class WizVsService {
          return null;
       }
 
+      return duplicateAssembly(rvs, source);
+   }
+
+   /**
+    * Duplicates {@code source} within {@code rvs}'s viewsheet under a unique name, promotes the copy
+    * to primary, and demotes (never deletes) whichever assembly was primary before.
+    *
+    * <p>Unlike {@link #duplicatePrimaryAssembly}, {@code source} need NOT be the current primary.
+    * That matters when the caller has explicitly named an EARLIER chart to modify: the copy must be
+    * taken from the chart the caller named, while the assembly losing primary status is whatever
+    * held it. Callers needing rollback must therefore record the previous primary themselves (see
+    * {@code createViewsheetInternal}'s modificationOnly branch) — the demoted assembly is not
+    * necessarily {@code source}.
+    *
+    * <p>Use {@link #duplicatePrimaryAssembly} instead when the source is supposed to already BE the
+    * primary and a mismatch means the caller's assembly name is stale: it refuses rather than
+    * silently duplicating the wrong chart.
+    *
+    * <p>Returns null if {@code source}'s type has no registered rebind factory (ASSEMBLY_FACTORIES)
+    * — the caller should fall back to applying in place.
+    */
+   public VSAssembly duplicateAssembly(RuntimeViewsheet rvs, VSAssembly source) {
       Viewsheet vs = rvs.getViewsheet();
       String newName = uniqueAssemblyName(vs, source.getName());
       VSAssembly copy = rebindAssembly(vs, newName, source);
@@ -1775,9 +1812,16 @@ public class WizVsService {
          return null;
       }
 
-      // source is confirmed primary above, so demote it specifically — not "whichever assembly happens
-      // to be primary" — for a second layer of defense against demoting the wrong assembly.
-      source.setPrimary(false);
+      // Demote whichever assembly currently holds primary — resolved rather than assumed to be
+      // `source`, which may be an earlier chart the caller named explicitly. Demoting `source`
+      // unconditionally would leave the real primary promoted alongside the new copy, i.e. two
+      // primaries in one viewsheet.
+      VSAssembly currentPrimary = findPrimaryAssembly(vs);
+
+      if(currentPrimary != null) {
+         currentPrimary.setPrimary(false);
+      }
+
       vs.addAssembly(copy);
       copy.setPrimary(true);
       return copy;

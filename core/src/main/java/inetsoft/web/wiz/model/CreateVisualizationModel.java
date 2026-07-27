@@ -101,6 +101,26 @@ public class CreateVisualizationModel {
    }
 
    /**
+    * Which chart the "modificationOnly" path acts on (see
+    * {@code WizVsService.createViewsheetInternal}). Null — the default and every pre-existing
+    * caller — means the viewsheet's current PRIMARY assembly, i.e. the chart created or copied most
+    * recently.
+    *
+    * <p>Naming one is required when the caller edits a chart that is NOT the newest: in a
+    * multi-chart conversation a filter built against an earlier chart's fields would otherwise be
+    * applied to a different chart, which at best filters the wrong chart and at worst references
+    * columns that chart does not bind. Ignored outside the modificationOnly path (the standard
+    * create/rebind path produces its own fresh assembly).
+    */
+   public String getAssemblyName() {
+      return assemblyName;
+   }
+
+   public void setAssemblyName(String assemblyName) {
+      this.assemblyName = assemblyName;
+   }
+
+   /**
     * #75456: row cap for sampled-preview mode. Null or &lt;=0 = full data (the default and the
     * agent path); &gt;0 = aggregate at most this many detail rows (faster on heavy/non-mergeable
     * sources, but Sum/Count may be approximate).
@@ -117,6 +137,7 @@ public class CreateVisualizationModel {
    private VisualizationConfig config;
    private String runtimeId;
    private String viewsheetIdentifier;
+   private String assemblyName;
    private VisualizationConditionModel conditionModel;
    private Integer sampleMaxRows;
    private transient VSAssembly primaryAssembly;
