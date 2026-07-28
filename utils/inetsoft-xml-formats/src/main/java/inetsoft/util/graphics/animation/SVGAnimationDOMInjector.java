@@ -140,9 +140,11 @@ public class SVGAnimationDOMInjector {
          double lastBarDelay = injectBarAnimationFromAnnotations(annotBars, svgRoot, doc, fadeOnly);
          animated = true;
 
-         // Pareto charts have both bars and a cumulative-% line.  Animate the line after the
-         // last bar finishes (no ghost fill, no stagger — typically exactly one line).
          List<Element> annotLines = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_LINE);
+
+         // Pareto charts have both bars and a cumulative-% line.  Animate the line after the
+         // last bar finishes (no ghost fill, no stagger — typically exactly one line): it reads
+         // as a summary of the bars, so it should not appear until they are all there.
          List<Element> paretoLines = annotLines.stream()
             .filter(g -> "true".equals(g.getAttribute("data-" + SVGSupport.ATTR_PARETO)))
             .toList();
@@ -152,8 +154,24 @@ public class SVGAnimationDOMInjector {
             injectParetoLineAnimation(paretoLines, svgRoot, doc, lineDelay);
          }
 
-         // Gantt charts have interval bars plus a milestone point marker (a separate PointElement).
-         // Fade the milestones in after the last bar finishes, matching the bar-label timing.
+         // Multi-style charts bind one chart type per measure, so a single VGraph can hold BarVO
+         // together with LineVO / PointVO (in the same panel or, for a facet, in a panel of their
+         // own).  hasBarVO wins over hasLineVO/hasPointVO when the hint is chosen, so the line and
+         // point branches are never taken and those measures would otherwise render with no
+         // animation at all.  They are independent measures, not a summary of the bars, so they
+         // animate on their own timeline starting with the bars — exactly as they would in a
+         // standalone line or point chart.
+         List<Element> comboLines = annotLines.stream()
+            .filter(g -> !"true".equals(g.getAttribute("data-" + SVGSupport.ATTR_PARETO)))
+            .toList();
+
+         if(!comboLines.isEmpty()) {
+            injectComboLineAnimation(comboLines, svgRoot, doc);
+         }
+
+         // Gantt charts have interval bars plus a milestone point marker (a separate
+         // PointElement).  A milestone marks the end of its bar, so unlike a multi-style point
+         // measure it does fade in after the last bar finishes, matching the bar-label timing.
          // The base hint is the first token and ":" is the separator, so a ":gantt" substring
          // match is unambiguous (no base hint or other flag contains "gantt").
          if(animHint.contains(":" + SVGSupport.ANIMATION_FLAG_GANTT)) {
@@ -175,6 +193,12 @@ public class SVGAnimationDOMInjector {
             for(Element label : milestoneLabels) {
                applyAnimStyleToChildren(label, milestoneAnimStyle);
             }
+         }
+         // Point measures of a multi-style chart: same staggered largest-first fade a standalone
+         // point chart gets, so the markers appear alongside the bars.  Guarded so a plain bar
+         // chart does not get the unused point keyframe appended to its <defs>.
+         else if(!collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_POINT).isEmpty()) {
+            injectPointAnimation(svgRoot, doc);
          }
       }
 
@@ -1119,7 +1143,8 @@ public class SVGAnimationDOMInjector {
     * (they are visual artifacts regardless of dash state).
     *
     * <p>This helper is shared by {@link #injectLineAnimationFromAnnotations} (line/area charts)
-    * and {@link #injectParetoLineAnimation} (Pareto overlay line) so timing constants and
+    * {@link #injectComboLineAnimation} (multi-style line measures) and
+    * {@link #injectParetoLineAnimation} (Pareto overlay line) so timing constants and
     * keyframe names stay in one place.
     */
    private static void applyLineDrawAnimation(Element g, Element path, double delay) {
@@ -1175,6 +1200,48 @@ public class SVGAnimationDOMInjector {
          }
 
          applyLineDrawAnimation(g, path, lineDelay);
+      }
+   }
+
+   /**
+    * Animate the line measures of a multi-style chart (bar + line bound to different measures)
+    * with the same draw-on effect and per-series stagger a standalone line chart uses, starting
+    * with the bars rather than after them — a line measure is its own series, not a summary of
+    * the bars.
+    *
+    * <p>Series rank uses the composite {@code data-series|data-color} key for the same reason as
+    * {@link #injectLineAnimationFromAnnotations}: {@code data-series} alone collapses when one
+    * measure is split by a color dimension.  Ghost fill is intentionally omitted — a fill under
+    * the line would obscure the bars it overlays.
+    */
+   private static void injectComboLineAnimation(List<Element> comboLines,
+                                                Element svgRoot, Document doc)
+   {
+      appendStyle(svgRoot, doc,
+         "@keyframes inetsoft-line-draw{from{stroke-dashoffset:var(--len,2000)}to{stroke-dashoffset:0}}" +
+         "@keyframes inetsoft-line-wipe{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0% 0 0)}}");
+
+      Map<String, Integer> seriesRank = new LinkedHashMap<>();
+
+      for(Element g : comboLines) {
+         String key = g.getAttribute("data-" + SVGSupport.ATTR_SERIES) + "|" +
+                      g.getAttribute("data-" + SVGSupport.ATTR_COLOR);
+         seriesRank.putIfAbsent(key, seriesRank.size());
+      }
+
+      int numSeries = seriesRank.size();
+
+      for(Element g : comboLines) {
+         Element path = firstDescendantPath(g);
+
+         if(path == null) {
+            continue;
+         }
+
+         String key = g.getAttribute("data-" + SVGSupport.ATTR_SERIES) + "|" +
+                      g.getAttribute("data-" + SVGSupport.ATTR_COLOR);
+         double delay = AnimationConstants.staggerDelay(seriesRank.getOrDefault(key, 0), numSeries);
+         applyLineDrawAnimation(g, path, delay);
       }
    }
 
