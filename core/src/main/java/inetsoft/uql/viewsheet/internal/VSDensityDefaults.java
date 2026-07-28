@@ -41,6 +41,14 @@ public final class VSDensityDefaults {
    }
 
    /**
+    * Whether dark mode is on for the current org. Dark is a modifier of modern: it requires the
+    * master modern gate and recolors only surfaces that are already modern.
+    */
+   public static boolean isDark() {
+      return isModern() && SreeEnv.getBooleanProperty("viewsheet.darkMode", false, true);
+   }
+
+   /**
     * The active density mode, defaulting to dense when unset. Only meaningful when the gate is on.
     */
    public static String mode() {

@@ -44,6 +44,13 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 @Tag("core")
 class VSOutputChromeDefaultsTest {
+   @AfterEach
+   void reset() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", null);
+      SreeEnv.setProperty("viewsheet.modernObjectChrome", null);
+      SreeEnv.setProperty("viewsheet.darkMode", null);
+   }
+
    // gate off must return the exact pre-modern VSSlider constants (ARGB, so the tick's ~38% alpha is
    // preserved) — this is the export parity guarantee
    @Test
@@ -81,6 +88,26 @@ class VSOutputChromeDefaultsTest {
                          VSOutputChromeDefaults.sliderInactiveTrack().getRGB(),
                          "legacy color when opted out");
          }));
+   }
+
+   // dark mode substitutes the dark slider neutrals
+   @Test
+   void sliderChromeDark() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      assertEquals(0x3A383D, rgb(VSOutputChromeDefaults.sliderInactiveTrack()));
+      assertEquals(0x49454F, rgb(VSOutputChromeDefaults.sliderActiveTrack()));
+      assertEquals(0xCAC4D0, rgb(VSOutputChromeDefaults.sliderHandle()));
+      assertEquals(0xCAC4D0, rgb(VSOutputChromeDefaults.sliderTick()));
+   }
+
+   // dark mode substitutes the dark value foreground/border
+   @Test
+   void valueChromeDark() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      assertEquals(0xE6E0E9, rgb(VSOutputChromeDefaults.valueForeground()));
+      assertEquals(0x49454F, rgb(VSOutputChromeDefaults.valueBorderColor()));
    }
 
    // pins the modern KPI value palette; a change here is an export-visible change
@@ -129,6 +156,37 @@ class VSOutputChromeDefaultsTest {
          assertSame(fmt, VSOutputChromeDefaults.applyModernDefaults(fmt), "gate off returns original");
          assertEquals(0x2B2B2B, rgb(fmt.getForeground()), "foreground unchanged");
       });
+   }
+
+   // dark mode: applyModernDefaults writes the dark neutrals onto the DEFAULT tier
+   @Test
+   void gateOnModernizesBareValueDefaultDark() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      VSCompositeFormat fmt = bareValueDefault();
+      VSCompositeFormat modern = VSOutputChromeDefaults.applyModernDefaults(fmt);
+
+      assertNotSame(fmt, modern, "a modern clone is returned");
+      assertEquals(0xE6E0E9, rgb(modern.getForeground()), "foreground resolves dark");
+      assertEquals(0x49454F, rgb(modern.getBorderColors().topColor), "border resolves dark");
+      // original untouched (no serialization / mutation)
+      assertEquals(0x2B2B2B, rgb(fmt.getForeground()), "source foreground not mutated");
+   }
+
+   // dark mode: a user-set foreground / border (USER tier) still wins over the dark default
+   @Test
+   void gateOnPreservesUserValueDark() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      VSCompositeFormat fmt = bareValueDefault();
+      fmt.getUserDefinedFormat().setForegroundValue("0x123456");
+      fmt.getUserDefinedFormat().setBorderColorsValue(
+         new BorderColors(new Color(0x654321), new Color(0x654321),
+                          new Color(0x654321), new Color(0x654321)));
+
+      VSCompositeFormat modern = VSOutputChromeDefaults.applyModernDefaults(fmt);
+      assertEquals(0x123456, rgb(modern.getForeground()), "user foreground still wins in dark");
+      assertEquals(0x654321, rgb(modern.getBorderColors().topColor), "user border still wins in dark");
    }
 
    private static VSCompositeFormat bareValueDefault() {

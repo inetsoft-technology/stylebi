@@ -24,6 +24,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CalendarUtil;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSCalendarChromeDefaults;
 import inetsoft.uql.viewsheet.internal.VSTitleChromeDefaults;
 import inetsoft.web.viewsheet.model.*;
 import org.springframework.stereotype.Component;
@@ -69,7 +70,8 @@ public class VSCalendarModel extends VSObjectModel<CalendarVSAssembly> {
 
       dataPath = new TableDataPath(-1, TableDataPath.MONTH_CALENDAR);
       compositeFormat = fmtInfo.getFormat(dataPath, false);
-      monthFormat = new VSFormatModel(compositeFormat, assemblyInfo);
+      monthFormat = new VSFormatModel(
+         VSCalendarChromeDefaults.applyModernDefaults(compositeFormat), assemblyInfo);
 
       if(!assemblyInfo.isYearView()) {
          fixSelectedFormat(assemblyInfo, compositeFormat);
@@ -84,7 +86,8 @@ public class VSCalendarModel extends VSObjectModel<CalendarVSAssembly> {
 
       dataPath = new TableDataPath(-1, TableDataPath.YEAR_CALENDAR);
       compositeFormat = fmtInfo.getFormat(dataPath, false);
-      yearFormat = new VSFormatModel(compositeFormat, assemblyInfo);
+      yearFormat = new VSFormatModel(
+         VSCalendarChromeDefaults.applyModernDefaults(compositeFormat), assemblyInfo);
 
       if(assemblyInfo.isYearView()) {
          fixSelectedFormat(assemblyInfo, compositeFormat);
