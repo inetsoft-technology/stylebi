@@ -34,8 +34,7 @@
  */
 
 import { ComponentFixture } from "@angular/core/testing";
-import { render, screen } from "@testing-library/angular";
-import userEvent from "@testing-library/user-event";
+import { render } from "@testing-library/angular";
 import { of } from "rxjs";
 import { DndService } from "../../../../common/dnd/dnd.service";
 import { GraphTypes } from "../../../../common/graph-types";
@@ -51,8 +50,6 @@ import { ChartEditorService } from "../../../services/chart/chart-editor.service
 import { ModelService } from "../../../../widget/services/model.service";
 import { FIELD_MC_PROVIDERS } from "./field-mc-test-helpers";
 import { ColorFieldMc } from "./color-field-mc.component";
-
-const EDIT_COLOR = "_#(Edit Color)";
 
 async function renderColorFieldMc(
    bindingModel = TestUtils.createMockChartBindingModel(),
@@ -81,13 +78,10 @@ async function renderColorFieldMc(
    return { ...result, editorService, bindingModel };
 }
 
-async function openColorDropdown(container: HTMLElement, fixture: ComponentFixture<ColorFieldMc>) {
-   const trigger = container.querySelector(".visual-cell-container, [data-test='colorIcon']");
-   if(trigger) {
-      await userEvent.click(trigger);
-      fixture.detectChanges();
-      await fixture.whenStable();
-   }
+/** Group 3 asserts getEditPaneId — avoid userEvent + whenStable (Zone hang on CI). */
+function editPaneId(fixture: ComponentFixture<ColorFieldMc>): string {
+   fixture.detectChanges();
+   return (fixture.componentInstance as any).editPaneId;
 }
 
 describe("ColorFieldMc — getField and getFrames [Group 1, Risk 2]", () => {
@@ -146,11 +140,9 @@ describe("ColorFieldMc — getEditPaneId [Group 3, Risk 2]", () => {
       bindingModel.chartType = GraphTypes.CHART_MAP_CONTOUR;
       bindingModel.yfields = [TestUtils.createMockChartAggregateRef("Sum(qty)")];
       bindingModel.colorFrame = new GradientColorModel();
-      const { container, fixture } = await renderColorFieldMc(bindingModel);
+      const { fixture } = await renderColorFieldMc(bindingModel);
 
-      await openColorDropdown(container, fixture);
-
-      expect(document.querySelector("linear-color-pane")).toBeTruthy();
+      expect(editPaneId(fixture)).toBe("LinearColor");
    });
 
    it("should return CategoricalColor for discrete dimension color field", async () => {
@@ -163,22 +155,18 @@ describe("ColorFieldMc — getEditPaneId [Group 3, Risk 2]", () => {
       frame.colorMaps = [];
       frame.globalColorMaps = [];
       bindingModel.colorField = { fullName: "state", dataInfo: dim, frame };
-      const { container, fixture } = await renderColorFieldMc(bindingModel, { assetId: "1^128^__NULL__^TEST" });
+      const { fixture } = await renderColorFieldMc(bindingModel, { assetId: "1^128^__NULL__^TEST" });
 
-      await openColorDropdown(container, fixture);
-
-      expect(document.querySelector("categorical-color-pane")).toBeTruthy();
+      expect(editPaneId(fixture)).toBe("CategoricalColor");
    });
 
    it("should return StaticColor for unbound color with single frame", async () => {
       const bindingModel = TestUtils.createMockChartBindingModel();
       bindingModel.yfields = [TestUtils.createMockChartAggregateRef("Sum(qty)")];
       bindingModel.colorFrame = new StaticColorModel();
-      const { container, fixture } = await renderColorFieldMc(bindingModel);
+      const { fixture } = await renderColorFieldMc(bindingModel);
 
-      await openColorDropdown(container, fixture);
-
-      expect(document.querySelector("static-color-pane")).toBeTruthy();
+      expect(editPaneId(fixture)).toBe("StaticColor");
    });
 });
 

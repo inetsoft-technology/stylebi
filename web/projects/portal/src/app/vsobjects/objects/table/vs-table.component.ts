@@ -43,7 +43,7 @@ import { ComponentTool } from "../../../common/util/component-tool";
 import { DataPathConstants } from "../../../common/util/data-path-constants";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { XConstants } from "../../../common/util/xconstants";
-import { ViewsheetClientService } from "../../../common/viewsheet-client";
+import { ViewsheetClientService } from "../../../common/viewsheet-client/viewsheet-client.service";
 import { Viewsheet } from "../../../composer/data/vs/viewsheet";
 import { UpdateColumnsEvent } from "../../../vs-wizard/model/event/update-columns-event";
 import { VsWizardEditModes } from "../../../vs-wizard/model/vs-wizard-edit-modes";

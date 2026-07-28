@@ -21,7 +21,6 @@ import {
    Component,
    ElementRef,
    EventEmitter,
-   forwardRef,
    Input,
    OnChanges,
    OnDestroy,
@@ -49,7 +48,7 @@ import { VSChartModel } from "../model/vs-chart-model";
 import { VSObjectModel } from "../model/vs-object-model";
 import { VSSelectionBaseModel } from "../model/vs-selection-base-model";
 import { VSUtil } from "../util/vs-util";
-import { ScrollViewportRect } from "../viewer-app.component";
+import { ScrollViewportRect } from "../scroll-viewport-rect";
 import { AdhocFilterService } from "./data-tip/adhoc-filter.service";
 import { DataTipService } from "./data-tip/data-tip.service";
 import { DateTipHelper } from "./data-tip/date-tip-helper";
@@ -59,7 +58,6 @@ import { NavigationKeys } from "./navigation-keys";
 import { SelectionBaseController } from "./selection/selection-base-controller";
 import { PlaceholderDragElement } from "../../widget/placeholder-drag-element/placeholder-drag-element.component";
 import { MiniToolbar } from "./mini-toolbar/mini-toolbar.component";
-import { VSViewsheet } from "./viewsheet/vs-viewsheet.component";
 import { VSThermometer } from "./thermometer/vs-thermometer.component";
 import { VSTextInput } from "./text-input/vs-text-input.component";
 import { VSText } from "./output/text/vs-text.component";
@@ -96,7 +94,9 @@ import { VSDataTipDirective } from "./data-tip/vs-data-tip.directive";
     selector: "vs-object-container",
     templateUrl: "vs-object-container.component.html",
     styleUrls: ["vs-object-container.component.scss"],
-    imports: [VSDataTipDirective, VSPopComponentDirective, VSAnnotation, VSCalcTable, VSCalendar, VSChart, VSCheckBox, VSComboBox, VSCrosstab, VSCylinder, VSGauge, VSGroupContainer, VSImage, VSLine, VSOval, VSRadioButton, VSRectangle, VSRangeSlider, VSSelection, VSSelectionContainer, VSSelectionContainerChildren, VSSlider, VSSlidingScale, VSSpinner, VSSubmit, VSTab, VSTable, VSText, VSTextInput, VSThermometer, forwardRef(() => VSViewsheet), MiniToolbar, PlaceholderDragElement]
+    // VSViewsheet is loaded via @defer in the template so this file does not
+    // statically import vs-viewsheet.component (breaks the ESM cycle with VSViewsheet).
+    imports: [VSDataTipDirective, VSPopComponentDirective, VSAnnotation, VSCalcTable, VSCalendar, VSChart, VSCheckBox, VSComboBox, VSCrosstab, VSCylinder, VSGauge, VSGroupContainer, VSImage, VSLine, VSOval, VSRadioButton, VSRectangle, VSRangeSlider, VSSelection, VSSelectionContainer, VSSelectionContainerChildren, VSSlider, VSSlidingScale, VSSpinner, VSSubmit, VSTab, VSTable, VSText, VSTextInput, VSThermometer, MiniToolbar, PlaceholderDragElement]
 })
 export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    readonly popUpContentBoostZIndex: number = DateTipHelper.getPopUpContentBoostZIndex();

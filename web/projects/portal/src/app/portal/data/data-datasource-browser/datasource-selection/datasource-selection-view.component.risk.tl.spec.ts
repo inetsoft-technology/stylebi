@@ -34,7 +34,6 @@
  *   getListings, isCreateDisabled, cancel, canDeactivate — covered in Pass 1.
  */
 
-import { waitFor } from "@testing-library/angular";
 import { DatasourceType } from "../datasource-type";
 import { AssetConstants } from "../../../../common/data/asset-constants";
 import { MOCK_MODEL, renderComp } from "./datasource-selection-view.component.test-helpers";
@@ -73,15 +72,23 @@ describe("DatasourceSelectionViewComponent — ngOnInit", () => {
    });
 
    it("should set openByGettingStarted when gettingStartedRouteTime is in query params", async () => {
-      // Verify indirectly: cancel() only calls continue() when openByGettingStarted=true
+      // Assert the flag directly — cancel() uses setTimeout(100) which hangs under Zone
+      // on a loaded CI TL worker when polled via waitFor.
       const { comp, gettingStartedMock, routerMock } = await renderComp({ gettingStarted: true });
       gettingStartedMock.isConnectTo.mockReturnValue(true);
 
-      comp.cancel();
+      expect((comp as any).openByGettingStarted).toBe(true);
 
-      // cancel() schedules continue() via a 100ms setTimeout; waitFor polls until it fires.
-      await waitFor(() => expect(gettingStartedMock.continue).toHaveBeenCalledTimes(1));
-      expect(routerMock.navigate).not.toHaveBeenCalled();
+      vi.useFakeTimers();
+      try {
+         comp.cancel();
+         vi.advanceTimersByTime(100);
+         expect(gettingStartedMock.continue).toHaveBeenCalledTimes(1);
+         expect(routerMock.navigate).not.toHaveBeenCalled();
+      }
+      finally {
+         vi.useRealTimers();
+      }
    });
 });
 

@@ -41,6 +41,8 @@ import {
   ViewChildren, ViewContainerRef,
   DOCUMENT
 } from "@angular/core";
+import { ScrollViewportRect } from "./scroll-viewport-rect";
+export type { ScrollViewportRect } from "./scroll-viewport-rect";
 import { DomSanitizer, SafeStyle, Title } from "@angular/platform-browser";
 import { Router } from "@angular/router";
 import {
@@ -269,13 +271,6 @@ const BOOKMARK_URIS = {
    "check-changed": "vs/bookmark/check-bookmark-changed",
    "delete-matched": "vs/bookmark/delete-matched-bookmarks"
 };
-
-export interface ScrollViewportRect {
-   top: number;
-   left: number;
-   width: number;
-   height: number;
-}
 
 @Component({
     selector: "viewer-app",

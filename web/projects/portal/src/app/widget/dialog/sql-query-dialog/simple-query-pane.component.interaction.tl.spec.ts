@@ -30,6 +30,7 @@
 import { of } from "rxjs";
 import { AssetType } from "../../../../../../shared/data/asset-type";
 import { ComponentTool } from "../../../common/util/component-tool";
+import { syncReject, syncResolve } from "../../../../testing/tl-async.util";
 import { makeJoin } from "./simple-query-pane.component.test-helpers";
 import {
    createSimpleQueryPane,
@@ -37,8 +38,6 @@ import {
    makeColumnEntry,
    makeTableEntry
 } from "./simple-query-pane.component.test-helpers";
-
-const flushPromises = () => new Promise(resolve => setTimeout(resolve, 0));
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -101,33 +100,31 @@ describe("SimpleQueryPaneComponent - model and list interactions [Group 1, Risk 
 });
 
 describe("SimpleQueryPaneComponent - dialog interactions [Group 2, Risk 3]", () => {
-   it("should append a new join from the join dialog result", async () => {
+   it("should append a new join from the join dialog result", () => {
       const result = makeJoin({ table2: "Regions", column2: "region_id" });
       const { comp, model, modal } = createSimpleQueryPane({
          model: makeBasicModel({ joins: null }),
-         modalResult: Promise.resolve(result)
+         modalResult: syncResolve(result)
       });
       const getSQLSpy = vi.spyOn(comp, "getSQLString");
 
       comp.newJoin();
-      await flushPromises();
 
       expect(modal.open).toHaveBeenCalledWith((comp as any).joinDialog, { size: "lg", backdrop: false });
       expect(model.joins).toEqual([result]);
       expect(getSQLSpy).toHaveBeenCalled();
    });
 
-   it("should replace an edited join from the join dialog result", async () => {
+   it("should replace an edited join from the join dialog result", () => {
       const original = makeJoin();
       const replacement = makeJoin({ operator: "<>" });
       const { comp, model } = createSimpleQueryPane({
          model: makeBasicModel({ joins: [original] }),
-         modalResult: Promise.resolve(replacement)
+         modalResult: syncResolve(replacement)
       });
       const getSQLSpy = vi.spyOn(comp, "getSQLString");
 
       comp.editJoin(original);
-      await flushPromises();
 
       expect(comp.selectedJoin).not.toBe(original);
       expect(comp.selectedJoin).toEqual(original);
@@ -135,26 +132,24 @@ describe("SimpleQueryPaneComponent - dialog interactions [Group 2, Risk 3]", () 
       expect(getSQLSpy).toHaveBeenCalled();
    });
 
-   it("should commit or restore conditions based on the condition dialog result", async () => {
+   it("should commit or restore conditions based on the condition dialog result", () => {
       const committed = [{ type: "clause", level: 0 }];
       const { comp, model } = createSimpleQueryPane({
          model: makeBasicModel({ conditionList: [{ type: "old", level: 0 } as any] }),
-         modalResult: Promise.resolve(committed)
+         modalResult: syncResolve(committed)
       });
       const getSQLSpy = vi.spyOn(comp, "getSQLString");
 
       comp.editConditions();
-      await flushPromises();
 
       expect(model.conditionList).toBe(committed as any);
       expect(getSQLSpy).toHaveBeenCalled();
 
       const rejected = createSimpleQueryPane({
          model: makeBasicModel({ conditionList: [{ type: "keep", level: 0 } as any] }),
-         modalResult: Promise.reject("cancel")
+         modalResult: syncReject("cancel")
       });
       rejected.comp.editConditions();
-      await flushPromises();
 
       expect(rejected.model.conditionList).toEqual([{ type: "keep", level: 0 }]);
    });
@@ -189,17 +184,15 @@ describe("SimpleQueryPaneComponent - tree SQL and tabs [Group 3, Risk 2]", () =>
       expect(model.sqlParseResult).toBe("_#(js:designer.qb.parseFailed)");
    });
 
-   it("should enable direct SQL editing only after confirm yes", async () => {
+   it("should enable direct SQL editing only after confirm yes", () => {
       const { comp, model } = createSimpleQueryPane();
-      vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("no");
+      vi.spyOn(ComponentTool, "showConfirmDialog").mockImplementation(() => syncResolve("no"));
 
       comp.editSQLDirectly();
-      await flushPromises();
       expect(model.sqlEdited).toBe(false);
 
-      vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("yes");
+      vi.spyOn(ComponentTool, "showConfirmDialog").mockImplementation(() => syncResolve("yes"));
       comp.editSQLDirectly();
-      await flushPromises();
 
       expect(model.sqlEdited).toBe(true);
    });

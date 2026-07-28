@@ -27,13 +27,14 @@
  *   Group 3 — User interaction (toggle updates model)
  *   Group 4 — State preservation when secondary flag changes
  *   Group 5 — "Show Axis Labels" baseline (existing functionality, not regressed)
+ *
+ * Harness: fireEvent.click — avoid userEvent (Zone hang under loaded TL worker).
  */
 
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
-import { render, screen, waitFor } from "@testing-library/angular";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, waitFor } from "@testing-library/angular";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 
 import { AxisLabelPane } from "./axis-label-pane.component";
@@ -140,30 +141,27 @@ describe("AxisLabelPane — Labels on Opposite Side — user interaction (Featur
 
    // TC-01: Check the box → checkbox becomes checked
    it("should set model.labelOnSecondaryAxis to true when user checks the checkbox", async () => {
-      const user = userEvent.setup();
       await renderPane({ labelOnSecondaryAxis: false });
 
-      await user.click(screen.getByLabelText(LABEL_TEXT));
+      fireEvent.click(screen.getByLabelText(LABEL_TEXT));
 
       expect(screen.getByLabelText(LABEL_TEXT)).toBeChecked();
    });
 
    // TC-01: Uncheck the box → checkbox becomes unchecked
    it("should set model.labelOnSecondaryAxis to false when user unchecks the checkbox", async () => {
-      const user = userEvent.setup();
       await renderPane({ labelOnSecondaryAxis: true });
 
-      await user.click(screen.getByLabelText(LABEL_TEXT));
+      fireEvent.click(screen.getByLabelText(LABEL_TEXT));
 
       expect(screen.getByLabelText(LABEL_TEXT)).not.toBeChecked();
    });
 
    // TC-01 baseline: "Show Axis Labels" checkbox becomes unchecked after toggle
    it("should update model.showAxisLabel when user toggles Show Axis Labels", async () => {
-      const user = userEvent.setup();
       await renderPane({ showAxisLabel: true });
 
-      await user.click(screen.getByLabelText(SHOW_AXIS_LABEL_TEXT));
+      fireEvent.click(screen.getByLabelText(SHOW_AXIS_LABEL_TEXT));
 
       expect(screen.getByLabelText(SHOW_AXIS_LABEL_TEXT)).not.toBeChecked();
    });
@@ -202,8 +200,6 @@ describe("AxisLabelPane — Labels on Opposite Side — state preservation (Feat
 
       // Simulate secondary axis being disabled
       fixture.componentInstance.model.secondary = false;
-      fixture.detectChanges();
-      await fixture.whenStable();
       fixture.detectChanges();
 
       // Checkbox reappears and still reflects the saved value

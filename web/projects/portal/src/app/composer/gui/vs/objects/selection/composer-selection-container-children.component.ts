@@ -71,13 +71,9 @@ import { CurrentSelection } from "../../../../../vsobjects/objects/selection/cur
 
 import { OutOfZoneDirective } from "../../../../../widget/directive/out-of-zone.directive";
 import { ActionsContextmenuAnchorDirective } from "../../../../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
+import { DragBorderType } from "./drag-border-type";
 
-export enum DragBorderType {
-   NONE = 0, // "none"
-   ABOVE = 1, // "border-top"
-   ALL = 2, // "border"
-   BELOW = 3, // "border-bottom"
-}
+export { DragBorderType };
 
 const INSERT_CHILD_URI = "/events/composer/viewsheet/selectionContainer/insertChild/";
 const CHECK_TRAP_URI = "../api/composer/viewsheet/objects/checkSelectionTrap";

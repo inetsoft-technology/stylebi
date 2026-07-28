@@ -310,30 +310,32 @@
           </vs-thermometer>
         }
         @if (vsObject.objectType == 'VSViewsheet') {
-          <vs-viewsheet
-            [model]="vsObject"
-            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-            [variableValues]="variableValues"
-            [selectedAssemblies]="selectedAssemblies"
-            [containerRef]="containerRef"
-            [appSize]="appSize"
-            (removeAnnotations)="removeAnnotations.emit()"
-            (onOpenChartFormatPane)="onOpenChartFormatPane.emit($event)"
-            (maxModeChange)="onMaxModeChange($event)"
-            (onOpenViewsheet)="onOpenViewsheet.emit($event)"
-            (onSelectedAssemblyChanged)="onSelectedAssemblyChanged.emit($event)"
-            (onEditTable)="onEditTable.emit($event)"
-            (onEditChart)="onEditChart.emit($event)"
-            [submitted]="submitted"
-            (submitClicked)="submitClicked($event)"
-            [touchDevice]="touchDevice"
-            (onOpenConditionDialog)="onOpenConditionDialog.emit($event)"
-            (onOpenHighlightDialog)="onOpenHighlightDialog.emit($event)"
-            (onOpenAnnotationDialog)="onOpenAnnotationDialog.emit($event)"
-            [keyNavigation]="keyNavigation"
-            [globalLoadingIndicator]="globalLoadingIndicator"
-            (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
-          </vs-viewsheet>
+          @defer (on immediate) {
+            <vs-viewsheet
+              [model]="vsObject"
+              [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+              [variableValues]="variableValues"
+              [selectedAssemblies]="selectedAssemblies"
+              [containerRef]="containerRef"
+              [appSize]="appSize"
+              (removeAnnotations)="removeAnnotations.emit()"
+              (onOpenChartFormatPane)="onOpenChartFormatPane.emit($event)"
+              (maxModeChange)="onMaxModeChange($event)"
+              (onOpenViewsheet)="onOpenViewsheet.emit($event)"
+              (onSelectedAssemblyChanged)="onSelectedAssemblyChanged.emit($event)"
+              (onEditTable)="onEditTable.emit($event)"
+              (onEditChart)="onEditChart.emit($event)"
+              [submitted]="submitted"
+              (submitClicked)="submitClicked($event)"
+              [touchDevice]="touchDevice"
+              (onOpenConditionDialog)="onOpenConditionDialog.emit($event)"
+              (onOpenHighlightDialog)="onOpenHighlightDialog.emit($event)"
+              (onOpenAnnotationDialog)="onOpenAnnotationDialog.emit($event)"
+              [keyNavigation]="keyNavigation"
+              [globalLoadingIndicator]="globalLoadingIndicator"
+              (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
+            </vs-viewsheet>
+          }
         }
       </div>
       @if (!hideMiniToolbar && isMiniToolbarVisible(vsObject) && vsObject.enabled) {

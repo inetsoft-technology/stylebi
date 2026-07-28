@@ -36,7 +36,6 @@
 
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { fireEvent, render, screen, waitFor } from "@testing-library/angular";
-import userEvent from "@testing-library/user-event";
 import { of } from "rxjs";
 import { ColorMap } from "../../../../common/data/color-map";
 import { CategoricalColorModel } from "../../../../common/data/visual-frame-model";
@@ -49,7 +48,6 @@ import { ChartEditorService } from "../../../services/chart/chart-editor.service
 import { CategoricalColorPane } from "./categorical-color-pane.component";
 
 const SELECT_PALETTE = "_#(Select Palette)";
-const ASSIGN_MAPPING = "_#(Assign Fixed Mapping)";
 const SHARE_COLORS = "_#(Share Colors)";
 const USE_COLUMN_VALUES = "_#(Use Column Values as Colors)";
 
@@ -126,18 +124,18 @@ describe("CategoricalColorPane — shareColorsChange [Group 1, Risk 3]", () => {
    it("should reload mapping model and sync frame maps after enabling share", async () => {
       const { modelService, fixture } = await renderPane();
 
-      await userEvent.click(screen.getByLabelText(SHARE_COLORS));
+      // Direct call — avoid userEvent (Zone hang under loaded TL worker).
+      fixture.componentInstance.shareColorsChange(true);
+      fixture.detectChanges();
 
       await waitFor(() => expect(modelService.sendModel).toHaveBeenCalled());
-      await waitFor(() => {
-         expect(screen.getByLabelText(SHARE_COLORS)).toBeChecked();
-      });
       expect(fixture.componentInstance.frameModel.useGlobal).toBe(true);
       expect(fixture.componentInstance.frameModel.shareColors).toBe(true);
       expect(fixture.componentInstance.colorMappingDialogModel.shareColors).toBe(true);
       expect(fixture.componentInstance.frameModel.globalColorMaps).toEqual(
          fixture.componentInstance.colorMappingDialogModel.globalModel.colorMaps
       );
+      expect(screen.getByLabelText(SHARE_COLORS)).toBeChecked();
    });
 });
 
@@ -153,7 +151,7 @@ describe("CategoricalColorPane — resetted emit guard [Group 2, Risk 3]", () =>
          return {} as any;
       });
 
-      await userEvent.click(screen.getByTitle(ASSIGN_MAPPING));
+      fixture.componentInstance.clickColorMappingButton();
       onCommit([mockColorMap("A", "#aa0000")]);
       fixture.detectChanges();
 

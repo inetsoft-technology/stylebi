@@ -29,13 +29,15 @@
  *
  * HTTP: ModelService mocks — direct instantiation, mirrors getModel/sendModel endpoints
  *
+ * Harness: call component methods directly — do not use userEvent (Zone hang under loaded
+ *   Vitest worker / full TL suite). Same pattern as color-field-mc / sheet-tab-selector.
+ *
  * Out of scope this pass: shareColorsChange, constructor subscription lifecycle, setTimeout openDialog false
  *   — covered in categorical-color-pane.risk.tl.spec.ts (Pass 2)
  */
 
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { render, screen, waitFor } from "@testing-library/angular";
-import userEvent from "@testing-library/user-event";
 import { of } from "rxjs";
 import { ColorMap } from "../../../../common/data/color-map";
 import { CategoricalColorModel } from "../../../../common/data/visual-frame-model";
@@ -47,10 +49,8 @@ import { ColorMappingDialogModel } from "../../../data/chart/color-mapping-dialo
 import { ChartEditorService } from "../../../services/chart/chart-editor.service";
 import { CategoricalColorPane } from "./categorical-color-pane.component";
 
-const SELECT_PALETTE = "_#(Select Palette)";
 const ASSIGN_MAPPING = "_#(Assign Fixed Mapping)";
 const RESET_DEFAULT = "_#(Reset to Default)";
-const APPLY = "_#(Apply)";
 const USE_COLUMN_VALUES = "_#(Use Column Values as Colors)";
 
 function mockColorMap(option: string, color: string): ColorMap {
@@ -156,7 +156,7 @@ describe("CategoricalColorPane — clickPaletteButton [Group 2, Risk 2]", () => 
          return { colorPalettes: null, currPalette: null } as any;
       });
 
-      await userEvent.click(screen.getByTitle(SELECT_PALETTE));
+      fixture.componentInstance.clickPaletteButton();
 
       expect(openSpy).toHaveBeenCalledWith(true);
       onCommit({ colors: ["#222222"] } as CategoricalColorModel);
@@ -169,10 +169,10 @@ describe("CategoricalColorPane — clickPaletteButton [Group 2, Risk 2]", () => 
 describe("CategoricalColorPane — clickColorMappingButton [Group 3, Risk 3]", () => {
    it("should open dialog immediately when mapping model is cached", async () => {
       const mappingModel = createColorMappingModel();
-      const { modelService } = await renderPane({ mappingModel });
+      const { modelService, fixture } = await renderPane({ mappingModel });
       const showDialogSpy = vi.spyOn(ComponentTool, "showDialog").mockReturnValue({} as any);
 
-      await userEvent.click(screen.getByTitle(ASSIGN_MAPPING));
+      fixture.componentInstance.clickColorMappingButton();
 
       expect(showDialogSpy).toHaveBeenCalled();
       expect(modelService.sendModel).not.toHaveBeenCalled();
@@ -182,7 +182,7 @@ describe("CategoricalColorPane — clickColorMappingButton [Group 3, Risk 3]", (
       const { modelService, fixture } = await renderPane();
       vi.spyOn(ComponentTool, "showDialog").mockReturnValue({} as any);
 
-      await userEvent.click(screen.getByTitle(ASSIGN_MAPPING));
+      fixture.componentInstance.clickColorMappingButton();
 
       await waitFor(() => expect(modelService.sendModel).toHaveBeenCalled());
       await waitFor(() => expect(fixture.componentInstance.colorMappingDialogModel).toBeTruthy());
@@ -202,7 +202,7 @@ describe("CategoricalColorPane — openColorMappingDialog [Group 4, Risk 3]", ()
          return { model: null, field: null } as any;
       });
 
-      await userEvent.click(screen.getByTitle(ASSIGN_MAPPING));
+      fixture.componentInstance.clickColorMappingButton();
       onCommit([mockColorMap("B", "#0000ff")]);
       fixture.detectChanges();
 
@@ -219,7 +219,7 @@ describe("CategoricalColorPane — openColorMappingDialog [Group 4, Risk 3]", ()
       });
       const maps = [mockColorMap("G", "#abcdef")];
 
-      await userEvent.click(screen.getByTitle(ASSIGN_MAPPING));
+      fixture.componentInstance.clickColorMappingButton();
       onCommit(maps);
       fixture.detectChanges();
 
@@ -232,7 +232,7 @@ describe("CategoricalColorPane — openColorMappingDialog [Group 4, Risk 3]", ()
       dim.classType = "dimension";
       dim.dateLevel = "5";
       const mappingModel = createColorMappingModel();
-      const { fixture, field, frameModel } = await renderPane({ mappingModel });
+      const { fixture, frameModel } = await renderPane({ mappingModel });
       fixture.componentInstance.field = { fullName: "OrderDate", dataInfo: dim, frame: frameModel };
       fixture.detectChanges();
       let onCommit: (maps: ColorMap[]) => void = () => {};
@@ -241,7 +241,7 @@ describe("CategoricalColorPane — openColorMappingDialog [Group 4, Risk 3]", ()
          return {} as any;
       });
 
-      await userEvent.click(screen.getByTitle(ASSIGN_MAPPING));
+      fixture.componentInstance.clickColorMappingButton();
       onCommit([mockColorMap("2024", "#111111")]);
       fixture.detectChanges();
 
@@ -264,7 +264,7 @@ describe("CategoricalColorPane — changeColor and reset [Group 5, Risk 2]", () 
       fixture.componentInstance.changeColor("#000000", 0);
       fixture.detectChanges();
 
-      await userEvent.click(screen.getByTitle(RESET_DEFAULT));
+      fixture.componentInstance.reset();
       fixture.detectChanges();
 
       expect(swatchColor(container, 0)).toBe("#aa0000");
@@ -278,7 +278,7 @@ describe("CategoricalColorPane — pane helpers [Group 6, Risk 2]", () => {
       const applied = vi.fn();
       fixture.componentInstance.apply.subscribe(applied);
 
-      await userEvent.click(screen.getByTitle(APPLY));
+      fixture.componentInstance.applyClick();
 
       expect(applied).toHaveBeenCalledWith(false);
       expect(container.querySelector('static-color-editor[data-test="sce0"]')).toBeTruthy();

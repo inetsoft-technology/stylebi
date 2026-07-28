@@ -20,7 +20,6 @@ import {
    ChangeDetectorRef,
    Component,
    EventEmitter,
-   forwardRef,
    Input,
    NgZone,
    OnChanges,
@@ -71,7 +70,7 @@ declare const window: any;
     templateUrl: "vs-viewsheet.component.html",
     styleUrls: ["vs-viewsheet.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [forwardRef(() => VSObjectContainer)]
+    imports: [VSObjectContainer]
 })
 export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implements OnChanges, OnDestroy {
    @Input() deployed: boolean;

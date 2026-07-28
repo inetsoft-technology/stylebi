@@ -15,24 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-declare var window: any;
 
 /**
- * Utility class which wraps accesses to local storage.
+ * Viewport rectangle used for virtual scrolling of viewsheet assemblies.
+ * Kept in a dedicated module so VSObjectContainer does not import viewer-app
+ * (which would create an ESM circular dependency).
  */
-export class LocalStorage {
-   static prefix = "__inetsoft__";
-   public static MAIL_HISTORY_KEY = "emailHistoryModel";
-
-   public static getItem(key: string): string | null {
-      return window.localStorage.getItem(LocalStorage.prefix + key);
-   }
-
-   public static setItem(key: string, data: string): void {
-      window.localStorage.setItem(LocalStorage.prefix + key, data);
-   }
-
-   public static removeItem(key: string): void {
-      window.localStorage.removeItem(LocalStorage.prefix + key);
-   }
+export interface ScrollViewportRect {
+   top: number;
+   left: number;
+   width: number;
+   height: number;
 }

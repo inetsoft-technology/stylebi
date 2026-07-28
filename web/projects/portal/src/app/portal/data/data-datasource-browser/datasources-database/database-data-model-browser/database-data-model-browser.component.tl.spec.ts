@@ -78,6 +78,7 @@ import { DatabaseAsset } from "../../../model/datasources/database/database-asse
 import { PhysicalModelBrowserInfo } from "../../../model/datasources/database/physical-model/physical-model-browser-info";
 import { LogicalModelBrowserInfo } from "../../../model/datasources/database/physical-model/logical-model/logical-model-browser-info";
 import { ComponentTool } from "../../../../../common/util/component-tool";
+import { createDomServiceMock } from "../../../../../../testing/tl-async.util";
 import { DataModelBrowserService } from "./data-model-browser.service";
 import { DatabaseDataModelBrowserComponent } from "./database-data-model-browser.component";
 
@@ -193,7 +194,7 @@ async function renderBrowser() {
          { provide: DataModelBrowserService, useValue: dataModelBrowserService },
          { provide: DragService, useValue: dragService },
          { provide: AppInfoService, useValue: { isEnterprise: vi.fn(() => of(true)) } },
-         { provide: DomService, useValue: {} },
+         { provide: DomService, useValue: createDomServiceMock() },
       ],
       schemas: [NO_ERRORS_SCHEMA],
    });
@@ -249,7 +250,7 @@ async function renderBrowserControlled() {
          { provide: DataModelBrowserService, useValue: dataModelBrowserService },
          { provide: DragService, useValue: dragService },
          { provide: AppInfoService, useValue: { isEnterprise: vi.fn(() => of(true)) } },
-         { provide: DomService, useValue: {} },
+         { provide: DomService, useValue: createDomServiceMock() },
       ],
       schemas: [NO_ERRORS_SCHEMA],
    });

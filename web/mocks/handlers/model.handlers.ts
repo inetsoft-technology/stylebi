@@ -32,6 +32,16 @@ export const modelHandlers = [
       return HttpResponse.json({});
    }),
 
+   // DimensionEditor.ngOnInit() — fires when chart field dropdown opens (date levels).
+   http.post("*/api/date-level-examples", () => {
+      return HttpResponse.json({ dateLevelExamples: {} });
+   }),
+
+   // StaticShapePane.loadShapes() — fires when shape aesthetic panes open.
+   http.get("*/api/composer/imageShapes", () => {
+      return HttpResponse.json([]);
+   }),
+
    // Portal data-source browser
    http.get("*/api/portal/content/data-source/:name", () => {
       return HttpResponse.json({ tables: [], columns: [] });

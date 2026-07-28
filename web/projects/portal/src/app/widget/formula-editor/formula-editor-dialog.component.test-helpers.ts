@@ -23,12 +23,18 @@ import { FormulaType } from "../../common/data/formula-type";
 import { ActionsContextmenuComponent } from "../fixed-dropdown/actions-contextmenu.component";
 import { FixedDropdownService } from "../fixed-dropdown/fixed-dropdown.service";
 import { TreeNodeModel } from "../tree/tree-node-model";
+import {
+   flushMicrotasks,
+   syncReject,
+   syncResolve,
+} from "../../../testing/tl-async.util";
 import { FormulaEditorDialog } from "./formula-editor-dialog.component";
 import { FormulaEditorService } from "./formula-editor.service";
 
-export function flushPromises(): Promise<void> {
-   return new Promise(resolve => setTimeout(resolve, 0));
-}
+export { syncResolve, syncReject } from "../../../testing/tl-async.util";
+
+/** @deprecated Prefer flushMicrotasks from testing/tl-async.util — alias kept for local imports. */
+export const flushPromises = flushMicrotasks;
 
 export function createDialog() {
    const editorService = {
@@ -38,7 +44,22 @@ export function createDialog() {
       getScriptDefinitions: vi.fn(() => of({ defs: "vs" })),
       getTaskScriptDefinitions: vi.fn(() => of({ defs: "task" })),
    };
-   const modalService = { open: vi.fn() };
+   // Default open() must return a settled sync result so accidental showMessageDialog
+   // calls cannot leave Zone waiting on an unresolved modal promise.
+   const modalService = {
+      open: vi.fn(() => ({
+         componentInstance: {
+            options: null,
+            title: null,
+            message: null,
+            onCommit: { subscribe: () => ({ unsubscribe() {} }) },
+            onCancel: { subscribe: () => ({ unsubscribe() {} }) },
+         },
+         result: syncResolve("ok"),
+         close: vi.fn(),
+         dismiss: vi.fn(),
+      })),
+   };
    const dropdownService = {
       open: vi.fn(() => ({
          componentInstance: {} as ActionsContextmenuComponent,
@@ -71,7 +92,7 @@ export function createDialog() {
    };
    comp._columnTreeRoot = comp.columnTreeRoot;
    comp.originalColumnTreeRoot = comp.columnTreeRoot;
-   comp.submitCallback = () => Promise.resolve(true);
+   comp.submitCallback = () => syncResolve(true);
    return { comp, editorService, modalService, dropdownService, renderer };
 }
 
@@ -119,7 +140,7 @@ export function columnTreeWithFields(): TreeNodeModel {
 
 export function mockAggrDialogOpen(modalService: { open: ReturnType<typeof vi.fn> }) {
    vi.mocked(modalService.open).mockReturnValue({
-      result: Promise.resolve({
+      result: syncResolve({
          field: "Sales",
          aggregate: "Sum",
          numValue: "0",

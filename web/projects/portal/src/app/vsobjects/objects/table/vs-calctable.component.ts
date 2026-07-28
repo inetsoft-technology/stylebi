@@ -38,7 +38,7 @@ import { AssemblyActionGroup } from "../../../common/action/assembly-action-grou
 import { TableDataPath } from "../../../common/data/table-data-path";
 import { DataPathConstants } from "../../../common/util/data-path-constants";
 import { GuiTool } from "../../../common/util/gui-tool";
-import { ViewsheetClientService } from "../../../common/viewsheet-client";
+import { ViewsheetClientService } from "../../../common/viewsheet-client/viewsheet-client.service";
 import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropdown.service";
 import { DebounceService } from "../../../widget/services/debounce.service";
 import { ScaleService } from "../../../widget/services/scale/scale-service";

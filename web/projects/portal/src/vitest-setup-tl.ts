@@ -18,9 +18,32 @@
 
 // TL (testing-library) test setup for the portal project. Starts the MSW server
 // lifecycle so all *.tl.spec.ts files in portal can intercept HTTP requests.
-import { afterAll, afterEach, beforeAll } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach } from "vitest";
 import { server } from "@test-mocks/server";
+import { GuiTool } from "./app/common/util/gui-tool";
+import { clearStoredCondition } from "./app/common/util/schedule-condition.util";
+
+// Buffer only — do not rely on this instead of syncResolve / no setTimeout(0).
+vi.setConfig({ testTimeout: 15000 });
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
-afterEach(() => server.resetHandlers());
+
+beforeEach(() => {
+   // Prevent fake timers left by other suites from blocking setTimeout-based waits.
+   vi.useRealTimers();
+   // Real isTouchDevice() uses setTimeout + Subject.toPromise(); under a loaded
+   // Vitest worker that leaves Zone busy and inflates async TL tests.
+   vi.spyOn(GuiTool, "isTouchDevice").mockImplementation(() => Promise.resolve(false));
+   // setDragImage registers document dragover/dragend and needs DomService.requestRead.
+   // Incomplete DomService mocks + leftover listeners cause CI cross-file unhandled
+   // rejections (often attributed to an unrelated later file). Stub for all TL tests.
+   vi.spyOn(GuiTool, "setDragImage").mockImplementation(() => Promise.resolve());
+});
+
+afterEach(() => {
+   server.resetHandlers();
+   clearStoredCondition();
+   vi.useRealTimers();
+});
+
 afterAll(() => server.close());

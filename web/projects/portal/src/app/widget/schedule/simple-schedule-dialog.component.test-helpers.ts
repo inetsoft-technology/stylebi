@@ -32,6 +32,7 @@ import { EmailInfoModel } from "../../vsobjects/model/schedule/email-info-model"
 import { ActionModel } from "./action-model";
 import { TimeConditionModel, TimeConditionType } from "../../../../../shared/schedule/model/time-condition-model";
 import { FileFormatType } from "../../vsobjects/model/file-format-type";
+import { clearStoredCondition } from "../../common/util/schedule-condition.util";
 
 // ---------------------------------------------------------------------------
 // Model factories
@@ -175,6 +176,10 @@ export function makeComponent(opts: {
    const http = opts.http ?? makeHttp();
    const modal = opts.modal ?? makeModal();
    const timeZoneSvc = opts.timeZoneSvc ?? makeTimeZoneSvc();
+
+   // ok() stores the condition in localStorage; without clearing, later suites' ngOnInit
+   // replaces the carefully built model via getHistoryModel() (full-suite order flake).
+   clearStoredCondition();
 
    const comp = new SimpleScheduleDialog(http as any, modal as any, timeZoneSvc as any);
 

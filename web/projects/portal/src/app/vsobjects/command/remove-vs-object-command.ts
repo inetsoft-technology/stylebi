@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { ViewsheetCommand } from "../../common/viewsheet-client/index";
+import { ViewsheetCommand } from "../../common/viewsheet-client/viewsheet-command";
 
 /**
  * Command used to instruct the client to remove an assembly object.

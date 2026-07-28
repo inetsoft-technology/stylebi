@@ -155,3 +155,10 @@ export function getStoredCondition(): ScheduleConditionModel {
    const json: any = LocalStorage.getItem(localStorageKey);
    return json ? convertToCondition(json) : null;
 }
+
+/**
+ * Clear the stored default schedule condition (used by tests for isolation).
+ */
+export function clearStoredCondition(): void {
+   LocalStorage.removeItem(localStorageKey);
+}

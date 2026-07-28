@@ -28,7 +28,7 @@ import {
 import { Validators, FormsModule } from "@angular/forms";
 import { ActivatedRoute, ParamMap, Router } from "@angular/router";
 import { NgbModal, NgbTypeahead, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
-import { from, Observable, of, Subscription, throwError } from "rxjs";
+import { EMPTY, from, Observable, of, Subscription, throwError } from "rxjs";
 import {
    catchError,
    debounceTime,
@@ -315,7 +315,9 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
          this.dataNotifications.notifications.danger("_#(js:data.datasets.getDataSetsError)");
       }
 
-      return throwError(error);
+      // Error already reflected in UI; do not rethrow — subscribe has no error handler
+      // and Zone would report an unhandled HttpErrorResponse (TL suite / runtime).
+      return EMPTY as Observable<never>;
    }
 
    /**
