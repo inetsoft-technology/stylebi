@@ -31,14 +31,15 @@ public class AdminChangeService {
       AdminChangeResult result = new AdminChangeResult();
       result.setProperty(req.getProperty());
 
-      String before = SreeEnv.getProperty(req.getProperty());
-      result.setBeforeValue(before);
-
       String desired = req.getValue() == null ? null : req.getValue().trim();
+      String before = null;
+      String status = AdminChangeRecord.STATUS_FAILED;
       String error = null;
-      String status;
 
       try {
+         before = SreeEnv.getProperty(req.getProperty());
+         result.setBeforeValue(before);
+
          if(desired == null) {
             SreeEnv.remove(req.getProperty());
          }
@@ -54,13 +55,21 @@ public class AdminChangeService {
       }
       catch(Exception ex) {
          error = ex.getMessage();
-         result.setAfterValue(SreeEnv.getProperty(req.getProperty()));
          status = AdminChangeRecord.STATUS_FAILED;
+
+         try {
+            result.setAfterValue(SreeEnv.getProperty(req.getProperty()));
+         }
+         catch(Exception ignore) {
+            // leave afterValue as-is; still audit below
+         }
+      }
+      finally {
+         result.setStatus(status);
+         result.setError(error);
+         writeAudit(req, principal, before, result.getAfterValue(), status, error);
       }
 
-      result.setStatus(status);
-      result.setError(error);
-      writeAudit(req, principal, before, result.getAfterValue(), status, error);
       return result;
    }
 

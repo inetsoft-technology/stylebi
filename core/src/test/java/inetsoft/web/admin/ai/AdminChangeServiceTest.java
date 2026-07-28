@@ -74,7 +74,13 @@ class AdminChangeServiceTest {
       sreeEnv.verify(SreeEnv::save);
       ArgumentCaptor<AdminChangeRecord> cap = ArgumentCaptor.forClass(AdminChangeRecord.class);
       verify(audit).auditAdminChange(cap.capture(), eq(principal));
-      assertEquals(AdminChangeRecord.STATUS_VERIFIED, cap.getValue().getStatus());
+      AdminChangeRecord record = cap.getValue();
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, record.getStatus());
+      assertEquals("max.rows", record.getProperty());
+      assertEquals("100", record.getBeforeValue());
+      assertEquals("500", record.getAfterValue());
+      assertEquals(ActionRecord.OBJECT_TYPE_EMPROPERTY, record.getObjectType());
+      assertEquals("host-1", record.getServerHostName());
    }
 
    @Test void reportsFailedWhenReadBackMismatches() throws Exception {
@@ -82,7 +88,15 @@ class AdminChangeServiceTest {
              .thenReturn("100").thenReturn("100");   // never took
       AdminChangeResult res = service.applyChange(req("max.rows", "500"), principal);
       assertEquals(AdminChangeRecord.STATUS_FAILED, res.getStatus());
-      verify(audit).auditAdminChange(any(), eq(principal));
+      ArgumentCaptor<AdminChangeRecord> cap = ArgumentCaptor.forClass(AdminChangeRecord.class);
+      verify(audit).auditAdminChange(cap.capture(), eq(principal));
+      AdminChangeRecord record = cap.getValue();
+      assertEquals(AdminChangeRecord.STATUS_FAILED, record.getStatus());
+      assertEquals("max.rows", record.getProperty());
+      assertEquals("100", record.getBeforeValue());
+      assertEquals("100", record.getAfterValue());
+      assertEquals(ActionRecord.OBJECT_TYPE_EMPROPERTY, record.getObjectType());
+      assertEquals("host-1", record.getServerHostName());
    }
 
    @Test void nullValueRemovesProperty() throws Exception {
@@ -91,5 +105,37 @@ class AdminChangeServiceTest {
       AdminChangeResult res = service.applyChange(req("max.rows", null), principal);
       assertEquals(AdminChangeRecord.STATUS_VERIFIED, res.getStatus());
       sreeEnv.verify(() -> SreeEnv.remove("max.rows"));
+      ArgumentCaptor<AdminChangeRecord> cap = ArgumentCaptor.forClass(AdminChangeRecord.class);
+      verify(audit).auditAdminChange(cap.capture(), eq(principal));
+      AdminChangeRecord record = cap.getValue();
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, record.getStatus());
+      assertEquals("max.rows", record.getProperty());
+      assertEquals("100", record.getBeforeValue());
+      assertNull(record.getAfterValue());
+      assertEquals(ActionRecord.OBJECT_TYPE_EMPROPERTY, record.getObjectType());
+      assertEquals("host-1", record.getServerHostName());
+   }
+
+   @Test void alwaysAuditsWhenSaveThrows() throws Exception {
+      sreeEnv.when(() -> SreeEnv.getProperty("max.rows"))
+             .thenReturn("100")          // before
+             .thenReturn("100");         // best-effort after read in catch block
+      sreeEnv.when(SreeEnv::save).thenThrow(new RuntimeException("disk full"));
+
+      AdminChangeResult res = service.applyChange(req("max.rows", "500"), principal);
+
+      assertEquals(AdminChangeRecord.STATUS_FAILED, res.getStatus());
+      assertNotNull(res.getError());
+      assertEquals("disk full", res.getError());
+
+      ArgumentCaptor<AdminChangeRecord> cap = ArgumentCaptor.forClass(AdminChangeRecord.class);
+      verify(audit).auditAdminChange(cap.capture(), eq(principal));
+      AdminChangeRecord record = cap.getValue();
+      assertEquals(AdminChangeRecord.STATUS_FAILED, record.getStatus());
+      assertEquals("max.rows", record.getProperty());
+      assertEquals("100", record.getBeforeValue());
+      assertEquals("100", record.getAfterValue());
+      assertEquals(ActionRecord.OBJECT_TYPE_EMPROPERTY, record.getObjectType());
+      assertEquals("host-1", record.getServerHostName());
    }
 }
