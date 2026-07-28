@@ -163,6 +163,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       PoiExcelVSUtil.processOverlap(vsheet);
 
       super.prepareSheet(vsheet, sheetName, box);
+      alignBottomTabsTables();
       setUpSheet(sheetName);
 
       if(sheet == null) {
@@ -207,6 +208,51 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
          Row row = sheet.createRow(i);
          row.setHeight((short) ((rows[i + 1] - rows[i])
                                * ExcelVSUtil.EXCEL_PIXEL_HEIGHT_FACTOR));
+      }
+   }
+
+   /**
+    * Align the top of tables in a bottom-tabs container to the sheet's row grid.
+    *
+    * <p>A table's cells are snapped to the next grid line ({@link PoiExcelVSUtil#ceilY})
+    * and each table row consumes a whole grid row, so a table whose top is not on a
+    * grid line is drawn up to one row lower than its pixel position. The tab strip,
+    * on the other hand, is written as a picture at its exact pixel position and, in
+    * bottom-tabs mode, is pinned to the child's pixel bottom. That leaves no slack to
+    * absorb the rounding and the last row ends up underneath the strip (Bug #75778).
+    * Snapping the table down to the grid line makes {@code ceilY} a no-op so the drawn
+    * bottom stays above the strip.</p>
+    */
+   // package-private for testing
+   void alignBottomTabsTables() {
+      if(viewsheet == null) {
+         return;
+      }
+
+      for(Assembly assembly : viewsheet.getAssemblies(true)) {
+         if(!(assembly instanceof TableDataVSAssembly table) || !needExport(table) ||
+            !TabVSAssemblyInfo.isInBottomTabs(table))
+         {
+            continue;
+         }
+
+         VSAssemblyInfo info = table.getVSAssemblyInfo();
+         Point offset = info.getPixelOffset();
+
+         if(offset == null) {
+            continue;
+         }
+
+         int y = PoiExcelVSUtil.floorY(offset.y);
+
+         if(y != offset.y) {
+            info.setPixelOffset(new Point(offset.x, y));
+            Point layout = info.getLayoutPosition();
+
+            if(layout != null) {
+               info.setLayoutPosition(new Point(layout.x, layout.y - (offset.y - y)));
+            }
+         }
       }
    }
 
