@@ -81,6 +81,9 @@ package inetsoft.sree.security;
  *  ├─ [C] theme with orgID==fromOrgId, replace=false → clone added, original kept
  *  ├─ [D] theme with orgID==fromOrgId, replace=true  → original removed, clone added,
  *  │       setOrgSelectedTheme(null, fromOrgId) called
+ *  ├─ [D2] theme with orgID==fromOrgId, replace=true → migrated theme keeps its id so
+ *  │       Organization.theme / jar name / client-held ids stay valid (#75784)
+ *  ├─ [D3] fromOrgId == toOrgId, replace=true        → id still regenerated, theme retained
  *  ├─ [E] global theme (orgID==null) with fromOrgId in organizations → toOrgId added to
  *  │       organizations, setOrgSelectedTheme(themeId, toOrgId) called; no clone created
  *  └─ [F] global theme (orgID==null) without fromOrgId in organizations → no action
@@ -419,6 +422,83 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          assertTrue(result.stream().anyMatch(t -> "toOrg".equals(t.getOrgID())));
 
          verify(mockManager).setOrgSelectedTheme(null, "fromOrg");
+      }
+   }
+
+   // [Path D2 — #75784] theme with orgID==fromOrgId, replace=true → the migrated theme keeps
+   //           its id (Organization.theme, the jar file name and client/user-held theme ids all
+   //           reference it), and the org selection pointer is moved to that same id
+   @Test
+   void copyThemes_matchingTheme_replaceTrue_themeIdPreserved() {
+      CustomTheme theme = new CustomTheme();
+      theme.setId("theme1");
+      theme.setOrgID("fromOrg");
+      theme.setJarPath("portal/fromOrg/theme/theme1.jar");
+      theme.setOrganizations(new ArrayList<>(List.of("fromOrg")));
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
+
+         DataSpace mockDs = mock(DataSpace.class);
+         ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
+
+         CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
+         when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
+
+         String returnedId = provider.callCopyThemes("fromOrg", "toOrg", true);
+
+         @SuppressWarnings("unchecked")
+         ArgumentCaptor<Set<CustomTheme>> captor = ArgumentCaptor.forClass(Set.class);
+         verify(mockManager).setCustomThemes(captor.capture());
+
+         Set<CustomTheme> result = captor.getValue();
+         assertEquals(1, result.size(), "only the migrated theme expected");
+
+         CustomTheme migrated = result.iterator().next();
+         assertEquals("toOrg", migrated.getOrgID());
+         assertEquals("theme1", migrated.getId(),
+                      "a rename must preserve the theme id so references to it survive");
+         assertEquals("portal/toOrg/theme/theme1.jar", migrated.getJarPath(),
+                      "jar path must be re-scoped to the new org and still match the theme id");
+         assertEquals("theme1", returnedId, "returned id must be the preserved id");
+         verify(mockManager).setOrgSelectedTheme("theme1", "toOrg");
+      }
+   }
+
+   // [Path D3 — #75784] same org id with replace=true → the id must still be regenerated,
+   //           otherwise the clone would equal the original, collapse in the set and be dropped
+   //           by the deferred removal
+   @Test
+   void copyThemes_sameOrgId_replaceTrue_themeRetainedWithNewId() {
+      CustomTheme theme = new CustomTheme();
+      theme.setId("theme1");
+      theme.setOrgID("sameOrg");
+      theme.setOrganizations(new ArrayList<>());
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class);
+          MockedStatic<CustomThemesManager> ctm = mockStatic(CustomThemesManager.class)) {
+
+         DataSpace mockDs = mock(DataSpace.class);
+         ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
+
+         CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
+         when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
+
+         provider.callCopyThemes("sameOrg", "sameOrg", true);
+
+         @SuppressWarnings("unchecked")
+         ArgumentCaptor<Set<CustomTheme>> captor = ArgumentCaptor.forClass(Set.class);
+         verify(mockManager).setCustomThemes(captor.capture());
+
+         Set<CustomTheme> result = captor.getValue();
+         assertEquals(1, result.size(), "the theme must not be dropped");
+
+         CustomTheme migrated = result.iterator().next();
+         assertEquals("sameOrg", migrated.getOrgID());
+         assertNotEquals("theme1", migrated.getId(),
+                         "id must be regenerated when the org id is unchanged");
       }
    }
 
