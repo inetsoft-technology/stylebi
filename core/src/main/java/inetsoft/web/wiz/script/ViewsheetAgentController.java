@@ -197,32 +197,41 @@ public class ViewsheetAgentController {
 
    /**
     * Renders {@code target}'s current state to a PNG snapshot — lets the agent actually see the
-    * effect of a script it just ran, instead of relying on the user to describe it. Chart
-    * assemblies only (see {@link ScriptImageService}).
+    * effect of a script it just ran, instead of relying on the user to describe it. When
+    * {@code target} is omitted, renders the whole viewsheet instead of one assembly (see
+    * {@link ScriptImageService#getViewsheetImage}). {@code target}, when given, must be an
+    * assembly target (not {@code vs-init}/{@code vs-load}/onClick, which aren't visual).
     *
     * <p>Base64-encoded JSON, matching every other endpoint on this controller (rather than a raw
     * {@code image/png} body) — the consumer here is an MCP tool call whose result becomes part of
     * a structured tool response, not a browser {@code <img>} tag.</p>
     */
-   @GetMapping("/api/wiz/v1/agent/script/{sessionToken}/chart-image")
-   public ChartImageResponse chartImage(@PathVariable String sessionToken,
-                                        @RequestParam String target,
-                                        @RequestParam(required = false) Integer width,
-                                        @RequestParam(required = false) Integer height,
-                                        Principal user)
+   @GetMapping("/api/wiz/v1/agent/script/{sessionToken}/image")
+   public ChartImageResponse image(@PathVariable String sessionToken,
+                                   @RequestParam(required = false) String target,
+                                   @RequestParam(required = false) Integer width,
+                                   @RequestParam(required = false) Integer height,
+                                   Principal user)
       throws Exception
    {
       requireEnabled();
-      ScriptTarget t = ScriptTarget.parse(target);
+      RuntimeViewsheet rvs = editService.resolve(sessionToken, user);
+      ScriptImageService.ChartImage img;
 
-      if(t.location() != ScriptTarget.Location.ASSEMBLY) {
-         throw new PairingException("chart-image only supports assembly targets, not \"" +
-                                    target + "\"");
+      if(target == null || target.isBlank()) {
+         img = imageService.getViewsheetImage(rvs, width, height, user);
+      }
+      else {
+         ScriptTarget t = ScriptTarget.parse(target);
+
+         if(t.location() != ScriptTarget.Location.ASSEMBLY) {
+            throw new PairingException("image only supports assembly targets (or no target, " +
+                                       "for the whole viewsheet), not \"" + target + "\"");
+         }
+
+         img = imageService.getAssemblyImage(rvs, t.assemblyName(), width, height, user);
       }
 
-      RuntimeViewsheet rvs = editService.resolve(sessionToken, user);
-      ScriptImageService.ChartImage img =
-         imageService.getChartImage(rvs, t.assemblyName(), width, height, user);
       String base64 = Base64.getEncoder().encodeToString(img.pngBytes());
       return new ChartImageResponse(base64, img.isPng() ? "png" : "svg", img.width(), img.height());
    }
