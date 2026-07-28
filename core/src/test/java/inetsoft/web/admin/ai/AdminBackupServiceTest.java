@@ -24,6 +24,9 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -43,8 +46,95 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @Tag("core")
 class AdminBackupServiceTest {
+   /**
+    * Real write -> backup -> mutate live state -> restore -> read round trip: proves restore
+    * actually restores the state that existed at backup time, not merely that the calls don't
+    * throw. Uses {@code StorageService.write/read}, the highest-level data-space API the "test"
+    * key-value/blob engines support in a unit test.
+    */
    @Test
    void backupProducesRestorableRefRoundTrip(@TempDir Path dir) throws Exception {
+      StorageService storage = newTestStorageService(dir);
+
+      try {
+         AdminBackupService service = new AdminBackupService(storage, dir.toFile());
+         String path = "known.txt";
+
+         storage.write(path, writeContent(dir, "payload-original.txt", "original-content"));
+         assertEquals("original-content", read(storage, path), "sanity check before backup");
+
+         String ref = service.backup("chg-1");
+         assertNotNull(ref);
+         File backupFile = service.resolve(ref);
+         assertTrue(backupFile.exists(), "backup zip should exist at resolved ref");
+
+         // Mutate live state after the backup was taken, so a no-op/empty restore would fail
+         // this assertion.
+         storage.write(path, writeContent(dir, "payload-mutated.txt", "mutated-content"));
+         assertEquals("mutated-content", read(storage, path), "sanity check after mutation");
+
+         service.restore(ref);
+
+         assertEquals("original-content", read(storage, path),
+                       "restore should bring back the state captured at backup time");
+      }
+      finally {
+         storage.close();
+      }
+   }
+
+   @Test
+   void backupRejectsTransactionIdWithPathTraversal(@TempDir Path dir) {
+      AdminBackupService service = new AdminBackupService(null, dir.toFile());
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                                                   () -> service.backup("../../etc/passwd"));
+      assertTrue(ex.getMessage().contains("transactionId"), ex.getMessage());
+   }
+
+   @Test
+   void backupRejectsTransactionIdWithSlash(@TempDir Path dir) {
+      AdminBackupService service = new AdminBackupService(null, dir.toFile());
+
+      assertThrows(IllegalArgumentException.class, () -> service.backup("chg/1"));
+   }
+
+   @Test
+   void backupRejectsNullOrBlankTransactionId(@TempDir Path dir) {
+      AdminBackupService service = new AdminBackupService(null, dir.toFile());
+
+      assertThrows(IllegalArgumentException.class, () -> service.backup(null));
+      assertThrows(IllegalArgumentException.class, () -> service.backup("   "));
+   }
+
+   @Test
+   void restoreRejectsBackupRefWithPathTraversal(@TempDir Path dir) {
+      AdminBackupService service = new AdminBackupService(null, dir.toFile());
+
+      IllegalArgumentException ex = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.restore("../../../etc/passwd"));
+      assertTrue(ex.getMessage().contains("backupRef"), ex.getMessage());
+   }
+
+   @Test
+   void restoreRejectsNullOrBlankBackupRef(@TempDir Path dir) {
+      AdminBackupService service = new AdminBackupService(null, dir.toFile());
+
+      assertThrows(IllegalArgumentException.class, () -> service.restore(null));
+      assertThrows(IllegalArgumentException.class, () -> service.restore(""));
+   }
+
+   @Test
+   void resolveRejectsBackupRefWithPathTraversalOrSlash(@TempDir Path dir) {
+      AdminBackupService service = new AdminBackupService(null, dir.toFile());
+
+      assertThrows(IllegalArgumentException.class, () -> service.resolve("../escape.zip"));
+      assertThrows(IllegalArgumentException.class, () -> service.resolve("sub/dir.zip"));
+      assertThrows(IllegalArgumentException.class, () -> service.resolve("sub\\dir.zip"));
+   }
+
+   private static StorageService newTestStorageService(Path dir) throws Exception {
       Path configFile = dir.resolve("inetsoft.yaml");
       InetsoftConfig config = InetsoftConfig.createDefault(dir);
       KeyValueConfig keyValue = new KeyValueConfig();
@@ -53,21 +143,18 @@ class AdminBackupServiceTest {
       InetsoftConfig.save(config, configFile);
 
       // Inject a StorageService pointed at a temp config dir (test ctor from Step 3).
-      StorageService storage = new StorageService(dir.toString());
+      return new StorageService(dir.toString());
+   }
 
-      try {
-         AdminBackupService service = new AdminBackupService(storage, dir.toFile());
+   private static File writeContent(Path dir, String fileName, String content) throws Exception {
+      Path file = dir.resolve(fileName);
+      Files.writeString(file, content, StandardCharsets.UTF_8);
+      return file.toFile();
+   }
 
-         String ref = service.backup("chg-1");
-         assertNotNull(ref);
-         File backupFile = service.resolve(ref);
-         assertTrue(backupFile.exists(), "backup zip should exist at resolved ref");
-
-         // restore should not throw for a ref we just produced
-         assertDoesNotThrow(() -> service.restore(ref));
-      }
-      finally {
-         storage.close();
+   private static String read(StorageService storage, String path) throws Exception {
+      try(InputStream in = storage.read(path)) {
+         return new String(in.readAllBytes(), StandardCharsets.UTF_8);
       }
    }
 }
