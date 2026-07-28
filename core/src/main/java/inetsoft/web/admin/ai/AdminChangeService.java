@@ -20,6 +20,8 @@ package inetsoft.web.admin.ai;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.*;
+import inetsoft.web.admin.properties.PropertyChangeSideEffects;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import java.security.Principal;
 import java.sql.Timestamp;
@@ -27,6 +29,11 @@ import java.util.Objects;
 
 @Service
 public class AdminChangeService {
+   @Autowired
+   public AdminChangeService(PropertyChangeSideEffects sideEffects) {
+      this.sideEffects = sideEffects;
+   }
+
    public AdminChangeResult applyChange(AdminChangeRequest req, Principal principal) {
       requireNonBlank("transactionId", req.getTransactionId());
       requireNonBlank("property", req.getProperty());
@@ -44,6 +51,7 @@ public class AdminChangeService {
          result.setBeforeValue(before);
 
          if(desired == null) {
+            sideEffects.applyRemoveSideEffects(req.getProperty());
             SreeEnv.remove(req.getProperty());
          }
          else {
@@ -51,6 +59,11 @@ public class AdminChangeService {
          }
 
          SreeEnv.save();
+
+         if(desired != null) {
+            sideEffects.applyEditSideEffects(req.getProperty());
+         }
+
          String after = SreeEnv.getProperty(req.getProperty());
          result.setAfterValue(after);
          status = Objects.equals(after, desired)
@@ -108,4 +121,6 @@ public class AdminChangeService {
       record.setServerHostName(Tool.getHost());
       Audit.getInstance().auditAdminChange(record, principal);
    }
+
+   private final PropertyChangeSideEffects sideEffects;
 }

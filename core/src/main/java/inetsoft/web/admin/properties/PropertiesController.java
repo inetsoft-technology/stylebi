@@ -18,13 +18,9 @@
 package inetsoft.web.admin.properties;
 
 import inetsoft.report.internal.license.LicenseManager;
-import inetsoft.report.internal.table.TableFormat;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
-import inetsoft.uql.asset.AssetRepository;
-import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
-import inetsoft.util.log.*;
 import inetsoft.web.admin.security.PropertyModel;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
@@ -35,18 +31,13 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.security.Principal;
-import java.util.List;
 import java.util.Properties;
 
 @RestController
 public class PropertiesController {
    @Autowired
-   public PropertiesController(AssetRepository assetRepository,
-                               LogManager logManager, SecurityEngine securityEngine)
-   {
-      this.assetRepository = assetRepository;
-      this.logManager = logManager;
-      this.securityEngine = securityEngine;
+   public PropertiesController(PropertyChangeSideEffects sideEffects) {
+      this.sideEffects = sideEffects;
    }
 
    @Audited(
@@ -67,13 +58,9 @@ public class PropertiesController {
                                  String property)
       throws IOException
    {
-      removeLogLevel(property);
+      sideEffects.applyRemoveSideEffects(property);
       SreeEnv.remove(property);
       SreeEnv.save();
-
-      if(Tool.equals(property, "security.exposedefaultorgtoall")) {
-         assetRepository.fireExposeDefaultOrgPropertyChange();
-      }
    }
 
    @Audited(
@@ -113,17 +100,7 @@ public class PropertiesController {
       SreeEnv.setProperty(propertyName, value);
       SreeEnv.save();
 
-      if(Tool.equals(propertyName, "format.number.round") || Tool.equals(propertyName, "format.percent.round")) {
-         TableFormat.invalidateTableFormatCache();
-      }
-
-      if(Tool.equals(propertyName,"string.compare.casesensitive")) {
-         Tool.invalidateCaseSensitive();
-      }
-
-      if(Tool.equals(propertyName, "security.exposedefaultorgtoall")) {
-         assetRepository.fireExposeDefaultOrgPropertyChange();
-      }
+      sideEffects.applyEditSideEffects(propertyName);
    }
 
    @Secured(
@@ -176,45 +153,5 @@ public class PropertiesController {
       properties.remove("log.level.inetsoft_audit");
    }
 
-   private void removeLogLevel(String property) {
-      String value = SreeEnv.getProperty(property);
-
-      if(Tool.isEmptyString(property) || !property.startsWith("log.") ||
-         !property.contains(".level.") || value.equals("off"))
-      {
-         return;
-      }
-
-      String[] propertyParts = property.split("\\.");
-
-      if(propertyParts.length < 4) {
-         return;
-      }
-
-      List<LogLevelSetting> logLevels = logManager.getContextLevels();
-
-      boolean found = logLevels.stream().anyMatch(logLevel -> {
-         String name = logLevel.getName();
-
-         if(logLevel.getOrgName() != null) {
-            String orgId = securityEngine
-               .getSecurityProvider()
-               .getOrgIdFromName(logLevel.getOrgName());
-            name = Tool.buildString(name, "^", orgId);
-         }
-
-         return property.equals("log." + logLevel.getContext().name() + ".level." + name);
-      });
-
-      if(found) {
-         String[] parts = property.split("\\.");
-         LogContext logContext = LogContext.valueOf(parts[1]);
-         String name = parts[parts.length - 1];
-         logManager.setContextLevel(logContext, name, null);
-      }
-   }
-
-   private final AssetRepository assetRepository;
-   private final LogManager logManager;
-   private final SecurityEngine securityEngine;
+   private final PropertyChangeSideEffects sideEffects;
 }

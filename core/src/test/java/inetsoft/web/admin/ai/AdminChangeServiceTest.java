@@ -20,6 +20,7 @@ package inetsoft.web.admin.ai;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.*;
+import inetsoft.web.admin.properties.PropertyChangeSideEffects;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
@@ -32,6 +33,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class AdminChangeServiceTest {
    @Mock private Principal principal;
+   @Mock private PropertyChangeSideEffects sideEffects;
    private MockedStatic<SreeEnv> sreeEnv;
    private MockedStatic<Audit> auditStatic;
    private MockedStatic<Tool> toolStatic;
@@ -45,7 +47,7 @@ class AdminChangeServiceTest {
       audit = mock(Audit.class);
       auditStatic.when(Audit::getInstance).thenReturn(audit);
       toolStatic.when(Tool::getHost).thenReturn("host-1");
-      service = new AdminChangeService();
+      service = new AdminChangeService(sideEffects);
    }
 
    @AfterEach void tearDown() {
@@ -160,6 +162,24 @@ class AdminChangeServiceTest {
       sreeEnv.verifyNoInteractions();
       auditStatic.verify(Audit::getInstance, never());
       verifyNoInteractions(audit);
+   }
+
+   @Test void invokesEditSideEffectsWhenSettingAValue() throws Exception {
+      sreeEnv.when(() -> SreeEnv.getProperty("max.rows"))
+             .thenReturn("100").thenReturn("500");
+      service.applyChange(req("max.rows", "500"), principal);
+
+      verify(sideEffects).applyEditSideEffects("max.rows");
+      verify(sideEffects, never()).applyRemoveSideEffects(any());
+   }
+
+   @Test void invokesRemoveSideEffectsWhenRemovingAValue() throws Exception {
+      sreeEnv.when(() -> SreeEnv.getProperty("max.rows"))
+             .thenReturn("100").thenReturn(null);
+      service.applyChange(req("max.rows", null), principal);
+
+      verify(sideEffects).applyRemoveSideEffects("max.rows");
+      verify(sideEffects, never()).applyEditSideEffects(any());
    }
 
    @Test void alwaysAuditsWhenSaveThrows() throws Exception {
