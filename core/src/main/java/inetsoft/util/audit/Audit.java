@@ -65,6 +65,9 @@ public class Audit implements AutoCloseable {
    public void auditAction(ActionRecord record, Principal principal) {
    }
 
+   public void auditAdminChange(AdminChangeRecord record, Principal principal) {
+   }
+
    public void auditBookmark(BookmarkRecord record, Principal principal) {
    }
 
