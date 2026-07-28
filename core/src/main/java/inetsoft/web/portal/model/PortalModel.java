@@ -62,6 +62,11 @@ public abstract class PortalModel {
       return "dense";
    }
 
+   @Value.Default
+   public boolean darkMode() {
+      return false;
+   }
+
    public static Builder builder() {
       return new Builder();
    }

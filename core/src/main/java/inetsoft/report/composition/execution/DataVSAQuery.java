@@ -235,7 +235,7 @@ public abstract class DataVSAQuery extends VSAQuery {
     * and trailer keys affect only crosstabs (plain tables have no header/trailer bands); body borders
     * fall through for the regions not set explicitly. Every value is a default the user format beats.
     */
-   private void applyModernTableStructure(XTableStyle style) {
+   static void applyModernTableStructure(XTableStyle style) {
       Color gridline = VSTableStructureDefaults.gridlineColor();
       Color separator = VSTableStructureDefaults.headerSeparator();
       style.put("body.rcolor", gridline);
@@ -253,7 +253,48 @@ public abstract class DataVSAQuery extends VSAQuery {
       style.put("header-col.foreground", VSTableStructureDefaults.headerForeground());
       style.put("trailer-row.background", VSTableStructureDefaults.totalBackground());
       style.put("trailer-col.background", VSTableStructureDefaults.totalBackground());
-      applyModernGroupSubtotals(style);
+      // lift band text off the dark total/subtotal fills (null in light = keep default dark-on-light)
+      Color bandForeground = VSTableStructureDefaults.bandForeground();
+
+      if(bandForeground != null) {
+         style.put("trailer-row.foreground", bandForeground);
+         style.put("trailer-col.foreground", bandForeground);
+      }
+
+      // dark mode also darkens the data-cell interior so light body text is legible; all null in
+      // light/legacy, leaving the shipped body text (#404040), transparent body, and #F5F5F5 zebra.
+      Color bodyForeground = VSTableStructureDefaults.bodyForeground();
+      Color bodyBackground = VSTableStructureDefaults.bodyBackground();
+
+      if(bodyForeground != null) {
+         style.put("body.foreground", bodyForeground);
+      }
+
+      if(bodyBackground != null) {
+         style.put("body.background", bodyBackground);
+      }
+
+      applyDarkZebra(style, VSTableStructureDefaults.zebraBackground());
+      applyModernGroupSubtotals(style, bandForeground);
+   }
+
+   /**
+    * Darken the shipped Default Style zebra stripe in dark mode. The alternating-row background is a
+    * REGULAR Specification (not a region), so it wins over body.background and must be recolored on the
+    * spec itself. No-op (null) in light/legacy, so the shipped #F5F5F5 stripe is unchanged.
+    */
+   static void applyDarkZebra(XTableStyle style, Color zebra) {
+      if(zebra == null) {
+         return;
+      }
+
+      for(int i = 0; i < style.getSpecificationCount(); i++) {
+         XTableStyle.Specification spec = style.getSpecification(i);
+
+         if(spec.getType() == XTableStyle.Specification.REGULAR) {
+            spec.put("background", zebra);
+         }
+      }
    }
 
    /**
@@ -264,7 +305,7 @@ public abstract class DataVSAQuery extends VSAQuery {
     * the header count), so plain tables are unaffected. Grand totals stay distinct: XTableStyle resolves
     * the trailer band before per-cell specs, so trailer-row/col.background (grand total) still wins.
     */
-   private void applyModernGroupSubtotals(XTableStyle style) {
+   static void applyModernGroupSubtotals(XTableStyle style, Color foreground) {
       Color subtotal = VSTableStructureDefaults.subtotalBackground();
       int pos = 0;
 
@@ -273,12 +314,22 @@ public abstract class DataVSAQuery extends VSAQuery {
          rowSpec.setType(XTableStyle.Specification.ROW_GROUP_TOTAL);
          rowSpec.setIndex(level);
          rowSpec.put("background", subtotal);
+
+         if(foreground != null) {
+            rowSpec.put("foreground", foreground);
+         }
+
          style.addSpecification(pos++, rowSpec);
 
          XTableStyle.Specification colSpec = style.new Specification();
          colSpec.setType(XTableStyle.Specification.COL_GROUP_TOTAL);
          colSpec.setIndex(level);
          colSpec.put("background", subtotal);
+
+         if(foreground != null) {
+            colSpec.put("foreground", foreground);
+         }
+
          style.addSpecification(pos++, colSpec);
       }
    }

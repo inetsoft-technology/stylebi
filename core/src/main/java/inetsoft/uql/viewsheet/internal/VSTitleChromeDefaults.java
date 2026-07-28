@@ -53,19 +53,19 @@ public final class VSTitleChromeDefaults {
          !"false".equals(SreeEnv.getProperty("viewsheet.modernObjectChrome", false, true));
    }
 
-   /** Title-bar background — quiet warm neutral, equal to the table header background so chrome reads as one system. */
+   /** Title-bar background — quiet warm neutral, equal to the table header background so chrome reads as one system; dark neutral when dark mode is on. */
    public static Color titleBackground() {
-      return TITLE_BG;
+      return VSDensityDefaults.isDark() ? TITLE_BG_DARK : TITLE_BG;
    }
 
-   /** Title-bar text color — muted, equal to the table header / chart label foreground. */
+   /** Title-bar text color — muted, equal to the table header / chart label foreground; dark neutral when dark mode is on. */
    public static Color titleForeground() {
-      return TITLE_FG;
+      return VSDensityDefaults.isDark() ? TITLE_FG_DARK : TITLE_FG;
    }
 
-   /** Title→body bottom-border color — the shared structural border (matches the table header rule). */
+   /** Title→body bottom-border color — the shared structural border (matches the table header rule); dark neutral when dark mode is on. */
    public static Color titleBorderColor() {
-      return TITLE_BORDER;
+      return VSDensityDefaults.isDark() ? TITLE_BORDER_DARK : TITLE_BORDER;
    }
 
    /**
@@ -110,12 +110,14 @@ public final class VSTitleChromeDefaults {
    }
 
    private static void applyTo(VSFormat def, boolean bg, boolean fg) {
+      boolean dark = VSDensityDefaults.isDark();
+
       if(bg) {
-         def.setBackgroundValue(toValue(TITLE_BG));
+         def.setBackgroundValue(toValue(dark ? TITLE_BG_DARK : TITLE_BG));
       }
 
       if(fg) {
-         def.setForegroundValue(toValue(TITLE_FG));
+         def.setForegroundValue(toValue(dark ? TITLE_FG_DARK : TITLE_FG));
       }
    }
 
@@ -135,10 +137,15 @@ public final class VSTitleChromeDefaults {
       return String.format("0x%06x", c.getRGB() & 0xFFFFFF);
    }
 
-   // modern warm-neutral title chrome; light mode only, dark deferred. Coordinated with
-   // VSTableStructureDefaults (header background/foreground/separator) and VSChartChromeDefaults so
-   // the title bar, table header, and chart chrome read as one warm-neutral system.
+   // modern warm-neutral title chrome. Coordinated with VSTableStructureDefaults (header
+   // background/foreground/separator) and VSChartChromeDefaults so the title bar, table header, and
+   // chart chrome read as one warm-neutral system.
    private static final Color TITLE_BG = new Color(0xF1EFEA);
    private static final Color TITLE_FG = new Color(0x6A685F);
    private static final Color TITLE_BORDER = new Color(0xD9D5CC);
+
+   // dark title chrome; coordinated with the table header and chart chrome dark palette
+   private static final Color TITLE_BG_DARK = new Color(0x2D2B30);
+   private static final Color TITLE_FG_DARK = new Color(0xCAC4D0);
+   private static final Color TITLE_BORDER_DARK = new Color(0x49454F);
 }

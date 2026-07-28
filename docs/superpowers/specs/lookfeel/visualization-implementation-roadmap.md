@@ -971,6 +971,14 @@ before wiring System-B dark.
 - Dark exports (if Task 0 resolves live-only — a separate export baseline to validate).
 - Dark sequential/diverging ramps (depend on ramps landing at all — Phase 9C item 2).
 - `--vivid-series-dark-*` / `--family-series-dark-*` alternate families.
+- **Shell-owned dark neutrals → a shell dark-mode initiative, not viz.** Viz-surface DOM affordances
+  that borrow shell neutral tokens (`--inet-hover-*-bg-color`, `--inet-shell-surface-*`,
+  `--inet-default-border-color`, `--inet-toolbar-bg-color`, `--inet-main-panel-bg-color`, neutral text)
+  read as bright boxes/surfaces under a dark-viz-on-light-shell. Fix belongs in a shell dark scope that
+  gives these neutrals dark values; then viz DOM inherits them and the per-component `.viz-dark` patches
+  collapse. Symptoms deferred (sort/drill/menu hover fill, canvas, image placeholder, calendar
+  day-header surface). Server-rendered/`VSFormat` dark stays in viz. See the phase-9B plan's
+  "Deferred within 9B".
 
 ### Output
 

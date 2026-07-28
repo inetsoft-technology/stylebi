@@ -1565,7 +1565,7 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
    protected void setDefaultFormat(boolean border, boolean setFormat, boolean fill) {
       super.setDefaultFormat(border, setFormat, fill);
 
-      getFormat().getDefaultFormat().setBackgroundValue("#ffffff");
+      getFormat().getDefaultFormat().setBackgroundValue(VSObjectChromeDefaults.cardBackgroundCss());
 
       // CSSDictionary.getDictionary() is for viewsheet ONLY
       if(LibManagerProvider.getInstance().getManager().getTableStyle(DEFAULT_STYLE) != null
