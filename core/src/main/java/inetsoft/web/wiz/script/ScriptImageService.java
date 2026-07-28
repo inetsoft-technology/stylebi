@@ -19,33 +19,43 @@ package inetsoft.web.wiz.script;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.Assembly;
-import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.Tool;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
+import inetsoft.web.viewsheet.service.ExportResponse;
+import inetsoft.web.viewsheet.service.VSExportService;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
+import java.awt.Dimension;
+import java.awt.Graphics2D;
+import java.awt.Point;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.security.Principal;
 
 /**
- * Renders a chart assembly's current state to a PNG snapshot the agent can actually look at.
+ * Renders a viewsheet assembly — or the whole viewsheet — to a PNG snapshot the agent can
+ * actually look at.
  *
- * <p>Reuses {@link AssemblyImageService#downloadAssemblyImage}'s underlying mechanism — the same
- * lightweight, already-open-runtime render path the browser itself uses for every on-screen chart
- * tile (via {@code GetImageController}) and that {@code WizVisualizationService} already uses for
- * the chart wizard's live preview/thumbnail. Deliberately does NOT use the full
- * {@code VSExportService} export pipeline (clones the whole viewsheet, force-refreshes every
- * assembly, writes a temp file) — confirmed overkill for "one chart's current render," and that
- * pipeline is only meant as an expensive fallback for assembly types this path doesn't support
- * (Crosstab/Table), which is out of scope here since only charts are addressable as script
- * targets anyway.</p>
+ * <p>For assembly types {@link AssemblyImageService#downloadAssemblyImage} supports directly
+ * (charts, gauges, thermometers, cylinders, sliding scales, images, shapes, group containers),
+ * reuses that mechanism — the same lightweight, already-open-runtime render path the browser
+ * itself uses for every on-screen assembly tile (via {@code GetImageController}) and that
+ * {@code WizVisualizationService} already uses for the chart wizard's live preview/thumbnail.</p>
+ *
+ * <p>For types that path doesn't support (tables/crosstabs) and for whole-viewsheet snapshots,
+ * falls back to the full {@code VSExportService} PNG export — the same "expensive fallback"
+ * {@code WizVisualizationService.renderFallbackThumbnail} already uses for the identical
+ * tables/crosstabs gap, here also reused directly for "the whole sheet" since there's no lighter
+ * single call that composes multiple assemblies into one image.</p>
  */
 @Service
 public class ScriptImageService {
@@ -65,22 +75,24 @@ public class ScriptImageService {
 
    @Autowired
    public ScriptImageService(AssemblyImageService assemblyImageService,
-                             BinaryTransferService binaryTransferService)
+                             BinaryTransferService binaryTransferService,
+                             VSExportService vsExportService)
    {
       this.assemblyImageService = assemblyImageService;
       this.binaryTransferService = binaryTransferService;
+      this.vsExportService = vsExportService;
    }
 
    public record ChartImage(byte[] pngBytes, boolean isPng, int width, int height) {}
 
    /**
-    * @throws RenderNotReadyException if the chart's graph hasn't finished computing after
+    * @throws RenderNotReadyException if the graph hasn't finished computing after
     *         {@value #RENDER_MAX_ATTEMPTS} retries — caller should map this to a retryable HTTP
     *         status, not treat it as a hard failure.
-    * @throws PairingException if {@code assemblyName} doesn't exist or isn't a chart.
+    * @throws PairingException if {@code assemblyName} doesn't exist or can't be rendered at all.
     */
-   public ChartImage getChartImage(RuntimeViewsheet rvs, String assemblyName,
-                                   Integer width, Integer height, Principal principal)
+   public ChartImage getAssemblyImage(RuntimeViewsheet rvs, String assemblyName,
+                                      Integer width, Integer height, Principal principal)
       throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
@@ -91,8 +103,8 @@ public class ScriptImageService {
 
       Assembly assembly = vs.getAssembly(assemblyName);
 
-      if(!(assembly instanceof ChartVSAssembly)) {
-         throw new PairingException("\"" + assemblyName + "\" is not a chart assembly");
+      if(assembly == null) {
+         throw new PairingException("No such assembly \"" + assemblyName + "\"");
       }
 
       int w = clamp(width != null && width > 0 ? width : DEFAULT_WIDTH);
@@ -127,18 +139,143 @@ public class ScriptImageService {
       }
 
       // A 1x1 image is StyleBI's placeholder for assembly types downloadAssemblyImage doesn't
-      // support (see AssemblyImageService's "avoid a broken image on browser" fallback) — not
-      // expected here since we already required ChartVSAssembly above, but guard anyway rather
-      // than silently handing the agent a useless 1x1 PNG.
+      // support directly (tables/crosstabs) — fall back to the same full-export-and-crop
+      // approach WizVisualizationService.renderFallbackThumbnail uses for the identical gap.
       if(result.isPng()) {
          BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(bytes));
 
          if(decoded == null || decoded.getWidth() <= 1 || decoded.getHeight() <= 1) {
-            throw new PairingException("\"" + assemblyName + "\" could not be rendered to an image");
+            return renderViaExportFallback(rvs, assembly, w, h, principal);
          }
       }
 
       return new ChartImage(bytes, result.isPng(), result.getWidth(), result.getHeight());
+   }
+
+   /**
+    * Renders the whole viewsheet — every visible assembly, composed as it actually looks — to a
+    * single PNG. There's no lightweight single-call equivalent to
+    * {@link AssemblyImageService#downloadAssemblyImage} for "the whole sheet" (that path is
+    * inherently per-assembly), so this always uses the full export pipeline. Acceptable here since
+    * this is an explicit, occasional request, not something called after every script edit.
+    */
+   public ChartImage getViewsheetImage(RuntimeViewsheet rvs, Integer width, Integer height,
+                                       Principal principal)
+      throws Exception
+   {
+      int w = clamp(width != null && width > 0 ? width : DEFAULT_WIDTH);
+      int h = clamp(height != null && height > 0 ? height : DEFAULT_HEIGHT);
+
+      byte[] pngBytes = exportViewsheetToPng(rvs, principal);
+      BufferedImage full = decodePng(pngBytes, "the viewsheet");
+      BufferedImage scaled = scaleToFit(full, w, h);
+      byte[] encoded = encodePng(scaled, "the viewsheet");
+
+      return new ChartImage(encoded, true, scaled.getWidth(), scaled.getHeight());
+   }
+
+   /**
+    * Full-viewsheet PNG export, cropped to {@code assembly}'s pixel bounds — mirrors
+    * {@code WizVisualizationService.renderFallbackThumbnail} exactly (same
+    * {@code exportViewsheet} call, same {@code getPixelOffset()}/{@code getPixelSize()}-based
+    * crop math), used here for assembly types {@link AssemblyImageService#downloadAssemblyImage}
+    * doesn't support directly (tables/crosstabs).
+    */
+   private ChartImage renderViaExportFallback(RuntimeViewsheet rvs, Assembly assembly,
+                                              int maxWidth, int maxHeight, Principal principal)
+      throws Exception
+   {
+      Point offset = assembly.getPixelOffset();
+      Dimension size = assembly.getPixelSize();
+
+      if(size == null || size.width <= 0 || size.height <= 0) {
+         throw new PairingException("\"" + assembly.getName() + "\" has no renderable size");
+      }
+
+      byte[] pngBytes = exportViewsheetToPng(rvs, principal);
+      BufferedImage full = decodePng(pngBytes, assembly.getName());
+
+      int cropX = Math.max(0, offset != null ? offset.x : 0);
+      int cropY = Math.max(0, offset != null ? offset.y : 0);
+      int cropW = Math.min(size.width, full.getWidth() - cropX);
+      int cropH = Math.min(size.height, full.getHeight() - cropY);
+
+      if(cropW <= 0 || cropH <= 0) {
+         throw new PairingException(
+            "\"" + assembly.getName() + "\" could not be cropped from the exported viewsheet");
+      }
+
+      BufferedImage cropped = full.getSubimage(cropX, cropY, cropW, cropH);
+      cropped = scaleToFit(cropped, maxWidth, maxHeight);
+      byte[] encoded = encodePng(cropped, assembly.getName());
+
+      return new ChartImage(encoded, true, cropped.getWidth(), cropped.getHeight());
+   }
+
+   /**
+    * The exact call {@code WizVisualizationService.renderFallbackThumbnail} uses to export the
+    * whole live viewsheet to an in-memory PNG: {@code match=true} for pixel-accurate geometry
+    * (required so crop coordinates from {@code getPixelOffset()}/{@code getPixelSize()} line up),
+    * {@code current=true} because with no bookmarks and {@code current=false} the exporter's
+    * {@code write()} produces 0 bytes.
+    */
+   private byte[] exportViewsheetToPng(RuntimeViewsheet rvs, Principal principal) throws Exception {
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+      vsExportService.exportViewsheet(rvs, FileFormatInfo.EXPORT_TYPE_PNG,
+         true, false, true, false, false, null, false,
+         new ExportResponse(baos), principal);
+      byte[] bytes = baos.toByteArray();
+
+      if(bytes.length == 0) {
+         throw new PairingException("Failed to export the viewsheet");
+      }
+
+      return bytes;
+   }
+
+   private static BufferedImage decodePng(byte[] bytes, String label) throws Exception {
+      BufferedImage image = ImageIO.read(new ByteArrayInputStream(bytes));
+
+      if(image == null) {
+         throw new PairingException("Failed to decode the exported image for \"" + label + "\"");
+      }
+
+      return image;
+   }
+
+   private static byte[] encodePng(BufferedImage image, String label) throws Exception {
+      ByteArrayOutputStream out = new ByteArrayOutputStream();
+      ImageIO.write(image, "PNG", out);
+      byte[] bytes = out.toByteArray();
+
+      if(bytes.length == 0) {
+         throw new PairingException("Failed to encode the rendered image for \"" + label + "\"");
+      }
+
+      return bytes;
+   }
+
+   /** Downscales (never upscales) to fit within {@code maxWidth}x{@code maxHeight}, preserving aspect ratio. */
+   private static BufferedImage scaleToFit(BufferedImage image, int maxWidth, int maxHeight) {
+      if(image.getWidth() <= maxWidth && image.getHeight() <= maxHeight) {
+         return image;
+      }
+
+      double scale = Math.min((double) maxWidth / image.getWidth(), (double) maxHeight / image.getHeight());
+      int w = Math.max(1, (int) (image.getWidth() * scale));
+      int h = Math.max(1, (int) (image.getHeight() * scale));
+      BufferedImage scaled = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+      Graphics2D g = scaled.createGraphics();
+
+      try {
+         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+         g.drawImage(image, 0, 0, w, h, null);
+      }
+      finally {
+         g.dispose();
+      }
+
+      return scaled;
    }
 
    private static int clamp(int value) {
@@ -147,4 +284,5 @@ public class ScriptImageService {
 
    private final AssemblyImageService assemblyImageService;
    private final BinaryTransferService binaryTransferService;
+   private final VSExportService vsExportService;
 }

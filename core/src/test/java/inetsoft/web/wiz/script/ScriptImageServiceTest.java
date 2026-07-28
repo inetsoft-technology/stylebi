@@ -23,6 +23,8 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.cachefs.BinaryTransfer;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
+import inetsoft.web.viewsheet.service.ExportResponse;
+import inetsoft.web.viewsheet.service.VSExportService;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.pairing.TestPrincipals;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
@@ -30,6 +32,8 @@ import inetsoft.web.wiz.service.RenderNotReadyException;
 import org.junit.jupiter.api.Test;
 
 import javax.imageio.ImageIO;
+import java.awt.Dimension;
+import java.awt.Point;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.security.Principal;
@@ -57,16 +61,27 @@ class ScriptImageServiceTest {
       return rvs;
    }
 
+   /** Stubs a VSExportService mock to write {@code fullPng} into whatever ExportResponse it's given. */
+   private static void stubExport(VSExportService exportService, byte[] fullPng) throws Exception {
+      doAnswer(invocation -> {
+         ExportResponse response = invocation.getArgument(9);
+         response.getOutputStream().write(fullPng);
+         return null;
+      }).when(exportService).exportViewsheet(
+         any(), anyInt(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(),
+         any(), anyBoolean(), any(ExportResponse.class), any());
+   }
+
    @Test
-   void rejectsATargetThatIsNotAChart() {
+   void rejectsANonExistentAssembly() {
       Viewsheet vs = new Viewsheet();
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
 
       ScriptImageService svc = new ScriptImageService(
-         mock(AssemblyImageService.class), mock(BinaryTransferService.class));
+         mock(AssemblyImageService.class), mock(BinaryTransferService.class), mock(VSExportService.class));
 
-      assertThrows(PairingException.class, () -> svc.getChartImage(
+      assertThrows(PairingException.class, () -> svc.getAssemblyImage(
          rvs, "NoSuchAssembly", null, null, TestPrincipals.user("alice", "host-org")));
    }
 
@@ -87,8 +102,9 @@ class ScriptImageServiceTest {
       BinaryTransferService binaryTransferService = mock(BinaryTransferService.class);
       when(binaryTransferService.getData(transfer)).thenReturn(png);
 
-      ScriptImageService svc = new ScriptImageService(imageService, binaryTransferService);
-      ScriptImageService.ChartImage img = svc.getChartImage(
+      ScriptImageService svc = new ScriptImageService(
+         imageService, binaryTransferService, mock(VSExportService.class));
+      ScriptImageService.ChartImage img = svc.getAssemblyImage(
          rvs, "Chart1", null, null, TestPrincipals.user("alice", "host-org"));
 
       assertArrayEquals(png, img.pngBytes());
@@ -115,8 +131,9 @@ class ScriptImageServiceTest {
       BinaryTransferService binaryTransferService = mock(BinaryTransferService.class);
       when(binaryTransferService.getData(transfer)).thenReturn(png);
 
-      ScriptImageService svc = new ScriptImageService(imageService, binaryTransferService);
-      ScriptImageService.ChartImage img = svc.getChartImage(
+      ScriptImageService svc = new ScriptImageService(
+         imageService, binaryTransferService, mock(VSExportService.class));
+      ScriptImageService.ChartImage img = svc.getAssemblyImage(
          rvs, "Chart1", 3000, 3000, TestPrincipals.user("alice", "host-org"));
 
       assertEquals(1600, img.width());
@@ -136,9 +153,10 @@ class ScriptImageServiceTest {
          isNull(), eq(0), eq(0), eq(0), any(), eq(false), eq(true)))
          .thenReturn(notReady);
 
-      ScriptImageService svc = new ScriptImageService(imageService, mock(BinaryTransferService.class));
+      ScriptImageService svc = new ScriptImageService(
+         imageService, mock(BinaryTransferService.class), mock(VSExportService.class));
 
-      RenderNotReadyException ex = assertThrows(RenderNotReadyException.class, () -> svc.getChartImage(
+      RenderNotReadyException ex = assertThrows(RenderNotReadyException.class, () -> svc.getAssemblyImage(
          rvs, "Chart1", null, null, TestPrincipals.user("alice", "host-org")));
       assertEquals(1, ex.getRetryAfter());
       // 4 attempts per the mirrored WizVisualizationService retry constant.
@@ -148,8 +166,13 @@ class ScriptImageServiceTest {
    }
 
    @Test
-   void rejectsA1x1PlaceholderImageInsteadOfSilentlyReturningIt() throws Exception {
-      RuntimeViewsheet rvs = viewsheetWithChart("Chart1");
+   void fallsBackToExportAndCropWhenTheLightweightPathReturnsAPlaceholder() throws Exception {
+      RuntimeViewsheet rvs = viewsheetWithChart("Table1");
+      ChartVSAssembly assembly =
+         (ChartVSAssembly) rvs.getViewsheet().getAssembly("Table1");
+      assembly.setPixelOffset(new Point(10, 20));
+      assembly.setPixelSize(new Dimension(200, 100));
+
       byte[] placeholder = fakePng(1, 1);
       BinaryTransfer transfer = mock(BinaryTransfer.class);
       AssemblyImageService.ImageRenderResult result =
@@ -164,9 +187,77 @@ class ScriptImageServiceTest {
       BinaryTransferService binaryTransferService = mock(BinaryTransferService.class);
       when(binaryTransferService.getData(transfer)).thenReturn(placeholder);
 
-      ScriptImageService svc = new ScriptImageService(imageService, binaryTransferService);
+      VSExportService exportService = mock(VSExportService.class);
+      byte[] fullSheetPng = fakePng(400, 300);
+      stubExport(exportService, fullSheetPng);
 
-      assertThrows(PairingException.class, () -> svc.getChartImage(
-         rvs, "Chart1", null, null, TestPrincipals.user("alice", "host-org")));
+      ScriptImageService svc = new ScriptImageService(imageService, binaryTransferService, exportService);
+      ScriptImageService.ChartImage img = svc.getAssemblyImage(
+         rvs, "Table1", null, null, TestPrincipals.user("alice", "host-org"));
+
+      assertTrue(img.isPng());
+      assertEquals(200, img.width());
+      assertEquals(100, img.height());
+   }
+
+   @Test
+   void exportFallbackRejectsAnAssemblyWithNoSize() throws Exception {
+      RuntimeViewsheet rvs = viewsheetWithChart("Table1");
+      ChartVSAssembly assembly = (ChartVSAssembly) rvs.getViewsheet().getAssembly("Table1");
+      assembly.setPixelSize(new Dimension(0, 0));
+
+      byte[] placeholder = fakePng(1, 1);
+      BinaryTransfer transfer = mock(BinaryTransfer.class);
+      AssemblyImageService.ImageRenderResult result =
+         new AssemblyImageService.ImageRenderResult(true, transfer, 1, 1);
+
+      AssemblyImageService imageService = mock(AssemblyImageService.class);
+      when(imageService.processGetAssemblyImage(
+         eq(rvs), anyString(), anyDouble(), anyDouble(), anyDouble(), anyDouble(),
+         isNull(), eq(0), eq(0), eq(0), any(), eq(false), eq(true)))
+         .thenReturn(result);
+
+      BinaryTransferService binaryTransferService = mock(BinaryTransferService.class);
+      when(binaryTransferService.getData(transfer)).thenReturn(placeholder);
+
+      ScriptImageService svc = new ScriptImageService(
+         imageService, binaryTransferService, mock(VSExportService.class));
+
+      assertThrows(PairingException.class, () -> svc.getAssemblyImage(
+         rvs, "Table1", null, null, TestPrincipals.user("alice", "host-org")));
+   }
+
+   @Test
+   void getViewsheetImageExportsTheWholeSheetAndScalesToFit() throws Exception {
+      RuntimeViewsheet rvs = viewsheetWithChart("Chart1");
+      VSExportService exportService = mock(VSExportService.class);
+      byte[] fullSheetPng = fakePng(3200, 2400);
+      stubExport(exportService, fullSheetPng);
+
+      ScriptImageService svc = new ScriptImageService(
+         mock(AssemblyImageService.class), mock(BinaryTransferService.class), exportService);
+      ScriptImageService.ChartImage img = svc.getViewsheetImage(
+         rvs, null, null, TestPrincipals.user("alice", "host-org"));
+
+      assertTrue(img.isPng());
+      // Downscaled to fit the default 800x600 cap, preserving the 4:3 aspect ratio.
+      assertEquals(800, img.width());
+      assertEquals(600, img.height());
+   }
+
+   @Test
+   void getViewsheetImageDoesNotUpscaleASmallExport() throws Exception {
+      RuntimeViewsheet rvs = viewsheetWithChart("Chart1");
+      VSExportService exportService = mock(VSExportService.class);
+      byte[] fullSheetPng = fakePng(200, 150);
+      stubExport(exportService, fullSheetPng);
+
+      ScriptImageService svc = new ScriptImageService(
+         mock(AssemblyImageService.class), mock(BinaryTransferService.class), exportService);
+      ScriptImageService.ChartImage img = svc.getViewsheetImage(
+         rvs, null, null, TestPrincipals.user("alice", "host-org"));
+
+      assertEquals(200, img.width());
+      assertEquals(150, img.height());
    }
 }
