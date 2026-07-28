@@ -746,6 +746,41 @@ public class AggregateInfo implements AssetObject, ContentObject {
       for(int i = 0; i < groups.size(); i++) {
          GroupRef ref = groups.get(i);
          ref.renameDepended(oname, nname);
+         renameEntity(ref, oname, nname);
+      }
+
+      for(int i = 0; i < aggregates.size(); i++) {
+         renameEntity(aggregates.get(i), oname, nname);
+      }
+
+      for(int i = 0; i < aggregates2.size(); i++) {
+         renameEntity(aggregates2.get(i), oname, nname);
+      }
+   }
+
+   /**
+    * A group/aggregate's own ref keeps its base table qualification (e.g.
+    * "SO.amount_total") independent of the ColumnSelection entry it was built from, so
+    * when the depended-on table is itself renamed during a merge (GroupRef/AggregateRef
+    * have no such rename of their own, unlike expression-based columns which are
+    * rewritten via renameExpressionDependeds), the group/aggregate is left pointing at a
+    * base entity that no longer exists. Rebuild the wrapped DataRef chain down to the
+    * base AttributeRef and requalify it against the new name.
+    */
+   private static void renameEntity(DataRefWrapper outer, String oname, String nname) {
+      DataRef inner = outer.getDataRef();
+
+      if(inner instanceof DataRefWrapper) {
+         renameEntity((DataRefWrapper) inner, oname, nname);
+      }
+      else if(inner instanceof AttributeRef) {
+         AttributeRef attr = (AttributeRef) inner;
+         AttributeRef renamed = ColumnRef.renameAttributeRef(attr, oname, nname);
+
+         if(renamed != attr) {
+            renamed.setDefaultFormula(attr.getDefaultFormula());
+            outer.setDataRef(renamed);
+         }
       }
    }
 

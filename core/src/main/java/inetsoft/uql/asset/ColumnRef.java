@@ -93,12 +93,22 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
       }
    }
 
-   private static AttributeRef renameAttributeRef(AttributeRef ref, String oname, String nname) {
+   /**
+    * Package-visible so other DataRefWrapper implementations that bottom out in an
+    * AttributeRef (e.g. GroupRef/AggregateRef, see AggregateInfo#renameEntity) can reuse
+    * the same rename-with-preserved-metadata logic instead of dropping caption/dataType.
+    */
+   static AttributeRef renameAttributeRef(AttributeRef ref, String oname, String nname) {
       if(ref != null && Tool.equals(oname, ref.getEntity())) {
          AttributeRef nref = new AttributeRef(nname, ref.getAttribute());
 
          // keep caption, necessary for cube
          nref.setCaption(ref.getCaption());
+         // keep data type -- AttributeRef's own dtype defaults to null, so without this the
+         // ref silently falls back to XSchema.STRING the moment its qualifying table is
+         // renamed, corrupting any aggregate/sort/format keyed on this ref downstream.
+         nref.setDataType(ref.getDataType());
+         nref.setRefType(ref.getRefType());
          return nref;
       }
 
