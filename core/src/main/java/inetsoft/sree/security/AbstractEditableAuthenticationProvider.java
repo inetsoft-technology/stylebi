@@ -288,12 +288,22 @@ public abstract class AbstractEditableAuthenticationProvider
          manager.save();
          RepletRegistryManager.getInstance().clearOrgCache(fromOrgId);
 
-         try{
-            identityService.updateRepletRegistry(fromOrgId, null);
-            identityService.removeStorages(fromOrgId);
-         }
-         catch(Exception e) {
-            LOG.warn("Unable to remove old organization storage: "+e);
+         // Organization-scoped blob storage (indexed storage, replet registry, __mv,
+         // __mvws, __pdata, etc.) is bucketed by fromOrgId/newOrgID.toLowerCase(), so a
+         // rename that only changes letter case (e.g. "organization0" -> "Organization0")
+         // maps the old and new organization onto the exact same physical bucket. The
+         // content just migrated into that bucket for newOrgID must not then be deleted
+         // as if it belonged solely to the old organization.
+         boolean sameStorageBucket = fromOrgId.equalsIgnoreCase(newOrgID);
+
+         if(!sameStorageBucket) {
+            try {
+               identityService.updateRepletRegistry(fromOrgId, null);
+               identityService.removeStorages(fromOrgId);
+            }
+            catch(Exception e) {
+               LOG.warn("Unable to remove old organization storage: "+e);
+            }
          }
       }
       else {
@@ -358,7 +368,18 @@ public abstract class AbstractEditableAuthenticationProvider
             if(Tool.equals(theme.getOrgID(), fromOrgId)) {
                CustomTheme clone = (CustomTheme) theme.clone();
                clone.setOrgID(toOrgId);
-               clone.setId(UUID.randomUUID().toString().replace("-", ""));
+
+               // A copy needs a brand-new id so the clone stays fully independent of the
+               // source org's theme (#74711). A rename removes the source theme below, so
+               // there is no id left to collide with and the id must be preserved instead:
+               // Organization.theme, the theme jar file name and any client-held or
+               // per-user theme id all reference it, and regenerating the id orphans them
+               // all (#75784). The fromOrgId == toOrgId case cannot preserve the id: the
+               // clone would then equal the original, collapse in the set below and be
+               // dropped by the deferred removal, so keep generating a new id there.
+               if(!replace || Tool.equals(fromOrgId, toOrgId)) {
+                  clone.setId(UUID.randomUUID().toString().replace("-", ""));
+               }
 
                String originalID = clone.getId();
                int i = 1;

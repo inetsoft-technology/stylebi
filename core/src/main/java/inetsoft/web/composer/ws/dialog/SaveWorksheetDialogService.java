@@ -19,7 +19,6 @@
 package inetsoft.web.composer.ws.dialog;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.event.AssetEventUtil;
@@ -334,7 +333,9 @@ public class SaveWorksheetDialogService extends WorksheetControllerService {
          // successful, check and remove any auto-saved versions of the
          // Worksheet. If this action was a "save as", we should also delete
          // the auto-saved version of the original Worksheet (if one exists).
-         VSEventUtil.deleteAutoSavedFile(entry, principal);
+         // The saved worksheet supersedes the auto saved content, so delete it instead of
+         // moving it to the recycle bin.
+         AutoSaveUtils.deleteAutoSaveFile(entry, principal);
       }
       catch(Exception ex) {
          if(ex instanceof ConfirmException) {

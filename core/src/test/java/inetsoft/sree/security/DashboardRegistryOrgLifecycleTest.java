@@ -444,6 +444,7 @@ class DashboardRegistryOrgLifecycleTest {
       DashboardRegistry registry = dashboardRegistryManager.getRegistry(orgId);
       registry.addDashboard(dashboardName, newVsDashboard(vsOrgId, null));
       registry.save();
+      detachFileWatch(registry);
    }
 
    private void seedUserDashboard(IdentityID user, String dashboardName, String vsOrgId,
@@ -452,6 +453,34 @@ class DashboardRegistryOrgLifecycleTest {
       DashboardRegistry registry = dashboardRegistryManager.getRegistry(user);
       registry.addDashboard(dashboardName, newVsDashboard(vsOrgId, vsUserName));
       registry.save();
+      detachFileWatch(registry);
+   }
+
+   /**
+    * Remove the seeded registry's data space change listener (Bug #75793).
+    *
+    * <p>DashboardRegistry watches its backing dashboard-registry.xml and, on change, reset()s
+    * dashboardsMap and re-loads it from the file at its *current* path. Those change events are
+    * delivered asynchronously (LocalKeyValueStorage.ListenerDelegate hands off to
+    * ThreadPool.addOnDemand, which submits to BlobStorage's single-thread eventExecutor), so the
+    * event for the seeding save() above can land at an arbitrary later point -- including in the
+    * middle of DashboardRegistryManager.migrateRegistry(), which mutates the registry in memory
+    * (migrateVSDashboard rewrites the embedded viewsheet's org segment), re-points the listener at
+    * the new org's path (modifyOrgId) and only then save()s. A late callback landing before
+    * modifyOrgId reverts the in-memory rewrite from the old file, so the new file is written with
+    * the *old* org id; one landing between modifyOrgId and save() re-loads from the new path, which
+    * does not exist yet, leaving an empty map that is then saved as an empty registry. Both were
+    * observed intermittently, and only when the JVM is busy enough to delay delivery, i.e. when the
+    * whole security package runs in one surefire JVM.
+    *
+    * <p>clear() unregisters the listener, so any pending or later event is a no-op for this
+    * instance. The instance stays in the manager's cache, so the code under test still operates on
+    * this same object -- evicting it (DashboardRegistryManager.clear()) would instead have
+    * migrateRegistry() re-load a fresh instance that registers a new listener on the same path,
+    * which would leave the race open.
+    */
+   private static void detachFileWatch(DashboardRegistry registry) {
+      registry.clear();
    }
 
    private VSDashboard newVsDashboard(String orgId, String userName) {

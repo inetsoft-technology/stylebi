@@ -720,6 +720,9 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
    {
       try {
          XPrincipal principal = (XPrincipal) ThreadContext.getPrincipal();
+         // may be null when not running on a request thread, e.g. tests, scheduler, import
+         IdentityID principalIdentity =
+            principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
 
          if(oldID.equals(newID) && !removed && Tool.equals(oldOrgID, newOrgID)) {
             return;
@@ -860,7 +863,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
                   userGroupCache.invalidate(userIdentity);
                   userRoleCache.invalidateAll();
 
-                  if(Tool.equals(userIdentity, IdentityID.getIdentityIDFromKey(principal.getName()))) {
+                  if(principalIdentity != null && Tool.equals(userIdentity, principalIdentity)) {
                      principal.setRoles(Tool.remove(principal.getRoles(), oldID));
                   }
                }

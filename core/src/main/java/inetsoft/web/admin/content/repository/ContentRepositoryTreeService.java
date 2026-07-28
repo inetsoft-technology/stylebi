@@ -52,6 +52,8 @@ import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -441,9 +443,10 @@ public class ContentRepositoryTreeService {
             long lastModify = AutoSaveUtils.getLastModified(file, principal);
 
             // if the auto save file in recycle bin is large than one week, remove it and do not show
-            // it.
+            // it. deleteAutoSaveFile() adds the recycle bin prefix to the name, so pass the name
+            // of the file instead of its path.
             if(lastWeek > lastModify) {
-               AutoSaveUtils.deleteAutoSaveFile(file, principal);
+               AutoSaveUtils.deleteAutoSaveFile(asset, principal);
                continue;
             }
 
@@ -476,7 +479,7 @@ public class ContentRepositoryTreeService {
                }
 
                ContentRepositoryTreeNode node = ContentRepositoryTreeNode.builder()
-                  .label(name)
+                  .label(denormalizeAssetName(name))
                   .path(asset)
                   .fullPath(asset)
                   .type(typeValue)
@@ -502,6 +505,29 @@ public class ContentRepositoryTreeService {
       addUserNodes(users, map, userNodes);
 
       return userNodes;
+   }
+
+   /**
+    * Reverse the escaping applied by Tool.normalizeFileName() when the asset path was written to
+    * the name of an auto save file, so that the tree shows the real asset path. Auto saved files
+    * of sheets that have been saved to a folder contain an escaped path separator.
+    */
+   private static String denormalizeAssetName(String name) {
+      if(name == null || name.indexOf('_') < 0) {
+         return name;
+      }
+
+      Matcher matcher = NORMALIZED_CHAR.matcher(name);
+      StringBuilder buffer = new StringBuilder();
+      int index = 0;
+
+      while(matcher.find()) {
+         buffer.append(name, index, matcher.start())
+            .append((char) Integer.parseInt(matcher.group(1)));
+         index = matcher.end();
+      }
+
+      return buffer.append(name.substring(index)).toString();
    }
 
    private void addUserNodes(List<String> users, HashMap<String,
@@ -2101,6 +2127,9 @@ public class ContentRepositoryTreeService {
 
    public static final String RECYCLE_BIN_FOLDER = "Recycle Bin";
    private static final Logger LOG = LoggerFactory.getLogger(ContentRepositoryTreeService.class);
+   // the characters escaped by Tool.normalizeFileName()
+   private static final Pattern NORMALIZED_CHAR =
+      Pattern.compile("_(34|42|44|47|58|59|60|62|63|92|124)_");
 
    private static final class UserNodes {
       UserNodes(IdentityID user) {
