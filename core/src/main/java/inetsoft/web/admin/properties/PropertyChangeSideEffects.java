@@ -88,8 +88,11 @@ public class PropertyChangeSideEffects {
    private void removeLogLevel(String property) {
       String value = SreeEnv.getProperty(property);
 
+      // "off".equals(value), not value.equals("off"): a log.*.level.* property that was never
+      // set has a null value here, and the admin-chat path can name one directly (the EM UI's
+      // log-level dropdown only offers properties that already have a value).
       if(Tool.isEmptyString(property) || !property.startsWith("log.") ||
-         !property.contains(".level.") || value.equals("off"))
+         !property.contains(".level.") || "off".equals(value))
       {
          return;
       }

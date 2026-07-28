@@ -175,6 +175,20 @@ class PropertyChangeSideEffectsTest {
       verify(logManager, never()).setContextLevel(any(), any(), any());
    }
 
+   // [log level property never set] does not throw -- the property matches the log.*.level.*
+   // shape but has no value, so the "already off" check must be null-safe. The admin-chat path
+   // can name such a property directly, where the EM UI's dropdown could not.
+   @Test
+   void applyPreRemoveSideEffects_logLevelPropertyNeverSet_doesNotThrow() {
+      String property = "log.USER.level.never_configured";
+      sreeEnvStatic.when(() -> SreeEnv.getProperty(property)).thenReturn(null);
+      when(logManager.getContextLevels()).thenReturn(List.of());
+
+      assertDoesNotThrow(() -> sideEffects.applyPreRemoveSideEffects(property));
+
+      verify(logManager, never()).setContextLevel(any(), any(), any());
+   }
+
    // -------------------------------------------------------------------------
    // applyPostRemoveSideEffects (exposedefault fire only -- must run after SreeEnv.save())
    // -------------------------------------------------------------------------
