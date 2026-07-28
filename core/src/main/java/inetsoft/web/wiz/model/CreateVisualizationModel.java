@@ -100,7 +100,9 @@ public class CreateVisualizationModel {
     *       replaced (the UI-click flow leaves this false to keep its existing delete-and-replace
     *       behavior).</li>
     * </ul>
-    * Default false (in-place / delete-and-replace, the existing behavior) in both paths.
+    * Default false (in-place / delete-and-replace, the existing behavior) in both paths. Not
+    * consulted by the standard path when {@link #getAssemblyName()} names an assembly to replace —
+    * see that field's javadoc.
     */
    public boolean isCopy() {
       return copy;
@@ -111,16 +113,29 @@ public class CreateVisualizationModel {
    }
 
    /**
-    * Which chart the "modificationOnly" path acts on (see
+    * Which existing chart this call addresses, by name (see
     * {@code WizVsService.createViewsheetInternal}). Null — the default and every pre-existing
     * caller — means the viewsheet's current PRIMARY assembly, i.e. the chart created or copied most
     * recently.
     *
-    * <p>Naming one is required when the caller edits a chart that is NOT the newest: in a
-    * multi-chart conversation a filter built against an earlier chart's fields would otherwise be
-    * applied to a different chart, which at best filters the wrong chart and at worst references
-    * columns that chart does not bind. Ignored outside the modificationOnly path (the standard
-    * create/rebind path produces its own fresh assembly).
+    * <p>Naming one is required whenever the caller acts on a chart that is NOT the newest. A
+    * session shares one viewsheet/runtime across all turns, so "whichever assembly is primary" is
+    * always the latest turn's chart, not necessarily the one the user targeted. What the named
+    * chart is used FOR depends on which path the call takes — the two are mutually exclusive, so
+    * one field serves both:
+    * <ul>
+    *   <li>"modificationOnly" path ({@link #getConfig()}/{@link #getPrimaryAssembly()} null and
+    *       {@link #getConditionModel()} set) — the chart to MODIFY (the source the condition is
+    *       applied to, or duplicated from when {@link #isCopy()}). Without it, a filter built
+    *       against an earlier chart's fields lands on a different chart, which at best filters the
+    *       wrong chart and at worst references columns that chart does not bind.</li>
+    *   <li>Standard create/rebind path — the chart to REPLACE in place: the new assembly is added
+    *       under this same name with the old one's exact primary state carried over, and no other
+    *       assembly's primary flag is touched. Used for changeType on a non-current (historical)
+    *       card. {@link #isCopy()} is not consulted in this mode (see
+    *       {@code createViewsheetInternal}): replacing one specific historical card by name should
+    *       not also duplicate it.</li>
+    * </ul>
     */
    public String getAssemblyName() {
       return assemblyName;
@@ -143,24 +158,6 @@ public class CreateVisualizationModel {
       this.sampleMaxRows = sampleMaxRows;
    }
 
-   /**
-    * When set, the standard create/rebind path (see {@code WizVsService.createViewsheetInternal})
-    * replaces THIS SPECIFIC named assembly in place, instead of whichever assembly currently
-    * {@code isPrimary()}: the new assembly is added under the same name with the old one's exact
-    * primary state carried over (untouched either way), and no other assembly's primary flag is
-    * touched. Used for changeType on a non-current (historical) card — a session shares one
-    * viewsheet/runtime across all turns, so "replace whichever is primary" would hit the latest
-    * turn's chart instead of the one the user actually clicked. Ignored ({@link #isCopy()} governs
-    * instead) when null/empty, which is the default.
-    */
-   public String getTargetAssemblyName() {
-      return targetAssemblyName;
-   }
-
-   public void setTargetAssemblyName(String targetAssemblyName) {
-      this.targetAssemblyName = targetAssemblyName;
-   }
-
    private String visualizationType;
    private VisualizationConfig config;
    private String runtimeId;
@@ -171,5 +168,4 @@ public class CreateVisualizationModel {
    private transient VSAssembly primaryAssembly;
    private transient boolean keepCondition;
    private boolean copy;
-   private String targetAssemblyName;
 }

@@ -1068,10 +1068,11 @@ public class WizVsService {
          String copyNote = null;
          VSAssembly demotedOriginal = null;
          VSAssembly rollbackCopy = null;
-         // Targeted replace (model.getTargetAssemblyName(), standard path only): the specific
-         // assembly being swapped out, and its primary state to carry over — set only when this
-         // mode is used, in which case previousPrimaryAssembly stays null (they are mutually
-         // exclusive ways of tracking "what was displaced").
+         // Targeted replace (model.getAssemblyName(), standard path only — the modificationOnly
+         // branch below reads the same field as the chart to MODIFY instead): the specific assembly
+         // being swapped out, and its primary state to carry over — set only when this mode is
+         // used, in which case previousPrimaryAssembly stays null (they are mutually exclusive ways
+         // of tracking "what was displaced").
          VSAssembly replacedAssembly = null;
          boolean replacedWasPrimary = false;
 
@@ -1154,7 +1155,9 @@ public class WizVsService {
                targetVs.setBaseEntry(ctx.sourceWs());
             }
 
-            String targetAssemblyName = model.getTargetAssemblyName();
+            // In this (standard) path the named assembly is the one to REPLACE in place; the
+            // modificationOnly branch above reads the same field as the chart to modify.
+            String targetAssemblyName = model.getAssemblyName();
             VSAssembly existingTarget = null;
 
             if(!Tool.isEmptyString(targetAssemblyName)) {
@@ -1196,9 +1199,9 @@ public class WizVsService {
                // Targeted replace: swap in the new assembly under the SAME name, carrying over the
                // old one's exact primary state — no other assembly is touched either way.
                // model.isCopy() is NOT consulted here (only in the else branch below, via
-               // previousPrimaryAssembly): a caller that sets both targetAssemblyName and copy=true
-               // gets copy silently bypassed — replacing one specific historical card by name should
-               // not also duplicate it. See CreateVisualizationModel.getTargetAssemblyName()'s javadoc.
+               // previousPrimaryAssembly): a caller that sets both assemblyName and copy=true gets
+               // copy silently bypassed — replacing one specific historical card by name should not
+               // also duplicate it. See CreateVisualizationModel.getAssemblyName()'s javadoc.
                replacedAssembly = existingTarget;
                replacedWasPrimary = existingTarget.isPrimary();
                targetVs.removeAssembly(targetAssemblyName);
