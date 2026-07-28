@@ -248,7 +248,7 @@ public class MockCluster implements Cluster {
 
    @Override
    public <K, V> void addMapListener(String name, MapChangeListener<K, V> l) {
-      mapListeners.computeIfAbsent(name, k -> new ArrayList<>()).add(l);
+      mapListeners.computeIfAbsent(name, k -> new CopyOnWriteArrayList<>()).add(l);
    }
 
    @Override
@@ -1051,7 +1051,7 @@ public class MockCluster implements Cluster {
          EntryEvent<?, ?> event = null;
 
          for(MapChangeListener<?, ?> listener :
-            mapListeners.computeIfAbsent(name, k -> new ArrayList<>()))
+            mapListeners.computeIfAbsent(name, k -> new CopyOnWriteArrayList<>()))
          {
             if(event == null) {
                event = supplier.get();
