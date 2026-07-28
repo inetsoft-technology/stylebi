@@ -4074,21 +4074,35 @@ public final class VSEventUtil {
    }
 
    /**
-    * Delete auto saved file.
-    * 1 for saved dashboard, keep old logic, delete auto save file when select no.
-    * 2 for untitled dashboard, select no will move auto save file to recycle bin.
+    * Discard the auto saved file of a sheet by moving it to the recycle bin, so that it can
+    * still be recovered from the enterprise manager. This is called when the auto saved content
+    * is thrown away, i.e. when the sheet is closed, when it is opened without restoring the auto
+    * saved content, and when the stored sheet is loaded in place of it
+    * (AbstractAssetEngine.getSheet). When the sheet is saved the auto saved content is superseded
+    * instead of discarded, so the save paths delete the file rather than calling this method.
+    * An entry that already refers to a file in the recycle bin is ignored.
     */
    public static void deleteAutoSavedFile(AssetEntry entry, Principal user) {
-      if(entry.getScope() != AssetRepository.TEMPORARY_SCOPE) {
-         AutoSaveUtils.deleteAutoSaveFile(entry, user);
+      // an entry that carries the name of an existing auto save file, i.e. one created by
+      // AutoSaveUtils.createAssetEntry() for the recycle bin, already refers to a discarded file,
+      // so there is nothing to discard. the name embeds the user and ip address of the session
+      // that created it and can not be recreated from the current user, so moving it again would
+      // only orphan it under a name attributed to the wrong user.
+      if(entry.getProperty("autoFileName") != null) {
          return;
       }
 
-      String savefile = AutoSaveUtils.getAutoSavedFile(entry, user);
+      // called while loading a sheet, so never let a storage failure fail the caller
+      try {
+         String savefile = AutoSaveUtils.getAutoSavedFile(entry, user);
 
-      if(AutoSaveUtils.exists(savefile, user)) {
-         String recyclefile = AutoSaveUtils.getAutoSavedFile(entry, user, true);
-         AutoSaveUtils.renameAutoSaveFile(savefile, recyclefile, user);
+         if(AutoSaveUtils.exists(savefile, user)) {
+            String recyclefile = AutoSaveUtils.getAutoSavedFile(entry, user, true);
+            AutoSaveUtils.renameAutoSaveFile(savefile, recyclefile, user);
+         }
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to move the auto save file to the recycle bin: {}", entry, e);
       }
    }
 
