@@ -128,6 +128,35 @@ class FavoritesServiceTest {
    }
 
    @Test
+   void copyFavorites_presentEntry_copiesToNewKeyWithoutRemovingSource() {
+      FavoriteList list = listOf(favorite("Users", "/settings/security/users"));
+      when(storage.get("alice~;~org1")).thenReturn(list);
+
+      service.copyFavorites("alice~;~org1", "alice~;~org2");
+
+      verify(storage).put("alice~;~org2", list);
+      verify(storage, never()).remove(anyString());
+   }
+
+   @Test
+   void copyFavorites_noEntry_doesNothing() {
+      when(storage.get("alice~;~org1")).thenReturn(null);
+
+      service.copyFavorites("alice~;~org1", "alice~;~org2");
+
+      verify(storage, never()).put(anyString(), any());
+   }
+
+   @Test
+   void copyFavorites_storageFailure_doesNotThrow() throws Exception {
+      when(storage.get("alice~;~org1"))
+         .thenReturn(listOf(favorite("Users", "/settings/security/users")));
+      when(storage.put(anyString(), any())).thenReturn(failing());
+
+      assertDoesNotThrow(() -> service.copyFavorites("alice~;~org1", "alice~;~org2"));
+   }
+
+   @Test
    void removeFavorites_identities_removesEachKey() {
       IdentityID alice = new IdentityID("alice", "org1");
       IdentityID bob = new IdentityID("bob", "org2");

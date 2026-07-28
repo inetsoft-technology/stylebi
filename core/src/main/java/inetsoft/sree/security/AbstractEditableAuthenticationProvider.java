@@ -194,7 +194,7 @@ public abstract class AbstractEditableAuthenticationProvider
 
       for(IdentityID userID : getUsers()) {
          if(getUser(userID).getOrganizationID().equals(fromOrgId)) {
-            IdentityID newID = copyUserToOrganization(userID, newOrgID, fromOrgId, identityService, principal, defaultPassword);
+            IdentityID newID = copyUserToOrganization(userID, newOrgID, fromOrgId, identityService, principal, defaultPassword, replace);
 
             if(newID != null && !newID.name.isEmpty()) {
                addedMembers.add(newID);
@@ -669,11 +669,12 @@ public abstract class AbstractEditableAuthenticationProvider
       }
    }
 
-   private IdentityID copyUserToOrganization(IdentityID memberID, String orgID, String fromOrgID, IdentityService identityService, Principal principal, String defaultPassword) {
+   private IdentityID copyUserToOrganization(IdentityID memberID, String orgID, String fromOrgID, IdentityService identityService, Principal principal, String defaultPassword, boolean replace) {
       User fromUser = getUser(memberID);
 
       if(fromUser != null) {
          IdentityID newID = new IdentityID(memberID.name, orgID);
+         identityService.copyUserFavorites(memberID, newID, replace);
 
          FSUser newUser = new FSUser(newID);
          newUser.setGroups(fromUser.getGroups());

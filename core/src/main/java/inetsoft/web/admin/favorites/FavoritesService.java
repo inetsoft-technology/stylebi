@@ -116,6 +116,27 @@ public class FavoritesService {
    }
 
    /**
+    * Copies the EM favorites entry from one identity key to another, leaving the source
+    * entry intact, e.g. when an organization is cloned and its members are copied into the
+    * new organization. Does nothing if there is no entry for {@code fromKey}.
+    *
+    * @param fromKey the source identity key.
+    * @param toKey   the target identity key.
+    */
+   public void copyFavorites(String fromKey, String toKey) {
+      FavoriteList list = favorites.get(fromKey);
+
+      if(list != null) {
+         try {
+            favorites.put(toKey, list).get(10L, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException | ExecutionException | TimeoutException e) {
+            LOG.error("Failed to copy favorites from {} to {}", fromKey, toKey, e);
+         }
+      }
+   }
+
+   /**
     * Removes the EM favorites entries for the given identities, so they are not left
     * orphaned after the identities are deleted.
     *
