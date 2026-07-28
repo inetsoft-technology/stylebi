@@ -1585,6 +1585,13 @@ public class WorksheetTableService {
 
       if(!info.isEmpty()) {
          table.setAggregateInfo(info);
+         // isAggregate() requires BOTH a non-empty AggregateInfo AND this separate flag
+         // (AbstractTableAssembly.isAggregate() checks getTableInfo().isAggregate()).
+         // setAggregateInfo() alone does not set it, so without this the table is left in
+         // "has aggregates, but isAggregate()==false" — an inconsistent state that survives
+         // fine standalone but gets normalized away (silently dropping the AggregateInfo)
+         // once the table is later resolved/merged into a dashboard viewsheet binding.
+         table.setAggregate(true);
          table.setColumnSelection(privateCs, false);
       }
    }

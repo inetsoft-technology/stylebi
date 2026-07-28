@@ -44,8 +44,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Regression coverage for a live bug: when two charts merged into the same dashboard both bind
@@ -290,5 +292,154 @@ class WsMergeServiceTest {
       assertNotNull(publicCols.getAttribute("date_order"),
          "the genuine underlying raw column the aggregation reads from must still be merged, so " +
          "the shared base can supply it to whatever mirror stacks on it");
+   }
+
+   /**
+    * Regression for a THIRD, additional hardening in the same merge path (found after the two
+    * above were already fixed and re-verified live): the condMirror stacked for a chart's own
+    * conditions/aggregation only had its PUBLIC column selection set
+    * ({@code condMirror.setColumnSelection(..., true)}), never its PRIVATE one. Some validation
+    * paths regenerate a table's public selection FROM its private one, which -- left at its
+    * default-empty state -- would silently drop every aggregate output. Not confirmed as the
+    * actual live crash mechanism (see the isAggregate() tests below for that), but a real,
+    * independently-justified hardening matching the SAME "public without private" pattern this
+    * file's very first test already covers for mergeColumns.
+    */
+   @Test
+   void condMirrorGetsBothPublicAndPrivateColumnSelection() {
+      Worksheet dashWS = new Worksheet();
+      dashWS.addAssembly(physicalTable(dashWS, "PT", "date_order", "amount_total", "id"));
+
+      Worksheet vizWS = new Worksheet();
+      vizWS.addAssembly(physicalTableWithGroupedAggregate(
+         vizWS, "PT", "date_order", "Quarter(date_order)", "order_count", AggregateFormula.COUNT_ALL));
+
+      Map<String, String> wsRenameMap = service.mergeWorksheet(vizWS, dashWS, "suffix1", new HashMap<>());
+
+      String condMirrorName = wsRenameMap.get("PT");
+      assertNotNull(condMirrorName, "expected the second chart's table to be mapped to a merged name");
+      TableAssembly condMirror = (TableAssembly) dashWS.getAssembly(condMirrorName);
+      assertNotNull(condMirror);
+
+      ColumnSelection privateCols = condMirror.getColumnSelection(false);
+      assertNotNull(privateCols.getAttribute("order_count"),
+         "condMirror's PRIVATE selection must carry the aggregate's own output name -- otherwise " +
+         "a later resetColumnSelection() (regenerating public FROM private) silently drops it, " +
+         "even though the public selection alone looked correct right after the merge");
+      assertNotNull(privateCols.getAttribute("Quarter(date_order)"),
+         "same for the group's own output name");
+      assertNotNull(privateCols.getAttribute("date_order"),
+         "and the genuine underlying raw column the aggregation reads from");
+
+      ColumnSelection publicCols = condMirror.getColumnSelection(true);
+      assertNotNull(publicCols.getAttribute("order_count"));
+      assertNotNull(publicCols.getAttribute("Quarter(date_order)"));
+   }
+
+   /**
+    * Regression for a genuine (if incomplete on its own) correctness gap found while chasing the
+    * "Aggregate not found: avg_order_value" live crash: {@link AbstractTableAssembly#isAggregate()}
+    * short-circuits to {@code false} when {@code getAggregateInfo().isEmpty()}, but when the info
+    * is NOT empty, it ALSO requires a SEPARATE flag ({@code TableAssemblyInfo.isAggregate}, default
+    * false) to be true -- {@code setAggregateInfo} alone never sets it. Keeping this flag
+    * consistent with the info's own emptiness is correct regardless of the mergeMirrorColumns
+    * side-effect below (see that test for the mechanism that fully explained the live crash).
+    */
+   @Test
+   void prevMirrorAndCondMirrorIsAggregateFlagStaysConsistentWithTheirAggregateInfo() {
+      Worksheet dashWS = new Worksheet();
+      // First chart onto this physical table carries ITS OWN non-empty AggregateInfo (the
+      // shape that becomes prevMirror once a second chart merges against it).
+      dashWS.addAssembly(physicalTableWithGroupedAggregate(
+         dashWS, "PT", "date_order", "Quarter(date_order)", "order_count", AggregateFormula.COUNT_ALL));
+
+      Worksheet vizWS = new Worksheet();
+      vizWS.addAssembly(physicalTableWithGroupedAggregate(
+         vizWS, "PT", "date_order", "Quarter(date_order)", "avg_order_value", AggregateFormula.AVG));
+
+      Map<String, String> wsRenameMap = service.mergeWorksheet(vizWS, dashWS, "suffix1", new HashMap<>());
+
+      TableAssembly prevMirror = (TableAssembly) dashWS.getAssembly("PT");
+      assertNotNull(prevMirror, "expected a prevMirror named 'PT' to be created");
+      assertFalse(prevMirror.getAggregateInfo().isEmpty(), "prevMirror should inherit the first chart's own aggregation");
+      assertTrue(prevMirror.isAggregate(),
+         "prevMirror.isAggregate() must be true when its AggregateInfo is non-empty -- setAggregateInfo " +
+         "alone does not set this separate flag, and leaving it false lets the worksheet persist/reload " +
+         "path silently drop the AggregateInfo (confirmed live)");
+
+      String condMirrorName = wsRenameMap.get("PT");
+      assertNotNull(condMirrorName);
+      TableAssembly condMirror = (TableAssembly) dashWS.getAssembly(condMirrorName);
+      assertNotNull(condMirror);
+      assertFalse(condMirror.getAggregateInfo().isEmpty());
+      assertTrue(condMirror.isAggregate(), "same requirement for condMirror's own aggregation");
+   }
+
+   /**
+    * Regression for the actual, final root cause of the "Aggregate not found: avg_order_value"
+    * live crash (all four fixes/hardenings above were real but insufficient on their own).
+    * {@link WsMergeService#ensureBaseHasPrevMirror} used to give prevMirror's own AggregateInfo
+    * refs the SAME bare DataRef names as the original (pre-merge) chart's table -- e.g. a bare
+    * "order_count" -- even though {@code mergeMirrorColumns} may separately need to add a
+    * differently-qualified ("PT_base.order_count") column to prevMirror's own selection for a
+    * LATER chart sharing the table. That left prevMirror internally inconsistent: its
+    * AggregateInfo pointed at a bare name while its own selection only carried the qualified one.
+    * This mismatch was invisible in-memory (compose-time code never re-validates existing refs),
+    * but StyleBI's OWN generic query engine (AssetQuery#createAssetQuery, invoked for EVERY table
+    * on EVERY viewsheet open via AssetQuerySandbox#refreshColumnSelection -- completely
+    * independent of this class) independently re-resolves a mirror's aggregate columns down to
+    * their base table using this SAME outer-attribute qualification, then calls
+    * table.setColumnSelection(..., false), which triggers AggregateInfo#validate() against the
+    * newly-qualified selection. Confirmed live: prevMirror's own AggregateInfo read back correctly
+    * (2 aggregates) immediately after compose, but a FRESH viewsheet open of the SAVED dashboard
+    * (reproducing the user-visible crash) read back only the group -- both aggregates silently
+    * dropped, because their bare-named refs no longer matched the query engine's own re-qualified
+    * selection, while the group survived because groups are never routed through that same
+    * base-resolution step. Fix: qualify prevMirror's own AggregateInfo aggregate refs (not
+    * groups) with the SAME outer-attribute naming up front, and keep prevMirror's own column
+    * selection in sync, so the query engine's independent re-derivation always finds a match.
+    */
+   @Test
+   void prevMirrorAggregateRefsAreOuterAttributeQualifiedToMatchTheQueryEnginesOwnResolution() {
+      Worksheet dashWS = new Worksheet();
+      // First chart onto this physical table carries its own group + aggregate -- becomes
+      // prevMirror once a second chart merges against it.
+      dashWS.addAssembly(physicalTableWithGroupedAggregate(
+         dashWS, "PT", "date_order", "Quarter(date_order)", "order_count", AggregateFormula.COUNT_ALL));
+
+      // Second chart sharing the same physical source triggers ensureBaseHasPrevMirror's
+      // promotion of "PT" to prevMirror + "PT_base".
+      Worksheet vizWS = new Worksheet();
+      vizWS.addAssembly(physicalTableWithGroupedAggregate(
+         vizWS, "PT", "date_order", "Quarter(date_order)", "avg_order_value", AggregateFormula.AVG));
+
+      service.mergeWorksheet(vizWS, dashWS, "suffix1", new HashMap<>());
+
+      TableAssembly prevMirror = (TableAssembly) dashWS.getAssembly("PT");
+      assertNotNull(prevMirror, "expected a prevMirror named 'PT' to be created");
+
+      AggregateInfo prevAggr = prevMirror.getAggregateInfo();
+      assertEquals(1, prevAggr.getAggregateCount());
+      String aggregateRefName = prevAggr.getAggregate(0).getName();
+      assertEquals("PT_base.order_count", aggregateRefName,
+         "prevMirror's own AggregateRef must be qualified with the base table's name -- matching " +
+         "the SAME outer-attribute shape AssetQuery#createAssetQuery independently re-derives for " +
+         "this mirror's aggregate columns on every viewsheet open, so that re-derivation finds a " +
+         "match instead of silently dropping the aggregate as unresolvable");
+
+      // The group must stay BARE -- groups are read directly off the mirror (no aggregation
+      // needed), so the query engine never re-qualifies them; qualifying it too would just
+      // break the group instead of fixing anything.
+      assertEquals(1, prevAggr.getGroupCount());
+      assertEquals("Quarter(date_order)", prevAggr.getGroup(0).getName(),
+         "prevMirror's own GroupRef must stay bare -- the query engine never re-qualifies groups, " +
+         "so qualifying this one would only break it");
+
+      // prevMirror's own column selection must carry a matching entry under the SAME qualified
+      // name the AggregateRef now points at -- otherwise the ref and the selection disagree.
+      ColumnSelection prevMirrorPrivate = prevMirror.getColumnSelection(false);
+      assertNotNull(prevMirrorPrivate.getAttribute(aggregateRefName),
+         "prevMirror's own private column selection must contain an entry matching its own " +
+         "AggregateRef's (now-qualified) name");
    }
 }

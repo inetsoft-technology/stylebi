@@ -5300,11 +5300,24 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          return false;
       }
 
-      // break dependency cycle
+      // Already a mirror under this bare name -- the goal of this method (ensure the bare
+      // name a VS chart binds to is a mirror, not a directly-shared raw table) is already
+      // satisfied, regardless of what created it or what it wraps. The narrower check this
+      // replaced (matching only this method's own "{name}+OUTER_TABLE_SUFFIX" naming
+      // convention) misses mirrors created by OTHER code — e.g. a wiz dashboard's own
+      // prevMirror (WsMergeService#ensureBaseHasPrevMirror), which uses a "{name}_base"
+      // convention for what it wraps. Without this broader check, re-running this method
+      // (createMirrorTables runs on every repopulateWorksheet, i.e. once per chart merged
+      // into a wiz dashboard, and rescans EVERY VS assembly's table name every time, not
+      // just the newly-added one) renames that prevMirror out of the way and wraps it in a
+      // brand-new, empty-AggregateInfo mirror under the bare name every single time a later
+      // chart is merged — repeatedly re-wrapping deeper each time and eventually leaving the
+      // first chart's own VS binding pointing at emptied-out columns instead of the
+      // aggregation prevMirror was set up to carry. Confirmed live: a wiz dashboard's first
+      // chart crashed rendering with "Aggregate not found: <name>" only once enough
+      // additional charts sharing its physical table had been merged in afterward.
       if(table instanceof MirrorTableAssembly) {
-         if(nname.equals(((MirrorTableAssembly) table).getAssemblyName())) {
-            return false;
-         }
+         return false;
       }
 
       table.setVisible(false);

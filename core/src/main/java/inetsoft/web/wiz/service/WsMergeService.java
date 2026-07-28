@@ -90,15 +90,9 @@ public class WsMergeService {
             BoundTableAssembly existingTable = findMergeableTable(dashWS, srcBound);
 
             if(existingTable != null) {
-               ensureBaseHasPrevMirror(dashWS, existingTable, vsRenameMap);
+               String prevMirrorName = ensureBaseHasPrevMirror(dashWS, existingTable, vsRenameMap);
                mergeColumns(existingTable, srcBound);
-               // renameAssembly (called inside ensureBaseHasPrevMirror) mutates the
-               // assembly name in-place, so existingTable.getName() now returns the
-               // new "_base"-suffixed name.
                String baseName = existingTable.getName();
-               String prevMirrorName = baseName.endsWith("_base")
-                  ? baseName.substring(0, baseName.length() - 5)
-                  : baseName;
 
                Assembly prevAssembly = dashWS.getAssembly(prevMirrorName);
                // Use instanceof guard rather than a raw cast: a name collision could place a
@@ -120,7 +114,46 @@ public class WsMergeService {
                // prevMirror's column selection so stacked mirrors (condMirror / cleanMirror)
                // can see all columns transitively, even when they override their own selection.
                // This runs unconditionally before the branch so any code path below benefits.
+               //
+               // Snapshot/restore prevMirror's own AggregateInfo around this call: setColumnSelection
+               // (the false/private overload) internally calls AggregateInfo#validate(newSelection),
+               // which REMOVES any group/aggregate whose ref doesn't resolve against the newly-set
+               // selection (AggregateInfo.java's groups.remove(i) / aggregates.remove(i)). prevMirror's
+               // own aggregation predates and is unrelated to the column-selection expansion this
+               // method does for DOWNSTREAM stacked mirrors -- but since mergeMirrorColumns runs again
+               // for EVERY later chart that shares this physical table (not just the one that created
+               // prevMirror), each such call silently re-validates prevMirror's groups/aggregates
+               // against the rebuilt selection and can strip them, emptying prevMirror's AggregateInfo
+               // entirely. Confirmed live with targeted diagnostic logging: prevMirror's own
+               // AggregateInfo was genuinely non-empty immediately after ensureBaseHasPrevMirror set
+               // it, but read back EMPTY after this exact call ran for the very next chart sharing the
+               // table -- crashing that chart's own graph render with "Aggregate not found: ..." the
+               // next time its dashboard tile was opened as primary, even though nothing about that
+               // chart itself changed. The column-selection expansion mergeMirrorColumns performs is
+               // still needed (downstream joins/mirrors read from prevMirror's column list), so restore
+               // the aggregation afterward rather than skip the call.
+               AggregateInfo prevMirrorAggrBefore = (AggregateInfo) prevMirror.getAggregateInfo().clone();
                mergeMirrorColumns(prevMirror, baseName, existingTable.getColumnSelection(true));
+               // Do NOT simply clone-and-restore prevMirrorAggrBefore here: its group/aggregate
+               // refs point at the ColumnRef instances that existed BEFORE mergeMirrorColumns
+               // ran, which — for a group/aggregate whose column didn't already exist bare in
+               // prevMirror's own selection — mergeMirrorColumns just replaced with a freshly
+               // added, OUTER-ATTRIBUTE-QUALIFIED column (e.g. "sale_order_base.order_count"
+               // instead of bare "order_count"). A plain restore leaves refs pointing at a name
+               // no longer present in prevMirror's own (now expanded) selection. That in-memory
+               // mismatch is harmless immediately (the stale ref objects still work by identity),
+               // but is NOT harmless across a save/reload: confirmed live, prevMirror's group
+               // ("Quarter(date_order)", whose bare name happened to already be present pre-merge
+               // and so was untouched) survived a reload while its aggregates ("order_count",
+               // "avg_order_value" — bare names that were NOT already present, so got replaced by
+               // qualified duplicates) did not — something in the persist/reload path re-validates
+               // each ref against the CURRENT column selection and silently drops any that no
+               // longer resolve by name, exactly like AggregateInfo#validate() does at set time.
+               // Rebuild each ref against whatever column actually carries its name in prevMirror's
+               // OWN CURRENT (post-merge) selection instead, trying the qualified name too.
+               prevMirror.setAggregateInfo(
+                  rebindAggregateInfo(prevMirrorAggrBefore, prevMirror.getColumnSelection(false), baseName));
+               prevMirror.setAggregate(!prevMirror.getAggregateInfo().isEmpty());
 
                ConditionListWrapper srcPre = srcBound.getPreConditionList();
                ConditionListWrapper srcPost = srcBound.getPostConditionList();
@@ -158,7 +191,22 @@ public class WsMergeService {
                   TableAssembly stackOn = prevHasIncompatibleAggr ? existingTable : prevMirror;
                   String condMirrorName = ensureUniqueName(prevMirrorName, dashWS);
                   MirrorTableAssembly condMirror = new MirrorTableAssembly(dashWS, condMirrorName, stackOn);
+                  // Set BOTH public AND private selection — same "public without private" hazard
+                  // documented on mergeColumns above: AbstractTableAssembly#resetColumnSelection
+                  // regenerates a table's public selection FROM its private one whenever the
+                  // selection is next validated during query construction, which for an
+                  // AGGREGATED mirror happens as a normal part of preparing the aggregate query.
+                  // Leaving condMirror's private selection at its default-empty state meant that
+                  // reset wiped its public selection back down to (at most) the bare group
+                  // dimension, silently dropping every aggregate output ("order_count",
+                  // "avg_order_value") — confirmed live: the chart's own graph render then threw
+                  // "Aggregate not found: avg_order_value" because the executed dataset had only
+                  // one column left. srcBound's own private selection is exactly right here: it
+                  // already carries both the genuine underlying raw column(s) the aggregation
+                  // reads from AND its own group/aggregate output names (see
+                  // mergeableSourceColumns' javadoc for why that's srcBound's private shape).
                   condMirror.setColumnSelection(srcBound.getColumnSelection(true).clone(), true);
+                  condMirror.setColumnSelection(srcBound.getColumnSelection(false).clone(), false);
                   condMirror.setPreConditionList(srcPre != null ? (ConditionListWrapper) srcPre.clone() : new ConditionList());
                   condMirror.setPostConditionList(srcPost != null ? (ConditionListWrapper) srcPost.clone() : new ConditionList());
                   // MirrorTableAssembly.getAggregateInfo() returns its own field, not the
@@ -166,7 +214,13 @@ public class WsMergeService {
                   // "no additional aggregation on this mirror" — it does not suppress
                   // prevMirror's aggregation. Verified: AbstractTableAssembly.getAggregateInfo()
                   // returns ginfo (own field) at all levels; there is no inherited aggregation.
-                  condMirror.setAggregateInfo(srcAggr != null ? (AggregateInfo) srcAggr.clone() : new AggregateInfo());
+                  boolean condHasAggr = srcAggr != null && !srcAggr.isEmpty();
+                  condMirror.setAggregateInfo(condHasAggr ? (AggregateInfo) srcAggr.clone() : new AggregateInfo());
+                  // Same isAggregate()-flag hazard as prevMirror above (see ensureBaseHasPrevMirror)
+                  // — setAggregateInfo alone leaves this separate flag false, and something in the
+                  // worksheet persist/reload path gates on isAggregate(), silently dropping a
+                  // genuinely non-empty AggregateInfo by the time the worksheet reloads.
+                  condMirror.setAggregate(condHasAggr);
                   condMirror.setProperty(PROP_WIZ_MERGED, "true");
                   dashWS.addAssembly(condMirror);
                   wsRenameMap.put(srcBound.getName(), condMirrorName);
@@ -238,6 +292,78 @@ public class WsMergeService {
    }
 
    /**
+    * Rebuilds {@code original}'s groups/aggregates so each ref's underlying DataRef points at
+    * whatever column actually carries its name in {@code currentSelection} — trying the bare
+    * name first, then the outer-attribute-qualified form ({@code baseName + "." + name}, the
+    * shape {@link #mergeMirrorColumns} uses for a column that didn't already exist bare in the
+    * mirror's own selection). A ref that resolves to neither is dropped (logged), rather than
+    * left pointing at a column no longer present in the mirror's own selection — see the call
+    * site in {@link #mergeWorksheet} for why a plain clone-and-restore is not equivalent.
+    */
+   private AggregateInfo rebindAggregateInfo(AggregateInfo original, ColumnSelection currentSelection,
+                                             String baseName)
+   {
+      AggregateInfo rebuilt = new AggregateInfo();
+
+      for(int i = 0; i < original.getGroupCount(); i++) {
+         GroupRef group = (GroupRef) original.getGroup(i).clone();
+         DataRef resolved = resolveByName(currentSelection, group.getName(), baseName);
+
+         if(resolved != null) {
+            group.setDataRef(resolved);
+            rebuilt.addGroup(group);
+         }
+         else {
+            LOG.warn("rebindAggregateInfo: could not resolve group '{}' against prevMirror's " +
+                     "own column selection after merge (base={}); dropping it",
+                     group.getName(), baseName);
+         }
+      }
+
+      for(int i = 0; i < original.getAggregateCount(); i++) {
+         AggregateRef aggr = (AggregateRef) original.getAggregate(i).clone();
+         DataRef resolved = resolveByName(currentSelection, aggr.getName(), baseName);
+
+         if(resolved != null) {
+            aggr.setDataRef(resolved);
+            rebuilt.addAggregate(aggr, false);
+         }
+         else {
+            LOG.warn("rebindAggregateInfo: could not resolve aggregate '{}' against prevMirror's " +
+                     "own column selection after merge (base={}); dropping it",
+                     aggr.getName(), baseName);
+         }
+      }
+
+      return rebuilt;
+   }
+
+   /**
+    * Replaces the entry in {@code cols} named {@code name} (if any) with {@code replacement},
+    * preserving its position. Used to keep an AggregateRef's DataRef and the mirror's own
+    * column selection referencing the SAME qualified ColumnRef instance/name — see
+    * {@link #ensureBaseHasPrevMirror} for why this consistency matters.
+    */
+   private void replaceColumnByName(ColumnSelection cols, String name, ColumnRef replacement) {
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         if(name.equals(cols.getAttribute(i).getName())) {
+            cols.setAttribute(i, replacement);
+            return;
+         }
+      }
+   }
+
+   private DataRef resolveByName(ColumnSelection selection, String name, String baseName) {
+      DataRef found = selection.getAttribute(name);
+
+      if(found != null) {
+         return found;
+      }
+
+      return selection.getAttribute(baseName + "." + name);
+   }
+
+   /**
     * Generates a unique suffix for this merge pass based on the given name and the current
     * number of assemblies in the target worksheet.
     */
@@ -295,21 +421,45 @@ public class WsMergeService {
     * already bound to that name continue to reference the correct filtered view without
     * needing to be updated.</p>
     */
-   private void ensureBaseHasPrevMirror(Worksheet dashWS,
-                                        BoundTableAssembly existingTable,
-                                        Map<String, String> vsRenameMap)
+   private String ensureBaseHasPrevMirror(Worksheet dashWS,
+                                          BoundTableAssembly existingTable,
+                                          Map<String, String> vsRenameMap)
    {
       String baseName = existingTable.getName();
 
       // Check if any wiz mirror already targets this base
-      boolean hasMirror = Arrays.stream(dashWS.getAssemblies())
-         .anyMatch(a -> a instanceof MirrorTableAssembly m &&
+      MirrorTableAssembly wizMirror = Arrays.stream(dashWS.getAssemblies())
+         .filter(a -> a instanceof MirrorTableAssembly m &&
             "true".equals(m.getProperty(PROP_WIZ_MERGED)) &&
-            Objects.equals(m.getAssemblyName(), baseName));
+            Objects.equals(m.getAssemblyName(), baseName))
+         .map(a -> (MirrorTableAssembly) a)
+         .findFirst().orElse(null);
 
-      if(hasMirror) {
-         return; // already promoted in a previous merge
+      if(wizMirror != null) {
+         return wizMirror.getName(); // already promoted in a previous merge
       }
+
+      // StyleBI's OWN Viewsheet machinery (Viewsheet#createMirrorTable, fired synchronously
+      // from dashVS.addAssembly's reset listener the moment a VS chart is added to the
+      // dashboard viewsheet) automatically wraps ANY table a chart binds to in an "outer"
+      // mirror under the table's OWN bare name -- renaming the original table out of the way
+      // first. This runs BEFORE this class ever sees a LATER chart sharing the same physical
+      // source, so by that point the bare name (e.g. "sale_order") is already occupied by
+      // this outer mirror, and `existingTable` found by findMergeableTable (which only
+      // matches BoundTableAssembly) is really the renamed-away original underneath it (e.g.
+      // "sale_order_O") -- NOT the name any VS chart binding actually resolves through.
+      // Creating a fresh prevMirror at existingTable's own name would be orphaned (no VS
+      // binding references it) while the real bare name keeps pointing at this pre-existing,
+      // empty-AggregateInfo pass-through mirror with none of the first chart's own
+      // aggregation -- confirmed live: the first chart's own graph render threw "Aggregate
+      // not found" because the query ran against this orphaned, un-aggregated mirror instead
+      // of a prevMirror carrying its aggregation. Detect this outer mirror and adapt it in
+      // place instead of creating a disconnected, unreachable prevMirror elsewhere.
+      MirrorTableAssembly outerMirror = Arrays.stream(dashWS.getAssemblies())
+         .filter(a -> a instanceof MirrorTableAssembly)
+         .map(a -> (MirrorTableAssembly) a)
+         .filter(m -> Objects.equals(m.getAssemblyName(), baseName))
+         .findFirst().orElse(null);
 
       // Save the original semantics that belong to the first visualization.
       // Guard against null: freshly constructed tables may return null condition lists.
@@ -320,26 +470,95 @@ public class WsMergeService {
       AggregateInfo existingAggr = existingTable.getAggregateInfo();
       AggregateInfo aggr = existingAggr != null ? (AggregateInfo) existingAggr.clone() : new AggregateInfo();
       ColumnSelection origCols = existingTable.getColumnSelection(true).clone();
+      ColumnSelection origPrivateCols = existingTable.getColumnSelection(false).clone();
 
-      // Rename the base to "{name}_base", freeing the original name for the mirror.
-      // renameAssembly updates the registry and calls renameDepended on all assemblies.
-      String newBaseName = baseName + "_base";
-      dashWS.renameAssembly(baseName, newBaseName, true);
+      MirrorTableAssembly prevMirror;
+      String prevMirrorName;
 
-      // Strip conditions/aggregation from the (now-renamed) base so it becomes "full data"
+      if(outerMirror != null) {
+         // Adapt the pre-existing outer mirror in place; it already sits at the true bare
+         // name every VS binding resolves through, so no rename of existingTable is needed.
+         prevMirror = outerMirror;
+         prevMirrorName = outerMirror.getName();
+      }
+      else {
+         // No pre-existing outer mirror — original behavior. Rename the base to
+         // "{name}_base", freeing the original name for a freshly created mirror.
+         // renameAssembly updates the registry and calls renameDepended on all assemblies.
+         prevMirrorName = baseName;
+         String newBaseName = baseName + "_base";
+         dashWS.renameAssembly(baseName, newBaseName, true);
+         prevMirror = new MirrorTableAssembly(dashWS, prevMirrorName, existingTable);
+      }
+
+      // Strip conditions/aggregation from the (now-renamed, or already bare) base so it
+      // becomes "full data".
       existingTable.setPreConditionList(new ConditionList());
       existingTable.setPostConditionList(new ConditionList());
       existingTable.setAggregateInfo(new AggregateInfo());
 
-      // Create a mirror under the original name that restores the first viz's view.
-      // VS assemblies already bound to baseName now point to this mirror — no VS update needed.
-      MirrorTableAssembly prevMirror = new MirrorTableAssembly(dashWS, baseName, existingTable);
+      // Qualify aggr's own AGGREGATE refs (not groups) with an outer-attribute reference to
+      // the base table, and replace the matching bare-named entries in prevMirror's column
+      // selection with the SAME qualified ColumnRef instance. Why: AssetQuery.createAssetQuery
+      // -- StyleBI's generic query-construction entry point, invoked for EVERY table on EVERY
+      // viewsheet open via AssetQuerySandbox#refreshColumnSelection, completely independent of
+      // this class -- independently resolves a mirror's aggregate columns down to their base
+      // table using this exact outer-attribute qualification, then calls
+      // table.setColumnSelection(..., false) with the result, which triggers
+      // AggregateInfo#validate() against the newly-qualified selection. If aggr's own aggregate
+      // refs still point at the ORIGINAL bare names (as cloned from the source table before any
+      // merge), that validate() finds no match and silently drops them -- while a GROUP ref
+      // survives untouched because groups are never routed through this same base-resolution
+      // step (they read directly off the mirror, no aggregation needed). Confirmed live via
+      // targeted logging: prevMirror's own AggregateInfo read back correctly (2 aggregates)
+      // immediately after this method ran during compose, but a FRESH viewsheet open of the
+      // saved dashboard (a completely different code path than this class, triggered by
+      // ViewsheetRuntimeController#verifyViewsheet -> ViewsheetEngine#openViewsheet ->
+      // AssetQuerySandbox#refreshColumnSelection) read back only the group, aggregates gone --
+      // reproduced with the exact same qualified name ("<base>.<name>") this method now applies
+      // up front, closing the gap between compose-time and query-time column resolution.
+      String qualifierBase = existingTable.getName();
+
+      for(int i = 0; i < aggr.getAggregateCount(); i++) {
+         AggregateRef aref = aggr.getAggregate(i);
+         DataRef originalRef = aref.getDataRef();
+         String originalName = originalRef.getName();
+         ColumnRef qualifiedRef = new ColumnRef(AssetUtil.getOuterAttribute(qualifierBase, originalRef));
+         aref.setDataRef(qualifiedRef);
+         replaceColumnByName(origCols, originalName, qualifiedRef);
+         replaceColumnByName(origPrivateCols, originalName, qualifiedRef);
+      }
+
+      // Set BOTH public AND private selection when the FIRST chart onto this physical table
+      // carries its own non-empty AggregateInfo (aggr) — same hazard as condMirror below:
+      // leaving private at its default-empty state lets a later resetColumnSelection() (a normal
+      // part of preparing an aggregate query) regenerate public FROM the empty private selection,
+      // silently dropping every aggregate output. Harmless (a no-op beyond the extra assignment)
+      // when aggr is empty, since a plain pass-through mirror never triggers that reset path.
       prevMirror.setColumnSelection(origCols, true);
+      prevMirror.setColumnSelection(origPrivateCols, false);
       prevMirror.setPreConditionList(preconds);
       prevMirror.setPostConditionList(postconds);
       prevMirror.setAggregateInfo(aggr);
+      // isAggregate() short-circuits to false when getAggregateInfo() is empty, but when it's
+      // NOT empty, isAggregate() ALSO requires this separate flag (TableAssemblyInfo.isAggregate,
+      // default false) to be explicitly set — setAggregateInfo alone does not set it. Leaving it
+      // false while ginfo is genuinely non-empty is an inconsistent state: something in the
+      // worksheet persist/reload path (repopulateWorksheet) gates on isAggregate() and, finding it
+      // false, drops the (in-memory-correct) AggregateInfo entirely by the time the worksheet is
+      // reloaded — confirmed live: prevMirror's own AggregateInfo read back empty immediately after
+      // persisting+reloading, even though it was set correctly moments before. Keep the flag
+      // consistent with the info's actual emptiness.
+      prevMirror.setAggregate(!aggr.isEmpty());
       prevMirror.setProperty(PROP_WIZ_MERGED, "true");
-      dashWS.addAssembly(prevMirror);
+
+      if(outerMirror == null) {
+         // Create a mirror under the original name that restores the first viz's view.
+         // VS assemblies already bound to baseName now point to this mirror — no VS update needed.
+         dashWS.addAssembly(prevMirror);
+      }
+
+      return prevMirrorName;
    }
 
    /**
