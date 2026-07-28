@@ -21,7 +21,9 @@ import inetsoft.sree.security.*;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import java.security.Principal;
 import java.util.Map;
 
@@ -39,6 +41,7 @@ public class AdminAiController {
       actions = ResourceAction.ACCESS))
    @PostMapping("/api/admin/ai/change")
    public AdminChangeResult change(@RequestBody AdminChangeRequest req, Principal user) {
+      requireSiteAdmin(user);
       return changeService.applyChange(req, user);
    }
 
@@ -50,6 +53,7 @@ public class AdminAiController {
    public Map<String, String> backup(@RequestBody Map<String, String> body, Principal user)
       throws Exception
    {
+      requireSiteAdmin(user);
       return Map.of("backupRef", backupService.backup(body.get("transactionId")));
    }
 
@@ -58,14 +62,39 @@ public class AdminAiController {
       resource = "settings/properties",
       actions = ResourceAction.ACCESS))
    @PostMapping("/api/admin/ai/restore")
-   public Map<String, String> restore(@RequestBody Map<String, String> body, Principal user) {
-      try {
-         backupService.restore(body.get("backupRef"));
-         return Map.of("status", "restored");
+   public Map<String, String> restore(@RequestBody Map<String, String> body, Principal user)
+      throws Exception
+   {
+      requireSiteAdmin(user);
+      backupService.restore(body.get("backupRef"));
+      return Map.of("status", "restored");
+   }
+
+   /**
+    * Per product decision, every admin-chat endpoint is restricted to callers holding the Site
+    * Administrator (system administrator) role, not merely EM_COMPONENT access.
+    * {@link OrganizationManager#isSiteAdmin(Principal)} returns {@code true} for the default
+    * admin principal in no-security deployments, so this guard does not lock out dev/single-user
+    * setups and does not need an additional {@code isSecurityEnabled()} check.
+    */
+   private void requireSiteAdmin(Principal user) {
+      if(!OrganizationManager.getInstance().isSiteAdmin(user)) {
+         throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Site Administrator role required");
       }
-      catch(Exception ex) {
-         return Map.of("status", "failed", "error", String.valueOf(ex.getMessage()));
-      }
+   }
+
+   /**
+    * Uniformly maps client/validation errors (blank/invalid transactionId, property, action, or
+    * backup/restore reference) to HTTP 400 with a structured body, across all three endpoints.
+    * Scoped to {@link IllegalArgumentException} only - a catch-all {@code Exception} handler
+    * would also swallow {@link ResponseStatusException} (see {@link #requireSiteAdmin}) and other
+    * framework exceptions that must retain their own status codes.
+    */
+   @ExceptionHandler(IllegalArgumentException.class)
+   @ResponseStatus(HttpStatus.BAD_REQUEST)
+   @ResponseBody
+   public Map<String, String> handleIllegalArgument(IllegalArgumentException ex) {
+      return Map.of("status", "failed", "error", String.valueOf(ex.getMessage()));
    }
 
    private final AdminChangeService changeService;

@@ -17,12 +17,18 @@
  */
 package inetsoft.web.admin.ai;
 
+import inetsoft.sree.security.OrganizationManager;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.server.ResponseStatusException;
+
 import java.security.Principal;
 import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -31,10 +37,67 @@ import static org.mockito.Mockito.*;
 class AdminAiControllerTest {
    @Mock private AdminChangeService changeService;
    @Mock private AdminBackupService backupService;
+   @Mock private OrganizationManager orgManager;
    @Mock private Principal principal;
    private AdminAiController controller;
+   private MockedStatic<OrganizationManager> orgManagerStatic;
 
-   @BeforeEach void setup() { controller = new AdminAiController(changeService, backupService); }
+   @BeforeEach
+   void setup() {
+      controller = new AdminAiController(changeService, backupService);
+
+      orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
+      orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+
+      // default to a site-admin caller so the existing delegation tests exercise delegation;
+      // individual tests override this to false to cover the FORBIDDEN gate
+      lenient().when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+   }
+
+   @AfterEach
+   void tearDown() {
+      orgManagerStatic.close();
+   }
+
+   // -------------------------------------------------------------------------
+   // site-admin gate (#5)
+   // -------------------------------------------------------------------------
+
+   @Test void changeThrowsForbiddenForNonSiteAdmin() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+      AdminChangeRequest req = new AdminChangeRequest();
+      req.setProperty("max.rows");
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> controller.change(req, principal));
+
+      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+      verifyNoInteractions(changeService);
+   }
+
+   @Test void backupThrowsForbiddenForNonSiteAdmin() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> controller.backup(Map.of("transactionId", "chg-1"), principal));
+
+      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+      verifyNoInteractions(backupService);
+   }
+
+   @Test void restoreThrowsForbiddenForNonSiteAdmin() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> controller.restore(Map.of("backupRef", "admin-chg-1-123.zip"), principal));
+
+      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+      verifyNoInteractions(backupService);
+   }
+
+   // -------------------------------------------------------------------------
+   // delegation (site-admin path)
+   // -------------------------------------------------------------------------
 
    @Test void changeDelegatesToService() {
       AdminChangeRequest req = new AdminChangeRequest();
@@ -67,14 +130,35 @@ class AdminAiControllerTest {
       verify(backupService).restore("admin-chg-1-123.zip");
    }
 
-   @Test void restoreReturnsFailedStatusOnException() throws Exception {
+   // -------------------------------------------------------------------------
+   // error contract (#3): restore no longer swallows exceptions; a scoped
+   // @ExceptionHandler maps IllegalArgumentException to 400 instead
+   // -------------------------------------------------------------------------
+
+   @Test void restorePropagatesExceptionOnFailure() throws Exception {
       doThrow(new IllegalStateException("no such backup"))
          .when(backupService).restore("missing.zip");
 
+      IllegalStateException ex = assertThrows(IllegalStateException.class,
+         () -> controller.restore(Map.of("backupRef", "missing.zip"), principal));
+
+      assertEquals("no such backup", ex.getMessage());
+   }
+
+   @Test void handleIllegalArgumentReturnsFailedStatusWithMessage() {
       Map<String, String> actual =
-         controller.restore(Map.of("backupRef", "missing.zip"), principal);
+         controller.handleIllegalArgument(new IllegalArgumentException("property: must not be blank"));
 
       assertEquals("failed", actual.get("status"));
-      assertEquals("no such backup", actual.get("error"));
+      assertEquals("property: must not be blank", actual.get("error"));
+   }
+
+   @Test void handleIllegalArgumentIsAnnotatedBadRequest() throws NoSuchMethodException {
+      ResponseStatus annotation = AdminAiController.class
+         .getMethod("handleIllegalArgument", IllegalArgumentException.class)
+         .getAnnotation(ResponseStatus.class);
+
+      assertNotNull(annotation, "handleIllegalArgument must be annotated @ResponseStatus");
+      assertEquals(HttpStatus.BAD_REQUEST, annotation.value());
    }
 }
