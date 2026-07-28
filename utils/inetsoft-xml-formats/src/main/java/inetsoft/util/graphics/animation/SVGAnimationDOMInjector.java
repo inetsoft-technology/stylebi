@@ -142,6 +142,14 @@ public class SVGAnimationDOMInjector {
 
          List<Element> annotLines = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_LINE);
 
+         // Both line helpers below use the same draw-on/wipe keyframes and can run in the same
+         // invocation (a chart with a Pareto line and an unrelated multi-style line measure), so
+         // the keyframes are emitted here exactly once.  Guarded on annotLines so a plain bar
+         // chart is not given line CSS it never references.
+         if(!annotLines.isEmpty()) {
+            appendLineDrawKeyframes(svgRoot, doc);
+         }
+
          // Pareto charts have both bars and a cumulative-% line.  Animate the line after the
          // last bar finishes (no ghost fill, no stagger — typically exactly one line): it reads
          // as a summary of the bars, so it should not appear until they are all there.
@@ -1179,19 +1187,28 @@ public class SVGAnimationDOMInjector {
    }
 
    /**
+    * Append the draw-on / wipe keyframes shared by every line animation.  Callers that can run
+    * more than once per {@link #injectAnimation} invocation (the Pareto and multi-style line
+    * helpers) rely on their caller emitting this once, so the SVG carries a single copy.
+    */
+   private static void appendLineDrawKeyframes(Element svgRoot, Document doc) {
+      appendStyle(svgRoot, doc,
+         "@keyframes inetsoft-line-draw{from{stroke-dashoffset:var(--len,2000)}to{stroke-dashoffset:0}}" +
+         "@keyframes inetsoft-line-wipe{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0% 0 0)}}");
+   }
+
+   /**
     * Animate the Pareto cumulative-% line using a stroke-dashoffset draw-on effect.
     * Called from the bar-animation branch so bars animate first; the line begins drawing
     * only after the last bar has finished.  Ghost fill is intentionally omitted — the Pareto
     * line reads as a reference curve, not a data series.
+    *
+    * <p>The caller must have emitted the keyframes via {@link #appendLineDrawKeyframes}.
     */
    private static void injectParetoLineAnimation(List<Element> paretoLines,
                                                   Element svgRoot, Document doc,
                                                   double lineDelay)
    {
-      appendStyle(svgRoot, doc,
-         "@keyframes inetsoft-line-draw{from{stroke-dashoffset:var(--len,2000)}to{stroke-dashoffset:0}}" +
-         "@keyframes inetsoft-line-wipe{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0% 0 0)}}");
-
       for(Element g : paretoLines) {
          Element path = firstDescendantPath(g);
 
@@ -1209,26 +1226,17 @@ public class SVGAnimationDOMInjector {
     * with the bars rather than after them — a line measure is its own series, not a summary of
     * the bars.
     *
-    * <p>Series rank uses the composite {@code data-series|data-color} key for the same reason as
+    * <p>Series rank comes from {@link #buildSeriesRank} for the same reason as
     * {@link #injectLineAnimationFromAnnotations}: {@code data-series} alone collapses when one
     * measure is split by a color dimension.  Ghost fill is intentionally omitted — a fill under
     * the line would obscure the bars it overlays.
+    *
+    * <p>The caller must have emitted the keyframes via {@link #appendLineDrawKeyframes}.
     */
    private static void injectComboLineAnimation(List<Element> comboLines,
                                                 Element svgRoot, Document doc)
    {
-      appendStyle(svgRoot, doc,
-         "@keyframes inetsoft-line-draw{from{stroke-dashoffset:var(--len,2000)}to{stroke-dashoffset:0}}" +
-         "@keyframes inetsoft-line-wipe{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0% 0 0)}}");
-
-      Map<String, Integer> seriesRank = new LinkedHashMap<>();
-
-      for(Element g : comboLines) {
-         String key = g.getAttribute("data-" + SVGSupport.ATTR_SERIES) + "|" +
-                      g.getAttribute("data-" + SVGSupport.ATTR_COLOR);
-         seriesRank.putIfAbsent(key, seriesRank.size());
-      }
-
+      Map<String, Integer> seriesRank = buildSeriesRank(comboLines);
       int numSeries = seriesRank.size();
 
       for(Element g : comboLines) {
@@ -1238,11 +1246,35 @@ public class SVGAnimationDOMInjector {
             continue;
          }
 
-         String key = g.getAttribute("data-" + SVGSupport.ATTR_SERIES) + "|" +
-                      g.getAttribute("data-" + SVGSupport.ATTR_COLOR);
-         double delay = AnimationConstants.staggerDelay(seriesRank.getOrDefault(key, 0), numSeries);
+         double delay = AnimationConstants.staggerDelay(
+            seriesRank.getOrDefault(seriesKey(g), 0), numSeries);
          applyLineDrawAnimation(g, path, delay);
       }
+   }
+
+   /**
+    * Rank line annotation groups into stagger order: composite {@code data-series|data-color} key
+    * → 0-based rank in DOM first-seen order.
+    *
+    * <p>{@code data-series} alone ({@code getColIndex()}) collapses when one measure is split by a
+    * color/group dimension — all those LineVO share the same measure column index, so every line
+    * would rank 0 and animate at once.  Adding {@code data-color} distinguishes color-dimension
+    * series, while {@code data-series} still separates distinct measures that share a color.
+    */
+   private static Map<String, Integer> buildSeriesRank(List<Element> lineGroups) {
+      Map<String, Integer> rank = new LinkedHashMap<>();
+
+      for(Element g : lineGroups) {
+         rank.putIfAbsent(seriesKey(g), rank.size());
+      }
+
+      return rank;
+   }
+
+   /** The composite {@code data-series|data-color} stagger key of a line annotation group. */
+   private static String seriesKey(Element g) {
+      return g.getAttribute("data-" + SVGSupport.ATTR_SERIES) + "|" +
+             g.getAttribute("data-" + SVGSupport.ATTR_COLOR);
    }
 
    private static void injectLineAnimation(Element svgRoot, Document doc) {
@@ -1266,19 +1298,10 @@ public class SVGAnimationDOMInjector {
                                                             List<Element> annotAreas,
                                                             Element svgRoot, Document doc)
    {
-      // Line rank: composite data-series + data-color key, first-seen DOM order → 0-based rank.
-      // data-series alone (getColIndex()) collapses when one measure is split by a color/group
-      // dimension — all those LineVO share the same measure column index, so every line would
-      // rank 0 and animate at once (the same problem documented for area below).  Adding
-      // data-color distinguishes color-dimension series, while data-series still separates
-      // distinct measures that happen to share a color.
-      Map<String, Integer> lineSeriesRank = new LinkedHashMap<>();
-
-      for(Element g : annotLines) {
-         String key = g.getAttribute("data-" + SVGSupport.ATTR_SERIES) + "|" +
-                      g.getAttribute("data-" + SVGSupport.ATTR_COLOR);
-         lineSeriesRank.putIfAbsent(key, lineSeriesRank.size());
-      }
+      // Line rank: composite data-series + data-color key, first-seen DOM order → 0-based rank
+      // (see buildSeriesRank for why data-series alone is not enough — the same problem is
+      // documented for area below).
+      Map<String, Integer> lineSeriesRank = buildSeriesRank(annotLines);
 
       // Area rank: data-color in DOM first-seen order.
       // AreaVO.getColIndex() is unreliable for ordering — in stacked area charts all AreaVO
@@ -1326,9 +1349,7 @@ public class SVGAnimationDOMInjector {
             seriesIdx = areaColorRank.getOrDefault(color, 0);
          }
          else {
-            String key = g.getAttribute("data-" + SVGSupport.ATTR_SERIES) + "|" +
-                         g.getAttribute("data-" + SVGSupport.ATTR_COLOR);
-            seriesIdx = lineSeriesRank.getOrDefault(key, 0);
+            seriesIdx = lineSeriesRank.getOrDefault(seriesKey(g), 0);
          }
 
          double delay = AnimationConstants.staggerDelay(seriesIdx, numSeries);
