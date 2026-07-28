@@ -223,19 +223,20 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
     * Snapping the table down to the grid line makes {@code ceilY} a no-op so the drawn
     * bottom stays above the strip.</p>
     */
-   private void alignBottomTabsTables() {
+   // package-private for testing
+   void alignBottomTabsTables() {
       if(viewsheet == null) {
          return;
       }
 
       for(Assembly assembly : viewsheet.getAssemblies(true)) {
-         if(!(assembly instanceof TableDataVSAssembly) || !needExport((VSAssembly) assembly) ||
-            !TabVSAssemblyInfo.isInBottomTabs((VSAssembly) assembly))
+         if(!(assembly instanceof TableDataVSAssembly table) || !needExport(table) ||
+            !TabVSAssemblyInfo.isInBottomTabs(table))
          {
             continue;
          }
 
-         VSAssemblyInfo info = ((VSAssembly) assembly).getVSAssemblyInfo();
+         VSAssemblyInfo info = table.getVSAssemblyInfo();
          Point offset = info.getPixelOffset();
 
          if(offset == null) {
