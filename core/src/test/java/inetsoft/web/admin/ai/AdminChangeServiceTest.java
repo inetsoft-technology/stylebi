@@ -116,6 +116,52 @@ class AdminChangeServiceTest {
       assertEquals("host-1", record.getServerHostName());
    }
 
+   @Test void rejectsBlankTransactionId() {
+      AdminChangeRequest r = req("max.rows", "500");
+      r.setTransactionId("   ");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.applyChange(r, principal));
+      assertTrue(ex.getMessage().contains("transactionId"));
+      sreeEnv.verifyNoInteractions();
+      auditStatic.verify(Audit::getInstance, never());
+      verifyNoInteractions(audit);
+   }
+
+   @Test void rejectsNullTransactionId() {
+      AdminChangeRequest r = req("max.rows", "500");
+      r.setTransactionId(null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.applyChange(r, principal));
+      assertTrue(ex.getMessage().contains("transactionId"));
+      sreeEnv.verifyNoInteractions();
+      auditStatic.verify(Audit::getInstance, never());
+      verifyNoInteractions(audit);
+   }
+
+   @Test void rejectsBlankProperty() {
+      AdminChangeRequest r = req("  ", "500");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.applyChange(r, principal));
+      assertTrue(ex.getMessage().contains("property"));
+      sreeEnv.verifyNoInteractions();
+      auditStatic.verify(Audit::getInstance, never());
+      verifyNoInteractions(audit);
+   }
+
+   @Test void rejectsNullProperty() {
+      AdminChangeRequest r = req(null, "500");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.applyChange(r, principal));
+      assertTrue(ex.getMessage().contains("property"));
+      sreeEnv.verifyNoInteractions();
+      auditStatic.verify(Audit::getInstance, never());
+      verifyNoInteractions(audit);
+   }
+
    @Test void alwaysAuditsWhenSaveThrows() throws Exception {
       sreeEnv.when(() -> SreeEnv.getProperty("max.rows"))
              .thenReturn("100")          // before

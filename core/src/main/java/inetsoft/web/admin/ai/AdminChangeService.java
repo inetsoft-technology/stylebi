@@ -28,6 +28,9 @@ import java.util.Objects;
 @Service
 public class AdminChangeService {
    public AdminChangeResult applyChange(AdminChangeRequest req, Principal principal) {
+      requireNonBlank("transactionId", req.getTransactionId());
+      requireNonBlank("property", req.getProperty());
+
       AdminChangeResult result = new AdminChangeResult();
       result.setProperty(req.getProperty());
 
@@ -71,6 +74,18 @@ public class AdminChangeService {
       }
 
       return result;
+   }
+
+   /**
+    * Rejects null/blank required fields up front, before any {@code SreeEnv}
+    * mutation or audit write. A record with a blank transactionId or property
+    * is unqueryable (getChangeset filters by transactionId), so persisting it
+    * would silently orphan the audit entry -- fail loud instead.
+    */
+   private void requireNonBlank(String fieldName, String value) {
+      if(value == null || value.trim().isEmpty()) {
+         throw new IllegalArgumentException(fieldName + ": must not be blank");
+      }
    }
 
    private void writeAudit(AdminChangeRequest req, Principal principal,
