@@ -18,7 +18,8 @@
 <div class="mini-toolbar"
   [class.hidden-mini-toolbar]="forceHide"
   [style.top.px]="topY"
-  [style.left.px]="left">
+  [style.left.px]="left"
+  [style.z-index]="zIndex">
   @if (!mobileDevice) {
     <div
       class="mini-toolbar-container btn-toolbar" role="toolbar"
@@ -29,7 +30,7 @@
            change-detection pass, so tracking by identity recreated the entire toolbar DOM
            every pass (NG0956). The toolbar is positional, so index tracking is stable and
            the inner bindings still re-evaluate per pass. (Bug #75329) -->
-      @for (group of displayActions; track $index; let i = $index) {
+      @for (group of getActions(); track $index; let i = $index) {
         @if (group.visible) {
           <div class="btn-group mini-toolbar-button-group" role="group">
             @for (action of group.actions; track $index; let j = $index) {

@@ -42,7 +42,7 @@
         [class.popup-showing]="isPopupShowing(vsObject)"
         [class.max-mode]="vsObject.maxMode"
         [class.force-show-toolbar]="forceShowMiniToolbar && isFocused(vsObject)"
-        [style.z-index]="isActivePopComponent(vsObject) || needsZIndexBoost(vsObject) ? zIndex(vsObject) + popUpContentBoostZIndex : zIndex(vsObject)"
+        [style.z-index]="getContainerZIndex(vsObject)"
         (click)="select(i, $event)" (mouseenter)="onMouseEnter(vsObject, $event)">
         @if (vsObject.objectType == 'VSAnnotation') {
           <vs-annotation
@@ -349,6 +349,7 @@
           [top]="getToolbarTop(vsObject, i)"
           [left]="getToolbarLeft(vsObject, i)"
           [width]="getToolbarWidth(vsObject)"
+          [zIndex]="getContainerZIndex(vsObject) + 1"
           [style.display]="isAssemblyVisible(vsObject) ? 'block' : 'none'"
           [visible]="isAssemblyVisible(vsObject)"
           [forceShow]="forceShowMiniToolbar"

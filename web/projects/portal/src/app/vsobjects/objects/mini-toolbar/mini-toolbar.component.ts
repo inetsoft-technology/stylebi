@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, ElementRef, HostListener, Input, OnChanges, OnDestroy, SimpleChanges } from "@angular/core";
+import { Component, ElementRef, HostListener, Input, OnDestroy } from "@angular/core";
 import { AssemblyActionGroup } from "../../../common/action/assembly-action-group";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { AbstractVSActions } from "../../action/abstract-vs-actions";
@@ -44,12 +44,17 @@ import { ToolbarActionsHandler } from "../../toolbar-actions-handler";
     styleUrls: ["mini-toolbar.component.scss"],
     imports: []
 })
-export class MiniToolbar implements OnChanges, OnDestroy {
+export class MiniToolbar implements OnDestroy {
    @Input() actions: AbstractVSActions<any>;
    @Input() miniToolbarActions: AssemblyActionGroup[];
    @Input() top: number;
    @Input() left: number;
    @Input() width: number;
+   // Overrides the CSS z-index constant on .mini-toolbar. The toolbar is a sibling of the
+   // assembly's own ".vs-object-parent-container", whose z-index is server-assigned and can be
+   // arbitrarily large (e.g. embedded-viewsheet or max-mode assemblies), so a fixed CSS z-index
+   // can end up lower than the assembly's own content and be painted underneath it.
+   @Input() zIndex: number = null;
    @Input() assembly: string;
    @Input() forceAbove: boolean = false;
    @Input() visible: boolean = true;
@@ -87,7 +92,6 @@ export class MiniToolbar implements OnChanges, OnDestroy {
             });
       }
    }
-   displayActions: AssemblyActionGroup[] = [];
    mobileDevice: boolean = GuiTool.isMobileDevice();
    private focusedGroupIndex: number = -1;
    private focusedActionIndex: number = -1;
@@ -99,12 +103,6 @@ export class MiniToolbar implements OnChanges, OnDestroy {
                private element: ElementRef,
                private miniToolbarService: MiniToolbarService,
                private popComponentService: PopComponentService) {
-   }
-
-   ngOnChanges(changes: SimpleChanges): void {
-      if(changes["actions"] || changes["miniToolbarActions"] || changes["width"]) {
-         this.displayActions = this.getActions();
-      }
    }
 
    ngOnDestroy() {

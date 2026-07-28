@@ -3639,8 +3639,15 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    changeMaxMode($event: {assembly: string, maxMode: boolean}) {
       this.maxMode = $event.maxMode;
 
-      //on change to max mode, toggle off all other object max modes to prevent lingering stale flags
-      this.vsObjects.forEach(obj => (obj as any).maxMode = (obj.absoluteName === $event.assembly) ? $event.maxMode : false);
+      //on change to max mode, toggle off all other object max modes to prevent lingering stale flags.
+      //if the max-mode assembly is nested inside an embedded viewsheet, the containing
+      //VSViewsheet is also flagged so it repositions to (0, 0) instead of leaving the
+      //enlarged descendant (and its mini-toolbar) offset by the embedded viewsheet's own,
+      //un-enlarged position on the dashboard.
+      this.vsObjects.forEach(obj => (obj as any).maxMode = obj.absoluteName === $event.assembly ||
+         $event.maxMode && obj.objectType === "VSViewsheet" &&
+         $event.assembly.startsWith(obj.absoluteName + ".")
+         ? $event.maxMode : false);
    }
 
    toggleDoubleCalendar(isDouble: boolean) {
