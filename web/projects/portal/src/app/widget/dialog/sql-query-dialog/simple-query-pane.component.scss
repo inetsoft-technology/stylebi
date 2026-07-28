@@ -100,12 +100,12 @@
 .sqp-tree-area {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: hidden;
+  // overflow: auto rather than hover-to-scroll (overflow: hidden + &:hover) - the hover
+  // pattern leaves overflowing content unreachable by keyboard and on touch devices, and
+  // the appearing/disappearing scrollbar causes layout shift. <tree>'s own root already
+  // has tabindex="0" and keyboard handling, so no extra tabindex is needed here.
+  overflow: auto;
   padding: 0 var(--inet-space-3) var(--inet-space-4);
-
-  &:hover {
-    overflow: auto;
-  }
 
   tree {
     display: block;
