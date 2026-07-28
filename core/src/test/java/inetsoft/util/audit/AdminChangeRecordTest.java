@@ -51,4 +51,20 @@ class AdminChangeRecordTest {
       assertEquals("100", r.getBeforeValue());
       assertEquals("500", r.getAfterValue());
    }
+
+   @Test
+   void allPersistedGettersAreAuditRecordProperties() throws Exception {
+      java.beans.BeanInfo info = java.beans.Introspector.getBeanInfo(AdminChangeRecord.class);
+      java.util.Set<String> annotated = new java.util.HashSet<>();
+      for(java.beans.PropertyDescriptor pd : info.getPropertyDescriptors()) {
+         java.lang.reflect.Method rm = pd.getReadMethod();
+         if(rm != null && rm.isAnnotationPresent(AuditRecordProperty.class)) {
+            annotated.add(pd.getName());
+         }
+      }
+      assertEquals(java.util.Set.of(
+         "transactionId","taskDescription","property","objectType","beforeValue","afterValue",
+         "action","status","riskLevel","snapshotScope","backupRef","reviewOutcome",
+         "userName","userSessionID","actionTimestamp","serverHostName","organizationId"), annotated);
+   }
 }

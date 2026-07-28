@@ -61,38 +61,55 @@ public class AdminChangeRecord implements AuditRecord {
       }
    }
 
+   @AuditRecordProperty
    public String getTransactionId() { return transactionId; }
    public void setTransactionId(String v) { this.transactionId = v; }
+   @AuditRecordProperty
    public String getTaskDescription() { return taskDescription; }
    public void setTaskDescription(String v) { this.taskDescription = v; }
+   @AuditRecordProperty
    public String getProperty() { return property; }
    public void setProperty(String v) { this.property = v; }
+   @AuditRecordProperty
    public String getObjectType() { return objectType; }
    public void setObjectType(String v) { this.objectType = v; }
+   @AuditRecordProperty
    public String getBeforeValue() { return beforeValue; }
    public void setBeforeValue(String v) { this.beforeValue = v; }
+   @AuditRecordProperty
    public String getAfterValue() { return afterValue; }
    public void setAfterValue(String v) { this.afterValue = v; }
+   @AuditRecordProperty
    public String getAction() { return action; }
    public void setAction(String v) { this.action = v; }
+   @AuditRecordProperty
    public String getStatus() { return status; }
    public void setStatus(String v) { this.status = v; }
+   @AuditRecordProperty
    public String getRiskLevel() { return riskLevel; }
    public void setRiskLevel(String v) { this.riskLevel = v; }
+   @AuditRecordProperty
    public String getSnapshotScope() { return snapshotScope; }
    public void setSnapshotScope(String v) { this.snapshotScope = v; }
+   @AuditRecordProperty
    public String getBackupRef() { return backupRef; }
    public void setBackupRef(String v) { this.backupRef = v; }
+   @AuditRecordProperty
    public String getReviewOutcome() { return reviewOutcome; }
    public void setReviewOutcome(String v) { this.reviewOutcome = v; }
+   @AuditRecordProperty
    public String getUserName() { return userName; }
    public void setUserName(String v) { this.userName = v; }
+   @AuditRecordProperty
    public String getUserSessionID() { return userSessionID; }
    public void setUserSessionID(String v) { this.userSessionID = v; }
+   @AuditRecordProperty
    public Timestamp getActionTimestamp() { return actionTimestamp; }
    public void setActionTimestamp(Timestamp v) { this.actionTimestamp = v; }
+   @AuditRecordProperty
    public String getServerHostName() { return serverHostName; }
    public void setServerHostName(String v) { this.serverHostName = v; }
+   @AuditRecordProperty
    public String getOrganizationId() { return organizationId; }
    public void setOrganizationId(String v) { this.organizationId = v; }
 
