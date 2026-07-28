@@ -46,6 +46,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -62,8 +63,11 @@ import static org.mockito.Mockito.when;
  * createViewsheetInternal's "modificationOnly" (in-place filter) path's copy-then-apply wiring
  * (model.isCopy()) mirrors setChartFormat/setChartColors/applyHighlight's duplicate-before-apply +
  * rollback-on-failure pattern exactly — see {@link WizAutoBindingServiceSetChartColorsTest} for the
- * equivalent coverage on that path, and {@link WizVsServiceDuplicatePrimaryAssemblyTest} for
- * duplicatePrimaryAssembly's own correctness (not re-tested here).
+ * equivalent coverage on that path, and {@link WizVsServiceDuplicatePrimaryAssemblyTest} /
+ * {@link WizVsServiceDuplicateAssemblyTest} for the duplication helpers' own correctness (not
+ * re-tested here). This path calls {@code duplicateAssembly} — not {@code duplicatePrimaryAssembly}
+ * — because the chart it copies need not be the current primary: the caller may name an earlier
+ * chart via {@code assemblyName}.
  *
  * <p>executeAndExtract/collectFlatBinding are stubbed via a Mockito spy on a real WizVsService
  * instance, same as {@link WizVsServiceApplyHighlightCopyTest} — this isolates the copy-then-apply
@@ -143,10 +147,53 @@ class WizVsServiceFilterCopyTest {
    }
 
    @Test
-   void copyFalseNeverCallsDuplicatePrimaryAssembly() throws Exception {
+   void noAssemblyNameResolvesThePrimaryAssembly() throws Exception {
+      // Back-compat: every caller predating the assemblyName parameter omits it and must keep
+      // targeting the primary — the chart created or copied most recently.
       service.createViewsheet(request(false), user);
 
-      verify(service, never()).duplicatePrimaryAssembly(any(), any());
+      verify(assembly).setPreConditionList(any());
+      verify(vs, never()).getAssembly(anyString());
+   }
+
+   @Test
+   void anExplicitAssemblyNameTargetsThatChartInsteadOfThePrimary() throws Exception {
+      // The reason this parameter exists: a wiz turn editing an EARLIER chart must filter THAT
+      // chart, whose fields the conditionModel was built against — not whichever is primary now.
+      ChartVSAssembly earlier = mock(ChartVSAssembly.class);
+      when(earlier.getName()).thenReturn("vs_0");
+      when(earlier.isPrimary()).thenReturn(false);
+      when(vs.getAssembly("vs_0")).thenReturn(earlier);
+
+      CreateVisualizationModel model = request(false);
+      model.setAssemblyName("vs_0");
+      CreateViewsheetResult result = service.createViewsheet(model, user);
+
+      verify(earlier).setPreConditionList(any());
+      verify(assembly, never()).setPreConditionList(any());
+      assertEquals("vs_0", result.getAssemblyName());
+   }
+
+   @Test
+   void anUnknownAssemblyNameFailsLoudlyRatherThanSilentlyUsingThePrimary() throws Exception {
+      // Falling back to the primary here would apply the condition to a chart the caller did not
+      // name — the exact failure this parameter was added to prevent — so it must throw instead.
+      when(vs.getAssembly("nope")).thenReturn(null);
+
+      CreateVisualizationModel model = request(false);
+      model.setAssemblyName("nope");
+
+      IllegalStateException ex =
+         assertThrows(IllegalStateException.class, () -> service.createViewsheet(model, user));
+      assertTrue(ex.getMessage().contains("nope"), "the message should name the missing assembly");
+      verify(assembly, never()).setPreConditionList(any());
+   }
+
+   @Test
+   void copyFalseNeverDuplicatesTheAssembly() throws Exception {
+      service.createViewsheet(request(false), user);
+
+      verify(service, never()).duplicateAssembly(any(), any());
       verify(assembly).setPreConditionList(any());
    }
 
@@ -155,7 +202,8 @@ class WizVsServiceFilterCopyTest {
       ChartVSAssembly copy = mock(ChartVSAssembly.class);
       when(copy.getName()).thenReturn("vs_1_copy1");
 
-      doReturn(copy).when(service).duplicatePrimaryAssembly(rvs, assembly);
+      doReturn(new WizVsService.AssemblyDuplication(copy, assembly))
+         .when(service).duplicateAssembly(rvs, assembly);
 
       CreateViewsheetResult result = service.createViewsheet(request(true), user);
 
@@ -168,7 +216,7 @@ class WizVsServiceFilterCopyTest {
 
    @Test
    void copyTrueButDuplicationFailsFallsBackToInPlaceWithANote() throws Exception {
-      doReturn(null).when(service).duplicatePrimaryAssembly(rvs, assembly);
+      doReturn(null).when(service).duplicateAssembly(rvs, assembly);
 
       CreateViewsheetResult result = service.createViewsheet(request(true), user);
 
@@ -180,7 +228,7 @@ class WizVsServiceFilterCopyTest {
 
    @Test
    void copySucceedsThenApplyThrowsRollsBackTheDuplicateAndRestoresTheOriginalAsPrimary() throws Exception {
-      // Force the condition-application step itself to throw AFTER duplicatePrimaryAssembly has
+      // Force the condition-application step itself to throw AFTER duplicateAssembly has
       // already mutated the live runtime (added the copy, demoted the original, promoted the copy)
       // but before persistViewsheet ever runs. That live-runtime mutation must be undone, not left
       // dangling — mirrors WizAutoBindingServiceSetChartColorsTest.copySucceedsThenApplyThrowsRollsBack...
@@ -188,7 +236,8 @@ class WizVsServiceFilterCopyTest {
       when(copy.getName()).thenReturn("vs_1_copy1");
       doThrow(new RuntimeException("boom")).when(copy).setPreConditionList(any());
 
-      doReturn(copy).when(service).duplicatePrimaryAssembly(rvs, assembly);
+      doReturn(new WizVsService.AssemblyDuplication(copy, assembly))
+         .when(service).duplicateAssembly(rvs, assembly);
 
       assertThrows(RuntimeException.class, () -> service.createViewsheet(request(true), user));
 
@@ -206,7 +255,8 @@ class WizVsServiceFilterCopyTest {
       ChartVSAssembly copy = mock(ChartVSAssembly.class);
       when(copy.getName()).thenReturn("vs_1_copy1");
 
-      doReturn(copy).when(service).duplicatePrimaryAssembly(rvs, assembly);
+      doReturn(new WizVsService.AssemblyDuplication(copy, assembly))
+         .when(service).duplicateAssembly(rvs, assembly);
       doThrow(new RuntimeException("sandbox execution failed"))
          .when(service).executeAndExtract(any(), eq(copy), anyInt());
 
@@ -224,7 +274,8 @@ class WizVsServiceFilterCopyTest {
       ChartVSAssembly copy = mock(ChartVSAssembly.class);
       when(copy.getName()).thenReturn("vs_1_copy1");
 
-      doReturn(copy).when(service).duplicatePrimaryAssembly(rvs, assembly);
+      doReturn(new WizVsService.AssemblyDuplication(copy, assembly))
+         .when(service).duplicateAssembly(rvs, assembly);
       doThrow(new IllegalArgumentException("invalid identifier"))
          .when(service).persistViewsheet(any(), any(), any());
 

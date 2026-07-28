@@ -290,6 +290,71 @@ body {
   caret-color: var(--ln-text);
 }
 
+/* ============================================================
+   Password visibility toggle — eye icon button anchored to the
+   right of the password field. Reuses the InetSoft-Icons glyphs
+   (eye-icon / eye-off-icon) shipped in app/global.css so it
+   matches the EM change-password form. login.js flips the input
+   type and swaps the icon class on click.
+   ============================================================ */
+.password-input-wrapper {
+  position: relative;
+}
+
+/* Reserve room on the right so the value never sits under the icon.
+   Specificity (0,3,0) beats the base .form-control rule (0,2,0). */
+.login-left .password-input-wrapper .form-control {
+  padding-right: 42px;
+}
+
+/* Focus grows the border to 2px (base rule trims padding by 1px);
+   match that here. Specificity (0,3,1) beats the base focus (0,2,1). */
+.login-left .password-input-wrapper .form-control:focus {
+  padding-right: 41px;
+}
+
+/* Edge/IE render their own password reveal/clear controls; suppress
+   them so only the custom toggle is shown (mirrors the EM form). */
+#loginPassword::-ms-reveal,
+#loginPassword::-ms-clear {
+  display: none;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--ln-text-soft);
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 0.15s ease;
+}
+
+.password-toggle:hover {
+  opacity: 1;
+}
+
+.password-toggle:focus-visible {
+  outline: 2px solid var(--ln-border-focus);
+  outline-offset: -2px;
+  border-radius: var(--m3-shape-xs);
+  opacity: 1;
+}
+
+.password-toggle .eye-icon,
+.password-toggle .eye-off-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
 /* The browser's native select arrow is hidden; the .select-wrapper
    pseudo-element renders a themed arrow instead. transition:none
    prevents a flash during option-list open on some browsers. */

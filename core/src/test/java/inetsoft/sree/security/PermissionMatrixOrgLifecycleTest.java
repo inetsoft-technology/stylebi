@@ -56,8 +56,7 @@ import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.sree.internal.cluster.MockCluster;
 import inetsoft.sree.security.support.SecurityTestDataBuilder;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
-import inetsoft.storage.KeyValueStorage;
-import inetsoft.storage.KeyValueStorageManager;
+import inetsoft.web.admin.favorites.FavoritesService;
 import inetsoft.test.*;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.Catalog;
@@ -678,17 +677,16 @@ public class PermissionMatrixOrgLifecycleTest {
                     .anyMatch(id -> id.name.equals("alice")),
                 "precondition: alice must be a READ grantee at the source org before the rename");
 
-      // Collaborators unrelated to permission re-scoping (see method comment): favorites storage
-      // returns null so the em-favorites move is skipped; the two registry managers are no-op.
-      KeyValueStorageManager keyValueStorageManager = mock(KeyValueStorageManager.class);
-      when(keyValueStorageManager.getStorage("emFavorites"))
-         .thenReturn(mock(KeyValueStorage.class));
+      // Collaborators unrelated to permission re-scoping (see method comment): the favorites
+      // service is a no-op mock so the em-favorites move is skipped; the two registry managers
+      // are no-op.
+      FavoritesService favoritesService = mock(FavoritesService.class);
       RepletRegistryManager repletRegistryManager = mock(RepletRegistryManager.class);
       DashboardRegistryManager dashboardRegistryManager = mock(DashboardRegistryManager.class);
 
       IdentityService identityService = new IdentityService(
          SecurityEngine.getSecurity(), SecurityEngine.getSecurity().getSecurityProvider(),
-         null, null, null, keyValueStorageManager, null, null, null, null,
+         null, null, null, favoritesService, null, null, null, null,
          null, null, null, null, Optional.empty(), null, null, null,
          dashboardRegistryManager, null, null, null, null, null, null, null, null,
          repletRegistryManager, Optional.empty());

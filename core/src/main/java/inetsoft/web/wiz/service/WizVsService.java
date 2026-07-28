@@ -1077,30 +1077,38 @@ public class WizVsService {
 
          if(modificationOnly) {
             targetVs = vs;
-            VSAssembly sourceAssembly = findPrimaryAssembly(targetVs);
+            // An explicit assemblyName names the chart to modify; without one, fall back to the
+            // primary assembly (the chart created or copied most recently), which is what every
+            // caller predating this parameter relies on. A caller editing a chart OTHER than the
+            // newest MUST name it — its condition was built against that chart's fields.
+            VSAssembly sourceAssembly = model.getAssemblyName() != null
+               ? targetVs.getAssembly(model.getAssemblyName())
+               : findPrimaryAssembly(targetVs);
 
             if(sourceAssembly == null) {
-               throw new IllegalStateException("No primary assembly found in viewsheet for modification");
+               throw new IllegalStateException(model.getAssemblyName() != null
+                  ? "Assembly \"" + model.getAssemblyName() + "\" not found in viewsheet for modification"
+                  : "No primary assembly found in viewsheet for modification");
             }
 
             VSAssembly modAssembly = sourceAssembly;
 
-            // Copy-then-apply: duplicate the current primary BEFORE applying the condition, so the
-            // original is left untouched and the filter lands on a new, parallel copy instead.
-            // Reuses the same duplicatePrimaryAssembly the chart color/format/highlight paths use —
-            // sourceAssembly is guaranteed primary here (that's how findPrimaryAssembly found it), so
-            // duplicatePrimaryAssembly's precondition is always satisfied.
+            // Copy-then-apply: duplicate the source BEFORE applying the condition, so the original is
+            // left untouched and the filter lands on a new, parallel copy instead. The assembly that
+            // loses primary status is whichever currently holds it — not necessarily the source,
+            // which may be an earlier chart the caller named explicitly — so take it from the
+            // duplication result rather than assuming; rollback restores THAT assembly's flag.
             if(model.isCopy()) {
-               VSAssembly duplicated = duplicatePrimaryAssembly(rvs, sourceAssembly);
+               AssemblyDuplication duplicated = duplicateAssembly(rvs, sourceAssembly);
 
                if(duplicated != null) {
-                  demotedOriginal = sourceAssembly;
-                  rollbackCopy = duplicated;
-                  modAssembly = duplicated;
+                  demotedOriginal = duplicated.demoted();
+                  rollbackCopy = duplicated.copy();
+                  modAssembly = duplicated.copy();
                }
                else {
                   copyNote = "Copy requested but could not be created; filter applied in place.";
-                  LOG.warn("createViewsheetInternal (modificationOnly): duplicatePrimaryAssembly " +
+                  LOG.warn("createViewsheetInternal (modificationOnly): duplicateAssembly " +
                      "failed for {}; falling back to in-place apply.", sourceAssembly.getName());
                }
             }
@@ -1212,6 +1220,27 @@ public class WizVsService {
 
                targetVs.addAssembly(assembly);
                assembly.setPrimary(true);
+            }
+
+            // Re-binding a chart on an ALREADY-EXECUTED runtime (createdRuntimeId == false) carries a
+            // real staleness trap: rebindAssembly clones the replaced assembly's VSAssemblyInfo,
+            // including its cached RUNTIME chart refs (getRTYFields()/getRTXFields() prefer that
+            // non-empty runtime cache over the fresh design-time fields we just applied). A measure's
+            // secondaryY (or any other attribute-only rebind) landing on the new DESIGN ref is then
+            // silently ignored by the graph generator, which reads the stale RUNTIME ref instead — the
+            // chart renders as if nothing changed. Clear the runtime ref caches (forcing the next
+            // execution to resolve fresh ones from the new design binding) and drop the sandbox's
+            // cached graph so that re-resolution actually happens. Second, previously-undiscovered
+            // instance of the "wiz in-place chart mutation staleness" class of bug (community #3907).
+            if(!createdRuntimeId && assembly instanceof ChartVSAssembly chartAssembly) {
+               VSChartInfo cinfo = chartAssembly.getVSChartInfo();
+
+               if(cinfo != null) {
+                  cinfo.setRTXFields(new ChartRef[0]);
+                  cinfo.setRTYFields(new ChartRef[0]);
+               }
+
+               rvs.getViewsheetSandbox().ifPresent(sandbox -> sandbox.clearGraph(assembly.getName()));
             }
 
             // Sync pre-condition from the replaced assembly to the new one when the caller
@@ -1472,11 +1501,16 @@ public class WizVsService {
                if(modificationOnly) {
                   if(rollbackCopy != null) {
                      // A copy was made for this call; undo it — remove the duplicate and restore the
-                     // original as primary. The original's condition was never touched, so there is
-                     // nothing to restore on it (mirrors setChartFormat/setChartColors/applyHighlight's
-                     // identical copy rollback).
+                     // demoted assembly as primary. Neither the source nor the demoted assembly had
+                     // its condition touched, so there is nothing to restore on them (mirrors
+                     // setChartFormat/setChartColors/applyHighlight's identical copy rollback).
+                     // demotedOriginal is null only if the viewsheet had no primary to begin with, in
+                     // which case there is nothing to restore.
                      previousVs.removeAssembly(rollbackCopy.getName());
-                     demotedOriginal.setPrimary(true);
+
+                     if(demotedOriginal != null) {
+                        demotedOriginal.setPrimary(true);
+                     }
                   }
                   else if(assembly instanceof DataVSAssembly dataAsm) {
                      // No copy — assembly IS the original, mutated in place; restore its prior
@@ -1819,6 +1853,29 @@ public class WizVsService {
          return null;
       }
 
+      AssemblyDuplication duplication = duplicateAssembly(rvs, source);
+      return duplication == null ? null : duplication.copy();
+   }
+
+   /**
+    * Duplicates {@code source} within {@code rvs}'s viewsheet under a unique name, promotes the copy
+    * to primary, and demotes (never deletes) whichever assembly was primary before.
+    *
+    * <p>Unlike {@link #duplicatePrimaryAssembly}, {@code source} need NOT be the current primary.
+    * That matters when the caller has explicitly named an EARLIER chart to modify: the copy must be
+    * taken from the chart the caller named, while the assembly losing primary status is whatever
+    * held it. Callers needing rollback must therefore record the previous primary themselves (see
+    * {@code createViewsheetInternal}'s modificationOnly branch) — the demoted assembly is not
+    * necessarily {@code source}.
+    *
+    * <p>Use {@link #duplicatePrimaryAssembly} instead when the source is supposed to already BE the
+    * primary and a mismatch means the caller's assembly name is stale: it refuses rather than
+    * silently duplicating the wrong chart.
+    *
+    * <p>Returns null if {@code source}'s type has no registered rebind factory (ASSEMBLY_FACTORIES)
+    * — the caller should fall back to applying in place.
+    */
+   public AssemblyDuplication duplicateAssembly(RuntimeViewsheet rvs, VSAssembly source) {
       Viewsheet vs = rvs.getViewsheet();
       String newName = uniqueAssemblyName(vs, source.getName());
       VSAssembly copy = rebindAssembly(vs, newName, source);
@@ -1827,13 +1884,31 @@ public class WizVsService {
          return null;
       }
 
-      // source is confirmed primary above, so demote it specifically — not "whichever assembly happens
-      // to be primary" — for a second layer of defense against demoting the wrong assembly.
-      source.setPrimary(false);
+      // Demote whichever assembly currently holds primary — resolved rather than assumed to be
+      // `source`, which may be an earlier chart the caller named explicitly. Demoting `source`
+      // unconditionally would leave the real primary promoted alongside the new copy, i.e. two
+      // primaries in one viewsheet.
+      VSAssembly demoted = findPrimaryAssembly(vs);
+
+      if(demoted != null) {
+         demoted.setPrimary(false);
+      }
+
       vs.addAssembly(copy);
       copy.setPrimary(true);
-      return copy;
+      return new AssemblyDuplication(copy, demoted);
    }
+
+   /**
+    * The outcome of {@link #duplicateAssembly}: the new copy, and the assembly that lost primary
+    * status to it ({@code null} when the viewsheet had no primary).
+    *
+    * <p>{@code demoted} is returned rather than left for the caller to re-derive: it is NOT
+    * necessarily the duplicated source, so a caller that needs to undo the promotion (rollback)
+    * would otherwise have to call {@code findPrimaryAssembly} itself just before duplicating and
+    * trust that nothing in between changes primary state — an invariant no compiler enforces.
+    */
+   public record AssemblyDuplication(VSAssembly copy, VSAssembly demoted) {}
 
    /**
     * Throws if the lens chain contains failed-query fallback data. When a live query fails
@@ -2463,7 +2538,11 @@ public class WizVsService {
       }
       else if(ref instanceof VSAggregateRef agg) {
          if(seen.add(agg.getFullName())) {
-            measures.add(WizFieldInfoFactory.createMeasureFieldInfo(agg));
+            // Chart-specific: must use the chart variant (not createMeasureFieldInfo) so
+            // discrete/secondaryY are copied from the real VSChartAggregateRef — this echo
+            // feeds the wiz API response's `binding.measures[]`, which callers (e.g. the
+            // wiz-services plugin) use to confirm secondaryY was actually applied.
+            measures.add(WizFieldInfoFactory.createChartMeasureFieldInfo(agg));
          }
       }
    }
@@ -2832,6 +2911,10 @@ public class WizVsService {
          GraphUtil.fixVisualFrames(chartInfo);
       }
 
+      ChartDescriptor chartDescriptor = chart.getChartDescriptor();
+      PlotDescriptor plotDescriptor = chartDescriptor.getPlotDescriptor();
+      plotDescriptor.setValuesVisible(true);
+
       return chart;
    }
 
@@ -3159,6 +3242,43 @@ public class WizVsService {
          {
             chartInfo.setPathField(createChartRef(binding.getPath()));
          }
+      }
+
+      // A measure's secondaryY (set above via createVSChartAggregateRef) creates a second,
+      // independently-scaled Scale (DefaultGraphGenerator.fixCoordProperties splits y-fields into
+      // yfields/y2fields and calls coord.setYScale2(...) on ONE shared coordinate) whenever the two
+      // measures are on ONE shared coordinate to begin with. AbstractChartInfo.separated defaults to
+      // true, which routes rendering through SeparateGraphGenerator instead — a small-multiples
+      // renderer giving each measure its OWN independent panel/coordinate, so there is no shared
+      // plot for a second scale to attach to at all (confirmed live: the secondaryY measure got its
+      // own single-axis panel, the primary measure another, untouched — two panels, not one
+      // dual-axis plot). Forcing separated=false switches to DefaultGraphGenerator, which supports a
+      // real two-scale coordinate.
+      //
+      // Once on that shared coordinate, RectCoord.createAxis() already keeps BOTH y-axes visible by
+      // default: it gates the second axis on `yscale.getAxisSpec().getAxisStyle() & AXIS_SINGLE2`,
+      // and AxisSpec's own default style (AXIS_DOUBLE = 0x3) already satisfies that check (0x3 & 0x12
+      // != 0) with no further configuration. Do NOT also set labelOnSecondaryAxis anywhere (chart- or
+      // ref-level) to "help" — that flag ORs in AXIS_LABEL_OPPOSITE_SIDE (0x10), and RectCoord hides
+      // the PRIMARY axis's own labels whenever that bit is set (`(style & 0x10) == 0` gates
+      // yaxis1.setLabelVisible), regardless of which descriptor it came from. That flag exists for a
+      // DIFFERENT, mutually exclusive case — relocating a single measure's labels to the right and
+      // hiding the original position entirely (e.g. Pareto's percentage axis, per its own Bug #74171
+      // comment) — not for a genuine two-axis combo chart, which needs BOTH axes' own labels intact.
+      boolean hasSecondaryY = false;
+      ChartRef[] yfields = chartInfo.getYFields();
+
+      if(yfields != null) {
+         for(ChartRef f : yfields) {
+            if(f instanceof VSChartAggregateRef agg && agg.isSecondaryY()) {
+               hasSecondaryY = true;
+               break;
+            }
+         }
+      }
+
+      if(hasSecondaryY) {
+         chartInfo.setSeparatedGraph(false);
       }
    }
 

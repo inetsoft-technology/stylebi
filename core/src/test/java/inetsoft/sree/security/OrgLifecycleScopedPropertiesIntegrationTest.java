@@ -64,7 +64,7 @@ import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
-import inetsoft.storage.KeyValueStorageManager;
+import inetsoft.web.admin.favorites.FavoritesService;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.DataSpace;
 import inetsoft.util.ThreadContext;
@@ -96,8 +96,9 @@ import static org.mockito.Mockito.*;
 @Tag("core")
 class OrgLifecycleScopedPropertiesIntegrationTest {
 
-   @Autowired
-   private KeyValueStorageManager keyValueStorageManager;
+   // No-op mock: these tests assert on scoped properties, not EM favorites; the org-delete
+   // path only hands favorites cleanup off to this collaborator.
+   private final FavoritesService favoritesService = mock(FavoritesService.class);
 
    @Autowired
    private DataSpace dataSpace;
@@ -205,7 +206,7 @@ class OrgLifecycleScopedPropertiesIntegrationTest {
 
       IdentityService realService = new IdentityService(
          SecurityEngine.getSecurity(), SecurityEngine.getSecurity().getSecurityProvider(),
-         mock(IdentityThemeService.class), null, null, keyValueStorageManager, null, null,
+         mock(IdentityThemeService.class), null, null, favoritesService, null, null,
          mock(DataCycleManager.class), null, mock(LogManager.class), null, null, null,
          Optional.empty(),
          null, mock(CustomThemesManager.class), null,

@@ -1584,7 +1584,8 @@ public class CoreLifecycleService {
       }
    }
 
-   // This only applies to embedded charts; other assembly types intentionally remain unchanged.
+   // Applies to embedded charts and table-data assemblies (table/crosstab/calc-table); other
+   // assembly types intentionally remain unchanged.
    private void applyEmbedChartSize(RuntimeViewsheet rvs, VSAssembly assembly) {
       String name = assembly == null ? null : assembly.getAbsoluteName();
 
@@ -1595,15 +1596,22 @@ public class CoreLifecycleService {
       EmbedAssemblyInfo embedAssemblyInfo = rvs.getEmbedAssemblyInfo();
       Dimension assemblySize = embedAssemblyInfo.getAssemblySize();
 
-      if(!Tool.equals(name, embedAssemblyInfo.getAssemblyName())) {
+      if(!Tool.equals(name, embedAssemblyInfo.getAssemblyName()) || assemblySize == null) {
          return;
       }
 
       AssemblyInfo info = assembly.getInfo();
 
-      if(info instanceof ChartVSAssemblyInfo && assemblySize != null) {
+      if(info instanceof ChartVSAssemblyInfo) {
          // Apply the embed container size before building the runtime chart model.
          ((ChartVSAssemblyInfo) info).setMaxSize(assemblySize);
+         info.setPixelSize(assemblySize);
+      }
+      else if(info instanceof TableDataVSAssemblyInfo) {
+         // Without this, a programmatically-created table/crosstab (no composer-authored
+         // layout) keeps its own default pixel size instead of the embed container's actual
+         // size, leaving blank space in the container around the smaller-than-container table.
+         ((TableDataVSAssemblyInfo) info).setMaxSize(assemblySize);
          info.setPixelSize(assemblySize);
       }
    }

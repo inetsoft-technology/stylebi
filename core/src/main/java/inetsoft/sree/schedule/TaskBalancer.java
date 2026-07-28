@@ -243,7 +243,8 @@ public class TaskBalancer {
 
          BitSet bitSet = slots.get(i);
 
-         for(int j = bitSet.nextClearBit(0); j < slotsPerThread;
+         for(int j = bitSet.nextClearBit(0);
+             j < slotsPerThread && conditionIndex < conditions.size();
              j = bitSet.nextClearBit(j))
          {
             TimeCondition condition = conditions.get(conditionIndex++);

@@ -269,8 +269,21 @@ public class ChangeAssetController {
 
    private void changeTableStyle(AssetEntry parent, AssetEntry entry, Principal principal) throws Exception {
       LibManager manager = libManagerProvider.getManager(principal);
-      XTableStyle tableStyle = manager.getTableStyle(entry.getName());
+      // Look up by the stable style ID, not the leaf name. Style IDs are
+      // de-duplicated globally across folders, so a same-named style in another
+      // folder could otherwise be matched by the fuzzy by-name lookup, causing
+      // the remove/recreate below to operate on two different keys and leaving
+      // the original entry in place (bug #75760).
+      String styleID = entry.getProperty("styleID");
+      XTableStyle tableStyle = manager.getTableStyle(styleID);
       String folder = parent.getProperty("folder");
+
+      // Defensive guard: a null/legacy styleID (or one that no longer resolves) would
+      // otherwise NPE on the tableStyle.getName() permission checks below.
+      if(tableStyle == null) {
+         throw new MessageException("Table style not found: " +
+            (styleID != null ? styleID : entry.getName()));
+      }
 
       if(!assetRepository.checkPermission(principal, ResourceType.TABLE_STYLE, tableStyle.getName(),
          EnumSet.of(ResourceAction.DELETE)))
@@ -297,11 +310,13 @@ public class ChangeAssetController {
 
 
       XTableStyle style = tableStyle.clone();
-      manager.removeTableStyle(entry.getProperty("styleID"));
       String name = Tool.isEmptyString(folder) ? entry.getName() :
          folder + LibManager.SEPARATOR + entry.getName();
       style.setName(name);
-      manager.setTableStyle(style.getID(), style);
+      // Keep the ID stable so the remove and the recreate act on the same key.
+      style.setID(styleID);
+      manager.removeTableStyle(styleID);
+      manager.setTableStyle(styleID, style);
       manager.save();
    }
 
