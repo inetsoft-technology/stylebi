@@ -331,7 +331,7 @@
 
 | # | 场景 | 预期 | 测试状态 |
 |---|---|---|---|
-| 5a | `migrateDataCycles(oorg, norg, replace=false)`，从源组织自身上下文发起（见下方 5f 的前提说明） | 复制 `DataCycleAsset`（`orgId` 字段正确改写），不删源；`CycleInfo` 身份字段**理论上**应同步改写，实测确认并未（见 5e） | `[已落地]` `DataCycleManagerOrgLifecycleTest#copy_migrateDataCycles_copiesAssetAndLeavesSourceUntouched` |
+| 5a | `migrateDataCycles(oorg, norg, replace=false)`，从源组织自身上下文发起（见下方 5f 的前提说明） | 复制 `DataCycleAsset`（`orgId` 字段正确改写），不删源；`CycleInfo` 身份字段同步改写（Bug #75756 修复后，见 5e） | `[已落地]` `DataCycleManagerOrgLifecycleTest#copy_migrateDataCycles_copiesAssetAndLeavesSourceUntouched` |
 
 **Rename 场景**
 
@@ -346,11 +346,11 @@
 | 5c | `clearDataCycles(orgId)`（共享背景 delete 清单 `:612`），从被删组织自身上下文发起 | 该组织所有 `DataCycleId` 精确清除，无残留 | `[已落地]` `DataCycleManagerOrgLifecycleTest#delete_clearDataCycles_removesAllCyclesForOrg` |
 | 5d | 普通 Schedule Task（非 Data Cycle）Delete：靠 `indexedStorage.removeStorage(orgId)` 整桶清理 | 断言删除后确实不可读，防止未来 `IndexedStorage` 改分桶策略后失去覆盖 | `[已落地]` `DataCycleManagerOrgLifecycleTest#delete_indexedStorageRemoveStorage_wholeOrgBucketGone`——低优先级回归防护 |
 
-**已确认缺陷 1（Bug #75756）：** `migrateCycleInfo()`（`DataCycleManager.java:937-957`）——`identityID.setOrgID(norg.getId())` 只修改局部变量，从未调用 `cycleInfo.setCreatedBy()`/`setLastModifiedBy()` 写回。Copy/Rename 后 `CycleInfo.createdBy`/`lastModifiedBy` 仍指向源组织用户身份，跟 `DataCycleAsset.orgId`（同一次迁移里另一个字段，在 `migrateDataCycles()` 里直接 `asset.setOrgId(norg.getId())` 正确改写）行为不一致。
+**已确认缺陷 1（Bug #75756，~~已修复~~）：** `migrateCycleInfo()`（`DataCycleManager.java:937-959`）——`identityID.setOrgID(norg.getId())` 原先只修改局部变量，从未调用 `cycleInfo.setCreatedBy()`/`setLastModifiedBy()` 写回。Copy/Rename 后 `CycleInfo.createdBy`/`lastModifiedBy` 仍指向源组织用户身份，跟 `DataCycleAsset.orgId`（同一次迁移里另一个字段，在 `migrateDataCycles()` 里直接 `asset.setOrgId(norg.getId())` 正确改写）行为不一致。**修复方式**：两处都补上 `cycleInfo.setCreatedBy(identityID.convertToKey())`/`setLastModifiedBy(...)` 写回，与 `MigrateScheduleTask.syncIdentityAttribute()`（`util/migrate/MigrateScheduleTask.java:320-341`，改写 Schedule Task owner 身份）的既有惯例一致。
 
 | # | 场景 | 预期 | 测试状态 |
 |---|---|---|---|
-| 5e | 上述缺陷的回归基线 | 断言当前（错误）行为存在，作为后续修复基线：`createdBy`/`lastModifiedBy` 保持迁移前的值，`orgId` 字段则正确改写 | `[已落地]` `DataCycleManagerOrgLifecycleTest#migrateCycleInfo_createdByAndModifiedBy_remainStaleAfterMigration` |
+| 5e | 上述缺陷的回归防护 | 断言修复后行为：`createdBy`/`lastModifiedBy` 都被重写成目标组织下的同名用户身份，`orgId` 字段同样正确改写 | `[已落地]` `DataCycleManagerOrgLifecycleTest#migrateCycleInfo_createdByAndModifiedBy_rewrittenToTargetOrg` |
 
 **已确认缺陷 2（新发现，落地 5a-5e 时实测确认，不在原场景清单里）：** `getDataCycleIds(String orgId)`（私有，`DataCycleManager.java:741-756`）调用的是 `IndexedStorage.getKeys(Filter)` 的**单参**重载，内部（`BlobIndexedStorage.getMetadataStorage(null)`）落回 `OrganizationManager.getCurrentOrgID()`（当前线程组织上下文），完全不使用传入的 `orgId` 参数去限定查询范围——这个参数只在拿到 key 集合之后，用来给结果 `DataCycleId` 贴标签。`migrateDataCycles()`/`clearDataCycles()` 的两个真实调用方——`AbstractEditableAuthenticationProvider.copyOrganizationInternal()`（`:273`）、`IdentityService.syncIdentity()`（`:622`）——都**没有**像同一方法里其它步骤那样把这次调用包在 `OrganizationManager.runInOrgScope(oldOrgId, ...)` 里。
 
