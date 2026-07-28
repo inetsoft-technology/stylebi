@@ -21,3 +21,34 @@ Use the `-U` command line option  when building the Java libraries to force the 
 
 ```./mvnw clean install -U```
 
+## Storage Container Exits with "exit 1" During `docker compose up`
+
+If the `storage` container fails during initialization with a bare `exit 1` and no other obvious error in the top-level `docker compose` output, check the logs for that specific container:
+
+```shell
+docker compose logs storage
+```
+
+This error most commonly occurs when the `INETSOFT_ADMIN_PASSWORD` environment variable is missing or does not meet the password requirements. This variable sets the password for the "admin" user and is required — there is no default password. The password must be at least 8 characters and include an uppercase letter, a lowercase letter, a digit, and a special character.
+
+To resolve this, set `INETSOFT_ADMIN_PASSWORD` to a valid password before starting the containers, either in the `docker-compose.yaml` file:
+
+```yaml
+storage:
+  environment:
+    # the password for the "admin" user
+    INETSOFT_ADMIN_PASSWORD: "Test@admin1"
+```
+
+or as an environment variable in your shell before running `docker compose up`:
+
+```shell
+export INETSOFT_ADMIN_PASSWORD="Test@admin1"
+```
+
+```powershell
+$env:INETSOFT_ADMIN_PASSWORD="Test@admin1"
+```
+
+or by uncommenting and setting `INETSOFT_ADMIN_PASSWORD` in the `.env` file included with the community examples.
+
