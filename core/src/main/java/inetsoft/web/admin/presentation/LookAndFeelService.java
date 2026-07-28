@@ -58,6 +58,7 @@ public class LookAndFeelService {
       boolean asc = "Ascending".equals(SreeEnv.getProperty("repository.tree.sort", false, !globalProperty));
       boolean modernVisualization = SreeEnv.getBooleanProperty("viewsheet.modernVisualization", false, !globalProperty);
       String visualizationDensity = SreeEnv.getProperty("viewsheet.density", false, !globalProperty);
+      boolean darkMode = SreeEnv.getBooleanProperty("viewsheet.darkMode", false, !globalProperty);
 
       if(visualizationDensity == null || visualizationDensity.isEmpty()) {
          visualizationDensity = "dense";
@@ -139,6 +140,7 @@ public class LookAndFeelService {
          )
          .vsEnabled(true)
          .modernVisualization(modernVisualization)
+         .darkMode(darkMode)
          .visualizationDensity(visualizationDensity)
          .build();
    }
@@ -169,6 +171,8 @@ public class LookAndFeelService {
                           Boolean.toString(model.modernVisualization()), !globalSettings);
       SreeEnv.setProperty("viewsheet.density",
                           VSDensityDefaults.normalizeMode(model.visualizationDensity()), !globalSettings);
+      SreeEnv.setProperty("viewsheet.darkMode",
+                          Boolean.toString(model.darkMode()), !globalSettings);
       manager.setReportListType(repoTree);
       manager.setAutoExpand(model.expand());
 

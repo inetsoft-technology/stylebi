@@ -24,6 +24,7 @@ import inetsoft.report.io.viewsheet.ExportUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CalendarUtil;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSCalendarChromeDefaults;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import org.apache.commons.lang3.ArrayUtils;
@@ -729,7 +730,8 @@ public class VSCalendar extends VSFloatable {
       int r = 1, c = 0;
 
       datapath = new TableDataPath(-1, TableDataPath.MONTH_CALENDAR);
-      format = info.getFormatInfo().getFormat(datapath, false);
+      format = VSCalendarChromeDefaults.applyModernDefaults(
+         info.getFormatInfo().getFormat(datapath, false));
       format = format == null ? new VSCompositeFormat() : format;
       VSCompositeFormat grayed = format.clone();
       grayed.getUserDefinedFormat().setForeground(new Color(128, 128, 128));
@@ -950,7 +952,8 @@ public class VSCalendar extends VSFloatable {
       VSCompositeFormat tformat = fmtInfo.getFormat(dataPath, false);
 
       dataPath = new TableDataPath(-1, TableDataPath.YEAR_CALENDAR);
-      VSCompositeFormat format = fmtInfo.getFormat(dataPath, false);
+      VSCompositeFormat format = VSCalendarChromeDefaults.applyModernDefaults(
+         fmtInfo.getFormat(dataPath, false));
 
       format = format == null ? new VSCompositeFormat() : (VSCompositeFormat) format.clone();
       tformat = tformat == null ? new VSCompositeFormat() : (VSCompositeFormat) tformat.clone();

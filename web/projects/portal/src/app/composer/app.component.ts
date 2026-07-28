@@ -43,6 +43,7 @@ export class ComposerAppComponent implements OnInit, OnDestroy {
    private readonly VIZ_MODERN_CLASS: string = "viz-modern";
    private readonly VIZ_DENSITY_CLASSES: string[] =
       ["viz-density-comfortable", "viz-density-compact", "viz-density-dense"];
+   private readonly VIZ_DARK_CLASS: string = "viz-dark";
    initialSheet: string;
    baseWS: string;
    runtimeId: string;
@@ -143,6 +144,8 @@ export class ComposerAppComponent implements OnInit, OnDestroy {
             body.classList.add(densityClass);
          }
       }
+
+      body.classList.toggle(this.VIZ_DARK_CLASS, modern && !!model.darkMode);
    }
 
    downloadStarted(url: string): void {

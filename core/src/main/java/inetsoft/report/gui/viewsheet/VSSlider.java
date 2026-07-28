@@ -22,6 +22,7 @@ import inetsoft.report.internal.Common;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.SliderVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSObjectChromeDefaults;
 import inetsoft.uql.viewsheet.internal.VSOutputChromeDefaults;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,8 +64,8 @@ public class VSSlider extends VSFloatable {
                              RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
          VSCompositeFormat format =
-            info.getFormat() == null ? new VSCompositeFormat() :
-            info.getFormat();
+            VSObjectChromeDefaults.applyDarkForeground(info.getFormat());
+         format = format == null ? new VSCompositeFormat() : format;
 
          if(format.getFont() == null) {
             cg.setFont(new StyleFont(StyleFont.DEFAULT_FONT_FAMILY, Font.PLAIN, 10));

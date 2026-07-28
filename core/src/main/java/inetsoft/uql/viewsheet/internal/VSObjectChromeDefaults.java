@@ -18,6 +18,7 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.uql.viewsheet.VSCompositeFormat;
 
 import java.awt.Color;
 
@@ -43,17 +44,69 @@ public final class VSObjectChromeDefaults {
          !"false".equals(SreeEnv.getProperty("viewsheet.modernObjectChrome", false, true));
    }
 
-   /** Object-frame border default — the shared modern structural neutral (= --border-default). */
+   /** Object-frame border default — the shared structural neutral (= --border-default), dark in dark mode. */
    public static Color objectBorderColor() {
-      return OBJECT_BORDER;
+      return VSDensityDefaults.isDark() ? OBJECT_BORDER_DARK : OBJECT_BORDER;
    }
 
-   /** Viewsheet page/canvas background default, as a CSS hex string (= --surface-canvas). */
+   /** Viewsheet page/canvas background default, as a CSS hex string (= --surface-canvas), dark in dark mode. */
    public static String pageBackgroundCss() {
-      return String.format("#%06x", PAGE_BG.getRGB() & 0xFFFFFF);
+      Color bg = VSDensityDefaults.isDark() ? PAGE_BG_DARK : PAGE_BG;
+      return String.format("#%06x", bg.getRGB() & 0xFFFFFF);
    }
 
-   // modern warm-neutral object chrome; light mode only, dark deferred.
+   /**
+    * Object-card background default as a CSS hex string. White in legacy and light modern (modern
+    * keeps white cards); a lifted dark surface in dark mode so light chart/output chrome stays legible
+    * on the card (= --dark-surface-default, one step above the darker page).
+    */
+   public static String cardBackgroundCss() {
+      Color bg = VSDensityDefaults.isDark() ? CARD_BG_DARK : CARD_BG;
+      return String.format("#%06x", bg.getRGB() & 0xFFFFFF);
+   }
+
+   /**
+    * Dark-mode light text color as a CSS hex string, or null when not in dark mode. For object text
+    * whose default is a fixed dark color (black) and would be dark-on-dark otherwise; callers apply it
+    * only when the user/CSS has not set a foreground. Must be applied server-side so exports match.
+    */
+   public static String textForegroundCss() {
+      return VSDensityDefaults.isDark()
+         ? String.format("#%06x", TEXT_FG_DARK.getRGB() & 0xFFFFFF) : null;
+   }
+
+   /**
+    * Return the given object format with a light text foreground substituted on the DEFAULT tier of a
+    * clone in dark mode, or the original unchanged (not dark, or already user/CSS customized). Lets a
+    * bare-default object text (fixed black) stay legible on the dark canvas; a user or format.css color
+    * still wins. Never mutates the source. Applied at both live model build and the export painter.
+    */
+   public static VSCompositeFormat applyDarkForeground(VSCompositeFormat fmt) {
+      if(!VSDensityDefaults.isDark() || fmt == null) {
+         return fmt;
+      }
+
+      if(fmt.getUserDefinedFormat().isForegroundValueDefined() ||
+         fmt.getCSSFormat().isForegroundValueDefined())
+      {
+         return fmt;
+      }
+
+      VSCompositeFormat clone = fmt.clone();
+      clone.getDefaultFormat().setForegroundValue(
+         String.format("0x%06x", TEXT_FG_DARK.getRGB() & 0xFFFFFF));
+      return clone;
+   }
+
+   // modern warm-neutral object chrome (light mode)
    private static final Color OBJECT_BORDER = new Color(0xD9D5CC);
    private static final Color PAGE_BG = new Color(0xF8F7F4);
+   private static final Color CARD_BG = new Color(0xFFFFFF);
+
+   // dark object chrome; page = --dark-surface-canvas, card = --dark-surface-default, border = --dark-border-default
+   private static final Color OBJECT_BORDER_DARK = new Color(0x49454F);
+   private static final Color PAGE_BG_DARK = new Color(0x1C1B1F);
+   private static final Color CARD_BG_DARK = new Color(0x252428);
+   // dark object text = strong light neutral (matches table body / calendar text)
+   private static final Color TEXT_FG_DARK = new Color(0xE6E0E9);
 }
