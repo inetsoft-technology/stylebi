@@ -337,6 +337,140 @@ describe("ChartInlineSvgDirective cross-tile dim", () => {
       });
    });
 
+   describe("multi-style chart (bars + line in one SVG)", () => {
+      // A multi-style chart binds a chart type per measure, so one SVG holds bar VOs and a line
+      // series. Both hover mechanisms must stay live: bars highlight by inetsoft-active (server
+      // :has() dim), the line resolves from the cursor and dims by inline opacity.
+      const html = `
+         <svg>
+            <g class="inetsoft-bar" data-row="0" data-col="0"></g>
+            <g class="inetsoft-bar" data-row="1" data-col="0"></g>
+            <g class="inetsoft-bar-label" data-row="0" data-col="0"></g>
+            <g class="inetsoft-line" data-series="1" data-color="1,2,3"><path></path></g>
+         </svg>`;
+
+      function activeFlags(host: HTMLElement, sel: string): boolean[] {
+         return Array.from(host.querySelectorAll(sel)).map(e => e.classList.contains("inetsoft-active"));
+      }
+
+      function makeMixedTile(): { dir: ChartInlineSvgDirective, host: HTMLElement } {
+         const { dir, host } = makeDirective(html);
+         (dir as any).afterSvgInjected();
+         return { dir, host };
+      }
+
+      it("keeps the bar entries in elementGroupMap so a bar still highlights", () => {
+         const { dir, host } = makeMixedTile();
+         expect((dir as any).mixedHover).toBe(true);
+         dir.highlightElement(0, 0);
+         expect(activeFlags(host, ".inetsoft-bar")).toEqual([true, false]);
+         expect(activeFlags(host, ".inetsoft-bar-label")).toEqual([true]);
+      });
+
+      it("dims the line series while a bar is highlighted, and releases it after", () => {
+         vi.useFakeTimers();
+         try {
+            const { dir, host } = makeMixedTile();
+            dir.highlightElement(0, 0);
+            expect(opacities(host, ".inetsoft-line")).toEqual(["0.2"]);
+            dir.highlightElement(null, null);
+            vi.advanceTimersByTime(ChartInlineSvgDirective["CLEAR_DELAY_MS"]);
+            expect(opacities(host, ".inetsoft-line")).toEqual([""]);
+         }
+         finally {
+            vi.useRealTimers();
+         }
+      });
+
+      it("activates every segment of a stacked column even though a line series is present", () => {
+         const { dir, host } = makeMixedTile();
+         // usesSeriesColorDim is true here (the line hover set it), but the keys are bars, so the
+         // trim that protects a pure line tile's shared markers must not apply.
+         expect((dir as any).usesSeriesColorDim).toBe(true);
+         dir.highlightElements([{ row: 0, col: 0 }, { row: 1, col: 0 }]);
+         expect(activeFlags(host, ".inetsoft-bar")).toEqual([true, true]);
+      });
+
+      it("dims the bars when the cursor resolves the line series", () => {
+         const { dir, host } = makeMixedTile();
+         // jsdom has no path geometry, so stub the per-series y at the cursor x.
+         (dir as any).getScreenYAtX = () => 100;
+         (dir as any).onAreaMouseMove({ clientX: 10, clientY: 100 } as MouseEvent);
+         expect((dir as any).activeSeriesIdx).toBe(0);
+         expect(opacities(host, ".inetsoft-bar")).toEqual(["0.2", "0.2"]);
+         expect(opacities(host, ".inetsoft-bar-label")).toEqual(["0.2"]);
+         // Cursor moves out of range of every series — bars come back.
+         (dir as any).getScreenYAtX = () => NaN;
+         (dir as any).onAreaMouseMove({ clientX: 10, clientY: 100 } as MouseEvent);
+         expect(opacities(host, ".inetsoft-bar")).toEqual(["", ""]);
+      });
+
+      it("lets the hovered bar keep the highlight instead of a line passing nearby", () => {
+         const { dir, host } = makeMixedTile();
+         (dir as any).getScreenYAtX = () => 100;
+         dir.highlightElement(0, 0);
+         (dir as any).onAreaMouseMove({ clientX: 10, clientY: 100 } as MouseEvent);
+         // The proximity hover is suppressed: the bar stays active and the line stays dimmed.
+         expect((dir as any).activeSeriesIdx).toBe(-1);
+         expect(activeFlags(host, ".inetsoft-bar")).toEqual([true, false]);
+         expect(opacities(host, ".inetsoft-line")).toEqual(["0.2"]);
+      });
+
+      it("dims the bars when snap resolves the line series, and releases on a bar snap", () => {
+         vi.useFakeTimers();
+         try {
+            // Snap needs a point marker to resolve the snapped row/col to a series color.
+            const { dir, host } = makeDirective(`
+               <svg>
+                  <g class="inetsoft-bar" data-row="0" data-col="0"></g>
+                  <g class="inetsoft-line" data-series="1" data-color="1,2,3"><path></path></g>
+                  <g class="inetsoft-point" data-row="0" data-col="1" data-color="1,2,3"></g>
+               </svg>`);
+            (dir as any).afterSvgInjected();
+            expect((dir as any).mixedHover).toBe(true);
+
+            // Under snap, onAreaMouseMove stands down and the guideline drives the series dim.
+            dir.snapTooltip = true;
+            dir.highlightSnapSeries([{ row: 0, col: 1 }]);
+            expect(opacities(host, ".inetsoft-bar")).toEqual(["0.2"]);
+
+            // Snapping onto a bar column routes to highlightElements, which must lift the bar dim.
+            dir.highlightElements([{ row: 0, col: 0 }]);
+            expect(opacities(host, ".inetsoft-bar")).toEqual([""]);
+            expect(activeFlags(host, ".inetsoft-bar")).toEqual([true]);
+
+            // Guideline moves back onto the same series: the bars must dim again even though the
+            // resolved color is unchanged.
+            dir.highlightElements([]);
+            dir.highlightSnapSeries([{ row: 0, col: 1 }]);
+            expect(opacities(host, ".inetsoft-bar")).toEqual(["0.2"]);
+
+            // Leaving the plot clears both mechanisms.
+            dir.highlightElements([]);
+            dir.highlightSnapSeries([]);
+            vi.advanceTimersByTime(ChartInlineSvgDirective["CLEAR_DELAY_MS"]);
+            expect(opacities(host, ".inetsoft-bar,.inetsoft-line")).toEqual(["", ""]);
+            expect(activeFlags(host, ".inetsoft-bar")).toEqual([false]);
+         }
+         finally {
+            vi.useRealTimers();
+         }
+      });
+
+      it("leaves a pure line chart's canvas-driven highlight a no-op", () => {
+         const { dir, host } = makeDirective(`
+            <svg>
+               <g class="inetsoft-line" data-series="1" data-color="1,2,3"><path></path></g>
+               <g class="inetsoft-point" data-row="0" data-col="1" data-color="1,2,3"></g>
+            </svg>`);
+         (dir as any).afterSvgInjected();
+         expect((dir as any).mixedHover).toBe(false);
+         expect((dir as any).elementGroupMap.size).toBe(0);
+         dir.highlightElement(0, 1);
+         expect(activeFlags(host, ".inetsoft-point")).toEqual([false]);
+      });
+   });
+
    describe("highlightSnapSeries (line chart snap dim)", () => {
       // Stacked line chart: one measure (data-series 2) split into two color groups, each with a
       // line and a point marker. Points carry row+col+color; the snapped point resolves to a color.
