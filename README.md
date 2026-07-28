@@ -23,6 +23,16 @@ You will need Docker installed with a version 1.29.0 or later of Docker Compose.
 
 Download the latest community-examples.zip file from the [StyleBI Release page](https://github.com/inetsoft-technology/stylebi/releases) and extract all file contents into a folder of your choosing. 
 
+Before starting the containers, set the `INETSOFT_ADMIN_PASSWORD` environment variable to the password you want to use for the "admin" account. This is required — there is no default password. The password must be at least 8 characters and include an uppercase letter, a lowercase letter, a digit, and a special character. You can either uncomment and set `INETSOFT_ADMIN_PASSWORD` in the `.env` file in the extracted folder, or set it directly in your shell:
+
+```shell
+export INETSOFT_ADMIN_PASSWORD="Test@admin1"
+```
+
+```powershell
+$env:INETSOFT_ADMIN_PASSWORD="Test@admin1"
+```
+
 For Docker Desktop, start it first then open a Command Prompt window. In the folder containing the extracted .yaml file, run the following command:
 
 ```shell

@@ -713,7 +713,35 @@ public abstract class AbstractSecurityFilter
          return false;
       }
 
+      if(!isNavigationRequest(request)) {
+         SUtil.sendError(response, HttpServletResponse.SC_UNAUTHORIZED);
+         return false;
+      }
+
       return true;
+   }
+
+   /**
+    * Determines if an HTTP request is a navigation (document) request, i.e. one for which a
+    * redirect to an HTML login page is meaningful. A subresource request (script, stylesheet,
+    * image, font, ...) hands the response body to the script or style parser instead, so a login
+    * page returned for one of those is executed as JavaScript or CSS rather than prompting the
+    * user to log in.
+    *
+    * @param request the HTTP request object.
+    *
+    * @return {@code true} if the request is a navigation request or its type could not be
+    *         determined; {@code false} if it is known to be a subresource request.
+    */
+   private boolean isNavigationRequest(HttpServletRequest request) {
+      // Sec-Fetch-Dest is sent by all current browsers, but only to a trustworthy origin (HTTPS
+      // or localhost). Requests without it (plain HTTP origins, older browsers, non-browser
+      // clients) are treated as navigation requests, preserving the prior behavior. This is
+      // therefore a second line of defense only; a resource that must load without a session has
+      // to be listed in publicResources.
+      String fetchDest = request.getHeader("Sec-Fetch-Dest");
+      return fetchDest == null || Arrays.stream(navigationFetchDestinations)
+         .anyMatch(dest -> dest.equalsIgnoreCase(fetchDest));
    }
 
    protected boolean isAnonymousPrincipal(SRPrincipal principal) {
@@ -798,6 +826,23 @@ public abstract class AbstractSecurityFilter
       "/app/*.ttf",
       "/app/*.woff",
       "/app/assets/**",
+      // the Enterprise Manager static resources must be public for the same reason as the
+      // /app resources above: they are fetched by the browser before a session exists (or after
+      // one has been invalidated), and a login page returned in their place is executed by the
+      // script or style parser instead of being displayed (Bug #75775)
+      "/em/*.js",
+      "/em/*.css",
+      "/em/*.cur",
+      "/em/*.eot",
+      "/em/*.ico",
+      "/em/*.png",
+      "/em/*.svg",
+      "/em/*.ttf",
+      "/em/*.woff",
+      "/em/assets/**",
+      // the icon font and cursor images referenced by em/styles.css are emitted into a media
+      // subdirectory, which the single-segment patterns above cannot match
+      "/em/media/**",
       "/ping",
       "/css/**",
       "/images/**",
@@ -807,6 +852,13 @@ public abstract class AbstractSecurityFilter
       "/robots.txt",
       // WIZ MCP plugin polls this unauthenticated endpoint to pick up SSO tokens after login.
       "/api/wiz/v1/auth/pickup",
+   };
+   /**
+    * The Sec-Fetch-Dest values that identify a request whose response is displayed as a document
+    * and for which a redirect to the login page is therefore meaningful.
+    */
+   private static final String[] navigationFetchDestinations = {
+      "document", "iframe", "frame", "embed", "object"
    };
    protected static final String ORG_COOKIE = "X-INETSOFT-ORGID";
    /**

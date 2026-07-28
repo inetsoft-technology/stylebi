@@ -87,6 +87,12 @@ public class SecurityTreeServer {
          currOrgID = currOrgID == null ? Organization.getDefaultOrganizationID() : currOrgID;
          String[] orgIds = provider.getOrganizationIDs();
 
+         if(isMultiTenant && orgIds.length == 0 && provider instanceof DatabaseAuthenticationProvider dbProvider &&
+            dbProvider.isCacheEnabled() && !dbProvider.isCacheInitialized())
+         {
+            orgIds = waitForOrganizationCache(dbProvider);
+         }
+
          if(isMultiTenant && orgIds.length == 0) {
             throw new MessageException(Catalog.getCatalog().getString("em.security.provider.db.noOrg"));
          }
@@ -133,6 +139,30 @@ public class SecurityTreeServer {
       }
    }
 
+   /**
+    * The provider's organization cache is loaded asynchronously, so a request that arrives
+    * right after a provider switch/edit can observe an empty organization list even though
+    * the underlying database has organizations. Poll briefly for the cache to finish its
+    * initial load before treating the provider as having no organizations.
+    */
+   private String[] waitForOrganizationCache(DatabaseAuthenticationProvider provider) {
+      long deadline = System.currentTimeMillis() + CACHE_WAIT_TIMEOUT;
+
+      while(!provider.isCacheInitialized() && System.currentTimeMillis() < deadline) {
+         try {
+            Thread.sleep(CACHE_POLL_INTERVAL);
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            break;
+         }
+      }
+
+      return provider.getOrganizationIDs();
+   }
+
+   private static final long CACHE_WAIT_TIMEOUT = 5000L;
+   private static final long CACHE_POLL_INTERVAL = 100L;
    private final boolean namedUsers;
    private final UserTreeService userTreeService;
    private final SecurityEngine securityEngine;

@@ -247,9 +247,11 @@ public class DashboardRegistry {
    }
 
    /**
-    * Clear the listeners.
+    * Clear the listeners. Detaches this registry from the data space file watch, so that it is
+    * no longer re-loaded from its backing file when that file changes. Same role as
+    * {@link inetsoft.sree.RepletRegistry#shutdown()}.
     */
-   void clear() {
+   public void clear() {
       dmgr.clear();
    }
 

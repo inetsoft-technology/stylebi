@@ -347,6 +347,140 @@ class DefaultAuthorizationFilterTest {
       assertNotEquals(HttpServletResponse.SC_FOUND, response.getStatus());
    }
 
+   // ── EM static resources are public (Bug #75775) ──────────────────────────
+
+   @Test
+   void doFilter_emScript_noSession_passesThroughWithoutRedirect() throws Exception {
+      // /em/scripts.js used to be treated as a protected resource, so an unauthenticated request
+      // for it was answered with a redirect to login.html. A <script> load has no
+      // X-Requested-With header, so the browser followed the redirect and executed the login page
+      // as JavaScript, leaving the EM with a blank page and a syntax error.
+      MockHttpServletRequest request = request("GET", "/em/scripts.js");
+      MockHttpServletResponse response = new MockHttpServletResponse();
+      when(mockEngine.containsAnonymous(any())).thenReturn(false);
+
+      filter.doFilter(request, response, chain);
+
+      verify(chain).doFilter(eq(request), any());
+      assertNotEquals(HttpServletResponse.SC_FOUND, response.getStatus());
+      assertNull(response.getRedirectedUrl());
+   }
+
+   @Test
+   void doFilter_emStylesheet_noSession_passesThroughWithoutRedirect() throws Exception {
+      MockHttpServletRequest request = request("GET", "/em/styles.css");
+      MockHttpServletResponse response = new MockHttpServletResponse();
+      when(mockEngine.containsAnonymous(any())).thenReturn(false);
+
+      filter.doFilter(request, response, chain);
+
+      verify(chain).doFilter(eq(request), any());
+      assertNotEquals(HttpServletResponse.SC_FOUND, response.getStatus());
+   }
+
+   @Test
+   void doFilter_emLazyChunk_noSession_passesThroughWithoutRedirect() throws Exception {
+      // the EM build emits ~120 lazily loaded route chunks alongside the entry point bundles
+      MockHttpServletRequest request = request("GET", "/em/chunk-2KU2435C.js");
+      MockHttpServletResponse response = new MockHttpServletResponse();
+      when(mockEngine.containsAnonymous(any())).thenReturn(false);
+
+      filter.doFilter(request, response, chain);
+
+      verify(chain).doFilter(eq(request), any());
+      assertNotEquals(HttpServletResponse.SC_FOUND, response.getStatus());
+   }
+
+   @Test
+   void doFilter_emMediaFont_noSession_passesThroughWithoutRedirect() throws Exception {
+      // the icon font lives one segment deeper than the entry point bundles, so it is matched by
+      // "/em/media/**" rather than by "/em/*.woff"
+      MockHttpServletRequest request = request("GET", "/em/media/InetSoft-Icons.woff");
+      MockHttpServletResponse response = new MockHttpServletResponse();
+      when(mockEngine.containsAnonymous(any())).thenReturn(false);
+
+      filter.doFilter(request, response, chain);
+
+      verify(chain).doFilter(eq(request), any());
+      assertNotEquals(HttpServletResponse.SC_FOUND, response.getStatus());
+   }
+
+   @Test
+   void doFilter_emMonitoringPath_noSession_stillRedirectsToLogin() throws Exception {
+      // guards against the new patterns widening far enough to expose an EM endpoint: "*" matches
+      // within a single path segment only, so nothing under /em/monitoring/** becomes public
+      MockHttpServletRequest request = request(
+         "GET", "/em/monitoring/server/debug/key-value-storage-dump");
+      MockHttpServletResponse response = new MockHttpServletResponse();
+      when(mockEngine.containsAnonymous(any())).thenReturn(false);
+
+      filter.doFilter(request, response, chain);
+
+      assertEquals(HttpServletResponse.SC_FOUND, response.getStatus());
+      assertTrue(response.getRedirectedUrl().contains("login.html?requestedUrl="));
+      verifyNoInteractions(chain);
+   }
+
+   @Test
+   void doFilter_emScript_virtualProvider_noPrincipal_notBlockedByEmAccessCheck() throws Exception {
+      // The EM access check in the else-if branch must not re-block the now-public EM resources;
+      // otherwise whitelisting them has no effect at all.
+      when(mockProvider.isVirtual()).thenReturn(true);
+      MockHttpServletRequest request = request("GET", "/em/scripts.js");
+      MockHttpServletResponse response = new MockHttpServletResponse();
+
+      filter.doFilter(request, response, chain);
+
+      verify(chain).doFilter(eq(request), any());
+      assertNotEquals(HttpServletResponse.SC_FOUND, response.getStatus());
+      verify(mockProvider, never())
+         .checkPermission(any(), eq(ResourceType.EM), anyString(), any());
+   }
+
+   @Test
+   void doFilter_emPage_noSession_stillRedirectsToLogin() throws Exception {
+      // only the static resources are public; the EM pages themselves are still protected
+      MockHttpServletRequest request = request("GET", "/em/settings");
+      request.addHeader("Sec-Fetch-Dest", "document");
+      MockHttpServletResponse response = new MockHttpServletResponse();
+      when(mockEngine.containsAnonymous(any())).thenReturn(false);
+
+      filter.doFilter(request, response, chain);
+
+      assertEquals(HttpServletResponse.SC_FOUND, response.getStatus());
+      assertTrue(response.getRedirectedUrl().contains("login.html?requestedUrl="));
+      verifyNoInteractions(chain);
+   }
+
+   // ── subresource requests get a 401 instead of an HTML redirect ────────────
+
+   @Test
+   void doFilter_unauthorizedSubresourceRequest_returns401InsteadOfRedirect() throws Exception {
+      MockHttpServletRequest request = request("GET", "/portal/dashboard-script");
+      request.addHeader("Sec-Fetch-Dest", "script");
+      MockHttpServletResponse response = new MockHttpServletResponse();
+      when(mockEngine.containsAnonymous(any())).thenReturn(false);
+
+      filter.doFilter(request, response, chain);
+
+      assertEquals(HttpServletResponse.SC_UNAUTHORIZED, response.getStatus());
+      assertNull(response.getRedirectedUrl());
+      verifyNoInteractions(chain);
+   }
+
+   @Test
+   void doFilter_unauthorizedIframeRequest_stillRedirectsToLogin() throws Exception {
+      MockHttpServletRequest request = request("GET", "/em/settings");
+      request.addHeader("Sec-Fetch-Dest", "iframe");
+      MockHttpServletResponse response = new MockHttpServletResponse();
+      when(mockEngine.containsAnonymous(any())).thenReturn(false);
+
+      filter.doFilter(request, response, chain);
+
+      assertEquals(HttpServletResponse.SC_FOUND, response.getStatus());
+      assertTrue(response.getRedirectedUrl().contains("login.html?requestedUrl="));
+   }
+
    // ── helpers ────────────────────────────────────────────────────────────────
 
    private static MockHttpServletRequest request(String method, String path) {

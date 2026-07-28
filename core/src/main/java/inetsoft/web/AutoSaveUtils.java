@@ -65,8 +65,11 @@ public final class AutoSaveUtils {
       String ip = paths.length > 4 ? paths[4] : null;
 
       String typeStr = "VIEWSHEET".equals(type) ? "^128^" : "^2^";
-      AssetEntry entry = AssetEntry.createAssetEntry(scope + typeStr + ouser + "^" + name +
-                                                        "^" + ip);
+      // the last field of an auto save file name is the ip address, not the organization id, so
+      // the entry must be created for the current organization. otherwise, for any scope other
+      // than the temporary scope, the ip address would be parsed as the organization id.
+      AssetEntry entry = AssetEntry.createAssetEntryForCurrentOrg(
+         scope + typeStr + ouser + "^" + name + "^" + ip);
       entry.setProperty("openAutoSaved", "true");
       entry.setProperty("autoFileName", autoFile);
       entry.setProperty("isRecycle", "true");
@@ -74,14 +77,16 @@ public final class AutoSaveUtils {
       return entry;
    }
 
-   // If saved vs, get its auto saved file by create file name.
-   // If unsaved vs(untitled vs), should get its auto save file from file name.  For its file name
-   // is fixed, will not changed by login user.
+   // If the entry carries the name of an existing auto save file, e.g. an entry created by
+   // createAssetEntry() for the recycle bin, use that name as is. The name of an auto save file
+   // contains the user and ip address of the session that created it, so it can not be recreated
+   // from the entry and the current user.
+   // Otherwise, create the file name from the entry and the current user.
    public static String getAutoSavedFile(AssetEntry entry, Principal user) {
       String fileName = entry.getProperty("autoFileName");
       boolean isRecycle = "true".equals(entry.getProperty("isRecycle"));
 
-      if(entry.getScope() == AssetRepository.TEMPORARY_SCOPE && fileName != null) {
+      if(fileName != null) {
          fileName = SUtil.addAutoSaveOrganization(fileName);
          return getAutoSavedByName(fileName, isRecycle);
       }

@@ -63,7 +63,9 @@ public class AutoSaveController {
       for(int i = 0; i < ids.length; i++) {
          String path = ids[i];
          AutoSaveUtils.deleteAutoSaveFile(path, user);
-         int type = path.startsWith("8^WORKSHEET^") ? RepositoryEntry.AUTO_SAVE_WS :
+         // the scope of an auto save file is not necessarily the temporary scope, so match the
+         // type field of the file name instead of the whole prefix
+         int type = path.contains("^WORKSHEET^") ? RepositoryEntry.AUTO_SAVE_WS :
                  RepositoryEntry.AUTO_SAVE_VS;
          String objectName = Util.getObjectFullPath(type, path, user, null);
          ActionRecord actionRecord = SUtil.getActionRecord(user,

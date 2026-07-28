@@ -1352,6 +1352,10 @@ public class DataSourceRegistry implements MessageListener {
          .orElse(oentry);
 
       nentry.copyProperties(oentry);
+      // keep the original creation info, renaming or updating an object should only
+      // change the last modified info, not who created it or when it was created
+      nentry.setCreatedUsername(oentry.getCreatedUsername());
+      nentry.setCreatedDate(oentry.getCreatedDate());
       updateObject(oentry, nentry, obj);
    }
 

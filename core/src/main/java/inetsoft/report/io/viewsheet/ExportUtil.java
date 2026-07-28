@@ -724,7 +724,7 @@ public class ExportUtil {
                Class<?> type = runtime.getColType(c);
 
                if(setTrailer) {
-                  runtime.setTrailerColCount(trailerRowCount);
+                  runtime.setTrailerRowCount(trailerRowCount);
                }
 
                return type;
