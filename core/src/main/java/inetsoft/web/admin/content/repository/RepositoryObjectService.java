@@ -327,9 +327,13 @@ public class RepositoryObjectService {
                         }
 
                         dataModel.removePartition(node.label());
+                        removeDataModelDependencies(
+                           dataModelPath + "/" + node.label(), AssetEntry.Type.PARTITION, true);
                      }
                      else {
                         dataModel.removeVirtualPrivateModel(node.label());
+                        removeDataModelDependencies(
+                           dataModelPath + "/" + node.label(), AssetEntry.Type.VPM, false);
                      }
                   }
                }
@@ -575,7 +579,25 @@ public class RepositoryObjectService {
       }
 
       dataModel.removeLogicalModel(name);
+      removeDataModelDependencies(path, AssetEntry.Type.LOGIC_MODEL, true);
       return null;
+   }
+
+   /**
+    * Removes the dependency information of a deleted data model object so that it is no longer
+    * reported as a dependency of its data source, physical view or logical model.
+    *
+    * @param path       the path of the deleted object, in the form of "datasource/name".
+    * @param type       the asset type of the deleted object.
+    * @param removeKey  <tt>true</tt> to also remove the dependencies stored for the object itself.
+    */
+   private void removeDataModelDependencies(String path, AssetEntry.Type type, boolean removeKey) {
+      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE, type, path, null);
+      dependencyHandler.deleteDependencies(entry);
+
+      if(removeKey) {
+         dependencyHandler.deleteDependenciesKey(entry);
+      }
    }
 
    public void deleteAutoSaveNodes(List<TreeNodeInfo> nodes, Principal principal) throws MessageException {
