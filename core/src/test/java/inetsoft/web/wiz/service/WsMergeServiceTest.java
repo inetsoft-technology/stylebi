@@ -30,6 +30,7 @@ import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -512,10 +513,11 @@ class WsMergeServiceTest {
       dashWS.addAssembly(wrapped);
 
       // Pre-existing mirror at the bare name "PT" wrapping "PT_actual" -- simulating a mirror
-      // created by some OTHER mechanism entirely (e.g. Viewsheet#createMirrorTable), NOT tagged
-      // PROP_WIZ_MERGED, and (as that mechanism always produces) with an EMPTY AggregateInfo of
-      // its own.
+      // created by some OTHER mechanism entirely (Viewsheet#createMirrorTable), tagged
+      // VS_MIRROR_TABLE (as that mechanism always does) but NOT PROP_WIZ_MERGED, and (as that
+      // mechanism always produces) with an EMPTY AggregateInfo of its own.
       MirrorTableAssembly preExistingOuterMirror = new MirrorTableAssembly(dashWS, "PT", wrapped);
+      preExistingOuterMirror.setProperty(Viewsheet.VS_MIRROR_TABLE, "true");
       dashWS.addAssembly(preExistingOuterMirror);
       assertTrue(preExistingOuterMirror.getAggregateInfo().isEmpty());
 
@@ -541,5 +543,63 @@ class WsMergeServiceTest {
       TableAssembly wrappedAfter = (TableAssembly) dashWS.getAssembly("PT_actual");
       assertNotNull(wrappedAfter);
       assertTrue(wrappedAfter.getAggregateInfo().isEmpty());
+   }
+
+   /**
+    * Regression for a reproduced live crash, a false-positive sibling of the "adapts a
+    * pre-existing non-wiz mirror" test above: {@code ensureBaseHasPrevMirror}'s outerMirror
+    * lookup used to match ANY MirrorTableAssembly whose base pointer equals the physical
+    * table's name -- not just one actually created by {@code Viewsheet#createMirrorTable} (which
+    * tags its mirror {@code VS_MIRROR_TABLE}). An entirely unrelated chart can have its OWN real,
+    * business-logic aggregate mirror built directly on the same raw physical table (e.g. a
+    * "SO_QREV" quarterly-revenue rollup mirror of "SO") for reasons that have nothing to do with
+    * wiz's dashboard-merge machinery -- that mirror also satisfies a bare base-pointer-name
+    * match. Without requiring the VS_MIRROR_TABLE tag, that unrelated chart's mirror gets
+    * misidentified as the empty createMirrorTable placeholder, and ensureBaseHasPrevMirror
+    * overwrites its real AggregateInfo with the (empty) one belonging to whichever OTHER chart's
+    * plain physical table happened to match by SourceInfo -- silently wiping out its group/
+    * aggregate columns. Confirmed live: a chart's own quarterly-grouped chain (Quarter(date)
+    * group + SUM/MEDIAN aggregates) lost its aggregation entirely, collapsing to a bare
+    * passthrough of the raw table, the moment a second, unrelated chart sharing the same
+    * physical source was merged into the same dashboard afterward.
+    */
+   @Test
+   void anUnrelatedChartsOwnAggregateMirrorSharingTheSameBaseIsNotMistakenForAnOuterMirror() {
+      Worksheet dashWS = new Worksheet();
+      PhysicalBoundTableAssembly rawPhysical = physicalTable(dashWS, "PT_actual", "date_order", "amount_total");
+      dashWS.addAssembly(rawPhysical);
+
+      // An unrelated chart's OWN business-logic aggregate mirror of "PT_actual" -- NOT tagged
+      // VS_MIRROR_TABLE (nothing wraps it via Viewsheet#createMirrorTable), carrying its own
+      // real, non-empty AggregateInfo. This is structurally identical to the "SO_QREV" mirror
+      // that lost its aggregation in the live crash.
+      MirrorTableAssembly unrelatedAggregateMirror = new MirrorTableAssembly(dashWS, "PT_QREV", rawPhysical);
+      AggregateInfo ownAggr = new AggregateInfo();
+      ownAggr.addGroup(groupRef("quarter"));
+      ownAggr.addAggregate(aggregateRef("revenue", AggregateFormula.SUM));
+      unrelatedAggregateMirror.setAggregateInfo(ownAggr);
+      dashWS.addAssembly(unrelatedAggregateMirror);
+
+      // A second chart binding to the SAME physical source, with no aggregation of its own --
+      // e.g. a plain "SO" bind that some OTHER chart uses directly.
+      Worksheet vizWS = new Worksheet();
+      vizWS.addAssembly(physicalTable(vizWS, "PT_actual", "date_order", "amount_total"));
+
+      service.mergeWorksheet(vizWS, dashWS, "suffix1", new HashMap<>());
+
+      // The unrelated mirror's own aggregation must survive untouched -- not overwritten with
+      // an empty AggregateInfo borrowed from the second chart's plain physical table.
+      TableAssembly stillThere = (TableAssembly) dashWS.getAssembly("PT_QREV");
+      assertNotNull(stillThere, "the unrelated chart's own aggregate mirror must still exist");
+      assertFalse(stillThere.getAggregateInfo().isEmpty(),
+         "the unrelated mirror's own aggregation must not be wiped out by an unrelated merge");
+      assertEquals("revenue", stillThere.getAggregateInfo().getAggregate(0).getName());
+
+      // Since the unrelated mirror must NOT be mistaken for an outer mirror, the merge takes the
+      // "no pre-existing outer mirror" branch: the raw physical table is renamed to "_base" and a
+      // FRESH, empty prevMirror is created at the bare name.
+      TableAssembly base = (TableAssembly) dashWS.getAssembly("PT_actual_base");
+      assertNotNull(base, "the raw physical table must be renamed to \"_base\"");
+      assertTrue(base.getAggregateInfo().isEmpty());
    }
 }

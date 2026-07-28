@@ -21,6 +21,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.viewsheet.Viewsheet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -447,8 +448,21 @@ public class WsMergeService {
       // pointing at this pre-existing, empty-AggregateInfo pass-through mirror. Detect this
       // outer mirror and adapt it in place instead of creating a disconnected, unreachable
       // prevMirror elsewhere.
+      //
+      // MUST also require Viewsheet.VS_MIRROR_TABLE (the tag createMirrorTable itself sets) --
+      // matching on base-pointer-name alone is not enough to identify ITS mirror specifically:
+      // an entirely unrelated chart can have its OWN real, aggregation-bearing mirror built
+      // directly on the same raw physical table for its own reasons (e.g. a "SO_QREV" quarterly
+      // rollup mirror of "SO"), which also satisfies a bare name-pointer match. Without this
+      // tag check, that unrelated chart's mirror gets misidentified as the empty placeholder and
+      // ensureBaseHasPrevMirror overwrites its real AggregateInfo with the (empty) one belonging
+      // to whichever OTHER chart's plain table happened to match physically -- silently wiping
+      // out that chart's aggregation. Confirmed live: a chart's own quarterly-grouped chain lost
+      // its group/aggregate columns entirely once a second, unrelated chart sharing the same
+      // physical source got merged in after it.
       MirrorTableAssembly outerMirror = Arrays.stream(dashWS.getAssemblies())
-         .filter(a -> a instanceof MirrorTableAssembly)
+         .filter(a -> a instanceof MirrorTableAssembly m &&
+            "true".equals(m.getProperty(Viewsheet.VS_MIRROR_TABLE)))
          .map(a -> (MirrorTableAssembly) a)
          .filter(m -> Objects.equals(m.getAssemblyName(), baseName))
          .findFirst().orElse(null);
