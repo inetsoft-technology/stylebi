@@ -1068,6 +1068,13 @@ public class WizVsService {
          String copyNote = null;
          VSAssembly demotedOriginal = null;
          VSAssembly rollbackCopy = null;
+         // Targeted replace (model.getAssemblyName(), standard path only — the modificationOnly
+         // branch below reads the same field as the chart to MODIFY instead): the specific assembly
+         // being swapped out, and its primary state to carry over — set only when this mode is
+         // used, in which case previousPrimaryAssembly stays null (they are mutually exclusive ways
+         // of tracking "what was displaced").
+         VSAssembly replacedAssembly = null;
+         boolean replacedWasPrimary = false;
 
          if(modificationOnly) {
             targetVs = vs;
@@ -1148,7 +1155,28 @@ public class WizVsService {
                targetVs.setBaseEntry(ctx.sourceWs());
             }
 
-            String assemblyName = uniqueAssemblyName(targetVs, ctx.title());
+            // In this (standard) path the named assembly is the one to REPLACE in place; the
+            // modificationOnly branch above reads the same field as the chart to modify.
+            String targetAssemblyName = model.getAssemblyName();
+            VSAssembly existingTarget = null;
+
+            if(!Tool.isEmptyString(targetAssemblyName)) {
+               Assembly found = targetVs.getAssembly(targetAssemblyName);
+
+               if(found == null) {
+                  throw new IllegalArgumentException("Assembly not found: " + targetAssemblyName);
+               }
+
+               if(!(found instanceof VSAssembly foundVs)) {
+                  throw new IllegalArgumentException(
+                     "Assembly \"" + targetAssemblyName + "\" is not a supported type: " + found.getClass().getName());
+               }
+
+               existingTarget = foundVs;
+            }
+
+            String assemblyName = !Tool.isEmptyString(targetAssemblyName)
+               ? targetAssemblyName : uniqueAssemblyName(targetVs, ctx.title());
 
             if(model.getPrimaryAssembly() != null) {
                assembly = rebindAssembly(targetVs, assemblyName, model.getPrimaryAssembly());
@@ -1167,20 +1195,35 @@ public class WizVsService {
                }
             }
 
-            // Clear old primary before adding the new assembly; capture it for rollback.
-            Assembly[] existingAssemblies = targetVs.getAssemblies();
+            if(existingTarget != null) {
+               // Targeted replace: swap in the new assembly under the SAME name, carrying over the
+               // old one's exact primary state — no other assembly is touched either way.
+               // model.isCopy() is NOT consulted here (only in the else branch below, via
+               // previousPrimaryAssembly): a caller that sets both assemblyName and copy=true gets
+               // copy silently bypassed — replacing one specific historical card by name should not
+               // also duplicate it. See CreateVisualizationModel.getAssemblyName()'s javadoc.
+               replacedAssembly = existingTarget;
+               replacedWasPrimary = existingTarget.isPrimary();
+               targetVs.removeAssembly(targetAssemblyName);
+               targetVs.addAssembly(assembly);
+               assembly.setPrimary(replacedWasPrimary);
+            }
+            else {
+               // Clear old primary before adding the new assembly; capture it for rollback.
+               Assembly[] existingAssemblies = targetVs.getAssemblies();
 
-            if(existingAssemblies != null) {
-               for(Assembly a : existingAssemblies) {
-                  if(a instanceof VSAssembly va && va.isPrimary()) {
-                     previousPrimaryAssembly = va;
-                     va.setPrimary(false);
+               if(existingAssemblies != null) {
+                  for(Assembly a : existingAssemblies) {
+                     if(a instanceof VSAssembly va && va.isPrimary()) {
+                        previousPrimaryAssembly = va;
+                        va.setPrimary(false);
+                     }
                   }
                }
-            }
 
-            targetVs.addAssembly(assembly);
-            assembly.setPrimary(true);
+               targetVs.addAssembly(assembly);
+               assembly.setPrimary(true);
+            }
 
             // Re-binding a chart on an ALREADY-EXECUTED runtime (createdRuntimeId == false) carries a
             // real staleness trap: rebindAssembly clones the replaced assembly's VSAssemblyInfo,
@@ -1205,8 +1248,10 @@ public class WizVsService {
 
             // Sync pre-condition from the replaced assembly to the new one when the caller
             // is performing a visualization type change (e.g. table → chart).
+            VSAssembly displacedForCondition = replacedAssembly != null ? replacedAssembly : previousPrimaryAssembly;
+
             if(model.isKeepCondition() &&
-               previousPrimaryAssembly instanceof DataVSAssembly oldDataAsm &&
+               displacedForCondition instanceof DataVSAssembly oldDataAsm &&
                assembly instanceof DataVSAssembly newDataAsm)
             {
                ConditionList cond = oldDataAsm.getPreConditionList();
@@ -1422,8 +1467,11 @@ public class WizVsService {
             }
 
             // For skipExecution (changeType): remove the displaced primary before persisting
-            // so the stored viewsheet contains only the new assembly.
-            if(skipExecution && previousPrimaryAssembly != null && !createdRuntimeId) {
+            // so the stored viewsheet contains only the new assembly — unless the caller asked to
+            // keep it (model.isCopy(): agent/MCP-driven type change appends a second chart instead
+            // of replacing the original). The demotion above (setPrimary(false)) always happens
+            // regardless of copy; this only controls whether it is also deleted.
+            if(skipExecution && previousPrimaryAssembly != null && !createdRuntimeId && !model.isCopy()) {
                targetVs.removeAssembly(previousPrimaryAssembly.getName());
                removedPreviousPrimary = true;
             }
@@ -1485,6 +1533,13 @@ public class WizVsService {
                      if(removedPreviousPrimary) {
                         previousVs.addAssembly(previousPrimaryAssembly);
                      }
+                  }
+                  else if(replacedAssembly != null) {
+                     // Targeted replace: the original was removed unconditionally (before this try
+                     // block even started, unlike previousPrimaryAssembly's conditional removal
+                     // below) — re-add it under its own name with its original primary state.
+                     previousVs.addAssembly(replacedAssembly);
+                     replacedAssembly.setPrimary(replacedWasPrimary);
                   }
 
                   previousVs.setBaseEntry(previousBaseEntry);

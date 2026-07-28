@@ -64,6 +64,35 @@ public class ChangeTypeRequest {
       this.viewsheetIdentifier = viewsheetIdentifier;
    }
 
+   /**
+    * When true, keep the current primary assembly (demoted, not removed) and add the new
+    * chart-type assembly as a second, separate primary — used for agent/MCP-driven type changes
+    * so the user's original chart card is preserved instead of replaced. Default false
+    * (delete-and-replace, the existing UI-click behavior).
+    */
+   public boolean isCopy() {
+      return copy;
+   }
+
+   public void setCopy(boolean copy) {
+      this.copy = copy;
+   }
+
+   /**
+    * When set, replace THIS SPECIFIC assembly in place instead of whichever assembly is currently
+    * primary — a session shares one output viewsheet/runtime across every turn, so "whichever is
+    * primary" is always the latest turn's chart, not necessarily the one the user clicked. Used
+    * for changeType on a non-current (historical) card. Ignored (falls back to the primary-based
+    * behavior above) when null/empty, the default.
+    */
+   public String getAssemblyName() {
+      return assemblyName;
+   }
+
+   public void setAssemblyName(String assemblyName) {
+      this.assemblyName = assemblyName;
+   }
+
    private String worksheetId;
    private String visualizationType;
    /**
@@ -82,4 +111,6 @@ public class ChangeTypeRequest {
     * Passed back so the viewsheet entry is overwritten in place rather than duplicated.
     */
    private String viewsheetIdentifier;
+   private boolean copy;
+   private String assemblyName;
 }

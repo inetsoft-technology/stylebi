@@ -84,13 +84,25 @@ public class CreateVisualizationModel {
    }
 
    /**
-    * When true AND this call is otherwise eligible for the in-place "modificationOnly" path (see
-    * {@code WizVsService.createViewsheetInternal}: {@link #getConfig()}/{@link #getPrimaryAssembly()}
-    * are null and {@link #getConditionModel()} is set), duplicate the current primary assembly first
-    * and apply the condition to the COPY instead — the original chart is left untouched. Mirrors
-    * {@code ChartColorsRequest}/{@code ChartFormatRequest}/{@code ApplyHighlightModel}'s {@code copy}
-    * flag. Has no effect outside the modificationOnly path (the standard create/rebind path always
-    * produces a fresh assembly on its own). Default false (in-place, the existing behavior).
+    * When true, the previous primary assembly is kept (demoted, not deleted) instead of being
+    * removed when a new primary is created:
+    * <ul>
+    *   <li>In the "modificationOnly" path (see {@code WizVsService.createViewsheetInternal}:
+    *       {@link #getConfig()}/{@link #getPrimaryAssembly()} are null and
+    *       {@link #getConditionModel()} is set), the current primary is duplicated and the
+    *       condition is applied to the COPY instead of mutating the original in place. Mirrors
+    *       {@code ChartColorsRequest}/{@code ChartFormatRequest}/{@code ApplyHighlightModel}'s
+    *       {@code copy} flag.</li>
+    *   <li>In the standard create/rebind path (chart-type changes and general creation), the
+    *       displaced previous primary is demoted but left in the viewsheet as a second,
+    *       non-primary assembly instead of being deleted — used for agent/MCP-driven chart-type
+    *       changes so the user's original chart is preserved alongside the new one, rather than
+    *       replaced (the UI-click flow leaves this false to keep its existing delete-and-replace
+    *       behavior).</li>
+    * </ul>
+    * Default false (in-place / delete-and-replace, the existing behavior) in both paths. Not
+    * consulted by the standard path when {@link #getAssemblyName()} names an assembly to replace —
+    * see that field's javadoc.
     */
    public boolean isCopy() {
       return copy;
@@ -101,16 +113,29 @@ public class CreateVisualizationModel {
    }
 
    /**
-    * Which chart the "modificationOnly" path acts on (see
+    * Which existing chart this call addresses, by name (see
     * {@code WizVsService.createViewsheetInternal}). Null — the default and every pre-existing
     * caller — means the viewsheet's current PRIMARY assembly, i.e. the chart created or copied most
     * recently.
     *
-    * <p>Naming one is required when the caller edits a chart that is NOT the newest: in a
-    * multi-chart conversation a filter built against an earlier chart's fields would otherwise be
-    * applied to a different chart, which at best filters the wrong chart and at worst references
-    * columns that chart does not bind. Ignored outside the modificationOnly path (the standard
-    * create/rebind path produces its own fresh assembly).
+    * <p>Naming one is required whenever the caller acts on a chart that is NOT the newest. A
+    * session shares one viewsheet/runtime across all turns, so "whichever assembly is primary" is
+    * always the latest turn's chart, not necessarily the one the user targeted. What the named
+    * chart is used FOR depends on which path the call takes — the two are mutually exclusive, so
+    * one field serves both:
+    * <ul>
+    *   <li>"modificationOnly" path ({@link #getConfig()}/{@link #getPrimaryAssembly()} null and
+    *       {@link #getConditionModel()} set) — the chart to MODIFY (the source the condition is
+    *       applied to, or duplicated from when {@link #isCopy()}). Without it, a filter built
+    *       against an earlier chart's fields lands on a different chart, which at best filters the
+    *       wrong chart and at worst references columns that chart does not bind.</li>
+    *   <li>Standard create/rebind path — the chart to REPLACE in place: the new assembly is added
+    *       under this same name with the old one's exact primary state carried over, and no other
+    *       assembly's primary flag is touched. Used for changeType on a non-current (historical)
+    *       card. {@link #isCopy()} is not consulted in this mode (see
+    *       {@code createViewsheetInternal}): replacing one specific historical card by name should
+    *       not also duplicate it.</li>
+    * </ul>
     */
    public String getAssemblyName() {
       return assemblyName;
