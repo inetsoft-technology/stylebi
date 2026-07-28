@@ -22,6 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import java.security.Principal;
+import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -29,10 +30,11 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class AdminAiControllerTest {
    @Mock private AdminChangeService changeService;
+   @Mock private AdminBackupService backupService;
    @Mock private Principal principal;
    private AdminAiController controller;
 
-   @BeforeEach void setup() { controller = new AdminAiController(changeService); }
+   @BeforeEach void setup() { controller = new AdminAiController(changeService, backupService); }
 
    @Test void changeDelegatesToService() {
       AdminChangeRequest req = new AdminChangeRequest();
@@ -45,5 +47,34 @@ class AdminAiControllerTest {
 
       assertEquals("verified", actual.getStatus());
       verify(changeService).applyChange(req, principal);
+   }
+
+   @Test void backupDelegatesToService() throws Exception {
+      when(backupService.backup("chg-1")).thenReturn("admin-chg-1-123.zip");
+
+      Map<String, String> actual =
+         controller.backup(Map.of("transactionId", "chg-1"), principal);
+
+      assertEquals("admin-chg-1-123.zip", actual.get("backupRef"));
+      verify(backupService).backup("chg-1");
+   }
+
+   @Test void restoreReturnsRestoredStatusOnSuccess() throws Exception {
+      Map<String, String> actual =
+         controller.restore(Map.of("backupRef", "admin-chg-1-123.zip"), principal);
+
+      assertEquals("restored", actual.get("status"));
+      verify(backupService).restore("admin-chg-1-123.zip");
+   }
+
+   @Test void restoreReturnsFailedStatusOnException() throws Exception {
+      doThrow(new IllegalStateException("no such backup"))
+         .when(backupService).restore("missing.zip");
+
+      Map<String, String> actual =
+         controller.restore(Map.of("backupRef", "missing.zip"), principal);
+
+      assertEquals("failed", actual.get("status"));
+      assertEquals("no such backup", actual.get("error"));
    }
 }

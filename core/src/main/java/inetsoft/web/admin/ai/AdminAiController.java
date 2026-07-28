@@ -23,12 +23,14 @@ import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import java.security.Principal;
+import java.util.Map;
 
 @RestController
 public class AdminAiController {
    @Autowired
-   public AdminAiController(AdminChangeService changeService) {
+   public AdminAiController(AdminChangeService changeService, AdminBackupService backupService) {
       this.changeService = changeService;
+      this.backupService = backupService;
    }
 
    @Secured(@RequiredPermission(
@@ -40,5 +42,32 @@ public class AdminAiController {
       return changeService.applyChange(req, user);
    }
 
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.EM_COMPONENT,
+      resource = "settings/properties",
+      actions = ResourceAction.ACCESS))
+   @PostMapping("/api/admin/ai/backup")
+   public Map<String, String> backup(@RequestBody Map<String, String> body, Principal user)
+      throws Exception
+   {
+      return Map.of("backupRef", backupService.backup(body.get("transactionId")));
+   }
+
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.EM_COMPONENT,
+      resource = "settings/properties",
+      actions = ResourceAction.ACCESS))
+   @PostMapping("/api/admin/ai/restore")
+   public Map<String, String> restore(@RequestBody Map<String, String> body, Principal user) {
+      try {
+         backupService.restore(body.get("backupRef"));
+         return Map.of("status", "restored");
+      }
+      catch(Exception ex) {
+         return Map.of("status", "failed", "error", String.valueOf(ex.getMessage()));
+      }
+   }
+
    private final AdminChangeService changeService;
+   private final AdminBackupService backupService;
 }
