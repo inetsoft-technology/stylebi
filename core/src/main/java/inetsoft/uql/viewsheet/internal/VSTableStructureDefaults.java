@@ -46,17 +46,17 @@ public final class VSTableStructureDefaults {
 
    /** Interior gridline + outer border color (unifies the legacy #E6E6E6 body and #CCCCCC frame). */
    public static Color gridlineColor() {
-      return GRIDLINE;
+      return VSDensityDefaults.isDark() ? GRIDLINE_DARK : GRIDLINE;
    }
 
    /** Header-row and header-column background. */
    public static Color headerBackground() {
-      return HEADER_BG;
+      return VSDensityDefaults.isDark() ? HEADER_BG_DARK : HEADER_BG;
    }
 
    /** Header-row and header-column text color. */
    public static Color headerForeground() {
-      return HEADER_FG;
+      return VSDensityDefaults.isDark() ? HEADER_FG_DARK : HEADER_FG;
    }
 
    /**
@@ -64,24 +64,72 @@ public final class VSTableStructureDefaults {
     * shell/DOM structural border (#D9D5CC), so the viewsheet header rule matches the rest of the product.
     */
    public static Color headerSeparator() {
-      return HEADER_SEPARATOR;
+      return VSDensityDefaults.isDark() ? HEADER_SEPARATOR_DARK : HEADER_SEPARATOR;
    }
 
    /** Grand-total (trailer row/column) background. */
    public static Color totalBackground() {
-      return TOTAL_BG;
+      return VSDensityDefaults.isDark() ? TOTAL_BG_DARK : TOTAL_BG;
    }
 
    /** Interior group-subtotal background — lighter than the grand-total band for hierarchy. */
    public static Color subtotalBackground() {
-      return SUBTOTAL_BG;
+      return VSDensityDefaults.isDark() ? SUBTOTAL_BG_DARK : SUBTOTAL_BG;
    }
 
-   // modern warm-neutral structure palette; light mode only, dark deferred
+   /**
+    * Grand-total/subtotal band text color, or null to keep the shipped default. In light mode the
+    * bands are light, so their default dark text stays legible and is left untouched (null); in dark
+    * mode the bands are dark, so band text must lift to the header neutral to stay readable.
+    */
+   public static Color bandForeground() {
+      return VSDensityDefaults.isDark() ? HEADER_FG_DARK : null;
+   }
+
+   /**
+    * Data-cell text color, or null to keep the shipped default (#404040) in light/legacy. The shipped
+    * Default Style hardcodes dark-gray body text, which is dark-on-dark once the interior darkens, so
+    * dark mode lifts it to the strong light neutral (brighter than the muted header text).
+    */
+   public static Color bodyForeground() {
+      return VSDensityDefaults.isDark() ? BODY_FG_DARK : null;
+   }
+
+   /**
+    * Data-cell background for non-striped rows, or null to keep the shipped default (transparent) in
+    * light/legacy. Dark mode fills it with the card surface so body cells are dark independent of the
+    * object card (which only re-seeds for newly created tables).
+    */
+   public static Color bodyBackground() {
+      return VSDensityDefaults.isDark() ? BODY_BG_DARK : null;
+   }
+
+   /**
+    * Alternating-row (zebra) background, or null to keep the shipped light stripe (#F5F5F5) in
+    * light/legacy. The zebra is a style Specification that wins over the body background, so dark mode
+    * darkens it separately — a subtle lift above the base body so the stripe still reads.
+    */
+   public static Color zebraBackground() {
+      return VSDensityDefaults.isDark() ? ZEBRA_BG_DARK : null;
+   }
+
+   // modern warm-neutral structure palette (light mode)
    private static final Color GRIDLINE = new Color(0xE8E5DE);
    private static final Color HEADER_SEPARATOR = new Color(0xD9D5CC);
    private static final Color HEADER_BG = new Color(0xF1EFEA);
    private static final Color HEADER_FG = new Color(0x6A685F);
    private static final Color TOTAL_BG = new Color(0xE9E4DA);
    private static final Color SUBTOTAL_BG = new Color(0xEEEAE1);
+
+   // dark structure palette; total/subtotal bands lifted above the header for total hierarchy
+   private static final Color GRIDLINE_DARK = new Color(0x3A383D);
+   private static final Color HEADER_SEPARATOR_DARK = new Color(0x49454F);
+   private static final Color HEADER_BG_DARK = new Color(0x2D2B30);
+   private static final Color HEADER_FG_DARK = new Color(0xCAC4D0);
+   private static final Color TOTAL_BG_DARK = new Color(0x35333A);
+   private static final Color SUBTOTAL_BG_DARK = new Color(0x302E34);
+   // dark data-cell interior: text = strong light neutral, base body = card surface, zebra = subtle lift
+   private static final Color BODY_FG_DARK = new Color(0xE6E0E9);
+   private static final Color BODY_BG_DARK = new Color(0x252428);
+   private static final Color ZEBRA_BG_DARK = new Color(0x2D2B30);
 }

@@ -50,22 +50,31 @@ public final class VSChartChromeDefaults {
 
    /** Interior gridline / facet-grid color — matches the table gridline so chrome reads as one system. */
    public static Color gridlineColor() {
-      return GRIDLINE;
+      return VSDensityDefaults.isDark() ? GRIDLINE_DARK : GRIDLINE;
    }
 
    /** Legend border color — the same hairline neutral as the gridlines. */
    public static Color legendBorderColor() {
-      return GRIDLINE;
+      return VSDensityDefaults.isDark() ? GRIDLINE_DARK : GRIDLINE;
    }
 
    /** Chrome label text color (axis tick labels, legend content) — quiet muted neutral. */
    public static Color labelColor() {
-      return LABEL;
+      return VSDensityDefaults.isDark() ? LABEL_DARK : LABEL;
    }
 
    /** Chrome title text color (axis titles, legend title) — slightly stronger than labels. */
    public static Color titleColor() {
-      return TITLE;
+      return VSDensityDefaults.isDark() ? TITLE_DARK : TITLE;
+   }
+
+   /**
+    * Legend background default: a dark surface in dark mode so the light legend text stays legible;
+    * white otherwise (light modern and legacy unchanged). Seeded only in the modern chart context,
+    * mirroring the label/title color gate.
+    */
+   public static Color legendBackground() {
+      return VSDensityDefaults.isDark() ? LEGEND_BG_DARK : Color.WHITE;
    }
 
    /**
@@ -75,7 +84,8 @@ public final class VSChartChromeDefaults {
     * so a format.css or user-picker color, which resolves to something else, is preserved.
     */
    public static Color resolveAxisLineColor(Color current) {
-      return isModern() && GDefaults.DEFAULT_LINE_COLOR.equals(current) ? GRIDLINE : current;
+      return isModern() && GDefaults.DEFAULT_LINE_COLOR.equals(current)
+         ? (VSDensityDefaults.isDark() ? GRIDLINE_DARK : GRIDLINE) : current;
    }
 
    /**
@@ -85,7 +95,8 @@ public final class VSChartChromeDefaults {
     * is preserved.
     */
    public static Color resolveGridlineColor(Color current) {
-      return isModern() && GDefaults.DEFAULT_GRIDLINE_COLOR.equals(current) ? GRIDLINE : current;
+      return isModern() && GDefaults.DEFAULT_GRIDLINE_COLOR.equals(current)
+         ? (VSDensityDefaults.isDark() ? GRIDLINE_DARK : GRIDLINE) : current;
    }
 
    /**
@@ -93,14 +104,22 @@ public final class VSChartChromeDefaults {
     * still the legacy default; otherwise unchanged.
     */
    public static Color resolveLegendBorderColor(Color current) {
-      return isModern() && GDefaults.DEFAULT_LINE_COLOR.equals(current) ? GRIDLINE : current;
+      return isModern() && GDefaults.DEFAULT_LINE_COLOR.equals(current)
+         ? (VSDensityDefaults.isDark() ? GRIDLINE_DARK : GRIDLINE) : current;
    }
 
-   // modern warm-neutral chrome; light mode only, dark deferred. Warmer/subtler than the legacy
-   // GDefaults #EEEEEE, and equal to VSTableStructureDefaults.gridlineColor().
+   // modern warm-neutral chrome. Warmer/subtler than the legacy GDefaults #EEEEEE, and equal to
+   // VSTableStructureDefaults.gridlineColor().
    private static final Color GRIDLINE = new Color(0xE8E5DE);
    // label = shell muted text (= table headerForeground); title = shell default text. Quieter than
    // today's GDefaults #4B4B4B label / #2B2B2B title while staying legible.
    private static final Color LABEL = new Color(0x6A685F);
    private static final Color TITLE = new Color(0x35342F);
+
+   // dark chrome; gridline matches the table gridline, label/title lift for on-dark legibility
+   private static final Color GRIDLINE_DARK = new Color(0x3A383D);
+   private static final Color LABEL_DARK = new Color(0xCAC4D0);
+   private static final Color TITLE_DARK = new Color(0xE6E0E9);
+   // dark legend panel = --dark-surface-default, so it reads as part of the dark chart card
+   private static final Color LEGEND_BG_DARK = new Color(0x252428);
 }

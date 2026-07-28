@@ -52,6 +52,14 @@
   --inet-viz-selected-border-modern: #BFDDE5;
   --inet-viz-sorted-color-modern: #8C5510;
 
+  // customer-overridable dark state colors, mirroring the -modern seam; consumed only inside
+  // .viz-dark below, so gate-off / light-modern are inert.
+  --inet-viz-hover-bg-dark: #26313A;
+  --inet-viz-selected-bg-dark: #0E3B44;
+  --inet-viz-selected-text-dark: #A8EEF5;
+  --inet-viz-selected-border-dark: #2DD4BF;
+  --inet-viz-sorted-color-dark: #E0A458;
+
   // compatibility — CSS gate switches DOM only; server-rendered surfaces follow the server-side
   // per-org property.
   --inet-viz-mode: legacy;
@@ -125,4 +133,22 @@
   --inet-viz-toolbar-height: 30px;
   --inet-viz-control-height: 30px;
   --inet-viz-font-size: var(--inet-font-size-base); // 13px
+}
+
+// Dark scope (DOM surfaces only). The body carries viz-modern + viz-density-<mode> + viz-dark
+// together; this block follows the .viz-modern blocks so its single-class selector wins on source
+// order. Density stays driven by the .viz-modern.viz-density-* matrices above; only color changes here.
+.viz-dark {
+  --inet-viz-hover-bg: var(--inet-viz-hover-bg-dark);
+  --inet-viz-selected-bg: var(--inet-viz-selected-bg-dark);
+  --inet-viz-selected-text: var(--inet-viz-selected-text-dark);
+  --inet-viz-selected-border: var(--inet-viz-selected-border-dark);
+  --inet-viz-active-border: var(--inet-primary-color);
+  --inet-viz-context-bg: #2E2A22;
+  --inet-viz-inline-edit-bg: #252428;
+  --inet-viz-filtered-bg: #3A3020;
+  --inet-viz-sorted-color: var(--inet-viz-sorted-color-dark);
+  --inet-viz-pinned-divider: #49454F;
+  --inet-viz-warning-bg: #3A2E1A;
+  --inet-viz-anomaly-bg: #3A1F1F;
 }

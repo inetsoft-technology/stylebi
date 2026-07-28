@@ -104,6 +104,23 @@ straightforward token pass.
   ship, add their dark variants alongside; if ramps stay deferred, no dark ramp work exists yet.
 - **`--vivid-series-dark-*` / `--family-series-dark-*`** — alternate palette families; ship the
   default `--series-dark-*` first, alternates only if the light alternates are also exposed.
+- **Shell-owned dark neutrals (belongs to a shell dark-mode initiative, not viz).** Many browser-DOM
+  affordances on viz surfaces take their neutral color from **shell** tokens that have no dark value
+  yet — e.g. `--inet-hover-secondary-bg-color` / `--inet-hover-primary-bg-color`,
+  `--inet-shell-surface-subtle` / `-default` / `-canvas`, `--inet-default-border-color`,
+  `--inet-toolbar-bg-color`, `--inet-main-panel-bg-color`, and the neutral text tokens. Under a
+  dark-on-light-shell (viz dark, shell still light) these render as bright boxes/surfaces on the dark
+  viewsheet. Per the theme-strategy layering (shell owns neutral surfaces/borders/hover/text; viz
+  inherits them and owns analytical + server-rendered color), the correct fix is a **shell dark scope**
+  that supplies dark values for these neutral tokens keyed off the same dark signal; then viz DOM
+  surfaces inherit correct neutrals automatically and the per-component `.viz-dark` patches collapse.
+  Known symptoms observed and deferred here (do not keep patching viz-scoped): the table header
+  **sort/drill/menu button direct-hover fill** (`hover-bg-secondary` → `--inet-hover-secondary-bg-color`),
+  the calendar day-of-week `--surface` (worked around server-side by sharing one dark day-grid surface),
+  the composer/viewer **canvas** body background, and the image no-content placeholder. What stays in
+  viz (NOT deferred): the server-rendered / export-visible surfaces driven by `VSFormat`/resolvers
+  (chart chrome + card, table structure + interior, calendar text via `VSCalendarChromeDefaults`,
+  slider/KPI via `VSObjectChromeDefaults`/`VSOutputChromeDefaults`) and the viz-owned analytical color.
 
 ## Related
 

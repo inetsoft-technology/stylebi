@@ -17,13 +17,31 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.sree.SreeEnv;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.internal.AssetUtil;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
 @Tag("core")
 class VSDensityDefaultsTest {
+   @AfterEach
+   void reset() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", null);
+      SreeEnv.setProperty("viewsheet.darkMode", null);
+   }
+
    @Test
    void denseModeMatchesLegacyDataRowHeight() {
       // dense == today's default, so enabling modern at the default mode reflows nothing
@@ -65,5 +83,30 @@ class VSDensityDefaultsTest {
       assertEquals("dense", VSDensityDefaults.normalizeMode("bogus"));
       assertEquals("dense", VSDensityDefaults.normalizeMode(""));
       assertEquals("dense", VSDensityDefaults.normalizeMode(null));
+   }
+
+   @Test
+   void isDarkFalseByDefault() {
+      assertFalse(VSDensityDefaults.isDark());
+   }
+
+   @Test
+   void isDarkRequiresModern() {
+      // dark alone, without modern, is inert
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      assertFalse(VSDensityDefaults.isDark());
+   }
+
+   @Test
+   void isDarkOnWhenModernAndDarkBothOn() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      assertTrue(VSDensityDefaults.isDark());
+   }
+
+   @Test
+   void isDarkOffWhenModernOnButDarkOff() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      assertFalse(VSDensityDefaults.isDark());
    }
 }

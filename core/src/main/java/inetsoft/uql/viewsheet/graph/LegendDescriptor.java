@@ -72,7 +72,8 @@ public class LegendDescriptor implements AssetObject, ContentObject {
                          VSChartChromeDefaults.labelColor() : GDefaults.DEFAULT_TEXT_COLOR);
       deffmt.setFont(vs ? VSAssemblyInfo.getDefaultFont(VSUtil.getDefaultFont()) :
                         VSUtil.getDefaultFont());
-      deffmt.setBackground(Color.WHITE);
+      deffmt.setBackground(vs && VSChartChromeDefaults.isModern() ?
+                              VSChartChromeDefaults.legendBackground() : Color.WHITE);
       deffmt.setAlpha(50);
    }
 

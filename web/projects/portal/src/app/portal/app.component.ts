@@ -88,6 +88,7 @@ export class PortalAppComponent implements OnInit, OnDestroy {
    private readonly VIZ_MODERN_CLASS: string = "viz-modern";
    private readonly VIZ_DENSITY_CLASSES: string[] =
       ["viz-density-comfortable", "viz-density-compact", "viz-density-dense"];
+   private readonly VIZ_DARK_CLASS: string = "viz-dark";
    private destroy$ = new Subject<void>();
    private isGettingStartedShown: boolean = false;
    private readonly _onMessage = (evt: MessageEvent) => this.handleMessageEvent(evt);
@@ -270,6 +271,8 @@ export class PortalAppComponent implements OnInit, OnDestroy {
             body.classList.add(densityClass);
          }
       }
+
+      body.classList.toggle(this.VIZ_DARK_CLASS, modern && !!this.model.darkMode);
    }
 
    get leftNavTabs(): PortalTab[] {

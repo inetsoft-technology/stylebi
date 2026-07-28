@@ -58,36 +58,40 @@ public final class VSOutputChromeDefaults {
 
    // ── Slider painter chrome ──────────────────────────────────────────────────
 
-   /** Slider inactive-track color — legacy mid-light gray, modern warm gridline neutral. */
+   /** Slider inactive-track color — legacy mid-light gray, modern warm gridline neutral, dark neutral when dark mode is on. */
    public static Color sliderInactiveTrack() {
-      return isModern() ? SLIDER_INACTIVE_MODERN : SLIDER_INACTIVE_LEGACY;
+      return VSDensityDefaults.isDark() ? SLIDER_INACTIVE_DARK
+         : isModern() ? SLIDER_INACTIVE_MODERN : SLIDER_INACTIVE_LEGACY;
    }
 
-   /** Slider active (filled) track color — legacy mid gray, modern warm structural neutral. */
+   /** Slider active (filled) track color — legacy mid gray, modern warm structural neutral, dark neutral when dark mode is on. */
    public static Color sliderActiveTrack() {
-      return isModern() ? SLIDER_ACTIVE_MODERN : SLIDER_ACTIVE_LEGACY;
+      return VSDensityDefaults.isDark() ? SLIDER_ACTIVE_DARK
+         : isModern() ? SLIDER_ACTIVE_MODERN : SLIDER_ACTIVE_LEGACY;
    }
 
-   /** Slider handle color — legacy mid gray, modern strong warm neutral. */
+   /** Slider handle color — legacy mid gray, modern strong warm neutral, dark neutral when dark mode is on. */
    public static Color sliderHandle() {
-      return isModern() ? SLIDER_HANDLE_MODERN : SLIDER_HANDLE_LEGACY;
+      return VSDensityDefaults.isDark() ? SLIDER_HANDLE_DARK
+         : isModern() ? SLIDER_HANDLE_MODERN : SLIDER_HANDLE_LEGACY;
    }
 
-   /** Slider tick-dot color — legacy ~38% black, modern strong warm neutral. */
+   /** Slider tick-dot color — legacy ~38% black, modern strong warm neutral, dark neutral when dark mode is on. */
    public static Color sliderTick() {
-      return isModern() ? SLIDER_TICK_MODERN : SLIDER_TICK_LEGACY;
+      return VSDensityDefaults.isDark() ? SLIDER_TICK_DARK
+         : isModern() ? SLIDER_TICK_MODERN : SLIDER_TICK_LEGACY;
    }
 
    // ── KPI text/output value chrome ───────────────────────────────────────────
 
-   /** Modern primary-value foreground — the strong warm neutral (equals the chart title color). */
+   /** Modern primary-value foreground — the strong warm neutral (equals the chart title color), dark neutral when dark mode is on. */
    public static Color valueForeground() {
-      return VALUE_FG;
+      return VSDensityDefaults.isDark() ? VALUE_FG_DARK : VALUE_FG;
    }
 
-   /** Modern KPI/output border — the shared structural neutral (equals the title/table border). */
+   /** Modern KPI/output border — the shared structural neutral (equals the title/table border), dark neutral when dark mode is on. */
    public static Color valueBorderColor() {
-      return VALUE_BORDER;
+      return VSDensityDefaults.isDark() ? VALUE_BORDER_DARK : VALUE_BORDER;
    }
 
    /**
@@ -127,12 +131,16 @@ public final class VSOutputChromeDefaults {
    }
 
    private static void applyTo(VSFormat def, boolean fg, boolean border) {
+      boolean dark = VSDensityDefaults.isDark();
+      Color fgColor = dark ? VALUE_FG_DARK : VALUE_FG;
+      Color borderColor = dark ? VALUE_BORDER_DARK : VALUE_BORDER;
+
       if(fg) {
-         def.setForegroundValue(toValue(VALUE_FG));
+         def.setForegroundValue(toValue(fgColor));
       }
 
       if(border) {
-         def.setBorderColorsValue(new BorderColors(VALUE_BORDER, VALUE_BORDER, VALUE_BORDER, VALUE_BORDER));
+         def.setBorderColorsValue(new BorderColors(borderColor, borderColor, borderColor, borderColor));
       }
    }
 
@@ -158,8 +166,8 @@ public final class VSOutputChromeDefaults {
    private static final Color SLIDER_HANDLE_LEGACY = new Color(158, 158, 158);
    private static final Color SLIDER_TICK_LEGACY = new Color(0, 0, 0, 97); // ~38% opacity
 
-   // modern warm-neutral chrome; light mode only, dark deferred. Coordinated with VSTitleChromeDefaults
-   // and VSChartChromeDefaults so KPI value, title bar, table, and chart chrome read as one system.
+   // modern warm-neutral chrome; coordinated with VSTitleChromeDefaults and VSChartChromeDefaults so
+   // KPI value, title bar, table, and chart chrome read as one system.
    private static final Color SLIDER_INACTIVE_MODERN = new Color(0xE8E5DE);
    private static final Color SLIDER_ACTIVE_MODERN = new Color(0xC8C2B7);
    private static final Color SLIDER_HANDLE_MODERN = new Color(0x6A685F);
@@ -168,4 +176,12 @@ public final class VSOutputChromeDefaults {
    // value foreground = VSChartChromeDefaults.TITLE (strong text); border = VSTitleChromeDefaults border
    private static final Color VALUE_FG = new Color(0x35342F);
    private static final Color VALUE_BORDER = new Color(0xD9D5CC);
+
+   // dark KPI/slider chrome; neutrals track the shared dark structure palette
+   private static final Color SLIDER_INACTIVE_DARK = new Color(0x3A383D);
+   private static final Color SLIDER_ACTIVE_DARK = new Color(0x49454F);
+   private static final Color SLIDER_HANDLE_DARK = new Color(0xCAC4D0);
+   private static final Color SLIDER_TICK_DARK = new Color(0xCAC4D0);
+   private static final Color VALUE_FG_DARK = new Color(0xE6E0E9);
+   private static final Color VALUE_BORDER_DARK = new Color(0x49454F);
 }
