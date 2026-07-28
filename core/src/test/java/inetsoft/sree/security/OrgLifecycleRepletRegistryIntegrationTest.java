@@ -136,6 +136,8 @@ class OrgLifecycleRepletRegistryIntegrationTest {
       RepletRegistry fromRegistry = repletRegistryManager.getRegistry(fromOrgId);
       fromRegistry.addFolder("Sales", false);
       fromRegistry.save();
+      // detach from the data space file watch -- see detachFileWatch() below.
+      detachFileWatch(fromRegistry);
 
       IdentityService identityService = newIdentityService(mock(SecurityEngine.class));
 
@@ -175,6 +177,10 @@ class OrgLifecycleRepletRegistryIntegrationTest {
       registry.save();
       assertTrue(dataSpace.exists(orgId, "repository.xml"),
                  "precondition: folder must actually be persisted to the backing repository.xml file");
+      // detach from the data space file watch -- see detachFileWatch() below. The cache
+      // eviction + reload below is driven explicitly by clearOrgCache(), not by the file watch,
+      // so removing the listener does not weaken what this test documents.
+      detachFileWatch(registry);
 
       IdentityService identityService = newIdentityService(mock(SecurityEngine.class));
       identityService.updateRepletRegistry(orgId, null);
@@ -198,6 +204,27 @@ class OrgLifecycleRepletRegistryIntegrationTest {
    }
 
    // ── fixture helpers ──
+
+   /**
+    * Remove the registry's data space change listener (Bug #75793).
+    *
+    * <p>RepletRegistry watches its backing {orgId}/repository.xml and re-runs init() -- which
+    * clears and re-loads the in-memory folder map -- whenever that file changes. Those change
+    * events are delivered asynchronously (LocalKeyValueStorage.ListenerDelegate hands off to
+    * ThreadPool.addOnDemand, which submits to BlobStorage's single-thread eventExecutor), so the
+    * event for a fixture's own save() can land at an arbitrary later point. When it lands after
+    * updateRepletRegistry() has done its in-memory-only folder removal, the reload from the
+    * (deliberately unmodified) file brings the folder right back and the assertion below fails --
+    * intermittently, and only when the JVM is busy enough to delay delivery, i.e. when the whole
+    * security package runs in one surefire JVM.
+    *
+    * <p>shutdown() unregisters the listener, so any pending or later event is a no-op for this
+    * instance. Nothing in these scenarios saves the registry again afterward (save() would
+    * re-register it), and the file-watch reload path is not what these tests exercise.
+    */
+   private static void detachFileWatch(RepletRegistry registry) {
+      registry.shutdown();
+   }
 
    private static byte[] bytes(String s) {
       return s.getBytes(StandardCharsets.UTF_8);
