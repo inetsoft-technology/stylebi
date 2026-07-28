@@ -115,42 +115,33 @@ public class WsMergeService {
                // can see all columns transitively, even when they override their own selection.
                // This runs unconditionally before the branch so any code path below benefits.
                //
-               // Snapshot/restore prevMirror's own AggregateInfo around this call: setColumnSelection
-               // (the false/private overload) internally calls AggregateInfo#validate(newSelection),
-               // which REMOVES any group/aggregate whose ref doesn't resolve against the newly-set
-               // selection (AggregateInfo.java's groups.remove(i) / aggregates.remove(i)). prevMirror's
-               // own aggregation predates and is unrelated to the column-selection expansion this
-               // method does for DOWNSTREAM stacked mirrors -- but since mergeMirrorColumns runs again
-               // for EVERY later chart that shares this physical table (not just the one that created
-               // prevMirror), each such call silently re-validates prevMirror's groups/aggregates
-               // against the rebuilt selection and can strip them, emptying prevMirror's AggregateInfo
-               // entirely. Confirmed live with targeted diagnostic logging: prevMirror's own
-               // AggregateInfo was genuinely non-empty immediately after ensureBaseHasPrevMirror set
-               // it, but read back EMPTY after this exact call ran for the very next chart sharing the
-               // table -- crashing that chart's own graph render with "Aggregate not found: ..." the
-               // next time its dashboard tile was opened as primary, even though nothing about that
-               // chart itself changed. The column-selection expansion mergeMirrorColumns performs is
-               // still needed (downstream joins/mirrors read from prevMirror's column list), so restore
-               // the aggregation afterward rather than skip the call.
+               // Snapshot/restore prevMirror's own AggregateInfo around this call:
+               // setColumnSelection (the false/private overload) internally calls
+               // AggregateInfo#validate(newSelection), which removes any group/aggregate whose
+               // ref doesn't resolve against the newly-set selection. prevMirror's own
+               // aggregation predates and is unrelated to the column-selection expansion this
+               // method does for downstream stacked mirrors, and mergeMirrorColumns runs again
+               // for every later chart sharing this physical table -- each call would otherwise
+               // re-validate prevMirror's groups/aggregates against the rebuilt selection and
+               // can strip them. The column-selection expansion is still needed (downstream
+               // joins/mirrors read from prevMirror's column list), so restore the aggregation
+               // afterward rather than skip the call.
                AggregateInfo prevMirrorAggrBefore = (AggregateInfo) prevMirror.getAggregateInfo().clone();
                mergeMirrorColumns(prevMirror, baseName, existingTable.getColumnSelection(true));
-               // Do NOT simply clone-and-restore prevMirrorAggrBefore here: its group/aggregate
-               // refs point at the ColumnRef instances that existed BEFORE mergeMirrorColumns
-               // ran, which — for a group/aggregate whose column didn't already exist bare in
-               // prevMirror's own selection — mergeMirrorColumns just replaced with a freshly
-               // added, OUTER-ATTRIBUTE-QUALIFIED column (e.g. "sale_order_base.order_count"
-               // instead of bare "order_count"). A plain restore leaves refs pointing at a name
-               // no longer present in prevMirror's own (now expanded) selection. That in-memory
-               // mismatch is harmless immediately (the stale ref objects still work by identity),
-               // but is NOT harmless across a save/reload: confirmed live, prevMirror's group
-               // ("Quarter(date_order)", whose bare name happened to already be present pre-merge
-               // and so was untouched) survived a reload while its aggregates ("order_count",
-               // "avg_order_value" — bare names that were NOT already present, so got replaced by
-               // qualified duplicates) did not — something in the persist/reload path re-validates
-               // each ref against the CURRENT column selection and silently drops any that no
-               // longer resolve by name, exactly like AggregateInfo#validate() does at set time.
-               // Rebuild each ref against whatever column actually carries its name in prevMirror's
-               // OWN CURRENT (post-merge) selection instead, trying the qualified name too.
+               // Do NOT simply clone-and-restore prevMirrorAggrBefore here: its refs point at
+               // the ColumnRef instances that existed BEFORE mergeMirrorColumns ran, which --
+               // for a group/aggregate whose column didn't already exist bare in prevMirror's
+               // own selection -- mergeMirrorColumns just replaced with a freshly added,
+               // outer-attribute-qualified column (e.g. "sale_order_base.order_count" instead
+               // of bare "order_count"). A plain restore leaves refs pointing at a name no
+               // longer present in prevMirror's own (now expanded) selection: harmless
+               // in-memory (stale ref objects still work by identity), but StyleBI's own
+               // query-construction path (AssetQuery#createAssetQuery, run on every viewsheet
+               // open) independently re-resolves and re-validates a mirror's aggregate columns
+               // by name -- see ensureBaseHasPrevMirror's own qualification for the full
+               // mechanism. Rebuild each ref against whatever column actually carries its name
+               // in prevMirror's OWN CURRENT (post-merge) selection instead, trying the
+               // qualified name too.
                prevMirror.setAggregateInfo(
                   rebindAggregateInfo(prevMirrorAggrBefore, prevMirror.getColumnSelection(false), baseName));
                prevMirror.setAggregate(!prevMirror.getAggregateInfo().isEmpty());
@@ -174,18 +165,14 @@ public class WsMergeService {
                   // on top of prevMirror would group/aggregate an ALREADY-aggregated, differently
                   // grouped result, which is structurally unsound whenever the two charts group by
                   // different levels (e.g. two independent Quarter(date_order) groupings from two
-                  // unrelated charts on the same source table). Confirmed live: this produces a
-                  // duplicate/incompatible output column name (e.g. both charts' own grouping emits
-                  // "Quarter(date_order)") that the SQL engine then silently disambiguates with a
-                  // "_1" suffix neither chart's own VSChartInfo binding is told about, crashing the
-                  // FIRST chart's own graph render with ColumnNotFoundException the next time its
-                  // dashboard tile is opened -- even though nothing about the first chart itself
-                  // changed. Stack on the raw, unaggregated _base table instead in this case:
-                  // correctness beats cross-chart-filter-sharing convenience for a case that was
-                  // already producing wrong (crashing) results. existingTable here IS the raw base
-                  // (ensureBaseHasPrevMirror already renamed it to "{name}_base" and stripped its
-                  // conditions/aggregation), so it's always a safe, clean stacking point regardless
-                  // of what prevMirror carries.
+                  // unrelated charts on the same source table) -- the SQL engine would silently
+                  // disambiguate the resulting duplicate output column name with a "_1" suffix
+                  // neither chart's own VSChartInfo binding is told about, crashing whichever
+                  // chart's graph renders next. Stack on the raw, unaggregated _base table instead
+                  // in this case: correctness beats cross-chart-filter-sharing convenience.
+                  // existingTable here IS the raw base (ensureBaseHasPrevMirror already renamed it
+                  // to "{name}_base" and stripped its conditions/aggregation), so it's always a
+                  // safe, clean stacking point regardless of what prevMirror carries.
                   AggregateInfo prevOwnAggr = prevMirror.getAggregateInfo();
                   boolean prevHasIncompatibleAggr = prevOwnAggr != null && !prevOwnAggr.isEmpty();
                   TableAssembly stackOn = prevHasIncompatibleAggr ? existingTable : prevMirror;
@@ -196,15 +183,13 @@ public class WsMergeService {
                   // regenerates a table's public selection FROM its private one whenever the
                   // selection is next validated during query construction, which for an
                   // AGGREGATED mirror happens as a normal part of preparing the aggregate query.
-                  // Leaving condMirror's private selection at its default-empty state meant that
-                  // reset wiped its public selection back down to (at most) the bare group
-                  // dimension, silently dropping every aggregate output ("order_count",
-                  // "avg_order_value") — confirmed live: the chart's own graph render then threw
-                  // "Aggregate not found: avg_order_value" because the executed dataset had only
-                  // one column left. srcBound's own private selection is exactly right here: it
-                  // already carries both the genuine underlying raw column(s) the aggregation
-                  // reads from AND its own group/aggregate output names (see
-                  // mergeableSourceColumns' javadoc for why that's srcBound's private shape).
+                  // Leaving condMirror's private selection at its default-empty state would let
+                  // that reset wipe its public selection back down to (at most) the bare group
+                  // dimension, silently dropping every aggregate output. srcBound's own private
+                  // selection is exactly right here: it already carries both the genuine
+                  // underlying raw column(s) the aggregation reads from AND its own
+                  // group/aggregate output names (see mergeableSourceColumns' javadoc for why
+                  // that's srcBound's private shape).
                   condMirror.setColumnSelection(srcBound.getColumnSelection(true).clone(), true);
                   condMirror.setColumnSelection(srcBound.getColumnSelection(false).clone(), false);
                   condMirror.setPreConditionList(srcPre != null ? (ConditionListWrapper) srcPre.clone() : new ConditionList());
@@ -351,6 +336,16 @@ public class WsMergeService {
             return;
          }
       }
+
+      // Not found: an AggregateRef's own underlying column should always already be present
+      // in the table's own selection it was built from, so this is unexpected -- but add the
+      // qualified column rather than silently leaving the (now-qualified) AggregateRef
+      // pointing at a name absent from the selection, which would reproduce the exact
+      // ref/selection mismatch this qualification exists to prevent.
+      LOG.warn("replaceColumnByName: '{}' not found in column selection; adding '{}' instead " +
+               "of replacing, to avoid leaving the AggregateRef pointing at a missing column",
+               name, replacement.getName());
+      cols.addAttribute(replacement);
    }
 
    private DataRef resolveByName(ColumnSelection selection, String name, String baseName) {
@@ -439,22 +434,19 @@ public class WsMergeService {
          return wizMirror.getName(); // already promoted in a previous merge
       }
 
-      // StyleBI's OWN Viewsheet machinery (Viewsheet#createMirrorTable, fired synchronously
-      // from dashVS.addAssembly's reset listener the moment a VS chart is added to the
-      // dashboard viewsheet) automatically wraps ANY table a chart binds to in an "outer"
-      // mirror under the table's OWN bare name -- renaming the original table out of the way
-      // first. This runs BEFORE this class ever sees a LATER chart sharing the same physical
-      // source, so by that point the bare name (e.g. "sale_order") is already occupied by
-      // this outer mirror, and `existingTable` found by findMergeableTable (which only
-      // matches BoundTableAssembly) is really the renamed-away original underneath it (e.g.
-      // "sale_order_O") -- NOT the name any VS chart binding actually resolves through.
-      // Creating a fresh prevMirror at existingTable's own name would be orphaned (no VS
-      // binding references it) while the real bare name keeps pointing at this pre-existing,
-      // empty-AggregateInfo pass-through mirror with none of the first chart's own
-      // aggregation -- confirmed live: the first chart's own graph render threw "Aggregate
-      // not found" because the query ran against this orphaned, un-aggregated mirror instead
-      // of a prevMirror carrying its aggregation. Detect this outer mirror and adapt it in
-      // place instead of creating a disconnected, unreachable prevMirror elsewhere.
+      // StyleBI's own Viewsheet machinery (Viewsheet#createMirrorTable, fired synchronously
+      // from dashVS.addAssembly's reset listener when a VS chart is added to the dashboard
+      // viewsheet) automatically wraps any table a chart binds to in an "outer" mirror under
+      // the table's own bare name, renaming the original table out of the way first. That can
+      // run before this class sees a later chart sharing the same physical source, so the
+      // bare name (e.g. "sale_order") may already be occupied by this outer mirror, and
+      // `existingTable` found by findMergeableTable (which only matches BoundTableAssembly) is
+      // really the renamed-away original underneath it -- not the name any VS chart binding
+      // actually resolves through. Creating a fresh prevMirror at existingTable's own name
+      // would be orphaned (no VS binding references it) while the real bare name keeps
+      // pointing at this pre-existing, empty-AggregateInfo pass-through mirror. Detect this
+      // outer mirror and adapt it in place instead of creating a disconnected, unreachable
+      // prevMirror elsewhere.
       MirrorTableAssembly outerMirror = Arrays.stream(dashWS.getAssemblies())
          .filter(a -> a instanceof MirrorTableAssembly)
          .map(a -> (MirrorTableAssembly) a)
@@ -500,23 +492,17 @@ public class WsMergeService {
       // Qualify aggr's own AGGREGATE refs (not groups) with an outer-attribute reference to
       // the base table, and replace the matching bare-named entries in prevMirror's column
       // selection with the SAME qualified ColumnRef instance. Why: AssetQuery.createAssetQuery
-      // -- StyleBI's generic query-construction entry point, invoked for EVERY table on EVERY
-      // viewsheet open via AssetQuerySandbox#refreshColumnSelection, completely independent of
+      // -- StyleBI's generic query-construction entry point, invoked for every table on every
+      // viewsheet open via AssetQuerySandbox#refreshColumnSelection, entirely independent of
       // this class -- independently resolves a mirror's aggregate columns down to their base
       // table using this exact outer-attribute qualification, then calls
       // table.setColumnSelection(..., false) with the result, which triggers
       // AggregateInfo#validate() against the newly-qualified selection. If aggr's own aggregate
-      // refs still point at the ORIGINAL bare names (as cloned from the source table before any
-      // merge), that validate() finds no match and silently drops them -- while a GROUP ref
+      // refs still point at the original bare names (as cloned from the source table before any
+      // merge), that validate() finds no match and silently drops them, while a group ref
       // survives untouched because groups are never routed through this same base-resolution
-      // step (they read directly off the mirror, no aggregation needed). Confirmed live via
-      // targeted logging: prevMirror's own AggregateInfo read back correctly (2 aggregates)
-      // immediately after this method ran during compose, but a FRESH viewsheet open of the
-      // saved dashboard (a completely different code path than this class, triggered by
-      // ViewsheetRuntimeController#verifyViewsheet -> ViewsheetEngine#openViewsheet ->
-      // AssetQuerySandbox#refreshColumnSelection) read back only the group, aggregates gone --
-      // reproduced with the exact same qualified name ("<base>.<name>") this method now applies
-      // up front, closing the gap between compose-time and query-time column resolution.
+      // step (they read directly off the mirror; no aggregation needed). Qualifying up front
+      // closes the gap between compose-time and query-time column resolution.
       String qualifierBase = existingTable.getName();
 
       for(int i = 0; i < aggr.getAggregateCount(); i++) {
@@ -542,13 +528,8 @@ public class WsMergeService {
       prevMirror.setAggregateInfo(aggr);
       // isAggregate() short-circuits to false when getAggregateInfo() is empty, but when it's
       // NOT empty, isAggregate() ALSO requires this separate flag (TableAssemblyInfo.isAggregate,
-      // default false) to be explicitly set — setAggregateInfo alone does not set it. Leaving it
-      // false while ginfo is genuinely non-empty is an inconsistent state: something in the
-      // worksheet persist/reload path (repopulateWorksheet) gates on isAggregate() and, finding it
-      // false, drops the (in-memory-correct) AggregateInfo entirely by the time the worksheet is
-      // reloaded — confirmed live: prevMirror's own AggregateInfo read back empty immediately after
-      // persisting+reloading, even though it was set correctly moments before. Keep the flag
-      // consistent with the info's actual emptiness.
+      // default false) to be explicitly set — setAggregateInfo alone does not set it. Keep the
+      // flag consistent with the info's actual emptiness.
       prevMirror.setAggregate(!aggr.isEmpty());
       prevMirror.setProperty(PROP_WIZ_MERGED, "true");
 

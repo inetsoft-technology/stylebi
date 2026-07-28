@@ -47,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -441,5 +442,104 @@ class WsMergeServiceTest {
       assertNotNull(prevMirrorPrivate.getAttribute(aggregateRefName),
          "prevMirror's own private column selection must contain an entry matching its own " +
          "AggregateRef's (now-qualified) name");
+   }
+
+   /**
+    * Regression for the third-chart-onward path: once a prevMirror already exists for a
+    * physical table (tagged {@link WsMergeService#PROP_WIZ_MERGED}), {@link
+    * WsMergeService#ensureBaseHasPrevMirror} short-circuits via its {@code wizMirror} lookup and
+    * returns early WITHOUT re-promoting or re-qualifying anything. This is the branch the
+    * name-return refactor (returning the mirror's own name instead of the caller re-deriving it
+    * from a "_base" suffix) changed the most, and it must keep working for a third (and any
+    * later) chart merging onto the same already-promoted table -- reusing the exact same
+    * prevMirror, with the first chart's own qualified aggregation from the earlier test still
+    * intact.
+    */
+   @Test
+   void aThirdChartSharingTheSamePhysicalTableReusesTheExistingPrevMirrorUnchanged() {
+      Worksheet dashWS = new Worksheet();
+      dashWS.addAssembly(physicalTableWithGroupedAggregate(
+         dashWS, "PT", "date_order", "Quarter(date_order)", "order_count", AggregateFormula.COUNT_ALL));
+
+      Worksheet secondVizWS = new Worksheet();
+      secondVizWS.addAssembly(physicalTableWithGroupedAggregate(
+         secondVizWS, "PT", "date_order", "Quarter(date_order)", "avg_order_value", AggregateFormula.AVG));
+      service.mergeWorksheet(secondVizWS, dashWS, "suffix1", new HashMap<>());
+
+      TableAssembly prevMirrorAfterSecond = (TableAssembly) dashWS.getAssembly("PT");
+      String aggregateRefNameAfterSecond = prevMirrorAfterSecond.getAggregateInfo().getAggregate(0).getName();
+
+      // Third chart, again sharing the same physical source, with its own third aggregate.
+      Worksheet thirdVizWS = new Worksheet();
+      thirdVizWS.addAssembly(physicalTableWithGroupedAggregate(
+         thirdVizWS, "PT", "date_order", "Quarter(date_order)", "max_order_value", AggregateFormula.MAX));
+      Map<String, String> thirdRenameMap = service.mergeWorksheet(thirdVizWS, dashWS, "suffix2", new HashMap<>());
+
+      TableAssembly prevMirrorAfterThird = (TableAssembly) dashWS.getAssembly("PT");
+      assertSame(prevMirrorAfterSecond, prevMirrorAfterThird,
+         "the third chart must reuse the EXACT SAME prevMirror instance -- ensureBaseHasPrevMirror's " +
+         "wizMirror early-return must not create a second, competing prevMirror");
+
+      assertEquals(aggregateRefNameAfterSecond, prevMirrorAfterThird.getAggregateInfo().getAggregate(0).getName(),
+         "the first chart's own qualified AggregateRef must be completely untouched by a third " +
+         "chart's own merge -- the early-return path must not re-run any qualification/rebind logic");
+
+      // The third chart's own condMirror must still exist and carry its own aggregation,
+      // proving the shared prevMirror is still usable as a stacking point for new arrivals.
+      String thirdCondMirrorName = thirdRenameMap.get("PT");
+      assertNotNull(thirdCondMirrorName);
+      TableAssembly thirdCondMirror = (TableAssembly) dashWS.getAssembly(thirdCondMirrorName);
+      assertNotNull(thirdCondMirror);
+      assertFalse(thirdCondMirror.getAggregateInfo().isEmpty());
+   }
+
+   /**
+    * Regression for the {@code outerMirror != null} branch of {@link
+    * WsMergeService#ensureBaseHasPrevMirror}: when the bare table name a chart's own worksheet
+    * binds to is ALREADY a {@link MirrorTableAssembly} created by some OTHER, unrelated mechanism
+    * (not tagged {@link WsMergeService#PROP_WIZ_MERGED} -- e.g. StyleBI's own generic
+    * Viewsheet#createMirrorTable, which wraps ANY table a VS chart binds to), {@code
+    * findMergeableTable} (which only matches {@code BoundTableAssembly}) resolves to the
+    * WRAPPED table underneath, not the mirror itself. Promoting that wrapped table's own name
+    * would create a prevMirror no VS binding can ever reach. This adapts the pre-existing outer
+    * mirror in place instead.
+    */
+   @Test
+   void adaptsAPreExistingNonWizMirrorInPlaceInsteadOfCreatingAnUnreachableOne() {
+      Worksheet dashWS = new Worksheet();
+      PhysicalBoundTableAssembly wrapped = physicalTableWithGroupedAggregate(
+         dashWS, "PT_actual", "date_order", "Quarter(date_order)", "order_count", AggregateFormula.COUNT_ALL);
+      dashWS.addAssembly(wrapped);
+
+      // Pre-existing mirror at the bare name "PT" wrapping "PT_actual" -- simulating a mirror
+      // created by some OTHER mechanism entirely (e.g. Viewsheet#createMirrorTable), NOT tagged
+      // PROP_WIZ_MERGED, and (as that mechanism always produces) with an EMPTY AggregateInfo of
+      // its own.
+      MirrorTableAssembly preExistingOuterMirror = new MirrorTableAssembly(dashWS, "PT", wrapped);
+      dashWS.addAssembly(preExistingOuterMirror);
+      assertTrue(preExistingOuterMirror.getAggregateInfo().isEmpty());
+
+      Worksheet vizWS = new Worksheet();
+      vizWS.addAssembly(physicalTableWithGroupedAggregate(
+         vizWS, "PT", "date_order", "Quarter(date_order)", "avg_order_value", AggregateFormula.AVG));
+
+      service.mergeWorksheet(vizWS, dashWS, "suffix1", new HashMap<>());
+
+      // The pre-existing mirror must be ADAPTED IN PLACE -- same instance, now carrying the
+      // first ("PT_actual") chart's own qualified aggregation -- not replaced or orphaned.
+      assertSame(preExistingOuterMirror, dashWS.getAssembly("PT"),
+         "the pre-existing outer mirror must be adapted in place, not replaced");
+      assertFalse(preExistingOuterMirror.getAggregateInfo().isEmpty(),
+         "the adapted mirror must now carry the first chart's own aggregation");
+      assertEquals("PT_actual.order_count", preExistingOuterMirror.getAggregateInfo().getAggregate(0).getName());
+      assertEquals("true", preExistingOuterMirror.getProperty(WsMergeService.PROP_WIZ_MERGED),
+         "the adapted mirror must be tagged so a later chart's wizMirror lookup recognizes it as " +
+         "already promoted");
+
+      // The wrapped table must still be reachable and stripped to raw/full data, exactly like
+      // the "no pre-existing outer mirror" branch's "_base" table.
+      TableAssembly wrappedAfter = (TableAssembly) dashWS.getAssembly("PT_actual");
+      assertNotNull(wrappedAfter);
+      assertTrue(wrappedAfter.getAggregateInfo().isEmpty());
    }
 }
