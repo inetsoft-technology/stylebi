@@ -30,7 +30,11 @@ package inetsoft.web.admin.properties;
  *
  * --- deleteProperty ---
  *     [normal property]             SreeEnv.remove() and SreeEnv.save() called;
- *                                   PropertyChangeSideEffects.applyRemoveSideEffects delegated to
+ *                                   PropertyChangeSideEffects.applyPreRemoveSideEffects is
+ *                                   delegated to BEFORE SreeEnv.remove(), and
+ *                                   applyPostRemoveSideEffects AFTER SreeEnv.save() -- this
+ *                                   ordering is pinned down with an InOrder assertion since it
+ *                                   must match the pre-refactor PropertiesController exactly
  *                                   (side-effect behavior itself is covered by
  *                                   PropertyChangeSideEffectsTest)
  *
@@ -148,13 +152,30 @@ class PropertiesControllerTest {
       sreeEnvStatic.verify(SreeEnv::save);
    }
 
-   // [any property] delegates the pre-removal side effects (e.g. log level cleanup,
-   // expose-default-org event) to PropertyChangeSideEffects
+   // [any property] delegates the pre-removal side effect (e.g. log level cleanup) to
+   // PropertyChangeSideEffects before removal, and the post-removal side effect (e.g.
+   // expose-default-org event) after save
    @Test
-   void deleteProperty_delegatesSideEffects() throws Exception {
+   void deleteProperty_delegatesPreAndPostRemoveSideEffects() throws Exception {
       controller.deleteProperty(principal, "security.exposedefaultorgtoall");
 
-      verify(sideEffects).applyRemoveSideEffects("security.exposedefaultorgtoall");
+      verify(sideEffects).applyPreRemoveSideEffects("security.exposedefaultorgtoall");
+      verify(sideEffects).applyPostRemoveSideEffects("security.exposedefaultorgtoall");
+   }
+
+   // [ordering] applyPreRemoveSideEffects must run BEFORE SreeEnv.remove() (it reads the
+   // property's pre-removal value); applyPostRemoveSideEffects must run AFTER SreeEnv.save()
+   // -- byte-identical to the pre-refactor PropertiesController ordering
+   @Test
+   void deleteProperty_ordersSideEffectsAroundRemoveAndSave() throws Exception {
+      controller.deleteProperty(principal, "security.exposedefaultorgtoall");
+
+      InOrder inOrder = inOrder(sideEffects, SreeEnv.class);
+      inOrder.verify(sideEffects).applyPreRemoveSideEffects("security.exposedefaultorgtoall");
+      inOrder.verify(sreeEnvStatic,
+         () -> SreeEnv.remove("security.exposedefaultorgtoall"));
+      inOrder.verify(sreeEnvStatic, SreeEnv::save);
+      inOrder.verify(sideEffects).applyPostRemoveSideEffects("security.exposedefaultorgtoall");
    }
 
    // -------------------------------------------------------------------------

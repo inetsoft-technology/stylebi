@@ -58,9 +58,10 @@ public class PropertiesController {
                                  String property)
       throws IOException
    {
-      sideEffects.applyRemoveSideEffects(property);
+      sideEffects.applyPreRemoveSideEffects(property);
       SreeEnv.remove(property);
       SreeEnv.save();
+      sideEffects.applyPostRemoveSideEffects(property);
    }
 
    @Audited(

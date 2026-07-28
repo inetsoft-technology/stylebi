@@ -206,7 +206,8 @@ class AdminChangeServiceTest {
       service.applyChange(req("max.rows", "500"), principal);
 
       verify(sideEffects).applyEditSideEffects("max.rows");
-      verify(sideEffects, never()).applyRemoveSideEffects(any());
+      verify(sideEffects, never()).applyPreRemoveSideEffects(any());
+      verify(sideEffects, never()).applyPostRemoveSideEffects(any());
    }
 
    @Test void invokesRemoveSideEffectsWhenRemovingAValue() throws Exception {
@@ -214,8 +215,25 @@ class AdminChangeServiceTest {
              .thenReturn("100").thenReturn(null);
       service.applyChange(req("max.rows", null), principal);
 
-      verify(sideEffects).applyRemoveSideEffects("max.rows");
+      verify(sideEffects).applyPreRemoveSideEffects("max.rows");
+      verify(sideEffects).applyPostRemoveSideEffects("max.rows");
       verify(sideEffects, never()).applyEditSideEffects(any());
+   }
+
+   // [ordering] applyPreRemoveSideEffects must run BEFORE SreeEnv.remove() (it reads the
+   // property's pre-removal value); applyPostRemoveSideEffects must run AFTER SreeEnv.save()
+   // -- matching PropertiesController.deleteProperty's ordering exactly, within the
+   // successful-apply path
+   @Test void ordersRemoveSideEffectsAroundRemoveAndSave() throws Exception {
+      sreeEnv.when(() -> SreeEnv.getProperty("max.rows"))
+             .thenReturn("100").thenReturn(null);
+      service.applyChange(req("max.rows", null), principal);
+
+      InOrder inOrder = inOrder(sideEffects, SreeEnv.class);
+      inOrder.verify(sideEffects).applyPreRemoveSideEffects("max.rows");
+      inOrder.verify(sreeEnv, () -> SreeEnv.remove("max.rows"));
+      inOrder.verify(sreeEnv, SreeEnv::save);
+      inOrder.verify(sideEffects).applyPostRemoveSideEffects("max.rows");
    }
 
    @Test void alwaysAuditsWhenSaveThrows() throws Exception {

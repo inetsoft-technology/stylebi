@@ -136,51 +136,70 @@ class PropertyChangeSideEffectsTest {
    }
 
    // -------------------------------------------------------------------------
-   // applyRemoveSideEffects
+   // applyPreRemoveSideEffects (removeLogLevel only -- must run before SreeEnv.remove())
    // -------------------------------------------------------------------------
 
-   // [security.exposedefaultorgtoall] fires the asset repository event on removal too
+   // [security.exposedefaultorgtoall] does NOT fire the repository event -- that is a
+   // post-remove side effect
    @Test
-   void applyRemoveSideEffects_exposeDefaultOrgProperty_firesRepositoryEvent() {
+   void applyPreRemoveSideEffects_exposeDefaultOrgProperty_doesNotFireRepositoryEvent() {
       sreeEnvStatic.when(() -> SreeEnv.getProperty("security.exposedefaultorgtoall"))
          .thenReturn(null);
 
-      sideEffects.applyRemoveSideEffects("security.exposedefaultorgtoall");
-
-      verify(assetRepository).fireExposeDefaultOrgPropertyChange();
-   }
-
-   // [unrelated property] no repository event fires
-   @Test
-   void applyRemoveSideEffects_unrelatedProperty_noRepositoryEvent() {
-      sreeEnvStatic.when(() -> SreeEnv.getProperty("some.other.property")).thenReturn(null);
-
-      sideEffects.applyRemoveSideEffects("some.other.property");
+      sideEffects.applyPreRemoveSideEffects("security.exposedefaultorgtoall");
 
       verifyNoInteractions(assetRepository);
    }
 
    // [matching log level property] clears the custom context log level
    @Test
-   void applyRemoveSideEffects_matchingLogLevelProperty_clearsContextLevel() {
+   void applyPreRemoveSideEffects_matchingLogLevelProperty_clearsContextLevel() {
       String property = "log.USER.level.joe";
       sreeEnvStatic.when(() -> SreeEnv.getProperty(property)).thenReturn("DEBUG");
       LogLevelSetting setting = new LogLevelSetting(LogContext.USER, "joe", null, LogLevel.DEBUG);
       when(logManager.getContextLevels()).thenReturn(List.of(setting));
 
-      sideEffects.applyRemoveSideEffects(property);
+      sideEffects.applyPreRemoveSideEffects(property);
 
       verify(logManager).setContextLevel(LogContext.USER, "joe", null);
    }
 
    // [log level property already off] does not attempt to clear it again
    @Test
-   void applyRemoveSideEffects_logLevelPropertyOff_doesNotClearLevel() {
+   void applyPreRemoveSideEffects_logLevelPropertyOff_doesNotClearLevel() {
       String property = "log.USER.level.joe";
       sreeEnvStatic.when(() -> SreeEnv.getProperty(property)).thenReturn("off");
 
-      sideEffects.applyRemoveSideEffects(property);
+      sideEffects.applyPreRemoveSideEffects(property);
 
       verify(logManager, never()).setContextLevel(any(), any(), any());
+   }
+
+   // -------------------------------------------------------------------------
+   // applyPostRemoveSideEffects (exposedefault fire only -- must run after SreeEnv.save())
+   // -------------------------------------------------------------------------
+
+   // [security.exposedefaultorgtoall] fires the asset repository event
+   @Test
+   void applyPostRemoveSideEffects_exposeDefaultOrgProperty_firesRepositoryEvent() {
+      sideEffects.applyPostRemoveSideEffects("security.exposedefaultorgtoall");
+
+      verify(assetRepository).fireExposeDefaultOrgPropertyChange();
+   }
+
+   // [unrelated property] no repository event fires
+   @Test
+   void applyPostRemoveSideEffects_unrelatedProperty_noRepositoryEvent() {
+      sideEffects.applyPostRemoveSideEffects("some.other.property");
+
+      verifyNoInteractions(assetRepository);
+   }
+
+   // [log level property] does not touch logManager -- that is a pre-remove side effect
+   @Test
+   void applyPostRemoveSideEffects_logLevelProperty_doesNotTouchLogManager() {
+      sideEffects.applyPostRemoveSideEffects("log.USER.level.joe");
+
+      verifyNoInteractions(logManager);
    }
 }

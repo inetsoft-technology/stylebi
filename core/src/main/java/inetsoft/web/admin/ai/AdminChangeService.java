@@ -55,7 +55,7 @@ public class AdminChangeService {
          result.setBeforeValue(before);
 
          if(desired == null) {
-            sideEffects.applyRemoveSideEffects(req.getProperty());
+            sideEffects.applyPreRemoveSideEffects(req.getProperty());
             SreeEnv.remove(req.getProperty());
          }
          else {
@@ -64,7 +64,10 @@ public class AdminChangeService {
 
          SreeEnv.save();
 
-         if(desired != null) {
+         if(desired == null) {
+            sideEffects.applyPostRemoveSideEffects(req.getProperty());
+         }
+         else {
             sideEffects.applyEditSideEffects(req.getProperty());
          }
 

@@ -65,12 +65,21 @@ public class PropertyChangeSideEffects {
    }
 
    /**
-    * Replicates the follow-up hooks fired by {@code PropertiesController.deleteProperty}
-    * around removal of a property.
+    * Replicates the hook {@code PropertiesController.deleteProperty} fires BEFORE removing
+    * the property: {@code removeLogLevel} reads the property's pre-removal value, so it must
+    * run before {@code SreeEnv.remove()} -- never bundle this with {@link
+    * #applyPostRemoveSideEffects}, whose call site must stay after {@code SreeEnv.save()} to
+    * match the original ordering exactly.
     */
-   public void applyRemoveSideEffects(String propertyName) {
+   public void applyPreRemoveSideEffects(String propertyName) {
       removeLogLevel(propertyName);
+   }
 
+   /**
+    * Replicates the hook {@code PropertiesController.deleteProperty} fires AFTER removing
+    * and saving the property.
+    */
+   public void applyPostRemoveSideEffects(String propertyName) {
       if(Tool.equals(propertyName, "security.exposedefaultorgtoall")) {
          assetRepository.fireExposeDefaultOrgPropertyChange();
       }
