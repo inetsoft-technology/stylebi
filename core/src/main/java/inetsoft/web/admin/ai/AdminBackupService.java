@@ -26,43 +26,13 @@ import java.io.File;
 import java.io.IOException;
 
 /*
- * Spike findings (Task 6, Step 1):
- *
- * 1. `grep -rn "new StorageService\|StorageService(" community enterprise --include=*.java`
- *    shows `StorageService` is constructed in two contexts:
- *      - Offline/setup: `StorageInitializer.installPlugins(...)` does
- *        `try(StorageService service = new StorageService(configDirectory.getAbsolutePath()))`
- *        - a short-lived instance opened and closed around one operation, used before the
- *        application context (and its long-lived engines) exists.
- *      - Runtime/live: `DirectStorageConfig.storageService(InetsoftConfig, KeyValueEngine,
- *        BlobEngine)` (community/core/src/main/java/inetsoft/setup/DirectStorageConfig.java:101-104)
- *        is annotated `@Bean`, producing a single Spring-managed `StorageService` that wraps the
- *        *already-open* `KeyValueEngine`/`BlobEngine` beans used by the running server.
- *
- * 2. `DirectStorageConfig.java:103-104` confirms the live bean is built from the same
- *    `keyValueEngine`/`blobEngine` beans injected elsewhere in the app context - i.e. there is
- *    exactly one open storage backend per running server, and the bean is just a thin wrapper
- *    around it. `StorageInitializer.java:205-206` confirms the *other* construction path
- *    (`new StorageService(dir)`) is only ever used offline, opens its own engines against a
- *    directory, and is always closed (`try`-with-resources) before the server starts.
- *
- * 3. Because the live `StorageService` is a singleton Spring bean (not a fresh instance we would
- *    have to open ourselves), injecting it here does not open a second set of engines against the
- *    same directory - it reuses the one the running server already holds. Opening a *second*
- *    `StorageService(String)` against the live config directory while the server is running would
- *    risk contending with the live engines (e.g. file/db locks held by local or embedded backends);
- *    we avoid that entirely by depending on the bean instead of constructing our own.
- *
- * 4. Decision gate: BRANCH A - live `StorageService.backup(File)` / `restore(File)`, injected as
- *    the Spring bean, is safe to call directly from a running server. Implemented below.
- *
- * Backup file location: per `DataSpaceSettingsService.doBackup` (which uses
- * `this.fileSystemService.getCacheTempFile("backup", ".zip")`,
- * community/core/src/main/java/inetsoft/web/admin/general/DataSpaceSettingsService.java:104),
- * server-side backup artifacts belong under `FileSystemService.getInstance()`'s cache directory.
- * This service creates a dedicated, stable subdirectory there ("admin-ai-backups") rather than a
- * one-off cache temp file, since Tier-2 backups must remain resolvable by name for a later
- * `restore` call rather than being a fire-and-forget temp file.
+ * This service depends on the live, Spring-managed `StorageService` bean
+ * (see `DirectStorageConfig.storageService`) rather than constructing its own. That bean wraps
+ * the `KeyValueEngine`/`BlobEngine` the running server already has open, so reusing it does not
+ * open a second set of engines against the same directory; constructing a fresh
+ * `StorageService(String)` against the live config directory while the server is running would
+ * risk contending with those already-open engines (e.g. file/db locks held by local or embedded
+ * backends).
  *
  * NOTE: Tier-2 backups produced here are stored server-side, on local disk, with no retention
  * policy. Hardening (retention/expiry, replication to the configured external storage provider,
@@ -72,8 +42,8 @@ import java.io.IOException;
 public class AdminBackupService {
    /**
     * Production constructor. Wires the live, Spring-managed {@link StorageService} bean (see
-    * spike findings above) and resolves a stable, writable server-side directory for Tier-2
-    * backup artifacts.
+    * class-level comment above) and resolves a stable, writable server-side directory for
+    * Tier-2 backup artifacts.
     */
    @Autowired
    public AdminBackupService(StorageService storage) {
