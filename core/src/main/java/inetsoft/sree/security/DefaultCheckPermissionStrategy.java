@@ -136,18 +136,17 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          String rootRole = Organization.getRootRoleName(principal);
          String rootOrgRole = Organization.getRootOrgRoleName(principal);
          Role role = provider.getRole(IdentityID.getIdentityIDFromKey(resource));
-         Permission orgRoleRootPer;
+         Permission rootRolePer = provider.getPermission(type, rootRole);
+         Permission rootOrgRolePer = provider.getPermission(type, rootOrgRole);
 
-         if(role != null && role.getOrganizationID() != null) {
-            orgRoleRootPer = provider.getPermission(type, rootOrgRole);
-         }
-         else {
-            orgRoleRootPer = provider.getPermission(type, rootRole);
-         }
-
-         if(orgRoleRootPer != null && (role == null ||
+         // "Roles" and "Organization Roles" are two independent grantable nodes in the EM
+         // security tree (see UserTreeService), so a grant on either root must be honored
+         // here — checking only one caused admins granted on the "Roles" root to be denied
+         // access to org-scoped roles, since only "Organization Roles" was consulted before.
+         if((role == null ||
             Tool.equals(role.getOrganizationID(), OrganizationManager.getInstance().getCurrentOrgID())) &&
-            checker.checkPermission(identity, orgRoleRootPer, action, true))
+            ((rootRolePer != null && checker.checkPermission(identity, rootRolePer, action, true)) ||
+             (rootOrgRolePer != null && checker.checkPermission(identity, rootOrgRolePer, action, true))))
          {
             return true;
          }
