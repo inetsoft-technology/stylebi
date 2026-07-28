@@ -861,6 +861,15 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
                                           .set("originalMode", this.originalMode);
 
       if(save) {
+         // The commit below destroys this runtime server-side (finishEdit -> closeViewsheet).
+         // Stop the heartbeat first, otherwise a tick landing in the window between the
+         // commit and ngOnDestroy() can ping the already-closed runtime and the server
+         // responds with a spurious "sheet has expired" error.
+         if(this.heartBeat) {
+            this.heartBeat.unsubscribe();
+            this.heartBeat = null;
+         }
+
          promise = promise.then(
             () => this.modelService.getModel("../api/vsbinding/commit", params).toPromise());
 
