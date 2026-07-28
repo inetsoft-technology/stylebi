@@ -877,7 +877,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       return getCacheInterval();
    }
 
-   boolean isCacheInitialized() {
+   public boolean isCacheInitialized() {
       DatabaseAuthenticationCache cache = getCache(false);
       return cache != null && cache.isInitialized();
    }
