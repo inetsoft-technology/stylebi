@@ -4080,8 +4080,18 @@ public final class VSEventUtil {
     * saved content, and when the stored sheet is loaded in place of it
     * (AbstractAssetEngine.getSheet). When the sheet is saved the auto saved content is superseded
     * instead of discarded, so the save paths delete the file rather than calling this method.
+    * An entry that already refers to a file in the recycle bin is ignored.
     */
    public static void deleteAutoSavedFile(AssetEntry entry, Principal user) {
+      // an entry that carries the name of an existing auto save file, i.e. one created by
+      // AutoSaveUtils.createAssetEntry() for the recycle bin, already refers to a discarded file,
+      // so there is nothing to discard. the name embeds the user and ip address of the session
+      // that created it and can not be recreated from the current user, so moving it again would
+      // only orphan it under a name attributed to the wrong user.
+      if(entry.getProperty("autoFileName") != null) {
+         return;
+      }
+
       // called while loading a sheet, so never let a storage failure fail the caller
       try {
          String savefile = AutoSaveUtils.getAutoSavedFile(entry, user);
