@@ -45,6 +45,7 @@
               <mat-option value="dense">_#(Dense)</mat-option>
             </mat-select>
           </mat-form-field>
+          <mat-checkbox formControlName="darkMode">_#(Dark Mode)</mat-checkbox>
         }
         <div class="linked-fields" [class.linked-fields-expanded]="!form.controls.defaultLogo?.value">
           @if (model.customLogoEnabled) {

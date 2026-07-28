@@ -1262,6 +1262,13 @@ binding-editor {
   background-color: var(--inet-toolbar-bg-color);
 }
 
+// dark mode: the opaque sort-button fill (which masks the header text behind the icon) uses the
+// light toolbar token, reading as a bright box on the dark header. Match the dark header surface so
+// it blends. Live-only affordance (not exported), so a browser-CSS override is the right layer.
+.viz-dark .vs-header-cell-button-sort {
+  background-color: #2D2B30;
+}
+
 // active sort only (asc/desc) — leave the passive hover affordance neutral.
 // !important to beat the ineticons .icon-color-default color set on the glyph.
 .viz-modern .vs-header-cell-button-sort.sort-ascending-icon,

@@ -49,14 +49,27 @@ public final class VSChartPaletteDefaults {
       return palette.toArray(new Color[0]);
    }
 
+   public static Color[] darkPalette() {
+      // 8 dark head + legacy tail (indices 8..39 unchanged), mirroring modernPalette()
+      List<Color> palette = new ArrayList<>(Arrays.asList(DARK_HEAD));
+      Color[] legacy = CategoricalColorFrame.COLOR_PALETTE;
+      palette.addAll(Arrays.asList(legacy).subList(DARK_HEAD.length, legacy.length));
+      return palette.toArray(new Color[0]);
+   }
+
    public static void applyModernPalette(CategoricalColorFrame frame) {
       if(frame != null && isModern()) {
-         frame.setDefaultColors(modernPalette());
+         frame.setDefaultColors(VSDensityDefaults.isDark() ? darkPalette() : modernPalette());
       }
    }
 
    private static final Color[] MODERN_HEAD = {
       new Color(0x00D4E8), new Color(0x00B87A), new Color(0xF59E0B), new Color(0xF43F5E),
       new Color(0x8B5CF6), new Color(0x3B82F6), new Color(0x0D9488), new Color(0x64748B)
+   };
+
+   private static final Color[] DARK_HEAD = {
+      new Color(0x22D3EE), new Color(0x10B981), new Color(0xFBB724), new Color(0xFB6181),
+      new Color(0xA78BFA), new Color(0x60A5FA), new Color(0x2DD4BF), new Color(0x94A3B8)
    };
 }

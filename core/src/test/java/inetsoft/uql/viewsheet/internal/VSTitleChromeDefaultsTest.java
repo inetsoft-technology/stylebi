@@ -44,6 +44,23 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 @Tag("core")
 class VSTitleChromeDefaultsTest {
+   @AfterEach
+   void reset() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", null);
+      SreeEnv.setProperty("viewsheet.modernObjectChrome", null);
+      SreeEnv.setProperty("viewsheet.darkMode", null);
+   }
+
+   // dark mode substitutes the dark title chrome
+   @Test
+   void titleAccessorsDark() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      assertEquals(0x2D2B30, rgb(VSTitleChromeDefaults.titleBackground()));
+      assertEquals(0xCAC4D0, rgb(VSTitleChromeDefaults.titleForeground()));
+      assertEquals(0x49454F, rgb(VSTitleChromeDefaults.titleBorderColor()));
+   }
+
    // pins the modern title-chrome palette; the values are substituted onto the title format at read
    // time (live model + export), so a change here is an export-visible change and must be intentional
    @Test
@@ -122,6 +139,34 @@ class VSTitleChromeDefaultsTest {
          // original untouched (no serialization / mutation)
          assertEquals(0xF5F5F5, rgb(fmt.getBackground()), "source format not mutated");
       });
+   }
+
+   // dark mode: applyModernDefaults writes the dark neutrals onto the DEFAULT tier
+   @Test
+   void applyModernDefaultsResolvesDarkBackground() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      VSCompositeFormat fmt = new VSCompositeFormat();
+      fmt.getDefaultFormat().setBackgroundValue("0xf5f5f5");
+
+      VSCompositeFormat modern = VSTitleChromeDefaults.applyModernDefaults(fmt);
+      assertNotSame(fmt, modern, "a modern clone is returned");
+      assertEquals(0x2D2B30, rgb(modern.getBackground()), "getBackground() resolves dark");
+      assertEquals(0xCAC4D0, rgb(modern.getForeground()), "getForeground() resolves dark");
+      // original untouched (no serialization / mutation)
+      assertEquals(0xF5F5F5, rgb(fmt.getBackground()), "source format not mutated");
+   }
+
+   // dark mode: a user-set background (USER tier) still wins over the dark default
+   @Test
+   void applyModernDefaultsPreservesUserBackgroundDark() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      VSCompositeFormat fmt = new VSCompositeFormat();
+      fmt.getUserDefinedFormat().setBackgroundValue("0x123456");
+
+      VSCompositeFormat modern = VSTitleChromeDefaults.applyModernDefaults(fmt);
+      assertEquals(0x123456, rgb(modern.getBackground()), "user-set title bg still wins in dark");
    }
 
    @Test

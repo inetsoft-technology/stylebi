@@ -76,6 +76,17 @@
   --slider-label-bg: #6A685F;
 }
 
+// Dark visualization neutrals — must follow the .viz-modern block so its equal-specificity
+// selector wins on source order (the body carries viz-modern + viz-dark together). Values match
+// the server slider painter (VSOutputChromeDefaults dark) so the live and exported sliders agree.
+// --slider-label-bg is intentionally left at the modern value so the value bubble keeps white text.
+:host-context(.viz-dark) {
+  --slider-inactive-track-color: #3A383D;
+  --slider-active-track-color: #49454F;
+  --slider-handle-color: #CAC4D0;
+  --slider-tick-color: #CAC4D0;
+}
+
 // ─── Structural containers ────────────────────────────────────────────────────
 
 .slider {

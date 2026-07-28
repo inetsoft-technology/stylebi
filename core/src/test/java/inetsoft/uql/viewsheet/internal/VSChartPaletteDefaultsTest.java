@@ -25,6 +25,7 @@ class VSChartPaletteDefaultsTest {
    void reset() {
       SreeEnv.setProperty("viewsheet.modernVisualization", null);
       SreeEnv.setProperty("viewsheet.modernChartPalette", null);
+      SreeEnv.setProperty("viewsheet.darkMode", null);
    }
 
    @Test
@@ -86,5 +87,32 @@ class VSChartPaletteDefaultsTest {
       // stale cache did not poison the render. Both go through the same brightness processing.
       assertEquals(fresh.getColor("A"), warmed.getColor("A"));
       assertEquals(fresh.getColor("B"), warmed.getColor("B"));
+   }
+
+   @Test
+   void darkPaletteSwapsToDarkHeadKeepsLegacyTail() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+
+      Color[] dark = VSChartPaletteDefaults.darkPalette();
+      assertEquals(40, dark.length, "8 dark + 32 legacy tail = 40");
+      assertEquals(new Color(0x22D3EE), dark[0]);
+      assertEquals(new Color(0x94A3B8), dark[7]);
+      assertEquals(CategoricalColorFrame.COLOR_PALETTE[8], dark[8]);
+      assertEquals(CategoricalColorFrame.COLOR_PALETTE[39], dark[39]);
+
+      CategoricalColorFrame frame = new CategoricalColorFrame();
+      VSChartPaletteDefaults.applyModernPalette(frame);
+      assertEquals(new Color(0x22D3EE), frame.getColor(0));
+      assertEquals(new Color(0x10B981), frame.getColor(1));
+   }
+
+   @Test
+   void darkInertWithoutModern() {
+      // dark set but modern off => palette untouched (legacy head)
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      CategoricalColorFrame frame = new CategoricalColorFrame();
+      VSChartPaletteDefaults.applyModernPalette(frame);
+      assertEquals(CategoricalColorFrame.COLOR_PALETTE[0], frame.getColor(0));
    }
 }

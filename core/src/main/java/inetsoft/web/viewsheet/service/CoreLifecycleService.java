@@ -307,6 +307,8 @@ public class CoreLifecycleService {
          String vizDensity = SreeEnv.getProperty("viewsheet.density", false, true);
          infoMap.put("vizDensity",
                      vizDensity == null || vizDensity.isEmpty() ? "dense" : vizDensity);
+         infoMap.put("darkMode",
+                     SreeEnv.getBooleanProperty("viewsheet.darkMode", false, true));
 
          command.setInfo(infoMap);
          // TODO populate assemblyInfo with values from vs.getViewsheetInfo()

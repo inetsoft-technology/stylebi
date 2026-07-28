@@ -114,6 +114,7 @@ public class PortalController {
 
       boolean modernVisualization =
          SreeEnv.getBooleanProperty("viewsheet.modernVisualization", false, true);
+      boolean darkMode = SreeEnv.getBooleanProperty("viewsheet.darkMode", false, true);
       String vizDensity = SreeEnv.getProperty("viewsheet.density", false, true);
 
       if(vizDensity == null || vizDensity.isEmpty()) {
@@ -149,6 +150,7 @@ public class PortalController {
          .profiling(profiling)
          .elasticLicenseExhausted(elasticLicenseExhausted)
          .modernVisualization(modernVisualization)
+         .darkMode(darkMode)
          .vizDensity(vizDensity)
          .build();
    }
