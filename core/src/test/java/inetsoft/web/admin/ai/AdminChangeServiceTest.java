@@ -164,6 +164,42 @@ class AdminChangeServiceTest {
       verifyNoInteractions(audit);
    }
 
+   @Test void rejectsBlankAction() {
+      AdminChangeRequest r = req("max.rows", "500");
+      r.setAction("   ");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.applyChange(r, principal));
+      assertTrue(ex.getMessage().contains("action"));
+      sreeEnv.verifyNoInteractions();
+      auditStatic.verify(Audit::getInstance, never());
+      verifyNoInteractions(audit, sideEffects);
+   }
+
+   @Test void rejectsNullAction() {
+      AdminChangeRequest r = req("max.rows", "500");
+      r.setAction(null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.applyChange(r, principal));
+      assertTrue(ex.getMessage().contains("action"));
+      sreeEnv.verifyNoInteractions();
+      auditStatic.verify(Audit::getInstance, never());
+      verifyNoInteractions(audit, sideEffects);
+   }
+
+   @Test void rejectsInvalidAction() {
+      AdminChangeRequest r = req("max.rows", "500");
+      r.setAction("delete");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.applyChange(r, principal));
+      assertTrue(ex.getMessage().contains("action"));
+      sreeEnv.verifyNoInteractions();
+      auditStatic.verify(Audit::getInstance, never());
+      verifyNoInteractions(audit, sideEffects);
+   }
+
    @Test void invokesEditSideEffectsWhenSettingAValue() throws Exception {
       sreeEnv.when(() -> SreeEnv.getProperty("max.rows"))
              .thenReturn("100").thenReturn("500");

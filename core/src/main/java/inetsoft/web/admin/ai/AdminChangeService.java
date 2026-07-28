@@ -37,10 +37,14 @@ public class AdminChangeService {
    public AdminChangeResult applyChange(AdminChangeRequest req, Principal principal) {
       requireNonBlank("transactionId", req.getTransactionId());
       requireNonBlank("property", req.getProperty());
+      requireValidAction(req.getAction());
 
       AdminChangeResult result = new AdminChangeResult();
       result.setProperty(req.getProperty());
 
+      // Unlike PropertiesController.editProperty (which treats a "" value as "keep the
+      // current value"), admin-chat treats a trimmed "" as an explicit set-to-empty;
+      // reset-to-default is expressed via a null value (the broker's stage_property_reset).
       String desired = req.getValue() == null ? null : req.getValue().trim();
       String before = null;
       String status = AdminChangeRecord.STATUS_FAILED;
@@ -101,6 +105,25 @@ public class AdminChangeService {
       }
    }
 
+   /**
+    * {@code AdminChangeRecord.validate()} also requires a non-blank {@code action}
+    * drawn from a known set of values. Fail loud on the same grounds as
+    * {@link #requireNonBlank} -- before any {@code SreeEnv} mutation or audit write --
+    * rather than letting an unqueryable/unrecognized action slip through.
+    */
+   private void requireValidAction(String action) {
+      requireNonBlank("action", action);
+
+      if(!AdminChangeRecord.ACTION_APPLY.equals(action) &&
+         !AdminChangeRecord.ACTION_ROLLBACK.equals(action) &&
+         !AdminChangeRecord.ACTION_RESTORE.equals(action))
+      {
+         throw new IllegalArgumentException("action: must be one of " +
+            AdminChangeRecord.ACTION_APPLY + ", " + AdminChangeRecord.ACTION_ROLLBACK +
+            ", " + AdminChangeRecord.ACTION_RESTORE);
+      }
+   }
+
    private void writeAudit(AdminChangeRequest req, Principal principal,
                            String before, String after, String status, String error)
    {
@@ -116,6 +139,9 @@ public class AdminChangeService {
       record.setRiskLevel(req.getRiskLevel());
       record.setSnapshotScope(req.getSnapshotScope());
       record.setBackupRef(req.getBackupRef());
+      // reviewOutcome and userSessionID are intentionally left unpopulated in Plan 1;
+      // they are reserved for the Plan 2 broker. (organizationId IS populated downstream,
+      // by DefaultAudit, not left blank like these two.)
       record.setUserName(principal == null ? null : principal.getName());
       record.setActionTimestamp(new Timestamp(System.currentTimeMillis()));
       record.setServerHostName(Tool.getHost());
