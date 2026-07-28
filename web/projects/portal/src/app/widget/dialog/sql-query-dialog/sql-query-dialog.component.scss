@@ -26,6 +26,10 @@
   overflow: hidden;
 }
 
+// This used to carry min-height: 500px. The effective floor now lives deeper in the tree,
+// as min-height: 350px on .simple-query-nav-outlet.tab-content and .sqp-edit-body in
+// simple-query-pane.component.scss - restoring a min-height here would fight the
+// flex: 1 1 auto/min-height: 0 chain needed for the slide-out host to fill available height.
 .modal-body {
   display: flex;
   flex-direction: column;
@@ -83,8 +87,8 @@
 .sqd-controls-row {
   display: flex;
   align-items: flex-end;
-  gap: 16px;
-  padding: 0 0 12px;
+  gap: var(--inet-space-6);
+  padding: 0 0 var(--inet-space-5);
   flex-shrink: 0;
 }
 
@@ -97,17 +101,13 @@
 .sqd-toggle {
   display: flex;
   align-items: center;
-  height: 30px;
+  height: var(--inet-control-height-md);
   white-space: nowrap;
-  padding-bottom: 4px;
+  padding-bottom: var(--inet-space-2);
 }
 
 .sqd-datasource {
   flex-shrink: 0;
-}
-
-.modal-footer {
-  background: var(--inet-toolbar-bg-color);
 }
 
 textarea {

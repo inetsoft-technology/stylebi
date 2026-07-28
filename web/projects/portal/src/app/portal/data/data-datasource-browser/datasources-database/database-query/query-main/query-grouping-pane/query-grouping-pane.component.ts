@@ -53,6 +53,12 @@ export class QueryGroupingPaneComponent {
    @Output() groupByValidityChange = new EventEmitter<boolean>();
    @ViewChild("havingConditionsPane") havingConditionsPane: QueryConditionsPaneComponent;
    activeTab: string = GroupingPaneTabs.GROUP_BY;
+   groupByValid: boolean = true;
+
+   onGroupByValidityChange(valid: boolean): void {
+      this.groupByValid = valid;
+      this.groupByValidityChange.emit(valid);
+   }
 
    updateGroupingPaneTab(event: NgbNavChangeEvent): void {
       event.preventDefault();

@@ -41,6 +41,7 @@ import {
    createSimpleQueryPane,
    makeBasicModel,
    makeColumnEntry,
+   makeJoin,
    makeTableEntry
 } from "./simple-query-pane.component.test-helpers";
 
@@ -60,20 +61,85 @@ describe("SimpleQueryPaneComponent - condition field ordering [Group 1, Risk 3]"
 
       comp.editConditions();
       second.next([makeColumnEntry("Customers", "name")]);
-      expect(comp.conditionFields.map(field => field.name)).toEqual(["Customers.name"]);
+
+      // forkJoin waits for every cache entry to emit before assigning conditionFields,
+      // so resolving only the second (Customers) source must not populate it yet.
+      expect(comp.conditionFields).toEqual([]);
 
       first.next([makeColumnEntry("Orders", "id"), makeColumnEntry("Orders", "state")]);
 
+      // Once all sources have resolved, fields are grouped by cache-key (table) order
+      // rather than by emission order.
       expect(comp.conditionFields.map(field => field.name)).toEqual([
          "Orders.id",
          "Orders.state",
          "Customers.name"
       ]);
+      // VPMConditionDialogModel's constructor alphabetically sorts fields, independent of
+      // the table/emission order above.
       expect(comp.conditionDialogModel.fields.map(field => field.name)).toEqual([
          "Customers.name",
          "Orders.id",
          "Orders.state"
       ]);
+   });
+
+   it("should still open the dialog with partial fields and surface an error when a table's columns fail to load", () => {
+      vi.spyOn(ComponentTool, "showMessageDialog").mockResolvedValue(null);
+      const { comp, modal } = createSimpleQueryPane();
+      comp.columnCache = {
+         Orders: throwError(() => new Error("network")),
+         Customers: of([makeColumnEntry("Customers", "name")])
+      };
+
+      comp.editConditions();
+
+      expect(comp.conditionsLoading).toBe(false);
+      expect(comp.conditionFields.map(field => field.name)).toEqual(["Customers.name"]);
+      expect(modal.open).toHaveBeenCalled();
+      expect(ComponentTool.showMessageDialog).toHaveBeenCalledWith(
+         expect.anything(),
+         "_#(js:Error)",
+         "_#(js:common.network.error)"
+      );
+   });
+});
+
+describe("SimpleQueryPaneComponent - hasUnjoinedTables cross-join hint [Group 1, Risk 3]", () => {
+   it("should return false when there is one or fewer tables", () => {
+      const { comp } = createSimpleQueryPane();
+      comp.numTables = 1;
+      comp.model.tables = { Orders: {} as any };
+
+      expect(comp.hasUnjoinedTables()).toBe(false);
+   });
+
+   it("should return false when every table is referenced by some join", () => {
+      const { comp } = createSimpleQueryPane({
+         model: makeBasicModel({ joins: [makeJoin({ table1: "Orders", table2: "Customers" })] })
+      });
+      comp.numTables = 2;
+      comp.model.tables = { Orders: {} as any, Customers: {} as any };
+
+      expect(comp.hasUnjoinedTables()).toBe(false);
+   });
+
+   it("should return true when a table is never referenced by any join, even though the join count alone looks sufficient", () => {
+      // Three tables, two joins - but both joins are between the same Orders/Customers pair,
+      // so Products is never referenced and remains an unjoined cross-join risk. A plain
+      // `joins.length < numTables - 1` count check would miss this case.
+      const { comp } = createSimpleQueryPane({
+         model: makeBasicModel({
+            joins: [
+               makeJoin({ table1: "Orders", table2: "Customers", column1: "id", column2: "id" }),
+               makeJoin({ table1: "Orders", table2: "Customers", column1: "id2", column2: "id2" })
+            ]
+         })
+      });
+      comp.numTables = 3;
+      comp.model.tables = { Orders: {} as any, Customers: {} as any, Products: {} as any };
+
+      expect(comp.hasUnjoinedTables()).toBe(true);
    });
 });
 

@@ -17,6 +17,11 @@
   -->
 <div class="grouping-pane-shell">
   <div class="grouping-pane-container">
+    @if (!groupByValid) {
+      <div class="shell-alert shell-alert--warning grouping-pane-hint">
+        _#(designer.qb.groupBy.needsAggregateHint)
+      </div>
+    }
     <ul ngbNav #nav="ngbNav" class="nav-tabs" [activeId]="activeTab" (navChange)="updateGroupingPaneTab($event)">
       <ng-container ngbNavItem="group-by">
         <a ngbNavLink>_#(Group by)</a>
@@ -24,7 +29,7 @@
           <fields-pane class="tab-pane-content" [runtimeId]="runtimeId"
                        [fields]="model.groupByFields" [grouping]="true"
                        [queryFieldsMap]="queryFieldsMap"
-                       (groupByValidityChange)="groupByValidityChange.emit($event)"
+                       (groupByValidityChange)="onGroupByValidityChange($event)"
                        (onFieldsChange)="fieldsChanged($event)">
           </fields-pane>
         </ng-template>

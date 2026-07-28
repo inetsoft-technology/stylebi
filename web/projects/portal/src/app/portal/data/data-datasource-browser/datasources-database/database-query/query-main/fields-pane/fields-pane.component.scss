@@ -29,39 +29,51 @@
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: var(--inet-space-2);
+  // .fields-pane__surface has a fixed height (40em) that's usually shorter than the
+  // available tab height, so header+body (as a natural-height block, not stretched to
+  // fill) are centered in whatever room is left, instead of the header sitting flush at
+  // the top with all the slack pushed below the body.
+  justify-content: center;
+  gap: var(--inet-space-3);
   min-height: 0;
   min-width: 0;
   width: 100%;
+  overflow-y: auto;
 }
 
+// Mirrors .fields-pane__body's column layout (list / 44px actions / list) with a real
+// flex container instead of a grid, so the heading labels line up exactly - horizontally
+// and vertically - with the lists and actions column below them. The toolbar sits between
+// the two headings (matching DOM order), lining up with the .fields-pane__actions column
+// below it, rather than trailing after the second heading.
 .fields-pane__header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr) auto;
+  display: flex;
+  align-items: center;
   gap: var(--inet-space-3);
-  align-items: start;
+  padding: var(--inet-space-3) 0;
 }
 
 .fields-pane__heading {
+  flex: 1 1 0;
+  min-width: 0;
   color: var(--inet-text-muted-color);
   font-size: 12px;
   font-weight: 600;
   line-height: 1.4;
 }
 
-.fields-pane__heading--right {
-  grid-column: 3;
-}
-
 .fields-pane__toolbar {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 44px;
   gap: var(--inet-space-2);
 }
 
 .fields-pane__body {
   display: flex;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   gap: var(--inet-space-3);
   min-height: 0;
   min-width: 0;
@@ -143,15 +155,12 @@
 
 @media (max-width: 960px) {
   .fields-pane__header {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-
-  .fields-pane__heading--right {
-    grid-column: 2;
+    flex-wrap: wrap;
   }
 
   .fields-pane__toolbar {
-    grid-column: 1 / -1;
+    order: 1;
+    flex: 1 1 100%;
     justify-content: flex-start;
   }
 

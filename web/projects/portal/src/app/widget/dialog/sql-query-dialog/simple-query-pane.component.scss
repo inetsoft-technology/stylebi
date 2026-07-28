@@ -61,7 +61,6 @@
 .sqp-edit-body {
   display: flex;
   flex: 1 1 auto;
-  min-height: 0;
   overflow: hidden;
   min-height: 350px;
 }
@@ -81,7 +80,7 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  padding: 10px var(--inet-space-5) 8px;
+  padding: 10px var(--inet-space-5) var(--inet-space-4);
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
@@ -206,12 +205,14 @@
   display: block;
 }
 
-// Columns drop zone: dashed border + min height when empty so it's a visible target
-.sqp-columns-list--empty .sql-query-dialog-list__surface {
-  min-height: 48px;
-  border-style: dashed !important;
-  background: transparent !important;
-}
+// Columns drop zone: dashed border + min height when empty so it's a visible target.
+// Styling lives in SQLQueryDialogListComponent's own stylesheet, driven by its [empty]
+// @Input - see sql-query-dialog-list.component.scss. A ::ng-deep override was tried here
+// first, but this project's build pipeline does not transform ::ng-deep away: it survives
+// as literal, invalid CSS syntax in the compiled bundle, so the browser silently drops the
+// whole rule. Do not reintroduce ::ng-deep for this without first confirming the build
+// pipeline actually processes it (check the compiled output for a literal "::ng-deep"
+// string - if it's there, the rule is dead).
 
 // Drag hint below the empty columns drop zone
 .sqp-drag-hint {
@@ -223,7 +224,7 @@
 
 // Empty-state text
 .sqp-empty-text {
-  font-size: 13px;
+  font-size: var(--inet-font-size-base);
   color: var(--inet-text-subtle-color);
   padding: var(--inet-space-3) 0;
 
@@ -295,7 +296,7 @@
   min-height: 200px;
   resize: none;
   font-size: 12px;
-  font-family: "JetBrains Mono", "Courier New", monospace;
+  font-family: var(--bs-font-monospace, "SFMono-Regular", Menlo, Consolas, monospace);
 }
 
 .sqp-parse-row {
@@ -311,7 +312,7 @@
   align-items: center;
   font-size: 11px;
   font-weight: 500;
-  padding: 2px 8px;
+  padding: var(--inet-space-1) var(--inet-space-4);
   border-radius: 999px;
   color: var(--inet-text-muted-color);
   background: var(--inet-ui-neutral-hover-bg-color);

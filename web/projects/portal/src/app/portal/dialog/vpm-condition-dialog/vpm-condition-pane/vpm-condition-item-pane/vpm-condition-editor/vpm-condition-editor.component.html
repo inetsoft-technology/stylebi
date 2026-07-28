@@ -41,6 +41,7 @@
     @if (value.type == ClauseValueTypes.EXPRESSION) {
       <div class="editor-container__field editor-container__field--expression">
         <input class="form-control" type="text"
+          placeholder="_#(Expression)"
           [ngModel]="value.expression"
           (ngModelChange)="conditionValueChanged($event)">
         <button type="button" class="btn btn-light editor-container__type-button"

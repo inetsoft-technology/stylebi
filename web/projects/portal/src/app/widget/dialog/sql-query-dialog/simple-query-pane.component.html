@@ -25,7 +25,7 @@
             <!-- Left rail: data source tree -->
             <div class="sqp-left-rail">
               <div class="sqp-rail-header">
-                <span>_#(DATA SOURCES)</span>
+                <span>_#(Data Sources)</span>
                 <span class="sqp-rail-hint">_#(drag to add)</span>
               </div>
               <div class="sqp-tree-area">
@@ -47,85 +47,91 @@
             <!-- Right pane: query definition sections -->
             <div class="sqp-right-pane">
               @if (!model.sqlEdited) {
-              <!-- Columns -->
-              <div class="sqp-section">
-                <div class="sqp-section-header">
-                  <div class="sqp-section-header-left">
-                    <span class="sqp-section-label">_#(Columns)</span>
-                    @if (model.columns?.length) {
-                      <span class="sqp-count-pill">{{model.columns.length}} _#(selected)</span>
-                    }
-                  </div>
-                </div>
-                <sql-query-dialog-list class="sqp-list sqp-columns-list"
-                  [class.sqp-columns-list--empty]="!model.columns?.length"
-                  [items]="model.columns" reorderName="column"
-                  [dragNames]="allowedColumnDropNames" [showDelete]="true"
-                  [labelFunction]="columnToString"
-                  (itemDeleted)="deleteColumn($event)"
-                  (itemsChange)="columnsChange($event)"
-                  (itemsDropped)="droppedIntoColumnList($event)">
-                </sql-query-dialog-list>
-                <div class="sqp-drag-hint">_#(Drag a table or column from the left panel to add)</div>
-              </div>
-
-              <!-- Joins -->
-              <div class="sqp-section sqp-section--sep">
-                <div class="sqp-section-header">
-                  <span class="sqp-section-label">_#(Joins)</span>
-                  <button type="button" class="btn btn-default sqp-section-btn"
-                    (click)="newJoin()" [disabled]="numTables == 0">_#(+ New)</button>
-                </div>
-                @if (model.joins?.length) {
-                  <sql-query-dialog-list class="sqp-list" [items]="model.joins"
-                    [showEdit]="true" [showDelete]="true"
-                    [labelFunction]="joinToString"
-                    (itemsChange)="joinsChange($event)"
-                    (itemDeleted)="deleteJoin($event)"
-                    (itemEdited)="editJoin($event)">
-                  </sql-query-dialog-list>
-                }
-                @if (numTables > 1 && (model.joins?.length ?? 0) < numTables - 1) {
-                  <div class="sqp-empty-text sqp-empty-text--warn">
-                    <span class="sqp-warn-icon" aria-hidden="true">&#9888;</span>
-                    _#(Not all tables are joined - a cross join may result. Click + New to add join conditions.)
-                  </div>
-                } @else if (!model.joins?.length) {
-                  <div class="sqp-empty-text">_#(No joins - add a second table, then link their keys.)</div>
-                }
-              </div>
-
-              <!-- Conditions -->
-              <div class="sqp-section sqp-section--sep">
-                <div class="sqp-section-header">
-                  <span class="sqp-section-label">_#(Conditions)</span>
-                  <button type="button" class="btn btn-default sqp-section-btn"
-                    (click)="editConditions()" [disabled]="!model.columns?.length"
-                    [title]="!model.columns?.length ? '_#(Add columns before defining conditions)' : ''">_#(Edit)</button>
-                </div>
-                @if (model.conditionList?.length) {
-                  @for (item of model.conditionList; track $index; let even = $even; let i = $index) {
-                    <div class="sqp-condition-item unhighlightable"
-                      [class.selected]="selectedConditionIndex === i"
-                      (click)="selectedConditionIndex = i">
-                      @if (even) {
-                        <span>{{item | clauseToString}}</span>
-                      }
-                      @if (!even) {
-                        <span>{{item | conjunctionToString}}</span>
+                <!-- Columns -->
+                <div class="sqp-section">
+                  <div class="sqp-section-header">
+                    <div class="sqp-section-header-left">
+                      <span class="sqp-section-label">_#(Columns)</span>
+                      @if (model.columns?.length) {
+                        <span class="sqp-count-pill">{{model.columns.length}} _#(selected)</span>
                       }
                     </div>
-                  }
-                } @else {
-                  <div class="sqp-condition-empty-state">
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                      <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                    </svg>
-                    <span>_#(No filters set) &mdash; click <span class="sqp-condition-edit-hint">_#(Edit)</span> _#(to add one.)</span>
                   </div>
-                }
-              </div>
-              } <!-- end @if (!model.sqlEdited) -->
+                  <sql-query-dialog-list class="sqp-list sqp-columns-list"
+                    [empty]="!model.columns?.length"
+                    [items]="model.columns" reorderName="column"
+                    [dragNames]="allowedColumnDropNames" [showDelete]="true"
+                    [labelFunction]="columnToString"
+                    (itemDeleted)="deleteColumn($event)"
+                    (itemsChange)="columnsChange($event)"
+                    (itemsDropped)="droppedIntoColumnList($event)">
+                  </sql-query-dialog-list>
+                  <div class="sqp-drag-hint">_#(Drag a table or column from the left panel to add)</div>
+                </div>
+
+                <!-- Joins -->
+                <div class="sqp-section sqp-section--sep">
+                  <div class="sqp-section-header">
+                    <span class="sqp-section-label">_#(Joins)</span>
+                    <button type="button" class="btn btn-default sqp-section-btn"
+                      (click)="newJoin()" [disabled]="numTables == 0">_#(+ New)</button>
+                  </div>
+                  @if (model.joins?.length) {
+                    <sql-query-dialog-list class="sqp-list" [items]="model.joins"
+                      [showEdit]="true" [showDelete]="true"
+                      [labelFunction]="joinToString"
+                      (itemsChange)="joinsChange($event)"
+                      (itemDeleted)="deleteJoin($event)"
+                      (itemEdited)="editJoin($event)">
+                    </sql-query-dialog-list>
+                  }
+                  @if (hasUnjoinedTables()) {
+                    <div class="sqp-empty-text sqp-empty-text--warn">
+                      <span class="sqp-warn-icon" aria-hidden="true">&#9888;</span>
+                      _#(Not all tables are joined - a cross join may result. Click + New to add join conditions.)
+                    </div>
+                  } @else if (!model.joins?.length) {
+                    <div class="sqp-empty-text">_#(No joins - add a second table, then link their keys.)</div>
+                  }
+                </div>
+
+                <!-- Conditions -->
+                <div class="sqp-section sqp-section--sep">
+                  <div class="sqp-section-header">
+                    <span class="sqp-section-label">_#(Conditions)</span>
+                    <button type="button" class="btn btn-default sqp-section-btn"
+                      (click)="editConditions()" [disabled]="!model.columns?.length || conditionsLoading"
+                      [title]="!model.columns?.length ? '_#(Add columns before defining conditions)' : ''">
+                      @if (conditionsLoading) {
+                        <span class="loading-icon--spin icon-size-small loading-icon" aria-hidden="true"></span>
+                      } @else {
+                        _#(Edit)
+                      }
+                    </button>
+                  </div>
+                  @if (model.conditionList?.length) {
+                    @for (item of model.conditionList; track $index; let even = $even; let i = $index) {
+                      <div class="sqp-condition-item unhighlightable"
+                        [class.selected]="selectedConditionIndex === i"
+                        (click)="selectedConditionIndex = i">
+                        @if (even) {
+                          <span>{{item | clauseToString}}</span>
+                        }
+                        @if (!even) {
+                          <span>{{item | conjunctionToString}}</span>
+                        }
+                      </div>
+                    }
+                  } @else {
+                    <div class="sqp-condition-empty-state">
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                      <span [innerHTML]="'_#(designer.qb.noConditionsHint)'"></span>
+                    </div>
+                  }
+                </div>
+              }
 
               <!-- SQL — read-only pre or editable textarea -->
               <div class="sqp-section sqp-section--sql" [class.sqp-section--sep]="!model.sqlEdited">
@@ -135,9 +141,9 @@
                     @if (model.sqlEdited) { _#(editable) } @else { _#(auto-generated) }
                   </span>
                 </div>
-                @if (!model.sqlEdited) {
+                @if (!model.sqlEdited || !freeFormSqlEnabled) {
                   <pre class="sqp-sql-pre">{{model.sqlString}}</pre>
-                  @if (freeFormSqlEnabled) {
+                  @if (!model.sqlEdited && freeFormSqlEnabled) {
                     <button type="button" class="btn btn-default sqp-section-btn sqp-manual-edit-btn mt-2"
                       (click)="editSQLDirectly()">_#(Manual Edit)</button>
                   }
@@ -147,7 +153,9 @@
                     (drop)="$event.preventDefault()" placeholder="_#(SQL)">
                   </textarea>
                   <div class="sqp-parse-row pt-2">
-                    <button type="button" class="btn btn-default" (click)="getSqlParseResult()">_#(Validate SQL)</button>
+                    <button type="button" class="btn btn-default" (click)="getSqlParseResult()">_#(Parse SQL)</button>
+                    <i class="info-icon cursor-pointer" title="_#(designer.qb.parseToolTipDetails)"
+                      [helpLink]="'userhelpVPMParse'"></i>
                     @if (model.sqlParseResult) {
                       <span class="sqp-status-badge"
                         [class.sqp-status-badge--success]="isParseSuccess()"

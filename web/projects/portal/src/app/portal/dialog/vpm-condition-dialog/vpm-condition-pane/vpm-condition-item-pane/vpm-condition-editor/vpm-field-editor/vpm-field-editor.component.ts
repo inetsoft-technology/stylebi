@@ -38,8 +38,17 @@ export class VPMFieldEditorComponent implements OnChanges {
    @Input() value: ClauseValueModel;
    @Input() fields: VPMColumnModel[] = [];
    @Output() valueChange: EventEmitter<ClauseValueModel> = new EventEmitter<ClauseValueModel>();
+   fieldOptions: CustomSelectOption[] = [];
 
    ngOnChanges(changes: SimpleChanges) {
+      if(changes.hasOwnProperty("fields")) {
+         this.fieldOptions = (this.fields ?? []).map((f) => ({
+            label: f.name,
+            value: f.name,
+            title: f.name
+         }));
+      }
+
       if((changes.hasOwnProperty("value") || changes.hasOwnProperty("fields")) &&
          !!this.value && !!this.fields)
       {
@@ -49,14 +58,6 @@ export class VPMFieldEditorComponent implements OnChanges {
             this.value.field = matchingRef;
          }
       }
-   }
-
-   get fieldOptions(): CustomSelectOption[] {
-      return (this.fields ?? []).map((f) => ({
-         label: f.name,
-         value: f.name,
-         title: f.name
-      }));
    }
 
    onFieldSelect(fieldName: string): void {

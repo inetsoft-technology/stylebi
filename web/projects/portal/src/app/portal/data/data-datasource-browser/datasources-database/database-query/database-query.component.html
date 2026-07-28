@@ -95,11 +95,16 @@
             [runtimeId]="runtimeId"
             [sqlString]="queryModel?.freeFormSQLPaneModel?.sqlString"
             [tableCount]="queryModel?.linkPaneModel?.tables?.length"
+            [sqlEdited]="queryModel?.sqlEdited"
             (goBackToPreviousTab)="updateTab(oldTab)">
           </sql-query-preview-pane>
         </ng-template>
       </ng-container>
     </ul>
+    <!-- query-nav-outlet activates the .query-nav-outlet rules in this component's SCSS
+         (padding, height, min-height: 0 flex chain on every tab pane) - it establishes the
+         flex context .query-fields-pane/.condition-builder's overflow-y: auto depend on to
+         actually scroll, not just visual padding. See database-query.component.scss. -->
     <div class="query-nav-outlet" [ngbNavOutlet]="nav"></div>
   </div>
 </div>
