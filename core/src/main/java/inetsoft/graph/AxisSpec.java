@@ -89,11 +89,20 @@ public class AxisSpec implements Cloneable, Serializable {
    }
 
    /**
-    * Get the axis style for this coord.
+    * Get the axis style for this coord. This is the effective style and may differ from the
+    * style passed to setAxisStyle() when the labels have been moved to the opposite side.
     */
    @TernMethod(url = "#ProductDocs/chartAPI/html/Common_Chart_AxisSpec_getAxisStyle.htm")
    public int getAxisStyle() {
-      return labelOnSecondaryAxis ? (style | AXIS_LABEL_OPPOSITE_SIDE) : style;
+      if(!labelOnSecondaryAxis) {
+         return style;
+      }
+
+      // a single axis has one line, so relocating its labels moves the axis itself rather than
+      // leaving the original behind; a double axis has both lines already, so only labels move.
+      return (style & AXIS_DOUBLE) == AXIS_SINGLE
+         ? (style & ~AXIS_SINGLE) | AXIS_SINGLE2
+         : style | AXIS_LABEL_OPPOSITE_SIDE;
    }
 
    /**
