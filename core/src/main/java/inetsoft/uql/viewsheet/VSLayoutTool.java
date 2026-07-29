@@ -756,6 +756,15 @@ public class VSLayoutTool extends LayoutTool {
          return original;
       }
 
+      // aggrColName is itself a formula wrapping col unchanged (e.g. aggregating an
+      // upstream pre-aggregated worksheet column such as "Min(ftime)" produces the
+      // doubly-wrapped name "Min(Min(ftime))"). col is already the correct physical
+      // column name in that case, so stripping it down to the bare inner field
+      // ("ftime") would produce a lookup key that doesn't exist in the result table.
+      if(Tool.equals(col, getOriginalColumn(aggrColName))) {
+         return col;
+      }
+
       original = Tool.replaceAll(original, "[", "");
       original = Tool.replaceAll(original, "]", "");
 
