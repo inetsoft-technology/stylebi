@@ -29,6 +29,7 @@ import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.test.BaseTestConfiguration;
@@ -601,5 +602,103 @@ class WsMergeServiceTest {
       TableAssembly base = (TableAssembly) dashWS.getAssembly("PT_actual_base");
       assertNotNull(base, "the raw physical table must be renamed to \"_base\"");
       assertTrue(base.getAggregateInfo().isEmpty());
+   }
+
+   /**
+    * Regression for the condMirror sibling of the prevMirror bug fixed earlier: a chart that
+    * carries its OWN aggregation on a shared physical table is stacked as a condMirror, and its
+    * aggregate refs must be qualified against the table it mirrors the SAME way prevMirror's are
+    * -- otherwise {@code AssetQuery.createAssetQuery} (via {@code AssetQuerySandbox#
+    * refreshColumnSelection}, every viewsheet open) re-derives the condMirror's columns from the
+    * mirrored table's raw outputs and {@code AggregateInfo#validate()} silently drops any
+    * aggregate whose ref doesn't resolve against them, collapsing the chart to just its group
+    * ("Aggregate not found: &lt;alias&gt;" in GraphGenerator on a fresh dashboard open --
+    * reproduced live).
+    *
+    * <p>Crucially exercises the ALIASED-output case (the real shape wiz charts produce, e.g.
+    * "amount_total AS avg_order_value"): the fix must qualify the aggregate's UNDERLYING column to
+    * the base ("PT_base.amount_total") while preserving the output alias, since qualifying the
+    * aliased wrapper itself ("PT_base.avg_order_value") would still not match the raw
+    * re-derivation.</p>
+    */
+   @Test
+   void condMirrorAggregateRefsAreBaseQualifiedPreservingOutputAlias() {
+      Worksheet dashWS = new Worksheet();
+      // First chart (its own aggregation) -> becomes prevMirror carrying aggregation, so the
+      // second chart's condMirror stacks on the raw "PT_base".
+      dashWS.addAssembly(physicalTableWithGroupedAggregate(
+         dashWS, "PT", "date_order", "Quarter(date_order)", "order_count", AggregateFormula.COUNT_ALL));
+
+      // Second chart: its own aggregate is an ALIAS of a raw base column ("amount_total AS
+      // avg_order_value") -- the shape that reproduced the live bug.
+      Worksheet vizWS = new Worksheet();
+      vizWS.addAssembly(physicalTableWithAliasedAggregate(
+         vizWS, "PT", "date_order", "Quarter(date_order)", "amount_total", "avg_order_value",
+         AggregateFormula.AVG));
+
+      Map<String, String> renameMap = service.mergeWorksheet(vizWS, dashWS, "suffix1", new HashMap<>());
+
+      String condMirrorName = renameMap.get("PT");
+      assertNotNull(condMirrorName, "the second (own-aggregation) chart must map to a condMirror");
+      TableAssembly condMirror = (TableAssembly) dashWS.getAssembly(condMirrorName);
+      assertNotNull(condMirror);
+      assertEquals(MirrorTableAssembly.class, condMirror.getClass());
+
+      // prevMirror carries the first chart's aggregation, so the condMirror stacks on the raw base.
+      String stackedOn = ((MirrorTableAssembly) condMirror).getAssemblyName();
+      assertEquals("PT_base", stackedOn);
+
+      AggregateInfo condAggr = condMirror.getAggregateInfo();
+      assertEquals(1, condAggr.getAggregateCount());
+      DataRef aggRef = condAggr.getAggregate(0).getDataRef();
+
+      // The aggregate's UNDERLYING column must now be qualified to the mirrored table ("PT_base"),
+      // matching the outer-attribute shape the query engine re-derives -- while the OUTPUT name
+      // stays the alias so the chart binding still resolves "avg_order_value".
+      assertEquals("PT_base", aggRef.getEntity(),
+         "condMirror's aggregate ref must be qualified against the table it mirrors, so the query " +
+         "engine's independent re-derivation finds a match instead of dropping it");
+      assertEquals("amount_total", aggRef.getAttribute(),
+         "the underlying raw column must be what's qualified (not the alias)");
+      assertEquals("avg_order_value", aggRef.getName(),
+         "the aggregate's output alias must be preserved as its name");
+
+      // The condMirror's own column selection must carry a matching entry under that output name.
+      assertNotNull(condMirror.getColumnSelection(true).getAttribute("avg_order_value"),
+         "condMirror's column selection must contain a column matching its aggregate output name");
+   }
+
+   private static PhysicalBoundTableAssembly physicalTableWithAliasedAggregate(
+      Worksheet ws, String assemblyName, String rawGroupField, String groupOutputName,
+      String rawAggColumn, String aggregateAlias, AggregateFormula formula)
+   {
+      PhysicalBoundTableAssembly table = new PhysicalBoundTableAssembly(ws, assemblyName);
+      table.setSourceInfo(new SourceInfo(SourceInfo.PHYSICAL_TABLE, "postgres", "public.product_template"));
+
+      ColumnSelection priv = new ColumnSelection();
+      priv.addAttribute(rawColumn(groupOutputName));
+      priv.addAttribute(rawColumn(rawGroupField));
+      priv.addAttribute(aliasedColumn(rawAggColumn, aggregateAlias));
+      table.setColumnSelection(priv, false);
+
+      ColumnSelection pub = new ColumnSelection();
+      pub.addAttribute(rawColumn(groupOutputName));
+      pub.addAttribute(aliasedColumn(rawAggColumn, aggregateAlias));
+      table.setColumnSelection(pub, true);
+
+      AggregateInfo aggr = new AggregateInfo();
+      aggr.addGroup(groupRef(groupOutputName));
+      aggr.addAggregate(new AggregateRef(aliasedColumn(rawAggColumn, aggregateAlias), formula));
+      table.setAggregateInfo(aggr);
+      return table;
+   }
+
+   private static ColumnRef aliasedColumn(String rawAttr, String alias) {
+      AttributeRef ref = new AttributeRef(null, rawAttr);
+      ref.setDataType(XSchema.DOUBLE);
+      ColumnRef col = new ColumnRef(ref);
+      col.setDataType(XSchema.DOUBLE);
+      col.setAlias(alias);
+      return col;
    }
 }
