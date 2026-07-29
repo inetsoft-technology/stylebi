@@ -26,6 +26,7 @@
     position: relative;
     flex-wrap: nowrap;
     flex-direction: row;
+    align-items: center;
 
     &.sticky-search {
       position: sticky;

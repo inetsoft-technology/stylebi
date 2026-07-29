@@ -43,6 +43,10 @@
   height: 100%;
 }
 
+.grouping-pane-hint {
+  flex-shrink: 0;
+}
+
 .grouping-pane-outlet,
 .grouping-pane-outlet.tab-content {
   display: flex;

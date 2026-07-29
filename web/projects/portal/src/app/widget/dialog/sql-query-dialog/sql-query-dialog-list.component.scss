@@ -67,15 +67,30 @@ body.javafx .item-entry {
   padding-right: 10px;
 }
 
+// overflow: auto rather than hover-to-scroll (overflow: hidden + &:hover) - the hover
+// pattern leaves overflowing content unreachable by keyboard and on touch devices, and
+// the appearing/disappearing scrollbar causes layout shift. See tabindex="0" on the
+// .sql-query-dialog-list__surface element in the template so keyboard users can focus
+// and scroll it.
 .sql-query-dialog-list__surface.scroll-pane {
-  overflow: hidden;
-
-  &:hover {
-    overflow: auto;
-  }
+  overflow: auto;
 }
 
 .sql-query-dialog-list__surface {
   overflow: auto;
-  height: 8em;
+  min-height: 4em;
+}
+
+// Dashed drop-zone styling for the empty-columns-list state. Driven by the [empty]
+// @Input rather than a parent-side ::ng-deep override - this project's build pipeline
+// does not transform ::ng-deep away, so it lands as literal (invalid, browser-ignored)
+// CSS syntax instead of a properly scoped rule. Keeping the styling in this component's
+// own encapsulated stylesheet avoids the cross-boundary reach entirely. Placed after the
+// rules above so it wins on source order (same 0,1,0 specificity as the min-height: 4em
+// rule two blocks up).
+.sql-query-dialog-list__surface--empty {
+  min-height: 48px;
+  border-width: 1px;
+  border-style: dashed;
+  background: transparent;
 }

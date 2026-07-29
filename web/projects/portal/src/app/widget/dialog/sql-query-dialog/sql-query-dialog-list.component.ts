@@ -43,6 +43,7 @@ export class SQLQueryDialogListComponent {
    @Input() showDelete: boolean = false;
    @Input() dragNames: string[] = [];
    @Input() reorderName: string;
+   @Input() empty: boolean = false;
    @Output() itemsChange = new EventEmitter<any[]>();
    @Output() itemEdited = new EventEmitter<any>();
    @Output() itemDeleted = new EventEmitter<number>();

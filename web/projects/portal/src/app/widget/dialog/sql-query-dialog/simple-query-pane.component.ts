@@ -27,8 +27,8 @@ import {
   DOCUMENT
 } from "@angular/core";
 import { NgbModal, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet, NgbNavChangeEvent } from "@ng-bootstrap/ng-bootstrap";
-import { concat as observableConcat, Observable, of as observableOf } from "rxjs";
-import { map } from "rxjs/operators";
+import { concat as observableConcat, forkJoin, Observable, of as observableOf } from "rxjs";
+import { catchError, map, take } from "rxjs/operators";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
 import { AssetEntryHelper } from "../../../common/data/asset-entry-helper";
 import { AssetType } from "../../../../../../shared/data/asset-type";
@@ -153,6 +153,7 @@ export class SimpleQueryPaneComponent {
    numTables: number = 0;
    columnCache: {[tableName: string]: Observable<AssetEntry[]>} = {};
    conditionFields: VPMColumnModel[] = [];
+   conditionsLoading: boolean = false;
    form: UntypedFormGroup;
    oldSqlString: string;
    editTab: string = "edit-tab";
@@ -201,6 +202,26 @@ export class SimpleQueryPaneComponent {
       this.model.sqlParseResult="_#(js:designer.qb.parseInit)";
    }
 
+   /**
+    * Hint only - a table joined to some other table still counts as "joined" even if the
+    * overall join graph is disconnected (e.g. two separate joined pairs). The authoritative
+    * check is the server-side common.sqlquery.cartesianJoin validation.
+    */
+   hasUnjoinedTables(): boolean {
+      if(this.numTables <= 1 || !this.model.tables) {
+         return false;
+      }
+
+      const joinedTables = new Set<string>();
+
+      for(const join of this.model.joins ?? []) {
+         joinedTables.add(join.table1);
+         joinedTables.add(join.table2);
+      }
+
+      return Object.keys(this.model.tables).some(table => !joinedTables.has(table));
+   }
+
    newJoin(): void {
       this.selectedJoin = null;
       this.modal.open(this.joinDialog, {size: "lg", backdrop: false}).result.then(
@@ -229,66 +250,69 @@ export class SimpleQueryPaneComponent {
    }
 
    editConditions(): void {
-      this.setUpConditionDialogModel();
-      let copy = Tool.clone(this.model.conditionList);
-      this.conditionFields = [];
-      let positions: number[] = [];
-      let i: any = 0;
+      const copy = Tool.clone(this.model.conditionList);
+      const cacheKeys = Object.keys(this.columnCache);
 
-      // Logic for resolving an Observable[] into a fields array.
-      // The array is updated every time an observable returns, preserving order.
-      for(let tableName in this.columnCache) {
-         if(this.columnCache.hasOwnProperty(tableName)) {
-            let index = i;
-            positions[index] = this.conditionFields.length;
+      const openDialog = () => {
+         const options: SlideOutOptions = {
+            size: "lg",
+            windowClass: "condition-dialog",
+            backdrop: false
+         };
+         this.modal.open(this.conditionDialog, options).result.then(
+            (result: any[]) => {
+               this.model.conditionList = result;
+               this.getSQLString();
+            },
+            () => {
+               this.model.conditionList = copy;
+            }
+         );
+      };
 
-            this.columnCache[tableName].subscribe((cols) => {
-               let fields: VPMColumnModel[] = [];
+      if(cacheKeys.length === 0) {
+         this.conditionFields = [];
+         this.setUpConditionDialogModel();
+         openDialog();
+         return;
+      }
 
-               for(let entry of cols) {
-                  fields.push({
+      // Wait for all column cache observables to resolve before opening the dialog so
+      // VPMConditionDialog.ngOnInit() receives a fully-populated model.fields. A failed
+      // table lookup falls back to an empty column list for that table rather than
+      // aborting the whole forkJoin, so one bad request can't leave the dialog unopenable.
+      this.conditionsLoading = true;
+      let hasLoadError = false;
+
+      forkJoin(cacheKeys.map(k => this.columnCache[k].pipe(
+         take(1),
+         catchError(() => {
+            hasLoadError = true;
+            return observableOf([] as AssetEntry[]);
+         })
+      )))
+         .subscribe((results: AssetEntry[][]) => {
+            this.conditionsLoading = false;
+            this.conditionFields = [];
+            cacheKeys.forEach((tableName, idx) => {
+               for(const entry of results[idx]) {
+                  this.conditionFields.push({
                      name: entry.properties["source"] + "." + entry.properties["attribute"],
                      type: entry.properties["dtype"],
                      columnName: entry.properties["attribute"],
                      tableName: entry.properties["source"]
                   });
                }
-
-               // Insert refs into the correct array position.
-               for(let j = 0; j < fields.length; j++) {
-                  this.conditionFields.splice(positions[index] + j, 0, fields[j]);
-               }
-
-               // Offset subsequent positions
-               for(let j = index + 1; j < positions.length; j++) {
-                  positions[j] += fields.length;
-               }
-
-               // force property to change so condition dialog will be updated
-               this.conditionFields = this.conditionFields.concat([]);
-               this.setUpConditionDialogModel();
             });
+            this.setUpConditionDialogModel();
 
-            i++;
-         }
-      }
-
-      const options: SlideOutOptions = {
-         size: "lg",
-         windowClass: "condition-dialog",
-         backdrop: false
-      };
-
-      this.modal.open(this.conditionDialog, options).result
-         .then(
-            (result: any[]) => {
-               this.model.conditionList = result;
-               this.getSQLString();
-            },
-            (reject) => {
-               this.model.conditionList = copy;
+            if(hasLoadError) {
+               ComponentTool.showMessageDialog(
+                  this.modal, "_#(js:Error)", "_#(js:common.network.error)");
             }
-         );
+
+            openDialog();
+         });
    }
 
    iconFunction(node: TreeNodeModel): string {
@@ -594,11 +618,15 @@ export class SimpleQueryPaneComponent {
       return this.model.sqlParseResult == "_#(js:designer.qb.parseFailed)";
    }
 
+   isParseSuccess() {
+      return this.model.sqlParseResult == "_#(js:designer.qb.parseSuccess)";
+   }
+
    editSQLDirectly() {
       const message = "_#(js:common.sqlquery.editsql)";
 
       ComponentTool.showConfirmDialog(this.modal, "_#(js:Confirm)", message,
-            {"yes": "_#(js:Yes)", "no": "_#(js:No)"}, {backdrop: false})
+            {"yes": "_#(js:Proceed)", "no": "_#(js:Cancel)"}, {backdrop: false})
       .then((buttonClicked) => {
          if(buttonClicked === "yes") {
             this.model.sqlEdited = true;

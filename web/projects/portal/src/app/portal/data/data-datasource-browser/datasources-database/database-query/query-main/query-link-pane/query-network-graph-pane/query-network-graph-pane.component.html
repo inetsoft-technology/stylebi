@@ -16,6 +16,11 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <div #graphPane class="network-graph-container w-100 h-100">
+  @if (!graphViewModel.graphs.length) {
+    <div class="network-graph-empty-hint">
+      _#(designer.qb.linkGraph.emptyHint)
+    </div>
+  }
   <div #jspContainerMain class="w-100 jsplumb-container" outOfZone tabindex="-1"
     selectionBox selectionBoxBannedSelector=".jsplumb-draggable-handle"
     (dragover)="$event.preventDefault()"

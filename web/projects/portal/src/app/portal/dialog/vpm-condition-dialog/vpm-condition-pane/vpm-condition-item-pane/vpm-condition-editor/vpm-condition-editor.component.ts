@@ -15,13 +15,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from "@angular/core";
+import { Component, EventEmitter, inject, Input, OnChanges, Output, SimpleChanges, TemplateRef, ViewChild } from "@angular/core";
+import { FormsModule } from "@angular/forms";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ClauseValueModel } from "../../../../../data/model/datasources/database/vpm/condition/clause/clause-value-model";
 import { VPMColumnModel } from "../../../../../data/model/datasources/database/vpm/condition/vpm-column-model";
 import { OperationModel } from "../../../../../data/model/datasources/database/vpm/condition/clause/operation-model";
 import { XSchema } from "../../../../../../common/data/xschema";
 import { Observable } from "rxjs";
 import { ClauseValueTypes } from "../../../../../data/model/datasources/database/vpm/condition/clause/clause-value-types";
+import { ExpressionType } from "../../../../../../common/data/condition/expression-type";
 import { BasicSqlQueryModel } from "../../../../../../composer/data/ws/basic-sql-query-model";
 import { SqlQueryDialogModel } from "../../../../../../composer/data/ws/sql-query-dialog-model";
 import { ClauseValueTypePipe } from "../../../../../data/model/datasources/database/vpm/condition/clause/clause-value-type.pipe";
@@ -31,15 +34,18 @@ import { SessionDataEditor } from "../../../../../../widget/condition/session-da
 import { VPMFieldEditorComponent } from "./vpm-field-editor/vpm-field-editor.component";
 import { VPMVariableEditor } from "./vpm-variable-editor/vpm-variable-editor.component";
 import { VPMValueEditorComponent } from "./vpm-value-editor/vpm-value-editor.component";
+import { FormulaEditorDialog } from "../../../../../../widget/formula-editor/formula-editor-dialog.component";
 
 
 @Component({
     selector: "vpm-condition-editor",
     templateUrl: "vpm-condition-editor.component.html",
     styleUrls: ["vpm-condition-editor.component.scss"],
-    imports: [VPMValueEditorComponent, VPMVariableEditor, VPMFieldEditorComponent, SessionDataEditor, VpmSubqueryEditorComponent, FixedDropdownDirective, ClauseValueTypePipe]
+    imports: [VPMValueEditorComponent, VPMVariableEditor, VPMFieldEditorComponent, SessionDataEditor, VpmSubqueryEditorComponent, FixedDropdownDirective, ClauseValueTypePipe, FormsModule, FormulaEditorDialog]
 })
 export class VPMConditionEditor implements OnChanges {
+   private readonly modalService = inject(NgbModal);
+   @ViewChild("expressionEditorDialog") expressionEditorDialogRef: TemplateRef<any>;
    @Input() value: ClauseValueModel;
    @Input() values: string[];
    @Input() operation: OperationModel;
@@ -55,6 +61,7 @@ export class VPMConditionEditor implements OnChanges {
    @Output() valueChange: EventEmitter<ClauseValueModel> = new EventEmitter<ClauseValueModel>();
    @Output() valueChanges: EventEmitter<string[]> = new EventEmitter<string[]>();
    ClauseValueTypes = ClauseValueTypes;
+   ExpressionType = ExpressionType;
 
    ngOnChanges(changes: SimpleChanges): void {
       if(this.value == null) {
@@ -109,6 +116,16 @@ export class VPMConditionEditor implements OnChanges {
    conditionValueChanged(val: string) {
       this.value.expression = val;
       this.valueChanged();
+   }
+
+   openExpressionEditor(): void {
+      this.modalService.open(this.expressionEditorDialogRef, {size: "lg", backdrop: false, keyboard: false})
+         .result.then(
+         (result: any) => {
+            this.conditionValueChanged(result.expression);
+         }, () => {
+         }
+      );
    }
 
    /**

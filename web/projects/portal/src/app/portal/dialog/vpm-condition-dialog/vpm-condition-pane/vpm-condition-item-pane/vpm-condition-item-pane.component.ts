@@ -36,17 +36,17 @@ import { ConditionOperation } from "../../../../../common/data/condition/conditi
 import { Tool } from "../../../../../../../../shared/util/tool";
 import { XSchema } from "../../../../../common/data/xschema";
 import { VPMTrinaryConditionEditor } from "./vpm-trinary-condition-editor/vpm-trinary-condition-editor.component";
+import { NgIf, NgSwitch, NgSwitchCase, NgSwitchDefault } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import { VPMConditionEditor } from "./vpm-condition-editor/vpm-condition-editor.component";
 import { OneOfVpmConditionEditor } from "./vpm-condition-editor/one-of-vpm-condition-editor.component";
-
-
 import { CustomSelectComponent } from "../../../../../widget/custom-select/custom-select.component";
+
 @Component({
     selector: "vpm-condition-item-pane",
     templateUrl: "vpm-condition-item-pane.component.html",
     styleUrls: ["vpm-condition-item-pane.component.scss"],
-    imports: [OneOfVpmConditionEditor, VPMConditionEditor, FormsModule, VPMTrinaryConditionEditor, CustomSelectComponent]
+    imports: [NgIf, NgSwitch, NgSwitchCase, NgSwitchDefault, OneOfVpmConditionEditor, VPMConditionEditor, FormsModule, VPMTrinaryConditionEditor, CustomSelectComponent]
 })
 export class VPMConditionItemPane implements OnInit, OnChanges {
    @Input() condition: ClauseModel;

@@ -23,3 +23,24 @@
   margin: 0;
   backface-visibility: hidden;
 }
+
+// .network-graph-container also has a (dead - cross-component-boundary, never applies)
+// position: relative rule in the parent query-link-graph-pane.component.scss. Declared
+// again here, scoped to this component's own template, so it actually takes effect and
+// .network-graph-empty-hint has a real positioning context to anchor to.
+.network-graph-container {
+  position: relative;
+}
+
+.network-graph-empty-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 320px;
+  text-align: center;
+  font-size: var(--inet-font-size-base);
+  color: var(--inet-text-subtle-color);
+  pointer-events: none;
+  z-index: 1;
+}

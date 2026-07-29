@@ -16,68 +16,61 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <div class="condition-builder" [ngClass]="getContainerClass()">
-  <div class="row">
-    <div class="col-10">
+  <!-- Editor row: item pane + junction/Not controls -->
+  <div class="condition-builder__editor-row">
+    <div class="condition-builder__editor">
       <vpm-condition-item-pane [provider]="provider"
         [fields]="fields" [datasource]="provider?.datasource"
         [(condition)]="condition">
       </vpm-condition-item-pane>
     </div>
-    <div class="col-2">
-      <div class="form-check">
-        <label class="condition-builder__toggle form-check-label not_check_id">
-          <input type="checkbox"
-            class="form-check-input"
-            [(ngModel)]="conjunction.isNot"
-            [disabled]="conditionList.length == 0"
-            (ngModelChange)="conjunctionChanged()">
-          {{'_#(Not)'}}
-        </label>
-      </div>
-      <div class="form-check">
-        <label class="condition-builder__toggle form-check-label">
-          <input type="radio" name="vpm-andOrButtons-{{uniquePageId}}"
-            class="form-check-input"
-            [(ngModel)]="conjunction.conjunction"
-            [value]="ConjunctionTypes.AND"
-            [disabled]="conditionList.length == 0"
-            (ngModelChange)="conjunctionChanged()">
-          {{'_#(And)'}}
-        </label>
-      </div>
-      <div class="form-check">
-        <label class="condition-builder__toggle form-check-label">
-          <input type="radio" name="vpm-andOrButtons-{{uniquePageId}}"
-            class="form-check-input"
-            [(ngModel)]="conjunction.conjunction"
-            [value]="ConjunctionTypes.OR"
-            [disabled]="conditionList.length == 0"
-            (ngModelChange)="conjunctionChanged()">
-          {{'_#(Or)'}}
-        </label>
+    <div class="condition-builder__junctions">
+      <div class="condition-builder__junction-card">
+        <span class="condition-builder__junction-label-text">_#(Junction)</span>
+        <div class="condition-builder__toggle-group">
+          <label class="condition-builder__toggle form-check-label not_check_id">
+            <input type="checkbox" class="form-check-input"
+              [(ngModel)]="conjunction.isNot"
+              [disabled]="conditionList.length == 0"
+              (ngModelChange)="conjunctionChanged()">
+            {{'_#(Not)'}}
+          </label>
+          <label class="condition-builder__toggle form-check-label">
+            <input type="radio" name="vpm-andOrButtons-{{uniquePageId}}" class="form-check-input"
+              [(ngModel)]="conjunction.conjunction"
+              [value]="ConjunctionTypes.AND"
+              [disabled]="conditionList.length == 0"
+              (ngModelChange)="conjunctionChanged()">
+            {{'_#(And)'}}
+          </label>
+          <label class="condition-builder__toggle form-check-label">
+            <input type="radio" name="vpm-andOrButtons-{{uniquePageId}}" class="form-check-input"
+              [(ngModel)]="conjunction.conjunction"
+              [value]="ConjunctionTypes.OR"
+              [disabled]="conditionList.length == 0"
+              (ngModelChange)="conjunctionChanged()">
+            {{'_#(Or)'}}
+          </label>
+        </div>
       </div>
     </div>
   </div>
-  <div class="row condition-list-pane">
-    <div class="col-10">
-      <div class="condition-builder__list" [ngClass]="getConditionListBoxClass()">
-        @for (item of conditionList; track $index; let even = $even; let i = $index) {
-          <div
-            class="condition-builder__list-item unhighlightable"
-            [class.bg-selected]="selectedIndex == i" (click)="conditionItemSelected(i)">
-            @if (even) {
-              <div>
-                {{item | clauseToString}}
-              </div>
-            }
-            @if (!even) {
-              <div>
-                {{item | conjunctionToString}}
-              </div>
-            }
-          </div>
-        }
-      </div>
+
+  <!-- List row: condition list + action buttons -->
+  <div class="condition-builder__list-row">
+    <div class="condition-builder__list" [ngClass]="getConditionListBoxClass()">
+      @for (item of conditionList; track $index; let even = $even; let i = $index) {
+        <div class="condition-builder__list-item unhighlightable"
+          [class.condition-builder__list-item--selected]="selectedIndex == i"
+          (click)="conditionItemSelected(i)">
+          @if (even) {
+            <div>{{item | clauseToString}}</div>
+          }
+          @if (!even) {
+            <div>{{item | conjunctionToString}}</div>
+          }
+        </div>
+      }
     </div>
     <div class="condition-builder__actions">
       <button type="button" class="btn btn-primary"
@@ -85,32 +78,32 @@
         [disabled]="!isConditionValid(condition)">
         {{buttonText}}
       </button>
-      <button type="button" class="btn btn-secondary"
+      <button type="button" class="btn btn-default"
         (click)="modify()"
         [disabled]="modifyDisable()">
         _#(Modify)
       </button>
-      <button type="button" class="btn btn-secondary" (click)="deleteCondition()"
+      <button type="button" class="btn btn-default" (click)="deleteCondition()"
         [disabled]="selectedIndex == null || selectedIndex % 2 !== 0">
         _#(Delete)
       </button>
-      <button type="button" class="btn btn-secondary" (click)="clear()"
+      <button type="button" class="btn btn-default" (click)="clear()"
         [disabled]="conditionList == null || conditionList.length === 0">
         _#(Clear)
       </button>
-      <button type="button" class="btn btn-secondary" (click)="indent()"
+      <button type="button" class="btn btn-default" (click)="indent()"
         [disabled]="!canIndent()">
         _#(Indent)
       </button>
-      <button type="button" class="btn btn-secondary" (click)="unindent()"
+      <button type="button" class="btn btn-default" (click)="unindent()"
         [disabled]="!canUnindent()">
         _#(Unindent)
       </button>
-      <button type="button" class="btn btn-secondary" (click)="up()"
+      <button type="button" class="btn btn-default" (click)="up()"
         [disabled]="!canMoveUp()">
         _#(Move Up)
       </button>
-      <button type="button" class="btn btn-secondary" (click)="down()"
+      <button type="button" class="btn btn-default" (click)="down()"
         [disabled]="!canMoveDown()">
         _#(Move Down)
       </button>

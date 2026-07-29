@@ -15,16 +15,43 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+// Fill the slide-out panel height when opened as a slide-out.
+// In a standard modal the parent (.modal-content) auto-sizes, so height: 100%
+// resolves to auto and the layout degrades gracefully to content-sizing.
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+// This used to carry min-height: 500px. The effective floor now lives deeper in the tree,
+// as min-height: 350px on .simple-query-nav-outlet.tab-content and .sqp-edit-body in
+// simple-query-pane.component.scss - restoring a min-height here would fight the
+// flex: 1 1 auto/min-height: 0 chain needed for the slide-out host to fill available height.
 .modal-body {
   display: flex;
   flex-direction: column;
-  min-height: 500px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .modal-body > .container-fluid {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+}
+
+// Replaces Bootstrap h-100 on the simple-mode wrapper so it participates in
+// the flex column rather than requesting 100% of the parent (which overflows
+// when sqd-controls-row already occupies part of that height).
+.sqd-pane-fill {
+  flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
   width: 100%;
@@ -54,6 +81,33 @@
   min-height: 0;
   min-width: 0;
   width: 100%;
+}
+
+// Controls row: Name field + Advanced Query toggle side-by-side
+.sqd-controls-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--inet-space-6);
+  padding: 0 0 var(--inet-space-5);
+  flex-shrink: 0;
+}
+
+.sqd-name-field {
+  flex: 1;
+  max-width: 360px;
+  min-width: 0;
+}
+
+.sqd-toggle {
+  display: flex;
+  align-items: center;
+  height: var(--inet-control-height-md);
+  white-space: nowrap;
+  padding-bottom: var(--inet-space-2);
+}
+
+.sqd-datasource {
+  flex-shrink: 0;
 }
 
 textarea {

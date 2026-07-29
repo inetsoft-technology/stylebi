@@ -33,7 +33,13 @@
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  min-height: 0;
+  // In a standard (non-slide-out) modal, .modal-content auto-sizes to content, so nothing
+  // above this in the ancestor chain has a definite height for height: 100%/flex: 1 1 auto
+  // to resolve against - without a floor here, this whole tab widget (tab bar + content)
+  // collapses to its bare minimum natural size. Simple mode has an equivalent floor nested
+  // in simple-query-pane.component.scss (.sqp-edit-body/.simple-query-nav-outlet.tab-content
+  // at 350px); Advanced mode had no equivalent anywhere, which is what this fixes.
+  min-height: 500px;
   min-width: 0;
   height: 100%;
   width: 100%;
@@ -76,6 +82,12 @@
   }
 }
 
+// These .query-nav-outlet rules (through line 126) require the "query-nav-outlet" class on
+// the [ngbNavOutlet] div in database-query.component.html. Without it they don't match
+// anything. They add real, visible padding/height to every tab pane (Fields, Conditions,
+// Sort, Grouping, Free-form SQL, Preview, Link - all already carry .tab-pane-content) and
+// are also what gives .query-fields-pane/.condition-builder's overflow-y: auto a resolved
+// min-height: 0 flex chain to scroll within, instead of growing unbounded.
 .query-nav-outlet {
   display: flex;
   flex: 1 1 auto;

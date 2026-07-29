@@ -21,6 +21,10 @@
   bottom: 0;
   display: block;
   max-width: 100%;
+  // Superseded at runtime: SlideOutComponent binds [style.z-index] to 10480/10490
+  // (see slide-out.component.ts), and that inline style always wins over this rule.
+  // Kept as a sensible static fallback; do not rely on this value taking effect.
+  z-index: 1;
 }
 
 :host.left {
@@ -46,11 +50,20 @@
   display: flex;
   user-select: none;
 
+  // This wraps <ng-content> for every SlideOutService.open() consumer (composer property
+  // dialogs, viewer/vs-wizard panels, etc.) - overflow: hidden here clips any projected
+  // content that visually overflows this box. Popups built with the fixedDropdown
+  // directive/FixedDropdownService are unaffected (they're appended to document.body, not
+  // this subtree), but content that overflows via plain absolute/relative positioning
+  // instead of that pattern will be clipped rather than visible. If a dialog needs to be
+  // taller than this box, prefer giving it its own internal overflow-y: auto instead of
+  // removing this rule, since it also prevents runaway content from resizing the slide-out.
   .content-div {
     flex-grow: 1;
     flex-shrink: 1;
     min-width: 50px;
     height: 100%;
+    overflow: hidden;
   }
 
   .v-resizer {
