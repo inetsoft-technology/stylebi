@@ -119,16 +119,22 @@ public class AssetEventUtil {
          }
 
          XCube cube = getXCube(cubePrefix, cubeSource, user);
-         Node cubeNode = cube == null ? null : getCubeNode(cube, cubePrefix, showMeasures,
-            showDimensions, vs, filter);
 
-         if(cubeNode != null) {
-            cubeNode.setRequested(true);
-            cubeList.add(cubeNode);
+         if(cube != null) {
+            Node cubeNode = getCubeNode(cube, cubePrefix, showMeasures, showDimensions,
+               vs, filter);
+
+            if(cubeNode != null) {
+               cubeNode.setRequested(true);
+               cubeList.add(cubeNode);
+            }
+
+            // cube resolved but has no dimensions/measures to show -- an empty list is
+            // the correct result here, not a reason to fall back to the full listing.
             return cubeList;
          }
 
-         // the single cube named by "source" could not be resolved (e.g. stale/renamed
+         // the cube named by "source" could not be resolved at all (e.g. stale/renamed
          // source info) -- fall back to listing all cubes instead of returning an empty
          // tree, so the binding pane's data source tree doesn't go blank.
       }
