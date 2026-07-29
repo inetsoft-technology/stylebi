@@ -19,6 +19,8 @@ package inetsoft.web.wiz.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.Map;
+
 /**
  * Request body for {@code POST /api/wiz/viewsheet/format} — applies chart-level FORMAT properties
  * (axis titles, y-axis scale, legend placement) to an existing runtime chart and re-renders it.
@@ -109,6 +111,18 @@ public class ChartFormatRequest {
    public Boolean getFillGapWithDash() { return fillGapWithDash; }
    public void setFillGapWithDash(Boolean fillGapWithDash) { this.fillGapWithDash = fillGapWithDash; }
 
+   /**
+    * Per-field display formats, keyed by the ref's full name as it appears in the chart's binding
+    * (e.g. {@code STATE}, {@code DistinctCount(CUSTOMER_ID)}). Null/empty = no change.
+    *
+    * <p>Scope is the FIELD, not one slot: a field bound in more than one place (x and color, say)
+    * is reformatted everywhere it renders. That is the wizard's own behavior — VSWizardFormatService
+    * keys formats by field name alone, and formulas that share a type (sum/max/min/first/last) even
+    * share one entry. See VSWizardBindingHandler.applyFieldFormats.
+    */
+   public Map<String, FieldFormatModel> getFieldFormats() { return fieldFormats; }
+   public void setFieldFormats(Map<String, FieldFormatModel> fieldFormats) { this.fieldFormats = fieldFormats; }
+
    /** The runtime viewsheet that holds the live chart (the plugin's active-chart runtimeId). */
    private String wizRuntimeId;
    /** The chart assembly name within that runtime. */
@@ -131,4 +145,5 @@ public class ChartFormatRequest {
    private Boolean fillTimeGap;
    private Boolean fillZero;
    private Boolean fillGapWithDash;
+   private Map<String, FieldFormatModel> fieldFormats;
 }

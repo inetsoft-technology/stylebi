@@ -67,4 +67,65 @@ class ChartFormatRequestTest {
       assertEquals("T", req.getXAxisTitle());
       assertTrue(mapper.writeValueAsString(req).contains("\"xAxisTitle\":\"T\""));
    }
+
+   @Test
+   void fieldFormatsDeserializeAsAMapKeyedByRefFullName() throws Exception {
+      // Keys are ref full names straight out of the binding, so they carry characters a property
+      // name never would — parentheses, spaces. They must survive as map keys verbatim.
+      ObjectMapper mapper = new ObjectMapper()
+         .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
+
+      ChartFormatRequest req = mapper.readValue(
+         """
+         { "wizRuntimeId": "rt-1", "assemblyName": "Chart1",
+           "fieldFormats": {
+              "DistinctCount(CUSTOMER_ID)": { "format": "PercentFormat", "formatSpec": "#,##0.0%" },
+              "Order Date": { "format": "DateFormat", "dateSpec": "SHORT" },
+              "Elapsed": { "format": "DurationFormat", "durationPadZeros": false }
+           } }
+         """,
+         ChartFormatRequest.class);
+
+      assertEquals(3, req.getFieldFormats().size());
+
+      FieldFormatModel percent = req.getFieldFormats().get("DistinctCount(CUSTOMER_ID)");
+      assertEquals("PercentFormat", percent.getFormat());
+      assertEquals("#,##0.0%", percent.getFormatSpec());
+      // Untouched fields stay null so the service can tell "not specified" from "set to empty".
+      assertNull(percent.getDateSpec());
+      assertNull(percent.getDurationPadZeros());
+
+      assertEquals("SHORT", req.getFieldFormats().get("Order Date").getDateSpec());
+      assertEquals(Boolean.FALSE, req.getFieldFormats().get("Elapsed").getDurationPadZeros());
+   }
+
+   @Test
+   void fieldFormatsIsOptional() throws Exception {
+      // Every existing caller omits it; absent must mean "no field formats", not an empty map.
+      ObjectMapper mapper = new ObjectMapper()
+         .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
+
+      ChartFormatRequest req = mapper.readValue(
+         "{ \"wizRuntimeId\": \"rt-1\", \"assemblyName\": \"Chart1\", \"chartTitle\": \"T\" }",
+         ChartFormatRequest.class);
+
+      assertNull(req.getFieldFormats());
+   }
+
+   @Test
+   void fieldFormatModelIgnoresUnknownProperties() throws Exception {
+      // The pane's full format model carries styling (color, font, borders) this subset does not
+      // model. A caller pasting one through must not 400 over the extra keys.
+      ObjectMapper mapper = new ObjectMapper()
+         .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
+
+      ChartFormatRequest req = mapper.readValue(
+         """
+         { "fieldFormats": { "SALES": {
+              "format": "CurrencyFormat", "color": "#000000", "font": { "fontSize": "11" } } } }
+         """,
+         ChartFormatRequest.class);
+
+      assertEquals("CurrencyFormat", req.getFieldFormats().get("SALES").getFormat());
+   }
 }

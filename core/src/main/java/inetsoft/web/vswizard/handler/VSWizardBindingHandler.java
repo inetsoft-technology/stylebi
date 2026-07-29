@@ -1754,6 +1754,119 @@ public class VSWizardBindingHandler {
    }
 
    /**
+    * Apply user-defined display formats to a chart's refs, outside the wizard.
+    *
+    * <p>Same destination as an in-wizard format edit: updateChartFormat(updateAssembly=true) walks
+    * every place a field renders — axis label and column label, the period field, group fields' plot
+    * descriptor, the color/shape/size legends, the text field, each aggregate's aesthetic fields under
+    * multi-aesthetic, and the Gantt refs — and writes the field's VSFormat into the ref's
+    * CompositeTextFormat user-defined format. Callers outside vs-wizard must reuse it rather than walk
+    * the refs themselves; a hand-rolled loop silently misses most of those places.
+    *
+    * <p>The VSTemporaryInfo here is a throwaway holding nothing but these formats — it is never
+    * attached to the runtime. That works because in the updateAssembly=true direction changeFormat only
+    * READS it (getUserFormat/getDefaultFormat); it writes back only when updateAssembly is false. Refs
+    * with no entry therefore resolve to a null user format and are left untouched, which is what makes
+    * "reformat only the named fields" fall out with no matching logic here.
+    *
+    * <p>Keys are ref FULL names, the names a caller sees in the binding. They are translated to the
+    * internal format-map key by getNameForFormat — dimensions and most aggregates key by full name,
+    * while same-type formulas (sum/max/min/first/last) key by the bare column so they deliberately
+    * share one format. That rule stays inside this class rather than leaking into callers.
+    *
+    * @param formatsByFullName full name -> format; a null value clears that field's user format.
+    * @return the keys that matched no ref, for the caller to report; empty when everything matched.
+    */
+   public Set<String> applyFieldFormats(RuntimeViewsheet rvs, ChartVSAssembly chart,
+                                        Map<String, VSFormat> formatsByFullName)
+   {
+      if(chart == null || formatsByFullName == null || formatsByFullName.isEmpty()) {
+         return Collections.emptySet();
+      }
+
+      VSTemporaryInfo tempInfo = new VSTemporaryInfo();
+      Set<String> unmatched = new LinkedHashSet<>(formatsByFullName.keySet());
+
+      for(ChartRef ref : collectFormattableRefs(chart.getVSChartInfo())) {
+         String fullName = ref.getFullName();
+
+         if(formatsByFullName.containsKey(fullName)) {
+            unmatched.remove(fullName);
+            tempInfo.setFormat(getNameForFormat(ref), formatsByFullName.get(fullName));
+         }
+      }
+
+      if(unmatched.size() < formatsByFullName.size()) {
+         updateChartFormat(tempInfo, chart, rvs, true);
+         // The cached runtime chart info is rebuilt from the (now reformatted) design-time refs on the
+         // next execute; mirrors what updateFormats does after its own updateChartFormat call.
+         chart.getVSChartInfo().clearRuntime();
+      }
+
+      return unmatched;
+   }
+
+   /**
+    * Every ref of a chart that can carry a field-level display format, in no particular order and
+    * without de-duplication (callers match by name, so a ref appearing twice is harmless). Mirrors the
+    * traversal updateChartFormat performs in its updateAssembly=true direction, and exists so a caller
+    * can resolve a field name to a ref without duplicating that traversal.
+    *
+    * <p>Must stay in step with updateChartFormat: a ref that renders there but is missing here is
+    * reported to the caller as "not in the binding" even though its format would have applied.
+    * RelationChartInfo's refs are deliberately absent — updateChartFormat only walks those in the
+    * !updateAssembly (reload) direction.
+    */
+   public static List<ChartRef> collectFormattableRefs(VSChartInfo chartInfo) {
+      if(chartInfo == null) {
+         return Collections.emptyList();
+      }
+
+      List<ChartRef> refs = new ArrayList<>();
+      Collections.addAll(refs, chartInfo.getXFields());
+      Collections.addAll(refs, chartInfo.getYFields());
+      Collections.addAll(refs, chartInfo.getGroupFields());
+
+      if(chartInfo.getPeriodField() != null) {
+         refs.add(chartInfo.getPeriodField());
+      }
+
+      addAestheticRefs(refs, chartInfo.getColorField(), chartInfo.getShapeField(),
+                       chartInfo.getSizeField(), chartInfo.getTextField());
+
+      // Under multi-aesthetic each aggregate carries its OWN color/shape/size/text refs instead of the
+      // chart-level ones, and updateChartFormat formats those per aggregate.
+      if(chartInfo.isMultiAesthetic()) {
+         for(ChartRef ref : chartInfo.getYFields()) {
+            if(ref instanceof VSChartAggregateRef aggr) {
+               addAestheticRefs(refs, aggr.getColorField(), aggr.getShapeField(),
+                                aggr.getSizeField(), aggr.getTextField());
+            }
+         }
+      }
+
+      if(chartInfo instanceof GanttVSChartInfo) {
+         for(ChartAggregateRef aRef : chartInfo.getAestheticAggregateRefs(false)) {
+            addAestheticRefs(refs, aRef.getColorField(), aRef.getShapeField(),
+                             aRef.getSizeField(), aRef.getTextField());
+         }
+      }
+
+      refs.removeIf(Objects::isNull);
+
+      return refs;
+   }
+
+   /** Adds each aesthetic ref's underlying ChartRef to the list, skipping nulls and non-ChartRefs. */
+   private static void addAestheticRefs(List<ChartRef> refs, AestheticRef... aestheticRefs) {
+      for(AestheticRef aref : aestheticRefs) {
+         if(aref != null && aref.getDataRef() instanceof ChartRef) {
+            refs.add((ChartRef) aref.getDataRef());
+         }
+      }
+   }
+
+   /**
     * Copy format from temp assembly to formatMap.
     */
    private void updateFormats(VSTemporaryInfo tempInfo, VSAssembly assembly,
