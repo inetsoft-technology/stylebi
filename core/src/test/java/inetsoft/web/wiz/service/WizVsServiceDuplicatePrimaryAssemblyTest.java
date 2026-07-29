@@ -64,7 +64,7 @@ class WizVsServiceDuplicatePrimaryAssemblyTest {
       AssetRepository engine = mock(AssetRepository.class);
       SecurityEngine sec = mock(SecurityEngine.class);
       when(sec.checkPermission(any(), any(), anyString(), any())).thenReturn(true);
-      return new WizVsService(vsService, engine, sec);
+      return new WizVsService(vsService, engine, sec, null);
    }
 
    private static RuntimeViewsheet rvsOf(Viewsheet vs) {

@@ -68,6 +68,7 @@ import inetsoft.web.wiz.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import inetsoft.web.vswizard.handler.SyncInfoHandler;
 
 import java.awt.Color;
 import java.awt.Font;
@@ -79,11 +80,32 @@ import java.util.stream.Collectors;
 @Service
 public class WizVsService {
    public WizVsService(ViewsheetService viewsheetService, AssetRepository engine,
-                       SecurityEngine securityEngine)
+                       SecurityEngine securityEngine, SyncInfoHandler syncInfoHandler)
    {
       this.viewsheetService = viewsheetService;
       this.engine = engine;
       this.securityEngine = securityEngine;
+      this.syncInfoHandler = syncInfoHandler;
+   }
+
+   /**
+    * The assembly to sync configs FROM on a rebuild. In sync mode the AI layer names the chart being
+    * refined via model.getAssemblyName() (resolved here as existingTarget); otherwise fall back to the
+    * displaced assembly (replaced, or the demoted previous primary — same precedence as
+    * displacedForCondition). Null when not in sync mode.
+    */
+   static VSAssembly resolveSyncSource(boolean syncMode, VSAssembly existingTarget,
+                                       VSAssembly replacedAssembly, VSAssembly previousPrimaryAssembly)
+   {
+      if(!syncMode) {
+         return null;
+      }
+
+      if(existingTarget != null) {
+         return existingTarget;
+      }
+
+      return replacedAssembly != null ? replacedAssembly : previousPrimaryAssembly;
    }
 
    @FunctionalInterface
@@ -1158,6 +1180,7 @@ public class WizVsService {
             // In this (standard) path the named assembly is the one to REPLACE in place; the
             // modificationOnly branch above reads the same field as the chart to modify.
             String targetAssemblyName = model.getAssemblyName();
+            boolean syncMode = model.isSyncConfigs();
             VSAssembly existingTarget = null;
 
             if(!Tool.isEmptyString(targetAssemblyName)) {
@@ -1175,7 +1198,7 @@ public class WizVsService {
                existingTarget = foundVs;
             }
 
-            String assemblyName = !Tool.isEmptyString(targetAssemblyName)
+            String assemblyName = !(Tool.isEmptyString(targetAssemblyName) || syncMode)
                ? targetAssemblyName : uniqueAssemblyName(targetVs, ctx.title());
 
             if(model.getPrimaryAssembly() != null) {
@@ -1195,7 +1218,7 @@ public class WizVsService {
                }
             }
 
-            if(existingTarget != null) {
+            if(existingTarget != null && !syncMode) {
                // Targeted replace: swap in the new assembly under the SAME name, carrying over the
                // old one's exact primary state — no other assembly is touched either way.
                // model.isCopy() is NOT consulted here (only in the else branch below, via
@@ -1259,6 +1282,19 @@ public class WizVsService {
                if(cond != null) {
                   newDataAsm.setPreConditionList(cond.clone());
                }
+            }
+
+            // On a rebuild (syncConfigs), carry the source chart's configs (highlight/format/condition/
+            // etc.) onto the freshly-bound assembly. syncSource is the chart being refined (named via
+            // model.getAssemblyName()), falling back to the displaced assembly. Reuses the wizard's
+            // per-type sync, bypassing its table-name gate (the rebuild renamed the source table).
+            VSAssembly syncSource = resolveSyncSource(syncMode, existingTarget, replacedAssembly, previousPrimaryAssembly);
+
+            if(syncSource != null && syncInfoHandler != null) {
+               // syncChart copies primary from the (demoted) source, so re-assert the new assembly as
+               // primary afterward to keep this branch's addAssembly+setPrimary(true) invariant.
+               syncInfoHandler.syncConfigs(null, syncSource, assembly);
+               assembly.setPrimary(true);
             }
          }
 
@@ -4598,6 +4634,7 @@ public class WizVsService {
    private final ViewsheetService viewsheetService;
    private final AssetRepository engine;
    private final SecurityEngine securityEngine;
+   private final SyncInfoHandler syncInfoHandler;
 
    private static final Logger LOG = LoggerFactory.getLogger(WizVsService.class);
    private static final Map<Class<?>, BiFunction<Viewsheet, String, VSAssembly>> ASSEMBLY_FACTORIES = Map.of(

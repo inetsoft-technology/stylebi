@@ -110,7 +110,7 @@ public class SyncChartHandler extends SyncAssemblyHandler {
       targetAssemblyInfo.setEnabledValue(fromAssemblyInfo.getEnabledValue());
 
       // Title
-      if(tempInfo.getDescription() == null) {
+      if(tempInfo == null || tempInfo.getDescription() == null) {
          targetAssemblyInfo.setTitleValue(fromChart.getTitleValue());
          targetAssemblyInfo.setTitleVisibleValue(fromChart.getChartInfo().isTitleVisible());
       }

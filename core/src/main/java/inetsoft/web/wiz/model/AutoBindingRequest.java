@@ -156,6 +156,19 @@ public class AutoBindingRequest {
    }
 
    /**
+    * When true, the create call this autoBinding drives should sync the previous (source) chart's
+    * configs — highlight/format/condition/etc. — onto the freshly-bound assembly. Set by the AI
+    * layer only on a continuation (rebuild) turn; false on a fresh creation.
+    */
+   public boolean isSyncConfigs() {
+      return syncConfigs;
+   }
+
+   public void setSyncConfigs(boolean syncConfigs) {
+      this.syncConfigs = syncConfigs;
+   }
+
+   /**
     * When set, replace THIS SPECIFIC assembly in place instead of whichever assembly is currently
     * primary — a session shares one output viewsheet/runtime across every turn, so "whichever is
     * primary" is always the latest turn's chart, not necessarily the one the user targeted. Used
@@ -203,4 +216,5 @@ public class AutoBindingRequest {
 
    private boolean copy;
    private String assemblyName;
+   private boolean syncConfigs;
 }

@@ -66,7 +66,7 @@ class WizVsServiceClassifyChartRefSecondaryYTest {
    @Test
    void collectFlatBindingEchoesSecondaryYTrueForAChartMeasureOnTheSecondaryAxis() {
       WizVsService service = new WizVsService(
-         mock(ViewsheetService.class), mock(AssetRepository.class), mock(SecurityEngine.class));
+         mock(ViewsheetService.class), mock(AssetRepository.class), mock(SecurityEngine.class), null);
 
       VSChartAggregateRef agg = new VSChartAggregateRef();
       agg.setColumnValue("Sales");
