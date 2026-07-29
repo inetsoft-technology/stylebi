@@ -168,6 +168,28 @@ class IdentityServiceTest {
    }
 
    @Test
+   void copyUserFavorites_replaceFalse_copiesFavoritesLeavingSourceIntact() {
+      IdentityID from = new IdentityID("alice", "org1");
+      IdentityID to = new IdentityID("alice", "org2");
+
+      service.copyUserFavorites(from, to, false);
+
+      verify(favoritesService).copyFavorites(from.convertToKey(), to.convertToKey());
+      verify(favoritesService, never()).moveFavorites(anyString(), anyString());
+   }
+
+   @Test
+   void copyUserFavorites_replaceTrue_movesFavorites() {
+      IdentityID from = new IdentityID("alice", "org1");
+      IdentityID to = new IdentityID("alice", "org2");
+
+      service.copyUserFavorites(from, to, true);
+
+      verify(favoritesService).moveFavorites(from.convertToKey(), to.convertToKey());
+      verify(favoritesService, never()).copyFavorites(anyString(), anyString());
+   }
+
+   @Test
    void getIdentityInfo_nullIdentity_returnsEmptyInfo() {
       IdentityID missing = new IdentityID("ghost", "org1");
       AuthenticationProvider provider = mock(AuthenticationProvider.class);

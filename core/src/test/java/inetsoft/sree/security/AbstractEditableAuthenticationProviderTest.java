@@ -640,7 +640,7 @@ class AbstractEditableAuthenticationProviderTest {
       fromUser.setOrganization("fromOrg");
       provider.stubUser(memberID, fromUser);
 
-      IdentityID result = provider.callCopyUserToOrganization(memberID, "newOrg", "fromOrg", svc, mock(Principal.class), null);
+      IdentityID result = provider.callCopyUserToOrganization(memberID, "newOrg", "fromOrg", svc, mock(Principal.class), null, false);
 
       assertEquals("alice", result.name);
       assertEquals("newOrg", result.orgID);
@@ -650,6 +650,26 @@ class AbstractEditableAuthenticationProviderTest {
       assertEquals("existingHash", added.getPassword());
       assertEquals("bcrypt", added.getPasswordAlgorithm());
       assertEquals("newOrg", added.getOrganizationID());
+
+      verify(svc).copyUserFavorites(memberID, new IdentityID("alice", "newOrg"), false);
+   }
+
+   // [Path D] fromUser found, replace=true (org rename) → favorites moved, not copied
+   @Test
+   void copyUserToOrganization_replaceTrue_movesFavoritesInsteadOfCopying() {
+      IdentityService svc = mock(IdentityService.class);
+      when(svc.getPermission(any(), any(), any(), any())).thenReturn(List.of());
+
+      IdentityID memberID = new IdentityID("alice", "fromOrg");
+      FSUser fromUser = new FSUser(memberID);
+      fromUser.setPassword("existingHash");
+      fromUser.setPasswordAlgorithm("bcrypt");
+      fromUser.setOrganization("fromOrg");
+      provider.stubUser(memberID, fromUser);
+
+      provider.callCopyUserToOrganization(memberID, "newOrg", "fromOrg", svc, mock(Principal.class), null, true);
+
+      verify(svc).copyUserFavorites(memberID, new IdentityID("alice", "newOrg"), true);
    }
 
    // [Path B] fromUser found, defaultPassword given → new hash applied
@@ -667,7 +687,7 @@ class AbstractEditableAuthenticationProviderTest {
       fromUser.setOrganization("fromOrg");
       provider.stubUser(memberID, fromUser);
 
-      provider.callCopyUserToOrganization(memberID, "newOrg", "fromOrg", svc, mock(Principal.class), "newP@ssw0rd");
+      provider.callCopyUserToOrganization(memberID, "newOrg", "fromOrg", svc, mock(Principal.class), "newP@ssw0rd", false);
 
       User added = provider.getAddedUsers().get(0);
       assertNotEquals("oldHash", added.getPassword(), "Password must be re-hashed, not copied");
@@ -686,7 +706,7 @@ class AbstractEditableAuthenticationProviderTest {
       IdentityID memberID = new IdentityID("ghost", "fromOrg");
       // no user stubbed → getUser returns null
 
-      IdentityID result = provider.callCopyUserToOrganization(memberID, "newOrg", "fromOrg", svc, mock(Principal.class), null);
+      IdentityID result = provider.callCopyUserToOrganization(memberID, "newOrg", "fromOrg", svc, mock(Principal.class), null, false);
 
       assertEquals(1, provider.getAddedUsers().size());
       assertEquals("newOrg", provider.getAddedUsers().get(0).getIdentityID().orgID,
@@ -849,13 +869,13 @@ class AbstractEditableAuthenticationProviderTest {
 
       IdentityID callCopyUserToOrganization(IdentityID memberID, String orgID, String fromOrgID,
                                              IdentityService identityService, Principal principal,
-                                             String defaultPassword) {
+                                             String defaultPassword, boolean replace) {
          try {
             var m = AbstractEditableAuthenticationProvider.class.getDeclaredMethod(
                "copyUserToOrganization", IdentityID.class, String.class, String.class,
-               IdentityService.class, Principal.class, String.class);
+               IdentityService.class, Principal.class, String.class, boolean.class);
             m.setAccessible(true);
-            return (IdentityID) m.invoke(this, memberID, orgID, fromOrgID, identityService, principal, defaultPassword);
+            return (IdentityID) m.invoke(this, memberID, orgID, fromOrgID, identityService, principal, defaultPassword, replace);
          }
          catch(ReflectiveOperationException e) {
             throw new AssertionError("reflection failed: copyUserToOrganization", e);
