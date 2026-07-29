@@ -37,6 +37,7 @@ import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
+import inetsoft.web.adhoc.model.FormatInfoModel;
 import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
 import inetsoft.web.vswizard.model.VSWizardData;
 import inetsoft.web.vswizard.model.recommender.*;
@@ -2261,6 +2262,11 @@ public class WizAutoBindingService {
             }
          }
 
+         // Per-field display formats (percent / currency / decimal / date / duration). Applied last so
+         // it runs against the chart the descriptor edits above have already settled, and inside this
+         // try block so a bad field name rolls the copy back like any other failure here.
+         applyFieldFormats(rvs, chart, request.getFieldFormats());
+
          // Invalidate the cached runtime descriptor so the change regenerates on re-execute.
          info.setRTChartDescriptor(null);
 
@@ -2322,6 +2328,101 @@ public class WizAutoBindingService {
       }
 
       return result;
+   }
+
+   /** Format pane defaults, applied when the caller names a type but no pattern. */
+   private static final Map<String, String> DEFAULT_FORMAT_SPECS = Map.of(
+      XConstants.PERCENT_FORMAT, "#,##0.0%",
+      XConstants.CURRENCY_FORMAT, "¤#.000",
+      XConstants.DECIMAL_FORMAT, "###0.0");
+
+   /** The format types the Format pane offers, plus CommaFormat, which is normalized away below. */
+   private static final Set<String> SUPPORTED_FORMATS = Set.of(
+      XConstants.DATE_FORMAT, XConstants.CURRENCY_FORMAT, XConstants.PERCENT_FORMAT,
+      XConstants.DECIMAL_FORMAT, XConstants.COMMA_FORMAT, XConstants.MESSAGE_FORMAT,
+      XConstants.DURATION_FORMAT);
+
+   /**
+    * Converts the wire model into the VSFormat the wizard's format machinery consumes, applying the
+    * same normalizations VSWizardFormatService.updateFormat does so both entry points behave alike:
+    * duration pad-zeros folded into the type, CommaFormat rewritten to DecimalFormat + "#,##0", and a
+    * non-Custom dateSpec used as the pattern. A named type with no pattern takes the Format pane's
+    * default rather than rendering unformatted.
+    *
+    * <p>A null/blank type clears the field's user-defined format. An unrecognized one throws rather
+    * than being dropped — silently ignoring it would render the chart unchanged with no indication
+    * anything was wrong.
+    */
+   static VSFormat toVSFormat(String field, FieldFormatModel model) {
+      VSFormat fmt = new VSFormat();
+      String type = model == null || model.getFormat() == null ? null : model.getFormat().trim();
+
+      if(type == null || type.isEmpty()) {
+         return fmt;
+      }
+
+      String canonical = SUPPORTED_FORMATS.stream()
+         .filter(supported -> supported.equalsIgnoreCase(type))
+         .findFirst()
+         .orElseThrow(() -> new IllegalArgumentException(
+            "Unsupported format '" + type + "' for field '" + field + "'; valid: " +
+            SUPPORTED_FORMATS.stream().sorted().collect(Collectors.joining(", "))));
+
+      boolean padZeros = model.getDurationPadZeros() == null || model.getDurationPadZeros();
+      String formatValue = FormatInfoModel.getDurationFormat(canonical, padZeros);
+      String formatSpec = model.getFormatSpec();
+      String dateSpec = model.getDateSpec();
+
+      if(XConstants.COMMA_FORMAT.equals(formatValue)) {
+         formatValue = XConstants.DECIMAL_FORMAT;
+         formatSpec = "#,##0";
+      }
+      else if(XConstants.DATE_FORMAT.equals(formatValue) && !"Custom".equals(dateSpec)) {
+         formatSpec = dateSpec;
+      }
+      else if(formatSpec == null || formatSpec.isEmpty()) {
+         formatSpec = DEFAULT_FORMAT_SPECS.get(formatValue);
+      }
+
+      fmt.setFormatValue(formatValue);
+      fmt.setFormatExtentValue(formatSpec);
+
+      return fmt;
+   }
+
+   /**
+    * Applies the request's per-field display formats to the chart, reusing the wizard's own apply step
+    * (see VSWizardBindingHandler.applyFieldFormats). A key that names no ref in the current binding is
+    * an error, not a no-op: StyleBI would render the chart unchanged and the caller would have no way
+    * to tell its format request was dropped.
+    */
+   private void applyFieldFormats(RuntimeViewsheet rvs, ChartVSAssembly chart,
+                                  Map<String, FieldFormatModel> fieldFormats)
+   {
+      if(fieldFormats == null || fieldFormats.isEmpty()) {
+         return;
+      }
+
+      Map<String, VSFormat> formats = new LinkedHashMap<>();
+
+      for(Map.Entry<String, FieldFormatModel> entry : fieldFormats.entrySet()) {
+         formats.put(entry.getKey(), toVSFormat(entry.getKey(), entry.getValue()));
+      }
+
+      Set<String> unmatched = bindingHandler.applyFieldFormats(rvs, chart, formats);
+
+      if(!unmatched.isEmpty()) {
+         String bindable = VSWizardBindingHandler.collectFormattableRefs(chart.getVSChartInfo())
+            .stream()
+            .map(ChartRef::getFullName)
+            .distinct()
+            .sorted()
+            .collect(Collectors.joining(", "));
+
+         throw new IllegalArgumentException(
+            "No such field(s) in this chart's binding: " + String.join(", ", unmatched) +
+            ". Bindable fields: " + (bindable.isEmpty() ? "(none)" : bindable));
+      }
    }
 
    /**
