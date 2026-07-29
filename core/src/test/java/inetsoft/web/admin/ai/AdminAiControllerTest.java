@@ -23,6 +23,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -52,11 +55,60 @@ class AdminAiControllerTest {
       // default to a site-admin caller so the existing delegation tests exercise delegation;
       // individual tests override this to false to cover the FORBIDDEN gate
       lenient().when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+
+      // Every endpoint also requires a bearer-authenticated request (AdminAiCallerGuard); bind a
+      // request carrying one so these tests exercise the site-admin gate rather than that guard.
+      // AdminAiCallerGuardTest covers the guard itself.
+      MockHttpServletRequest request = new MockHttpServletRequest();
+      request.addHeader("Authorization", "Bearer test-jwt");
+      RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
    }
 
    @AfterEach
    void tearDown() {
       orgManagerStatic.close();
+      RequestContextHolder.resetRequestAttributes();
+   }
+
+   // -------------------------------------------------------------------------
+   // bearer-token gate (CSRF backstop on the /api/wiz/** prefix)
+   // -------------------------------------------------------------------------
+
+   @Test void changeThrowsForbiddenWithoutBearerToken() {
+      // A session-authenticated site admin (e.g. a cross-site request riding their session
+      // cookie) must still be rejected: /api/wiz/** is CSRF-exempt.
+      RequestContextHolder.setRequestAttributes(
+         new ServletRequestAttributes(new MockHttpServletRequest()));
+      AdminChangeRequest req = new AdminChangeRequest();
+      req.setProperty("max.rows");
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> controller.change(req, principal));
+
+      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+      verifyNoInteractions(changeService);
+   }
+
+   @Test void backupThrowsForbiddenWithoutBearerToken() {
+      RequestContextHolder.setRequestAttributes(
+         new ServletRequestAttributes(new MockHttpServletRequest()));
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> controller.backup(Map.of("transactionId", "chg-1"), principal));
+
+      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+      verifyNoInteractions(backupService);
+   }
+
+   @Test void restoreThrowsForbiddenWithoutBearerToken() {
+      RequestContextHolder.setRequestAttributes(
+         new ServletRequestAttributes(new MockHttpServletRequest()));
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> controller.restore(Map.of("backupRef", "admin-chg-1-123.zip"), principal));
+
+      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+      verifyNoInteractions(backupService);
    }
 
    // -------------------------------------------------------------------------
