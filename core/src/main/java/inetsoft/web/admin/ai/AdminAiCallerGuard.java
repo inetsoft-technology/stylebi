@@ -18,6 +18,8 @@
 package inetsoft.web.admin.ai;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -63,6 +65,7 @@ public final class AdminAiCallerGuard {
       RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
 
       if(!(attributes instanceof ServletRequestAttributes)) {
+         LOG.warn("Rejected admin-chat request with no servlet request context");
          throw forbidden();
       }
 
@@ -72,16 +75,20 @@ public final class AdminAiCallerGuard {
       if(header == null || !header.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())
          || header.substring(BEARER_PREFIX.length()).isBlank())
       {
+         LOG.warn("Missing bearer token accessing {} from {}",
+                  request.getRequestURL(), request.getRemoteAddr());
          throw forbidden();
       }
    }
 
    private static ResponseStatusException forbidden() {
-      // Deliberately terse: the caller is either the broker (which always sends the token) or an
-      // unintended browser-session caller, and neither benefits from detail here.
+      // Deliberately terse response message: the caller is either the broker (which always sends
+      // the token) or an unintended browser-session caller, and neither benefits from detail here.
+      // The server-side log at the call site carries the diagnostic detail.
       return new ResponseStatusException(
          HttpStatus.FORBIDDEN, "Admin-chat endpoints require bearer-token authentication");
    }
 
    private static final String BEARER_PREFIX = "Bearer ";
+   private static final Logger LOG = LoggerFactory.getLogger(AdminAiCallerGuard.class);
 }
