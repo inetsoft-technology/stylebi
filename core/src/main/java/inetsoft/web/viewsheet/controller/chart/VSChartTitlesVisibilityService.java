@@ -85,7 +85,7 @@ public class VSChartTitlesVisibilityService extends VSChartControllerService<VSC
 
       if(maxMode && chartState.getRuntimeViewsheet() != null &&
          (chartState.getRuntimeViewsheet().isBinding() ||
-            chartState.getRuntimeViewsheet().isEmbedded()))
+            chartState.getRuntimeViewsheet().hasEmbeddedAssembly()))
       {
          hideTitle(axisType, info, false);
       }
@@ -175,7 +175,7 @@ public class VSChartTitlesVisibilityService extends VSChartControllerService<VSC
 
       if(maxMode && chartState.getRuntimeViewsheet() != null &&
          (chartState.getRuntimeViewsheet().isBinding() ||
-            chartState.getRuntimeViewsheet().isEmbedded()))
+            chartState.getRuntimeViewsheet().hasEmbeddedAssembly()))
       {
          showTitles(info, false);
       }

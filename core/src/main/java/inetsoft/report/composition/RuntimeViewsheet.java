@@ -2674,14 +2674,39 @@ public class RuntimeViewsheet extends RuntimeSheet {
    }
 
    /**
-    * Whether any assembly is currently embedded on this runtime (regardless of which).
+    * Whether any assembly is currently embedded on this runtime (regardless of which). Distinct
+    * from the pre-existing {@code Viewsheet#isEmbedded()}/{@code VSAssembly#isEmbedded()} (a sub-
+    * viewsheet embedded inside a container viewsheet) - named accordingly so the two concepts,
+    * which are used side by side in some of the same expressions, aren't confused for each other.
     */
-   public boolean isEmbedded() {
+   public boolean hasEmbeddedAssembly() {
       return !embedAssemblyInfos.isEmpty();
    }
 
    public void putEmbedAssemblyInfo(String assemblyName, EmbedAssemblyInfo embedAssemblyInfo) {
+      pruneStaleEmbedAssemblyInfos();
       embedAssemblyInfos.put(assemblyName, embedAssemblyInfo);
+   }
+
+   /**
+    * Drops tracked entries for assemblies that no longer exist on this runtime's viewsheet (e.g.
+    * the old assembly a type switch replaced). Without this, a runtime whose visualization type
+    * is switched repeatedly over a long-lived session (wiz keeps one runtime per conversation)
+    * would accumulate an ever-growing number of orphaned entries for assemblies nothing looks up
+    * anymore.
+    */
+   private void pruneStaleEmbedAssemblyInfos() {
+      if(embedAssemblyInfos.isEmpty()) {
+         return;
+      }
+
+      Viewsheet sheet = getViewsheet();
+
+      if(sheet == null) {
+         return;
+      }
+
+      embedAssemblyInfos.keySet().removeIf(name -> sheet.getAssembly(name) == null);
    }
 
    /**
@@ -2886,13 +2911,27 @@ public class RuntimeViewsheet extends RuntimeSheet {
    private ImageHashService imageHashService = new ImageHashService();
    private String wizSheetRuntimeId;
 
+   /**
+    * Parses the persisted embed-assembly-info blob. The current format is a JSON array (one
+    * runtime can now track more than one embedded assembly). A {@code RuntimeViewsheetState} can
+    * outlive a single process (e.g. cluster failover/rolling restarts via the Ignite-backed
+    * runtime sheet cache), so a blob written by a not-yet-upgraded node may still be in the old
+    * format (a single serialized object) - fall back to parsing that before giving up, so a
+    * rolling upgrade doesn't silently drop an in-flight embed session's tracked size.
+    */
    private static List<EmbedAssemblyInfo> loadEmbedAssemblyInfoList(String json, ObjectMapper mapper) {
       try {
          return mapper.readValue(json,
             mapper.getTypeFactory().constructCollectionType(List.class, EmbedAssemblyInfo.class));
       }
-      catch(Exception e) {
-         LOG.error("Failed to load value", e);
+      catch(Exception arrayEx) {
+         EmbedAssemblyInfo legacy = loadJson(EmbedAssemblyInfo.class, json, mapper);
+
+         if(legacy != null) {
+            return Collections.singletonList(legacy);
+         }
+
+         LOG.error("Failed to load value", arrayEx);
          return Collections.emptyList();
       }
    }

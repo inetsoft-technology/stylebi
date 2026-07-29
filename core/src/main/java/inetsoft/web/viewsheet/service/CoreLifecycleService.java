@@ -555,7 +555,7 @@ public class CoreLifecycleService {
          // don't scale viewsheet in design mode or if height or width is set to 0
          if(vsinfo != null && vsinfo.isScaleToScreen() && rvs.isRuntime() &&
             (height != 0 || vsinfo.isFitToWidth()) && width != 0 &&
-            !rvs.isEmbedded())
+            !rvs.hasEmbeddedAssembly())
          {
             // if not initializing a viewsheet then always apply scale
             boolean applyScale = !initing || vsinfo.isDisableParameterSheet();
@@ -1378,7 +1378,7 @@ public class CoreLifecycleService {
 
       ViewsheetSandbox box = boxOpt.get();
 
-      if(rvs.isEmbedded() && name != null && rvs.getEmbedAssemblyInfo(name) == null) {
+      if(rvs.hasEmbeddedAssembly() && name != null && rvs.getEmbedAssemblyInfo(name) == null) {
          return;
       }
 

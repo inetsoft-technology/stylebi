@@ -83,7 +83,7 @@ public class VSChartRefreshService extends VSChartControllerService<VSChartRefre
       RuntimeViewsheet rvs = chartState.getRuntimeViewsheet();
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(rvs.isEmbedded()) {
+      if(rvs.hasEmbeddedAssembly()) {
          VSRefreshEvent refresh = VSRefreshEvent.builder()
             .confirmed(true)
             .initing(false)
