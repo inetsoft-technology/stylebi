@@ -555,7 +555,7 @@ public class CoreLifecycleService {
          // don't scale viewsheet in design mode or if height or width is set to 0
          if(vsinfo != null && vsinfo.isScaleToScreen() && rvs.isRuntime() &&
             (height != 0 || vsinfo.isFitToWidth()) && width != 0 &&
-            rvs.getEmbedAssemblyInfo() == null)
+            !rvs.hasEmbeddedAssembly())
          {
             // if not initializing a viewsheet then always apply scale
             boolean applyScale = !initing || vsinfo.isDisableParameterSheet();
@@ -1378,9 +1378,7 @@ public class CoreLifecycleService {
 
       ViewsheetSandbox box = boxOpt.get();
 
-      if(rvs.getEmbedAssemblyInfo() != null && name != null &&
-         !Tool.equals(name, rvs.getEmbedAssemblyInfo().getAssemblyName()))
-      {
+      if(rvs.hasEmbeddedAssembly() && name != null && rvs.getEmbedAssemblyInfo(name) == null) {
          return;
       }
 
@@ -1589,14 +1587,17 @@ public class CoreLifecycleService {
    private void applyEmbedChartSize(RuntimeViewsheet rvs, VSAssembly assembly) {
       String name = assembly == null ? null : assembly.getAbsoluteName();
 
-      if(rvs.getEmbedAssemblyInfo() == null || name == null) {
+      if(name == null) {
          return;
       }
 
-      EmbedAssemblyInfo embedAssemblyInfo = rvs.getEmbedAssemblyInfo();
-      Dimension assemblySize = embedAssemblyInfo.getAssemblySize();
+      // Keyed by this assembly's own name, so concurrently-embedded sibling assemblies (e.g.
+      // wiz's multiple chart/table cards sharing one runtime) can never clobber each other's
+      // tracked size - see RuntimeViewsheet#getEmbedAssemblyInfo(String).
+      EmbedAssemblyInfo embedAssemblyInfo = rvs.getEmbedAssemblyInfo(name);
+      Dimension assemblySize = embedAssemblyInfo == null ? null : embedAssemblyInfo.getAssemblySize();
 
-      if(!Tool.equals(name, embedAssemblyInfo.getAssemblyName()) || assemblySize == null) {
+      if(assemblySize == null) {
          return;
       }
 
@@ -2893,7 +2894,7 @@ public class CoreLifecycleService {
          EmbedAssemblyInfo embedAssemblyInfo = new EmbedAssemblyInfo();
          embedAssemblyInfo.setAssemblyName(event.getEmbedAssemblyName());
          embedAssemblyInfo.setAssemblySize(event.getEmbedAssemblySize());
-         rvs.setEmbedAssemblyInfo(embedAssemblyInfo);
+         rvs.putEmbedAssemblyInfo(event.getEmbedAssemblyName(), embedAssemblyInfo);
       }
 
       if(event.isEmbed()) {

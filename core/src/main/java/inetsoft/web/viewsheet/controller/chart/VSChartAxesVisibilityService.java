@@ -141,7 +141,7 @@ public class VSChartAxesVisibilityService extends VSChartControllerService<VSCha
 
       if(maxMode && chartState.getRuntimeViewsheet() != null &&
          (chartState.getRuntimeViewsheet().isBinding() ||
-            chartState.getRuntimeViewsheet().getEmbedAssemblyInfo() != null))
+            chartState.getRuntimeViewsheet().hasEmbeddedAssembly()))
       {
          setVisible(axisDescriptor, false, false);
       }
@@ -173,7 +173,7 @@ public class VSChartAxesVisibilityService extends VSChartControllerService<VSCha
 
       if(maxMode && chartState.getRuntimeViewsheet() != null &&
          (chartState.getRuntimeViewsheet().isBinding() ||
-            chartState.getRuntimeViewsheet().getEmbedAssemblyInfo() != null))
+            chartState.getRuntimeViewsheet().hasEmbeddedAssembly()))
       {
          showAllAxes(chartInfo, false);
       }

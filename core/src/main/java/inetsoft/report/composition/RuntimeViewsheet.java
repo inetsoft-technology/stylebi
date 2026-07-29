@@ -55,6 +55,7 @@ import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -260,7 +261,11 @@ public class RuntimeViewsheet extends RuntimeSheet {
       wizardViewsheet = state.isWizardViewsheet();
 
       if(state.getEmbedAssemblyInfo() != null) {
-         embedAssemblyInfo = loadJson(EmbedAssemblyInfo.class, state.getEmbedAssemblyInfo(), mapper);
+         for(EmbedAssemblyInfo info : loadEmbedAssemblyInfoList(state.getEmbedAssemblyInfo(), mapper)) {
+            if(info.getAssemblyName() != null) {
+               embedAssemblyInfos.put(info.getAssemblyName(), info);
+            }
+         }
       }
 
       // Decode undo/redo checkpoints from VCDIFF deltas
@@ -2648,12 +2653,60 @@ public class RuntimeViewsheet extends RuntimeSheet {
       this.wizardViewsheet = wizardViewsheet;
    }
 
-   public EmbedAssemblyInfo getEmbedAssemblyInfo() {
-      return embedAssemblyInfo;
+   /**
+    * The tracked embed info for one specific assembly. A runtime can have more than one
+    * assembly embedded on it at once (e.g. wiz embeds several chart/table cards from the same
+    * conversation, each a different assembly on the SAME shared runtime) - each is tracked
+    * independently so concurrent refreshes for different assemblies never clobber each other.
+    */
+   public EmbedAssemblyInfo getEmbedAssemblyInfo(String assemblyName) {
+      return assemblyName == null ? null : embedAssemblyInfos.get(assemblyName);
    }
 
-   public void setEmbedAssemblyInfo(EmbedAssemblyInfo embedAssemblyInfo) {
-      this.embedAssemblyInfo = embedAssemblyInfo;
+   /**
+    * The single tracked embed assembly, for call sites that have no assembly name to key on
+    * (e.g. the whole-viewsheet {@code VSRefreshEvent} path, which predates multi-assembly
+    * embedding) and can only meaningfully apply to a runtime with exactly one. Returns null
+    * rather than guessing when more than one assembly is currently embedded.
+    */
+   public EmbedAssemblyInfo getSoleEmbedAssemblyInfo() {
+      return embedAssemblyInfos.size() == 1 ? embedAssemblyInfos.values().iterator().next() : null;
+   }
+
+   /**
+    * Whether any assembly is currently embedded on this runtime (regardless of which). Distinct
+    * from the pre-existing {@code Viewsheet#isEmbedded()}/{@code VSAssembly#isEmbedded()} (a sub-
+    * viewsheet embedded inside a container viewsheet) - named accordingly so the two concepts,
+    * which are used side by side in some of the same expressions, aren't confused for each other.
+    */
+   public boolean hasEmbeddedAssembly() {
+      return !embedAssemblyInfos.isEmpty();
+   }
+
+   public void putEmbedAssemblyInfo(String assemblyName, EmbedAssemblyInfo embedAssemblyInfo) {
+      pruneStaleEmbedAssemblyInfos();
+      embedAssemblyInfos.put(assemblyName, embedAssemblyInfo);
+   }
+
+   /**
+    * Drops tracked entries for assemblies that no longer exist on this runtime's viewsheet (e.g.
+    * the old assembly a type switch replaced). Without this, a runtime whose visualization type
+    * is switched repeatedly over a long-lived session (wiz keeps one runtime per conversation)
+    * would accumulate an ever-growing number of orphaned entries for assemblies nothing looks up
+    * anymore.
+    */
+   private void pruneStaleEmbedAssemblyInfos() {
+      if(embedAssemblyInfos.isEmpty()) {
+         return;
+      }
+
+      Viewsheet sheet = getViewsheet();
+
+      if(sheet == null) {
+         return;
+      }
+
+      embedAssemblyInfos.keySet().removeIf(name -> sheet.getAssembly(name) == null);
    }
 
    /**
@@ -2798,7 +2851,8 @@ public class RuntimeViewsheet extends RuntimeSheet {
       }
 
       state.setLayoutPoint(layoutPoint);
-      state.setEmbedAssemblyInfo(saveJson(embedAssemblyInfo, mapper));
+      state.setEmbedAssemblyInfo(embedAssemblyInfos.isEmpty() ? null :
+         saveJson(new ArrayList<>(embedAssemblyInfos.values()), mapper));
 
       if(temporaryInfo != null) {
          state.setTemporaryInfo(saveXml(temporaryInfo));
@@ -2853,9 +2907,34 @@ public class RuntimeViewsheet extends RuntimeSheet {
    private int layoutPoint = -1;
    private VSTemporaryInfo temporaryInfo;
    private boolean wizardViewsheet = false;
-   private EmbedAssemblyInfo embedAssemblyInfo;
+   private final Map<String, EmbedAssemblyInfo> embedAssemblyInfos = new ConcurrentHashMap<>();
    private ImageHashService imageHashService = new ImageHashService();
    private String wizSheetRuntimeId;
+
+   /**
+    * Parses the persisted embed-assembly-info blob. The current format is a JSON array (one
+    * runtime can now track more than one embedded assembly). A {@code RuntimeViewsheetState} can
+    * outlive a single process (e.g. cluster failover/rolling restarts via the Ignite-backed
+    * runtime sheet cache), so a blob written by a not-yet-upgraded node may still be in the old
+    * format (a single serialized object) - fall back to parsing that before giving up, so a
+    * rolling upgrade doesn't silently drop an in-flight embed session's tracked size.
+    */
+   private static List<EmbedAssemblyInfo> loadEmbedAssemblyInfoList(String json, ObjectMapper mapper) {
+      try {
+         return mapper.readValue(json,
+            mapper.getTypeFactory().constructCollectionType(List.class, EmbedAssemblyInfo.class));
+      }
+      catch(Exception arrayEx) {
+         EmbedAssemblyInfo legacy = loadJson(EmbedAssemblyInfo.class, json, mapper);
+
+         if(legacy != null) {
+            return Collections.singletonList(legacy);
+         }
+
+         LOG.error("Failed to load value", arrayEx);
+         return Collections.emptyList();
+      }
+   }
 
    private static final Logger LOG =
       LoggerFactory.getLogger(RuntimeViewsheet.class);

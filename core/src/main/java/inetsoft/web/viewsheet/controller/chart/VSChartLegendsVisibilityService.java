@@ -119,7 +119,7 @@ public class VSChartLegendsVisibilityService extends VSChartControllerService<VS
          Tool.clone(chartState.getChartAssemblyInfo());
       RuntimeViewsheet rvs = chartState.getRuntimeViewsheet();
       boolean changeNonMaxMode = rvs != null &&
-         (rvs.isBinding() || rvs.getEmbedAssemblyInfo() != null);
+         (rvs.isBinding() || rvs.hasEmbeddedAssembly());
 
       hideDescriptorLegends(info, info.getChartDescriptor(), event, changeNonMaxMode);
 
@@ -204,7 +204,7 @@ public class VSChartLegendsVisibilityService extends VSChartControllerService<VS
 
       if(maxMode && chartState.getRuntimeViewsheet() != null &&
          (chartState.getRuntimeViewsheet().isBinding() ||
-            chartState.getRuntimeViewsheet().getEmbedAssemblyInfo() != null))
+            chartState.getRuntimeViewsheet().hasEmbeddedAssembly()))
       {
          showAllLegends(info, visible, false);
       }
