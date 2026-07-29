@@ -4,6 +4,10 @@
 **姊妹文档（权限层，范围不同）：** `community/core/src/test/resources/inetsoft/sree/security/permission-matrix-org-lifecycle.md`
 **机制二架构参考：** `claude/org-migration-content-rewrite.md`
 **Phase：** 2026-07-20 按机制重新组织结构——原先按"文档信息类型"（机制表/delete清单/覆盖率/场景/...）组织，现按"机制一/机制二/其他机制"组织，与计划文档的心智模型对齐。
+**Phase：** 2026-07-28 逐条核对 git/PR 状态后回填修复结论（不是只信任 bug 编号列表）：Issue #75759/#75763/#75766/#75769 已确认合并到 main 并标记为已修复，冗长的排查过程收敛为简短结论；Issue #75735 的 PR 已合并但修的是另一根因，本文档描述的具体风险未变；Bug #75756、Issue #75777 的修复 PR 均仍是 OPEN 状态，未合并，继续按未修复处理。
+**Phase：** 2026-07-29 复核 Bug #75756：修复提交 `0b6b53e3c`（PR #4414）已用 `git merge-base --is-ancestor` 确认合并入 main，5a/5e 相关状态标记同步更新为已修复；5a、5e 是否需要合并的问题已确认不合并——5a 是 `migrateDataCycles()` 层面的整体 Copy 场景断言，5e 是专门锁定 `migrateCycleInfo()` 身份字段这个具体缺陷的定向回归测试，粒度不同，合并会丢失定位精度。
+**Phase：** 2026-07-29 复核 Issue #75777：修复提交 `4c45e997a`（PR #4408）已确认合并入 main。实际根因跟 6f 的假设**不是同一个**——真正原因是"已保存 sheet"的 autosave 草稿被直接删除、从未进入回收路径，跟 6f 猜测的 `addRecycleAutoSaved()` 用户枚举失败无关（该方法本身在此次修复里未被改动）；6f 因此仍是独立、未确认的假设，继续 `@Disabled`，不再挂靠 Issue #75777。
+**Phase：** 2026-07-29 用户实测发现 rename/clone 组织后 autosave 文件均从 "Auto Saved Files" 树上消失，已报 **Issue #75827**，追加三、3.4 场景 6i/6j：6i（rename）已确认——`updateAutoSaveFiles()` 只在 copy 分支执行，rename 从不重写 autosave 文件名里的 orgID，导致树匹配 100% 必然失败；6j（clone）高度怀疑但未 100% 实锤——`migrateAutoSaveFiles()` 的 `getStorage(principal)` 优先读 `principal` 自身 `getCurrentOrgId()`，可能架空 `runInOrgScope(newOrgID,...)`，与三、3.3 节 5f/5h 的"可达性分析"同一模式；两个场景测试均 `[待补]`。
 
 **"测试状态"列取值：**
 - `[已落地]` = 已实现并通过，后面附对应 `@Test` 方法名
@@ -25,6 +29,8 @@
 - **改名 / 复制**：`AbstractEditableAuthenticationProvider.copyOrganizationInternal(..., boolean replace, ...)`（`replace=true` 改名，`replace=false` 复制）
 
 **入口复杂度**：生产环境从 EM UI 触发的"改名"，实际入口是 `IdentityService.setOrganizationInfo()`（`IdentityService.java:2047-2143`），它自己先做一部分资源迁移（Dashboard admin 级注册表、DataSpace 路径重命名、主题 `organizations` 列表调整），再调用 `syncIdentity()` → `copyOrganizationInternal(replace=true)`。部分资源类型的改名逻辑因此跑了两遍不同实现（见三、3.2 Dashboard）。
+
+**只对 File/Virtual provider 生效，DB/LDAP provider 走不到这条代码（2026-07-28 排查确认）：** `copyOrganizationInternal()` 定义在 `AbstractEditableAuthenticationProvider` 上，全代码库（含 enterprise）只有 `FileAuthenticationProvider`/`VirtualAuthenticationProvider` 实现 `EditableAuthenticationProvider`；`DatabaseAuthenticationProvider`/`LdapAuthenticationProvider`/`GenericLdapAuthenticationProvider` 都是只读的 `AbstractAuthenticationProvider`，没有这些方法。EM 后端多处显式 `instanceof EditableAuthenticationProvider` 拦截（`IdentityService.deleteIdentities()`、`UserTreeService.createOrganization()` 等），provider 不可编辑时直接短路返回警告/`null`——组织增删改在 UI 层面对 DB/LDAP provider 根本不可达，不是"代码里有分支处理得好不好"的问题。两个可编辑 provider 也都没有重写任何 org 生命周期方法，全部继承同一份基类逻辑：**本文档记录的所有机制只有一条代码路径，不随 provider 类型变化。**
 
 ### Delete 路径完整调用清单（参考用，各小节引用其中行号，不重复贴代码）
 
@@ -95,6 +101,12 @@
 ## 一、机制一：依赖反向索引迁移（`DependencyStorageService`）
 
 **机制说明：** `migrateStorageData(Organization oOrg, Organization nOrg, boolean removeOld)`（`DependencyStorageService.java:127-144`）是 copy/rename 共用入口：`copyStorageData()`（`removeOld=false`）用于 copy，`removeOld=true` 用于 rename。读出 `oStorage.stream()` 里的每条记录，生成新 key，`syncDependencyData()` 改写 `DependenciesInfo.dependencies`/`embedDependencies` 里每个 `AssetObject` 的 org 归属，写回新组织 storage。Spring 单例（`@Service`，包内可见构造函数）。
+
+**测试环境技术结论**（并入自 `2026-07-14-org-lifecycle-resource-integrity.md`，与二"技术前置问题"对齐格式）：
+- **Spring bean 装配**：`BaseTestConfiguration` 无组件扫描，测试类需在专属 `@Configuration` 里补 `@Bean`；测试类与 `DependencyStorageService` 同包（`inetsoft.uql.asset.sync`），可直接 `new DependencyStorageService(mgr)`，不需要反射。
+- **Fixture 写入**：用 `OrganizationManager.runInOrgScope(fromOrgId, () -> { dependencyStorageService.put(key, info); return null; })`，走公开 API，不需要反射访问私有的 `getDependencyStorage(String)`。`DependenciesInfo` 是无参构造 + `setDependencies(List<AssetObject>)`/`setEmbedDependencies(...)`，测试里可直接照抄生产用法。
+- **Copy-on-read 保护**：复用 `PermissionMatrixOrgLifecycleTest.CopyOnReadClusterConfig`/`CopyOnReadDistributedMap`（已对 `get()`/`entrySet()`/`values()` 做深拷贝，`LocalKeyValueStorage.stream()` 底层就是 `entrySet().stream()`，自动受保护）。
+- **清理**：`removeDependencyStorage(orgID)` 已存在，测试 `@AfterEach` 必须显式调用，避免跨测试泄漏。
 
 ### Copy 场景
 
@@ -269,7 +281,7 @@
 
 #### 已确认的生产风险
 
-- **`CustomThemesImpl` 缓存的 KeyValueStorage 句柄被共享 LRU 驱逐后永久失效，且不会自愈（Issue #75735）**（实测复现，2026-07-23）：enterprise `CustomThemesImpl.init()`（`enterprise/src/main/java/inetsoft/enterprise/theme/CustomThemesImpl.java:47-55`）把 `themesKvStore` 缓存在实例字段里，`if(themesKvStore != null) return` 保证只在这个 Spring 单例的生命周期内获取一次 `keyValueStorageManager.getStorage("CustomThemes")`，之后永远复用同一个引用。这个 bucket 跟系统里所有其他 org 相关的 KeyValueStorage 消费者（各 org 的依赖反向索引、Dashboard 偏好等）共用同一个 `KeyValueStorageManager`（`community/core/src/main/java/inetsoft/storage/KeyValueStorageManager.java:120-135`）的 `MAX_SIZE=50` Caffeine LRU 缓存；持续 clone 组织会不断在这个共享缓存里开新的 per-org 桶，一旦累计不同 ID 超过 50 个，`"CustomThemes"` 就可能被判定为最近最少用而被驱逐，`removalListener` 随即调用 `storage.close()`。`LocalKeyValueStorage.close()`（`community/core/src/main/java/inetsoft/storage/LocalKeyValueStorage.java:170-178`）只置位 `isClosed`，不清空底层 `map`（集群里真正持久化数据的引用还在），但 `stream()`/`keys()` 一看 `isClosed==true` 就静默返回空流；`CustomThemesManager.getCustomThemes()` 正是靠 `themesKvStore.stream()` 读取全部主题，一旦踩中这次驱逐，从此这次调用永远返回空集合——表现为所有组织的主题列表同时消失，且与具体切换到哪个 org 无关（这是进程级单例状态）。写操作（`put`/`replaceAll`）走 `cluster.submit(id, task)`，不检查 `isClosed`，因此新建主题时的写入依旧真实落地到集群持久化存储——这就是"UI 上主题消失，但 Storage 里数据还在"的原因；随后再建主题需要读回刚写入的记录，走的是同一条坏掉的读路径，读不到就报 404（`claude/theme.md` 里 `ThemeURLConnection.java:65` "Theme with ID ... not found" 日志路径）。
+- **`CustomThemesImpl` 缓存的 KeyValueStorage 句柄被共享 LRU 驱逐后永久失效，且不会自愈**（实测复现，2026-07-23；**状态核实，2026-07-28：未修复**——Issue #75735 对应的 PR #4369 已合并，但修的是另一个根因（`copyThemes()` 里源组织主题被摘除的时机早于新克隆成功写入，详见 commit message），不是这里说的 LRU 缓存风险；`CustomThemesImpl.init()`（`:49` `if(themesKvStore != null) return`）的缓存写法本身未改动，这条风险依然存在）：enterprise `CustomThemesImpl.init()`（`enterprise/src/main/java/inetsoft/enterprise/theme/CustomThemesImpl.java:47-55`）把 `themesKvStore` 缓存在实例字段里，`if(themesKvStore != null) return` 保证只在这个 Spring 单例的生命周期内获取一次 `keyValueStorageManager.getStorage("CustomThemes")`，之后永远复用同一个引用。这个 bucket 跟系统里所有其他 org 相关的 KeyValueStorage 消费者（各 org 的依赖反向索引、Dashboard 偏好等）共用同一个 `KeyValueStorageManager`（`community/core/src/main/java/inetsoft/storage/KeyValueStorageManager.java:120-135`）的 `MAX_SIZE=50` Caffeine LRU 缓存；持续 clone 组织会不断在这个共享缓存里开新的 per-org 桶，一旦累计不同 ID 超过 50 个，`"CustomThemes"` 就可能被判定为最近最少用而被驱逐，`removalListener` 随即调用 `storage.close()`。`LocalKeyValueStorage.close()`（`community/core/src/main/java/inetsoft/storage/LocalKeyValueStorage.java:170-178`）只置位 `isClosed`，不清空底层 `map`（集群里真正持久化数据的引用还在），但 `stream()`/`keys()` 一看 `isClosed==true` 就静默返回空流；`CustomThemesManager.getCustomThemes()` 正是靠 `themesKvStore.stream()` 读取全部主题，一旦踩中这次驱逐，从此这次调用永远返回空集合——表现为所有组织的主题列表同时消失，且与具体切换到哪个 org 无关（这是进程级单例状态）。写操作（`put`/`replaceAll`）走 `cluster.submit(id, task)`，不检查 `isClosed`，因此新建主题时的写入依旧真实落地到集群持久化存储——这就是"UI 上主题消失，但 Storage 里数据还在"的原因；随后再建主题需要读回刚写入的记录，走的是同一条坏掉的读路径，读不到就报 404（`claude/theme.md` 里 `ThemeURLConnection.java:65` "Theme with ID ... not found" 日志路径）。
   - **对比机制一同类风险，这里更严重**：`DependencyStorageService`（见"一、机制一"节"已确认的生产风险"）虽然共享同一个 LRU 缓存，但它的方法每次调用都会重新按 id 查找 storage，下一次调用能借着 `KeyValueStorageManager.get()`（`:104-118`）"发现引用已关闭就重建"的自愈逻辑恢复；`CustomThemesImpl.init()` 把结果焊死在实例字段里，永远不会再走查找路径，**不重启进程就永久损坏**，不是narrow race window。
   - **复现稳定性取决于环境累计状态，不是代码里写死的次数**：只要这个 JVM 进程此前已经积累了足够多不同的 per-org KeyValueStorage ID（来自其它 org 的历史操作），再 clone 一两次组织就会把计数顶过 50 并稳定触发；在一个刚启动、org 数量少的全新环境里则需要更多次操作才会偶然踩中——这也是同一个缺陷在不同环境下"偶发两次不再复现"和"稳定复现"两种报告并存的原因。
   - **修复可行性评估（暂不动手，先记录判断）**：`init()` 不该只在"字段为空"时获取一次，应该每次访问都重新调用 `keyValueStorageManager.getStorage("CustomThemes")`（该方法内部的 `get()` 本身就带自愈检查），或者干脆去掉这个实例字段缓存。改动只影响 `CustomThemesImpl` 这一个类的 `init()`/`getCustomThemes()`/`setCustomThemes()`，不改接口、不改调用方签名，回归风险低。
@@ -331,7 +343,7 @@
 
 | # | 场景 | 预期 | 测试状态 |
 |---|---|---|---|
-| 5a | `migrateDataCycles(oorg, norg, replace=false)`，从源组织自身上下文发起（见下方 5f 的前提说明） | 复制 `DataCycleAsset`（`orgId` 字段正确改写），不删源；`CycleInfo` 身份字段同步改写（Bug #75756 修复后，见 5e） | `[已落地]` `DataCycleManagerOrgLifecycleTest#copy_migrateDataCycles_copiesAssetAndLeavesSourceUntouched` |
+| 5a | `migrateDataCycles(oorg, norg, replace=false)`，从源组织自身上下文发起（见下方 5f 的前提说明） | 复制 `DataCycleAsset`（`orgId` 字段正确改写），不删源；`CycleInfo` 身份字段同步改写（见 5e） | `[已落地]` `DataCycleManagerOrgLifecycleTest#copy_migrateDataCycles_copiesAssetAndLeavesSourceUntouched` |
 
 **Rename 场景**
 
@@ -346,11 +358,9 @@
 | 5c | `clearDataCycles(orgId)`（共享背景 delete 清单 `:612`），从被删组织自身上下文发起 | 该组织所有 `DataCycleId` 精确清除，无残留 | `[已落地]` `DataCycleManagerOrgLifecycleTest#delete_clearDataCycles_removesAllCyclesForOrg` |
 | 5d | 普通 Schedule Task（非 Data Cycle）Delete：靠 `indexedStorage.removeStorage(orgId)` 整桶清理 | 断言删除后确实不可读，防止未来 `IndexedStorage` 改分桶策略后失去覆盖 | `[已落地]` `DataCycleManagerOrgLifecycleTest#delete_indexedStorageRemoveStorage_wholeOrgBucketGone`——低优先级回归防护 |
 
-**已确认缺陷 1（Bug #75756，~~已修复~~）：** `migrateCycleInfo()`（`DataCycleManager.java:937-959`）——`identityID.setOrgID(norg.getId())` 原先只修改局部变量，从未调用 `cycleInfo.setCreatedBy()`/`setLastModifiedBy()` 写回。Copy/Rename 后 `CycleInfo.createdBy`/`lastModifiedBy` 仍指向源组织用户身份，跟 `DataCycleAsset.orgId`（同一次迁移里另一个字段，在 `migrateDataCycles()` 里直接 `asset.setOrgId(norg.getId())` 正确改写）行为不一致。**修复方式**：两处都补上 `cycleInfo.setCreatedBy(identityID.convertToKey())`/`setLastModifiedBy(...)` 写回，与 `MigrateScheduleTask.syncIdentityAttribute()`（`util/migrate/MigrateScheduleTask.java:320-341`，改写 Schedule Task owner 身份）的既有惯例一致。
-
 | # | 场景 | 预期 | 测试状态 |
 |---|---|---|---|
-| 5e | 上述缺陷的回归防护 | 断言修复后行为：`createdBy`/`lastModifiedBy` 都被重写成目标组织下的同名用户身份，`orgId` 字段同样正确改写 | `[已落地]` `DataCycleManagerOrgLifecycleTest#migrateCycleInfo_createdByAndModifiedBy_rewrittenToTargetOrg` |
+| 5e | **已修复（Bug #75756，PR #4414）**：`migrateCycleInfo()`（`DataCycleManager.java:937-959`）的回归防护 | `createdBy`/`lastModifiedBy` 都被重写成目标组织下的同名用户身份，`orgId` 字段同样正确改写，与 `DataCycleAsset.orgId` 行为一致 | `[已落地]` `DataCycleManagerOrgLifecycleTest#migrateCycleInfo_createdByAndModifiedBy_rewrittenToTargetOrg` |
 
 **已确认缺陷 2（新发现，落地 5a-5e 时实测确认，不在原场景清单里）：** `getDataCycleIds(String orgId)`（私有，`DataCycleManager.java:741-756`）调用的是 `IndexedStorage.getKeys(Filter)` 的**单参**重载，内部（`BlobIndexedStorage.getMetadataStorage(null)`）落回 `OrganizationManager.getCurrentOrgID()`（当前线程组织上下文），完全不使用传入的 `orgId` 参数去限定查询范围——这个参数只在拿到 key 集合之后，用来给结果 `DataCycleId` 贴标签。`migrateDataCycles()`/`clearDataCycles()` 的两个真实调用方——`AbstractEditableAuthenticationProvider.copyOrganizationInternal()`（`:273`）、`IdentityService.syncIdentity()`（`:622`）——都**没有**像同一方法里其它步骤那样把这次调用包在 `OrganizationManager.runInOrgScope(oldOrgId, ...)` 里。
 
@@ -400,32 +410,51 @@
 
 - **写入触发**：key 编码 `scope^TYPE^ownerUser^assetPath^ipAddress~`（`AutoSaveUtils.java:334-345`），内容是 viewsheet/worksheet 原始序列化 XML。写入不是独立定时器，而是寄生在 Composer 的 STOMP 心跳上：心跳时若检测到"设计态+有未保存改动"就发 `TouchAssetEvent`，后端 `TouchAssetService.touchAsset()`（`:54-208`）按"距上次 autosave 是否有新访问"节流后才真正落盘。
 - **恢复提示（两处）**：① 打开 Composer 会话时，`SetPrincipalCommand`（`:55-61`）按用户+当前 IP 扫描其自动保存文件，前端弹"是否恢复上次未保存的文件"确认框；选"否"会把文件移入桶内 `recycle/` 子命名空间（`AutoSaveUtils.RECYCLE_PREFIX`，只是改名不是删除）。② 重新打开某个具体资产时，`OpenViewsheetController.validateOpen()`（`:100-113`）单独检查该资产是否存在自动保存文件并二次确认。
+- **丢弃（Discard）动作统一入口**：`VSEventUtil.deleteAutoSavedFile()` 是关闭 Composer（`closeViewsheet()`/`closeWorksheet()`）和打开资产时选"否"（`AbstractAssetEngine.getSheet()` 非 `openAutoSaved`/非 `TEMPORARY_SCOPE` 分支）两类丢弃场景的统一入口；Save 走另一条永久删除路径，不算丢弃。修复前该方法对已保存 sheet 是永久删除、只有 untitled sheet 才移入回收站；PR #4408（Issue #75777，见下方"已修复"）统一成不分场景一律移入回收站。
 - **生命周期收尾**：正常点击 Save 会显式调 `AutoSaveUtils.deleteAutoSaveFile()`（`SaveViewsheetDialogService.java:218`/`SaveWorksheetDialogService.java:91`）清掉草稿；`AutoSaveService` 每 3 小时清理一次超过 7 天的自动保存文件（含 `recycle/` 子命名空间）。
 - **EM 管理动作**：`Auto Saved Files` 节点只列 `recycle/` 子命名空间里的文件，管理员可 Restore（`AutoSaveController` 的 `restore` 接口，把草稿当新资产写回正常 `AssetRepository`）或 Delete，两个操作都落审计记录。
 
 往下读代码，发现两处疑似真 bug（均待确认，测试已写好但 `@Disabled`）、一处功能缺口（同样待确认、`@Disabled`）；6g 经落地测试复核确认不成立，结论见下表：
 
 - **6e（疑似 bug，待确认）`AutoSaveService.restoreAutoSaveAssets()` 目标组织解析错误，但范围比最初设想窄**：`AutoSaveService.java:89` 用 `new AssetEntry(GLOBAL_SCOPE, type, assetName, pId)` 这个 4 参构造函数，最终落到 `AssetEntry.java:573-585` 的 orgID `null` 分支，fallback 到 `OrganizationManager.getInstance().getCurrentOrgID()`（无参版本，走 `ThreadContext.getContextPrincipal()`），不是源自动保存文件的组织，也不是传入的 `principal` 参数。但读了生成的 `AutoSaveServiceProxy`（`target/generated-sources/.../AutoSaveServiceProxy.java`）和 `ServiceProxyContext` 之后发现：本地（同节点）调用完全不经过 `ServiceProxyContext.preprocess()`，`ThreadContext.getContextPrincipal()` 就是调用方当前线程原本的状态——正常情况下跟显式传入的 `principal` 参数是同一个身份（同一次请求）。真正会分叉的场景收窄成：管理员"代替他人"操作、或跨节点集群转发时代理构造那一刻捕获的 `contextPrincipal` 恰好跟传入参数不一致，不是"随便调用都可能触发"。
-- **6f（疑似 bug，待确认）`ContentRepositoryTreeService.addRecycleAutoSaved()` 用户枚举风险，跟 Bug #75759 同根因**：该方法依赖的 `createUserNodes()`→`getOrgUsers()` 最终走 `securityProvider.getUsers()`（`:2004`）；autosave 文件名里嵌的 `user` key 若枚举不到匹配的 `userNode`，`:462` 直接 `continue`，记录静默从树上消失——跟三、3.7 节 Bug #75759 私有回收 viewsheet 消失是同一个模式，这次影响的是 "Auto Saved Files" 节点。
+- **6f（疑似 bug，待确认，已确认与 Issue #75777 无关）`ContentRepositoryTreeService.addRecycleAutoSaved()` 用户枚举风险，跟 Bug #75759 同根因**：该方法依赖的 `createUserNodes()`→`getOrgUsers()` 最终走 `securityProvider.getUsers()`（`:2004`）；autosave 文件名里嵌的 `user` key 若枚举不到匹配的 `userNode`，`:462` 直接 `continue`，记录静默从树上消失——跟三、3.7 节 Bug #75759 私有回收 viewsheet 消失是同一个模式，这次影响的是 "Auto Saved Files" 节点。PR #4408 修复 Issue #75777 时未改动 `getOrgUsers()`/`createUserNodes()` 这条路径，说明这不是同一个缺陷；6f 本身是否真的会发生，仍待确认。
 
-**已确认缺陷（Issue #75777，2026-07-27，用户实测）：** 已存在的 autosave 文件（打开 viewsheet 时确实弹出了"是否恢复上次未保存的文件"确认框，证明该文件真的在 `__autoSave` 桶里）在 EM Content > Repository > Recycle Bin > Auto Saved Files 树上看不到。症状跟上面 6f 的假设高度吻合——但 6f 目前只是读代码得出的、还没跑过真实数据验证的假设（测试仍是 `@Disabled`），不能直接当成这个 issue 的已确认根因，不排除是其它路径导致的。**需要等这个 bug 修复后，重新用真实场景验证 6f 这个假设是否成立、是否就是本 issue 的根因**，而不是想当然地把两者划等号。
+**已修复（Issue #75777，PR #4408）：** 已保存过的 sheet 丢弃 autosave 草稿时会被直接删除、从未进入回收路径，只有 untitled（`TEMPORARY_SCOPE`）sheet 的草稿才会进回收站——这才是"已存在的 autosave 文件在 EM Auto Saved Files 树上看不到"的真正原因（机制细节见上方"Autosave — 管理/恢复层"的"丢弃动作的统一入口与修复前后差异"），**跟 6f 假设的用户枚举问题是两回事**（修复没有改动 `getOrgUsers()`/`createUserNodes()`）。同一 PR 顺带修复了同批因"非临时 scope 文件到不了回收站"而从未被触发、因此从未跑对过的几处代码：组织 ID 被误从文件名里的 IP 字段解析、恢复时按操作管理员重建文件名导致找不到源文件、一周过期清理路径重复加前缀导致从未真正删除过、树节点展示名未还原转义的路径分隔符。
 
 - **6h（功能缺口，待确认）`AutoSaveService.removeExpiredAutoSaveFiles()` 只清理默认组织**：`:47` 传 `getStorage(null)`，落到 `Organization.getDefaultOrganizationID()`；不像 `DataCycleManager`/`CleanupTableCacheTask` 那样显式遍历 `getOrganizationIDs()`。多租户下非默认组织的过期草稿永远不会被这个定时任务清理，不抛异常，静默漏扫。
+
+**2026-07-29 追加发现，Issue #75827（用户实测触发：rename、clone 后 autosave 文件均从 "Auto Saved Files" 树上消失）：**
+
+- **6i（已确认缺陷，Issue #75827，rename 分支，100% 必现）`updateAutoSaveFiles()` 只在 copy 时执行，rename 从不重写 autosave 文件名里的 orgID**：`AbstractEditableAuthenticationProvider.copyOrganizationInternal()`（`:259-269`）里 `identityService.updateAutoSaveFiles(fromOrganization, newOrg, principal)`——负责把 autosave 文件名 `ownerUser` 段里嵌的 `IdentityID` orgID 从源组织改写成目标组织——整段包在 `if(!replace)` 分支里，rename（`replace=true`）时完全跳过。`copyStorages()` 只是把 `__autoSave` 桶原样搬到新组织名下（6a/6b 已确认文件名本身不变），所以 rename 后文件名里的 `ownerUser` 依然是源组织的 `IdentityID.convertToKey()` 字符串。`ContentRepositoryTreeService.addRecycleAutoSaved()`（`:462-466`）要求这个字符串跟当前（改名后）组织用户列表里某个用户的 key **完全相等**才会挂到树上——源组织 orgID 永远不可能等于目标组织 orgID，因此 rename 后**所有** autosave 文件必然从树上消失，是结构性必现，不是概率性的。**跟 6f 命中同一处匹配代码，但根因不同**：6f 猜测的是"用户枚举跟不上"（概率性、待确认）；这里是"文件名压根没被重写"（确定性、已确认）。
+- **6j（疑似缺陷，高度怀疑，Issue #75827 涵盖的 clone 分支，与三、3.3 节 5f/5h"可达性分析"同一模式）`migrateAutoSaveFiles()` 的 `getStorage(principal)` 优先读 `principal` 自身的 `getCurrentOrgId()`，可能架空 `runInOrgScope`**：clone（`!replace`）时 `updateAutoSaveFiles()` 确实会执行，且包在 `OrganizationManager.runInOrgScope(newOrgID, ...)` 里，但内部 `AutoSaveUtils.getStorage(principal)` → `OrganizationManager.getCurrentOrgID(principal)`（`OrganizationManager.java:70-93`）的优先级是先取 `xPrincipal.getCurrentOrgId()`，只有这个值为空才退回 `runInOrgScope` 设置的 `OrganizationContextHolder`。执行"Add Organization → duplicate from"的管理员只要用过右上角组织切换器，`curr_org_id` 就不会是空的——`runInOrgScope(newOrgID,...)` 因此被架空，实际读写的桶变成管理员当前所在的组织，不是新建的目标组织，文件名里的 orgID 自然也不会被正确重写。现有 6g 单元测试没有覆盖这个分支：它特意构造了一个**没有设置 `curr_org_id`** 的 `XPrincipal`（只是身份自带的 org 跟 source/target 不同，不是 `curr_org_id` 属性），只验证了"退回 `OrganizationContextHolder`"这条兜底分支，没有验证"`principal` 自带 `curr_org_id` 时会抢先生效"这个更接近真实使用的场景。
 
 | # | 场景 | 预期 | 测试状态 |
 |---|---|---|---|
 | 6e | mock 线程上下文"当前组织"与 `restoreAutoSaveAssets()` 的 `principal` 参数所属组织不一致 | 断言恢复出的资产实际落在源文件组织/`principal` 组织，还是错误地落在线程上下文组织——先钉住现状 | `[已写好，@Disabled 待确认]` `AutoSaveServiceOrgLifecycleTest#restore_targetOrgResolvedFromThreadContext_notFromMethodPrincipal`（临时启用手动跑过一次，逻辑本身能跑通、断言按预期通过；`@Disabled` 是因为这一发现本身还没有走完确认流程，不是代码跑不通） |
-| 6f | 伪造 `SecurityProvider.getUsers()` 暂时枚举不到某个新组织下已存在 autosave 文件的用户 | 断言该记录确实从 `addRecycleAutoSaved()` 生成的树上消失（钉住现状，不假定应该修） | `[已写好，@Disabled 待确认]` `ContentRepositoryTreeServiceTest#addRecycleAutoSaved_ownerNotYetEnumerated_fileSilentlyDropped`（同上，临时启用验证过能跑通）——真实场景已有 Issue #75777 报告了相同症状，但根因是否就是这个测试假设的还没锁定，**等 Issue #75777 修复后需要重新验证**，不要在 bug 还没修的时候就把这条从"待确认"标成"已确认" |
-| 6g | 用一个自身组织与 source/target 都不同的真实 `XPrincipal`，在 `runInOrgScope(newOrgID,...)` 内调用 `migrateAutoSaveFiles()`，目标桶内预置一个"文件名还标着旧组织"的种子文件 | 断言文件在目标桶内被正确改名成新组织的身份字符串——证明 `runInOrgScope` 确实生效，不是空跑 | `[已落地]` `AutoSaveServiceOrgLifecycleTest#migrateAutoSaveFiles_runInOrgScope_correctlyScopesToNewOrgBucket`（真实运行通过，非 `@Disabled`） |
+| 6f | 伪造 `SecurityProvider.getUsers()` 暂时枚举不到某个新组织下已存在 autosave 文件的用户 | 断言该记录确实从 `addRecycleAutoSaved()` 生成的树上消失（钉住现状，不假定应该修） | `[已写好，@Disabled 待确认]` `ContentRepositoryTreeServiceTest#addRecycleAutoSaved_ownerNotYetEnumerated_fileSilentlyDropped`（同上，临时启用验证过能跑通）——Issue #75777 已修复（PR #4408），根因是"已保存 sheet 的 autosave 草稿从未进入回收路径"，**跟本场景的用户枚举假设无关**（修复未改动 `getOrgUsers()`/`createUserNodes()`），两者已确认是独立问题，本场景继续按"待确认"保留 `@Disabled` |
+| 6g | 用一个自身组织与 source/target 都不同的真实 `XPrincipal`，在 `runInOrgScope(newOrgID,...)` 内调用 `migrateAutoSaveFiles()`，目标桶内预置一个"文件名还标着旧组织"的种子文件 | 断言文件在目标桶内被正确改名成新组织的身份字符串——证明 `runInOrgScope` 确实生效，不是空跑 | `[已落地]` `AutoSaveServiceOrgLifecycleTest#migrateAutoSaveFiles_runInOrgScope_correctlyScopesToNewOrgBucket`（真实运行通过，非 `@Disabled`）——**注意**：该 principal 未设置 `curr_org_id`，未覆盖 6j 描述的架空场景 |
 | 6h | mock 多个组织各自有过期 autosave 文件，调用 `removeExpiredAutoSaveFiles()` | 断言非默认组织的过期文件未被清理（钉住现状）——注：`BlobStorage` 没有公开 API 可以倒填 lastModified，测试只能验证"桶的路由范围"这一层，验证不了"7 天后真的会被删"这个完整链路 | `[已写好，@Disabled 待确认]` `AutoSaveServiceOrgLifecycleTest#removeExpiredAutoSaveFiles_onlyScansDefaultOrgBucket_nonDefaultOrgNeverListed`（同上，临时启用验证过能跑通） |
+| 6i | rename（`replace=true`）之后，用 `addRecycleAutoSaved()` 匹配一个 `ownerUser` 仍标着源组织 orgID 的 autosave 文件，对照目标组织的用户列表 | 匹配必然失败，文件从 "Auto Saved Files" 树上消失——钉住已确认的缺陷行为 | `[待补]` |
+| 6j | mock 一个已设置 `curr_org_id`（不同于 `newOrgID`）的真实 `XPrincipal`，在 `runInOrgScope(newOrgID,...)` 内调用 `migrateAutoSaveFiles()` | 断言 `getStorage(principal)` 实际操作的是 `curr_org_id` 对应的桶而非 `newOrgID`——证明 `runInOrgScope` 被 `principal` 自带的 `curr_org_id` 架空 | `[待补]` |
 
-**测试覆盖：** 3 个场景（6a/6b/6d）已落地，`IdentityServiceAutoSaveOrgLifecycleTest.java`（`community/core/src/test/java/inetsoft/web/admin/security/`）——该文件另有 2 个 `@Test` 覆盖 7a（Task Save 文件 rename），场景文档已挪到三、3.3，测试代码本身仍在此文件里（代码邻接，未搬）；6c 不写 unit case，改走人工验证（见上方说明）；6g 已落地（正向验证，非 `@Disabled`）；6e/6f/6h 三个疑似缺陷/功能缺口的测试代码已写在 `AutoSaveServiceOrgLifecycleTest.java`（`community/core/src/test/java/inetsoft/web/`，6e/6h）和新建的 `ContentRepositoryTreeServiceTest.java`（`community/core/src/test/java/inetsoft/web/admin/content/repository/`，6f）里，均标 `@Disabled` 待产品/后续确认——但三者都已临时启用手动跑通过一次，确认测试本身逻辑站得住、不是编译或断言写错；"当前组织"切换手法复用 `RecycleBinOrgLifecycleTest` 已验证过的 `ThreadContext.setContextPrincipal(SRPrincipal)` + `OrganizationContextHolder.setCurrentOrgId()`。
+**测试覆盖：** 3 个场景（6a/6b/6d）已落地，`IdentityServiceAutoSaveOrgLifecycleTest.java`（`community/core/src/test/java/inetsoft/web/admin/security/`）——该文件另有 2 个 `@Test` 覆盖 7a（Task Save 文件 rename），场景文档已挪到三、3.3，测试代码本身仍在此文件里（代码邻接，未搬）；6c 不写 unit case，改走人工验证（见上方说明）；6g 已落地（正向验证，非 `@Disabled`）；6e/6f/6h 三个疑似缺陷/功能缺口的测试代码已写在 `AutoSaveServiceOrgLifecycleTest.java`（`community/core/src/test/java/inetsoft/web/`，6e/6h）和新建的 `ContentRepositoryTreeServiceTest.java`（`community/core/src/test/java/inetsoft/web/admin/content/repository/`，6f）里，均标 `@Disabled` 待产品/后续确认——但三者都已临时启用手动跑通过一次，确认测试本身逻辑站得住、不是编译或断言写错；"当前组织"切换手法复用 `RecycleBinOrgLifecycleTest` 已验证过的 `ThreadContext.setContextPrincipal(SRPrincipal)` + `OrganizationContextHolder.setCurrentOrgId()`。6i/6j 是 2026-07-29 用户实测发现的新场景，测试尚未落地。
 
 ---
 
 ### 3.5 Data Space 文件
 
-**机制说明：** `copyDataSpace(fromOrg, toOrg, replace)`（`AbstractEditableAuthenticationProvider.java:444-491`）：`replace=true` 用 `dataspace.rename()`，`replace=false` 用 `dataspace.copy()`；若源是默认组织，copy 分支额外复制 MV 文件系统/Block 系统元数据。`setOrganizationInfo()` 入口另有独立实现 `updateOrgScopedDataSpace()`。
+**机制说明：** `copyDataSpace(fromOrg, toOrg, replace)`（`AbstractEditableAuthenticationProvider.java:444-491`）：`replace=true` 用 `dataspace.rename()`，`replace=false` 用 `dataspace.copy()`；若源是默认组织，copy 分支额外复制 MV 文件系统/Block 系统元数据。`setOrganizationInfo()` 入口另有独立实现 `updateOrgScopedDataSpace()`。两者最终判断"哪些路径属于这个组织"都靠 `DataSpace.getOrgScopedPaths(Organization)`（`DataSpace.java:403-409`），本节下方"规则N"均指该方法源码里按从左到右书写顺序排列的六个 OR 条件：
+
+| 规则 | 源码条件 | 匹配的路径形态 |
+|---|---|---|
+| 规则1 | `p.equals("portal/" + oorg.getId())` | `portal/{orgId}` 精确匹配 |
+| 规则2 | `p.startsWith("portal/" + oorg.getId() + "/")` | `portal/{orgId}/...` 前缀 |
+| 规则3 | `p.startsWith(oorg.getId() + "__")` | `{orgId}__...` 前缀 |
+| 规则4 | `p.equals(oorg.getId())` | `{orgId}` 精确匹配 |
+| 规则5 | `p.startsWith(oorg.getId() + "/")` | `{orgId}/...` 前缀 |
+| 规则6 | `p.startsWith("sreeUserData/") && p.endsWith("_" + oorg.getId() + ".xml")` | `sreeUserData/..._{orgId}.xml`（Issue #75763 修复后的写法，此前是死代码，见下方"已修复"结论） |
+
+三、3.6 Replet Registry 提到的"命中规则5"引用的就是这张表。
 
 **Copy 场景**
 
@@ -444,21 +473,15 @@
 
 | # | 场景 | 预期 | 测试状态 |
 |---|---|---|---|
-| 8c | `removeOrgScopedDataSpaceElements()` 按路径枚举删除（共享背景 delete 清单 `:614`） | 无孤儿路径 | `[已落地]` `OrgLifecycleDataSpaceIntegrationTest#delete_removeOrgScopedDataSpaceElements_allKnownPathShapes_noOrphans`——`getOrgScopedPaths()` 六个 OR 分支中的五个（`portal/{orgId}` 精确匹配、`portal/{orgId}/...` 前缀、`{orgId}__...` 前缀、`{orgId}` 精确匹配、`{orgId}/...` 前缀）逐一用独立 orgId 种子验证，删除后均无孤儿。第六个分支（`sreeUserData/...`）行为不同，见下方"已确认缺陷（Issue #75763）"——`delete_removeOrgScopedDataSpaceElements_sreeUserDataFile_survivesAsOrphan` 单独钉住这个反例，不算在"无孤儿"结论内 |
+| 8c | `removeOrgScopedDataSpaceElements()` 按路径枚举删除（共享背景 delete 清单 `:614`） | 无孤儿路径 | `[已落地]` `OrgLifecycleDataSpaceIntegrationTest#delete_removeOrgScopedDataSpaceElements_allKnownPathShapes_noOrphans`（五个路径形态）+ `#delete_removeOrgScopedDataSpaceElements_sreeUserDataFile_isRemoved`（第六个分支 `sreeUserData/...`，Issue #75763 修复后已改为断言无孤儿，见下方结论） |
 
-**已确认缺陷（Issue #75763，8c 落地时新发现，不在原场景清单里；已通过 EM 前端实测复现，2026-07-24）：** `DataSpace.getOrgScopedPaths()`（`DataSpace.java:404-410`）第六个 OR 分支——匹配 `sreeUserData/` 下的 per-user `UserEnv` 文件——实际上是死代码，从未按预期工作。真实的 per-user 文件名是 `{name}_{orgId}.xml`（`UserEnv.java:237`），文件名里不含 `IdentityID.KEY_DELIMITER`（`"~;~"`）。`IdentityID.getIdentityIDFromKey()`（`IdentityID.java:88-113`）只有在 key 里找到这个分隔符时才会从字符串本身解析出 orgID（`:96-105`）；找不到分隔符时（真实文件名的情况）会落到 `:106-112` 的 else 分支，**直接返回调用线程当前的 principal/`OrganizationManager` 组织上下文，完全不看传入的路径字符串**。因此 `getOrgScopedPaths()` 里 `Tool.equals(IdentityID.getIdentityIDFromKey(p).getOrgID(), oorg.getId() + ".xml")` 这个比较——把结果去跟 `"{targetOrgId}.xml"`这个带字面量后缀的字符串比——在真实数据下几乎不可能为真（除非某个组织的 ID 恰好就是字面量 `"{targetOrgId}.xml"`）。净效果：`sreeUserData/` 下的 per-user 文件从未被 `getOrgScopedPaths()` 匹配到：
-
-- **改名（已实测复现）**：`copyDataSpace()`/`updateOrgScopedDataSpace()` 都靠 `getOrgScopedPaths()` 决定搬哪些文件，`{name}_{oldOrgId}.xml` 因此永远不会被搬到 `{name}_{newOrgId}.xml`。改名后任何 `UserEnv.getProperty()` 读取（此时按新 org ID 解析身份）都会落空、退回属性默认值——前端可见症状：Portal Preferences 对话框的 History Bar 开关（`PreferencesDialogController.java:60,135`）等 `UserEnv` 支持的用户级设置在组织改名后静默重置为系统默认值。复现步骤：用户登录后在 Preferences 里把 History Bar 改成跟系统默认值相反的状态并保存 → 站点管理员在 EM 里把该组织的 Organization ID（不是显示名）改掉 → 用户用新 ID 重新登录、再打开 Preferences → 之前设置的值消失，变回默认值。已按此步骤实测确认。旧文件本身留在旧 org ID 路径下成为孤儿。代码层面的机制由 `OrgLifecycleDataSpaceIntegrationTest#rename_sreeUserDataFile_neitherEntryPointRelocatesIt_currentBuggyBehaviorBaseline` 钉住（对 `copyDataSpace(replace=true)`/`updateOrgScopedDataSpace()` 两条独立入口分别验证：源文件都原地不动，新组织都没收到文件）——**有意不加 `@Disabled`**：这套测试对"已确认但未修复的缺陷"的约定是主动跑、断言当前（错误）行为，这样将来行为一变（不管是修复还是改坏）测试会立刻失败，逼着开发者更新它，而不是被静默遗忘；`@Disabled` 在本文档的测试里只留给测试基础设施本身不稳定的场景（如 4c 的 flaky 标注），不用于"这是个已知但还没修的 bug"。
-- **删除**：`removeOrgScopedDataSpaceElements()` 同样靠 `getOrgScopedPaths()` 决定删哪些文件，这些文件永远删不到，组织删除后永久残留成孤儿存储——测试仅钉住当前行为（`delete_removeOrgScopedDataSpaceElements_sreeUserDataFile_survivesAsOrphan`），不假定应该怎么修。
-- **复制**：新组织同样不会拿到源组织现有用户的 `sreeUserData` 文件（同一个 `getOrgScopedPaths()` 缺口）。
-
-受影响的不只是 History Bar——任何经 `UserEnv.setProperty()`/`getProperty()` 持久化的用户级设置都受同样的改名丢失/删除孤儿影响，包括：`locale`（用户保存的语言偏好）、`annotation`（viewsheet 注解显示记忆）、`email`（分享/定时邮件对话框的自动填充缓存）、`vswizard.dialog.status`/`wswizard.dialog.status`（Composer 向导对话框开关状态记忆）、单条 repository 条目的"已读"标记（`RepositoryTreeController.java:508`）、worksheet 变量值记忆（`VariableAssemblyDialogService.java`）。
+**已修复（Issue #75763，PR #4381，2026-07-27）：** `sreeUserData/` 下的 per-user `UserEnv` 文件（History Bar、locale、annotation 等所有经 `UserEnv.setProperty()`/`getProperty()` 持久化的用户级设置）改名后丢失、删除后成孤儿。`DataSpace.getOrgScopedPaths()` 第六个 OR 分支改为直接按文件名后缀匹配（`p.endsWith("_" + oorg.getId() + ".xml")`），对所有此类设置一次性生效，`copyDataSpace`/`updateOrgScopedDataSpace`/`removeOrgScopedDataSpaceElements` 三个调用方同步修复。原两个"钉住当前错误行为"的特征测试已同步翻转为断言修复后行为：`rename_sreeUserDataFile_bothEntryPointsRelocateItToNewOrgId`、`delete_removeOrgScopedDataSpaceElements_sreeUserDataFile_isRemoved`。
 
 **测试覆盖：** 8a-8d 全部落地，`OrgLifecycleDataSpaceIntegrationTest.java`（`community/core/src/test/java/inetsoft/sree/security/`，与 8a 所在的 `AbstractEditableAuthenticationProviderStaticDepTest` 同包，复用其包内可见的 `StubProvider` 而非重复定义），共 5 个 `@Test`（含 Issue #75763 的删除路径 + 改名路径两个特征测试），全部通过、无 `@Disabled`；均直接调用 `copyDataSpace()`/`updateOrgScopedDataSpace()`/`removeOrgScopedDataSpaceElements()` 本身（反射 + 真实 `DataSpace` bean），不经过 `copyOrganizationInternal()`/`setOrganizationInfo()` 完整编排，因此不需要 `PortalThemesManager`/`DashboardRegistryManager` 之类的额外 bean 覆盖。
 
 #### 附录：DataSpace 资源盘点（2026-07-24 全量普查）
 
-sreeUserData 这个缺陷找到后带出了一个自然的问题：`getOrgScopedPaths()` 六条匹配规则会不会漏掉别的资源？为回答这个问题，把 `community/core` 里所有经过 `DataSpace`（以及概念上常被一起提起、但物理上是独立 blob/KV 桶的"其它存储"）读写的资源类型过了一遍。结论：**`sreeUserData` 是目前找到的唯一一个"路径确实落在 `dataSpace` 桶里、但六条规则都没接住"的同类缺陷**；额外挖到两个性质不同但同样真实的问题（`PortalThemesManager` 品牌元数据、`emFavorites` 删除路径死代码），分别在下方独立说明。
+sreeUserData 这个缺陷找到后带出了一个自然的问题：`getOrgScopedPaths()` 六条匹配规则会不会漏掉别的资源？为回答这个问题，把 `community/core` 里所有经过 `DataSpace`（以及概念上常被一起提起、但物理上是独立 blob/KV 桶的"其它存储"）读写的资源类型过了一遍。结论：**`sreeUserData` 是目前找到的唯一一个"路径确实落在 `dataSpace` 桶里、但六条规则都没接住"的同类缺陷**；额外挖到一个性质不同但同样真实的问题——`PortalThemesManager` 品牌元数据（下方独立说明），另有 `emFavorites` 删除路径死代码（不落在 `dataSpace` 桶里，机制上不属于本附录范围，已独立成节，见三、3.9）。
 
 **A. 落在 `dataSpace` 桶里、被 `getOrgScopedPaths()` 正确匹配（隔离且生效）：**
 
@@ -474,7 +497,7 @@ sreeUserData 这个缺陷找到后带出了一个自然的问题：`getOrgScoped
 | A8 | MV FileSystem 索引 | `{orgId}/fs.xml`（`AbstractFileSystem.java`） | 规则 5 | 正常，已在场景 8b 覆盖 |
 | A9 | MV BlockSystem 索引 | `{orgId}/bs.xml`（`DefaultBlockSystem.java`） | 规则 5 | 正常，已在场景 8b 覆盖 |
 | A10 | Legacy 报表部署导入：用户级模板 | `portal/{orgId}/{user}/my dashboard/{fname}`（`DeployManagerService.java:222-236`） | 规则 2 | 正常 |
-| A11 | 每用户 `UserEnv` 偏好设置 | `sreeUserData/{name}_{orgId}.xml`（`UserEnv.java:237`） | 规则 6（**死代码，实际不匹配**） | **已确认缺陷，Issue #75763，见上方** |
+| A11 | 每用户 `UserEnv` 偏好设置 | `sreeUserData/{name}_{orgId}.xml`（`UserEnv.java:237`） | 规则 6（曾是死代码，**已修复**） | **已修复，Issue #75763，见上方** |
 
 **B. 落在 `dataSpace` 桶里、但设计上本来就不按组织隔离（非缺陷，如实记录）：**
 
@@ -492,11 +515,9 @@ sreeUserData 这个缺陷找到后带出了一个自然的问题：`getOrgScoped
 
 **C. 完全不在 `dataSpace` 桶里的资源（独立 BlobStorage/KeyValueStorage 桶，`getOrgScopedPaths()` 物理上管不到，各自有专属清理机制，不在本节重复展开）：**
 
-`__mv`/`__mvws`/`__mvBlock`/`__pdata`/`__library`/`__tableCacheStore`/`__autoSave`/`__recyclebin`/`__dependencyStorage`/`__dashboards`/`{orgId}__indexedStorage` 均按 org 分桶，`IdentityService.copyStorages()`/`removeStorages()` 对每个桶单独调用专属的 remove/copy 方法（见共享背景 delete 清单、一、二、三、3.2/3.4/3.6/3.7）——这些不是本轮普查的新发现，只做索引。本轮普查在这一类里新确认一个问题：
+`__mv`/`__mvws`/`__mvBlock`/`__pdata`/`__library`/`__tableCacheStore`/`__autoSave`/`__recyclebin`/`__dependencyStorage`/`__dashboards`/`{orgId}__indexedStorage` 均按 org 分桶，`IdentityService.copyStorages()`/`removeStorages()` 对每个桶单独调用专属的 remove/copy 方法（见共享背景 delete 清单、一、二、三、3.2/3.4/3.6/3.7）——这些不是本轮普查的新发现，只做索引。本轮普查在这一类里新发现的 `emFavorites` 桶不是按组织分桶（全局单一桶），机制上不属于 DataSpace 普查范围，已独立成节，见三、3.9。
 
-- **EM "Manage Favorites"（Issue #75766，全局单一 `emFavorites` KeyValueStorage 桶，非按组织分桶，key = identity 字符串）**——改名路径正确：`IdentityService.updateOrganizationMembers()`（`:883-895`）会把每个成员的收藏列表从旧 identity key 搬到新 identity key。但**删除路径的对应清理方法 `IdentityService.deleteOrganizationMembers()`（`:774-819`，含逐用户 `favorites.remove(...)`）在全代码库里找不到任何调用点——是写好了却从未接入组织删除调用链的死代码**（真实删除入口 `syncIdentity()` 的 `Identity.ORGANIZATION` 分支，`:608-640`，从未调用它），跟 11b（`RecycleBin.migrateEntries()`）、5e（`migrateCycleInfo()` 未写回）是同一种"实现了却没接线"的模式。组织真正被删除时，其所有成员在 EM 首页的收藏列表会永久残留在这个全局桶里成为孤儿——**已确认缺陷，待产品确认影响面后决定是否需要在组织删除流程里补上这个调用**。
-
-（Portal 仓库树上的"星标收藏"——文件夹用 `RepletRegistry` 的 `favoritesUser` 属性、资产用 `AssetEntry.addFavoritesUser()`——都寄生在已经隔离好的资源里，不是独立路径，不产生新风险。）
+（Portal 仓库树上的"星标收藏"——文件夹用 `RepletRegistry` 的 `favoritesUser` 属性、资产用 `AssetEntry.addFavoritesUser()`——都寄生在已经隔离好的资源里，不是独立路径，不产生新风险，跟三、3.9 的 EM "Manage Favorites" 是完全不同的两个功能，别混。）
 
 ---
 
@@ -548,29 +569,15 @@ sreeUserData 这个缺陷找到后带出了一个自然的问题：`getOrgScoped
 
 **"回收站里的 dashboard" 辨析（2026-07-24 追加，容易被术语混淆）：** 回收站里存放的资产，代码里类型就是 **viewsheet**（`AssetEntry.Type.VIEWSHEET`），跟三、3.2 节 `DashboardRegistryManager` 管理的 "Dashboard" 是完全不同的两个概念——"dashboard" 这个词在这里只是两处 UI/命名层面的用法，不代表底层对象类型变了：① `Tool.MY_DASHBOARD = "My Dashboards"`——Portal 里每个用户私有文件夹的名字（历史上也叫 "My Reports"），文件夹里放的仍然是 viewsheet；② `RecycleUtils.getTypeLabel()` 只是把被回收的 viewsheet 类型在展示层标成 `"dashboard"` 文案。
 
-**已确认缺陷（Bug #75759，2026-07-24）：私有（"My Dashboards"）viewsheet 被移入回收站后，组织 clone（copy）之后在 Repository 树的 Recycle Bin 节点下看不到：** 报告的复现步骤是：删除一个私有 viewsheet（进入 `content/Repository/Recycle Bin`）→ clone 该组织 → 新组织下这个被回收的私有 viewsheet 和它所在的文件夹在树上都看不到了。
-
-排查过程：EM 的 Recycle Bin 树由 `RepositoryRecycleBinController.getRecycleNodeFromAssets()`（`RepositoryRecycleBinController.java:145-159`）驱动——对 `securityProvider.getUsers()` 里的每个用户，构造一个 `AssetEntry(USER_SCOPE, entryType, "Recycle Bin", user)`，再用 `AssetRepository.getEntries()` 枚举其下的子条目，逐条去 `recycleBin.getEntry(childPath)` 找元数据、拼一行表格。私有回收项因此**同时依赖两层**：① `AssetRepository`/`IndexedStorage`（机制二）里必须存在这个用户的 "Recycle Bin" `AssetFolder` 容器，且容器里的子 `AssetEntry` 指向被回收 viewsheet 迁移后的真实 key；② `RecycleBin` 自己的 KV 桶（本节 11a）里必须有一条 key 匹配的元数据记录，两者缺一个，`getRecycleNodeFromAssetEntries()` 里 `binEntry != null` 判断就会跳过这一行，整条记录从树上消失。
-
-已经用真实 `BlobIndexedStorage.copyStorageData()`（不 mock）直接验证了①这一层——`OrgLifecycleAssetContentMigrationTest#copy_userScopeRecycleBinFolder_childViewsheetAndFolderBothMigrate`（`community/core/src/test/java/inetsoft/uql/asset/sync/`）：构造一个 `USER_SCOPE`/`Type.FOLDER`、路径为 `"Recycle Bin"` 的 `AssetFolder`（`RecycleUtils.moveSheetToRecycleBin()` 第一次给某用户回收东西时用 `AssetRepository.addFolder()` 懒创建的同款容器），里面挂一个子 `AssetEntry` 指向被回收的私有 viewsheet；跑一次 `copyStorageData(fromOrg, toOrg, replace=false)`。**结果：容器本身、容器内子条目的 org/user 段、子条目指向的 viewsheet 内容——三者在目标组织下全部正确迁移，key 互相对得上，源组织侧也没有被这次复制污染（`AssetFolder` 是同一个对象被原地 `removeEntry`/`addEntry` 改造后只写回新 key，验证过没有连带改坏旧 key 读到的内容）**。这排除了"机制二迁移这个 USER_SCOPE 文件夹容器时漏处理"这个最直接的猜测——存储层这一步是正确的。
-
-也就是说，Bug #75759 的根因大概率不在 ① 这一层，而在 ② 或者更上层——`RecycleBin` 自己的 KV 桶迁移（11a，"纯整桶复制"）本身按 key 不变的方式复制，key 里不含 orgID（`"Recycle Bin/{uuid}"`，见 `RecycleUtils.getRecycleBinPath()`），理论上应该原样可用；真正没有排除的是 `RepositoryRecycleBinController.getRecycleNodeFromAssets()` 依赖的 `securityProvider.getUsers()`（新 clone 出来的组织，这一步返回的用户列表是否及时/正确反映新组织的用户）、以及 `AssetRepository.getEntries()` 相对 `BlobIndexedStorage` 直接读写是否存在额外的一层缓存/索引（`copyStorageData()` 是绕过 `AssetRepository.addFolder()`/`setSheet()` 正常写入路径、直接写 `IndexedStorage` 的批量后台操作，如果 `AssetRepository` 在这层之上还维护了自己的目录/文件夹列表缓存且没有对着这批新写入的 key 失效/重建，就会解释"存储里数据都对、但树上看不到"这个症状）。这两个方向都还没有实测验证，先记录范围收窄的结论，不当作已定位的根因。
-
-**已确认缺陷（2026-07-24，已通过真实 `RecycleBin`+`KeyValueStorageManager` 测试实锤，不再是仅代码读出的疑似）：** `RecycleBin` 类里定义了完整的一套身份字段重写逻辑——`migrateEntries()`/`migrateEntryPermission()`/`migratePermissionGrants()`（`:177-304`），用来把每条 `Entry` 内嵌的 `originalUser`（`IdentityID`）和 `permission`（`Permission`，按用户/组/角色/组织的授权）从旧组织重写成新组织。但全代码库搜索确认，`migrateEntries()` **没有任何调用点**——`IdentityService.copyStorages()` 只调用了 `copyStorageData()`（纯 KV 复制），从未调用 `migrateEntries()`——这与 5e（`migrateCycleInfo()` 写好了重写逻辑但没写回）是同一种"实现了却没接入调用链"的模式。
-
-实测过程中又叠了两层新发现，就算以后有人把 `migrateEntries()` 接回 `copyStorages()`，光这一步也还不够：
-
-1. **`migrateEntries()` 自己不落盘**：它只在传进来的 `Map<String, Entry>` 上原地改 `Entry` 对象的 `originalUser`/`permission` 字段，方法体里没有任何 `storage.put()`/持久化调用。`RecycleBinOrgLifecycleTest#migrateEntries_identityRewritten_permissionGrantsRewritten_butNeverPersisted` 实测确认：调用后立刻用同一个内存对象读，`originalUser`/`permission` 都已经改成新组织；但重新从 KeyValueStorage `getEntry()` 读一次同一个 key，读到的还是没被改过的旧值——不接一个显式的按 key `put()` 回写，这次修改就是一次性的，进程重启或缓存失效后就没了。
-2. **`migratePermissionGrants()` 读权限用的是"当前组织"过滤过的 `getGrants()` 重载，不是按迁移源组织显式取**：`Permission.getGrants(action, identityType)`（2 参重载，`Permission.java:413-417`）内部用 `OrganizationManager.getCurrentOrgID()` 过滤，`migratePermissionGrants()`（`RecycleBin.java:224-266`）用的正是这个重载，而不是能显式传 orgId 的 3 参重载。`RecycleBinOrgLifecycleTest#migrateEntries_permissionGrantsSilentlyUnchanged_whenCurrentOrgDoesNotMatchGrantsOrg` 实测确认：只要调用 `migrateEntries()` 那一刻线程的"当前组织"不等于这条授权本身所属的组织（哪怕 `oorg`/`norg` 参数都传对了），`getGrants()` 就会返回空集合，`if(!grants.isEmpty())` 直接跳过 `setGrants()`，这条权限授权原封不动留在旧组织身份上——`originalUser` 字段的重写不受这个影响（它是直接字段赋值，不经过 `getGrants()`），只有 `permission` 这半边受影响，同一个方法内两个字段的可靠性并不一致。这跟三、3.3 节 5f/5h、三、3.8.2 节 Issue #75769 是同一种"当前组织上下文耦合"风险模式。
-
-也就是说，组织复制/改名后，回收站里每条记录的 `originalUser`/`permission` 目前**必定**仍指向旧组织的身份字符串（因为第一层"从未调用"就已经生效），業务影响面（回收站 UI 是否真的读取/显示这些字段、错误的 `originalUser`/`permission` 会不会导致权限判断错误）仍待确认。
+**已修复（Bug #75759，PR #4382，2026-07-27）：** 私有（"My Dashboards"）viewsheet 被移入回收站后，组织 clone（copy）之后在 Repository 树的 Recycle Bin 节点下看不到。新增 `RecycleBin.migrateStorageData(oorg, norg)`（复制条目 + 重写 `originalUser`/`permission` + 显式持久化，`RecycleBin.java:317-347`），`IdentityService.copyStorages()` 改为调用它而不是原始 `copyStorageData()`。`RecycleBinOrgLifecycleTest` 保留 11a/11b 对底层 `copyStorageData()`/`migrateEntries()` 单独调用时的旧行为特征测试（作为对照组），新增 `migrateStorageData_reScopesOriginalUser_andPersists_sourceUntouched` 验证修复后 `copyStorages()` 实际调用的入口方法。
 
 **Copy/Rename 场景**（同一方法，行为相同）
 
 | # | 场景 | 预期 | 测试状态 |
 |---|---|---|---|
-| 11a | `copyStorageData(oId, id)`，copy/rename 共用 | 整桶流式复制，不删源（删源另在 delete 清理块生效，同 6a/6b 的结论） | `[已落地]` `RecycleBinOrgLifecycleTest#copy_copyStorageData_wholeBucketCopied_sourceUntouched`（真实 `RecycleBin`+`KeyValueStorageManager`；同时顺带钉住 11b 的"copy 侧不重写"证据：迁移后条目的 `originalUser` 仍是源组织） |
-| 11b | 已确认缺陷：`migrateEntries()` 从未被调用；即使调用了也有两处额外问题（见上方说明） | 复制/改名后，`Entry.originalUser`/`Entry.permission` 仍停留在旧组织的身份字符串上，不会被重写；`migrateEntries()` 即使被接入，其修改也不会持久化，且权限授权部分还额外依赖"当前组织"上下文是否凑巧匹配 | `[已落地]` `RecycleBinOrgLifecycleTest#migrateEntries_identityRewritten_permissionGrantsRewritten_butNeverPersisted`（当前组织=源组织时：identity 和 permission 都能在内存里正确重写，但重新从存储读一次就打回原形）、`#migrateEntries_permissionGrantsSilentlyUnchanged_whenCurrentOrgDoesNotMatchGrantsOrg`（当前组织≠源组织时：`originalUser` 仍正确重写，但 `permission` 授权完全不动） |
+| 11a | `copyStorageData(oId, id)`，底层原始方法（已不是 `copyStorages()` 实际调用的入口，见 11d） | 整桶流式复制，不删源、不重写 `originalUser`/`permission`——作为对照组，证明 11d 的重写不是没做事 | `[已落地]` `RecycleBinOrgLifecycleTest#copy_copyStorageData_wholeBucketCopied_sourceUntouched` |
+| 11b | `migrateEntries()`，底层原始方法（同样已不是 `copyStorages()` 实际调用的入口，见 11d）：单独调用会重写内存对象但不持久化，权限授权部分依赖"当前组织"上下文是否凑巧匹配 | 单独调用 `migrateEntries()`：`originalUser`/`permission` 在内存对象上被重写，但不落盘；权限授权部分若调用时"当前组织"≠源组织则完全不重写 | `[已落地]`（文档性，说明底层方法本身的局限）`RecycleBinOrgLifecycleTest#migrateEntries_identityRewritten_permissionGrantsRewritten_butNeverPersisted`、`#migrateEntries_permissionGrantsSilentlyUnchanged_whenCurrentOrgDoesNotMatchGrantsOrg` |
+| 11d | **已修复（Bug #75759）：** `migrateStorageData(oorg, norg)`——`copyStorages()` 现在实际调用的入口，组合了 11a 的复制 + 11b 的重写 + 显式持久化 + `runInOrgScope` 包裹权限读取 | 目标组织读到的条目 `originalUser` 正确指向新组织并已持久化，源组织条目不受影响 | `[已落地]` `RecycleBinOrgLifecycleTest#migrateStorageData_reScopesOriginalUser_andPersists_sourceUntouched` |
 
 **Delete 场景**
 
@@ -578,7 +585,7 @@ sreeUserData 这个缺陷找到后带出了一个自然的问题：`getOrgScoped
 |---|---|---|---|
 | 11c | `removeStorage(orgID)`（共享背景 delete 清单 `:1101`） | 整桶删除 | `[已落地]` `RecycleBinOrgLifecycleTest#delete_removeStorage_wholeBucketDeleted` |
 
-**测试覆盖：** 11a-11c 全部落地，`RecycleBinOrgLifecycleTest.java`（`community/core/src/test/java/inetsoft/web/`），共 4 个 `@Test`，全部通过、无 `@Disabled`；直接调用 `RecycleBin` 的 public 方法（`copyStorageData()`/`removeStorage()`/`migrateEntries()`），不经过 `IdentityService.copyStorages()`/`removeStorages()` 完整编排；"当前组织"切换复用 `OrgLifecycleScopedPropertiesIntegrationTest` 已验证过的 `ThreadContext.setContextPrincipal(SRPrincipal)` + `OrganizationContextHolder.setCurrentOrgId()` 手法。另外，Bug #75759 排查过程中新增了 1 个相关测试，但落在机制二的测试文件里而不是本节——`OrgLifecycleAssetContentMigrationTest#copy_userScopeRecycleBinFolder_childViewsheetAndFolderBothMigrate`（`community/core/src/test/java/inetsoft/uql/asset/sync/`），验证的是 `BlobIndexedStorage.copyStorageData()` 对 USER_SCOPE "Recycle Bin" `AssetFolder` 容器+子条目的迁移，不是 `RecycleBin`（本节机制）自己的 KV 桶迁移，因此没有算进本节场景表——记在这里防止将来去 3.6/3.7 之外的地方漏找。
+**测试覆盖：** 11a-11d 全部落地，`RecycleBinOrgLifecycleTest.java`（`community/core/src/test/java/inetsoft/web/`），共 5 个 `@Test`，全部通过、无 `@Disabled`；11a/11b 直接调用 `RecycleBin` 的底层 public 方法（`copyStorageData()`/`migrateEntries()`）作为对照组，11d 调用修复后实际接入 `copyStorages()` 的 `migrateStorageData()`；"当前组织"切换复用 `OrgLifecycleScopedPropertiesIntegrationTest` 已验证过的 `ThreadContext.setContextPrincipal(SRPrincipal)` + `OrganizationContextHolder.setCurrentOrgId()` 手法。另外，Bug #75759 排查过程中新增了 1 个相关测试，但落在机制二的测试文件里而不是本节——`OrgLifecycleAssetContentMigrationTest#copy_userScopeRecycleBinFolder_childViewsheetAndFolderBothMigrate`（`community/core/src/test/java/inetsoft/uql/asset/sync/`），验证的是 `BlobIndexedStorage.copyStorageData()` 对 USER_SCOPE "Recycle Bin" `AssetFolder` 容器+子条目的迁移，不是 `RecycleBin`（本节机制）自己的 KV 桶迁移，因此没有算进本节场景表——记在这里防止将来去 3.6/3.7 之外的地方漏找。
 
 ---
 
@@ -605,6 +612,10 @@ sreeUserData 这个缺陷找到后带出了一个自然的问题：`getOrgScoped
 
 `addLogoEntry`/`removeLogoEntry`/`addFaviconEntry`/`removeFaviconEntry`/`setWelcomePage(orgId,...)`/`removeWelcomePage(orgId)` 这几个方法确实存在（`PortalThemesManager.java:330-359`、`:468-488`），但全代码库里唯一的调用方是用户手动在 EM "Look and Feel"/"Welcome Page" 设置页面里显式改这几项时触发的 `LookAndFeelService`/`WelcomePageService`/`PresentationLoginBannerSettingsService`——组织生命周期代码（`AbstractEditableAuthenticationProvider`/`IdentityService`）里一次都没调用过这三组方法。
 
+**三个 map 是各自独立的方法/字段，不是同一段代码的三个副作用——修一个不会连带修好另外两个（2026-07-28 补充）：** `logoEntries`/`faviconEntries`/`welcomePageEntries` 各有自己独立的 `Map` 字段和独立的 add/remove 方法对，`copyOrganizationInternal()` 里"没调用"是三次分别的遗漏，不是一处共享逻辑漏了导致三个一起没触发。这意味着：如果未来有人只针对"改名后 Welcome Page/Login Banner 变回默认值"这一个用户报告去修（照抄 `cssEntries` 的写法，在 `copyOrganizationInternal()` 里补上 `setWelcomePage`/`removeWelcomePage` 调用），`logoEntries`/`faviconEntries` **不会被这次修复顺带覆盖**，因为改的是完全不同的两个方法调用点。跟 Issue #75763（sreeUserData）、Issue #75769（Presentation 属性）等已修复案例的经验一致——这些修复都严格按报告的症状范围改，不会主动扩展到"结构相似但没人报告"的相邻缺陷。三个 map 要一起修，需要显式地把 `addLogoEntry`/`addFaviconEntry` 也一并加进同一处改动，不能假设一次修复会自动带上。
+
+**前端手动验证 Logo/Favicon 的前置条件（2026-07-28 补充，验证 12b/12c 时会用到）：** EM "Look and Feel" 页面的 "Default Logo"/"Default Favicon" 勾选框默认不显示，由 `LookAndFeelSettingsModel.customLogoEnabled`（`LookAndFeelService.java:58`：`SreeEnv.getBooleanProperty("portal.customLogo.enabled", false, !globalProperty)`）门控，默认值 `false`。要让这两个勾选框出现，必须先用 **host-org 的 site admin** 身份进 **EM → Settings → Properties**（`booleanProperties` 列表里的 `portal.customLogo.enabled`，`web/projects/em/src/app/settings/properties/property-settings-view/properties-tool.ts:52`）手动把它设成 `true`——而 "Settings > Properties" 本身是 `hiddenForMultiTenancy: true` 的 host-org 专属页面（见 Issue #75808 排查结论）。设置后该属性按全局默认值下发给没有 org-scoped 覆盖的普通组织，之后到目标组织的 "Look and Feel" 页面才能看到并上传自定义 Logo/Favicon。自定义效果要去 **Portal**（不是 EM）侧确认：Logo 显示在 Portal 顶部品牌区域，Favicon 显示在浏览器标签页图标（渲染入口是 `PortalThemeController`，与 EM 设置页面是两条独立路径）。
+
 **"Login Banner" 也受影响，因为它跟 "Welcome Page" 共用同一个 `welcomePageEntries` map（2026-07-24 追加确认）：** `PresentationLoginBannerSettingsService.getModel()`/`setModel()`/`resetSettings()`（`PresentationLoginBannerSettingsService.java:34-112`）读写的都是同一个 `manager.getWelcomePage(orgId)`/`setWelcomePage(orgId, ...)`/`removeWelcomePage(orgId)` API、同一个 `PortalWelcomePage` 对象（`bannerType`/`banner` 字段），只是 EM UI 上呈现成"欢迎页"和"登录横幅"两个独立的设置面板。也就是说，`welcomePageEntries` 这一行的"缺失"结论同时覆盖了这两个前端功能——组织改名后，自定义登录横幅也会跟欢迎页一起静默变回默认值。
 
 **已确认缺陷（新发现，2026-07-24，尚未建 Redmine issue）：** 组织改名后，自定义 Logo/Favicon/欢迎页/登录横幅会静默变回默认值——机制跟 Issue #75763（sreeUserData/History Bar）几乎一样：物理文件被正确搬到新路径，但引用它的元数据（这里是 `PortalThemesManager` 的 map，而不是查找键里的 orgId 段）没有跟着更新，读取时用新 orgId 去查 map 查不到，只能退回默认。组织复制时，新组织不会继承源组织的 Logo/Favicon/欢迎页/登录横幅设置。组织删除时，这三个 map 里的条目永久残留（不会造成用户可见症状，因为查这些 map 都是按当前组织 ID 查的，删除的组织不会再被查到，但数据本身是孤儿）。跟 CSS 形成直接对比——`cssEntries` 用的是完全一样的 `copyOrganizationInternal()` 入口，因为多写了 20 行代码就做对了，这不是架构限制，是这三个 map 当初实现时被漏掉。此缺陷不影响 3.8.2 的其余 Presentation 设置，见 3.8.2。
@@ -628,26 +639,49 @@ sreeUserData 这个缺陷找到后带出了一个自然的问题：`getOrgScoped
 
 #### 3.8.2 SreeEnv org-scoped 属性（写入 `sree.properties`）
 
-**"Presentation" 页面里其余设置，已实测验证（2026-07-24），不只是理论推断：** EM "Presentation" 设置页除了 Look and Feel/Welcome Page/Login Banner（3.8.1）之外，还有日期时间格式、Dashboard 设置、PDF 生成、导出菜单、报表/视图工具栏选项、分享设置、Composer 提示信息、时间设置、数据源可见性、Web Map 等一大堆子面板（见 `PresentationSettingsModel.java`）。这些全部经 `SreeEnv.getProperty(name, earlyLoaded, true)`/`setProperty(name, val, true)` 走的是 `"inetsoft.org." + orgID + "." + propertyName` 这个 key 格式（`PropertiesEngine.java:106-107`、`:206-220`、`:291-304`），最终落盘到 `sree.properties`；而这个前缀格式正是 `AbstractEditableAuthenticationProvider.copyScopedProperties()`/`clearScopedProperties()`（`:145`、`:433`、`:493-519`）在改名时迁移的那一批属性。
+**机制说明：** EM "Presentation" 设置页除 Look and Feel/Welcome Page/Login Banner（3.8.1）外的其余子面板（日期时间格式、Dashboard 设置、PDF 生成、导出菜单等，见 `PresentationSettingsModel.java`）都经 `SreeEnv.getProperty(name, earlyLoaded, true)`/`setProperty(name, val, true)` 走 `"inetsoft.org." + orgID + "." + propertyName` 这个 key 格式（`PropertiesEngine.java:106-107`、`:206-220`、`:291-304`），最终落盘到 `sree.properties`；改名时由 `AbstractEditableAuthenticationProvider.copyScopedProperties()`/`clearScopedProperties()`（`:145`、`:433`、`:493-519`）负责迁移。
 
-排查过程中一度怀疑过一个具体假说——`PropertiesEngine.setProperty(name, val, orgScope=true)`（写路径，`:291-304`）构造 key 时用的是 `OrganizationManager.getInstance().getCurrentOrgID()` 原样返回值，而 `useAvailableOrgProperty()`（读路径，`:371-398`）显式多调用了一次 `.toLowerCase()`，看起来像是大小写不对称——但读代码确认 `OrganizationManager.getCurrentOrgID()`（无参版本，`OrganizationManager.java:64-68`）本身在返回前就已经统一转成小写，所以读写两边实际拼出来的 key 无论组织 ID 本身大小写如何都是一致的，这个假说不成立，已排除。
+13a/13b 两层测试确认 `copyScopedProperties()` 本身、以及它被真实入口 `IdentityService.setOrganizationInfo()` 调用的完整链路都迁移正确——这个结论成立，但只覆盖"属性已经保存在正确组织 key 下"之后的迁移步骤，不覆盖保存那一步本身（见下方 13c 与已修复结论）。
 
-进一步用真实（非 mock）`SreeEnv`/`OrganizationManager`/`ThreadContext` 写了两层端到端测试直接验证，都在 `OrgLifecycleScopedPropertiesIntegrationTest.java`（`community/core/src/test/java/inetsoft/sree/security/`）：
+**已修复（Issue #75769，PR #4380，2026-07-27）：** EM Presentation 属性改名后丢失、强制刷新恢复不了。`UserTreeService.editOrganization()` 保存属性的逻辑改为包进 `OrganizationManager.runInOrgScope(oldOrg.getId(), () -> {...})`，强制按被编辑组织的 ID 写入。
 
-1. `rename_copyScopedProperties_realRoundTrip_presentationStylePropertySurvives`——以 `fromOrgId` 身份写入一个 `format.date` 这类 org-scoped 属性，反射调用真实 `copyScopedProperties(fromOrgId, toOrgId, true)`，切换到 `toOrgId` 身份读回——**测试通过，属性正确迁移**；切回 `fromOrgId` 身份读取，正确退回全局默认值（不是残留旧值）。
-2. `rename_realSetOrganizationInfoEntryPoint_presentationStylePropertySurvives`——不满足于第 1 条只测了孤立方法，进一步反射驱动**真实的完整入口** `IdentityService.setOrganizationInfo()`（`FileAuthenticationProvider` + `SecurityTestDataBuilder` 建的真实组织/用户，只 stub 掉跟属性无关的存储步骤）。第一次跑因为测试自己漏配了 `libManagerProvider`（传了 `null`），在 `syncIdentity()`（`:553`）最前面就直接 NPE，`copyOrganization()`/`copyScopedProperties()` 根本没机会执行——诊断输出显示新旧 org 的 key 都没变化，一度看着像是"确认了缺陷"，但反射抓异常打出来之后发现是测试自己的 mock 缺口，不是产品代码问题。补上 `mock(LibManagerProvider.class)` 之后重跑，**新组织的 key 正确出现、旧组织的 key 正确消失**——通过真实入口的验证同样是"迁移正常"的结论。
+**场景**
 
-也就是说，`copyScopedProperties()` 本身、以及它被真实生产入口调用的这条完整链路，**两层测试都指向"迁移正确"**。
+| # | 场景 | 预期 | 测试状态 |
+|---|---|---|---|
+| 13a | `copyScopedProperties()` rename 迁移已保存的属性 | 正确从源组织 key 迁移到目标组织 key，源组织 key 回退全局默认值 | `[已落地]` `rename_copyScopedProperties_realRoundTrip_presentationStylePropertySurvives` |
+| 13b | 完整 `IdentityService.setOrganizationInfo()` 入口驱动同一次迁移 | 同 13a，证明不只是孤立方法正确 | `[已落地]` `rename_realSetOrganizationInfoEntryPoint_presentationStylePropertySurvives` |
+| 13c | **已修复（Issue #75769）**：`UserTreeService.editOrganization()` 保存 Presentation 属性时，操作者当前组织 ≠ 被编辑组织（如 Site Admin 场景） | 属性应写入被编辑组织（`oldOrg.getId()`）的 key，不应写进操作者自己当前组织的 key | `[已落地]` `editOrganization_actingOrgDiffersFromEditedOrg_propertySavedUnderEditedOrgNotActorsOrg`——反射调用 `UserTreeService.editOrganization()`，`SystemAdminService` 等无关协作者全 mock 放行，`actingOrgId` 与被编辑组织不同；回归验证过：临时还原到 PR #4380 之前的代码会导致此测试失败（属性两边 key 都读不到），确认测试确实钉住了这个修复，而不是套套逻辑 |
 
-**但你反馈的是：强制刷新之后设置依然是默认值，`properties` 里这些 org01 相关的条目本身都不见了——这跟上面两条测试的结论直接矛盾，属于"代码分析/隔离测试说没问题，生产环境说有问题"这一类（跟三、3.3 节 Data Cycle 5f/5h 是同一种性质的矛盾，那边也是单元测试通过但真实环境行为不一致，原因未查清）。已提交 Issue #75769，后续再排查。** 需要进一步的现场信息才能继续往下查，而不是靠继续读代码：
+**测试覆盖（3.8.2）：** 13a-13c 全部落地，`OrgLifecycleScopedPropertiesIntegrationTest.java`，共 3 个 `@Test`，全部通过。
 
-- **改名当时（或改名前后）EM/服务端日志里有没有报错或警告？** 我自己在搭测试的过程中，只要少配一个依赖（比如这次的 `libManagerProvider`），`syncIdentity()`就会在真正跑到属性迁移那几行代码之前先因为空指针整个中断退出——如果生产环境里也有类似的、只在你们这套具体部署/插件/配置组合下才会触发的异常（哪怕业务上"看起来"改名成功了），效果会是一样的：`copyScopedProperties()` 那几行代码根本没机会执行，而不是执行了但结果不对。日志是目前能确认"到底有没有跑到这一步"最直接的证据。
-- **这是不是集群/多节点部署？** `SreeEnv.save()`把改动落盘/落库后，别的节点要读到这份新值依赖各自的缓存/同步机制，单机测试完全测不到这类节点间不一致的窗口。
-- **这些设置最早是在哪个组织上下文里保存的？** 如果保存的时候站点管理员的"当前组织"实际上不是 org01（比如 EM 顶部组织切换器状态跟你以为的不一致），那些属性从一开始可能就没有落在 `inetsoft.org.org01.` 这个前缀下，改名迁移自然也就"救不到"它们——这跟三、3.3 节 Data Cycle 那个"当前组织上下文耦合"缺陷是同一种可疑模式。
+---
 
-在得到以上任何一条线索之前，先不把这条计入"已确认缺陷"，按"代码与实测矛盾、原因未知"记录，制度上跟 5f/5h 保持一致处理。
+### 3.9 EM Favorites（"Manage Favorites"）
 
-**测试覆盖（3.8.2）：** `OrgLifecycleScopedPropertiesIntegrationTest.java`（`community/core/src/test/java/inetsoft/sree/security/`）2 个 `@Test` 均已落地且通过，指向"迁移机制本身正确"；但跟 Issue #75769 报告的真实生产行为矛盾，原因未知，按"代码与实测矛盾"记录，不计入已确认缺陷，也不代表这两个测试写错了。
+**机制说明：** `emFavorites` 是全局单一 `KeyValueStorage`（不按组织分桶），key 为 identity 字符串（`name~;~orgID`），由 `FavoritesService`（`inetsoft.web.admin.favorites`）统一封装读写；`FavoritesController`/`IdentityService`/`UserTreeService` 都通过它访问。跟 Portal 仓库树上的"星标收藏"（`AssetEntry.addFavoritesUser()`）是完全不同的两个功能，见三、3.5 附录末尾的辨析。
+
+**Rename 场景**
+
+| # | 场景 | 预期 | 测试状态 |
+|---|---|---|---|
+| 14a | `IdentityService.updateOrganizationMembers()` 内逐用户调用 `favoritesService.moveFavorites(oldKey, newKey)` | 每个成员的收藏列表从旧 identity key 搬到新 identity key | `[已落地]`（方法级）`FavoritesServiceTest#moveFavorites_presentEntry_movesToNewKey`——组织生命周期编排层面未见专属集成测试，方法本身的行为已覆盖 |
+
+**Delete 场景**
+
+| # | 场景 | 预期 | 测试状态 |
+|---|---|---|---|
+| 14b | **已修复（Issue #75766，PR #4386，2026-07-27）**：`syncIdentity()` 组织删除分支调用 `favoritesService.removeFavorites(orgID)`（`IdentityService.java:631`）——此前是写好却未接入调用链的死代码 | 组织删除后该组织所有成员的 emFavorites 条目被清除，不残留孤儿 | `[已落地]`（方法级）`FavoritesServiceTest#removeFavorites_org_removesOnlyMatchingOrgKeys` |
+
+**Copy 场景**
+
+| # | 场景 | 预期 | 测试状态 |
+|---|---|---|---|
+| 14c | **Issue #75808（2026-07-28，用户手动验证复现）**：`copyStorages()` 未调用任何 `FavoritesService` 方法，组织 clone 后新组织成员的 EM 收藏列表全部丢失（不是"不继承"这么简单，是直接消失，源组织侧不受影响） | 现状如实记录，是否应该继承（以及是否需要区分 host-org clone）未有产品结论 | `[待确认]` |
+
+**Issue #75808 风险排查（2026-07-28）：** 提出此 issue 时一并评估了"若直接继承收藏，host-org clone 出的新组织是否会因此暴露 host 专属页面（如 Properties 设置页）"这个顾虑。查证结论：EM 收藏本身只是客户端存的路径字符串，点击走的是普通 `router.navigateByUrl()`，跟正常导航命中同一套 `authorizationGuard` → `ComponentAuthorizationController.componentAvailable()` 校验；`hiddenForMultiTenancy` 组件（已核实 `settings/properties` 确实标了此项）的访问许可取决于 `OrganizationManager.isSiteAdmin(principal)`，跟收藏夹里有没有这条记录无关——继承一条指向 host 专属页面的收藏，非 site admin 用户点了也会被现有守卫拦下重定向，不构成访问泄漏。也就是说，修复本身不需要按"是否 host-org"分支特殊处理，成本不高；但这仍是"要不要继承"的产品决策，不是本次风险排查能替代的。
+
+**测试覆盖：** 14a/14b 均为 `FavoritesService` 方法级单元测试（`FavoritesServiceTest.java`，`community/core/src/test/java/inetsoft/web/admin/favorites/`），未走 `IdentityService.copyStorages()`/`syncIdentity()` 完整编排；14c（Issue #75808）待确认是否需要补充（属产品决策，不是测试缺口）。
 
 ---
 
@@ -665,6 +699,8 @@ sreeUserData 这个缺陷找到后带出了一个自然的问题：`getOrgScoped
 
 **与资产改名管线（`claude/rename-transform.md`）的边界：** 机制二已确认不会触发 `RenameTransformHandler`/`AssetDependencyTransformer`（见二"边界断言"场景 2j）。两套机制是完全独立实现，没有共享代码——目前没有发现行为不一致的实锤，但任何一边未来的 bug 修复/覆盖面扩展都应检查另一边，这是长期架构风险，非当前缺陷。
 
+**后续待办（范围外，不在本文档任务范围内，并入自 `2026-07-14-org-lifecycle-resource-integrity.md`）：** 用户手动改名单个资源（worksheet/query/data source/logical model 等，而非组织本身改名）时依赖是否被正确更新，是完全独立于本文档的第三套机制（`RenameTransformHandler` → `DependencyTransformer` → `AssetDependencyTransformer` 家族，见 `claude/rename-transform.md`），尚未启动系统性审计。现状：全代码库只有 `TaskAssetDependencyTransformerTest.java`（`community/core/src/test/java/inetsoft/uql/asset/sync/`）一个测试，只覆盖 Schedule Task 一种引用类型；其余至少 10 种 transformer（worksheet/viewsheet 引用、logical model、SQL/物理表、REST/tabular 数据源、OLAP cube、内嵌 viewsheet、超链接、脚本函数、dashboard、schedule task 各一个 transformer 类）零覆盖。真要启动时建议单开一份独立计划/测试矩阵（不占用本文档的场景编号），优先级上先做 `AssetWSDependencyTransformer`（worksheet/viewsheet 引用，最常见类型）。
+
 **后续新发现如果跨越多个机制/资源类型，先记录在这里；能明确归位到某个具体章节的，随手搬过去，不要让这里膨胀成新的大杂烩。**
 
 ---
@@ -677,15 +713,16 @@ sreeUserData 这个缺陷找到后带出了一个自然的问题：`getOrgScoped
 | `OrgLifecycleAssetContentMigrationTest.java` | 二（2a-2j、10a-10c） |
 | `OrgLifecycleThemeIntegrationTest.java` | 三、3.1（3a、3c、3d） |
 | `OrgLifecycleDashboardMigrationTest.java` | 三、3.2（4a-4f） |
-| `DataCycleManagerOrgLifecycleTest.java`（已建，`inetsoft.sree.internal`） | 三、3.3（5a-5f、5h 已落地，5g 待补；7a 场景文档在此章节，但测试方法落在 `IdentityServiceAutoSaveOrgLifecycleTest.java`，见下一行） |
+| `DataCycleManagerOrgLifecycleTest.java`（已建，`inetsoft.sree.internal`） | 三、3.3（5a-5f、5h 已落地，5g 待补；Bug #75756 已修复——5e 断言修复后行为，5a/5e 粒度不同不合并；7a 场景文档在此章节，但测试方法落在 `IdentityServiceAutoSaveOrgLifecycleTest.java`，见下一行） |
 | `IdentityServiceAutoSaveOrgLifecycleTest.java`（已建，`inetsoft.web.admin.security`） | 三、3.4（6a/6b/6d 已落地，6c 不写 unit case 改走人工验证）+ 三、3.3（7a 已落地，代码邻接，测试未搬） |
 | `AutoSaveServiceOrgLifecycleTest.java`（已建，`inetsoft.web`） | 三、3.4（6g 已落地非 `@Disabled`；6e/6h 已写好但 `@Disabled` 待产品/后续确认，均临时启用手动验证过能跑通） |
-| `ContentRepositoryTreeServiceTest.java`（已建，`inetsoft.web.admin.content.repository`，`ContentRepositoryTreeService` 通用测试文件，非仅 autosave 专用，后续该类的其它场景可继续加在这里） | 三、3.4（6f 已写好但 `@Disabled` 待确认，同上验证过能跑通；现有 `ContentRepositoryTreeControllerTest` 是另一个类——controller 层、`treeService` 全 mock，未触达这里测的真实逻辑） |
-| `OrgLifecycleDataSpaceIntegrationTest.java`（已建，`inetsoft.sree.security`） | 三、3.5（8a-8d 全部落地，另发现 `sreeUserData/` 孤儿新缺陷，见该节"已确认缺陷"） |
+| `ContentRepositoryTreeServiceTest.java`（已建，`inetsoft.web.admin.content.repository`，`ContentRepositoryTreeService` 通用测试文件，非仅 autosave 专用，后续该类的其它场景可继续加在这里） | 三、3.4（6f 已写好但 `@Disabled` 待确认，同上验证过能跑通；已确认与 Issue #75777（已修复，PR #4408）是独立问题，见该节；现有 `ContentRepositoryTreeControllerTest` 是另一个类——controller 层、`treeService` 全 mock，未触达这里测的真实逻辑） |
+| `OrgLifecycleDataSpaceIntegrationTest.java`（已建，`inetsoft.sree.security`） | 三、3.5（8a-8d 全部落地；`sreeUserData/` 孤儿缺陷 Issue #75763 已修复，两个特征测试已翻转为断言修复后行为） |
 | `OrgLifecycleRepletRegistryIntegrationTest.java`（已建，`inetsoft.sree.security`） | 三、3.6（9a-9c 全部落地，另发现 `updateRepletRegistry()` 删除不落盘的新发现，见该节） |
-| `RecycleBinOrgLifecycleTest.java`（已建，`inetsoft.web`） | 三、3.7（11a-11c 全部落地，另确认 `migrateEntries()` 除"从未调用"外还有"不落盘"+"当前组织上下文耦合"两处新发现） |
+| `RecycleBinOrgLifecycleTest.java`（已建，`inetsoft.web`） | 三、3.7（11a/11b/11c/11d 全部落地；Bug #75759 已修复——新增 `migrateStorageData()` 作为 `copyStorages()` 实际接入的入口，同时解决"从未调用"+"不落盘"+"当前组织上下文耦合"三处发现） |
 | `OrgLifecyclePortalBrandingTest.java` | 三、3.8.1（12a-12e，含 Logo/Favicon/欢迎页元数据失步新缺陷） |
-| `OrgLifecycleScopedPropertiesIntegrationTest.java`（已建，`inetsoft.sree.security`） | 三、3.8.2（2 个 `@Test` 已落地且通过，指向迁移机制本身正确；但跟 Issue #75769 报告的生产行为矛盾，见该节） |
+| `OrgLifecycleScopedPropertiesIntegrationTest.java`（已建，`inetsoft.sree.security`） | 三、3.8.2（13a-13c 全部落地；Issue #75769 已修复——根因在 `UserTreeService.editOrganization()` 保存属性时用了操作者当前组织而非被编辑组织，13c 直接驱动该方法验证修复） |
+| `FavoritesServiceTest.java`（已建，`inetsoft.web.admin.favorites`） | 三、3.9（14a/14b 均为方法级单元测试；14c/Issue #75808 待产品确认是否需要，见六） |
 
 机制一、机制二的测试类严格不共享基类/fixture 构造方法（见计划文档 Global Constraints）。
 
@@ -695,18 +732,31 @@ sreeUserData 这个缺陷找到后带出了一个自然的问题：`getOrgScoped
 
 | 场景 | 问题 | 归属章节 |
 |---|---|---|
-| 3d | 删除组织后全局主题 `organizations` 列表残留孤儿 orgId | 三、3.1 |
 | 7a | Task Save 文件：copy 场景不复制是否符合预期 | 三、3.3 |
-| 11b | 回收站已确认缺陷（已测试实锤，不再是疑似）：`RecycleBin.migrateEntries()` 写好了 `originalUser`/`permission` 身份字段重写逻辑，但 `IdentityService.copyStorages()` 从未调用它，只做了纯 KV 复制；就算以后接回调用链，实测还发现该方法本身不落盘（只改内存对象）、且权限授权部分依赖调用那一刻的"当前组织"上下文是否凑巧等于被迁移的源组织，两者都不满足时权限字段完全不会被重写——复制/改名后回收站条目的身份字段目前必定仍指向旧组织，业务影响面（是否真的被 UI 读取/依赖）待确认 | 三、3.7 |
 | — | 无锁执行顺序窗口是否会被生产并发场景实际触发 | 共享背景 |
-| Issue #75763 | `DataSpace.getOrgScopedPaths()` 的 `sreeUserData/` 匹配分支是死代码：真实 per-user 文件名（`{name}_{orgId}.xml`）不含 `IdentityID.KEY_DELIMITER`，`getIdentityIDFromKey()` 因此忽略路径本身、返回调用线程当前组织。已实测复现改名场景的前端症状——Preferences 对话框 History Bar 等 `UserEnv` 支持的用户级设置在组织改名后静默重置为系统默认值；删除场景则是永久孤儿存储，未单独实测（unit test 已钉住） | 三、3.5 |
 | 5f/5h | Data Cycle 克隆场景：`getDataCycleIds()` 当前组织上下文耦合缺陷——单元测试 + 真实 Spring 装配核查都证实代码里确实这样写，但用户在真实运行环境里刻意避开"当前组织==源组织"这个前提后手动复测，克隆结果依然正确（含下游的 MV 调度——克隆后新组织下确实存在"DataCycle Task: cycle2"），两轮独立代码排查（含 enterprise/server 是否有覆盖实现）都没找到能解释这个矛盾的机制。原因未知，后续处理——留意是否是环境/构建版本差异，或是遗漏了某条实际调用路径 | 三、3.3 |
-| Issue #75777 | 用户实测：已存在的 autosave 文件（打开 viewsheet 时能弹出"是否恢复上次未保存的文件"确认框，证明文件确实在 `__autoSave` 桶里）在 EM Content > Repository > Recycle Bin > Auto Saved Files 树上看不到。症状跟 6f 的假设（`addRecycleAutoSaved()` 用户枚举跟不上导致静默丢失）高度吻合，但 6f 目前只是读代码得出的假设（测试 `@Disabled`，未跑过真实数据验证），尚未锁定就是同一根因——**等 bug 修复后需要重新验证 6f 这个假设是否成立** | 三、3.4 |
 | 新发现 | `PortalThemesManager` 的 `logoEntries`/`faviconEntries`/`welcomePageEntries` 三个 map 在组织 copy/rename/delete 下均不同步（`cssEntries` 走的是同一个 `copyOrganizationInternal()` 入口，却被正确处理，说明不是架构限制，是这三个 map 当初漏写了对应调用）——组织改名后自定义 Logo/Favicon/欢迎页会静默变回默认值，复制不继承，删除后永久残留成孤儿；尚未建 Redmine issue，需产品确认影响面和优先级 | 三、3.8.1 |
-| Issue #75766 | EM "Manage Favorites" 的 `IdentityService.deleteOrganizationMembers()`（含逐用户 `emFavorites` 清理）全代码库无任何调用点，是写好了却从未接入组织删除调用链的死代码（改名路径的 `updateOrganizationMembers()` 对应逻辑是正确接入的）——组织删除后其所有成员的 EM 收藏列表永久残留成孤儿；需产品确认影响面 | 三、3.5 附录 |
+| Issue #75827（6i，已确认） | 组织 rename 后，autosave 文件必然从 EM "Auto Saved Files" 树上消失——`updateAutoSaveFiles()` 只在 copy 分支执行，rename 从不重写 autosave 文件名里的 orgID，树匹配 100% 失败 | 三、3.4 |
+| Issue #75827（6j，高度怀疑，未 100% 实锤） | 组织 clone 后 autosave 文件很可能同样消失——`migrateAutoSaveFiles()` 的 `getStorage(principal)` 优先读 `principal` 自身 `getCurrentOrgId()`，可能架空 `runInOrgScope(newOrgID,...)`，与三、3.3 5f/5h 同一模式；需确认操作管理员当时右上角所在组织，锁定后再升级为已确认缺陷 | 三、3.4 |
 | `[待确认]` | Legacy 报表部署导入的全局模板路径（`templates/{fname}`、`ReportFiles/{fname}` 等，`DeployManagerService.java:213-244`）完全不含 orgId——如果这条（前多租户时代的）导入功能在当前多租户环境下仍可达，会是跟 sreeUserData 同类的"该隔离没隔离"缺陷；未能确认该功能当前是否还真的可达，暂不计入已确认缺陷 | 三、3.5 附录 |
 | `[设计如此，非缺陷]` | `userformat.xml`（数字/小数格式设置）所有组织共享同一份全局文件，从设计上就没有 per-org 隔离，不属于"改名/删除后丢失"这类生命周期缺陷；仅记录以防被误当成 sreeUserData 同类问题 | 三、3.5 附录 |
-| Issue #75769 | EM Presentation 页面里 SreeEnv org-scoped 属性（日期/时间格式、Dashboard 设置、PDF 生成、导出菜单、Composer 提示信息等 `inetsoft.org.{orgId}.*` 属性）在生产环境里改名后丢失、强制刷新也恢复不了，`properties` 里对应组织的条目直接消失——但两层实测（孤立调用 `copyScopedProperties()`、以及反射驱动真实 `IdentityService.setOrganizationInfo()` 完整入口）都显示迁移正确，代码与实测结论矛盾，原因未知，跟 5f/5h 同一种性质，需要现场日志/集群信息才能继续排查 | 三、3.8.2 |
-| Issue #75759 | 私有（"My Dashboards"）viewsheet 移入回收站后，组织 clone 之后在 Repository 树的 Recycle Bin 节点下看不到——已用真实 `BlobIndexedStorage.copyStorageData()` 验证过 USER_SCOPE "Recycle Bin" `AssetFolder` 容器+子条目+被回收 viewsheet 内容三者在存储层全部正确迁移、key 互相对得上，排除了"机制二漏处理这个文件夹容器"这个最直接的猜测；根因大概率在更上层——`RepositoryRecycleBinController.getRecycleNodeFromAssets()` 依赖的 `securityProvider.getUsers()`（新 clone 组织的用户列表是否及时反映），或者 `AssetRepository.getEntries()` 相对 `BlobIndexedStorage` 直接读写是否存在额外一层未随批量迁移失效的缓存/索引——两个方向都还没有实测验证 | 三、3.7 |
+| Issue #75808 | 组织 clone（copy）时，`copyStorages()` 未调用任何 `FavoritesService` 方法，新组织成员的 EM 收藏列表全部丢失——是否应该继承未有产品结论；host-org clone 场景的访问泄漏顾虑已排查排除（收藏本身不构成权限来源，`hiddenForMultiTenancy` 页面靠 `isSiteAdmin()` 独立拦截），修复本身成本不高，但归不归还是产品决策 | 三、3.9 |
+| `[待确认]` | **SSO org-claim 映射（SAML `ORGID_CLAIM`/OIDC `orgID.claim`，2026-07-28 已排查）**：这是全局 `SreeEnv` 属性（只存"去 assertion/token 里读哪个字段名"），登录时拿 claim 值跟当前 `provider.getOrganizationIDs()` 做精确字符串匹配，不是内部按 orgID 存的映射表——组织生命周期代码不需要碰它，也没有内部孤儿数据风险。但组织改名后，如果外部 IdP 那侧配置的 claim 值还是旧 org ID，该组织所有 SSO 用户会立即登录失败，需要人工去 IdP 侧手动更新，StyleBI 无法自动同步——这是外部配置漂移问题，不是内部代码缺陷；是否需要在 EM 改名流程里加提示/警告，需产品决定 | 范围外（enterprise） |
+| `[待确认]` | `SUtil.getEditableAuthenticationProvider(SecurityProvider)`（单参重载，仅 enterprise `SecurityApiService` REST API 使用，EM UI 不走这条，2026-07-28 排查发现）在 provider 链里找到第一个 `EditableAuthenticationProvider` 就返回，不检查该 provider 是否真的拥有目标组织；如果部署配置了两个及以上 File provider 串联（无代码阻止），走这条重载的 REST API 调用可能操作到错误 provider 的组织副本。已有 identity-aware 的安全重载（`getEditableAuthenticationProvider(SecurityProvider, IdentityID, int)`）但这条路径未使用它。是否属于真实会出现的部署拓扑，需产品/配置确认 | 范围外（enterprise） |
 
 > **已从本节移除（2026-07-23）**：原 4d/4e「dashboard 注册表 rename 内容不重写」——经人工复测，EM 改组织 ID 最终结果正确，属机制/测试隔离说明，**不按待产品确认的缺陷跟踪**（详见三、3.2「实现备注」）。
+>
+> **已从本节移除（2026-07-28，均已修复，不再需要产品确认）：**
+> - **3d**（三、3.1，Issue #75739）——`removeTheme()` 已摘除孤儿 orgId。
+> - **11b/11d**（三、3.7，Bug #75759，PR #4382）——`RecycleBin.migrateStorageData()` 已接入 `copyStorages()`，重写并持久化 `originalUser`/`permission`。
+> - **Issue #75763**（三、3.5，PR #4381）——`getOrgScopedPaths()` 的 `sreeUserData/` 分支已改为按文件名后缀匹配。
+> - **Issue #75766**（三、3.5 附录，PR #4386）——`FavoritesService.removeFavorites(orgID)` 已接入组织删除流程。
+> - **Issue #75769**（三、3.8.2，PR #4380）——`UserTreeService.editOrganization()` 已用 `runInOrgScope(oldOrg.getId(), ...)` 修复属性误存进操作者当前组织的问题；残留的自动化测试缺口见 3.8.2 场景 13c（`[待补]`，不是产品确认问题，不留在本节）。
+>
+> **已从本节移除（2026-07-29，已修复，不再需要产品确认）：**
+> - **Bug #75756**（三、3.3，PR #4414）——`migrateCycleInfo()` 已补上 `cycleInfo.setCreatedBy()`/`setLastModifiedBy()` 写回，`CycleInfo.createdBy`/`lastModifiedBy` 不再残留源组织身份；5e 断言的就是修复后行为。
+> - **Issue #75777**（三、3.4，PR #4408）——已保存 sheet 的 autosave 草稿改为丢弃时进回收路径而非直接删除，"Auto Saved Files" 树上看不到已存在草稿的问题已修复；根因跟 6f 的用户枚举假设无关，两者已确认是独立问题，6f 继续按待确认跟踪。
+>
+> **仍未修复，继续跟踪：** Issue #75735（三、3.1，PR #4369 修的是另一根因，本文档描述的 `CustomThemesImpl` LRU 缓存风险未改动）。
+>
+> **已排查、无风险、不需要产品确认（2026-07-28）：** Hosted License 剩余时长/宽限期——状态只存在 Ignite 集群内存 map（`"inetsoft.enterprise.license.activeHostedSessions"`），key 是 `(licenseKey, instanceId, principalId)` 按用户会话，不按 orgID；真正的时长数据源是外部计费服务器，StyleBI 本地只是登录期间的短期缓存，每 3-5 分钟自己跟服务器对账一次。全文搜索确认 `copyOrganizationInternal()`/`syncIdentity()`/`copyStorages()`/`removeStorages()` 里零处引用这些 license 类——不存在需要迁移的、按 org 持久化的记录，组织删除/改名/复制不会产生孤儿或丢失。
