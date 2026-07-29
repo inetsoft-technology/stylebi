@@ -1809,8 +1809,13 @@ public class VSWizardBindingHandler {
    /**
     * Every ref of a chart that can carry a field-level display format, in no particular order and
     * without de-duplication (callers match by name, so a ref appearing twice is harmless). Mirrors the
-    * traversal updateChartFormat performs, and exists so a caller can resolve a field name to a ref
-    * without duplicating that traversal.
+    * traversal updateChartFormat performs in its updateAssembly=true direction, and exists so a caller
+    * can resolve a field name to a ref without duplicating that traversal.
+    *
+    * <p>Must stay in step with updateChartFormat: a ref that renders there but is missing here is
+    * reported to the caller as "not in the binding" even though its format would have applied.
+    * RelationChartInfo's refs are deliberately absent — updateChartFormat only walks those in the
+    * !updateAssembly (reload) direction.
     */
    public static List<ChartRef> collectFormattableRefs(VSChartInfo chartInfo) {
       if(chartInfo == null) {
@@ -1826,17 +1831,39 @@ public class VSWizardBindingHandler {
          refs.add(chartInfo.getPeriodField());
       }
 
-      for(AestheticRef aref : new AestheticRef[]{ chartInfo.getColorField(), chartInfo.getShapeField(),
-                                                  chartInfo.getSizeField(), chartInfo.getTextField() })
-      {
-         if(aref != null && aref.getDataRef() instanceof ChartRef) {
-            refs.add((ChartRef) aref.getDataRef());
+      addAestheticRefs(refs, chartInfo.getColorField(), chartInfo.getShapeField(),
+                       chartInfo.getSizeField(), chartInfo.getTextField());
+
+      // Under multi-aesthetic each aggregate carries its OWN color/shape/size/text refs instead of the
+      // chart-level ones, and updateChartFormat formats those per aggregate.
+      if(chartInfo.isMultiAesthetic()) {
+         for(ChartRef ref : chartInfo.getYFields()) {
+            if(ref instanceof VSChartAggregateRef aggr) {
+               addAestheticRefs(refs, aggr.getColorField(), aggr.getShapeField(),
+                                aggr.getSizeField(), aggr.getTextField());
+            }
+         }
+      }
+
+      if(chartInfo instanceof GanttVSChartInfo) {
+         for(ChartAggregateRef aRef : chartInfo.getAestheticAggregateRefs(false)) {
+            addAestheticRefs(refs, aRef.getColorField(), aRef.getShapeField(),
+                             aRef.getSizeField(), aRef.getTextField());
          }
       }
 
       refs.removeIf(Objects::isNull);
 
       return refs;
+   }
+
+   /** Adds each aesthetic ref's underlying ChartRef to the list, skipping nulls and non-ChartRefs. */
+   private static void addAestheticRefs(List<ChartRef> refs, AestheticRef... aestheticRefs) {
+      for(AestheticRef aref : aestheticRefs) {
+         if(aref != null && aref.getDataRef() instanceof ChartRef) {
+            refs.add((ChartRef) aref.getDataRef());
+         }
+      }
    }
 
    /**
