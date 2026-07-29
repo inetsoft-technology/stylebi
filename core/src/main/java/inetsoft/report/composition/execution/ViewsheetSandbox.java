@@ -7810,8 +7810,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * Use when calling long-running operations (e.g. getData()) while a write lock is held,
     * to prevent blocking background threads that need a read lock.
     *
-    * <p>Not safe for re-entrant use: if a nested call to unlockAll() occurs on the
-    * same thread before restoreLocks() is called, the outer saved state will be lost.</p>
+    * <p>Safe for re-entrant use: a nested unlockAll()/restoreLocks() pair on the same
+    * thread does not discard the state saved by an enclosing unlockAll().</p>
     */
    public void unlockAll() {
       if(!AssetDataCache.isProcessorThread()) {
