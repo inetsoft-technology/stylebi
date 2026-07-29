@@ -90,7 +90,7 @@ class CoreLifecycleServiceEmbedSizeTest {
       embedAssemblyInfo.setAssemblySize(containerSize);
 
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
-      when(rvs.getEmbedAssemblyInfo()).thenReturn(embedAssemblyInfo);
+      when(rvs.getEmbedAssemblyInfo("vs_crosstab_1")).thenReturn(embedAssemblyInfo);
 
       CrosstabVSAssemblyInfo info = new CrosstabVSAssemblyInfo();
       VSAssembly assembly = mock(VSAssembly.class);
@@ -115,7 +115,7 @@ class CoreLifecycleServiceEmbedSizeTest {
       embedAssemblyInfo.setAssemblySize(containerSize);
 
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
-      when(rvs.getEmbedAssemblyInfo()).thenReturn(embedAssemblyInfo);
+      when(rvs.getEmbedAssemblyInfo("vs_chart_1")).thenReturn(embedAssemblyInfo);
 
       ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
       VSAssembly assembly = mock(VSAssembly.class);
@@ -135,7 +135,10 @@ class CoreLifecycleServiceEmbedSizeTest {
       embedAssemblyInfo.setAssemblySize(new Dimension(908, 600));
 
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
-      when(rvs.getEmbedAssemblyInfo()).thenReturn(embedAssemblyInfo);
+      when(rvs.getEmbedAssemblyInfo("vs_crosstab_1")).thenReturn(embedAssemblyInfo);
+      // "some_other_assembly" is deliberately left unstubbed - rvs.getEmbedAssemblyInfo(name)
+      // returns null for it, exactly as the real keyed map would for an assembly that isn't
+      // embedded.
 
       CrosstabVSAssemblyInfo info = new CrosstabVSAssemblyInfo();
       Dimension originalSize = info.getPixelSize();
@@ -145,5 +148,42 @@ class CoreLifecycleServiceEmbedSizeTest {
       invokeApplyEmbedChartSize(createService(), rvs, assembly);
 
       assertEquals(originalSize, info.getPixelSize());
+   }
+
+   @Test
+   void sizesEachConcurrentlyEmbeddedSiblingAssemblyIndependently() throws Exception {
+      // Two chart/table cards from the same wiz conversation embedded on the SAME runtime at
+      // once (same wizRuntimeId, different assemblyName) - both entries are tracked
+      // simultaneously, unlike the single-slot model this replaced.
+      EmbedAssemblyInfo infoA = new EmbedAssemblyInfo();
+      infoA.setAssemblyName("vs_chart_A");
+      infoA.setAssemblySize(new Dimension(540, 300));
+
+      EmbedAssemblyInfo infoB = new EmbedAssemblyInfo();
+      infoB.setAssemblyName("vs_table_B");
+      infoB.setAssemblySize(new Dimension(540, 260));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getEmbedAssemblyInfo("vs_chart_A")).thenReturn(infoA);
+      when(rvs.getEmbedAssemblyInfo("vs_table_B")).thenReturn(infoB);
+
+      ChartVSAssemblyInfo chartInfo = new ChartVSAssemblyInfo();
+      VSAssembly chartAssembly = mock(VSAssembly.class);
+      when(chartAssembly.getAbsoluteName()).thenReturn("vs_chart_A");
+      when(chartAssembly.getInfo()).thenReturn((AssemblyInfo) chartInfo);
+
+      CrosstabVSAssemblyInfo tableInfo = new CrosstabVSAssemblyInfo();
+      VSAssembly tableAssembly = mock(VSAssembly.class);
+      when(tableAssembly.getAbsoluteName()).thenReturn("vs_table_B");
+      when(tableAssembly.getInfo()).thenReturn((AssemblyInfo) tableInfo);
+
+      CoreLifecycleService service = createService();
+      invokeApplyEmbedChartSize(service, rvs, chartAssembly);
+      invokeApplyEmbedChartSize(service, rvs, tableAssembly);
+
+      assertEquals(infoA.getAssemblySize(), chartInfo.getPixelSize(),
+         "assembly A must get its own size even though assembly B is also embedded on the " +
+         "same runtime - a single runtime-wide slot would have let B's later refresh win");
+      assertEquals(infoB.getAssemblySize(), tableInfo.getPixelSize());
    }
 }

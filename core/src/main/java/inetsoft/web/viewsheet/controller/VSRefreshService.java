@@ -106,23 +106,23 @@ public class VSRefreshService {
             box.get().lockWrite();
 
             try {
-               EmbedAssemblyInfo embedAssemblyInfo = rvs.getEmbedAssemblyInfo();
+               // Tracked per assembly name, not as a single runtime-wide slot: a runtime can
+               // have more than one assembly embedded on it at once (e.g. wiz embeds several
+               // chart/table cards from the same conversation, each a different assembly on the
+               // SAME shared runtime), and each one's own WebSocket connection refreshes
+               // independently. A type switch (WizAutoBindingService#changeType replaces the
+               // old assembly with a differently-named one on the same runtime) simply gets its
+               // own new entry here - the old assembly's entry is orphaned (harmless: it no
+               // longer exists in the viewsheet, so applyEmbedChartSize() never looks it up
+               // again), with no need to "re-point" a shared name field.
+               EmbedAssemblyInfo embedAssemblyInfo = rvs.getEmbedAssemblyInfo(event.getAssemblyName());
 
                // Only create embed assembly metadata during the explicit embed refresh path.
                // Resize events may omit embed=true and should only update existing state.
                if(embedAssemblyInfo == null && event.getEmbed()) {
                   embedAssemblyInfo = new EmbedAssemblyInfo();
                   embedAssemblyInfo.setAssemblyName(event.getAssemblyName());
-                  rvs.setEmbedAssemblyInfo(embedAssemblyInfo);
-               }
-               // The embedded assembly can be swapped out for a differently-named one on the
-               // same runtime (e.g. WizAutoBindingService#changeType removes the old primary
-               // assembly and places a new one when the user switches viz type). Re-point the
-               // tracked name on every explicit embed refresh, or applyEmbedChartSize()'s name
-               // check keeps comparing against the original (now-gone) assembly forever and
-               // silently stops sizing the new one.
-               else if(embedAssemblyInfo != null && event.getEmbed()) {
-                  embedAssemblyInfo.setAssemblyName(event.getAssemblyName());
+                  rvs.putEmbedAssemblyInfo(event.getAssemblyName(), embedAssemblyInfo);
                }
 
                if(embedAssemblyInfo != null) {
@@ -186,7 +186,10 @@ public class VSRefreshService {
       pending.put(id, true);
 
       if(event.embedAssemblySize() != null) {
-         EmbedAssemblyInfo embedAssemblyInfo = rvs.getEmbedAssemblyInfo();
+         // This event carries no assembly name (it's a whole-viewsheet refresh, not a
+         // per-assembly one) - only meaningful when exactly one assembly is embedded on this
+         // runtime, which holds for the fresh single-asset embed-open path that sends it.
+         EmbedAssemblyInfo embedAssemblyInfo = rvs.getSoleEmbedAssemblyInfo();
 
          if(embedAssemblyInfo != null) {
             embedAssemblyInfo.setAssemblySize(event.embedAssemblySize());

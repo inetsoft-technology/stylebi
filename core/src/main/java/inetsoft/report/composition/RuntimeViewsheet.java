@@ -55,6 +55,7 @@ import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -260,7 +261,11 @@ public class RuntimeViewsheet extends RuntimeSheet {
       wizardViewsheet = state.isWizardViewsheet();
 
       if(state.getEmbedAssemblyInfo() != null) {
-         embedAssemblyInfo = loadJson(EmbedAssemblyInfo.class, state.getEmbedAssemblyInfo(), mapper);
+         for(EmbedAssemblyInfo info : loadEmbedAssemblyInfoList(state.getEmbedAssemblyInfo(), mapper)) {
+            if(info.getAssemblyName() != null) {
+               embedAssemblyInfos.put(info.getAssemblyName(), info);
+            }
+         }
       }
 
       // Decode undo/redo checkpoints from VCDIFF deltas
@@ -2648,12 +2653,35 @@ public class RuntimeViewsheet extends RuntimeSheet {
       this.wizardViewsheet = wizardViewsheet;
    }
 
-   public EmbedAssemblyInfo getEmbedAssemblyInfo() {
-      return embedAssemblyInfo;
+   /**
+    * The tracked embed info for one specific assembly. A runtime can have more than one
+    * assembly embedded on it at once (e.g. wiz embeds several chart/table cards from the same
+    * conversation, each a different assembly on the SAME shared runtime) - each is tracked
+    * independently so concurrent refreshes for different assemblies never clobber each other.
+    */
+   public EmbedAssemblyInfo getEmbedAssemblyInfo(String assemblyName) {
+      return assemblyName == null ? null : embedAssemblyInfos.get(assemblyName);
    }
 
-   public void setEmbedAssemblyInfo(EmbedAssemblyInfo embedAssemblyInfo) {
-      this.embedAssemblyInfo = embedAssemblyInfo;
+   /**
+    * The single tracked embed assembly, for call sites that have no assembly name to key on
+    * (e.g. the whole-viewsheet {@code VSRefreshEvent} path, which predates multi-assembly
+    * embedding) and can only meaningfully apply to a runtime with exactly one. Returns null
+    * rather than guessing when more than one assembly is currently embedded.
+    */
+   public EmbedAssemblyInfo getSoleEmbedAssemblyInfo() {
+      return embedAssemblyInfos.size() == 1 ? embedAssemblyInfos.values().iterator().next() : null;
+   }
+
+   /**
+    * Whether any assembly is currently embedded on this runtime (regardless of which).
+    */
+   public boolean isEmbedded() {
+      return !embedAssemblyInfos.isEmpty();
+   }
+
+   public void putEmbedAssemblyInfo(String assemblyName, EmbedAssemblyInfo embedAssemblyInfo) {
+      embedAssemblyInfos.put(assemblyName, embedAssemblyInfo);
    }
 
    /**
@@ -2798,7 +2826,8 @@ public class RuntimeViewsheet extends RuntimeSheet {
       }
 
       state.setLayoutPoint(layoutPoint);
-      state.setEmbedAssemblyInfo(saveJson(embedAssemblyInfo, mapper));
+      state.setEmbedAssemblyInfo(embedAssemblyInfos.isEmpty() ? null :
+         saveJson(new ArrayList<>(embedAssemblyInfos.values()), mapper));
 
       if(temporaryInfo != null) {
          state.setTemporaryInfo(saveXml(temporaryInfo));
@@ -2853,9 +2882,20 @@ public class RuntimeViewsheet extends RuntimeSheet {
    private int layoutPoint = -1;
    private VSTemporaryInfo temporaryInfo;
    private boolean wizardViewsheet = false;
-   private EmbedAssemblyInfo embedAssemblyInfo;
+   private final Map<String, EmbedAssemblyInfo> embedAssemblyInfos = new ConcurrentHashMap<>();
    private ImageHashService imageHashService = new ImageHashService();
    private String wizSheetRuntimeId;
+
+   private static List<EmbedAssemblyInfo> loadEmbedAssemblyInfoList(String json, ObjectMapper mapper) {
+      try {
+         return mapper.readValue(json,
+            mapper.getTypeFactory().constructCollectionType(List.class, EmbedAssemblyInfo.class));
+      }
+      catch(Exception e) {
+         LOG.error("Failed to load value", e);
+         return Collections.emptyList();
+      }
+   }
 
    private static final Logger LOG =
       LoggerFactory.getLogger(RuntimeViewsheet.class);
