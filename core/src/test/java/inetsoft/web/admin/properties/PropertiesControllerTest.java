@@ -29,21 +29,26 @@ package inetsoft.web.admin.properties;
  *                      enterprise-specific keys removed before returning
  *
  * --- deleteProperty ---
- *     [normal property]             SreeEnv.remove() and SreeEnv.save() called
- *     [security.exposedefaultorgtoall] additionally fires assetRepository event
+ *     [normal property]             SreeEnv.remove() and SreeEnv.save() called;
+ *                                   PropertyChangeSideEffects.applyPreRemoveSideEffects is
+ *                                   delegated to BEFORE SreeEnv.remove(), and
+ *                                   applyPostRemoveSideEffects AFTER SreeEnv.save() -- this
+ *                                   ordering is pinned down with an InOrder assertion since it
+ *                                   must match the pre-refactor PropertiesController exactly
+ *                                   (side-effect behavior itself is covered by
+ *                                   PropertyChangeSideEffectsTest)
  *
  * --- editProperty ---
  *     [non-empty value]             SreeEnv.setProperty(name, trimmedValue) and save() called
  *     [empty value]                 reads existing value from SreeEnv; stores it back
  *                                   (keeps current value rather than overwriting with empty string)
- *     [security.exposedefaultorgtoall] additionally fires assetRepository event
+ *     [all cases]                   PropertyChangeSideEffects.applyEditSideEffects delegated to
+ *                                   after save (side-effect behavior itself is covered by
+ *                                   PropertyChangeSideEffectsTest)
  */
 
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.security.SecurityEngine;
-import inetsoft.uql.asset.AssetRepository;
-import inetsoft.util.log.LogManager;
 import inetsoft.web.admin.security.PropertyModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -60,9 +65,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class PropertiesControllerTest {
 
-   @Mock private AssetRepository assetRepository;
-   @Mock private LogManager logManager;
-   @Mock private SecurityEngine securityEngine;
+   @Mock private PropertyChangeSideEffects sideEffects;
    @Mock private Principal principal;
 
    private PropertiesController controller;
@@ -71,7 +74,7 @@ class PropertiesControllerTest {
 
    @BeforeEach
    void setUp() {
-      controller = new PropertiesController(assetRepository, logManager, securityEngine);
+      controller = new PropertiesController(sideEffects);
 
       sreeEnvStatic = mockStatic(SreeEnv.class, withSettings().lenient());
       licenseManagerStatic = mockStatic(LicenseManager.class, withSettings().lenient());
@@ -143,23 +146,36 @@ class PropertiesControllerTest {
    // [normal property] delegates remove and save to SreeEnv
    @Test
    void deleteProperty_normalProperty_removesAndSaves() throws Exception {
-      sreeEnvStatic.when(() -> SreeEnv.getProperty("some.property")).thenReturn(null);
-
       controller.deleteProperty(principal, "some.property");
 
       sreeEnvStatic.verify(() -> SreeEnv.remove("some.property"));
       sreeEnvStatic.verify(SreeEnv::save);
    }
 
-   // [security.exposedefaultorgtoall] fires repository event after removal
+   // [any property] delegates the pre-removal side effect (e.g. log level cleanup) to
+   // PropertyChangeSideEffects before removal, and the post-removal side effect (e.g.
+   // expose-default-org event) after save
    @Test
-   void deleteProperty_exposeDefaultOrgProperty_firesRepositoryEvent() throws Exception {
-      sreeEnvStatic.when(() -> SreeEnv.getProperty("security.exposedefaultorgtoall"))
-         .thenReturn(null);
-
+   void deleteProperty_delegatesPreAndPostRemoveSideEffects() throws Exception {
       controller.deleteProperty(principal, "security.exposedefaultorgtoall");
 
-      verify(assetRepository).fireExposeDefaultOrgPropertyChange();
+      verify(sideEffects).applyPreRemoveSideEffects("security.exposedefaultorgtoall");
+      verify(sideEffects).applyPostRemoveSideEffects("security.exposedefaultorgtoall");
+   }
+
+   // [ordering] applyPreRemoveSideEffects must run BEFORE SreeEnv.remove() (it reads the
+   // property's pre-removal value); applyPostRemoveSideEffects must run AFTER SreeEnv.save()
+   // -- byte-identical to the pre-refactor PropertiesController ordering
+   @Test
+   void deleteProperty_ordersSideEffectsAroundRemoveAndSave() throws Exception {
+      controller.deleteProperty(principal, "security.exposedefaultorgtoall");
+
+      InOrder inOrder = inOrder(sideEffects, SreeEnv.class);
+      inOrder.verify(sideEffects).applyPreRemoveSideEffects("security.exposedefaultorgtoall");
+      inOrder.verify(sreeEnvStatic,
+         () -> SreeEnv.remove("security.exposedefaultorgtoall"));
+      inOrder.verify(sreeEnvStatic, SreeEnv::save);
+      inOrder.verify(sideEffects).applyPostRemoveSideEffects("security.exposedefaultorgtoall");
    }
 
    // -------------------------------------------------------------------------
@@ -178,6 +194,7 @@ class PropertiesControllerTest {
 
       sreeEnvStatic.verify(() -> SreeEnv.setProperty("my.setting", "hello world"));
       sreeEnvStatic.verify(SreeEnv::save);
+      verify(sideEffects).applyEditSideEffects("my.setting");
    }
 
    // [empty value] reads existing value from SreeEnv; stores it back unchanged
@@ -210,9 +227,10 @@ class PropertiesControllerTest {
       sreeEnvStatic.verify(() -> SreeEnv.setProperty("new.setting", ""));
    }
 
-   // [security.exposedefaultorgtoall] fires repository event after set
+   // [any property] delegates post-save side effects (e.g. expose-default-org event,
+   // format cache invalidation) to PropertyChangeSideEffects
    @Test
-   void editProperty_exposeDefaultOrgProperty_firesRepositoryEvent() throws Exception {
+   void editProperty_delegatesSideEffects() throws Exception {
       PropertyModel property = PropertyModel.builder()
          .name("security.exposedefaultorgtoall")
          .value("true")
@@ -220,6 +238,6 @@ class PropertiesControllerTest {
 
       controller.editProperty(principal, property);
 
-      verify(assetRepository).fireExposeDefaultOrgPropertyChange();
+      verify(sideEffects).applyEditSideEffects("security.exposedefaultorgtoall");
    }
 }
