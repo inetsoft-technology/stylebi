@@ -32,9 +32,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
-import java.awt.Dimension;
 import java.awt.Graphics2D;
-import java.awt.Point;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
@@ -51,11 +49,18 @@ import java.security.Principal;
  * itself uses for every on-screen assembly tile (via {@code GetImageController}) and that
  * {@code WizVisualizationService} already uses for the chart wizard's live preview/thumbnail.</p>
  *
- * <p>For types that path doesn't support (tables/crosstabs) and for whole-viewsheet snapshots,
- * falls back to the full {@code VSExportService} PNG export — the same "expensive fallback"
- * {@code WizVisualizationService.renderFallbackThumbnail} already uses for the identical
- * tables/crosstabs gap, here also reused directly for "the whole sheet" since there's no lighter
- * single call that composes multiple assemblies into one image.</p>
+ * <p>For types that path doesn't support (tables/crosstabs), falls back to rendering the whole
+ * viewsheet instead of trying to crop the single assembly out of a full-page export. An earlier
+ * version cropped to {@code assembly.getPixelOffset()}/{@code getPixelSize()} (mirroring
+ * {@code WizVisualizationService.renderFallbackThumbnail}), but live testing found that those
+ * values aren't guaranteed to agree with the exporter's own canvas-sizing/draw coordinates — the
+ * exporter's {@code Viewsheet.getPreferredBounds()} can prefer a stale {@code layoutPosition}/
+ * {@code layoutSize} left over from a Print Layout or device layout when sizing the canvas, while
+ * the paint step always uses the raw pixel box, so the two can silently disagree and produce a
+ * crop of the wrong region. Whole-viewsheet rendering doesn't compute any position of its own —
+ * it's just what the exporter actually painted — so it has no equivalent failure mode. (The same
+ * crop math is used by {@code WizVisualizationService.renderFallbackThumbnail}, which likely has
+ * the same latent bug; out of scope to fix here.)</p>
  */
 @Service
 public class ScriptImageService {
@@ -83,7 +88,12 @@ public class ScriptImageService {
       this.vsExportService = vsExportService;
    }
 
-   public record ChartImage(byte[] pngBytes, boolean isPng, int width, int height) {}
+   /**
+    * @param note non-null only when the requested assembly couldn't be rendered directly and this
+    *        is a whole-viewsheet image instead — the caller should surface this to the user so
+    *        they understand why the image shows more than just the assembly they asked for.
+    */
+   public record ChartImage(byte[] pngBytes, boolean isPng, int width, int height, String note) {}
 
    /**
     * @throws RenderNotReadyException if the graph hasn't finished computing after
@@ -139,17 +149,20 @@ public class ScriptImageService {
       }
 
       // A 1x1 image is StyleBI's placeholder for assembly types downloadAssemblyImage doesn't
-      // support directly (tables/crosstabs) — fall back to the same full-export-and-crop
-      // approach WizVisualizationService.renderFallbackThumbnail uses for the identical gap.
+      // support directly (tables/crosstabs) — fall back to rendering the whole viewsheet instead
+      // of guessing a crop rectangle (see class doc for why cropping isn't reliable here).
       if(result.isPng()) {
          BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(bytes));
 
          if(decoded == null || decoded.getWidth() <= 1 || decoded.getHeight() <= 1) {
-            return renderViaExportFallback(rvs, assembly, w, h, principal);
+            ChartImage whole = getViewsheetImage(rvs, width, height, principal);
+            return new ChartImage(whole.pngBytes(), whole.isPng(), whole.width(), whole.height(),
+               "\"" + assemblyName + "\" can't be rendered on its own — showing the whole " +
+               "viewsheet instead.");
          }
       }
 
-      return new ChartImage(bytes, result.isPng(), result.getWidth(), result.getHeight());
+      return new ChartImage(bytes, result.isPng(), result.getWidth(), result.getHeight(), null);
    }
 
    /**
@@ -171,51 +184,12 @@ public class ScriptImageService {
       BufferedImage scaled = scaleToFit(full, w, h);
       byte[] encoded = encodePng(scaled, "the viewsheet");
 
-      return new ChartImage(encoded, true, scaled.getWidth(), scaled.getHeight());
-   }
-
-   /**
-    * Full-viewsheet PNG export, cropped to {@code assembly}'s pixel bounds — mirrors
-    * {@code WizVisualizationService.renderFallbackThumbnail} exactly (same
-    * {@code exportViewsheet} call, same {@code getPixelOffset()}/{@code getPixelSize()}-based
-    * crop math), used here for assembly types {@link AssemblyImageService#downloadAssemblyImage}
-    * doesn't support directly (tables/crosstabs).
-    */
-   private ChartImage renderViaExportFallback(RuntimeViewsheet rvs, Assembly assembly,
-                                              int maxWidth, int maxHeight, Principal principal)
-      throws Exception
-   {
-      Point offset = assembly.getPixelOffset();
-      Dimension size = assembly.getPixelSize();
-
-      if(size == null || size.width <= 0 || size.height <= 0) {
-         throw new PairingException("\"" + assembly.getName() + "\" has no renderable size");
-      }
-
-      byte[] pngBytes = exportViewsheetToPng(rvs, principal);
-      BufferedImage full = decodePng(pngBytes, assembly.getName());
-
-      int cropX = Math.max(0, offset != null ? offset.x : 0);
-      int cropY = Math.max(0, offset != null ? offset.y : 0);
-      int cropW = Math.min(size.width, full.getWidth() - cropX);
-      int cropH = Math.min(size.height, full.getHeight() - cropY);
-
-      if(cropW <= 0 || cropH <= 0) {
-         throw new PairingException(
-            "\"" + assembly.getName() + "\" could not be cropped from the exported viewsheet");
-      }
-
-      BufferedImage cropped = full.getSubimage(cropX, cropY, cropW, cropH);
-      cropped = scaleToFit(cropped, maxWidth, maxHeight);
-      byte[] encoded = encodePng(cropped, assembly.getName());
-
-      return new ChartImage(encoded, true, cropped.getWidth(), cropped.getHeight());
+      return new ChartImage(encoded, true, scaled.getWidth(), scaled.getHeight(), null);
    }
 
    /**
     * The exact call {@code WizVisualizationService.renderFallbackThumbnail} uses to export the
-    * whole live viewsheet to an in-memory PNG: {@code match=true} for pixel-accurate geometry
-    * (required so crop coordinates from {@code getPixelOffset()}/{@code getPixelSize()} line up),
+    * whole live viewsheet to an in-memory PNG: {@code match=true} for pixel-accurate geometry,
     * {@code current=true} because with no bookmarks and {@code current=false} the exporter's
     * {@code write()} produces 0 bytes.
     */

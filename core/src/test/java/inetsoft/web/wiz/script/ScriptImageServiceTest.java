@@ -166,7 +166,7 @@ class ScriptImageServiceTest {
    }
 
    @Test
-   void fallsBackToExportAndCropWhenTheLightweightPathReturnsAPlaceholder() throws Exception {
+   void fallsBackToTheWholeViewsheetWhenTheLightweightPathReturnsAPlaceholder() throws Exception {
       RuntimeViewsheet rvs = viewsheetWithChart("Table1");
       ChartVSAssembly assembly =
          (ChartVSAssembly) rvs.getViewsheet().getAssembly("Table1");
@@ -187,6 +187,8 @@ class ScriptImageServiceTest {
       BinaryTransferService binaryTransferService = mock(BinaryTransferService.class);
       when(binaryTransferService.getData(transfer)).thenReturn(placeholder);
 
+      // Deliberately does NOT match the assembly's pixelOffset/pixelSize above — the fallback no
+      // longer crops, so the full export is returned (scaled to fit) regardless of assembly geometry.
       VSExportService exportService = mock(VSExportService.class);
       byte[] fullSheetPng = fakePng(400, 300);
       stubExport(exportService, fullSheetPng);
@@ -196,35 +198,35 @@ class ScriptImageServiceTest {
          rvs, "Table1", null, null, TestPrincipals.user("alice", "host-org"));
 
       assertTrue(img.isPng());
-      assertEquals(200, img.width());
-      assertEquals(100, img.height());
+      assertEquals(400, img.width());
+      assertEquals(300, img.height());
+      assertNotNull(img.note());
+      assertTrue(img.note().contains("Table1"));
    }
 
    @Test
-   void exportFallbackRejectsAnAssemblyWithNoSize() throws Exception {
-      RuntimeViewsheet rvs = viewsheetWithChart("Table1");
-      ChartVSAssembly assembly = (ChartVSAssembly) rvs.getViewsheet().getAssembly("Table1");
-      assembly.setPixelSize(new Dimension(0, 0));
-
-      byte[] placeholder = fakePng(1, 1);
+   void successfulRenderHasNoNote() throws Exception {
+      RuntimeViewsheet rvs = viewsheetWithChart("Chart1");
+      byte[] png = fakePng(800, 600);
       BinaryTransfer transfer = mock(BinaryTransfer.class);
       AssemblyImageService.ImageRenderResult result =
-         new AssemblyImageService.ImageRenderResult(true, transfer, 1, 1);
+         new AssemblyImageService.ImageRenderResult(true, transfer, 800, 600);
 
       AssemblyImageService imageService = mock(AssemblyImageService.class);
       when(imageService.processGetAssemblyImage(
-         eq(rvs), anyString(), anyDouble(), anyDouble(), anyDouble(), anyDouble(),
+         eq(rvs), anyString(), eq(800.0), eq(600.0), eq(800.0), eq(600.0),
          isNull(), eq(0), eq(0), eq(0), any(), eq(false), eq(true)))
          .thenReturn(result);
 
       BinaryTransferService binaryTransferService = mock(BinaryTransferService.class);
-      when(binaryTransferService.getData(transfer)).thenReturn(placeholder);
+      when(binaryTransferService.getData(transfer)).thenReturn(png);
 
       ScriptImageService svc = new ScriptImageService(
          imageService, binaryTransferService, mock(VSExportService.class));
+      ScriptImageService.ChartImage img = svc.getAssemblyImage(
+         rvs, "Chart1", null, null, TestPrincipals.user("alice", "host-org"));
 
-      assertThrows(PairingException.class, () -> svc.getAssemblyImage(
-         rvs, "Table1", null, null, TestPrincipals.user("alice", "host-org")));
+      assertNull(img.note());
    }
 
    @Test

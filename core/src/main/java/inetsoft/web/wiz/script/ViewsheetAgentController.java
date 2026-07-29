@@ -193,7 +193,11 @@ public class ViewsheetAgentController {
       return contextService.context(rvs);
    }
 
-   public record ChartImageResponse(String image, String format, int width, int height) {}
+   /**
+    * @param note non-null when a requested assembly couldn't be rendered on its own and this
+    *        image is the whole viewsheet instead — see {@link ScriptImageService.ChartImage}.
+    */
+   public record ChartImageResponse(String image, String format, int width, int height, String note) {}
 
    /**
     * Renders {@code target}'s current state to a PNG snapshot — lets the agent actually see the
@@ -233,7 +237,8 @@ public class ViewsheetAgentController {
       }
 
       String base64 = Base64.getEncoder().encodeToString(img.pngBytes());
-      return new ChartImageResponse(base64, img.isPng() ? "png" : "svg", img.width(), img.height());
+      return new ChartImageResponse(base64, img.isPng() ? "png" : "svg", img.width(), img.height(),
+                                    img.note());
    }
 
    /**
