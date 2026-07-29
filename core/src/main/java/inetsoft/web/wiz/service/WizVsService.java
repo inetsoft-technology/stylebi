@@ -1366,10 +1366,12 @@ public class WizVsService {
                }
             }
 
-            // Title crosstab/table assemblies with a binding-derived heading instead of StyleBI's
+            // Title crosstab assemblies with a binding-derived heading instead of StyleBI's
             // bland default "Table". The plugin recommender path (create_viewsheet) doesn't run the
             // interactive wizard's title logic (VSWizardBindingHandler), so derive it here on the
-            // finalized assembly — design headers if present, else the runtime headers.
+            // finalized assembly — design headers if present, else the runtime headers. Plain detail
+            // tables are left untitled: their columns already ARE the content shown in the header
+            // row, so joining every column name into one line is redundant, not helpful.
             if(assembly instanceof CrosstabVSAssembly ctAssembly
                && ctAssembly.getVSCrosstabInfo() != null)
             {
@@ -1383,18 +1385,6 @@ public class WizVsService {
                }
 
                applyGridTitle(ctAssembly, gridTitle);
-            }
-            else if(assembly instanceof TableVSAssembly tblAssembly
-               && tblAssembly.getColumnSelection() != null)
-            {
-               ColumnSelection sel = tblAssembly.getColumnSelection();
-               DataRef[] detailRefs = new DataRef[sel.getAttributeCount()];
-
-               for(int i = 0; i < sel.getAttributeCount(); i++) {
-                  detailRefs[i] = sel.getAttribute(i);
-               }
-
-               applyGridTitle(tblAssembly, buildGridTitle(null, null, detailRefs));
             }
             else if(assembly instanceof ChartVSAssembly titleChart
                && titleChart.getVSChartInfo() != null)
@@ -3393,15 +3383,6 @@ public class WizVsService {
          }
 
          table.setColumnSelection(columns);
-
-         // A detail table's columns ARE its content, so title it with them rather than "Table".
-         DataRef[] details = new DataRef[columns.getAttributeCount()];
-
-         for(int i = 0; i < columns.getAttributeCount(); i++) {
-            details[i] = columns.getAttribute(i);
-         }
-
-         applyGridTitle(table, buildGridTitle(null, null, details));
       }
 
       return table;
@@ -3409,10 +3390,10 @@ public class WizVsService {
 
    /**
     * Build a human-readable title like "Sum(amount) by sales_stage, name" from a grid binding's
-    * measures + dimensions, so a crosstab/table reads like a real visualization instead of showing
-    * StyleBI's bland default "Table". The plugin create path (unlike the interactive wizard's
-    * VSWizardBindingHandler) does not otherwise title these assemblies. Returns null when there's
-    * nothing to build from (caller then leaves the default).
+    * measures + dimensions, so a crosstab/chart reads like a real visualization instead of showing
+    * StyleBI's bland default "Table"/"Chart". The plugin create path (unlike the interactive
+    * wizard's VSWizardBindingHandler) does not otherwise title these assemblies. Returns null when
+    * there's nothing to build from (caller then leaves the default).
     */
    private static String buildGridTitle(DataRef[] measures, DataRef[] cols, DataRef[] rows) {
       StringBuilder meas = new StringBuilder();
