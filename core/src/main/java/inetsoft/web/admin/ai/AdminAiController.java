@@ -39,7 +39,7 @@ public class AdminAiController {
       resourceType = ResourceType.EM_COMPONENT,
       resource = "settings/properties",
       actions = ResourceAction.ACCESS))
-   @PostMapping("/api/admin/ai/change")
+   @PostMapping("/api/wiz/v1/admin/change")
    public AdminChangeResult change(@RequestBody AdminChangeRequest req, Principal user) {
       requireSiteAdmin(user);
       return changeService.applyChange(req, user);
@@ -49,7 +49,7 @@ public class AdminAiController {
       resourceType = ResourceType.EM_COMPONENT,
       resource = "settings/properties",
       actions = ResourceAction.ACCESS))
-   @PostMapping("/api/admin/ai/backup")
+   @PostMapping("/api/wiz/v1/admin/backup")
    public Map<String, String> backup(@RequestBody Map<String, String> body, Principal user)
       throws Exception
    {
@@ -61,7 +61,7 @@ public class AdminAiController {
       resourceType = ResourceType.EM_COMPONENT,
       resource = "settings/properties",
       actions = ResourceAction.ACCESS))
-   @PostMapping("/api/admin/ai/restore")
+   @PostMapping("/api/wiz/v1/admin/restore")
    public Map<String, String> restore(@RequestBody Map<String, String> body, Principal user)
       throws Exception
    {
@@ -72,12 +72,16 @@ public class AdminAiController {
 
    /**
     * Per product decision, every admin-chat endpoint is restricted to callers holding the Site
-    * Administrator (system administrator) role, not merely EM_COMPONENT access.
+    * Administrator (system administrator) role, not merely EM_COMPONENT access. Also requires the
+    * request to carry a bearer token — see {@link AdminAiCallerGuard} for why the Site-Administrator
+    * check alone is not sufficient on the CSRF-exempt {@code /api/wiz/**} prefix.
     * {@link OrganizationManager#isSiteAdmin(Principal)} returns {@code true} for the default
     * admin principal in no-security deployments, so this guard does not lock out dev/single-user
     * setups and does not need an additional {@code isSecurityEnabled()} check.
     */
    private void requireSiteAdmin(Principal user) {
+      AdminAiCallerGuard.requireBearerAuthenticatedRequest();
+
       if(!OrganizationManager.getInstance().isSiteAdmin(user)) {
          throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Site Administrator role required");
       }
