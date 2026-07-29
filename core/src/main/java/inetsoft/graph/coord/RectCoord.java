@@ -327,9 +327,13 @@ public class RectCoord extends Coordinate {
             yaxis2.setTickVisible(false);
          }
 
-         if((style & AxisSpec.AXIS_SINGLE2) == 0 ||
-            (facet != null && !yaxis2.isLabelVisible()))
-         {
+         // a separate secondary scale is an axis in its own right, so it's shown regardless
+         // of the primary axis style; visibility comes from its own spec.
+         boolean y2vis = yscale2 != null
+            ? yscale2.getAxisSpec().getAxisStyle() != AxisSpec.AXIS_NONE
+            : (style & AxisSpec.AXIS_SINGLE2) != 0;
+
+         if(!y2vis || (facet != null && !yaxis2.isLabelVisible())) {
             yaxis2.setZIndex(-1);
          }
 
